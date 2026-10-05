@@ -43,7 +43,6 @@ DISCORD_TOKEN=<bot_token_from_step_1>
 OWNER_DISCORD_ID=<your_user_id_from_step_4>
 CLAUDE_CODE_OAUTH_TOKEN=<from_claude_setup_token>
 AGENT_HOME=/absolute/path/to/agent-home
-DEFAULT_REPO_PATH=/absolute/path/to/repo
 LOG_LEVEL=info
 # Optional:
 # MAX_CONCURRENT_RUNS=3

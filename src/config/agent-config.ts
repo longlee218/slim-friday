@@ -27,7 +27,6 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: secret,
   LLM_PROVIDER: z.enum(["anthropic", "openrouter"]).optional(),
   AGENT_HOME: z.string().min(1),
-  DEFAULT_REPO_PATH: z.string().min(1),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
   DISCORD_TOKEN: secret,
   OWNER_DISCORD_ID: z.string().min(1).optional(),
@@ -53,7 +52,6 @@ export interface AgentConfig {
   discordToken: string | undefined;
   ownerDiscordId: string | undefined;
   agentHome: string;
-  defaultRepoPath: string;
   logLevel: string;
   model: string;
   /**
@@ -101,7 +99,6 @@ export function loadConfig(
     discordToken: e.DISCORD_TOKEN,
     ownerDiscordId: e.OWNER_DISCORD_ID,
     agentHome: e.AGENT_HOME,
-    defaultRepoPath: e.DEFAULT_REPO_PATH,
     logLevel: e.LOG_LEVEL,
     model: e.MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL),
     limits: {

@@ -14,7 +14,6 @@ async function runIndex(discord: Record<string, string>): Promise<{ code: number
       PATH: process.env.PATH!,
       HOME: process.env.HOME!,
       AGENT_HOME: home,
-      DEFAULT_REPO_PATH: home,
       ...discord,
     },
     stdout: "pipe",

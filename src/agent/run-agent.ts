@@ -27,6 +27,10 @@ export interface RunAgentInput {
   taskId: string;
   /** Repo directory the agent runs in. */
   cwd: string;
+  /** Extra repo directories the agent may read (multi-repo registry). */
+  additionalDirectories?: string[];
+  /** Extra prompt context appended after the repo summary (e.g. registry block). */
+  extraContext?: string;
   /** Existing Claude session id to resume. */
   resume?: string;
   config: AgentConfig;
@@ -100,6 +104,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   try {
     const options: Options = {
       cwd: input.cwd,
+      ...(input.additionalDirectories?.length && {
+        additionalDirectories: input.additionalDirectories,
+      }),
       model: config.model,
       resume: input.resume,
       ...readOnlyToolOptions(),
@@ -108,7 +115,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
       abortController: ac,
       settingSources: ["project"],
-      systemPrompt: buildSystemPrompt(await buildRepoContext(input.cwd)),
+      systemPrompt: buildSystemPrompt(
+        [await buildRepoContext(input.cwd), input.extraContext].filter(Boolean).join("\n\n"),
+      ),
       hooks: buildToolHooks(recorder),
       env: sdkEnv(config),
     };

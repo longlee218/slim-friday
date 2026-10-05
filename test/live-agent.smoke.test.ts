@@ -24,7 +24,7 @@ describe.skipIf(!live)("live agent smoke (Haiku)", () => {
     const repo = join(env.home, "repo");
     mkdirSync(repo, { recursive: true });
     writeFileSync(join(repo, "a.txt"), "the secret word is alpha\n");
-    const cfg = { ...env.config, defaultRepoPath: repo };
+    const cfg = env.config;
 
     const tools: string[][] = [];
     const { query } = await import("@anthropic-ai/claude-agent-sdk");

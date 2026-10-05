@@ -6,20 +6,34 @@ Friday is a Discord-driven personal coding agent on Claude Agent SDK. Owner post
 ## Message Flow
 ```
 Discord channel
-  └─ @bot <question>
+  └─ @bot <question> [optional: repo:<name> prefix]
      └─ create thread
+        ├─ repo-registry (load & pin thread if prefix)
+        │  └─ sessions.repo = repo name or "*" (unpinned)
         ├─ handle-task (look up or create session)
+        │  ├─ refresh-repo (git fetch + ff-only, throttled 10 min/repo)
         │  └─ run-agent (Agent SDK query loop, read-only tools)
-        │     ├─ system-prompt (always-on rules)
+        │     ├─ system-prompt (always-on rules + registry block)
         │     ├─ context (inject repo info, git status)
+        │     │  └─ cwd = pinned repo or first registry repo
+        │     │  └─ additionalDirectories = all other registry repos
         │     ├─ tool-hooks (Pre/PostToolUse for timing + recording)
         │     └─ storage/db (insert runs, tool_calls, raw JSONL)
         └─ reply to thread (redacted, truncated, chunked)
 
 Discord thread (reply without mention)
-  └─ continue same session (thread.id maps to sessionId in DB)
-     └─ answer with file:line
+  └─ continue same session (thread.id → sessionId → sessions.repo)
+     └─ if repo changed mid-session: fresh session (no implicit cwd swap)
+        └─ answer with file:line
 ```
+
+**Registry Flow:**
+1. App startup: load repos.yaml (AGENT_HOME/repos.yaml)
+2. Validate each entry: {name, path, description} → skip invalid (no git, path missing, dup name, whitespace)
+3. No valid entries: reply "No repos registered" (DEFAULT_REPO_PATH env removed)
+4. Thread message with `repo:<name>` prefix → parse + pin (store sessions.repo)
+5. Agent runs with registry summary in prompt + additionalDirectories for read access
+6. Repo change detected → discard session, start fresh
 
 ## Component Overview
 
@@ -59,7 +73,7 @@ $AGENT_HOME/
 │   └── tasks/
 │       └── <taskId>.jsonl   # one JSONL per task
 ├── repos/
-│   └── <repo-name>/         # clone of DEFAULT_REPO_PATH
+│   └── <repo-name>/         # clone listed in repos.yaml
 └── tasks/
     └── <taskId>/            # task scratch dir (phase 04)
 ```
@@ -109,7 +123,6 @@ $AGENT_HOME/
 | DISCORD_TOKEN | yes | string | from Developer Portal |
 | OWNER_DISCORD_ID | yes | string | your Discord user ID |
 | AGENT_HOME | yes | path | absolute, e.g. ~/.friday |
-| DEFAULT_REPO_PATH | yes | path | absolute, repo to clone for Q&A |
 | LOG_LEVEL | no | string | default: info |
 | MODEL | no | string | overrides on either provider; default: anthropic `claude-haiku-4-5-20251001`, openrouter `deepseek/deepseek-v4-flash` |
 | MAX_TURNS | no | number | default: 20 |

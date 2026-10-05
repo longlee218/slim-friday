@@ -5,6 +5,13 @@ import { isStop } from "../ingress/discord-message-rules";
 import type { Task } from "../ingress/task-types";
 import { logger } from "../observability/logger";
 import { redactText } from "../observability/redact";
+import { isManagedClone, refreshRepo } from "../repos/refresh-repo";
+import {
+  buildRegistryContext,
+  loadRepoRegistry,
+  parseRepoPin,
+  registryFile,
+} from "../repos/repo-registry";
 import { cancelRunningTasks, finishTask, insertTask, type TaskStatus } from "../storage/run-store";
 import { deleteSession, getSession, setSession } from "../storage/session-store";
 import type { RunLimiter } from "./run-limiter";
@@ -73,14 +80,47 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     // Everything after the lock is taken lives in try so `finally` always releases it.
     try {
       const existing = getSession(deps.db, threadId);
-      const cwd = existing?.cwd ?? deps.config.defaultRepoPath;
-      insertTask(deps.db, { id: taskId, threadId, source: task.source, repo: cwd, type: "qa" });
+      // Registry is re-read per task so repos.yaml edits apply without a restart.
+      const repos = loadRepoRegistry(deps.config.agentHome);
+      if (repos.length === 0) {
+        return `No repos registered. Add repos to ${registryFile(deps.config.agentHome)}.`;
+      }
+      const pin = parseRepoPin(task.text);
+      const pinned = pin.name
+        ? repos.find((r) => r.name.toLowerCase() === pin.name!.toLowerCase())
+        : repos.find((r) => r.name === existing?.repo); // thread stays on its pinned repo
+      if (pin.name && !pinned) {
+        return `Unknown repo "${pin.name}". Available: ${repos.map((r) => r.name).join(", ")}`;
+      }
+      if (pin.name && !pin.text) return `Send your question after "repo:${pinned!.name}".`;
+      // Unpinned: run in the first repo and expose the others as additional directories.
+      const storedCwd = repos.some((r) => r.path === existing?.cwd) ? existing!.cwd : undefined;
+      const cwd = pinned?.path ?? storedCwd ?? repos[0]!.path;
+      // Claude sessions are keyed by cwd: never resume across a cwd change (re-pin, repo removed).
+      const resume = existing && existing.cwd === cwd ? existing.session_id : undefined;
+      const additionalDirectories = pinned ? [] : repos.map((r) => r.path).filter((p) => p !== cwd);
+      const repoLabel = pinned?.name ?? "*";
+      // Only clones under AGENT_HOME/repos are refreshed; never touch a developer's working copy.
+      await Promise.all(
+        (pinned ? [pinned] : repos)
+          .filter((r) => isManagedClone(r.path, deps.config.agentHome))
+          .map((r) => refreshRepo(r.path)),
+      );
+      insertTask(deps.db, {
+        id: taskId,
+        threadId,
+        source: task.source,
+        repo: repoLabel,
+        type: "qa",
+      });
       taskInserted = true;
       const res = await runAgent({
-        prompt: task.text,
+        prompt: pin.name ? pin.text : task.text,
         taskId,
         cwd,
-        resume: existing?.session_id,
+        additionalDirectories,
+        extraContext: pinned ? "" : buildRegistryContext(repos),
+        resume,
         config: deps.config,
         db: deps.db,
         abortController: ac,
@@ -88,7 +128,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       });
       // Only outcomes that produced a result message have a persisted transcript worth resuming.
       if (res.sessionId && SAVE_SESSION_OUTCOMES.has(res.outcome)) {
-        setSession(deps.db, { threadId, sessionId: res.sessionId, repo: cwd, cwd });
+        setSession(deps.db, { threadId, sessionId: res.sessionId, repo: repoLabel, cwd });
       }
       finishTask(deps.db, taskId, TASK_STATUS[res.outcome] ?? "failed");
       tlog.info({ outcome: res.outcome }, "task finished");

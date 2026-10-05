@@ -119,7 +119,7 @@ bun test --timeout 10000           # per-test timeout (ms)
 
 ## Environment Variables
 All config loaded via zod schema in `src/config/agent-config.ts`:
-- Required: CLAUDE_CODE_OAUTH_TOKEN, DISCORD_TOKEN, OWNER_DISCORD_ID, AGENT_HOME, DEFAULT_REPO_PATH
+- Required: CLAUDE_CODE_OAUTH_TOKEN, DISCORD_TOKEN, OWNER_DISCORD_ID, AGENT_HOME (repos are listed in AGENT_HOME/repos.yaml)
 - Optional: LOG_LEVEL, MODEL, MAX_TURNS, MAX_BUDGET_USD, TIMEOUT_MS, MAX_CONCURRENT_RUNS
 - Never commit .env (use .env.example with REPLACE_ME)
 - Read-only .env.example verified against actual env vars used in code

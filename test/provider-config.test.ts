@@ -10,7 +10,7 @@ import { fakeQuery, makeEnv, resultMsg } from "./helpers";
 // FAKE keys, concatenated so no real-looking literal sits in the source.
 const OR_KEY = `sk-or-${"v1-"}${"a1b2c3d4".repeat(8)}`;
 const OAUTH = `sk-ant-${"oat01-"}fakeoauthtokenvalue1234`;
-const base = { AGENT_HOME: "/h", DEFAULT_REPO_PATH: "/r" };
+const base = { AGENT_HOME: "/h" };
 /** Load config from a minimal valid env plus overrides. */
 const cfg = (extra: Record<string, string> = {}) => loadConfig({ ...base, ...extra });
 

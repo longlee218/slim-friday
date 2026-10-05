@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
@@ -11,12 +11,15 @@ export function makeEnv(extra: Record<string, string> = {}) {
   const home = mkdtempSync(join(tmpdir(), "friday-test-"));
   const config = loadConfig({
     AGENT_HOME: home,
-    DEFAULT_REPO_PATH: home,
     TIMEOUT_MS: "5000",
     ...extra,
   });
+  // One registered repo by default (handler needs at least one); tests may overwrite repos.yaml.
+  const repo = join(home, "repo");
+  mkdirSync(join(repo, ".git"), { recursive: true });
+  writeFileSync(join(home, "repos.yaml"), `- {name: repo, path: ${repo}}\n`);
   const db = openDb(workspacePaths(home).dbFile);
-  return { home, config, db, paths: workspacePaths(home) };
+  return { home, repo, config, db, paths: workspacePaths(home) };
 }
 
 /** Real `result` message shape captured by spike q06/q08b (keys trimmed to what exists live). */
