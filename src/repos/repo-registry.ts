@@ -69,8 +69,8 @@ export function parseRepoPin(text: string): { name?: string; text: string } {
 }
 
 /** Prompt block listing the registered repos (only useful with 2+ repos). */
-export function buildRegistryContext(repos: Repo[]): string {
-  if (repos.length < 2) return "";
+export function buildRegistryContext(repos: Repo[], force = false): string {
+  if (repos.length < 2 && !force) return "";
   const lines = repos.map(
     (r) => `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}`,
   );

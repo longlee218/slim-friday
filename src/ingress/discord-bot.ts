@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits } from "discord.js";
+import { Client, Events, GatewayIntentBits, type Interaction } from "discord.js";
 import type { AgentConfig } from "../config/agent-config";
 import { logger } from "../observability/logger";
 import { redactText } from "../observability/redact";
@@ -16,7 +16,11 @@ export const CLIENT_OPTIONS = {
 };
 
 /** Build the Discord bot (not connected until `login`). */
-export function createDiscordBot(config: AgentConfig, handleTask: HandleTask) {
+export function createDiscordBot(
+  config: AgentConfig,
+  handleTask: HandleTask,
+  handleInteraction?: (i: Interaction) => Promise<void>,
+) {
   const log = logger.child({ module: "discord-bot" });
   const client = new Client(CLIENT_OPTIONS);
   const onMessage = createMessageHandler({
@@ -28,6 +32,8 @@ export function createDiscordBot(config: AgentConfig, handleTask: HandleTask) {
   client.on(Events.MessageCreate, (msg) => {
     void onMessage(msg);
   });
+  // Button clicks (approvals); the handler never throws, void keeps the listener sync.
+  if (handleInteraction) client.on(Events.InteractionCreate, (i) => void handleInteraction(i));
   client.on(Events.ClientReady, (c) => log.info({ bot: c.user.tag }, "discord ready"));
   client.on(Events.Error, (err) =>
     log.error({ err: redactText(String(err)) }, "discord client error"),

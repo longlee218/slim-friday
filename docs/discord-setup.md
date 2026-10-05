@@ -46,7 +46,12 @@ AGENT_HOME=/absolute/path/to/agent-home
 LOG_LEVEL=info
 # Optional:
 # MAX_CONCURRENT_RUNS=3
+# CODE_MODEL=claude-haiku-4-5-20251001  # for code tasks (phase 3+)
+# OPENROUTER_API_KEY=<key>              # to use OpenRouter instead of Anthropic
+# LLM_PROVIDER=openrouter               # force OpenRouter (if both credentials set)
 ```
+
+**Note (Phase 3+):** For code task approvals to work, ensure CODE_MODEL is set to a model that supports ExitPlanMode (e.g., Claude models). DeepSeek v4 does not support plan mode approval flow.
 
 **Important:** Never commit .env with real values. .env.example has placeholders only.
 
@@ -108,7 +113,27 @@ Expected:
 - Current run aborts
 - Session ends cleanly
 
-### Test 6: Concurrent Limit
+### Test 6: Code Task Approval (Phase 3+)
+Post a code task request:
+```
+task: add a greeting function to src/hello.ts
+```
+Expected:
+- Bot enters plan mode and proposes a plan
+- Owner gets a Discord message with Approve/Deny buttons (owner-only, redacted summary)
+- Approve → bot creates/modifies file; Deny → bot revises plan
+- If file is created, appears in AGENT_HOME/tasks/<taskId>/scratch/
+
+**Guardrails Test:** Try dangerous commands in a code task:
+```
+task: run rm -rf src/
+```
+Expected:
+- Bot hard-denies the request immediately (PreToolUse hook)
+- Reply: "Command denied: cannot remove directories"
+- No approval button shown
+
+### Test 7: Concurrent Limit
 Post a long question, then immediately post another in a different thread:
 Expected:
 - If MAX_CONCURRENT_RUNS = 3 and 3 are already running

@@ -1,5 +1,10 @@
 import type { Database } from "bun:sqlite";
-import { type Options, type SDKMessage, query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
+import {
+  type HookCallbackMatcher,
+  type Options,
+  type SDKMessage,
+  query as sdkQuery,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
 import { logger } from "../observability/logger";
 import {
@@ -10,8 +15,9 @@ import {
 } from "../observability/record-run";
 import { redactText } from "../observability/redact";
 import { buildToolHooks } from "../observability/tool-hooks";
-import { readOnlyToolOptions } from "../tools/tool-config";
+import { codeTaskToolOptions, readOnlyToolOptions } from "../tools/tool-config";
 import { workspacePaths } from "../workspace/workspace-paths";
+import { buildCodeTaskPermissions, type CodeTaskPermissionInput } from "./code-task-permissions";
 import { buildRepoContext } from "./context";
 import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
@@ -31,6 +37,8 @@ export interface RunAgentInput {
   additionalDirectories?: string[];
   /** Extra prompt context appended after the repo summary (e.g. registry block). */
   extraContext?: string;
+  /** Code task: plan mode + write tools behind guardrails and owner approval. Omitted = read-only Q&A. */
+  code?: Omit<CodeTaskPermissionInput, "taskId">;
   /** Existing Claude session id to resume. */
   resume?: string;
   config: AgentConfig;
@@ -54,6 +62,9 @@ export interface RunAgentResult {
   usage: RunUsage;
 }
 
+/** Code tasks include owner approval waits (10 min each), so their run timeout is at least this. */
+const CODE_TASK_TIMEOUT_MS = 30 * 60 * 1000;
+
 /** Map SDK result subtype to our outcome. */
 function outcomeFromSubtype(subtype: string): RunOutcome {
   if (subtype === "success") return "success";
@@ -65,9 +76,20 @@ function outcomeFromSubtype(subtype: string): RunOutcome {
 /** Outcome for a run that ended by abort: timeout if our timer fired, else user stop. */
 const abortOutcome = (timedOut: boolean): RunOutcome => (timedOut ? "timeout" : "aborted");
 
-/** Run the agent once (read-only Q&A), recording messages, tool calls and the run row. */
+/** Put the guardrail PreToolUse matchers before the recording hooks (deny must win early). */
+function mergeHooks(
+  rec: ReturnType<typeof buildToolHooks>,
+  guard: HookCallbackMatcher[] | undefined,
+): ReturnType<typeof buildToolHooks> {
+  if (!guard) return rec;
+  return { ...rec, PreToolUse: [...guard, ...(rec.PreToolUse ?? [])] };
+}
+
+/** Run the agent once (read-only Q&A, or a code task when `code` is set), recording messages, tool calls and the run row. */
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
-  const { config, abortController: ac } = input;
+  const { abortController: ac } = input;
+  // Code tasks use the code model (plan mode needs a stronger one than cheap Q&A).
+  const config = input.code ? { ...input.config, model: input.config.codeModel } : input.config;
   const log = logger.child({ module: "run-agent", taskId: input.taskId });
   // OpenRouter without a real key would only retry on 401 until timeout: fail fast instead.
   if (config.provider === "openrouter" && !config.hasRealAuth) {
@@ -90,16 +112,24 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
   // Timeout is mandatory: an invalid auth token otherwise retries forever.
   let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    ac.abort();
-  }, config.limits.timeoutMs);
+  const timer = setTimeout(
+    () => {
+      timedOut = true;
+      ac.abort();
+    },
+    input.code ? Math.max(config.limits.timeoutMs, CODE_TASK_TIMEOUT_MS) : config.limits.timeoutMs,
+  );
 
   let text = "";
   let sessionId: string | undefined;
   let outcome: RunOutcome = "error";
   let usage = emptyUsage();
   let compactions = 0;
+
+  // Permission layer exists only for code tasks.
+  const codeTools = input.code
+    ? buildCodeTaskPermissions({ ...input.code, taskId: input.taskId })
+    : undefined;
 
   try {
     const options: Options = {
@@ -109,7 +139,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       }),
       model: config.model,
       resume: input.resume,
-      ...readOnlyToolOptions(),
+      ...(input.code ? codeTaskToolOptions() : readOnlyToolOptions()),
+      ...(input.code && { permissionMode: "plan" as const, canUseTool: codeTools!.canUseTool }),
       maxTurns: config.limits.maxTurns,
       // Omitted (undefined) on openrouter unless MAX_BUDGET_USD is set: SDK cost uses Anthropic prices.
       ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
@@ -117,8 +148,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       settingSources: ["project"],
       systemPrompt: buildSystemPrompt(
         [await buildRepoContext(input.cwd), input.extraContext].filter(Boolean).join("\n\n"),
+        input.code ? "code" : "qa",
       ),
-      hooks: buildToolHooks(recorder),
+      hooks: mergeHooks(buildToolHooks(recorder), codeTools?.hooks),
       env: sdkEnv(config),
     };
     try {

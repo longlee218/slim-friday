@@ -9,6 +9,12 @@ export const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 /** Default model on the OpenRouter path. Overridable via MODEL env. */
 export const DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash";
 
+/**
+ * Default model for code tasks on OpenRouter. Plan mode needs a model that reliably calls
+ * ExitPlanMode; deepseek-v4-flash does not (live test), a Claude model does.
+ */
+export const DEFAULT_OPENROUTER_CODE_MODEL = "anthropic/claude-haiku-4.5";
+
 /** Default per-run budget (USD) on the Anthropic path; OpenRouter has none unless MAX_BUDGET_USD is set. */
 const DEFAULT_ANTHROPIC_BUDGET_USD = 0.5;
 
@@ -31,6 +37,7 @@ const envSchema = z.object({
   DISCORD_TOKEN: secret,
   OWNER_DISCORD_ID: z.string().min(1).optional(),
   MODEL: z.string().trim().min(1).optional(),
+  CODE_MODEL: z.string().trim().min(1).optional(),
   MAX_TURNS: z.coerce.number().int().positive().default(20),
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
@@ -54,6 +61,8 @@ export interface AgentConfig {
   agentHome: string;
   logLevel: string;
   model: string;
+  /** Model for `task:` code tasks (plan mode + tools). Defaults to `model` on Anthropic. */
+  codeModel: string;
   /**
    * Run limits applied to every agent run. maxBudgetUsd is undefined (no cap) on openrouter unless
    * MAX_BUDGET_USD is set: the SDK prices cost from Anthropic tables, wrong for other models.
@@ -101,6 +110,8 @@ export function loadConfig(
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
     model: e.MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL),
+    codeModel:
+      e.CODE_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_CODE_MODEL : (e.MODEL ?? DEFAULT_MODEL)),
     limits: {
       maxTurns: e.MAX_TURNS,
       maxBudgetUsd: e.MAX_BUDGET_USD ?? (isOpenrouter ? undefined : DEFAULT_ANTHROPIC_BUDGET_USD),

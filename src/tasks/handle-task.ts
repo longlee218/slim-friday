@@ -1,6 +1,11 @@
 import type { Database } from "bun:sqlite";
+import { mkdirSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { type QueryFn, runAgent } from "../agent/run-agent";
+import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
+import type { GuardrailContext } from "../guardrails/check-tool-call";
 import { isStop } from "../ingress/discord-message-rules";
 import type { Task } from "../ingress/task-types";
 import { logger } from "../observability/logger";
@@ -14,7 +19,9 @@ import {
 } from "../repos/repo-registry";
 import { cancelRunningTasks, finishTask, insertTask, type TaskStatus } from "../storage/run-store";
 import { deleteSession, getSession, setSession } from "../storage/session-store";
+import { workspacePaths } from "../workspace/workspace-paths";
 import type { RunLimiter } from "./run-limiter";
+import { parseTaskPrefix } from "./task-prefix";
 
 /** Dependencies of the task handler. */
 export interface TaskHandlerDeps {
@@ -24,6 +31,8 @@ export interface TaskHandlerDeps {
   queryFn?: QueryFn;
   /** Optional global concurrency cap; when full the task is rejected with a busy reply. */
   limiter?: RunLimiter;
+  /** Owner approval gateway; required for `task:` code tasks. */
+  approvals?: ApprovalGateway;
 }
 
 /** Map run outcome to the user-facing reply when there is no answer text. */
@@ -85,7 +94,11 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       if (repos.length === 0) {
         return `No repos registered. Add repos to ${registryFile(deps.config.agentHome)}.`;
       }
-      const pin = parseRepoPin(task.text);
+      // `task:` = code task (plan mode, writes only in the task scratch dir, behind approvals).
+      const prefix = parseTaskPrefix(task.text);
+      if (prefix.code && !deps.approvals) return "Code tasks need the Discord approval flow.";
+      if (prefix.code && !prefix.text.trim()) return "Send the task after `task:`.";
+      const pin = parseRepoPin(prefix.text);
       const pinned = pin.name
         ? repos.find((r) => r.name.toLowerCase() === pin.name!.toLowerCase())
         : repos.find((r) => r.name === existing?.repo); // thread stays on its pinned repo
@@ -97,8 +110,34 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       const storedCwd = repos.some((r) => r.path === existing?.cwd) ? existing!.cwd : undefined;
       const cwd = pinned?.path ?? storedCwd ?? repos[0]!.path;
       // Claude sessions are keyed by cwd: never resume across a cwd change (re-pin, repo removed).
-      const resume = existing && existing.cwd === cwd ? existing.session_id : undefined;
-      const additionalDirectories = pinned ? [] : repos.map((r) => r.path).filter((p) => p !== cwd);
+      const resume =
+        !prefix.code && existing && existing.cwd === cwd ? existing.session_id : undefined;
+      let additionalDirectories = pinned ? [] : repos.map((r) => r.path).filter((p) => p !== cwd);
+      // Code task: cwd is the task scratch dir (the only writable place); repos are read-only references.
+      let code: { threadId: string; guard: GuardrailContext; gateway: ApprovalGateway } | undefined;
+      let runCwd = cwd;
+      if (prefix.code) {
+        const scratch = workspacePaths(deps.config.agentHome).task(taskId).scratch;
+        mkdirSync(scratch, { recursive: true, mode: 0o700 });
+        runCwd = realpathSync(scratch);
+        additionalDirectories = (pinned ? [pinned] : repos).map((r) => r.path);
+        // Plan mode makes the SDK write its plan to <config dir>/plans/*.md; allow only that folder.
+        const plansDir = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "plans");
+        mkdirSync(plansDir, { recursive: true });
+        code = {
+          threadId,
+          guard: {
+            allowedPaths: [runCwd, realpathSync(plansDir)],
+            // Reads: scratch, the SDK plans dir and the registered repos only.
+            allowedReadPaths: [
+              runCwd,
+              realpathSync(plansDir),
+              ...additionalDirectories.map((d) => realpathSync(d)),
+            ],
+          },
+          gateway: deps.approvals!,
+        };
+      }
       const repoLabel = pinned?.name ?? "*";
       // Only clones under AGENT_HOME/repos are refreshed; never touch a developer's working copy.
       await Promise.all(
@@ -111,15 +150,20 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
         threadId,
         source: task.source,
         repo: repoLabel,
-        type: "qa",
+        type: prefix.code ? "code" : "qa",
       });
       taskInserted = true;
       const res = await runAgent({
-        prompt: pin.name ? pin.text : task.text,
+        prompt: pin.name ? pin.text : prefix.text,
         taskId,
-        cwd,
+        cwd: runCwd,
+        code,
         additionalDirectories,
-        extraContext: pinned ? "" : buildRegistryContext(repos),
+        extraContext: prefix.code
+          ? buildRegistryContext(pinned ? [pinned] : repos, true)
+          : pinned
+            ? ""
+            : buildRegistryContext(repos),
         resume,
         config: deps.config,
         db: deps.db,
@@ -127,7 +171,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
         queryFn: deps.queryFn,
       });
       // Only outcomes that produced a result message have a persisted transcript worth resuming.
-      if (res.sessionId && SAVE_SESSION_OUTCOMES.has(res.outcome)) {
+      if (!prefix.code && res.sessionId && SAVE_SESSION_OUTCOMES.has(res.outcome)) {
         setSession(deps.db, { threadId, sessionId: res.sessionId, repo: repoLabel, cwd });
       }
       finishTask(deps.db, taskId, TASK_STATUS[res.outcome] ?? "failed");

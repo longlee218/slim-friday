@@ -45,6 +45,15 @@ CREATE TABLE IF NOT EXISTS tool_calls (
   is_error INTEGER NOT NULL DEFAULT 0,
   duration_ms INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS approvals (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  tool TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  decision TEXT NOT NULL,
+  requested_at INTEGER NOT NULL,
+  decided_at INTEGER
+);
 CREATE INDEX IF NOT EXISTS idx_tasks_thread ON tasks(thread_id);
 CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_run ON tool_calls(run_id);

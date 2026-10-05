@@ -53,3 +53,23 @@ export function readOnlyToolOptions() {
     strictMcpConfig: true,
   };
 }
+
+/** Tools of a code task (plan mode first). Writes/Bash still pass guardrails + owner approval. */
+export const CODE_TASK_TOOLS = [
+  ...READ_ONLY_TOOLS,
+  "Edit",
+  "Write",
+  "Bash",
+  "ExitPlanMode",
+  "AskUserQuestion",
+] as const;
+
+/** SDK options fragment for code tasks. Never `allowedTools`: it would bypass canUseTool. */
+export function codeTaskToolOptions() {
+  const open = new Set<string>(CODE_TASK_TOOLS);
+  return {
+    tools: [...CODE_TASK_TOOLS],
+    disallowedTools: [...DISALLOWED_TOOLS.filter((t) => !open.has(t)), ...SECRET_FILE_RULES],
+    strictMcpConfig: true,
+  };
+}

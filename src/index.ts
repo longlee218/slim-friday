@@ -1,3 +1,5 @@
+import type { Client } from "discord.js";
+import { createDiscordApprovalGateway } from "./approvals/discord-approval";
 import { type AgentConfig, loadConfig } from "./config/agent-config";
 import { logProviderSelected } from "./config/log-provider";
 import { createDiscordBot } from "./ingress/discord-bot";
@@ -34,12 +36,21 @@ async function main(): Promise<void> {
   logProviderSelected(log, config);
 
   const db = openDb(workspacePaths(config.agentHome).dbFile);
+  // Client is created after the handler, so the gateway looks it up lazily.
+  let botClient: Client | undefined;
+  const approvals = createDiscordApprovalGateway({
+    getClient: () => botClient,
+    ownerId: config.ownerDiscordId!,
+    db,
+  });
   const handleTask = createTaskHandler({
     db,
     config,
+    approvals,
     limiter: createRunLimiter(config.maxConcurrentRuns),
   });
-  const { client } = createDiscordBot(config, handleTask);
+  const { client } = createDiscordBot(config, handleTask, approvals.handleInteraction);
+  botClient = client;
 
   /** Graceful shutdown: abort + await runs, drop the connection, close db (Phase 5 hardens). */
   const shutdown = createShutdown({

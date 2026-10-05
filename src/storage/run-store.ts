@@ -1,7 +1,18 @@
 import type { Database } from "bun:sqlite";
 
 /** Final status of a task row. */
-export type TaskStatus = "running" | "done" | "failed" | "cancelled" | "timeout";
+export type TaskStatus =
+  | "running"
+  | "waiting_approval"
+  | "done"
+  | "failed"
+  | "cancelled"
+  | "timeout";
+
+/** Change a task's status without ending it (no-op when the row is missing). */
+export function setTaskStatus(db: Database, id: string, status: TaskStatus): void {
+  db.query("UPDATE tasks SET status = ? WHERE id = ?").run(status, id);
+}
 
 /** Insert a task row in `running` state. */
 export function insertTask(
@@ -20,9 +31,14 @@ export function finishTask(db: Database, id: string, status: TaskStatus): void {
 
 /** Mark every still-`running` task cancelled (shutdown cleanup). */
 export function cancelRunningTasks(db: Database): void {
-  db.query("UPDATE tasks SET status = 'cancelled', ended_at = ? WHERE status = 'running'").run(
-    Date.now(),
-  );
+  const now = Date.now();
+  db.query(
+    "UPDATE tasks SET status = 'cancelled', ended_at = ? WHERE status IN ('running', 'waiting_approval')",
+  ).run(now);
+  // Buttons of a dead process can never be answered.
+  db.query(
+    "UPDATE approvals SET decision = 'cancelled', decided_at = ? WHERE decision = 'pending'",
+  ).run(now);
 }
 
 /** One agent run's metrics. */
