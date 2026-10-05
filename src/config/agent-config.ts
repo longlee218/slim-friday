@@ -3,20 +3,37 @@ import { z } from "zod";
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
 
-/** Default model: cheap Haiku for v1. Overridable via MODEL env. */
+/** Default model on the Anthropic path: cheap Haiku for v1. Overridable via MODEL env. */
 export const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+
+/** Default model on the OpenRouter path. Overridable via MODEL env. */
+export const DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash";
+
+/** Default per-run budget (USD) on the Anthropic path; OpenRouter has none unless MAX_BUDGET_USD is set. */
+const DEFAULT_ANTHROPIC_BUDGET_USD = 0.5;
+
+/** LLM backend the SDK child talks to. */
+export type LlmProvider = "anthropic" | "openrouter";
+
+/** Secret string: trimmed (no stray newline in auth headers); empty after trim counts as unset. */
+const secret = z
+  .string()
+  .transform((v) => v.trim() || undefined)
+  .optional();
 
 /** Raw env schema. Discord vars are optional here; the bot entry enforces them via requireDiscord. */
 const envSchema = z.object({
-  CLAUDE_CODE_OAUTH_TOKEN: z.string().min(1).optional(),
+  CLAUDE_CODE_OAUTH_TOKEN: secret,
+  OPENROUTER_API_KEY: secret,
+  LLM_PROVIDER: z.enum(["anthropic", "openrouter"]).optional(),
   AGENT_HOME: z.string().min(1),
   DEFAULT_REPO_PATH: z.string().min(1),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
-  DISCORD_TOKEN: z.string().min(1).optional(),
+  DISCORD_TOKEN: secret,
   OWNER_DISCORD_ID: z.string().min(1).optional(),
-  MODEL: z.string().min(1).default(DEFAULT_MODEL),
+  MODEL: z.string().trim().min(1).optional(),
   MAX_TURNS: z.coerce.number().int().positive().default(20),
-  MAX_BUDGET_USD: z.coerce.number().positive().default(0.5),
+  MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
   MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(3),
 });
@@ -25,16 +42,25 @@ const envSchema = z.object({
 export interface AgentConfig {
   /** OAuth token from `claude setup-token`; undefined when missing. Never log. */
   oauthToken: string | undefined;
-  /** True only when the token exists and is not the REPLACE_ME placeholder. */
-  hasRealAuthToken: boolean;
+  /** OpenRouter API key; undefined when missing. Never log. */
+  openrouterApiKey: string | undefined;
+  /** Resolved backend: OPENROUTER_API_KEY real -> openrouter, else anthropic; LLM_PROVIDER forces. */
+  provider: LlmProvider;
+  /** True when both credentials are real and LLM_PROVIDER is unset (openrouter wins silently). */
+  ambiguousCredentials: boolean;
+  /** True only when the resolved provider's credential exists and is not the REPLACE_ME placeholder. */
+  hasRealAuth: boolean;
   discordToken: string | undefined;
   ownerDiscordId: string | undefined;
   agentHome: string;
   defaultRepoPath: string;
   logLevel: string;
   model: string;
-  /** Run limits applied to every agent run. */
-  limits: { maxTurns: number; maxBudgetUsd: number; timeoutMs: number };
+  /**
+   * Run limits applied to every agent run. maxBudgetUsd is undefined (no cap) on openrouter unless
+   * MAX_BUDGET_USD is set: the SDK prices cost from Anthropic tables, wrong for other models.
+   */
+  limits: { maxTurns: number; maxBudgetUsd: number | undefined; timeoutMs: number };
   /** Global cap on simultaneous agent runs. */
   maxConcurrentRuns: number;
 }
@@ -62,16 +88,27 @@ export function loadConfig(
   ) {
     throw new Error("Invalid environment variables: DISCORD_TOKEN, OWNER_DISCORD_ID required");
   }
+  const hasRealOpenrouter = !isPlaceholder(e.OPENROUTER_API_KEY);
+  const hasRealOauth = !isPlaceholder(e.CLAUDE_CODE_OAUTH_TOKEN);
+  const provider: LlmProvider = e.LLM_PROVIDER ?? (hasRealOpenrouter ? "openrouter" : "anthropic");
+  const isOpenrouter = provider === "openrouter";
   return {
     oauthToken: e.CLAUDE_CODE_OAUTH_TOKEN,
-    hasRealAuthToken: !isPlaceholder(e.CLAUDE_CODE_OAUTH_TOKEN),
+    openrouterApiKey: e.OPENROUTER_API_KEY,
+    provider,
+    ambiguousCredentials: hasRealOpenrouter && hasRealOauth && !e.LLM_PROVIDER,
+    hasRealAuth: isOpenrouter ? hasRealOpenrouter : hasRealOauth,
     discordToken: e.DISCORD_TOKEN,
     ownerDiscordId: e.OWNER_DISCORD_ID,
     agentHome: e.AGENT_HOME,
     defaultRepoPath: e.DEFAULT_REPO_PATH,
     logLevel: e.LOG_LEVEL,
-    model: e.MODEL,
-    limits: { maxTurns: e.MAX_TURNS, maxBudgetUsd: e.MAX_BUDGET_USD, timeoutMs: e.TIMEOUT_MS },
+    model: e.MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL),
+    limits: {
+      maxTurns: e.MAX_TURNS,
+      maxBudgetUsd: e.MAX_BUDGET_USD ?? (isOpenrouter ? undefined : DEFAULT_ANTHROPIC_BUDGET_USD),
+      timeoutMs: e.TIMEOUT_MS,
+    },
     maxConcurrentRuns: e.MAX_CONCURRENT_RUNS,
   };
 }

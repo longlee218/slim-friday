@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { runAgent, sdkEnv } from "../src/agent/run-agent";
+import { runAgent } from "../src/agent/run-agent";
+import { sdkEnv } from "../src/agent/sdk-env";
 import { fakeQuery, initMsg, makeEnv, resultMsg } from "./helpers";
 
 /** Run the agent against an injected query. */

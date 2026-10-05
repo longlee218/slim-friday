@@ -7,6 +7,7 @@ export const PREVIEW_MAX_BYTES = 4096;
 /** Secret patterns applied to free text, most specific first. */
 const PATTERNS: RegExp[] = [
   /sk-ant-[A-Za-z0-9_-]{8,}/g, // Anthropic keys / OAuth tokens
+  /\bsk-or-[A-Za-z0-9_-]{8,}/g, // OpenRouter keys (sk-or-v1-...)
   /\bsk-[A-Za-z0-9_-]{20,}/g, // generic sk- keys
   /\bgh[pousr]_[A-Za-z0-9]{20,}/g, // GitHub tokens
   /\bgithub_pat_[A-Za-z0-9_]{20,}/g, // GitHub fine-grained PAT

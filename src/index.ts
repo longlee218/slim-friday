@@ -1,4 +1,5 @@
 import { type AgentConfig, loadConfig } from "./config/agent-config";
+import { logProviderSelected } from "./config/log-provider";
 import { createDiscordBot } from "./ingress/discord-bot";
 import { createShutdown } from "./lifecycle/shutdown";
 import { logger } from "./observability/logger";
@@ -25,6 +26,12 @@ async function main(): Promise<void> {
   } catch (err) {
     return fail(String(err instanceof Error ? err.message : err));
   }
+
+  // Fail fast: the resolved provider has no real credential (name only, never a key).
+  if (!config.hasRealAuth) return fail(`No credential for provider ${config.provider}`);
+
+  // Provider and model only; never keys.
+  logProviderSelected(log, config);
 
   const db = openDb(workspacePaths(config.agentHome).dbFile);
   const handleTask = createTaskHandler({

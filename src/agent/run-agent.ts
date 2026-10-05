@@ -13,6 +13,7 @@ import { buildToolHooks } from "../observability/tool-hooks";
 import { readOnlyToolOptions } from "../tools/tool-config";
 import { workspacePaths } from "../workspace/workspace-paths";
 import { buildRepoContext } from "./context";
+import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
 
 /** Signature of the SDK `query` function; injectable for tests. */
@@ -57,20 +58,6 @@ function outcomeFromSubtype(subtype: string): RunOutcome {
   return "error";
 }
 
-/** Env vars the SDK child may inherit. Everything else (GITHUB_TOKEN, AWS_*, ...) is withheld. */
-const ENV_ALLOWLIST = ["PATH", "HOME", "USER", "SHELL", "LANG", "TMPDIR", "CLAUDE_CONFIG_DIR"];
-
-/** Build the SDK child env from an allowlist; OAuth token only when real (never the placeholder). */
-export function sdkEnv(
-  config: AgentConfig,
-  source: Record<string, string | undefined> = process.env,
-) {
-  const env: Record<string, string | undefined> = {};
-  for (const k of ENV_ALLOWLIST) if (source[k] !== undefined) env[k] = source[k];
-  if (config.hasRealAuthToken) env.CLAUDE_CODE_OAUTH_TOKEN = config.oauthToken;
-  return env;
-}
-
 /** Outcome for a run that ended by abort: timeout if our timer fired, else user stop. */
 const abortOutcome = (timedOut: boolean): RunOutcome => (timedOut ? "timeout" : "aborted");
 
@@ -78,6 +65,16 @@ const abortOutcome = (timedOut: boolean): RunOutcome => (timedOut ? "timeout" : 
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const { config, abortController: ac } = input;
   const log = logger.child({ module: "run-agent", taskId: input.taskId });
+  // OpenRouter without a real key would only retry on 401 until timeout: fail fast instead.
+  if (config.provider === "openrouter" && !config.hasRealAuth) {
+    log.error("OPENROUTER_API_KEY missing or placeholder");
+    return {
+      text: "Agent error: OpenRouter API key not configured",
+      sessionId: undefined,
+      outcome: "error",
+      usage: emptyUsage(),
+    };
+  }
   const recorder = new RunRecorder(
     input.db,
     crypto.randomUUID(),
@@ -107,7 +104,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       resume: input.resume,
       ...readOnlyToolOptions(),
       maxTurns: config.limits.maxTurns,
-      maxBudgetUsd: config.limits.maxBudgetUsd,
+      // Omitted (undefined) on openrouter unless MAX_BUDGET_USD is set: SDK cost uses Anthropic prices.
+      ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
       abortController: ac,
       settingSources: ["project"],
       systemPrompt: buildSystemPrompt(await buildRepoContext(input.cwd)),

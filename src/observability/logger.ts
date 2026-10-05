@@ -12,6 +12,15 @@ export const REDACT_PATHS = [
   "*.authorization",
   "env.*",
   "*.env.*",
+  "oauthToken",
+  "*.oauthToken",
+  "openrouterApiKey",
+  "*.openrouterApiKey",
+  "apiKey",
+  "OPENROUTER_API_KEY",
+  "*.OPENROUTER_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "*.ANTHROPIC_AUTH_TOKEN",
 ];
 
 /** Sync file destination (no worker transport: avoids Bun worker risk). */
