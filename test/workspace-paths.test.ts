@@ -6,7 +6,8 @@ import { makeEnv } from "./helpers";
 test("paths derive from AGENT_HOME and task id", () => {
   const p = workspacePaths("/h");
   expect(p.dbFile).toBe("/h/data/agent.db");
-  expect(p.appLog).toBe("/h/logs/app.jsonl");
+  expect(p.appLog()).toBe("/h/logs/app");
+  expect(p.appLog("api")).toBe("/h/workspaces/api/logs/app");
   expect(p.taskLog("T1")).toBe("/h/logs/tasks/T1.jsonl");
   expect(p.task("T1").scratch).toBe("/h/tasks/T1/scratch");
   expect(p.task("T1").artifacts).toBe("/h/tasks/T1/artifacts");

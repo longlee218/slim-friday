@@ -33,7 +33,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 │   ├── worktrees/<taskId>/    # Execute stage git worktree (gitignored)
 │   └── tasks/<taskId>/scratch # Plan stage cwd + plan.md (gitignored)
 ├── logs/
-│   ├── app.jsonl              # Application log
+│   ├── app.<date>.<n>.jsonl              # Application log
 │   └── tasks/                 # Per-task logs
 └── cwd/                       # Neutral Q&A cwd (unpinned repo)
 ```

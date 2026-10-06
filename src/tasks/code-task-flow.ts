@@ -15,11 +15,15 @@ import {
   readRepoClaudeMd,
   readRepoMemory,
 } from "../memory/repo-memory";
+import { logEvent, logger, setLogContext } from "../observability/logger";
 import { buildRegistryContext, type Repo, resolveAuthor } from "../repos/repo-registry";
 import type { WorktreeRow } from "../storage/worktree-store";
 import { finishCodeTask, prTitle } from "./code-task-finish";
 import { type FlowResult, failResult } from "./task-result";
 import { startWorktree } from "./task-worktree";
+
+/** Logger of this module (task fields come from the log context). */
+const log = logger.child({ module: "code-task-flow" });
 
 /** Dependencies of the code-task flow. */
 export interface CodeFlowDeps {
@@ -72,6 +76,8 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
     plan: string,
     resume?: string,
   ): Promise<FlowResult> => {
+    // The run is now in the worktree: its lines belong to this repo and stage.
+    setLogContext({ repo: wt.repo, mode: "exec" });
     const repo = i.repos.find((r) => r.name === wt.repo);
     // Commits are made as the owner: the agent's git server process gets this identity in its env.
     const author = repo ? resolveAuthor(repo, config) : null;
@@ -177,6 +183,8 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
   });
   if (!approved) return planRes; // rejected, stopped, timed out or no plan
   const { plan, repo: repoName } = approved;
+  setLogContext({ repo: repoName });
+  logEvent(log, "plan.approved");
 
   // ---- Stage switch: worktree from the (managed) clone, then execute ----
   const repo = i.repos.find((r) => r.name === repoName)!;

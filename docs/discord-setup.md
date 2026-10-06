@@ -67,7 +67,7 @@ bun run start
 
 If successful, you'll see:
 - Bot connects to Discord
-- Logs appear in stdout (pretty-printed) and $AGENT_HOME/logs/app.jsonl
+- Logs appear in stdout (pretty-printed) and $AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; lines with a `repo` are also copied to workspaces/<repo>/logs/)
 - Ready to receive messages
 
 ## First-Message Checklist
@@ -156,9 +156,9 @@ Expected:
 | "Check the logs" in Discord but nothing in logs | Log level too high | Set LOG_LEVEL=debug in .env |
 
 ## Logs Location
-- **App log:** `$AGENT_HOME/logs/app.jsonl` (JSON lines)
+- **App log:** `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; lines with a `repo` are also copied to workspaces/<repo>/logs/)` (JSON lines)
 - **Per-task:** `$AGENT_HOME/logs/tasks/<taskId>.jsonl`
-- **View logs:** `tail -f $AGENT_HOME/logs/app.jsonl | jq .` (pretty-print JSON)
+- **View logs:** `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq .` (one repo: `"$AGENT_HOME"/workspaces/<repo>/logs/`); filter a task with `jq 'select(.taskId=="<id>")'`
 
 ## Testing Locally (Without Discord)
 Phase 1 includes unit tests that don't require Discord:

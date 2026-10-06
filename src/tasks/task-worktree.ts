@@ -1,9 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Logger } from "pino";
 import { workspacePaths } from "../config/workspace-paths";
 import type { GitMcp } from "../mcp/git-mcp";
+import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import type { Repo } from "../repos/repo-registry";
 import { deleteSession } from "../storage/session-store";
@@ -16,6 +16,9 @@ import {
 } from "../storage/worktree-store";
 import type { CodeFlowDeps, CodeFlowInput } from "./code-task-flow";
 import { type FlowResult, failResult, OUTCOME_REPLY } from "./task-result";
+
+/** Logger of this module (task fields come from the log context). */
+const log = logger.child({ module: "task-worktree" });
 
 /* Everything about a task's git worktree, all through the git MCP server: create, stage switch, remove. */
 
@@ -41,7 +44,7 @@ export async function createTaskWorktree(
 /** Remove a worktree and its local branch (unpushed commits are lost). Best effort: failures are ignored. */
 export async function removeTaskWorktree(
   git: GitMcp,
-  wt: { repoPath: string; path: string; branch: string },
+  wt: { repoPath: string; path: string; branch: string; repo?: string },
 ): Promise<void> {
   await git
     .call("git_worktree", { path: wt.repoPath, mode: "remove", worktreePath: wt.path, force: true })
@@ -49,6 +52,7 @@ export async function removeTaskWorktree(
   await git
     .call("git_branch", { path: wt.repoPath, mode: "delete", branchName: wt.branch, force: true })
     .catch(() => undefined);
+  logEvent(log, "worktree.removed", { repo: wt.repo, branch: wt.branch });
 }
 
 /**
@@ -89,7 +93,12 @@ export async function startWorktree(
     mkdirSync(execScratch, { recursive: true, mode: 0o700 });
     writeFileSync(join(execScratch, "plan.md"), plan);
   } catch (err) {
-    await removeTaskWorktree(deps.git, { repoPath: repo.path, path: wtPath, branch });
+    await removeTaskWorktree(deps.git, {
+      repoPath: repo.path,
+      path: wtPath,
+      branch,
+      repo: repo.name,
+    });
     try {
       deleteWorktree(deps.db, i.taskId);
     } catch {
@@ -99,12 +108,13 @@ export async function startWorktree(
       ? failResult("Stopped.", "aborted")
       : failResult(`Could not start the task: ${errText(err, 200)}`);
   }
+  logEvent(log, "worktree.created", { repo: repo.name, branch, base });
   return { wt, execScratch };
 }
 
 /** `cleanup:` removes a worktree + its local branch: this thread's, or a task's by id. Returns the reply. */
 export async function cleanupWorktree(
-  deps: { db: Database; git: GitMcp; log: Logger; inUse: (threadId: string) => boolean },
+  deps: { db: Database; git: GitMcp; inUse: (threadId: string) => boolean },
   threadId: string,
   taskId?: string,
 ): Promise<string> {
@@ -117,7 +127,7 @@ export async function cleanupWorktree(
     deleteWorktree(db, wt.taskId);
     deleteSession(db, wt.threadId);
   } catch (err) {
-    deps.log.error({ err: errText(err) }, "cleanup failed");
+    log.error({ err: errText(err) }, "cleanup failed");
     return OUTCOME_REPLY.error!;
   }
   return `Removed worktree and local branch ${wt.branch} (unpushed commits are gone).`;

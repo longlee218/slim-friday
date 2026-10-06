@@ -6,24 +6,26 @@ import { realOrSame } from "../guardrails/paths";
 import type { Task } from "../ingress/discord-message-handler";
 import { createGitMcp, type GitMcp } from "../mcp/git-mcp";
 import { ensureHome } from "../memory/persona";
-import { logger, tryLog } from "../observability/logger";
-import { errText } from "../observability/redact";
-import { isManagedClone } from "../repos/refresh-repo";
-import { loadRepoRegistry } from "../repos/repo-registry";
 import {
-  cancelRunningTasks,
-  countActiveCodeTasks,
-  finishTask,
-  insertTask,
-} from "../storage/run-store";
+  excerpt,
+  getLogContext,
+  logEvent,
+  logger,
+  runWithLogContext,
+  setLogContext,
+  tryLog,
+} from "../observability/logger";
+import { errText } from "../observability/redact";
+import { loadRepoRegistry } from "../repos/repo-registry";
+import { cancelRunningTasks, finishTask, insertTask } from "../storage/run-store";
 import { deleteSession, getSession } from "../storage/session-store";
-import { liveWorktree } from "../storage/worktree-store";
 import { runCodeFlow } from "./code-task-flow";
 import { runQaFlow } from "./qa-flow";
 import type { RunLimiter } from "./run-limiter";
 import { parseTaskCommand } from "./task-commands";
 import type { FlowResult } from "./task-result";
 import { finishRun, OUTCOME_REPLY, RESUME_FAILED } from "./task-result";
+import { routeTask } from "./task-routing";
 import { cleanupWorktree } from "./task-worktree";
 
 /** Dependencies of the task handler. */
@@ -40,9 +42,6 @@ export interface TaskHandlerDeps {
   approvals?: ApprovalGateway;
 }
 
-/** Max code tasks running or waiting for approval at once (RAM/quota; spike Q12). */
-const MAX_CODE_TASKS = 2;
-
 /** Build `handleTask`: Discord-free entry that owns the per-thread lock and `stop`. */
 export function createTaskHandler(deps: TaskHandlerDeps) {
   const { db, config } = deps;
@@ -56,6 +55,11 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     const { threadId } = task;
     const running = active.get(threadId);
     const cmd = parseTaskCommand(task.text);
+    const t0 = Date.now();
+    logEvent(log, "task.routed", {
+      kind: cmd.kind,
+      repoHint: "repo" in cmd ? (cmd.repo ?? null) : null,
+    });
 
     // `stop` aborts the active run; the running call marks the task cancelled.
     if (cmd.kind === "stop") {
@@ -63,85 +67,88 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       running.abort();
       return "Stopping...";
     }
-    if (running) return "still working...";
+    if (running) {
+      logEvent(log, "task.still_working");
+      return "still working...";
+    }
     if (cmd.kind === "cleanup")
-      return cleanupWorktree({ db, git, log, inUse: (t) => active.has(t) }, threadId, cmd.taskId);
+      return cleanupWorktree({ db, git, inUse: (t) => active.has(t) }, threadId, cmd.taskId);
     // Global cap is checked after stop/still-working so those always answer.
     const release = deps.limiter ? deps.limiter.tryAcquire() : () => {};
-    if (!release) return `busy, ${deps.limiter!.active()} runs active, try again in a minute`;
+    if (!release) {
+      logEvent(log, "task.busy", { reason: "run_limit", active: deps.limiter!.active() });
+      return `busy, ${deps.limiter!.active()} runs active, try again in a minute`;
+    }
 
     const ac = new AbortController();
     active.set(threadId, ac);
     const taskId = crypto.randomUUID();
-    const tlog = log.child({ taskId, threadId });
+    // From here every log line of this task (any module) carries taskId; repo/mode are set below.
+    setLogContext({ taskId });
     let taskInserted = false;
+    /** Repo of the log context ("*" = not chosen yet); follows later setLogContext (tool-hooks). */
+    const taskRepo = () => getLogContext().repo ?? "*";
     /** The one place a task row is created (after the refusals, before the flow runs). */
-    const begin = (repo: string, type: "qa" | "code") => {
+    let single: string | undefined;
+    const begin = (repo: string, type: "qa" | "code", mode: string) => {
       insertTask(db, { id: taskId, threadId, source: task.source, repo, type });
       taskInserted = true;
+      // Unpinned task with a single workspace: that workspace is the log repo (row keeps "*").
+      // Lines logged before the repo is known (message.received, task.started with "*") stay in the
+      // main log only; tool-hooks sets the repo later for unpinned multi-repo tasks.
+      const logRepo = repo === "*" && single ? single : repo;
+      setLogContext({ repo: logRepo, mode });
+      logEvent(log, "task.started", { repo: logRepo, type });
     };
-
     // Everything after the lock is taken lives in try so `finally` always releases it.
     try {
       const existing = getSession(db, threadId);
       // Registry is re-read per task so config.yaml edits apply without a restart.
       const repos = loadRepoRegistry(config.agentHome);
+      single = repos.length === 1 ? repos[0]!.name : undefined;
       ensureHome(config.agentHome, repos); // create missing IDENTITY/MEMORY/logs/links (never overwrites)
       if (repos.length === 0) {
-        return `No workspace found. Add workspaces/<name>/config.yaml under ${config.agentHome}.`;
+        const reply = `No workspace found. Add workspaces/<name>/config.yaml under ${config.agentHome}.`;
+        logEvent(log, "task.refused", { reason: "no_workspace", reply });
+        return reply;
       }
-      const hint = cmd.repo?.toLowerCase();
-      const pinned = hint
-        ? repos.find((r) => r.name.toLowerCase() === hint)
-        : repos.find((r) => r.name === existing?.repo); // thread stays on its pinned repo
-      if (cmd.repo && !pinned) {
-        return `Unknown repo "${cmd.repo}". Available: ${repos.map((r) => r.name).join(", ")}`;
+      const route = routeTask(
+        { db, agentHome: config.agentHome, hasApprovals: !!deps.approvals },
+        { cmd, threadId, repos, existing },
+      );
+      if ("reply" in route) {
+        logEvent(log, route.event, { reason: route.reason, reply: route.reply });
+        return route.reply;
       }
-      if (cmd.repo && !cmd.text) return `Send your question after "repo:${pinned!.name}".`;
-      // Code task (`task:`) or follow-up in a thread that already has a worktree.
-      const worktree = cmd.kind === "code" ? undefined : liveWorktree(db, threadId);
-      const isCode = cmd.kind === "code" || !!worktree;
-      if (isCode && !deps.approvals) return "Code tasks need the Discord approval flow.";
-      if (isCode && !cmd.text) return "Send the task after `task:`.";
-
-      let res: FlowResult;
-      if (isCode) {
-        // Worktrees branch off managed clones only, never a developer's working copy.
-        // `repo:` is a hint for a task; there is no sticky pin.
-        const picked = cmd.repo ? pinned : undefined;
-        const candidates = (picked ? [picked] : repos).filter((r) =>
-          isManagedClone(r.path, config.agentHome),
-        );
-        if (!worktree && candidates.length === 0) {
-          return "Code tasks need a workspace clone (workspaces/<name>/repo with a config.yaml). Clone the repo there first.";
-        }
-        if (countActiveCodeTasks(db) >= MAX_CODE_TASKS) {
-          return `busy, ${MAX_CODE_TASKS} code tasks running, try again later`;
-        }
-        begin(worktree?.repo ?? picked?.name ?? "*", "code");
-        res = await runCodeFlow(
-          { db, config, approvals: deps.approvals!, queryFn: deps.queryFn, git },
-          {
-            taskId,
-            threadId,
-            text: cmd.text,
-            repos: worktree ? repos : candidates,
-            ac,
-            worktree,
-            resume:
-              worktree && existing?.cwd === realOrSame(worktree.path)
-                ? existing.session_id
-                : undefined,
-          },
-        );
-      } else {
-        begin(pinned?.name ?? "*", "qa");
-        res = await runQaFlow(
-          { db, config, git, queryFn: deps.queryFn },
-          { taskId, text: cmd.text, repos, pinned, existing, ac },
-        );
-      }
-      const reply = finishRun(db, tlog, { taskId, threadId }, res);
+      const { pinned, worktree, isCode } = route;
+      begin(route.repo, isCode ? "code" : "qa", !isCode ? "qa" : worktree ? "exec" : "plan");
+      const res: FlowResult = isCode
+        ? await runCodeFlow(
+            { db, config, approvals: deps.approvals!, queryFn: deps.queryFn, git },
+            {
+              taskId,
+              threadId,
+              text: cmd.text,
+              repos: route.candidates,
+              ac,
+              worktree,
+              resume:
+                worktree && existing?.cwd === realOrSame(worktree.path)
+                  ? existing.session_id
+                  : undefined,
+            },
+          )
+        : await runQaFlow(
+            { db, config, git, queryFn: deps.queryFn },
+            { taskId, text: cmd.text, repos, pinned, existing, ac },
+          );
+      const reply = finishRun(db, { taskId, threadId }, res);
+      logEvent(log, "task.finished", {
+        repo: res.repo && res.repo !== "*" ? res.repo : taskRepo(),
+        outcome: res.outcome,
+        durationMs: Date.now() - t0,
+        reply: excerpt(reply),
+      });
       // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
       if (!isCode && res.outcome === "error" && existing && RESUME_FAILED.test(res.text)) {
         deleteSession(db, threadId);
@@ -150,8 +157,13 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       return reply;
     } catch (err) {
       // Never throw from the error path (db may be closed during shutdown).
-      if (taskInserted) tryLog(tlog, "finishTask failed", () => finishTask(db, taskId, "failed"));
-      tlog.error({ err: errText(err) }, "task crashed");
+      if (taskInserted) tryLog(log, "finishTask failed", () => finishTask(db, taskId, "failed"));
+      logEvent(
+        log,
+        "task.finished",
+        { repo: taskRepo(), outcome: "crashed", durationMs: Date.now() - t0, err: errText(err) },
+        "error",
+      );
       return OUTCOME_REPLY.error!;
     } finally {
       active.delete(threadId);
@@ -162,7 +174,8 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
   const inflight = new Set<Promise<string>>();
   /** Track the call until it settles (`run` never rejects). */
   const handleTask = (task: Task): Promise<string> => {
-    const p = run(task);
+    // Every line logged while this call runs (any module, any await) carries the thread id.
+    const p = runWithLogContext({ threadId: task.threadId }, () => run(task));
     inflight.add(p);
     const done = () => {
       inflight.delete(p);

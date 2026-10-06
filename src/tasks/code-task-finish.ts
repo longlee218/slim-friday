@@ -3,8 +3,12 @@ import type { ApprovalGateway } from "../approvals/approval-types";
 import { hasAttribution } from "../guardrails/check-tool-call";
 import type { GitData, GitIdentity, GitMcp } from "../mcp/git-mcp";
 import { createPullRequest, parseRemote } from "../mcp/github-mcp";
-import { clip, redactText } from "../observability/redact";
+import { logEvent, logger } from "../observability/logger";
+import { clip, errText, redactText } from "../observability/redact";
 import { setPrUrl, type WorktreeRow } from "../storage/worktree-store";
+
+/** Logger of this module (task fields come from the log context). */
+const log = logger.child({ module: "code-task-finish" });
 
 /** A commit of the branch as the app sees it (git_log author + git_show text). */
 interface BranchCommit {
@@ -84,9 +88,14 @@ export async function finishCodeTask(
   },
 ): Promise<string> {
   const { wt } = o;
+  /** A failed publish: logged as pr.failed, returned as the reply tail. */
+  const prFailed = (why: string): string => {
+    logEvent(log, "pr.failed", { repo: wt.repo, branch: wt.branch, reason: errText(why) }, "warn");
+    return `${o.text}\n\nPR failed: ${why}`;
+  };
   const { git } = deps;
-  const { ref, log } = await commitsAhead(git, wt.path, wt.base);
-  const commits = (log.commits ?? []) as { hash: string; authorEmail: string }[];
+  const { ref, log: ahead } = await commitsAhead(git, wt.path, wt.base);
+  const commits = (ahead.commits ?? []) as { hash: string; authorEmail: string }[];
   const status = await git.call("git_status", { path: wt.path });
   // The reviewed diff is HEAD's; the push sends wt.branch. They must be the same branch.
   if (status.currentBranch !== wt.branch) {
@@ -126,8 +135,7 @@ export async function finishCodeTask(
   }
   if (o.signal.aborted) return `${o.text}\n\nStopped before pushing.`;
   // Push the agent branch (never forced; agent/* only), then open the PR through the GitHub MCP server.
-  if (!wt.branch.startsWith("agent/"))
-    return `${o.text}\n\nPR failed: refusing to publish non-agent branch.`;
+  if (!wt.branch.startsWith("agent/")) return prFailed("refusing to publish non-agent branch.");
   try {
     await git.call("git_push", {
       path: wt.path,
@@ -136,8 +144,9 @@ export async function finishCodeTask(
       setUpstream: true,
     });
   } catch (err) {
-    return `${o.text}\n\nPR failed: ${err instanceof Error ? err.message : err}`;
+    return prFailed(String(err instanceof Error ? err.message : err));
   }
+  logEvent(log, "push", { repo: wt.repo, branch: wt.branch });
   const remotes: GitData = await git
     .call("git_remote", { path: wt.path, mode: "list" })
     .catch(() => ({}));
@@ -145,7 +154,7 @@ export async function finishCodeTask(
     (x) => x.name === "origin",
   );
   const slug = parseRemote(origin?.fetchUrl ?? "");
-  if (!slug) return `${o.text}\n\nPR failed: cannot parse origin remote as a GitHub repo`;
+  if (!slug) return prFailed("cannot parse origin remote as a GitHub repo");
   const r = await (deps.createPr ?? createPullRequest)({
     account: o.githubAccount,
     ...slug,
@@ -154,7 +163,8 @@ export async function finishCodeTask(
     title: o.title,
     body: `${redactText(o.body).slice(0, 5000)}\n\nCreated by the Friday agent.`,
   });
-  if (!r.ok) return `${o.text}\n\nPR failed: ${r.error}`;
+  if (!r.ok) return prFailed(r.error);
   setPrUrl(deps.db, wt.taskId, r.url);
+  logEvent(log, "pr.created", { repo: wt.repo, branch: wt.branch, url: r.url });
   return `${o.text}\n\nPR: ${r.url}`;
 }

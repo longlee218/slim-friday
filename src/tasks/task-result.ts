@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
-import type { Logger } from "pino";
 import type { RunAgentResult } from "../agent/run-agent";
+import { logEvent, logger } from "../observability/logger";
 import { redactText } from "../observability/redact";
 import { finishTask, type TaskStatus } from "../storage/run-store";
 import { setSession } from "../storage/session-store";
@@ -44,10 +44,12 @@ const SAVE_SESSION_OUTCOMES = new Set(["success", "max_turns", "max_budget"]);
 export const RESUME_FAILED =
   /no conversation found|could not resume|session .*(not found|does not exist)/i;
 
+/** Logger of this module (task fields come from the log context). */
+const log = logger.child({ module: "task-result" });
+
 /** End of a run, same for Q&A and code: save the session, close the task row, return the redacted reply. */
 export function finishRun(
   db: Database,
-  tlog: Logger,
   ids: { taskId: string; threadId: string },
   res: FlowResult,
 ): string {
@@ -58,8 +60,8 @@ export function finishRun(
       repo: res.repo ?? "*",
       cwd: res.cwd,
     });
+    logEvent(log, "session.saved", { repo: res.repo ?? "*", sessionId: res.sessionId });
   }
   finishTask(db, ids.taskId, TASK_STATUS[res.outcome] ?? "failed");
-  tlog.info({ outcome: res.outcome }, "task finished");
   return redactText(res.text || OUTCOME_REPLY[res.outcome] || "No answer.");
 }

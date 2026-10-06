@@ -8,8 +8,12 @@ export function workspacePaths(agentHome: string) {
     home: agentHome,
     /** SQLite database file. */
     dbFile: join(agentHome, "data", "agent.db"),
-    /** Shared app log (JSON lines). */
-    appLog: join(agentHome, "logs", "app.jsonl"),
+    /**
+     * Base path of the daily-rolled app log (JSON lines): files are `<base>.<yyyy-MM-dd>.<n>.jsonl`.
+     * With a repo: that workspace's copy of the lines tagged with it.
+     */
+    appLog: (repo?: string) =>
+      join(repo ? join(agentHome, "workspaces", repo, "logs") : join(agentHome, "logs"), "app"),
     /** Raw per-task event stream: in the repo's workspace when known, else the shared logs dir. */
     taskLog: (taskId: string, repo?: string) =>
       join(

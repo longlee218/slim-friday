@@ -7,7 +7,7 @@ import {
   MessageFlags,
 } from "discord.js";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
-import { logger, tryLog } from "../observability/logger";
+import { logEvent, logger, runWithLogContext, tryLog } from "../observability/logger";
 import { clip, errText, redactText } from "../observability/redact";
 import {
   type ApprovalDecision,
@@ -58,10 +58,18 @@ export function createDiscordApprovalGateway(
   }): Promise<string | undefined> {
     const id = crypto.randomUUID().slice(0, 8);
     const summary = redactText(o.text);
+    // Both approval lines share these fields; the owner's wait is measured from the request.
+    const alog = log.child({ tool: o.tool, approvalId: id });
+    const t0 = Date.now();
+    logEvent(alog, "approval.requested", { summary: clip(summary, 300) });
     safeDb(() => insertApproval(db, { id, taskId: o.taskId, tool: o.tool, summary }));
     safeDb(() => setTaskStatus(db, o.taskId, "waiting_approval"));
 
     const finish = (decision: ApprovalDecision) => {
+      // A button click runs in discord.js's event context, not the task's: re-enter the task's context.
+      runWithLogContext({ taskId: o.taskId, threadId: o.threadId }, () =>
+        logEvent(alog, "approval.decided", { decision, waitMs: Date.now() - t0 }),
+      );
       safeDb(() => decideApproval(db, id, decision));
       // A cancelled request belongs to an ended run: never flip its task back to running.
       if (decision !== "cancelled") safeDb(() => setTaskStatus(db, o.taskId, "running"));

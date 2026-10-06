@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
+import { logEvent, logger } from "../observability/logger";
 import { redactText } from "../observability/redact";
 
 /** Max chars of one repo's memory injected into a prompt (the newest part is kept). */
@@ -80,6 +81,7 @@ export function appendRepoMemory(
   let next = `${old.trimEnd()}\n${section}`;
   if (next.split("\n").length > TRIM_AT_LINES) next = trimToLines(next);
   writeFileSync(file, next);
+  logEvent(logger, "memory.appended", { repo, bullets: bullets.length });
 }
 
 /** CLAUDE.md of a trusted clone (capped), for runs that must not auto-load project settings. */

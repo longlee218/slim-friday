@@ -165,7 +165,7 @@ task: <description> (message)
 | approvals | id, task_id, request_type, request_data, owner_decision, decision_reason, created_at, decided_at | approval decisions for Edit/Write/Bash/plan/network |
 | worktrees | id, task_id, repo_name, path, branch, created_at | one per code task (phase 4+); path = AGENT_HOME/worktrees/<taskId>; branch = agent/<first-8-chars-taskId> |
 
-**Raw logs:** `$AGENT_HOME/logs/app.jsonl` (pino, all events)
+**Raw logs:** `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; lines with a `repo` are also copied to workspaces/<repo>/logs/)` (pino, all events)
 **Per-task logs:** `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (JSONL stream)
 
 ## Workspace Layout
@@ -175,7 +175,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project-root>/.friday)
 ├── SOUL.md                  # shared default persona: tone, language (auto-created; default = reply in Vietnamese, concise)
 ├── data/agent.db            # SQLite DB + WAL files
 ├── logs/
-│   ├── app.jsonl            # pino application log
+│   ├── app.<date>.<n>.jsonl            # pino application log
 │   └── tasks/
 │       └── <taskId>.jsonl   # one JSONL per task
 ├── workspaces/

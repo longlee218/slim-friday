@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
+import { readLogLines } from "./helpers";
 
 /** Run src/index.ts as a real subprocess with the given Discord env. */
 async function runIndex(discord: Record<string, string>): Promise<{ code: number; log: string }> {
@@ -26,12 +27,10 @@ async function runIndex(discord: Record<string, string>): Promise<{ code: number
       return -1;
     }),
   ]);
-  let log = "";
-  try {
-    log = readFileSync(workspacePaths(home).appLog, "utf8");
-  } catch {
-    // No log written (process killed early): leave empty.
-  }
+  // Empty when no log was written (process killed early).
+  const log = readLogLines(workspacePaths(home).appLog())
+    .map((l) => l.msg)
+    .join("\n");
   return { code, log };
 }
 

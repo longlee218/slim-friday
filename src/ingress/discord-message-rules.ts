@@ -25,7 +25,7 @@ export interface MessageFacts {
 
 /** Routing decision for one message. */
 export type Route =
-  | { kind: "ignore" }
+  | { kind: "ignore"; reason: "bot" | "not_owner" | "dm" | "empty" | "not_mentioned" }
   /** Continue the session of the thread the message is in. */
   | { kind: "thread"; prompt: string }
   /** New conversation: create a thread from the message. */
@@ -38,13 +38,15 @@ export function stripMention(content: string, botId: string): string {
 
 /** Decide what to do with a message. Non-owners and bots never get past `ignore`. */
 export function routeMessage(f: MessageFacts, ownerId: string, botId: string): Route {
-  if (f.authorIsBot || f.authorId !== ownerId || !f.inGuild) return { kind: "ignore" };
+  if (f.authorIsBot) return { kind: "ignore", reason: "bot" };
+  if (f.authorId !== ownerId) return { kind: "ignore", reason: "not_owner" };
+  if (!f.inGuild) return { kind: "ignore", reason: "dm" };
   const prompt = stripMention(f.content, botId);
-  if (!prompt) return { kind: "ignore" };
+  if (!prompt) return { kind: "ignore", reason: "empty" };
   if (f.inBotThread) return { kind: "thread", prompt };
   // Outside a bot thread the owner must mention the bot explicitly.
   if (f.mentionsBot) return { kind: "channel", prompt };
-  return { kind: "ignore" };
+  return { kind: "ignore", reason: "not_mentioned" };
 }
 
 /** Thread title from the first words of the prompt, single line, <=90 chars. */

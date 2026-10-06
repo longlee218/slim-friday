@@ -10,7 +10,7 @@ import { workspacePaths } from "../config/workspace-paths";
 import type { GuardrailContext } from "../guardrails/check-tool-call";
 import type { GitIdentity } from "../mcp/git-mcp";
 import { mcpServersFor } from "../mcp/mcp-servers";
-import { logger } from "../observability/logger";
+import { logEvent, logger } from "../observability/logger";
 import {
   emptyUsage,
   outcomeFromSubtype,
@@ -81,6 +81,9 @@ export interface RunAgentResult {
   usage: RunUsage;
 }
 
+/** Logger of this module (task fields come from the log context). */
+const log = logger.child({ module: "run-agent" });
+
 /** Code tasks include owner approval waits (10 min each), so their run timeout is at least this. */
 const CODE_TASK_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -101,7 +104,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const { abortController: ac } = input;
   // Code tasks use the code model (plan mode needs a stronger one than cheap Q&A).
   const config = input.code ? { ...input.config, model: input.config.codeModel } : input.config;
-  const log = logger.child({ module: "run-agent", taskId: input.taskId });
+  // Mode picks the tool set: Q&A, plan stage, or execute stage of a code task.
+  const mode: ToolMode = input.code ? (input.code.stage === "exec" ? "exec" : "plan") : "qa";
   // OpenRouter without a real key would only retry on 401 until timeout: fail fast instead.
   if (config.provider === "openrouter" && !config.hasRealAuth) {
     log.error("OPENROUTER_API_KEY missing or placeholder");
@@ -112,6 +116,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       usage: emptyUsage(),
     };
   }
+  const startedAt = Date.now();
   const recorder = new RunRecorder(
     input.db,
     crypto.randomUUID(),
@@ -138,8 +143,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   let compactions = 0;
   let startupError = "";
 
-  // Mode picks the tool set: Q&A, plan stage, or execute stage of a code task.
-  const mode: ToolMode = input.code ? (input.code.stage === "exec" ? "exec" : "plan") : "qa";
   // Every mode goes through the permission layer when it has a guard (Q&A has no gateway: ask = deny).
   const perms = input.guard
     ? buildToolPermissions({
@@ -160,7 +163,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       model: config.model,
       resume: input.resume,
       ...toolOptions(mode),
-      mcpServers: await mcpServersFor(mode, input, log),
+      mcpServers: await mcpServersFor(mode, input),
       ...(mode === "plan" && { permissionMode: "plan" as const }),
       ...(perms && { canUseTool: perms.canUseTool }),
       // Subagents with explicit read-only tools in every mode. Skills: the repos' own, except in the execute
@@ -180,9 +183,18 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         (input.extraContext ?? []).filter(Boolean).join("\n\n"),
         mode,
       ),
-      hooks: mergeHooks(buildToolHooks(recorder), perms?.hooks),
+      hooks: mergeHooks(buildToolHooks(recorder, perms?.decisions, config.agentHome), perms?.hooks),
       env: sdkEnv(config),
     };
+    logEvent(log, "run.started", {
+      model: config.model,
+      provider: config.provider,
+      cwd: input.cwd,
+      resume: !!input.resume,
+      tools: Array.isArray(options.tools) ? options.tools.length : undefined,
+      mcpServers: Object.keys(options.mcpServers ?? {}),
+    });
+    if (input.resume) logEvent(log, "session.resumed", { sessionId: input.resume });
     try {
       for await (const msg of run({ prompt: input.prompt, options })) {
         recorder.logMessage(msg);
@@ -225,6 +237,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     recorder.finish(outcome, usage);
     recorder.close();
   }
-  log.info({ outcome, ...usage }, "run finished");
+  logEvent(log, "run.finished", { outcome, ...usage, durationMs: Date.now() - startedAt });
   return { text, sessionId, outcome, usage };
 }

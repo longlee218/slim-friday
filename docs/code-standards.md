@@ -107,7 +107,7 @@ test/
 - **Only use:** `logger` from `src/observability/logger.ts`
 - **Never use:** `console.log/error/warn/info` in `src/` (test `grep -r "console\." src/` should be empty)
 - **Pattern:** `logger.child({module, taskId, threadId})` for context
-- **Output:** JSON lines to `$AGENT_HOME/logs/app.jsonl` + stdout (dev only with pino-pretty)
+- **Output:** JSON lines to `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; lines with a `repo` are also copied to workspaces/<repo>/logs/)` + stdout (dev only with pino-pretty)
 - **Sensitive data:** redact.ts masks tokens/keys before logging; pino redact.paths catches env keys by path
 
 ## Coding Rules

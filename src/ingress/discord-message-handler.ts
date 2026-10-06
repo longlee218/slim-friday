@@ -1,5 +1,5 @@
 import type { Message, SendableChannels } from "discord.js";
-import { logger } from "../observability/logger";
+import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { parseTaskCommand } from "../tasks/task-commands";
 import { prepareReply, routeMessage, SAFE_MENTIONS, threadName } from "./discord-message-rules";
@@ -82,7 +82,19 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       deps.ownerId,
       botId,
     );
-    if (route.kind === "ignore") return;
+    if (route.kind === "ignore") {
+      // Strangers' and bots' messages are noise (debug); the owner's ignored ones are worth seeing.
+      const stranger = route.reason === "bot" || route.reason === "not_owner";
+      logEvent(log, "message.ignored", { reason: route.reason }, stranger ? "debug" : "info");
+      return;
+    }
+    // Only the owner's text is logged (redacted, capped).
+    logEvent(log, "message.received", {
+      owner: true,
+      where: route.kind, // "thread" (follow-up in a bot thread) or "channel" (new conversation)
+      ...(route.kind === "thread" ? { threadId: ch.id } : { channelId: ch.id }),
+      text: excerpt(route.prompt),
+    });
 
     // Where error replies go: the thread once it exists, else the message's channel.
     let errorTarget: SendableChannels | null = ch.isSendable() ? ch : null;

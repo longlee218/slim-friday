@@ -1,8 +1,8 @@
 import type { CanUseTool, HookCallbackMatcher } from "@anthropic-ai/claude-agent-sdk";
 import type { ApprovalGateway } from "../approvals/approval-types";
-import { checkToolCall, type GuardrailContext } from "../guardrails/check-tool-call";
-import { logger } from "../observability/logger";
-import { clip, errText } from "../observability/redact";
+import { checkToolCall, type Decision, type GuardrailContext } from "../guardrails/check-tool-call";
+import { logEvent, logger } from "../observability/logger";
+import { clip, errText, safePreview } from "../observability/redact";
 import { ASK_USER, EXIT_PLAN, PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
 
 /** Max chars of a tool input shown inline in the approval message (full input goes in the attachment). */
@@ -43,8 +43,11 @@ function summarize(tool: string, input: Record<string, unknown>): string {
 export function buildToolPermissions(p: ToolPermissionInput): {
   canUseTool: CanUseTool;
   hooks: HookCallbackMatcher[];
+  /** Guard decision per tool_use_id (allow/ask), read by the tool hooks to complete the `tool.call` line. */
+  decisions: Map<string, Decision>;
 } {
-  const log = logger.child({ module: "tool-permissions", taskId: p.taskId });
+  const log = logger.child({ module: "tool-permissions" });
+  const decisions = new Map<string, Decision>();
 
   const hooks: HookCallbackMatcher[] = [
     {
@@ -58,8 +61,16 @@ export function buildToolPermissions(p: ToolPermissionInput): {
             (i.tool_input ?? {}) as Record<string, unknown>,
             p.guard,
           );
+          if (d.decision !== "deny") decisions.set(i.tool_use_id, d);
           if (d.decision === "allow") return { continue: true };
-          log.info({ tool: i.tool_name, decision: d.decision, reason: d.reason }, "guardrail");
+          // A denied call never runs, so no Post hook: its `tool.call` line is written here.
+          if (d.decision === "deny")
+            logEvent(log, "tool.call", {
+              tool: i.tool_name,
+              decision: d.decision,
+              reason: d.reason,
+              input: safePreview(i.tool_input, 300),
+            });
           return {
             hookSpecificOutput: {
               hookEventName: "PreToolUse" as const,
@@ -148,5 +159,5 @@ export function buildToolPermissions(p: ToolPermissionInput): {
     }
   };
 
-  return { canUseTool, hooks };
+  return { canUseTool, hooks, decisions };
 }

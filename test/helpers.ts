@@ -1,6 +1,6 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { loadConfig } from "../src/config/agent-config";
@@ -105,3 +105,25 @@ export const stubGateway = (over: Partial<ApprovalGateway> = {}): ApprovalGatewa
   askChoice: async () => undefined,
   ...over,
 });
+
+/** Rolled files of a pino-roll base path (`<base>.<date>.<n>.jsonl`), full paths. */
+export function rolledFiles(base: string): string[] {
+  const name = basename(base);
+  return readdirSync(dirname(base))
+    .filter((f) => f.startsWith(`${name}.`) && f.endsWith(".jsonl"))
+    .map((f) => join(dirname(base), f));
+}
+
+/** Parsed JSON lines of all rolled files of a base path ([] when none). */
+export function readLogLines(base: string): Record<string, unknown>[] {
+  try {
+    return rolledFiles(base).flatMap((f) =>
+      readFileSync(f, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l)),
+    );
+  } catch {
+    return [];
+  }
+}

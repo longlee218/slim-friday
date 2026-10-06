@@ -4,7 +4,7 @@ import { type AgentConfig, loadConfig, logProviderSelected } from "./config/agen
 import { workspacePaths } from "./config/workspace-paths";
 import { createDiscordBot } from "./ingress/discord-bot";
 import { createShutdown } from "./lifecycle/shutdown";
-import { logger } from "./observability/logger";
+import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
 import { openDb } from "./storage/db";
 import { cancelRunningTasks } from "./storage/run-store";
@@ -62,7 +62,7 @@ async function main(): Promise<void> {
       await client.destroy();
     },
     closeDb: () => db.close(),
-    log: (m) => log.info(m),
+    log: (m) => logEvent(log, "app.shutdown", { reason: m }),
     exit: (c) => process.exit(c),
   });
   process.on("SIGINT", () => {
@@ -91,6 +91,13 @@ async function main(): Promise<void> {
     db.close();
     process.exit(1);
   }
+  logEvent(log, "app.started", {
+    provider: config.provider,
+    model: config.model,
+    codeModel: config.codeModel,
+    agentHome: config.agentHome,
+    pid: process.pid,
+  });
 }
 
 void main();

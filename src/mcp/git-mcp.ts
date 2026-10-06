@@ -1,5 +1,6 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { pickEnv } from "../config/agent-config";
+import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { connectStdio, toolText } from "./mcp-stdio";
 
@@ -46,10 +47,16 @@ export function gitMcpServerConfig(o: { author?: GitIdentity; baseDir?: string }
 
 /** The app's handle on the git MCP server (worktrees, fetch, push, inspection). */
 export interface GitMcp {
-  /** Call a git MCP tool; throws (token-free message) when the tool reports an error. */
+  /**
+   * Call a git MCP tool; throws (token-free message) when the tool reports an error.
+   * Every call is logged as `git.call` (tool, ms, ok).
+   */
   call(tool: string, args: Record<string, unknown>): Promise<GitData>;
   close(): Promise<void>;
 }
+
+/** Logger of this module (task fields come from the log context). */
+const log = logger.child({ module: "git-mcp" });
 
 /** Per-call cap so a stalled push/fetch cannot hold a task forever. */
 const CALL_TIMEOUT_MS = 60_000;
@@ -59,18 +66,30 @@ export function createGitMcp(): GitMcp {
   let client: Promise<Client> | undefined;
   const connect = () =>
     connectStdio({ command: process.execPath, args: [entry()], env: gitServerEnv() });
+  /** One call without logging. */
+  const callTool = async (tool: string, args: Record<string, unknown>): Promise<GitData> => {
+    client ??= connect();
+    const c = await client.catch((e) => {
+      client = undefined; // retry on the next call
+      throw e;
+    });
+    const r = (await c.callTool({ name: tool, arguments: args }, undefined, {
+      timeout: CALL_TIMEOUT_MS,
+    })) as { isError?: boolean; structuredContent?: GitData };
+    if (r.isError) throw new Error(errText(`${tool} failed: ${toolText(r)}`));
+    return r.structuredContent ?? {};
+  };
   return {
     async call(tool, args) {
-      client ??= connect();
-      const c = await client.catch((e) => {
-        client = undefined; // retry on the next call
-        throw e;
-      });
-      const r = (await c.callTool({ name: tool, arguments: args }, undefined, {
-        timeout: CALL_TIMEOUT_MS,
-      })) as { isError?: boolean; structuredContent?: GitData };
-      if (r.isError) throw new Error(errText(`${tool} failed: ${toolText(r)}`));
-      return r.structuredContent ?? {};
+      const t0 = Date.now();
+      try {
+        const data = await callTool(tool, args);
+        logEvent(log, "git.call", { tool, ms: Date.now() - t0, ok: true });
+        return data;
+      } catch (err) {
+        logEvent(log, "git.call", { tool, ms: Date.now() - t0, ok: false, err: errText(err) });
+        throw err;
+      }
     },
     async close() {
       const c = await client?.catch(() => undefined);
