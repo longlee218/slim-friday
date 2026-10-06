@@ -1,8 +1,8 @@
-import type { Message, SendableChannels } from "discord.js";
+import { AttachmentBuilder, type Message, type SendableChannels } from "discord.js";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { parseTaskCommand } from "../tasks/task-commands";
-import { prepareReply, routeMessage, SAFE_MENTIONS, threadName } from "./discord-message-rules";
+import { prepareOutput, routeMessage, SAFE_MENTIONS, threadName } from "./discord-message-rules";
 
 /** A unit of work arriving from any ingress (Discord, tests). */
 export interface Task {
@@ -21,14 +21,20 @@ const TYPING_REFRESH_MS = 8000;
 /** What the handler needs from the task layer. */
 export type HandleTask = (task: Task) => Promise<string>;
 
-/** Send a (possibly long) reply as redacted, chunked, non-pinging messages. */
-async function sendReply(channel: SendableChannels, text: string): Promise<void> {
-  for (const chunk of prepareReply(text))
-    await channel.send({ content: chunk, allowedMentions: SAFE_MENTIONS });
+/** Send a (possibly long) reply as redacted, chunked, non-pinging messages; a very long one or a diff as head + file. */
+export async function sendReply(channel: SendableChannels, text: string): Promise<void> {
+  const { chunks, file } = prepareOutput(text);
+  for (const [i, chunk] of chunks.entries()) {
+    const files =
+      file && i === chunks.length - 1
+        ? [new AttachmentBuilder(Buffer.from(file.content), { name: file.name })]
+        : [];
+    await channel.send({ content: chunk, files, allowedMentions: SAFE_MENTIONS });
+  }
 }
 
 /** Show the typing indicator until the returned stop function is called. */
-function startTyping(channel: SendableChannels): () => void {
+export function startTyping(channel: SendableChannels): () => void {
   const ping = () => {
     channel.sendTyping().catch(() => {});
   };

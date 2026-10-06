@@ -4,7 +4,14 @@ import { createLogger, fileDestination, logger, tryLog } from "./logger";
 import { redactDeep, safePreview } from "./redact";
 
 /** How a run ended. */
-export type RunOutcome = "success" | "max_turns" | "max_budget" | "error" | "aborted" | "timeout";
+export type RunOutcome =
+  | "success"
+  | "max_turns"
+  | "max_budget"
+  | "error"
+  | "aborted"
+  | "timeout"
+  | "quota";
 
 /** Token/cost/time metrics of one run. */
 export interface RunUsage {
@@ -118,6 +125,7 @@ export function outcomeFromSubtype(subtype: string): RunOutcome {
 /** Subset of the SDK result message we read (real shape from spike q06/q08b). */
 export interface ResultShape {
   subtype: string;
+  is_error?: boolean;
   result?: string;
   errors?: string[];
   total_cost_usd?: number;

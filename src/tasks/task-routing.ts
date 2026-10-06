@@ -1,10 +1,13 @@
 import type { Database } from "bun:sqlite";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { realOrSame } from "../guardrails/paths";
 import { isManagedClone } from "../repos/refresh-repo";
 import type { Repo } from "../repos/repo-registry";
-import { countActiveCodeTasks } from "../storage/run-store";
+import { countActiveCodeTasks, latestTaskSession } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
 import { liveWorktree, type WorktreeRow } from "../storage/worktree-store";
-import type { TaskCommand } from "./task-commands";
+import { RESUME_PROMPT, type TaskCommand } from "./task-commands";
 
 /** Max code tasks running or waiting for approval at once (RAM/quota; spike Q12). */
 const MAX_CODE_TASKS = 2;
@@ -98,4 +101,65 @@ export function routeTask(
     candidates: worktree ? repos : candidates,
     repo: worktree?.repo ?? picked?.name ?? "*",
   };
+}
+
+/** A runnable command (code or Q&A) plus what a Resume adds. */
+export interface ResumePlan {
+  cmd: Extract<TaskCommand, { kind: "code" | "qa" }>;
+  /** Session to resume instead of the thread's stored one (Resume: the interrupted task's own). */
+  existing?: SessionRow;
+  /** Plan stage cut before approval: resume this session in its scratch dir. */
+  planResume?: { sessionId: string; cwd: string };
+}
+
+/**
+ * Make the owner's command runnable. Q&A / code pass through; the Resume button continues the latest
+ * task of the thread, using the session that task recorded at init:
+ * live worktree (cwd matches) -> follow-up there; plan scratch dir (still present) -> plan run;
+ * home `cwd` dir or a registered repo -> Q&A. Anything else (no session, cwd not usable, or the thread
+ * already moved on) -> a reply.
+ */
+export function resolveCommand(
+  deps: { db: Database; agentHome: string; repos: Repo[] },
+  cmd: Exclude<TaskCommand, { kind: "stop" | "cleanup" }>,
+  threadId: string,
+): ResumePlan | Refusal {
+  if (cmd.kind !== "resume") return { cmd };
+  const cannot = refuse(
+    "cannot_resume",
+    "Cannot resume: no saved session for this thread. Start the task again.",
+  );
+  const last = latestTaskSession(deps.db, threadId);
+  if (!last) return cannot;
+  // Only a task that was cut short (or stopped) can be resumed; a newer finished/failed one means stale.
+  if (last.status !== "interrupted" && last.status !== "cancelled")
+    return refuse("stale_resume", "This Resume is out of date: the thread has moved on.");
+  if (!last.sessionId || !last.cwd) return cannot;
+  const existing: SessionRow = {
+    thread_id: threadId,
+    session_id: last.sessionId,
+    repo: last.repo,
+    cwd: last.cwd,
+    status: "active",
+    updated_at: Date.now(),
+  };
+  const text = RESUME_PROMPT;
+  const worktree = liveWorktree(deps.db, threadId);
+  if (worktree)
+    return existing.cwd === realOrSame(worktree.path)
+      ? { cmd: { kind: "qa", text }, existing }
+      : cannot;
+  // Plan stage: its session cwd is the task scratch dir under <home>/tasks.
+  if (existing.cwd.startsWith(`${join(realOrSame(deps.agentHome), "tasks")}/`)) {
+    if (!existsSync(existing.cwd)) return cannot;
+    return {
+      cmd: { kind: "code", text },
+      existing,
+      planResume: { sessionId: existing.session_id, cwd: existing.cwd },
+    };
+  }
+  // Q&A: qa-flow only resumes in the neutral cwd dir or a registered repo; else the context would be lost.
+  const qaCwd =
+    existing.cwd === join(deps.agentHome, "cwd") || deps.repos.some((r) => r.path === existing.cwd);
+  return qaCwd ? { cmd: { kind: "qa", text }, existing } : cannot;
 }

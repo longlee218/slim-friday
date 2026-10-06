@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { QueryFn } from "../agent/run-agent";
+import { RESUME_FAILED } from "../agent/run-errors";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
 import { realOrSame } from "../guardrails/paths";
@@ -17,15 +18,16 @@ import {
 } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { loadRepoRegistry } from "../repos/repo-registry";
-import { cancelRunningTasks, finishTask, insertTask } from "../storage/run-store";
+import { finishTask, insertTask, setTaskStatus } from "../storage/run-store";
 import { deleteSession, getSession } from "../storage/session-store";
 import { runCodeFlow } from "./code-task-flow";
 import { runQaFlow } from "./qa-flow";
 import type { RunLimiter } from "./run-limiter";
 import { parseTaskCommand } from "./task-commands";
 import type { FlowResult } from "./task-result";
-import { finishRun, OUTCOME_REPLY, RESUME_FAILED } from "./task-result";
-import { routeTask } from "./task-routing";
+import { finishRun, OUTCOME_REPLY } from "./task-result";
+import { resolveCommand, routeTask } from "./task-routing";
+import { createRunTracker } from "./task-tracker";
 import { cleanupWorktree } from "./task-worktree";
 
 /** Dependencies of the task handler. */
@@ -48,21 +50,22 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
   /** threadId -> controller of the active run (one run per thread). */
   const active = new Map<string, AbortController>();
   const log = logger.child({ module: "handle-task" });
+  const tracker = createRunTracker(db, log, active);
   const git = deps.git ?? createGitMcp();
 
   /** Handle one task and return the (redacted) reply text. */
   const run = async (task: Task): Promise<string> => {
     const { threadId } = task;
     const running = active.get(threadId);
-    const cmd = parseTaskCommand(task.text);
+    const parsed = parseTaskCommand(task.text);
     const t0 = Date.now();
     logEvent(log, "task.routed", {
-      kind: cmd.kind,
-      repoHint: "repo" in cmd ? (cmd.repo ?? null) : null,
+      kind: parsed.kind,
+      repoHint: "repo" in parsed ? (parsed.repo ?? null) : null,
     });
 
     // `stop` aborts the active run; the running call marks the task cancelled.
-    if (cmd.kind === "stop") {
+    if (parsed.kind === "stop") {
       if (!running) return "Nothing is running.";
       running.abort();
       return "Stopping...";
@@ -71,8 +74,8 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       logEvent(log, "task.still_working");
       return "still working...";
     }
-    if (cmd.kind === "cleanup")
-      return cleanupWorktree({ db, git, inUse: (t) => active.has(t) }, threadId, cmd.taskId);
+    if (parsed.kind === "cleanup")
+      return cleanupWorktree({ db, git, inUse: (t) => active.has(t) }, threadId, parsed.taskId);
     // Global cap is checked after stop/still-working so those always answer.
     const release = deps.limiter ? deps.limiter.tryAcquire() : () => {};
     if (!release) {
@@ -102,7 +105,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     };
     // Everything after the lock is taken lives in try so `finally` always releases it.
     try {
-      const existing = getSession(db, threadId);
+      const stored = getSession(db, threadId);
       // Registry is re-read per task so config.yaml edits apply without a restart.
       const repos = loadRepoRegistry(config.agentHome);
       single = repos.length === 1 ? repos[0]!.name : undefined;
@@ -112,6 +115,14 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
         logEvent(log, "task.refused", { reason: "no_workspace", reply });
         return reply;
       }
+      // Resume button becomes a follow-up / plan run / Q&A from the interrupted task's session (or a refusal).
+      const resolved = resolveCommand({ db, agentHome: config.agentHome, repos }, parsed, threadId);
+      if ("reply" in resolved) {
+        logEvent(log, "task.refused", { reason: resolved.reason, reply: resolved.reply });
+        return resolved.reply;
+      }
+      const { cmd, planResume } = resolved;
+      const existing = resolved.existing ?? stored;
       const route = routeTask(
         { db, agentHome: config.agentHome, hasApprovals: !!deps.approvals },
         { cmd, threadId, repos, existing },
@@ -132,6 +143,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
               repos: route.candidates,
               ac,
               worktree,
+              planResume,
               resume:
                 worktree && existing?.cwd === realOrSame(worktree.path)
                   ? existing.session_id
@@ -143,6 +155,8 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
             { taskId, text: cmd.text, repos, pinned, existing, ac },
           );
       const reply = finishRun(db, { taskId, threadId }, res);
+      if (tracker.isStopping() && res.outcome === "aborted")
+        setTaskStatus(db, taskId, "interrupted");
       logEvent(log, "task.finished", {
         repo: res.repo && res.repo !== "*" ? res.repo : taskRepo(),
         outcome: res.outcome,
@@ -150,7 +164,10 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
         reply: excerpt(reply),
       });
       // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
-      if (!isCode && res.outcome === "error" && existing && RESUME_FAILED.test(res.text)) {
+      if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {
+        // The plan session lives on the task row (the failed task now has none, so Resume stops offering it).
+        if (planResume) return "Could not resume the plan; start the task again.";
+        if (isCode || !existing) return reply;
         deleteSession(db, threadId);
         return "Could not resume the previous session; it was cleared. Please send your message again.";
       }
@@ -170,35 +187,12 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       release();
     }
   };
-  /** Promises of calls in flight, so shutdown can wait for them. */
-  const inflight = new Set<Promise<string>>();
-  /** Track the call until it settles (`run` never rejects). */
-  const handleTask = (task: Task): Promise<string> => {
+  const handleTask = (task: Task): Promise<string> =>
     // Every line logged while this call runs (any module, any await) carries the thread id.
-    const p = runWithLogContext({ threadId: task.threadId }, () => run(task));
-    inflight.add(p);
-    const done = () => {
-      inflight.delete(p);
-    };
-    p.then(done, done);
-    return p;
-  };
+    tracker.track(runWithLogContext({ threadId: task.threadId }, () => run(task)));
   /** Stop the git MCP server process (shutdown). */
   handleTask.close = () => git.close();
-  /** Abort every active run (graceful shutdown). */
-  handleTask.abortAll = () => {
-    for (const ac of active.values()) ac.abort();
-  };
-  /** Abort all runs, wait up to `timeoutMs` for them to finish, then mark leftovers cancelled. */
-  handleTask.drain = async (timeoutMs: number): Promise<void> => {
-    handleTask.abortAll();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<void>((r) => {
-      timer = setTimeout(r, timeoutMs);
-    });
-    await Promise.race([Promise.allSettled([...inflight]), timeout]);
-    clearTimeout(timer);
-    tryLog(log, "cancelRunningTasks failed", () => cancelRunningTasks(db));
-  };
+  handleTask.abortAll = tracker.abortAll;
+  handleTask.drain = tracker.drain;
   return handleTask;
 }

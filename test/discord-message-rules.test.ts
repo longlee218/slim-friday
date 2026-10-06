@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import {
   CHUNK_MAX,
+  HEAD_MAX,
   type MessageFacts,
+  prepareOutput,
   prepareReply,
   REPLY_CAP,
   routeMessage,
@@ -145,4 +147,26 @@ test("M5: empty / whitespace replies become a notice, no blank chunks", () => {
 
 test("H1: mention policy disables all pings", () => {
   expect(SAFE_MENTIONS).toEqual({ parse: [], repliedUser: false });
+});
+
+test("prepareOutput: short reply stays inline, long reply = head + redacted reply.md", () => {
+  expect(prepareOutput("short answer").file).toBeUndefined();
+  const key = `ghp_${"a".repeat(36)}`;
+  const long = `${"line of text\n".repeat(600)}${key}`;
+  const out = prepareOutput(long);
+  expect(out.file?.name).toBe("reply.md");
+  expect(out.file?.content).not.toContain(key); // attachment is redacted too
+  expect(out.chunks).toHaveLength(1);
+  expect(out.chunks[0]!.length).toBeLessThan(HEAD_MAX + 60);
+  expect(out.chunks[0]).toContain("[full reply attached]");
+});
+
+test("prepareOutput: mainly-diff reply goes to changes.diff, head closes the open fence", () => {
+  const diff = `\`\`\`diff\n${"+added line\n".repeat(200)}\`\`\``;
+  const out = prepareOutput(`Here is the change:\n${diff}`);
+  expect(out.file?.name).toBe("changes.diff");
+  const head = out.chunks[0]!;
+  expect((head.match(/```/g) ?? []).length % 2).toBe(0);
+  // A small diff next to lots of prose stays inline.
+  expect(prepareOutput(`${"prose ".repeat(100)}\n\`\`\`diff\n+x\n\`\`\``).file).toBeUndefined();
 });

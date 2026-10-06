@@ -10,7 +10,7 @@ import { workspacePaths } from "../config/workspace-paths";
 import type { GuardrailContext } from "../guardrails/check-tool-call";
 import type { GitIdentity } from "../mcp/git-mcp";
 import { mcpServersFor } from "../mcp/mcp-servers";
-import { logEvent, logger } from "../observability/logger";
+import { logEvent, logger, tryLog } from "../observability/logger";
 import {
   emptyUsage,
   outcomeFromSubtype,
@@ -20,10 +20,12 @@ import {
   type RunUsage,
   usageFromResult,
 } from "../observability/record-run";
-import { errText } from "../observability/redact";
+import { errText, redactText } from "../observability/redact";
 import { buildToolHooks } from "../observability/tool-hooks";
+import { setTaskSession } from "../storage/run-store";
 import { SUBAGENTS, type ToolMode, toolOptions } from "../tools/tool-catalog";
 import { listRepoSkills } from "./repo-skills";
+import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
 import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
 import { buildToolPermissions, type ToolPermissionInput } from "./tool-permissions";
@@ -79,6 +81,8 @@ export interface RunAgentResult {
   outcome: RunOutcome;
   /** Token/cost/time metrics. */
   usage: RunUsage;
+  /** Quota outcome: when the limit resets (epoch ms), if the SDK reported it. */
+  resetsAt?: number;
 }
 
 /** Logger of this module (task fields come from the log context). */
@@ -142,6 +146,10 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   let usage = emptyUsage();
   let compactions = 0;
   let startupError = "";
+  /** Quota evidence: last assistant `error`, a rejected rate_limit_event (with its reset time). */
+  let assistantError: string | undefined;
+  let rejected = false;
+  let resetsAt: number | undefined;
 
   // Every mode goes through the permission layer when it has a guard (Q&A has no gateway: ask = deny).
   const perms = input.guard
@@ -201,6 +209,25 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         const m = msg as SDKMessage & { subtype?: string; session_id?: string };
         sessionId = m.session_id ?? sessionId;
         if (m.type === "system" && m.subtype === "compact_boundary") compactions++;
+        // Record the session on the task row at once (not in `sessions`: that table is only updated by a
+        // successful finish, so a failed run never replaces the thread's good session). Resume reads it.
+        if (m.type === "system" && m.subtype === "init" && m.session_id) {
+          const sid = m.session_id;
+          tryLog(log, "early session save failed", () =>
+            setTaskSession(input.db, input.taskId, sid, input.cwd),
+          );
+        }
+        const ext = m as unknown as { error?: string; rate_limit_info?: { status?: string } };
+        // A later assistant message without `error` means the SDK retry worked: forget the old error.
+        if (m.type === "assistant") assistantError = ext.error;
+        if (m.type === "rate_limit_event") {
+          // Raw shape at debug: the real payload of limit events is still being learned.
+          log.debug({ info: ext.rate_limit_info }, "rate_limit_event");
+          if (ext.rate_limit_info?.status === "rejected") {
+            rejected = true;
+            resetsAt = resetFromInfo(ext.rate_limit_info);
+          }
+        }
         // The execute stage is useless without its git tools: fail fast instead of letting the model flail.
         if (m.type === "system" && m.subtype === "init" && mode === "exec") {
           const servers = (m as unknown as { mcp_servers?: { name: string; status: string }[] })
@@ -217,6 +244,18 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
           outcome = outcomeFromSubtype(r.subtype);
           text = r.subtype === "success" ? (r.result ?? "") : (r.errors ?? []).join("; ");
           usage = usageFromResult(r, compactions);
+          // Failure (error subtype, or success flagged is_error): quota, or unknown (raw error to the log only).
+          if (outcome === "error" || (outcome === "success" && r.is_error)) {
+            const errors = outcome === "error" ? text : (r.result ?? "");
+            if (isQuotaFailure({ subtype: r.subtype, errors, assistantError, rejected })) {
+              outcome = "quota";
+              text = "";
+            } else if (outcome === "error") {
+              log.warn({ subtype: r.subtype, err: redactText(errors) }, "run failed");
+              // Only a failed resume needs the raw text (handle-task drops the stale session); else generic reply.
+              if (!RESUME_FAILED.test(errors)) text = "";
+            }
+          }
         }
       }
     } catch (err) {
@@ -224,6 +263,14 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       // Abort throws "process aborted" with no result message.
       if (outcome === "error" && !ac.signal.aborted) text = "Agent error";
       log.warn({ err: errText(err), outcome }, "query loop ended with throw");
+      // A limit can also surface only as a thrown error (no result message).
+      if (outcome === "error" && !ac.signal.aborted) {
+        const errors = errText(err);
+        if (isQuotaFailure({ errors, assistantError, rejected })) {
+          outcome = "quota";
+          text = "";
+        }
+      }
     }
     // No result message + abort (user stop or our timeout): relabel once, for throw or clean end.
     if (outcome === "error" && ac.signal.aborted) outcome = abortOutcome(timedOut);
@@ -238,5 +285,5 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     recorder.close();
   }
   logEvent(log, "run.finished", { outcome, ...usage, durationMs: Date.now() - startedAt });
-  return { text, sessionId, outcome, usage };
+  return { text, sessionId, outcome, usage, resetsAt };
 }

@@ -34,6 +34,7 @@ src/
 ├── agent/                      # Agent SDK logic
 │   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection
 │   ├── system-prompt.ts        # rules + code-mode rules (follow plan, small commits, test cmd; phase 4+)
+│   ├── run-errors.ts           # error classification (quota, rate_limit, billing, overloaded); phase 5+
 │   └── sdk-env.ts              # environment builder per provider (anthropic/openrouter)
 ├── mcp/                        # MCP client & server management
 │   ├── mcp-stdio.ts            # connectStdio helper, toolText utility
@@ -49,7 +50,8 @@ src/
 │   └── repo-memory.ts          # MEMORY.md loader/writer, append on exec success
 ├── tasks/                      # Task lifecycle
 │   ├── handle-task.ts          # map thread → session; task command parse; stage detection (phase 4+)
-│   ├── task-commands.ts        # parse task/stop/cleanup commands; repo pinning; isStop/parseTaskCommand/parseRepoPin
+│   ├── task-commands.ts        # parse task/stop/cleanup commands; repo pinning; Resume routing (phase 5+)
+│   ├── task-tracker.ts         # thread locking, session resume context tracking (phase 5+)
 │   ├── qa-flow.ts              # Q&A path entry
 │   ├── code-task-flow.ts       # two-stage: plan → execute; cwd switching (phase 4+)
 │   ├── task-worktree.ts        # createTaskWorktree/removeTaskWorktree via git MCP; startWorktree/cleanupWorktree
@@ -85,7 +87,11 @@ src/
 │   ├── tool-hooks.ts           # PreToolUse/PostToolUse hooks
 │   └── redact.ts               # secret masking
 └── lifecycle/                  # Shutdown & cleanup
-    └── shutdown.ts             # graceful termination; cancel pending approvals; cleanup stale tasks (phase 4+)
+    ├── shutdown.ts             # graceful termination; cancel pending approvals; cleanup stale tasks (phase 4+)
+    ├── resume-interrupted.ts   # interrupted task recovery; Resume button handler; context save/load (phase 5+)
+    └── startup.ts              # delete old task logs (>30d); log orphan worktrees (phase 5+)
+deploy/
+├── com.friday.agent.plist      # launchd LaunchAgent plist (RunAtLoad, KeepAlive, logs; phase 5+)
 test/
 ├── *.test.ts                   # unit tests (colocate with src/)
 ├── deny-dangerous.test.ts      # guardrails: dangerous commands

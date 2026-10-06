@@ -75,7 +75,8 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 
 ### Session & Task Management
 - **handle-task.ts:** thread→session mapping, repo pin, task command parse, stage detection
-- **task-commands.ts:** parse task/stop/cleanup commands; repo pinning
+- **task-commands.ts:** parse task/stop/cleanup commands; repo pinning; Resume routing logic (phase 5+)
+- **task-tracker.ts:** thread locking, session resume context tracking (phase 5+)
 - **qa-flow.ts:** Q&A path entry
 - **code-task-flow.ts:** two-stage (plan mode → approval → execute); cwd/git context switching
 - **task-worktree.ts:** worktree creation/removal via git MCP; stage switching
@@ -87,6 +88,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling
 - **system-prompt.ts:** always-on rules + mode-specific (follow plan, small commits, test cmd)
 - **tool-permissions.ts:** the permission layer of every run: PreToolUse hook (hard deny / force ask via `checkToolCall`) + `canUseTool` (plan approval on ExitPlanMode, AskUserQuestion buttons, owner approval for risky calls; Q&A has no gateway so ask = deny)
+- **run-errors.ts:** error classification (quota, rate_limit, billing, overloaded → outcome + user reply with reset times); phase 5+
 - **repo-memory.ts:** load/inject per-repo MEMORY.md; append on exec success
 
 ### Guardrails & Approvals
@@ -127,6 +129,8 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 
 ### Lifecycle & Shutdown
 - **shutdown.ts:** graceful drain + cleanup; restart cancels pending approvals + stale tasks
+- **resume-interrupted.ts:** interrupted task recovery; Resume button handler; save/load session context (phase 5+)
+- **startup.ts:** delete task logs >30 days old; log orphan worktrees; perform cleanup on app start (phase 5+)
 
 ## Test Structure
 | Area | File | Coverage |
@@ -194,7 +198,7 @@ bun run start          # start bot (reads .env)
 - **Phase 2 (Multi-repo registry):** Code complete — config.yaml loader (phase 4: per-workspace) + repo pin + git refresh verified
 - **Phase 3 (Approval + guardrails):** Code complete — PreToolUse hook + canUseTool gates + plan mode
 - **Phase 4 (Worktree → PR + Memory + MCP):** Code complete (343 tests, 2 skip; live verified) — plan stage → execute stage → git/GitHub MCP commit → PR
-- **Phase 5 (Hardening):** Pending — crash recovery, orphan cleanup, output quota
+- **Phase 5 (Hardening):** **Code complete** (367 tests pass incl. live) — crash recovery (interrupted + Resume), output quota (attachments), error classification (quota/rate_limit/billing/overloaded), startup cleanup (30d logs + orphan logging)
 - **Phase 6 (Eval + daily use):** Deferred — revisit before model change
 
 ## Known Limits (Phase 5 candidates)

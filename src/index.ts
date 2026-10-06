@@ -1,13 +1,15 @@
-import type { Client } from "discord.js";
+import { type Client, Events } from "discord.js";
 import { createDiscordApprovalGateway } from "./approvals/discord-approval";
 import { type AgentConfig, loadConfig, logProviderSelected } from "./config/agent-config";
 import { workspacePaths } from "./config/workspace-paths";
 import { createDiscordBot } from "./ingress/discord-bot";
+import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
 import { createShutdown } from "./lifecycle/shutdown";
+import { runStartupHygiene } from "./lifecycle/startup";
 import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
 import { openDb } from "./storage/db";
-import { cancelRunningTasks } from "./storage/run-store";
+import { interruptRunningTasks } from "./storage/run-store";
 import { createTaskHandler } from "./tasks/handle-task";
 import { createRunLimiter } from "./tasks/run-limiter";
 
@@ -36,8 +38,10 @@ async function main(): Promise<void> {
   logProviderSelected(log, config);
 
   const db = openDb(workspacePaths(config.agentHome).dbFile);
-  // A crash leaves tasks "running"/"waiting_approval"; they would count against the code-task cap forever.
-  cancelRunningTasks(db);
+  // A crash leaves tasks "running"/"waiting_approval": they stop counting against the code-task cap and
+  // become "interrupted"; after Discord is ready each such thread gets a Resume button.
+  interruptRunningTasks(db);
+  runStartupHygiene(db, config.agentHome);
   // Client is created after the handler, so the gateway looks it up lazily.
   let botClient: Client | undefined;
   const approvals = createDiscordApprovalGateway({
@@ -51,8 +55,21 @@ async function main(): Promise<void> {
     approvals,
     limiter: createRunLimiter(config.maxConcurrentRuns),
   });
-  const { client } = createDiscordBot(config, handleTask, approvals.handleInteraction);
+  const handleResume = createResumeHandler({
+    db,
+    getClient: () => botClient,
+    ownerId: config.ownerDiscordId!,
+    handleTask,
+  });
+  // One interaction listener: each handler ignores buttons of the other (different customId prefix).
+  const { client } = createDiscordBot(config, handleTask, async (i) => {
+    await approvals.handleInteraction(i);
+    await handleResume(i);
+  });
   botClient = client;
+  client.once(Events.ClientReady, () => {
+    void postResumeNotices({ db, getClient: () => botClient });
+  });
 
   /** Graceful shutdown: abort + await runs, drop the connection, close db. */
   const shutdown = createShutdown({

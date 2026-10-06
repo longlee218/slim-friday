@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   type TEXT NOT NULL,
   status TEXT NOT NULL,
   started_at INTEGER NOT NULL,
-  ended_at INTEGER
+  ended_at INTEGER,
+  session_id TEXT,
+  session_cwd TEXT
 );
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY,
@@ -78,6 +80,13 @@ export function openDb(file: string): Database {
   db.run("PRAGMA journal_mode = WAL");
   db.run("PRAGMA busy_timeout = 5000");
   db.exec(SCHEMA);
+  // Idempotent column additions for databases created by older versions.
+  const have = db
+    .query<{ name: string }, []>("PRAGMA table_info(tasks)")
+    .all()
+    .map((c) => c.name);
+  for (const col of ["session_id", "session_cwd"])
+    if (!have.includes(col)) db.exec(`ALTER TABLE tasks ADD COLUMN ${col} TEXT`);
   if (file !== ":memory:") {
     // db holds tool output: owner-only, including the WAL/SHM sidecars created before this chmod.
     for (const f of [file, `${file}-wal`, `${file}-shm`]) if (existsSync(f)) restrictFile(f);

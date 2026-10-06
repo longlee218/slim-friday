@@ -82,6 +82,93 @@ Task mode (plan approval flow)
 | **Workspace** | src/config/workspace-paths.ts | AGENT_HOME layout: db, logs, repos, tasks (plan scratch + task context), worktrees (phase 4+), memory (phase 4+) |
 | **Lifecycle** | src/lifecycle/shutdown.ts | graceful shutdown, drain, cleanup; restart cancels pending approvals; startup cancels stale running tasks (phase 4+) |
 
+## Crash Recovery & Resumability (Phase 5+)
+
+**Interrupted Task Detection (Startup):**
+- On startup, scan tasks with status `running` or `waiting_approval`
+- Mark as `interrupted` (state change persisted)
+- Post thread notice: "Task interrupted. Resume?" with Resume button (owner-only, same button machinery)
+- The Claude session id + cwd are recorded on the task row at system/init (`tasks.session_id`, `tasks.session_cwd`); the thread's `sessions` row is only written after a successful run, so failed/quota/plan runs never replace a good session; Resume reads the thread's latest task row (refused when out of date or when that task has no session)
+
+**Resume Button Flow:**
+- customId `resume:<threadId>:go` → resolveCommand → route to recovery logic
+- Saved context loaded: session ID, task type (Q&A or code), worktree/plan paths, repo name
+- Resume routing decision:
+  - Worktree follow-up: if saved cwd matches live worktree → continue code task on existing branch (git context preserved)
+  - Plan rerun: if plan scratch dir exists → restart plan stage (seeded with plan.md from scratch/)
+  - Q&A resume: else, resume reading/answering in repo context (session context from DB)
+  - Cannot resume: if no session/worktree/scratch → reply "Cannot resume: no saved session; starting fresh"
+
+**Design Trade-off (SIMPLE model):**
+- Pending approvals marked cancelled on startup (not re-issued); owner re-approves on Resume if needed
+- No transcript recovery mid-tool-call: Q13 spike confirmed resume works (re-issued tool call matched by single-use grant); plan fallback seeds new session
+- No approval persistence layer
+
+**Recovery Limits:**
+- Resume single level only (no chain of resume→resume)
+- Early plan-stage session may replace existing Q&A session of same thread (no merge, restart)
+- Plan/exec paths tested at routing level (live end-to-end not yet confirmed)
+
+## Output Handling & Quota (Phase 5+)
+
+**Large Reply Handling (`prepareOutput` in discord-message-rules.ts):**
+- Replies ≤2000 chars: direct Discord message (no chunking)
+- Replies 2000–6000 chars: chunk at line/code-block boundaries (preserve structure, avoid mid-line cuts)
+- Replies >~6000 chars OR mostly ```diff: 
+  - Head (redacted, ~1500 chars max) posted to thread
+  - Full reply → attachment (`reply.md`)
+  - Diff (if any) → attachment (`changes.diff`)
+  - Link to attachments included in head
+  - All text (head + attachment) runs through redact.ts before Discord send
+- No token loss: full reply always in logs; Discord thread shows head + links
+
+**Attachment Redaction:**
+- `redact.ts` applied to attachment text before sending
+- Patterns masked: sk-ant-*, sk-or-*, ghp_*, xox*, AKIA*, KEY=value, .env patterns
+- File size limit: Discord 25 MB max; replies capped at ~6000 chars + diffs ensure no overflow
+
+## Error Classification (Phase 5+)
+
+**Error Detection & Outcome Mapping (`src/agent/run-errors.ts`):**
+- Quota errors (rate_limit):
+  - `error.type === "api_error" && error.status === 429` → outcome `quota`
+  - `rate_limit_event` at query start contains `rate_limit_info` → logged at debug level
+  - Reply includes reset time if known (assumes `rate_limit_info.resetsAt` = epoch seconds; untested live)
+  - No auto-retry: task marked failed; owner decides next action
+- Rate limit subtypes (from SDK docs): `rate_limit`, `billing_error`, `account_on_hold`, `overloaded`
+- Unknown errors: generic user reply ("Something went wrong. Check logs.") + raw redacted error in logs
+- All errors logged with taskId, threadId, repo, mode for correlation
+
+**User Replies by Outcome:**
+- `quota`: "Quota exhausted. Resets at [ISO timestamp if known]"
+- `rate_limit`: "Rate limited. Resets at [ISO timestamp]"
+- `billing` / `account_on_hold`: "Billing issue. Check API account status."
+- `overloaded`: "Claude service temporarily overloaded. Retry in a few minutes."
+- `timeout` (from AbortController): "Timeout after 5 min. Consider splitting into smaller questions or reduce repo size."
+- Generic: "Something went wrong. Check logs."
+
+## Startup Hygiene (Phase 5+)
+
+**Log Cleanup (`src/lifecycle/startup.ts`):**
+- Delete raw task logs (*.jsonl files) in `$AGENT_HOME/logs/tasks/` older than 30 days
+- Prevents unbounded log disk usage; pino-roll app logs already have 14-day retention
+- Orphan detection: log worktree.orphan events for:
+  - worktrees DB rows whose path dir doesn't exist → likely manual deletion; rows deleted
+  - Directories in $AGENT_HOME/worktrees without DB rows → cleanup deferred (manual operation or phase 6 GC)
+
+**Signal Handlers (`src/index.ts`):**
+- SIGINT/SIGTERM → mark running/waiting_approval tasks `interrupted` (resumable on restart)
+- Close DB, drain Discord handlers, exit(0)
+- Ensures clean shutdown for launchd KeepAlive restart
+
+**Launchd Integration (deploy/com.friday.agent.plist):**
+- RunAtLoad: start at login
+- KeepAlive: restart bot if process exits (normal shutdown via SIGINT still allows clean exit)
+- StandardOutPath/StandardErrorPath: stdout/stderr → `.friday/logs/launchd.{out,err}.log`
+- WorkingDirectory: project root (`.env` loading and relative paths work)
+- EnvironmentVariables: PATH includes bun, gh, docker; empty env otherwise (loads `.env` at runtime)
+- Manual install: `mkdir -p .friday/logs` + `cp deploy/com.friday.agent.plist ~/Library/LaunchAgents/` + `launchctl load ~/Library/LaunchAgents/com.friday.agent.plist`
+
 ## Approval & Guardrails Flow (Phase 3+)
 
 **Two-layer decision model:**
@@ -287,11 +374,18 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 - Config: set repo's LOCAL git config before run (via src/repos/git-identity.ts; identity validated at startup)
 - Verification: git_log (author email) + git_show (no attribution) before PR offer
 
+## Built (Phase 5+)
+
+- **Crash Recovery** (Phase 5) — interrupted flag + Resume button; worktree follow-up, plan rerun, Q&A resume routing
+- **Output Quota** (Phase 5) — attachments >6000 chars or diffs; chunking at boundaries
+- **Error Classification** (Phase 5) — quota/rate_limit/billing/overloaded with reset times and user-friendly replies
+- **Startup Cleanup** (Phase 5) — delete logs >30d, log orphan worktrees
+
 ## Not Built Yet (v2 backlog)
 
-- **Hardening** (Phase 5) — crash recovery, orphan worktree cleanup, output quota, token streaming.
+- **Approval Persistence** — pending approvals lost on restart (by design: SIMPLE model); consider re-issue on Resume if complexity acceptable (v2+)
+- **Orphan Worktree Cleanup** — logged on startup but not auto-deleted; manual cleanup or v2 GC
 - **Worktree Sandbox** — current: approved commands run agent-edited code as bot user; no privilege isolation.
-- **Session Resumability** (Phase 5) — pending approvals lost on restart; plan.md seeds new session but no context recovery.
 - **PreCompact Hook** — transcript compression for long sessions.
 - **HTTP Webhook** — Discord-only for now.
 - **Custom Prompts** — static prompt only, no per-repo tuning.

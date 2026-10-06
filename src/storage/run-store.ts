@@ -7,11 +7,34 @@ export type TaskStatus =
   | "done"
   | "failed"
   | "cancelled"
+  /** Cut short by a restart/shutdown; the thread gets a Resume offer, then the row becomes cancelled. */
+  | "interrupted"
   | "timeout";
 
 /** Change a task's status without ending it (no-op when the row is missing). */
 export function setTaskStatus(db: Database, id: string, status: TaskStatus): void {
   db.query("UPDATE tasks SET status = ? WHERE id = ?").run(status, id);
+}
+
+/** Record the Claude session of a task (reported at `system/init`) and the cwd it runs in. */
+export function setTaskSession(db: Database, id: string, sessionId: string, cwd: string): void {
+  db.query("UPDATE tasks SET session_id = ?, session_cwd = ? WHERE id = ?").run(sessionId, cwd, id);
+}
+
+/** Latest task of a thread with the session it recorded (what Resume continues), or null. */
+export function latestTaskSession(
+  db: Database,
+  threadId: string,
+): { status: string; repo: string; sessionId: string | null; cwd: string | null } | null {
+  return db
+    .query<
+      { status: string; repo: string; sessionId: string | null; cwd: string | null },
+      [string]
+    >(
+      `SELECT status, repo, session_id AS sessionId, session_cwd AS cwd FROM tasks
+       WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
+    )
+    .get(threadId);
 }
 
 /** Insert a task row in `running` state. */
@@ -29,16 +52,33 @@ export function finishTask(db: Database, id: string, status: TaskStatus): void {
   db.query("UPDATE tasks SET status = ?, ended_at = ? WHERE id = ?").run(status, Date.now(), id);
 }
 
-/** Mark every still-`running` task cancelled (shutdown cleanup). */
-export function cancelRunningTasks(db: Database): void {
+/** Mark every still-`running` task `interrupted` (restart/shutdown) and cancel their pending approvals. */
+export function interruptRunningTasks(db: Database): void {
   const now = Date.now();
   db.query(
-    "UPDATE tasks SET status = 'cancelled', ended_at = ? WHERE status IN ('running', 'waiting_approval')",
+    "UPDATE tasks SET status = 'interrupted', ended_at = ? WHERE status IN ('running', 'waiting_approval')",
   ).run(now);
-  // Buttons of a dead process can never be answered.
+  // Buttons of a dead process can never be answered (a resumed run asks again).
   db.query(
     "UPDATE approvals SET decision = 'cancelled', decided_at = ? WHERE decision = 'pending'",
   ).run(now);
+}
+
+/** Threads that have an interrupted task (each needs one Resume notice). */
+export function listInterruptedThreads(db: Database): string[] {
+  return db
+    .query<{ thread_id: string }, []>(
+      "SELECT DISTINCT thread_id FROM tasks WHERE status = 'interrupted'",
+    )
+    .all()
+    .map((r) => r.thread_id);
+}
+
+/** The thread was told: its interrupted tasks become plain `cancelled` (no repeat notice next start). */
+export function ackInterrupted(db: Database, threadId: string): void {
+  db.query(
+    "UPDATE tasks SET status = 'cancelled' WHERE status = 'interrupted' AND thread_id = ?",
+  ).run(threadId);
 }
 
 /** One agent run's metrics. */

@@ -288,6 +288,23 @@ Each repository has persistent memory stored in `$AGENT_HOME/workspaces/<repo-na
 - `.claude/CLAUDE.md` is symlinked from each repo's tracked CLAUDE.md (repo untouched by Friday)
 - `.claude/CLAUDE.local.md` (repo-local config) is stored in `memory/<repo>/` and symlinked back (excluded via git info/exclude)
 
+## Run in background (launchd)
+
+`deploy/com.friday.agent.plist` starts the bot at login and restarts it if it exits (paths are for this Mac; edit them if the repo or bun moves).
+
+```bash
+mkdir -p .friday/logs                                  # launchd needs the log dir to exist
+cp deploy/com.friday.agent.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.friday.agent.plist     # start (and at every login)
+launchctl unload ~/Library/LaunchAgents/com.friday.agent.plist   # stop
+tail -f .friday/logs/launchd.err.log .friday/logs/launchd.out.log  # process output; app logs stay in .friday/logs/app.*
+```
+
+- Settings come from `.env` in the repo root (bun loads it from the working directory).
+- Mac sleep pauses the bot (Discord drops the connection); it reconnects on wake. Use energy settings or `caffeinate` if it must stay up.
+- Never run two instances at once: stop `bun run start` before `launchctl load`.
+- After a restart, threads whose task was cut short get a **Resume** button.
+
 ## Next Steps (Phase 5+)
 - Hardening: crash recovery, orphan cleanup, output quota
 - Custom skills: MCP tools for lint, format, test runners

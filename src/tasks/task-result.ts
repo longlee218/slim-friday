@@ -8,7 +8,8 @@ import { setSession } from "../storage/session-store";
 /* The result of a Q&A or code flow, and the bookkeeping that closes a run. */
 
 /** What the task handler needs back from a Q&A or code flow. */
-export interface FlowResult extends Pick<RunAgentResult, "text" | "outcome" | "sessionId"> {
+export interface FlowResult
+  extends Pick<RunAgentResult, "text" | "outcome" | "sessionId" | "resetsAt"> {
   /** cwd + repo of the session to save (resume needs the same cwd), when a session should be stored. */
   cwd?: string;
   repo?: string;
@@ -27,6 +28,7 @@ export const OUTCOME_REPLY: Record<string, string> = {
   max_budget: "Stopped: reached the budget limit.",
   timeout: "Stopped: timed out.",
   aborted: "Stopped.",
+  quota: "Quota exhausted / rate limited. Not retrying automatically.",
   error: "Agent failed. Check the logs.",
 };
 
@@ -39,10 +41,6 @@ const TASK_STATUS: Record<string, TaskStatus> = {
 
 /** Outcomes where a result message arrived, so the session transcript exists and can be resumed. */
 const SAVE_SESSION_OUTCOMES = new Set(["success", "max_turns", "max_budget"]);
-
-/** Error text of a failed `resume` (session transcript missing); only then is the stored session dropped. */
-export const RESUME_FAILED =
-  /no conversation found|could not resume|session .*(not found|does not exist)/i;
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "task-result" });
@@ -63,5 +61,10 @@ export function finishRun(
     logEvent(log, "session.saved", { repo: res.repo ?? "*", sessionId: res.sessionId });
   }
   finishTask(db, ids.taskId, TASK_STATUS[res.outcome] ?? "failed");
-  return redactText(res.text || OUTCOME_REPLY[res.outcome] || "No answer.");
+  // Quota: say when it resets, when the SDK told us.
+  const reset =
+    res.outcome === "quota" && res.resetsAt
+      ? ` Resets at ${new Date(res.resetsAt).toISOString()}.`
+      : "";
+  return redactText(res.text || `${OUTCOME_REPLY[res.outcome] ?? "No answer."}${reset}`);
 }

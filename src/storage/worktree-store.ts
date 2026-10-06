@@ -97,3 +97,11 @@ export function liveWorktree(db: Database, threadId: string): WorktreeRow | unde
   const w = getWorktreeByThread(db, threadId);
   return w && existsSync(w.path) ? w : undefined;
 }
+
+/** Every worktree row (startup hygiene). */
+export function listWorktrees(db: Database): WorktreeRow[] {
+  return db
+    .query<Raw, []>("SELECT * FROM worktrees")
+    .all()
+    .map((r) => toRow(r)!);
+}

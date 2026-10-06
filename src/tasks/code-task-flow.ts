@@ -48,6 +48,8 @@ export interface CodeFlowInput {
   worktree?: WorktreeRow;
   /** Session to resume for a follow-up (same cwd as the worktree). */
   resume?: string;
+  /** Interrupted plan stage (Resume button): rerun the plan in this scratch dir and session. */
+  planResume?: { sessionId: string; cwd: string };
 }
 
 /** Refusal text when a repo has no commit identity: never fall back to the machine's global git user. */
@@ -68,7 +70,6 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
   i.ac.signal.addEventListener("abort", () => approvals.cancelTask(i.taskId), { once: true });
   const paths = workspacePaths(config.agentHome);
   const plans = claudePlansDir();
-
   /** Execute stage: agent works in the worktree; then offer the PR. */
   const execStage = async (
     wt: WorktreeRow,
@@ -138,9 +139,7 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
   };
 
   if (i.worktree) return execStage(i.worktree, i.text, "", i.resume);
-
-  // ---- Plan stage ----
-  const scratch = paths.task(i.taskId).scratch;
+  const scratch = i.planResume?.cwd ?? paths.task(i.taskId).scratch;
   mkdirSync(scratch, { recursive: true, mode: 0o700 });
   const scratchReal = realpathSync(scratch);
   const repoPaths = i.repos.map((r) => realpathSync(r.path));
@@ -151,6 +150,7 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
     prompt: i.text,
     taskId: i.taskId,
     cwd: scratchReal,
+    resume: i.planResume?.sessionId,
     additionalDirectories: repoPaths,
     extraContext: [
       buildPersonaContext(config.agentHome),
@@ -183,10 +183,9 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
   });
   if (!approved) return planRes; // rejected, stopped, timed out or no plan
   const { plan, repo: repoName } = approved;
-  setLogContext({ repo: repoName });
+  setLogContext({ repo: repoName }); // stage switch: worktree from the managed clone, then execute
   logEvent(log, "plan.approved");
 
-  // ---- Stage switch: worktree from the (managed) clone, then execute ----
   const repo = i.repos.find((r) => r.name === repoName)!;
   if (!resolveAuthor(repo, config)) return noAuthor(repo.name);
   const started = await startWorktree(deps, i, repo, plan);

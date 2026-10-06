@@ -7,6 +7,10 @@ export const SAFE_MENTIONS = { parse: [] as never[], repliedUser: false };
 export const CHUNK_MAX = 1900;
 /** Replies longer than this are truncated. */
 export const REPLY_CAP = 6000;
+/** Replies longer than this, or mainly a diff, go out as an attachment with a short head. */
+export const ATTACH_MIN = 6000;
+/** Size of the inline head sent before the attachment. */
+export const HEAD_MAX = 1500;
 /** Max Discord thread name length is 100; keep it shorter. */
 const THREAD_NAME_MAX = 90;
 
@@ -96,4 +100,39 @@ export function prepareReply(text: string): string[] {
   // Discord rejects empty messages: drop blank chunks, fall back to a notice.
   const chunks = splitChunks(safe).filter((c) => c.trim() !== "");
   return chunks.length ? chunks : ["(no answer)"];
+}
+
+/** A reply sent as a head message plus one redacted file. */
+export interface OutputFile {
+  name: "reply.md" | "changes.diff";
+  content: string;
+}
+
+/** True when ```diff blocks make up more than half of the text. */
+function isMainlyDiff(text: string): boolean {
+  let inDiff = 0;
+  for (const [block] of text.matchAll(/```diff\n[\s\S]*?(?:```|$)/g)) inDiff += block.length;
+  return inDiff > text.length / 2;
+}
+
+/** First ~HEAD_MAX chars, cut on a line boundary, with an open ``` fence closed. */
+function headOf(text: string): string {
+  const cut = text.slice(0, HEAD_MAX);
+  const head = cut.length < text.length ? cut.slice(0, Math.max(cut.lastIndexOf("\n"), 1)) : cut;
+  const open = (head.match(/^\s*```/gm) ?? []).length % 2 === 1;
+  return `${head}${open ? "\n```" : ""}\n\n[full reply attached]`;
+}
+
+/**
+ * What to send for a reply: chunks, plus a file when the reply is long (> ATTACH_MIN) or mainly a diff
+ * (head + `changes.diff` / `reply.md`). Everything is redacted, including the file content.
+ */
+export function prepareOutput(text: string): { chunks: string[]; file?: OutputFile } {
+  const safe = redactText(text);
+  const diff = isMainlyDiff(safe);
+  if (safe.length <= ATTACH_MIN && !diff) return { chunks: prepareReply(safe) };
+  return {
+    chunks: [headOf(safe)],
+    file: { name: diff ? "changes.diff" : "reply.md", content: safe },
+  };
 }

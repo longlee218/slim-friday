@@ -159,7 +159,7 @@ test("M3: drain aborts runs, waits for them, and leaves no task running", async 
   ).toBe(0);
 });
 
-test("M3: drain times out on a stuck run and marks its task cancelled", async () => {
+test("M3: drain times out on a stuck run and marks its task interrupted", async () => {
   const env = makeEnv();
   const stuck = (_a: any) =>
     (async function* () {
@@ -171,6 +171,6 @@ test("M3: drain times out on a stuck run and marks its task cancelled", async ()
   await Bun.sleep(50);
   await handle.drain(100);
   expect(env.db.query<{ status: string }, []>("SELECT status FROM tasks").get()?.status).toBe(
-    "cancelled",
+    "interrupted",
   );
 });

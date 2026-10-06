@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.friday.agent</string>
+
+  <!-- Bun auto-loads .env from the working directory. -->
+  <key>WorkingDirectory</key>
+  <string>/Users/example/orca/projects/friday-slim-agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/example/.bun/bin/bun</string>
+    <string>run</string>
+    <string>src/index.ts</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <!-- Restart only after a failure (non-zero exit or crash); a clean stop (SIGTERM/launchctl unload) stays
+       stopped. Config errors (missing token...) exit 1 by design (also for `bun run start`), so they would
+       retry forever: ThrottleInterval caps that at one attempt per minute. -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/example/orca/projects/friday-slim-agent/.friday/logs/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/example/orca/projects/friday-slim-agent/.friday/logs/launchd.err.log</string>
+
+  <!-- launchd has a minimal PATH: bun, gh (Homebrew), docker, system tools. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/example/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/example</string>
+  </dict>
+</dict>
+</plist>
