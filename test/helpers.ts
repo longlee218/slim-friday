@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { loadConfig } from "../src/config/agent-config";
+import { workspacePaths } from "../src/config/workspace-paths";
 import { openDb } from "../src/storage/db";
-import { workspacePaths } from "../src/workspace/workspace-paths";
 
 /** Create a fresh temp AGENT_HOME, real config and real SQLite db. */
 export function makeEnv(extra: Record<string, string> = {}) {
@@ -14,10 +15,11 @@ export function makeEnv(extra: Record<string, string> = {}) {
     TIMEOUT_MS: "5000",
     ...extra,
   });
-  // One registered repo by default (handler needs at least one); tests may overwrite repos.yaml.
-  const repo = join(home, "repo");
+  // One workspace by default: `repo`, a fake git dir OUTSIDE workspaces/ (not a managed clone, so Q&A tests
+  // never touch the git MCP server). Code-task tests replace it with a managed clone via addWorkspace().
+  const repo = join(home, "plain", "repo");
   mkdirSync(join(repo, ".git"), { recursive: true });
-  writeFileSync(join(home, "repos.yaml"), `- {name: repo, path: ${repo}}\n`);
+  addWorkspace(home, "repo", {}, repo);
   const db = openDb(workspacePaths(home).dbFile);
   return { home, repo, config, db, paths: workspacePaths(home) };
 }
@@ -66,3 +68,40 @@ export function fakeQuery(msgs: SDKMessage[], thenThrow?: Error) {
       if (thenThrow) throw thenThrow;
     })();
 }
+
+/**
+ * Create `workspaces/<name>/config.yaml` (+ a fake git clone at workspaces/<name>/repo unless `path` is given).
+ * Returns the repo path. `config` holds extra config.yaml keys (gitAuthor, githubAccount, testCommand...).
+ */
+export function addWorkspace(
+  home: string,
+  name: string,
+  config: Record<string, string> = {},
+  path?: string,
+): string {
+  const ws = workspacePaths(home).workspace(name);
+  mkdirSync(ws.root, { recursive: true });
+  const repo = path ?? ws.repo;
+  if (!path) mkdirSync(join(repo, ".git"), { recursive: true });
+  const lines = [
+    `path: ${repo}`,
+    ...Object.entries(config).map(([k, v]) => `${k}: ${JSON.stringify(v)}`),
+  ];
+  writeFileSync(ws.config, `${lines.join("\n")}\n`);
+  return repo;
+}
+
+/** Remove every workspace config (tests of the "nothing registered" paths). */
+export function clearWorkspaces(home: string): void {
+  rmSync(workspacePaths(home).workspaces, { recursive: true, force: true });
+}
+
+/** Approval gateway that approves everything; override the methods a test cares about. */
+export const stubGateway = (over: Partial<ApprovalGateway> = {}): ApprovalGateway => ({
+  request: async () => ({ approved: true }),
+  requestPlan: async () => ({ approved: true }),
+  confirm: async () => ({ approved: true }),
+  cancelTask: () => {},
+  askChoice: async () => undefined,
+  ...over,
+});

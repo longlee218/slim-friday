@@ -97,3 +97,34 @@ export function insertToolCall(db: Database, c: ToolCallRecord): void {
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(c.id, c.runId, c.tool, c.inputJson, c.outputPreview, c.isError ? 1 : 0, c.durationMs);
 }
+
+/** Number of code tasks currently running or waiting for approval (concurrency cap). */
+export function countActiveCodeTasks(db: Database): number {
+  return db
+    .query<{ n: number }, []>(
+      "SELECT COUNT(*) AS n FROM tasks WHERE type = 'code' AND status IN ('running', 'waiting_approval')",
+    )
+    .get()!.n;
+}
+
+/** Lifecycle of an approval row. */
+export type ApprovalDecision = "pending" | "approved" | "denied" | "timeout" | "cancelled";
+
+/** Insert a pending approval; summary must already be redacted. */
+export function insertApproval(
+  db: Database,
+  a: { id: string; taskId: string; tool: string; summary: string },
+): void {
+  db.query(
+    "INSERT INTO approvals (id, task_id, tool, summary, decision, requested_at) VALUES (?, ?, ?, ?, 'pending', ?)",
+  ).run(a.id, a.taskId, a.tool, a.summary, Date.now());
+}
+
+/** Record the final decision and time. */
+export function decideApproval(db: Database, id: string, decision: ApprovalDecision): void {
+  db.query("UPDATE approvals SET decision = ?, decided_at = ? WHERE id = ?").run(
+    decision,
+    Date.now(),
+    id,
+  );
+}

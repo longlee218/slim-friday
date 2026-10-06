@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { runAgent } from "../src/agent/run-agent";
 import { sdkEnv } from "../src/agent/sdk-env";
-import { loadConfig } from "../src/config/agent-config";
-import { logProviderSelected } from "../src/config/log-provider";
+import { loadConfig, logProviderSelected } from "../src/config/agent-config";
 import { createLogger } from "../src/observability/logger";
 import { MASK, redactText } from "../src/observability/redact";
 import { fakeQuery, makeEnv, resultMsg } from "./helpers";

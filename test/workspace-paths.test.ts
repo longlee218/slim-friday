@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { existsSync, statSync } from "node:fs";
-import { ensureParentDir, workspacePaths } from "../src/workspace/workspace-paths";
+import { ensureParentDir, workspacePaths } from "../src/config/workspace-paths";
 import { makeEnv } from "./helpers";
 
 test("paths derive from AGENT_HOME and task id", () => {
@@ -10,8 +10,15 @@ test("paths derive from AGENT_HOME and task id", () => {
   expect(p.taskLog("T1")).toBe("/h/logs/tasks/T1.jsonl");
   expect(p.task("T1").scratch).toBe("/h/tasks/T1/scratch");
   expect(p.task("T1").artifacts).toBe("/h/tasks/T1/artifacts");
-  expect(p.repos).toBe("/h/repos");
-  expect(p.worktrees).toBe("/h/worktrees");
+  expect(p.taskLog("T1", "api")).toBe("/h/workspaces/api/logs/tasks/T1.jsonl");
+  expect(p.identity).toBe("/h/IDENTITY.md");
+  expect(p.soul).toBe("/h/SOUL.md");
+  const ws = p.workspace("api");
+  expect(ws.config).toBe("/h/workspaces/api/config.yaml");
+  expect(ws.memory).toBe("/h/workspaces/api/MEMORY.md");
+  expect(ws.repo).toBe("/h/workspaces/api/repo");
+  expect(ws.worktrees).toBe("/h/workspaces/api/worktrees");
+  expect(ws.tasks).toBe("/h/workspaces/api/tasks");
 });
 
 test("parent dirs are created owner-only (0700)", () => {

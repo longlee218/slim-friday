@@ -16,15 +16,17 @@ export interface ApprovalResult {
   reason?: string;
 }
 
-/** Asks the owner for decisions. Plan approval uses `request` too (summary = plan excerpt). */
+/** Asks the owner for decisions. */
 export interface ApprovalGateway {
   /** Show Approve/Deny buttons in the thread; resolve on owner click; timeout => denied "timeout". */
   request(req: ApprovalRequest): Promise<ApprovalResult>;
   /** Plan approval variant: Approve / Reject (reason "owner rejected plan" on reject). */
-  requestPlan?(req: ApprovalRequest): Promise<ApprovalResult>;
-  /** AskUserQuestion: one button per option; resolve with chosen label, or undefined on timeout. */
+  requestPlan(req: ApprovalRequest): Promise<ApprovalResult>;
+  /** Like `request` with custom [approve, decline] labels; decline reason "owner declined". */
+  confirm(req: ApprovalRequest, labels: [string, string]): Promise<ApprovalResult>;
   /** Drop every open request of a task (run aborted): buttons removed, decision "cancelled". */
-  cancelTask?(taskId: string): void;
+  cancelTask(taskId: string): void;
+  /** AskUserQuestion: one button per option; resolve with chosen label, or undefined on timeout. */
   askChoice(a: {
     taskId: string;
     threadId: string;

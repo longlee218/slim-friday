@@ -1,15 +1,15 @@
 import type { Client } from "discord.js";
 import { createDiscordApprovalGateway } from "./approvals/discord-approval";
-import { type AgentConfig, loadConfig } from "./config/agent-config";
-import { logProviderSelected } from "./config/log-provider";
+import { type AgentConfig, loadConfig, logProviderSelected } from "./config/agent-config";
+import { workspacePaths } from "./config/workspace-paths";
 import { createDiscordBot } from "./ingress/discord-bot";
 import { createShutdown } from "./lifecycle/shutdown";
 import { logger } from "./observability/logger";
-import { redactText } from "./observability/redact";
+import { errText } from "./observability/redact";
 import { openDb } from "./storage/db";
+import { cancelRunningTasks } from "./storage/run-store";
 import { createTaskHandler } from "./tasks/handle-task";
 import { createRunLimiter } from "./tasks/run-limiter";
-import { workspacePaths } from "./workspace/workspace-paths";
 
 const log = logger.child({ module: "index" });
 
@@ -36,6 +36,8 @@ async function main(): Promise<void> {
   logProviderSelected(log, config);
 
   const db = openDb(workspacePaths(config.agentHome).dbFile);
+  // A crash leaves tasks "running"/"waiting_approval"; they would count against the code-task cap forever.
+  cancelRunningTasks(db);
   // Client is created after the handler, so the gateway looks it up lazily.
   let botClient: Client | undefined;
   const approvals = createDiscordApprovalGateway({
@@ -52,10 +54,13 @@ async function main(): Promise<void> {
   const { client } = createDiscordBot(config, handleTask, approvals.handleInteraction);
   botClient = client;
 
-  /** Graceful shutdown: abort + await runs, drop the connection, close db (Phase 5 hardens). */
+  /** Graceful shutdown: abort + await runs, drop the connection, close db. */
   const shutdown = createShutdown({
     drain: handleTask.drain,
-    destroyClient: () => client.destroy(),
+    destroyClient: async () => {
+      await handleTask.close().catch(() => undefined); // stop the git MCP server process
+      await client.destroy();
+    },
     closeDb: () => db.close(),
     log: (m) => log.info(m),
     exit: (c) => process.exit(c),
@@ -68,11 +73,11 @@ async function main(): Promise<void> {
   });
   // Stray errors: log (redacted) and shut down cleanly instead of dying mid-write.
   process.on("unhandledRejection", (e) => {
-    log.error({ err: redactText(String(e)) }, "unhandled rejection");
+    log.error({ err: errText(e) }, "unhandled rejection");
     void shutdown("unhandledRejection", 1);
   });
   process.on("uncaughtException", (e) => {
-    log.error({ err: redactText(String(e)) }, "uncaught exception");
+    log.error({ err: errText(e) }, "uncaught exception");
     void shutdown("uncaughtException", 1);
   });
 
@@ -80,7 +85,7 @@ async function main(): Promise<void> {
     await client.login(config.discordToken);
   } catch (err) {
     log.error(
-      { err: redactText(String(err)).replaceAll(config.discordToken!, "[REDACTED]") },
+      { err: errText(err).replaceAll(config.discordToken!, "[REDACTED]") },
       "discord login failed",
     );
     db.close();

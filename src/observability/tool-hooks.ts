@@ -1,7 +1,6 @@
 import type { HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-sdk";
-import { logger } from "./logger";
+import { logger, tryLog } from "./logger";
 import type { RunRecorder } from "./record-run";
-import { redactText } from "./redact";
 
 /** Pre/PostToolUse(+Failure) hooks that time each tool call and store it via the recorder. */
 export function buildToolHooks(
@@ -11,15 +10,8 @@ export function buildToolHooks(
   const started = new Map<string, number>();
 
   /** Hook callbacks must never throw into the SDK: log (redacted) and continue. */
-  const guard = (fn: () => void) => {
-    try {
-      fn();
-    } catch (err) {
-      logger
-        .child({ module: "tool-hooks" })
-        .error({ err: redactText(String(err)) }, "tool hook failed");
-    }
-  };
+  const guard = (fn: () => void) =>
+    tryLog(logger.child({ module: "tool-hooks" }), "tool hook failed", fn);
 
   /** Shared finish logic for success and failure events. */
   const done = (

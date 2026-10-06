@@ -22,21 +22,18 @@ export function createShutdown(deps: ShutdownDeps) {
     if (closing) return;
     closing = true;
     deps.log(`shutting down: ${reason}`);
-    // Each step is isolated so one failure cannot skip closing the db.
-    try {
-      await deps.drain(deps.drainTimeoutMs ?? 10_000);
-    } catch {
-      /* best effort */
-    }
-    try {
-      await deps.destroyClient();
-    } catch {
-      /* best effort */
-    }
-    try {
-      deps.closeDb();
-    } catch {
-      /* best effort */
+    // Each step is isolated (best effort) so one failure cannot skip closing the db.
+    const steps = [
+      () => deps.drain(deps.drainTimeoutMs ?? 10_000),
+      () => deps.destroyClient(),
+      () => deps.closeDb(),
+    ];
+    for (const step of steps) {
+      try {
+        await step();
+      } catch {
+        /* best effort */
+      }
     }
     deps.exit(code);
   };

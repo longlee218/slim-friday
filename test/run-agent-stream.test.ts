@@ -98,7 +98,11 @@ describe("run-agent stream handling", () => {
       seen = a.options;
       return fakeQuery([resultMsg()])(a);
     }) as never);
-    expect(seen.tools).toEqual(["Read", "Glob", "Grep"]);
+    expect(seen.tools).toEqual(["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Skill", "Agent"]);
+    expect(Object.keys(seen.agents)).toEqual(["repo-searcher"]); // subagents have explicit tools
+    expect(seen.mcpServers.git.args[0]).toContain("git-mcp-server"); // pinned package, no npx
+    expect(seen.mcpServers.git.env.GIT_AUTHOR_EMAIL).toBeUndefined(); // Q&A never commits
+    expect(seen.mcpServers.github).toBeUndefined(); // GitHub MCP only in code tasks
     expect(seen.allowedTools).toBeUndefined();
     expect(seen.settingSources).toEqual(["project"]);
     expect(seen.abortController).toBeDefined();

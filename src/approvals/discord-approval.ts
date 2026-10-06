@@ -7,11 +7,15 @@ import {
   MessageFlags,
 } from "discord.js";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
-import { logger } from "../observability/logger";
-import { redactText } from "../observability/redact";
-import { type ApprovalDecision, decideApproval, insertApproval } from "../storage/approval-store";
-import { setTaskStatus } from "../storage/run-store";
-import { type ButtonSpec, buildButtonRows, clip } from "./approval-buttons";
+import { logger, tryLog } from "../observability/logger";
+import { clip, errText, redactText } from "../observability/redact";
+import {
+  type ApprovalDecision,
+  decideApproval,
+  insertApproval,
+  setTaskStatus,
+} from "../storage/run-store";
+import { type ButtonSpec, buildButtonRows, type Pending, toResult } from "./approval-buttons";
 import type { ApprovalGateway, ApprovalRequest, ApprovalResult } from "./approval-types";
 
 /** Inline summary cap; longer text goes in the attachment. */
@@ -27,19 +31,6 @@ export interface ApprovalGatewayDeps {
   timeoutMs?: number;
 }
 
-/** A request waiting for a click. */
-interface Pending {
-  taskId: string;
-  /** Resolve with the clicked button value, or undefined on timeout. */
-  settle: (value: string | undefined) => void;
-  timer: ReturnType<typeof setTimeout>;
-  /** Persist the decision and put the task back to running. */
-  finish: (decision: ApprovalDecision) => void;
-  /** Edit the posted message (drops the buttons). */
-  edit: (content: string) => Promise<unknown>;
-  content: string;
-}
-
 /** Gateway that asks the owner through buttons in the task's Discord thread. */
 export function createDiscordApprovalGateway(
   deps: ApprovalGatewayDeps,
@@ -50,13 +41,7 @@ export function createDiscordApprovalGateway(
   const pending = new Map<string, Pending>();
 
   /** Run a db write; approvals must never crash the agent on a storage error. */
-  const safeDb = (fn: () => void) => {
-    try {
-      fn();
-    } catch (err) {
-      log.warn({ err: redactText(String(err)) }, "approval db write failed");
-    }
-  };
+  const safeDb = (fn: () => void) => tryLog(log, "approval db write failed", fn);
 
   /**
    * Post a message with buttons and wait for a click.
@@ -119,22 +104,13 @@ export function createDiscordApprovalGateway(
         });
       });
     } catch (err) {
-      log.warn({ err: redactText(String(err)) }, "approval send failed");
+      log.warn({ err: errText(err) }, "approval send failed");
       finish("denied");
       return "no-channel";
     }
   }
 
-  /** Map an `ask` outcome of an approve/deny prompt to a result. */
-  function toResult(value: string | undefined, denyReason: string): ApprovalResult {
-    if (value === "allow") return { approved: true };
-    if (value === undefined) return { approved: false, reason: "timeout" };
-    if (value === "cancelled") return { approved: false, reason: "cancelled" };
-    if (value === "no-channel") return { approved: false, reason: "no channel" };
-    return { approved: false, reason: denyReason };
-  }
-
-  /** Shared body of request/requestPlan; only labels and the deny reason differ. */
+  /** Shared body of request/requestPlan/confirm; only labels and the deny reason differ. */
   async function decide(
     req: ApprovalRequest,
     labels: [string, string],
@@ -154,6 +130,7 @@ export function createDiscordApprovalGateway(
 
   return {
     request: (req) => decide(req, ["Approve", "Deny"], "owner denied"),
+    confirm: (req, labels) => decide(req, labels, "owner declined"),
     requestPlan: (req) => decide(req, ["Approve", "Reject"], "owner rejected plan"),
 
     async askChoice(a) {
@@ -207,7 +184,7 @@ export function createDiscordApprovalGateway(
         p.settle(value);
         await i.update({ content: `${p.content}\n\nOwner ${label}`, components: [] });
       } catch (err) {
-        log.warn({ err: redactText(String(err)) }, "approval interaction failed");
+        log.warn({ err: errText(err) }, "approval interaction failed");
       }
     },
   };

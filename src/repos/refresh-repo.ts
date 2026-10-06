@@ -1,6 +1,9 @@
 import { realpathSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join, relative } from "node:path";
+import { isInside } from "../guardrails/paths";
+import type { GitMcp } from "../mcp/git-mcp";
 import { logger } from "../observability/logger";
+import { errText } from "../observability/redact";
 
 /** Minimum gap between refreshes of the same repo. */
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
@@ -8,47 +11,31 @@ const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 /** repo path -> time of last refresh attempt (in memory; resets on restart). */
 const lastRefresh = new Map<string, number>();
 
-/** Per-command cap so a stalled fetch cannot hold the thread lock forever. */
-const GIT_TIMEOUT_MS = 30_000;
-
-/** True only when `path` really lives under AGENT_HOME/repos (symlinks and `..` resolved). */
+/** True only when `path` really is a workspace clone `AGENT_HOME/workspaces/<name>/repo` (symlinks and `..` resolved). */
 export function isManagedClone(path: string, agentHome: string): boolean {
   try {
-    return realpathSync(path).startsWith(realpathSync(join(agentHome, "repos")) + sep);
+    const root = realpathSync(join(agentHome, "workspaces"));
+    const real = realpathSync(path); // strict: a missing path is not a clone
+    return isInside(root, real) && /^[^/\\]+[/\\]repo([/\\]|$)/.test(relative(root, real));
   } catch {
-    return false; // missing path or repos dir
-  }
-}
-
-/** Run git in `cwd`; true on exit code 0. Never throws. */
-async function git(cwd: string, args: string[]): Promise<boolean> {
-  try {
-    const proc = Bun.spawn(["git", ...args], {
-      cwd,
-      stdout: "ignore",
-      stderr: "ignore",
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }, // never wait for credentials
-      timeout: GIT_TIMEOUT_MS,
-    });
-    return (await proc.exited) === 0;
-  } catch {
-    return false;
+    return false; // missing path or workspaces dir
   }
 }
 
 /**
- * `git fetch` + fast-forward so answers use fresh code. Throttled per repo.
+ * Fetch + fast-forward (via the git MCP server) so answers use fresh code. Throttled per repo.
  * Fast-forward only: a dirty or diverged clone is left untouched. Failures are non-fatal.
  */
-export async function refreshRepo(path: string, now = Date.now()): Promise<void> {
+export async function refreshRepo(git: GitMcp, path: string, now = Date.now()): Promise<void> {
   const last = lastRefresh.get(path);
   if (last !== undefined && now - last < REFRESH_INTERVAL_MS) return;
   lastRefresh.set(path, now);
-  const ok =
-    (await git(path, ["fetch", "--quiet"])) &&
-    (await git(path, ["merge", "--ff-only", "--quiet", "@{u}"]));
-  if (!ok) logger.child({ module: "refresh-repo" }).debug({ path }, "refresh skipped or failed");
+  try {
+    await git.call("git_fetch", { path, remote: "origin" });
+    await git.call("git_pull", { path, remote: "origin", fastForwardOnly: true });
+  } catch (err) {
+    logger
+      .child({ module: "refresh-repo" })
+      .debug({ path, err: errText(err) }, "refresh skipped or failed");
+  }
 }
-
-/** Test helper: forget throttle state. */
-export const resetRefreshState = (): void => lastRefresh.clear();

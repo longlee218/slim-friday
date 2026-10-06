@@ -1,4 +1,4 @@
-import type { AgentConfig } from "../config/agent-config";
+import { type AgentConfig, pickEnv } from "../config/agent-config";
 
 /** Env vars the SDK child may inherit. Everything else (GITHUB_TOKEN, AWS_*, ...) is withheld. */
 const ENV_ALLOWLIST = ["PATH", "HOME", "USER", "SHELL", "LANG", "TMPDIR", "CLAUDE_CONFIG_DIR"];
@@ -26,8 +26,7 @@ export function sdkEnv(
   config: AgentConfig,
   source: Record<string, string | undefined> = process.env,
 ): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = {};
-  for (const k of ENV_ALLOWLIST) if (source[k] !== undefined) env[k] = source[k];
+  const env: Record<string, string | undefined> = pickEnv(ENV_ALLOWLIST, source);
   if (config.provider === "openrouter") {
     env.ANTHROPIC_BASE_URL = OPENROUTER_BASE_URL;
     if (config.hasRealAuth) env.ANTHROPIC_AUTH_TOKEN = config.openrouterApiKey;

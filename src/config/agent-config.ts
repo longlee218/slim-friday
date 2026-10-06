@@ -1,19 +1,20 @@
+import type { Logger } from "pino";
 import { z } from "zod";
 
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
 
 /** Default model on the Anthropic path: cheap Haiku for v1. Overridable via MODEL env. */
-export const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 
 /** Default model on the OpenRouter path. Overridable via MODEL env. */
-export const DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash";
+const DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash";
 
 /**
  * Default model for code tasks on OpenRouter. Plan mode needs a model that reliably calls
  * ExitPlanMode; deepseek-v4-flash does not (live test), a Claude model does.
  */
-export const DEFAULT_OPENROUTER_CODE_MODEL = "anthropic/claude-haiku-4.5";
+const DEFAULT_OPENROUTER_CODE_MODEL = "anthropic/claude-haiku-4.5";
 
 /** Default per-run budget (USD) on the Anthropic path; OpenRouter has none unless MAX_BUDGET_USD is set. */
 const DEFAULT_ANTHROPIC_BUDGET_USD = 0.5;
@@ -38,6 +39,7 @@ const envSchema = z.object({
   OWNER_DISCORD_ID: z.string().min(1).optional(),
   MODEL: z.string().trim().min(1).optional(),
   CODE_MODEL: z.string().trim().min(1).optional(),
+  GIT_AUTHOR: z.string().trim().min(1).optional(),
   MAX_TURNS: z.coerce.number().int().positive().default(20),
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
@@ -63,6 +65,8 @@ export interface AgentConfig {
   model: string;
   /** Model for `task:` code tasks (plan mode + tools). Defaults to `model` on Anthropic. */
   codeModel: string;
+  /** Default commit identity `Name <email>` for repos without their own `gitAuthor`. */
+  gitAuthor: string | undefined;
   /**
    * Run limits applied to every agent run. maxBudgetUsd is undefined (no cap) on openrouter unless
    * MAX_BUDGET_USD is set: the SDK prices cost from Anthropic tables, wrong for other models.
@@ -77,7 +81,7 @@ const isPlaceholder = (v: string | undefined): boolean => !v || v === PLACEHOLDE
 
 /**
  * Parse and validate env. Throws a readable error naming bad variables only (no values).
- * @param requireDiscord set true in 1b: DISCORD_TOKEN and OWNER_DISCORD_ID must be real.
+ * @param requireDiscord set true for the bot entry: DISCORD_TOKEN and OWNER_DISCORD_ID must be real.
  */
 export function loadConfig(
   env: Record<string, string | undefined> = process.env,
@@ -110,6 +114,7 @@ export function loadConfig(
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
     model: e.MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL),
+    gitAuthor: e.GIT_AUTHOR,
     codeModel:
       e.CODE_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_CODE_MODEL : (e.MODEL ?? DEFAULT_MODEL)),
     limits: {
@@ -119,4 +124,21 @@ export function loadConfig(
     },
     maxConcurrentRuns: e.MAX_CONCURRENT_RUNS,
   };
+}
+
+/** Copy the listed vars that are set (non-empty) from `source`: the one env allowlist helper. */
+export function pickEnv(
+  keys: readonly string[],
+  source: Record<string, string | undefined> = process.env,
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const k of keys) if (source[k]) env[k] = source[k]!;
+  return env;
+}
+
+/** Log one startup line naming the provider and model, plus a warning when the choice is implicit. Never includes credentials. */
+export function logProviderSelected(log: Logger, config: AgentConfig): void {
+  log.info({ provider: config.provider, model: config.model }, "llm provider selected");
+  if (config.ambiguousCredentials)
+    log.warn("both credentials set; using openrouter (set LLM_PROVIDER=anthropic to change)");
 }

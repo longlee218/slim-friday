@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { isManagedClone } from "../src/repos/refresh-repo";
-import { buildRegistryContext, loadRepoRegistry, parseRepoPin } from "../src/repos/repo-registry";
+import { workspacePaths } from "../src/config/workspace-paths";
+import { isManagedClone, refreshRepo } from "../src/repos/refresh-repo";
+import { buildRegistryContext, loadRepoRegistry } from "../src/repos/repo-registry";
 import { getSession } from "../src/storage/session-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
-import { makeEnv, resultMsg } from "./helpers";
+import { addWorkspace, clearWorkspaces, makeEnv, resultMsg } from "./helpers";
 
 /** Create a fake git repo dir (a `.git` dir is all the validator checks). */
 function fakeRepo(root: string, name: string): string {
@@ -14,61 +15,61 @@ function fakeRepo(root: string, name: string): string {
   return p;
 }
 
-test("loads valid entries; skips missing path, non-git dir, duplicate and bad shape", () => {
+test("loads one repo per workspace config.yaml; skips missing path, non-git dir, bad name and bad config", () => {
   const env = makeEnv();
-  const a = fakeRepo(env.home, "a");
+  clearWorkspaces(env.home);
   const b = fakeRepo(env.home, "b");
-  mkdirSync(join(env.home, "plain"));
-  writeFileSync(
-    join(env.home, "repos.yaml"),
-    [
-      `- {name: a, path: ${a}, description: api}`,
-      `- {name: b, path: ${b}}`,
-      `- {name: gone, path: ${join(env.home, "nope")}}`,
-      `- {name: plain, path: ${join(env.home, "plain")}}`,
-      `- {name: a, path: ${b}}`,
-      `- {path: ${a}}`,
-    ].join("\n"),
-  );
+  addWorkspace(env.home, "a", { description: "api", testCommand: "bun test" }); // default path = workspace/repo
+  addWorkspace(env.home, "b", {}, b);
+  addWorkspace(env.home, "gone", {}, join(env.home, "nope"));
+  mkdirSync(join(env.home, "notgit"));
+  addWorkspace(env.home, "plain", {}, join(env.home, "notgit"));
+  addWorkspace(env.home, "has space", {}, b);
+  const bad = workspacePaths(env.home).workspace("bad");
+  mkdirSync(bad.root, { recursive: true });
+  writeFileSync(bad.config, "githubAccount: [not, a, string]\n");
+  mkdirSync(join(env.home, "workspaces", "no-config")); // a plain dir is not a workspace
   const repos = loadRepoRegistry(env.home);
   expect(repos.map((r) => r.name)).toEqual(["a", "b"]);
-  expect(repos[0]!.description).toBe("api");
+  expect(repos[0]).toMatchObject({ description: "api", testCommand: "bun test" });
+  expect(repos[0]!.path).toBe(workspacePaths(env.home).workspace("a").repo);
+  expect(repos[0]!.workspace).toBe(workspacePaths(env.home).workspace("a").root);
 });
 
-test("returns empty when repos.yaml is absent, not a list, or has no valid entry", () => {
+test("returns empty when there is no workspaces dir or no valid workspace", () => {
   const env = makeEnv();
-  rmSync(join(env.home, "repos.yaml"));
+  clearWorkspaces(env.home);
   expect(loadRepoRegistry(env.home)).toEqual([]);
-  writeFileSync(join(env.home, "repos.yaml"), "not: a list");
+  mkdirSync(join(env.home, "workspaces"));
   expect(loadRepoRegistry(env.home)).toEqual([]);
 });
 
-test("handler tells the owner to add a repo when none is registered", async () => {
+test("handler tells the owner to add a workspace when none exists", async () => {
   const env = makeEnv();
-  rmSync(join(env.home, "repos.yaml"));
+  clearWorkspaces(env.home);
   const handle = createTaskHandler({ db: env.db, config: env.config });
   const reply = await handle({ source: "t", userId: "u", threadId: "t1", text: "hi" });
-  expect(reply).toContain("No repos registered");
+  expect(reply).toContain("No workspace found");
 });
 
-test("parseRepoPin splits prefix; registry block only for 2+ repos", () => {
-  expect(parseRepoPin("repo:api how does auth work?")).toEqual({
-    name: "api",
-    text: "how does auth work?",
-  });
-  expect(parseRepoPin("plain question")).toEqual({ text: "plain question" });
-  const one = [{ name: "a", path: "/a", description: "" }];
+test("registry block only for 2+ repos", () => {
+  const one = [{ name: "a", workspace: "/w/a", path: "/a", description: "" }];
   expect(buildRegistryContext(one)).toBe("");
-  expect(buildRegistryContext([...one, { name: "b", path: "/b", description: "web" }])).toContain(
-    "- b: /b — web",
-  );
+  expect(
+    buildRegistryContext([
+      ...one,
+      { name: "b", workspace: "/w/b", path: "/b", description: "web" },
+    ]),
+  ).toContain("- b: /b — web");
 });
 
 test("handler: unpinned uses all repos; pin sticks to thread; unknown pin rejected", async () => {
   const env = makeEnv();
   const a = fakeRepo(env.home, "a");
   const b = fakeRepo(env.home, "b");
-  writeFileSync(join(env.home, "repos.yaml"), `- {name: a, path: ${a}}\n- {name: b, path: ${b}}`);
+  clearWorkspaces(env.home);
+  addWorkspace(env.home, "a", {}, a);
+  addWorkspace(env.home, "b", {}, b);
   const seen: any[] = [];
   const queryFn = (args: any) => {
     seen.push(args);
@@ -80,8 +81,9 @@ test("handler: unpinned uses all repos; pin sticks to thread; unknown pin reject
   const t = (threadId: string, text: string) => ({ source: "t", userId: "u", threadId, text });
 
   await handle(t("t1", "where is x?"));
-  expect(seen[0].options.cwd).toBe(a);
-  expect(seen[0].options.additionalDirectories).toEqual([b]);
+  // Several repos, no pin: neutral cwd, every repo readable.
+  expect(seen[0].options.cwd).toBe(join(env.home, "cwd"));
+  expect(seen[0].options.additionalDirectories).toEqual([a, b]);
   expect(seen[0].options.systemPrompt.append).toContain("Available repos");
 
   await handle(t("t2", "repo:b where is y?"));
@@ -102,7 +104,9 @@ test("re-pinning to another repo starts a fresh session (no resume across cwd)",
   const env = makeEnv();
   const a = fakeRepo(env.home, "a");
   const b = fakeRepo(env.home, "b");
-  writeFileSync(join(env.home, "repos.yaml"), `- {name: a, path: ${a}}\n- {name: b, path: ${b}}`);
+  clearWorkspaces(env.home);
+  addWorkspace(env.home, "a", {}, a);
+  addWorkspace(env.home, "b", {}, b);
   const seen: any[] = [];
   const queryFn = (args: any) => {
     seen.push(args);
@@ -120,13 +124,32 @@ test("re-pinning to another repo starts a fresh session (no resume across cwd)",
   expect(seen[2].options.resume).toBeUndefined();
 });
 
-test("isManagedClone rejects paths outside AGENT_HOME/repos, including .. and symlinks", () => {
+test("isManagedClone: only workspaces/<name>/repo; rejects other paths, .. and symlinks", () => {
   const env = makeEnv();
-  const inside = fakeRepo(join(env.home, "repos"), "x");
+  const ws = workspacePaths(env.home);
+  const inside = fakeRepo(ws.workspace("x").root, "repo");
   const outside = fakeRepo(env.home, "dev");
-  symlinkSync(outside, join(env.home, "repos", "link"));
+  symlinkSync(outside, join(ws.workspace("x").root, "link"));
   expect(isManagedClone(inside, env.home)).toBe(true);
-  expect(isManagedClone(join(env.home, "repos", "..", "dev"), env.home)).toBe(false);
-  expect(isManagedClone(join(env.home, "repos", "link"), env.home)).toBe(false);
+  expect(isManagedClone(join(inside, ".."), env.home)).toBe(false); // the workspace dir itself
+  expect(isManagedClone(join(ws.workspaces, "x", "..", "..", "dev"), env.home)).toBe(false);
+  expect(isManagedClone(join(ws.workspace("x").root, "link"), env.home)).toBe(false);
+  expect(isManagedClone(fakeRepo(ws.workspace("x").root, "other"), env.home)).toBe(false);
   expect(isManagedClone("/nonexistent", env.home)).toBe(false);
+});
+
+test("refreshRepo: fetch + fast-forward through the MCP tools, throttled per repo, failures swallowed", async () => {
+  const calls: string[] = [];
+  const fake = { call: async (tool: string) => (calls.push(tool), {}), close: async () => {} };
+  await refreshRepo(fake, "/p", 1000);
+  await refreshRepo(fake, "/p", 1000 + 60_000); // inside the 10 min window
+  await refreshRepo(fake, "/p", 1000 + 11 * 60_000);
+  expect(calls).toEqual(["git_fetch", "git_pull", "git_fetch", "git_pull"]);
+  const failing = {
+    call: async () => {
+      throw new Error("no remote");
+    },
+    close: async () => {},
+  };
+  await expect(refreshRepo(failing, "/q")).resolves.toBeUndefined();
 });

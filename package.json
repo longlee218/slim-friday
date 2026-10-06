@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.287",
+    "@cyanheads/git-mcp-server": "2.15.3",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "discord.js": "^14.27.0",
     "pino": "^10.4.0",
     "zod": "^4.6.5"

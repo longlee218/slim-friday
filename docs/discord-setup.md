@@ -53,6 +53,11 @@ LOG_LEVEL=info
 
 **Note (Phase 3+):** For code task approvals to work, ensure CODE_MODEL is set to a model that supports ExitPlanMode (e.g., Claude models). DeepSeek v4 does not support plan mode approval flow.
 
+**Note (Phase 4+):** For PR creation, you need:
+- `gh` CLI authenticated (`gh auth login`) with at least one Git account (or set `githubAccount` in each workspace's config.yaml)
+- Docker running (for GitHub MCP server: `ghcr.io/github/github-mcp-server`)
+- At least one Git remote named `origin` in each repo (the app fetches and pushes through the git MCP server)
+
 **Important:** Never commit .env with real values. .env.example has placeholders only.
 
 ## Step 6: Start the Bot
@@ -129,8 +134,8 @@ Expected:
 task: run rm -rf src/
 ```
 Expected:
-- Bot hard-denies the request immediately (PreToolUse hook)
-- Reply: "Command denied: cannot remove directories"
+- Bot hard-denies immediately (PreToolUse hook denies before asking)
+- Reply includes reason: "Command denied: cannot remove directories"
 - No approval button shown
 
 ### Test 7: Concurrent Limit
@@ -169,7 +174,120 @@ Sessions are stored in SQLite at `$AGENT_HOME/data/agent.db`:
 - Restarting the bot preserves sessions (same thread ID → resumed session)
 - Older sessions can be queried via `SELECT * FROM sessions`
 
-## Next Steps (Phase 2+)
-- Multi-repo registry: user specifies repo in question
-- Approval gate: code changes require `canUseTool` approval
-- Worktree support: make actual code changes and open PRs
+## Code Task Usage
+
+### Repository Setup
+
+Repos are configured via workspace directories. Each workspace has a `config.yaml` (created auto or manually):
+
+```bash
+# Auto: First time agent sees a repo, creates $AGENT_HOME/workspaces/<repo-name>/config.yaml
+# Manual: mkdir -p ~/.friday/workspaces/myapp
+#         cat > ~/.friday/workspaces/myapp/config.yaml <<EOF
+```
+
+```yaml
+path: /absolute/path/to/myapp              # must be git clone under $AGENT_HOME/workspaces/<repo-name>/repo/
+description: "Main application"
+gitAuthor: "Name <email>"                   # per-repo commit identity (owner field, validated at startup)
+# optional:
+defaultBranch: main                         # defaults to origin/HEAD, then main/master
+testCommand: "bun test"                     # command must match exactly for auto-allow
+githubAccount: longlhdev                    # GitHub account for PR creation; defaults to `gh auth token --user` active account
+```
+
+**Important:**
+- Repos must be **managed clones under AGENT_HOME/workspaces/<repo-name>/repo/** (git repo directly inside workspace). Code tasks on clones elsewhere are refused.
+- Workspace name = directory name under workspaces/ (e.g., `workspaces/myapp/` → repo name is `myapp`).
+- `gitAuthor: "Name <email>"` required for code tasks (validates ≥2 chars name, email with 2+ letter domain; startup exits(1) if invalid).
+- Each repo must have a Git remote named `origin` (needed for fetch, PR creation).
+- `defaultBranch` optional (defaults origin/HEAD → main/master).
+- `testCommand` optional; if set, exact match only (no ad-hoc shell injection).
+
+### Posting a Code Task
+
+```
+task: add greeting function to src/hello.ts that takes a name and returns "Hello, <name>!"
+```
+
+**Flow:**
+1. **Plan Stage:** Bot enters plan mode and proposes a plan (shows which repo, what changes).
+2. **Plan Approval:** Owner gets Discord Approve/Deny buttons (owner-only, 10 min timeout).
+3. **Approval:** 
+   - If **Approve**: Bot moves to execute stage, creates a Git worktree on branch `agent/<id>`.
+   - If **Deny**: Bot revises the plan and asks for approval again (multi-round OK).
+4. **Execute Stage:** Bot makes changes in the worktree, runs the test command (if set), commits.
+5. **Finish:** Bot posts summary + diff attachment + **Create PR** button (owner-only, 10 min).
+6. **PR Creation:** Owner clicks **Create PR** → bot pushes the branch and opens a PR on GitHub.
+7. **Follow-up:** Reply in the same thread (no `task:` prefix) → bot reuses the worktree and makes more commits to the same branch.
+8. **Cleanup:** Post `cleanup:` in the thread to remove the worktree and reset the session.
+
+### Guardrails
+
+**Dangerous commands are hard-denied:**
+- `rm -rf`, `git push --force`, pushing to main/master, `curl|sh`, `sudo`, reading `.env*` files
+
+**Risky operations require approval:**
+- Non-allowlisted Bash commands → Discord button
+- Network operations (curl/wget to non-github/npmjs hosts) → Discord button
+- New package installs (lockfile-only auto-allowed) → Discord button
+
+**Git operations (in worktree):**
+- Commits via git MCP (@cyanheads/git-mcp-server 2.15.3); auto-allowed in worktree only
+- `git status`, `git diff`, `git log` (via git MCP); `git add`, `git commit` (via git MCP); others ask
+- Tests run with Bash (`testCommand` exact match auto-allowed)
+
+### Example Session
+
+```
+@bot task: fix the typo "recieve" → "receive" in all .ts files
+  → Bot proposes: "Fix typos in src/ using grep + sed" [Approve] [Deny]
+  
+Owner clicks [Approve]
+  → Bot creates worktree, runs sed, commits
+  → "Fixed 3 files. [Create PR] [Not now]"
+  
+Owner clicks [Create PR]
+  → Bot pushes branch + opens PR on GitHub
+  → "PR created: https://github.com/user/repo/pull/123"
+
+(in same thread)
+@bot Looks good, also fix the same typo in docs/
+  → Bot reuses worktree, makes more commits
+  → Bot updates the same PR on GitHub
+```
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "No repos registered" | No workspaces/ directory or all configs invalid | Create $AGENT_HOME/workspaces/<repo>/ with config.yaml inside |
+| "Code task on non-managed clone" | Repo not under AGENT_HOME/workspaces | Clone repo under ~/.friday/workspaces/<repo>/repo/ |
+| "No origin remote" | Repo missing `origin` remote | Run `git remote add origin <url>` in the repo |
+| "gh: command not found" | gh CLI not installed | `brew install gh` (macOS) or `apt install gh` (Linux) |
+| "gh auth failed" | gh not authenticated | Run `gh auth login` and choose HTTP/SSH |
+| "PR button not shown" | No commits made | Check bot's response (usually "No changes made") |
+| "Create PR button timed out" | Took >10 min to decide | Worktree still exists; use `cleanup:` to reset |
+
+## Per-Repo Memory
+
+Each repository has persistent memory stored in `$AGENT_HOME/workspaces/<repo-name>/MEMORY.md`:
+
+**Usage:**
+- Memory is automatically injected into Q&A, plan, and execute prompts (newest 4000 chars per repo, 8000 total across all repos)
+- After each successful code task (execute stage), the agent's final "Memory:" section (max 5 bullets) is appended
+- Sections are automatically dropped when MEMORY.md exceeds ~20KB to keep it fresh
+
+**Editing memory:**
+- Open `$AGENT_HOME/workspaces/<repo-name>/MEMORY.md` in your editor
+- Add facts, links, architecture notes, or important context
+- Changes are picked up automatically on the next Q&A or code task
+- Example: "Main app at `src/main.ts`, uses Postgres, test cmd is `bun test`"
+
+**Symlinks (no action needed):**
+- `.claude/CLAUDE.md` is symlinked from each repo's tracked CLAUDE.md (repo untouched by Friday)
+- `.claude/CLAUDE.local.md` (repo-local config) is stored in `memory/<repo>/` and symlinked back (excluded via git info/exclude)
+
+## Next Steps (Phase 5+)
+- Hardening: crash recovery, orphan cleanup, output quota
+- Custom skills: MCP tools for lint, format, test runners

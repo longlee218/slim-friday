@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import {
   CHUNK_MAX,
-  isStop,
   type MessageFacts,
   prepareReply,
   REPLY_CAP,
@@ -52,10 +51,7 @@ test("mention-only message is ignored", () => {
   expect(route({ content: `<@${BOT}>` }).kind).toBe("ignore");
 });
 
-test("stop detection and mention stripping", () => {
-  expect(isStop(" Stop ")).toBe(true);
-  expect(isStop("STOP")).toBe(true);
-  expect(isStop("stop it")).toBe(false);
+test("mention stripping", () => {
   expect(route({ inBotThread: true, content: `<@${BOT}> stop` })).toEqual({
     kind: "thread",
     prompt: "stop",

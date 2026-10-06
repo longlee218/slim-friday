@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { workspacePaths } from "../src/workspace/workspace-paths";
+import { workspacePaths } from "../src/config/workspace-paths";
 
 /** Run src/index.ts as a real subprocess with the given Discord env. */
 async function runIndex(discord: Record<string, string>): Promise<{ code: number; log: string }> {

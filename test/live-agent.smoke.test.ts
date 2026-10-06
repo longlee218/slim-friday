@@ -21,7 +21,7 @@ describe.skipIf(!live)("live agent smoke (Haiku)", () => {
       MAX_BUDGET_USD: "0.2",
       TIMEOUT_MS: "90000",
     });
-    const repo = join(env.home, "repo");
+    const repo = env.repo;
     mkdirSync(repo, { recursive: true });
     writeFileSync(join(repo, "a.txt"), "the secret word is alpha\n");
     const cfg = env.config;
@@ -44,7 +44,7 @@ describe.skipIf(!live)("live agent smoke (Haiku)", () => {
       text: "What is the secret word in a.txt? Answer in one word.",
     });
     expect(reply.toLowerCase()).toContain("alpha");
-    expect(tools[0]!.every((t) => ["Read", "Glob", "Grep"].includes(t))).toBe(true); // strictMcpConfig leak check
+    expect(tools[0]!.some((t) => ["Bash", "Write", "Edit"].includes(t))).toBe(false); // strictMcpConfig leak check
     expect(env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM runs").get()!.n).toBe(1);
     expect(
       env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM tool_calls").get()!.n,

@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { createTaskHandler } from "../src/tasks/handle-task";
-import { makeEnv } from "./helpers";
+import { addWorkspace, clearWorkspaces, makeEnv } from "./helpers";
 
 // Live test: verifies the SDK honors `additionalDirectories` (open spike item for phase 02).
 const key = process.env.OPENROUTER_API_KEY;
@@ -25,10 +25,9 @@ describe.skipIf(!live)("live multi-repo smoke (OpenRouter)", () => {
     for (const p of [a, b]) mkdirSync(join(p, ".git"), { recursive: true });
     writeFileSync(join(a, "readme.txt"), "alpha repo: nothing here\n");
     writeFileSync(join(b, "magic.txt"), "the magic number is 48271\n");
-    writeFileSync(
-      join(env.home, "repos.yaml"),
-      `- {name: alpha, path: ${a}, description: empty repo}\n- {name: beta, path: ${b}, description: holds magic.txt}\n`,
-    );
+    clearWorkspaces(env.home);
+    addWorkspace(env.home, "alpha", { description: "empty repo" }, a);
+    addWorkspace(env.home, "beta", { description: "holds magic.txt" }, b);
 
     const reply = await createTaskHandler({ db: env.db, config: env.config })({
       source: "test",

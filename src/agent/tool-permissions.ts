@@ -2,23 +2,36 @@ import type { CanUseTool, HookCallbackMatcher } from "@anthropic-ai/claude-agent
 import type { ApprovalGateway } from "../approvals/approval-types";
 import { checkToolCall, type GuardrailContext } from "../guardrails/check-tool-call";
 import { logger } from "../observability/logger";
+import { clip, errText } from "../observability/redact";
+import { ASK_USER, EXIT_PLAN, PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
 
 /** Max chars of a tool input shown inline in the approval message (full input goes in the attachment). */
 const SUMMARY_MAX = 300;
 
 /** Inputs for one code task's permission layer. */
-export interface CodeTaskPermissionInput {
+export interface ToolPermissionInput {
   taskId: string;
   threadId: string;
   guard: GuardrailContext;
-  gateway: ApprovalGateway;
+  /** Owner approval via Discord. Omitted (Q&A): every `ask` becomes a deny. */
+  gateway?: ApprovalGateway;
+  /**
+   * Plan stage of a two-stage code task: the plan must name a repo (`repo: <name>`) from `repos`;
+   * after the owner approves, `onApproved` fires (the caller then stops the run and starts stage 2).
+   */
+  plan?: { repos: string[]; onApproved: (plan: string, repo: string) => void };
+}
+
+/** First `repo: <name>` line of a plan, or undefined. */
+function parsePlanRepo(plan: string): string | undefined {
+  return /^\s*[-*]?\s*\**repo\**\s*:\s*`?([\w.-]+)`?/im.exec(plan)?.[1];
 }
 
 /** Short one-line description of a tool call for the approval message. */
 function summarize(tool: string, input: Record<string, unknown>): string {
   const main = input.command ?? input.file_path ?? input.path ?? JSON.stringify(input);
   const text = String(main).replace(/\s+/g, " ");
-  return `${tool}: ${text.length > SUMMARY_MAX ? `${text.slice(0, SUMMARY_MAX)}...` : text}`;
+  return `${tool}: ${clip(text, SUMMARY_MAX)}`;
 }
 
 /**
@@ -27,11 +40,11 @@ function summarize(tool: string, input: Record<string, unknown>): string {
  * - canUseTool = ask the owner in Discord (plan approval, AskUserQuestion, risky tools).
  * Never use `allowedTools`: it would bypass canUseTool.
  */
-export function buildCodeTaskPermissions(p: CodeTaskPermissionInput): {
+export function buildToolPermissions(p: ToolPermissionInput): {
   canUseTool: CanUseTool;
   hooks: HookCallbackMatcher[];
 } {
-  const log = logger.child({ module: "code-task-permissions", taskId: p.taskId });
+  const log = logger.child({ module: "tool-permissions", taskId: p.taskId });
 
   const hooks: HookCallbackMatcher[] = [
     {
@@ -39,8 +52,7 @@ export function buildCodeTaskPermissions(p: CodeTaskPermissionInput): {
         async (i) => {
           if (i.hook_event_name !== "PreToolUse") return { continue: true };
           // Plan/question tools are handled by canUseTool.
-          if (i.tool_name === "ExitPlanMode" || i.tool_name === "AskUserQuestion")
-            return { continue: true };
+          if (PLAN_FLOW_TOOLS.has(i.tool_name)) return { continue: true };
           const d = checkToolCall(
             i.tool_name,
             (i.tool_input ?? {}) as Record<string, unknown>,
@@ -62,19 +74,33 @@ export function buildCodeTaskPermissions(p: CodeTaskPermissionInput): {
 
   const canUseTool: CanUseTool = async (tool, rawInput, opts) => {
     // Run stopped/timed out/shut down while waiting: drop the open request (buttons + timer).
-    opts?.signal?.addEventListener("abort", () => p.gateway.cancelTask?.(p.taskId), { once: true });
+    opts?.signal?.addEventListener("abort", () => p.gateway?.cancelTask(p.taskId), {
+      once: true,
+    });
     const input = rawInput as Record<string, unknown>;
     try {
-      if (tool === "ExitPlanMode") {
+      if ((tool === EXIT_PLAN || tool === ASK_USER) && !p.gateway) {
+        return { behavior: "deny", message: "Not available in this mode." };
+      }
+      const gateway = p.gateway!;
+      if (tool === EXIT_PLAN) {
         const plan = String(input.plan ?? "");
+        const repo = parsePlanRepo(plan);
+        if (p.plan && (!repo || !p.plan.repos.includes(repo))) {
+          return {
+            behavior: "deny",
+            message: `The plan must contain a line "repo: <name>" naming exactly one of: ${p.plan.repos.join(", ")}. Add it and call ExitPlanMode again.`,
+          };
+        }
         const req = {
           taskId: p.taskId,
           threadId: p.threadId,
           tool,
-          summary: plan.slice(0, 1500),
+          summary: plan,
           detail: plan,
         };
-        const r = await (p.gateway.requestPlan ?? p.gateway.request).call(p.gateway, req);
+        const r = await gateway.requestPlan(req);
+        if (r.approved && p.plan && repo) p.plan.onApproved(plan, repo);
         return r.approved
           ? { behavior: "allow", updatedInput: input }
           : {
@@ -82,13 +108,13 @@ export function buildCodeTaskPermissions(p: CodeTaskPermissionInput): {
               message: `Owner rejected the plan (${r.reason ?? "no reason"}). Revise it and call ExitPlanMode again.`,
             };
       }
-      if (tool === "AskUserQuestion") {
+      if (tool === ASK_USER) {
         const answers: Record<string, string> = {};
         for (const q of (input.questions ?? []) as {
           question: string;
           options: { label: string }[];
         }[]) {
-          const label = await p.gateway.askChoice({
+          const label = await gateway.askChoice({
             taskId: p.taskId,
             threadId: p.threadId,
             question: q.question,
@@ -103,6 +129,8 @@ export function buildCodeTaskPermissions(p: CodeTaskPermissionInput): {
       const d = checkToolCall(tool, input, p.guard);
       if (d.decision === "deny") return { behavior: "deny", message: d.reason };
       if (d.decision === "allow") return { behavior: "allow", updatedInput: input };
+      if (!p.gateway)
+        return { behavior: "deny", message: `${d.reason} (needs approval; not available here)` };
       const r = await p.gateway.request({
         taskId: p.taskId,
         threadId: p.threadId,
@@ -115,7 +143,7 @@ export function buildCodeTaskPermissions(p: CodeTaskPermissionInput): {
         : { behavior: "deny", message: `Owner denied: ${r.reason ?? "no reason"}` };
     } catch (err) {
       // Fail closed: any error in the approval path denies the call.
-      log.error({ tool, err: String(err) }, "permission check failed");
+      log.error({ tool, err: errText(err) }, "permission check failed");
       return { behavior: "deny", message: "Permission check failed." };
     }
   };

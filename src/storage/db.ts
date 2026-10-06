@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
-import { ensureParentDir, restrictFile } from "../workspace/workspace-paths";
+import { ensureParentDir, restrictFile } from "../config/workspace-paths";
 
 /** Schema; idempotent so it runs on every start. */
 const SCHEMA = `
@@ -54,6 +54,18 @@ CREATE TABLE IF NOT EXISTS approvals (
   requested_at INTEGER NOT NULL,
   decided_at INTEGER
 );
+CREATE TABLE IF NOT EXISTS worktrees (
+  task_id TEXT PRIMARY KEY,
+  thread_id TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  repo_path TEXT NOT NULL,
+  path TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  base TEXT NOT NULL,
+  pr_url TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_worktrees_thread ON worktrees(thread_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_thread ON tasks(thread_id);
 CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_run ON tool_calls(run_id);

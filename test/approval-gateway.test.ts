@@ -82,7 +82,7 @@ describe("discord approval gateway", () => {
 
   test("plan reject reason", async () => {
     const s = setup();
-    const p = s.gw.requestPlan!(req);
+    const p = s.gw.requestPlan(req);
     await s.tick();
     await s.click(s.ids()[1]).run();
     expect(await p).toEqual({ approved: false, reason: "owner rejected plan" });
@@ -153,13 +153,44 @@ describe("discord approval gateway", () => {
   });
 });
 
+describe("confirm (custom labels)", () => {
+  const labels: [string, string] = ["Create PR", "Skip"];
+  const buttonLabels = (s: ReturnType<typeof setup>) =>
+    s.sent.at(-1).components.flatMap((r: any) => r.toJSON().components.map((c: any) => c.label));
+
+  test("approve shows custom labels and resolves approved", async () => {
+    const s = setup();
+    const p = s.gw.confirm(req, labels);
+    await s.tick();
+    expect(buttonLabels(s)).toEqual(labels);
+    await s.click(s.ids()[0]).run();
+    expect(await p).toEqual({ approved: true });
+    expect(s.row("SELECT decision FROM approvals").decision).toBe("approved");
+  });
+
+  test("decline reason is owner declined", async () => {
+    const s = setup();
+    const p = s.gw.confirm(req, labels);
+    await s.tick();
+    await s.click(s.ids()[1]).run();
+    expect(await p).toEqual({ approved: false, reason: "owner declined" });
+    expect(s.row("SELECT decision FROM approvals").decision).toBe("denied");
+  });
+
+  test("timeout denies", async () => {
+    const s = setup(20);
+    expect(await s.gw.confirm(req, labels)).toEqual({ approved: false, reason: "timeout" });
+    expect(s.row("SELECT decision FROM approvals").decision).toBe("timeout");
+  });
+});
+
 describe("cancelTask (run aborted while waiting)", () => {
   test("drops open requests, records cancelled, never flips the task back to running", async () => {
     const s = setup();
     const p = s.gw.request(req);
     await s.tick();
     s.db.run("UPDATE tasks SET status = 'cancelled' WHERE id = 't1'"); // handler ended the task
-    s.gw.cancelTask!("t1");
+    s.gw.cancelTask("t1");
     expect(await p).toEqual({ approved: false, reason: "cancelled" });
     expect(s.row("SELECT decision FROM approvals").decision).toBe("cancelled");
     expect(s.row("SELECT status FROM tasks").status).toBe("cancelled");

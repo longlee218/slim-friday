@@ -20,7 +20,7 @@ describe.skipIf(!live)("live agent smoke (OpenRouter)", () => {
       MAX_TURNS: "6",
       TIMEOUT_MS: "90000",
     });
-    const repo = join(env.home, "repo");
+    const repo = env.repo;
     mkdirSync(repo, { recursive: true });
     writeFileSync(join(repo, "a.txt"), "the secret word is alpha\n");
     const cfg = env.config;
@@ -50,7 +50,7 @@ describe.skipIf(!live)("live agent smoke (OpenRouter)", () => {
     expect(row?.outcome).toBe("success");
     expect(reply.length).toBeGreaterThan(0);
     expect(inits.length).toBeGreaterThan(0);
-    expect(inits[0]!.tools.every((t) => ["Read", "Glob", "Grep"].includes(t))).toBe(true);
+    expect(inits[0]!.tools.some((t) => ["Bash", "Write", "Edit"].includes(t))).toBe(false);
     expect(env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM runs").get()!.n).toBe(1);
     expect(
       env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM tool_calls").get()!.n,

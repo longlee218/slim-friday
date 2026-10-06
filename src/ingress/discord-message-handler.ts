@@ -1,14 +1,19 @@
 import type { Message, SendableChannels } from "discord.js";
 import { logger } from "../observability/logger";
-import { redactText } from "../observability/redact";
-import {
-  isStop,
-  prepareReply,
-  routeMessage,
-  SAFE_MENTIONS,
-  threadName,
-} from "./discord-message-rules";
-import type { Task } from "./task-types";
+import { errText } from "../observability/redact";
+import { parseTaskCommand } from "../tasks/task-commands";
+import { prepareReply, routeMessage, SAFE_MENTIONS, threadName } from "./discord-message-rules";
+
+/** A unit of work arriving from any ingress (Discord, tests). */
+export interface Task {
+  /** Where it came from, e.g. "discord". */
+  source: string;
+  /** Sender id; ingress enforces the owner allowlist. */
+  userId: string;
+  /** Conversation thread; maps 1:1 to a Claude session. */
+  threadId: string;
+  text: string;
+}
 
 /** Typing indicator lasts ~10s on Discord; refresh a bit earlier. */
 const TYPING_REFRESH_MS = 8000;
@@ -87,7 +92,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         return;
       }
       // `stop` only makes sense inside a thread that has a run.
-      if (isStop(route.prompt)) {
+      if (parseTaskCommand(route.prompt).kind === "stop") {
         await msg.reply({
           content: "Send `stop` inside the thread of the run.",
           allowedMentions: SAFE_MENTIONS,
@@ -99,7 +104,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       await answer(thread, thread.id, route.prompt);
     } catch (err) {
       // Full error to the log (redacted), short generic text to the user.
-      log.error({ err: redactText(String(err)) }, "message handling failed");
+      log.error({ err: errText(err) }, "message handling failed");
       try {
         if (errorTarget) await sendReply(errorTarget, "Something went wrong. Check the logs.");
       } catch {

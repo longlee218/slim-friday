@@ -6,21 +6,27 @@ import {
   query as sdkQuery,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
+import { workspacePaths } from "../config/workspace-paths";
+import type { GuardrailContext } from "../guardrails/check-tool-call";
+import type { GitIdentity } from "../mcp/git-mcp";
+import { mcpServersFor } from "../mcp/mcp-servers";
 import { logger } from "../observability/logger";
 import {
   emptyUsage,
+  outcomeFromSubtype,
+  type ResultShape,
   type RunOutcome,
   RunRecorder,
   type RunUsage,
+  usageFromResult,
 } from "../observability/record-run";
-import { redactText } from "../observability/redact";
+import { errText } from "../observability/redact";
 import { buildToolHooks } from "../observability/tool-hooks";
-import { codeTaskToolOptions, readOnlyToolOptions } from "../tools/tool-config";
-import { workspacePaths } from "../workspace/workspace-paths";
-import { buildCodeTaskPermissions, type CodeTaskPermissionInput } from "./code-task-permissions";
-import { buildRepoContext } from "./context";
+import { SUBAGENTS, type ToolMode, toolOptions } from "../tools/tool-catalog";
+import { listRepoSkills } from "./repo-skills";
 import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
+import { buildToolPermissions, type ToolPermissionInput } from "./tool-permissions";
 
 /** Signature of the SDK `query` function; injectable for tests. */
 export type QueryFn = (args: { prompt: string; options?: Options }) => AsyncIterable<SDKMessage>;
@@ -35,10 +41,23 @@ export interface RunAgentInput {
   cwd: string;
   /** Extra repo directories the agent may read (multi-repo registry). */
   additionalDirectories?: string[];
-  /** Extra prompt context appended after the repo summary (e.g. registry block). */
-  extraContext?: string;
+  /** Extra prompt context blocks (persona, registry, memory...); empty ones are dropped, the rest joined once. */
+  extraContext?: string[];
+  /** Guardrails of the run (paths, git repos, allowed tools). Every mode has one; omitted only in unit tests. */
+  guard?: GuardrailContext;
+  /** Commit identity of the agent's git MCP server (execute stage): every commit is made as this user. */
+  gitAuthor?: GitIdentity;
+  /** Directory tree the agent's git MCP server is sandboxed to (execute stage: the worktree). */
+  gitBaseDir?: string;
+  /** Repo (workspace) the run belongs to: its raw task log goes to that workspace's logs dir. */
+  logRepo?: string;
+  /** GitHub login whose token the read-only GitHub MCP server uses (code tasks); default = active gh account. */
+  githubAccount?: string;
   /** Code task: plan mode + write tools behind guardrails and owner approval. Omitted = read-only Q&A. */
-  code?: Omit<CodeTaskPermissionInput, "taskId">;
+  code?: Omit<ToolPermissionInput, "taskId" | "guard"> & {
+    /** "plan" (default): plan mode, read-only dirs. "exec": runs in the worktree after plan approval. */
+    stage?: "plan" | "exec";
+  };
   /** Existing Claude session id to resume. */
   resume?: string;
   config: AgentConfig;
@@ -64,14 +83,6 @@ export interface RunAgentResult {
 
 /** Code tasks include owner approval waits (10 min each), so their run timeout is at least this. */
 const CODE_TASK_TIMEOUT_MS = 30 * 60 * 1000;
-
-/** Map SDK result subtype to our outcome. */
-function outcomeFromSubtype(subtype: string): RunOutcome {
-  if (subtype === "success") return "success";
-  if (subtype === "error_max_turns") return "max_turns";
-  if (subtype === "error_max_budget_usd") return "max_budget";
-  return "error";
-}
 
 /** Outcome for a run that ended by abort: timeout if our timer fired, else user stop. */
 const abortOutcome = (timedOut: boolean): RunOutcome => (timedOut ? "timeout" : "aborted");
@@ -106,7 +117,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     crypto.randomUUID(),
     input.taskId,
     config.model,
-    workspacePaths(config.agentHome).taskLog(input.taskId),
+    workspacePaths(config.agentHome).taskLog(input.taskId, input.logRepo),
   );
   const run = input.queryFn ?? (sdkQuery as QueryFn);
 
@@ -125,10 +136,19 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   let outcome: RunOutcome = "error";
   let usage = emptyUsage();
   let compactions = 0;
+  let startupError = "";
 
-  // Permission layer exists only for code tasks.
-  const codeTools = input.code
-    ? buildCodeTaskPermissions({ ...input.code, taskId: input.taskId })
+  // Mode picks the tool set: Q&A, plan stage, or execute stage of a code task.
+  const mode: ToolMode = input.code ? (input.code.stage === "exec" ? "exec" : "plan") : "qa";
+  // Every mode goes through the permission layer when it has a guard (Q&A has no gateway: ask = deny).
+  const perms = input.guard
+    ? buildToolPermissions({
+        taskId: input.taskId,
+        threadId: input.code?.threadId ?? "",
+        guard: input.guard,
+        gateway: input.code?.gateway,
+        plan: input.code?.plan,
+      })
     : undefined;
 
   try {
@@ -139,18 +159,28 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       }),
       model: config.model,
       resume: input.resume,
-      ...(input.code ? codeTaskToolOptions() : readOnlyToolOptions()),
-      ...(input.code && { permissionMode: "plan" as const, canUseTool: codeTools!.canUseTool }),
+      ...toolOptions(mode),
+      mcpServers: await mcpServersFor(mode, input, log),
+      ...(mode === "plan" && { permissionMode: "plan" as const }),
+      ...(perms && { canUseTool: perms.canUseTool }),
+      // Subagents with explicit read-only tools in every mode. Skills: the repos' own, except in the execute
+      // stage, which loads no project settings; there none, hiding the SDK's bundled ones too
+      // (a model once reached for `update-config` there).
+      agents: SUBAGENTS,
+      skills:
+        mode === "exec" ? [] : listRepoSkills([input.cwd, ...(input.additionalDirectories ?? [])]),
       maxTurns: config.limits.maxTurns,
       // Omitted (undefined) on openrouter unless MAX_BUDGET_USD is set: SDK cost uses Anthropic prices.
       ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
       abortController: ac,
-      settingSources: ["project"],
+      // Execute stage runs in a worktree the agent writes to: never load settings/hooks planted there
+      // (spike q17: even projectConfigRoot does not stop a planted .claude/CLAUDE.md from loading).
+      settingSources: mode === "exec" ? [] : ["project"],
       systemPrompt: buildSystemPrompt(
-        [await buildRepoContext(input.cwd), input.extraContext].filter(Boolean).join("\n\n"),
-        input.code ? "code" : "qa",
+        (input.extraContext ?? []).filter(Boolean).join("\n\n"),
+        mode,
       ),
-      hooks: mergeHooks(buildToolHooks(recorder), codeTools?.hooks),
+      hooks: mergeHooks(buildToolHooks(recorder), perms?.hooks),
       env: sdkEnv(config),
     };
     try {
@@ -159,6 +189,17 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         const m = msg as SDKMessage & { subtype?: string; session_id?: string };
         sessionId = m.session_id ?? sessionId;
         if (m.type === "system" && m.subtype === "compact_boundary") compactions++;
+        // The execute stage is useless without its git tools: fail fast instead of letting the model flail.
+        if (m.type === "system" && m.subtype === "init" && mode === "exec") {
+          const servers = (m as unknown as { mcp_servers?: { name: string; status: string }[] })
+            .mcp_servers;
+          const git = servers?.find((x) => x.name === "git");
+          if (git && git.status !== "connected") {
+            startupError =
+              "The git MCP server failed to start (check gitAuthor in the workspace config.yaml).";
+            ac.abort();
+          }
+        }
         if (m.type === "result") {
           const r = m as unknown as ResultShape;
           outcome = outcomeFromSubtype(r.subtype);
@@ -170,10 +211,14 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       // max_turns/max_budget throw AFTER the result message (outcome already set).
       // Abort throws "process aborted" with no result message.
       if (outcome === "error" && !ac.signal.aborted) text = "Agent error";
-      log.warn({ err: redactText(String(err)), outcome }, "query loop ended with throw");
+      log.warn({ err: errText(err), outcome }, "query loop ended with throw");
     }
     // No result message + abort (user stop or our timeout): relabel once, for throw or clean end.
     if (outcome === "error" && ac.signal.aborted) outcome = abortOutcome(timedOut);
+    if (startupError) {
+      outcome = "error";
+      text = startupError;
+    }
     usage = { ...usage, compactions };
   } finally {
     clearTimeout(timer);
@@ -182,34 +227,4 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   }
   log.info({ outcome, ...usage }, "run finished");
   return { text, sessionId, outcome, usage };
-}
-
-/** Subset of the SDK result message we read (real shape from spike q06/q08b). */
-interface ResultShape {
-  subtype: string;
-  result?: string;
-  errors?: string[];
-  total_cost_usd?: number;
-  num_turns?: number;
-  duration_ms?: number;
-  usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
-    cache_read_input_tokens?: number;
-    cache_creation_input_tokens?: number;
-  };
-}
-
-/** Convert a result message into RunUsage. */
-function usageFromResult(r: ResultShape, compactions: number): RunUsage {
-  return {
-    inputTokens: r.usage?.input_tokens ?? 0,
-    outputTokens: r.usage?.output_tokens ?? 0,
-    cacheReadTokens: r.usage?.cache_read_input_tokens ?? 0,
-    cacheCreationTokens: r.usage?.cache_creation_input_tokens ?? 0,
-    costUsd: r.total_cost_usd ?? 0,
-    turns: r.num_turns ?? 0,
-    durationMs: r.duration_ms ?? 0,
-    compactions,
-  };
 }

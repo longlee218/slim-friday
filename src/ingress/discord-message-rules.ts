@@ -1,11 +1,11 @@
-import { redactText } from "../observability/redact";
+import { clip, redactText } from "../observability/redact";
 
 /** Mention policy for every outgoing message: nothing can ping (@everyone, @here, roles, users). */
 export const SAFE_MENTIONS = { parse: [] as never[], repliedUser: false };
 
 /** Discord hard limit is 2000; stay under it. */
 export const CHUNK_MAX = 1900;
-/** Replies longer than this are truncated (attachments come in Phase 5). */
+/** Replies longer than this are truncated. */
 export const REPLY_CAP = 6000;
 /** Max Discord thread name length is 100; keep it shorter. */
 const THREAD_NAME_MAX = 90;
@@ -36,11 +36,6 @@ export function stripMention(content: string, botId: string): string {
   return content.replace(new RegExp(`<@!?${botId}>`, "g"), "").trim();
 }
 
-/** True when the whole message is `stop` (case-insensitive), the cancel command. */
-export function isStop(prompt: string): boolean {
-  return prompt.trim().toLowerCase() === "stop";
-}
-
 /** Decide what to do with a message. Non-owners and bots never get past `ignore`. */
 export function routeMessage(f: MessageFacts, ownerId: string, botId: string): Route {
   if (f.authorIsBot || f.authorId !== ownerId || !f.inGuild) return { kind: "ignore" };
@@ -56,10 +51,7 @@ export function routeMessage(f: MessageFacts, ownerId: string, botId: string): R
 export function threadName(prompt: string): string {
   // Redact first so a pasted secret never becomes a channel-visible title.
   const flat = redactText(prompt).replace(/\s+/g, " ").trim();
-  return (
-    (flat.length > THREAD_NAME_MAX ? flat.slice(0, THREAD_NAME_MAX - 1).trimEnd() + "…" : flat) ||
-    "chat"
-  );
+  return clip(flat, THREAD_NAME_MAX) || "chat";
 }
 
 /** Break text into lines, cutting any line too long to ever fit in one chunk. */

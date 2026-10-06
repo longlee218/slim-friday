@@ -1,2 +1,11 @@
 node_modules
 .env
+
+# Friday agent home (~/.friday is a symlink to ./.friday): track config, persona and memory; ignore runtime state
+.friday/data/
+.friday/logs/
+.friday/tasks/
+.friday/workspaces/*/logs/
+.friday/workspaces/*/repo/
+.friday/workspaces/*/worktrees/
+.friday/workspaces/*/tasks/

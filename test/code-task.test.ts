@@ -1,14 +1,15 @@
 import { expect, test } from "bun:test";
+import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { ApprovalGateway, ApprovalRequest } from "../src/approvals/approval-types";
 import { createTaskHandler } from "../src/tasks/handle-task";
-import { parseTaskPrefix } from "../src/tasks/task-prefix";
-import { makeEnv, resultMsg } from "./helpers";
+import { parseTaskCommand } from "../src/tasks/task-commands";
+import { addWorkspace, clearWorkspaces, makeEnv, resultMsg, stubGateway } from "./helpers";
 
 /** Fake gateway: records requests and answers with a scripted decision. */
 function fakeGateway(approved = true) {
   const asked: { kind: string; req: ApprovalRequest }[] = [];
-  const gw: ApprovalGateway = {
+  const gw = stubGateway({
     request: async (req) => {
       asked.push({ kind: "request", req });
       return approved ? { approved } : { approved, reason: "no" };
@@ -18,13 +19,15 @@ function fakeGateway(approved = true) {
       return approved ? { approved } : { approved, reason: "owner rejected plan" };
     },
     askChoice: async (a) => a.options[0],
-  };
+  });
   return { gw, asked };
 }
 
 /** Run one `task:` message and capture the SDK options the handler built. */
 async function runCodeTask(text: string, gw?: ApprovalGateway) {
   const env = makeEnv();
+  clearWorkspaces(env.home);
+  const repo = addWorkspace(env.home, "repo"); // managed clone (code tasks need one)
   let opts: any;
   const queryFn = (a: any) => {
     opts = a.options;
@@ -39,13 +42,35 @@ async function runCodeTask(text: string, gw?: ApprovalGateway) {
     approvals: gw,
   });
   const reply = await handle({ source: "t", userId: "u", threadId: "t1", text });
-  return { env, opts, reply };
+  return { env, opts, reply, repo };
 }
 
-test("parseTaskPrefix", () => {
-  expect(parseTaskPrefix("task: add a file")).toEqual({ code: true, text: "add a file" });
-  expect(parseTaskPrefix("TASK:x")).toEqual({ code: true, text: "x" });
-  expect(parseTaskPrefix("what is x?")).toEqual({ code: false, text: "what is x?" });
+test("parseTaskCommand: stop, cleanup, task: prefix and repo: hint", () => {
+  expect(parseTaskCommand(" Stop ")).toEqual({ kind: "stop" });
+  expect(parseTaskCommand("stop it")).toMatchObject({ kind: "qa" });
+  expect(parseTaskCommand("cleanup:")).toEqual({ kind: "cleanup", taskId: undefined });
+  expect(parseTaskCommand("CLEANUP: abc")).toEqual({ kind: "cleanup", taskId: "abc" });
+  expect(parseTaskCommand("task: add a file")).toEqual({
+    kind: "code",
+    repo: undefined,
+    text: "add a file",
+  });
+  expect(parseTaskCommand("TASK:x")).toMatchObject({ kind: "code", text: "x" });
+  expect(parseTaskCommand("what is x?")).toEqual({
+    kind: "qa",
+    repo: undefined,
+    text: "what is x?",
+  });
+  expect(parseTaskCommand("repo:api how does auth work?")).toEqual({
+    kind: "qa",
+    repo: "api",
+    text: "how does auth work?",
+  });
+  expect(parseTaskCommand("task: repo:api fix it")).toEqual({
+    kind: "code",
+    repo: "api",
+    text: "fix it",
+  });
 });
 
 test("code task without approvals is refused and never reaches the SDK", async () => {
@@ -56,12 +81,12 @@ test("code task without approvals is refused and never reaches the SDK", async (
 
 test("code task runs in plan mode in the scratch dir with write tools and no allowedTools", async () => {
   const { gw } = fakeGateway();
-  const { env, opts } = await runCodeTask("task: add a file", gw);
+  const { env, opts, repo } = await runCodeTask("task: add a file", gw);
   expect(opts.permissionMode).toBe("plan");
   expect(opts.tools).toContain("Write");
   expect(opts.allowedTools).toBeUndefined(); // would bypass canUseTool
   expect(opts.cwd).toContain(join(env.home, "tasks"));
-  expect(opts.additionalDirectories).toEqual([env.repo]);
+  expect(opts.additionalDirectories).toEqual([realpathSync(repo)]);
   expect(opts.canUseTool).toBeFunction();
   expect(opts.systemPrompt.append).toContain("plan mode");
   // No session is saved for code tasks.
@@ -74,8 +99,8 @@ test("canUseTool: plan goes to owner; writes only in scratch; risky Bash asks; d
   const { opts } = await runCodeTask("task: x", gw);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
 
-  expect((await can("ExitPlanMode", { plan: "step 1" }, {})).behavior).toBe("allow");
-  expect(asked[0]).toMatchObject({ kind: "plan", req: { detail: "step 1" } });
+  expect((await can("ExitPlanMode", { plan: "repo: repo\nstep 1" }, {})).behavior).toBe("allow");
+  expect(asked[0]).toMatchObject({ kind: "plan", req: { detail: "repo: repo\nstep 1" } });
 
   expect(
     (await can("Write", { file_path: join(opts.cwd, "a.txt"), content: "x" }, {})).behavior,
@@ -101,7 +126,7 @@ test("owner rejection becomes a deny message the agent can act on", async () => 
   const { gw } = fakeGateway(false);
   const { opts } = await runCodeTask("task: x", gw);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
-  const plan = await can("ExitPlanMode", { plan: "p" }, {});
+  const plan = await can("ExitPlanMode", { plan: "repo: repo\np" }, {});
   expect(plan.behavior).toBe("deny");
   expect(plan.message).toContain("rejected the plan");
   const bash = await can("Bash", { command: "bun add x" }, {});

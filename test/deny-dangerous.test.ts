@@ -7,7 +7,7 @@ import { checkToolCall } from "../src/guardrails/check-tool-call";
 let root: string;
 let allowed: string;
 let outside: string;
-const ctx = () => ({ allowedPaths: [allowed] });
+const ctx = () => ({ writePaths: [allowed] });
 
 beforeAll(() => {
   root = realpathSync(mkdtempSync(join(tmpdir(), "guardrails-")));
@@ -81,13 +81,38 @@ describe("file tool guardrails", () => {
     expect(checkToolCall(tool, input(), ctx()).decision).toBe(expected);
   });
 
-  test("empty allowedPaths denies every write", () => {
+  test("empty writePaths denies every write", () => {
     const input = { file_path: join(allowed, "real.txt") };
-    expect(checkToolCall("Write", input, { allowedPaths: [] }).decision).toBe("deny");
+    expect(checkToolCall("Write", input, { writePaths: [] }).decision).toBe("deny");
   });
 
   test("multiple allowed roots", () => {
-    const c = { allowedPaths: [join(root, "none"), outside] };
+    const c = { writePaths: [join(root, "none"), outside] };
     expect(checkToolCall("Write", { file_path: join(outside, "n.txt") }, c).decision).toBe("allow");
+  });
+});
+
+describe("read paths and secret dotfiles", () => {
+  const readCtx = () => ({ writePaths: [allowed], readPaths: [allowed] });
+  const d = (tool: string, input: Record<string, unknown>) =>
+    checkToolCall(tool, input, readCtx()).decision;
+
+  test("reads: inside allowed dirs ok; outside, symlink escape and absolute/parent globs denied", () => {
+    expect(d("Read", { file_path: join(allowed, "real.txt") })).toBe("allow");
+    expect(d("Read", { file_path: join(outside, "target.txt") })).toBe("deny");
+    expect(d("Read", { file_path: join(allowed, "dirlink", "target.txt") })).toBe("deny");
+    expect(d("Read", { file_path: "/etc/hosts" })).toBe("deny");
+    expect(d("Read", { file_path: join(allowed, "../x") })).toBe("deny");
+    expect(d("Grep", { pattern: "x", path: outside })).toBe("deny");
+    expect(d("Grep", { pattern: "x" })).toBe("allow"); // defaults to cwd
+    expect(d("Glob", { pattern: "/Users/**/*.json" })).toBe("deny");
+    expect(d("Glob", { pattern: "../**" })).toBe("deny");
+    expect(d("Glob", { pattern: "src/**/*.ts" })).toBe("allow");
+  });
+
+  test("dotfile credentials are denied even inside allowed dirs", () => {
+    for (const f of [".credentials.json", ".npmrc", ".netrc", ".pgpass", "cert.p12"]) {
+      expect(d("Read", { file_path: join(allowed, f) })).toBe("deny");
+    }
   });
 });

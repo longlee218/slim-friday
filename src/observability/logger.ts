@@ -1,9 +1,10 @@
 import pino, { type DestinationStream, type Logger } from "pino";
 import pretty from "pino-pretty";
-import { ensureParentDir, workspacePaths } from "../workspace/workspace-paths";
+import { ensureParentDir, workspacePaths } from "../config/workspace-paths";
+import { errText } from "./redact";
 
 /** Key paths pino censors before serialization (layer 1; free text uses redact.ts). */
-export const REDACT_PATHS = [
+const REDACT_PATHS = [
   "token",
   "authorization",
   "password",
@@ -50,3 +51,12 @@ function buildSharedLogger(): Logger {
 
 /** The one shared logger. Use `logger.child({ module, taskId, threadId })`. */
 export const logger: Logger = buildSharedLogger();
+
+/** Run `fn` and never throw: a failure is logged (redacted) as `what`. For best-effort side work. */
+export function tryLog(log: Logger, what: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (err) {
+    log.error({ err: errText(err) }, what);
+  }
+}

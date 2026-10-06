@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { CLIENT_OPTIONS } from "../src/ingress/discord-bot";
+import type { Task } from "../src/ingress/discord-message-handler";
 import { createMessageHandler } from "../src/ingress/discord-message-handler";
-import type { Task } from "../src/ingress/task-types";
 
 const OWNER = "111";
 const BOT = "999";

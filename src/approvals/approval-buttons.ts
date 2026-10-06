@@ -1,4 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, type ButtonStyle } from "discord.js";
+import { clip } from "../observability/redact";
+import type { ApprovalDecision } from "../storage/run-store";
+import type { ApprovalResult } from "./approval-types";
 
 /** Discord limits: 5 buttons per row, 80 chars per label. */
 const ROW_SIZE = 5;
@@ -9,11 +12,6 @@ export interface ButtonSpec {
   label: string;
   value: string;
   style: ButtonStyle;
-}
-
-/** Cut text to max chars with an ellipsis. */
-export function clip(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
 /** Lay buttons out in rows; customId = `${prefix}:${id}:${value}`. */
@@ -38,4 +36,26 @@ export function buildButtonRows(
     );
   }
   return rows;
+}
+
+/** A request waiting for a click. */
+export interface Pending {
+  taskId: string;
+  /** Resolve with the clicked button value, or undefined on timeout. */
+  settle: (value: string | undefined) => void;
+  timer: ReturnType<typeof setTimeout>;
+  /** Persist the decision and put the task back to running. */
+  finish: (decision: ApprovalDecision) => void;
+  /** Edit the posted message (drops the buttons). */
+  edit: (content: string) => Promise<unknown>;
+  content: string;
+}
+
+/** Map the clicked value of an approve/deny prompt to a result. */
+export function toResult(value: string | undefined, denyReason: string): ApprovalResult {
+  if (value === "allow") return { approved: true };
+  if (value === undefined) return { approved: false, reason: "timeout" };
+  if (value === "cancelled") return { approved: false, reason: "cancelled" };
+  if (value === "no-channel") return { approved: false, reason: "no channel" };
+  return { approved: false, reason: denyReason };
 }

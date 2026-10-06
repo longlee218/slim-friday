@@ -2,7 +2,7 @@
 export const MASK = "[REDACTED]";
 
 /** Max bytes of tool output/preview stored or logged. */
-export const PREVIEW_MAX_BYTES = 4096;
+const PREVIEW_MAX_BYTES = 4096;
 
 /** Secret patterns applied to free text, most specific first. */
 const PATTERNS: RegExp[] = [
@@ -36,6 +36,16 @@ export function redactText(text: string): string {
   for (const p of PATTERNS) out = out.replace(p, MASK);
   out = out.replace(URL_CREDS, (_m, scheme: string) => `${scheme}${MASK}@`);
   return out.replace(ENV_ASSIGN, (_m, name: string, q: string) => `${name}${q}=${MASK}`);
+}
+
+/** Error (or any value) as safe text: redacted, trimmed and capped. For logs and short user-facing notes. */
+export function errText(err: unknown, max = 300): string {
+  return redactText(String(err)).trim().slice(0, max);
+}
+
+/** Cut text to `max` chars, ending with an ellipsis when something was cut. */
+export function clip(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
 /** Deeply redact strings in any JSON-like value; sensitive keys are masked wholesale. */

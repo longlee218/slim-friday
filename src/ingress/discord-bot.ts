@@ -1,7 +1,7 @@
 import { Client, Events, GatewayIntentBits, type Interaction } from "discord.js";
 import type { AgentConfig } from "../config/agent-config";
 import { logger } from "../observability/logger";
-import { redactText } from "../observability/redact";
+import { errText } from "../observability/redact";
 import { createMessageHandler, type HandleTask } from "./discord-message-handler";
 import { SAFE_MENTIONS } from "./discord-message-rules";
 
@@ -35,9 +35,7 @@ export function createDiscordBot(
   // Button clicks (approvals); the handler never throws, void keeps the listener sync.
   if (handleInteraction) client.on(Events.InteractionCreate, (i) => void handleInteraction(i));
   client.on(Events.ClientReady, (c) => log.info({ bot: c.user.tag }, "discord ready"));
-  client.on(Events.Error, (err) =>
-    log.error({ err: redactText(String(err)) }, "discord client error"),
-  );
+  client.on(Events.Error, (err) => log.error({ err: errText(err) }, "discord client error"));
 
   return { client, onMessage };
 }

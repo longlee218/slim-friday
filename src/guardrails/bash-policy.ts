@@ -5,17 +5,18 @@
  * own; the strictest decision wins (deny > ask > allow). Anything that cannot be parsed asks.
  *
  * NOTE: parsing is BEST EFFORT and bypassable (variable expansion, scripts, aliases, ...).
- * Worktree isolation in phase 4 is the real boundary. Reasons are short and never echo
+ * The git worktree is the real boundary. Reasons are short and never echo
  * command text beyond host / package names, so secrets are not leaked to the agent.
  */
 import { homedir } from "node:os";
-import { basename } from "node:path";
+import { basename, isAbsolute } from "node:path";
 import { parseCommand, type Segment } from "./bash-parser";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { isSecretPath } from "./deny-dangerous";
+import { isInside, resolveReal } from "./paths";
 
-/** Hosts curl/wget may reach without asking, unless the context overrides it. */
-export const DEFAULT_ALLOWED_HOSTS = ["github.com", "api.github.com", "registry.npmjs.org"];
+/** Hosts curl/wget may reach without asking. */
+const ALLOWED_HOSTS = ["github.com", "api.github.com", "registry.npmjs.org"];
 
 const RANK = { allow: 0, ask: 1, deny: 2 } as const;
 const allow = (reason: string): Decision => ({ decision: "allow", reason });
@@ -61,7 +62,7 @@ function hostOf(word: string): string | null {
 }
 
 /** curl/wget: allow only when every URL/host-looking argument is in the allowlist. */
-function checkNetwork(cmd: string, args: string[], hosts: string[]): Decision {
+function checkNetwork(cmd: string, args: string[]): Decision {
   if (cmd !== "curl" && cmd !== "wget") return ask(`network command ${cmd} needs approval`);
   // Output/upload/config flags can write or read anywhere: always ask.
   if (
@@ -79,7 +80,7 @@ function checkNetwork(cmd: string, args: string[], hosts: string[]): Decision {
   if (targets.length === 0) return ask(`${cmd} with no recognizable host`);
   for (const t of targets) {
     const host = hostOf(t);
-    if (!host || !hosts.includes(host)) {
+    if (!host || !ALLOWED_HOSTS.includes(host)) {
       return ask(`${cmd} to host not in allowlist: ${host ?? "unparseable"}`);
     }
   }
@@ -128,21 +129,24 @@ function checkGit(args: string[]): Decision {
     const toProtected = rest
       .filter((a) => !a.startsWith("-"))
       .some((a) => PROTECTED.has((a.split(":").pop() ?? "").replace(/^refs\/heads\//, "")));
-    return toProtected ? deny("push to main/master is blocked") : ask("git push needs approval");
+    return toProtected
+      ? deny("push to main/master is blocked")
+      : deny("pushing is done by the app after the owner approves");
   }
   if (rest.includes("--no-index")) return deny("git --no-index reads arbitrary files");
   if (sub === "status" || sub === "diff" || sub === "log") {
     const writesFile = rest.some((a) => a === "--output" || a.startsWith("--output="));
     return configOverride || writesFile ? ask(`git ${sub} with overrides`) : allow(`git ${sub}`);
   }
-  return ask(`git ${sub ?? ""} needs approval`.replace("  ", " "));
+  // Everything else (add, commit, checkout, ...): the git MCP tools are the way, not the shell.
+  return deny(`use the git MCP tools instead of "git ${sub ?? ""}"`.replace("  ", " "));
 }
 
 /** Package managers: lockfile-only installs allow; adding packages asks with names. */
 function checkPackageManager(cmd: string, args: string[]): Decision {
   const sub = args.find((a) => !a.startsWith("-"));
   const rest = args.filter((a) => !a.startsWith("-") && a !== sub);
-  if (cmd === "npm" && sub === "ci") return allow("npm ci (lockfile install)");
+  if (cmd === "npm" && sub === "ci") return ask("npm ci runs lifecycle scripts");
   const adds = sub === "add" || (sub && ["install", "i"].includes(sub));
   if (!adds) return ask(`${cmd} ${sub ?? ""} needs approval`.replace("  ", " "));
   if (rest.length > 0) return ask(`${cmd} adds package: ${rest.join(", ").slice(0, 200)}`);
@@ -153,7 +157,7 @@ function checkPackageManager(cmd: string, args: string[]): Decision {
 }
 
 /** Judge one simple command. */
-function checkSegment(seg: Segment, hosts: string[]): Decision {
+function checkSegment(seg: Segment): Decision {
   const words = [...seg.words];
   // Drop env assignments and wrapper commands (`FOO=1 env nice cmd`).
   while (words.length > 0) {
@@ -185,7 +189,7 @@ function checkSegment(seg: Segment, hosts: string[]): Decision {
   if (cmd === "rm") return checkRm(args);
   if (cmd === "chmod") return checkChmod(args);
   if (cmd === "git") return checkGit(args);
-  if (NETWORK.has(cmd)) return checkNetwork(cmd, args, hosts);
+  if (NETWORK.has(cmd)) return checkNetwork(cmd, args);
   if (PKG_MANAGERS.has(cmd)) return checkPackageManager(cmd, args);
   return ask(`${cmd} needs approval`);
 }
@@ -200,6 +204,15 @@ function commandKey(command: string): string | null {
   }
 }
 
+/** `cd <dir>` is harmless when <dir> stays inside the allowed write dirs (models prefix commands with it). */
+function isCdInside(words: string[], roots: string[]): boolean {
+  if (words[0] !== "cd" || words.length !== 2) return false;
+  const target = words[1];
+  if (!isAbsolute(target)) return !/(^|[\\/])\.\.([\\/]|$)/.test(target) && !target.startsWith("~");
+  const real = resolveReal(target);
+  return roots.some((r) => isInside(r, real));
+}
+
 /** Decide a Bash command line. Strictest segment wins; unparseable input asks. */
 export function checkBash(command: string, ctx: GuardrailContext): Decision {
   let segments: Segment[];
@@ -209,11 +222,12 @@ export function checkBash(command: string, ctx: GuardrailContext): Decision {
     return ask("command could not be parsed");
   }
   if (segments.length === 0) return ask("empty command");
-  const hosts = (ctx.allowedHosts ?? DEFAULT_ALLOWED_HOSTS).map((h) => h.toLowerCase());
   const allowed = new Set((ctx.allowedCommands ?? []).map(commandKey));
   let worst: Decision | null = null;
   for (const seg of segments) {
-    let d = checkSegment(seg, hosts);
+    let d = isCdInside(seg.words, ctx.writePaths ?? [])
+      ? allow("cd inside allowed directory")
+      : checkSegment(seg);
     // Exact allowlisted commands only upgrade ask; hard denies still win.
     if (d.decision === "ask" && allowed.has(seg.words.join("\0"))) d = allow("allowlisted command");
     // A file redirect can write anywhere, so an otherwise-safe command must ask.
