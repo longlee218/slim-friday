@@ -10,7 +10,7 @@ import { liveWorktree, type WorktreeRow } from "../storage/worktree-store";
 import { RESUME_PROMPT, type TaskCommand } from "./task-commands";
 
 /** Max code tasks running or waiting for approval at once (RAM/quota; spike Q12). */
-const MAX_CODE_TASKS = 2;
+export const MAX_CODE_TASKS = 2;
 
 /** A task that cannot start: `reason` is logged (`event` names it), `reply` goes to the owner. */
 export interface Refusal {
@@ -67,40 +67,66 @@ export function routeTask(
   }
   if (cmd.repo && !cmd.text)
     return refuse("empty_text", `Send your question after "repo:${pinned!.name}".`);
-  // Code task (`task:`) or follow-up in a thread that already has a worktree.
+  // Code only for a follow-up in a thread with a worktree, or the Resume of an interrupted plan stage.
   const worktree =
     cmd.kind === "code" ? undefined : (liveWorktree(deps.db, p.threadId) ?? undefined);
   const isCode = cmd.kind === "code" || !!worktree;
   if (!isCode) return { pinned, isCode, candidates: [], repo: pinned?.name ?? "*" };
   if (!deps.hasApprovals)
     return refuse("no_approvals", "Code tasks need the Discord approval flow.");
-  if (!cmd.text) return refuse("empty_text", "Send the task after `task:`.");
-  // Worktrees branch off managed clones only, never a developer's working copy.
-  // `repo:` is a hint for a task; there is no sticky pin.
-  const picked = cmd.repo ? pinned : undefined;
-  const candidates = (picked ? [picked] : repos).filter((r) =>
-    isManagedClone(r.path, deps.agentHome),
-  );
-  if (!worktree && candidates.length === 0) {
+  if (!cmd.text) return refuse("empty_text", "Send a message with the task.");
+  // A follow-up reuses its worktree: only the task cap applies. A plan resume re-checks clone + cap.
+  if (worktree) {
+    return (
+      capRefusal(deps.db) ?? { pinned, worktree, isCode, candidates: repos, repo: worktree.repo }
+    );
+  }
+  const blocked = codeTaskBlocker(deps.db, deps.agentHome, repos, cmd.repo);
+  if ("reply" in blocked) return blocked;
+  return {
+    pinned,
+    isCode,
+    candidates: blocked.candidates,
+    repo: cmd.repo ? (pinned?.name ?? "*") : "*",
+  };
+}
+
+/** Refusal when `MAX_CODE_TASKS` code tasks already run or wait for approval, else undefined. */
+function capRefusal(db: Database): Refusal | undefined {
+  return countActiveCodeTasks(db) >= MAX_CODE_TASKS
+    ? refuse(
+        "code_task_limit",
+        `busy, ${MAX_CODE_TASKS} code tasks running, try again later`,
+        "task.busy",
+      )
+    : undefined;
+}
+
+/**
+ * Can a new code task start now? Shared by routing, the `delegate` tool and the handoff (one rule).
+ * `repoName` picks one repo (unknown name -> refusal); else every managed clone is a candidate.
+ * Worktrees branch off managed clones only, never a developer's working copy.
+ */
+export function codeTaskBlocker(
+  db: Database,
+  agentHome: string,
+  repos: Repo[],
+  repoName?: string,
+): Refusal | { candidates: Repo[] } {
+  const hint = repoName?.toLowerCase();
+  const picked = hint ? repos.find((r) => r.name.toLowerCase() === hint) : undefined;
+  if (repoName && !picked) {
+    const names = repos.map((r) => r.name).join(", ");
+    return refuse("unknown_repo", `Unknown repo "${repoName}". Available: ${names}`);
+  }
+  const candidates = (picked ? [picked] : repos).filter((r) => isManagedClone(r.path, agentHome));
+  if (candidates.length === 0) {
     return refuse(
       "no_clone",
       "Code tasks need a workspace clone (workspaces/<name>/repo with a config.yaml). Clone the repo there first.",
     );
   }
-  if (countActiveCodeTasks(deps.db) >= MAX_CODE_TASKS) {
-    return refuse(
-      "code_task_limit",
-      `busy, ${MAX_CODE_TASKS} code tasks running, try again later`,
-      "task.busy",
-    );
-  }
-  return {
-    pinned,
-    worktree,
-    isCode,
-    candidates: worktree ? repos : candidates,
-    repo: worktree?.repo ?? picked?.name ?? "*",
-  };
+  return capRefusal(db) ?? { candidates };
 }
 
 /** A runnable command (code or Q&A) plus what a Resume adds. */

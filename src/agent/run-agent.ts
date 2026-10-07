@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import {
   type HookCallbackMatcher,
+  type McpSdkServerConfigWithInstance,
   type Options,
   type SDKMessage,
   query as sdkQuery,
@@ -53,6 +54,8 @@ export interface RunAgentInput {
   gitBaseDir?: string;
   /** Repo (workspace) the run belongs to: its raw task log goes to that workspace's logs dir. */
   logRepo?: string;
+  /** In-process MCP server of the app (Q&A `delegate` tool); registered in Q&A mode only. */
+  appServer?: McpSdkServerConfigWithInstance;
   /** GitHub login whose token the read-only GitHub MCP server uses (code tasks); default = active gh account. */
   githubAccount?: string;
   /** Code task: plan mode + write tools behind guardrails and owner approval. Omitted = read-only Q&A. */

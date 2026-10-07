@@ -25,6 +25,8 @@ export type Capability =
 export const EXIT_PLAN = "ExitPlanMode";
 export const ASK_USER = "AskUserQuestion";
 const ENTER_PLAN = "EnterPlanMode";
+/** In-process MCP tool of the Q&A agent: hands a code change over to the plan stage (server `friday`). */
+export const DELEGATE = "mcp__friday__delegate";
 /** The guard lets these through; the approval flow (not the guard) decides on them. */
 export const PLAN_FLOW_TOOLS: ReadonlySet<string> = new Set([EXIT_PLAN, ASK_USER, ENTER_PLAN]);
 
@@ -72,9 +74,11 @@ const AUTO_ALLOWED = new Set<string>([
 export const toolsFor = (mode: ToolMode): string[] =>
   MODE_CAPABILITIES[mode].flatMap((c) => CAPABILITY_TOOLS[c]);
 
-/** Tools of a mode that need no approval (the guard's `allowTools`). */
-export const autoAllowedTools = (mode: ToolMode): string[] =>
-  toolsFor(mode).filter((t) => AUTO_ALLOWED.has(t));
+/** Tools of a mode that need no approval (the guard's `allowTools`); `delegate` only exists in Q&A. */
+export const autoAllowedTools = (mode: ToolMode): string[] => [
+  ...toolsFor(mode).filter((t) => AUTO_ALLOWED.has(t)),
+  ...(mode === "qa" ? [DELEGATE] : []),
+];
 
 /* ---------------- git MCP tools (@cyanheads/git-mcp-server 2.15.3) ---------------- */
 

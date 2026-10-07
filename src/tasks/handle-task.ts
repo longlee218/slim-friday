@@ -8,7 +8,6 @@ import type { Task } from "../ingress/discord-message-handler";
 import { createGitMcp, type GitMcp } from "../mcp/git-mcp";
 import { ensureHome } from "../memory/persona";
 import {
-  excerpt,
   getLogContext,
   logEvent,
   logger,
@@ -18,16 +17,17 @@ import {
 } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { loadRepoRegistry } from "../repos/repo-registry";
-import { finishTask, insertTask, setTaskStatus } from "../storage/run-store";
+import { finishTask } from "../storage/run-store";
 import { deleteSession, getSession } from "../storage/session-store";
+import { HANDOFF_OUTCOMES, runHandoff } from "./code-handoff";
 import { runCodeFlow } from "./code-task-flow";
 import { runQaFlow } from "./qa-flow";
 import type { RunLimiter } from "./run-limiter";
 import { parseTaskCommand } from "./task-commands";
 import type { FlowResult } from "./task-result";
-import { finishRun, OUTCOME_REPLY } from "./task-result";
+import { closeTask, OUTCOME_REPLY } from "./task-result";
 import { resolveCommand, routeTask } from "./task-routing";
-import { createRunTracker } from "./task-tracker";
+import { beginTask, createRunTracker } from "./task-tracker";
 import { cleanupWorktree } from "./task-worktree";
 
 /** Dependencies of the task handler. */
@@ -40,7 +40,7 @@ export interface TaskHandlerDeps {
   limiter?: RunLimiter;
   /** The git MCP server the app uses (worktrees, fetch, push, inspection); started on first use. */
   git?: GitMcp;
-  /** Owner approval gateway; required for `task:` code tasks. */
+  /** Owner approval gateway; required for code tasks (the `delegate` tool, worktree follow-ups). */
   approvals?: ApprovalGateway;
 }
 
@@ -94,14 +94,8 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     /** The one place a task row is created (after the refusals, before the flow runs). */
     let single: string | undefined;
     const begin = (repo: string, type: "qa" | "code", mode: string) => {
-      insertTask(db, { id: taskId, threadId, source: task.source, repo, type });
+      beginTask(db, log, { taskId, threadId, source: task.source, single }, { repo, type, mode });
       taskInserted = true;
-      // Unpinned task with a single workspace: that workspace is the log repo (row keeps "*").
-      // Lines logged before the repo is known (message.received, task.started with "*") stay in the
-      // main log only; tool-hooks sets the repo later for unpinned multi-repo tasks.
-      const logRepo = repo === "*" && single ? single : repo;
-      setLogContext({ repo: logRepo, mode });
-      logEvent(log, "task.started", { repo: logRepo, type });
     };
     // Everything after the lock is taken lives in try so `finally` always releases it.
     try {
@@ -133,36 +127,39 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       }
       const { pinned, worktree, isCode } = route;
       begin(route.repo, isCode ? "code" : "qa", !isCode ? "qa" : worktree ? "exec" : "plan");
+      // Dependencies of the code flow (the approval gateway exists whenever a code task is routed).
+      const allowDelegate = !!deps.approvals; // Q&A may hand code over only when the plan can be approved
+      const codeDeps = { db, config, approvals: deps.approvals!, queryFn: deps.queryFn, git };
       const res: FlowResult = isCode
-        ? await runCodeFlow(
-            { db, config, approvals: deps.approvals!, queryFn: deps.queryFn, git },
-            {
-              taskId,
-              threadId,
-              text: cmd.text,
-              repos: route.candidates,
-              ac,
-              worktree,
-              planResume,
-              resume:
-                worktree && existing?.cwd === realOrSame(worktree.path)
-                  ? existing.session_id
-                  : undefined,
-            },
-          )
-        : await runQaFlow(
-            { db, config, git, queryFn: deps.queryFn },
-            { taskId, text: cmd.text, repos, pinned, existing, ac },
-          );
-      const reply = finishRun(db, { taskId, threadId }, res);
-      if (tracker.isStopping() && res.outcome === "aborted")
-        setTaskStatus(db, taskId, "interrupted");
-      logEvent(log, "task.finished", {
-        repo: res.repo && res.repo !== "*" ? res.repo : taskRepo(),
-        outcome: res.outcome,
-        durationMs: Date.now() - t0,
-        reply: excerpt(reply),
-      });
+        ? await runCodeFlow(codeDeps, {
+            taskId,
+            threadId,
+            text: cmd.text,
+            repos: route.candidates,
+            ac,
+            worktree,
+            planResume,
+            resume:
+              worktree && existing?.cwd === realOrSame(worktree.path)
+                ? existing.session_id
+                : undefined,
+          })
+        : await runQaFlow(codeDeps, {
+            taskId,
+            text: cmd.text,
+            repos,
+            pinned,
+            existing,
+            ac,
+            allowDelegate,
+          });
+      const o = { stopping: tracker.isStopping(), t0, repo: taskRepo() };
+      const reply = closeTask(db, { taskId, threadId }, res, o);
+      // `delegate` was called: the plan stage starts now, same thread and lock (`await`: finally must wait).
+      if (res.proposal && HANDOFF_OUTCOMES.has(res.outcome)) {
+        const h = { ...codeDeps, stopping: tracker.isStopping };
+        return await runHandoff(h, { task, reply, proposal: res.proposal, repos, pinned, ac });
+      }
       // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
       if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {
         // The plan session lives on the task row (the failed task now has none, so Resume stops offering it).

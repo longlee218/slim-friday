@@ -7,6 +7,7 @@
  */
 import {
   autoAllowedTools,
+  DELEGATE,
   GIT_GROUPS,
   GIT_READ_BY_MODE,
   PLAN_FLOW_TOOLS,
@@ -132,6 +133,11 @@ export function checkToolCall(
   // GitHub MCP is started read-only for agents (the app creates PRs itself): every tool it has is a read.
   if (toolName.startsWith("mcp__github__"))
     return { decision: "allow", reason: "github read tool" };
+  // The Q&A agent's handoff tool: only modes that list it (qa) may call it; plan/exec never recurse.
+  if (toolName === DELEGATE)
+    return ctx.allowTools?.includes(DELEGATE)
+      ? { decision: "allow", reason: "delegate tool (qa)" }
+      : { decision: "deny", reason: "delegate is only available in Q&A" };
   if (toolName.startsWith("mcp__")) return { decision: "deny", reason: "unknown MCP tool" };
   if (toolName === "Agent" || toolName === "Task") {
     const type = input.subagent_type;

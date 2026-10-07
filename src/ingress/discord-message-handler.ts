@@ -13,6 +13,8 @@ export interface Task {
   /** Conversation thread; maps 1:1 to a Claude session. */
   threadId: string;
   text: string;
+  /** Posts a message into the thread while the task still runs (a delegated plan waits for approval). */
+  notify?: (text: string) => Promise<void>;
 }
 
 /** Typing indicator lasts ~10s on Discord; refresh a bit earlier. */
@@ -65,6 +67,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         userId: deps.ownerId,
         threadId,
         text,
+        notify: (m) => sendReply(channel, m),
       });
       await sendReply(channel, reply);
     } finally {

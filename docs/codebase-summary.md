@@ -5,19 +5,21 @@
 
 **Stack:** Bun + TypeScript + Discord.js + Claude Agent SDK + SQLite + Official MCP servers (git, GitHub)
 
-**Test Coverage:** 343 tests pass, 2 skipped (live smoke tests) | Type check: clean | No console.* in src/
+**Test Coverage:** 386 tests pass, 1 skipped (live smoke test) | Type check: clean | No console.* in src/
 
 ## Key Architecture
 
 ### 1. Message Flow
 ```
 Discord channel @bot <question>
-  └─ create thread, parse prefix (repo:<name>, task:)
+  └─ create thread, parse prefix (repo:<name> only; no task: prefix)
      └─ handle-task: lookup/create session, pin repo
-        └─ run-agent: SDK query loop with PreToolUse + canUseTool hooks
-           ├─ Q&A mode: Read/Glob/Grep only; git MCP reads; GitHub MCP not offered
-           ├─ Plan mode: R/W/Edit/Bash/Task/ExitPlanMode; Edit blocked before approval
-           └─ Exec mode: R/W/Edit/Bash/Git MCP/Task (worktree only); app creates PR on button click
+        └─ run-agent: Q&A mode (read-only) with PreToolUse + canUseTool hooks
+           ├─ Q&A tools: Read/Glob/Grep/WebFetch/WebSearch; git MCP reads; delegate tool (MCP, if approvals enabled)
+           ├─ Delegate tool: records code proposal → "end turn"
+           └─ After Q&A ends: if proposal → runHandoff():
+              ├─ insert code task row, post "Starting plan" notice
+              └─ runCodeFlow(plan stage) → [plan approval] → execute → PR
 ```
 
 ### 2. AGENT_HOME Structure
@@ -74,10 +76,11 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **discord-message-rules.ts:** owner check, thread lifecycle
 
 ### Session & Task Management
-- **handle-task.ts:** thread→session mapping, repo pin, task command parse, stage detection
-- **task-commands.ts:** parse task/stop/cleanup commands; repo pinning; Resume routing logic (phase 5+)
+- **handle-task.ts:** thread→session mapping, repo pin, Q&A/code routing, stage detection; call runHandoff after Q&A if proposal exists
+- **task-commands.ts:** parse stop/cleanup commands; repo pinning; Resume routing logic (phase 5+)
 - **task-tracker.ts:** thread locking, session resume context tracking (phase 5+)
-- **qa-flow.ts:** Q&A path entry
+- **qa-flow.ts:** Q&A entry point; wire delegate tool (MCP) when approvals enabled; return proposal in result
+- **code-handoff.ts:** after Q&A ends, insert code task row, post notice "Starting plan", run plan stage (phase 1b+)
 - **code-task-flow.ts:** two-stage (plan mode → approval → execute); cwd/git context switching
 - **task-worktree.ts:** worktree creation/removal via git MCP; stage switching
 - **task-result.ts:** result types and flow completion
@@ -92,12 +95,17 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **repo-memory.ts:** load/inject per-repo MEMORY.md; append on exec success
 
 ### Guardrails & Approvals
-- **check-tool-call.ts:** core guard: route tool → allow/ask/deny decision; GuardrailContext
+- **check-tool-call.ts:** core guard: route tool → allow/ask/deny; explicit DELEGATE allow (before generic MCP deny); GuardrailContext
 - **paths.ts:** path helpers (isInside, resolveReal, realOrSame)
 - **deny-dangerous.ts:** hard deny `rm -rf`, `git push -f`, push to main/master, `curl|sh`, `sudo`, read .env*, write outside paths
 - **bash-policy.ts:** Bash allowlist (git status/diff/log, test cmd, npm ci/bun install --frozen-lockfile); network host check; package install gate
 - **discord-approval.ts:** pending map, 10 min timeout, Promise resolution
 - **approval-buttons.ts:** Discord buttons (Approve/Deny/Create PR)
+
+### Delegate Tool & Q&A→Code Handoff (Phase 1b+)
+- **delegate-tool.ts (src/tools/):** MCP tool `mcp__friday__delegate({role:"dev", brief, repo?})`; validated schema; blocker checks; one call per Q&A run
+- **code-handoff.ts (src/tasks/):** after Q&A ends, process proposal: insert code task row, post notice, run plan stage
+- **task-routing.ts (src/tasks/):** shared `codeTaskBlocker()` blocker check (cap MAX_CODE_TASKS, managed clone validation, repo lookup)
 
 ### Repository Management
 - **repo-registry.ts:** scan/load workspaces/*/config.yaml (zod); optional defaultBranch, testCommand, githubAccount; required gitAuthor
@@ -194,7 +202,8 @@ bun run start          # start bot (reads .env)
 
 ## Phase Completion Status
 - **Phase 0 (Spike):** Done — SDK behavior verified
-- **Phase 1 (Q&A + Discord):** Code complete — awaiting manual setup + live verification
+- **Phase 1a (Q&A + Discord):** Code complete — awaiting manual setup + live verification
+- **Phase 1b (Agent decides code vs Q&A):** **Code complete** (386 tests, 1 skip) — delegate tool + Q&A→plan handoff; `task:` prefix removed; pending manual Discord live check
 - **Phase 2 (Multi-repo registry):** Code complete — config.yaml loader (phase 4: per-workspace) + repo pin + git refresh verified
 - **Phase 3 (Approval + guardrails):** Code complete — PreToolUse hook + canUseTool gates + plan mode
 - **Phase 4 (Worktree → PR + Memory + MCP):** Code complete (343 tests, 2 skip; live verified) — plan stage → execute stage → git/GitHub MCP commit → PR

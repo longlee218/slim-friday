@@ -35,7 +35,7 @@ export interface CodeFlowDeps {
   queryFn?: QueryFn;
 }
 
-/** One code-task call: a new `task:` (no `worktree`) or a follow-up in a thread with a worktree. */
+/** One code-task call: a delegated task (no `worktree`) or a follow-up in a thread with a worktree. */
 export interface CodeFlowInput {
   taskId: string;
   threadId: string;

@@ -74,7 +74,10 @@ test("owner mention in channel -> thread created, task run, reply sent in thread
   const m = fakeMsg({});
   await onMessage(m.msg);
   expect(m.calls.threads).toEqual([{ name: "hello" }]);
-  expect(tasks).toEqual([{ source: "discord", userId: OWNER, threadId: "thr1", text: "hello" }]);
+  expect(tasks).toMatchObject([
+    { source: "discord", userId: OWNER, threadId: "thr1", text: "hello" },
+  ]);
+  expect(tasks[0]!.notify).toBeFunction(); // lets the handoff post into the thread mid-run
   expect(m.thread.sent[0].content).toBe("hi @everyone");
   expect(m.thread.sent[0].allowedMentions).toEqual({ parse: [], repliedUser: false });
 });

@@ -6,16 +6,15 @@ Friday is a Discord-driven personal coding agent on Claude Agent SDK. Owner post
 ## Message Flow
 ```
 Discord channel
-  └─ @bot <question> [optional: repo:<name> prefix or task: prefix]
+  └─ @bot <question> [optional: repo:<name> prefix]
      └─ create thread
         ├─ parse message prefix
-        │  ├─ repo:<name> → sessions.repo = repo name (pin thread)
-        │  └─ task: → task mode (plan mode → approval gate)
+        │  └─ repo:<name> → sessions.repo = repo name (pin thread)
         ├─ repo-registry (load)
         │  └─ sessions.repo = repo name or "*" (unpinned)
         ├─ handle-task (look up or create session)
         │  ├─ refresh-repo (git fetch + ff-only, throttled 10 min/repo)
-        │  └─ run-agent (Agent SDK query loop)
+        │  └─ run-agent (Q&A mode: Agent SDK query loop, read-only)
         │     ├─ system-prompt (always-on rules + registry block)
         │     ├─ context (inject repo info, git status)
         │     │  └─ cwd = pinned repo or first registry repo
@@ -23,16 +22,16 @@ Discord channel
         │     ├─ tool-hooks: PreToolUse + canUseTool
         │     │  ├─ PreToolUse (check-tool-call → allow/ask/deny)
         │     │  │  └─ deny-dangerous: rm -rf, git push --force, push to main/master, curl|sh, sudo, .env* read, write outside allowed paths
-        │     │  ├─ canUseTool (approval gate)
-        │     │  │  ├─ Bash: allowlist (git status/diff/log, npm ci, test cmd); others → ask owner via Discord buttons
-        │     │  │  ├─ Network (curl/wget): host allowlist (github.com, registry.npmjs.org); others → ask
-        │     │  │  ├─ Package install: lockfile-only auto-allow; new package → ask (shows name + version)
-        │     │  │  ├─ Edit/Write: in plan mode blocked before ExitPlanMode; approved plan → auto-allow in worktree + tasks/<id>/
-        │     │  │  └─ Timeout: 10 min default → deny + message to agent
-        │     │  └─ canUseTool returns: allow | ask | deny
-        │     │     └─ ask: render options as Discord buttons (owner-only); await approval (resolve Promise)
-        │     ├─ storage/db (insert runs, tool_calls, approvals table, raw JSONL)
-        │     └─ task.status = waiting_approval while pending
+        │     │  ├─ canUseTool (Q&A has no gateway, ask = deny)
+        │     │  │  └─ Q&A tools: Read/Glob/Grep/WebFetch/WebSearch only; MCP delegate tool allowed only when approvals exist
+        │     │  └─ delegate tool (MCP only in Q&A, guard allows only when approvals exist)
+        │     │     ├─ schema: { role: "dev", brief, repo? }
+        │     │     └─ handler: validate, check blockers, record proposal → "end turn" message
+        │     ├─ storage/db (insert runs, tool_calls, raw JSONL)
+        │     └─ Q&A ends (success/max_turns/max_budget)
+        │        └─ if proposal recorded → runHandoff():
+        │           ├─ insertTask(code row) → reserves slot, posts notice "Starting plan: <repo>, <brief>"
+        │           └─ runCodeFlow(plan stage) → [plan approval] → execute → PR
         └─ reply to thread (redacted, truncated, chunked)
 
 Discord thread (approval button interaction)
@@ -62,7 +61,9 @@ Task mode (plan approval flow)
 |-----------|------|---------|
 | **Discord Ingress** | src/ingress/discord-bot.ts | discord.js client, owner check, thread lifecycle |
 | **Message Router** | src/ingress/discord-message-handler.ts | routing: own bot, DM, mention, reply |
-| **Task Handler** | src/tasks/handle-task.ts | session lookup/create, run lock, task prefix parse, stage detection (phase 4+), reply |
+| **Task Handler** | src/tasks/handle-task.ts | session lookup/create, run lock, Q&A/code routing, stage detection (phase 4+), reply |
+| **Delegate Tool** | src/tools/delegate-tool.ts | MCP tool `mcp__friday__delegate(role, brief, repo?)` for Q&A→plan handoff (phase 1+) |
+| **Code Handoff** | src/tasks/code-handoff.ts | after Q&A ends: inserts code task row, posts notice, runs plan stage (phase 1+) |
 | **Code Task Flow** | src/tasks/code-task-flow.ts | two-stage lifecycle: plan (plan mode) → execute (worktree); cwd switching (phase 4+) |
 | **Code Task Finish** | src/tasks/code-task-finish.ts | summary + diff, Create PR button, follow-up, cleanup command (phase 4+) |
 | **Agent Runner** | src/agent/run-agent.ts | SDK query() loop, PreToolUse/canUseTool hooks, error handling |
@@ -296,14 +297,14 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project-root>/.friday)
 
 Built-in tools are limited ONLY by the SDK `tools` option, per mode. The single source is `src/tools/tool-catalog.ts`: tools are grouped by capability (read, write, shell, web, skills, subagents, tasks, ask, planControl), each mode lists its capabilities once. There is no name blocklist and `allowedTools` is never used (it would bypass `canUseTool`). Guard routes per-call decisions via `check-tool-call.ts` (PreToolUse hook + GuardrailContext fields: writePaths, readPaths, gitWriteRepo, gitReadRepos, allowedCommands, allowTools, allowedSubagents).
 
-| Mode | Built-in tools |
-|---|---|
-| Q&A | Read, Glob, Grep, Skill, Agent, WebSearch, WebFetch |
-| Code task, plan stage and execute stage (same set) | Read, Glob, Grep, Write, Edit, Bash, Skill, Agent, AskUserQuestion, TodoWrite, TaskCreate/TaskUpdate/TaskList, ExitPlanMode, EnterPlanMode, ToolSearch (the installed SDK offers TaskCreate/TaskUpdate/TaskList instead of TodoWrite and never offers ToolSearch here) |
+| Mode | Built-in tools | MCP tools |
+|---|---|---|
+| Q&A | Read, Glob, Grep, Skill, Agent, WebSearch, WebFetch | `mcp__friday__delegate` (Q&A→code handoff; allowed only when approvals enabled) |
+| Code task, plan/exec stage | Read, Glob, Grep, Write, Edit, Bash, Skill, Agent, AskUserQuestion, TodoWrite, TaskCreate/TaskUpdate/TaskList, ExitPlanMode, EnterPlanMode | `mcp__git__*` (git MCP in execute stage only; plan stage has git MCP read-only) |
 
-Besides `tools`, `toolOptions(mode)` adds only two kinds of `disallowedTools`: the path-scoped secret-file rules (`Read(**/.env*)`, `*.pem`, `*.key`...) and the git MCP tools of other modes (`mcp__git__*`), because `tools` limits neither. `strictMcpConfig: true` keeps only the MCP servers we pass.
+Besides `tools`, `toolOptions(mode)` adds only two kinds of `disallowedTools`: the path-scoped secret-file rules (`Read(**/.env*)`, `*.pem`, `*.key`...) and the git MCP tools of other modes (`mcp__git__*`). `strictMcpConfig: true` keeps only the MCP servers we pass.
 
-What each call may do is decided per call by the guard (PreToolUse hook + `canUseTool`, see below): path limits (plan stage: scratch + plan file; execute stage: the worktree; Q&A: registered repos read-only), Bash policy, subagent allowlist, owner approval.
+What each call may do is decided per call by the guard (PreToolUse hook + `canUseTool`, see below): path limits (plan stage: scratch + plan file; execute stage: the worktree; Q&A: registered repos read-only), Bash policy, MCP/subagent allowlist, owner approval. Delegate tool allowed in Q&A only when approvals infrastructure exists (guard: `check-tool-call.ts` checks `DELEGATE` before generic MCP deny).
 
 **Per-call gates in code tasks:**
 - Bash restricted: allowlist (git status/diff/log reads, test command) -> auto-allow; others -> ask via Discord button; git writes via Bash are denied (use the git MCP tools)

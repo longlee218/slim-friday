@@ -2,6 +2,8 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { loadConfig } from "../src/config/agent-config";
 import { workspacePaths } from "../src/config/workspace-paths";
@@ -127,3 +129,53 @@ export function readLogLines(base: string): Record<string, unknown>[] {
     return [];
   }
 }
+
+/**
+ * Talk to an in-process MCP server of the SDK options the way the SDK would: a real MCP client over an
+ * in-memory transport linked to `options.mcpServers[name].instance`. `call` runs one tool.
+ */
+export async function connectAppTool(options: any, name = "friday") {
+  const server = options.mcpServers[name].instance;
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test", version: "1.0.0" });
+  await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+  return {
+    call: (tool: string, args: Record<string, unknown>) =>
+      client.callTool({ name: tool, arguments: args }) as Promise<{
+        isError?: boolean;
+        content: { type: string; text: string }[];
+      }>,
+    close: () => client.close(),
+  };
+}
+
+/**
+ * Fake SDK for handoff tests: a run that has the `friday` server is the Q&A run; it calls `delegate` once
+ * per entry of `calls`, then ends with a result. Every other run (plan / exec stage) goes to `next`.
+ * `results` collects what each `delegate` call returned.
+ */
+export function delegatingQuery(
+  calls: Record<string, unknown>[],
+  next: (a: any) => AsyncIterable<SDKMessage>,
+  results: { isError?: boolean; text: string }[] = [],
+) {
+  return (a: any) => {
+    if (!a.options?.mcpServers?.friday) return next(a);
+    return (async function* () {
+      const tool = await connectAppTool(a.options);
+      try {
+        for (const c of calls) {
+          const r = await tool.call("delegate", { role: "dev", ...c });
+          results.push({ isError: r.isError, text: r.content[0]?.text ?? "" });
+        }
+      } finally {
+        await tool.close();
+      }
+      yield resultMsg({ result: "I will hand this over.", session_id: "sess-qa" });
+    })();
+  };
+}
+
+/** A valid brief for the `delegate` tool (min 20 chars). */
+export const BRIEF =
+  "Add b.txt containing two. Findings: a.txt:1 holds one. Acceptance: file exists.";

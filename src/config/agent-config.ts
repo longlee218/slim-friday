@@ -63,7 +63,7 @@ export interface AgentConfig {
   agentHome: string;
   logLevel: string;
   model: string;
-  /** Model for `task:` code tasks (plan mode + tools). Defaults to `model` on Anthropic. */
+  /** Model for code tasks (delegated plan + exec) (plan mode + tools). Defaults to `model` on Anthropic. */
   codeModel: string;
   /** Default commit identity `Name <email>` for repos without their own `gitAuthor`. */
   gitAuthor: string | undefined;

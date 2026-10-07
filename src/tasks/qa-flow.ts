@@ -8,10 +8,16 @@ import { realOrSame } from "../guardrails/paths";
 import type { GitMcp } from "../mcp/git-mcp";
 import { buildPersonaContext } from "../memory/persona";
 import { buildMemoryContext } from "../memory/repo-memory";
+import { excerpt, logEvent, logger } from "../observability/logger";
 import { isManagedClone, refreshRepo } from "../repos/refresh-repo";
 import { buildRegistryContext, type Repo } from "../repos/repo-registry";
 import type { SessionRow } from "../storage/session-store";
+import { createDelegateServer, type Proposal } from "../tools/delegate-tool";
+import { delegateCheck } from "./code-handoff";
 import type { FlowResult } from "./task-result";
+
+/** Logger of this module (task fields come from the log context). */
+const log = logger.child({ module: "qa-flow" });
 
 /** Dependencies of the Q&A flow. */
 export interface QaFlowDeps {
@@ -32,6 +38,8 @@ export interface QaFlowInput {
   /** Stored session of the thread, to resume when the cwd still matches. */
   existing: SessionRow | null;
   ac: AbortController;
+  /** Give the agent the `delegate` tool (needs the approval flow: the plan stage asks the owner). */
+  allowDelegate?: boolean;
 }
 
 /** Read-only Q&A over the pinned repo, or over every registered repo when unpinned. */
@@ -56,6 +64,17 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
       .filter((r) => isManagedClone(r.path, config.agentHome))
       .map((r) => refreshRepo(git, r.path)),
   );
+  // The tool only records the proposal; the handler starts the plan stage once this run has ended.
+  let proposal: Proposal | undefined;
+  const appServer = i.allowDelegate
+    ? createDelegateServer({
+        check: delegateCheck({ db: deps.db, agentHome: config.agentHome, repos, pinned }),
+        onPropose: (p) => {
+          proposal = p;
+          logEvent(log, "handoff.proposed", { repo: p.repo ?? null, brief: excerpt(p.brief) });
+        },
+      })
+    : undefined;
   const res = await runAgent({
     prompt: i.text,
     taskId: i.taskId,
@@ -80,6 +99,7 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
     db: deps.db,
     abortController: i.ac,
     queryFn: deps.queryFn,
+    appServer,
   });
-  return { ...res, cwd, repo: pinned?.name ?? "*" };
+  return { ...res, cwd, repo: pinned?.name ?? "*", proposal };
 }

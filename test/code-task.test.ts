@@ -4,7 +4,15 @@ import { join } from "node:path";
 import type { ApprovalGateway, ApprovalRequest } from "../src/approvals/approval-types";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { parseTaskCommand } from "../src/tasks/task-commands";
-import { addWorkspace, clearWorkspaces, makeEnv, resultMsg, stubGateway } from "./helpers";
+import {
+  addWorkspace,
+  BRIEF,
+  clearWorkspaces,
+  delegatingQuery,
+  makeEnv,
+  resultMsg,
+  stubGateway,
+} from "./helpers";
 
 /** Fake gateway: records requests and answers with a scripted decision. */
 function fakeGateway(approved = true) {
@@ -23,39 +31,43 @@ function fakeGateway(approved = true) {
   return { gw, asked };
 }
 
-/** Run one `task:` message and capture the SDK options the handler built. */
-async function runCodeTask(text: string, gw?: ApprovalGateway) {
+/**
+ * Run one message whose Q&A agent delegates a code task; capture the SDK options of the plan stage.
+ * Without `gw` the approval flow is off (no `delegate` tool, no plan stage).
+ */
+async function runCodeTask(gw?: ApprovalGateway) {
   const env = makeEnv();
   clearWorkspaces(env.home);
   const repo = addWorkspace(env.home, "repo"); // managed clone (code tasks need one)
   let opts: any;
-  const queryFn = (a: any) => {
+  const qa: any[] = [];
+  const next = (a: any) => {
     opts = a.options;
     return (async function* () {
       yield resultMsg();
     })();
   };
+  const query = delegatingQuery([{ brief: BRIEF }], next);
   const handle = createTaskHandler({
     db: env.db,
     config: env.config,
-    queryFn: queryFn as never,
+    queryFn: ((a: any) => (qa.push(a.options), query(a))) as never,
     approvals: gw,
   });
-  const reply = await handle({ source: "t", userId: "u", threadId: "t1", text });
-  return { env, opts, reply, repo };
+  const reply = await handle({ source: "t", userId: "u", threadId: "t1", text: "fix it" });
+  return { env, opts, reply, repo, qa };
 }
 
-test("parseTaskCommand: stop, cleanup, task: prefix and repo: hint", () => {
+test("parseTaskCommand: stop, cleanup and repo: hint; task: is plain Q&A text", () => {
   expect(parseTaskCommand(" Stop ")).toEqual({ kind: "stop" });
   expect(parseTaskCommand("stop it")).toMatchObject({ kind: "qa" });
   expect(parseTaskCommand("cleanup:")).toEqual({ kind: "cleanup", taskId: undefined });
   expect(parseTaskCommand("CLEANUP: abc")).toEqual({ kind: "cleanup", taskId: "abc" });
   expect(parseTaskCommand("task: add a file")).toEqual({
-    kind: "code",
+    kind: "qa",
     repo: undefined,
-    text: "add a file",
+    text: "task: add a file",
   });
-  expect(parseTaskCommand("TASK:x")).toMatchObject({ kind: "code", text: "x" });
   expect(parseTaskCommand("what is x?")).toEqual({
     kind: "qa",
     repo: undefined,
@@ -67,21 +79,24 @@ test("parseTaskCommand: stop, cleanup, task: prefix and repo: hint", () => {
     text: "how does auth work?",
   });
   expect(parseTaskCommand("task: repo:api fix it")).toEqual({
-    kind: "code",
-    repo: "api",
-    text: "fix it",
+    kind: "qa",
+    repo: undefined,
+    text: "task: repo:api fix it",
   });
 });
 
-test("code task without approvals is refused and never reaches the SDK", async () => {
-  const { opts, reply } = await runCodeTask("task: do it");
-  expect(reply).toContain("approval");
-  expect(opts).toBeUndefined();
+test("without approvals the agent has no delegate tool and no plan stage starts", async () => {
+  const { qa } = await runCodeTask();
+  expect(qa).toHaveLength(1); // the Q&A run only
+  expect(qa[0].mcpServers.friday).toBeUndefined();
+  expect(qa[0].permissionMode).toBeUndefined();
 });
 
 test("code task runs in plan mode in the scratch dir with write tools and no allowedTools", async () => {
   const { gw } = fakeGateway();
-  const { env, opts, repo } = await runCodeTask("task: add a file", gw);
+  const { env, opts, repo, qa } = await runCodeTask(gw);
+  expect(qa[0].permissionMode).toBeUndefined(); // the Q&A run is read-only and offers `delegate`
+  expect(qa[0].mcpServers.friday).toBeDefined();
   expect(opts.permissionMode).toBe("plan");
   expect(opts.tools).toContain("Write");
   expect(opts.allowedTools).toBeUndefined(); // would bypass canUseTool
@@ -89,14 +104,17 @@ test("code task runs in plan mode in the scratch dir with write tools and no all
   expect(opts.additionalDirectories).toEqual([realpathSync(repo)]);
   expect(opts.canUseTool).toBeFunction();
   expect(opts.systemPrompt.append).toContain("plan mode");
-  // No session is saved for code tasks.
-  expect(env.db.query("SELECT COUNT(*) n FROM sessions").get()).toEqual({ n: 0 });
-  expect(env.db.query("SELECT type FROM tasks").get()).toEqual({ type: "code" });
+  // Only the Q&A run saved a session (its own cwd); the plan stage keeps its session on the task row.
+  expect(env.db.query("SELECT cwd FROM sessions").all()).toEqual([{ cwd: repo }]);
+  expect(env.db.query("SELECT type FROM tasks ORDER BY type").all()).toEqual([
+    { type: "code" },
+    { type: "qa" },
+  ]);
 });
 
 test("canUseTool: plan goes to owner; writes only in scratch; risky Bash asks; denial reaches agent", async () => {
   const { gw, asked } = fakeGateway();
-  const { opts } = await runCodeTask("task: x", gw);
+  const { opts } = await runCodeTask(gw);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
 
   expect((await can("ExitPlanMode", { plan: "repo: repo\nstep 1" }, {})).behavior).toBe("allow");
@@ -124,7 +142,7 @@ test("canUseTool: plan goes to owner; writes only in scratch; risky Bash asks; d
 
 test("owner rejection becomes a deny message the agent can act on", async () => {
   const { gw } = fakeGateway(false);
-  const { opts } = await runCodeTask("task: x", gw);
+  const { opts } = await runCodeTask(gw);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
   const plan = await can("ExitPlanMode", { plan: "repo: repo\np" }, {});
   expect(plan.behavior).toBe("deny");
@@ -135,7 +153,7 @@ test("owner rejection becomes a deny message the agent can act on", async () => 
 
 test("PreToolUse hook denies dangerous Bash and forces ask for unknown Bash", async () => {
   const { gw } = fakeGateway();
-  const { opts } = await runCodeTask("task: x", gw);
+  const { opts } = await runCodeTask(gw);
   const hook = opts.hooks.PreToolUse[0].hooks[0] as (i: any) => Promise<any>;
   const call = (command: string) =>
     hook({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } });

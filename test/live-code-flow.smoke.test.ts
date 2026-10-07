@@ -7,7 +7,7 @@ import { createTaskHandler } from "../src/tasks/handle-task";
 import { g, makeRepo } from "./git-fixture";
 import { addWorkspace, clearWorkspaces, makeEnv, stubGateway } from "./helpers";
 
-// Live test: plan -> approve -> worktree -> agent edits + commits in the worktree (real SDK, OpenRouter).
+// Live test: Q&A agent delegates -> plan -> approve -> worktree -> agent edits + commits in the worktree (real SDK, OpenRouter).
 const key = process.env.OPENROUTER_API_KEY;
 const live = !!key && key !== PLACEHOLDER;
 if (!live) {
@@ -48,7 +48,7 @@ describe.skipIf(!live)("live worktree code flow (OpenRouter)", () => {
       source: "test",
       userId: "u",
       threadId: "live-flow1",
-      text: "task: Create a file named hello.txt containing exactly the word hi, and commit it.",
+      text: "Create a file named hello.txt containing exactly the word hi, and commit it.",
     });
 
     const wt = getWorktreeByThread(env.db, "live-flow1");

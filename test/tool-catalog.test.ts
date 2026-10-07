@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import {
   autoAllowedTools,
+  DELEGATE,
   GIT_GROUPS,
   GIT_READ_BY_MODE,
   gitToolsFor,
@@ -48,12 +49,16 @@ test("no tool is listed twice", () => {
 
 test("auto-allowed tools are a subset of the mode's tools and never include writes, shell or questions", () => {
   for (const m of MODES) {
-    for (const t of autoAllowedTools(m)) expect(toolsFor(m)).toContain(t);
+    // `delegate` is an MCP tool (not in the built-in `tools` list) allowed in qa only.
+    for (const t of autoAllowedTools(m).filter((x) => x !== DELEGATE))
+      expect(toolsFor(m)).toContain(t);
     for (const t of ["Write", "Edit", "Bash", "AskUserQuestion", "ExitPlanMode", "Agent", "Read"]) {
       expect(autoAllowedTools(m)).not.toContain(t);
     }
   }
-  expect(autoAllowedTools("qa")).toEqual(["WebSearch", "WebFetch", "Skill"]);
+  expect(autoAllowedTools("qa")).toEqual(["WebSearch", "WebFetch", "Skill", DELEGATE]);
+  expect(autoAllowedTools("plan")).not.toContain(DELEGATE);
+  expect(autoAllowedTools("exec")).not.toContain(DELEGATE);
   expect(autoAllowedTools("exec")).toContain("EnterPlanMode");
 });
 

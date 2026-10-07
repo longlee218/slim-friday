@@ -1,9 +1,10 @@
 import type { Database } from "bun:sqlite";
 import type { RunAgentResult } from "../agent/run-agent";
-import { logEvent, logger } from "../observability/logger";
+import { excerpt, logEvent, logger } from "../observability/logger";
 import { redactText } from "../observability/redact";
-import { finishTask, type TaskStatus } from "../storage/run-store";
+import { finishTask, setTaskStatus, type TaskStatus } from "../storage/run-store";
 import { setSession } from "../storage/session-store";
+import type { Proposal } from "../tools/delegate-tool";
 
 /* The result of a Q&A or code flow, and the bookkeeping that closes a run. */
 
@@ -13,6 +14,8 @@ export interface FlowResult
   /** cwd + repo of the session to save (resume needs the same cwd), when a session should be stored. */
   cwd?: string;
   repo?: string;
+  /** Q&A only: the agent called `delegate`; the handler starts the plan stage after the run. */
+  proposal?: Proposal;
 }
 
 /** A run that did not start or failed before any agent result: reply text, no session. */
@@ -67,4 +70,25 @@ export function finishRun(
       ? ` Resets at ${new Date(res.resetsAt).toISOString()}.`
       : "";
   return redactText(res.text || `${OUTCOME_REPLY[res.outcome] ?? "No answer."}${reset}`);
+}
+
+/**
+ * End of a task as the handler sees it: `finishRun`, then `interrupted` instead of cancelled when shutdown
+ * aborted it (resumable), then the `task.finished` line. `repo` = repo to log when the flow named none.
+ */
+export function closeTask(
+  db: Database,
+  ids: { taskId: string; threadId: string },
+  res: FlowResult,
+  o: { stopping: boolean; t0: number; repo: string },
+): string {
+  const reply = finishRun(db, ids, res);
+  if (o.stopping && res.outcome === "aborted") setTaskStatus(db, ids.taskId, "interrupted");
+  logEvent(log, "task.finished", {
+    repo: res.repo && res.repo !== "*" ? res.repo : o.repo,
+    outcome: res.outcome,
+    durationMs: Date.now() - o.t0,
+    reply: excerpt(reply),
+  });
+  return reply;
 }

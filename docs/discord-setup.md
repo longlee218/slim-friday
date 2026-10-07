@@ -118,25 +118,26 @@ Expected:
 - Current run aborts
 - Session ends cleanly
 
-### Test 6: Code Task Approval (Phase 3+)
-Post a code task request:
+### Test 6: Code Task Proposal (Phase 1+)
+Post a natural-language code request:
 ```
-task: add a greeting function to src/hello.ts
+can you add a greeting function to src/hello.ts?
 ```
 Expected:
-- Bot enters plan mode and proposes a plan
+- Bot answers with file:line context and proposes a code task
+- If the bot delegates to a code task: "Starting plan: <repo>, add greeting..." appears
 - Owner gets a Discord message with Approve/Deny buttons (owner-only, redacted summary)
-- Approve → bot creates/modifies file; Deny → bot revises plan
-- If file is created, appears in AGENT_HOME/tasks/<taskId>/scratch/
+- Approve → bot creates/modifies file in plan stage; Deny → bot revises plan
+- If approved, execution creates a Git worktree with commits and a PR
 
-**Guardrails Test:** Try dangerous commands in a code task:
+**Guardrails Test:** Try dangerous operations in code context:
 ```
-task: run rm -rf src/
+remove all files in src/ directory
 ```
 Expected:
 - Bot hard-denies immediately (PreToolUse hook denies before asking)
-- Reply includes reason: "Command denied: cannot remove directories"
-- No approval button shown
+- Reply includes reason: "Denied: dangerous command"
+- No approval button shown; no plan proposed
 
 ### Test 7: Concurrent Limit
 Post a long question, then immediately post another in a different thread:
@@ -206,21 +207,24 @@ githubAccount: longlhdev                    # GitHub account for PR creation; de
 
 ### Posting a Code Task
 
+Post a natural-language request for code changes:
 ```
-task: add greeting function to src/hello.ts that takes a name and returns "Hello, <name>!"
+add a greeting function to src/hello.ts that takes a name and returns "Hello, <name>!"
 ```
 
 **Flow:**
-1. **Plan Stage:** Bot enters plan mode and proposes a plan (shows which repo, what changes).
-2. **Plan Approval:** Owner gets Discord Approve/Deny buttons (owner-only, 10 min timeout).
-3. **Approval:** 
+1. **Q&A Analysis:** Bot reads repo and understands the request.
+2. **Delegation:** If bot decides a code change is needed, it proposes via internal delegate tool. Bot posts "Starting plan: <repo>, add greeting function..." notice.
+3. **Plan Stage:** Bot enters plan mode and proposes a detailed plan (shows which files, what changes).
+4. **Plan Approval:** Owner gets Discord Approve/Deny buttons (owner-only, 10 min timeout).
+5. **Approval:** 
    - If **Approve**: Bot moves to execute stage, creates a Git worktree on branch `agent/<id>`.
    - If **Deny**: Bot revises the plan and asks for approval again (multi-round OK).
-4. **Execute Stage:** Bot makes changes in the worktree, runs the test command (if set), commits.
-5. **Finish:** Bot posts summary + diff attachment + **Create PR** button (owner-only, 10 min).
-6. **PR Creation:** Owner clicks **Create PR** → bot pushes the branch and opens a PR on GitHub.
-7. **Follow-up:** Reply in the same thread (no `task:` prefix) → bot reuses the worktree and makes more commits to the same branch.
-8. **Cleanup:** Post `cleanup:` in the thread to remove the worktree and reset the session.
+6. **Execute Stage:** Bot makes changes in the worktree, runs the test command (if set), commits.
+7. **Finish:** Bot posts summary + diff attachment + **Create PR** button (owner-only, 10 min).
+8. **PR Creation:** Owner clicks **Create PR** → bot pushes the branch and opens a PR on GitHub.
+9. **Follow-up:** Reply in the same thread → bot reuses the worktree and makes more commits to the same branch.
+10. **Cleanup:** Post `cleanup:` in the thread to remove the worktree and reset the session.
 
 ### Guardrails
 
@@ -240,7 +244,9 @@ task: add greeting function to src/hello.ts that takes a name and returns "Hello
 ### Example Session
 
 ```
-@bot task: fix the typo "recieve" → "receive" in all .ts files
+@bot fix the typo "recieve" → "receive" in all .ts files
+  → Bot analyzes repo
+  → Bot proposes: "Starting plan: repo-name, Fix typos in src/ using grep + sed"
   → Bot proposes: "Fix typos in src/ using grep + sed" [Approve] [Deny]
   
 Owner clicks [Approve]
@@ -252,7 +258,7 @@ Owner clicks [Create PR]
   → "PR created: https://github.com/user/repo/pull/123"
 
 (in same thread)
-@bot Looks good, also fix the same typo in docs/
+Looks good, also fix the same typo in docs/
   → Bot reuses worktree, makes more commits
   → Bot updates the same PR on GitHub
 ```

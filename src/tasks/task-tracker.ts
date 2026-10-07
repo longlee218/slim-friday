@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
-import { tryLog } from "../observability/logger";
-import { interruptRunningTasks } from "../storage/run-store";
+import { logEvent, setLogContext, tryLog } from "../observability/logger";
+import { insertTask, interruptRunningTasks } from "../storage/run-store";
 
 /** Tracks calls in flight and the active runs, so shutdown can abort and await them. */
 export function createRunTracker(db: Database, log: Logger, active: Map<string, AbortController>) {
@@ -40,4 +40,28 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
       tryLog(log, "interruptRunningTasks failed", () => interruptRunningTasks(db));
     },
   };
+}
+
+/**
+ * Create the task row and set the log context of the task (repo, mode). `single` = the only registered
+ * workspace: an unpinned task ("*" row) then logs under it. Lines logged before the repo is known
+ * (message.received, task.started with "*") stay in the main log only; tool-hooks sets the repo later
+ * for unpinned multi-repo tasks.
+ */
+export function beginTask(
+  db: Database,
+  log: Logger,
+  ids: { taskId: string; threadId: string; source: string; single?: string },
+  t: { repo: string; type: "qa" | "code"; mode: string },
+): void {
+  insertTask(db, {
+    id: ids.taskId,
+    threadId: ids.threadId,
+    source: ids.source,
+    repo: t.repo,
+    type: t.type,
+  });
+  const logRepo = t.repo === "*" && ids.single ? ids.single : t.repo;
+  setLogContext({ repo: logRepo, mode: t.mode });
+  logEvent(log, "task.started", { repo: logRepo, type: t.type });
 }
