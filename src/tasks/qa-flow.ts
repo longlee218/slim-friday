@@ -6,8 +6,7 @@ import type { AgentConfig } from "../config/agent-config";
 import { guardFor } from "../guardrails/check-tool-call";
 import { realOrSame } from "../guardrails/paths";
 import type { GitMcp } from "../mcp/git-mcp";
-import { buildPersonaContext } from "../memory/persona";
-import { buildMemoryContext } from "../memory/repo-memory";
+import { buildPromptContext } from "../memory/prompt-context";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { isManagedClone, refreshRepo } from "../repos/refresh-repo";
 import { buildRegistryContext, type Repo } from "../repos/repo-registry";
@@ -86,14 +85,13 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
       gitReadRepos: scope.map((r) => realOrSame(r.path)),
     }),
     logRepo: pinned?.name,
-    extraContext: [
-      buildPersonaContext(config.agentHome, pinned?.name),
-      pinned ? "" : buildRegistryContext(repos),
-      buildMemoryContext(
-        config.agentHome,
-        scope.map((r) => r.name),
-      ),
-    ],
+    extraContext: buildPromptContext({
+      agentHome: config.agentHome,
+      workspace: pinned?.name,
+      registry: pinned ? "" : buildRegistryContext(repos),
+      memoryWorkspaces: scope.map((r) => r.name),
+      sdkCwd: cwd,
+    }),
     resume,
     config,
     db: deps.db,

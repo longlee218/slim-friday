@@ -12,3 +12,8 @@ node_modules
 
 # Claude Code local config (rules, skills, agents, settings): not part of the repo
 .claude/
+
+# Personal facts stay on the machine: root memory/profile and per-workspace profile overrides
+.friday/MEMORY.md
+.friday/USER.md
+.friday/workspaces/*/USER.md

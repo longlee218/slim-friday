@@ -7,14 +7,9 @@ import type { AgentConfig } from "../config/agent-config";
 import { claudePlansDir, workspacePaths } from "../config/workspace-paths";
 import { guardFor } from "../guardrails/check-tool-call";
 import type { GitMcp } from "../mcp/git-mcp";
-import { buildPersonaContext } from "../memory/persona";
-import {
-  appendRepoMemory,
-  buildMemoryContext,
-  extractMemory,
-  readRepoClaudeMd,
-  readRepoMemory,
-} from "../memory/repo-memory";
+import { appendTaskMemory } from "../memory/memory-writer";
+import { buildPromptContext } from "../memory/prompt-context";
+import { extractMemory, readRepoClaudeMd } from "../memory/repo-memory";
 import { logEvent, logger, setLogContext } from "../observability/logger";
 import { buildRegistryContext, type Repo, resolveAuthor } from "../repos/repo-registry";
 import type { WorktreeRow } from "../storage/worktree-store";
@@ -103,11 +98,12 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
       gitAuthor: author,
       gitBaseDir: cwd, // the agent's git server may only touch this worktree
       // settingSources is [] here (the worktree is agent-writable): feed the trusted clone's CLAUDE.md + memory.
-      extraContext: [
-        buildPersonaContext(config.agentHome, wt.repo),
-        readRepoClaudeMd(repo.path),
-        readRepoMemory(config.agentHome, wt.repo),
-      ],
+      extraContext: buildPromptContext({
+        agentHome: config.agentHome,
+        workspace: wt.repo,
+        repoClaudeMd: readRepoClaudeMd(repo.path),
+        memoryWorkspaces: [wt.repo],
+      }),
       guard: guardFor("exec", {
         writePaths: [cwd, plans],
         readPaths: [cwd, scratchReal, plans],
@@ -118,9 +114,9 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
     });
     const base: FlowResult = { ...res, cwd, repo: wt.repo };
     if (res.outcome !== "success") return base;
-    // Lessons the agent wants remembered go to the repo's MEMORY.md, not into the chat reply.
+    // Lessons the agent wants remembered go to MEMORY.md (workspace, or root for [global]), not into the chat reply.
     const memory = extractMemory(res.text);
-    appendRepoMemory(config.agentHome, wt.repo, prTitle(i.text), memory.bullets);
+    appendTaskMemory(config.agentHome, wt.repo, prTitle(i.text), memory);
     const text = await finishCodeTask(
       { db, approvals, git: deps.git },
       {
@@ -152,14 +148,12 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
     cwd: scratchReal,
     resume: i.planResume?.sessionId,
     additionalDirectories: repoPaths,
-    extraContext: [
-      buildPersonaContext(config.agentHome),
-      buildRegistryContext(i.repos, true),
-      buildMemoryContext(
-        config.agentHome,
-        i.repos.map((r) => r.name),
-      ),
-    ],
+    extraContext: buildPromptContext({
+      agentHome: config.agentHome,
+      registry: buildRegistryContext(i.repos, true),
+      memoryWorkspaces: i.repos.map((r) => r.name),
+      sdkCwd: scratchReal,
+    }),
     guard: guardFor("plan", {
       writePaths: [scratchReal, plans],
       readPaths: [scratchReal, plans, ...repoPaths],

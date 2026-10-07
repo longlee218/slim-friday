@@ -29,6 +29,11 @@ export function workspacePaths(agentHome: string) {
     /** Default identity/soul shared by every workspace (a workspace file overrides them). */
     identity: join(agentHome, "IDENTITY.md"),
     soul: join(agentHome, "SOUL.md"),
+    /** Owner operating notes, owner profile (preferences), global memory, owner guide (never injected). */
+    agents: join(agentHome, "AGENTS.md"),
+    user: join(agentHome, "USER.md"),
+    memory: join(agentHome, "MEMORY.md"),
+    bootstrap: join(agentHome, "BOOTSTRAP.md"),
     /** One workspace per repo (OpenClaw style): config, persona, memory, logs, clone, worktrees. */
     workspaces: join(agentHome, "workspaces"),
     workspace: (name: string) => {
@@ -38,7 +43,10 @@ export function workspacePaths(agentHome: string) {
         config: join(root, "config.yaml"),
         identity: join(root, "IDENTITY.md"),
         soul: join(root, "SOUL.md"),
+        agents: join(root, "AGENTS.md"),
+        user: join(root, "USER.md"),
         claude: join(root, "CLAUDE.md"),
+        /** Owner-managed file: the app never reads it (measured by the canary smoke). */
         claudeLocal: join(root, "CLAUDE.local.md"),
         memory: join(root, "MEMORY.md"),
         logs: join(root, "logs"),

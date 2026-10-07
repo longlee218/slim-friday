@@ -14,6 +14,10 @@ test("paths derive from AGENT_HOME and task id", () => {
   expect(p.taskLog("T1", "api")).toBe("/h/workspaces/api/logs/tasks/T1.jsonl");
   expect(p.identity).toBe("/h/IDENTITY.md");
   expect(p.soul).toBe("/h/SOUL.md");
+  expect(p.agents).toBe("/h/AGENTS.md");
+  expect(p.user).toBe("/h/USER.md");
+  expect(p.memory).toBe("/h/MEMORY.md");
+  expect(p.bootstrap).toBe("/h/BOOTSTRAP.md");
   const ws = p.workspace("api");
   expect(ws.config).toBe("/h/workspaces/api/config.yaml");
   expect(ws.memory).toBe("/h/workspaces/api/MEMORY.md");
