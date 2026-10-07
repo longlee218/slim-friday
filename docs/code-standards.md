@@ -32,8 +32,8 @@ src/
 │   ├── discord-message-handler.ts
 │   └── discord-message-rules.ts
 ├── agent/                      # Agent SDK logic
-│   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection
-│   ├── system-prompt.ts        # rules + code-mode rules (follow plan, small commits, test cmd; phase 4+)
+│   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; opts.handoff for delegate tool
+│   ├── system-prompt.ts        # Sections: MODE (qa/plan/exec contract), HANDOFF (delegate tool when opts.handoff=true), COMMON (safety), then context. Identity/tone in persona files, not here.
 │   ├── run-errors.ts           # error classification (quota, rate_limit, billing, overloaded); phase 5+
 │   └── sdk-env.ts              # environment builder per provider (anthropic/openrouter)
 ├── mcp/                        # MCP client & server management

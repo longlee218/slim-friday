@@ -88,8 +88,8 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **run-limiter.ts:** max 3 concurrent runs; max 2 active code tasks (phase 4+)
 
 ### Agent & Prompts
-- **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling
-- **system-prompt.ts:** always-on rules + mode-specific (follow plan, small commits, test cmd)
+- **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; opts.handoff flag for HANDOFF section
+- **system-prompt.ts:** Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), COMMON (safety rules once), context last. Identity/tone in persona files (.friday/IDENTITY|SOUL|USER.md), not in system prompt.
 - **tool-permissions.ts:** the permission layer of every run: PreToolUse hook (hard deny / force ask via `checkToolCall`) + `canUseTool` (plan approval on ExitPlanMode, AskUserQuestion buttons, owner approval for risky calls; Q&A has no gateway so ask = deny)
 - **run-errors.ts:** error classification (quota, rate_limit, billing, overloaded → outcome + user reply with reset times); phase 5+
 - **repo-memory.ts:** load/inject per-repo MEMORY.md; append on exec success

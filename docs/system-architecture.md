@@ -15,7 +15,7 @@ Discord channel
         ├─ handle-task (look up or create session)
         │  ├─ refresh-repo (git fetch + ff-only, throttled 10 min/repo)
         │  └─ run-agent (Q&A mode: Agent SDK query loop, read-only)
-        │     ├─ system-prompt (always-on rules + registry block)
+        │     ├─ system-prompt (MODE rules: qa/plan/exec contract; HANDOFF: delegate tool when registered; COMMON: safety rules once; then context)
         │     ├─ context (inject repo info, git status)
         │     │  └─ cwd = pinned repo or first registry repo
         │     │  └─ additionalDirectories = all other registry repos
@@ -67,8 +67,8 @@ Task mode (plan approval flow)
 | **Code Task Flow** | src/tasks/code-task-flow.ts | two-stage lifecycle: plan (plan mode) → execute (worktree); cwd switching (phase 4+) |
 | **Code Task Finish** | src/tasks/code-task-finish.ts | summary + diff, Create PR button, follow-up, cleanup command (phase 4+) |
 | **Agent Runner** | src/agent/run-agent.ts | SDK query() loop, PreToolUse/canUseTool hooks, error handling |
-| **Prompt** | src/agent/system-prompt.ts | always-on rules + code-mode rules (phase 4+: follow plan, small commits, test cmd) |
-| **Context Injection** | src/agent/run-agent.ts | repo name, branch, git status, worktree context via git MCP (phase 4+) |
+| **Prompt** | src/agent/system-prompt.ts | Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), COMMON (safety rules once), then context. Identity/tone in persona files, not here. |
+| **Context Injection** | src/agent/run-agent.ts | repo name, branch, git status, worktree context via git MCP (phase 4+); memory bullets in prompt (soft: 3, hard: 5 in code) |
 | **Tool Config** | src/tools/tool-catalog.ts | single source: tool lists by capability + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS |
 | **Guardrails** | src/guardrails/ | check-tool-call (core guard logic, GuardrailContext), deny-dangerous, bash-policy, bash-parser, paths (isInside, resolveReal) |
 | **Approvals** | src/approvals/ | discord-approval, approval-buttons, approval-types |
