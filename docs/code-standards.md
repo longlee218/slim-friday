@@ -18,9 +18,16 @@ bun run start          # Start bot (reads .env)
 
 ## File Organization
 
-**Naming:** kebab-case for all .ts files; filename describes purpose (e.g., discord-message-handler.ts, not message.ts).
+**Naming:** kebab-case for all .ts files; filename describes purpose (e.g., discord-message-handler.ts, not message.ts). Exception: custom tool folders `src/tools/<Name>Tool/` use PascalCase for the folder, but kebab-case files inside.
 
 **Size limit:** Keep individual files under 200 lines; split large components.
+
+**Tools:** Custom tools use a structured layout:
+- Folder: `src/tools/<Name>Tool/` (PascalCase folder per tool)
+- Files: `constants.ts` (tool name), `prompt.ts` (schema description + tool-owned rules), `<name>-tool.ts` (schema + handler)
+- Tool names: PascalCase (e.g., `DelegateTask`), stored in `src/tools/sdk-tool-names.ts` (SDK tools) and `src/mcp/mcp-tool-names.ts` (MCP tools)
+- MCP servers: Created per domain boundary (`tasks`, `git`, `github`); in-process SDK server type only
+- Enforcement: Every tool name from a constant; no string literals. Test `test/tool-name-literals.test.ts` scans source; `test/tool-names.test.ts` pins wire values.
 
 **Structure:**
 ```
@@ -38,6 +45,7 @@ src/
 │   └── sdk-env.ts              # environment builder per provider (anthropic/openrouter)
 ├── mcp/                        # MCP client & server management
 │   ├── mcp-stdio.ts            # connectStdio helper, toolText utility
+│   ├── mcp-tool-names.ts       # MCP tool names (exported constants + mcpToolName helper)
 │   ├── git-mcp.ts              # git MCP server config/env + stdio client lifecycle
 │   ├── github-mcp.ts           # github-mcp-config (read/write instances), github-token, createPullRequest
 │   └── mcp-servers.ts          # MCP servers registry per run mode
@@ -63,8 +71,13 @@ src/
 │   ├── code-task-finish.ts     # summary + diff; Create PR button; follow-up; cleanup (phase 4+)
 │   ├── run-limiter.ts          # concurrency limiter; max 2 code tasks (phase 4+)
 │   └── ...
-├── tools/                      # Tool configuration
-│   └── tool-catalog.ts         # single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS
+├── tools/                      # Tool configuration & custom tools
+│   ├── tool-catalog.ts         # single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS (196/200 lines: split before adding more tools)
+│   ├── sdk-tool-names.ts       # SDK tool names (exported constants)
+│   └── DelegateTaskTool/       # Custom tool for delegating code tasks
+│       ├── constants.ts        # tool name constant: DelegateTask
+│       ├── prompt.ts           # tool schema description + HANDOFF rules
+│       └── delegate-task-tool.ts # schema + handler
 ├── guardrails/                 # Tool call validation
 │   ├── check-tool-call.ts      # core guard: route tool → allow/ask/deny; GuardrailContext
 │   ├── paths.ts                # isInside, resolveReal/realOrSame path helpers

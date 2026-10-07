@@ -5,8 +5,9 @@
 
 **Stack:** Bun + TypeScript + Discord.js + Claude Agent SDK + SQLite + Official MCP servers (git, GitHub)
 
-**Test Coverage:** 416 tests pass, 2 skipped (live smoke tests) | Type check: clean | No console.* in src/
-**Phase 1c (Delegate Phase 2):** Rejected-plans memory + approvals refactor; eval test opt-in (DELEGATE_EVAL=1 + OPENROUTER_API_KEY)
+**Test Coverage:** 420 tests pass, 2 skipped (live smoke tests) | Type check: clean | No console.* in src/
+**Phase 1c (Delegate Phase 2):** Rejected-plans memory + approvals refactor; eval test opt-in (DELEGATE_EVAL=1)
+**Phase 1e (Tool folders & naming):** All tool names from exported constants; `src/tools/<Name>Tool/` layout (PascalCase folder, kebab-case files); MCP server per domain (`tasks`); scan test enforces literals-free source
 
 ## Key Architecture
 
@@ -123,7 +124,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **approval-store.ts (Phase 1c+):** insertApproval, decideApproval, rejectedPlans query; rejected-plans recall per thread (last 5, denied|timeout only, excluding approved tasks, whitespace-collapsed, clipped 200 chars, redacted)
 
 ### Delegate Tool & Q&A→Code Handoff (Phase 1b+)
-- **delegate-tool.ts (src/tools/):** MCP tool `mcp__friday__delegate({role:"dev", brief, repo?})`; validated schema; blocker checks; one call per Q&A run
+- **DelegateTaskTool/delegate-task-tool.ts (src/tools/):** MCP tool `mcp__tasks__DelegateTask({role:"dev", brief, repo?})`; validated schema; blocker checks; one call per Q&A run
 - **code-handoff.ts (src/tasks/):** after Q&A ends, process proposal: insert code task row with brief (Phase 1c+), post notice, run plan stage
 - **task-routing.ts (src/tasks/):** shared `codeTaskBlocker()` blocker check (cap MAX_CODE_TASKS, managed clone validation, repo lookup)
 

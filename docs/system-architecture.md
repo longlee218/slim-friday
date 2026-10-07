@@ -63,7 +63,7 @@ Task mode (plan approval flow)
 | **Discord Ingress** | src/ingress/discord-bot.ts | discord.js client, owner check, thread lifecycle |
 | **Message Router** | src/ingress/discord-message-handler.ts | routing: own bot, DM, mention, reply |
 | **Task Handler** | src/tasks/handle-task.ts | session lookup/create, run lock, Q&A/code routing, stage detection (phase 4+), reply |
-| **Delegate Tool** | src/tools/delegate-tool.ts | MCP tool `mcp__friday__delegate(role, brief, repo?)` for Q&A→plan handoff (phase 1+) |
+| **Delegate Tool** | src/tools/DelegateTaskTool/delegate-task-tool.ts | MCP tool `mcp__tasks__DelegateTask(role, brief, repo?)` for Q&A→plan handoff (phase 1+) |
 | **Code Handoff** | src/tasks/code-handoff.ts | after Q&A ends: inserts code task row, posts notice, runs plan stage (phase 1+) |
 | **Code Task Flow** | src/tasks/code-task-flow.ts | two-stage lifecycle: plan (plan mode) → execute (worktree); cwd switching (phase 4+) |
 | **Code Task Finish** | src/tasks/code-task-finish.ts | summary + diff, Create PR button, follow-up, cleanup command (phase 4+) |
@@ -403,7 +403,7 @@ Built-in tools are limited ONLY by the SDK `tools` option, per mode. The single 
 
 | Mode | Built-in tools | MCP tools |
 |---|---|---|
-| Q&A | Read, Glob, Grep, Skill, Agent, WebSearch, WebFetch | `mcp__friday__delegate` (Q&A→code handoff; allowed only when approvals enabled) |
+| Q&A | Read, Glob, Grep, Skill, Agent, WebSearch, WebFetch | `mcp__tasks__DelegateTask` (Q&A→code handoff; allowed only when approvals enabled) |
 | Code task, plan/exec stage | Read, Glob, Grep, Write, Edit, Bash, Skill, Agent, AskUserQuestion, TodoWrite, TaskCreate/TaskUpdate/TaskList, ExitPlanMode, EnterPlanMode | `mcp__git__*` (git MCP in execute stage only; plan stage has git MCP read-only) |
 
 Besides `tools`, `toolOptions(mode)` adds only two kinds of `disallowedTools`: the path-scoped secret-file rules (`Read(**/.env*)`, `*.pem`, `*.key`...) and the git MCP tools of other modes (`mcp__git__*`). `strictMcpConfig: true` keeps only the MCP servers we pass.
