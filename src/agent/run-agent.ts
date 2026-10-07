@@ -193,6 +193,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       systemPrompt: buildSystemPrompt(
         (input.extraContext ?? []).filter(Boolean).join("\n\n"),
         mode,
+        { handoff: !!input.appServer },
       ),
       hooks: mergeHooks(buildToolHooks(recorder, perms?.decisions, config.agentHome), perms?.hooks),
       env: sdkEnv(config),

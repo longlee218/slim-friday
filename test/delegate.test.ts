@@ -98,9 +98,16 @@ test("delegate: role other than dev and a too short brief are rejected by the sc
   }
 });
 
+test("delegate: handoff section is in the Q&A prompt when the tool is registered", async () => {
+  const { seen } = await delegateRun([]);
+  expect(seen[0].mcpServers.friday).toBeDefined();
+  expect(seen[0].systemPrompt.append).toContain(DELEGATE);
+});
+
 test("delegate: tool is not registered without the approval flow", async () => {
   const { seen, results } = await delegateRun([], { approvals: false });
   expect(seen[0].mcpServers.friday).toBeUndefined();
+  expect(seen[0].systemPrompt.append).not.toContain(DELEGATE); // no handoff section either
   expect(results).toHaveLength(0);
 });
 
