@@ -46,7 +46,11 @@ src/
 │   ├── git-identity.ts         # parse/resolve identity per repo; attribution check; no git calls
 │   ├── publish-pr.ts           # git_push (agent/* only) via git MCP + GitHub MCP create_pull_request
 │   └── refresh-repo.ts         # git_fetch + git_pull (ff-only) via git MCP (throttled 10 min); isManagedClone
-├── memory/                     # Persistent per-repo context (phase 4+)
+├── memory/                     # Persistent per-repo context & persona layering (phase 1+)
+│   ├── persona.ts              # Persona layering: root + workspace overrides
+│   ├── persona-templates.ts    # Default file templates
+│   ├── prompt-context.ts       # Build full context order: persona → registry → CLAUDE.md → memory → rejected-plans (phase 1c+)
+│   ├── memory-writer.ts        # Append task memory + [global] bullets
 │   └── repo-memory.ts          # MEMORY.md loader/writer, append on exec success
 ├── tasks/                      # Task lifecycle
 │   ├── handle-task.ts          # map thread → session; task command parse; stage detection (phase 4+)
@@ -76,8 +80,9 @@ src/
 │   ├── agent-config.ts         # load/validate env (zod); MODEL, CODE_MODEL, LLM_PROVIDER, OPENROUTER_API_KEY
 │   └── workspace-paths.ts      # AGENT_HOME layout: workspaces/<repo>/{config.yaml, repo/, worktrees/, tasks/}, data, logs, cwd
 ├── storage/                    # Database & persistence
-│   ├── db.ts                   # SQLite setup; worktrees table (phase 4+); tasks.type/repo/stage/worktree_path/branch/pr_url
-│   ├── run-store.ts            # runs table ops; approvals table ops; memory append on exec success
+│   ├── db.ts                   # SQLite setup; worktrees table (phase 4+); tasks.brief column (phase 1c+, idempotent ALTER)
+│   ├── run-store.ts            # runs table ops; insertTask stores brief redacted (phase 1c+); memory append on exec success
+│   ├── approval-store.ts       # insertApproval/decideApproval (moved from run-store); rejectedPlans query per thread (phase 1c+)
 │   ├── worktree-store.ts       # worktrees table ops (phase 4+)
 │   ├── session-store.ts        # session table ops
 │   └── ...
@@ -98,6 +103,9 @@ test/
 ├── bash-policy.test.ts         # Bash allowlist + gates
 ├── code-task.test.ts           # code task approval flow
 ├── approval-gateway.test.ts    # PreToolUse + canUseTool integration
+├── rejected-plans.test.ts      # rejectedPlans query logic, thread isolation, clipping (phase 1c+)
+├── db-schema.test.ts           # DB migration, idempotency (phase 1c+)
+├── delegate-eval.live.test.ts  # Golden set: 21 live Sonnet/deepseek runs (phase 1c+, opt-in: DELEGATE_EVAL=1)
 ├── worktree.test.ts            # worktree create/remove/list (phase 4+)
 ├── publish-pr.test.ts          # push + gh pr create (phase 4+)
 ├── code-task-flow.test.ts      # two-stage flow (phase 4+)

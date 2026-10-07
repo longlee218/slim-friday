@@ -5,7 +5,8 @@
 
 **Stack:** Bun + TypeScript + Discord.js + Claude Agent SDK + SQLite + Official MCP servers (git, GitHub)
 
-**Test Coverage:** 386 tests pass, 1 skipped (live smoke test) | Type check: clean | No console.* in src/
+**Test Coverage:** 416 tests pass, 2 skipped (live smoke tests) | Type check: clean | No console.* in src/
+**Phase 1c (Delegate Phase 2):** Rejected-plans memory + approvals refactor; eval test opt-in (DELEGATE_EVAL=1 + OPENROUTER_API_KEY)
 
 ## Key Architecture
 
@@ -108,7 +109,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 ### Persona & Memory (Phase 1+)
 - **persona.ts:** `ensureHome()` creates root + workspace persona files; `buildPersonaContext()` applies per-file layering (workspace override replaces root if non-empty); caps 1500 chars/file with truncation marker
 - **persona-templates.ts:** Default files: AGENTS, IDENTITY, SOUL, USER, ROOT_MEMORY, BOOTSTRAP; workspace-specific templates (identity per repo, memory header per repo)
-- **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER → registry → repo CLAUDE.md → memory; logs `prompt.context` event with character counts per layer
+- **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER → registry → repo CLAUDE.md → memory → rejected-plans block (Phase 1c+, when delegate enabled); logs `prompt.context` event with character counts per layer
 - **memory-writer.ts:** `appendTaskMemory()` writes workspace bullets + `[global]` bullets to root; handles bullet deduplication, trimming, redaction; enforces max 2 global bullets per task
 - **repo-memory.ts:** Load/inject per-repo MEMORY.md; root memory (max 2000 chars), workspace memory (max 4000/repo, 8000 total); reads newest sections; append on exec success
 
@@ -119,10 +120,11 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **bash-policy.ts:** Bash allowlist (git status/diff/log, test cmd, npm ci/bun install --frozen-lockfile); network host check; package install gate
 - **discord-approval.ts:** pending map, 10 min timeout, Promise resolution
 - **approval-buttons.ts:** Discord buttons (Approve/Deny/Create PR)
+- **approval-store.ts (Phase 1c+):** insertApproval, decideApproval, rejectedPlans query; rejected-plans recall per thread (last 5, denied|timeout only, excluding approved tasks, whitespace-collapsed, clipped 200 chars, redacted)
 
 ### Delegate Tool & Q&A→Code Handoff (Phase 1b+)
 - **delegate-tool.ts (src/tools/):** MCP tool `mcp__friday__delegate({role:"dev", brief, repo?})`; validated schema; blocker checks; one call per Q&A run
-- **code-handoff.ts (src/tasks/):** after Q&A ends, process proposal: insert code task row, post notice, run plan stage
+- **code-handoff.ts (src/tasks/):** after Q&A ends, process proposal: insert code task row with brief (Phase 1c+), post notice, run plan stage
 - **task-routing.ts (src/tasks/):** shared `codeTaskBlocker()` blocker check (cap MAX_CODE_TASKS, managed clone validation, repo lookup)
 
 ### Repository Management
@@ -139,8 +141,9 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **mcp-servers.ts (src/mcp/):** MCP servers registry per run mode
 
 ### Storage & Observability
-- **db.ts:** SQLite (WAL); sessions, tasks, runs, tool_calls, approvals, worktrees tables
-- **run-store.ts:** runs table ops; approvals table ops; calls repo-memory.ts to append on exec success
+- **db.ts:** SQLite (WAL); sessions, tasks, runs, tool_calls, approvals, worktrees tables; idempotent ALTER TABLE tasks ADD COLUMN brief TEXT (Phase 1c+)
+- **run-store.ts:** runs table ops; insertTask stores brief redacted (Phase 1c+); calls repo-memory.ts to append on exec success; approval functions moved to approval-store.ts
+- **approval-store.ts (Phase 1c+):** insertApproval, decideApproval, rejectedPlans query per thread
 - **worktree-store.ts:** worktrees table ops
 - **session-store.ts:** sessions table ops
 - **logger.ts:** pino singleton (no console.* anywhere in src/)
@@ -167,11 +170,14 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 | Guardrails | test/deny-dangerous.test.ts | 30+ command/path/host cases |
 | Bash policy | test/bash-policy.test.ts | allowlist, network, install gates |
 | Approval flow | test/approval-gateway.test.ts | PreToolUse + canUseTool integration |
+| Rejected plans | test/rejected-plans.test.ts | query logic, thread isolation, clipping, redaction (Phase 1c+) |
 | Code tasks | test/code-task-flow.test.ts | plan→execute stage, cwd switching, plan.md seeding |
 | Git MCP | test/git-mcp.test.ts | server env, real-server calls, refresh throttle, identity helpers |
 | PR publishing | test/publish-pr.test.ts | real git MCP push to a local bare origin + fake PR creator |
 | Repo registry | test/repo-registry.test.ts | yaml parse, validate, deduplicate |
 | Tool config | test/tool-config.test.ts | tool allowlist per mode |
+| DB schema | test/db-schema.test.ts | migration, idempotency (Phase 1c+) |
+| Delegate eval | test/delegate-eval.live.test.ts | golden set: 21 live runs, opt-in DELEGATE_EVAL=1 (Phase 1c+) |
 | Live smoke | test/live-*.smoke.test.ts | real agent runs (skip without token) |
 
 ## Code Standards
