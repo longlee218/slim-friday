@@ -25,17 +25,28 @@ Discord channel @bot <question>
 ### 2. AGENT_HOME Structure
 ```
 $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
+├── AGENTS.md                  # Owner operating notes (auto-created, Phase 1+)
 ├── IDENTITY.md                # Shared identity (auto-created)
-├── SOUL.md                    # Shared persona: tone, language (auto-created)
+├── SOUL.md                    # Shared persona: tone (auto-created)
+├── USER.md                    # Owner preferences (language, habits) (auto-created, Phase 1+)
+├── MEMORY.md                  # Global memory (auto-created, max 2000 chars, Phase 1+)
+├── BOOTSTRAP.md               # Owner guide (auto-created, never read by code, Phase 1+)
 ├── data/agent.db              # SQLite: sessions, tasks, runs, tool_calls, approvals, worktrees
 ├── workspaces/<repo>/         # One workspace per registered repo
 │   ├── config.yaml            # Registry: path, description, defaultBranch?, testCommand?, githubAccount?
-│   ├── MEMORY.md              # Per-repo memory (owner-editable, injected into prompts)
+│   ├── AGENTS.md              # Workspace override (auto-created, optional; replaces root if non-empty)
+│   ├── IDENTITY.md            # Workspace override (auto-created)
+│   ├── SOUL.md                # Workspace override (auto-created, optional)
+│   ├── USER.md                # Workspace override (auto-created, optional)
+│   ├── MEMORY.md              # Workspace memory (owner-editable, max 4000 chars, concatenated after root)
+│   ├── CLAUDE.md              # Symlink to repo's .claude/CLAUDE.md (auto-created, repo untouched)
+│   ├── CLAUDE.local.md        # Owner-managed file (never read by app; for local dev overrides)
 │   ├── repo/                  # Managed clone (gitignored)
 │   ├── worktrees/<taskId>/    # Execute stage git worktree (gitignored)
+│   ├── logs/tasks/            # Per-task logs (gitignored)
 │   └── tasks/<taskId>/scratch # Plan stage cwd + plan.md (gitignored)
 ├── logs/
-│   ├── app.<date>.<n>.jsonl              # Application log
+│   ├── app.<date>.<n>.jsonl   # Application log (daily rotated, 14 days kept)
 │   └── tasks/                 # Per-task logs
 └── cwd/                       # Neutral Q&A cwd (unpinned repo)
 ```
@@ -47,12 +58,13 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 | Plan | R/W/Edit/Bash/Task/ExitPlanMode | Git MCP read, GitHub MCP read | Edit blocked before approval; cwd = task scratch |
 | Exec | R/W/Edit/Bash/Git MCP/Task | Git MCP (add/commit auto, checkout ask), no GitHub | worktree only; cwd = worktree on agent/<id> branch |
 
-### 4. Memory System
-- **Canonical:** `$AGENT_HOME/workspaces/<repo>/MEMORY.md` (owner-editable)
-- **Injection:** newest 4000 chars/repo into Q&A + plan + exec prompts (8000 total)
-- **Update:** after exec success, agent's final "Memory:" bullets appended (max 5, redacted, dated)
-- **Cap:** ~20KB (sections dropped when exceeded)
-- **Symlinks:** CLAUDE.md→tracked repo .claude/CLAUDE.md (repo untouched); CLAUDE.local.md←moved to workspace (symlinked back via git info/exclude)
+### 4. Memory System & Persona Layering (Phase 1+)
+- **Persona layering:** Root files (AGENTS, IDENTITY, SOUL, USER) auto-created; workspace overrides replace root per file
+- **Canonical memory:** `$AGENT_HOME/workspaces/<repo>/MEMORY.md` (owner-editable; root MEMORY.md for global facts)
+- **Injection:** root 2000 chars + workspace memories (newest kept, up to 8000 total) into Q&A + plan + exec prompts
+- **Update:** after exec success, agent appends "Memory:" bullets to workspace file (max 5 per task, redacted, dated); `[global]` prefix (max 2) goes to root MEMORY.md
+- **Cap per file:** persona files 1500 chars (with truncation marker), memory root 2000, workspace 4000, total 8000
+- **File management:** CLAUDE.md→tracked repo .claude/CLAUDE.md (repo untouched); CLAUDE.local.md is owner-managed storage (never read by app)
 
 ### 5. GitHub MCP
 - **Server:** Official Docker image (`ghcr.io/github/github-mcp-server`)
@@ -92,7 +104,13 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **system-prompt.ts:** Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), COMMON (safety rules once), context last. Identity/tone in persona files (.friday/IDENTITY|SOUL|USER.md), not in system prompt.
 - **tool-permissions.ts:** the permission layer of every run: PreToolUse hook (hard deny / force ask via `checkToolCall`) + `canUseTool` (plan approval on ExitPlanMode, AskUserQuestion buttons, owner approval for risky calls; Q&A has no gateway so ask = deny)
 - **run-errors.ts:** error classification (quota, rate_limit, billing, overloaded → outcome + user reply with reset times); phase 5+
-- **repo-memory.ts:** load/inject per-repo MEMORY.md; append on exec success
+
+### Persona & Memory (Phase 1+)
+- **persona.ts:** `ensureHome()` creates root + workspace persona files; `buildPersonaContext()` applies per-file layering (workspace override replaces root if non-empty); caps 1500 chars/file with truncation marker
+- **persona-templates.ts:** Default files: AGENTS, IDENTITY, SOUL, USER, ROOT_MEMORY, BOOTSTRAP; workspace-specific templates (identity per repo, memory header per repo)
+- **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER → registry → repo CLAUDE.md → memory; logs `prompt.context` event with character counts per layer
+- **memory-writer.ts:** `appendTaskMemory()` writes workspace bullets + `[global]` bullets to root; handles bullet deduplication, trimming, redaction; enforces max 2 global bullets per task
+- **repo-memory.ts:** Load/inject per-repo MEMORY.md; root memory (max 2000 chars), workspace memory (max 4000/repo, 8000 total); reads newest sections; append on exec success
 
 ### Guardrails & Approvals
 - **check-tool-call.ts:** core guard: route tool → allow/ask/deny; explicit DELEGATE allow (before generic MCP deny); GuardrailContext

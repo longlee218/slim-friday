@@ -290,9 +290,9 @@ Each repository has persistent memory stored in `$AGENT_HOME/workspaces/<repo-na
 - Changes are picked up automatically on the next Q&A or code task
 - Example: "Main app at `src/main.ts`, uses Postgres, test cmd is `bun test`"
 
-**Symlinks (no action needed):**
-- `.claude/CLAUDE.md` is symlinked from each repo's tracked CLAUDE.md (repo untouched by Friday)
-- `.claude/CLAUDE.local.md` (repo-local config) is stored in `memory/<repo>/` and symlinked back (excluded via git info/exclude)
+**Symlinks and workspace files (no action needed):**
+- `CLAUDE.md` is symlinked from each repo's tracked .claude/CLAUDE.md (repo untouched by Friday)
+- `CLAUDE.local.md` is owner-managed storage in the workspace (never read by the app; for local development overrides)
 
 ## Run in background (launchd)
 

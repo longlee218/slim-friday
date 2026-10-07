@@ -256,12 +256,78 @@ task: <description> (message)
 **Raw logs:** `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; lines with a `repo` are also copied to workspaces/<repo>/logs/)` (pino, all events)
 **Per-task logs:** `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (JSONL stream)
 
+## Persona & Memory Layering (Phase 1+)
+
+**Six root files** (auto-created by `ensureHome` when missing, never overwritten):
+- `AGENTS.md` — owner operating notes (read right after code rules; cannot override code guards)
+- `IDENTITY.md` — who the agent is (name, role, capabilities)
+- `SOUL.md` — tone of replies (concise, direct, etc.)
+- `USER.md` — owner profile & preferences (language, habits)
+- `MEMORY.md` — global facts true for every workspace (max 2000 chars kept)
+- `BOOTSTRAP.md` — owner guide for the file structure (never read by code, never injected)
+
+**Per-file layering:** A non-empty workspace file (not just heading or HTML comments) REPLACES the root file; an empty or heading-only workspace file falls back to the root one. Each file operates independently, allowing per-repo overrides.
+
+**Workspace personas** (`workspaces/<repo-name>/`):
+- Optional `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md` (one or more can override the root)
+- Optional workspace `MEMORY.md` (concatenated after root memory, max 4000 chars; total 8000 across all workspaces)
+
+**Prompt order** (system prompt append):
+```
+system-prompt (MODE/HANDOFF/COMMON sections + context)
+  ↓
+AGENTS (root or workspace override)
+  ↓
+IDENTITY (root or workspace override)
+  ↓
+SOUL (root or workspace override)
+  ↓
+USER (root or workspace override)
+  ↓
+registry (Q&A unpinned, plan mode)
+  ↓
+repo CLAUDE.md (exec stage only; settingSources=[] to avoid loading agent-written .claude/*)
+  ↓
+MEMORY (root 2000 chars + workspace memories up to 8000 total)
+```
+
+**Memory caps:**
+- Root memory: 2000 chars (newest kept; oldest sections dropped when >315 lines)
+- Per-workspace: 4000 chars each (newest kept)
+- All workspaces total: 8000 chars
+- Each persona file: 1500 chars (cut fairly; truncation marked with "...(truncated)")
+
+**Memory writes** (`src/memory/memory-writer.ts`, `[global]` prefix):
+- After code task success: agent appends bullets to workspace `MEMORY.md` (max 5 per task)
+- Bullets prefixed `[global]` (max 2 per task) go to root `MEMORY.md` with date + source workspace
+- Fresh bullets only (already-known entries skipped); oldest sections trimmed when file exceeds ~315 lines
+
+**Logging:**
+- One `prompt.context` event per run (logged by `buildPromptContext` in `src/memory/prompt-context.ts`)
+- Event includes: personaChars, personaTruncated, registryChars, claudeMdChars, sdkCwdClaudeMdChars, memoryRootChars, memoryWorkspaceChars
+- Allows monitoring of persona usage patterns and truncation frequency
+
+**CLAUDE.md third layer:**
+- Q&A mode: repo's own CLAUDE.md auto-loaded via SDK `settingSources: ["project"]` (read-only mode, no .claude/* write paths)
+- Plan/exec mode: repo CLAUDE.md NOT auto-loaded (settingSources: [] to prevent loading agent-written files); instead, injected as `repoClaudeMd` in `prompt-context.ts`
+- Canary status: test/live-claude-md-loading.smoke.test.ts gave conflicting results across runs (one run: parent CLAUDE.md files loaded; a later suite run: none); unverified, repeat before Step B.
+
+**CLAUDE.local.md (owner-managed storage):**
+- File: `workspaces/<repo-name>/CLAUDE.local.md` (owner-editable, never committed to repo)
+- App behavior: NOT read by the agent (no code loads it; verified in workspace-paths.ts line 42 with comment "never reads it")
+- Use case: repo-local overrides (e.g., local model name for development)
+- Note: Workspace-paths.ts line 50 defines `claudeLocal` path, but the app never accesses it
+
 ## Workspace Layout
 ```
 $AGENT_HOME/ (e.g. ~/.friday, symlink from <project-root>/.friday)
-├── IDENTITY.md              # shared default identity (auto-created)
-├── SOUL.md                  # shared default persona: tone, language (auto-created; default = reply in Vietnamese, concise)
-├── data/agent.db            # SQLite DB + WAL files
+├── AGENTS.md               # Owner operating notes (auto-created)
+├── IDENTITY.md             # Shared identity (auto-created)
+├── SOUL.md                 # Shared persona: tone (auto-created)
+├── USER.md                 # Owner profile & preferences (auto-created)
+├── MEMORY.md               # Global memory (auto-created, max 2000 chars)
+├── BOOTSTRAP.md            # Owner guide (auto-created, never read by code)
+├── data/agent.db           # SQLite DB + WAL files
 ├── logs/
 │   ├── app.<date>.<n>.jsonl            # pino application log
 │   └── tasks/
@@ -269,11 +335,13 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project-root>/.friday)
 ├── workspaces/
 │   └── <repo-name>/         # one workspace per registered repo
 │       ├── config.yaml      # registry entry: path, description, defaultBranch?, testCommand?, githubAccount?
-│       ├── IDENTITY.md      # auto-created (workspace override of shared)
-│       ├── SOUL.md          # optional override (shared default used if absent)
+│       ├── AGENTS.md        # optional override (auto-created, workspace replaces root if non-empty)
+│       ├── IDENTITY.md      # optional override (auto-created, workspace replaces root if non-empty)
+│       ├── SOUL.md          # optional override (auto-created, workspace replaces root if non-empty)
+│       ├── USER.md          # optional override (auto-created, workspace replaces root if non-empty)
 │       ├── CLAUDE.md        # symlink TO repo's tracked .claude/CLAUDE.md (auto-created); repo untouched
-│       ├── CLAUDE.local.md  # real file (repo-local config, symlinked in repo via git info/exclude)
-│       ├── MEMORY.md        # canonical memory (owner-editable, max ~20KB, newest 4000 chars injected into prompts)
+│       ├── CLAUDE.local.md  # owner-managed file (never read by app; for local development overrides)
+│       ├── MEMORY.md        # canonical workspace memory (owner-editable, max ~20KB, newest 4000 chars injected)
 │       ├── logs/
 │       │   └── tasks/
 │       │       └── <taskId>.jsonl
@@ -289,9 +357,10 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project-root>/.friday)
 
 **.gitignore config:**
 - `.friday/{data,logs,workspaces/*/{logs,repo,worktrees,tasks}}/` — ignored (local state)
-- `.friday/{IDENTITY.md,SOUL.md,workspaces/*/IDENTITY.md,workspaces/*/MEMORY.md}` — tracked (persona + canonical memory)
+- `.friday/{IDENTITY.md,SOUL.md,USER.md,AGENTS.md,MEMORY.md,workspaces/*/IDENTITY.md,workspaces/*/MEMORY.md}` — tracked (persona + canonical memory)
+- `.friday/workspaces/*/SOUL.md,workspaces/*/AGENTS.md,workspaces/*/USER.md` — optionally tracked if overrides are committed
 - `.friday/workspaces/*/CLAUDE.md` — symlink to tracked repo file (auto-created; repo untouched)
-- `.friday/workspaces/*/CLAUDE.local.md` — real file; symlinked in repo via git info/exclude
+- `.friday/workspaces/*/CLAUDE.local.md` — real file; owner-managed (not read by app)
 
 ## Tool Restriction Strategy
 
