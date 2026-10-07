@@ -10,6 +10,7 @@ import { buildPromptContext } from "../memory/prompt-context";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { isManagedClone, refreshRepo } from "../repos/refresh-repo";
 import { buildRegistryContext, type Repo } from "../repos/repo-registry";
+import { rejectedPlans } from "../storage/approval-store";
 import type { SessionRow } from "../storage/session-store";
 import { createDelegateServer, type Proposal } from "../tools/delegate-tool";
 import { delegateCheck } from "./code-handoff";
@@ -29,6 +30,8 @@ export interface QaFlowDeps {
 /** One Q&A call. */
 export interface QaFlowInput {
   taskId: string;
+  /** Thread of the message (scopes the rejected-plans memory). */
+  threadId: string;
   text: string;
   /** All registered repos (never empty). */
   repos: Repo[];
@@ -91,6 +94,8 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
       registry: pinned ? "" : buildRegistryContext(repos),
       memoryWorkspaces: scope.map((r) => r.name),
       sdkCwd: cwd,
+      // Only when the agent can delegate: it must not re-propose what the owner rejected here.
+      rejectedPlans: i.allowDelegate ? rejectedPlans(deps.db, i.threadId) : undefined,
     }),
     resume,
     config,

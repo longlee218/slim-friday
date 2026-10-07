@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
+import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { insertTask } from "../src/storage/run-store";
 import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
@@ -370,4 +371,50 @@ test("a handoff whose thread was already stopped starts nothing and leaves no co
   expect(reply).toBe("Q&A answer");
   expect(seen).toHaveLength(0); // no plan stage, so no approval prompt either
   expect(env.db.query("SELECT type FROM tasks WHERE type = 'code'").all()).toEqual([]);
+});
+
+test("rejected plan: the next Q&A run in the thread sees the brief; another thread does not", async () => {
+  const { env } = await setup();
+  const gw = stubGateway({
+    // The real gateway records the approval row; mimic it so the denial is on file.
+    requestPlan: async (req) => {
+      insertApproval(env.db, {
+        id: "ap1",
+        taskId: req.taskId,
+        tool: req.tool,
+        summary: req.summary,
+      });
+      decideApproval(env.db, "ap1", "denied");
+      return { approved: false, reason: "no" };
+    },
+  });
+  const prompts: Record<string, string> = {};
+  let delegates = true;
+  // Q&A run (has the friday server): delegate on the first call only, then capture the system prompt.
+  const query = (a: any) => {
+    const o = a.options;
+    if (!o.mcpServers?.friday) return fakeSdk([])(a);
+    prompts[a.prompt] = o.systemPrompt.append;
+    if (delegates) {
+      delegates = false;
+      return delegatingQuery([{ brief: BRIEF }], fakeSdk([]))(a);
+    }
+    return (async function* () {
+      yield resultMsg({ result: "ok" });
+    })();
+  };
+  const handle = createTaskHandler({
+    git,
+    db: env.db,
+    config: env.config,
+    approvals: gw,
+    queryFn: query as never,
+  });
+  await handle(msg_("please change x"));
+  await handle(msg_("what about y?"));
+  await handle(msg_("what about z?", "th2"));
+  expect(prompts["what about y?"]).toContain("Rejected code-task plans in this thread:\n");
+  expect(prompts["what about y?"]).toContain(BRIEF);
+  expect(prompts["what about z?"]).not.toContain("Rejected code-task plans in this thread:\n");
+  expect(prompts["please change x"]).not.toContain("Rejected code-task plans in this thread:\n");
 });

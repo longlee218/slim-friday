@@ -146,6 +146,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
           })
         : await runQaFlow(codeDeps, {
             taskId,
+            threadId,
             text: cmd.text,
             repos,
             pinned,

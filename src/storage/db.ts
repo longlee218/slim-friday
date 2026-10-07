@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   started_at INTEGER NOT NULL,
   ended_at INTEGER,
   session_id TEXT,
-  session_cwd TEXT
+  session_cwd TEXT,
+  brief TEXT
 );
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY,
@@ -85,7 +86,7 @@ export function openDb(file: string): Database {
     .query<{ name: string }, []>("PRAGMA table_info(tasks)")
     .all()
     .map((c) => c.name);
-  for (const col of ["session_id", "session_cwd"])
+  for (const col of ["session_id", "session_cwd", "brief"])
     if (!have.includes(col)) db.exec(`ALTER TABLE tasks ADD COLUMN ${col} TEXT`);
   if (file !== ":memory:") {
     // db holds tool output: owner-only, including the WAL/SHM sidecars created before this chmod.

@@ -9,12 +9,8 @@ import {
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
 import { logEvent, logger, runWithLogContext, tryLog } from "../observability/logger";
 import { clip, errText, redactText } from "../observability/redact";
-import {
-  type ApprovalDecision,
-  decideApproval,
-  insertApproval,
-  setTaskStatus,
-} from "../storage/run-store";
+import { type ApprovalDecision, decideApproval, insertApproval } from "../storage/approval-store";
+import { setTaskStatus } from "../storage/run-store";
 import { type ButtonSpec, buildButtonRows, type Pending, toResult } from "./approval-buttons";
 import type { ApprovalGateway, ApprovalRequest, ApprovalResult } from "./approval-types";
 

@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, type ButtonStyle } from "discord.js";
 import { clip } from "../observability/redact";
-import type { ApprovalDecision } from "../storage/run-store";
+import type { ApprovalDecision } from "../storage/approval-store";
 import type { ApprovalResult } from "./approval-types";
 
 /** Discord limits: 5 buttons per row, 80 chars per label. */

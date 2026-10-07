@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { redactText } from "../observability/redact";
 
 /** Final status of a task row. */
 export type TaskStatus =
@@ -40,11 +41,27 @@ export function latestTaskSession(
 /** Insert a task row in `running` state. */
 export function insertTask(
   db: Database,
-  t: { id: string; threadId: string; source: string; repo: string; type: string },
+  t: {
+    id: string;
+    threadId: string;
+    source: string;
+    repo: string;
+    type: string;
+    /** Delegated task text (handoff only); stored redacted so a rejected plan can be recalled. */
+    brief?: string;
+  },
 ): void {
   db.query(
-    "INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at) VALUES (?, ?, ?, ?, ?, 'running', ?)",
-  ).run(t.id, t.threadId, t.source, t.repo, t.type, Date.now());
+    "INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at, brief) VALUES (?, ?, ?, ?, ?, 'running', ?, ?)",
+  ).run(
+    t.id,
+    t.threadId,
+    t.source,
+    t.repo,
+    t.type,
+    Date.now(),
+    t.brief === undefined ? null : redactText(t.brief),
+  );
 }
 
 /** Set final status and end time of a task. */
@@ -145,26 +162,4 @@ export function countActiveCodeTasks(db: Database): number {
       "SELECT COUNT(*) AS n FROM tasks WHERE type = 'code' AND status IN ('running', 'waiting_approval')",
     )
     .get()!.n;
-}
-
-/** Lifecycle of an approval row. */
-export type ApprovalDecision = "pending" | "approved" | "denied" | "timeout" | "cancelled";
-
-/** Insert a pending approval; summary must already be redacted. */
-export function insertApproval(
-  db: Database,
-  a: { id: string; taskId: string; tool: string; summary: string },
-): void {
-  db.query(
-    "INSERT INTO approvals (id, task_id, tool, summary, decision, requested_at) VALUES (?, ?, ?, ?, 'pending', ?)",
-  ).run(a.id, a.taskId, a.tool, a.summary, Date.now());
-}
-
-/** Record the final decision and time. */
-export function decideApproval(db: Database, id: string, decision: ApprovalDecision): void {
-  db.query("UPDATE approvals SET decision = ?, decided_at = ? WHERE id = ?").run(
-    decision,
-    Date.now(),
-    id,
-  );
 }

@@ -44,10 +44,10 @@ const EXEC = `This run is the execute stage of a code task, in an isolated git w
 const MODE: Record<ToolMode, string> = { qa: QA, plan: PLAN, exec: EXEC };
 
 /** Q&A hand-over rules; usage detail (once per run, brief content, end turn) is in the delegate tool description. */
-const HANDOFF = `- A change request in plain words ("fix X", "add", "remove", "sửa đi", "làm đi") means: call ${DELEGATE}; do not just explain.
+const HANDOFF = `- You cannot edit files, so any request to change the repo ("fix X", "add", "remove", "rename", "update", "change", "write a test", "sửa đi", "thêm", "làm đi") is completed ONLY by calling ${DELEGATE} with role "dev" (after reading what you need). Do not write the change or the fix in your reply, in text or in thinking: put it in the brief. Then end the turn with one short visible line for the owner.
 - A pure question: answer only; never call ${DELEGATE}.
 - Unprompted, you may propose one change per run, only for a clear bug worth fixing; answer the question first.
-- Never re-propose a change the owner rejected in this thread (listed under "Rejected code-task plans" when any).`;
+- Never re-propose a change the owner rejected in this thread (listed under "Rejected code-task plans in this thread:" when any).`;
 
 /**
  * Build the SDK systemPrompt: MODE rules, then HANDOFF (Q&A with the delegate tool), then COMMON safety,

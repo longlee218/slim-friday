@@ -98,6 +98,7 @@ export async function runHandoff(deps: HandoffDeps, i: HandoffInput): Promise<st
     source: i.task.source,
     repo,
     type: "code",
+    brief: proposal.brief,
   });
   setLogContext({ taskId, repo, mode: "plan" });
   logEvent(log, "task.started", { repo, type: "code" });
