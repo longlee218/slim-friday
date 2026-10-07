@@ -7,6 +7,7 @@ import {
   type PrClient,
   parseRemote,
 } from "../src/mcp/github-mcp";
+import { GITHUB_TOOL } from "../src/mcp/mcp-tool-names";
 
 // Fake token shaped like a real one (the redactor only masks real-looking tokens).
 const SECRET = `ghp_${"S3cr3t".repeat(6)}`;
@@ -76,7 +77,7 @@ test("openPr: already exists -> lists and returns existing url", async () => {
   const client: PrClient = {
     callTool: async (r) => {
       names.push(r.name);
-      return r.name === "create_pull_request"
+      return r.name === GITHUB_TOOL.CREATE_PULL_REQUEST
         ? text("a pull request already exists", true)
         : text(JSON.stringify([{ html_url: "https://github.com/o/r/pull/9" }]));
     },
@@ -85,7 +86,7 @@ test("openPr: already exists -> lists and returns existing url", async () => {
     ok: true,
     url: "https://github.com/o/r/pull/9",
   });
-  expect(names).toEqual(["create_pull_request", "list_pull_requests"]);
+  expect(names).toEqual([GITHUB_TOOL.CREATE_PULL_REQUEST, GITHUB_TOOL.LIST_PULL_REQUESTS]);
 });
 
 test("openPr: error text never leaks the token", async () => {

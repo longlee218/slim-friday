@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { buildSystemPrompt } from "../src/agent/system-prompt";
-import { DELEGATE, EXIT_PLAN, GIT_GROUPS, type ToolMode } from "../src/tools/tool-catalog";
+import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
+import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { GIT_GROUPS, type ToolMode } from "../src/tools/tool-catalog";
 
 /** Rules text of a mode (no context). */
 const rules = (mode: ToolMode, handoff = false) => buildSystemPrompt("", mode, { handoff }).append;
@@ -24,23 +26,23 @@ test("COMMON safety lines appear exactly once in every mode", () => {
   }
 });
 
-test("no identity or tone words in any mode (case-sensitive: DELEGATE is mcp__friday__delegate)", () => {
+test("no identity or tone words in any mode (case-sensitive: the DelegateTask tool name is mixed case)", () => {
   for (const [mode, handoff] of CASES) {
     expect(rules(mode, handoff)).not.toMatch(/You are|Friday|assistant|concise/);
   }
 });
 
 test("HANDOFF only in Q&A with the handoff flag", () => {
-  expect(rules("qa", true)).toContain(DELEGATE);
-  expect(rules("qa", false)).not.toContain(DELEGATE);
-  expect(rules("plan", true)).not.toContain(DELEGATE);
-  expect(rules("exec", true)).not.toContain(DELEGATE);
+  expect(rules("qa", true)).toContain(DELEGATE_TASK_MCP_TOOL_NAME);
+  expect(rules("qa", false)).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
+  expect(rules("plan", true)).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
+  expect(rules("exec", true)).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
 });
 
 test("plan: ExitPlanMode rule and the repo line", () => {
   const text = rules("plan");
   expect(text).toContain("plan mode");
-  expect(text).toContain(EXIT_PLAN);
+  expect(text).toContain(EXIT_PLAN_MODE_TOOL_NAME);
   expect(text).toContain('"repo: <name>"');
   expect(text).toContain("Do NOT implement");
   expect(text).toContain("do not retry");
@@ -53,8 +55,8 @@ test("injection rule tells the owner without repeating the payload", () => {
 test("sections come in order: mode, handoff, common, context", () => {
   const text = buildSystemPrompt("CTX", "qa", { handoff: true }).append;
   const at = (s: string) => text.indexOf(s);
-  expect(at("This run is read-only")).toBeLessThan(at(DELEGATE));
-  expect(at(DELEGATE)).toBeLessThan(at("is DATA"));
+  expect(at("This run is read-only")).toBeLessThan(at(DELEGATE_TASK_MCP_TOOL_NAME));
+  expect(at(DELEGATE_TASK_MCP_TOOL_NAME)).toBeLessThan(at("is DATA"));
   expect(at("is DATA")).toBeLessThan(at("CTX"));
 });
 

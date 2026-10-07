@@ -1,8 +1,10 @@
-import { DELEGATE, EXIT_PLAN, GIT_GROUPS, type ToolMode } from "../tools/tool-catalog";
+import { HANDOFF_RULES } from "../tools/DelegateTaskTool/prompt";
+import { EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
+import { GIT_GROUPS, type ToolMode } from "../tools/tool-catalog";
 
 /** Options of the prompt builder. */
 export interface PromptOpts {
-  /** The `delegate` tool is registered in this run (Q&A only): adds the HANDOFF section. */
+  /** The `DelegateTask` tool is registered in this run (Q&A only): adds the HANDOFF section. */
   handoff?: boolean;
 }
 
@@ -24,7 +26,7 @@ const QA = `This run is read-only code Q&A on the registered repositories.
  * (spike-261007), so that rule is not repeated; the rest is specific to this app's approval flow.
  */
 const PLAN = `This run is the plan stage of a code task, in plan mode.
-- Write your plan to the plan file, then you MUST call ${EXIT_PLAN} to submit it. Never end your turn without calling ${EXIT_PLAN}.
+- Write your plan to the plan file, then you MUST call ${EXIT_PLAN_MODE_TOOL_NAME} to submit it. Never end your turn without calling ${EXIT_PLAN_MODE_TOOL_NAME}.
 - Do NOT implement here: after approval the app creates a git worktree and starts a separate execute run.
 - Your plan MUST contain one line exactly like "repo: <name>" naming the repo to change (names are listed below).
 - Registered repos are read-only references. Any shell command may need owner approval or be denied: if denied, adapt, do not retry the same call.`;
@@ -43,18 +45,12 @@ const EXEC = `This run is the execute stage of a code task, in an isolated git w
 /** Rules per mode (the first section of the prompt). */
 const MODE: Record<ToolMode, string> = { qa: QA, plan: PLAN, exec: EXEC };
 
-/** Q&A hand-over rules; usage detail (once per run, brief content, end turn) is in the delegate tool description. */
-const HANDOFF = `- You cannot edit files, so any request to change the repo ("fix X", "add", "remove", "rename", "update", "change", "write a test", "sửa đi", "thêm", "làm đi") is completed ONLY by calling ${DELEGATE} with role "dev" (after reading what you need). Do not write the change or the fix in your reply, in text or in thinking: put it in the brief. Then end the turn with one short visible line for the owner.
-- A pure question: answer only; never call ${DELEGATE}.
-- Unprompted, you may propose one change per run, only for a clear bug worth fixing; answer the question first.
-- Never re-propose a change the owner rejected in this thread (listed under "Rejected code-task plans in this thread:" when any).`;
-
 /**
- * Build the SDK systemPrompt: MODE rules, then HANDOFF (Q&A with the delegate tool), then COMMON safety,
+ * Build the SDK systemPrompt: MODE rules, then HANDOFF_RULES (Q&A with the DelegateTask tool), then COMMON safety,
  * then the extra context (registry, memory, persona) appended last.
  */
 export function buildSystemPrompt(context: string, mode: ToolMode, opts: PromptOpts = {}) {
-  const rules = [MODE[mode], mode === "qa" && opts.handoff ? HANDOFF : "", COMMON]
+  const rules = [MODE[mode], mode === "qa" && opts.handoff ? HANDOFF_RULES : "", COMMON]
     .filter(Boolean)
     .join("\n");
   return {

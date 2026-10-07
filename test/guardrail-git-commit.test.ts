@@ -3,6 +3,8 @@ import { mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkToolCall } from "../src/guardrails/check-tool-call";
+import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
+import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 const ctx = { writePaths: ["/tmp/wt"] };
 
@@ -34,7 +36,7 @@ const rows: [string, "allow" | "ask" | "deny"][] = [
 describe("git in the shell", () => {
   for (const [cmd, want] of rows) {
     test(`${cmd} -> ${want}`, () => {
-      expect(checkToolCall("Bash", { command: cmd }, ctx).decision).toBe(want);
+      expect(checkToolCall(BASH_TOOL_NAME, { command: cmd }, ctx).decision).toBe(want);
     });
   }
 });
@@ -43,7 +45,7 @@ test("cd inside the allowed dirs is allowed; outside, parent and home are not", 
   const dir = mkdtempSync(join(tmpdir(), "cd-"));
   const root = realpathSync(dir);
   const c = { writePaths: [root] };
-  const d = (cmd: string) => checkToolCall("Bash", { command: cmd }, c).decision;
+  const d = (cmd: string) => checkToolCall(BASH_TOOL_NAME, { command: cmd }, c).decision;
   expect(d(`cd ${root}`)).toBe("allow");
   expect(d(`cd ${root} && git status`)).toBe("allow");
   expect(d("cd sub")).toBe("allow");
@@ -59,67 +61,71 @@ describe("git MCP tools (@cyanheads/git-mcp-server)", () => {
   const readable = realpathSync(mkdtempSync(join(tmpdir(), "gm3-")));
   const c = { writePaths: [dir], gitWriteRepo: dir, gitReadRepos: [readable] };
   const d = (tool: string, input: Record<string, unknown> = {}, path = dir) =>
-    checkToolCall(`mcp__git__${tool}`, { path, ...input }, c).decision;
+    checkToolCall(mcpToolName(GIT_MCP_SERVER, tool), { path, ...input }, c).decision;
 
   test("reads work on the worktree and registered repos; any other path is denied", () => {
-    for (const t of ["git_status", "git_diff", "git_log", "git_show", "git_blame"]) {
+    for (const t of [GIT_TOOL.STATUS, GIT_TOOL.DIFF, GIT_TOOL.LOG, GIT_TOOL.SHOW, GIT_TOOL.BLAME]) {
       expect(d(t)).toBe("allow");
       expect(d(t, {}, readable)).toBe("allow");
       expect(d(t, {}, other)).toBe("deny");
     }
-    expect(d("git_status", {}, "/nonexistent")).toBe("deny");
-    expect(checkToolCall("mcp__git__git_status", {}, c).decision).toBe("deny"); // path is mandatory
+    expect(d(GIT_TOOL.STATUS, {}, "/nonexistent")).toBe("deny");
+    expect(checkToolCall(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.STATUS), {}, c).decision).toBe(
+      "deny",
+    ); // path is mandatory
   });
 
   test("mode-based tools: list-like modes are reads, changing modes are denied", () => {
-    expect(d("git_branch", { mode: "list" })).toBe("allow");
-    expect(d("git_branch", { mode: "show-current" })).toBe("allow");
-    expect(d("git_branch", { mode: "create", branchName: "x" })).toBe("deny");
-    expect(d("git_branch", { mode: "delete", branchName: "x" })).toBe("deny");
+    expect(d(GIT_TOOL.BRANCH, { mode: "list" })).toBe("allow");
+    expect(d(GIT_TOOL.BRANCH, { mode: "show-current" })).toBe("allow");
+    expect(d(GIT_TOOL.BRANCH, { mode: "create", branchName: "x" })).toBe("deny");
+    expect(d(GIT_TOOL.BRANCH, { mode: "delete", branchName: "x" })).toBe("deny");
     // git_remote/tag/stash/worktree are hidden in every mode (the app uses them): denied for agents.
-    expect(d("git_remote", { mode: "get-url", name: "origin" })).toBe("deny");
-    expect(d("git_tag", { mode: "list" })).toBe("deny");
-    expect(d("git_stash", { mode: "pop" })).toBe("deny");
+    expect(d(GIT_TOOL.REMOTE, { mode: "get-url", name: "origin" })).toBe("deny");
+    expect(d(GIT_TOOL.TAG, { mode: "list" })).toBe("deny");
+    expect(d(GIT_TOOL.STASH, { mode: "pop" })).toBe("deny");
   });
 
   test("writes only in the worktree: add/commit allowed, never on a read-only repo", () => {
-    expect(d("git_add", { paths: ["a"] })).toBe("allow");
-    expect(d("git_commit", { message: "feat: x" })).toBe("allow");
-    expect(d("git_add", { paths: ["a"] }, readable)).toBe("deny");
-    expect(d("git_commit", { message: "x" }, readable)).toBe("deny");
+    expect(d(GIT_TOOL.ADD, { paths: ["a"] })).toBe("allow");
+    expect(d(GIT_TOOL.COMMIT, { message: "feat: x" })).toBe("allow");
+    expect(d(GIT_TOOL.ADD, { paths: ["a"] }, readable)).toBe("deny");
+    expect(d(GIT_TOOL.COMMIT, { message: "x" }, readable)).toBe("deny");
   });
 
   test("commit cannot pick an author, amend, skip hooks or carry attribution", () => {
-    expect(d("git_commit", { message: "x", author: { name: "A", email: "a@a.a" } })).toBe("deny");
-    expect(d("git_commit", { message: "x", amend: true })).toBe("deny");
-    expect(d("git_commit", { message: "x", noVerify: true })).toBe("deny");
+    expect(d(GIT_TOOL.COMMIT, { message: "x", author: { name: "A", email: "a@a.a" } })).toBe(
+      "deny",
+    );
+    expect(d(GIT_TOOL.COMMIT, { message: "x", amend: true })).toBe("deny");
+    expect(d(GIT_TOOL.COMMIT, { message: "x", noVerify: true })).toBe("deny");
     expect(
-      d("git_commit", { message: "x\n\nCo-Authored-By: Claude <noreply@anthropic.com>" }),
+      d(GIT_TOOL.COMMIT, { message: "x\n\nCo-Authored-By: Claude <noreply@anthropic.com>" }),
     ).toBe("deny");
   });
 
   test("branch/history changes ask; push, pull, fetch, clean, merge, worktree... are the app's job: denied", () => {
-    expect(d("git_checkout", { target: "main" })).toBe("ask");
-    expect(d("git_reset", { mode: "soft" })).toBe("ask");
-    expect(d("git_reset", { mode: "hard" })).toBe("deny");
+    expect(d(GIT_TOOL.CHECKOUT, { target: "main" })).toBe("ask");
+    expect(d(GIT_TOOL.RESET, { mode: "soft" })).toBe("ask");
+    expect(d(GIT_TOOL.RESET, { mode: "hard" })).toBe("deny");
     for (const t of [
-      "git_push",
-      "git_pull",
-      "git_fetch",
-      "git_clone",
-      "git_init",
-      "git_clean",
-      "git_merge",
-      "git_rebase",
-      "git_cherry_pick",
-      "git_worktree",
-      "git_set_working_dir",
-      "git_wrapup_instructions",
+      GIT_TOOL.PUSH,
+      GIT_TOOL.PULL,
+      GIT_TOOL.FETCH,
+      GIT_TOOL.CLONE,
+      GIT_TOOL.INIT,
+      GIT_TOOL.CLEAN,
+      GIT_TOOL.MERGE,
+      GIT_TOOL.REBASE,
+      GIT_TOOL.CHERRY_PICK,
+      GIT_TOOL.WORKTREE,
+      GIT_TOOL.SET_WORKING_DIR,
+      GIT_TOOL.WRAPUP_INSTRUCTIONS,
     ]) {
-      expect(d(t, t === "git_worktree" ? { mode: "add" } : {})).toBe("deny");
+      expect(d(t, t === GIT_TOOL.WORKTREE ? { mode: "add" } : {})).toBe("deny");
     }
-    expect(d("git_worktree", { mode: "list" })).toBe("deny");
-    expect(checkToolCall("mcp__evil__x", {}, c).decision).toBe("deny");
+    expect(d(GIT_TOOL.WORKTREE, { mode: "list" })).toBe("deny");
+    expect(checkToolCall(mcpToolName("evil", "x"), {}, c).decision).toBe("deny");
   });
 });
 
@@ -127,7 +133,7 @@ test("git_commit messages with attribution lines are denied; plain ones pass", (
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "ga-")));
   const c = { writePaths: [dir], gitWriteRepo: dir };
   const d = (message: string) =>
-    checkToolCall("mcp__git__git_commit", { path: dir, message }, c).decision;
+    checkToolCall(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.COMMIT), { path: dir, message }, c).decision;
   expect(d("feat: add b")).toBe("allow");
   expect(d("fix: handle co-author lists")).toBe("allow");
   expect(d("feat: add b\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>")).toBe("deny");

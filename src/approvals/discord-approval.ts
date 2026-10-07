@@ -11,6 +11,7 @@ import { logEvent, logger, runWithLogContext, tryLog } from "../observability/lo
 import { clip, errText, redactText } from "../observability/redact";
 import { type ApprovalDecision, decideApproval, insertApproval } from "../storage/approval-store";
 import { setTaskStatus } from "../storage/run-store";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../tools/sdk-tool-names";
 import { type ButtonSpec, buildButtonRows, type Pending, toResult } from "./approval-buttons";
 import type { ApprovalGateway, ApprovalRequest, ApprovalResult } from "./approval-types";
 
@@ -141,7 +142,7 @@ export function createDiscordApprovalGateway(
       const value = await ask({
         taskId: a.taskId,
         threadId: a.threadId,
-        tool: "AskUserQuestion",
+        tool: ASK_USER_QUESTION_TOOL_NAME,
         prefix: "choice",
         text: a.question,
         buttons: a.options.map((label, i) => ({

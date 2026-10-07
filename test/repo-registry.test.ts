@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
+import { GIT_TOOL } from "../src/mcp/mcp-tool-names";
 import { isManagedClone, refreshRepo } from "../src/repos/refresh-repo";
 import { buildRegistryContext, loadRepoRegistry } from "../src/repos/repo-registry";
 import { getSession } from "../src/storage/session-store";
@@ -144,7 +145,7 @@ test("refreshRepo: fetch + fast-forward through the MCP tools, throttled per rep
   await refreshRepo(fake, "/p", 1000);
   await refreshRepo(fake, "/p", 1000 + 60_000); // inside the 10 min window
   await refreshRepo(fake, "/p", 1000 + 11 * 60_000);
-  expect(calls).toEqual(["git_fetch", "git_pull", "git_fetch", "git_pull"]);
+  expect(calls).toEqual([GIT_TOOL.FETCH, GIT_TOOL.PULL, GIT_TOOL.FETCH, GIT_TOOL.PULL]);
   const failing = {
     call: async () => {
       throw new Error("no remote");

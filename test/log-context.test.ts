@@ -17,6 +17,12 @@ import {
 import { openDb } from "../src/storage/db";
 import { insertTask } from "../src/storage/run-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
+import {
+  BASH_TOOL_NAME,
+  EXIT_PLAN_MODE_TOOL_NAME,
+  GLOB_TOOL_NAME,
+  READ_TOOL_NAME,
+} from "../src/tools/sdk-tool-names";
 import { addWorkspace, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
 
 const task = (text: string, threadId: string) => ({ source: "test", userId: "u", threadId, text });
@@ -72,7 +78,7 @@ test("context survives into SDK callbacks (hooks, timers): tool.call lines carry
         {
           hook_event_name: "PreToolUse",
           tool_use_id: "u1",
-          tool_name: "Read",
+          tool_name: READ_TOOL_NAME,
           tool_input: { file_path: "/etc/passwd" },
         },
         "u1",
@@ -83,7 +89,7 @@ test("context survives into SDK callbacks (hooks, timers): tool.call lines carry
         {
           hook_event_name: "PostToolUse",
           tool_use_id: "u2",
-          tool_name: "Glob",
+          tool_name: GLOB_TOOL_NAME,
           tool_input: {},
           tool_response: "ok",
           duration_ms: 1,
@@ -91,7 +97,7 @@ test("context survives into SDK callbacks (hooks, timers): tool.call lines carry
         "u2",
         { signal: new AbortController().signal },
       );
-      await a.options.canUseTool("ExitPlanMode", {}, {});
+      await a.options.canUseTool(EXIT_PLAN_MODE_TOOL_NAME, {}, {});
       yield resultMsg();
     })();
   await createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never })(
@@ -145,7 +151,7 @@ test("approval decided by a click outside the task context still logs the task's
   const cap = captureLogs();
   // Requested inside a task context ...
   const p = runWithLogContext({ taskId: "t1", threadId: "th", mode: "exec" }, () =>
-    gw.request({ taskId: "t1", threadId: "th", tool: "Bash", summary: "ls" }),
+    gw.request({ taskId: "t1", threadId: "th", tool: BASH_TOOL_NAME, summary: "ls" }),
   );
   await tick();
   // ... clicked from the top level (discord.js event context: no store).
@@ -165,7 +171,7 @@ test("approval decided by a click outside the task context still logs the task's
     taskId: "t1",
     threadId: "th",
     decision: "approved",
-    tool: "Bash",
+    tool: BASH_TOOL_NAME,
   });
 });
 
@@ -193,7 +199,11 @@ async function runUnpinned(env: ReturnType<typeof makeEnv>, file?: string) {
       (async function* () {
         yield initMsg;
         if (file) {
-          const input = { hook_event_name: "PostToolUse", tool_use_id: "r1", tool_name: "Read" };
+          const input = {
+            hook_event_name: "PostToolUse",
+            tool_use_id: "r1",
+            tool_name: READ_TOOL_NAME,
+          };
           const opts = { signal: new AbortController().signal };
           await a.options.hooks.PostToolUse[0].hooks[0](
             { ...input, tool_input: { file_path: file }, tool_response: "x" },

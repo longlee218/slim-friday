@@ -12,6 +12,7 @@ import {
 } from "../src/observability/logger";
 import { RunRecorder } from "../src/observability/record-run";
 import { buildToolHooks } from "../src/observability/tool-hooks";
+import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { addWorkspace, fakeQuery, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
 
 /** A logger whose lines are collected as parsed objects. */
@@ -113,7 +114,7 @@ test("tool.call line has guard decision, duration, error flag and a redacted inp
     {
       hook_event_name: "PostToolUse",
       tool_use_id: "u1",
-      tool_name: "Bash",
+      tool_name: BASH_TOOL_NAME,
       tool_input: { command: "echo password: hunter2" },
       tool_response: "ok",
       duration_ms: 7,
@@ -125,7 +126,7 @@ test("tool.call line has guard decision, duration, error flag and a redacted inp
   stop();
   expect(lines[0]).toMatchObject({
     event: "tool.call",
-    tool: "Bash",
+    tool: BASH_TOOL_NAME,
     decision: "ask",
     reason: "git commit",
     durationMs: 7,

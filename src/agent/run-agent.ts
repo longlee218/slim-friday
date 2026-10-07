@@ -11,6 +11,7 @@ import { workspacePaths } from "../config/workspace-paths";
 import type { GuardrailContext } from "../guardrails/check-tool-call";
 import type { GitIdentity } from "../mcp/git-mcp";
 import { mcpServersFor } from "../mcp/mcp-servers";
+import { GIT_MCP_SERVER } from "../mcp/mcp-tool-names";
 import { logEvent, logger, tryLog } from "../observability/logger";
 import {
   emptyUsage,
@@ -54,7 +55,7 @@ export interface RunAgentInput {
   gitBaseDir?: string;
   /** Repo (workspace) the run belongs to: its raw task log goes to that workspace's logs dir. */
   logRepo?: string;
-  /** In-process MCP server of the app (Q&A `delegate` tool); registered in Q&A mode only. */
+  /** In-process MCP server of the app (Q&A `DelegateTask` tool); registered in Q&A mode only. */
   appServer?: McpSdkServerConfigWithInstance;
   /** GitHub login whose token the read-only GitHub MCP server uses (code tasks); default = active gh account. */
   githubAccount?: string;
@@ -236,7 +237,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         if (m.type === "system" && m.subtype === "init" && mode === "exec") {
           const servers = (m as unknown as { mcp_servers?: { name: string; status: string }[] })
             .mcp_servers;
-          const git = servers?.find((x) => x.name === "git");
+          const git = servers?.find((x) => x.name === GIT_MCP_SERVER);
           if (git && git.status !== "connected") {
             startupError =
               "The git MCP server failed to start (check gitAuthor in the workspace config.yaml).";

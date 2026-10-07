@@ -3,7 +3,8 @@ import type { ApprovalGateway } from "../approvals/approval-types";
 import { checkToolCall, type Decision, type GuardrailContext } from "../guardrails/check-tool-call";
 import { logEvent, logger } from "../observability/logger";
 import { clip, errText, safePreview } from "../observability/redact";
-import { ASK_USER, EXIT_PLAN, PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
+import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
+import { PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
 
 /** Max chars of a tool input shown inline in the approval message (full input goes in the attachment). */
 const SUMMARY_MAX = 300;
@@ -90,17 +91,20 @@ export function buildToolPermissions(p: ToolPermissionInput): {
     });
     const input = rawInput as Record<string, unknown>;
     try {
-      if ((tool === EXIT_PLAN || tool === ASK_USER) && !p.gateway) {
+      if (
+        (tool === EXIT_PLAN_MODE_TOOL_NAME || tool === ASK_USER_QUESTION_TOOL_NAME) &&
+        !p.gateway
+      ) {
         return { behavior: "deny", message: "Not available in this mode." };
       }
       const gateway = p.gateway!;
-      if (tool === EXIT_PLAN) {
+      if (tool === EXIT_PLAN_MODE_TOOL_NAME) {
         const plan = String(input.plan ?? "");
         const repo = parsePlanRepo(plan);
         if (p.plan && (!repo || !p.plan.repos.includes(repo))) {
           return {
             behavior: "deny",
-            message: `The plan must contain a line "repo: <name>" naming exactly one of: ${p.plan.repos.join(", ")}. Add it and call ExitPlanMode again.`,
+            message: `The plan must contain a line "repo: <name>" naming exactly one of: ${p.plan.repos.join(", ")}. Add it and call ${EXIT_PLAN_MODE_TOOL_NAME} again.`,
           };
         }
         const req = {
@@ -116,10 +120,10 @@ export function buildToolPermissions(p: ToolPermissionInput): {
           ? { behavior: "allow", updatedInput: input }
           : {
               behavior: "deny",
-              message: `Owner rejected the plan (${r.reason ?? "no reason"}). Revise it and call ExitPlanMode again.`,
+              message: `Owner rejected the plan (${r.reason ?? "no reason"}). Revise it and call ${EXIT_PLAN_MODE_TOOL_NAME} again.`,
             };
       }
-      if (tool === ASK_USER) {
+      if (tool === ASK_USER_QUESTION_TOOL_NAME) {
         const answers: Record<string, string> = {};
         for (const q of (input.questions ?? []) as {
           question: string;

@@ -3,9 +3,13 @@ import type { ApprovalGateway } from "../approvals/approval-types";
 import { hasAttribution } from "../guardrails/check-tool-call";
 import type { GitData, GitIdentity, GitMcp } from "../mcp/git-mcp";
 import { createPullRequest, parseRemote } from "../mcp/github-mcp";
+import { GIT_TOOL } from "../mcp/mcp-tool-names";
 import { logEvent, logger } from "../observability/logger";
 import { clip, errText, redactText } from "../observability/redact";
 import { setPrUrl, type WorktreeRow } from "../storage/worktree-store";
+
+/** Approval label of the PR confirmation (persisted in `approvals.tool`, not an SDK tool). */
+export const CREATE_PR_APPROVAL = "CreatePR";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "code-task-finish" });
@@ -51,7 +55,7 @@ async function commitsAhead(
     try {
       return {
         ref,
-        log: await git.call("git_log", { path, branch: `${ref}..HEAD`, maxCount: 100 }),
+        log: await git.call(GIT_TOOL.LOG, { path, branch: `${ref}..HEAD`, maxCount: 100 }),
       };
     } catch (err) {
       last = err;
@@ -96,7 +100,7 @@ export async function finishCodeTask(
   const { git } = deps;
   const { ref, log: ahead } = await commitsAhead(git, wt.path, wt.base);
   const commits = (ahead.commits ?? []) as { hash: string; authorEmail: string }[];
-  const status = await git.call("git_status", { path: wt.path });
+  const status = await git.call(GIT_TOOL.STATUS, { path: wt.path });
   // The reviewed diff is HEAD's; the push sends wt.branch. They must be the same branch.
   if (status.currentBranch !== wt.branch) {
     return `${o.text}\n\nWorktree is on "${status.currentBranch}", not ${wt.branch}: no PR offered.`;
@@ -104,8 +108,8 @@ export async function finishCodeTask(
   const dirty = status.isClean === false ? "\nUncommitted changes remain in the worktree." : "";
   if (commits.length === 0) return `${o.text}\n\nNo commits on ${wt.branch}.${dirty}`;
   const range = { path: wt.path, source: ref, target: "HEAD" };
-  const stat = String((await git.call("git_diff", { ...range, stat: true })).diff ?? "").trim();
-  const diff = String((await git.call("git_diff", range)).diff ?? "").slice(0, DIFF_CAP);
+  const stat = String((await git.call(GIT_TOOL.DIFF, { ...range, stat: true })).diff ?? "").trim();
+  const diff = String((await git.call(GIT_TOOL.DIFF, range)).diff ?? "").slice(0, DIFF_CAP);
   // Pushed commits carry raw content while the owner sees a redacted diff: never push a possible secret.
   if (redactText(diff) !== diff) {
     return `${o.text}\n\nPossible secret in the diff of ${wt.branch}: PR not offered. Remove it and commit again.`;
@@ -113,7 +117,9 @@ export async function finishCodeTask(
   const shown = await Promise.all(
     commits.map(async (c) => ({
       authorEmail: c.authorEmail,
-      shown: String((await git.call("git_show", { path: wt.path, object: c.hash })).content ?? ""),
+      shown: String(
+        (await git.call(GIT_TOOL.SHOW, { path: wt.path, object: c.hash })).content ?? "",
+      ),
     })),
   );
   const problems = commitProblems(shown, o.author);
@@ -124,7 +130,7 @@ export async function finishCodeTask(
     {
       taskId: o.taskId,
       threadId: o.threadId,
-      tool: "CreatePR",
+      tool: CREATE_PR_APPROVAL,
       summary: `Create PR for ${wt.repo}?\n${wt.branch} -> ${wt.base}: ${commits.length} commit(s)\n${stat}${dirty}${truncated}`,
       detail: diff,
     },
@@ -137,7 +143,7 @@ export async function finishCodeTask(
   // Push the agent branch (never forced; agent/* only), then open the PR through the GitHub MCP server.
   if (!wt.branch.startsWith("agent/")) return prFailed("refusing to publish non-agent branch.");
   try {
-    await git.call("git_push", {
+    await git.call(GIT_TOOL.PUSH, {
       path: wt.path,
       remote: "origin",
       branch: wt.branch,
@@ -148,7 +154,7 @@ export async function finishCodeTask(
   }
   logEvent(log, "push", { repo: wt.repo, branch: wt.branch });
   const remotes: GitData = await git
-    .call("git_remote", { path: wt.path, mode: "list" })
+    .call(GIT_TOOL.REMOTE, { path: wt.path, mode: "list" })
     .catch(() => ({}));
   const origin = (remotes.remotes as { name: string; fetchUrl?: string }[] | undefined)?.find(
     (x) => x.name === "origin",

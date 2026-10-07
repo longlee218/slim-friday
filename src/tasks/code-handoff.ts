@@ -5,7 +5,7 @@ import { errText } from "../observability/redact";
 import { isManagedClone } from "../repos/refresh-repo";
 import type { Repo } from "../repos/repo-registry";
 import { finishTask, insertTask } from "../storage/run-store";
-import type { Proposal } from "../tools/delegate-tool";
+import type { Proposal } from "../tools/DelegateTaskTool/delegate-task-tool";
 import { type CodeFlowDeps, runCodeFlow } from "./code-task-flow";
 import { closeTask } from "./task-result";
 import { codeTaskBlocker } from "./task-routing";
@@ -31,7 +31,7 @@ const repoHint = (agentHome: string, pinned: Repo | undefined, repo?: string): s
   repo ?? (pinned && isManagedClone(pinned.path, agentHome) ? pinned.name : undefined);
 
 /**
- * The `delegate` tool's pre-check: refusal text (cap full, no managed clone, unknown repo), or undefined
+ * The `DelegateTask` tool's pre-check: refusal text (cap full, no managed clone, unknown repo), or undefined
  * when a code task may start. Same rule as routing and the handoff (`codeTaskBlocker`).
  */
 export function delegateCheck(p: {

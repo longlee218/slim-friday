@@ -1,6 +1,7 @@
 import { pickEnv } from "../config/agent-config";
 import { errText } from "../observability/redact";
 import { connectStdio, type StdioSpec, toolText } from "./mcp-stdio";
+import { GITHUB_TOOL } from "./mcp-tool-names";
 
 /** Official GitHub MCP server image (stdio). */
 export const GITHUB_MCP_IMAGE = "ghcr.io/github/github-mcp-server";
@@ -103,19 +104,19 @@ export async function openPr(
   const { owner, repo, head, base, title, body } = o;
   const isErr = (res: unknown) => (res as { isError?: boolean })?.isError === true;
   const create = await c.callTool({
-    name: "create_pull_request",
+    name: GITHUB_TOOL.CREATE_PULL_REQUEST,
     arguments: { owner, repo, head, base, title, body },
   });
   const url = isErr(create) ? undefined : findUrl(toolText(create));
   if (url) return { ok: true, url };
   const list = await c.callTool({
-    name: "list_pull_requests",
+    name: GITHUB_TOOL.LIST_PULL_REQUESTS,
     arguments: { owner, repo, head: `${owner}:${head}`, state: "open", perPage: 1 },
   });
   const existing = isErr(list) ? undefined : findUrl(toolText(list));
   if (existing) return { ok: true, url: existing };
   const why = errText(toolText(create)) || "no PR url";
-  return { ok: false, error: `create_pull_request failed: ${why}` };
+  return { ok: false, error: `${GITHUB_TOOL.CREATE_PULL_REQUEST} failed: ${why}` };
 }
 
 /**

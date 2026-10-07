@@ -2,6 +2,7 @@ import { realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 import { isInside } from "../guardrails/paths";
 import type { GitMcp } from "../mcp/git-mcp";
+import { GIT_TOOL } from "../mcp/mcp-tool-names";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 
@@ -31,8 +32,8 @@ export async function refreshRepo(git: GitMcp, path: string, now = Date.now()): 
   if (last !== undefined && now - last < REFRESH_INTERVAL_MS) return;
   lastRefresh.set(path, now);
   try {
-    await git.call("git_fetch", { path, remote: "origin" });
-    await git.call("git_pull", { path, remote: "origin", fastForwardOnly: true });
+    await git.call(GIT_TOOL.FETCH, { path, remote: "origin" });
+    await git.call(GIT_TOOL.PULL, { path, remote: "origin", fastForwardOnly: true });
   } catch (err) {
     logger
       .child({ module: "refresh-repo" })

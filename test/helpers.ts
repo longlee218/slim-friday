@@ -7,7 +7,10 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { loadConfig } from "../src/config/agent-config";
 import { workspacePaths } from "../src/config/workspace-paths";
+import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { openDb } from "../src/storage/db";
+import { DELEGATE_TASK_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
+import { GLOB_TOOL_NAME, GREP_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 /** Create a fresh temp AGENT_HOME, real config and real SQLite db. */
 export function makeEnv(extra: Record<string, string> = {}) {
@@ -57,7 +60,7 @@ export const initMsg = {
   subtype: "init",
   session_id: "sess-1",
   cwd: "/x",
-  tools: ["Glob", "Grep", "Read"],
+  tools: [GLOB_TOOL_NAME, GREP_TOOL_NAME, READ_TOOL_NAME],
   mcp_servers: [],
   model: "claude-haiku-4-5-20251001",
 } as unknown as SDKMessage;
@@ -134,7 +137,7 @@ export function readLogLines(base: string): Record<string, unknown>[] {
  * Talk to an in-process MCP server of the SDK options the way the SDK would: a real MCP client over an
  * in-memory transport linked to `options.mcpServers[name].instance`. `call` runs one tool.
  */
-export async function connectAppTool(options: any, name = "friday") {
+export async function connectAppTool(options: any, name = TASKS_MCP_SERVER) {
   const server = options.mcpServers[name].instance;
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "1.0.0" });
@@ -150,9 +153,9 @@ export async function connectAppTool(options: any, name = "friday") {
 }
 
 /**
- * Fake SDK for handoff tests: a run that has the `friday` server is the Q&A run; it calls `delegate` once
+ * Fake SDK for handoff tests: a run that has the `tasks` server is the Q&A run; it calls `DelegateTask` once
  * per entry of `calls`, then ends with a result. Every other run (plan / exec stage) goes to `next`.
- * `results` collects what each `delegate` call returned.
+ * `results` collects what each `DelegateTask` call returned.
  */
 export function delegatingQuery(
   calls: Record<string, unknown>[],
@@ -160,12 +163,12 @@ export function delegatingQuery(
   results: { isError?: boolean; text: string }[] = [],
 ) {
   return (a: any) => {
-    if (!a.options?.mcpServers?.friday) return next(a);
+    if (!a.options?.mcpServers?.[TASKS_MCP_SERVER]) return next(a);
     return (async function* () {
       const tool = await connectAppTool(a.options);
       try {
         for (const c of calls) {
-          const r = await tool.call("delegate", { role: "dev", ...c });
+          const r = await tool.call(DELEGATE_TASK_TOOL_NAME, { role: "dev", ...c });
           results.push({ isError: r.isError, text: r.content[0]?.text ?? "" });
         }
       } finally {
@@ -176,6 +179,6 @@ export function delegatingQuery(
   };
 }
 
-/** A valid brief for the `delegate` tool (min 20 chars). */
+/** A valid brief for the `DelegateTask` tool (min 20 chars). */
 export const BRIEF =
   "Add b.txt containing two. Findings: a.txt:1 holds one. Acceptance: file exists.";

@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
+import { mcpToolName, TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { insertTask } from "../src/storage/run-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
-import { DELEGATE } from "../src/tools/tool-catalog";
+import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import {
   addWorkspace,
   BRIEF,
@@ -13,7 +14,7 @@ import {
   stubGateway,
 } from "./helpers";
 
-/** Run one Q&A message whose agent makes the given `delegate` calls; returns what the tool answered + stage runs. */
+/** Run one Q&A message whose agent makes the given `DelegateTask` calls; returns what the tool answered + stage runs. */
 async function delegateRun(
   calls: Record<string, unknown>[],
   o: { managed?: boolean; approvals?: boolean; fullCap?: boolean } = {},
@@ -100,21 +101,29 @@ test("delegate: role other than dev and a too short brief are rejected by the sc
 
 test("delegate: handoff section is in the Q&A prompt when the tool is registered", async () => {
   const { seen } = await delegateRun([]);
-  expect(seen[0].mcpServers.friday).toBeDefined();
-  expect(seen[0].systemPrompt.append).toContain(DELEGATE);
+  expect(seen[0].mcpServers[TASKS_MCP_SERVER]).toBeDefined();
+  expect(seen[0].systemPrompt.append).toContain(DELEGATE_TASK_MCP_TOOL_NAME);
 });
 
 test("delegate: tool is not registered without the approval flow", async () => {
   const { seen, results } = await delegateRun([], { approvals: false });
-  expect(seen[0].mcpServers.friday).toBeUndefined();
-  expect(seen[0].systemPrompt.append).not.toContain(DELEGATE); // no handoff section either
+  expect(seen[0].mcpServers[TASKS_MCP_SERVER]).toBeUndefined();
+  expect(seen[0].systemPrompt.append).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME); // no handoff section either
   expect(results).toHaveLength(0);
 });
 
 test("guard: delegate is allowed in qa only", () => {
   const scope = { readPaths: ["/x"] };
-  expect(checkToolCall(DELEGATE, {}, guardFor("qa", scope)).decision).toBe("allow");
-  expect(checkToolCall(DELEGATE, {}, guardFor("plan", scope)).decision).toBe("deny");
-  expect(checkToolCall(DELEGATE, {}, guardFor("exec", scope)).decision).toBe("deny");
-  expect(checkToolCall("mcp__friday__other", {}, guardFor("qa", scope)).decision).toBe("deny");
+  expect(checkToolCall(DELEGATE_TASK_MCP_TOOL_NAME, {}, guardFor("qa", scope)).decision).toBe(
+    "allow",
+  );
+  expect(checkToolCall(DELEGATE_TASK_MCP_TOOL_NAME, {}, guardFor("plan", scope)).decision).toBe(
+    "deny",
+  );
+  expect(checkToolCall(DELEGATE_TASK_MCP_TOOL_NAME, {}, guardFor("exec", scope)).decision).toBe(
+    "deny",
+  );
+  expect(
+    checkToolCall(mcpToolName(TASKS_MCP_SERVER, "Other"), {}, guardFor("qa", scope)).decision,
+  ).toBe("deny");
 });

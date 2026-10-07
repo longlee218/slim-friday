@@ -7,6 +7,7 @@
  * the git worktree is the real boundary.
  */
 import { basename, isAbsolute, relative } from "node:path";
+import { NOTEBOOK_EDIT_TOOL_NAME } from "../tools/sdk-tool-names";
 import type { Decision } from "./check-tool-call";
 import { isInside, resolveReal } from "./paths";
 
@@ -38,7 +39,7 @@ export function checkFileWrite(
   input: Record<string, unknown>,
   allowedPaths: string[],
 ): Decision {
-  const key = toolName === "NotebookEdit" ? "notebook_path" : "file_path";
+  const key = toolName === NOTEBOOK_EDIT_TOOL_NAME ? "notebook_path" : "file_path";
   const value = input[key];
   if (typeof value !== "string" || value.trim() === "") {
     return { decision: "deny", reason: `${toolName}: missing or invalid ${key}` };

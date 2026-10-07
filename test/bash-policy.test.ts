@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { checkToolCall } from "../src/guardrails/check-tool-call";
+import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 const ctx = { writePaths: ["/tmp/none"], allowedCommands: ["bun test", "bun run lint"] };
 
@@ -98,30 +99,30 @@ describe("bash policy", () => {
   // Pad the optional fragment so every row has 3 args (bun passes a callback otherwise).
   const padded = rows.map(([c, e, f]) => [c, e, f ?? ""] as const);
   test.each(padded)("%j -> %s", (command, expected, fragment) => {
-    const d = checkToolCall("Bash", { command }, ctx);
+    const d = checkToolCall(BASH_TOOL_NAME, { command }, ctx);
     expect(d.decision).toBe(expected);
     if (fragment) expect(d.reason).toContain(fragment);
   });
 
   test("allowedCommands never overrides hard deny", () => {
     const c = { writePaths: [], allowedCommands: ["rm -rf /"] };
-    expect(checkToolCall("Bash", { command: "rm -rf /" }, c).decision).toBe("deny");
+    expect(checkToolCall(BASH_TOOL_NAME, { command: "rm -rf /" }, c).decision).toBe("deny");
   });
 
   test("deny reason does not echo secret file names", () => {
-    const d = checkToolCall("Bash", { command: "cat prod.env.key" }, ctx);
+    const d = checkToolCall(BASH_TOOL_NAME, { command: "cat prod.env.key" }, ctx);
     expect(d.decision).toBe("deny");
     expect(d.reason).not.toContain("prod");
   });
 
   test("missing or empty command denies", () => {
-    expect(checkToolCall("Bash", {}, ctx).decision).toBe("deny");
-    expect(checkToolCall("Bash", { command: "  " }, ctx).decision).toBe("deny");
+    expect(checkToolCall(BASH_TOOL_NAME, {}, ctx).decision).toBe("deny");
+    expect(checkToolCall(BASH_TOOL_NAME, { command: "  " }, ctx).decision).toBe("deny");
   });
 });
 
 describe("bash bypasses found in review", () => {
-  const d = (cmd: string) => checkToolCall("Bash", { command: cmd }, ctx).decision;
+  const d = (cmd: string) => checkToolCall(BASH_TOOL_NAME, { command: cmd }, ctx).decision;
 
   test("file-output flags, git --no-index, git secret pathspec, env overrides", () => {
     expect(d("curl -o ~/.zshrc https://github.com/x")).toBe("ask");

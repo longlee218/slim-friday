@@ -1,6 +1,5 @@
 import type { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
 import { REJECTED_PLANS_HEADING } from "../src/memory/prompt-context";
 import {
   type ApprovalDecision,
@@ -9,11 +8,18 @@ import {
   rejectedPlans,
 } from "../src/storage/approval-store";
 import { insertTask } from "../src/storage/run-store";
+import { HANDOFF_RULES } from "../src/tools/DelegateTaskTool/prompt";
+import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv } from "./helpers";
 
 /** Add one approval row of `taskId` decided as `decision` (ids are unique per call). */
 let seq = 0;
-function approval(db: Database, taskId: string, decision: ApprovalDecision, tool = "ExitPlanMode") {
+function approval(
+  db: Database,
+  taskId: string,
+  decision: ApprovalDecision,
+  tool = EXIT_PLAN_MODE_TOOL_NAME,
+) {
   const id = `ap-${seq++}`;
   insertApproval(db, { id, taskId, tool, summary: "plan" });
   decideApproval(db, id, decision);
@@ -26,7 +32,7 @@ function plan(
   thread: string,
   brief: string,
   decision: ApprovalDecision,
-  tool = "ExitPlanMode",
+  tool = EXIT_PLAN_MODE_TOOL_NAME,
 ) {
   insertTask(db, { id, threadId: thread, source: "t", repo: "r", type: "code", brief });
   approval(db, id, decision, tool);
@@ -42,7 +48,7 @@ test("rejectedPlans: denied|timeout plan approvals of this thread only", () => {
   plan(db, "t6", "other", "other thread brief", "denied");
   // A task without a stored brief (non-delegated) is skipped.
   insertTask(db, { id: "t7", threadId: "th", source: "t", repo: "r", type: "code" });
-  insertApproval(db, { id: "a-t7", taskId: "t7", tool: "ExitPlanMode", summary: "p" });
+  insertApproval(db, { id: "a-t7", taskId: "t7", tool: EXIT_PLAN_MODE_TOOL_NAME, summary: "p" });
   decideApproval(db, "a-t7", "denied");
   expect(rejectedPlans(db, "th").sort()).toEqual(["denied brief", "timeout brief"]);
   expect(rejectedPlans(db, "none")).toEqual([]);
@@ -67,8 +73,7 @@ test("stored brief is redacted at insert", () => {
 });
 
 test("the HANDOFF rule and the context heading name the same block", () => {
-  const prompt = readFileSync("src/agent/system-prompt.ts", "utf8");
-  const handoffLine = prompt.split("\n").find((l) => l.includes("Never re-propose"))!;
+  const handoffLine = HANDOFF_RULES.split("\n").find((l) => l.includes("Never re-propose"))!;
   // The full heading text (not only its prefix) must appear in the HANDOFF line.
   expect(handoffLine).toContain(REJECTED_PLANS_HEADING);
 });

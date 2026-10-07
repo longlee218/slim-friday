@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createGitMcp, gitMcpServerConfig, gitServerEnv } from "../src/mcp/git-mcp";
+import { GIT_TOOL } from "../src/mcp/mcp-tool-names";
 import { makeRepo } from "./git-fixture";
 
 test("server env: identity as author AND committer, sandbox dir, no signing, no prompts", () => {
@@ -22,11 +23,11 @@ test("server env: identity as author AND committer, sandbox dir, no signing, no 
 test("real server: a failing tool throws a short message; the client restarts cleanly", async () => {
   const git = createGitMcp();
   const r = await makeRepo("main");
-  expect((await git.call("git_branch", { path: r.repo, mode: "show-current" })).currentBranch).toBe(
-    "main",
-  );
-  await expect(git.call("git_status", { path: r.root })).rejects.toThrow(/git_status failed/); // not a repo
+  expect(
+    (await git.call(GIT_TOOL.BRANCH, { path: r.repo, mode: "show-current" })).currentBranch,
+  ).toBe("main");
+  await expect(git.call(GIT_TOOL.STATUS, { path: r.root })).rejects.toThrow(/git_status failed/); // not a repo
   await git.close();
-  expect((await git.call("git_status", { path: r.repo })).currentBranch).toBe("main"); // reconnects
+  expect((await git.call(GIT_TOOL.STATUS, { path: r.repo })).currentBranch).toBe("main"); // reconnects
   await git.close();
 });

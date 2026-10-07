@@ -6,8 +6,27 @@
  * The git worktree is the real security boundary; this layer reduces risk.
  */
 import {
+  GIT_MCP_SERVER,
+  GIT_TOOL,
+  GITHUB_MCP_SERVER,
+  MCP_PREFIX,
+  mcpServerPrefix,
+} from "../mcp/mcp-tool-names";
+import { DELEGATE_TASK_MCP_TOOL_NAME } from "../tools/DelegateTaskTool/constants";
+import {
+  AGENT_TOOL_NAME,
+  BASH_TOOL_NAME,
+  EDIT_TOOL_NAME,
+  GLOB_TOOL_NAME,
+  GREP_TOOL_NAME,
+  LEGACY_AGENT_TOOL_NAME,
+  MULTI_EDIT_TOOL_NAME,
+  NOTEBOOK_EDIT_TOOL_NAME,
+  READ_TOOL_NAME,
+  WRITE_TOOL_NAME,
+} from "../tools/sdk-tool-names";
+import {
   autoAllowedTools,
-  DELEGATE,
   GIT_GROUPS,
   GIT_READ_BY_MODE,
   PLAN_FLOW_TOOLS,
@@ -50,8 +69,13 @@ export function guardFor(mode: ToolMode, scope: GuardScope): GuardrailContext {
   return { ...scope, allowTools: autoAllowedTools(mode), allowedSubagents: SUBAGENT_NAMES };
 }
 
-const WRITE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
-const READ_TOOLS = new Set(["Read", "Glob", "Grep"]);
+const WRITE_TOOLS = new Set([
+  WRITE_TOOL_NAME,
+  EDIT_TOOL_NAME,
+  MULTI_EDIT_TOOL_NAME,
+  NOTEBOOK_EDIT_TOOL_NAME,
+]);
+const READ_TOOLS = new Set([READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME]);
 
 /** Attribution lines that must never appear in a commit message (AI co-author / generated-with trailers). */
 export const hasAttribution = (text: string): boolean =>
@@ -87,8 +111,8 @@ function checkGitMcp(
   }
   if (!isWorktree)
     return { decision: "deny", reason: "git changes are only allowed in the task worktree" };
-  if (name === "git_add") return { decision: "allow", reason: "git tool in worktree" };
-  if (name === "git_commit") {
+  if (name === GIT_TOOL.ADD) return { decision: "allow", reason: "git tool in worktree" };
+  if (name === GIT_TOOL.COMMIT) {
     // Identity comes from the server's env: the agent may not pick an author, amend, or skip hooks.
     if (input.author !== undefined || input.amend || input.noVerify) {
       return {
@@ -105,10 +129,10 @@ function checkGitMcp(
     }
     return { decision: "allow", reason: "git commit in worktree" };
   }
-  if (name === "git_checkout")
-    return { decision: "ask", reason: "git_checkout changes branch or files" };
-  if (name === "git_reset" && mode !== "hard")
-    return { decision: "ask", reason: "git_reset changes the index/history" };
+  if (name === GIT_TOOL.CHECKOUT)
+    return { decision: "ask", reason: `${name} changes branch or files` };
+  if (name === GIT_TOOL.RESET && mode !== "hard")
+    return { decision: "ask", reason: `${name} changes the index/history` };
   return { decision: "deny", reason: `${name} is not available to agents (the app handles it)` };
 }
 
@@ -120,26 +144,26 @@ export function checkToolCall(
 ): Decision {
   if (WRITE_TOOLS.has(toolName)) return checkFileWrite(toolName, input, ctx.writePaths ?? []);
   if (READ_TOOLS.has(toolName)) return checkFileRead(toolName, input, ctx.readPaths);
-  if (toolName === "Bash") {
+  if (toolName === BASH_TOOL_NAME) {
     const command = input.command;
     if (typeof command !== "string" || command.trim() === "") {
       return { decision: "deny", reason: "Bash: missing or invalid command" };
     }
     return checkBash(command, ctx);
   }
-  if (toolName.startsWith("mcp__git__")) {
-    return checkGitMcp(toolName.slice("mcp__git__".length), input, ctx);
+  if (toolName.startsWith(mcpServerPrefix(GIT_MCP_SERVER))) {
+    return checkGitMcp(toolName.slice(mcpServerPrefix(GIT_MCP_SERVER).length), input, ctx);
   }
   // GitHub MCP is started read-only for agents (the app creates PRs itself): every tool it has is a read.
-  if (toolName.startsWith("mcp__github__"))
+  if (toolName.startsWith(mcpServerPrefix(GITHUB_MCP_SERVER)))
     return { decision: "allow", reason: "github read tool" };
   // The Q&A agent's handoff tool: only modes that list it (qa) may call it; plan/exec never recurse.
-  if (toolName === DELEGATE)
-    return ctx.allowTools?.includes(DELEGATE)
-      ? { decision: "allow", reason: "delegate tool (qa)" }
-      : { decision: "deny", reason: "delegate is only available in Q&A" };
-  if (toolName.startsWith("mcp__")) return { decision: "deny", reason: "unknown MCP tool" };
-  if (toolName === "Agent" || toolName === "Task") {
+  if (toolName === DELEGATE_TASK_MCP_TOOL_NAME)
+    return ctx.allowTools?.includes(DELEGATE_TASK_MCP_TOOL_NAME)
+      ? { decision: "allow", reason: "DelegateTask tool (qa)" }
+      : { decision: "deny", reason: "DelegateTask is only available in Q&A" };
+  if (toolName.startsWith(MCP_PREFIX)) return { decision: "deny", reason: "unknown MCP tool" };
+  if (toolName === AGENT_TOOL_NAME || toolName === LEGACY_AGENT_TOOL_NAME) {
     const type = input.subagent_type;
     const ok = typeof type === "string" && ctx.allowedSubagents?.includes(type);
     return ok

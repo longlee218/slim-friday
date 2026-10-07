@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { createTaskHandler } from "../src/tasks/handle-task";
+import { BASH_TOOL_NAME, EDIT_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv } from "./helpers";
 
 // Live test: needs a real OPENROUTER_API_KEY (bun auto-loads .env; a placeholder counts as missing).
@@ -50,7 +51,9 @@ describe.skipIf(!live)("live agent smoke (OpenRouter)", () => {
     expect(row?.outcome).toBe("success");
     expect(reply.length).toBeGreaterThan(0);
     expect(inits.length).toBeGreaterThan(0);
-    expect(inits[0]!.tools.some((t) => ["Bash", "Write", "Edit"].includes(t))).toBe(false);
+    expect(
+      inits[0]!.tools.some((t) => [BASH_TOOL_NAME, WRITE_TOOL_NAME, EDIT_TOOL_NAME].includes(t)),
+    ).toBe(false);
     expect(env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM runs").get()!.n).toBe(1);
     expect(
       env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM tool_calls").get()!.n,

@@ -10,7 +10,7 @@ export type TaskCommand =
   /** `cleanup:` removes this thread's worktree; `cleanup:<task-id>` a specific one. */
   | { kind: "cleanup"; taskId?: string }
   /**
-   * Every plain message is Q&A (the agent hands code changes over with its `delegate` tool). `code` is
+   * Every plain message is Q&A (the agent hands code changes over with its `DelegateTask` tool). `code` is
    * never parsed: only a Resume of an interrupted plan stage builds it. `repo:<name>` is an optional hint.
    */
   | { kind: "code" | "qa"; repo?: string; text: string };

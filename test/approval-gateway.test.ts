@@ -3,6 +3,7 @@ import type { Client, Interaction } from "discord.js";
 import { createDiscordApprovalGateway } from "../src/approvals/discord-approval";
 import { openDb } from "../src/storage/db";
 import { insertTask } from "../src/storage/run-store";
+import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 const OWNER = "owner1";
 const FAKE_TOKEN = "sk-ant-abcdefghijklmnop1234";
@@ -50,7 +51,7 @@ function setup(timeoutMs = 5000, sendable = true) {
   return { gw, sent, edits, db, ids, click, row, tick };
 }
 
-const req = { taskId: "t1", threadId: "th", tool: "Bash", summary: "run ls" };
+const req = { taskId: "t1", threadId: "th", tool: BASH_TOOL_NAME, summary: "run ls" };
 
 describe("discord approval gateway", () => {
   test("approve resolves, persists, task waiting then running", async () => {
@@ -67,7 +68,7 @@ describe("discord approval gateway", () => {
     expect(s.row("SELECT status FROM tasks").status).toBe("running");
     const a = s.row("SELECT * FROM approvals");
     expect(a.decision).toBe("approved");
-    expect(a.tool).toBe("Bash");
+    expect(a.tool).toBe(BASH_TOOL_NAME);
     expect(a.decided_at).not.toBeNull();
   });
 

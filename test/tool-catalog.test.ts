@@ -1,8 +1,29 @@
 import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
+import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
+import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
+import {
+  AGENT_TOOL_NAME,
+  ASK_USER_QUESTION_TOOL_NAME,
+  BASH_TOOL_NAME,
+  EDIT_TOOL_NAME,
+  ENTER_PLAN_MODE_TOOL_NAME,
+  EXIT_PLAN_MODE_TOOL_NAME,
+  GLOB_TOOL_NAME,
+  GREP_TOOL_NAME,
+  READ_TOOL_NAME,
+  SKILL_TOOL_NAME,
+  TASK_CREATE_TOOL_NAME,
+  TASK_LIST_TOOL_NAME,
+  TASK_UPDATE_TOOL_NAME,
+  TODO_WRITE_TOOL_NAME,
+  TOOL_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME,
+  WRITE_TOOL_NAME,
+} from "../src/tools/sdk-tool-names";
 import {
   autoAllowedTools,
-  DELEGATE,
   GIT_GROUPS,
   GIT_READ_BY_MODE,
   gitToolsFor,
@@ -18,29 +39,53 @@ const MODES: ToolMode[] = ["qa", "plan", "exec"];
 
 test("Q&A: read + web + skills + subagents; nothing that writes or runs commands", () => {
   const t = toolsFor("qa");
-  for (const x of ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Skill", "Agent"])
+  for (const x of [
+    READ_TOOL_NAME,
+    GLOB_TOOL_NAME,
+    GREP_TOOL_NAME,
+    WEB_SEARCH_TOOL_NAME,
+    WEB_FETCH_TOOL_NAME,
+    SKILL_TOOL_NAME,
+    AGENT_TOOL_NAME,
+  ])
     expect(t).toContain(x);
-  for (const x of ["Write", "Edit", "Bash", "AskUserQuestion", "ExitPlanMode"])
+  for (const x of [
+    WRITE_TOOL_NAME,
+    EDIT_TOOL_NAME,
+    BASH_TOOL_NAME,
+    ASK_USER_QUESTION_TOOL_NAME,
+    EXIT_PLAN_MODE_TOOL_NAME,
+  ])
     expect(t).not.toContain(x);
 });
 
 test("code tasks: plan and exec share one full toolset", () => {
   expect(toolsFor("plan")).toEqual(toolsFor("exec"));
   for (const x of [
-    ...["Read", "Glob", "Grep", "Write", "Edit", "Bash", "Skill", "Agent", "AskUserQuestion"],
     ...[
-      "TodoWrite",
-      "TaskCreate",
-      "TaskUpdate",
-      "TaskList",
-      "ExitPlanMode",
-      "EnterPlanMode",
-      "ToolSearch",
+      READ_TOOL_NAME,
+      GLOB_TOOL_NAME,
+      GREP_TOOL_NAME,
+      WRITE_TOOL_NAME,
+      EDIT_TOOL_NAME,
+      BASH_TOOL_NAME,
+      SKILL_TOOL_NAME,
+      AGENT_TOOL_NAME,
+      ASK_USER_QUESTION_TOOL_NAME,
+    ],
+    ...[
+      TODO_WRITE_TOOL_NAME,
+      TASK_CREATE_TOOL_NAME,
+      TASK_UPDATE_TOOL_NAME,
+      TASK_LIST_TOOL_NAME,
+      EXIT_PLAN_MODE_TOOL_NAME,
+      ENTER_PLAN_MODE_TOOL_NAME,
+      TOOL_SEARCH_TOOL_NAME,
     ],
   ]) {
     expect(toolsFor("exec")).toContain(x);
   }
-  expect(toolsFor("exec")).not.toContain("WebFetch"); // web stays Q&A-only
+  expect(toolsFor("exec")).not.toContain(WEB_FETCH_TOOL_NAME); // web stays Q&A-only
 });
 
 test("no tool is listed twice", () => {
@@ -49,17 +94,30 @@ test("no tool is listed twice", () => {
 
 test("auto-allowed tools are a subset of the mode's tools and never include writes, shell or questions", () => {
   for (const m of MODES) {
-    // `delegate` is an MCP tool (not in the built-in `tools` list) allowed in qa only.
-    for (const t of autoAllowedTools(m).filter((x) => x !== DELEGATE))
+    // `DelegateTask` is an MCP tool (not in the built-in `tools` list) allowed in qa only.
+    for (const t of autoAllowedTools(m).filter((x) => x !== DELEGATE_TASK_MCP_TOOL_NAME))
       expect(toolsFor(m)).toContain(t);
-    for (const t of ["Write", "Edit", "Bash", "AskUserQuestion", "ExitPlanMode", "Agent", "Read"]) {
+    for (const t of [
+      WRITE_TOOL_NAME,
+      EDIT_TOOL_NAME,
+      BASH_TOOL_NAME,
+      ASK_USER_QUESTION_TOOL_NAME,
+      EXIT_PLAN_MODE_TOOL_NAME,
+      AGENT_TOOL_NAME,
+      READ_TOOL_NAME,
+    ]) {
       expect(autoAllowedTools(m)).not.toContain(t);
     }
   }
-  expect(autoAllowedTools("qa")).toEqual(["WebSearch", "WebFetch", "Skill", DELEGATE]);
-  expect(autoAllowedTools("plan")).not.toContain(DELEGATE);
-  expect(autoAllowedTools("exec")).not.toContain(DELEGATE);
-  expect(autoAllowedTools("exec")).toContain("EnterPlanMode");
+  expect(autoAllowedTools("qa")).toEqual([
+    WEB_SEARCH_TOOL_NAME,
+    WEB_FETCH_TOOL_NAME,
+    SKILL_TOOL_NAME,
+    DELEGATE_TASK_MCP_TOOL_NAME,
+  ]);
+  expect(autoAllowedTools("plan")).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
+  expect(autoAllowedTools("exec")).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
+  expect(autoAllowedTools("exec")).toContain(ENTER_PLAN_MODE_TOOL_NAME);
 });
 
 test("git tools: reads everywhere, commit/change only in exec, hidden = the complement", () => {
@@ -72,22 +130,22 @@ test("git tools: reads everywhere, commit/change only in exec, hidden = the comp
   }
   for (const m of MODES) {
     const hidden = hiddenGitTools(m);
-    for (const t of gitToolsFor(m)) expect(hidden).not.toContain(`mcp__git__${t}`);
+    for (const t of gitToolsFor(m)) expect(hidden).not.toContain(mcpToolName(GIT_MCP_SERVER, t));
     for (const t of [
-      "git_push",
-      "git_pull",
-      "git_fetch",
-      "git_worktree",
-      "git_clone",
-      "git_clean",
-      "git_merge",
-      "git_rebase",
+      GIT_TOOL.PUSH,
+      GIT_TOOL.PULL,
+      GIT_TOOL.FETCH,
+      GIT_TOOL.WORKTREE,
+      GIT_TOOL.CLONE,
+      GIT_TOOL.CLEAN,
+      GIT_TOOL.MERGE,
+      GIT_TOOL.REBASE,
     ]) {
-      expect(hidden).toContain(`mcp__git__${t}`); // the app's tools: never offered to agents
+      expect(hidden).toContain(mcpToolName(GIT_MCP_SERVER, t)); // the app's tools: never offered to agents
     }
   }
-  expect(hiddenGitTools("qa")).toContain("mcp__git__git_commit");
-  expect(hiddenGitTools("exec")).not.toContain("mcp__git__git_commit");
+  expect(hiddenGitTools("qa")).toContain(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.COMMIT));
+  expect(hiddenGitTools("exec")).not.toContain(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.COMMIT));
 });
 
 test("guardFor: one builder per mode, auto-allowed tools and subagents from the catalog", () => {
@@ -112,7 +170,15 @@ test("guardFor: one builder per mode, auto-allowed tools and subagents from the 
 
 test("options: tools from the catalog, no allowedTools, strict MCP", () => {
   const o = toolOptions("qa") as Record<string, unknown>;
-  expect(o.tools).toEqual(["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Skill", "Agent"]);
+  expect(o.tools).toEqual([
+    READ_TOOL_NAME,
+    GLOB_TOOL_NAME,
+    GREP_TOOL_NAME,
+    WEB_SEARCH_TOOL_NAME,
+    WEB_FETCH_TOOL_NAME,
+    SKILL_TOOL_NAME,
+    AGENT_TOOL_NAME,
+  ]);
   expect("allowedTools" in o).toBe(false); // would bypass canUseTool
   expect(o.strictMcpConfig).toBe(true);
 });
@@ -120,7 +186,9 @@ test("options: tools from the catalog, no allowedTools, strict MCP", () => {
 test("disallowedTools only carries what `tools` cannot express: secret-file rules and other modes' git tools", () => {
   for (const mode of ["qa", "plan", "exec"] as const) {
     for (const d of toolOptions(mode).disallowedTools) {
-      expect(SECRET_FILE_RULES.includes(d) || d.startsWith("mcp__git__")).toBe(true);
+      expect(SECRET_FILE_RULES.includes(d) || d.startsWith(mcpServerPrefix(GIT_MCP_SERVER))).toBe(
+        true,
+      );
     }
   }
 });
@@ -128,11 +196,11 @@ test("disallowedTools only carries what `tools` cannot express: secret-file rule
 test("secret-file deny rules are part of disallowedTools", () => {
   const d = toolOptions("qa").disallowedTools;
   for (const r of [
-    "Read(**/.env*)",
-    "Read(**/*.pem)",
-    "Read(**/*.key)",
-    "Read(**/id_rsa*)",
-    "Read(**/credentials*)",
+    `${READ_TOOL_NAME}(**/.env*)`,
+    `${READ_TOOL_NAME}(**/*.pem)`,
+    `${READ_TOOL_NAME}(**/*.key)`,
+    `${READ_TOOL_NAME}(**/id_rsa*)`,
+    `${READ_TOOL_NAME}(**/credentials*)`,
   ]) {
     expect(SECRET_FILE_RULES).toContain(r);
     expect(d).toContain(r);

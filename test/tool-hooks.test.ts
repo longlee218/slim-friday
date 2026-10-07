@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { RunRecorder } from "../src/observability/record-run";
 import { buildToolHooks } from "../src/observability/tool-hooks";
+import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv } from "./helpers";
 
 /** Invoke the PostToolUse hook with a given tool input. */
@@ -15,7 +16,7 @@ async function post(
     {
       hook_event_name: "PostToolUse",
       tool_use_id: "u1",
-      tool_name: "Read",
+      tool_name: READ_TOOL_NAME,
       tool_input: input,
       tool_response: "ok",
       duration_ms: 3,

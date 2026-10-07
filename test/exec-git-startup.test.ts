@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { runAgent } from "../src/agent/run-agent";
+import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { parseAuthor } from "../src/repos/repo-registry";
 import { makeEnv, resultMsg } from "./helpers";
 
@@ -12,7 +13,7 @@ async function runExec(status: string) {
         type: "system",
         subtype: "init",
         session_id: "s1",
-        mcp_servers: [{ name: "git", status }],
+        mcp_servers: [{ name: GIT_MCP_SERVER, status }],
       } as never;
       // A real SDK would keep going; the fake only gets here if the run was not aborted.
       if (!a.options.abortController.signal.aborted) yield resultMsg({ result: "done" });

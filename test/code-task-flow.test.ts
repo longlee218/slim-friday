@@ -2,12 +2,14 @@ import { afterAll, expect, test } from "bun:test";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
+import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { insertTask } from "../src/storage/run-store";
 import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { runHandoff } from "../src/tasks/code-handoff";
 import { createTaskHandler } from "../src/tasks/handle-task";
+import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 /** The real git MCP server (pinned package), shared by the tests of this file. */
 const git = createGitMcp();
@@ -70,7 +72,11 @@ function fakeSdk(
     const o = a.options;
     return (async function* () {
       if (o.permissionMode === "plan") {
-        const r = await o.canUseTool("ExitPlanMode", { plan: "repo: real\nadd b.txt" }, {});
+        const r = await o.canUseTool(
+          EXIT_PLAN_MODE_TOOL_NAME,
+          { plan: "repo: real\nadd b.txt" },
+          {},
+        );
         if (r.behavior === "allow") throw new Error("process aborted"); // flow aborts the plan stage
         yield resultMsg({ result: "plan rejected" });
         return;
@@ -83,7 +89,7 @@ function fakeSdk(
   };
 }
 
-/** The Q&A agent delegates `BRIEF` (one `delegate` call); the plan / exec stages run `fake`. */
+/** The Q&A agent delegates `BRIEF` (one `DelegateTask` call); the plan / exec stages run `fake`. */
 const delegating = (fake: (a: any) => any, results: { isError?: boolean; text: string }[] = []) =>
   delegatingQuery([{ brief: BRIEF }], fake, results) as never;
 
@@ -390,10 +396,10 @@ test("rejected plan: the next Q&A run in the thread sees the brief; another thre
   });
   const prompts: Record<string, string> = {};
   let delegates = true;
-  // Q&A run (has the friday server): delegate on the first call only, then capture the system prompt.
+  // Q&A run (has the tasks server): delegate on the first call only, then capture the system prompt.
   const query = (a: any) => {
     const o = a.options;
-    if (!o.mcpServers?.friday) return fakeSdk([])(a);
+    if (!o.mcpServers?.[TASKS_MCP_SERVER]) return fakeSdk([])(a);
     prompts[a.prompt] = o.systemPrompt.append;
     if (delegates) {
       delegates = false;

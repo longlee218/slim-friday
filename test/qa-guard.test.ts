@@ -3,7 +3,19 @@ import { realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { checkToolCall } from "../src/guardrails/check-tool-call";
+import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { createTaskHandler } from "../src/tasks/handle-task";
+import {
+  AGENT_TOOL_NAME,
+  BASH_TOOL_NAME,
+  EXIT_PLAN_MODE_TOOL_NAME,
+  GREP_TOOL_NAME,
+  LEGACY_AGENT_TOOL_NAME,
+  READ_TOOL_NAME,
+  SKILL_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WRITE_TOOL_NAME,
+} from "../src/tools/sdk-tool-names";
 import { SUBAGENT_NAMES } from "../src/tools/tool-catalog";
 import { addWorkspace, makeEnv, resultMsg } from "./helpers";
 
@@ -31,40 +43,50 @@ test("Q&A reads only the registered repos: outside paths, home dotfiles and othe
   const { env, opts } = await qaOptions();
   const repo = realpathSync(env.repo);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
-  expect((await can("Read", { file_path: join(repo, "a.txt") }, {})).behavior).toBe("allow");
-  expect((await can("Read", { file_path: "/etc/hosts" }, {})).behavior).toBe("deny");
-  expect((await can("Grep", { pattern: "x", path: "/Users" }, {})).behavior).toBe("deny");
-  // Web + skills are allowed in Q&A; writes and Bash are not even offered (and denied if asked).
-  expect((await can("WebFetch", { url: "https://example.com" }, {})).behavior).toBe("allow");
-  expect((await can("Skill", { skill: "x" }, {})).behavior).toBe("allow");
-  expect((await can("Bash", { command: "ls" }, {})).behavior).toBe("deny");
-  expect((await can("Write", { file_path: join(repo, "z"), content: "" }, {})).behavior).toBe(
-    "deny",
+  expect((await can(READ_TOOL_NAME, { file_path: join(repo, "a.txt") }, {})).behavior).toBe(
+    "allow",
   );
+  expect((await can(READ_TOOL_NAME, { file_path: "/etc/hosts" }, {})).behavior).toBe("deny");
+  expect((await can(GREP_TOOL_NAME, { pattern: "x", path: "/Users" }, {})).behavior).toBe("deny");
+  // Web + skills are allowed in Q&A; writes and Bash are not even offered (and denied if asked).
+  expect((await can(WEB_FETCH_TOOL_NAME, { url: "https://example.com" }, {})).behavior).toBe(
+    "allow",
+  );
+  expect((await can(SKILL_TOOL_NAME, { skill: "x" }, {})).behavior).toBe("allow");
+  expect((await can(BASH_TOOL_NAME, { command: "ls" }, {})).behavior).toBe("deny");
+  expect(
+    (await can(WRITE_TOOL_NAME, { file_path: join(repo, "z"), content: "" }, {})).behavior,
+  ).toBe("deny");
   // No gateway in Q&A: plan/question tools are unavailable.
-  expect((await can("ExitPlanMode", { plan: "x" }, {})).behavior).toBe("deny");
+  expect((await can(EXIT_PLAN_MODE_TOOL_NAME, { plan: "x" }, {})).behavior).toBe("deny");
 });
 
 test("Q&A git MCP: reads on registered repos only, never writes", async () => {
   const { env, opts } = await qaOptions();
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
   const repo = realpathSync(env.repo);
-  expect((await can("mcp__git__git_log", { path: repo }, {})).behavior).toBe("allow");
-  expect((await can("mcp__git__git_log", { path: "/Users" }, {})).behavior).toBe("deny");
-  expect((await can("mcp__git__git_commit", { path: repo, message: "x" }, {})).behavior).toBe(
-    "deny",
+  expect((await can(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.LOG), { path: repo }, {})).behavior).toBe(
+    "allow",
   );
-  expect((await can("mcp__git__git_checkout", { path: repo, target: "x" }, {})).behavior).toBe(
-    "deny",
-  );
+  expect(
+    (await can(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.LOG), { path: "/Users" }, {})).behavior,
+  ).toBe("deny");
+  expect(
+    (await can(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.COMMIT), { path: repo, message: "x" }, {}))
+      .behavior,
+  ).toBe("deny");
+  expect(
+    (await can(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.CHECKOUT), { path: repo, target: "x" }, {}))
+      .behavior,
+  ).toBe("deny");
 });
 
 test("Agent tool: only configured subagents; general-purpose (Bash/Write capable) is denied", () => {
   const ctx = { writePaths: [], allowedSubagents: SUBAGENT_NAMES };
-  const d = (input: Record<string, unknown>, tool = "Agent") =>
+  const d = (input: Record<string, unknown>, tool = AGENT_TOOL_NAME) =>
     checkToolCall(tool, input, ctx).decision;
   expect(d({ subagent_type: "repo-searcher", prompt: "p" })).toBe("allow");
-  expect(d({ subagent_type: "repo-searcher", prompt: "p" }, "Task")).toBe("allow");
+  expect(d({ subagent_type: "repo-searcher", prompt: "p" }, LEGACY_AGENT_TOOL_NAME)).toBe("allow");
   expect(d({ subagent_type: "general-purpose", prompt: "p" })).toBe("deny");
   expect(d({ prompt: "p" })).toBe("deny");
 });

@@ -4,7 +4,7 @@ import { excerpt, logEvent, logger } from "../observability/logger";
 import { redactText } from "../observability/redact";
 import { finishTask, setTaskStatus, type TaskStatus } from "../storage/run-store";
 import { setSession } from "../storage/session-store";
-import type { Proposal } from "../tools/delegate-tool";
+import type { Proposal } from "../tools/DelegateTaskTool/delegate-task-tool";
 
 /* The result of a Q&A or code flow, and the bookkeeping that closes a run. */
 
@@ -14,7 +14,7 @@ export interface FlowResult
   /** cwd + repo of the session to save (resume needs the same cwd), when a session should be stored. */
   cwd?: string;
   repo?: string;
-  /** Q&A only: the agent called `delegate`; the handler starts the plan stage after the run. */
+  /** Q&A only: the agent called `DelegateTask`; the handler starts the plan stage after the run. */
   proposal?: Proposal;
 }
 

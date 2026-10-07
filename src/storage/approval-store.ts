@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../observability/redact";
+import { EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
 
 /** Rejected plans recalled per thread. */
 const REJECTED_PLANS_LIMIT = 5;
@@ -41,15 +42,15 @@ export function decideApproval(db: Database, id: string, decision: ApprovalDecis
  */
 export function rejectedPlans(db: Database, threadId: string): string[] {
   return db
-    .query<{ brief: string }, [string, number]>(
+    .query<{ brief: string }, [string, string, string, number]>(
       `SELECT t.brief AS brief FROM tasks t JOIN approvals a ON a.task_id = t.id
-       WHERE t.thread_id = ? AND t.brief IS NOT NULL AND a.tool = 'ExitPlanMode'
+       WHERE t.thread_id = ? AND t.brief IS NOT NULL AND a.tool = ?
          AND NOT EXISTS (SELECT 1 FROM approvals ok WHERE ok.task_id = t.id
-                         AND ok.tool = 'ExitPlanMode' AND ok.decision = 'approved')
+                         AND ok.tool = ? AND ok.decision = 'approved')
        GROUP BY t.id
        HAVING SUM(a.decision IN ('denied', 'timeout')) > 0
        ORDER BY MAX(a.requested_at) DESC, MAX(a.rowid) DESC LIMIT ?`,
     )
-    .all(threadId, REJECTED_PLANS_LIMIT)
+    .all(threadId, EXIT_PLAN_MODE_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME, REJECTED_PLANS_LIMIT)
     .map((r) => clip(redactText(r.brief).replace(/\s+/g, " ").trim(), REJECTED_BRIEF_MAX));
 }

@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import type { GitMcp } from "../mcp/git-mcp";
+import { GIT_TOOL } from "../mcp/mcp-tool-names";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import type { Repo } from "../repos/repo-registry";
@@ -29,9 +30,9 @@ export async function createTaskWorktree(
 ): Promise<void> {
   mkdirSync(dirname(o.worktreePath), { recursive: true });
   // Fetch first so the branch starts from the latest remote base (a repo without a remote is fine).
-  await git.call("git_fetch", { path: o.repoPath, remote: "origin" }).catch(() => undefined);
+  await git.call(GIT_TOOL.FETCH, { path: o.repoPath, remote: "origin" }).catch(() => undefined);
   const add = (commitish: string) =>
-    git.call("git_worktree", {
+    git.call(GIT_TOOL.WORKTREE, {
       path: o.repoPath,
       mode: "add",
       worktreePath: o.worktreePath,
@@ -47,10 +48,20 @@ export async function removeTaskWorktree(
   wt: { repoPath: string; path: string; branch: string; repo?: string },
 ): Promise<void> {
   await git
-    .call("git_worktree", { path: wt.repoPath, mode: "remove", worktreePath: wt.path, force: true })
+    .call(GIT_TOOL.WORKTREE, {
+      path: wt.repoPath,
+      mode: "remove",
+      worktreePath: wt.path,
+      force: true,
+    })
     .catch(() => undefined);
   await git
-    .call("git_branch", { path: wt.repoPath, mode: "delete", branchName: wt.branch, force: true })
+    .call(GIT_TOOL.BRANCH, {
+      path: wt.repoPath,
+      mode: "delete",
+      branchName: wt.branch,
+      force: true,
+    })
     .catch(() => undefined);
   logEvent(log, "worktree.removed", { repo: wt.repo, branch: wt.branch });
 }

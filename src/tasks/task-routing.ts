@@ -103,7 +103,7 @@ function capRefusal(db: Database): Refusal | undefined {
 }
 
 /**
- * Can a new code task start now? Shared by routing, the `delegate` tool and the handoff (one rule).
+ * Can a new code task start now? Shared by routing, the `DelegateTask` tool and the handoff (one rule).
  * `repoName` picks one repo (unknown name -> refusal); else every managed clone is a candidate.
  * Worktrees branch off managed clones only, never a developer's working copy.
  */

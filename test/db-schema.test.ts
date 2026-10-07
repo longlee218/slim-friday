@@ -12,6 +12,7 @@ import {
   interruptRunningTasks,
   setTaskStatus,
 } from "../src/storage/run-store";
+import { BASH_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv } from "./helpers";
 
 test("schema has 4 tables and WAL mode", () => {
@@ -47,7 +48,7 @@ test("task/run/tool_call helpers insert rows", () => {
   insertToolCall(db, {
     id: "c",
     runId: "r",
-    tool: "Read",
+    tool: READ_TOOL_NAME,
     inputJson: "{}",
     outputPreview: "x",
     isError: false,
@@ -63,7 +64,8 @@ test("restart cleanup: waiting_approval tasks become interrupted, pending approv
   insertTask(db, { id: "t1", threadId: "th", source: "d", repo: "r", type: "code" });
   setTaskStatus(db, "t1", "waiting_approval");
   db.run(
-    "INSERT INTO approvals (id, task_id, tool, summary, decision, requested_at) VALUES ('a','t1','Bash','s','pending',1)",
+    "INSERT INTO approvals (id, task_id, tool, summary, decision, requested_at) VALUES ('a','t1',?,'s','pending',1)",
+    [BASH_TOOL_NAME],
   );
   interruptRunningTasks(db);
   expect(db.query<{ status: string }, []>("SELECT status FROM tasks").get()?.status).toBe(

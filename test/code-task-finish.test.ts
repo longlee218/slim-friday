@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { join } from "node:path";
 import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { createGitMcp } from "../src/mcp/git-mcp";
+import { GIT_TOOL } from "../src/mcp/mcp-tool-names";
 import { openDb } from "../src/storage/db";
 import { insertWorktree, type WorktreeRow } from "../src/storage/worktree-store";
 import { finishCodeTask } from "../src/tasks/code-task-finish";
@@ -18,7 +19,7 @@ const me = { name: "Test User", email: "t@t.t" }; // makeRepo commits as t@t.t
 async function setup(branch = "agent/x") {
   const r = await makeRepo("main", true);
   const wt = join(r.root, "wt");
-  await git.call("git_worktree", {
+  await git.call(GIT_TOOL.WORKTREE, {
     path: r.repo,
     mode: "add",
     worktreePath: wt,

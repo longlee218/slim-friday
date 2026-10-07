@@ -1,18 +1,23 @@
 import type { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { type QueryFn, runAgent } from "../agent/run-agent";
 import type { AgentConfig } from "../config/agent-config";
 import { guardFor } from "../guardrails/check-tool-call";
 import { realOrSame } from "../guardrails/paths";
 import type { GitMcp } from "../mcp/git-mcp";
+import { TASKS_MCP_SERVER } from "../mcp/mcp-tool-names";
 import { buildPromptContext } from "../memory/prompt-context";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { isManagedClone, refreshRepo } from "../repos/refresh-repo";
 import { buildRegistryContext, type Repo } from "../repos/repo-registry";
 import { rejectedPlans } from "../storage/approval-store";
 import type { SessionRow } from "../storage/session-store";
-import { createDelegateServer, type Proposal } from "../tools/delegate-tool";
+import {
+  createDelegateTaskTool,
+  type Proposal,
+} from "../tools/DelegateTaskTool/delegate-task-tool";
 import { delegateCheck } from "./code-handoff";
 import type { FlowResult } from "./task-result";
 
@@ -40,7 +45,7 @@ export interface QaFlowInput {
   /** Stored session of the thread, to resume when the cwd still matches. */
   existing: SessionRow | null;
   ac: AbortController;
-  /** Give the agent the `delegate` tool (needs the approval flow: the plan stage asks the owner). */
+  /** Give the agent the `DelegateTask` tool (needs the approval flow: the plan stage asks the owner). */
   allowDelegate?: boolean;
 }
 
@@ -69,12 +74,17 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
   // The tool only records the proposal; the handler starts the plan stage once this run has ended.
   let proposal: Proposal | undefined;
   const appServer = i.allowDelegate
-    ? createDelegateServer({
-        check: delegateCheck({ db: deps.db, agentHome: config.agentHome, repos, pinned }),
-        onPropose: (p) => {
-          proposal = p;
-          logEvent(log, "handoff.proposed", { repo: p.repo ?? null, brief: excerpt(p.brief) });
-        },
+    ? createSdkMcpServer({
+        name: TASKS_MCP_SERVER,
+        tools: [
+          createDelegateTaskTool({
+            check: delegateCheck({ db: deps.db, agentHome: config.agentHome, repos, pinned }),
+            onPropose: (p) => {
+              proposal = p;
+              logEvent(log, "handoff.proposed", { repo: p.repo ?? null, brief: excerpt(p.brief) });
+            },
+          }),
+        ],
       })
     : undefined;
   const res = await runAgent({

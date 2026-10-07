@@ -3,6 +3,19 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkToolCall } from "../src/guardrails/check-tool-call";
+import {
+  ASK_USER_QUESTION_TOOL_NAME,
+  EDIT_TOOL_NAME,
+  ENTER_PLAN_MODE_TOOL_NAME,
+  EXIT_PLAN_MODE_TOOL_NAME,
+  GLOB_TOOL_NAME,
+  GREP_TOOL_NAME,
+  MULTI_EDIT_TOOL_NAME,
+  NOTEBOOK_EDIT_TOOL_NAME,
+  READ_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WRITE_TOOL_NAME,
+} from "../src/tools/sdk-tool-names";
 
 let root: string;
 let allowed: string;
@@ -31,49 +44,99 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 type Row = [string, string, () => Record<string, unknown>, "allow" | "ask" | "deny"];
 
 const rows: Row[] = [
-  ["write existing inside", "Write", () => ({ file_path: join(allowed, "real.txt") }), "allow"],
-  ["write new nested inside", "Write", () => ({ file_path: join(allowed, "a/b/c.ts") }), "allow"],
-  ["edit inside", "Edit", () => ({ file_path: join(allowed, "sub/x.ts") }), "allow"],
-  ["multiedit inside", "MultiEdit", () => ({ file_path: join(allowed, "sub/x.ts") }), "allow"],
-  ["notebook inside", "NotebookEdit", () => ({ notebook_path: join(allowed, "n.ipynb") }), "allow"],
-  ["write the root itself", "Write", () => ({ file_path: allowed }), "allow"],
-  ["write outside", "Write", () => ({ file_path: join(outside, "x.txt") }), "deny"],
-  ["dotdot escape", "Write", () => ({ file_path: join(allowed, "../outside/x.txt") }), "deny"],
-  ["dotdot via missing dirs", "Write", () => ({ file_path: join(allowed, "n/../../x") }), "deny"],
-  ["dir symlink escape", "Write", () => ({ file_path: join(allowed, "dirlink/new.txt") }), "deny"],
-  ["file symlink escape", "Edit", () => ({ file_path: join(allowed, "filelink") }), "deny"],
-  ["dangling symlink", "Write", () => ({ file_path: join(allowed, "dangling") }), "deny"],
-  ["name-prefix sibling", "Write", () => ({ file_path: join(`${allowed}-evil`, "x") }), "deny"],
-  ["notebook outside", "NotebookEdit", () => ({ notebook_path: join(outside, "n") }), "deny"],
-  ["missing path", "Write", () => ({}), "deny"],
-  ["non-string path", "Edit", () => ({ file_path: 42 }), "deny"],
-  ["empty path", "Write", () => ({ file_path: "" }), "deny"],
-  ["relative path", "Write", () => ({ file_path: "src/x.ts" }), "deny"],
+  [
+    "write existing inside",
+    WRITE_TOOL_NAME,
+    () => ({ file_path: join(allowed, "real.txt") }),
+    "allow",
+  ],
+  [
+    "write new nested inside",
+    WRITE_TOOL_NAME,
+    () => ({ file_path: join(allowed, "a/b/c.ts") }),
+    "allow",
+  ],
+  ["edit inside", EDIT_TOOL_NAME, () => ({ file_path: join(allowed, "sub/x.ts") }), "allow"],
+  [
+    "multiedit inside",
+    MULTI_EDIT_TOOL_NAME,
+    () => ({ file_path: join(allowed, "sub/x.ts") }),
+    "allow",
+  ],
+  [
+    "notebook inside",
+    NOTEBOOK_EDIT_TOOL_NAME,
+    () => ({ notebook_path: join(allowed, "n.ipynb") }),
+    "allow",
+  ],
+  ["write the root itself", WRITE_TOOL_NAME, () => ({ file_path: allowed }), "allow"],
+  ["write outside", WRITE_TOOL_NAME, () => ({ file_path: join(outside, "x.txt") }), "deny"],
+  [
+    "dotdot escape",
+    WRITE_TOOL_NAME,
+    () => ({ file_path: join(allowed, "../outside/x.txt") }),
+    "deny",
+  ],
+  [
+    "dotdot via missing dirs",
+    WRITE_TOOL_NAME,
+    () => ({ file_path: join(allowed, "n/../../x") }),
+    "deny",
+  ],
+  [
+    "dir symlink escape",
+    WRITE_TOOL_NAME,
+    () => ({ file_path: join(allowed, "dirlink/new.txt") }),
+    "deny",
+  ],
+  ["file symlink escape", EDIT_TOOL_NAME, () => ({ file_path: join(allowed, "filelink") }), "deny"],
+  ["dangling symlink", WRITE_TOOL_NAME, () => ({ file_path: join(allowed, "dangling") }), "deny"],
+  [
+    "name-prefix sibling",
+    WRITE_TOOL_NAME,
+    () => ({ file_path: join(`${allowed}-evil`, "x") }),
+    "deny",
+  ],
+  [
+    "notebook outside",
+    NOTEBOOK_EDIT_TOOL_NAME,
+    () => ({ notebook_path: join(outside, "n") }),
+    "deny",
+  ],
+  ["missing path", WRITE_TOOL_NAME, () => ({}), "deny"],
+  ["non-string path", EDIT_TOOL_NAME, () => ({ file_path: 42 }), "deny"],
+  ["empty path", WRITE_TOOL_NAME, () => ({ file_path: "" }), "deny"],
+  ["relative path", WRITE_TOOL_NAME, () => ({ file_path: "src/x.ts" }), "deny"],
   [
     "notebook needs notebook_path",
-    "NotebookEdit",
+    NOTEBOOK_EDIT_TOOL_NAME,
     () => ({ file_path: join(allowed, "n") }),
     "deny",
   ],
-  ["read normal file", "Read", () => ({ file_path: "/repo/src/index.ts" }), "allow"],
-  ["read .env", "Read", () => ({ file_path: "/repo/.env" }), "deny"],
-  ["read .env.local", "Read", () => ({ file_path: "/repo/.env.local" }), "deny"],
-  ["read pem", "Read", () => ({ file_path: "/x/server.pem" }), "deny"],
-  ["read key", "Read", () => ({ file_path: "/x/api.key" }), "deny"],
-  ["read id_rsa", "Read", () => ({ file_path: "/home/u/.ssh/id_rsa" }), "deny"],
-  ["read id_rsa.pub", "Read", () => ({ file_path: "/home/u/.ssh/id_rsa.pub" }), "deny"],
-  ["read credentials", "Read", () => ({ file_path: "/x/credentials.json" }), "deny"],
-  ["read symlink to .env", "Read", () => ({ file_path: join(allowed, "innocent.txt") }), "deny"],
-  ["glob normal", "Glob", () => ({ pattern: "**/*.ts" }), "allow"],
-  ["glob env pattern", "Glob", () => ({ pattern: "**/.env*" }), "deny"],
-  ["glob key pattern", "Glob", () => ({ pattern: "**/*.key" }), "deny"],
-  ["grep normal", "Grep", () => ({ pattern: "credentials", path: "/repo/src" }), "allow"],
-  ["grep secret path", "Grep", () => ({ pattern: "x", path: "/repo/.env" }), "deny"],
-  ["grep secret glob", "Grep", () => ({ pattern: "x", glob: "*.pem" }), "deny"],
-  ["ExitPlanMode", "ExitPlanMode", () => ({ plan: "p" }), "allow"],
-  ["AskUserQuestion", "AskUserQuestion", () => ({}), "allow"],
-  ["EnterPlanMode", "EnterPlanMode", () => ({}), "allow"],
-  ["unknown tool", "WebFetch", () => ({ url: "https://x" }), "ask"],
+  ["read normal file", READ_TOOL_NAME, () => ({ file_path: "/repo/src/index.ts" }), "allow"],
+  ["read .env", READ_TOOL_NAME, () => ({ file_path: "/repo/.env" }), "deny"],
+  ["read .env.local", READ_TOOL_NAME, () => ({ file_path: "/repo/.env.local" }), "deny"],
+  ["read pem", READ_TOOL_NAME, () => ({ file_path: "/x/server.pem" }), "deny"],
+  ["read key", READ_TOOL_NAME, () => ({ file_path: "/x/api.key" }), "deny"],
+  ["read id_rsa", READ_TOOL_NAME, () => ({ file_path: "/home/u/.ssh/id_rsa" }), "deny"],
+  ["read id_rsa.pub", READ_TOOL_NAME, () => ({ file_path: "/home/u/.ssh/id_rsa.pub" }), "deny"],
+  ["read credentials", READ_TOOL_NAME, () => ({ file_path: "/x/credentials.json" }), "deny"],
+  [
+    "read symlink to .env",
+    READ_TOOL_NAME,
+    () => ({ file_path: join(allowed, "innocent.txt") }),
+    "deny",
+  ],
+  ["glob normal", GLOB_TOOL_NAME, () => ({ pattern: "**/*.ts" }), "allow"],
+  ["glob env pattern", GLOB_TOOL_NAME, () => ({ pattern: "**/.env*" }), "deny"],
+  ["glob key pattern", GLOB_TOOL_NAME, () => ({ pattern: "**/*.key" }), "deny"],
+  ["grep normal", GREP_TOOL_NAME, () => ({ pattern: "credentials", path: "/repo/src" }), "allow"],
+  ["grep secret path", GREP_TOOL_NAME, () => ({ pattern: "x", path: "/repo/.env" }), "deny"],
+  ["grep secret glob", GREP_TOOL_NAME, () => ({ pattern: "x", glob: "*.pem" }), "deny"],
+  [EXIT_PLAN_MODE_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME, () => ({ plan: "p" }), "allow"],
+  [ASK_USER_QUESTION_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME, () => ({}), "allow"],
+  [ENTER_PLAN_MODE_TOOL_NAME, ENTER_PLAN_MODE_TOOL_NAME, () => ({}), "allow"],
+  ["unknown tool", WEB_FETCH_TOOL_NAME, () => ({ url: "https://x" }), "ask"],
 ];
 
 describe("file tool guardrails", () => {
@@ -83,12 +146,14 @@ describe("file tool guardrails", () => {
 
   test("empty writePaths denies every write", () => {
     const input = { file_path: join(allowed, "real.txt") };
-    expect(checkToolCall("Write", input, { writePaths: [] }).decision).toBe("deny");
+    expect(checkToolCall(WRITE_TOOL_NAME, input, { writePaths: [] }).decision).toBe("deny");
   });
 
   test("multiple allowed roots", () => {
     const c = { writePaths: [join(root, "none"), outside] };
-    expect(checkToolCall("Write", { file_path: join(outside, "n.txt") }, c).decision).toBe("allow");
+    expect(checkToolCall(WRITE_TOOL_NAME, { file_path: join(outside, "n.txt") }, c).decision).toBe(
+      "allow",
+    );
   });
 });
 
@@ -98,21 +163,21 @@ describe("read paths and secret dotfiles", () => {
     checkToolCall(tool, input, readCtx()).decision;
 
   test("reads: inside allowed dirs ok; outside, symlink escape and absolute/parent globs denied", () => {
-    expect(d("Read", { file_path: join(allowed, "real.txt") })).toBe("allow");
-    expect(d("Read", { file_path: join(outside, "target.txt") })).toBe("deny");
-    expect(d("Read", { file_path: join(allowed, "dirlink", "target.txt") })).toBe("deny");
-    expect(d("Read", { file_path: "/etc/hosts" })).toBe("deny");
-    expect(d("Read", { file_path: join(allowed, "../x") })).toBe("deny");
-    expect(d("Grep", { pattern: "x", path: outside })).toBe("deny");
-    expect(d("Grep", { pattern: "x" })).toBe("allow"); // defaults to cwd
-    expect(d("Glob", { pattern: "/Users/**/*.json" })).toBe("deny");
-    expect(d("Glob", { pattern: "../**" })).toBe("deny");
-    expect(d("Glob", { pattern: "src/**/*.ts" })).toBe("allow");
+    expect(d(READ_TOOL_NAME, { file_path: join(allowed, "real.txt") })).toBe("allow");
+    expect(d(READ_TOOL_NAME, { file_path: join(outside, "target.txt") })).toBe("deny");
+    expect(d(READ_TOOL_NAME, { file_path: join(allowed, "dirlink", "target.txt") })).toBe("deny");
+    expect(d(READ_TOOL_NAME, { file_path: "/etc/hosts" })).toBe("deny");
+    expect(d(READ_TOOL_NAME, { file_path: join(allowed, "../x") })).toBe("deny");
+    expect(d(GREP_TOOL_NAME, { pattern: "x", path: outside })).toBe("deny");
+    expect(d(GREP_TOOL_NAME, { pattern: "x" })).toBe("allow"); // defaults to cwd
+    expect(d(GLOB_TOOL_NAME, { pattern: "/Users/**/*.json" })).toBe("deny");
+    expect(d(GLOB_TOOL_NAME, { pattern: "../**" })).toBe("deny");
+    expect(d(GLOB_TOOL_NAME, { pattern: "src/**/*.ts" })).toBe("allow");
   });
 
   test("dotfile credentials are denied even inside allowed dirs", () => {
     for (const f of [".credentials.json", ".npmrc", ".netrc", ".pgpass", "cert.p12"]) {
-      expect(d("Read", { file_path: join(allowed, f) })).toBe("deny");
+      expect(d(READ_TOOL_NAME, { file_path: join(allowed, f) })).toBe("deny");
     }
   });
 });

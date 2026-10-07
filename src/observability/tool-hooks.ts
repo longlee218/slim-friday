@@ -2,6 +2,7 @@ import type { HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-
 import type { Decision } from "../guardrails/check-tool-call";
 import { isInside, resolveReal } from "../guardrails/paths";
 import { loadRepoRegistry } from "../repos/repo-registry";
+import { BASH_TOOL_NAME } from "../tools/sdk-tool-names";
 import { getLogContext, logEvent, logger, setLogContext, tryLog } from "./logger";
 import type { RunRecorder } from "./record-run";
 import { safePreview } from "./redact";
@@ -13,7 +14,7 @@ const REPO_TTL_MS = 30_000;
 /** Registered repo (real path) containing the file/dir a tool call touches, else undefined. */
 function repoOfTool(home: string, tool: string, input: unknown): string | undefined {
   // Bash is skipped: its cwd-independent paths cannot be told from the command text.
-  if (tool === "Bash" || !input || typeof input !== "object") return undefined;
+  if (tool === BASH_TOOL_NAME || !input || typeof input !== "object") return undefined;
   const i = input as Record<string, unknown>;
   const p = [i.file_path, i.path].find((v): v is string => typeof v === "string" && v !== "");
   if (!p) return undefined;

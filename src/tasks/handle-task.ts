@@ -40,7 +40,7 @@ export interface TaskHandlerDeps {
   limiter?: RunLimiter;
   /** The git MCP server the app uses (worktrees, fetch, push, inspection); started on first use. */
   git?: GitMcp;
-  /** Owner approval gateway; required for code tasks (the `delegate` tool, worktree follow-ups). */
+  /** Owner approval gateway; required for code tasks (the `DelegateTask` tool, worktree follow-ups). */
   approvals?: ApprovalGateway;
 }
 
@@ -156,7 +156,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
           });
       const o = { stopping: tracker.isStopping(), t0, repo: taskRepo() };
       const reply = closeTask(db, { taskId, threadId }, res, o);
-      // `delegate` was called: the plan stage starts now, same thread and lock (`await`: finally must wait).
+      // `DelegateTask` was called: the plan stage starts now, same thread and lock (`await`: finally must wait).
       if (res.proposal && HANDOFF_OUTCOMES.has(res.outcome)) {
         const h = { ...codeDeps, stopping: tracker.isStopping };
         return await runHandoff(h, { task, reply, proposal: res.proposal, repos, pinned, ac });

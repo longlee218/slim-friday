@@ -1,4 +1,26 @@
 import type { AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
+import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../mcp/mcp-tool-names";
+import { DELEGATE_TASK_MCP_TOOL_NAME } from "./DelegateTaskTool/constants";
+import {
+  AGENT_TOOL_NAME,
+  ASK_USER_QUESTION_TOOL_NAME,
+  BASH_TOOL_NAME,
+  EDIT_TOOL_NAME,
+  ENTER_PLAN_MODE_TOOL_NAME,
+  EXIT_PLAN_MODE_TOOL_NAME,
+  GLOB_TOOL_NAME,
+  GREP_TOOL_NAME,
+  READ_TOOL_NAME,
+  SKILL_TOOL_NAME,
+  TASK_CREATE_TOOL_NAME,
+  TASK_LIST_TOOL_NAME,
+  TASK_UPDATE_TOOL_NAME,
+  TODO_WRITE_TOOL_NAME,
+  TOOL_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME,
+  WRITE_TOOL_NAME,
+} from "./sdk-tool-names";
 
 /**
  * The single place that says WHICH tools exist and WHICH mode gets what. Everything else (SDK options,
@@ -22,25 +44,30 @@ export type Capability =
   | "planControl"; // enter / leave plan mode (leaving needs the owner's approval)
 
 /** Plan-flow tools: ExitPlanMode and AskUserQuestion are answered by the owner (canUseTool); Enter is harmless. */
-export const EXIT_PLAN = "ExitPlanMode";
-export const ASK_USER = "AskUserQuestion";
-const ENTER_PLAN = "EnterPlanMode";
-/** In-process MCP tool of the Q&A agent: hands a code change over to the plan stage (server `friday`). */
-export const DELEGATE = "mcp__friday__delegate";
 /** The guard lets these through; the approval flow (not the guard) decides on them. */
-export const PLAN_FLOW_TOOLS: ReadonlySet<string> = new Set([EXIT_PLAN, ASK_USER, ENTER_PLAN]);
+export const PLAN_FLOW_TOOLS: ReadonlySet<string> = new Set([
+  EXIT_PLAN_MODE_TOOL_NAME,
+  ASK_USER_QUESTION_TOOL_NAME,
+  ENTER_PLAN_MODE_TOOL_NAME,
+]);
 
 /** Built-in tools of each capability. */
 const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
-  read: ["Read", "Glob", "Grep"],
-  write: ["Write", "Edit"],
-  shell: ["Bash"],
-  web: ["WebSearch", "WebFetch"],
-  skills: ["Skill"],
-  subagents: ["Agent"],
-  tasks: ["TodoWrite", "TaskCreate", "TaskUpdate", "TaskList", "ToolSearch"],
-  ask: [ASK_USER],
-  planControl: [EXIT_PLAN, ENTER_PLAN],
+  read: [READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME],
+  write: [WRITE_TOOL_NAME, EDIT_TOOL_NAME],
+  shell: [BASH_TOOL_NAME],
+  web: [WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME],
+  skills: [SKILL_TOOL_NAME],
+  subagents: [AGENT_TOOL_NAME],
+  tasks: [
+    TODO_WRITE_TOOL_NAME,
+    TASK_CREATE_TOOL_NAME,
+    TASK_UPDATE_TOOL_NAME,
+    TASK_LIST_TOOL_NAME,
+    TOOL_SEARCH_TOOL_NAME,
+  ],
+  ask: [ASK_USER_QUESTION_TOOL_NAME],
+  planControl: [EXIT_PLAN_MODE_TOOL_NAME, ENTER_PLAN_MODE_TOOL_NAME],
 };
 
 /** Capabilities of a code task. Plan and execute stages share them: the guard narrows what a call may do. */
@@ -67,17 +94,17 @@ const AUTO_ALLOWED = new Set<string>([
   ...CAPABILITY_TOOLS.web,
   ...CAPABILITY_TOOLS.skills,
   ...CAPABILITY_TOOLS.tasks,
-  ENTER_PLAN,
+  ENTER_PLAN_MODE_TOOL_NAME,
 ]);
 
 /** Built-in tools of a mode (the SDK `tools` option). */
 export const toolsFor = (mode: ToolMode): string[] =>
   MODE_CAPABILITIES[mode].flatMap((c) => CAPABILITY_TOOLS[c]);
 
-/** Tools of a mode that need no approval (the guard's `allowTools`); `delegate` only exists in Q&A. */
+/** Tools of a mode that need no approval (the guard's `allowTools`); `DelegateTask` only exists in Q&A. */
 export const autoAllowedTools = (mode: ToolMode): string[] => [
   ...toolsFor(mode).filter((t) => AUTO_ALLOWED.has(t)),
-  ...(mode === "qa" ? [DELEGATE] : []),
+  ...(mode === "qa" ? [DELEGATE_TASK_MCP_TOOL_NAME] : []),
 ];
 
 /* ---------------- git MCP tools (@cyanheads/git-mcp-server 2.15.3) ---------------- */
@@ -85,11 +112,11 @@ export const autoAllowedTools = (mode: ToolMode): string[] => [
 /** Git MCP tools by purpose. */
 export const GIT_GROUPS = {
   /** Pure reads, allowed on the worktree and on registered repos. */
-  read: ["git_status", "git_diff", "git_log", "git_show", "git_blame"],
+  read: [GIT_TOOL.STATUS, GIT_TOOL.DIFF, GIT_TOOL.LOG, GIT_TOOL.SHOW, GIT_TOOL.BLAME],
   /** Staging and committing: the task worktree only. */
-  commit: ["git_add", "git_commit"],
+  commit: [GIT_TOOL.ADD, GIT_TOOL.COMMIT],
   /** Moves HEAD / the index: the worktree only, owner is asked. */
-  change: ["git_checkout", "git_reset"],
+  change: [GIT_TOOL.CHECKOUT, GIT_TOOL.RESET],
 } as const;
 
 /**
@@ -97,18 +124,11 @@ export const GIT_GROUPS = {
  * default: list). The guard derives its check from this table: tool -> read-only modes.
  */
 export const GIT_READ_BY_MODE: Record<string, readonly string[]> = {
-  git_branch: ["list", "show-current"],
+  [GIT_TOOL.BRANCH]: ["list", "show-current"],
 };
 
 /** Every tool of the server. Agents never get push/pull/fetch/clone/worktree/...: the app calls those. */
-const ALL_GIT_TOOLS: readonly string[] = [
-  ...Object.values(GIT_GROUPS).flat(),
-  ...Object.keys(GIT_READ_BY_MODE),
-  ...["git_changelog_analyze", "git_cherry_pick", "git_clean", "git_clear_working_dir"],
-  ...["git_clone", "git_fetch", "git_init", "git_merge", "git_pull", "git_push", "git_rebase"],
-  ...["git_reflog", "git_remote", "git_set_working_dir", "git_stash", "git_tag", "git_worktree"],
-  "git_wrapup_instructions",
-];
+const ALL_GIT_TOOLS: readonly string[] = Object.values(GIT_TOOL);
 
 /** Git tool groups each mode may use (plus the by-mode reads, always). */
 const MODE_GIT_GROUPS: Record<ToolMode, readonly (keyof typeof GIT_GROUPS)[]> = {
@@ -126,7 +146,7 @@ export const gitToolsFor = (mode: ToolMode): string[] => [
 /** Git MCP tools to hide from a mode (`mcp__git__…`): a shorter tool list and a second lock behind the guard. */
 export const hiddenGitTools = (mode: ToolMode): string[] => {
   const allowed = new Set<string>(gitToolsFor(mode));
-  return ALL_GIT_TOOLS.filter((t) => !allowed.has(t)).map((t) => `mcp__git__${t}`);
+  return ALL_GIT_TOOLS.filter((t) => !allowed.has(t)).map((t) => mcpToolName(GIT_MCP_SERVER, t));
 };
 
 /* ---------------- SDK options + subagents ---------------- */
@@ -136,11 +156,11 @@ export const hiddenGitTools = (mode: ToolMode): string[] => {
  * that are denied in every permission mode). Backstop for the prompt rule; redaction is the other.
  */
 export const SECRET_FILE_RULES = [
-  "Read(**/.env*)",
-  "Read(**/*.pem)",
-  "Read(**/*.key)",
-  "Read(**/id_rsa*)",
-  "Read(**/credentials*)",
+  `${READ_TOOL_NAME}(**/.env*)`,
+  `${READ_TOOL_NAME}(**/*.pem)`,
+  `${READ_TOOL_NAME}(**/*.key)`,
+  `${READ_TOOL_NAME}(**/id_rsa*)`,
+  `${READ_TOOL_NAME}(**/credentials*)`,
 ];
 
 /**
@@ -168,7 +188,7 @@ export const SUBAGENTS: Record<string, AgentDefinition> = {
       "Searches code across the registered repos and reports findings with file:line. Use for broad lookups.",
     prompt:
       "You search code. Use Glob/Grep/Read with absolute paths. Report only what you found, each item with file:line. Do not modify anything.",
-    tools: ["Read", "Glob", "Grep"],
+    tools: [READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME],
   },
 };
 
