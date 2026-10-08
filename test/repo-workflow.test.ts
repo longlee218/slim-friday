@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import { existsSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
@@ -13,8 +13,13 @@ const git = createGitMcp();
 afterAll(() => git.close());
 
 /** Run a delegated task to the end of the exec stage; return the options of the plan and exec runs. */
-async function runTask(config: Record<string, string>, skills: string[]) {
+async function runTask(
+  config: Record<string, string>,
+  skills: string[],
+  prep?: (clone: string) => void,
+) {
   const { env, clone } = await setupWorkflow(config, skills);
+  prep?.(clone);
   const seen: any[] = [];
   /** Plugin dir listing at exec start (the app removes the dir when the run ends). */
   let pluginFiles: string[] = [];
@@ -54,15 +59,37 @@ async function runTask(config: Record<string, string>, skills: string[]) {
   return { env, clone, plan, exec, pluginFiles, wt: getWorktreeByThread(env.db, "th1")! };
 }
 
-test("lean (default): exec loads no skills and no plugins, no full rules", async () => {
+test("lean (default): no full rules; skills of the clone still load in plan and exec", async () => {
   const { plan, exec } = await runTask({}, ["deploy"]);
-  expect(exec.skills).toEqual([]);
-  expect(exec.plugins).toBeUndefined();
+  expect(exec.skills).toEqual(["real:deploy"]);
+  expect(plan.skills).toEqual(["real:deploy"]);
   expect(exec.settingSources).toEqual([]);
+  expect(plan.settingSources).toEqual([]);
   for (const o of [plan, exec]) {
     expect(o.systemPrompt.append).not.toContain("workflow: full");
     expect(o.systemPrompt.append).toContain("ONE"); // the ask boundary applies to every code task
   }
+});
+
+test("no repo CLAUDE.md reaches plan or exec prompts, and the registry has no read hint", async () => {
+  const { plan, exec } = await runTask({}, [], (clone) =>
+    writeFileSync(join(clone, "CLAUDE.md"), "CLAUDE_BODY_MARK"),
+  );
+  for (const o of [plan, exec]) {
+    expect(o.systemPrompt.append).not.toContain("CLAUDE_BODY_MARK");
+    expect(o.systemPrompt.append).not.toContain("CLAUDE.md");
+    expect(o.settingSources).toEqual([]);
+  }
+});
+
+test("exec skills come from the clone (repo.path), never from the worktree", async () => {
+  // Untracked in the clone: absent from the worktree checkout, present only when read from the clone.
+  const { exec } = await runTask({}, ["deploy"], (clone) => {
+    const d = join(clone, ".claude", "skills", "clone-only");
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, "SKILL.md"), "---\nname: clone-only\ndescription: d\n---\nx\n");
+  });
+  expect(exec.skills.sort()).toEqual(["real:clone-only", "real:deploy"]);
 });
 
 test("full: exec lists the clone's skills through an app-owned plugin copy, not the worktree", async () => {
@@ -72,7 +99,7 @@ test("full: exec lists the clone's skills through an app-owned plugin copy, not 
   ]);
   const pdir: string = exec.plugins[0].path;
   expect(exec.plugins).toEqual([{ type: "local", path: pdir }]);
-  expect(exec.skills.sort()).toEqual(["real:deploy", "real:review"]); // workspace name = plugin name
+  expect(exec.skills.sort()).toEqual(["real:deploy", "real:review"]); // repo name = plugin name
   // Neither the clone's .claude nor the worktree: the plugin dir is the app's own copy.
   expect(pdir.startsWith(realpathSync(clone))).toBe(false);
   expect(pdir.startsWith(realpathSync(wt.path))).toBe(false);
@@ -99,6 +126,7 @@ test("full without skills in the clone: no plugin, skills stay empty", async () 
   const { exec } = await runTask({ workflow: "full" }, []);
   expect(exec.plugins).toBeUndefined();
   expect(exec.skills).toEqual([]);
+  expect(exec.settingSources).toEqual([]);
 });
 
 test("full: the clone is readable in the exec guard but never writable", async () => {

@@ -27,7 +27,7 @@ import { buildToolHooks } from "../observability/tool-hooks";
 import type { Workflow } from "../repos/repo-registry";
 import { setTaskSession } from "../storage/run-store";
 import { SUBAGENTS, type ToolMode, toolOptions } from "../tools/tool-catalog";
-import { runSkills } from "./clone-skill-plugin";
+import { runSkills, type SkillRepo } from "./clone-skill-plugin";
 import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
 import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
@@ -54,8 +54,6 @@ export interface RunAgentInput {
   gitAuthor?: GitIdentity;
   /** Directory tree the agent's git MCP server is sandboxed to (execute stage: the worktree). */
   gitBaseDir?: string;
-  /** Repo name of the run: names the skills plugin of a `full` repo (exec stage). */
-  logRepo?: string;
   /** In-process MCP server of the app (Q&A `DelegateTask` tool); registered in Q&A mode only. */
   appServer?: McpSdkServerConfigWithInstance;
   /** GitHub login whose token the read-only GitHub MCP server uses (code tasks); default = active gh account. */
@@ -67,8 +65,8 @@ export interface RunAgentInput {
   };
   /** `full` repo workflow (plan: some candidate repo is full; exec: the repo is): adds its rules to the prompt. */
   workflow?: Workflow;
-  /** Execute stage of a `full` repo: trusted clone whose `.claude/skills` are loaded (never the worktree's). */
-  skillsFromClone?: string;
+  /** Repos whose `.claude/skills` the run may use, via the app-owned plugin copy (trusted clones, never a worktree). */
+  skillRepos?: SkillRepo[];
   /** Existing Claude session id to resume. */
   resume?: string;
   config: AgentConfig;
@@ -160,18 +158,23 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   let rejected = false;
   let resetsAt: number | undefined;
 
+  // Repo skills as app-owned plugin copies (fail closed, never throws); the dirs are removed in `finally`.
+  const sk = runSkills(input.skillRepos, config.agentHome);
+
   // Every mode goes through the permission layer when it has a guard (Q&A has no gateway: ask = deny).
-  const perms = input.guard
+  // This run's plugin dirs (and only those) become READABLE so skills can open their bundled files.
+  const guard =
+    input.guard?.readPaths && sk.dirs.length
+      ? { ...input.guard, readPaths: [...input.guard.readPaths, ...sk.dirs] }
+      : input.guard;
+  const perms = guard
     ? buildToolPermissions({
         ...input.code, // gateway, plan, askLimit, onAskTimeout
         taskId: input.taskId,
         threadId: input.code?.threadId ?? "",
-        guard: input.guard,
+        guard,
       })
     : undefined;
-
-  // Skills (+ app-owned plugin dir of a `full` exec stage, removed in `finally`).
-  const sk = runSkills(mode, input, config.agentHome);
 
   try {
     const options: Options = {
@@ -185,9 +188,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       mcpServers: await mcpServersFor(mode, input),
       ...(mode === "plan" && { permissionMode: "plan" as const }),
       ...(perms && { canUseTool: perms.canUseTool }),
-      // Subagents with explicit read-only tools in every mode. Skills: the repos' own, except in the execute
-      // stage, which loads no project settings; there none, hiding the SDK's bundled ones too
-      // (a model once reached for `update-config` there).
+      // Subagents with explicit read-only tools in every mode. Skills: only the run's repos' own, through the
+      // plugins above; the list hides the SDK's bundled ones (a model once reached for `update-config`).
       agents: SUBAGENTS,
       skills: sk.skills,
       ...(sk.plugins && { plugins: sk.plugins }),
@@ -195,9 +197,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       // Omitted (undefined) on openrouter unless MAX_BUDGET_USD is set: SDK cost uses Anthropic prices.
       ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
       abortController: ac,
-      // Execute stage runs in a worktree the agent writes to: never load settings/hooks planted there
-      // (spike q17: even projectConfigRoot does not stop a planted .claude/CLAUDE.md from loading).
-      settingSources: mode === "exec" ? [] : ["project"],
+      // No filesystem settings in any mode: no repo (or ancestor) CLAUDE.md, no repo hooks/settings. Friday's
+      // persona, AGENTS.md and memory are the only instructions; the exec worktree is agent-writable anyway.
+      settingSources: [],
       systemPrompt: buildSystemPrompt(
         (input.extraContext ?? []).filter(Boolean).join("\n\n"),
         mode,

@@ -293,13 +293,13 @@ task: <description> (message)
 
 **Lean Mode (default):**
 - **Plan stage:** Standard behavior; skill rules apply, asks enforced via ASK_RULES
-- **Exec stage:** No skills loaded (`skills: []`), no plugins, standard system prompt
+- **Exec stage:** Skills of the worktree repo's clone via the app-owned plugin (same as full; `workflow` only changes the rules text), standard system prompt
 - **Prompt:** ASK_RULES injected (ask only if not derivable, costly/irreversible, >=2 options)
 - **Use case:** Safe default for any repo; no assumptions about repo capabilities
 
 **Full Mode:**
-- **Plan stage:** Standard behavior; repo skills loaded (if registry includes them)
-- **Exec stage:** Clone-based skills loaded from app-owned plugin dir (see "Clone-Based Skills" below)
+- **Plan stage:** Standard behavior; skills of every workspace repo via the app-owned plugins
+- **Exec stage:** Skills of the repo's clone via the app-owned plugin (see "Repo Skills" below)
 - **Prompt:** ASK_RULES + FULL_RULES; autonomy assumed; assumptions recorded in plan section / final reply
 - **Use case:** Owner-controlled repos where agent can make broader assumptions and use repo skills
 - **Marker:** `[workflow: full]` appended to registry in system prompt context (signals full mode is active)
@@ -315,17 +315,20 @@ task: <description> (message)
 - If plan stage receives a vague request (e.g., "do something" without specifics), reply "Need: {specifics}" without calling ExitPlanMode
 - No session is saved; owner re-messages with clarity and task re-runs with fresh session
 
-## Clone-Based Skills (Phase 3, Full Mode)
+## Repo Skills (app-owned plugins, every mode)
 
-**Purpose:** Load repo-owned skills from the clone's `.claude/skills/` during exec stage, with security isolation.
+**Purpose:** Repo-owned skills stay usable while no repo filesystem settings load (`settingSources: []` in qa, plan and exec). They reach a run ONLY through app-owned, skills-only plugins.
 
-**Design:**
-- Plugin dir built per exec run: `<agentHome>/tmp/plugin-XXXX/` (unique, cleaned up in finally block)
-- Copy strategy: Realpath walk of `<clone>/.claude/skills/`, skipping symlinks, checking realpath stays within skills dir
-- Caps: 300 files, 5 MB total; exceeding either → fail closed (plugin dir removed, run aborted)
-- Plugin manifest: App-written `.claude-plugin/plugin.json` with repo/workspace name (no clone-controlled overrides)
-- Skill names: Qualified as `<workspace>:<skillname>` (e.g., `myrepo:deploy`)
-- Security guarantee: NO hooks, .mcp.json, agents, commands, or settings from clone are copied; they cannot execute in the exec session
+**Design (`src/agent/clone-skill-plugin.ts`, `runSkills`):**
+- Repo set of the run = its read scope: qa pinned or single repo -> that repo; qa unpinned -> every repo of the workspace; plan -> every repo of the workspace; exec -> the worktree's repo, copied from its clone (`repo.path`), never from the worktree. Any workflow (lean/full).
+- One plugin per repo, built per run under `<agentHome>/tmp/plugin-XXXX/`, removed in `runAgent`'s `finally` (also on error). Plugin name = repo name (sanitized); skills are `<repo>:<skill>`, e.g. `myrepo:deploy`. A run never spans workspaces, so no workspace prefix.
+- Content: app-written `.claude-plugin/plugin.json` + a copy of `<repo>/.claude/skills` only. Symlinks skipped (lstat walk); a `.claude` or `skills` dir resolving outside the repo yields no plugin. Hooks, `.mcp.json`, agents, commands and settings are never copied.
+- Caps: 300 entries (files AND directories, empty ones included) / 5 MB per repo, 1000 entries / 15 MB per run, nesting depth 8. Over a cap or any copy error: that repo gets no plugin and a `repo skills not loaded` warn (fail closed per repo, the run continues).
+- The guard lets the run READ (never write) its own plugin dirs (`<home>/tmp/plugin-*` of this run only) so skills can open bundled files. A plugin-name collision between two repos logs a warn naming both; the later repo gets no skills.
+- Startup sweeps `<home>/tmp/plugin-*` dirs older than 1 h (crash leftovers; real dirs only, symlinks never followed).
+- `skills` option = the qualified names of the built plugins (or `[]`), so the SDK's bundled skills stay hidden.
+- No cache: skills dirs are KB-sized; each run logs `skills.plugin_built` {repos, files, bytes, ms} to measure.
+- Real-SDK check (spike 2026-10-08, `settingSources: []`): plugin skills listed and invocable, planted worktree skill and clone hooks/.mcp.json absent.
 
 **Trust Model:**
 - Clone is app-refreshed from remote (trusted if remote is owner-controlled)
@@ -377,7 +380,6 @@ workflow: full
 system-prompt (MODE/HANDOFF/COMMON sections + context)
   -> AGENTS -> IDENTITY -> SOUL -> USER (workspace file or root)
   -> registry (Q&A unpinned, plan mode)
-  -> repo CLAUDE.md (exec only; settingSources=[] there)
   -> MEMORY: "### global" (root) / "### workspace <ws>" / "### <repo>" per repo
   -> rejected plans (Q&A with handoff)
 ```
@@ -394,13 +396,14 @@ system-prompt (MODE/HANDOFF/COMMON sections + context)
 - Already-known bullets skipped; oldest sections trimmed above ~315 lines. Workspace and root `MEMORY.md` are never written by the agent.
 - Isolation: all lookups happen inside one workspace (two workspaces may hold repos with the same name); a ws1 write never appears in a ws2 prompt.
 
-**Logging:** one `prompt.context` event per run (counts only): personaChars, personaTruncated, registryChars, claudeMdChars, sdkCwdClaudeMdChars, memoryRootChars, memoryWorkspaceChars, memoryRepoChars, totalChars.
+**Logging:** one `prompt.context` event per run (counts only): personaChars, personaTruncated, registryChars, memoryRootChars, memoryWorkspaceChars, memoryRepoChars, totalChars.
 
-**CLAUDE.md third layer:**
-- Q&A mode: the cwd repo's own CLAUDE.md auto-loaded via SDK `settingSources: ["project"]` (read-only mode); unpinned with several repos uses `workspaces/<ws>/cwd` (no CLAUDE.md above it)
-- Plan/exec mode: repo CLAUDE.md NOT auto-loaded (settingSources: []); injected as `repoClaudeMd` in `prompt-context.ts`
-- Canary status: test/live-claude-md-loading.smoke.test.ts gave conflicting results across runs; unverified (Step B phase 3 checks it and fails closed).
-- `CLAUDE.local.md`: the app never reads or creates it.
+**No repo CLAUDE.md (policy):**
+- Friday never loads, injects or hints at ANY repo CLAUDE.md / CLAUDE.local.md (nor `~/.claude/CLAUDE.md` or an ancestor's): `settingSources: []` in qa, plan and exec. Friday's persona, AGENTS.md and memory are the only instruction source.
+- Consequence: agents no longer follow a repo's own conventions file. Repo facts come from `repo.yaml` (testCommand, defaultBranch, workflow...), repo `MEMORY.md` (agent `Memory:` bullets; owner `remember:` in P6) and the agent's own exploration (it may still READ a repo CLAUDE.md as an ordinary file; it is never injected as instructions).
+- Verification so far: exec already ran with `settingSources: []` (spike q17: planted worktree CLAUDE.md/.claude not loaded; 2026-10-08 live re-check: clone hooks/.mcp.json not loaded). Tests capture the options passed to a fake `query` (`settingSources: []` in all modes, no CLAUDE.md text in any prompt). The real-SDK canary is gated and its run by the owner is PENDING: `RUN_CANARY=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/live-claude-md-loading.smoke.test.ts` (Claude login, model claude-sonnet-5-5 or CANARY_MODEL; expects "none loaded").
+- The app never reads or creates `CLAUDE.local.md`.
+- Home placement: startup refuses (exit 1) when `realpath(AGENT_HOME)` is inside a registered repo or inside any git working tree (`src/lifecycle/home-placement-check.ts`, filesystem check only).
 
 ## Workspace Layout
 ```
@@ -451,7 +454,7 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 - Bash restricted: allowlist (git status/diff/log reads, test command) -> auto-allow; others -> ask via Discord button; git writes via Bash are denied (use the git MCP tools)
 - Write/Edit: plan mode blocks them before ExitPlanMode; after approval -> worktree only
 - PreToolUse hard deny: dangerous commands, write outside allowed paths (cannot be overridden by approval)
-- Never load `~/.claude` settings (only `settingSources: ["project"]`); plans dir = ~/.claude/plans/ (read-only cwd for plan files)
+- Never load any filesystem settings (`settingSources: []` in every mode); plans dir = ~/.claude/plans/ (read-only cwd for plan files)
 
 ## Security Layers
 
@@ -481,8 +484,8 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 - No CLAUDE.md symlinks are created; `CLAUDE.local.md` is never read or created by the app.
 
 **Settings resolution (settingSources + injected MEMORY):**
-- Q&A: pinned repo's CLAUDE.md auto-loads via settingSources project; unpinned with several repos uses `workspaces/<ws>/cwd` (repos readable via additionalDirectories, no auto-load of their CLAUDE.md)
-- Plan/exec: trusted clone's CLAUDE.md + MEMORY.md injected in system prompt; settingSources=[] (agent-written .claude/* never loaded)
+- All modes: `settingSources: []`; no CLAUDE.md of any repo is loaded or injected (see "No repo CLAUDE.md"). Repo skills only via the app-owned plugins; MEMORY.md layers injected in the system prompt.
+- Q&A unpinned with several repos uses `workspaces/<ws>/cwd` as cwd (repos readable via additionalDirectories).
 
 ## GitHub MCP Integration (Phase 4+)
 

@@ -39,11 +39,11 @@ src/
 │   ├── discord-message-handler.ts
 │   └── discord-message-rules.ts
 ├── agent/                      # Agent SDK logic
-│   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; opts.handoff for delegate tool; skill loading from app-owned plugin (Phase 3)
+│   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; opts.handoff for delegate tool; repo skills from app-owned plugins, `settingSources: []` (Step B P3)
 │   ├── system-prompt.ts        # Sections: MODE (qa/plan/exec contract), HANDOFF (delegate tool when opts.handoff=true), ASK_RULES (Phase 3), COMMON (safety), then context. Identity/tone in persona files, not here.
 │   ├── code-rules.ts           # ASK_RULES text constant; FULL_RULES for full-mode repos (Phase 3)
 │   ├── tool-permissions.ts     # core permission layer: PreToolUse (hard deny/force ask) + canUseTool (approvals, ONE ask per task via askLimit, Phase 3)
-│   ├── clone-skill-plugin.ts   # build app-owned plugin dir: copy clone/.claude/skills with validation (Phase 3)
+│   ├── clone-skill-plugin.ts   # build app-owned per-repo plugins: copy repo/.claude/skills with validation and caps (Step B P3)
 │   ├── run-errors.ts           # error classification (quota, rate_limit, billing, overloaded); phase 5+
 │   └── sdk-env.ts              # environment builder per provider (anthropic/openrouter)
 ├── mcp/                        # MCP client & server management
@@ -60,7 +60,7 @@ src/
 ├── memory/                     # Persistent per-repo context & persona layering (phase 1+)
 │   ├── persona.ts              # Persona layering: root + workspace overrides
 │   ├── persona-templates.ts    # Default file templates
-│   ├── prompt-context.ts       # Build full context order: persona → registry → CLAUDE.md → memory → rejected-plans (phase 1c+)
+│   ├── prompt-context.ts       # Build full context order: persona → registry → memory → rejected-plans (phase 1c+)
 │   ├── memory-writer.ts        # Append task memory + [global] bullets
 │   └── repo-memory.ts          # MEMORY.md loader/writer, append on exec success
 ├── tasks/                      # Task lifecycle
@@ -125,7 +125,7 @@ test/
 ├── db-schema.test.ts           # DB migration, idempotency (phase 1c+)
 ├── delegate-eval.live.test.ts  # Golden set: 21 live Sonnet/deepseek runs (phase 1c+, opt-in: DELEGATE_EVAL=1)
 ├── ask-boundary.test.ts        # ask limit per task, timeout → awaiting, plan/exec stages, stop vs clarification (Phase 3)
-├── clone-skill-plugin.test.ts  # plugin dir creation, symlink/cap validation, cleanup (Phase 3)
+├── clone-skill-plugin.test.ts  # per-repo plugins, symlink/cap validation, cleanup (Step B P3)
 ├── repo-workflow.test.ts       # lean vs full modes, exec skills loading, path boundaries (Phase 3)
 ├── stage-control.test.ts       # abort listener, stageControl semantics (Phase 3)
 ├── worktree.test.ts            # worktree create/remove/list (phase 4+)
@@ -273,7 +273,7 @@ All config loaded via zod schema in `src/config/agent-config.ts`:
 - Git operations: git MCP tools only (no Bash `git add/commit`; Bash git now asks "use git MCP tools")
   - git add/commit auto-allowed inside worktree; checkout/branch/reset ask; others denied
 - Bash (test command): exact match from registry → auto-allowed (prevents ad-hoc injection)
-- Settings: `settingSources: []` (no agent-written .claude/* loads); write to .claude/.husky/.git/.github/.mcp.json/.vscode/.devcontainer inside worktree denied
+- Settings: `settingSources: []` in every mode (no repo CLAUDE.md, no agent-written .claude/* loads); write to .claude/.husky/.git/.github/.mcp.json/.vscode/.devcontainer inside worktree denied
 
 **Testing Guardrails:**
 - test/deny-dangerous.test.ts: 30+ command/path/host/install cases

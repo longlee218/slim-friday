@@ -65,7 +65,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **Memory read:** root 2000 + workspace 2000 (both owner-written) + repo 4000 each (8000 total), headings `### global`, `### workspace <ws>`, `### <repo>`
 - **Memory write:** after exec success the agent's "Memory:" bullets (max 5, sanitized, redacted, dated) go to `workspaces/<ws>/repos/<repo>/MEMORY.md` only; `[global]` bullets (max 2) go to root `MEMORY.pending.md` (never injected, owner promotes by hand)
 - **Cap per file:** persona files 1500 chars (with truncation marker)
-- **File management:** no CLAUDE.md symlinks, no CLAUDE.local.md handling in the app; no per-workspace IDENTITY template
+- **File management:** no CLAUDE.md symlinks, no CLAUDE.local.md handling in the app, no repo CLAUDE.md loaded or injected (`settingSources: []`); no per-workspace IDENTITY template
 - **Logs:** one `logs/` dir; lines carry `workspace`/`repo`/`taskId`; tasks in `logs/tasks/<id>.jsonl`
 
 ### 5. GitHub MCP
@@ -102,7 +102,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **run-limiter.ts:** max 3 concurrent runs; max 2 active code tasks (phase 4+)
 
 ### Agent & Prompts
-- **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; opts.handoff flag for HANDOFF section; skill loading from app-owned plugin (exec stage full mode)
+- **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; opts.handoff flag for HANDOFF section; repo skills from app-owned plugins in every mode (`settingSources: []`)
 - **system-prompt.ts:** Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), ASK_RULES (Phase 3: ask only if not derivable, costly/irreversible, >=2 options), COMMON (safety rules once), context last. Identity/tone in persona files (.friday/IDENTITY|SOUL|USER.md), not in system prompt.
 - **code-rules.ts:** ASK_RULES text constant (ask limit enforcement, vague request handling, full mode assumptions recording)
 - **tool-permissions.ts:** permission layer: PreToolUse hook (hard deny / force ask) + `canUseTool` (plan approval, AskUserQuestion buttons, owner approval; ONE ask per task enforced via askLimit flag); ask timeout → "Awaiting clarification:" with defaults, session kept
@@ -111,7 +111,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 ### Persona & Memory (Phase 1+, Step B 1b)
 - **persona.ts:** `ensureHome(home, workspaces)` creates root files, per-workspace `cwd/` + MEMORY.md and per-repo MEMORY.md templates (no CLAUDE.md, no per-workspace IDENTITY); `buildPersonaContext(home, ws)` applies per-file layering; caps 1500 chars/file with truncation marker
 - **persona-templates.ts:** Default files: AGENTS, IDENTITY, SOUL, USER, ROOT_MEMORY (owner-only), BOOTSTRAP (explains MEMORY.pending.md and promotion), workspace and repo MEMORY templates
-- **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER -> registry -> repo CLAUDE.md -> memory (root, workspace, repos) -> rejected-plans block (when delegate enabled); logs `prompt.context` event with character counts per layer
+- **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER -> registry -> memory (root, workspace, repos) -> rejected-plans block (when delegate enabled); logs `prompt.context` event with character counts per layer
 - **memory-writer.ts:** `appendTaskMemory(home, ws, repo, title, bullets)` writes plain bullets to the repo MEMORY.md and `[global]` bullets to `MEMORY.pending.md`; deduplication, trimming; max 2 global bullets per task
 - **sanitize-bullet.ts:** `sanitizeBullet()`: one line, no markup/fences/HTML/role prefixes, redacted, 200 chars (applied in `extractMemory` and the writer)
 - **repo-memory.ts:** `readMemoryLayers`/`buildMemoryContext(home, ws, repos)`; `repoMemoryFile`; `extractMemory`
@@ -138,7 +138,8 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **code-task-flow.ts:** git_fetch + git_worktree add (new branch agent/<taskId-prefix> from origin/<defaultBranch>); managed clones only; ask limit per task (shared across plan & exec stages)
 - **code-flow-workflow.ts:** determine execWorkflow per repo (lean/full); stage control with abort listener; ask timeout handling
 - **code-plan-stage.ts:** plan stage entry (extracted from code-task-flow for size management)
-- **clone-skill-plugin.ts:** build app-owned plugin dir (copy of clone/.claude/skills only; no hooks/.mcp.json); realpath validation, symlink skipping, 300-file/5MB caps
+- **clone-skill-plugin.ts:** `runSkills(repos, home)`: one app-owned plugin per repo of the run (copy of `<repo>/.claude/skills` only; no hooks/.mcp.json), skills `<repo>:<skill>`; realpath validation, symlink skipping, caps 300 entries (files+dirs)/5MB per repo, 1000/15MB per run, depth 8; `sweepStalePlugins` at startup, fail closed per repo, `skills.plugin_built` log
+- **home-placement-check.ts:** startup refusal when AGENT_HOME is inside a registered repo or a git working tree
 - **publish-pr.ts:** push agent/<id> + GitHub MCP create_pull_request; title = task first line; body = redacted plan
 - **refresh-repo.ts:** git_fetch + git_pull (fast-forward only) via git MCP; throttled 10 min/repo
 
@@ -181,7 +182,8 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 | Rejected plans | test/rejected-plans.test.ts | query logic, thread isolation, clipping, redaction (Phase 1c+) |
 | Code tasks | test/code-task-flow.test.ts | plan→execute stage, cwd switching, plan.md seeding |
 | Ask boundary (Phase 3) | test/ask-boundary.test.ts | ask limit per task, timeout → awaiting, plan/exec stages, stop vs clarification |
-| Clone skill plugin (Phase 3) | test/clone-skill-plugin.test.ts | plugin dir creation, symlink/cap validation, cleanup |
+| Repo skill plugins (Step B P3) | test/clone-skill-plugin.test.ts, test/repo-skills-qa.test.ts | per-repo plugins, symlink/cap validation, cleanup, qa pinned/unpinned |
+| Home placement (Step B P3) | test/home-placement-check.test.ts, test/index-startup.test.ts | refusal in repo / git tree |
 | Repo workflow (Phase 3) | test/repo-workflow.test.ts | lean vs full modes, exec skills loading, path boundaries |
 | Stage control (Phase 3) | test/stage-control.test.ts | abort listener, stageControl semantics |
 | Git MCP | test/git-mcp.test.ts | server env, real-server calls, refresh throttle, identity helpers |

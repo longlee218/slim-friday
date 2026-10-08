@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { sweepStalePlugins } from "../agent/clone-skill-plugin";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import { logEvent, logger } from "../observability/logger";
@@ -75,10 +76,11 @@ export function checkWorktrees(db: Database, agentHome: string) {
   return { noRow, missingDir: missingDir.map((r) => r.taskId) };
 }
 
-/** Startup hygiene: log retention + worktree orphan check. Never throws (best effort). */
+/** Startup hygiene: log retention + stale plugin dirs + worktree orphan check. Never throws (best effort). */
 export function runStartupHygiene(db: Database, agentHome: string): void {
   try {
     cleanupTaskLogs(agentHome);
+    sweepStalePlugins(agentHome);
     checkWorktrees(db, agentHome);
   } catch (err) {
     log.warn({ err: String(err) }, "startup hygiene failed");

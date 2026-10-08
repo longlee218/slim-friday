@@ -133,7 +133,6 @@ test("a run logs run.started and run.finished with the task's correlation fields
     runAgent({
       prompt: "q",
       taskId: "T1",
-      logRepo: "repo",
       cwd: env.home,
       config: env.config,
       db: env.db,

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { checkToolCall } from "../src/guardrails/check-tool-call";
@@ -93,7 +93,7 @@ test("Agent tool: only configured subagents; general-purpose (Bash/Write capable
   expect(d({ prompt: "p" })).toBe("deny");
 });
 
-test("Q&A with several repos uses the neutral cwd and lists CLAUDE.md hints + memory", async () => {
+test("Q&A with several repos uses the neutral cwd and lists no CLAUDE.md hint, lists memory", async () => {
   const { env, opts } = await qaOptions((e) => {
     const b = addRepo(e.home, "b"); // workspaces/main/repos/b/repo
     writeFileSync(join(b, "CLAUDE.md"), "rules");
@@ -104,7 +104,9 @@ test("Q&A with several repos uses the neutral cwd and lists CLAUDE.md hints + me
   });
   expect(opts.cwd).toBe(workspacePaths(env.home).workspace("main").cwd);
   const prompt = opts.systemPrompt.append as string;
-  expect(prompt).toContain("CLAUDE.md first");
+  expect(prompt).not.toContain("CLAUDE.md");
+  expect(prompt).not.toContain("first]");
+  expect(opts.settingSources).toEqual([]);
   expect(prompt).toContain("uses bun");
   expect(opts.skills).toEqual([]); // no repo skills here: bundled SDK skills are not listed
 });

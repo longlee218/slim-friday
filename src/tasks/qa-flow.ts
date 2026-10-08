@@ -55,8 +55,8 @@ export interface QaFlowInput {
 export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowResult> {
   const { config, git } = deps;
   const { repos, pinned, existing } = i;
-  // Unpinned with several repos: the workspace cwd dir (no CLAUDE.md above it), so no single repo's
-  // CLAUDE.md is auto-loaded (the registry block points the agent at each one). One repo: that repo.
+  // Unpinned with several repos: the neutral workspace cwd dir (the registry block lists each repo).
+  // One repo: that repo.
   const workspaceDir = workspacePaths(config.agentHome).workspace(i.workspace).cwd;
   mkdirSync(workspaceDir, { recursive: true });
   const unpinnedCwd = repos.length > 1 ? workspaceDir : repos[0]!.path;
@@ -94,6 +94,8 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
     taskId: i.taskId,
     cwd,
     additionalDirectories,
+    // Skills of the repos this run may read (pinned: that repo; else all), via the app-owned plugins.
+    skillRepos: scope.map((r) => ({ name: r.name, path: r.path })),
     // Q&A guardrails: read only the registered repos (+ workspace); git MCP reads only those repos.
     guard: guardFor("qa", {
       readPaths: [cwd, ...additionalDirectories].map(realOrSame),
@@ -104,7 +106,6 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
       workspace: i.workspace,
       registry: pinned ? "" : buildRegistryContext(i.workspace, repos),
       memoryRepos: scope.map((r) => r.name),
-      sdkCwd: cwd,
       // Only when the agent can delegate: it must not re-propose what the owner rejected here.
       rejectedPlans: i.allowDelegate ? rejectedPlans(deps.db, i.threadId) : undefined,
     }),

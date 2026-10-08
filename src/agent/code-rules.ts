@@ -28,7 +28,7 @@ export function fullWorkflowRules(stage: "plan" | "exec"): string {
     stage === "plan"
       ? "For a repo marked [workflow: full] in the repo list"
       : "This repo is [workflow: full]";
-  return `- ${scope}: follow the repo's own workflow end to end (its CLAUDE.md, rules and skills, using the ${SKILL_TOOL_NAME} tool for the listed skills) instead of a minimal plan-then-implement run.
+  return `- ${scope}: follow the repo's own workflow end to end (its listed skills, using the ${SKILL_TOOL_NAME} tool) instead of a minimal plan-then-implement run.
 - Run it autonomously: an interactive skill step (brainstorming, clarifying questions, confirmations) never asks the owner. Take the best default from the repo context and record it as "- <decision> (confidence: high|med|low)" under "Assumptions": in the plan stage, a section of the plan; in the execute stage, in your final reply.
 - These rules override skill instructions about asking. Owner approvals for the plan, writes and commands still apply.`;
 }

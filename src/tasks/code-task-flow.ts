@@ -10,7 +10,7 @@ import { realOrSame } from "../guardrails/paths";
 import type { GitMcp } from "../mcp/git-mcp";
 import { appendTaskMemory } from "../memory/memory-writer";
 import { buildPromptContext } from "../memory/prompt-context";
-import { extractMemory, readRepoClaudeMd } from "../memory/repo-memory";
+import { extractMemory } from "../memory/repo-memory";
 import { logEvent, logger, setLogContext } from "../observability/logger";
 import { type Repo, resolveAuthor } from "../repos/repo-registry";
 import type { WorktreeRow } from "../storage/worktree-store";
@@ -115,16 +115,14 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
       abortController: stage.ac,
       queryFn: deps.queryFn,
       workflow: flow.workflow,
-      skillsFromClone: flow.skillsFromClone,
+      // Skills from the trusted clone (repo.path), never from the agent-writable worktree.
+      skillRepos: [{ name: repo.name, path: repo.path }],
       githubAccount: repo.githubAccount,
-      logRepo: wt.repo,
       gitAuthor: author,
       gitBaseDir: cwd, // the agent's git server may only touch this worktree
-      // settingSources is [] here (the worktree is agent-writable): feed the trusted clone's CLAUDE.md + memory.
       extraContext: buildPromptContext({
         agentHome: config.agentHome,
         workspace: i.workspace,
-        repoClaudeMd: readRepoClaudeMd(repo.path),
         memoryRepos: [wt.repo],
       }),
       guard: guardFor("exec", {

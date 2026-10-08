@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { writeFileSync } from "node:fs";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { ensureHome } from "../src/memory/persona";
 import { buildPromptContext } from "../src/memory/prompt-context";
@@ -22,50 +21,39 @@ function setup() {
   return { env, p };
 }
 
-test("block order: persona, registry, repo CLAUDE.md, memory (root, workspace, repo); BOOTSTRAP never", () => {
+test("block order: persona, registry, memory (root, workspace, repo); BOOTSTRAP never", () => {
   const { env } = setup();
   const logs = captureLogs();
   const out = buildPromptContext({
     agentHome: env.home,
     workspace: "main",
     registry: "REGISTRY_MARK",
-    repoClaudeMd: "CLAUDE_MARK",
     memoryRepos: ["api"],
   });
   logs.stop();
   const all = out.join("\n\n");
   const at = (m: string) => all.indexOf(m);
   expect(at("AGENTS_MARK")).toBeLessThan(at("REGISTRY_MARK"));
-  expect(at("REGISTRY_MARK")).toBeLessThan(at("CLAUDE_MARK"));
-  expect(at("CLAUDE_MARK")).toBeLessThan(at("ROOT_MARK"));
+  expect(at("REGISTRY_MARK")).toBeLessThan(at("ROOT_MARK"));
   expect(at("ROOT_MARK")).toBeLessThan(at("WSLAYER_MARK"));
   expect(at("WSLAYER_MARK")).toBeLessThan(at("REPO_MARK"));
   expect(all).not.toContain("Bootstrap");
   // One size event, counts only.
   const ev = logs.lines.filter((l) => l.event === "prompt.context");
   expect(ev).toHaveLength(1);
-  expect(ev[0]).toMatchObject({ personaTruncated: false, claudeMdChars: 11 });
+  expect(ev[0]).toMatchObject({ personaTruncated: false });
   expect(ev[0]!.memoryRootChars as number).toBeGreaterThan(0);
   expect(ev[0]!.totalChars).toBe(out.join("").length);
   expect(JSON.stringify(ev[0])).not.toContain("AGENTS_MARK");
 });
 
-test("sdkCwd CLAUDE.md is measured; empty blocks dropped", () => {
+test("empty blocks dropped; no CLAUDE.md fields in the size event", () => {
   const { env } = setup();
-  const cwd = join(env.home, "cwd");
-  mkdirSync(cwd, { recursive: true });
-  writeFileSync(join(cwd, "CLAUDE.md"), "12345");
   const logs = captureLogs();
-  const out = buildPromptContext({
-    agentHome: env.home,
-    workspace: "main",
-    memoryRepos: [],
-    sdkCwd: cwd,
-  });
+  const out = buildPromptContext({ agentHome: env.home, workspace: "main", memoryRepos: [] });
   logs.stop();
   expect(out.every(Boolean)).toBe(true);
-  expect(logs.lines.find((l) => l.event === "prompt.context")).toMatchObject({
-    sdkCwdClaudeMdChars: 5,
-    registryChars: 0,
-  });
+  const ev = logs.lines.find((l) => l.event === "prompt.context")!;
+  expect(ev).toMatchObject({ registryChars: 0 });
+  expect(Object.keys(ev).filter((k) => /claudemd/i.test(k))).toEqual([]);
 });

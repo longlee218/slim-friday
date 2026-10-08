@@ -1,12 +1,10 @@
 import { expect, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { appendTaskMemory } from "../src/memory/memory-writer";
 import {
   buildMemoryContext,
   extractMemory,
-  readRepoClaudeMd,
   readRepoMemory,
   readRootMemory,
   readWorkspaceMemory,
@@ -68,15 +66,6 @@ test("MEMORY.md stays at 300 lines: trimmed once it passes +5%, oldest sections 
   expect(text.startsWith("# big memory")).toBe(true);
   expect(text).toContain("task 199");
   expect(text).not.toContain("task 0\n");
-});
-
-test("readRepoClaudeMd reads the clone's CLAUDE.md, capped", () => {
-  const env = makeEnv();
-  writeFileSync(join(env.repo, "CLAUDE.md"), `rules ${"y".repeat(8000)}`);
-  const t = readRepoClaudeMd(env.repo);
-  expect(t).toContain("Repo instructions");
-  expect(t).toContain("(truncated)");
-  expect(readRepoClaudeMd(join(env.home, "nope"))).toBe("");
 });
 
 test("extractMemory: [global] bullets split off (case-insensitive, prefix removed, max 2)", () => {

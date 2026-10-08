@@ -17,9 +17,11 @@ import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { loadConfig } from "../src/config/agent-config";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { ensureHome } from "../src/memory/persona";
 import { openDb } from "../src/storage/db";
 import { DELEGATE_TASK_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 
 /** Discord channel id mapped to the default test workspace `main` (and carried by every test Task). */
 export const TEST_CHANNEL = "100000000000000001";
@@ -212,3 +214,27 @@ export function delegatingQuery(
 /** A valid brief for the `DelegateTask` tool (min 20 chars). */
 export const BRIEF =
   "Add b.txt containing two. Findings: a.txt:1 holds one. Acceptance: file exists.";
+
+/** Channel mapped to `w2` (w1 owns TEST_CHANNEL). */
+export const CHANNEL_2 = "200000000000000002";
+
+/** Two workspaces `w1` and `w2`, each with a repo named `api` (different clones). */
+export function twoWorkspaces() {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  const a = addRepo(
+    env.home,
+    "api",
+    { description: "one" },
+    { workspace: "w1", channels: [TEST_CHANNEL] },
+  );
+  const b = addRepo(
+    env.home,
+    "api",
+    { description: "two" },
+    { workspace: "w2", channels: [CHANNEL_2] },
+  );
+  const scan = loadWorkspaces(env.home);
+  ensureHome(env.home, scan.workspaces);
+  return { env, a, b, scan };
+}

@@ -3,7 +3,6 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { appendTaskMemory } from "../src/memory/memory-writer";
-import { ensureHome } from "../src/memory/persona";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { extractMemory, repoMemoryFile } from "../src/memory/repo-memory";
 import { repoOfTool } from "../src/observability/tool-hooks";
@@ -11,32 +10,14 @@ import type { Repo } from "../src/repos/repo-registry";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { routeTask } from "../src/tasks/task-routing";
 import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { loadWorkspaces } from "../src/workspaces/workspace-registry";
-import { addRepo, clearWorkspaces, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
-
-/** Channel mapped to `w2` (w1 owns TEST_CHANNEL). */
-const CHANNEL_2 = "200000000000000002";
-
-/** Two workspaces `w1` and `w2`, each with a repo named `api` (different clones). */
-function twoWorkspaces() {
-  const env = makeEnv();
-  clearWorkspaces(env.home);
-  const a = addRepo(
-    env.home,
-    "api",
-    { description: "one" },
-    { workspace: "w1", channels: [TEST_CHANNEL] },
-  );
-  const b = addRepo(
-    env.home,
-    "api",
-    { description: "two" },
-    { workspace: "w2", channels: [CHANNEL_2] },
-  );
-  const scan = loadWorkspaces(env.home);
-  ensureHome(env.home, scan.workspaces);
-  return { env, a, b, scan };
-}
+import {
+  CHANNEL_2,
+  clearWorkspaces,
+  makeEnv,
+  resultMsg,
+  TEST_CHANNEL,
+  twoWorkspaces,
+} from "./helpers";
 
 /** Full prompt context text of a run in `ws` over repo `api`. */
 const promptOf = (home: string, ws: string) =>

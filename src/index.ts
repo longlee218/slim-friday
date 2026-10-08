@@ -3,6 +3,7 @@ import { createDiscordApprovalGateway } from "./approvals/discord-approval";
 import { type AgentConfig, loadConfig, logProviderSelected } from "./config/agent-config";
 import { workspacePaths } from "./config/workspace-paths";
 import { createDiscordBot } from "./ingress/discord-bot";
+import { homePlacementError } from "./lifecycle/home-placement-check";
 import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
@@ -35,11 +36,17 @@ async function main(): Promise<void> {
   // Fail fast: the resolved provider has no real credential (name only, never a key).
   if (!config.hasRealAuth) return fail(`No credential for provider ${config.provider}`);
 
+  const { workspaces } = loadWorkspaces(config.agentHome);
+
+  // Fail closed: the home (persona, memory, db, logs) must not live inside a repo or a git working tree.
+  const misplaced = homePlacementError(
+    config.agentHome,
+    workspaces.flatMap((w) => w.repos.map((r) => r.path)),
+  );
+  if (misplaced) return fail(misplaced);
+
   // Fail closed: once a workspace lists channels, ingress must be pinned to one guild.
-  if (
-    !config.discordGuildId &&
-    loadWorkspaces(config.agentHome).workspaces.some((w) => w.channels.length)
-  )
+  if (!config.discordGuildId && workspaces.some((w) => w.channels.length))
     return fail("DISCORD_GUILD_ID required: a workspace lists channels");
 
   // Provider and model only; never keys.

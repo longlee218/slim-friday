@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import { sanitizeBullet } from "./sanitize-bullet";
 
@@ -119,12 +118,4 @@ export function extractMemory(text: string): {
       all.filter((b) => GLOBAL_PREFIX.test(b)).map((b) => b.replace(GLOBAL_PREFIX, "")),
     ).slice(0, MAX_GLOBAL),
   };
-}
-
-/** CLAUDE.md of a trusted clone (capped), for runs that must not auto-load project settings. */
-export function readRepoClaudeMd(repoPath: string, max = 6000): string {
-  const file = join(repoPath, "CLAUDE.md");
-  if (!existsSync(file)) return "";
-  const body = readFileSync(file, "utf8").trim();
-  return `Repo instructions (CLAUDE.md of ${repoPath}):\n${body.length > max ? `${body.slice(0, max)}\n...(truncated)` : body}`;
 }

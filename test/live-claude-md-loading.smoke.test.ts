@@ -7,22 +7,27 @@ import { PLACEHOLDER } from "../src/config/agent-config";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { makeEnv } from "./helpers";
 
-// Live measurement (no fix): which CLAUDE.md / CLAUDE.local.md files does the SDK load for a managed-clone
-// cwd (`p/ws/repo`)? Canaries: A=p/CLAUDE.md B=p/ws/CLAUDE.md C=p/ws/CLAUDE.local.md D=repo/CLAUDE.md E=repo/CLAUDE.local.md.
-// Needs a real OPENROUTER_API_KEY (bun auto-loads .env; a placeholder counts as missing).
-const key = process.env.OPENROUTER_API_KEY;
-const live = !!key && key !== PLACEHOLDER;
+// Live check: with settingSources [] the SDK must load NONE of the CLAUDE.md / CLAUDE.local.md files around a
+// managed-clone cwd (`p/ws/repo`). Canaries: A=p/CLAUDE.md B=p/ws/CLAUDE.md C=p/ws/CLAUDE.local.md
+// D=repo/CLAUDE.md E=repo/CLAUDE.local.md F=repo/.claude/CLAUDE.md. Expected result: "none loaded".
+// OPT-IN: runs only with RUN_CANARY=1 AND a real CLAUDE_CODE_OAUTH_TOKEN (the owner's Claude login, like
+// test/delegate-eval.live.test.ts), so a plain `bun test` skips it. Command:
+//   RUN_CANARY=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/live-claude-md-loading.smoke.test.ts
+// Model: CANARY_MODEL, else claude-sonnet-5-5.
+const key = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+const live = process.env.RUN_CANARY === "1" && !!key && key !== PLACEHOLDER;
 if (!live) {
   process.stderr.write(
-    "SKIP live-claude-md-loading smoke: OPENROUTER_API_KEY missing or REPLACE_ME\n",
+    "SKIP live-claude-md-loading smoke: needs RUN_CANARY=1 and a real CLAUDE_CODE_OAUTH_TOKEN\n",
   );
 }
 
-describe.skipIf(!live)("live CLAUDE.md loading canaries (OpenRouter)", () => {
+describe.skipIf(!live)("live CLAUDE.md loading canaries (Claude login)", () => {
   test("reports which canary tokens reach the agent", async () => {
     const env = makeEnv({
-      OPENROUTER_API_KEY: key!,
-      LLM_PROVIDER: "openrouter",
+      CLAUDE_CODE_OAUTH_TOKEN: key!,
+      LLM_PROVIDER: "anthropic",
+      MODEL: process.env.CANARY_MODEL ?? "claude-sonnet-5-5",
       MAX_TURNS: "3",
       TIMEOUT_MS: "90000",
     });
@@ -36,7 +41,9 @@ describe.skipIf(!live)("live CLAUDE.md loading canaries (OpenRouter)", () => {
       C: join(ws, "CLAUDE.local.md"),
       D: join(repo, "CLAUDE.md"),
       E: join(repo, "CLAUDE.local.md"),
+      F: join(repo, ".claude", "CLAUDE.md"),
     };
+    mkdirSync(join(repo, ".claude"));
     for (const [k, f] of Object.entries(files)) writeFileSync(f, `Canary token: CANARY_${k}_7f3\n`);
     const res = await runAgent({
       prompt:
@@ -48,10 +55,11 @@ describe.skipIf(!live)("live CLAUDE.md loading canaries (OpenRouter)", () => {
       db: env.db,
       abortController: new AbortController(),
     });
-    const loaded = ["A", "B", "C", "D", "E"].filter((k) => res.text.includes(`CANARY_${k}_7f3`));
+    const loaded = Object.keys(files).filter((k) => res.text.includes(`CANARY_${k}_7f3`));
     process.stderr.write(
       `CANARY LOADED: ${loaded.join(",") || "none"} | reply=${res.text.slice(0, 200)}\n`,
     );
     expect(res.outcome).toBe("success");
+    expect(loaded).toEqual([]); // none loaded
   }, 120_000);
 });

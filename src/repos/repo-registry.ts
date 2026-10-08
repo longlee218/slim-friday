@@ -131,11 +131,8 @@ export function loadRepos(ws: WorkspaceDirs, forbidden: string[] = []): Repo[] {
 export function buildRegistryContext(ws: string, repos: Repo[], force = false): string {
   if (repos.length < 2 && !force) return "";
   const lines = repos.map((r) => {
-    // Repo instructions only auto-load when the repo is the cwd: point the agent at them otherwise.
-    const claude = join(r.path, "CLAUDE.md");
-    const hint = existsSync(claude) ? ` [read ${claude} first]` : "";
     const flow = r.workflow === "full" ? " [workflow: full]" : "";
-    return `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}${hint}${flow}`;
+    return `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}${flow}`;
   });
   return `Available repos in workspace ${ws} (pick the one that fits the question; search only these paths):\n${lines.join("\n")}`;
 }

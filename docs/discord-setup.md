@@ -319,7 +319,7 @@ An entry needs a `## <topic>` heading to count (a file with only the template he
 
 **Editing memory:** open any of the files in your editor and add facts under `## <topic>` headings; changes apply on the next task. Example: "Main app at `src/main.ts`, uses Postgres, test cmd is `bun test`".
 
-**Files the bot does not create:** `CLAUDE.md` / `CLAUDE.local.md` anywhere under `$AGENT_HOME` (a CLAUDE.md above a clone would be auto-loaded by the SDK). A workspace dir from the old layout (`workspaces/<name>/config.yaml`, no `workspace.yaml`) is never loaded or written; when no new-layout workspace exists the bot replies "Old workspace layout found: see the migration runbook (docs/discord-setup.md)". The migration runbook itself ships with Step B phase 4.
+**Files the bot does not create:** `CLAUDE.md` / `CLAUDE.local.md` anywhere under `$AGENT_HOME` (the SDK runs with `settingSources: []` and loads no CLAUDE.md anywhere). Consequence: agents do not follow a repo's own CLAUDE.md; put the facts they need in `repo.yaml` and the repo `MEMORY.md`. The bot refuses to start when `AGENT_HOME` is inside a registered repo or a git working tree. A workspace dir from the old layout (`workspaces/<name>/config.yaml`, no `workspace.yaml`) is never loaded or written; when no new-layout workspace exists the bot replies "Old workspace layout found: see the migration runbook (docs/discord-setup.md)". The migration runbook itself ships with Step B phase 4.
 
 ## Run in background (launchd)
 

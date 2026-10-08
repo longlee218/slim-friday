@@ -10,17 +10,16 @@ export const planWorkflow = (repos: Repo[]): Workflow =>
   repos.some((r) => r.workflow === "full") ? "full" : "lean";
 
 /**
- * Execute-stage options of a repo's workflow. `full`: its rules, the trusted clone's skills, and the clone
- * readable (never writable) so skills can read their own files. `lean`: nothing extra (today's behavior).
+ * Execute-stage options of a repo's workflow. `full`: its rules and the clone readable (never writable) so
+ * skills can read their own files. `lean`: nothing extra. Skills of the clone load for both (see runSkills).
  */
 export function execWorkflow(repo: Repo): {
   workflow: Workflow;
-  skillsFromClone?: string;
   readPaths: string[];
 } {
   if (repo.workflow !== "full") return { workflow: "lean", readPaths: [] };
   const clone = realpathSync(repo.path);
-  return { workflow: "full", skillsFromClone: clone, readPaths: [clone] };
+  return { workflow: "full", readPaths: [clone] };
 }
 
 /** Reply when the owner did not answer in time: the questions with their defaults, no guessing. */

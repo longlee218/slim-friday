@@ -121,7 +121,7 @@ describe("run-agent stream handling", () => {
     expect(seen.mcpServers.git.env.GIT_AUTHOR_EMAIL).toBeUndefined(); // Q&A never commits
     expect(seen.mcpServers.github).toBeUndefined(); // GitHub MCP only in code tasks
     expect(seen.allowedTools).toBeUndefined();
-    expect(seen.settingSources).toEqual(["project"]);
+    expect(seen.settingSources).toEqual([]);
     expect(seen.abortController).toBeDefined();
   });
 
