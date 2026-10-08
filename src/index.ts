@@ -12,6 +12,7 @@ import { openDb } from "./storage/db";
 import { interruptRunningTasks } from "./storage/run-store";
 import { createTaskHandler } from "./tasks/handle-task";
 import { createRunLimiter } from "./tasks/run-limiter";
+import { loadWorkspaces } from "./workspaces/workspace-registry";
 
 const log = logger.child({ module: "index" });
 
@@ -33,6 +34,13 @@ async function main(): Promise<void> {
 
   // Fail fast: the resolved provider has no real credential (name only, never a key).
   if (!config.hasRealAuth) return fail(`No credential for provider ${config.provider}`);
+
+  // Fail closed: once a workspace lists channels, ingress must be pinned to one guild.
+  if (
+    !config.discordGuildId &&
+    loadWorkspaces(config.agentHome).workspaces.some((w) => w.channels.length)
+  )
+    return fail("DISCORD_GUILD_ID required: a workspace lists channels");
 
   // Provider and model only; never keys.
   logProviderSelected(log, config);
@@ -60,6 +68,7 @@ async function main(): Promise<void> {
     getClient: () => botClient,
     ownerId: config.ownerDiscordId!,
     handleTask,
+    guildId: config.discordGuildId,
   });
   // One interaction listener: each handler ignores buttons of the other (different customId prefix).
   const { client } = createDiscordBot(config, handleTask, async (i) => {

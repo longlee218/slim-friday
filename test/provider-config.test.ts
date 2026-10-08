@@ -13,6 +13,20 @@ const base = { AGENT_HOME: "/h" };
 /** Load config from a minimal valid env plus overrides. */
 const cfg = (extra: Record<string, string> = {}) => loadConfig({ ...base, ...extra });
 
+describe("DISCORD_GUILD_ID", () => {
+  test("unset, empty and placeholder count as unset", () => {
+    for (const v of [undefined, "", "REPLACE_ME"])
+      expect(cfg(v === undefined ? {} : { DISCORD_GUILD_ID: v }).discordGuildId).toBeUndefined();
+  });
+  test("a snowflake is kept; anything else is rejected by name", () => {
+    expect(cfg({ DISCORD_GUILD_ID: "123456789012345678" }).discordGuildId).toBe(
+      "123456789012345678",
+    );
+    for (const bad of ["12345", "abc123456789012345", "1234567890123456789012"])
+      expect(() => cfg({ DISCORD_GUILD_ID: bad })).toThrow("DISCORD_GUILD_ID");
+  });
+});
+
 describe("provider resolution", () => {
   test.each([
     ["nothing set", {}, "anthropic"],

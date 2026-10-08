@@ -12,6 +12,7 @@ import {
   makeEnv,
   resultMsg,
   stubGateway,
+  TEST_CHANNEL,
 } from "./helpers";
 
 /** Run one Q&A message whose agent makes the given `DelegateTask` calls; returns what the tool answered + stage runs. */
@@ -45,7 +46,13 @@ async function delegateRun(
     queryFn: ((a: any) => (seen.push(a.options), query(a))) as never,
     approvals: approvals ? stubGateway() : undefined,
   });
-  const reply = await handle({ source: "t", userId: "u", threadId: "t1", text: "please fix it" });
+  const reply = await handle({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "t1",
+    text: "please fix it",
+  });
   return { env, results, stages, seen, reply };
 }
 

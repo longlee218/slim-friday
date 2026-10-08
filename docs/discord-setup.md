@@ -41,6 +41,7 @@ Create or update `.env` in the project root:
 ```env
 DISCORD_TOKEN=<bot_token_from_step_1>
 OWNER_DISCORD_ID=<your_user_id_from_step_4>
+DISCORD_GUILD_ID=<server_id>   # right-click the server icon > Copy Server ID; required once any workspace lists channels
 CLAUDE_CODE_OAUTH_TOKEN=<from_claude_setup_token>
 AGENT_HOME=/absolute/path/to/agent-home
 LOG_LEVEL=info
@@ -57,6 +58,20 @@ LOG_LEVEL=info
 - `gh` CLI authenticated (`gh auth login`) with at least one Git account (or set `githubAccount` in each workspace's config.yaml)
 - Docker running (for GitHub MCP server: `ghcr.io/github/github-mcp-server`)
 - At least one Git remote named `origin` in each repo (the app fetches and pushes through the git MCP server)
+
+### Link a channel to a workspace (by hand)
+Each Discord channel maps to exactly one workspace; the bot refuses messages from unmapped channels.
+1. Developer Mode on, right-click the channel > Copy Channel ID (for a thread use its parent channel).
+2. Add it to `$AGENT_HOME/workspaces/<ws>/workspace.yaml`:
+   ```yaml
+   channels:
+     - "123456789012345678"
+   ```
+3. Set `DISCORD_GUILD_ID` in `.env` and restart (startup refuses without it once any workspace has `channels`).
+- A channel id listed by two workspaces is dropped from both (warning `channel.duplicate`): no routing.
+- Edits to a workspace's channel list apply to the next message, but the guild pin is checked at startup only: the **first** time you add `channels:` to any `workspace.yaml`, and any change to `DISCORD_GUILD_ID` or `.env`, needs a bot restart. Startup refuses (exit 1, "DISCORD_GUILD_ID required") when channels exist without the id.
+- `cleanup:` works in any thread, even in an unmapped or remapped channel (it runs before routing and starts no agent): use it to recover a thread whose channel was unlinked.
+- Remapping a channel moves its existing threads to the new workspace. A thread with a live worktree whose repo is not in the new workspace is refused (`wrong_workspace`) until the channel is re-linked or `cleanup:` is run.
 
 **Important:** Never commit .env with real values. .env.example has placeholders only.
 
@@ -149,6 +164,11 @@ Expected:
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
+| Reply "This channel is not linked to a workspace" (`task.refused`, reason `unmapped_channel`) | The channel's id is in no workspace `channels:` list | Paste the id from the reply into `workspaces/<ws>/workspace.yaml` under `channels:` (see "Link a channel to a workspace") |
+| Normal messages refused in a thread but `cleanup:` works | By design: `cleanup:` is the recovery path and skips workspace routing | Re-link the channel, or `cleanup:` then start again |
+| Bot ignores every message (`message.ignored`, reason `other_guild`) | `DISCORD_GUILD_ID` is not the server you write in | Fix `DISCORD_GUILD_ID` in `.env`, restart |
+| Bot exits at start: "DISCORD_GUILD_ID required" | A workspace lists `channels` but no guild is pinned | Set `DISCORD_GUILD_ID` in `.env` |
+| Reply "Workspace <ws> has no repos" | Channel maps to a workspace with no `repos/<name>/repo.yaml` | Add a repo to the workspace |
 | "Bot is not responding" | Bot not running or DISCORD_TOKEN invalid | `bun run start` and check logs |
 | "Missing MESSAGE CONTENT" | Intent not enabled | Re-enable in Developer Portal Bot tab |
 | "Thread creation failed" | Missing "Create Public Threads" permission | Regenerate invite URL with correct scopes |

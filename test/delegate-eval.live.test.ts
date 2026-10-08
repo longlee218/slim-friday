@@ -8,7 +8,7 @@ import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { DELEGATE_TASK_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import { g, makeRepo } from "./git-fixture";
-import { addRepo, clearWorkspaces, makeEnv, resultMsg, stubGateway } from "./helpers";
+import { addRepo, clearWorkspaces, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
 // Golden set (live, real model through the owner's Claude login): does the Q&A agent call `DelegateTask` exactly when it should?
 // Non-deterministic: every run differs. Targets are proposals: 0 false positives on pure questions,
@@ -150,6 +150,7 @@ describe.skipIf(!live)("delegate golden set (live, Claude)", () => {
       try {
         const reply = await handle({
           source: "test",
+          channelId: TEST_CHANNEL,
           userId: "u",
           threadId: `g${i}`,
           text: message,

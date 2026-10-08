@@ -8,7 +8,7 @@ import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
-import { BRIEF, delegatingQuery, initMsg, resultMsg, stubGateway } from "./helpers";
+import { BRIEF, delegatingQuery, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
 /** The real git MCP server (pinned package), shared by the tests of this file. */
 const git = createGitMcp();
@@ -80,7 +80,13 @@ test("one round per task across stages: asked in plan, denied in exec", async ()
     }),
     queryFn: delegatingQuery([{ brief: BRIEF }], next) as never,
   });
-  await handle({ source: "t", userId: "u", threadId: "th1", text: "change the schema" });
+  await handle({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "th1",
+    text: "change the schema",
+  });
   expect(exec[0]).toMatchObject({ behavior: "allow" }); // plan stage: the one round
   expect(exec[1]).toMatchObject({ behavior: "deny" }); // exec stage: refused
   expect(asked).toHaveLength(1);
@@ -109,6 +115,7 @@ test("exec: no answer in time -> 'Awaiting clarification', session kept, task ca
   });
   const reply = await handle({
     source: "t",
+    channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
     text: "change it",
@@ -144,6 +151,7 @@ test("plan stage: no answer in time -> 'Awaiting clarification', no plan approva
   });
   const reply = await handle({
     source: "t",
+    channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
     text: "change it",
@@ -199,7 +207,13 @@ test("stop while a question is pending (plan): not 'Awaiting clarification', ses
         yield resultMsg({ result: "must not be reached" });
       })(),
   );
-  const reply = await handle({ source: "t", userId: "u", threadId: "th1", text: "go" });
+  const reply = await handle({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "th1",
+    text: "go",
+  });
   expect(reply.startsWith("Awaiting clarification")).toBe(false);
   // Only the Q&A session of the delegating thread; no plan/exec session kept for the cancelled stage.
   expect(getSession(env.db, "th1")?.session_id).toBe("sess-qa");
@@ -215,7 +229,13 @@ test("stop while a question is pending (exec): not 'Awaiting clarification', ses
     },
     (o) => planThen(o, () => askAndMaybeStop(o)),
   );
-  const reply = await handle({ source: "t", userId: "u", threadId: "th1", text: "go" });
+  const reply = await handle({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "th1",
+    text: "go",
+  });
   expect(reply.startsWith("Awaiting clarification")).toBe(false);
   // Only the Q&A session of the delegating thread; no plan/exec session kept for the cancelled stage.
   expect(getSession(env.db, "th1")?.session_id).toBe("sess-qa");
@@ -272,8 +292,8 @@ test("two concurrent tasks have independent ask limits", async () => {
       })(),
   );
   await Promise.all([
-    handle({ source: "t", userId: "u", threadId: "th1", text: "one" }),
-    handle({ source: "t", userId: "u", threadId: "th2", text: "two" }),
+    handle({ source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th1", text: "one" }),
+    handle({ source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th2", text: "two" }),
   ]);
   expect(results).toEqual(["allow", "allow"]); // a shared limit would deny the second
 });
@@ -308,6 +328,7 @@ test("resume after 'Awaiting clarification': the owner's reply resumes the exec 
   });
   const first = await handle({
     source: "t",
+    channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
     text: "go",
@@ -317,6 +338,7 @@ test("resume after 'Awaiting clarification': the owner's reply resumes the exec 
   const wt = getWorktreeByThread(env.db, "th1")!;
   await handle({
     source: "t",
+    channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
     text: "keep the column",

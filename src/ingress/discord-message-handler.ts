@@ -12,6 +12,8 @@ export interface Task {
   userId: string;
   /** Conversation thread; maps 1:1 to a Claude session. */
   threadId: string;
+  /** Routing key: the parent channel of the thread (or the channel of a new conversation). */
+  channelId: string;
   text: string;
   /** Posts a message into the thread while the task still runs (a delegated plan waits for approval). */
   notify?: (text: string) => Promise<void>;
@@ -51,6 +53,8 @@ export interface MessageHandlerDeps {
   ownerId: string;
   /** Id of the logged-in bot user (undefined before login). */
   botId: () => string | undefined;
+  /** The one guild the bot serves; messages from any other guild are ignored (undefined: no pin). */
+  guildId?: string;
   handleTask: HandleTask;
 }
 
@@ -59,13 +63,17 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
   const log = logger.child({ module: "discord-message-handler" });
 
   /** Run the task with typing shown, then post the reply into `channel`. */
-  async function answer(channel: SendableChannels, threadId: string, text: string): Promise<void> {
+  async function answer(
+    channel: SendableChannels,
+    ids: { threadId: string; channelId: string },
+    text: string,
+  ): Promise<void> {
     const stopTyping = startTyping(channel);
     try {
       const reply = await deps.handleTask({
         source: "discord",
         userId: deps.ownerId,
-        threadId,
+        ...ids,
         text,
         notify: (m) => sendReply(channel, m),
       });
@@ -84,6 +92,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         authorId: msg.author.id,
         authorIsBot: msg.author.bot,
         inGuild: msg.inGuild(),
+        otherGuild: !!deps.guildId && msg.guildId !== deps.guildId,
         inBotThread: ch.isThread() && ch.ownerId === botId,
         mentionsBot: msg.mentions.has(botId, { ignoreEveryone: true, ignoreRoles: true }),
         content: msg.content,
@@ -105,11 +114,21 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       text: excerpt(route.prompt),
     });
 
+    // Routing key: threads never change parent, so the parent channel is the stable workspace key.
+    const channelId = ch.isThread() ? ch.parentId : ch.id;
     // Where error replies go: the thread once it exists, else the message's channel.
     let errorTarget: SendableChannels | null = ch.isSendable() ? ch : null;
     try {
       if (route.kind === "thread") {
-        if (ch.isSendable()) await answer(ch, ch.id, route.prompt);
+        if (ch.isSendable() && channelId)
+          await answer(ch, { threadId: ch.id, channelId }, route.prompt);
+        else
+          logEvent(
+            log,
+            "message.ignored",
+            { reason: "no_parent_channel", threadId: ch.id },
+            "warn",
+          );
         return;
       }
       // `stop` only makes sense inside a thread that has a run.
@@ -122,7 +141,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       }
       const thread = await msg.startThread({ name: threadName(route.prompt) });
       errorTarget = thread;
-      await answer(thread, thread.id, route.prompt);
+      await answer(thread, { threadId: thread.id, channelId: ch.id }, route.prompt);
     } catch (err) {
       // Full error to the log (redacted), short generic text to the user.
       log.error({ err: errText(err) }, "message handling failed");

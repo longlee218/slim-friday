@@ -5,7 +5,7 @@ import { workspacePaths } from "../src/config/workspace-paths";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { g, makeRepo } from "./git-fixture";
-import { addRepo, clearWorkspaces, makeEnv, stubGateway } from "./helpers";
+import { addRepo, clearWorkspaces, makeEnv, stubGateway, TEST_CHANNEL } from "./helpers";
 
 // Live test: Q&A agent delegates -> plan -> approve -> worktree -> agent edits + commits in the worktree (real SDK, OpenRouter).
 const key = process.env.OPENROUTER_API_KEY;
@@ -46,6 +46,7 @@ describe.skipIf(!live)("live worktree code flow (OpenRouter)", () => {
     const handle = createTaskHandler({ db: env.db, config: env.config, approvals: gw });
     const reply = await handle({
       source: "test",
+      channelId: TEST_CHANNEL,
       userId: "u",
       threadId: "live-flow1",
       text: "Create a file named hello.txt containing exactly the word hi, and commit it.",

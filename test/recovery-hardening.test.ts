@@ -25,9 +25,16 @@ import {
   makeEnv,
   resultMsg,
   stubGateway,
+  TEST_CHANNEL,
 } from "./helpers";
 
-const task = (text: string, threadId = "th1") => ({ source: "test", userId: "u", threadId, text });
+const task = (text: string, threadId = "th1") => ({
+  source: "test",
+  channelId: TEST_CHANNEL,
+  userId: "u",
+  threadId,
+  text,
+});
 
 /** Run the agent against a fake query and return its result. */
 const go = (env: ReturnType<typeof makeEnv>, q: ReturnType<typeof fakeQuery>) =>

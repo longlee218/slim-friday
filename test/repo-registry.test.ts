@@ -8,7 +8,7 @@ import { buildRegistryContext } from "../src/repos/repo-registry";
 import { getSession } from "../src/storage/session-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
-import { addRepo, clearWorkspaces, makeEnv, resultMsg } from "./helpers";
+import { addRepo, clearWorkspaces, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 /** Create a fake git repo dir (a `.git` dir is all the validator checks). */
 function fakeRepo(root: string, name: string): string {
@@ -55,8 +55,14 @@ test("handler tells the owner to add a workspace when none exists", async () => 
   const env = makeEnv();
   clearWorkspaces(env.home);
   const handle = createTaskHandler({ db: env.db, config: env.config });
-  const reply = await handle({ source: "t", userId: "u", threadId: "t1", text: "hi" });
-  expect(reply).toContain("No workspace found");
+  const reply = await handle({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "t1",
+    text: "hi",
+  });
+  expect(reply).toContain("not linked to a workspace");
 });
 
 test("registry block only for 2+ repos", () => {
@@ -85,7 +91,13 @@ test("handler: unpinned uses all repos; pin sticks to thread; unknown pin reject
     })();
   };
   const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
-  const t = (threadId: string, text: string) => ({ source: "t", userId: "u", threadId, text });
+  const t = (threadId: string, text: string) => ({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId,
+    text,
+  });
 
   await handle(t("t1", "where is x?"));
   // Several repos, no pin: neutral cwd, every repo readable.
@@ -122,7 +134,13 @@ test("re-pinning to another repo starts a fresh session (no resume across cwd)",
     })();
   };
   const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
-  const t = (text: string) => ({ source: "t", userId: "u", threadId: "t1", text });
+  const t = (text: string) => ({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "t1",
+    text,
+  });
   await handle(t("repo:a first"));
   await handle(t("same repo follow up"));
   await handle(t("repo:b switch"));

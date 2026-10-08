@@ -7,12 +7,18 @@ Friday is a Discord-driven personal coding agent on Claude Agent SDK. Owner post
 ```
 Discord channel
   └─ @bot <question> [optional: repo:<name> prefix]
+     ├─ ingress gate: bot/non-owner/DM ignored; other guild than DISCORD_GUILD_ID ignored (`message.ignored`, reason `other_guild`)
+     ├─ `cleanup:` is handled before workspace routing, so it still works in an unmapped or remapped channel (recovery path: removes the thread's worktree, runs no agent)
+     ├─ a thread message whose parent channel is unknown (null) is dropped, logged `message.ignored` reason `no_parent_channel` (warn)
+     ├─ routing key = parent channel id (message channel for a new conversation, `parentId` for a thread message; Resume passes the thread's `parentId`) → Task.channelId
      └─ create thread
         ├─ parse message prefix
         │  └─ repo:<name> → sessions.repo = repo name (pin thread)
         ├─ repo-registry (load)
         │  └─ sessions.repo = repo name or "*" (unpinned)
         ├─ handle-task (look up or create session)
+        │  ├─ selectWorkspace(channelId): exactly one workspace lists the channel in `channels:`, else refuse (`task.refused`, reason `unmapped_channel`, no task row); 0 repos → refuse `no_repos`
+        │  ├─ routeTask: a thread whose live worktree's clone is not in the channel's workspace is refused (`wrong_workspace`), never run
         │  ├─ refresh-repo (git fetch + ff-only, throttled 10 min/repo)
         │  └─ run-agent (Q&A mode: Agent SDK query loop, read-only)
         │     ├─ system-prompt (MODE rules: qa/plan/exec contract; HANDOFF: delegate tool when registered; COMMON: safety rules once; then context)
@@ -51,7 +57,8 @@ Task mode (plan approval flow)
 **Registry Flow:**
 1. Per task: `loadWorkspaces()` scans `$AGENT_HOME/workspaces/*/workspace.yaml` (description, channels), then `loadRepos()` reads each `repos/*/repo.yaml`
 2. Validate (fail closed, warn + skip): ws name `^[a-z0-9][a-z0-9-]{0,31}$` and not `ops`; repo name `^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`; dirs are real dirs (not symlinks); repo path is a git root and not equal to / an ancestor of `$HOME` or AGENT_HOME; a channel id listed by 2 workspaces is dropped from both; overlapping repo paths across workspaces only log `repo.overlap`. Dirs with `config.yaml` and no `workspace.yaml` are legacy: listed, never loaded
-3. No valid entries: reply "No workspace found" (phase 1a: flat union of all repos; channel routing comes in phase 2)
+3. Routing: `resolveTaskWorkspace(workspaces, channelId)` = the one workspace whose `channels:` holds the parent channel id; no match → reply "This channel is not linked to a workspace. Add its id `<id>` to `channels:` in workspaces/<ws>/workspace.yaml ..." (reason `unmapped_channel`); a workspace with 0 repos → "Workspace <ws> has no repos ..." (`no_repos`). No default workspace, no sticky column (threads never change parent, so the mapping alone is stable). Remapping a channel moves its threads; a follow-up whose live worktree belongs to another workspace's repo is refused (`wrong_workspace`)
+   - Guild pin: env `DISCORD_GUILD_ID` (snowflake) is required as soon as any workspace lists `channels` (startup exits 1 otherwise); messages from another guild are ignored. `workspace` and `channelId` are in the log context (so `task.routed` / `task.refused` carry them). The guild pin is read at startup only: adding `channels:` or setting `DISCORD_GUILD_ID` needs a bot restart
 4. Thread message with `repo:<name>` prefix → parse + pin (store sessions.repo); cwd = pinned repo or first valid repo
 5. Agent runs with registry summary in prompt + additionalDirectories for read access
 6. Repo change detected → discard session, start fresh

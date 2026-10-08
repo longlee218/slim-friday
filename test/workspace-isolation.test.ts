@@ -10,17 +10,29 @@ import { repoOfTool } from "../src/observability/tool-hooks";
 import type { Repo } from "../src/repos/repo-registry";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { routeTask } from "../src/tasks/task-routing";
-import { pickWorkspace } from "../src/tasks/task-workspace";
 import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
-import { addRepo, clearWorkspaces, makeEnv, resultMsg } from "./helpers";
+import { addRepo, clearWorkspaces, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+
+/** Channel mapped to `w2` (w1 owns TEST_CHANNEL). */
+const CHANNEL_2 = "200000000000000002";
 
 /** Two workspaces `w1` and `w2`, each with a repo named `api` (different clones). */
 function twoWorkspaces() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const a = addRepo(env.home, "api", { description: "one" }, { workspace: "w1" });
-  const b = addRepo(env.home, "api", { description: "two" }, { workspace: "w2" });
+  const a = addRepo(
+    env.home,
+    "api",
+    { description: "one" },
+    { workspace: "w1", channels: [TEST_CHANNEL] },
+  );
+  const b = addRepo(
+    env.home,
+    "api",
+    { description: "two" },
+    { workspace: "w2", channels: [CHANNEL_2] },
+  );
   const scan = loadWorkspaces(env.home);
   ensureHome(env.home, scan.workspaces);
   return { env, a, b, scan };
@@ -53,10 +65,6 @@ test("same repo name in two workspaces: lookups stay inside the workspace", () =
   expect(read("w2", join(b, "f.txt"))).toBe("api");
   expect(read("w2", join(a, "f.txt"))).toBeUndefined();
   expect(read("w1", join(b, "f.txt"))).toBeUndefined();
-  // exec scope: the workspace of a worktree is taken from its path.
-  const wt = join(workspacePaths(env.home).workspace("w2").repo("api").worktrees, "T1");
-  expect(pickWorkspace(env.home, scan.workspaces, wt)?.name).toBe("w2");
-  expect(pickWorkspace(env.home, scan.workspaces)?.name).toBe("w1");
 });
 
 test("same repo name: memory writes and reads are per workspace", () => {
@@ -99,9 +107,32 @@ test("a real Q&A prompt contains no pending-file text and no other workspace's m
     })();
   };
   const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
-  await handle({ source: "t", userId: "u", threadId: "th", text: "hello" });
+  await handle({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "th",
+    text: "hello",
+  });
   expect(prompt).not.toContain("PENDING_MARK");
-  expect(prompt).not.toContain("W2_MARK"); // first workspace (w1) is chosen
+  expect(prompt).not.toContain("W2_MARK"); // TEST_CHANNEL routes to w1
+});
+
+test("a message from w2's channel gets w2's memory and not w1's", async () => {
+  const { env } = twoWorkspaces();
+  appendTaskMemory(env.home, "w1", "api", "T", { bullets: ["W1_MARK"], globalBullets: [] });
+  appendTaskMemory(env.home, "w2", "api", "T", { bullets: ["W2_MARK"], globalBullets: [] });
+  let prompt = "";
+  const queryFn = (a: any) => {
+    prompt = a.options.systemPrompt.append as string;
+    return (async function* () {
+      yield resultMsg();
+    })();
+  };
+  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+  await handle({ source: "t", channelId: CHANNEL_2, userId: "u", threadId: "th", text: "hello" });
+  expect(prompt).toContain("W2_MARK");
+  expect(prompt).not.toContain("W1_MARK");
 });
 
 test("no CLAUDE.md is created under the home by ensureHome or a handler run", async () => {
@@ -114,7 +145,13 @@ test("no CLAUDE.md is created under the home by ensureHome or a handler run", as
         yield resultMsg();
       })()) as never,
   });
-  await handle({ source: "t", userId: "u", threadId: "th", text: "hello" });
+  await handle({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "th",
+    text: "hello",
+  });
   const found = readdirSync(env.home, { recursive: true, withFileTypes: true })
     .filter((e) => e.name === "CLAUDE.md" || e.name === "CLAUDE.local.md")
     .map((e) => join(e.parentPath, e.name));
@@ -143,7 +180,13 @@ test("legacy dir and no workspace: migration reply, and the legacy dir is left u
   mkdirSync(old, { recursive: true });
   writeFileSync(join(old, "config.yaml"), "path: /x\n");
   const handle = createTaskHandler({ db: env.db, config: env.config });
-  const reply = await handle({ source: "t", userId: "u", threadId: "th", text: "hi" });
+  const reply = await handle({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "th",
+    text: "hi",
+  });
   expect(reply).toBe(
     "Old workspace layout found: see the migration runbook (docs/discord-setup.md).",
   );

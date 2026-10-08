@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { BASH_TOOL_NAME, EDIT_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { makeEnv } from "./helpers";
+import { makeEnv, TEST_CHANNEL } from "./helpers";
 
 // Live test: needs a real OPENROUTER_API_KEY (bun auto-loads .env; a placeholder counts as missing).
 const key = process.env.OPENROUTER_API_KEY;
@@ -39,6 +39,7 @@ describe.skipIf(!live)("live agent smoke (OpenRouter)", () => {
 
     const reply = await createTaskHandler({ db: env.db, config: cfg, queryFn: queryFn as never })({
       source: "test",
+      channelId: TEST_CHANNEL,
       userId: "u",
       threadId: "live-or1",
       text: "What is the secret word in a.txt? Answer in one word.",

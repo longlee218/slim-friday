@@ -25,6 +25,7 @@ import {
   makeEnv,
   resultMsg,
   stubGateway,
+  TEST_CHANNEL,
 } from "./helpers";
 
 /** Env with one workspace `real` whose repo/ is a real git clone (a managed clone). */
@@ -93,7 +94,13 @@ function fakeSdk(
 const delegating = (fake: (a: any) => any, results: { isError?: boolean; text: string }[] = []) =>
   delegatingQuery([{ brief: BRIEF }], fake, results) as never;
 
-const msg_ = (text: string, threadId = "th1") => ({ source: "t", userId: "u", threadId, text });
+const msg_ = (text: string, threadId = "th1") => ({
+  source: "t",
+  channelId: TEST_CHANNEL,
+  userId: "u",
+  threadId,
+  text,
+});
 
 test("delegate: plan approved -> worktree -> execute in worktree -> PR offered; follow-up resumes there; cleanup", async () => {
   const { env, clone } = await setup();

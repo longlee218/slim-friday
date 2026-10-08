@@ -6,7 +6,7 @@ import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
-import { BRIEF, delegatingQuery, initMsg, resultMsg, stubGateway } from "./helpers";
+import { BRIEF, delegatingQuery, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
 /** The real git MCP server (pinned package), shared by the tests of this file. */
 const git = createGitMcp();
@@ -43,7 +43,13 @@ async function runTask(config: Record<string, string>, skills: string[]) {
     approvals: stubGateway({ confirm: async () => ({ approved: false, reason: "no" }) }),
     queryFn: delegatingQuery([{ brief: BRIEF }], next) as never,
   });
-  await handle({ source: "t", userId: "u", threadId: "th1", text: "change it" });
+  await handle({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "th1",
+    text: "change it",
+  });
   const [plan, exec] = seen;
   return { env, clone, plan, exec, pluginFiles, wt: getWorktreeByThread(env.db, "th1")! };
 }

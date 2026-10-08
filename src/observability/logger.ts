@@ -35,6 +35,8 @@ export function fileDestination(file: string) {
 export interface LogContext {
   taskId?: string;
   threadId?: string;
+  /** Routing key of the task: parent channel of the thread (or the channel of a new conversation). */
+  channelId?: string;
   /** Workspace the task runs in (one log for all workspaces; this field tells them apart). */
   workspace?: string;
   /** Repo of the task ("*" = not chosen yet). */

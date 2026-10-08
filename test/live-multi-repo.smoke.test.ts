@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { createTaskHandler } from "../src/tasks/handle-task";
-import { addRepo, clearWorkspaces, makeEnv } from "./helpers";
+import { addRepo, clearWorkspaces, makeEnv, TEST_CHANNEL } from "./helpers";
 
 // Live test: verifies the SDK honors `additionalDirectories` (open spike item for phase 02).
 const key = process.env.OPENROUTER_API_KEY;
@@ -31,6 +31,7 @@ describe.skipIf(!live)("live multi-repo smoke (OpenRouter)", () => {
 
     const reply = await createTaskHandler({ db: env.db, config: env.config })({
       source: "test",
+      channelId: TEST_CHANNEL,
       userId: "u",
       threadId: "live-multi1",
       text: `Use your Read tool to open ${join(b, "magic.txt")} and tell me the magic number. Answer with the number only.`,

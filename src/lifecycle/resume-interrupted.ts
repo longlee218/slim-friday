@@ -20,6 +20,8 @@ export interface ResumeDeps {
   getClient: () => Client | undefined;
   ownerId: string;
   handleTask: HandleTask;
+  /** The one guild served (DISCORD_GUILD_ID); a button from another guild is ignored. */
+  guildId?: string;
 }
 
 /**
@@ -59,6 +61,11 @@ export function createResumeHandler(deps: ResumeDeps) {
       if (!i.isButton()) return;
       const [prefix, threadId] = i.customId.split(":");
       if (prefix !== PREFIX || !threadId) return;
+      // Same rule as normal messages: with a pinned guild, other guilds are ignored (same reason code).
+      if (deps.guildId && i.guildId !== deps.guildId) {
+        logEvent(log, "message.ignored", { reason: "other_guild", via: "resume" });
+        return;
+      }
       if (i.user.id !== deps.ownerId) {
         await i.reply({ content: "Only the owner can resume.", flags: MessageFlags.Ephemeral });
         return;
@@ -66,6 +73,9 @@ export function createResumeHandler(deps: ResumeDeps) {
       const channel = i.channel;
       // The button must live in the thread it names.
       if (i.channelId !== threadId || !channel?.isSendable()) return;
+      // Routing key: the thread's parent channel (a button outside a thread is not ours).
+      const channelId = channel.isThread() ? channel.parentId : null;
+      if (!channelId) return;
       await i.update({ content: "Resuming...", components: [] });
       logEvent(log, "resume.clicked", { threadId });
       const stopTyping = startTyping(channel);
@@ -74,6 +84,7 @@ export function createResumeHandler(deps: ResumeDeps) {
           source: "discord",
           userId: deps.ownerId,
           threadId,
+          channelId,
           text: RESUME_PROMPT,
         });
         await sendReply(channel, reply);

@@ -19,6 +19,7 @@ import {
   makeEnv,
   resultMsg,
   stubGateway,
+  TEST_CHANNEL,
 } from "./helpers";
 
 /** Fake gateway: records requests and answers with a scripted decision. */
@@ -61,7 +62,13 @@ async function runCodeTask(gw?: ApprovalGateway) {
     queryFn: ((a: any) => (qa.push(a.options), query(a))) as never,
     approvals: gw,
   });
-  const reply = await handle({ source: "t", userId: "u", threadId: "t1", text: "fix it" });
+  const reply = await handle({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "t1",
+    text: "fix it",
+  });
   return { env, opts, reply, repo, qa };
 }
 

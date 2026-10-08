@@ -18,7 +18,7 @@ import {
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import { SUBAGENT_NAMES } from "../src/tools/tool-catalog";
-import { addRepo, makeEnv, resultMsg } from "./helpers";
+import { addRepo, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 /** Run one Q&A message and return the SDK options the handler built. */
 async function qaOptions(setup?: (env: ReturnType<typeof makeEnv>) => void) {
@@ -33,6 +33,7 @@ async function qaOptions(setup?: (env: ReturnType<typeof makeEnv>) => void) {
   };
   await createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
     source: "t",
+    channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "t1",
     text: "where is x?",

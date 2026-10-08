@@ -20,6 +20,8 @@ export interface MessageFacts {
   authorIsBot: boolean;
   /** False for DMs. */
   inGuild: boolean;
+  /** True when a guild is pinned (DISCORD_GUILD_ID) and the message comes from another one. */
+  otherGuild: boolean;
   /** True when the channel is a thread created by this bot. */
   inBotThread: boolean;
   /** True when the message mentions this bot. */
@@ -29,7 +31,10 @@ export interface MessageFacts {
 
 /** Routing decision for one message. */
 export type Route =
-  | { kind: "ignore"; reason: "bot" | "not_owner" | "dm" | "empty" | "not_mentioned" }
+  | {
+      kind: "ignore";
+      reason: "bot" | "not_owner" | "dm" | "other_guild" | "empty" | "not_mentioned";
+    }
   /** Continue the session of the thread the message is in. */
   | { kind: "thread"; prompt: string }
   /** New conversation: create a thread from the message. */
@@ -45,6 +50,7 @@ export function routeMessage(f: MessageFacts, ownerId: string, botId: string): R
   if (f.authorIsBot) return { kind: "ignore", reason: "bot" };
   if (f.authorId !== ownerId) return { kind: "ignore", reason: "not_owner" };
   if (!f.inGuild) return { kind: "ignore", reason: "dm" };
+  if (f.otherGuild) return { kind: "ignore", reason: "other_guild" };
   const prompt = stripMention(f.content, botId);
   if (!prompt) return { kind: "ignore", reason: "empty" };
   if (f.inBotThread) return { kind: "thread", prompt };

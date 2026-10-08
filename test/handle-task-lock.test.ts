@@ -1,9 +1,15 @@
 import { expect, test } from "bun:test";
 import { getSession, setSession } from "../src/storage/session-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
-import { makeEnv, resultMsg } from "./helpers";
+import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
-const task = (text: string, threadId = "th1") => ({ source: "test", userId: "u", threadId, text });
+const task = (text: string, threadId = "th1") => ({
+  source: "test",
+  channelId: TEST_CHANNEL,
+  userId: "u",
+  threadId,
+  text,
+});
 
 /** Query that waits until aborted (or released), simulating a long run. */
 function slowQuery(release: { fn?: () => void; ready?: () => void }) {

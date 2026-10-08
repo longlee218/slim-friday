@@ -77,6 +77,12 @@ export function routeTask(
   if (!cmd.text) return refuse("empty_text", "Send a message with the task.");
   // A follow-up reuses its worktree: only the task cap applies. A plan resume re-checks clone + cap.
   if (worktree) {
+    // The channel's workspace must own this worktree's clone (a remapped channel must not touch it).
+    if (!repos.some((r) => realOrSame(r.path) === realOrSame(worktree.repoPath)))
+      return refuse(
+        "wrong_workspace",
+        `This thread's worktree belongs to repo ${worktree.repo}, which is not in this channel's workspace. Re-link the channel, or clean up the thread.`,
+      );
     return (
       capRefusal(deps.db) ?? { pinned, worktree, isCode, candidates: repos, repo: worktree.repo }
     );

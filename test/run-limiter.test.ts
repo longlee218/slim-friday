@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { createRunLimiter } from "../src/tasks/run-limiter";
-import { makeEnv, resultMsg } from "./helpers";
+import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 test("limiter caps at max and frees on release (idempotent)", () => {
   const l = createRunLimiter(2);
@@ -43,7 +43,13 @@ test("handleTask replies busy when cap reached, stop still works, slot released 
     queryFn: gated(gate) as never,
     limiter,
   });
-  const t = (text: string, threadId: string) => ({ source: "test", userId: "u", threadId, text });
+  const t = (text: string, threadId: string) => ({
+    source: "test",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId,
+    text,
+  });
   const first = handle(t("a", "th1"));
   await ready; // Wait for query setup, not timing
   expect(await handle(t("b", "th2"))).toBe("busy, 1 runs active, try again in a minute");
@@ -60,7 +66,7 @@ test("slot released when the run errors", async () => {
     throw new Error("boom");
   }) as never;
   const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: boom, limiter });
-  await handle({ source: "test", userId: "u", threadId: "t", text: "x" });
+  await handle({ source: "test", channelId: TEST_CHANNEL, userId: "u", threadId: "t", text: "x" });
   expect(limiter.active()).toBe(0);
 });
 
@@ -83,7 +89,13 @@ test("abortAll aborts active runs", async () => {
       yield resultMsg();
     })();
   const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: q as never });
-  const p = handle({ source: "test", userId: "u", threadId: "t", text: "x" });
+  const p = handle({
+    source: "test",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "t",
+    text: "x",
+  });
   await readyPromise; // Wait for abort listener to be set up
   handle.abortAll();
   expect(await p).toBe("Stopped.");

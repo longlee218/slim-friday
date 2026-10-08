@@ -19,6 +19,7 @@ const base: MessageFacts = {
   authorId: OWNER,
   authorIsBot: false,
   inGuild: true,
+  otherGuild: false,
   inBotThread: false,
   mentionsBot: true,
   content: `<@${BOT}> hello`,
@@ -39,6 +40,19 @@ test("non-owner, bot, DM are ignored in channel and thread", () => {
     expect(route({ authorIsBot: true, inBotThread }).kind).toBe("ignore");
     expect(route({ inGuild: false, inBotThread }).kind).toBe("ignore");
   }
+});
+
+test("a message from another guild is ignored (other_guild), thread or channel", () => {
+  for (const inBotThread of [false, true])
+    expect(route({ otherGuild: true, inBotThread })).toEqual({
+      kind: "ignore",
+      reason: "other_guild",
+    });
+  // The check comes after the owner/bot rules: a stranger stays not_owner.
+  expect(route({ otherGuild: true, authorId: "222" })).toEqual({
+    kind: "ignore",
+    reason: "not_owner",
+  });
 });
 
 test("channel without mention is ignored; bot thread needs no mention", () => {

@@ -26,6 +26,7 @@ export function createDiscordBot(
   const onMessage = createMessageHandler({
     ownerId: config.ownerDiscordId!,
     botId: () => client.user?.id,
+    guildId: config.discordGuildId,
     handleTask,
   });
 

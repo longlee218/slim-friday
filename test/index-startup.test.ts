@@ -1,13 +1,15 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { readLogLines } from "./helpers";
 
 /** Run src/index.ts as a real subprocess with the given Discord env. */
-async function runIndex(discord: Record<string, string>): Promise<{ code: number; log: string }> {
-  const home = mkdtempSync(join(tmpdir(), "friday-idx-"));
+async function runIndex(
+  discord: Record<string, string>,
+  home = mkdtempSync(join(tmpdir(), "friday-idx-")),
+): Promise<{ code: number; log: string }> {
   const proc = Bun.spawn(["bun", "run", join(import.meta.dir, "..", "src", "index.ts")], {
     // cwd outside the repo so Bun does not auto-load the real .env
     cwd: home,
@@ -50,4 +52,17 @@ test("exits 1 before Discord login when the resolved provider has no credential"
   expect(r.code).toBe(1);
   expect(r.log).toContain("No credential for provider anthropic");
   expect(r.log).not.toContain("discord login failed");
+});
+
+test("exits 1 when a workspace lists channels but DISCORD_GUILD_ID is not set", async () => {
+  const home = mkdtempSync(join(tmpdir(), "friday-idx-"));
+  const ws = workspacePaths(home).workspace("w");
+  mkdirSync(ws.root, { recursive: true });
+  writeFileSync(ws.config, 'channels:\n  - "100000000000000001"\n');
+  const r = await runIndex(
+    { DISCORD_TOKEN: "fake.discord.token", OWNER_DISCORD_ID: "1", CLAUDE_CODE_OAUTH_TOKEN: "tok" },
+    home,
+  );
+  expect(r.code).toBe(1);
+  expect(r.log).toContain("DISCORD_GUILD_ID required");
 });

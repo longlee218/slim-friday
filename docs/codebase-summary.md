@@ -115,7 +115,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **memory-writer.ts:** `appendTaskMemory(home, ws, repo, title, bullets)` writes plain bullets to the repo MEMORY.md and `[global]` bullets to `MEMORY.pending.md`; deduplication, trimming; max 2 global bullets per task
 - **sanitize-bullet.ts:** `sanitizeBullet()`: one line, no markup/fences/HTML/role prefixes, redacted, 200 chars (applied in `extractMemory` and the writer)
 - **repo-memory.ts:** `readMemoryLayers`/`buildMemoryContext(home, ws, repos)`; `repoMemoryFile`; `extractMemory`
-- **task-workspace.ts:** `selectWorkspace`/`pickWorkspace`: the workspace of a run (until channel routing: the thread's worktree workspace, else the first with repos); all repo lookups stay inside it
+- **src/workspaces/task-workspace.ts:** `resolveTaskWorkspace`/`selectWorkspace`: the workspace of a run = the one listing the task's `channelId` (parent channel) in `channels:`, else a refusal (`unmapped_channel`, `no_repos`, `legacy_layout`); all repo lookups stay inside it
 
 ### Guardrails & Approvals
 - **check-tool-call.ts:** core guard: route tool → allow/ask/deny; explicit DELEGATE allow (before generic MCP deny); GuardrailContext

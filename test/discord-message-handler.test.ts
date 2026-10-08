@@ -2,18 +2,23 @@ import { expect, test } from "bun:test";
 import { CLIENT_OPTIONS } from "../src/ingress/discord-bot";
 import type { Task } from "../src/ingress/discord-message-handler";
 import { createMessageHandler } from "../src/ingress/discord-message-handler";
+import { captureLogs } from "../src/observability/logger";
 
 const OWNER = "111";
 const BOT = "999";
 
 /** Fake sendable channel recording sends. */
-function fakeChannel(id: string, opts: { thread?: boolean; ownerId?: string } = {}) {
+function fakeChannel(
+  id: string,
+  opts: { thread?: boolean; ownerId?: string; parentId?: string } = {},
+) {
   const sent: any[] = [];
   const ch: any = {
     id,
     sent,
     isThread: () => !!opts.thread,
     ownerId: opts.ownerId,
+    parentId: opts.parentId ?? null,
     isSendable: () => true,
     send: async (o: any) => {
       sent.push(o);
@@ -30,6 +35,7 @@ function fakeMsg(over: {
   content?: string;
   mention?: boolean;
   channel?: any;
+  guildId?: string;
   startThread?: any;
 }) {
   const channel = over.channel ?? fakeChannel("chan");
@@ -39,6 +45,7 @@ function fakeMsg(over: {
     author: { id: over.authorId ?? OWNER, bot: over.bot ?? false },
     content: over.content ?? `<@${BOT}> hello`,
     channel,
+    guildId: over.guildId ?? "G1",
     inGuild: () => true,
     mentions: { has: () => over.mention ?? true },
     reply: async (o: any) => {
@@ -55,11 +62,12 @@ function fakeMsg(over: {
 }
 
 /** Handler with a recording fake task layer. */
-function setup(reply: string | Error = "answer") {
+function setup(reply: string | Error = "answer", guildId?: string) {
   const tasks: Task[] = [];
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    guildId,
     handleTask: async (t) => {
       tasks.push(t);
       if (reply instanceof Error) throw reply;
@@ -75,7 +83,7 @@ test("owner mention in channel -> thread created, task run, reply sent in thread
   await onMessage(m.msg);
   expect(m.calls.threads).toEqual([{ name: "hello" }]);
   expect(tasks).toMatchObject([
-    { source: "discord", userId: OWNER, threadId: "thr1", text: "hello" },
+    { source: "discord", userId: OWNER, threadId: "thr1", channelId: "chan", text: "hello" },
   ]);
   expect(tasks[0]!.notify).toBeFunction(); // lets the handoff post into the thread mid-run
   expect(m.thread.sent[0].content).toBe("hi @everyone");
@@ -93,9 +101,10 @@ test("non-owner and bot messages never reach the agent", async () => {
 
 test("message in a bot thread continues with the thread id, no mention needed", async () => {
   const { onMessage, tasks } = setup();
-  const th = fakeChannel("thr7", { thread: true, ownerId: BOT });
+  const th = fakeChannel("thr7", { thread: true, ownerId: BOT, parentId: "parent9" });
   await onMessage(fakeMsg({ channel: th, mention: false, content: "follow up" }).msg);
-  expect(tasks[0]).toMatchObject({ threadId: "thr7", text: "follow up" });
+  // The routing key of a thread is its parent channel, never the thread id.
+  expect(tasks[0]).toMatchObject({ threadId: "thr7", channelId: "parent9", text: "follow up" });
   expect(th.sent[0].content).toBe("answer");
 });
 
@@ -136,4 +145,28 @@ test("`@bot stop` in a channel gives a hint and starts no thread", async () => {
 
 test("H1: client default allowedMentions disables all pings", () => {
   expect(CLIENT_OPTIONS.allowedMentions).toEqual({ parse: [], repliedUser: false });
+});
+
+test("pinned guild: a message from another guild is ignored, the pinned guild runs", async () => {
+  const { onMessage, tasks } = setup("answer", "G1");
+  await onMessage(fakeMsg({ guildId: "G2" }).msg);
+  const th = fakeChannel("thr8", { thread: true, ownerId: BOT, parentId: "p" });
+  await onMessage(fakeMsg({ guildId: "G2", channel: th, mention: false, content: "x" }).msg);
+  expect(tasks).toEqual([]);
+  await onMessage(fakeMsg({ guildId: "G1" }).msg);
+  expect(tasks).toHaveLength(1);
+});
+
+test("thread message with a null parent channel is dropped and logged (no_parent_channel)", async () => {
+  const { onMessage, tasks } = setup();
+  const cap = captureLogs();
+  const th = fakeChannel("thr5", { thread: true, ownerId: BOT }); // parentId null
+  await onMessage(fakeMsg({ channel: th, mention: false, content: "x" }).msg);
+  cap.stop();
+  expect(tasks).toEqual([]);
+  expect(cap.lines.find((l) => l.reason === "no_parent_channel")).toMatchObject({
+    event: "message.ignored",
+    level: 40,
+    threadId: "thr5",
+  });
 });

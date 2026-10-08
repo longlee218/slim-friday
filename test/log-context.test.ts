@@ -23,9 +23,15 @@ import {
   GLOB_TOOL_NAME,
   READ_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
-import { addRepo, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
+import { addRepo, initMsg, makeEnv, readLogLines, resultMsg, TEST_CHANNEL } from "./helpers";
 
-const task = (text: string, threadId: string) => ({ source: "test", userId: "u", threadId, text });
+const task = (text: string, threadId: string) => ({
+  source: "test",
+  channelId: TEST_CHANNEL,
+  userId: "u",
+  threadId,
+  text,
+});
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 
 test("a line from a module logger deep in a task carries taskId/threadId/repo/mode", async () => {

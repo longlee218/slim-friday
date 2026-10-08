@@ -3,6 +3,12 @@ import type { Logger } from "pino";
 import { logEvent, setLogContext, tryLog } from "../observability/logger";
 import { insertTask, interruptRunningTasks } from "../storage/run-store";
 
+/** Log-context fields every line of a call carries: its thread and its routing channel. */
+export const taskLogContext = (t: { threadId: string; channelId: string }) => ({
+  threadId: t.threadId,
+  channelId: t.channelId,
+});
+
 /** Tracks calls in flight and the active runs, so shutdown can abort and await them. */
 export function createRunTracker(db: Database, log: Logger, active: Map<string, AbortController>) {
   /** Promises of calls in flight. */

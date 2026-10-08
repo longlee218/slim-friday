@@ -21,6 +21,9 @@ import { openDb } from "../src/storage/db";
 import { DELEGATE_TASK_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
+/** Discord channel id mapped to the default test workspace `main` (and carried by every test Task). */
+export const TEST_CHANNEL = "100000000000000001";
+
 /** Create a fresh temp AGENT_HOME, real config and real SQLite db. */
 export function makeEnv(extra: Record<string, string> = {}) {
   const home = mkdtempSync(join(tmpdir(), "friday-test-"));
@@ -93,7 +96,7 @@ export function assertTempHome(home: string): void {
 
 /**
  * Create `workspaces/<ws>/repos/<name>/repo.yaml` (+ a fake git clone at `.../repo` unless `path` is given),
- * and `workspaces/<ws>/workspace.yaml` when missing (or when `channels` is given). Returns the repo path.
+ * and `workspaces/<ws>/workspace.yaml` when missing (or when `channels` is given; `main` defaults to TEST_CHANNEL). Returns the repo path.
  * `config` holds extra repo.yaml keys (gitAuthor, githubAccount, testCommand...); `workspace` defaults to "main".
  */
 export function addRepo(
@@ -108,8 +111,10 @@ export function addRepo(
   const rp = ws.repo(name);
   mkdirSync(rp.root, { recursive: true });
   if (channels || !existsSync(ws.config)) {
-    const list = (channels ?? []).map((c) => `  - "${c}"`).join("\n");
-    writeFileSync(ws.config, channels?.length ? `channels:\n${list}\n` : "channels: []\n");
+    // `main` is the default test workspace and owns TEST_CHANNEL; any other workspace needs its own channels.
+    const ids = channels ?? (workspace === "main" ? [TEST_CHANNEL] : []);
+    const list = ids.map((c) => `  - "${c}"`).join("\n");
+    writeFileSync(ws.config, ids.length ? `channels:\n${list}\n` : "channels: []\n");
   }
   const repo = path ?? rp.clone;
   if (!path) mkdirSync(join(repo, ".git"), { recursive: true });

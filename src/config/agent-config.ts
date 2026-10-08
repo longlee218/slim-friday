@@ -37,6 +37,18 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
   DISCORD_TOKEN: secret,
   OWNER_DISCORD_ID: z.string().min(1).optional(),
+  /** Guild snowflake; empty or the placeholder counts as unset, anything else must be 17-20 digits. */
+  DISCORD_GUILD_ID: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" || v === PLACEHOLDER ? undefined : v))
+    .pipe(
+      z
+        .string()
+        .regex(/^\d{17,20}$/)
+        .optional(),
+    )
+    .optional(),
   MODEL: z.string().trim().min(1).optional(),
   CODE_MODEL: z.string().trim().min(1).optional(),
   GIT_AUTHOR: z.string().trim().min(1).optional(),
@@ -60,6 +72,8 @@ export interface AgentConfig {
   hasRealAuth: boolean;
   discordToken: string | undefined;
   ownerDiscordId: string | undefined;
+  /** The one guild served (DISCORD_GUILD_ID); required once any workspace lists channels (see index.ts). */
+  discordGuildId: string | undefined;
   agentHome: string;
   logLevel: string;
   model: string;
@@ -111,6 +125,7 @@ export function loadConfig(
     hasRealAuth: isOpenrouter ? hasRealOpenrouter : hasRealOauth,
     discordToken: e.DISCORD_TOKEN,
     ownerDiscordId: e.OWNER_DISCORD_ID,
+    discordGuildId: e.DISCORD_GUILD_ID,
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
     model: e.MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL),

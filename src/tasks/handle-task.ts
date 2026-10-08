@@ -17,6 +17,7 @@ import {
 import { errText } from "../observability/redact";
 import { finishTask } from "../storage/run-store";
 import { deleteSession, getSession } from "../storage/session-store";
+import { selectWorkspace } from "../workspaces/task-workspace";
 import { HANDOFF_OUTCOMES, runHandoff } from "./code-handoff";
 import { runCodeFlow } from "./code-task-flow";
 import { runQaFlow } from "./qa-flow";
@@ -25,8 +26,7 @@ import { parseTaskCommand } from "./task-commands";
 import type { FlowResult } from "./task-result";
 import { closeTask, OUTCOME_REPLY } from "./task-result";
 import { resolveCommand, routeTask } from "./task-routing";
-import { beginTask, createRunTracker } from "./task-tracker";
-import { selectWorkspace } from "./task-workspace";
+import { beginTask, createRunTracker, taskLogContext } from "./task-tracker";
 import { cleanupWorktree } from "./task-worktree";
 
 /** Dependencies of the task handler. */
@@ -99,14 +99,13 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     // Everything after the lock is taken lives in try so `finally` always releases it.
     try {
       const stored = getSession(db, threadId);
-      // Registry is re-read per task so yaml edits apply without a restart.
-      const picked = selectWorkspace(config.agentHome, db, threadId);
+      const picked = selectWorkspace(config.agentHome, task.channelId);
       if ("reply" in picked) {
         logEvent(log, "task.refused", { reason: picked.reason, reply: picked.reply });
         return picked.reply;
       }
       const { ws } = picked;
-      const repos = ws.repos; // every repo lookup below stays inside this workspace
+      const { repos } = ws; // every repo lookup below stays inside this workspace
       setLogContext({ workspace: ws.name });
       single = repos.length === 1 ? repos[0]!.name : undefined;
       // Resume button becomes a follow-up / plan run / Q&A from the interrupted task's session (or a refusal).
@@ -200,8 +199,8 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     }
   };
   const handleTask = (task: Task): Promise<string> =>
-    // Every line logged while this call runs (any module, any await) carries the thread id.
-    tracker.track(runWithLogContext({ threadId: task.threadId }, () => run(task)));
+    // Every line logged while this call runs (any module, any await) carries the thread id and channel id.
+    tracker.track(runWithLogContext(taskLogContext(task), () => run(task)));
   /** Stop the git MCP server process (shutdown). */
   handleTask.close = () => git.close();
   handleTask.abortAll = tracker.abortAll;
