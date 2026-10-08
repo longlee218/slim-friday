@@ -6,6 +6,7 @@ import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
 import { claudePlansDir, workspacePaths } from "../config/workspace-paths";
 import { guardFor } from "../guardrails/check-tool-call";
+import { realOrSame } from "../guardrails/paths";
 import type { GitMcp } from "../mcp/git-mcp";
 import { appendTaskMemory } from "../memory/memory-writer";
 import { buildPromptContext } from "../memory/prompt-context";
@@ -37,7 +38,9 @@ export interface CodeFlowInput {
   taskId: string;
   threadId: string;
   text: string;
-  /** Registered repos the agent may pick from (managed clones only). */
+  /** Workspace the task runs in; every repo lookup of the flow stays inside it. */
+  workspace: string;
+  /** Repos of that workspace the agent may pick from (managed clones only). */
   repos: Repo[];
   /** The task's abort controller (`stop`, shutdown). */
   ac: AbortController;
@@ -49,10 +52,16 @@ export interface CodeFlowInput {
   planResume?: { sessionId: string; cwd: string };
 }
 
-/** Refusal text when a repo has no commit identity: never fall back to the machine's global git user. */
-const noAuthor = (repo: string): FlowResult =>
+/** Refusal text when the worktree's repo is not the clone of the workspace this run resolved to. */
+const wrongWorkspace = (ws: string, repo: string): FlowResult =>
   failResult(
-    `No commit identity for ${repo}. Set gitAuthor: "Name <email>" in workspaces/${repo}/config.yaml (or GIT_AUTHOR in .env).`,
+    `This task's worktree belongs to another workspace than ${ws} (repo ${repo}). Its workspace is no longer available: fix workspaces/<ws>/workspace.yaml, or clean up the thread.`,
+  );
+
+/** Refusal text when a repo has no commit identity: never fall back to the machine's global git user. */
+const noAuthor = (ws: string, repo: string): FlowResult =>
+  failResult(
+    `No commit identity for ${repo}. Set gitAuthor: "Name <email>" in workspaces/${ws}/repos/${repo}/repo.yaml (or GIT_AUTHOR in .env).`,
   );
 
 /**
@@ -83,9 +92,12 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
     const repo = i.repos.find((r) => r.name === wt.repo);
     // Commits are made as the owner: the agent's git server process gets this identity in its env.
     const author = repo ? resolveAuthor(repo, config) : null;
-    if (!repo || !author) return noAuthor(wt.repo);
-    // Execute-stage scratch (plan.md) lives in the repo's workspace.
-    const scratch = paths.workspace(repo.workspace).task(wt.taskId).root;
+    if (!repo || !author) return noAuthor(i.workspace, wt.repo);
+    // The name alone is not enough: the same repo name can exist in another workspace. Refuse a clone mismatch.
+    if (realOrSame(repo.path) !== realOrSame(wt.repoPath))
+      return wrongWorkspace(i.workspace, wt.repo);
+    // Execute-stage scratch (plan.md): the task dir of the workspace.
+    const scratch = paths.workspace(i.workspace).task(wt.taskId).root;
     mkdirSync(scratch, { recursive: true, mode: 0o700 });
     const cwd = realpathSync(wt.path);
     const scratchReal = realpathSync(scratch);
@@ -111,9 +123,9 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
       // settingSources is [] here (the worktree is agent-writable): feed the trusted clone's CLAUDE.md + memory.
       extraContext: buildPromptContext({
         agentHome: config.agentHome,
-        workspace: wt.repo,
+        workspace: i.workspace,
         repoClaudeMd: readRepoClaudeMd(repo.path),
-        memoryWorkspaces: [wt.repo],
+        memoryRepos: [wt.repo],
       }),
       guard: guardFor("exec", {
         writePaths: [cwd, plans],
@@ -132,9 +144,9 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
     const base: FlowResult = { ...res, cwd, repo: wt.repo };
     if (awaiting) return awaitingResult(base, awaiting);
     if (res.outcome !== "success") return base;
-    // Lessons the agent wants remembered go to MEMORY.md (workspace, or root for [global]), not into the chat reply.
+    // Lessons the agent wants remembered go to the repo MEMORY.md (or MEMORY.pending.md for [global]), not into the chat reply.
     const memory = extractMemory(res.text);
-    appendTaskMemory(config.agentHome, wt.repo, prTitle(i.text), memory);
+    appendTaskMemory(config.agentHome, i.workspace, wt.repo, prTitle(i.text), memory);
     const text = await finishCodeTask(
       { db, approvals, git: deps.git },
       {
@@ -161,7 +173,7 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
   logEvent(log, "plan.approved");
 
   const repo = i.repos.find((r) => r.name === repoName)!;
-  if (!resolveAuthor(repo, config)) return noAuthor(repo.name);
+  if (!resolveAuthor(repo, config)) return noAuthor(i.workspace, repo.name);
   const started = await startWorktree(deps, i, repo, plan);
   if ("outcome" in started) return started;
   const { wt, execScratch } = started;

@@ -54,7 +54,7 @@ export interface RunAgentInput {
   gitAuthor?: GitIdentity;
   /** Directory tree the agent's git MCP server is sandboxed to (execute stage: the worktree). */
   gitBaseDir?: string;
-  /** Repo (workspace) the run belongs to: its raw task log goes to that workspace's logs dir. */
+  /** Repo name of the run: names the skills plugin of a `full` repo (exec stage). */
   logRepo?: string;
   /** In-process MCP server of the app (Q&A `DelegateTask` tool); registered in Q&A mode only. */
   appServer?: McpSdkServerConfigWithInstance;
@@ -135,7 +135,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     crypto.randomUUID(),
     input.taskId,
     config.model,
-    workspacePaths(config.agentHome).taskLog(input.taskId, input.logRepo),
+    workspacePaths(config.agentHome).taskLog(input.taskId),
   );
   const run = input.queryFn ?? (sdkQuery as QueryFn);
 

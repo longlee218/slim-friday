@@ -32,7 +32,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 ├── IDENTITY.md                # Shared identity (auto-created)
 ├── SOUL.md                    # Shared persona: tone (auto-created)
 ├── USER.md                    # Owner preferences (language, habits) (auto-created, Phase 1+)
-├── MEMORY.md                  # Global memory (auto-created, max 2000 chars, Phase 1+)
+├── MEMORY.md                  # Global memory (owner-written only, max 2000 chars injected)
 ├── BOOTSTRAP.md               # Owner guide (auto-created, never read by code, Phase 1+)
 ├── data/agent.db              # SQLite: sessions, tasks, runs, tool_calls, approvals, worktrees
 ├── MEMORY.pending.md          # Agent `[global]` notes (never injected; Step B 1b)
@@ -40,21 +40,17 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 ├── workspaces/<ws>/           # One workspace = several repos (Step B layout; <ws> lowercase-hyphen, not `ops`)
 │   ├── workspace.yaml         # description?, channels: [Discord parent-channel ids] (each id in one workspace)
 │   ├── AGENTS/IDENTITY/SOUL/USER.md  # Workspace persona overrides (per file)
-│   ├── MEMORY.md              # Workspace memory (owner-edited)
+│   ├── MEMORY.md              # Workspace memory (owner-written only, 2000 chars injected)
 │   ├── cwd/                   # Neutral cwd of runs not bound to one repo
-│   ├── tasks/<taskId>/        # Execute stage scratch: plan.md (+ scratch/)
+│   ├── tasks/<taskId>/        # scratch/ (plan stage) + plan.md (execute stage)
 │   └── repos/<repo>/
 │       ├── repo.yaml          # path?, description, defaultBranch?, testCommand?, githubAccount?, gitAuthor?, workflow?
-│       ├── MEMORY.md          # Repo memory (agent-written)
+│       ├── MEMORY.md          # Repo memory (the only file the agent writes; 4000 chars injected)
 │       ├── repo/              # Managed clone (gitignored)
 │       └── worktrees/<taskId>/  # Execute stage git worktree (gitignored)
-# Interim (Step B phase 1a): persona, repo memory and per-repo logs are still read from the old per-repo dir
-# workspaces/<repo>/ via legacyWorkspace() (TODO(1b)). A dir with config.yaml and no workspace.yaml is legacy:
-# listed by loadWorkspaces(), never loaded.
 ├── logs/
 │   ├── app.<date>.<n>.jsonl   # Application log (daily rotated, 14 days kept)
-│   └── tasks/                 # Per-task logs
-└── cwd/                       # Neutral Q&A cwd (unpinned repo)
+│   └── tasks/                 # Per-task logs (one log dir; lines carry `workspace`)
 ```
 
 ### 3. Tool Matrix Per Mode
@@ -64,13 +60,13 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 | Plan | R/W/Edit/Bash/Task/ExitPlanMode | Git MCP read, GitHub MCP read | Edit blocked before approval; cwd = task scratch |
 | Exec | R/W/Edit/Bash/Git MCP/Task | Git MCP (add/commit auto, checkout ask), no GitHub | worktree only; cwd = worktree on agent/<id> branch |
 
-### 4. Memory System & Persona Layering (Phase 1+)
-- **Persona layering:** Root files (AGENTS, IDENTITY, SOUL, USER) auto-created; workspace overrides replace root per file
-- **Canonical memory:** `$AGENT_HOME/workspaces/<repo>/MEMORY.md` (owner-editable; root MEMORY.md for global facts)
-- **Injection:** root 2000 chars + workspace memories (newest kept, up to 8000 total) into Q&A + plan + exec prompts
-- **Update:** after exec success, agent appends "Memory:" bullets to workspace file (max 5 per task, redacted, dated); `[global]` prefix (max 2) goes to root MEMORY.md
-- **Cap per file:** persona files 1500 chars (with truncation marker), memory root 2000, workspace 4000, total 8000
-- **File management:** CLAUDE.md→tracked repo .claude/CLAUDE.md (repo untouched); CLAUDE.local.md is owner-managed storage (never read by app)
+### 4. Memory System & Persona Layering (Phase 1+, Step B 1b)
+- **Persona layering:** Root files (AGENTS, IDENTITY, SOUL, USER) auto-created; workspace files replace root per file; `buildPersonaContext(home, ws)`
+- **Memory read:** root 2000 + workspace 2000 (both owner-written) + repo 4000 each (8000 total), headings `### global`, `### workspace <ws>`, `### <repo>`
+- **Memory write:** after exec success the agent's "Memory:" bullets (max 5, sanitized, redacted, dated) go to `workspaces/<ws>/repos/<repo>/MEMORY.md` only; `[global]` bullets (max 2) go to root `MEMORY.pending.md` (never injected, owner promotes by hand)
+- **Cap per file:** persona files 1500 chars (with truncation marker)
+- **File management:** no CLAUDE.md symlinks, no CLAUDE.local.md handling in the app; no per-workspace IDENTITY template
+- **Logs:** one `logs/` dir; lines carry `workspace`/`repo`/`taskId`; tasks in `logs/tasks/<id>.jsonl`
 
 ### 5. GitHub MCP
 - **Server:** Official Docker image (`ghcr.io/github/github-mcp-server`)
@@ -112,12 +108,14 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **tool-permissions.ts:** permission layer: PreToolUse hook (hard deny / force ask) + `canUseTool` (plan approval, AskUserQuestion buttons, owner approval; ONE ask per task enforced via askLimit flag); ask timeout → "Awaiting clarification:" with defaults, session kept
 - **run-errors.ts:** error classification (quota, rate_limit, billing, overloaded → outcome + user reply with reset times); phase 5+
 
-### Persona & Memory (Phase 1+)
-- **persona.ts:** `ensureHome()` creates root + workspace persona files; `buildPersonaContext()` applies per-file layering (workspace override replaces root if non-empty); caps 1500 chars/file with truncation marker
-- **persona-templates.ts:** Default files: AGENTS, IDENTITY, SOUL, USER, ROOT_MEMORY, BOOTSTRAP; workspace-specific templates (identity per repo, memory header per repo)
-- **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER → registry → repo CLAUDE.md → memory → rejected-plans block (Phase 1c+, when delegate enabled); logs `prompt.context` event with character counts per layer
-- **memory-writer.ts:** `appendTaskMemory()` writes workspace bullets + `[global]` bullets to root; handles bullet deduplication, trimming, redaction; enforces max 2 global bullets per task
-- **repo-memory.ts:** Load/inject per-repo MEMORY.md; root memory (max 2000 chars), workspace memory (max 4000/repo, 8000 total); reads newest sections; append on exec success
+### Persona & Memory (Phase 1+, Step B 1b)
+- **persona.ts:** `ensureHome(home, workspaces)` creates root files, per-workspace `cwd/` + MEMORY.md and per-repo MEMORY.md templates (no CLAUDE.md, no per-workspace IDENTITY); `buildPersonaContext(home, ws)` applies per-file layering; caps 1500 chars/file with truncation marker
+- **persona-templates.ts:** Default files: AGENTS, IDENTITY, SOUL, USER, ROOT_MEMORY (owner-only), BOOTSTRAP (explains MEMORY.pending.md and promotion), workspace and repo MEMORY templates
+- **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER -> registry -> repo CLAUDE.md -> memory (root, workspace, repos) -> rejected-plans block (when delegate enabled); logs `prompt.context` event with character counts per layer
+- **memory-writer.ts:** `appendTaskMemory(home, ws, repo, title, bullets)` writes plain bullets to the repo MEMORY.md and `[global]` bullets to `MEMORY.pending.md`; deduplication, trimming; max 2 global bullets per task
+- **sanitize-bullet.ts:** `sanitizeBullet()`: one line, no markup/fences/HTML/role prefixes, redacted, 200 chars (applied in `extractMemory` and the writer)
+- **repo-memory.ts:** `readMemoryLayers`/`buildMemoryContext(home, ws, repos)`; `repoMemoryFile`; `extractMemory`
+- **task-workspace.ts:** `selectWorkspace`/`pickWorkspace`: the workspace of a run (until channel routing: the thread's worktree workspace, else the first with repos); all repo lookups stay inside it
 
 ### Guardrails & Approvals
 - **check-tool-call.ts:** core guard: route tool → allow/ask/deny; explicit DELEGATE allow (before generic MCP deny); GuardrailContext
@@ -134,7 +132,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **task-routing.ts (src/tasks/):** shared `codeTaskBlocker()` blocker check (cap MAX_CODE_TASKS, managed clone validation, repo lookup)
 
 ### Repository Management
-- **workspaces/workspace-registry.ts:** `loadWorkspaces(home)` -> `{workspaces, legacy}`: scans workspaces/*/workspace.yaml (zod: description, channels), fail-closed validation (name rules, real dirs not symlinks, duplicate channel ids dropped from both, `repo.overlap` warning); `loadRepoRegistry()` = flat repo list (TODO(1b) adapter)
+- **workspaces/workspace-registry.ts:** `loadWorkspaces(home)` -> `{workspaces, legacy}`: scans workspaces/*/workspace.yaml (zod: description, channels), fail-closed validation (name rules, real dirs not symlinks, duplicate channel ids dropped from both, `repo.overlap` warning); each workspace carries its own repos (no flat cross-workspace list: repo names are unique only inside a workspace)
 - **repo-registry.ts:** `loadRepos(ws, forbidden)` reads workspaces/<ws>/repos/*/repo.yaml (zod); optional defaultBranch, testCommand, githubAccount, `workflow` (lean|full, default lean); repo path must be a git root and not cover $HOME / AGENT_HOME; `buildRegistryContext(ws, repos, force)`
 - **git-identity.ts:** parse/resolve identity per config.yaml gitAuthor; attribution check; no git calls
 - **code-task-flow.ts:** git_fetch + git_worktree add (new branch agent/<taskId-prefix> from origin/<defaultBranch>); managed clones only; ask limit per task (shared across plan & exec stages)

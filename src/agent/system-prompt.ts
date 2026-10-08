@@ -44,7 +44,7 @@ const EXEC = `This run is the execute stage of a code task, in an isolated git w
 - Run the repo's tests with Bash when a test command is given. If the plan no longer fits, stop and explain instead of improvising.
 - Every write and shell command may need owner approval or be denied: if denied, adapt, do not retry the same call.
 - When done, reply with a short summary of what changed.
-- Last, add a section titled exactly "Memory:" with at most 3 bullets ("- ...") of durable facts about this repo (commands, conventions, pitfalls); no task-specific facts (branch, worktree, task ids). Prefix a bullet with "[global]" only for a fact true in every workspace (e.g. an owner preference); at most 2. Omit the section if there is nothing.`;
+- Last, add a section titled exactly "Memory:" with at most 3 bullets ("- ...") of durable facts about this repo (commands, conventions, pitfalls); no task-specific facts (branch, worktree, task ids). Prefix a bullet with "[global]" only for a fact true in every workspace (e.g. an owner preference); at most 2; [global] bullets are reviewed by the owner before they apply. Omit the section if there is nothing.`;
 
 /** Rules per mode (the first section of the prompt). */
 const MODE: Record<ToolMode, string> = { qa: QA, plan: PLAN, exec: EXEC };

@@ -33,16 +33,11 @@ function deleteOldJsonl(dir: string, cutoff: number): number {
   return n;
 }
 
-/** Delete raw per-task logs (shared and per-workspace `logs/tasks/*.jsonl`) older than the retention. */
+/** Delete raw per-task logs (`logs/tasks/*.jsonl`) older than the retention. */
 export function cleanupTaskLogs(agentHome: string, now = Date.now()): number {
   const paths = workspacePaths(agentHome);
   const cutoff = now - LOG_RETENTION_DAYS * 86_400_000;
-  const dirs = [
-    join(paths.home, "logs", "tasks"),
-    // TODO(1b): per-repo logs still live in the legacy per-repo dir.
-    ...subdirs(paths.workspaces).map((w) => join(paths.legacyWorkspace(w).logs, "tasks")),
-  ];
-  const deleted = dirs.reduce((sum, d) => sum + deleteOldJsonl(d, cutoff), 0);
+  const deleted = deleteOldJsonl(join(paths.home, "logs", "tasks"), cutoff);
   if (deleted) logEvent(log, "logs.cleaned", { deleted, days: LOG_RETENTION_DAYS });
   return deleted;
 }

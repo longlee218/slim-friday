@@ -347,7 +347,9 @@ test("injection: a delegate call alone creates no worktree and writes nothing be
   expect(seen).toHaveLength(1); // plan stage only, never an exec stage
   expect(seen[0].options.permissionMode).toBe("plan");
   expect(getWorktreeByThread(env.db, "th1")).toBeNull();
-  expect(existsSync(join(env.home, "workspaces", "real", "worktrees"))).toBe(false);
+  expect(existsSync(join(env.home, "workspaces", "main", "repos", "real", "worktrees"))).toBe(
+    false,
+  );
   expect(await g(clone, "status", "--short")).toBe("");
 });
 
@@ -370,6 +372,7 @@ test("a handoff whose thread was already stopped starts nothing and leaves no co
       task: msg_("please add b.txt"),
       reply: "Q&A answer",
       proposal: { brief: BRIEF },
+      workspace: "main",
       repos: [],
       ac,
     },

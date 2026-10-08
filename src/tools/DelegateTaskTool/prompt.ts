@@ -6,7 +6,7 @@ export const DESCRIPTION = [
   "Call it at most once per run, only when a change to the repo is needed.",
   "brief: self-contained task for an agent that has not seen this chat. Include the intent, findings with",
   "file:line, the files to change, and the acceptance criteria.",
-  "repo: workspace name; omit it when the thread is pinned or only one repo fits.",
+  "repo: repo name from the list; omit it when the thread is pinned or only one repo fits.",
   "After a successful call, end your turn with a short note for the owner. Do not keep working.",
 ].join(" ");
 

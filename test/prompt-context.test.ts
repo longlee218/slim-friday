@@ -4,31 +4,33 @@ import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { ensureHome } from "../src/memory/persona";
 import { buildPromptContext } from "../src/memory/prompt-context";
-import { memoryFile } from "../src/memory/repo-memory";
+import { repoMemoryFile } from "../src/memory/repo-memory";
 import { captureLogs } from "../src/observability/logger";
-import { makeEnv } from "./helpers";
+import { loadWorkspaces } from "../src/workspaces/workspace-registry";
+import { addRepo, makeEnv } from "./helpers";
 
 /** Home with markers in every layer. */
 function setup() {
   const env = makeEnv();
-  ensureHome(env.home, []);
+  addRepo(env.home, "api");
+  ensureHome(env.home, loadWorkspaces(env.home).workspaces);
   const p = workspacePaths(env.home);
   writeFileSync(p.agents, "# Agents\n- AGENTS_MARK\n");
   writeFileSync(p.memory, "# global memory\n\n## d t\n- ROOT_MARK\n");
-  mkdirSync(join(env.home, "workspaces", "api"), { recursive: true });
-  writeFileSync(memoryFile(env.home, "api"), "# api memory\n\n## d t\n- WS_MARK\n");
+  writeFileSync(p.workspace("main").memory, "# main\n\n## d t\n- WSLAYER_MARK\n");
+  writeFileSync(repoMemoryFile(env.home, "main", "api"), "# api memory\n\n## d t\n- REPO_MARK\n");
   return { env, p };
 }
 
-test("block order: persona, registry, repo CLAUDE.md, memory (root then workspace); BOOTSTRAP never", () => {
+test("block order: persona, registry, repo CLAUDE.md, memory (root, workspace, repo); BOOTSTRAP never", () => {
   const { env } = setup();
   const logs = captureLogs();
   const out = buildPromptContext({
     agentHome: env.home,
-    workspace: "api",
+    workspace: "main",
     registry: "REGISTRY_MARK",
     repoClaudeMd: "CLAUDE_MARK",
-    memoryWorkspaces: ["api"],
+    memoryRepos: ["api"],
   });
   logs.stop();
   const all = out.join("\n\n");
@@ -36,7 +38,8 @@ test("block order: persona, registry, repo CLAUDE.md, memory (root then workspac
   expect(at("AGENTS_MARK")).toBeLessThan(at("REGISTRY_MARK"));
   expect(at("REGISTRY_MARK")).toBeLessThan(at("CLAUDE_MARK"));
   expect(at("CLAUDE_MARK")).toBeLessThan(at("ROOT_MARK"));
-  expect(at("ROOT_MARK")).toBeLessThan(at("WS_MARK"));
+  expect(at("ROOT_MARK")).toBeLessThan(at("WSLAYER_MARK"));
+  expect(at("WSLAYER_MARK")).toBeLessThan(at("REPO_MARK"));
   expect(all).not.toContain("Bootstrap");
   // One size event, counts only.
   const ev = logs.lines.filter((l) => l.event === "prompt.context");
@@ -53,7 +56,12 @@ test("sdkCwd CLAUDE.md is measured; empty blocks dropped", () => {
   mkdirSync(cwd, { recursive: true });
   writeFileSync(join(cwd, "CLAUDE.md"), "12345");
   const logs = captureLogs();
-  const out = buildPromptContext({ agentHome: env.home, memoryWorkspaces: [], sdkCwd: cwd });
+  const out = buildPromptContext({
+    agentHome: env.home,
+    workspace: "main",
+    memoryRepos: [],
+    sdkCwd: cwd,
+  });
   logs.stop();
   expect(out.every(Boolean)).toBe(true);
   expect(logs.lines.find((l) => l.event === "prompt.context")).toMatchObject({

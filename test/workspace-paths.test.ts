@@ -13,11 +13,7 @@ test("paths derive from AGENT_HOME and task id", () => {
   const p = workspacePaths("/h");
   expect(p.dbFile).toBe("/h/data/agent.db");
   expect(p.appLog()).toBe("/h/logs/app");
-  expect(p.appLog("api")).toBe("/h/workspaces/api/logs/app");
   expect(p.taskLog("T1")).toBe("/h/logs/tasks/T1.jsonl");
-  expect(p.task("T1").scratch).toBe("/h/tasks/T1/scratch");
-  expect(p.task("T1").artifacts).toBe("/h/tasks/T1/artifacts");
-  expect(p.taskLog("T1", "api")).toBe("/h/workspaces/api/logs/tasks/T1.jsonl");
   expect(p.identity).toBe("/h/IDENTITY.md");
   expect(p.soul).toBe("/h/SOUL.md");
   expect(p.agents).toBe("/h/AGENTS.md");
@@ -50,9 +46,7 @@ test("workspace layout: workspaces/<ws>/repos/<repo>/{repo.yaml,MEMORY.md,repo,w
     clone: "/h/workspaces/shop/repos/api/repo",
     worktrees: "/h/workspaces/shop/repos/api/worktrees",
   });
-  const legacy = workspacePaths("/h").legacyWorkspace("api");
-  expect(legacy.config).toBe("/h/workspaces/api/config.yaml");
-  expect(legacy.repo).toBe("/h/workspaces/api/repo");
+  expect(workspacePaths("/h").workspace("api").legacyConfig).toBe("/h/workspaces/api/config.yaml");
 });
 
 test("name rules: workspace lowercase-hyphen and not reserved; repo allows dots and underscores", () => {

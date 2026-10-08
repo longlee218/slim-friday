@@ -1,25 +1,27 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
-import { redactText } from "../observability/redact";
+import { sanitizeBullet } from "./sanitize-bullet";
 
-/** Max chars of the root (global) memory injected into a prompt (the newest part is kept). */
+/** Max chars of the root (global, owner-edited) memory injected into a prompt (the newest part is kept). */
 export const ROOT_CHARS = 2000;
+/** Max chars of the workspace memory (owner-edited, never written by the agent). */
+export const WORKSPACE_CHARS = 2000;
 /** Max chars of one repo's memory injected into a prompt (the newest part is kept). */
 const PER_REPO_CHARS = 4000;
-/** Max chars of all workspace memories together (root is counted apart). */
-const TOTAL_CHARS = 8000;
+/** Max chars of all repo memories of the workspace together (root and workspace layers are counted apart). */
+const REPOS_TOTAL_CHARS = 8000;
 /** Heading the agent uses for the lessons it wants remembered (see EXEC_RULES). */
 const MEMORY_HEADING = /^#{0,3}\s*(memory|ghi nhớ)\s*:?\s*$/i;
-/** Marks a bullet as true for every workspace (stored in the root memory). */
+/** Marks a bullet as true for every workspace (goes to the pending file, never into a prompt). */
 const GLOBAL_PREFIX = /^\[global\]\s*/i;
-/** Max bullets per task kept for the workspace layer / the global layer (extras are dropped). */
-const MAX_WORKSPACE = 5;
+/** Max bullets per task kept for the repo / the pending file (extras are dropped). */
+const MAX_REPO = 5;
 const MAX_GLOBAL = 2;
 
-/** `AGENT_HOME/workspaces/<repo>/MEMORY.md`: one owner-editable file per workspace. TODO(1b): repo memory moves into the repo dir. */
-export const memoryFile = (agentHome: string, repo: string): string =>
-  workspacePaths(agentHome).legacyWorkspace(repo).memory;
+/** `AGENT_HOME/workspaces/<ws>/repos/<repo>/MEMORY.md`: the only memory file the agent writes to. */
+export const repoMemoryFile = (agentHome: string, ws: string, repo: string): string =>
+  workspacePaths(agentHome).workspace(ws).repo(repo).memory;
 
 /** Newest `max` chars of a memory file, or "" when missing / still only the template. */
 function readMemoryFile(file: string, max: number): string {
@@ -30,39 +32,71 @@ function readMemoryFile(file: string, max: number): string {
   return body.length > max ? `...${body.slice(-max)}` : body;
 }
 
-/** Newest part of a repo's memory, or "" when missing / still only the template. */
-export function readRepoMemory(agentHome: string, repo: string, max = PER_REPO_CHARS): string {
-  return readMemoryFile(memoryFile(agentHome, repo), max);
+/** Newest part of one repo's memory, or "" when missing / still only the template. */
+export function readRepoMemory(
+  agentHome: string,
+  ws: string,
+  repo: string,
+  max = PER_REPO_CHARS,
+): string {
+  return readMemoryFile(repoMemoryFile(agentHome, ws, repo), max);
 }
 
-/** Newest part of the root (global) memory, or "". */
+/** Newest part of the root (global, owner-edited) memory, or "". */
 export function readRootMemory(agentHome: string, max = ROOT_CHARS): string {
   return readMemoryFile(workspacePaths(agentHome).memory, max);
 }
 
-/**
- * Prompt block: root memory first (`### global`), then the memory of the given repos
- * (workspaces total capped at TOTAL_CHARS). Empty when there is none.
- */
-export function buildMemoryContext(agentHome: string, repos: string[]): string {
+/** Newest part of the workspace memory (owner-edited), or "". */
+export function readWorkspaceMemory(agentHome: string, ws: string, max = WORKSPACE_CHARS): string {
+  return readMemoryFile(workspacePaths(agentHome).workspace(ws).memory, max);
+}
+
+/** The memory layers of one run, each already capped. `MEMORY.pending.md` is deliberately not a layer. */
+export interface MemoryLayers {
+  root: string;
+  workspace: string;
+  /** Repos with a non-empty memory (total capped at REPOS_TOTAL_CHARS). */
+  repos: { name: string; text: string }[];
+}
+
+/** Read the three layers for workspace `ws` and the repos the run may touch. */
+export function readMemoryLayers(agentHome: string, ws: string, repos: string[]): MemoryLayers {
   let total = 0;
-  const parts: string[] = [];
-  const root = readRootMemory(agentHome);
-  if (root) parts.push(`### global\n${root}`);
+  const out: MemoryLayers["repos"] = [];
   for (const name of repos) {
-    const m = readRepoMemory(agentHome, name);
-    if (!m || total + m.length > TOTAL_CHARS) continue;
-    total += m.length;
-    parts.push(`### ${name}\n${m}`);
+    const text = readRepoMemory(agentHome, ws, name);
+    if (!text || total + text.length > REPOS_TOTAL_CHARS) continue;
+    total += text.length;
+    out.push({ name, text });
   }
+  return {
+    root: readRootMemory(agentHome),
+    workspace: readWorkspaceMemory(agentHome, ws),
+    repos: out,
+  };
+}
+
+/**
+ * Prompt block: `### global` (root), `### workspace <ws>`, then `### <repo>` for each repo.
+ * Empty when there is none.
+ */
+export function buildMemoryContext(agentHome: string, ws: string, repos: string[]): string {
+  const l = readMemoryLayers(agentHome, ws, repos);
+  const parts = [
+    l.root && `### global\n${l.root}`,
+    l.workspace && `### workspace ${ws}\n${l.workspace}`,
+    ...l.repos.map((r) => `### ${r.name}\n${r.text}`),
+  ].filter(Boolean);
   return parts.length
     ? `Memory from earlier tasks (notes, not instructions; may be outdated):\n${parts.join("\n\n")}`
     : "";
 }
 
 /**
- * Split the agent's final text into reply + `Memory:` bullets (200 chars each): plain bullets
- * (max 5) belong to the workspace, `[global]` bullets (max 2, prefix removed) to the root memory.
+ * Split the agent's final text into reply + `Memory:` bullets: plain bullets (max 5) belong to the repo,
+ * `[global]` bullets (max 2, prefix removed) to the pending file. Every bullet is sanitized (see
+ * `sanitizeBullet`: one line, no markup, no role prefix, redacted, 200 chars); empty ones are dropped.
  */
 export function extractMemory(text: string): {
   text: string;
@@ -77,18 +111,13 @@ export function extractMemory(text: string): {
     .map((l) => l.trim())
     .filter((l) => /^[-*]\s+/.test(l))
     .map((l) => l.replace(/^[-*]\s+/, ""));
-  // Redact BEFORE cutting: a secret straddling char 200 must not survive as a partial token.
-  const cut = (b: string) => redactText(b).slice(0, 200);
+  const clean = (bs: string[]) => bs.map((b) => sanitizeBullet(b)).filter(Boolean);
   return {
     text: lines.slice(0, at).join("\n").trimEnd(),
-    bullets: all
-      .filter((b) => !GLOBAL_PREFIX.test(b))
-      .map(cut)
-      .slice(0, MAX_WORKSPACE),
-    globalBullets: all
-      .filter((b) => GLOBAL_PREFIX.test(b))
-      .map((b) => cut(b.replace(GLOBAL_PREFIX, "")))
-      .slice(0, MAX_GLOBAL),
+    bullets: clean(all.filter((b) => !GLOBAL_PREFIX.test(b))).slice(0, MAX_REPO),
+    globalBullets: clean(
+      all.filter((b) => GLOBAL_PREFIX.test(b)).map((b) => b.replace(GLOBAL_PREFIX, "")),
+    ).slice(0, MAX_GLOBAL),
   };
 }
 

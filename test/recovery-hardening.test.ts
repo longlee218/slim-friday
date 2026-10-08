@@ -133,7 +133,7 @@ test("Resume of a plan stage whose session cannot be resumed: tells the owner to
   const env = makeEnv();
   clearWorkspaces(env.home);
   addRepo(env.home, "real", { gitAuthor: "T <t@e.com>" }); // fake managed clone: code tasks are allowed
-  const scratch = join(realpathSync(env.home), "tasks", "T1", "scratch");
+  const scratch = join(realpathSync(env.home), "workspaces", "main", "tasks", "T1", "scratch");
   mkdirSync(scratch, { recursive: true });
   interrupted(env, "pl", scratch);
   const q = fakeQuery([
@@ -152,16 +152,20 @@ test("Resume of a plan stage whose session cannot be resumed: tells the owner to
   expect(reply).toContain("start the task again");
   // The failed resume task has no session: another Resume is refused (not offered forever).
   expect(
-    resolveCommand({ db: env.db, agentHome: env.home, repos: [] }, { kind: "resume" }, "pl"),
+    resolveCommand(
+      { db: env.db, agentHome: env.home, workspace: "main", repos: [] },
+      { kind: "resume" },
+      "pl",
+    ),
   ).toHaveProperty("reply");
 });
 
 test("resolveCommand: plan stage / worktree / Q&A cwd ok; unusable cwd, stale, none refused", () => {
   const env = makeEnv();
   const repos = [{ name: "repo", path: env.repo, description: "" }] as never;
-  const deps = { db: env.db, agentHome: env.home, repos };
+  const deps = { db: env.db, agentHome: env.home, workspace: "main", repos };
   const resume = (t: string) => resolveCommand(deps, { kind: "resume" }, t);
-  const scratch = join(realpathSync(env.home), "tasks", "T1", "scratch");
+  const scratch = join(realpathSync(env.home), "workspaces", "main", "tasks", "T1", "scratch");
   mkdirSync(scratch, { recursive: true });
   interrupted(env, "p", scratch, "A");
   expect(resume("p")).toMatchObject({
@@ -279,14 +283,11 @@ test("unknown error: generic reply, raw error not shown to the user", async () =
 
 // ---- Startup hygiene ----
 
-test("cleanupTaskLogs deletes *.jsonl older than 30 days (shared + workspace), keeps newer", () => {
+test("cleanupTaskLogs deletes *.jsonl older than 30 days (single logs dir), keeps newer", () => {
   const env = makeEnv();
   const now = Date.now();
   const day = 86_400_000;
-  const dirs = [
-    env.paths.taskLog("x").replace(/x\.jsonl$/, ""),
-    env.paths.taskLog("x", "repo").replace(/x\.jsonl$/, ""),
-  ];
+  const dirs = [env.paths.taskLog("x").replace(/x\.jsonl$/, "")];
   const files: string[] = [];
   for (const d of dirs) {
     mkdirSync(d, { recursive: true });
@@ -302,9 +303,9 @@ test("cleanupTaskLogs deletes *.jsonl older than 30 days (shared + workspace), k
   }
   writeFileSync(join(dirs[0]!, "old.txt"), "keep"); // not a jsonl
   utimesSync(join(dirs[0]!, "old.txt"), new Date(now - 90 * day), new Date(now - 90 * day));
-  expect(cleanupTaskLogs(env.home, now)).toBe(2);
+  expect(cleanupTaskLogs(env.home, now)).toBe(1);
   const exists = (f: string) => Bun.file(f).size > 0;
-  expect(files.filter(exists).map((f) => f.endsWith("new.jsonl"))).toEqual([true, true]);
+  expect(files.filter(exists).map((f) => f.endsWith("new.jsonl"))).toEqual([true]);
   expect(exists(join(dirs[0]!, "old.txt"))).toBe(true);
 });
 

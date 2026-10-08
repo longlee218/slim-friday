@@ -78,7 +78,7 @@ Task mode (plan approval flow)
 | **PR Publishing** | src/repos/publish-pr.ts | `git_push` of agent/* via git MCP, then GitHub MCP `create_pull_request` |
 | **Workspace Registry** | src/workspaces/workspace-registry.ts | scan workspaces/*/workspace.yaml {description, channels}; fail-closed validation; legacy dirs listed, never loaded |
 | **Repo Registry** | src/repos/repo-registry.ts | load workspaces/<ws>/repos/*/repo.yaml; each repo has {path, description, defaultBranch?, testCommand?, githubAccount?, gitAuthor?, workflow?} |
-| **Repo Memory** | src/memory/repo-memory.ts | MEMORY.md per repo (newest 4000 chars), injected into Q&A/plan/exec prompts; append on exec success (max 5 bullets, redacted, dated, cap ~20KB) |
+| **Repo Memory** | src/memory/repo-memory.ts, memory-writer.ts, sanitize-bullet.ts | 3 read layers (root 2000, workspace 2000 owner-edited, repo 4000 each / 8000 total); agent writes `repos/<r>/MEMORY.md` only; `[global]` bullets go to root `MEMORY.pending.md` (never injected); every bullet sanitized |
 | **GitHub MCP** | src/mcp/github-mcp.ts | github-mcp-config (read-only for agent, write for app PR creation), github-token (`gh auth token` per githubAccount), create-pr (Docker image: ghcr.io/github/github-mcp-server, phase 4+) |
 | **Observability** | src/observability/ | pino logger, hooks, record-run, redact (added errText, clip, tryLog) |
 | **Storage** | src/storage/ | db.ts (sessions, tasks, runs, tool_calls, approvals, worktrees), run-store.ts (insertTask stores brief redacted, phase 1c+), approval-store.ts (insertApproval, decideApproval, rejectedPlans query per thread, phase 1c+), memory append on exec success via repo-memory.ts |
@@ -347,70 +347,53 @@ workflow: full
 | approvals | id, task_id, request_type, request_data, owner_decision, decision_reason, created_at, decided_at | approval decisions for Edit/Write/Bash/plan/network |
 | worktrees | id, task_id, repo_name, path, branch, created_at | one per code task (phase 4+); path = AGENT_HOME/worktrees/<taskId>; branch = agent/<first-8-chars-taskId> |
 
-**Raw logs:** `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; lines with a `repo` are also copied to workspaces/<repo>/logs/)` (pino, all events)
+**Raw logs:** `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (pino-roll, daily, 14 days kept; one log for all workspaces, every task line carries `workspace`, `repo`, `taskId`, `threadId`, `mode`)
 **Per-task logs:** `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (JSONL stream)
 
-## Persona & Memory Layering (Phase 1+)
+## Persona & Memory Layering (Phase 1+, Step B 1b)
 
 **Six root files** (auto-created by `ensureHome` when missing, never overwritten):
 - `AGENTS.md` — owner operating notes (read right after code rules; cannot override code guards)
 - `IDENTITY.md` — who the agent is (name, role, capabilities)
 - `SOUL.md` — tone of replies (concise, direct, etc.)
 - `USER.md` — owner profile & preferences (language, habits)
-- `MEMORY.md` — global facts true for every workspace (max 2000 chars kept)
+- `MEMORY.md` — global facts true for every workspace; written by the owner only (2000 chars kept)
 - `BOOTSTRAP.md` — owner guide for the file structure (never read by code, never injected)
+- `MEMORY.pending.md` — agent-proposed `[global]` notes (quarantine; never read by any prompt builder)
 
-**Per-file layering:** A non-empty workspace file (not just heading or HTML comments) REPLACES the root file; an empty or heading-only workspace file falls back to the root one. Each file operates independently, allowing per-repo overrides.
+**Per-file layering:** A non-empty workspace file (not just heading or HTML comments) REPLACES the root file; an empty or heading-only workspace file falls back to the root one. Each file operates independently. `buildPersonaContext(home, ws)` is used by Q&A, plan and exec. `ensureHome(home, workspaces)` creates root files, per workspace `cwd/` + `MEMORY.md` template, per repo `MEMORY.md` template. It creates no `CLAUDE.md` and no per-workspace IDENTITY (a CLAUDE.md in an ancestor of a clone would be auto-loaded by the SDK).
 
-**Workspace personas** (`workspaces/<repo-name>/`):
-- Optional `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md` (one or more can override the root)
-- Optional workspace `MEMORY.md` (concatenated after root memory, max 4000 chars; total 8000 across all workspaces)
+**Workspace personas** (`workspaces/<ws>/`): optional `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md` (owner-written overrides) and `MEMORY.md` (owner-written workspace memory).
 
 **Prompt order** (system prompt append):
 ```
 system-prompt (MODE/HANDOFF/COMMON sections + context)
-  ↓
-AGENTS (root or workspace override)
-  ↓
-IDENTITY (root or workspace override)
-  ↓
-SOUL (root or workspace override)
-  ↓
-USER (root or workspace override)
-  ↓
-registry (Q&A unpinned, plan mode)
-  ↓
-repo CLAUDE.md (exec stage only; settingSources=[] to avoid loading agent-written .claude/*)
-  ↓
-MEMORY (root 2000 chars + workspace memories up to 8000 total)
+  -> AGENTS -> IDENTITY -> SOUL -> USER (workspace file or root)
+  -> registry (Q&A unpinned, plan mode)
+  -> repo CLAUDE.md (exec only; settingSources=[] there)
+  -> MEMORY: "### global" (root) / "### workspace <ws>" / "### <repo>" per repo
+  -> rejected plans (Q&A with handoff)
 ```
 
-**Memory caps:**
-- Root memory: 2000 chars (newest kept; oldest sections dropped when >315 lines)
-- Per-workspace: 4000 chars each (newest kept)
-- All workspaces total: 8000 chars
-- Each persona file: 1500 chars (cut fairly; truncation marked with "...(truncated)")
+**Memory caps** (newest kept, `...` prefix when cut):
+- Root 2000, workspace 2000 (both owner-edited), each repo 4000, all repos of a workspace 8000
+- A file with no `## ` entry yet (template only) injects nothing
+- Each persona file: 1500 (truncation marked "...(truncated)")
 
-**Memory writes** (`src/memory/memory-writer.ts`, `[global]` prefix):
-- After code task success: agent appends bullets to workspace `MEMORY.md` (max 5 per task)
-- Bullets prefixed `[global]` (max 2 per task) go to root `MEMORY.md` with date + source workspace
-- Fresh bullets only (already-known entries skipped); oldest sections trimmed when file exceeds ~315 lines
+**Memory writes** (`memory-writer.ts`; the only files the agent writes):
+- Plain `Memory:` bullets (max 5 per task) -> `workspaces/<ws>/repos/<repo>/MEMORY.md`
+- `[global]` bullets (max 2) -> root `MEMORY.pending.md`, stamped `<date> <ws>/<repo>: <title>`. Never injected; the owner promotes facts by hand into `MEMORY.md`. Closes the path "hostile repo text -> agent -> every workspace prompt".
+- Every bullet and title goes through `sanitizeBullet`: secrets redacted (before the cut), HTML comments/tags, code fences and backtick runs removed, one line, leading `#`/`>`/list markers and `system:`/`assistant:`/`user:` prefixes removed, 200 chars.
+- Already-known bullets skipped; oldest sections trimmed above ~315 lines. Workspace and root `MEMORY.md` are never written by the agent.
+- Isolation: all lookups happen inside one workspace (two workspaces may hold repos with the same name); a ws1 write never appears in a ws2 prompt.
 
-**Logging:**
-- One `prompt.context` event per run (logged by `buildPromptContext` in `src/memory/prompt-context.ts`)
-- Event includes: personaChars, personaTruncated, registryChars, claudeMdChars, sdkCwdClaudeMdChars, memoryRootChars, memoryWorkspaceChars
-- Allows monitoring of persona usage patterns and truncation frequency
+**Logging:** one `prompt.context` event per run (counts only): personaChars, personaTruncated, registryChars, claudeMdChars, sdkCwdClaudeMdChars, memoryRootChars, memoryWorkspaceChars, memoryRepoChars, totalChars.
 
 **CLAUDE.md third layer:**
-- Q&A mode: repo's own CLAUDE.md auto-loaded via SDK `settingSources: ["project"]` (read-only mode, no .claude/* write paths)
-- Plan/exec mode: repo CLAUDE.md NOT auto-loaded (settingSources: [] to prevent loading agent-written files); instead, injected as `repoClaudeMd` in `prompt-context.ts`
-- Canary status: test/live-claude-md-loading.smoke.test.ts gave conflicting results across runs (one run: parent CLAUDE.md files loaded; a later suite run: none); unverified, repeat before Step B.
-
-**CLAUDE.local.md (owner-managed storage):**
-- File: `workspaces/<repo-name>/CLAUDE.local.md` (owner-editable, never committed to repo)
-- App behavior: NOT read by the agent (no code loads it; verified in workspace-paths.ts line 42 with comment "never reads it")
-- Use case: repo-local overrides (e.g., local model name for development)
-- Note: Workspace-paths.ts line 50 defines `claudeLocal` path, but the app never accesses it
+- Q&A mode: the cwd repo's own CLAUDE.md auto-loaded via SDK `settingSources: ["project"]` (read-only mode); unpinned with several repos uses `workspaces/<ws>/cwd` (no CLAUDE.md above it)
+- Plan/exec mode: repo CLAUDE.md NOT auto-loaded (settingSources: []); injected as `repoClaudeMd` in `prompt-context.ts`
+- Canary status: test/live-claude-md-loading.smoke.test.ts gave conflicting results across runs; unverified (Step B phase 3 checks it and fails closed).
+- `CLAUDE.local.md`: the app never reads or creates it.
 
 ## Workspace Layout
 ```
@@ -434,36 +417,15 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project-root>/.friday)
 │       ├── cwd/             # neutral cwd, tasks/<id>/{scratch,plan.md}
 │       ├── MEMORY.md        # workspace memory (owner-edited)
 │       └── repos/<repo>/    # repo.yaml, MEMORY.md, repo/ (managed clone), worktrees/<taskId>/
-│   (phase 1a interim: the old per-repo tree below is still what persona, repo memory and
-│    per-repo logs read, through legacyWorkspace(); it moves in 1b)
-│   └── <repo-name>/         # legacy per-repo dir
-│       ├── config.yaml      # legacy marker: listed by loadWorkspaces(), never loaded
-│       ├── AGENTS.md        # optional override (auto-created, workspace replaces root if non-empty)
-│       ├── IDENTITY.md      # optional override (auto-created, workspace replaces root if non-empty)
-│       ├── SOUL.md          # optional override (auto-created, workspace replaces root if non-empty)
-│       ├── USER.md          # optional override (auto-created, workspace replaces root if non-empty)
-│       ├── CLAUDE.md        # symlink TO repo's tracked .claude/CLAUDE.md (auto-created); repo untouched
-│       ├── CLAUDE.local.md  # owner-managed file (never read by app; for local development overrides)
-│       ├── MEMORY.md        # canonical workspace memory (owner-editable, max ~20KB, newest 4000 chars injected)
-│       ├── logs/
-│       │   └── tasks/
-│       │       └── <taskId>.jsonl
-│       ├── repo/            # managed clone (gitignored, isManagedClone if under workspaces/*/repo)
-│       ├── worktrees/       # execute stage git worktrees (gitignored)
-│       │   └── <taskId>/    # git worktree on branch agent/<taskId-prefix>
-│       └── tasks/
-│           └── <taskId>/
-│               ├── scratch/  # plan stage cwd; plan.md stored here
-│               └── plan.md  # copied to worktree on execute start
-└── cwd/                     # neutral Q&A cwd when repos are unpinned (no workspace)
+│       ├── AGENTS/IDENTITY/SOUL/USER.md  # optional owner overrides (per file)
+│       ├── cwd/             # Q&A cwd of runs not bound to one repo
+│       ├── tasks/<taskId>/  # plan stage scratch/, plan.md (execute stage)
+│       └── repos/<repo>/    # repo.yaml, MEMORY.md (agent), repo/ (managed clone), worktrees/<taskId>/
+│   (a dir with config.yaml and no workspace.yaml is the pre-Step-B layout: listed by loadWorkspaces,
+│    never loaded or written; the handler replies with the migration pointer when no workspace exists)
 ```
 
-**.gitignore config:**
-- `.friday/{data,logs,workspaces/*/{logs,repo,worktrees,tasks}}/` — ignored (local state)
-- `.friday/{IDENTITY.md,SOUL.md,USER.md,AGENTS.md,MEMORY.md,workspaces/*/IDENTITY.md,workspaces/*/MEMORY.md}` — tracked (persona + canonical memory)
-- `.friday/workspaces/*/SOUL.md,workspaces/*/AGENTS.md,workspaces/*/USER.md` — optionally tracked if overrides are committed
-- `.friday/workspaces/*/CLAUDE.md` — symlink to tracked repo file (auto-created; repo untouched)
-- `.friday/workspaces/*/CLAUDE.local.md` — real file; owner-managed (not read by app)
+**Local state in git:** the layout above has no per-workspace `logs/` and no `CLAUDE.md` / `CLAUDE.local.md` anywhere under the home. Ignore `data/`, `logs/`, `backups/`, `MEMORY.pending.md`, `workspaces/*/{cwd,tasks}/`, `workspaces/*/repos/*/{repo,worktrees}/` if the home is inside a git repo (Step B phase 3 moves it out).
 
 ## Tool Restriction Strategy
 
@@ -502,18 +464,17 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 - **Code Task Approval** (Phases 3-4) — plan approval gate + Create PR button; Discord buttons for all risky operations.
 - **Guardrails** (Phase 3-4) — hard deny dangerous commands; allowlist gates (Bash, network, package install); bash option allowlist (git add/commit).
 
-## Memory System (Phase 4+)
+## Memory System (Phase 4+, Step B 1b)
 
-**Per-repo canonical memory:**
-- File: `$AGENT_HOME/workspaces/<repo>/MEMORY.md` (owner-editable, max ~20KB via section drop)
-- Injection: newest 4000 chars per repo (8000 total across repos) injected into Q&A + plan + exec prompts
-- Update: after successful exec runs, agent's final "Memory:" bullets (max 5) appended (redacted, dated)
-- File ownership symlinks:
-  - `$AGENT_HOME/workspaces/<repo>/CLAUDE.md` → `<repo>/.claude/CLAUDE.md` (repo tracked, workspace untouched)
-  - `$AGENT_HOME/workspaces/<repo>/CLAUDE.local.md` ← moved from repo; symlinked in repo via `git info/exclude` (repo-local ignore)
+**Three layers, one workspace per run:**
+- Root `$AGENT_HOME/MEMORY.md` (owner-written, 2000 chars) and `workspaces/<ws>/MEMORY.md` (owner-written, 2000 chars)
+- Repo `workspaces/<ws>/repos/<repo>/MEMORY.md` (agent-written, newest 4000 chars per repo, 8000 for all repos of the workspace)
+- Injected into Q&A + plan + exec prompts under `### global`, `### workspace <ws>`, `### <repo>`
+- After successful exec runs, the agent's final "Memory:" bullets (max 5) are sanitized and appended to the repo file (dated); `[global]` bullets (max 2) go to `MEMORY.pending.md`, which no prompt builder reads (owner promotes by hand). See Persona & Memory Layering.
+- No CLAUDE.md symlinks are created; `CLAUDE.local.md` is never read or created by the app.
 
 **Settings resolution (settingSources + injected MEMORY):**
-- Q&A: pinned repo's CLAUDE.md auto-loads via settingSources project; all MEMORY.md injected; unpinned uses AGENT_HOME neutral (repos readable via additionalDirectories, no auto-load of their CLAUDE.md)
+- Q&A: pinned repo's CLAUDE.md auto-loads via settingSources project; unpinned with several repos uses `workspaces/<ws>/cwd` (repos readable via additionalDirectories, no auto-load of their CLAUDE.md)
 - Plan/exec: trusted clone's CLAUDE.md + MEMORY.md injected in system prompt; settingSources=[] (agent-written .claude/* never loaded)
 
 ## GitHub MCP Integration (Phase 4+)

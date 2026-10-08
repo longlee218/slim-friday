@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import { isManagedClone } from "../repos/refresh-repo";
 import type { Repo } from "../repos/repo-registry";
@@ -123,7 +123,7 @@ export function codeTaskBlocker(
   if (candidates.length === 0) {
     return refuse(
       "no_clone",
-      "Code tasks need a workspace clone (workspaces/<name>/repo with a config.yaml). Clone the repo there first.",
+      "Code tasks need a workspace clone (workspaces/<ws>/repos/<name>/repo, with a repo.yaml next to it). Clone the repo there first.",
     );
   }
   return capRefusal(db) ?? { candidates };
@@ -142,11 +142,11 @@ export interface ResumePlan {
  * Make the owner's command runnable. Q&A / code pass through; the Resume button continues the latest
  * task of the thread, using the session that task recorded at init:
  * live worktree (cwd matches) -> follow-up there; plan scratch dir (still present) -> plan run;
- * home `cwd` dir or a registered repo -> Q&A. Anything else (no session, cwd not usable, or the thread
+ * the workspace `cwd` dir or one of its repos -> Q&A. Anything else (no session, cwd not usable, or the thread
  * already moved on) -> a reply.
  */
 export function resolveCommand(
-  deps: { db: Database; agentHome: string; repos: Repo[] },
+  deps: { db: Database; agentHome: string; workspace: string; repos: Repo[] },
   cmd: Exclude<TaskCommand, { kind: "stop" | "cleanup" }>,
   threadId: string,
 ): ResumePlan | Refusal {
@@ -175,8 +175,9 @@ export function resolveCommand(
     return existing.cwd === realOrSame(worktree.path)
       ? { cmd: { kind: "qa", text }, existing }
       : cannot;
-  // Plan stage: its session cwd is the task scratch dir under <home>/tasks.
-  if (existing.cwd.startsWith(`${join(realOrSame(deps.agentHome), "tasks")}/`)) {
+  // Plan stage: its session cwd is the task scratch dir under <workspace>/tasks.
+  const ws = workspacePaths(deps.agentHome).workspace(deps.workspace);
+  if (existing.cwd.startsWith(`${realOrSame(ws.tasks)}/`)) {
     if (!existsSync(existing.cwd)) return cannot;
     return {
       cmd: { kind: "code", text },
@@ -184,8 +185,7 @@ export function resolveCommand(
       planResume: { sessionId: existing.session_id, cwd: existing.cwd },
     };
   }
-  // Q&A: qa-flow only resumes in the neutral cwd dir or a registered repo; else the context would be lost.
-  const qaCwd =
-    existing.cwd === join(deps.agentHome, "cwd") || deps.repos.some((r) => r.path === existing.cwd);
+  // Q&A: qa-flow only resumes in the workspace cwd dir or one of its repos; else the context would be lost.
+  const qaCwd = existing.cwd === ws.cwd || deps.repos.some((r) => r.path === existing.cwd);
   return qaCwd ? { cmd: { kind: "qa", text }, existing } : cannot;
 }

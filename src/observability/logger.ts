@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import pino, { type DestinationStream, type Logger } from "pino";
 import pretty from "pino-pretty";
-import { ensureParentDir } from "../config/workspace-paths";
-import { routedStream } from "./log-files";
+import { ensureParentDir, workspacePaths } from "../config/workspace-paths";
+import { rollingFile } from "./log-files";
 import { clip, errText, redactText } from "./redact";
 
 /** Key paths pino censors before serialization (layer 1; free text uses redact.ts). */
@@ -35,7 +35,9 @@ export function fileDestination(file: string) {
 export interface LogContext {
   taskId?: string;
   threadId?: string;
-  /** Workspace of the task ("*" = not chosen yet); also routes the line to that workspace's log. */
+  /** Workspace the task runs in (one log for all workspaces; this field tells them apart). */
+  workspace?: string;
+  /** Repo of the task ("*" = not chosen yet). */
   repo?: string;
   /** "qa" | "plan" | "exec". */
   mode?: string;
@@ -100,7 +102,7 @@ async function buildSharedLogger(): Promise<Logger> {
   // Also print to the terminal when run interactively (a TTY) or in dev; background runs (nohup) stay file-only.
   const toTerminal = process.stdout.isTTY === true || process.env.NODE_ENV === "development";
   if (!home) return createLogger(pino.destination({ fd: 2, sync: true }), level);
-  const file = routedStream(home);
+  const file = rollingFile(workspacePaths(home).appLog());
   // Open the main file before the first line so early/fatal lines are written synchronously.
   await file.ready();
   if (!toTerminal) return createLogger(file, level);

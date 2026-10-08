@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { checkToolCall } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
+import { repoMemoryFile } from "../src/memory/repo-memory";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import {
   AGENT_TOOL_NAME,
@@ -95,11 +96,12 @@ test("Q&A with several repos uses the neutral cwd and lists CLAUDE.md hints + me
   const { env, opts } = await qaOptions((e) => {
     const b = addRepo(e.home, "b"); // workspaces/main/repos/b/repo
     writeFileSync(join(b, "CLAUDE.md"), "rules");
-    const mem = workspacePaths(e.home).legacyWorkspace("b"); // TODO(1b): repo memory moves into the repo dir
-    mkdirSync(mem.root, { recursive: true });
-    writeFileSync(mem.memory, "# b memory\n\n## 2026-10-06 t\n- uses bun\n");
+    writeFileSync(
+      repoMemoryFile(e.home, "main", "b"),
+      "# b memory\n\n## 2026-10-06 t\n- uses bun\n",
+    );
   });
-  expect(opts.cwd).toBe(join(env.home, "cwd"));
+  expect(opts.cwd).toBe(workspacePaths(env.home).workspace("main").cwd);
   const prompt = opts.systemPrompt.append as string;
   expect(prompt).toContain("CLAUDE.md first");
   expect(prompt).toContain("uses bun");

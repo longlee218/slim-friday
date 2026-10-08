@@ -80,11 +80,10 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
   // $HOME env can differ from os.homedir() / userHome: forbid both.
   const forbidden = [userHome, agentHome, ...(process.env.HOME ? [process.env.HOME] : [])];
   for (const name of names) {
-    const legacy = paths.legacyWorkspace(name);
     const ws = paths.workspace(name);
     if (!isRealDir(ws.root)) continue;
     if (!existsSync(ws.config)) {
-      if (existsSync(legacy.config)) out.legacy.push(name); // old layout: listed, never loaded
+      if (existsSync(ws.legacyConfig)) out.legacy.push(name); // old layout: listed, never loaded
       continue;
     }
     if (!isWorkspaceName(name)) {
@@ -114,12 +113,4 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
   dropDuplicateChannels(out.workspaces);
   warnOverlap(out.workspaces);
   return out;
-}
-
-/**
- * Every repo of every workspace, flat. TODO(1b): flows are still per-repo-name; they will take the
- * workspace the channel routes to instead of this union.
- */
-export function loadRepoRegistry(agentHome: string): Repo[] {
-  return loadWorkspaces(agentHome).workspaces.flatMap((w) => w.repos);
 }

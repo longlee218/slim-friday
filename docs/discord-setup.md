@@ -67,7 +67,7 @@ bun run start
 
 If successful, you'll see:
 - Bot connects to Discord
-- Logs appear in stdout (pretty-printed) and $AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; lines with a `repo` are also copied to workspaces/<repo>/logs/)
+- Logs appear in stdout (pretty-printed) and $AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; one log for all workspaces, lines carry `workspace`)
 - Ready to receive messages
 
 ## First-Message Checklist
@@ -157,9 +157,9 @@ Expected:
 | "Check the logs" in Discord but nothing in logs | Log level too high | Set LOG_LEVEL=debug in .env |
 
 ## Logs Location
-- **App log:** `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; lines with a `repo` are also copied to workspaces/<repo>/logs/)` (JSON lines)
+- **App log:** `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; one log for all workspaces, lines carry `workspace`)` (JSON lines)
 - **Per-task:** `$AGENT_HOME/logs/tasks/<taskId>.jsonl`
-- **View logs:** `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq .` (one repo: `"$AGENT_HOME"/workspaces/<repo>/logs/`); filter a task with `jq 'select(.taskId=="<id>")'`
+- **View logs:** `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq .` filter a workspace with `jq 'select(.workspace=="<ws>")'` and a task with `jq 'select(.taskId=="<id>")'`
 
 ## Testing Locally (Without Discord)
 Phase 1 includes unit tests that don't require Discord:
@@ -280,24 +280,26 @@ Looks good, also fix the same typo in docs/
 | "PR button not shown" | No commits made | Check bot's response (usually "No changes made") |
 | "Create PR button timed out" | Took >10 min to decide | Worktree still exists; use `cleanup:` to reset |
 
-## Per-Repo Memory
+## Memory (three layers)
 
-Each repository has persistent memory stored in `$AGENT_HOME/workspaces/<repo-name>/MEMORY.md`:
+Memory lives in three owner-visible places; the bot injects them into Q&A, plan and execute prompts:
 
-**Usage:**
-- Memory is automatically injected into Q&A, plan, and execute prompts (newest 4000 chars per repo, 8000 total across all repos)
-- After each successful code task (execute stage), the agent's final "Memory:" section (max 5 bullets) is appended
-- Sections are automatically dropped when MEMORY.md exceeds ~20KB to keep it fresh
+| Layer | File | Written by | Injected |
+|---|---|---|---|
+| Global | `$AGENT_HOME/MEMORY.md` | you only | newest 2000 chars |
+| Workspace | `$AGENT_HOME/workspaces/<ws>/MEMORY.md` | you only | newest 2000 chars |
+| Repo | `$AGENT_HOME/workspaces/<ws>/repos/<repo>/MEMORY.md` | the agent (and you) | newest 4000 chars per repo, 8000 for all repos of the workspace |
 
-**Editing memory:**
-- Open `$AGENT_HOME/workspaces/<repo-name>/MEMORY.md` in your editor
-- Add facts, links, architecture notes, or important context
-- Changes are picked up automatically on the next Q&A or code task
-- Example: "Main app at `src/main.ts`, uses Postgres, test cmd is `bun test`"
+An entry needs a `## <topic>` heading to count (a file with only the template header injects nothing).
 
-**Symlinks and workspace files (no action needed):**
-- `CLAUDE.md` is symlinked from each repo's tracked .claude/CLAUDE.md (repo untouched by Friday)
-- `CLAUDE.local.md` is owner-managed storage in the workspace (never read by the app; for local development overrides)
+**What the agent writes:**
+- After each successful code task the agent's "Memory:" bullets (max 5) are appended to the **repo** file (dated, redacted, one plain line each, 200 chars).
+- Bullets prefixed `[global]` (max 2) go to `$AGENT_HOME/MEMORY.pending.md`, stamped `<date> <ws>/<repo>: <title>`. **This file is never injected into any prompt.** Review it now and then; copy the facts you trust into `MEMORY.md` (global) or `workspaces/<ws>/MEMORY.md` by hand, then delete them from the pending file. Reason: the agent may have read hostile text in a repo, and a global fact would reach every workspace.
+- The agent never writes the global or workspace `MEMORY.md`.
+
+**Editing memory:** open any of the files in your editor and add facts under `## <topic>` headings; changes apply on the next task. Example: "Main app at `src/main.ts`, uses Postgres, test cmd is `bun test`".
+
+**Files the bot does not create:** `CLAUDE.md` / `CLAUDE.local.md` anywhere under `$AGENT_HOME` (a CLAUDE.md above a clone would be auto-loaded by the SDK). A workspace dir from the old layout (`workspaces/<name>/config.yaml`, no `workspace.yaml`) is never loaded or written; when no new-layout workspace exists the bot replies "Old workspace layout found: see the migration runbook (docs/discord-setup.md)". The migration runbook itself ships with Step B phase 4.
 
 ## Run in background (launchd)
 

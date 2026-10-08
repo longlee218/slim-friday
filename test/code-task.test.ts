@@ -107,7 +107,7 @@ test("code task runs in plan mode in the scratch dir with write tools and no all
   expect(opts.permissionMode).toBe("plan");
   expect(opts.tools).toContain(WRITE_TOOL_NAME);
   expect(opts.allowedTools).toBeUndefined(); // would bypass canUseTool
-  expect(opts.cwd).toContain(join(env.home, "tasks"));
+  expect(opts.cwd).toContain(join(realpathSync(env.home), "workspaces", "main", "tasks"));
   expect(opts.additionalDirectories).toEqual([realpathSync(repo)]);
   expect(opts.canUseTool).toBeFunction();
   expect(opts.systemPrompt.append).toContain("plan mode");

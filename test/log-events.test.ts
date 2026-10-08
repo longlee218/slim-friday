@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { runAgent } from "../src/agent/run-agent";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { routedStream } from "../src/observability/log-files";
+import { rollingFile } from "../src/observability/log-files";
 import {
   captureLogs,
   createLogger,
@@ -48,7 +49,7 @@ test("excerpt masks secrets and caps length", () => {
 
 test("secrets in an event field go through excerpt and never reach the file", async () => {
   const env = makeEnv();
-  const stream = routedStream(env.home);
+  const stream = rollingFile(workspacePaths(env.home).appLog());
   const log = createLogger(stream);
   logEvent(log, "message.received", {
     text: excerpt(`my OPENROUTER_API_KEY=sk-or-v1-${"c".repeat(30)}`),
@@ -63,38 +64,27 @@ test("secrets in an event field go through excerpt and never reach the file", as
   stream.end();
 });
 
-test("lines with a registered repo go to both files; others only to the main file", async () => {
+test("every line goes to the one app log; no per-repo log dir is created", async () => {
   const env = makeEnv();
   addRepo(env.home, "api");
-  mkdirSync(workspacePaths(env.home).legacyWorkspace("api").root, { recursive: true }); // TODO(1b): per-repo log dir
   const paths = workspacePaths(env.home);
-  const stream = routedStream(env.home);
+  const stream = rollingFile(paths.appLog());
   const log = createLogger(stream);
-  logEvent(log, "a.with_repo", { repo: "api" });
+  logEvent(log, "a.with_repo", { repo: "api", workspace: "main" });
   logEvent(log, "b.star", { repo: "*" });
-  logEvent(log, "c.unregistered", { repo: "ghost" });
-  logEvent(log, "d.traversal", { repo: "../x" });
-  logEvent(log, "e.no_repo");
-  logEvent(log.child({ repo: "api" }), "f.bound_repo");
+  logEvent(log, "c.no_repo");
   await stream.ready();
-  const names = (base: string) => readLogLines(base).map((l) => l.event);
-  expect(names(paths.appLog())).toEqual([
-    "a.with_repo",
-    "b.star",
-    "c.unregistered",
-    "d.traversal",
-    "e.no_repo",
-    "f.bound_repo",
-  ]);
-  expect(names(paths.appLog("api"))).toEqual(["a.with_repo", "f.bound_repo"]);
-  // The unregistered repo got no workspace dir created by logging.
-  expect(readLogLines(paths.appLog("ghost"))).toEqual([]);
+  const lines = readLogLines(paths.appLog());
+  expect(lines.map((l) => l.event)).toEqual(["a.with_repo", "b.star", "c.no_repo"]);
+  expect(lines[0]).toMatchObject({ workspace: "main", repo: "api" });
+  expect(existsSync(join(paths.workspace("main").root, "logs"))).toBe(false);
+  expect(existsSync(join(paths.workspaces, "api"))).toBe(false);
   stream.end();
 });
 
 test("rolled file name has the date and the .jsonl extension", async () => {
   const env = makeEnv();
-  const stream = routedStream(env.home);
+  const stream = rollingFile(workspacePaths(env.home).appLog());
   createLogger(stream).info("x");
   await stream.ready();
   const day = new Date().toLocaleDateString("sv"); // yyyy-MM-dd, local time like pino-roll
@@ -168,5 +158,5 @@ test("a run logs run.started and run.finished with the task's correlation fields
     costUsd: 0.0012,
   });
   // Raw per-task stream is untouched by event logging.
-  expect(readFileSync(env.paths.taskLog("T1", "repo"), "utf8")).toContain("sdk message");
+  expect(readFileSync(env.paths.taskLog("T1"), "utf8")).toContain("sdk message");
 });

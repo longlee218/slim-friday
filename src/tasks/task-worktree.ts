@@ -77,7 +77,7 @@ export async function startWorktree(
   repo: Repo,
   plan: string,
 ): Promise<{ wt: WorktreeRow; execScratch: string } | FlowResult> {
-  const ws = workspacePaths(deps.config.agentHome).workspace(repo.workspace);
+  const ws = workspacePaths(deps.config.agentHome).workspace(i.workspace);
   const base = repo.defaultBranch ?? "main";
   const branch = `agent/${i.taskId.slice(0, 8)}`;
   const wtPath = join(ws.repo(repo.name).worktrees, i.taskId);

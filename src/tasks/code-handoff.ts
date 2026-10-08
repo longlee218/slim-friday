@@ -59,7 +59,9 @@ export interface HandoffInput {
   /** Reply of the finished Q&A run (shown before the notice). */
   reply: string;
   proposal: Proposal;
-  /** All registered repos. */
+  /** Workspace the task runs in. */
+  workspace: string;
+  /** Repos of that workspace. */
   repos: Repo[];
   /** Repo the thread is pinned to, when any. */
   pinned?: Repo;
@@ -119,6 +121,7 @@ export async function runHandoff(deps: HandoffDeps, i: HandoffInput): Promise<st
     taskId,
     threadId: i.task.threadId,
     text: proposal.brief,
+    workspace: i.workspace,
     repos: blocked.candidates,
     ac: i.ac,
   }).catch((err: unknown) => {

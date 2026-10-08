@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Interaction } from "discord.js";
 import { createDiscordApprovalGateway } from "../src/approvals/discord-approval";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { routedStream } from "../src/observability/log-files";
+import { rollingFile } from "../src/observability/log-files";
 import {
   captureLogs,
   createLogger,
@@ -175,18 +175,21 @@ test("approval decided by a click outside the task context still logs the task's
   });
 });
 
-test("a line whose repo comes from the context is copied to the workspace log", async () => {
+test("context fields (workspace, repo) land on every line of the single app log; no per-repo copy", async () => {
   const env = makeEnv();
   addRepo(env.home, "api");
-  mkdirSync(workspacePaths(env.home).legacyWorkspace("api").root, { recursive: true }); // TODO(1b): per-repo log dir
-  const stream = routedStream(env.home);
+  const paths = workspacePaths(env.home);
+  const stream = rollingFile(paths.appLog());
   const log = createLogger(stream);
-  runWithLogContext({ taskId: "T", repo: "api" }, () => logEvent(log, "ctx.repo"));
+  runWithLogContext({ taskId: "T", workspace: "main", repo: "api" }, () =>
+    logEvent(log, "ctx.repo"),
+  );
   logEvent(log, "no.ctx");
   await stream.ready();
-  const paths = workspacePaths(env.home);
-  expect(readLogLines(paths.appLog("api")).map((l) => l.event)).toEqual(["ctx.repo"]);
-  expect(readLogLines(paths.appLog()).map((l) => l.event)).toEqual(["ctx.repo", "no.ctx"]);
+  const lines = readLogLines(paths.appLog());
+  expect(lines.map((l) => l.event)).toEqual(["ctx.repo", "no.ctx"]);
+  expect(lines[0]).toMatchObject({ taskId: "T", workspace: "main", repo: "api" });
+  expect(existsSync(join(paths.workspace("main").root, "logs"))).toBe(false);
   stream.end();
 });
 
@@ -220,40 +223,28 @@ async function runUnpinned(env: ReturnType<typeof makeEnv>, file?: string) {
   return cap.lines;
 }
 
-/** Write captured lines through the routed stream, like the real shared logger does. */
-async function route(env: ReturnType<typeof makeEnv>, lines: Record<string, unknown>[]) {
-  const stream = routedStream(env.home);
-  for (const l of lines) stream.write(`${JSON.stringify(l)}\n`);
-  await stream.ready();
-  stream.end();
-}
-
-test("one registered workspace: unpinned Q&A lines carry it and reach its workspace log", async () => {
-  const env = makeEnv(); // single workspace "repo"
+test("one workspace with one repo: unpinned Q&A lines carry workspace and repo", async () => {
+  const env = makeEnv(); // single workspace "main", repo "repo"
   const lines = await runUnpinned(env);
-  mkdirSync(workspacePaths(env.home).legacyWorkspace("repo").root, { recursive: true }); // TODO(1b): per-repo log dir
   for (const e of ["task.started", "run.started", "task.finished"])
-    expect(lines.find((l) => l.event === e)).toMatchObject({ repo: "repo" });
-  await route(env, lines);
-  const ws = readLogLines(workspacePaths(env.home).appLog("repo")).map((l) => l.event);
-  expect(ws).toContain("task.finished");
+    expect(lines.find((l) => l.event === e)).toMatchObject({ workspace: "main", repo: "repo" });
 });
 
-test("two workspaces, unpinned: a Read inside B moves tool.call and later lines to B's log", async () => {
+test("two repos, unpinned: a Read inside bbb moves tool.call and later lines to repo bbb", async () => {
   const env = makeEnv();
-  const a = addRepo(env.home, "aaa");
+  addRepo(env.home, "aaa");
   const b = addRepo(env.home, "bbb");
   writeFileSync(join(b, "f.txt"), "x");
-  mkdirSync(workspacePaths(env.home).legacyWorkspace("bbb").root, { recursive: true }); // TODO(1b): per-repo log dir
-  void a;
   const lines = await runUnpinned(env, join(b, "f.txt"));
-  expect(lines.find((l) => l.event === "run.started")).toMatchObject({ repo: "*" });
+  expect(lines.find((l) => l.event === "run.started")).toMatchObject({
+    workspace: "main",
+    repo: "*",
+  });
   expect(lines.find((l) => l.event === "tool.call")).toMatchObject({ repo: "bbb" });
-  expect(lines.find((l) => l.event === "task.finished")).toMatchObject({ repo: "bbb" });
-  await route(env, lines);
-  const ws = readLogLines(workspacePaths(env.home).appLog("bbb")).map((l) => l.event);
-  expect(ws).toContain("task.finished");
-  expect(ws).not.toContain("run.started");
+  expect(lines.find((l) => l.event === "task.finished")).toMatchObject({
+    workspace: "main",
+    repo: "bbb",
+  });
 });
 
 test("a tool call outside every repo keeps repo *", async () => {

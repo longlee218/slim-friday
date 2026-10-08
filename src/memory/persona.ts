@@ -1,7 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { workspacePaths } from "../config/workspace-paths";
-import type { Repo } from "../repos/repo-registry";
+import type { Workspace } from "../workspaces/workspace-registry";
 import {
   BOOTSTRAP,
   DEFAULT_AGENTS,
@@ -10,7 +9,7 @@ import {
   DEFAULT_USER,
   memoryTemplate,
   ROOT_MEMORY,
-  workspaceIdentity,
+  workspaceMemoryTemplate,
 } from "./persona-templates";
 
 /** Max chars read from one persona file (4 files => at most 6000 chars of persona). */
@@ -25,9 +24,10 @@ function ensureFile(file: string, text: string): void {
 
 /**
  * Create the missing pieces of the home and of every workspace (never overwrites): root
- * AGENTS/IDENTITY/SOUL/USER/MEMORY/BOOTSTRAP, per-workspace IDENTITY + MEMORY + logs dir, and a CLAUDE.md symlink to the repo's own file.
+ * AGENTS/IDENTITY/SOUL/USER/MEMORY/BOOTSTRAP; per workspace `cwd/` + MEMORY.md; per repo MEMORY.md.
+ * No CLAUDE.md anywhere (an ancestor CLAUDE.md of a clone would be auto-loaded by the SDK).
  */
-export function ensureHome(agentHome: string, repos: Repo[]): void {
+export function ensureHome(agentHome: string, workspaces: Workspace[]): void {
   const paths = workspacePaths(agentHome);
   mkdirSync(paths.workspaces, { recursive: true });
   ensureFile(paths.identity, DEFAULT_IDENTITY);
@@ -36,18 +36,11 @@ export function ensureHome(agentHome: string, repos: Repo[]): void {
   ensureFile(paths.user, DEFAULT_USER);
   ensureFile(paths.memory, ROOT_MEMORY);
   ensureFile(paths.bootstrap, BOOTSTRAP);
-  for (const r of repos) {
-    const ws = paths.legacyWorkspace(r.name); // TODO(1b): persona per workspace
-    mkdirSync(ws.logs, { recursive: true });
-    ensureFile(ws.identity, workspaceIdentity(r));
-    ensureFile(ws.memory, memoryTemplate(r.name));
-    const claude = join(r.path, "CLAUDE.md");
-    // Forward link only: the repo's own (tracked) file stays untouched; the workspace just points at it.
-    try {
-      if (existsSync(claude) && !existsSync(ws.claude)) symlinkSync(claude, ws.claude);
-    } catch {
-      /* link already exists or is not allowed: not fatal */
-    }
+  for (const w of workspaces) {
+    const ws = paths.workspace(w.name);
+    mkdirSync(ws.cwd, { recursive: true });
+    ensureFile(ws.memory, workspaceMemoryTemplate(w.name));
+    for (const r of w.repos) ensureFile(ws.repo(r.name).memory, memoryTemplate(r.name));
   }
 }
 
@@ -71,14 +64,14 @@ function readPersona(file: string): string {
 /**
  * AGENTS, IDENTITY, SOUL, USER for a run (this order: operating notes first, then who, tone, owner).
  * Per file the workspace's own non-empty file replaces the root one. `workspace` is undefined for runs
- * that span several repos (root files only). `truncated` is true when any file hit PERSONA_MAX.
+ * that belong to no workspace (root files only). `truncated` is true when any file hit PERSONA_MAX.
  */
 export function buildPersonaContext(
   agentHome: string,
   workspace?: string,
 ): { text: string; truncated: boolean } {
   const paths = workspacePaths(agentHome);
-  const ws = workspace ? paths.legacyWorkspace(workspace) : undefined; // TODO(1b)
+  const ws = workspace ? paths.workspace(workspace) : undefined;
   const parts = (["agents", "identity", "soul", "user"] as const)
     .map((k) => readPersona(ws?.[k] ?? "") || readPersona(paths[k]))
     .filter(Boolean);

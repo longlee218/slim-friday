@@ -8,24 +8,10 @@ export function workspacePaths(agentHome: string) {
     home: agentHome,
     /** SQLite database file. */
     dbFile: join(agentHome, "data", "agent.db"),
-    /**
-     * Base path of the daily-rolled app log (JSON lines): files are `<base>.<yyyy-MM-dd>.<n>.jsonl`.
-     * With a repo: that workspace's copy of the lines tagged with it.
-     */
-    appLog: (repo?: string) =>
-      join(repo ? join(agentHome, "workspaces", repo, "logs") : join(agentHome, "logs"), "app"),
-    /** Raw per-task event stream: in the repo's workspace when known, else the shared logs dir. */
-    taskLog: (taskId: string, repo?: string) =>
-      join(
-        repo ? join(agentHome, "workspaces", repo, "logs") : join(agentHome, "logs"),
-        "tasks",
-        `${taskId}.jsonl`,
-      ),
-    /** Plan-stage scratch of a task (the repo is not chosen yet, so it is not in a workspace). */
-    task: (taskId: string) => {
-      const root = join(agentHome, "tasks", taskId);
-      return { root, scratch: join(root, "scratch"), artifacts: join(root, "artifacts") };
-    },
+    /** Base path of the daily-rolled app log (JSON lines): files are `<base>.<yyyy-MM-dd>.<n>.jsonl`. One log for all workspaces. */
+    appLog: () => join(agentHome, "logs", "app"),
+    /** Raw per-task event stream; lines are tied to a workspace by the task row, not by the path. */
+    taskLog: (taskId: string) => join(agentHome, "logs", "tasks", `${taskId}.jsonl`),
     /** Default identity/soul shared by every workspace (a workspace file overrides them). */
     identity: join(agentHome, "IDENTITY.md"),
     soul: join(agentHome, "SOUL.md"),
@@ -48,6 +34,8 @@ export function workspacePaths(agentHome: string) {
         root,
         /** workspace.yaml: description + Discord channels. */
         config: join(root, "workspace.yaml"),
+        /** `config.yaml` of the pre-Step-B per-repo dir: only used to recognise a dir that needs migration. */
+        legacyConfig: join(root, "config.yaml"),
         identity: join(root, "IDENTITY.md"),
         soul: join(root, "SOUL.md"),
         agents: join(root, "AGENTS.md"),
@@ -76,31 +64,6 @@ export function workspacePaths(agentHome: string) {
             worktrees: join(rroot, "worktrees"),
           };
         },
-      };
-    },
-    /**
-     * Pre-Step-B layout: one workspace per repo, `workspaces/<name>/config.yaml`.
-     * TODO(1b): callers that only know a repo name still use it for persona, memory and logs.
-     */
-    legacyWorkspace: (name: string) => {
-      const root = join(agentHome, "workspaces", name);
-      return {
-        root,
-        config: join(root, "config.yaml"),
-        identity: join(root, "IDENTITY.md"),
-        soul: join(root, "SOUL.md"),
-        agents: join(root, "AGENTS.md"),
-        user: join(root, "USER.md"),
-        claude: join(root, "CLAUDE.md"),
-        /** Owner-managed file: the app never reads it (measured by the canary smoke). */
-        claudeLocal: join(root, "CLAUDE.local.md"),
-        memory: join(root, "MEMORY.md"),
-        logs: join(root, "logs"),
-        /** Managed clone (code tasks branch from it). */
-        repo: join(root, "repo"),
-        worktrees: join(root, "worktrees"),
-        /** Execute-stage scratch of tasks (plan.md). */
-        tasks: join(root, "tasks"),
       };
     },
   };

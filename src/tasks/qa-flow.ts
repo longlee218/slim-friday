@@ -1,9 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { type QueryFn, runAgent } from "../agent/run-agent";
 import type { AgentConfig } from "../config/agent-config";
+import { workspacePaths } from "../config/workspace-paths";
 import { guardFor } from "../guardrails/check-tool-call";
 import { realOrSame } from "../guardrails/paths";
 import type { GitMcp } from "../mcp/git-mcp";
@@ -38,7 +38,9 @@ export interface QaFlowInput {
   /** Thread of the message (scopes the rejected-plans memory). */
   threadId: string;
   text: string;
-  /** All registered repos (never empty). */
+  /** Workspace the task runs in. */
+  workspace: string;
+  /** Repos of that workspace (never empty). */
   repos: Repo[];
   /** The repo the thread is pinned to, when any. */
   pinned?: Repo;
@@ -49,13 +51,13 @@ export interface QaFlowInput {
   allowDelegate?: boolean;
 }
 
-/** Read-only Q&A over the pinned repo, or over every registered repo when unpinned. */
+/** Read-only Q&A over the pinned repo, or over every repo of the workspace when unpinned. */
 export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowResult> {
   const { config, git } = deps;
   const { repos, pinned, existing } = i;
-  // Unpinned with several repos: a neutral cwd dir, so no single repo's CLAUDE.md is auto-loaded
-  // (the registry block points the agent at each one). One repo: that repo. All repos are readable.
-  const workspaceDir = join(config.agentHome, "cwd");
+  // Unpinned with several repos: the workspace cwd dir (no CLAUDE.md above it), so no single repo's
+  // CLAUDE.md is auto-loaded (the registry block points the agent at each one). One repo: that repo.
+  const workspaceDir = workspacePaths(config.agentHome).workspace(i.workspace).cwd;
   mkdirSync(workspaceDir, { recursive: true });
   const unpinnedCwd = repos.length > 1 ? workspaceDir : repos[0]!.path;
   const storedOk =
@@ -97,17 +99,11 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
       readPaths: [cwd, ...additionalDirectories].map(realOrSame),
       gitReadRepos: scope.map((r) => realOrSame(r.path)),
     }),
-    logRepo: pinned?.name,
     extraContext: buildPromptContext({
       agentHome: config.agentHome,
-      workspace: pinned?.name,
-      registry: pinned
-        ? ""
-        : buildRegistryContext(
-            repos[0]?.workspace ?? "",
-            repos,
-          ) /* TODO(1b): workspace from routing */,
-      memoryWorkspaces: scope.map((r) => r.name),
+      workspace: i.workspace,
+      registry: pinned ? "" : buildRegistryContext(i.workspace, repos),
+      memoryRepos: scope.map((r) => r.name),
       sdkCwd: cwd,
       // Only when the agent can delegate: it must not re-propose what the owner rejected here.
       rejectedPlans: i.allowDelegate ? rejectedPlans(deps.db, i.threadId) : undefined,

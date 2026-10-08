@@ -27,7 +27,9 @@ export async function runPlanStage(
 ): Promise<PlanStageResult> {
   const { db, config, approvals } = deps;
   const plans = claudePlansDir();
-  const scratch = i.planResume?.cwd ?? workspacePaths(config.agentHome).task(i.taskId).scratch;
+  const scratch =
+    i.planResume?.cwd ??
+    workspacePaths(config.agentHome).workspace(i.workspace).task(i.taskId).scratch;
   mkdirSync(scratch, { recursive: true, mode: 0o700 });
   const scratchReal = realpathSync(scratch);
   const repoPaths = i.repos.map((r) => realpathSync(r.path));
@@ -41,8 +43,9 @@ export async function runPlanStage(
     additionalDirectories: repoPaths,
     extraContext: buildPromptContext({
       agentHome: config.agentHome,
-      registry: buildRegistryContext(i.repos[0]?.workspace ?? "", i.repos, true) /* TODO(1b) */,
-      memoryWorkspaces: i.repos.map((r) => r.name),
+      workspace: i.workspace,
+      registry: buildRegistryContext(i.workspace, i.repos, true),
+      memoryRepos: i.repos.map((r) => r.name),
       sdkCwd: scratchReal,
     }),
     guard: guardFor("plan", {

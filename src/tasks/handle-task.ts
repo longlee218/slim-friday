@@ -6,7 +6,6 @@ import type { AgentConfig } from "../config/agent-config";
 import { realOrSame } from "../guardrails/paths";
 import type { Task } from "../ingress/discord-message-handler";
 import { createGitMcp, type GitMcp } from "../mcp/git-mcp";
-import { ensureHome } from "../memory/persona";
 import {
   getLogContext,
   logEvent,
@@ -18,7 +17,6 @@ import {
 import { errText } from "../observability/redact";
 import { finishTask } from "../storage/run-store";
 import { deleteSession, getSession } from "../storage/session-store";
-import { loadRepoRegistry } from "../workspaces/workspace-registry";
 import { HANDOFF_OUTCOMES, runHandoff } from "./code-handoff";
 import { runCodeFlow } from "./code-task-flow";
 import { runQaFlow } from "./qa-flow";
@@ -28,6 +26,7 @@ import type { FlowResult } from "./task-result";
 import { closeTask, OUTCOME_REPLY } from "./task-result";
 import { resolveCommand, routeTask } from "./task-routing";
 import { beginTask, createRunTracker } from "./task-tracker";
+import { selectWorkspace } from "./task-workspace";
 import { cleanupWorktree } from "./task-worktree";
 
 /** Dependencies of the task handler. */
@@ -100,17 +99,22 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     // Everything after the lock is taken lives in try so `finally` always releases it.
     try {
       const stored = getSession(db, threadId);
-      // Registry is re-read per task so config.yaml edits apply without a restart.
-      const repos = loadRepoRegistry(config.agentHome);
-      single = repos.length === 1 ? repos[0]!.name : undefined;
-      ensureHome(config.agentHome, repos); // create missing IDENTITY/MEMORY/logs/links (never overwrites)
-      if (repos.length === 0) {
-        const reply = `No workspace found. Add workspaces/<ws>/workspace.yaml and workspaces/<ws>/repos/<repo>/repo.yaml under ${config.agentHome}.`;
-        logEvent(log, "task.refused", { reason: "no_workspace", reply });
-        return reply;
+      // Registry is re-read per task so yaml edits apply without a restart.
+      const picked = selectWorkspace(config.agentHome, db, threadId);
+      if ("reply" in picked) {
+        logEvent(log, "task.refused", { reason: picked.reason, reply: picked.reply });
+        return picked.reply;
       }
+      const { ws } = picked;
+      const repos = ws.repos; // every repo lookup below stays inside this workspace
+      setLogContext({ workspace: ws.name });
+      single = repos.length === 1 ? repos[0]!.name : undefined;
       // Resume button becomes a follow-up / plan run / Q&A from the interrupted task's session (or a refusal).
-      const resolved = resolveCommand({ db, agentHome: config.agentHome, repos }, parsed, threadId);
+      const resolved = resolveCommand(
+        { db, agentHome: config.agentHome, workspace: ws.name, repos },
+        parsed,
+        threadId,
+      );
       if ("reply" in resolved) {
         logEvent(log, "task.refused", { reason: resolved.reason, reply: resolved.reply });
         return resolved.reply;
@@ -135,6 +139,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
             taskId,
             threadId,
             text: cmd.text,
+            workspace: ws.name,
             repos: route.candidates,
             ac,
             worktree,
@@ -148,6 +153,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
             taskId,
             threadId,
             text: cmd.text,
+            workspace: ws.name,
             repos,
             pinned,
             existing,
@@ -159,7 +165,15 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       // `DelegateTask` was called: the plan stage starts now, same thread and lock (`await`: finally must wait).
       if (res.proposal && HANDOFF_OUTCOMES.has(res.outcome)) {
         const h = { ...codeDeps, stopping: tracker.isStopping };
-        return await runHandoff(h, { task, reply, proposal: res.proposal, repos, pinned, ac });
+        return await runHandoff(h, {
+          task,
+          reply,
+          proposal: res.proposal,
+          workspace: ws.name,
+          repos,
+          pinned,
+          ac,
+        });
       }
       // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
       if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {

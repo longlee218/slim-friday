@@ -2,17 +2,28 @@ import type { HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-
 import type { Decision } from "../guardrails/check-tool-call";
 import { isInside, resolveReal } from "../guardrails/paths";
 import { BASH_TOOL_NAME } from "../tools/sdk-tool-names";
-import { loadRepoRegistry } from "../workspaces/workspace-registry";
+import { loadWorkspaces } from "../workspaces/workspace-registry";
 import { getLogContext, logEvent, logger, setLogContext, tryLog } from "./logger";
 import type { RunRecorder } from "./record-run";
 import { safePreview } from "./redact";
 
-/** Registry paths per AGENT_HOME, global data shared by all tasks; refreshed after REPO_TTL_MS. */
-const repoCache = new Map<string, { at: number; repos: { name: string; path: string }[] }>();
+/** Repos (real paths) per workspace per AGENT_HOME, shared by all tasks; refreshed after REPO_TTL_MS. */
+const repoCache = new Map<
+  string,
+  { at: number; byWorkspace: Map<string, { name: string; path: string }[]> }
+>();
 const REPO_TTL_MS = 30_000;
 
-/** Registered repo (real path) containing the file/dir a tool call touches, else undefined. */
-function repoOfTool(home: string, tool: string, input: unknown): string | undefined {
+/**
+ * Repo of workspace `ws` (real path) containing the file/dir a tool call touches, else undefined.
+ * Only repos of that workspace are considered: a same-named repo elsewhere is never matched.
+ */
+export function repoOfTool(
+  home: string,
+  ws: string,
+  tool: string,
+  input: unknown,
+): string | undefined {
   // Bash is skipped: its cwd-independent paths cannot be told from the command text.
   if (tool === BASH_TOOL_NAME || !input || typeof input !== "object") return undefined;
   const i = input as Record<string, unknown>;
@@ -20,15 +31,17 @@ function repoOfTool(home: string, tool: string, input: unknown): string | undefi
   if (!p) return undefined;
   let hit = repoCache.get(home);
   if (!hit || Date.now() - hit.at > REPO_TTL_MS) {
-    const repos = loadRepoRegistry(home).map((r) => ({
-      name: r.name,
-      path: resolveReal(r.path),
-    }));
-    hit = { at: Date.now(), repos };
+    const byWorkspace = new Map(
+      loadWorkspaces(home).workspaces.map((w) => [
+        w.name,
+        w.repos.map((r) => ({ name: r.name, path: resolveReal(r.path) })),
+      ]),
+    );
+    hit = { at: Date.now(), byWorkspace };
     repoCache.set(home, hit);
   }
   const real = resolveReal(p);
-  return hit.repos.find((r) => isInside(r.path, real))?.name;
+  return hit.byWorkspace.get(ws)?.find((r) => isInside(r.path, real))?.name;
 }
 
 /**
@@ -64,12 +77,13 @@ export function buildToolHooks(
     // No guard (unit tests) = no decision recorded.
     const d = decisions?.get(id);
     decisions?.delete(id);
-    // Unpinned task ("*"): the first call into a registered repo names the repo on this line (explicit
-    // field wins over the mixin) and sets the context so later lines (task.finished...) go to its log.
+    // Unpinned task ("*"): the first call into a repo of the task's workspace names the repo on this line
+    // (explicit field wins over the mixin) and sets the context so later lines (task.finished...) carry it.
     let repo: string | undefined;
-    if (agentHome) {
+    const workspace = getLogContext().workspace;
+    if (agentHome && workspace) {
       try {
-        repo = repoOfTool(agentHome, tool, input);
+        repo = repoOfTool(agentHome, workspace, tool, input);
       } catch {
         repo = undefined; // unresolvable path: keep the context repo
       }

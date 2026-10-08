@@ -30,7 +30,7 @@ export interface RunSkills {
   cleanup: () => void;
 }
 
-/** Plugin name = the workspace name reduced to a safe token (it prefixes the qualified skill names). */
+/** Plugin name = the repo name reduced to a safe token (it prefixes the qualified skill names). */
 const pluginName = (repo: string | undefined): string =>
   (repo ?? "repo").replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 40) || "repo";
 
@@ -113,7 +113,7 @@ export function runSkills(
     cwd: string;
     additionalDirectories?: string[];
     skillsFromClone?: string;
-    /** Workspace name: names the plugin. */
+    /** Repo name: names the plugin. */
     logRepo?: string;
   },
   agentHome: string,

@@ -7,7 +7,7 @@ import { isManagedClone, refreshRepo } from "../src/repos/refresh-repo";
 import { buildRegistryContext } from "../src/repos/repo-registry";
 import { getSession } from "../src/storage/session-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
-import { loadRepoRegistry } from "../src/workspaces/workspace-registry";
+import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { addRepo, clearWorkspaces, makeEnv, resultMsg } from "./helpers";
 
 /** Create a fake git repo dir (a `.git` dir is all the validator checks). */
@@ -16,6 +16,10 @@ function fakeRepo(root: string, name: string): string {
   mkdirSync(join(p, ".git"), { recursive: true });
   return p;
 }
+
+/** Repos of one workspace (default "main"), [] when it is missing or invalid. */
+const reposOf = (home: string, ws = "main") =>
+  loadWorkspaces(home).workspaces.find((w) => w.name === ws)?.repos ?? [];
 
 test("loads one repo per repo.yaml; skips missing path, non-git dir, bad name and bad config", () => {
   const env = makeEnv();
@@ -31,7 +35,7 @@ test("loads one repo per repo.yaml; skips missing path, non-git dir, bad name an
   mkdirSync(bad.root, { recursive: true });
   writeFileSync(bad.config, "githubAccount: [not, a, string]\n");
   mkdirSync(join(env.home, "workspaces", "main", "repos", "no-config")); // a plain dir is not a repo
-  const repos = loadRepoRegistry(env.home);
+  const repos = reposOf(env.home);
   expect(repos.map((r) => r.name)).toEqual(["a", "b"]);
   expect(repos[0]).toMatchObject({ description: "api", testCommand: "bun test" });
   expect(repos[0]!.path).toBe(workspacePaths(env.home).workspace("main").repo("a").clone);
@@ -42,9 +46,9 @@ test("loads one repo per repo.yaml; skips missing path, non-git dir, bad name an
 test("returns empty when there is no workspaces dir or no valid workspace", () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  expect(loadRepoRegistry(env.home)).toEqual([]);
+  expect(reposOf(env.home)).toEqual([]);
   mkdirSync(join(env.home, "workspaces"));
-  expect(loadRepoRegistry(env.home)).toEqual([]);
+  expect(reposOf(env.home)).toEqual([]);
 });
 
 test("handler tells the owner to add a workspace when none exists", async () => {
@@ -85,7 +89,7 @@ test("handler: unpinned uses all repos; pin sticks to thread; unknown pin reject
 
   await handle(t("t1", "where is x?"));
   // Several repos, no pin: neutral cwd, every repo readable.
-  expect(seen[0].options.cwd).toBe(join(env.home, "cwd"));
+  expect(seen[0].options.cwd).toBe(workspacePaths(env.home).workspace("main").cwd);
   expect(seen[0].options.additionalDirectories).toEqual([a, b]);
   expect(seen[0].options.systemPrompt.append).toContain("Available repos");
 
@@ -165,7 +169,7 @@ test("workflow: defaults to lean, full is parsed, a bad value skips the repo, ma
   addRepo(env.home, "a");
   addRepo(env.home, "b", { workflow: "full" });
   addRepo(env.home, "c", { workflow: "heavy" });
-  const repos = loadRepoRegistry(env.home);
+  const repos = reposOf(env.home);
   expect(repos.map((r) => [r.name, r.workflow])).toEqual([
     ["a", "lean"],
     ["b", "full"],
@@ -187,5 +191,5 @@ test("workflow: any value other than lean/full ('heavy', 'FULL', '') skips the r
   ] as const) {
     addRepo(env.home, n, { workflow: v });
   }
-  expect(loadRepoRegistry(env.home).map((r) => r.name)).toEqual(["ok"]);
+  expect(reposOf(env.home).map((r) => r.name)).toEqual(["ok"]);
 });
