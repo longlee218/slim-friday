@@ -41,7 +41,7 @@ export async function runPlanStage(
     additionalDirectories: repoPaths,
     extraContext: buildPromptContext({
       agentHome: config.agentHome,
-      registry: buildRegistryContext(i.repos, true),
+      registry: buildRegistryContext(i.repos[0]?.workspace ?? "", i.repos, true) /* TODO(1b) */,
       memoryWorkspaces: i.repos.map((r) => r.name),
       sdkCwd: scratchReal,
     }),

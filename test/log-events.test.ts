@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { runAgent } from "../src/agent/run-agent";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { routedStream } from "../src/observability/log-files";
@@ -13,7 +13,7 @@ import {
 import { RunRecorder } from "../src/observability/record-run";
 import { buildToolHooks } from "../src/observability/tool-hooks";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { addWorkspace, fakeQuery, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
+import { addRepo, fakeQuery, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
 
 /** A logger whose lines are collected as parsed objects. */
 function capture() {
@@ -65,7 +65,8 @@ test("secrets in an event field go through excerpt and never reach the file", as
 
 test("lines with a registered repo go to both files; others only to the main file", async () => {
   const env = makeEnv();
-  addWorkspace(env.home, "api");
+  addRepo(env.home, "api");
+  mkdirSync(workspacePaths(env.home).legacyWorkspace("api").root, { recursive: true }); // TODO(1b): per-repo log dir
   const paths = workspacePaths(env.home);
   const stream = routedStream(env.home);
   const log = createLogger(stream);

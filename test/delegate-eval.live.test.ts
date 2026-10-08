@@ -8,7 +8,7 @@ import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { DELEGATE_TASK_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import { g, makeRepo } from "./git-fixture";
-import { addWorkspace, clearWorkspaces, makeEnv, resultMsg, stubGateway } from "./helpers";
+import { addRepo, clearWorkspaces, makeEnv, resultMsg, stubGateway } from "./helpers";
 
 // Golden set (live, real model through the owner's Claude login): does the Q&A agent call `DelegateTask` exactly when it should?
 // Non-deterministic: every run differs. Targets are proposals: 0 false positives on pure questions,
@@ -114,12 +114,12 @@ describe.skipIf(!live)("delegate golden set (live, Claude)", () => {
     await g(src.repo, "add", "-A");
     await g(src.repo, "commit", "-qm", "fixture");
     clearWorkspaces(env.home);
-    const clone = workspacePaths(env.home).workspace("shop").repo;
-    addWorkspace(
+    const clone = workspacePaths(env.home).workspace("main").repo("shop").clone;
+    addRepo(
       env.home,
       "shop",
       { description: "toy shop repo", gitAuthor: "Test User <test@example.com>" },
-      clone,
+      { path: clone },
     );
     await g(env.home, "clone", "-q", src.repo, clone);
 

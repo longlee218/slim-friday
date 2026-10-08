@@ -5,7 +5,7 @@ import { workspacePaths } from "../src/config/workspace-paths";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { g, makeRepo } from "./git-fixture";
-import { addWorkspace, clearWorkspaces, makeEnv, stubGateway } from "./helpers";
+import { addRepo, clearWorkspaces, makeEnv, stubGateway } from "./helpers";
 
 // Live test: Q&A agent delegates -> plan -> approve -> worktree -> agent edits + commits in the worktree (real SDK, OpenRouter).
 const key = process.env.OPENROUTER_API_KEY;
@@ -24,12 +24,12 @@ describe.skipIf(!live)("live worktree code flow (OpenRouter)", () => {
     });
     const src = await makeRepo("main");
     clearWorkspaces(env.home);
-    const clone = workspacePaths(env.home).workspace("notes").repo;
-    addWorkspace(
+    const clone = workspacePaths(env.home).workspace("main").repo("notes").clone;
+    addRepo(
       env.home,
       "notes",
       { description: "tiny notes repo with a.txt", gitAuthor: "Test User <test@example.com>" },
-      clone,
+      { path: clone },
     );
     await g(env.home, "clone", "-q", src.repo, clone);
     await g(clone, "config", "user.email", "test@example.com");

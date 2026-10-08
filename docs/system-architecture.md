@@ -49,9 +49,9 @@ Task mode (plan approval flow)
 ```
 
 **Registry Flow:**
-1. App startup: scan `$AGENT_HOME/workspaces/*/config.yaml` (one registry per workspace dir)
-2. Validate each: {name, path, description, defaultBranch?, testCommand?, githubAccount?} → skip invalid (no git, path missing, dup name, whitespace)
-3. No valid entries: reply "No repos registered"
+1. Per task: `loadWorkspaces()` scans `$AGENT_HOME/workspaces/*/workspace.yaml` (description, channels), then `loadRepos()` reads each `repos/*/repo.yaml`
+2. Validate (fail closed, warn + skip): ws name `^[a-z0-9][a-z0-9-]{0,31}$` and not `ops`; repo name `^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`; dirs are real dirs (not symlinks); repo path is a git root and not equal to / an ancestor of `$HOME` or AGENT_HOME; a channel id listed by 2 workspaces is dropped from both; overlapping repo paths across workspaces only log `repo.overlap`. Dirs with `config.yaml` and no `workspace.yaml` are legacy: listed, never loaded
+3. No valid entries: reply "No workspace found" (phase 1a: flat union of all repos; channel routing comes in phase 2)
 4. Thread message with `repo:<name>` prefix → parse + pin (store sessions.repo); cwd = pinned repo or first valid repo
 5. Agent runs with registry summary in prompt + additionalDirectories for read access
 6. Repo change detected → discard session, start fresh
@@ -76,7 +76,8 @@ Task mode (plan approval flow)
 | **Task Commands** | src/tasks/task-commands.ts | parse task: prefix → code task; stop; cleanup; qa/code/code-task mode; repo pin |
 | **Git MCP client** | src/mcp/git-mcp.ts | server config/env + one long-lived MCP client the app uses for worktrees, fetch, push, inspection |
 | **PR Publishing** | src/repos/publish-pr.ts | `git_push` of agent/* via git MCP, then GitHub MCP `create_pull_request` |
-| **Repo Registry** | src/repos/repo-registry.ts | load workspaces/*/config.yaml; each workspace has {path, description, defaultBranch?, testCommand?, githubAccount?} |
+| **Workspace Registry** | src/workspaces/workspace-registry.ts | scan workspaces/*/workspace.yaml {description, channels}; fail-closed validation; legacy dirs listed, never loaded |
+| **Repo Registry** | src/repos/repo-registry.ts | load workspaces/<ws>/repos/*/repo.yaml; each repo has {path, description, defaultBranch?, testCommand?, githubAccount?, gitAuthor?, workflow?} |
 | **Repo Memory** | src/memory/repo-memory.ts | MEMORY.md per repo (newest 4000 chars), injected into Q&A/plan/exec prompts; append on exec success (max 5 bullets, redacted, dated, cap ~20KB) |
 | **GitHub MCP** | src/mcp/github-mcp.ts | github-mcp-config (read-only for agent, write for app PR creation), github-token (`gh auth token` per githubAccount), create-pr (Docker image: ghcr.io/github/github-mcp-server, phase 4+) |
 | **Observability** | src/observability/ | pino logger, hooks, record-run, redact (added errText, clip, tryLog) |
@@ -257,8 +258,8 @@ task: <description> (message)
 **Worktree creation rules:**
 - Created only after plan approval (not during plan stage).
 - Branch: `agent/<first-8-chars-of-taskId>` from `origin/<defaultBranch>` (git fetch first; fallback to local).
-- Path: `$AGENT_HOME/workspaces/<repo>/worktrees/<taskId>`.
-- Only for managed clones (under `$AGENT_HOME/workspaces/<repo>/repo/`; realpath check); code tasks on clones elsewhere refused.
+- Path: `$AGENT_HOME/workspaces/<ws>/repos/<repo>/worktrees/<taskId>`.
+- Only for managed clones (under `$AGENT_HOME/workspaces/<ws>/repos/<repo>/repo/`; realpath check, `^[^/]+/repos/[^/]+/repo(/|$)`); code tasks on clones elsewhere refused.
 - Max 2 active code tasks (running or waiting_approval).
 
 **Session management:**
@@ -425,9 +426,18 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project-root>/.friday)
 │   ├── app.<date>.<n>.jsonl            # pino application log
 │   └── tasks/
 │       └── <taskId>.jsonl   # one JSONL per task
+├── MEMORY.pending.md       # agent [global] notes, never injected (phase 1b)
+├── backups/                # pre-cutover copies
 ├── workspaces/
-│   └── <repo-name>/         # one workspace per registered repo
-│       ├── config.yaml      # registry entry: path, description, defaultBranch?, testCommand?, githubAccount?
+│   └── <ws>/                # Step B layout: one workspace = several repos
+│       ├── workspace.yaml   # description?, channels: [parent channel ids]
+│       ├── cwd/             # neutral cwd, tasks/<id>/{scratch,plan.md}
+│       ├── MEMORY.md        # workspace memory (owner-edited)
+│       └── repos/<repo>/    # repo.yaml, MEMORY.md, repo/ (managed clone), worktrees/<taskId>/
+│   (phase 1a interim: the old per-repo tree below is still what persona, repo memory and
+│    per-repo logs read, through legacyWorkspace(); it moves in 1b)
+│   └── <repo-name>/         # legacy per-repo dir
+│       ├── config.yaml      # legacy marker: listed by loadWorkspaces(), never loaded
 │       ├── AGENTS.md        # optional override (auto-created, workspace replaces root if non-empty)
 │       ├── IDENTITY.md      # optional override (auto-created, workspace replaces root if non-empty)
 │       ├── SOUL.md          # optional override (auto-created, workspace replaces root if non-empty)

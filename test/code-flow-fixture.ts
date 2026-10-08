@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { g, makeRepo } from "./git-fixture";
-import { addWorkspace, clearWorkspaces, makeEnv } from "./helpers";
+import { addRepo, clearWorkspaces, makeEnv } from "./helpers";
 
 /**
  * Env with one workspace `real` whose repo/ is a real git clone (a managed clone), with the given extra
@@ -21,12 +21,12 @@ export async function setupWorkflow(config: Record<string, string> = {}, skills:
     await g(src.repo, "add", "-A");
     await g(src.repo, "commit", "-qm", "skills");
   }
-  const clone = workspacePaths(env.home).workspace("real").repo;
-  addWorkspace(
+  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
+  addRepo(
     env.home,
     "real",
     { description: "test repo", gitAuthor: "Test User <test@example.com>", ...config },
-    clone,
+    { path: clone },
   );
   await g(env.home, "clone", "-q", src.repo, clone);
   await g(clone, "config", "user.email", "test@example.com");

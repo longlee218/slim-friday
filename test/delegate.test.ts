@@ -5,7 +5,7 @@ import { insertTask } from "../src/storage/run-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
 import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import {
-  addWorkspace,
+  addRepo,
   BRIEF,
   clearWorkspaces,
   delegatingQuery,
@@ -23,7 +23,7 @@ async function delegateRun(
   const env = makeEnv();
   if (managed) {
     clearWorkspaces(env.home);
-    addWorkspace(env.home, "repo"); // managed clone: workspaces/repo/repo
+    addRepo(env.home, "repo"); // managed clone: workspaces/repo/repo
   }
   if (fullCap) {
     for (const id of ["a", "b"])

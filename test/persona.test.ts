@@ -3,17 +3,17 @@ import { existsSync, lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { buildPersonaContext, ensureHome } from "../src/memory/persona";
-import { loadRepoRegistry } from "../src/repos/repo-registry";
-import { addWorkspace, clearWorkspaces, makeEnv } from "./helpers";
+import { loadRepoRegistry } from "../src/workspaces/workspace-registry";
+import { addRepo, clearWorkspaces, makeEnv } from "./helpers";
 
 test("ensureHome creates defaults + per-workspace files once and never overwrites", () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const repo = addWorkspace(env.home, "api", { description: "billing api" });
+  const repo = addRepo(env.home, "api", { description: "billing api" });
   writeFileSync(join(repo, "CLAUDE.md"), "repo rules");
   const p = workspacePaths(env.home);
   ensureHome(env.home, loadRepoRegistry(env.home));
-  const ws = p.workspace("api");
+  const ws = p.legacyWorkspace("api");
   for (const f of [p.identity, p.soul, ws.identity, ws.memory]) expect(existsSync(f)).toBe(true);
   expect(existsSync(ws.logs)).toBe(true);
   expect(readFileSync(ws.identity, "utf8")).toContain("billing api");
@@ -45,7 +45,7 @@ test("ensureHome creates AGENTS/USER/MEMORY/BOOTSTRAP once and never overwrites 
 test("persona: workspace files replace root per file; templates and comments inject nothing", () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addWorkspace(env.home, "api");
+  addRepo(env.home, "api");
   ensureHome(env.home, loadRepoRegistry(env.home));
   const p = workspacePaths(env.home);
   const shared = buildPersonaContext(env.home);
@@ -57,7 +57,7 @@ test("persona: workspace files replace root per file; templates and comments inj
   const forApi = buildPersonaContext(env.home, "api");
   expect(forApi.text).toContain("working on the repo `api`");
   expect(forApi.text).toContain("Vietnamese");
-  const ws = p.workspace("api");
+  const ws = p.legacyWorkspace("api");
   writeFileSync(ws.user, "# User\n- Reply in English.\n");
   writeFileSync(ws.soul, "<!-- nothing yet -->");
   const en = buildPersonaContext(env.home, "api").text;

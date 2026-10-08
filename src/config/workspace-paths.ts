@@ -34,9 +34,55 @@ export function workspacePaths(agentHome: string) {
     user: join(agentHome, "USER.md"),
     memory: join(agentHome, "MEMORY.md"),
     bootstrap: join(agentHome, "BOOTSTRAP.md"),
-    /** One workspace per repo (OpenClaw style): config, persona, memory, logs, clone, worktrees. */
+    /** Agent-written `[global]` memory notes: never injected into a prompt. */
+    memoryPending: join(agentHome, "MEMORY.pending.md"),
+    /** Pre-cutover copies of the home (migration backups). */
+    backups: join(agentHome, "backups"),
+    /** Workspaces: each holds several repos (`workspaces/<ws>/repos/<repo>/`). */
     workspaces: join(agentHome, "workspaces"),
     workspace: (name: string) => {
+      const root = join(agentHome, "workspaces", name);
+      const repos = join(root, "repos");
+      const tasks = join(root, "tasks");
+      return {
+        root,
+        /** workspace.yaml: description + Discord channels. */
+        config: join(root, "workspace.yaml"),
+        identity: join(root, "IDENTITY.md"),
+        soul: join(root, "SOUL.md"),
+        agents: join(root, "AGENTS.md"),
+        user: join(root, "USER.md"),
+        /** Owner-edited workspace memory. */
+        memory: join(root, "MEMORY.md"),
+        /** Working dir of runs that are not bound to one repo. */
+        cwd: join(root, "cwd"),
+        tasks,
+        /** One task's dir: scratch for the plan stage, plan.md for the execute stage. */
+        task: (id: string) => {
+          const troot = join(tasks, id);
+          return { root: troot, scratch: join(troot, "scratch"), plan: join(troot, "plan.md") };
+        },
+        repos,
+        repo: (r: string) => {
+          const rroot = join(repos, r);
+          return {
+            root: rroot,
+            /** repo.yaml: path, description, defaultBranch, testCommand... */
+            config: join(rroot, "repo.yaml"),
+            /** Agent-written repo memory. */
+            memory: join(rroot, "MEMORY.md"),
+            /** Managed clone (code tasks branch from it). */
+            clone: join(rroot, "repo"),
+            worktrees: join(rroot, "worktrees"),
+          };
+        },
+      };
+    },
+    /**
+     * Pre-Step-B layout: one workspace per repo, `workspaces/<name>/config.yaml`.
+     * TODO(1b): callers that only know a repo name still use it for persona, memory and logs.
+     */
+    legacyWorkspace: (name: string) => {
       const root = join(agentHome, "workspaces", name);
       return {
         root,
@@ -59,6 +105,17 @@ export function workspacePaths(agentHome: string) {
     },
   };
 }
+
+/** Workspace dir name = Discord category + `#<ws>-agent`: lowercase letters, digits, hyphens only. */
+export const WORKSPACE_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
+/** Workspace names that cannot be used (`ops` is the ops category). */
+export const RESERVED_WORKSPACES = ["ops"];
+/** Repo dir name; also the `repo:` pin and DelegateTask `repo` value. */
+export const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+
+/** True when `name` may become a workspace dir. */
+export const isWorkspaceName = (name: string): boolean =>
+  WORKSPACE_NAME.test(name) && !RESERVED_WORKSPACES.includes(name);
 
 export type WorkspacePaths = ReturnType<typeof workspacePaths>;
 

@@ -77,10 +77,10 @@ export async function startWorktree(
   repo: Repo,
   plan: string,
 ): Promise<{ wt: WorktreeRow; execScratch: string } | FlowResult> {
-  const paths = workspacePaths(deps.config.agentHome).workspace(repo.name);
+  const ws = workspacePaths(deps.config.agentHome).workspace(repo.workspace);
   const base = repo.defaultBranch ?? "main";
   const branch = `agent/${i.taskId.slice(0, 8)}`;
-  const wtPath = join(paths.worktrees, i.taskId);
+  const wtPath = join(ws.repo(repo.name).worktrees, i.taskId);
   try {
     await createTaskWorktree(deps.git, { repoPath: repo.path, worktreePath: wtPath, branch, base });
   } catch (err) {
@@ -97,7 +97,7 @@ export async function startWorktree(
     prUrl: null,
     createdAt: Date.now(),
   };
-  const execScratch = join(paths.tasks, i.taskId);
+  const execScratch = ws.task(i.taskId).root;
   try {
     if (i.ac.signal.aborted) throw new Error("stopped");
     insertWorktree(deps.db, wt);

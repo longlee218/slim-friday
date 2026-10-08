@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { checkToolCall } from "../src/guardrails/check-tool-call";
@@ -17,7 +17,7 @@ import {
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import { SUBAGENT_NAMES } from "../src/tools/tool-catalog";
-import { addWorkspace, makeEnv, resultMsg } from "./helpers";
+import { addRepo, makeEnv, resultMsg } from "./helpers";
 
 /** Run one Q&A message and return the SDK options the handler built. */
 async function qaOptions(setup?: (env: ReturnType<typeof makeEnv>) => void) {
@@ -93,12 +93,11 @@ test("Agent tool: only configured subagents; general-purpose (Bash/Write capable
 
 test("Q&A with several repos uses the neutral cwd and lists CLAUDE.md hints + memory", async () => {
   const { env, opts } = await qaOptions((e) => {
-    const b = addWorkspace(e.home, "b"); // workspaces/b/repo
+    const b = addRepo(e.home, "b"); // workspaces/main/repos/b/repo
     writeFileSync(join(b, "CLAUDE.md"), "rules");
-    writeFileSync(
-      workspacePaths(e.home).workspace("b").memory,
-      "# b memory\n\n## 2026-10-06 t\n- uses bun\n",
-    );
+    const mem = workspacePaths(e.home).legacyWorkspace("b"); // TODO(1b): repo memory moves into the repo dir
+    mkdirSync(mem.root, { recursive: true });
+    writeFileSync(mem.memory, "# b memory\n\n## 2026-10-06 t\n- uses bun\n");
   });
   expect(opts.cwd).toBe(join(env.home, "cwd"));
   const prompt = opts.systemPrompt.append as string;

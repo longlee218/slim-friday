@@ -18,7 +18,7 @@ import { RESUME_PROMPT } from "../src/tasks/task-commands";
 import { finishRun } from "../src/tasks/task-result";
 import { resolveCommand } from "../src/tasks/task-routing";
 import {
-  addWorkspace,
+  addRepo,
   clearWorkspaces,
   fakeQuery,
   initMsg,
@@ -132,7 +132,7 @@ test("Resume without a saved session replies it cannot resume (no run)", async (
 test("Resume of a plan stage whose session cannot be resumed: tells the owner to start again", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addWorkspace(env.home, "real", { gitAuthor: "T <t@e.com>" }); // fake managed clone: code tasks are allowed
+  addRepo(env.home, "real", { gitAuthor: "T <t@e.com>" }); // fake managed clone: code tasks are allowed
   const scratch = join(realpathSync(env.home), "tasks", "T1", "scratch");
   mkdirSync(scratch, { recursive: true });
   interrupted(env, "pl", scratch);
@@ -310,7 +310,7 @@ test("cleanupTaskLogs deletes *.jsonl older than 30 days (shared + workspace), k
 
 test("checkWorktrees: dir without row is reported; row without dir is deleted", () => {
   const env = makeEnv();
-  const root = env.paths.workspace("repo").worktrees;
+  const root = env.paths.workspace("main").repo("repo").worktrees;
   const kept = join(root, "KEEP");
   const orphan = join(root, "ORPHAN");
   mkdirSync(kept, { recursive: true });
@@ -340,7 +340,7 @@ test("cleanupTaskLogs skips a directory named *.jsonl and still cleans the rest"
 
 test("checkWorktrees keeps rows when the worktrees root itself is missing (transient)", () => {
   const env = makeEnv();
-  const path = join(env.paths.workspace("repo").worktrees, "T");
+  const path = join(env.paths.workspace("main").repo("repo").worktrees, "T");
   insertWorktree(env.db, {
     taskId: "T",
     threadId: "t",

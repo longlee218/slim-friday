@@ -17,9 +17,9 @@ const GLOBAL_PREFIX = /^\[global\]\s*/i;
 const MAX_WORKSPACE = 5;
 const MAX_GLOBAL = 2;
 
-/** `AGENT_HOME/workspaces/<repo>/MEMORY.md`: one owner-editable file per workspace. */
+/** `AGENT_HOME/workspaces/<repo>/MEMORY.md`: one owner-editable file per workspace. TODO(1b): repo memory moves into the repo dir. */
 export const memoryFile = (agentHome: string, repo: string): string =>
-  workspacePaths(agentHome).workspace(repo).memory;
+  workspacePaths(agentHome).legacyWorkspace(repo).memory;
 
 /** Newest `max` chars of a memory file, or "" when missing / still only the template. */
 function readMemoryFile(file: string, max: number): string {

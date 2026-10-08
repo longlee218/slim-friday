@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Interaction } from "discord.js";
 import { createDiscordApprovalGateway } from "../src/approvals/discord-approval";
@@ -23,7 +23,7 @@ import {
   GLOB_TOOL_NAME,
   READ_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
-import { addWorkspace, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
+import { addRepo, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
 
 const task = (text: string, threadId: string) => ({ source: "test", userId: "u", threadId, text });
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
@@ -177,7 +177,8 @@ test("approval decided by a click outside the task context still logs the task's
 
 test("a line whose repo comes from the context is copied to the workspace log", async () => {
   const env = makeEnv();
-  addWorkspace(env.home, "api");
+  addRepo(env.home, "api");
+  mkdirSync(workspacePaths(env.home).legacyWorkspace("api").root, { recursive: true }); // TODO(1b): per-repo log dir
   const stream = routedStream(env.home);
   const log = createLogger(stream);
   runWithLogContext({ taskId: "T", repo: "api" }, () => logEvent(log, "ctx.repo"));
@@ -230,6 +231,7 @@ async function route(env: ReturnType<typeof makeEnv>, lines: Record<string, unkn
 test("one registered workspace: unpinned Q&A lines carry it and reach its workspace log", async () => {
   const env = makeEnv(); // single workspace "repo"
   const lines = await runUnpinned(env);
+  mkdirSync(workspacePaths(env.home).legacyWorkspace("repo").root, { recursive: true }); // TODO(1b): per-repo log dir
   for (const e of ["task.started", "run.started", "task.finished"])
     expect(lines.find((l) => l.event === e)).toMatchObject({ repo: "repo" });
   await route(env, lines);
@@ -239,9 +241,10 @@ test("one registered workspace: unpinned Q&A lines carry it and reach its worksp
 
 test("two workspaces, unpinned: a Read inside B moves tool.call and later lines to B's log", async () => {
   const env = makeEnv();
-  const a = addWorkspace(env.home, "aaa");
-  const b = addWorkspace(env.home, "bbb");
+  const a = addRepo(env.home, "aaa");
+  const b = addRepo(env.home, "bbb");
   writeFileSync(join(b, "f.txt"), "x");
+  mkdirSync(workspacePaths(env.home).legacyWorkspace("bbb").root, { recursive: true }); // TODO(1b): per-repo log dir
   void a;
   const lines = await runUnpinned(env, join(b, "f.txt"));
   expect(lines.find((l) => l.event === "run.started")).toMatchObject({ repo: "*" });
@@ -255,7 +258,7 @@ test("two workspaces, unpinned: a Read inside B moves tool.call and later lines 
 
 test("a tool call outside every repo keeps repo *", async () => {
   const env = makeEnv();
-  addWorkspace(env.home, "aaa");
+  addRepo(env.home, "aaa");
   const lines = await runUnpinned(env, "/etc/hosts");
   expect(lines.find((l) => l.event === "tool.call")).toMatchObject({ repo: "*" });
   expect(lines.find((l) => l.event === "task.finished")).toMatchObject({ repo: "*" });

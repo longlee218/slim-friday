@@ -12,12 +12,12 @@ const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 /** repo path -> time of last refresh attempt (in memory; resets on restart). */
 const lastRefresh = new Map<string, number>();
 
-/** True only when `path` really is a workspace clone `AGENT_HOME/workspaces/<name>/repo` (symlinks and `..` resolved). */
+/** True only when `path` really is a managed clone `AGENT_HOME/workspaces/<ws>/repos/<repo>/repo` (symlinks and `..` resolved). */
 export function isManagedClone(path: string, agentHome: string): boolean {
   try {
     const root = realpathSync(join(agentHome, "workspaces"));
     const real = realpathSync(path); // strict: a missing path is not a clone
-    return isInside(root, real) && /^[^/\\]+[/\\]repo([/\\]|$)/.test(relative(root, real));
+    return isInside(root, real) && /^[^/]+\/repos\/[^/]+\/repo(\/|$)/.test(relative(root, real));
   } catch {
     return false; // missing path or workspaces dir
   }

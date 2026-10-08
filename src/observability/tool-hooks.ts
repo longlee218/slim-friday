@@ -1,8 +1,8 @@
 import type { HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-sdk";
 import type { Decision } from "../guardrails/check-tool-call";
 import { isInside, resolveReal } from "../guardrails/paths";
-import { loadRepoRegistry } from "../repos/repo-registry";
 import { BASH_TOOL_NAME } from "../tools/sdk-tool-names";
+import { loadRepoRegistry } from "../workspaces/workspace-registry";
 import { getLogContext, logEvent, logger, setLogContext, tryLog } from "./logger";
 import type { RunRecorder } from "./record-run";
 import { safePreview } from "./redact";

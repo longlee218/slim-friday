@@ -39,7 +39,8 @@ export function cleanupTaskLogs(agentHome: string, now = Date.now()): number {
   const cutoff = now - LOG_RETENTION_DAYS * 86_400_000;
   const dirs = [
     join(paths.home, "logs", "tasks"),
-    ...subdirs(paths.workspaces).map((w) => join(paths.workspace(w).logs, "tasks")),
+    // TODO(1b): per-repo logs still live in the legacy per-repo dir.
+    ...subdirs(paths.workspaces).map((w) => join(paths.legacyWorkspace(w).logs, "tasks")),
   ];
   const deleted = dirs.reduce((sum, d) => sum + deleteOldJsonl(d, cutoff), 0);
   if (deleted) logEvent(log, "logs.cleaned", { deleted, days: LOG_RETENTION_DAYS });
@@ -56,12 +57,15 @@ export function checkWorktrees(db: Database, agentHome: string) {
   const known = new Set(rows.map((r) => realOrSame(r.path)));
   const noRow: string[] = [];
   for (const w of subdirs(paths.workspaces)) {
-    const root = paths.workspace(w).worktrees;
-    for (const d of subdirs(root)) {
-      const path = join(root, d);
-      if (known.has(realOrSame(path))) continue;
-      noRow.push(path);
-      logEvent(log, "worktree.orphan", { reason: "no_db_row", path }, "warn");
+    const ws = paths.workspace(w);
+    for (const r of subdirs(ws.repos)) {
+      const root = ws.repo(r).worktrees;
+      for (const d of subdirs(root)) {
+        const path = join(root, d);
+        if (known.has(realOrSame(path))) continue;
+        noRow.push(path);
+        logEvent(log, "worktree.orphan", { reason: "no_db_row", path }, "warn");
+      }
     }
   }
   // A row whose dir is gone is dropped, unless the worktrees root itself is missing (unmounted disk, moved

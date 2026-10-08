@@ -1,12 +1,9 @@
 import { existsSync } from "node:fs";
 import pinoRoll from "pino-roll";
-import { ensureParentDir, workspacePaths } from "../config/workspace-paths";
+import { ensureParentDir, REPO_NAME, workspacePaths } from "../config/workspace-paths";
 
 /** Days of rolled log files kept besides the current one. */
 const RETAIN_DAYS = 14;
-
-/** A workspace name that is safe to use as a directory (no separators, no leading dot). */
-const REPO_NAME = /^[A-Za-z0-9][\w.-]*$/;
 
 /** A pino destination (`write(line)`) whose file may open asynchronously. */
 export interface LogSink {
@@ -72,7 +69,7 @@ export function routedStream(home: string): LogSink {
     }
     if (typeof repo !== "string" || !REPO_NAME.test(repo)) return undefined;
     let sink = perRepo.get(repo);
-    if (!sink && existsSync(paths.workspace(repo).root)) {
+    if (!sink && existsSync(paths.legacyWorkspace(repo).root /* TODO(1b) */)) {
       sink = rollingFile(paths.appLog(repo));
       perRepo.set(repo, sink);
     }

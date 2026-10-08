@@ -101,7 +101,12 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
     extraContext: buildPromptContext({
       agentHome: config.agentHome,
       workspace: pinned?.name,
-      registry: pinned ? "" : buildRegistryContext(repos),
+      registry: pinned
+        ? ""
+        : buildRegistryContext(
+            repos[0]?.workspace ?? "",
+            repos,
+          ) /* TODO(1b): workspace from routing */,
       memoryWorkspaces: scope.map((r) => r.name),
       sdkCwd: cwd,
       // Only when the agent can delegate: it must not re-propose what the owner rejected here.

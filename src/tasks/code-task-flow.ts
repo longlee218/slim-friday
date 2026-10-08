@@ -85,7 +85,7 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
     const author = repo ? resolveAuthor(repo, config) : null;
     if (!repo || !author) return noAuthor(wt.repo);
     // Execute-stage scratch (plan.md) lives in the repo's workspace.
-    const scratch = join(paths.workspace(wt.repo).tasks, wt.taskId);
+    const scratch = paths.workspace(repo.workspace).task(wt.taskId).root;
     mkdirSync(scratch, { recursive: true, mode: 0o700 });
     const cwd = realpathSync(wt.path);
     const scratchReal = realpathSync(scratch);

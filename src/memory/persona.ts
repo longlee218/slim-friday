@@ -37,7 +37,7 @@ export function ensureHome(agentHome: string, repos: Repo[]): void {
   ensureFile(paths.memory, ROOT_MEMORY);
   ensureFile(paths.bootstrap, BOOTSTRAP);
   for (const r of repos) {
-    const ws = paths.workspace(r.name);
+    const ws = paths.legacyWorkspace(r.name); // TODO(1b): persona per workspace
     mkdirSync(ws.logs, { recursive: true });
     ensureFile(ws.identity, workspaceIdentity(r));
     ensureFile(ws.memory, memoryTemplate(r.name));
@@ -78,7 +78,7 @@ export function buildPersonaContext(
   workspace?: string,
 ): { text: string; truncated: boolean } {
   const paths = workspacePaths(agentHome);
-  const ws = workspace ? paths.workspace(workspace) : undefined;
+  const ws = workspace ? paths.legacyWorkspace(workspace) : undefined; // TODO(1b)
   const parts = (["agents", "identity", "soul", "user"] as const)
     .map((k) => readPersona(ws?.[k] ?? "") || readPersona(paths[k]))
     .filter(Boolean);

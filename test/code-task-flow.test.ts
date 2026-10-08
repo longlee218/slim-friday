@@ -18,7 +18,7 @@ afterAll(() => git.close());
 import { workspacePaths } from "../src/config/workspace-paths";
 import { g, makeRepo } from "./git-fixture";
 import {
-  addWorkspace,
+  addRepo,
   BRIEF,
   clearWorkspaces,
   delegatingQuery,
@@ -32,12 +32,12 @@ async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
   const src = await makeRepo("main");
-  const clone = workspacePaths(env.home).workspace("real").repo;
-  addWorkspace(
+  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
+  addRepo(
     env.home,
     "real",
     { description: "test repo", gitAuthor: "Test User <test@example.com>" },
-    clone,
+    { path: clone },
   );
   await g(env.home, "clone", "-q", src.repo, clone);
   await g(clone, "config", "user.email", "test@example.com");
@@ -126,9 +126,9 @@ test("delegate: plan approved -> worktree -> execute in worktree -> PR offered; 
   expect(seen[0].options.mcpServers.git).toBeDefined(); // plan stage: git read tools (guarded)
   expect(seen[1].options.resume).toBeUndefined();
   // Plan saved for the executor; PR offered with the commit; declined -> branch ready.
-  expect(
-    readFileSync(join(env.home, "workspaces", "real", "tasks", wt.taskId, "plan.md"), "utf8"),
-  ).toContain("add b.txt");
+  expect(readFileSync(env.paths.workspace("main").task(wt.taskId).plan, "utf8")).toContain(
+    "add b.txt",
+  );
   expect(confirms[0]).toContain("1 commit");
   expect(reply).toContain("Xong");
   expect(reply).toContain("not pushed");
@@ -151,7 +151,7 @@ test("code task needs a managed clone; unmanaged working copies are refused", as
   const env = makeEnv();
   const src = await makeRepo("main"); // outside AGENT_HOME/repos
   clearWorkspaces(env.home);
-  addWorkspace(env.home, "wc", {}, src.repo);
+  addRepo(env.home, "wc", {}, { path: src.repo });
   const { gw } = gateway(false);
   const seen: any[] = [];
   const results: { isError?: boolean; text: string }[] = [];
@@ -232,7 +232,7 @@ test("commits must carry the owner's identity: wrong author or attribution block
 
 test("no commit identity configured -> refused before any worktree exists", async () => {
   const { env, clone } = await setup();
-  addWorkspace(env.home, "real", {}, clone); // same clone, but no gitAuthor
+  addRepo(env.home, "real", {}, { path: clone }); // same clone, but no gitAuthor
   const { gw } = gateway(false);
   const handle = createTaskHandler({
     git,

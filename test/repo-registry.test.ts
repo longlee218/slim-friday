@@ -4,10 +4,11 @@ import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { GIT_TOOL } from "../src/mcp/mcp-tool-names";
 import { isManagedClone, refreshRepo } from "../src/repos/refresh-repo";
-import { buildRegistryContext, loadRepoRegistry } from "../src/repos/repo-registry";
+import { buildRegistryContext } from "../src/repos/repo-registry";
 import { getSession } from "../src/storage/session-store";
 import { createTaskHandler } from "../src/tasks/handle-task";
-import { addWorkspace, clearWorkspaces, makeEnv, resultMsg } from "./helpers";
+import { loadRepoRegistry } from "../src/workspaces/workspace-registry";
+import { addRepo, clearWorkspaces, makeEnv, resultMsg } from "./helpers";
 
 /** Create a fake git repo dir (a `.git` dir is all the validator checks). */
 function fakeRepo(root: string, name: string): string {
@@ -16,25 +17,26 @@ function fakeRepo(root: string, name: string): string {
   return p;
 }
 
-test("loads one repo per workspace config.yaml; skips missing path, non-git dir, bad name and bad config", () => {
+test("loads one repo per repo.yaml; skips missing path, non-git dir, bad name and bad config", () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
   const b = fakeRepo(env.home, "b");
-  addWorkspace(env.home, "a", { description: "api", testCommand: "bun test" }); // default path = workspace/repo
-  addWorkspace(env.home, "b", {}, b);
-  addWorkspace(env.home, "gone", {}, join(env.home, "nope"));
+  addRepo(env.home, "a", { description: "api", testCommand: "bun test" }); // default path = workspace/repo
+  addRepo(env.home, "b", {}, { path: b });
+  addRepo(env.home, "gone", {}, { path: join(env.home, "nope") });
   mkdirSync(join(env.home, "notgit"));
-  addWorkspace(env.home, "plain", {}, join(env.home, "notgit"));
-  addWorkspace(env.home, "has space", {}, b);
-  const bad = workspacePaths(env.home).workspace("bad");
+  addRepo(env.home, "plain", {}, { path: join(env.home, "notgit") });
+  addRepo(env.home, "has space", {}, { path: b });
+  const bad = workspacePaths(env.home).workspace("main").repo("bad");
   mkdirSync(bad.root, { recursive: true });
   writeFileSync(bad.config, "githubAccount: [not, a, string]\n");
-  mkdirSync(join(env.home, "workspaces", "no-config")); // a plain dir is not a workspace
+  mkdirSync(join(env.home, "workspaces", "main", "repos", "no-config")); // a plain dir is not a repo
   const repos = loadRepoRegistry(env.home);
   expect(repos.map((r) => r.name)).toEqual(["a", "b"]);
   expect(repos[0]).toMatchObject({ description: "api", testCommand: "bun test" });
-  expect(repos[0]!.path).toBe(workspacePaths(env.home).workspace("a").repo);
-  expect(repos[0]!.workspace).toBe(workspacePaths(env.home).workspace("a").root);
+  expect(repos[0]!.path).toBe(workspacePaths(env.home).workspace("main").repo("a").clone);
+  expect(repos[0]!.workspace).toBe("main");
+  expect(repos[0]!.dir).toBe(workspacePaths(env.home).workspace("main").repo("a").root);
 });
 
 test("returns empty when there is no workspaces dir or no valid workspace", () => {
@@ -54,12 +56,12 @@ test("handler tells the owner to add a workspace when none exists", async () => 
 });
 
 test("registry block only for 2+ repos", () => {
-  const one = [{ name: "a", workspace: "/w/a", path: "/a", description: "" }];
-  expect(buildRegistryContext(one)).toBe("");
+  const one = [{ name: "a", workspace: "w", dir: "/w/a", path: "/a", description: "" }];
+  expect(buildRegistryContext("w", one)).toBe("");
   expect(
-    buildRegistryContext([
+    buildRegistryContext("w", [
       ...one,
-      { name: "b", workspace: "/w/b", path: "/b", description: "web" },
+      { name: "b", workspace: "w", dir: "/w/b", path: "/b", description: "web" },
     ]),
   ).toContain("- b: /b — web");
 });
@@ -69,8 +71,8 @@ test("handler: unpinned uses all repos; pin sticks to thread; unknown pin reject
   const a = fakeRepo(env.home, "a");
   const b = fakeRepo(env.home, "b");
   clearWorkspaces(env.home);
-  addWorkspace(env.home, "a", {}, a);
-  addWorkspace(env.home, "b", {}, b);
+  addRepo(env.home, "a", {}, { path: a });
+  addRepo(env.home, "b", {}, { path: b });
   const seen: any[] = [];
   const queryFn = (args: any) => {
     seen.push(args);
@@ -106,8 +108,8 @@ test("re-pinning to another repo starts a fresh session (no resume across cwd)",
   const a = fakeRepo(env.home, "a");
   const b = fakeRepo(env.home, "b");
   clearWorkspaces(env.home);
-  addWorkspace(env.home, "a", {}, a);
-  addWorkspace(env.home, "b", {}, b);
+  addRepo(env.home, "a", {}, { path: a });
+  addRepo(env.home, "b", {}, { path: b });
   const seen: any[] = [];
   const queryFn = (args: any) => {
     seen.push(args);
@@ -125,17 +127,19 @@ test("re-pinning to another repo starts a fresh session (no resume across cwd)",
   expect(seen[2].options.resume).toBeUndefined();
 });
 
-test("isManagedClone: only workspaces/<name>/repo; rejects other paths, .. and symlinks", () => {
+test("isManagedClone: only workspaces/<ws>/repos/<repo>/repo; rejects other paths, .. and symlinks", () => {
   const env = makeEnv();
   const ws = workspacePaths(env.home);
-  const inside = fakeRepo(ws.workspace("x").root, "repo");
+  const repoDir = ws.workspace("x").repo("r").root;
+  const inside = fakeRepo(repoDir, "repo");
   const outside = fakeRepo(env.home, "dev");
-  symlinkSync(outside, join(ws.workspace("x").root, "link"));
+  symlinkSync(outside, join(repoDir, "link"));
   expect(isManagedClone(inside, env.home)).toBe(true);
-  expect(isManagedClone(join(inside, ".."), env.home)).toBe(false); // the workspace dir itself
+  expect(isManagedClone(join(inside, ".."), env.home)).toBe(false); // the repo dir itself
+  expect(isManagedClone(fakeRepo(ws.workspace("x").root, "repo"), env.home)).toBe(false); // old per-repo layout
   expect(isManagedClone(join(ws.workspaces, "x", "..", "..", "dev"), env.home)).toBe(false);
-  expect(isManagedClone(join(ws.workspace("x").root, "link"), env.home)).toBe(false);
-  expect(isManagedClone(fakeRepo(ws.workspace("x").root, "other"), env.home)).toBe(false);
+  expect(isManagedClone(join(repoDir, "link"), env.home)).toBe(false);
+  expect(isManagedClone(fakeRepo(repoDir, "other"), env.home)).toBe(false);
   expect(isManagedClone("/nonexistent", env.home)).toBe(false);
 });
 
@@ -155,33 +159,33 @@ test("refreshRepo: fetch + fast-forward through the MCP tools, throttled per rep
   await expect(refreshRepo(failing, "/q")).resolves.toBeUndefined();
 });
 
-test("workflow: defaults to lean, full is parsed, a bad value skips the workspace, marker only for full", () => {
+test("workflow: defaults to lean, full is parsed, a bad value skips the repo, marker only for full", () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addWorkspace(env.home, "a");
-  addWorkspace(env.home, "b", { workflow: "full" });
-  addWorkspace(env.home, "c", { workflow: "heavy" });
+  addRepo(env.home, "a");
+  addRepo(env.home, "b", { workflow: "full" });
+  addRepo(env.home, "c", { workflow: "heavy" });
   const repos = loadRepoRegistry(env.home);
   expect(repos.map((r) => [r.name, r.workflow])).toEqual([
     ["a", "lean"],
     ["b", "full"],
   ]);
-  const block = buildRegistryContext(repos, true);
+  const block = buildRegistryContext("main", repos, true);
   expect(block).toContain("- b: ");
   expect(block.split("\n").filter((l) => l.includes("[workflow: full]"))).toHaveLength(1);
   expect(block.split("\n").find((l) => l.startsWith("- a:"))).not.toContain("workflow");
 });
 
-test("workflow: any value other than lean/full ('heavy', 'FULL', '') skips the workspace", () => {
+test("workflow: any value other than lean/full ('heavy', 'FULL', '') skips the repo", () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addWorkspace(env.home, "ok", { workflow: "lean" });
+  addRepo(env.home, "ok", { workflow: "lean" });
   for (const [n, v] of [
     ["heavy", "heavy"],
     ["upper", "FULL"],
     ["empty", ""],
   ] as const) {
-    addWorkspace(env.home, n, { workflow: v });
+    addRepo(env.home, n, { workflow: v });
   }
   expect(loadRepoRegistry(env.home).map((r) => r.name)).toEqual(["ok"]);
 });

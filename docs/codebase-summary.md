@@ -35,19 +35,22 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 ├── MEMORY.md                  # Global memory (auto-created, max 2000 chars, Phase 1+)
 ├── BOOTSTRAP.md               # Owner guide (auto-created, never read by code, Phase 1+)
 ├── data/agent.db              # SQLite: sessions, tasks, runs, tool_calls, approvals, worktrees
-├── workspaces/<repo>/         # One workspace per registered repo
-│   ├── config.yaml            # Registry: path, description, defaultBranch?, testCommand?, githubAccount?
-│   ├── AGENTS.md              # Workspace override (auto-created, optional; replaces root if non-empty)
-│   ├── IDENTITY.md            # Workspace override (auto-created)
-│   ├── SOUL.md                # Workspace override (auto-created, optional)
-│   ├── USER.md                # Workspace override (auto-created, optional)
-│   ├── MEMORY.md              # Workspace memory (owner-editable, max 4000 chars, concatenated after root)
-│   ├── CLAUDE.md              # Symlink to repo's .claude/CLAUDE.md (auto-created, repo untouched)
-│   ├── CLAUDE.local.md        # Owner-managed file (never read by app; for local dev overrides)
-│   ├── repo/                  # Managed clone (gitignored)
-│   ├── worktrees/<taskId>/    # Execute stage git worktree (gitignored)
-│   ├── logs/tasks/            # Per-task logs (gitignored)
-│   └── tasks/<taskId>/scratch # Plan stage cwd + plan.md (gitignored)
+├── MEMORY.pending.md          # Agent `[global]` notes (never injected; Step B 1b)
+├── backups/                   # Pre-cutover copies (Step B migration)
+├── workspaces/<ws>/           # One workspace = several repos (Step B layout; <ws> lowercase-hyphen, not `ops`)
+│   ├── workspace.yaml         # description?, channels: [Discord parent-channel ids] (each id in one workspace)
+│   ├── AGENTS/IDENTITY/SOUL/USER.md  # Workspace persona overrides (per file)
+│   ├── MEMORY.md              # Workspace memory (owner-edited)
+│   ├── cwd/                   # Neutral cwd of runs not bound to one repo
+│   ├── tasks/<taskId>/        # Execute stage scratch: plan.md (+ scratch/)
+│   └── repos/<repo>/
+│       ├── repo.yaml          # path?, description, defaultBranch?, testCommand?, githubAccount?, gitAuthor?, workflow?
+│       ├── MEMORY.md          # Repo memory (agent-written)
+│       ├── repo/              # Managed clone (gitignored)
+│       └── worktrees/<taskId>/  # Execute stage git worktree (gitignored)
+# Interim (Step B phase 1a): persona, repo memory and per-repo logs are still read from the old per-repo dir
+# workspaces/<repo>/ via legacyWorkspace() (TODO(1b)). A dir with config.yaml and no workspace.yaml is legacy:
+# listed by loadWorkspaces(), never loaded.
 ├── logs/
 │   ├── app.<date>.<n>.jsonl   # Application log (daily rotated, 14 days kept)
 │   └── tasks/                 # Per-task logs
@@ -131,7 +134,8 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **task-routing.ts (src/tasks/):** shared `codeTaskBlocker()` blocker check (cap MAX_CODE_TASKS, managed clone validation, repo lookup)
 
 ### Repository Management
-- **repo-registry.ts:** scan/load workspaces/*/config.yaml (zod); optional defaultBranch, testCommand, githubAccount, `workflow` (lean|full, default lean); required gitAuthor
+- **workspaces/workspace-registry.ts:** `loadWorkspaces(home)` -> `{workspaces, legacy}`: scans workspaces/*/workspace.yaml (zod: description, channels), fail-closed validation (name rules, real dirs not symlinks, duplicate channel ids dropped from both, `repo.overlap` warning); `loadRepoRegistry()` = flat repo list (TODO(1b) adapter)
+- **repo-registry.ts:** `loadRepos(ws, forbidden)` reads workspaces/<ws>/repos/*/repo.yaml (zod); optional defaultBranch, testCommand, githubAccount, `workflow` (lean|full, default lean); repo path must be a git root and not cover $HOME / AGENT_HOME; `buildRegistryContext(ws, repos, force)`
 - **git-identity.ts:** parse/resolve identity per config.yaml gitAuthor; attribution check; no git calls
 - **code-task-flow.ts:** git_fetch + git_worktree add (new branch agent/<taskId-prefix> from origin/<defaultBranch>); managed clones only; ask limit per task (shared across plan & exec stages)
 - **code-flow-workflow.ts:** determine execWorkflow per repo (lean/full); stage control with abort listener; ask timeout handling
@@ -159,7 +163,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 ### Config & Workspace
 - **agent-config.ts:** load/validate env (zod); MODEL, CODE_MODEL, LLM_PROVIDER, OPENROUTER_API_KEY; logProviderSelected
 - **tool-catalog.ts:** single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS
-- **workspace-paths.ts:** AGENT_HOME layout
+- **workspace-paths.ts:** AGENT_HOME layout (`workspacePaths(home).workspace(ws).repo(r)`), name rules `WORKSPACE_NAME` / `REPO_NAME`
 - **sdk-env.ts:** environment builder per provider (anthropic/openrouter)
 
 ### Lifecycle & Shutdown

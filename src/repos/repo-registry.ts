@@ -1,18 +1,21 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 import { z } from "zod";
 import type { AgentConfig } from "../config/agent-config";
-import { workspacePaths } from "../config/workspace-paths";
+import { REPO_NAME, type WorkspacePaths } from "../config/workspace-paths";
+import { isInside } from "../guardrails/paths";
 import type { GitIdentity } from "../mcp/git-mcp";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 
 /** One registered repository the agent may answer questions about. */
 export interface Repo {
-  /** Workspace directory name. */
+  /** Repo directory name (unique inside its workspace). */
   name: string;
-  /** Absolute path of the workspace directory. */
+  /** Name of the workspace that owns the repo. */
   workspace: string;
+  /** Absolute path of the repo directory `workspaces/<ws>/repos/<name>` (repo.yaml, MEMORY.md, worktrees). */
+  dir: string;
   /** Absolute path of the repo (the workspace clone, or any other git working copy). */
   path: string;
   /** One-line hint the agent uses to pick the repo. */
@@ -32,9 +35,12 @@ export interface Repo {
 /** Per-repo workflow of code tasks. */
 export type Workflow = "lean" | "full";
 
-/** Schema of a workspace `config.yaml` (the repo name is the workspace directory name). */
+/** Paths of one workspace (`workspacePaths(home).workspace(name)`). */
+export type WorkspaceDirs = ReturnType<WorkspacePaths["workspace"]>;
+
+/** Schema of a `repo.yaml` (the repo name is its directory name). */
 const configSchema = z.object({
-  /** Where the agent reads the repo; default `<workspace>/repo` (the managed clone code tasks need). */
+  /** Where the agent reads the repo; default `<repo dir>/repo` (the managed clone code tasks need). */
   path: z.string().trim().min(1).optional(),
   description: z.string().trim().default(""),
   defaultBranch: z.string().trim().min(1).optional(),
@@ -43,9 +49,6 @@ const configSchema = z.object({
   gitAuthor: z.string().trim().min(1).optional(),
   workflow: z.enum(["lean", "full"]).default("lean"),
 });
-
-/** Workspace directory names double as `repo:<name>` pins: no whitespace. */
-const NAME_RE = /^[\w.-]+$/;
 
 /** True when `p` is a directory containing `.git` (dir or worktree file). */
 const isGitRepo = (p: string): boolean => {
@@ -56,52 +59,76 @@ const isGitRepo = (p: string): boolean => {
   }
 };
 
+/** Real path, or the input when it does not resolve (the one shared helper). */
+export const real = (p: string): string => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+};
+
+/** True when `p` is a real directory (a symlink to one does not count). */
+export function isRealDir(p: string): boolean {
+  try {
+    return lstatSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Registry = every `AGENT_HOME/workspaces/<name>/config.yaml` (OpenClaw-style: one workspace per repo).
- * A workspace with a bad config, a missing path or a non-git path is logged and skipped.
- * Returns [] when there is none; the caller tells the owner to add one.
+ * Repos of one workspace = every `repos/<name>/repo.yaml`. A repo with a bad name, a symlinked dir, a bad
+ * config, a path that is not a git root, or a path that is/contains one of `forbidden` (the owner's $HOME,
+ * AGENT_HOME) is logged and skipped. Returns [] when there is none.
  */
-export function loadRepoRegistry(agentHome: string): Repo[] {
+export function loadRepos(ws: WorkspaceDirs, forbidden: string[] = []): Repo[] {
   const log = logger.child({ module: "repo-registry" });
-  const paths = workspacePaths(agentHome);
+  const wsName = basename(ws.root);
   const repos: Repo[] = [];
   let names: string[] = [];
   try {
-    names = readdirSync(paths.workspaces, { withFileTypes: true })
-      .filter((e) => e.isDirectory() || e.isSymbolicLink())
-      .map((e) => e.name)
-      .sort();
+    names = readdirSync(ws.repos).sort();
   } catch {
-    return repos; // no workspaces dir yet
+    return repos; // no repos dir yet
   }
   for (const name of names) {
-    const ws = paths.workspace(name);
-    if (!existsSync(ws.config)) continue; // not a workspace (no config.yaml)
-    if (!NAME_RE.test(name)) {
-      log.warn({ name }, "skipped workspace: name must have no whitespace");
+    const rp = ws.repo(name);
+    if (!isRealDir(rp.root)) continue; // not a dir (or a symlink): never followed
+    if (!REPO_NAME.test(name)) {
+      log.warn({ workspace: wsName, name }, "skipped repo: bad name");
       continue;
     }
+    if (!existsSync(rp.config)) continue; // not a repo (no repo.yaml)
     try {
-      const parsed = configSchema.safeParse(Bun.YAML.parse(readFileSync(ws.config, "utf8")) ?? {});
+      const parsed = configSchema.safeParse(Bun.YAML.parse(readFileSync(rp.config, "utf8")) ?? {});
       if (!parsed.success) {
-        log.warn({ name }, "skipped workspace: invalid config.yaml");
+        log.warn({ workspace: wsName, name }, "skipped repo: invalid repo.yaml");
         continue;
       }
-      const path = parsed.data.path ? resolve(ws.root, parsed.data.path) : ws.repo;
+      const path = parsed.data.path ? resolve(rp.root, parsed.data.path) : rp.clone;
       if (!isGitRepo(path)) {
-        log.warn({ name }, "skipped workspace: path is not a git repo");
+        log.warn({ workspace: wsName, name }, "skipped repo: path is not a git root");
         continue;
       }
-      repos.push({ name, workspace: ws.root, ...parsed.data, path });
+      const rpath = real(path);
+      if (forbidden.some((f) => isInside(rpath, real(f)))) {
+        log.warn({ workspace: wsName, name }, "skipped repo: path covers the home dir");
+        continue;
+      }
+      repos.push({ name, workspace: wsName, dir: rp.root, ...parsed.data, path });
     } catch (err) {
-      log.warn({ name, err: errText(err) }, "skipped workspace: config.yaml unreadable");
+      log.warn(
+        { workspace: wsName, name, err: errText(err) },
+        "skipped repo: repo.yaml unreadable",
+      );
     }
   }
   return repos;
 }
 
-/** Prompt block listing the registered repos (only useful with 2+ repos). */
-export function buildRegistryContext(repos: Repo[], force = false): string {
+/** Prompt block listing the repos of workspace `ws` (only useful with 2+ repos). */
+export function buildRegistryContext(ws: string, repos: Repo[], force = false): string {
   if (repos.length < 2 && !force) return "";
   const lines = repos.map((r) => {
     // Repo instructions only auto-load when the repo is the cwd: point the agent at them otherwise.
@@ -110,7 +137,7 @@ export function buildRegistryContext(repos: Repo[], force = false): string {
     const flow = r.workflow === "full" ? " [workflow: full]" : "";
     return `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}${hint}${flow}`;
   });
-  return `Available repos (pick the one that fits the question; search only these paths):\n${lines.join("\n")}`;
+  return `Available repos in workspace ${ws} (pick the one that fits the question; search only these paths):\n${lines.join("\n")}`;
 }
 
 /**
@@ -122,7 +149,7 @@ export function parseAuthor(text: string | undefined): GitIdentity | null {
   return m ? { name: m[1]!, email: m[2]! } : null;
 }
 
-/** Commit identity for a repo: its own `gitAuthor` (config.yaml), else the global GIT_AUTHOR env. Null = not configured. */
+/** Commit identity for a repo: its own `gitAuthor` (repo.yaml), else the global GIT_AUTHOR env. Null = not configured. */
 export function resolveAuthor(repo: Repo, config: AgentConfig): GitIdentity | null {
   return parseAuthor(repo.gitAuthor) ?? parseAuthor(config.gitAuthor);
 }

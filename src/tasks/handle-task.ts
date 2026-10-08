@@ -16,9 +16,9 @@ import {
   tryLog,
 } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { loadRepoRegistry } from "../repos/repo-registry";
 import { finishTask } from "../storage/run-store";
 import { deleteSession, getSession } from "../storage/session-store";
+import { loadRepoRegistry } from "../workspaces/workspace-registry";
 import { HANDOFF_OUTCOMES, runHandoff } from "./code-handoff";
 import { runCodeFlow } from "./code-task-flow";
 import { runQaFlow } from "./qa-flow";
@@ -105,7 +105,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       single = repos.length === 1 ? repos[0]!.name : undefined;
       ensureHome(config.agentHome, repos); // create missing IDENTITY/MEMORY/logs/links (never overwrites)
       if (repos.length === 0) {
-        const reply = `No workspace found. Add workspaces/<name>/config.yaml under ${config.agentHome}.`;
+        const reply = `No workspace found. Add workspaces/<ws>/workspace.yaml and workspaces/<ws>/repos/<repo>/repo.yaml under ${config.agentHome}.`;
         logEvent(log, "task.refused", { reason: "no_workspace", reply });
         return reply;
       }

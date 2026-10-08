@@ -12,7 +12,7 @@ import {
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import {
-  addWorkspace,
+  addRepo,
   BRIEF,
   clearWorkspaces,
   delegatingQuery,
@@ -45,7 +45,7 @@ function fakeGateway(approved = true) {
 async function runCodeTask(gw?: ApprovalGateway) {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const repo = addWorkspace(env.home, "repo"); // managed clone (code tasks need one)
+  const repo = addRepo(env.home, "repo"); // managed clone (code tasks need one)
   let opts: any;
   const qa: any[] = [];
   const next = (a: any) => {

@@ -1,6 +1,15 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -15,16 +24,17 @@ import { GLOB_TOOL_NAME, GREP_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk
 /** Create a fresh temp AGENT_HOME, real config and real SQLite db. */
 export function makeEnv(extra: Record<string, string> = {}) {
   const home = mkdtempSync(join(tmpdir(), "friday-test-"));
+  assertTempHome(home);
   const config = loadConfig({
     AGENT_HOME: home,
     TIMEOUT_MS: "5000",
     ...extra,
   });
   // One workspace by default: `repo`, a fake git dir OUTSIDE workspaces/ (not a managed clone, so Q&A tests
-  // never touch the git MCP server). Code-task tests replace it with a managed clone via addWorkspace().
+  // never touch the git MCP server). Code-task tests replace it with a managed clone via addRepo().
   const repo = join(home, "plain", "repo");
   mkdirSync(join(repo, ".git"), { recursive: true });
-  addWorkspace(home, "repo", {}, repo);
+  addRepo(home, "repo", {}, { path: repo });
   const db = openDb(workspacePaths(home).dbFile);
   return { home, repo, config, db, paths: workspacePaths(home) };
 }
@@ -74,25 +84,40 @@ export function fakeQuery(msgs: SDKMessage[], thenThrow?: Error) {
     })();
 }
 
+/** Fail unless `home` is under the OS temp dir: tests must never touch the real ~/.friday. */
+export function assertTempHome(home: string): void {
+  const root = realpathSync(tmpdir());
+  const real = realpathSync(home);
+  if (!real.startsWith(`${root}${sep}`)) throw new Error(`AGENT_HOME ${home} is not under ${root}`);
+}
+
 /**
- * Create `workspaces/<name>/config.yaml` (+ a fake git clone at workspaces/<name>/repo unless `path` is given).
- * Returns the repo path. `config` holds extra config.yaml keys (gitAuthor, githubAccount, testCommand...).
+ * Create `workspaces/<ws>/repos/<name>/repo.yaml` (+ a fake git clone at `.../repo` unless `path` is given),
+ * and `workspaces/<ws>/workspace.yaml` when missing (or when `channels` is given). Returns the repo path.
+ * `config` holds extra repo.yaml keys (gitAuthor, githubAccount, testCommand...); `workspace` defaults to "main".
  */
-export function addWorkspace(
+export function addRepo(
   home: string,
   name: string,
   config: Record<string, string> = {},
-  path?: string,
+  opts: { workspace?: string; channels?: string[]; path?: string } = {},
 ): string {
-  const ws = workspacePaths(home).workspace(name);
-  mkdirSync(ws.root, { recursive: true });
-  const repo = path ?? ws.repo;
+  assertTempHome(home);
+  const { workspace = "main", channels, path } = opts;
+  const ws = workspacePaths(home).workspace(workspace);
+  const rp = ws.repo(name);
+  mkdirSync(rp.root, { recursive: true });
+  if (channels || !existsSync(ws.config)) {
+    const list = (channels ?? []).map((c) => `  - "${c}"`).join("\n");
+    writeFileSync(ws.config, channels?.length ? `channels:\n${list}\n` : "channels: []\n");
+  }
+  const repo = path ?? rp.clone;
   if (!path) mkdirSync(join(repo, ".git"), { recursive: true });
   const lines = [
     `path: ${repo}`,
     ...Object.entries(config).map(([k, v]) => `${k}: ${JSON.stringify(v)}`),
   ];
-  writeFileSync(ws.config, `${lines.join("\n")}\n`);
+  writeFileSync(rp.config, `${lines.join("\n")}\n`);
   return repo;
 }
 
