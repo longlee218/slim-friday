@@ -276,6 +276,64 @@ task: <description> (message)
 
 **After finish (commits present):** Summary + Create PR button (owner-only, 10 min timeout) → push on click.
 
+## Per-Repo Workflow Modes (Phase 3)
+
+**Configuration:**
+- Each workspace defines `workflow: lean | full` in `config.yaml` (default: lean)
+- Invalid values (e.g., `workflow: heavy`) cause the workspace to be skipped
+- Full mode can only be enabled for repos whose remote the owner controls (security boundary)
+
+**Lean Mode (default):**
+- **Plan stage:** Standard behavior; skill rules apply, asks enforced via ASK_RULES
+- **Exec stage:** No skills loaded (`skills: []`), no plugins, standard system prompt
+- **Prompt:** ASK_RULES injected (ask only if not derivable, costly/irreversible, >=2 options)
+- **Use case:** Safe default for any repo; no assumptions about repo capabilities
+
+**Full Mode:**
+- **Plan stage:** Standard behavior; repo skills loaded (if registry includes them)
+- **Exec stage:** Clone-based skills loaded from app-owned plugin dir (see "Clone-Based Skills" below)
+- **Prompt:** ASK_RULES + FULL_RULES; autonomy assumed; assumptions recorded in plan section / final reply
+- **Use case:** Owner-controlled repos where agent can make broader assumptions and use repo skills
+- **Marker:** `[workflow: full]` appended to registry in system prompt context (signals full mode is active)
+
+**Ask Limit Enforcement (All Modes):**
+- **Per-task limit:** One AskUserQuestion call allowed per task
+- **Shared across stages:** Plan and exec stages share the same `askLimit` flag; if plan asks and times out, exec cannot ask again
+- **Timeout handling:** Owner timeout (10 min) → reply "Awaiting clarification:" with defaults listed, session kept via `keepSession: true`; owner can resume and reply
+- **Denial text:** Second ask in same task → "Already asked once; proceeding with best guess"
+- **Stop vs clarification:** If owner clicks stop/shutdown while ask is pending, the ask is not reported as "clarification"; session is not kept
+
+**Vague Request Handling:**
+- If plan stage receives a vague request (e.g., "do something" without specifics), reply "Need: {specifics}" without calling ExitPlanMode
+- No session is saved; owner re-messages with clarity and task re-runs with fresh session
+
+## Clone-Based Skills (Phase 3, Full Mode)
+
+**Purpose:** Load repo-owned skills from the clone's `.claude/skills/` during exec stage, with security isolation.
+
+**Design:**
+- Plugin dir built per exec run: `<agentHome>/tmp/plugin-XXXX/` (unique, cleaned up in finally block)
+- Copy strategy: Realpath walk of `<clone>/.claude/skills/`, skipping symlinks, checking realpath stays within skills dir
+- Caps: 300 files, 5 MB total; exceeding either → fail closed (plugin dir removed, run aborted)
+- Plugin manifest: App-written `.claude-plugin/plugin.json` with repo/workspace name (no clone-controlled overrides)
+- Skill names: Qualified as `<workspace>:<skillname>` (e.g., `myrepo:deploy`)
+- Security guarantee: NO hooks, .mcp.json, agents, commands, or settings from clone are copied; they cannot execute in the exec session
+
+**Trust Model:**
+- Clone is app-refreshed from remote (trusted if remote is owner-controlled)
+- Skill bodies are untrusted instructions (but guard still gates Bash/Write)
+- Known unverified: skill-body shell injection via `` !`cmd` ``, skill frontmatter hooks (not live-tested)
+
+**Example Config:**
+```yaml
+# In workspaces/<repo>/config.yaml
+name: discord-setup
+path: /path/to/discord-repo
+description: Discord bot setup scripts
+workflow: full
+# Skills from .claude/skills will be loaded in exec stage as discord-setup:<name>
+```
+
 ## Storage Schema
 **DB location:** `$AGENT_HOME/data/agent.db` (SQLite, WAL mode)
 

@@ -39,8 +39,11 @@ src/
 │   ├── discord-message-handler.ts
 │   └── discord-message-rules.ts
 ├── agent/                      # Agent SDK logic
-│   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; opts.handoff for delegate tool
-│   ├── system-prompt.ts        # Sections: MODE (qa/plan/exec contract), HANDOFF (delegate tool when opts.handoff=true), COMMON (safety), then context. Identity/tone in persona files, not here.
+│   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; opts.handoff for delegate tool; skill loading from app-owned plugin (Phase 3)
+│   ├── system-prompt.ts        # Sections: MODE (qa/plan/exec contract), HANDOFF (delegate tool when opts.handoff=true), ASK_RULES (Phase 3), COMMON (safety), then context. Identity/tone in persona files, not here.
+│   ├── code-rules.ts           # ASK_RULES text constant; FULL_RULES for full-mode repos (Phase 3)
+│   ├── tool-permissions.ts     # core permission layer: PreToolUse (hard deny/force ask) + canUseTool (approvals, ONE ask per task via askLimit, Phase 3)
+│   ├── clone-skill-plugin.ts   # build app-owned plugin dir: copy clone/.claude/skills with validation (Phase 3)
 │   ├── run-errors.ts           # error classification (quota, rate_limit, billing, overloaded); phase 5+
 │   └── sdk-env.ts              # environment builder per provider (anthropic/openrouter)
 ├── mcp/                        # MCP client & server management
@@ -50,7 +53,7 @@ src/
 │   ├── github-mcp.ts           # github-mcp-config (read/write instances), github-token, createPullRequest
 │   └── mcp-servers.ts          # MCP servers registry per run mode
 ├── repos/                      # Repository management
-│   ├── repo-registry.ts        # load workspaces/*/config.yaml; optional defaultBranch, testCommand, githubAccount
+│   ├── repo-registry.ts        # load workspaces/*/config.yaml; optional defaultBranch, testCommand, githubAccount, workflow (Phase 3)
 │   ├── git-identity.ts         # parse/resolve identity per repo; attribution check; no git calls
 │   ├── publish-pr.ts           # git_push (agent/* only) via git MCP + GitHub MCP create_pull_request
 │   └── refresh-repo.ts         # git_fetch + git_pull (ff-only) via git MCP (throttled 10 min); isManagedClone
@@ -65,9 +68,11 @@ src/
 │   ├── task-commands.ts        # parse task/stop/cleanup commands; repo pinning; Resume routing (phase 5+)
 │   ├── task-tracker.ts         # thread locking, session resume context tracking (phase 5+)
 │   ├── qa-flow.ts              # Q&A path entry
-│   ├── code-task-flow.ts       # two-stage: plan → execute; cwd switching (phase 4+)
+│   ├── code-task-flow.ts       # two-stage: plan → execute; cwd switching; ask limit enforcement (Phase 3)
+│   ├── code-flow-workflow.ts   # determine lean/full workflow per repo; stage control with abort listener (Phase 3)
+│   ├── code-plan-stage.ts      # plan stage entry (split from code-task-flow for size, Phase 3)
 │   ├── task-worktree.ts        # createTaskWorktree/removeTaskWorktree via git MCP; startWorktree/cleanupWorktree
-│   ├── task-result.ts          # FlowResult, failResult, finishRun, OUTCOME_REPLY
+│   ├── task-result.ts          # FlowResult, failResult, finishRun, OUTCOME_REPLY; ask timeout handling (Phase 3)
 │   ├── code-task-finish.ts     # summary + diff; Create PR button; follow-up; cleanup (phase 4+)
 │   ├── run-limiter.ts          # concurrency limiter; max 2 code tasks (phase 4+)
 │   └── ...
@@ -119,6 +124,10 @@ test/
 ├── rejected-plans.test.ts      # rejectedPlans query logic, thread isolation, clipping (phase 1c+)
 ├── db-schema.test.ts           # DB migration, idempotency (phase 1c+)
 ├── delegate-eval.live.test.ts  # Golden set: 21 live Sonnet/deepseek runs (phase 1c+, opt-in: DELEGATE_EVAL=1)
+├── ask-boundary.test.ts        # ask limit per task, timeout → awaiting, plan/exec stages, stop vs clarification (Phase 3)
+├── clone-skill-plugin.test.ts  # plugin dir creation, symlink/cap validation, cleanup (Phase 3)
+├── repo-workflow.test.ts       # lean vs full modes, exec skills loading, path boundaries (Phase 3)
+├── stage-control.test.ts       # abort listener, stageControl semantics (Phase 3)
 ├── worktree.test.ts            # worktree create/remove/list (phase 4+)
 ├── publish-pr.test.ts          # push + gh pr create (phase 4+)
 ├── code-task-flow.test.ts      # two-stage flow (phase 4+)

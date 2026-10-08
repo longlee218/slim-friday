@@ -195,7 +195,12 @@ gitAuthor: "Name <email>"                   # per-repo commit identity (owner fi
 defaultBranch: main                         # defaults to origin/HEAD, then main/master
 testCommand: "bun test"                     # command must match exactly for auto-allow
 githubAccount: longlhdev                    # GitHub account for PR creation; defaults to `gh auth token --user` active account
+workflow: full                               # Phase 3+: enable skill loading + full autonomy (only for owner-controlled remotes; default: lean)
 ```
+
+**Workflow Modes (Phase 3+):**
+- `workflow: lean` (default) — safe for any repo; no skills loaded in exec stage; standard rules apply
+- `workflow: full` — for owner-controlled repos only; loads skills from clone/.claude/skills; enables broader assumptions in prompts; requires that the remote is owned/controlled by the agent owner
 
 **Important:**
 - Repos must be **managed clones under AGENT_HOME/workspaces/<repo-name>/repo/** (git repo directly inside workspace). Code tasks on clones elsewhere are refused.

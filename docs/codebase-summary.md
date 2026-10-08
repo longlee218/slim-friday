@@ -5,9 +5,10 @@
 
 **Stack:** Bun + TypeScript + Discord.js + Claude Agent SDK + SQLite + Official MCP servers (git, GitHub)
 
-**Test Coverage:** 420 tests pass, 2 skipped (live smoke tests) | Type check: clean | No console.* in src/
+**Test Coverage:** 438 tests pass, 6 skipped (live smoke tests) | Type check: clean | No console.* in src/
 **Phase 1c (Delegate Phase 2):** Rejected-plans memory + approvals refactor; eval test opt-in (DELEGATE_EVAL=1)
 **Phase 1e (Tool folders & naming):** All tool names from exported constants; `src/tools/<Name>Tool/` layout (PascalCase folder, kebab-case files); MCP server per domain (`tasks`); scan test enforces literals-free source
+**Phase 3 (Delegate Phase 3):** Per-repo workflow (lean/full), ask limit enforcement, clone-based skill loading with security isolation
 
 ## Key Architecture
 
@@ -102,9 +103,10 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **run-limiter.ts:** max 3 concurrent runs; max 2 active code tasks (phase 4+)
 
 ### Agent & Prompts
-- **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; opts.handoff flag for HANDOFF section
-- **system-prompt.ts:** Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), COMMON (safety rules once), context last. Identity/tone in persona files (.friday/IDENTITY|SOUL|USER.md), not in system prompt.
-- **tool-permissions.ts:** the permission layer of every run: PreToolUse hook (hard deny / force ask via `checkToolCall`) + `canUseTool` (plan approval on ExitPlanMode, AskUserQuestion buttons, owner approval for risky calls; Q&A has no gateway so ask = deny)
+- **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; opts.handoff flag for HANDOFF section; skill loading from app-owned plugin (exec stage full mode)
+- **system-prompt.ts:** Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), ASK_RULES (Phase 3: ask only if not derivable, costly/irreversible, >=2 options), COMMON (safety rules once), context last. Identity/tone in persona files (.friday/IDENTITY|SOUL|USER.md), not in system prompt.
+- **code-rules.ts:** ASK_RULES text constant (ask limit enforcement, vague request handling, full mode assumptions recording)
+- **tool-permissions.ts:** permission layer: PreToolUse hook (hard deny / force ask) + `canUseTool` (plan approval, AskUserQuestion buttons, owner approval; ONE ask per task enforced via askLimit flag); ask timeout → "Awaiting clarification:" with defaults, session kept
 - **run-errors.ts:** error classification (quota, rate_limit, billing, overloaded → outcome + user reply with reset times); phase 5+
 
 ### Persona & Memory (Phase 1+)
@@ -129,9 +131,12 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **task-routing.ts (src/tasks/):** shared `codeTaskBlocker()` blocker check (cap MAX_CODE_TASKS, managed clone validation, repo lookup)
 
 ### Repository Management
-- **repo-registry.ts:** scan/load workspaces/*/config.yaml (zod); optional defaultBranch, testCommand, githubAccount; required gitAuthor
+- **repo-registry.ts:** scan/load workspaces/*/config.yaml (zod); optional defaultBranch, testCommand, githubAccount, `workflow` (lean|full, default lean); required gitAuthor
 - **git-identity.ts:** parse/resolve identity per config.yaml gitAuthor; attribution check; no git calls
-- **code-task-flow.ts:** git_fetch + git_worktree add (new branch agent/<taskId-prefix> from origin/<defaultBranch>); managed clones only
+- **code-task-flow.ts:** git_fetch + git_worktree add (new branch agent/<taskId-prefix> from origin/<defaultBranch>); managed clones only; ask limit per task (shared across plan & exec stages)
+- **code-flow-workflow.ts:** determine execWorkflow per repo (lean/full); stage control with abort listener; ask timeout handling
+- **code-plan-stage.ts:** plan stage entry (extracted from code-task-flow for size management)
+- **clone-skill-plugin.ts:** build app-owned plugin dir (copy of clone/.claude/skills only; no hooks/.mcp.json); realpath validation, symlink skipping, 300-file/5MB caps
 - **publish-pr.ts:** push agent/<id> + GitHub MCP create_pull_request; title = task first line; body = redacted plan
 - **refresh-repo.ts:** git_fetch + git_pull (fast-forward only) via git MCP; throttled 10 min/repo
 
@@ -173,9 +178,13 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 | Approval flow | test/approval-gateway.test.ts | PreToolUse + canUseTool integration |
 | Rejected plans | test/rejected-plans.test.ts | query logic, thread isolation, clipping, redaction (Phase 1c+) |
 | Code tasks | test/code-task-flow.test.ts | plan→execute stage, cwd switching, plan.md seeding |
+| Ask boundary (Phase 3) | test/ask-boundary.test.ts | ask limit per task, timeout → awaiting, plan/exec stages, stop vs clarification |
+| Clone skill plugin (Phase 3) | test/clone-skill-plugin.test.ts | plugin dir creation, symlink/cap validation, cleanup |
+| Repo workflow (Phase 3) | test/repo-workflow.test.ts | lean vs full modes, exec skills loading, path boundaries |
+| Stage control (Phase 3) | test/stage-control.test.ts | abort listener, stageControl semantics |
 | Git MCP | test/git-mcp.test.ts | server env, real-server calls, refresh throttle, identity helpers |
 | PR publishing | test/publish-pr.test.ts | real git MCP push to a local bare origin + fake PR creator |
-| Repo registry | test/repo-registry.test.ts | yaml parse, validate, deduplicate |
+| Repo registry | test/repo-registry.test.ts | yaml parse, validate, workflow field (lean|full), deduplicate |
 | Tool config | test/tool-config.test.ts | tool allowlist per mode |
 | DB schema | test/db-schema.test.ts | migration, idempotency (Phase 1c+) |
 | Delegate eval | test/delegate-eval.live.test.ts | golden set: 21 live runs, opt-in DELEGATE_EVAL=1 (Phase 1c+) |
@@ -233,6 +242,7 @@ bun run start          # start bot (reads .env)
 - **Phase 3 (Approval + guardrails):** Code complete — PreToolUse hook + canUseTool gates + plan mode
 - **Phase 4 (Worktree → PR + Memory + MCP):** Code complete (343 tests, 2 skip; live verified) — plan stage → execute stage → git/GitHub MCP commit → PR
 - **Phase 5 (Hardening):** **Code complete** (367 tests pass incl. live) — crash recovery (interrupted + Resume), output quota (attachments), error classification (quota/rate_limit/billing/overloaded), startup cleanup (30d logs + orphan logging)
+- **Delegate Phase 3 (Workflow modes + ask limit):** **Code complete** (438 tests, 6 skip) — per-repo `workflow: lean|full` in config.yaml; ask limit ONE per task (enforced across plan & exec); clone-based skill loading with security isolation (app-owned plugin dir, symlink/cap validation); vague requests → "Need X"; timeouts → "Awaiting clarification:" with session kept
 - **Phase 6 (Eval + daily use):** Deferred — revisit before model change
 
 ## Known Limits (Phase 5 candidates)
