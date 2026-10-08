@@ -24,9 +24,10 @@ import {
 } from "../observability/record-run";
 import { errText, redactText } from "../observability/redact";
 import { buildToolHooks } from "../observability/tool-hooks";
+import type { Workflow } from "../repos/repo-registry";
 import { setTaskSession } from "../storage/run-store";
 import { SUBAGENTS, type ToolMode, toolOptions } from "../tools/tool-catalog";
-import { listRepoSkills } from "./repo-skills";
+import { runSkills } from "./clone-skill-plugin";
 import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
 import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
@@ -64,6 +65,10 @@ export interface RunAgentInput {
     /** "plan" (default): plan mode, read-only dirs. "exec": runs in the worktree after plan approval. */
     stage?: "plan" | "exec";
   };
+  /** `full` repo workflow (plan: some candidate repo is full; exec: the repo is): adds its rules to the prompt. */
+  workflow?: Workflow;
+  /** Execute stage of a `full` repo: trusted clone whose `.claude/skills` are loaded (never the worktree's). */
+  skillsFromClone?: string;
   /** Existing Claude session id to resume. */
   resume?: string;
   config: AgentConfig;
@@ -158,13 +163,15 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   // Every mode goes through the permission layer when it has a guard (Q&A has no gateway: ask = deny).
   const perms = input.guard
     ? buildToolPermissions({
+        ...input.code, // gateway, plan, askLimit, onAskTimeout
         taskId: input.taskId,
         threadId: input.code?.threadId ?? "",
         guard: input.guard,
-        gateway: input.code?.gateway,
-        plan: input.code?.plan,
       })
     : undefined;
+
+  // Skills (+ app-owned plugin dir of a `full` exec stage, removed in `finally`).
+  const sk = runSkills(mode, input, config.agentHome);
 
   try {
     const options: Options = {
@@ -182,8 +189,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       // stage, which loads no project settings; there none, hiding the SDK's bundled ones too
       // (a model once reached for `update-config` there).
       agents: SUBAGENTS,
-      skills:
-        mode === "exec" ? [] : listRepoSkills([input.cwd, ...(input.additionalDirectories ?? [])]),
+      skills: sk.skills,
+      ...(sk.plugins && { plugins: sk.plugins }),
       maxTurns: config.limits.maxTurns,
       // Omitted (undefined) on openrouter unless MAX_BUDGET_USD is set: SDK cost uses Anthropic prices.
       ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
@@ -194,7 +201,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       systemPrompt: buildSystemPrompt(
         (input.extraContext ?? []).filter(Boolean).join("\n\n"),
         mode,
-        { handoff: !!input.appServer },
+        { handoff: !!input.appServer, workflow: input.workflow },
       ),
       hooks: mergeHooks(buildToolHooks(recorder, perms?.decisions, config.agentHome), perms?.hooks),
       env: sdkEnv(config),
@@ -286,6 +293,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     usage = { ...usage, compactions };
   } finally {
     clearTimeout(timer);
+    sk.cleanup();
     recorder.finish(outcome, usage);
     recorder.close();
   }

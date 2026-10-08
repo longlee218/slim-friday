@@ -16,6 +16,8 @@ export interface FlowResult
   repo?: string;
   /** Q&A only: the agent called `DelegateTask`; the handler starts the plan stage after the run. */
   proposal?: Proposal;
+  /** Save the session although the outcome is not success/limit (a stage stopped to await the owner's reply). */
+  keepSession?: boolean;
 }
 
 /** A run that did not start or failed before any agent result: reply text, no session. */
@@ -54,7 +56,7 @@ export function finishRun(
   ids: { taskId: string; threadId: string },
   res: FlowResult,
 ): string {
-  if (res.sessionId && res.cwd && SAVE_SESSION_OUTCOMES.has(res.outcome)) {
+  if (res.sessionId && res.cwd && (res.keepSession || SAVE_SESSION_OUTCOMES.has(res.outcome))) {
     setSession(db, {
       threadId: ids.threadId,
       sessionId: res.sessionId,

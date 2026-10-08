@@ -25,7 +25,12 @@ export interface Repo {
   githubAccount?: string;
   /** Commit identity `Name <email>`; agent commits are made as this user, never the global git user. */
   gitAuthor?: string;
+  /** How code tasks run here: `lean` (default, app plan -> exec) or `full` (the repo's own workflow and skills, autonomous). */
+  workflow?: Workflow;
 }
+
+/** Per-repo workflow of code tasks. */
+export type Workflow = "lean" | "full";
 
 /** Schema of a workspace `config.yaml` (the repo name is the workspace directory name). */
 const configSchema = z.object({
@@ -36,6 +41,7 @@ const configSchema = z.object({
   testCommand: z.string().trim().min(1).optional(),
   githubAccount: z.string().trim().min(1).optional(),
   gitAuthor: z.string().trim().min(1).optional(),
+  workflow: z.enum(["lean", "full"]).default("lean"),
 });
 
 /** Workspace directory names double as `repo:<name>` pins: no whitespace. */
@@ -101,7 +107,8 @@ export function buildRegistryContext(repos: Repo[], force = false): string {
     // Repo instructions only auto-load when the repo is the cwd: point the agent at them otherwise.
     const claude = join(r.path, "CLAUDE.md");
     const hint = existsSync(claude) ? ` [read ${claude} first]` : "";
-    return `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}${hint}`;
+    const flow = r.workflow === "full" ? " [workflow: full]" : "";
+    return `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}${hint}${flow}`;
   });
   return `Available repos (pick the one that fits the question; search only these paths):\n${lines.join("\n")}`;
 }

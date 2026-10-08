@@ -11,8 +11,10 @@ import { appendTaskMemory } from "../memory/memory-writer";
 import { buildPromptContext } from "../memory/prompt-context";
 import { extractMemory, readRepoClaudeMd } from "../memory/repo-memory";
 import { logEvent, logger, setLogContext } from "../observability/logger";
-import { buildRegistryContext, type Repo, resolveAuthor } from "../repos/repo-registry";
+import { type Repo, resolveAuthor } from "../repos/repo-registry";
 import type { WorktreeRow } from "../storage/worktree-store";
+import { awaitingResult, execWorkflow, stageControl } from "./code-flow-workflow";
+import { runPlanStage } from "./code-plan-stage";
 import { finishCodeTask, prTitle } from "./code-task-finish";
 import { type FlowResult, failResult } from "./task-result";
 import { startWorktree } from "./task-worktree";
@@ -65,6 +67,10 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
   i.ac.signal.addEventListener("abort", () => approvals.cancelTask(i.taskId), { once: true });
   const paths = workspacePaths(config.agentHome);
   const plans = claudePlansDir();
+  // One question round per task: this flag is shared by the plan and exec runs (enforced in the permission guard).
+  const askLimit = { asked: false };
+  /** Set when the owner did not answer the questions in time: the reply text of the stopped stage. */
+  let awaiting: string | undefined;
   /** Execute stage: agent works in the worktree; then offer the PR. */
   const execStage = async (
     wt: WorktreeRow,
@@ -83,6 +89,9 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
     mkdirSync(scratch, { recursive: true, mode: 0o700 });
     const cwd = realpathSync(wt.path);
     const scratchReal = realpathSync(scratch);
+    const flow = execWorkflow(repo);
+    // Aborted by `stop` or when the questions time out.
+    const stage = stageControl(i.ac.signal, (t) => (awaiting = t));
     const res = await runAgent({
       prompt,
       taskId: i.taskId,
@@ -91,8 +100,10 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
       resume,
       config,
       db,
-      abortController: i.ac,
+      abortController: stage.ac,
       queryFn: deps.queryFn,
+      workflow: flow.workflow,
+      skillsFromClone: flow.skillsFromClone,
       githubAccount: repo.githubAccount,
       logRepo: wt.repo,
       gitAuthor: author,
@@ -106,13 +117,20 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
       }),
       guard: guardFor("exec", {
         writePaths: [cwd, plans],
-        readPaths: [cwd, scratchReal, plans],
+        readPaths: [cwd, scratchReal, plans, ...flow.readPaths],
         gitWriteRepo: cwd,
         allowedCommands: repo.testCommand ? [repo.testCommand] : [],
       }),
-      code: { stage: "exec", threadId: i.threadId, gateway: approvals },
+      code: {
+        stage: "exec",
+        threadId: i.threadId,
+        gateway: approvals,
+        askLimit,
+        onAskTimeout: stage.onAskTimeout,
+      },
     });
     const base: FlowResult = { ...res, cwd, repo: wt.repo };
+    if (awaiting) return awaitingResult(base, awaiting);
     if (res.outcome !== "success") return base;
     // Lessons the agent wants remembered go to MEMORY.md (workspace, or root for [global]), not into the chat reply.
     const memory = extractMemory(res.text);
@@ -135,48 +153,10 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
   };
 
   if (i.worktree) return execStage(i.worktree, i.text, "", i.resume);
-  const scratch = i.planResume?.cwd ?? paths.task(i.taskId).scratch;
-  mkdirSync(scratch, { recursive: true, mode: 0o700 });
-  const scratchReal = realpathSync(scratch);
-  const repoPaths = i.repos.map((r) => realpathSync(r.path));
-  const planAc = new AbortController(); // aborted when the plan is approved (stage switch)
-  i.ac.signal.addEventListener("abort", () => planAc.abort(), { once: true });
-  let approved: { plan: string; repo: string } | undefined;
-  const planRes = await runAgent({
-    prompt: i.text,
-    taskId: i.taskId,
-    cwd: scratchReal,
-    resume: i.planResume?.sessionId,
-    additionalDirectories: repoPaths,
-    extraContext: buildPromptContext({
-      agentHome: config.agentHome,
-      registry: buildRegistryContext(i.repos, true),
-      memoryWorkspaces: i.repos.map((r) => r.name),
-      sdkCwd: scratchReal,
-    }),
-    guard: guardFor("plan", {
-      writePaths: [scratchReal, plans],
-      readPaths: [scratchReal, plans, ...repoPaths],
-      gitReadRepos: repoPaths,
-    }),
-    config,
-    db,
-    abortController: planAc,
-    queryFn: deps.queryFn,
-    code: {
-      threadId: i.threadId,
-      gateway: approvals,
-      plan: {
-        repos: i.repos.map((r) => r.name),
-        onApproved: (plan, repo) => {
-          approved = { plan, repo };
-          planAc.abort();
-        },
-      },
-    },
-  });
-  if (!approved) return planRes; // rejected, stopped, timed out or no plan
-  const { plan, repo: repoName } = approved;
+  const planned = await runPlanStage(deps, i, askLimit);
+  if (planned.awaiting) return awaitingResult(planned.res, planned.awaiting); // questions timed out: no plan to run
+  if (!planned.approved) return planned.res; // rejected, stopped, timed out or no plan
+  const { plan, repo: repoName } = planned.approved;
   setLogContext({ repo: repoName }); // stage switch: worktree from the managed clone, then execute
   logEvent(log, "plan.approved");
 

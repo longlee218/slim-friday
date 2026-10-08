@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { buildSystemPrompt } from "../src/agent/system-prompt";
 import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
-import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { GIT_GROUPS, type ToolMode } from "../src/tools/tool-catalog";
 
 /** Rules text of a mode (no context). */
@@ -80,4 +80,24 @@ test("context goes after the rules with a blank line; empty context gives rules 
 
 test("preset shape is unchanged", () => {
   expect(buildSystemPrompt("", "qa")).toMatchObject({ type: "preset", preset: "claude_code" });
+});
+
+test("ask boundary in plan and exec only; vague exception in plan only; full rules only for full", () => {
+  for (const mode of ["plan", "exec"] as const) {
+    expect(rules(mode)).toContain(ASK_USER_QUESTION_TOOL_NAME);
+    expect(rules(mode)).toContain("ONE");
+    expect(rules(mode)).not.toContain("[workflow: full]");
+    expect(buildSystemPrompt("", mode, { workflow: "full" }).append).toContain("[workflow: full]");
+    expect(buildSystemPrompt("", mode, { workflow: "lean" }).append).toBe(rules(mode));
+  }
+  expect(rules("qa")).not.toContain(ASK_USER_QUESTION_TOOL_NAME);
+  expect(buildSystemPrompt("", "qa", { workflow: "full" }).append).toBe(rules("qa"));
+  expect(rules("plan")).toContain("too vague");
+  expect(rules("exec")).not.toContain("too vague");
+  expect(buildSystemPrompt("", "plan", { workflow: "full" }).append).toContain(
+    "For a repo marked [workflow: full]",
+  );
+  expect(buildSystemPrompt("", "exec", { workflow: "full" }).append).toContain(
+    "This repo is [workflow: full]",
+  );
 });

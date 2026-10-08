@@ -1,11 +1,15 @@
+import type { Workflow } from "../repos/repo-registry";
 import { HANDOFF_RULES } from "../tools/DelegateTaskTool/prompt";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
 import { GIT_GROUPS, type ToolMode } from "../tools/tool-catalog";
+import { ASK_RULES, VAGUE_PLAN_RULE, workflowRules } from "./code-rules";
 
 /** Options of the prompt builder. */
 export interface PromptOpts {
   /** The `DelegateTask` tool is registered in this run (Q&A only): adds the HANDOFF section. */
   handoff?: boolean;
+  /** Plan/exec: `full` adds the repo-workflow rules (plan: some candidate repo is full; exec: the repo is). */
+  workflow?: Workflow;
 }
 
 /**
@@ -26,7 +30,7 @@ const QA = `This run is read-only code Q&A on the registered repositories.
  * (spike-261007), so that rule is not repeated; the rest is specific to this app's approval flow.
  */
 const PLAN = `This run is the plan stage of a code task, in plan mode.
-- Write your plan to the plan file, then you MUST call ${EXIT_PLAN_MODE_TOOL_NAME} to submit it. Never end your turn without calling ${EXIT_PLAN_MODE_TOOL_NAME}.
+- Write your plan to the plan file, then you MUST call ${EXIT_PLAN_MODE_TOOL_NAME} to submit it. Never end your turn without calling ${EXIT_PLAN_MODE_TOOL_NAME} (only exception: a request too vague to plan, see below).
 - Do NOT implement here: after approval the app creates a git worktree and starts a separate execute run.
 - Your plan MUST contain one line exactly like "repo: <name>" naming the repo to change (names are listed below).
 - Registered repos are read-only references. Any shell command may need owner approval or be denied: if denied, adapt, do not retry the same call.`;
@@ -46,11 +50,20 @@ const EXEC = `This run is the execute stage of a code task, in an isolated git w
 const MODE: Record<ToolMode, string> = { qa: QA, plan: PLAN, exec: EXEC };
 
 /**
- * Build the SDK systemPrompt: MODE rules, then HANDOFF_RULES (Q&A with the DelegateTask tool), then COMMON safety,
+ * Build the SDK systemPrompt: MODE rules, then HANDOFF_RULES (Q&A with the DelegateTask tool) or the code rules
+ * (ask boundary, workflow), then COMMON safety,
  * then the extra context (registry, memory, persona) appended last.
  */
 export function buildSystemPrompt(context: string, mode: ToolMode, opts: PromptOpts = {}) {
-  const rules = [MODE[mode], mode === "qa" && opts.handoff ? HANDOFF_RULES : "", COMMON]
+  const rules = [
+    MODE[mode],
+    mode === "qa" && opts.handoff ? HANDOFF_RULES : "",
+    // Code stages: the ask boundary, the plan-only vague exception, and the repo workflow (full only).
+    mode === "qa" ? "" : ASK_RULES,
+    mode === "plan" ? VAGUE_PLAN_RULE : "",
+    mode === "qa" ? "" : workflowRules(mode, opts.workflow),
+    COMMON,
+  ]
     .filter(Boolean)
     .join("\n");
   return {

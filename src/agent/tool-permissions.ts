@@ -9,6 +9,17 @@ import { PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
 /** Max chars of a tool input shown inline in the approval message (full input goes in the attachment). */
 const SUMMARY_MAX = 300;
 
+/** One question of an AskUserQuestion call (the first option is the default). */
+export interface AskQuestion {
+  question: string;
+  options: { label: string }[];
+}
+
+/** Per-task "owner was already asked" flag; the code flow owns it so plan and exec runs share one round. */
+export interface AskLimit {
+  asked: boolean;
+}
+
 /** Inputs for one code task's permission layer. */
 export interface ToolPermissionInput {
   taskId: string;
@@ -21,6 +32,10 @@ export interface ToolPermissionInput {
    * after the owner approves, `onApproved` fires (the caller then stops the run and starts stage 2).
    */
   plan?: { repos: string[]; onApproved: (plan: string, repo: string) => void };
+  /** Shared across the task's runs: the single allowed question round. Omitted = limit per permission layer. */
+  askLimit?: AskLimit;
+  /** The owner did not answer the questions in time: the caller stops the run and replies "Awaiting clarification". */
+  onAskTimeout?: (questions: AskQuestion[]) => void;
 }
 
 /** First `repo: <name>` line of a plan, or undefined. */
@@ -49,6 +64,7 @@ export function buildToolPermissions(p: ToolPermissionInput): {
 } {
   const log = logger.child({ module: "tool-permissions" });
   const decisions = new Map<string, Decision>();
+  const askLimit = p.askLimit ?? { asked: false };
 
   const hooks: HookCallbackMatcher[] = [
     {
@@ -124,19 +140,27 @@ export function buildToolPermissions(p: ToolPermissionInput): {
             };
       }
       if (tool === ASK_USER_QUESTION_TOOL_NAME) {
+        // One question round per task, enforced here (not only in the prompt): a second call never reaches the owner.
+        if (askLimit.asked)
+          return {
+            behavior: "deny",
+            message:
+              "Already asked once for this task; use the defaults and record the assumptions.",
+          };
+        askLimit.asked = true;
+        const questions = (input.questions ?? []) as AskQuestion[];
         const answers: Record<string, string> = {};
-        for (const q of (input.questions ?? []) as {
-          question: string;
-          options: { label: string }[];
-        }[]) {
+        for (const q of questions) {
           const label = await gateway.askChoice({
             taskId: p.taskId,
             threadId: p.threadId,
             question: q.question,
             options: q.options.map((o) => o.label),
           });
-          if (label === undefined)
-            return { behavior: "deny", message: "Owner did not answer in time." };
+          if (label === undefined) {
+            p.onAskTimeout?.(questions);
+            return { behavior: "deny", message: "Owner did not answer in time. Stop here." };
+          }
           answers[q.question] = label;
         }
         return { behavior: "allow", updatedInput: { ...input, answers } };

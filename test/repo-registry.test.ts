@@ -154,3 +154,34 @@ test("refreshRepo: fetch + fast-forward through the MCP tools, throttled per rep
   };
   await expect(refreshRepo(failing, "/q")).resolves.toBeUndefined();
 });
+
+test("workflow: defaults to lean, full is parsed, a bad value skips the workspace, marker only for full", () => {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  addWorkspace(env.home, "a");
+  addWorkspace(env.home, "b", { workflow: "full" });
+  addWorkspace(env.home, "c", { workflow: "heavy" });
+  const repos = loadRepoRegistry(env.home);
+  expect(repos.map((r) => [r.name, r.workflow])).toEqual([
+    ["a", "lean"],
+    ["b", "full"],
+  ]);
+  const block = buildRegistryContext(repos, true);
+  expect(block).toContain("- b: ");
+  expect(block.split("\n").filter((l) => l.includes("[workflow: full]"))).toHaveLength(1);
+  expect(block.split("\n").find((l) => l.startsWith("- a:"))).not.toContain("workflow");
+});
+
+test("workflow: any value other than lean/full ('heavy', 'FULL', '') skips the workspace", () => {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  addWorkspace(env.home, "ok", { workflow: "lean" });
+  for (const [n, v] of [
+    ["heavy", "heavy"],
+    ["upper", "FULL"],
+    ["empty", ""],
+  ] as const) {
+    addWorkspace(env.home, n, { workflow: v });
+  }
+  expect(loadRepoRegistry(env.home).map((r) => r.name)).toEqual(["ok"]);
+});
