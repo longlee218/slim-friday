@@ -92,19 +92,13 @@ test("curated skills: manifest named after the workspace, regular files copied, 
   expect(existsSync(dir)).toBe(false);
 });
 
-test("absent or empty skills dir, no workspace, or a dir symlinked out: no plugin and no warning", () => {
-  const outside = tmp();
-  skill(outside, "evil");
-  const linked = tmp();
-  mkdirSync(workspacePaths(linked).workspace("main").root, { recursive: true });
-  symlinkSync(outside, workspacePaths(linked).workspace("main").skills);
+test("absent or empty skills dir, no workspace, no plugin and no warning", () => {
   const empty = tmp();
   skillsDir(empty);
   const logs = captureLogs();
   const results = [
     workspaceSkills("main", tmp()),
     workspaceSkills("main", empty),
-    workspaceSkills("main", linked),
     workspaceSkills(undefined, tmp()),
   ];
   logs.stop();
@@ -116,42 +110,132 @@ test("absent or empty skills dir, no workspace, or a dir symlinked out: no plugi
   expect(readdirSync(join(empty, "tmp"))).toEqual([]); // the empty case leaves no dir behind
 });
 
-test("oversized skills fail closed: no plugin, warn, nothing left behind", () => {
-  const home = homeWithSkills(1, 6 * 1024 * 1024);
+test("one bad skill is skipped alone with a warn naming it; the good ones stay", () => {
+  const home = homeWithSkills(2); // s0, s1 good
+  const sd = skillsDir(home);
+  skill(sd, "big");
+  writeFileSync(join(sd, "big", "blob"), Buffer.alloc(3 * 1024 * 1024)); // over 2 MB per skill
+  skill(sd, "many");
+  for (let i = 0; i < 101; i++) writeFileSync(join(sd, "many", `f${i}`), "x"); // over 100 entries
+  skill(sd, "deep");
+  mkdirSync(join(sd, "deep", "1", "2", "3", "4", "5", "6", "7", "8"), { recursive: true });
   const logs = captureLogs();
-  expect(workspaceSkills("main", home)).toMatchObject({ skills: [] });
+  const p = workspaceSkills("main", home);
   logs.stop();
-  expect(logs.lines.some((l) => l.level === 40 && l.msg === "workspace skills not loaded")).toBe(
-    true,
-  );
+  expect(p.skills.sort()).toEqual(["main:s0", "main:s1"]);
+  const warns = logs.lines.filter((l) => l.msg === "skill skipped");
+  expect(warns.map((w) => [w.skill, w.reason]).sort()).toEqual([
+    ["main:big", "too big"],
+    ["main:deep", "too deep"],
+    ["main:many", "too many entries"],
+  ]);
+  expect(list(p.plugins![0]!.path).some((f) => /big|many|deep/.test(f))).toBe(false);
+  p.cleanup();
   expect(readdirSync(join(home, "tmp"))).toEqual([]);
 });
 
-test("cap 300 entries (files + dirs): 100 skills x (dir + 2 files) fits, 101 does not", () => {
+test("dependency and VCS dirs inside a skill are skipped with a debug log, not an error", () => {
+  const home = homeWithSkills(1);
+  const sd = skillsDir(home);
+  mkdirSync(join(sd, "s0", "node_modules", "dep"), { recursive: true });
+  for (let i = 0; i < 400; i++) writeFileSync(join(sd, "s0", "node_modules", `f${i}`), "x");
+  mkdirSync(join(sd, "s0", ".git"));
+  const logs = captureLogs();
+  const p = workspaceSkills("main", home);
+  logs.stop();
+  expect(p.skills).toEqual(["main:s0"]);
+  expect(list(p.plugins![0]!.path).some((f) => /node_modules|.git/.test(f))).toBe(false);
+  expect(logs.lines.some((l) => (l.level as number) >= 40)).toBe(false);
+  p.cleanup();
+});
+
+test("whole-dir total cap is the outer fail-closed limit: nothing loads, warn, nothing left", () => {
+  const home = tmp();
+  const sd = skillsDir(home);
+  for (let i = 0; i < 4; i++) {
+    skill(sd, `t${i}`);
+    for (let j = 0; j < 90; j++) writeFileSync(join(sd, `t${i}`, `f${j}`), "x"); // 92 each, 368 > 300
+  }
+  const logs = captureLogs();
+  expect(workspaceSkills("main", home).skills).toEqual([]);
+  logs.stop();
+  expect(logs.lines.some((l) => l.msg === "workspace skills not loaded")).toBe(true);
+  expect(readdirSync(join(home, "tmp"))).toEqual([]);
+});
+
+test("total cap 300 entries: 100 skills x (dir + 2 files) fits, 101 does not", () => {
   const ok = workspaceSkills("main", homeWithSkills(100));
   expect(ok.skills).toHaveLength(100);
   ok.cleanup();
   expect(workspaceSkills("main", homeWithSkills(101)).skills).toEqual([]);
 });
 
-test("empty directories count against the cap, and nesting deeper than 8 is refused", () => {
-  const bomb = homeWithSkills(1);
-  for (let i = 0; i < 301; i++) mkdirSync(join(skillsDir(bomb), "s0", `e${i}`));
-  const deep = homeWithSkills(1);
-  mkdirSync(join(skillsDir(deep), "s0", "1", "2", "3", "4", "5", "6", "7", "8"), {
-    recursive: true,
-  });
+test("nesting 8 levels inside the skills dir is fine", () => {
   const fine = homeWithSkills(1);
   mkdirSync(join(skillsDir(fine), "s0", "1", "2", "3", "4", "5", "6", "7"), { recursive: true });
+  const p = workspaceSkills("main", fine);
+  expect(p.skills).toEqual(["main:s0"]);
+  p.cleanup();
+});
+
+test("qualified name follows the frontmatter name; invalid or missing name falls back to the dir", () => {
+  const home = tmp();
+  const sd = skillsDir(home);
+  const put = (dirName: string, body: string) => {
+    mkdirSync(join(sd, dirName));
+    writeFileSync(join(sd, dirName, "SKILL.md"), body);
+  };
+  put("deploy-v2", "---\nname: deploy\ndescription: d\n---\nx\n");
+  put("quoted", '---\nname: "fancy"\n---\nx\n');
+  put("bad", "---\nname: ../evil name\n---\nx\n");
+  put("none", "---\ndescription: d\n---\nx\n");
+  put("nofm", "just text\n");
   const logs = captureLogs();
-  expect(workspaceSkills("main", bomb).skills).toEqual([]);
-  expect(workspaceSkills("main", deep).skills).toEqual([]);
-  const ok = workspaceSkills("main", fine);
+  const p = workspaceSkills("main", home);
   logs.stop();
-  expect(ok.skills).toEqual(["main:s0"]);
-  expect(logs.lines.filter((l) => l.msg === "workspace skills not loaded")).toHaveLength(2);
-  ok.cleanup();
-  expect(readdirSync(join(fine, "tmp"))).toEqual([]);
+  expect(p.skills.sort()).toEqual(
+    ["main:bad", "main:deploy", "main:fancy", "main:nofm", "main:none"].sort(),
+  );
+  expect(
+    logs.lines.some(
+      (l) => l.msg === "skill frontmatter name differs from dir name" && l.dir === "deploy-v2",
+    ),
+  ).toBe(true);
+  p.cleanup();
+});
+
+test("a skill dir without SKILL.md is skipped with a debug log", () => {
+  const home = tmp();
+  const sd = skillsDir(home);
+  skill(sd, "ok");
+  mkdirSync(join(sd, "empty"));
+  writeFileSync(join(sd, "empty", "notes.md"), "x");
+  writeFileSync(join(sd, "stray.txt"), "x");
+  const logs = captureLogs();
+  const p = workspaceSkills("main", home);
+  logs.stop();
+  expect(p.skills).toEqual(["main:ok"]);
+  expect(list(p.plugins![0]!.path).some((f) => f.includes("empty"))).toBe(false);
+  expect(
+    logs.lines.some(
+      (l) => l.msg === "skill dir without SKILL.md skipped" && l.skill === "main:empty",
+    ),
+  ).toBe(true);
+  p.cleanup();
+});
+
+test("a skills dir that is a symlink, even to a path inside the workspace, loads nothing and warns", () => {
+  const home = tmp();
+  const ws = workspacePaths(home).workspace("main");
+  const target = join(ws.repos, "r", "repo", ".claude", "skills");
+  skill(target, "repo-skill");
+  symlinkSync(target, ws.skills);
+  const logs = captureLogs();
+  const p = workspaceSkills("main", home);
+  logs.stop();
+  expect(p.skills).toEqual([]);
+  expect(p.plugins).toBeUndefined();
+  expect(logs.lines.some((l) => (l.level as number) === 40)).toBe(true);
 });
 
 test("sweepStalePlugins removes only old plugin-* real dirs directly under <home>/tmp", () => {

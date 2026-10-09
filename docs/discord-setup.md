@@ -283,7 +283,7 @@ cp -R /path/to/deploy ~/.friday/workspaces/<ws>/skills/deploy     # needs deploy
   deploy/helper.sh        # bundled files are readable (never writable) during the run
 ```
 - Skills appear as `<ws>:<skill>`. No restart: the plugin is rebuilt on every run. Empty/missing dir = no skills.
-- Limits: 300 entries (files + dirs) / 5 MB / depth 8 per workspace; over a limit nothing loads and a `workspace skills not loaded` warning is logged. Symlinks are skipped.
+- Limits: per skill 100 entries (files + dirs) / 2 MB / depth 8; a skill over a limit is skipped alone with a `skill skipped` warning naming it and the reason. Whole dir: 300 entries / 5 MB, over it nothing loads. Dependency and VCS dirs inside a skill are not copied. Symlinks are skipped, and `skills/` itself must not be a symlink (rejected with a warning).
 
 **Workflow Modes (Phase 3+):**
 - `workflow: lean` (default) — safe for any repo; standard rules apply

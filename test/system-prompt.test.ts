@@ -101,3 +101,11 @@ test("ask boundary in plan and exec only; vague exception in plan only; full rul
     "This repo is [workflow: full]",
   );
 });
+
+test("Q&A rules pin: git MCP tools must always get path, taken from the repo list or the pinned/only repo", () => {
+  const qa = rules("qa");
+  expect(qa).toContain("Git MCP tools");
+  expect(qa).toContain("must always get path = the repo path");
+  expect(qa).toContain("pinned/only repo");
+  expect(rules("plan")).not.toContain("Git MCP tools (git_log");
+});

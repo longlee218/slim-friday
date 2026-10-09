@@ -31,7 +31,7 @@ import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
 import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
 import { buildToolPermissions, type ToolPermissionInput } from "./tool-permissions";
-import { workspaceSkills } from "./workspace-skills-plugin";
+import { type RunSkills, workspaceSkills } from "./workspace-skills-plugin";
 
 /** Signature of the SDK `query` function; injectable for tests. */
 export type QueryFn = (args: { prompt: string; options?: Options }) => AsyncIterable<SDKMessage>;
@@ -158,25 +158,25 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   let rejected = false;
   let resetsAt: number | undefined;
 
-  // Workspace skills as an app-owned plugin copy (fail closed, never throws); removed in `finally`.
-  const sk = workspaceSkills(input.skillsWorkspace, config.agentHome);
-
-  // Every mode goes through the permission layer when it has a guard (Q&A has no gateway: ask = deny).
-  // This run's plugin dirs (and only those) become READABLE so skills can open their bundled files.
-  const guard =
-    input.guard?.readPaths && sk.dirs.length
-      ? { ...input.guard, readPaths: [...input.guard.readPaths, ...sk.dirs] }
-      : input.guard;
-  const perms = guard
-    ? buildToolPermissions({
-        ...input.code, // gateway, plan, askLimit, onAskTimeout
-        taskId: input.taskId,
-        threadId: input.code?.threadId ?? "",
-        guard,
-      })
-    : undefined;
+  // Workspace skills plugin (fail closed, never throws); built inside the try so `finally` always removes it.
+  let sk: RunSkills = { skills: [], dirs: [], cleanup: () => {} };
 
   try {
+    sk = workspaceSkills(input.skillsWorkspace, config.agentHome);
+    // Every mode goes through the permission layer when it has a guard (Q&A has no gateway: ask = deny).
+    // This run's plugin dir (and only it) becomes READABLE so skills can open their bundled files.
+    const guard =
+      input.guard?.readPaths && sk.dirs.length
+        ? { ...input.guard, readPaths: [...input.guard.readPaths, ...sk.dirs] }
+        : input.guard;
+    const perms = guard
+      ? buildToolPermissions({
+          ...input.code, // gateway, plan, askLimit, onAskTimeout
+          taskId: input.taskId,
+          threadId: input.code?.threadId ?? "",
+          guard,
+        })
+      : undefined;
     const options: Options = {
       cwd: input.cwd,
       ...(input.additionalDirectories?.length && {
