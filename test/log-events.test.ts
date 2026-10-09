@@ -95,12 +95,12 @@ test("rolled file name has the date and the .jsonl extension", async () => {
   stream.end();
 });
 
-test("tool.call line has guard decision, duration, error flag and a redacted input", async () => {
+test("tool.done line has non-default guard decision, duration, ok flag and a redacted input", async () => {
   const env = makeEnv();
   const { lines, stop } = captureLogs();
   const rec = new RunRecorder(env.db, "r1", "t1", "m", env.paths.taskLog("t1"));
   const decisions = new Map([["u1", { decision: "ask" as const, reason: "git commit" }]]);
-  const hook = buildToolHooks(rec, decisions).PostToolUse![0]!.hooks[0]!;
+  const hook = buildToolHooks(rec, { decisions }).PostToolUse![0]!.hooks[0]!;
   await hook(
     {
       hook_event_name: "PostToolUse",
@@ -116,14 +116,16 @@ test("tool.call line has guard decision, duration, error flag and a redacted inp
   rec.close();
   stop();
   expect(lines[0]).toMatchObject({
-    event: "tool.call",
+    event: "tool.done",
     tool: BASH_TOOL_NAME,
+    toolUseId: "u1",
     decision: "ask",
     reason: "git commit",
     durationMs: 7,
-    isError: false,
+    ok: true,
   });
   expect(String(lines[0]?.input)).not.toContain("hunter2");
+  expect(String(lines[0]?.target)).not.toContain("hunter2");
 });
 
 test("a run logs run.started and run.finished with the task's correlation fields", async () => {
@@ -158,4 +160,8 @@ test("a run logs run.started and run.finished with the task's correlation fields
   });
   // Raw per-task stream is untouched by event logging.
   expect(readFileSync(env.paths.taskLog("T1"), "utf8")).toContain("sdk message");
+  // The raw task log is plain JSONL: one `msg` (the label) and the SDK message under `sdk`.
+  const first = JSON.parse(readFileSync(env.paths.taskLog("T1"), "utf8").split("\n")[0]!);
+  expect(first.msg).toBe("sdk message");
+  expect(first.sdk.type).toBeDefined();
 });

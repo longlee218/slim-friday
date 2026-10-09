@@ -108,7 +108,11 @@ src/
 ├── observability/              # Logging & monitoring
 │   ├── logger.ts               # pino singleton
 │   ├── record-run.ts           # run lifecycle recording
-│   ├── tool-hooks.ts           # PreToolUse/PostToolUse hooks
+│   ├── tool-hooks.ts           # PreToolUse/PostToolUse hooks: tool.start / tool.done
+│   ├── tool-target.ts          # describeTool: short redacted target of a tool call
+│   ├── tool-result-summary.ts  # summarizeResult: sizes only, never result text
+│   ├── tool-input-preview.ts   # input preview without file content; edit-error scrub
+│   ├── console-format.ts       # pino-pretty messageFormat + ignore list (short terminal lines)
 │   └── redact.ts               # secret masking
 └── lifecycle/                  # Shutdown & cleanup
     ├── shutdown.ts             # graceful termination; cancel pending approvals; cleanup stale tasks (phase 4+)
@@ -147,6 +151,8 @@ test/
 - **Pattern:** `logger.child({module, taskId, threadId})` for context
 - **Output:** JSON lines to `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; one log for all workspaces, lines carry `workspace`)` + stdout (dev only with pino-pretty)
 - **Sensitive data:** redact.ts masks tokens/keys before logging; pino redact.paths catches env keys by path
+- **Tool events:** `tool.start`, `tool.done`, `tool.denied` (paired by `toolUseId`); no `tool.call`. Log `target` (from `describeTool`) and sizes (from `summarizeResult`), never file contents or tool output text. Tool names in these modules come from the constants files.
+- **Console vs file:** the file line carries every field (`input`, `taskId`, `threadId`...); the terminal line is built by `console-format.ts` (`consoleMessage` + `CONSOLE_IGNORE`). `CONSOLE_IGNORE` is minimal (global); task context and tool.* detail keys are folded into the message and deleted from the record inside `consoleMessage`, so other events keep all their own fields. Clip log text with `redactClip` (mask first, then cut), never `clip(redactText())` reversed.
 
 ## Coding Rules
 

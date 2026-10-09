@@ -100,3 +100,43 @@ describe("redaction gaps (H2)", () => {
       expect(redactText(t)).toBe(t);
   });
 });
+
+describe("command credentials (review M2)", () => {
+  const masked = (text: string, secret: string) => {
+    const out = redactText(text);
+    expect(out).not.toContain(secret);
+    expect(out).toContain(MASK);
+  };
+  test("curl -u / --user user:pass", () => {
+    masked("curl -u admin:hunter2 https://h/x", "hunter2");
+    masked("curl --user 'admin:hunter2' https://h/x", "hunter2");
+    masked("curl --user=admin:hunter2 https://h/x", "hunter2");
+  });
+  test("Authorization headers in any case and scheme", () => {
+    masked("curl -H 'Authorization: Basic dXNlcjpwYXNz' https://h", "dXNlcjpwYXNz");
+    masked('curl -H "authorization: Token abc123def456" https://h', "abc123def456");
+    masked("AUTHORIZATION: Bearer abcdefghijkl", "abcdefghijkl");
+    masked("authorization: rawvalue99", "rawvalue99");
+  });
+  test("X-Api-Key and Cookie headers", () => {
+    masked("curl -H 'x-api-key: k-123456' https://h", "k-123456");
+    masked("curl -H 'X-Api-Key: k-123456' https://h", "k-123456");
+    masked("curl -H 'Cookie: sid=abc; other=def' https://h", "sid=abc");
+  });
+  test("query params, env assignments, URL credentials", () => {
+    masked("curl 'https://h/x?token=abc123&a=1'", "abc123");
+    masked("curl 'https://h/x?a=1&password=pw12345'", "pw12345");
+    masked("SECRET=topsecret1 ./run.sh", "topsecret1");
+    masked("git clone https://user:pass123@github.com/o/r", "pass123");
+  });
+  test("low false positives: plain commands stay readable", () => {
+    for (const t of [
+      "ls -u foo",
+      "git log -u src/a.ts",
+      "tar -u -f a.tar b",
+      "grep -r cookie src",
+      "echo authorization is required",
+    ])
+      expect(redactText(t)).toBe(t);
+  });
+});

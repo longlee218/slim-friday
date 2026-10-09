@@ -26,6 +26,18 @@ const ENV_ASSIGN =
 /** URL userinfo credentials: scheme://user:pass@host. */
 const URL_CREDS = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s:@/]+:[^\s@/]+@/gi;
 
+/** `Authorization: [Basic|Bearer|Token|Digest] value` header (any case). */
+const AUTH_HEADER = /(\bauthorization\s*[:=]\s*)(?:(?:basic|bearer|token|digest)\s+)?[^\s'"]+/gi;
+
+/** `X-Api-Key: value` style header (hyphenated names are not matched by ENV_ASSIGN). */
+const API_KEY_HEADER = /(\bx-(?:api|auth)-(?:key|token)\s*[:=]\s*)[^\s'"]+/gi;
+
+/** `Cookie:` / `Set-Cookie:` header value, up to the closing quote or line end. */
+const COOKIE_HEADER = /(\b(?:set-)?cookie\s*:\s*)[^'"\n]+/gi;
+
+/** curl `-u user:pass` / `--user user:pass` (needs the colon: `ls -u foo` stays untouched). */
+const CURL_USER = /(\s(?:-u|--user)(?:\s+|=)['"]?)[^\s:'"]+:[^\s'"]+/g;
+
 /** Object keys whose values are always masked. */
 const SENSITIVE_KEY =
   /token|secret|password|passwd|authorization|api_?key|private_?key|credential/i;
@@ -35,6 +47,11 @@ export function redactText(text: string): string {
   let out = text;
   for (const p of PATTERNS) out = out.replace(p, MASK);
   out = out.replace(URL_CREDS, (_m, scheme: string) => `${scheme}${MASK}@`);
+  out = out
+    .replace(AUTH_HEADER, (_m, h: string) => `${h}${MASK}`)
+    .replace(API_KEY_HEADER, (_m, h: string) => `${h}${MASK}`)
+    .replace(COOKIE_HEADER, (_m, h: string) => `${h}${MASK}`)
+    .replace(CURL_USER, (_m, h: string) => `${h}${MASK}`);
   return out.replace(ENV_ASSIGN, (_m, name: string, q: string) => `${name}${q}=${MASK}`);
 }
 
@@ -43,9 +60,32 @@ export function errText(err: unknown, max = 300): string {
   return redactText(String(err)).trim().slice(0, max);
 }
 
+/** First `n` UTF-16 units of `text`, without a dangling half of a surrogate pair. */
+function cutSafe(text: string, n: number): string {
+  const cut = text.slice(0, n);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
 /** Cut text to `max` chars, ending with an ellipsis when something was cut. */
 export function clip(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+  return text.length > max ? `${cutSafe(text, max - 1).trimEnd()}…` : text;
+}
+
+/** Start of a known token format at the very end of a cut text (the rest of the token was clipped off). */
+const SECRET_TAIL =
+  /(?:(?:gh[pousr]_|github_pat_|sk-ant-|sk-or-|sk-|xox[abprs]-|AKIA|ASIA|eyJ|Bearer\s)|-----BEGIN)[A-Za-z0-9_\- ]*$/;
+
+/**
+ * Mask secrets, THEN cut: a secret straddling the cut is already masked, and a leftover token
+ * prefix at the cut (`ghp_ab`) is dropped. Use for any text clipped for a log line.
+ */
+export function redactClip(text: string, max: number): string {
+  const r = redactText(text);
+  if (r.length <= max) return r;
+  return `${cutSafe(r, max - 1)
+    .replace(SECRET_TAIL, "")
+    .trimEnd()}…`;
 }
 
 /** Deeply redact strings in any JSON-like value; sensitive keys are masked wholesale. */

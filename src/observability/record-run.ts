@@ -72,7 +72,7 @@ export class RunRecorder {
   /** Append one SDK message (redacted) to the per-task JSONL. */
   logMessage(msg: unknown): void {
     this.safely("logMessage", () =>
-      this.taskLog.trace({ runId: this.runId, msg: redactDeep(msg) }, "sdk message"),
+      this.taskLog.trace({ runId: this.runId, sdk: redactDeep(msg) }, "sdk message"),
     );
   }
 

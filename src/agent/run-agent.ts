@@ -23,7 +23,7 @@ import {
   usageFromResult,
 } from "../observability/record-run";
 import { errText, redactText } from "../observability/redact";
-import { buildToolHooks } from "../observability/tool-hooks";
+import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
 import type { Workflow } from "../repos/repo-registry";
 import { setTaskSession } from "../storage/run-store";
 import { SUBAGENTS, type ToolMode, toolOptions } from "../tools/tool-catalog";
@@ -205,7 +205,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         mode,
         { handoff: !!input.appServer, workflow: input.workflow },
       ),
-      hooks: mergeHooks(buildToolHooks(recorder, perms?.decisions, config.agentHome), perms?.hooks),
+      hooks: mergeHooks(buildToolHooks(recorder, hookOptions(perms, config, input)), perms?.hooks),
       env: sdkEnv(config),
     };
     logEvent(log, "run.started", {

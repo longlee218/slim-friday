@@ -71,7 +71,7 @@ test("explicit fields on a call win over the context, and the context is not pol
   expect(getLogContext()).toEqual({});
 });
 
-test("context survives into SDK callbacks (hooks, timers): tool.call lines carry the taskId", async () => {
+test("context survives into SDK callbacks (hooks, timers): tool.done lines carry the taskId", async () => {
   const env = makeEnv();
   const cap = captureLogs();
   const queryFn = (a: any) =>
@@ -110,11 +110,12 @@ test("context survives into SDK callbacks (hooks, timers): tool.call lines carry
     task("q", "th1"),
   );
   cap.stop();
-  const calls = cap.lines.filter((l) => l.event === "tool.call");
-  expect(calls.length).toBe(2);
+  // The guard-denied Read logs tool.denied (+ tool.start from the recording hook if it ran); the Glob logs tool.done.
+  const calls = cap.lines.filter((l) => l.event === "tool.done" || l.event === "tool.denied");
+  expect(calls.map((c) => c.event).sort()).toEqual(["tool.denied", "tool.done"]);
   const taskId = cap.lines.find((l) => l.event === "task.started")!.taskId;
   for (const c of calls) expect(c).toMatchObject({ taskId, threadId: "th1", mode: "qa" });
-  expect(calls[0]!.decision).toBe("deny");
+  expect(calls.find((c) => c.event === "tool.denied")!.reason).toBeTruthy();
 });
 
 test("two concurrent tasks do not mix contexts", async () => {
@@ -236,7 +237,7 @@ test("one workspace with one repo: unpinned Q&A lines carry workspace and repo",
     expect(lines.find((l) => l.event === e)).toMatchObject({ workspace: "main", repo: "repo" });
 });
 
-test("two repos, unpinned: a Read inside bbb moves tool.call and later lines to repo bbb", async () => {
+test("two repos, unpinned: a Read inside bbb moves tool.done and later lines to repo bbb", async () => {
   const env = makeEnv();
   addRepo(env.home, "aaa");
   const b = addRepo(env.home, "bbb");
@@ -246,7 +247,7 @@ test("two repos, unpinned: a Read inside bbb moves tool.call and later lines to 
     workspace: "main",
     repo: "*",
   });
-  expect(lines.find((l) => l.event === "tool.call")).toMatchObject({ repo: "bbb" });
+  expect(lines.find((l) => l.event === "tool.done")).toMatchObject({ repo: "bbb" });
   expect(lines.find((l) => l.event === "task.finished")).toMatchObject({
     workspace: "main",
     repo: "bbb",
@@ -257,6 +258,6 @@ test("a tool call outside every repo keeps repo *", async () => {
   const env = makeEnv();
   addRepo(env.home, "aaa");
   const lines = await runUnpinned(env, "/etc/hosts");
-  expect(lines.find((l) => l.event === "tool.call")).toMatchObject({ repo: "*" });
+  expect(lines.find((l) => l.event === "tool.done")).toMatchObject({ repo: "*" });
   expect(lines.find((l) => l.event === "task.finished")).toMatchObject({ repo: "*" });
 });

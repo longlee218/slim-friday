@@ -2,7 +2,8 @@ import type { CanUseTool, HookCallbackMatcher } from "@anthropic-ai/claude-agent
 import type { ApprovalGateway } from "../approvals/approval-types";
 import { checkToolCall, type Decision, type GuardrailContext } from "../guardrails/check-tool-call";
 import { logEvent, logger } from "../observability/logger";
-import { clip, errText, safePreview } from "../observability/redact";
+import { clip, errText } from "../observability/redact";
+import { describeTool } from "../observability/tool-target";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
 import { PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
 
@@ -59,7 +60,7 @@ function summarize(tool: string, input: Record<string, unknown>): string {
 export function buildToolPermissions(p: ToolPermissionInput): {
   canUseTool: CanUseTool;
   hooks: HookCallbackMatcher[];
-  /** Guard decision per tool_use_id (allow/ask), read by the tool hooks to complete the `tool.call` line. */
+  /** Guard decision per tool_use_id (allow/ask), read by the tool hooks to complete the `tool.done` line. */
   decisions: Map<string, Decision>;
 } {
   const log = logger.child({ module: "tool-permissions" });
@@ -80,14 +81,19 @@ export function buildToolPermissions(p: ToolPermissionInput): {
           );
           if (d.decision !== "deny") decisions.set(i.tool_use_id, d);
           if (d.decision === "allow") return { continue: true };
-          // A denied call never runs, so no Post hook: its `tool.call` line is written here.
+          // A denied call never runs, so no Post hook: its `tool.denied` line is written here.
           if (d.decision === "deny")
-            logEvent(log, "tool.call", {
-              tool: i.tool_name,
-              decision: d.decision,
-              reason: d.reason,
-              input: safePreview(i.tool_input, 300),
-            });
+            logEvent(
+              log,
+              "tool.denied",
+              {
+                tool: i.tool_name,
+                toolUseId: i.tool_use_id,
+                target: describeTool(i.tool_name, i.tool_input, p.guard.readPaths).target,
+                reason: d.reason,
+              },
+              "warn",
+            );
           return {
             hookSpecificOutput: {
               hookEventName: "PreToolUse" as const,

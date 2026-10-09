@@ -1,11 +1,14 @@
 import type { HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-sdk";
 import type { Decision } from "../guardrails/check-tool-call";
+import { READ_ONLY_REASON } from "../guardrails/deny-dangerous";
 import { isInside, resolveReal } from "../guardrails/paths";
 import { BASH_TOOL_NAME } from "../tools/sdk-tool-names";
 import { loadWorkspaces } from "../workspaces/workspace-registry";
 import { getLogContext, logEvent, logger, setLogContext, tryLog } from "./logger";
 import type { RunRecorder } from "./record-run";
-import { safePreview } from "./redact";
+import { inputPreview, scrubEditError } from "./tool-input-preview";
+import { summarizeResult } from "./tool-result-summary";
+import { describeTool, EDIT_TOOLS } from "./tool-target";
 
 /** Repos (real paths) per workspace per AGENT_HOME, shared by all tasks; refreshed after REPO_TTL_MS. */
 const repoCache = new Map<
@@ -44,15 +47,36 @@ export function repoOfTool(
   return hit.byWorkspace.get(ws)?.find((r) => isInside(r.path, real))?.name;
 }
 
+/** Options of `buildToolHooks`. */
+export interface ToolHookOptions {
+  /** Guard decision per tool_use_id; a non-default one is added to the `tool.done` line. */
+  decisions?: Map<string, Decision>;
+  /** AGENT_HOME: enables attributing a tool call to the registered repo whose files it touches. */
+  agentHome?: string;
+  /** Directories paths are shown relative to in `target` (cwd + additional dirs). */
+  roots?: string[];
+}
+
+/** Hook options of one run: guard decisions, home, and the cwd + extra dirs targets are shown relative to. */
+export function hookOptions(
+  perms: { decisions: Map<string, Decision> } | undefined,
+  config: { agentHome: string },
+  input: { cwd: string; additionalDirectories?: string[] },
+): ToolHookOptions {
+  return {
+    decisions: perms?.decisions,
+    agentHome: config.agentHome,
+    roots: [input.cwd, ...(input.additionalDirectories ?? [])],
+  };
+}
+
 /**
  * Pre/PostToolUse(+Failure) hooks that time each tool call, store it via the recorder and log it
- * as `tool.call` (with the guard decision from `decisions`, when a guard ran).
+ * as a `tool.start` / `tool.done` pair correlated by `toolUseId` (sizes only, never result text).
  */
 export function buildToolHooks(
   recorder: RunRecorder,
-  decisions?: Map<string, Decision>,
-  /** AGENT_HOME: enables attributing a tool call to the registered repo whose files it touches. */
-  agentHome?: string,
+  { decisions, agentHome, roots = [] }: ToolHookOptions = {},
 ): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
   const log = logger.child({ module: "tool-hooks" });
   /** tool_use_id -> start timestamp, fallback when the SDK gives no duration_ms. */
@@ -90,14 +114,24 @@ export function buildToolHooks(
       if (repo && getLogContext().repo === "*") setLogContext({ repo });
       else repo = undefined; // pinned/known repo: the mixin already carries it
     }
-    logEvent(log, "tool.call", {
+    const r = summarizeResult(output, isError);
+    // An edit error echoes the file text it failed to match: keep only its first line.
+    if (r.err && EDIT_TOOLS.includes(tool)) r.err = scrubEditError(r.err, input);
+    logEvent(log, "tool.done", {
       ...(repo && { repo }),
       tool,
-      decision: d?.decision ?? "allow",
-      ...(d && { reason: d.reason }),
+      toolUseId: id,
+      target: describeTool(tool, input, roots).target,
+      ok: !isError,
       durationMs,
-      isError,
-      input: safePreview(input, 300),
+      ...r,
+      // Only the unusual: an owner-approved call or a non-default allow reason.
+      ...(d &&
+        (d.decision === "ask" || d.reason !== READ_ONLY_REASON) && {
+          decision: d.decision,
+          reason: d.reason,
+        }),
+      input: inputPreview(input),
     });
   };
 
@@ -107,7 +141,14 @@ export function buildToolHooks(
         hooks: [
           async (i) => {
             if (i.hook_event_name === "PreToolUse")
-              guard(() => started.set(i.tool_use_id, Date.now()));
+              guard(() => {
+                started.set(i.tool_use_id, Date.now());
+                logEvent(log, "tool.start", {
+                  tool: i.tool_name,
+                  toolUseId: i.tool_use_id,
+                  target: describeTool(i.tool_name, i.tool_input, roots).target,
+                });
+              });
             return { continue: true };
           },
         ],

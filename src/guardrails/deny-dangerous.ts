@@ -27,6 +27,9 @@ const SECRET_PATTERNS = [
   /\.(p12|pfx)$/i,
 ];
 
+/** Reason of the default allow (read-only access); logs omit it as the unremarkable case. */
+export const READ_ONLY_REASON = "read-only access";
+
 /** True when the basename of `p` looks like a secret file. */
 export function isSecretPath(p: string): boolean {
   const name = basename(p.replace(/[\\/]+$/, ""));
@@ -109,5 +112,5 @@ export function checkFileRead(
       return { decision: "deny", reason: "read outside the allowed directories is blocked" };
     }
   }
-  return { decision: "allow", reason: "read-only access" };
+  return { decision: "allow", reason: READ_ONLY_REASON };
 }

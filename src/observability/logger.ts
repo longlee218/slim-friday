@@ -1,7 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import pino, { type DestinationStream, type Logger } from "pino";
-import pretty from "pino-pretty";
+import pretty, { type PrettyOptions } from "pino-pretty";
 import { ensureParentDir, workspacePaths } from "../config/workspace-paths";
+import { CONSOLE_IGNORE, consoleMessage } from "./console-format";
 import { rollingFile } from "./log-files";
 import { clip, errText, redactText } from "./redact";
 
@@ -87,6 +88,18 @@ export function captureLogs(): { lines: Record<string, unknown>[]; stop(): void 
   return { lines, stop: () => void testSinks.delete(sink) };
 }
 
+/** pino-pretty options of the terminal stream (in-process, so `messageFormat` may be a function). */
+export function consolePrettyOptions(): PrettyOptions {
+  return {
+    colorize: true,
+    sync: true,
+    singleLine: true,
+    translateTime: "SYS:HH:MM:ss",
+    messageFormat: (log) => consoleMessage(log as Record<string, unknown>),
+    ignore: CONSOLE_IGNORE.join(","),
+  };
+}
+
 /** Pick the destination: rolled files under AGENT_HOME (+ pretty stdout in dev); stdout JSON otherwise. */
 async function buildSharedLogger(): Promise<Logger> {
   const level = process.env.LOG_LEVEL ?? "info";
@@ -108,14 +121,8 @@ async function buildSharedLogger(): Promise<Logger> {
   // Open the main file before the first line so early/fatal lines are written synchronously.
   await file.ready();
   if (!toTerminal) return createLogger(file, level);
-  // One readable line per event: time, level, message/event and its fields.
-  const stdout = pretty({
-    colorize: true,
-    sync: true,
-    singleLine: true,
-    translateTime: "SYS:HH:MM:ss",
-    ignore: "pid,hostname",
-  });
+  // One short line per event (see console-format.ts); the file keeps every field.
+  const stdout = pretty(consolePrettyOptions());
   return createLogger(pino.multistream([{ stream: file }, { stream: stdout }]), level);
 }
 
