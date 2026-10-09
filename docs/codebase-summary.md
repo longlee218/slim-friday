@@ -36,7 +36,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 ├── BOOTSTRAP.md               # Owner guide (auto-created, never read by code, Phase 1+)
 ├── data/agent.db              # SQLite: sessions, tasks, runs, tool_calls, approvals, worktrees
 ├── MEMORY.pending.md          # Agent `[global]` notes (never injected; Step B 1b)
-├── backups/                   # Pre-cutover copies (Step B migration)
+├── backups/                   # Legacy pre-Step-B dir; the new layout makes none (fresh start, no migration)
 ├── workspaces/<ws>/           # One workspace = several repos (Step B layout; <ws> lowercase-hyphen, not `ops`)
 │   ├── workspace.yaml         # description?, channels: [Discord parent-channel ids] (each id in one workspace)
 │   ├── AGENTS/IDENTITY/SOUL/USER.md  # Workspace persona overrides (per file)
@@ -103,7 +103,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 
 ### Agent & Prompts
 - **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; opts.handoff flag for HANDOFF section; repo skills from app-owned plugins in every mode (`settingSources: []`)
-- **system-prompt.ts:** Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), ASK_RULES (Phase 3: ask only if not derivable, costly/irreversible, >=2 options), COMMON (safety rules once), context last. Identity/tone in persona files (.friday/IDENTITY|SOUL|USER.md), not in system prompt.
+- **system-prompt.ts:** Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), ASK_RULES (Phase 3: ask only if not derivable, costly/irreversible, >=2 options), COMMON (safety rules once), context last. Identity/tone in persona files ($AGENT_HOME/IDENTITY|SOUL|USER.md), not in system prompt.
 - **code-rules.ts:** ASK_RULES text constant (ask limit enforcement, vague request handling, full mode assumptions recording)
 - **tool-permissions.ts:** permission layer: PreToolUse hook (hard deny / force ask) + `canUseTool` (plan approval, AskUserQuestion buttons, owner approval; ONE ask per task enforced via askLimit flag); ask timeout → "Awaiting clarification:" with defaults, session kept
 - **run-errors.ts:** error classification (quota, rate_limit, billing, overloaded → outcome + user reply with reset times); phase 5+

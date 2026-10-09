@@ -154,7 +154,7 @@ test("source has no legacyWorkspace, loadRepoRegistry or TODO(1b) leftovers", ()
   expect(hits).toEqual([]);
 });
 
-test("legacy dir and no workspace: migration reply, and the legacy dir is left untouched", async () => {
+test("legacy dir and no workspace: cutover reply, and the legacy dir is left untouched", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
   const old = join(env.home, "workspaces", "oldrepo");
@@ -169,7 +169,7 @@ test("legacy dir and no workspace: migration reply, and the legacy dir is left u
     text: "hi",
   });
   expect(reply).toBe(
-    "Old workspace layout found: see the migration runbook (docs/discord-setup.md).",
+    "Old workspace layout found: see the cutover runbook (docs/discord-setup.md).",
   );
   expect(readdirSync(old)).toEqual(["config.yaml"]); // nothing written into a legacy dir
 });

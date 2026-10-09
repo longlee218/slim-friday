@@ -1,19 +1,8 @@
 node_modules
 .env
 
-# Friday agent home (~/.friday is a symlink to ./.friday): track config, persona and memory; ignore runtime state
-.friday/data/
-.friday/logs/
-.friday/tasks/
-.friday/workspaces/*/logs/
-.friday/workspaces/*/repo/
-.friday/workspaces/*/worktrees/
-.friday/workspaces/*/tasks/
+# Friday agent home lives outside the repo (AGENT_HOME, e.g. ~/.friday); ignore any stray in-repo copy
+/.friday/
 
 # Claude Code local config (rules, skills, agents, settings): not part of the repo
 .claude/
-
-# Personal facts stay on the machine: root memory/profile and per-workspace profile overrides
-.friday/MEMORY.md
-.friday/USER.md
-.friday/workspaces/*/USER.md

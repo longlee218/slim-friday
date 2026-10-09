@@ -350,6 +350,7 @@ Looks good, also fix the same typo in docs/
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | "No repos registered" | No workspace has a valid `repo.yaml` | Run `init:workspace:<ws>` and add `workspaces/<ws>/repos/<name>/repo.yaml` |
+| Bot exits at start: "AGENT_HOME is inside a registered repo" / "inside a git working tree" | `AGENT_HOME` (or the target of a symlink) sits in a repo, e.g. the old `<project>/.friday` | Point `AGENT_HOME` at a real dir outside every repo (`/Users/<you>/.friday`); see the cutover runbook |
 | "Code task on non-managed clone" | Repo not under AGENT_HOME/workspaces | Clone repo under ~/.friday/workspaces/<ws>/repos/<name>/repo/ |
 | "No origin remote" | Repo missing `origin` remote | Run `git remote add origin <url>` in the repo |
 | "gh: command not found" | gh CLI not installed | `brew install gh` (macOS) or `apt install gh` (Linux) |
@@ -376,24 +377,57 @@ An entry needs a `## <topic>` heading to count (a file with only the template he
 
 **Editing memory:** open any of the files in your editor and add facts under `## <topic>` headings; changes apply on the next task. Example: "Main app at `src/main.ts`, uses Postgres, test cmd is `bun test`".
 
-**Files the bot does not create:** `CLAUDE.md` / `CLAUDE.local.md` anywhere under `$AGENT_HOME` (the SDK runs with `settingSources: []` and loads no CLAUDE.md anywhere). Consequence: agents do not follow a repo's own CLAUDE.md; put the facts they need in `repo.yaml` and the repo `MEMORY.md`. The bot refuses to start when `AGENT_HOME` is inside a registered repo or a git working tree. A workspace dir from the old layout (a per-repo dir holding the old repo config file, no `workspace.yaml`) is never loaded or written; when no new-layout workspace exists the bot replies "Old workspace layout found: see the migration runbook (docs/discord-setup.md)". The migration runbook itself ships with Step B phase 4.
+**Files the bot does not create:** `CLAUDE.md` / `CLAUDE.local.md` anywhere under `$AGENT_HOME` (the SDK runs with `settingSources: []` and loads no CLAUDE.md anywhere). Consequence: agents do not follow a repo's own CLAUDE.md; put the facts they need in `repo.yaml` and the repo `MEMORY.md`. The bot refuses to start when `AGENT_HOME` is inside a registered repo or a git working tree. A workspace dir from the old layout (a per-repo dir holding the old repo config file, no `workspace.yaml`) is never loaded or written; when no new-layout workspace exists the bot replies "Old workspace layout found: see the cutover runbook (docs/discord-setup.md)". There is no migration: see "Fresh cutover runbook" below.
 
 ## Run in background (launchd)
 
-`deploy/com.friday.agent.plist` starts the bot at login and restarts it if it exits (paths are for this Mac; edit them if the repo or bun moves).
+`deploy/com.friday.agent.plist` starts the bot at login and restarts it after a failure (paths are for this Mac; edit them if the repo or bun moves). Process output goes to `/Users/example/.friday/logs/launchd.{out,err}.log` (the home is outside the repo); app logs stay in `$AGENT_HOME/logs/app.*`.
 
 ```bash
-mkdir -p .friday/logs                                  # launchd needs the log dir to exist
+mkdir -p ~/.friday/logs                                 # launchd needs the log dir to exist
 cp deploy/com.friday.agent.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.friday.agent.plist     # start (and at every login)
-launchctl unload ~/Library/LaunchAgents/com.friday.agent.plist   # stop
-tail -f .friday/logs/launchd.err.log .friday/logs/launchd.out.log  # process output; app logs stay in .friday/logs/app.*
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.friday.agent.plist   # start (and at every login)
+launchctl bootout gui/$(id -u)/com.friday.agent                                  # stop
+tail -f ~/.friday/logs/launchd.err.log ~/.friday/logs/launchd.out.log
 ```
 
 - Settings come from `.env` in the repo root (bun loads it from the working directory).
 - Mac sleep pauses the bot (Discord drops the connection); it reconnects on wake. Use energy settings or `caffeinate` if it must stay up.
-- Never run two instances at once: stop `bun run start` before `launchctl load`.
+- Never run two instances at once: stop `bun run start` before `launchctl bootstrap`.
 - After a restart, threads whose task was cut short get a **Resume** button.
+
+## Fresh cutover runbook (old single-repo layout to workspaces)
+
+**Fresh start, no migration.** New layout, new empty DB, new Discord channels. Old tasks/PR history in the old DB is lost (open PRs stay on GitHub). The old home is copied once as insurance and never restored automatically. Run it in one sitting. `<project>` = `/Users/example/orca/projects/friday-slim-agent`; `<date>` = `YYYYMMDD`.
+
+0. Prereq: the Step B branch is merged to master; the old Discord channel list is at hand for review. `.env` lives in `<project>` (launchd reads it through `WorkingDirectory`); this runbook never prints it. Before step 5 it must contain a real `OWNER_DISCORD_ID` and `DISCORD_GUILD_ID=1555444586602700811` (BE Agent Portal): `bootstrap:discord` exits 1 without the guild id, and startup refuses once workspaces have channels.
+1. Stop the bot: `launchctl bootout gui/$(id -u)/com.friday.agent`. `pgrep -f src/index.ts` must print nothing (else stop that process by hand; KeepAlive would restart code mid-change). If the job is not loaded, `bootout` prints a harmless I/O error.
+2. Insurance copy outside git: `cp -a <project>/.friday ~/friday-old-home-<date>`; `chmod 700 ~/friday-old-home-<date>`. It holds the old `config.yaml` / `MEMORY.md` to copy facts from by hand. The old IDENTITY.md / SOUL.md (tracked) and USER.md / MEMORY.md (ignored) live ONLY in this copy; the new home gets defaults, so copy your preferences over by hand.
+3. Replace the `~/.friday` symlink with a real dir. Crash-safe, three commands, no trailing slashes:
+   - a) `mv ~/.friday ~/.friday.old-link`
+   - b) `mkdir -m 700 ~/.friday`
+   - c) `rm ~/.friday.old-link` (removes the link only)
+   - d) `mkdir -p -m 700 ~/.friday/logs` (launchd must be able to open its log files before step 6)
+   - Resume by state (after an interruption): `~/.friday` is a symlink: do a. No `~/.friday`, old-link present: do b. `~/.friday` is a real dir and old-link present: do c. Real dir and no old-link: done.
+4. Land the code in the deployed checkout: confirm `git -C <project> status` is clean, then `git -C <project> checkout <merged master>`, `bun install`. The untrack commit removes the tracked `.friday` files from the working tree; then `rm -rf <project>/.friday` (untracked leftovers: data, logs, clone; the step-2 copy exists). `<project>/.env` already has `AGENT_HOME=/Users/example/.friday`: verify the exact value (must be this real directory; never print or commit `.env`).
+5. Discord: `bun run bootstrap:discord --dry-run` lists ALL guild channels (category / name / id) and the ops items it would create. Review and save the list. Then `bun run bootstrap:discord` (writes `~/.friday/discord.yaml`).
+6. launchd: `cp deploy/com.friday.agent.plist ~/Library/LaunchAgents/`, then `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.friday.agent.plist`. `launchctl print gui/$(id -u)/com.friday.agent` shows `state = running` and the new log paths. Startup creates the root persona files (`ensureHome`), an empty DB and a `#ops-log` start line.
+7. In `#ops-control`: `init:workspace:personal`, `init:workspace:reelme`, `init:workspace:superminds`.
+8. Register repos by hand (see "Register repos" below), copying fields from the old `config.yaml` in the step-2 copy. Re-add important memory facts by editing the repo `MEMORY.md`.
+9. **LAST, only after step 10 passes:** delete the old Discord channels BY HAND in the Discord client, using the step-5 list, confirming each. No code deletes channels; `bootstrap:discord` stays create-only.
+10. Smoke: a Q&A in each `#<ws>-agent`; one code task in `#superminds-agent` up to the plan approval; `#ops-log` shows the start line; `$AGENT_HOME/logs/app.*` lines carry `workspace`.
+
+**Rollback** (before step 9): `launchctl bootout gui/$(id -u)/com.friday.agent`; check out the old commit in `<project>` (this restores the tracked `<project>/.friday`); `rm -rf ~/.friday`; `rm -rf <project>/.friday` (else the next copy nests inside it); `cp -a ~/friday-old-home-<date> <project>/.friday`; `ln -s <project>/.friday ~/.friday`; bootstrap the old plist (its log paths point into the repo). After step 9 the old channels are gone, so rollback is not complete: do step 9 last.
+
+### Register repos
+
+One `repo.yaml` per repo (fields: see "Repository Setup" above).
+- Existing checkout elsewhere (`path:` absolute): `workspaces/personal/repos/{clean-macbook,friday-slim-agent}/repo.yaml`, `workspaces/reelme/repos/reelme-v2/repo.yaml`. `path:` must be a git root; `gitAuthor` is required for code tasks.
+- Managed clone (superminds-cms, no `path:`): clone once by hand, because the app's refresh only fetches/pulls an existing clone:
+  ```bash
+  git clone <remote> ~/.friday/workspaces/superminds/repos/superminds-cms/repo
+  ```
+  then write `workspaces/superminds/repos/superminds-cms/repo.yaml` without `path:` (with `gitAuthor`, optional `defaultBranch`, `testCommand`, `githubAccount`, `workflow`).
 
 ## Next Steps (Phase 5+)
 - Hardening: crash recovery, orphan cleanup, output quota

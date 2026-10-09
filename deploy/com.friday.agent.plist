@@ -29,9 +29,9 @@
   <integer>60</integer>
 
   <key>StandardOutPath</key>
-  <string>/Users/example/orca/projects/friday-slim-agent/.friday/logs/launchd.out.log</string>
+  <string>/Users/example/.friday/logs/launchd.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/example/orca/projects/friday-slim-agent/.friday/logs/launchd.err.log</string>
+  <string>/Users/example/.friday/logs/launchd.err.log</string>
 
   <!-- launchd has a minimal PATH: bun, gh (Homebrew), docker, system tools. -->
   <key>EnvironmentVariables</key>

@@ -42,7 +42,7 @@ export function selectWorkspace(
   if (scan.legacy.length > 0 && scan.workspaces.length === 0)
     return {
       reason: "legacy_layout",
-      reply: "Old workspace layout found: see the migration runbook (docs/discord-setup.md).",
+      reply: "Old workspace layout found: see the cutover runbook (docs/discord-setup.md).",
     };
   return {
     reason: "unmapped_channel",

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
@@ -90,4 +90,18 @@ test("exits 1 when AGENT_HOME sits inside a git working tree", async () => {
   );
   expect(r.code).toBe(1);
   expect(r.log).toContain("AGENT_HOME is inside a git working tree");
+});
+
+test("startup creates the root persona files in an empty home (no workspaces), before any Discord login", async () => {
+  const home = mkdtempSync(join(tmpdir(), "friday-idx-"));
+  // Stops later at the discord.yaml check, after ensureHome has run.
+  writeFileSync(join(home, "discord.yaml"), "ops: [unclosed");
+  const r = await runIndex(
+    { DISCORD_TOKEN: "fake.discord.token", OWNER_DISCORD_ID: "1", CLAUDE_CODE_OAUTH_TOKEN: "tok" },
+    home,
+  );
+  expect(r.code).toBe(1);
+  const p = workspacePaths(home);
+  for (const f of [p.identity, p.soul, p.user, p.memory, p.agents, p.bootstrap])
+    expect(existsSync(f)).toBe(true);
 });

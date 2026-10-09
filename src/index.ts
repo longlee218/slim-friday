@@ -11,6 +11,7 @@ import { homePlacementError } from "./lifecycle/home-placement-check";
 import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
+import { ensureHome } from "./memory/persona";
 import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
 import { openDb } from "./storage/db";
@@ -48,6 +49,10 @@ async function main(): Promise<void> {
     workspaces.flatMap((w) => w.repos.map((r) => r.path)),
   );
   if (misplaced) return fail(misplaced);
+
+  // Create the missing root persona/memory files (and per-workspace/repo memory) once at startup, never
+  // overwriting; works with zero workspaces, so a fresh home is complete before the first message.
+  ensureHome(config.agentHome, workspaces);
 
   // Fail closed: once a workspace lists channels, ingress must be pinned to one guild.
   if (!config.discordGuildId && workspaces.some((w) => w.channels.length))

@@ -211,10 +211,10 @@ Discord Q&A message
 **Launchd Integration (deploy/com.friday.agent.plist):**
 - RunAtLoad: start at login
 - KeepAlive: restart bot if process exits (normal shutdown via SIGINT still allows clean exit)
-- StandardOutPath/StandardErrorPath: stdout/stderr → `.friday/logs/launchd.{out,err}.log`
+- StandardOutPath/StandardErrorPath: stdout/stderr → `/Users/example/.friday/logs/launchd.{out,err}.log` (home outside the repo)
 - WorkingDirectory: project root (`.env` loading and relative paths work)
 - EnvironmentVariables: PATH includes bun, gh, docker; empty env otherwise (loads `.env` at runtime)
-- Manual install: `mkdir -p .friday/logs` + `cp deploy/com.friday.agent.plist ~/Library/LaunchAgents/` + `launchctl load ~/Library/LaunchAgents/com.friday.agent.plist`
+- Manual install: `mkdir -p ~/.friday/logs` + `cp deploy/com.friday.agent.plist ~/Library/LaunchAgents/` + `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.friday.agent.plist` (stop: `launchctl bootout gui/$(id -u)/com.friday.agent`)
 
 ## Approval & Guardrails Flow (Phase 3+)
 
@@ -373,7 +373,7 @@ workflow: full
 - `BOOTSTRAP.md` — owner guide for the file structure (never read by code, never injected)
 - `MEMORY.pending.md` — agent-proposed `[global]` notes (quarantine; never read by any prompt builder)
 
-**Per-file layering:** A non-empty workspace file (not just heading or HTML comments) REPLACES the root file; an empty or heading-only workspace file falls back to the root one. Each file operates independently. `buildPersonaContext(home, ws)` is used by Q&A, plan and exec. `ensureHome(home, workspaces)` creates root files, per workspace `cwd/` + `MEMORY.md` template, per repo `MEMORY.md` template. It creates no `CLAUDE.md` and no per-workspace IDENTITY (a CLAUDE.md in an ancestor of a clone would be auto-loaded by the SDK).
+**Per-file layering:** A non-empty workspace file (not just heading or HTML comments) REPLACES the root file; an empty or heading-only workspace file falls back to the root one. Each file operates independently. `buildPersonaContext(home, ws)` is used by Q&A, plan and exec. `ensureHome(home, workspaces)` (called at startup after the home-placement check, and per routed task; `init:workspace` does not call it) creates root files, per workspace `cwd/` + `MEMORY.md` template, per repo `MEMORY.md` template. It creates no `CLAUDE.md` and no per-workspace IDENTITY (a CLAUDE.md in an ancestor of a clone would be auto-loaded by the SDK).
 
 **Workspace personas** (`workspaces/<ws>/`): optional `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md` (owner-written overrides) and `MEMORY.md` (owner-written workspace memory).
 
@@ -403,9 +403,9 @@ system-prompt (MODE/HANDOFF/COMMON sections + context)
 **No repo CLAUDE.md (policy):**
 - Friday never loads, injects or hints at ANY repo CLAUDE.md / CLAUDE.local.md (nor `~/.claude/CLAUDE.md` or an ancestor's): `settingSources: []` in qa, plan and exec. Friday's persona, AGENTS.md and memory are the only instruction source.
 - Consequence: agents no longer follow a repo's own conventions file. Repo facts come from `repo.yaml` (testCommand, defaultBranch, workflow...), repo `MEMORY.md` (agent `Memory:` bullets; owner `remember:` in P6) and the agent's own exploration (it may still READ a repo CLAUDE.md as an ordinary file; it is never injected as instructions).
-- Verification so far: exec already ran with `settingSources: []` (spike q17: planted worktree CLAUDE.md/.claude not loaded; 2026-10-08 live re-check: clone hooks/.mcp.json not loaded). Tests capture the options passed to a fake `query` (`settingSources: []` in all modes, no CLAUDE.md text in any prompt). The real-SDK canary is gated and its run by the owner is PENDING: `RUN_CANARY=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/live-claude-md-loading.smoke.test.ts` (Claude login, model claude-sonnet-5-5 or CANARY_MODEL; expects "none loaded").
+- Verification so far: exec already ran with `settingSources: []` (spike q17: planted worktree CLAUDE.md/.claude not loaded; 2026-10-08 live re-check: clone hooks/.mcp.json not loaded). Tests capture the options passed to a fake `query` (`settingSources: []` in all modes, no CLAUDE.md text in any prompt). The real-SDK canary is gated and run: `RUN_CANARY=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/live-claude-md-loading.smoke.test.ts`. Real-SDK canary result (2026-10-09, gated run, Claude login, model claude-sonnet-5-5, one run each): `CANARY LOADED: none | reply=NONE` under `settingSources: []`; `A,B,D,F` under a positive control with `['project']`. CLAUDE.local.md files C/E were not seen in either run.
 - The app never reads or creates `CLAUDE.local.md`.
-- Home placement: startup refuses (exit 1) when `realpath(AGENT_HOME)` is inside a registered repo or inside any git working tree (`src/lifecycle/home-placement-check.ts`, filesystem check only).
+- Home placement: startup refuses (exit 1) when `realpath(AGENT_HOME)` is inside a registered repo or inside any git working tree (`src/lifecycle/home-placement-check.ts`, filesystem check only). Placement: `AGENT_HOME` is a real dir such as `/Users/example/.friday`, never a symlink into a repo; `/.friday/` is gitignored and no `.friday` file is tracked. Step B is a FRESH START: no migration of the old single-repo home, DB or channels (see the cutover runbook in docs/discord-setup.md).
 
 ## Workspace Layout
 ```
@@ -435,10 +435,10 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 │       ├── tasks/<taskId>/  # plan stage scratch/, plan.md (execute stage)
 │       └── repos/<repo>/    # repo.yaml, MEMORY.md (agent), repo/ (managed clone), worktrees/<taskId>/
 │   (a dir with the old per-repo config file and no workspace.yaml is the pre-Step-B layout: listed by loadWorkspaces,
-│    never loaded or written; the handler replies with the migration pointer when no workspace exists)
+│    never loaded or written; the handler replies with the cutover-runbook pointer when no workspace exists)
 ```
 
-**Local state in git:** the layout above has no per-workspace `logs/` and no `CLAUDE.md` / `CLAUDE.local.md` anywhere under the home. Ignore `data/`, `logs/`, `backups/`, `MEMORY.pending.md`, `workspaces/*/{cwd,tasks}/`, `workspaces/*/repos/*/{repo,worktrees}/` if the home is inside a git repo (Step B phase 3 moves it out).
+**Local state in git:** the layout above has no per-workspace `logs/` and no `CLAUDE.md` / `CLAUDE.local.md` anywhere under the home. Ignore `data/`, `logs/`, `backups/`, `MEMORY.pending.md`, `workspaces/*/{cwd,tasks}/`, `workspaces/*/repos/*/{repo,worktrees}/` if a stray in-repo home is ever used; startup now refuses a home inside a repo or git working tree.
 
 ## Discord Setup (Step B phase 5)
 - `src/discord-setup/`: `discord-setup-config.ts` (discord.yaml schema, read = fail closed, deterministic write), `private-channels.ts` (pure overwrites builder, strict `isPrivate`, create-only create), `admin-command.ts` (parser + gate), `admin-handler.ts` (gate on the live message, then run), `init-workspace.ts` (+ `workspace-template.ts`: fs template, channel id into workspace.yaml), `bootstrap-discord-cli.ts` (`bun run bootstrap:discord [--dry-run]`), `ops-log.ts` (one redacted line on start / shutdown / uncaught error, best effort, skipped without `ops.log`), `ready-checks.ts` (`discord.bot_administrator` warning on every start).
