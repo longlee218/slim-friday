@@ -41,6 +41,10 @@ export function buildPromptContext(i: PromptContextInput): string[] {
     : "";
   const blocks = [persona.text, registry, memory, rejected];
   const layers = readMemoryLayers(i.agentHome, i.workspace, i.memoryRepos);
+  // Silent truncation made visible: layers cut at read, repos skipped by the repos total (names only).
+  if (layers.overCap.length) logEvent(log, "memory.truncated", { files: layers.overCap }, "warn");
+  if (layers.skippedRepos.length)
+    logEvent(log, "memory.repo_skipped", { repos: layers.skippedRepos }, "warn");
   logEvent(
     log,
     "prompt.context",
@@ -51,6 +55,7 @@ export function buildPromptContext(i: PromptContextInput): string[] {
       memoryRootChars: layers.root.length,
       memoryWorkspaceChars: layers.workspace.length,
       memoryRepoChars: layers.repos.reduce((n, r) => n + r.text.length, 0),
+      memoryOverCap: layers.overCap,
       totalChars: blocks.reduce((n, b) => n + b.length, 0),
     },
     persona.truncated ? "warn" : "info",

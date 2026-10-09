@@ -49,6 +49,10 @@ Caps (chars): each persona file 1500 (cut with a truncated marker); memory: root
 Memory writes: after a code task the agent adds bullets to workspaces/<ws>/repos/<repo>/MEMORY.md only; a bullet
 prefixed [global] (max 2 per task) goes to MEMORY.pending.md, stamped with date and workspace/repo. Bullets are
 reduced to one plain line (no markup, no role prefixes, secrets masked, 200 chars). Prune wrong entries by hand.
+
+Owner commands (type them in a workspace channel; no agent, no quota): "remember: [global|workspace|repo:<name>] <text>"
+(Vietnamese: "nhớ: [chung|ws|repo:<name>] <text>"), "forget: [scope] <text>" ("quên:"), "compact memory [dry-run]"
+("gom nén"). The reply names the file and chars/cap; above 80% run "compact memory" (keeps a .bak of the old file).
 `;
 
 /** Workspace memory template (owner-written; a header only: it counts as empty until the first "## " entry). */

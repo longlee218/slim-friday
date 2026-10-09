@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits, type Interaction } from "discord.js"
 import type { AgentConfig } from "../config/agent-config";
 import { createAdminHandler } from "../discord-setup/admin-handler";
 import { type DiscordSetup, EMPTY_SETUP } from "../discord-setup/discord-setup-config";
+import type { MemoryRunner } from "../memory/memory-command-handler";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { createMessageHandler, type HandleTask } from "./discord-message-handler";
@@ -23,6 +24,7 @@ export function createDiscordBot(
   handleTask: HandleTask,
   handleInteraction?: (i: Interaction) => Promise<void>,
   setup: DiscordSetup = EMPTY_SETUP,
+  memory?: MemoryRunner,
 ) {
   const log = logger.child({ module: "discord-bot" });
   const client = new Client(CLIENT_OPTIONS);
@@ -32,6 +34,7 @@ export function createDiscordBot(
     guildId: config.discordGuildId,
     handleTask,
     setup,
+    memory,
     // Admin commands (init:workspace) run outside the task handler, behind their own gate.
     admin: createAdminHandler({
       home: config.agentHome,
@@ -39,6 +42,7 @@ export function createDiscordBot(
       ownerId: config.ownerDiscordId ?? "",
       botId: () => client.user?.id,
       setup,
+      memory,
     }),
   });
 

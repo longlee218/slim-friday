@@ -385,6 +385,21 @@ An entry needs a `## <topic>` heading to count (a file with only the template he
 - Bullets prefixed `[global]` (max 2) go to `$AGENT_HOME/MEMORY.pending.md`, stamped `<date> <ws>/<repo>: <title>`. **This file is never injected into any prompt.** Review it now and then; copy the facts you trust into `MEMORY.md` (global) or `workspaces/<ws>/MEMORY.md` by hand, then delete them from the pending file. Reason: the agent may have read hostile text in a repo, and a global fact would reach every workspace.
 - The agent never writes the global or workspace `MEMORY.md`.
 
+**Owner commands (Step B 6):** type them in a `#<ws>-agent` channel or one of its threads (reply comes in place, no thread, no quota) or in `#ops-control` (global only). Only you, only the pinned guild. English or Vietnamese:
+
+| Command | Effect |
+|---|---|
+| `remember: <text>` / `nhớ: <text>` | append `- <text>` (3-300 chars) under `## <date> owner` in the default repo's file |
+| `remember: global <text>` / `nhớ: chung <text>` | root `MEMORY.md` (also allowed in `#ops-control`) |
+| `remember: workspace <text>` / `nhớ: ws <text>` | `workspaces/<ws>/MEMORY.md` |
+| `remember: repo:<name> <text>` | that repo's file (name from the registry, case-insensitive) |
+| `forget: [scope] <text>` / `quên: ...` | removes the one bullet containing `<text>` (3-100 chars, case-insensitive); none = "not found"; several = nothing changes, up to 5 are listed |
+| `compact memory [dry-run]` / `gom nén [dry-run]` | compacts files over 80% of their cap (see below) |
+
+Only the first word is a scope (`remember: note chung x` stores the whole text). Default repo: the thread's worktree repo, else its latest task's repo, else the workspace's only repo, else the bot asks `Which repo?`. Other ops channels and unmapped channels refuse. The reply names the exact file and `chars/cap`; above 80% it suggests `compact memory`, above 100% it says how many oldest chars no longer reach prompts. At 300 lines the write is refused (`file full`). Text is redacted and stripped of markup. A question that starts with `remember:` is taken as a command; `forget:` undoes it.
+
+**Compaction:** `compact memory` in chat, or `bun run memory:compact [--dry-run] [--workspace <ws>] [--global]` (no flag = all files). One cheap call per file over 80% of its cap, model `MEMORY_MODEL` (default Haiku; the weekly estimate is tens of thousands of tokens per month for 3-6 repos, UNMEASURED: read the `memory.compacted` log lines for real numbers). Safeguards: run `--dry-run` first; previous version kept as `MEMORY.md.bak` (one generation: restore by copying it back); the reply shows before/after chars, bullets and the removed count; output must be `- ` bullets only, redacted, within the cap, and each bullet must share half its words with an old bullet and keep the same numbers and negations/modality words (`không`, `never`, `must`, `always`...; a reword that drops one aborts, so rerun or edit by hand), else the file is left untouched and the diff is shown; the new section is `## compacted <oldest>..<newest>` and non-bullet prose lines are not carried over (reply counts them, `.bak` keeps them); a symlinked `MEMORY.md` is refused; CLI: unknown flags exit 2, any aborted/busy file exits 1; a file edited during the call is not overwritten. `MEMORY.pending.md` is never touched. Locks: `<file>.lock` beside each file; a crash leaves it, it is reclaimed after 10 min or when its PID is dead.
+
 **Editing memory:** open any of the files in your editor and add facts under `## <topic>` headings; changes apply on the next task. Example: "Main app at `src/main.ts`, uses Postgres, test cmd is `bun test`".
 
 **Files the bot does not create:** `CLAUDE.md` / `CLAUDE.local.md` anywhere under `$AGENT_HOME` (the SDK runs with `settingSources: []` and loads no CLAUDE.md anywhere). Consequence: agents do not follow a repo's own CLAUDE.md; put the facts they need in `repo.yaml` and the repo `MEMORY.md`. The bot refuses to start when `AGENT_HOME` is inside a registered repo or a git working tree. A workspace dir from the old layout (a per-repo dir holding the old repo config file, no `workspace.yaml`) is never loaded or written; when no new-layout workspace exists the bot replies "Old workspace layout found: see the cutover runbook (docs/discord-setup.md)". There is no migration: see "Fresh cutover runbook" below.

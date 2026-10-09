@@ -16,6 +16,13 @@ const DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash";
  */
 const DEFAULT_OPENROUTER_CODE_MODEL = "anthropic/claude-haiku-4.5";
 
+/**
+ * Default model for owner-triggered memory compaction: cheap Haiku on both paths (same model family; the
+ * OpenRouter id differs). Never MODEL / CODE_MODEL.
+ */
+const DEFAULT_MEMORY_MODEL = "claude-haiku-4-5-20251001";
+const DEFAULT_OPENROUTER_MEMORY_MODEL = "anthropic/claude-haiku-4.5";
+
 /** Default per-run budget (USD) on the Anthropic path; OpenRouter has none unless MAX_BUDGET_USD is set. */
 const DEFAULT_ANTHROPIC_BUDGET_USD = 0.5;
 
@@ -51,6 +58,7 @@ const envSchema = z.object({
     .optional(),
   MODEL: z.string().trim().min(1).optional(),
   CODE_MODEL: z.string().trim().min(1).optional(),
+  MEMORY_MODEL: z.string().trim().min(1).optional(),
   GIT_AUTHOR: z.string().trim().min(1).optional(),
   MAX_TURNS: z.coerce.number().int().positive().default(20),
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
@@ -79,6 +87,8 @@ export interface AgentConfig {
   model: string;
   /** Model for code tasks (delegated plan + exec) (plan mode + tools). Defaults to `model` on Anthropic. */
   codeModel: string;
+  /** Model of the manual memory compaction call (one cheap call per over-threshold file). */
+  memoryModel: string;
   /** Default commit identity `Name <email>` for repos without their own `gitAuthor`. */
   gitAuthor: string | undefined;
   /**
@@ -132,6 +142,8 @@ export function loadConfig(
     gitAuthor: e.GIT_AUTHOR,
     codeModel:
       e.CODE_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_CODE_MODEL : (e.MODEL ?? DEFAULT_MODEL)),
+    memoryModel:
+      e.MEMORY_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MEMORY_MODEL : DEFAULT_MEMORY_MODEL),
     limits: {
       maxTurns: e.MAX_TURNS,
       maxBudgetUsd: e.MAX_BUDGET_USD ?? (isOpenrouter ? undefined : DEFAULT_ANTHROPIC_BUDGET_USD),
