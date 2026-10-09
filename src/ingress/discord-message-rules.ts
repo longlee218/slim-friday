@@ -1,3 +1,4 @@
+import { isAdminText } from "../discord-setup/admin-command";
 import { clip, redactText } from "../observability/redact";
 
 /** Mention policy for every outgoing message: nothing can ping (@everyone, @here, roles, users). */
@@ -27,14 +28,27 @@ export interface MessageFacts {
   /** True when the message mentions this bot. */
   mentionsBot: boolean;
   content: string;
+  /** True when the channel (or the parent of its thread) is an ops channel from discord.yaml. */
+  opsChannel?: boolean;
+  /** True when the channel itself (not a thread) accepts admin commands (discord.yaml controlChannels). */
+  controlChannel?: boolean;
 }
 
 /** Routing decision for one message. */
 export type Route =
   | {
       kind: "ignore";
-      reason: "bot" | "not_owner" | "dm" | "other_guild" | "empty" | "not_mentioned";
+      reason:
+        | "bot"
+        | "not_owner"
+        | "dm"
+        | "other_guild"
+        | "ops_channel"
+        | "empty"
+        | "not_mentioned";
     }
+  /** Admin text (control channel, or `init:workspace:` typed anywhere): handled by the admin gate, never by the agent. */
+  | { kind: "control"; prompt: string }
   /** Continue the session of the thread the message is in. */
   | { kind: "thread"; prompt: string }
   /** New conversation: create a thread from the message. */
@@ -53,6 +67,13 @@ export function routeMessage(f: MessageFacts, ownerId: string, botId: string): R
   if (f.otherGuild) return { kind: "ignore", reason: "other_guild" };
   const prompt = stripMention(f.content, botId);
   if (!prompt) return { kind: "ignore", reason: "empty" };
+  // Ops channels (and their threads) never reach the agent: only admin handling, which re-checks the gate.
+  if (f.opsChannel)
+    return f.controlChannel || isAdminText(prompt)
+      ? { kind: "control", prompt }
+      : { kind: "ignore", reason: "ops_channel" };
+  // Admin text anywhere else is refused by the gate, never sent to the agent.
+  if (isAdminText(prompt) && (f.inBotThread || f.mentionsBot)) return { kind: "control", prompt };
   if (f.inBotThread) return { kind: "thread", prompt };
   // Outside a bot thread the owner must mention the bot explicitly.
   if (f.mentionsBot) return { kind: "channel", prompt };

@@ -21,12 +21,12 @@
 1. Go to "OAuth2" tab
 2. Click "URL Generator"
 3. Select scopes: `bot`
-4. Select permissions:
-   - View Channels
-   - Send Messages
-   - Create Public Threads
-   - Send Messages in Threads
-   - Read Message History
+4. Select permissions (least privilege; the integer is computed from discord.js `PermissionFlagsBits`):
+   - View Channels, Send Messages, Send Messages in Threads, Create Public Threads, Read Message History, Attach Files, Embed Links
+   - Manage Channels and Manage Roles (only needed by `bootstrap:discord` and `init:workspace` to create private channels with overwrites; revoke them afterwards if you only create channels by hand)
+   - **Never Administrator**: it bypasses every channel overwrite, so private channels would hide nothing from the bot
+   Permission integer `309506198544`. Equivalent URL (replace the placeholder with the Application ID from the General Information tab):
+   `https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=309506198544`
 5. Copy the generated URL and open it in a browser
 6. Select your private test server and confirm
 
@@ -55,7 +55,7 @@ LOG_LEVEL=info
 **Note (Phase 3+):** For code task approvals to work, ensure CODE_MODEL is set to a model that supports ExitPlanMode (e.g., Claude models). DeepSeek v4 does not support plan mode approval flow.
 
 **Note (Phase 4+):** For PR creation, you need:
-- `gh` CLI authenticated (`gh auth login`) with at least one Git account (or set `githubAccount` in each workspace's config.yaml)
+- `gh` CLI authenticated (`gh auth login`) with at least one Git account (or set `githubAccount` in each repo's `repo.yaml`)
 - Docker running (for GitHub MCP server: `ghcr.io/github/github-mcp-server`)
 - At least one Git remote named `origin` in each repo (the app fetches and pushes through the git MCP server)
 
@@ -72,6 +72,64 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
 - Edits to a workspace's channel list apply to the next message, but the guild pin is checked at startup only: the **first** time you add `channels:` to any `workspace.yaml`, and any change to `DISCORD_GUILD_ID` or `.env`, needs a bot restart. Startup refuses (exit 1, "DISCORD_GUILD_ID required") when channels exist without the id.
 - `cleanup:` works in any thread, even in an unmapped or remapped channel (it runs before routing and starts no agent): use it to recover a thread whose channel was unlinked.
 - Remapping a channel moves its existing threads to the new workspace. A thread with a live worktree whose repo is not in the new workspace is refused (`wrong_workspace`) until the channel is re-linked or `cleanup:` is run.
+
+## Server organization (one guild)
+
+```
+guild (DISCORD_GUILD_ID)
+├─ ops            (private category)
+│   ├─ #ops-control     admin commands only (init:workspace:<name>); never reaches the agent
+│   ├─ #ops-log         one line on start / shutdown / uncaught error
+│   ├─ #ops-health      reserved (no producer yet)
+│   └─ #ops-analytics   reserved (no producer yet)
+├─ <ws>           (private category, one per workspace, e.g. personal, reelme, superminds)
+│   └─ #<ws>-agent      the channel listed in workspaces/<ws>/workspace.yaml `channels:`
+└─ ...your other channels (untouched)
+```
+- "Private" = exactly three overwrites: `@everyone` denied View Channel; the owner allowed View Channel, Send Messages, Send Messages in Threads, Read Message History, Attach Files; the bot allowed the same plus Create Public Threads and Embed Links. Any extra overwrite makes `isPrivate` false and the bot refuses admin commands there.
+- **The guild owner and anyone with Administrator still see private channels** (Discord bypasses overwrites for them). Private channels protect from other members only.
+- The bot warns on every start (`discord.bot_administrator`) when it holds Administrator in the guild.
+- Intents: Guilds, Guild Messages, Message Content (privileged; enable in the Developer Portal). `bootstrap:discord` logs in with Guilds only.
+
+## Create the ops channels: `bun run bootstrap:discord`
+
+Needs `DISCORD_TOKEN`, `DISCORD_GUILD_ID`, `OWNER_DISCORD_ID`, `AGENT_HOME` in the environment (`.env` is loaded by Bun) and the bot invited with Manage Channels + Manage Roles.
+```bash
+bun run bootstrap:discord --dry-run   # lists EVERY guild channel (category / name / id) and what would be created
+bun run bootstrap:discord             # creates ops + 4 channels, writes $AGENT_HOME/discord.yaml
+```
+- Create-only: a category/channel with the target name that already exists is refused ("rename or delete it by hand"); nothing is adopted, edited or deleted. Use the dry-run list to review old channels before deleting them by hand.
+- Missing Manage Channels / Manage Roles: clear error, exit 1. Administrator: warning printed.
+- `discord.yaml` is not overwritten when it exists: the new ids are printed, add them by hand. If it exists but cannot be parsed, **the bot refuses to start** (fail closed). No file = no ops channels and no admin commands.
+```yaml
+ops:
+  categoryId: "<id>"
+  control: "<id>"
+  log: "<id>"
+  health: "<id>"
+  analytics: "<id>"
+controlChannels:   # default: [ops.control]
+  - "<id>"
+```
+- An ops id listed in a workspace `channels:` is dropped (warning); messages in any ops channel or its threads are ignored (`message.ignored`, reason `ops_channel`), except admin handling in a control channel.
+
+## Add a workspace: `init:workspace:<name>`
+
+Type in `#ops-control` (no mention needed): `init:workspace:reelme`.
+- Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops`. Checked before anything is created.
+- Gate (all must hold): you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else (any other channel or a thread): not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
+- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `repos/`, `cwd/`, `MEMORY.md` header, heading-only persona stubs); a pre-Step-B dir with that name is refused. (2) private category `<name>` and `#<name>-agent`, create-only (existing names refused, nothing changed). (3) the new channel id is written into `workspace.yaml` (re-rendered deterministically: **comments in that file are lost**, other fields kept). (4) reply with what was created; next: add repos at `workspaces/<name>/repos/<repo>/repo.yaml`.
+- Rerun on a finished workspace: "already set up", nothing created. If channel creation fails midway the reply names what exists (delete a lone category by hand before retrying).
+- No task row, no limiter, no agent; logs `admin.init_workspace`.
+
+## Manual live check (owner, before relying on it)
+1. `bun run bootstrap:discord --dry-run`, then without `--dry-run`: the 5 items appear; `discord.yaml` written.
+2. Restart the bot: `#ops-log` shows `[start] pid=... v...`; no `discord.bot_administrator` warning in the log.
+3. `init:workspace:<ws>` in `#ops-control` per workspace: category + `#<ws>-agent` appear, `workspace.yaml` lists the id.
+4. A second Discord account (not owner/admin) cannot see the ops or workspace channels.
+5. `init:workspace:<ws>` typed in `#<ws>-agent` is refused with the "only in #ops-control" reply and starts no run; same text in a thread.
+6. Ask a question in `#<ws>-agent`: answered. Mention the bot in `#ops-log`: ignored.
+7. Stop the bot (Ctrl-C): `#ops-log` shows `[shutdown] SIGINT`.
 
 **Important:** Never commit .env with real values. .env.example has placeholders only.
 
@@ -169,6 +227,10 @@ Expected:
 | Bot ignores every message (`message.ignored`, reason `other_guild`) | `DISCORD_GUILD_ID` is not the server you write in | Fix `DISCORD_GUILD_ID` in `.env`, restart |
 | Bot exits at start: "DISCORD_GUILD_ID required" | A workspace lists `channels` but no guild is pinned | Set `DISCORD_GUILD_ID` in `.env` |
 | Reply "Workspace <ws> has no repos" | Channel maps to a workspace with no `repos/<name>/repo.yaml` | Add a repo to the workspace |
+| Bot exits at start naming `discord.yaml` | The file is not valid YAML or has a bad id | Fix or delete `$AGENT_HOME/discord.yaml` (fail closed) |
+| Reply "Admin commands run only in #ops-control." | `init:workspace:` typed outside a control channel | Type it in `#ops-control` |
+| Reply "This control channel is not private" | The control channel has extra overwrites (another role/member) | Remove them so only @everyone (denied), you and the bot remain |
+| `init:workspace` says "already exists in this server" | A category/channel with that name exists | Rename or delete it by hand, rerun |
 | "Bot is not responding" | Bot not running or DISCORD_TOKEN invalid | `bun run start` and check logs |
 | "Missing MESSAGE CONTENT" | Intent not enabled | Re-enable in Developer Portal Bot tab |
 | "Thread creation failed" | Missing "Create Public Threads" permission | Regenerate invite URL with correct scopes |
@@ -199,23 +261,18 @@ Sessions are stored in SQLite at `$AGENT_HOME/data/agent.db`:
 
 ### Repository Setup
 
-Repos are configured via workspace directories. Each workspace has a `config.yaml` (created auto or manually):
-
-```bash
-# Auto: First time agent sees a repo, creates $AGENT_HOME/workspaces/<repo-name>/config.yaml
-# Manual: mkdir -p ~/.friday/workspaces/myapp
-#         cat > ~/.friday/workspaces/myapp/config.yaml <<EOF
-```
+Repos live inside a workspace: `$AGENT_HOME/workspaces/<ws>/repos/<name>/repo.yaml` (the clone sits at `.../repos/<name>/repo/`). Create the workspace with `init:workspace:<ws>`, then add each repo by hand:
 
 ```yaml
-path: /absolute/path/to/myapp              # must be git clone under $AGENT_HOME/workspaces/<repo-name>/repo/
+# workspaces/<ws>/repos/<name>/repo.yaml
+path: /absolute/path/to/clone              # default: repos/<name>/repo; must be a git root inside the workspace
 description: "Main application"
 gitAuthor: "Name <email>"                   # per-repo commit identity (owner field, validated at startup)
 # optional:
 defaultBranch: main                         # defaults to origin/HEAD, then main/master
 testCommand: "bun test"                     # command must match exactly for auto-allow
 githubAccount: longlhdev                    # GitHub account for PR creation; defaults to `gh auth token --user` active account
-workflow: full                               # Phase 3+: enable skill loading + full autonomy (only for owner-controlled remotes; default: lean)
+workflow: full                               # enable skill loading + full autonomy (only for owner-controlled remotes; default: lean)
 ```
 
 **Workflow Modes (Phase 3+):**
@@ -223,8 +280,8 @@ workflow: full                               # Phase 3+: enable skill loading + 
 - `workflow: full` — for owner-controlled repos only; loads skills from clone/.claude/skills; enables broader assumptions in prompts; requires that the remote is owned/controlled by the agent owner
 
 **Important:**
-- Repos must be **managed clones under AGENT_HOME/workspaces/<repo-name>/repo/** (git repo directly inside workspace). Code tasks on clones elsewhere are refused.
-- Workspace name = directory name under workspaces/ (e.g., `workspaces/myapp/` → repo name is `myapp`).
+- Repos must be **managed clones under AGENT_HOME/workspaces/<ws>/repos/<name>/repo/**. Code tasks on clones elsewhere are refused.
+- Repo name = directory name under `repos/` (e.g., `workspaces/personal/repos/myapp/` → repo name is `myapp`).
 - `gitAuthor: "Name <email>"` required for code tasks (validates ≥2 chars name, email with 2+ letter domain; startup exits(1) if invalid).
 - Each repo must have a Git remote named `origin` (needed for fetch, PR creation).
 - `defaultBranch` optional (defaults origin/HEAD → main/master).
@@ -292,8 +349,8 @@ Looks good, also fix the same typo in docs/
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| "No repos registered" | No workspaces/ directory or all configs invalid | Create $AGENT_HOME/workspaces/<repo>/ with config.yaml inside |
-| "Code task on non-managed clone" | Repo not under AGENT_HOME/workspaces | Clone repo under ~/.friday/workspaces/<repo>/repo/ |
+| "No repos registered" | No workspace has a valid `repo.yaml` | Run `init:workspace:<ws>` and add `workspaces/<ws>/repos/<name>/repo.yaml` |
+| "Code task on non-managed clone" | Repo not under AGENT_HOME/workspaces | Clone repo under ~/.friday/workspaces/<ws>/repos/<name>/repo/ |
 | "No origin remote" | Repo missing `origin` remote | Run `git remote add origin <url>` in the repo |
 | "gh: command not found" | gh CLI not installed | `brew install gh` (macOS) or `apt install gh` (Linux) |
 | "gh auth failed" | gh not authenticated | Run `gh auth login` and choose HTTP/SSH |
@@ -319,7 +376,7 @@ An entry needs a `## <topic>` heading to count (a file with only the template he
 
 **Editing memory:** open any of the files in your editor and add facts under `## <topic>` headings; changes apply on the next task. Example: "Main app at `src/main.ts`, uses Postgres, test cmd is `bun test`".
 
-**Files the bot does not create:** `CLAUDE.md` / `CLAUDE.local.md` anywhere under `$AGENT_HOME` (the SDK runs with `settingSources: []` and loads no CLAUDE.md anywhere). Consequence: agents do not follow a repo's own CLAUDE.md; put the facts they need in `repo.yaml` and the repo `MEMORY.md`. The bot refuses to start when `AGENT_HOME` is inside a registered repo or a git working tree. A workspace dir from the old layout (`workspaces/<name>/config.yaml`, no `workspace.yaml`) is never loaded or written; when no new-layout workspace exists the bot replies "Old workspace layout found: see the migration runbook (docs/discord-setup.md)". The migration runbook itself ships with Step B phase 4.
+**Files the bot does not create:** `CLAUDE.md` / `CLAUDE.local.md` anywhere under `$AGENT_HOME` (the SDK runs with `settingSources: []` and loads no CLAUDE.md anywhere). Consequence: agents do not follow a repo's own CLAUDE.md; put the facts they need in `repo.yaml` and the repo `MEMORY.md`. The bot refuses to start when `AGENT_HOME` is inside a registered repo or a git working tree. A workspace dir from the old layout (a per-repo dir holding the old repo config file, no `workspace.yaml`) is never loaded or written; when no new-layout workspace exists the bot replies "Old workspace layout found: see the migration runbook (docs/discord-setup.md)". The migration runbook itself ships with Step B phase 4.
 
 ## Run in background (launchd)
 

@@ -1,4 +1,5 @@
 import { AttachmentBuilder, type Message, type SendableChannels } from "discord.js";
+import { type DiscordSetup, EMPTY_SETUP, opsIds } from "../discord-setup/discord-setup-config";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { parseTaskCommand } from "../tasks/task-commands";
@@ -56,11 +57,17 @@ export interface MessageHandlerDeps {
   /** The one guild the bot serves; messages from any other guild are ignored (undefined: no pin). */
   guildId?: string;
   handleTask: HandleTask;
+  /** discord.yaml: ops channels never reach `handleTask`; control channels run admin commands. Default: none. */
+  setup?: DiscordSetup;
+  /** Admin handling for messages routed as `control` (gate + commands); never the agent. */
+  admin?: (msg: Message, prompt: string) => Promise<void>;
 }
 
 /** Build the `messageCreate` handler: route, run the task, reply. Never throws. */
 export function createMessageHandler(deps: MessageHandlerDeps) {
   const log = logger.child({ module: "discord-message-handler" });
+  const setup = deps.setup ?? EMPTY_SETUP;
+  const ops = opsIds(setup);
 
   /** Run the task with typing shown, then post the reply into `channel`. */
   async function answer(
@@ -96,6 +103,8 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         inBotThread: ch.isThread() && ch.ownerId === botId,
         mentionsBot: msg.mentions.has(botId, { ignoreEveryone: true, ignoreRoles: true }),
         content: msg.content,
+        opsChannel: ops.has(ch.id) || (ch.isThread() && !!ch.parentId && ops.has(ch.parentId)),
+        controlChannel: !ch.isThread() && setup.controlChannels.includes(ch.id),
       },
       deps.ownerId,
       botId,
@@ -104,6 +113,14 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       // Strangers' and bots' messages are noise (debug); the owner's ignored ones are worth seeing.
       const stranger = route.reason === "bot" || route.reason === "not_owner";
       logEvent(log, "message.ignored", { reason: route.reason }, stranger ? "debug" : "info");
+      return;
+    }
+    if (route.kind === "control") {
+      try {
+        await deps.admin?.(msg, route.prompt);
+      } catch (err) {
+        log.error({ err: errText(err) }, "admin handling failed");
+      }
       return;
     }
     // Only the owner's text is logged (redacted, capped).

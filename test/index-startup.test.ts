@@ -67,6 +67,18 @@ test("exits 1 when a workspace lists channels but DISCORD_GUILD_ID is not set", 
   expect(r.log).toContain("DISCORD_GUILD_ID required");
 });
 
+test("exits 1 when discord.yaml is unparsable (fail closed)", async () => {
+  const home = mkdtempSync(join(tmpdir(), "friday-idx-"));
+  writeFileSync(join(home, "discord.yaml"), "ops: [unclosed");
+  const r = await runIndex(
+    { DISCORD_TOKEN: "fake.discord.token", OWNER_DISCORD_ID: "1", CLAUDE_CODE_OAUTH_TOKEN: "tok" },
+    home,
+  );
+  expect(r.code).toBe(1);
+  expect(r.log).toContain("discord.yaml");
+  expect(r.log).not.toContain("discord login failed");
+});
+
 test("exits 1 when AGENT_HOME sits inside a git working tree", async () => {
   const tree = mkdtempSync(join(tmpdir(), "friday-idx-"));
   mkdirSync(join(tree, ".git"));

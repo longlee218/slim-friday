@@ -34,6 +34,7 @@ bun run start          # Start bot (reads .env)
 src/
 ├── index.ts                    # entry point: load config, open db, start bot; startup: cancel stale tasks (phase 4+)
 ├── config/agent-config.ts      # load/validate env (zod); MODEL, CODE_MODEL, LLM_PROVIDER, OPENROUTER_API_KEY
+├── discord-setup/              # Discord server setup: discord.yaml, private channels, init:workspace, bootstrap CLI, #ops-log
 ├── ingress/                    # Discord input
 │   ├── discord-bot.ts          # discord.js client setup
 │   ├── discord-message-handler.ts
@@ -53,7 +54,7 @@ src/
 │   ├── github-mcp.ts           # github-mcp-config (read/write instances), github-token, createPullRequest
 │   └── mcp-servers.ts          # MCP servers registry per run mode
 ├── repos/                      # Repository management
-│   ├── repo-registry.ts        # load workspaces/*/config.yaml; optional defaultBranch, testCommand, githubAccount, workflow (Phase 3)
+│   ├── repo-registry.ts        # load workspaces/<ws>/repos/*/repo.yaml; optional defaultBranch, testCommand, githubAccount, workflow (Phase 3)
 │   ├── git-identity.ts         # parse/resolve identity per repo; attribution check; no git calls
 │   ├── publish-pr.ts           # git_push (agent/* only) via git MCP + GitHub MCP create_pull_request
 │   └── refresh-repo.ts         # git_fetch + git_pull (ff-only) via git MCP (throttled 10 min); isManagedClone
@@ -96,7 +97,7 @@ src/
 │   └── approval-types.ts       # request/response shapes (ExitPlanMode, AskUserQuestion, CreatePR; phase 4+)
 ├── config/                     # Configuration & workspace paths
 │   ├── agent-config.ts         # load/validate env (zod); MODEL, CODE_MODEL, LLM_PROVIDER, OPENROUTER_API_KEY
-│   └── workspace-paths.ts      # AGENT_HOME layout: workspaces/<repo>/{config.yaml, repo/, worktrees/, tasks/}, data, logs, cwd
+│   └── workspace-paths.ts      # AGENT_HOME layout: workspaces/<ws>/{workspace.yaml, cwd/, tasks/, repos/<repo>/{repo.yaml, repo/, worktrees/}}, data, logs
 ├── storage/                    # Database & persistence
 │   ├── db.ts                   # SQLite setup; worktrees table (phase 4+); tasks.brief column (phase 1c+, idempotent ALTER)
 │   ├── run-store.ts            # runs table ops; insertTask stores brief redacted (phase 1c+); memory append on exec success
@@ -143,7 +144,7 @@ test/
 - **Only use:** `logger` from `src/observability/logger.ts`
 - **Never use:** `console.log/error/warn/info` in `src/` (test `grep -r "console\." src/` should be empty)
 - **Pattern:** `logger.child({module, taskId, threadId})` for context
-- **Output:** JSON lines to `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; lines with a `repo` are also copied to workspaces/<repo>/logs/)` + stdout (dev only with pino-pretty)
+- **Output:** JSON lines to `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; one log for all workspaces, lines carry `workspace`)` + stdout (dev only with pino-pretty)
 - **Sensitive data:** redact.ts masks tokens/keys before logging; pino redact.paths catches env keys by path
 
 ## Coding Rules
@@ -209,12 +210,12 @@ $AGENT_HOME/workspaces/<repo-name>/
 ```
 
 **Session Context:**
-- Plan stage: cwd = `$AGENT_HOME/workspaces/<repo>/tasks/<taskId>/scratch` (plan mode, read-only)
-- Execute stage: cwd = `$AGENT_HOME/workspaces/<repo>/worktrees/<taskId>` (default mode, edit/git allowed)
+- Plan stage: cwd = `$AGENT_HOME/workspaces/<ws>/tasks/<taskId>/scratch` (plan mode, read-only)
+- Execute stage: cwd = `$AGENT_HOME/workspaces/<ws>/repos/<repo>/worktrees/<taskId>` (default mode, edit/git allowed)
 - Plan.md available in both stages (seeded from scratch/ on execute start)
 
 **Rules:**
-- Worktree created only on managed clones (realpath under `$AGENT_HOME/workspaces/<repo>/repo/`)
+- Worktree created only on managed clones (realpath under `$AGENT_HOME/workspaces/<ws>/repos/<repo>/repo/`)
 - Branch: `agent/<first-8-chars-taskId>` from `origin/<defaultBranch>`
 - Concurrency: max 2 code tasks (running or waiting_approval)
 - Cleanup: `cleanup:<task-id>` removes worktree + local branch + session; can be posted anytime
@@ -245,7 +246,7 @@ All config loaded via zod schema in `src/config/agent-config.ts`:
 - Server: @cyanheads/git-mcp-server 2.15.3 (bun binary entry, stdio client in src/mcp/git-mcp.ts)
 - Per-mode tools (src/tools/tool-catalog.ts): qa/plan allow git_status/diff/log/show/blame/branch; exec adds git_add/commit
 - Guard (check-tool-call.ts): path must be worktree (writes) or registered repo (reads); git_commit may not set author/amend/noVerify, no Co-Authored-By
-- Identity: GIT_AUTHOR_NAME/EMAIL per config.yaml gitAuthor (validated at startup); commits checked before PR offer
+- Identity: GIT_AUTHOR_NAME/EMAIL per repo.yaml gitAuthor (validated at startup); commits checked before PR offer
 
 **PreToolUse Hook (`check-tool-call.ts`):**
 - Called for all tool invocations; decides: allow | ask (via canUseTool) | deny

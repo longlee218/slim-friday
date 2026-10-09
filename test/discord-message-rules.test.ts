@@ -184,3 +184,42 @@ test("prepareOutput: mainly-diff reply goes to changes.diff, head closes the ope
   // A small diff next to lots of prose stays inline.
   expect(prepareOutput(`${"prose ".repeat(100)}\n\`\`\`diff\n+x\n\`\`\``).file).toBeUndefined();
 });
+
+test("ops channels and their threads never reach the agent; control channel and admin text become control", () => {
+  // Plain text in an ops channel (mention or not, thread or not) is dropped.
+  for (const inBotThread of [false, true])
+    expect(route({ opsChannel: true, inBotThread })).toEqual({
+      kind: "ignore",
+      reason: "ops_channel",
+    });
+  expect(route({ opsChannel: true, mentionsBot: false, content: "hello" }).kind).toBe("ignore");
+  // Control channel: no mention needed, any text is admin handling.
+  expect(
+    route({ opsChannel: true, controlChannel: true, mentionsBot: false, content: "help" }),
+  ).toEqual({
+    kind: "control",
+    prompt: "help",
+  });
+  // Admin text in another ops channel / control-channel thread still goes to the gate (reply), not the agent.
+  expect(route({ opsChannel: true, content: "init:workspace:x" }).kind).toBe("control");
+  // The owner check still comes first.
+  expect(route({ opsChannel: true, controlChannel: true, authorId: "222" })).toEqual({
+    kind: "ignore",
+    reason: "not_owner",
+  });
+});
+
+test("admin text outside ops channels is control (gate refuses it), never a thread/channel run", () => {
+  expect(route({ content: `<@${BOT}> init:workspace:x` })).toEqual({
+    kind: "control",
+    prompt: "init:workspace:x",
+  });
+  expect(route({ inBotThread: true, mentionsBot: false, content: "init:workspace:x" }).kind).toBe(
+    "control",
+  );
+  // Unmentioned admin text in a normal channel is just ignored.
+  expect(route({ mentionsBot: false, content: "init:workspace:x" })).toEqual({
+    kind: "ignore",
+    reason: "not_mentioned",
+  });
+});

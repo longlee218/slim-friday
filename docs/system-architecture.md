@@ -8,6 +8,9 @@ Friday is a Discord-driven personal coding agent on Claude Agent SDK. Owner post
 Discord channel
   └─ @bot <question> [optional: repo:<name> prefix]
      ├─ ingress gate: bot/non-owner/DM ignored; other guild than DISCORD_GUILD_ID ignored (`message.ignored`, reason `other_guild`)
+     ├─ routing kinds (discord-message-rules): `ignore` | `thread` | `channel` | `control`
+     │  ├─ `control`: a message in a control channel (discord.yaml `controlChannels`, no mention needed), or admin text (`init:workspace:`) anywhere: goes to the admin handler (src/discord-setup/admin-handler.ts), never to handleTask. Gate: owner -> pinned guild -> control channel id (not a thread) AND live strict `isPrivate` -> parse (name validated) -> run; refused text gets a reply ("Admin commands run only in #ops-control.")
+     │  └─ ops channels (`ops.*` ids of discord.yaml) and their threads: `ignore`, reason `ops_channel` (an ops id also listed in a workspace `channels:` is dropped with a warning at start)
      ├─ `cleanup:` is handled before workspace routing, so it still works in an unmapped or remapped channel (recovery path: removes the thread's worktree, runs no agent)
      ├─ a thread message whose parent channel is unknown (null) is dropped, logged `message.ignored` reason `no_parent_channel` (warn)
      ├─ routing key = parent channel id (message channel for a new conversation, `parentId` for a thread message; Resume passes the thread's `parentId`) → Task.channelId
@@ -250,7 +253,7 @@ task: <description> (message)
   │     └─ await Discord approval (owner Approve/Deny buttons, 10 min)
   │        ├─ Approve → mode=default, proceed to stage 2
   │        └─ Deny → agent revises, calls ExitPlanMode again (multi-round)
-  └─ Stage 2: Execute (cwd = $AGENT_HOME/workspaces/<repo>/worktrees/<taskId>, branch agent/<first-8-chars-taskId>)
+  └─ Stage 2: Execute (cwd = $AGENT_HOME/workspaces/<ws>/repos/<repo>/worktrees/<taskId>, branch agent/<first-8-chars-taskId>)
      └─ session resumed with plan.md seeded from scratch/
      ├─ agent makes changes; commits via git MCP (@cyanheads/git-mcp-server 2.15.3, stdio; path must be the worktree; no push tool). Tests run via Bash
      ├─ runs test command (exact match, auto-allowed)
@@ -287,7 +290,7 @@ task: <description> (message)
 ## Per-Repo Workflow Modes (Phase 3)
 
 **Configuration:**
-- Each workspace defines `workflow: lean | full` in `config.yaml` (default: lean)
+- Each repo defines `workflow: lean | full` in `repo.yaml` (default: lean)
 - Invalid values (e.g., `workflow: heavy`) cause the workspace to be skipped
 - Full mode can only be enabled for repos whose remote the owner controls (security boundary)
 
@@ -337,8 +340,7 @@ task: <description> (message)
 
 **Example Config:**
 ```yaml
-# In workspaces/<repo>/config.yaml
-name: discord-setup
+# In workspaces/<ws>/repos/discord-setup/repo.yaml
 path: /path/to/discord-repo
 description: Discord bot setup scripts
 workflow: full
@@ -407,13 +409,14 @@ system-prompt (MODE/HANDOFF/COMMON sections + context)
 
 ## Workspace Layout
 ```
-$AGENT_HOME/ (e.g. ~/.friday, symlink from <project-root>/.friday)
+$AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 ├── AGENTS.md               # Owner operating notes (auto-created)
 ├── IDENTITY.md             # Shared identity (auto-created)
 ├── SOUL.md                 # Shared persona: tone (auto-created)
 ├── USER.md                 # Owner profile & preferences (auto-created)
 ├── MEMORY.md               # Global memory (auto-created, max 2000 chars)
 ├── BOOTSTRAP.md            # Owner guide (auto-created, never read by code)
+├── discord.yaml            # ops channel ids + controlChannels (bootstrap:discord); unparsable = startup refusal
 ├── data/agent.db           # SQLite DB + WAL files
 ├── logs/
 │   ├── app.<date>.<n>.jsonl            # pino application log
@@ -431,11 +434,15 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project-root>/.friday)
 │       ├── cwd/             # Q&A cwd of runs not bound to one repo
 │       ├── tasks/<taskId>/  # plan stage scratch/, plan.md (execute stage)
 │       └── repos/<repo>/    # repo.yaml, MEMORY.md (agent), repo/ (managed clone), worktrees/<taskId>/
-│   (a dir with config.yaml and no workspace.yaml is the pre-Step-B layout: listed by loadWorkspaces,
+│   (a dir with the old per-repo config file and no workspace.yaml is the pre-Step-B layout: listed by loadWorkspaces,
 │    never loaded or written; the handler replies with the migration pointer when no workspace exists)
 ```
 
 **Local state in git:** the layout above has no per-workspace `logs/` and no `CLAUDE.md` / `CLAUDE.local.md` anywhere under the home. Ignore `data/`, `logs/`, `backups/`, `MEMORY.pending.md`, `workspaces/*/{cwd,tasks}/`, `workspaces/*/repos/*/{repo,worktrees}/` if the home is inside a git repo (Step B phase 3 moves it out).
+
+## Discord Setup (Step B phase 5)
+- `src/discord-setup/`: `discord-setup-config.ts` (discord.yaml schema, read = fail closed, deterministic write), `private-channels.ts` (pure overwrites builder, strict `isPrivate`, create-only create), `admin-command.ts` (parser + gate), `admin-handler.ts` (gate on the live message, then run), `init-workspace.ts` (+ `workspace-template.ts`: fs template, channel id into workspace.yaml), `bootstrap-discord-cli.ts` (`bun run bootstrap:discord [--dry-run]`), `ops-log.ts` (one redacted line on start / shutdown / uncaught error, best effort, skipped without `ops.log`), `ready-checks.ts` (`discord.bot_administrator` warning on every start).
+- Everything is create-only and never deletes; privacy is the 3-overwrite shape (see docs/discord-setup.md). Guild owner and Administrators bypass overwrites.
 
 ## Tool Restriction Strategy
 
@@ -481,7 +488,7 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 - Repo `workspaces/<ws>/repos/<repo>/MEMORY.md` (agent-written, newest 4000 chars per repo, 8000 for all repos of the workspace)
 - Injected into Q&A + plan + exec prompts under `### global`, `### workspace <ws>`, `### <repo>`
 - After successful exec runs, the agent's final "Memory:" bullets (max 5) are sanitized and appended to the repo file (dated); `[global]` bullets (max 2) go to `MEMORY.pending.md`, which no prompt builder reads (owner promotes by hand). See Persona & Memory Layering.
-- No CLAUDE.md symlinks are created; `CLAUDE.local.md` is never read or created by the app.
+- No CLAUDE.md files or links are created; `CLAUDE.local.md` is never read or created by the app.
 
 **Settings resolution (settingSources + injected MEMORY):**
 - All modes: `settingSources: []`; no CLAUDE.md of any repo is loaded or injected (see "No repo CLAUDE.md"). Repo skills only via the app-owned plugins; MEMORY.md layers injected in the system prompt.
@@ -493,7 +500,7 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 - Q&A: no GitHub tools (docker startup latency); read-only through git MCP
 - Plan: read-only (repos, issues, pull_requests toolsets)
 - Exec: read-only for agent; app (non-agent) creates PR via write-enabled MCP instance after owner clicks Create PR button
-- Token: per-process from `gh auth token --user <githubAccount>` (workspace config.yaml optional `githubAccount`, default active account); passed via env only
+- Token: per-process from `gh auth token --user <githubAccount>` (repo.yaml optional `githubAccount`, default active account); passed via env only
 - Git push: app-only (Bash, never force); GitHub MCP cannot push local commits
 
 **Worktree constraints:**
@@ -509,7 +516,7 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 - Worktree-only: `path` param must be worktree; reads ok on registered repos
 - Restrictions: No -F, -C, -c, --amend, --no-verify flags; no Co-Authored-By in message
 - Never performs: push, worktree management, fetch, config changes
-- Identity: GIT_AUTHOR_NAME/EMAIL + GIT_COMMITTER_NAME/EMAIL = owner (per-repo config.yaml gitAuthor); GIT_BASE_DIR = worktree (sandbox); GIT_SIGN_COMMITS=false
+- Identity: GIT_AUTHOR_NAME/EMAIL + GIT_COMMITTER_NAME/EMAIL = owner (per-repo repo.yaml gitAuthor); GIT_BASE_DIR = worktree (sandbox); GIT_SIGN_COMMITS=false
 
 **App (also through the git MCP server; no git CLI, no hand-written git functions in src/):**
 - Worktree: `git_worktree` add/remove + `git_branch` delete (task-worktree.ts, handle-task.ts cleanup)

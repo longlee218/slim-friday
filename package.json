@@ -1,9 +1,11 @@
 {
   "name": "friday-slim-agent",
   "private": true,
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "start": "bun run src/index.ts",
+    "bootstrap:discord": "bun run src/discord-setup/bootstrap-discord-cli.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "format": "biome format --write src test",

@@ -170,3 +170,73 @@ test("thread message with a null parent channel is dropped and logged (no_parent
     threadId: "thr5",
   });
 });
+
+const OPS = "700000000000000001";
+const CTRL = "700000000000000002";
+const setupWithOps = {
+  ops: { control: CTRL, log: OPS },
+  controlChannels: [CTRL],
+};
+
+/** Handler with ops channels configured and a recording admin hook. */
+function setupOps() {
+  const tasks: Task[] = [];
+  const admin: { prompt: string; channelId: string }[] = [];
+  const onMessage = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    guildId: "G1",
+    setup: setupWithOps,
+    handleTask: async (t) => {
+      tasks.push(t);
+      return "answer";
+    },
+    admin: async (m, prompt) => void admin.push({ prompt, channelId: m.channel.id }),
+  });
+  return { onMessage, tasks, admin };
+}
+
+test("messages in ops channels or their threads never reach handleTask", async () => {
+  const { onMessage, tasks, admin } = setupOps();
+  const logs = captureLogs();
+  await onMessage(fakeMsg({ channel: fakeChannel(OPS) }).msg); // mention in #ops-log
+  const th = fakeChannel("thrO", { thread: true, ownerId: BOT, parentId: OPS });
+  await onMessage(fakeMsg({ channel: th, mention: false, content: "follow up" }).msg);
+  const cth = fakeChannel("thrC", { thread: true, ownerId: BOT, parentId: CTRL });
+  await onMessage(fakeMsg({ channel: cth, mention: false, content: "follow up" }).msg);
+  logs.stop();
+  expect(tasks).toEqual([]);
+  expect(admin).toEqual([]);
+  expect(logs.lines.filter((l) => l.reason === "ops_channel")).toHaveLength(3);
+});
+
+test("control channel text goes to admin handling only, no mention needed, no task", async () => {
+  const { onMessage, tasks, admin } = setupOps();
+  await onMessage(
+    fakeMsg({ channel: fakeChannel(CTRL), mention: false, content: "init:workspace:x" }).msg,
+  );
+  expect(tasks).toEqual([]);
+  expect(admin).toEqual([{ prompt: "init:workspace:x", channelId: CTRL }]);
+});
+
+test("admin text in a normal channel or thread is routed to the admin gate, not the agent", async () => {
+  const { onMessage, tasks, admin } = setupOps();
+  await onMessage(fakeMsg({ content: `<@${BOT}> init:workspace:x` }).msg);
+  const th = fakeChannel("thr7", { thread: true, ownerId: BOT, parentId: "parent9" });
+  await onMessage(fakeMsg({ channel: th, mention: false, content: "init:workspace:y" }).msg);
+  expect(tasks).toEqual([]);
+  expect(admin.map((a) => a.prompt)).toEqual(["init:workspace:x", "init:workspace:y"]);
+});
+
+test("an admin hook that throws is contained", async () => {
+  const onMessage = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    setup: setupWithOps,
+    handleTask: async () => "x",
+    admin: async () => {
+      throw new Error("boom");
+    },
+  });
+  await onMessage(fakeMsg({ channel: fakeChannel(CTRL), mention: false, content: "help" }).msg);
+});

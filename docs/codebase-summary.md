@@ -27,7 +27,7 @@ Discord channel @bot <question>
 
 ### 2. AGENT_HOME Structure
 ```
-$AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
+$AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 ├── AGENTS.md                  # Owner operating notes (auto-created, Phase 1+)
 ├── IDENTITY.md                # Shared identity (auto-created)
 ├── SOUL.md                    # Shared persona: tone (auto-created)
@@ -71,13 +71,13 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 ### 5. GitHub MCP
 - **Server:** Official Docker image (`ghcr.io/github/github-mcp-server`)
 - **Agent Access:** Read-only (repos, issues, pull_requests) in plan/exec; none in Q&A (docker startup latency)
-- **Token:** Per-process from `gh auth token --user <githubAccount>` (config.yaml optional githubAccount, default active); env-only
+- **Token:** Per-process from `gh auth token --user <githubAccount>` (repo.yaml optional githubAccount, default active); env-only
 - **PR Creation:** App-only via write-enabled MCP instance after owner clicks button
 
 ### 6. Git MCP (@cyanheads/git-mcp-server 2.15.3)
 - **Server:** Pinned dependency, runs via bun binary (dist entry); stdio MCP client in src/mcp/git-mcp.ts
 - **Agent:** git add/commit auto-allowed in worktree; git_status/diff/log/show/blame/branch read-only; checkout/branch/reset ask; others denied
-- **Identity:** GIT_AUTHOR_NAME/EMAIL per config.yaml gitAuthor (validated at startup); GIT_BASE_DIR=worktree; GIT_SIGN_COMMITS=false
+- **Identity:** GIT_AUTHOR_NAME/EMAIL per repo.yaml gitAuthor (validated at startup); GIT_BASE_DIR=worktree; GIT_SIGN_COMMITS=false
 - **Restrictions:** No -F, -C, -c, --amend, --no-verify; Bash git now asks (use git MCP tools)
 - **Blocked:** writes to .claude/.husky/.git/.github/.mcp.json/.vscode/.devcontainer inside worktree
 - **App:** worktree add/remove, fetch/pull, push, log/diff/status/show all go through the same git MCP server (src/mcp/git-mcp.ts client); no git CLI and no hand-written git functions in src/
@@ -115,6 +115,14 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 - **memory-writer.ts:** `appendTaskMemory(home, ws, repo, title, bullets)` writes plain bullets to the repo MEMORY.md and `[global]` bullets to `MEMORY.pending.md`; deduplication, trimming; max 2 global bullets per task
 - **sanitize-bullet.ts:** `sanitizeBullet()`: one line, no markup/fences/HTML/role prefixes, redacted, 200 chars (applied in `extractMemory` and the writer)
 - **repo-memory.ts:** `readMemoryLayers`/`buildMemoryContext(home, ws, repos)`; `repoMemoryFile`; `extractMemory`
+### Discord setup (Step B phase 5, `src/discord-setup/`)
+- **discord-setup-config.ts:** discord.yaml (ops ids, controlChannels); missing = none, unparsable = throw (startup refusal); `opsIds`
+- **private-channels.ts:** `privateOverwrites`, strict `isPrivateOverwrites`/`isPrivateChannel`, `botPermissionReport`, create-only `createPrivate`
+- **admin-command.ts / admin-handler.ts:** `init:workspace:<name>` parser + gate (owner, pinned guild, control channel id + live isPrivate); handler runs outside the task handler
+- **init-workspace.ts / workspace-template.ts:** fs template, create category + `#<ws>-agent`, write channel id into workspace.yaml
+- **bootstrap-discord-cli.ts:** `bun run bootstrap:discord [--dry-run]` (lists every guild channel, creates ops + 4 channels, writes discord.yaml)
+- **ops-log.ts / ready-checks.ts:** #ops-log start/shutdown/error lines; `discord.bot_administrator` warning
+
 - **src/workspaces/task-workspace.ts:** `resolveTaskWorkspace`/`selectWorkspace`: the workspace of a run = the one listing the task's `channelId` (parent channel) in `channels:`, else a refusal (`unmapped_channel`, `no_repos`, `legacy_layout`); all repo lookups stay inside it
 
 ### Guardrails & Approvals
@@ -134,7 +142,7 @@ $AGENT_HOME/ (e.g. ~/.friday, symlink from <project>/.friday)
 ### Repository Management
 - **workspaces/workspace-registry.ts:** `loadWorkspaces(home)` -> `{workspaces, legacy}`: scans workspaces/*/workspace.yaml (zod: description, channels), fail-closed validation (name rules, real dirs not symlinks, duplicate channel ids dropped from both, `repo.overlap` warning); each workspace carries its own repos (no flat cross-workspace list: repo names are unique only inside a workspace)
 - **repo-registry.ts:** `loadRepos(ws, forbidden)` reads workspaces/<ws>/repos/*/repo.yaml (zod); optional defaultBranch, testCommand, githubAccount, `workflow` (lean|full, default lean); repo path must be a git root and not cover $HOME / AGENT_HOME; `buildRegistryContext(ws, repos, force)`
-- **git-identity.ts:** parse/resolve identity per config.yaml gitAuthor; attribution check; no git calls
+- **git-identity.ts:** parse/resolve identity per repo.yaml gitAuthor; attribution check; no git calls
 - **code-task-flow.ts:** git_fetch + git_worktree add (new branch agent/<taskId-prefix> from origin/<defaultBranch>); managed clones only; ask limit per task (shared across plan & exec stages)
 - **code-flow-workflow.ts:** determine execWorkflow per repo (lean/full); stage control with abort listener; ask timeout handling
 - **code-plan-stage.ts:** plan stage entry (extracted from code-task-flow for size management)
@@ -242,11 +250,11 @@ bun run start          # start bot (reads .env)
 - **Phase 0 (Spike):** Done — SDK behavior verified
 - **Phase 1a (Q&A + Discord):** Code complete — awaiting manual setup + live verification
 - **Phase 1b (Agent decides code vs Q&A):** **Code complete** (386 tests, 1 skip) — delegate tool + Q&A→plan handoff; `task:` prefix removed; pending manual Discord live check
-- **Phase 2 (Multi-repo registry):** Code complete — config.yaml loader (phase 4: per-workspace) + repo pin + git refresh verified
+- **Phase 2 (Multi-repo registry):** Code complete — repo.yaml loader (per-workspace, Step B) + repo pin + git refresh verified
 - **Phase 3 (Approval + guardrails):** Code complete — PreToolUse hook + canUseTool gates + plan mode
 - **Phase 4 (Worktree → PR + Memory + MCP):** Code complete (343 tests, 2 skip; live verified) — plan stage → execute stage → git/GitHub MCP commit → PR
 - **Phase 5 (Hardening):** **Code complete** (367 tests pass incl. live) — crash recovery (interrupted + Resume), output quota (attachments), error classification (quota/rate_limit/billing/overloaded), startup cleanup (30d logs + orphan logging)
-- **Delegate Phase 3 (Workflow modes + ask limit):** **Code complete** (438 tests, 6 skip) — per-repo `workflow: lean|full` in config.yaml; ask limit ONE per task (enforced across plan & exec); clone-based skill loading with security isolation (app-owned plugin dir, symlink/cap validation); vague requests → "Need X"; timeouts → "Awaiting clarification:" with session kept
+- **Delegate Phase 3 (Workflow modes + ask limit):** **Code complete** (438 tests, 6 skip) — per-repo `workflow: lean|full` in repo.yaml; ask limit ONE per task (enforced across plan & exec); clone-based skill loading with security isolation (app-owned plugin dir, symlink/cap validation); vague requests → "Need X"; timeouts → "Awaiting clarification:" with session kept
 - **Phase 6 (Eval + daily use):** Deferred — revisit before model change
 
 ## Known Limits (Phase 5 candidates)

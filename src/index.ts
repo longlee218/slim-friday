@@ -1,7 +1,11 @@
 import { type Client, Events } from "discord.js";
+import pkg from "../package.json";
 import { createDiscordApprovalGateway } from "./approvals/discord-approval";
 import { type AgentConfig, loadConfig, logProviderSelected } from "./config/agent-config";
 import { workspacePaths } from "./config/workspace-paths";
+import { opsIds, readDiscordSetup } from "./discord-setup/discord-setup-config";
+import { createOpsLog } from "./discord-setup/ops-log";
+import { warnIfBotAdministrator } from "./discord-setup/ready-checks";
 import { createDiscordBot } from "./ingress/discord-bot";
 import { homePlacementError } from "./lifecycle/home-placement-check";
 import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
@@ -49,6 +53,22 @@ async function main(): Promise<void> {
   if (!config.discordGuildId && workspaces.some((w) => w.channels.length))
     return fail("DISCORD_GUILD_ID required: a workspace lists channels");
 
+  // Fail closed: an unparsable discord.yaml could hide the ops/control channels, so refuse to start.
+  let setup: ReturnType<typeof readDiscordSetup>;
+  try {
+    setup = readDiscordSetup(config.agentHome);
+  } catch (err) {
+    return fail(String(err instanceof Error ? err.message : err));
+  }
+  // An ops channel id inside a workspace `channels:` is dropped: ingress never routes ops channels to a workspace.
+  const ops = opsIds(setup);
+  for (const w of workspaces)
+    for (const c of w.channels.filter((id) => ops.has(id)))
+      log.warn(
+        { workspace: w.name, channelId: c },
+        "ops channel listed in workspace channels: dropped",
+      );
+
   // Provider and model only; never keys.
   logProviderSelected(log, config);
 
@@ -78,24 +98,39 @@ async function main(): Promise<void> {
     guildId: config.discordGuildId,
   });
   // One interaction listener: each handler ignores buttons of the other (different customId prefix).
-  const { client } = createDiscordBot(config, handleTask, async (i) => {
-    await approvals.handleInteraction(i);
-    await handleResume(i);
-  });
+  const { client } = createDiscordBot(
+    config,
+    handleTask,
+    async (i) => {
+      await approvals.handleInteraction(i);
+      await handleResume(i);
+    },
+    setup,
+  );
   botClient = client;
+  // One #ops-log line per start / shutdown / uncaught error; no-op without ops.log in discord.yaml.
+  const opsLog = createOpsLog(() => botClient, setup.ops.log);
   client.once(Events.ClientReady, () => {
     void postResumeNotices({ db, getClient: () => botClient });
+    warnIfBotAdministrator(client, config.discordGuildId);
+    void opsLog.post("start", `pid=${process.pid} v${pkg.version}`);
   });
 
+  /** Reason of the shutdown in progress (set by the shutdown log hook, shown in #ops-log). */
+  let closeReason = "unknown";
   /** Graceful shutdown: abort + await runs, drop the connection, close db. */
   const shutdown = createShutdown({
     drain: handleTask.drain,
     destroyClient: async () => {
+      await opsLog.post("shutdown", closeReason);
       await handleTask.close().catch(() => undefined); // stop the git MCP server process
       await client.destroy();
     },
     closeDb: () => db.close(),
-    log: (m) => logEvent(log, "app.shutdown", { reason: m }),
+    log: (m) => {
+      closeReason = m.replace(/^shutting down: /, "");
+      logEvent(log, "app.shutdown", { reason: m });
+    },
     exit: (c) => process.exit(c),
   });
   process.on("SIGINT", () => {
@@ -107,11 +142,11 @@ async function main(): Promise<void> {
   // Stray errors: log (redacted) and shut down cleanly instead of dying mid-write.
   process.on("unhandledRejection", (e) => {
     log.error({ err: errText(e) }, "unhandled rejection");
-    void shutdown("unhandledRejection", 1);
+    void opsLog.post("error", e).then(() => shutdown("unhandledRejection", 1));
   });
   process.on("uncaughtException", (e) => {
     log.error({ err: errText(e) }, "uncaught exception");
-    void shutdown("uncaughtException", 1);
+    void opsLog.post("error", e).then(() => shutdown("uncaughtException", 1));
   });
 
   try {
