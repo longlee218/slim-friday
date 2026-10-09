@@ -1,0 +1,9 @@
+{
+  "session_id": "e591491a-9425-4546-9b0d-f32d0ac012b8",
+  "transcript_path": "<HOME>/.claude/projects/<PROJECT_SLUG>-repo/e591491a-9425-4546-9b0d-f32d0ac012b8.jsonl",
+  "cwd": "<SCRATCH>/repo",
+  "prompt_id": "54d98c61-04ae-4941-b5c0-02badbd72dc1",
+  "agent_id": "a982bfd6ad035924e",
+  "agent_type": "limited",
+  "hook_event_name": "SubagentStart"
+}

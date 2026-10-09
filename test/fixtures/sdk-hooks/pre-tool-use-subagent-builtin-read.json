@@ -1,0 +1,15 @@
+{
+  "session_id": "e591491a-9425-4546-9b0d-f32d0ac012b8",
+  "transcript_path": "<HOME>/.claude/projects/<PROJECT_SLUG>-repo/e591491a-9425-4546-9b0d-f32d0ac012b8.jsonl",
+  "cwd": "<SCRATCH>/repo",
+  "prompt_id": "54d98c61-04ae-4941-b5c0-02badbd72dc1",
+  "permission_mode": "default",
+  "agent_id": "a982bfd6ad035924e",
+  "agent_type": "limited",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Read",
+  "tool_input": {
+    "file_path": "<SCRATCH>/repo/secret.txt"
+  },
+  "tool_use_id": "toolu_01CiqoH2Je2abLTYBdsTcUoV"
+}
