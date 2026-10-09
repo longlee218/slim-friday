@@ -59,6 +59,7 @@ export function createWorkspaceDir(home: string, name: string): void {
   mkdirSync(ws.root, { mode: 0o700 });
   mkdirSync(ws.repos);
   mkdirSync(ws.cwd);
+  mkdirSync(ws.skills, { mode: 0o700 }); // owner-curated skills, empty by default
   writeFileSync(ws.config, Bun.YAML.stringify({ channels: [] }, null, 2), { mode: 0o600 });
   writeFileSync(ws.memory, workspaceMemoryTemplate(name), { mode: 0o600 });
   for (const [file, body] of Object.entries(PERSONA_STUBS))

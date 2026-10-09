@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { sweepStalePlugins } from "../agent/clone-skill-plugin";
+import { sweepStalePlugins } from "../agent/workspace-skills-plugin";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import { logEvent, logger } from "../observability/logger";

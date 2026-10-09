@@ -118,7 +118,7 @@ controlChannels:   # default: [ops.control]
 Type in `#ops-control` (no mention needed): `init:workspace:reelme`.
 - Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops`. Checked before anything is created.
 - Gate (all must hold): you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else (any other channel or a thread): not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
-- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `repos/`, `cwd/`, `MEMORY.md` header, heading-only persona stubs); a pre-Step-B dir with that name is refused. (2) private category `<name>` and `#<name>-agent`, create-only (existing names refused, nothing changed). (3) the new channel id is written into `workspace.yaml` (re-rendered deterministically: **comments in that file are lost**, other fields kept). (4) reply with what was created; next: add repos at `workspaces/<name>/repos/<repo>/repo.yaml`.
+- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `repos/`, `cwd/`, an empty `skills/` (mode 700), `MEMORY.md` header, heading-only persona stubs); a pre-Step-B dir with that name is refused. (2) private category `<name>` and `#<name>-agent`, create-only (existing names refused, nothing changed). (3) the new channel id is written into `workspace.yaml` (re-rendered deterministically: **comments in that file are lost**, other fields kept). (4) reply with what was created; next: add repos at `workspaces/<name>/repos/<repo>/repo.yaml`.
 - Rerun on a finished workspace: "already set up", nothing created. If channel creation fails midway the reply names what exists (delete a lone category by hand before retrying).
 - No task row, no limiter, no agent; logs `admin.init_workspace`.
 
@@ -272,12 +272,22 @@ gitAuthor: "Name <email>"                   # per-repo commit identity (owner fi
 defaultBranch: main                         # defaults to origin/HEAD, then main/master
 testCommand: "bun test"                     # command must match exactly for auto-allow
 githubAccount: longlhdev                    # GitHub account for PR creation; defaults to `gh auth token --user` active account
-workflow: full                               # enable skill loading + full autonomy (only for owner-controlled remotes; default: lean)
+workflow: full                               # autonomous rules text; follows the workspace's curated skills (only for owner-controlled remotes; default: lean)
 ```
 
+**Workspace skills:** Friday never loads a repo's `.claude/skills`. Each workspace has its own curated dir; copy a skill folder in to give every run of that workspace (Q&A, plan, exec) the skill:
+```
+cp -R /path/to/deploy ~/.friday/workspaces/<ws>/skills/deploy     # needs deploy/SKILL.md
+~/.friday/workspaces/<ws>/skills/
+  deploy/SKILL.md
+  deploy/helper.sh        # bundled files are readable (never writable) during the run
+```
+- Skills appear as `<ws>:<skill>`. No restart: the plugin is rebuilt on every run. Empty/missing dir = no skills.
+- Limits: 300 entries (files + dirs) / 5 MB / depth 8 per workspace; over a limit nothing loads and a `workspace skills not loaded` warning is logged. Symlinks are skipped.
+
 **Workflow Modes (Phase 3+):**
-- `workflow: lean` (default) — safe for any repo; no skills loaded in exec stage; standard rules apply
-- `workflow: full` — for owner-controlled repos only; loads skills from clone/.claude/skills; enables broader assumptions in prompts; requires that the remote is owned/controlled by the agent owner
+- `workflow: lean` (default) — safe for any repo; standard rules apply
+- `workflow: full` — for owner-controlled repos only; tells the agent to run the workspace's curated skills autonomously; enables broader assumptions in prompts; requires that the remote is owned/controlled by the agent owner
 
 **Important:**
 - Repos must be **managed clones under AGENT_HOME/workspaces/<ws>/repos/<name>/repo/**. Code tasks on clones elsewhere are refused.

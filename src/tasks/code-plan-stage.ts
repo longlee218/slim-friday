@@ -41,8 +41,8 @@ export async function runPlanStage(
     cwd: scratchReal,
     resume: i.planResume?.sessionId,
     additionalDirectories: repoPaths,
-    // The plan picks the repo: every workspace repo's skills are offered (same set it may read).
-    skillRepos: i.repos.map((r) => ({ name: r.name, path: r.path })),
+    // Curated skills of this workspace (never repo content).
+    skillsWorkspace: i.workspace,
     extraContext: buildPromptContext({
       agentHome: config.agentHome,
       workspace: i.workspace,

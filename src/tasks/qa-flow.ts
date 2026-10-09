@@ -59,7 +59,7 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
   // One repo: that repo.
   const workspaceDir = workspacePaths(config.agentHome).workspace(i.workspace).cwd;
   mkdirSync(workspaceDir, { recursive: true });
-  const unpinnedCwd = repos.length > 1 ? workspaceDir : repos[0]!.path;
+  const unpinnedCwd = repos.length > 1 ? workspaceDir : repos[0]?.path;
   const storedOk =
     existing && (existing.cwd === workspaceDir || repos.some((r) => r.path === existing.cwd));
   const cwd = pinned?.path ?? (storedOk ? existing.cwd : unpinnedCwd);
@@ -94,8 +94,8 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
     taskId: i.taskId,
     cwd,
     additionalDirectories,
-    // Skills of the repos this run may read (pinned: that repo; else all), via the app-owned plugins.
-    skillRepos: scope.map((r) => ({ name: r.name, path: r.path })),
+    // Curated skills of this workspace (never repo content), via the app-owned plugin.
+    skillsWorkspace: i.workspace,
     // Q&A guardrails: read only the registered repos (+ workspace); git MCP reads only those repos.
     guard: guardFor("qa", {
       readPaths: [cwd, ...additionalDirectories].map(realOrSame),

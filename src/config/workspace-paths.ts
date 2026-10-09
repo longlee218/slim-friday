@@ -42,6 +42,8 @@ export function workspacePaths(agentHome: string) {
         user: join(root, "USER.md"),
         /** Owner-edited workspace memory. */
         memory: join(root, "MEMORY.md"),
+        /** Owner-curated skills (`skills/<name>/SKILL.md`): the only skills any run of this workspace gets. */
+        skills: join(root, "skills"),
         /** Working dir of runs that are not bound to one repo. */
         cwd: join(root, "cwd"),
         tasks,

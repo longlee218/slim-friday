@@ -115,8 +115,8 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
       abortController: stage.ac,
       queryFn: deps.queryFn,
       workflow: flow.workflow,
-      // Skills from the trusted clone (repo.path), never from the agent-writable worktree.
-      skillRepos: [{ name: repo.name, path: repo.path }],
+      // Curated skills of this workspace (never repo content).
+      skillsWorkspace: i.workspace,
       githubAccount: repo.githubAccount,
       gitAuthor: author,
       gitBaseDir: cwd, // the agent's git server may only touch this worktree

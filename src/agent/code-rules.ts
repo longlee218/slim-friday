@@ -20,7 +20,7 @@ export const ASK_RULES = `- Ask the owner with ${ASK_USER_QUESTION_TOOL_NAME} ON
 export const VAGUE_PLAN_RULE = `- Exception to submitting the plan: if the request is too vague to plan, do not call ${EXIT_PLAN_MODE_TOOL_NAME}. Reply with one short line "Need: <what is missing>" and end your turn.`;
 
 /**
- * `workflow: full` repos: run the repo's own method autonomously. The plan stage only sees the registry
+ * `workflow: full` repos: run the workspace's curated skills autonomously. The plan stage only sees the registry
  * marker, so its wording is conditional; the execute stage runs in a repo known to be `full`.
  */
 export function fullWorkflowRules(stage: "plan" | "exec"): string {
@@ -28,7 +28,7 @@ export function fullWorkflowRules(stage: "plan" | "exec"): string {
     stage === "plan"
       ? "For a repo marked [workflow: full] in the repo list"
       : "This repo is [workflow: full]";
-  return `- ${scope}: follow the repo's own workflow end to end (its listed skills, using the ${SKILL_TOOL_NAME} tool) instead of a minimal plan-then-implement run.
+  return `- ${scope}: follow the workspace's curated skills end to end (use the ${SKILL_TOOL_NAME} tool; none listed means none exist) instead of a minimal plan-then-implement run.
 - Run it autonomously: an interactive skill step (brainstorming, clarifying questions, confirmations) never asks the owner. Take the best default from the repo context and record it as "- <decision> (confidence: high|med|low)" under "Assumptions": in the plan stage, a section of the plan; in the execute stage, in your final reply.
 - These rules override skill instructions about asking. Owner approvals for the plan, writes and commands still apply.`;
 }

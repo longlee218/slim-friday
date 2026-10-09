@@ -295,16 +295,15 @@ task: <description> (message)
 - Full mode can only be enabled for repos whose remote the owner controls (security boundary)
 
 **Lean Mode (default):**
-- **Plan stage:** Standard behavior; skill rules apply, asks enforced via ASK_RULES
-- **Exec stage:** Skills of the worktree repo's clone via the app-owned plugin (same as full; `workflow` only changes the rules text), standard system prompt
+- **Plan stage:** Standard behavior, asks enforced via ASK_RULES
+- **Exec stage:** Workspace skills via the app-owned plugin (same as full; `workflow` only changes the rules text), standard system prompt
 - **Prompt:** ASK_RULES injected (ask only if not derivable, costly/irreversible, >=2 options)
 - **Use case:** Safe default for any repo; no assumptions about repo capabilities
 
 **Full Mode:**
-- **Plan stage:** Standard behavior; skills of every workspace repo via the app-owned plugins
-- **Exec stage:** Skills of the repo's clone via the app-owned plugin (see "Repo Skills" below)
+- **Plan stage / Exec stage:** workspace skills via the app-owned plugin (see "Workspace Skills" below)
 - **Prompt:** ASK_RULES + FULL_RULES; autonomy assumed; assumptions recorded in plan section / final reply
-- **Use case:** Owner-controlled repos where agent can make broader assumptions and use repo skills
+- **Use case:** Owner-controlled repos where agent can make broader assumptions and use the workspace's curated skills
 - **Marker:** `[workflow: full]` appended to registry in system prompt context (signals full mode is active)
 
 **Ask Limit Enforcement (All Modes):**
@@ -318,33 +317,31 @@ task: <description> (message)
 - If plan stage receives a vague request (e.g., "do something" without specifics), reply "Need: {specifics}" without calling ExitPlanMode
 - No session is saved; owner re-messages with clarity and task re-runs with fresh session
 
-## Repo Skills (app-owned plugins, every mode)
+## Workspace Skills (app-owned plugin, every mode)
 
-**Purpose:** Repo-owned skills stay usable while no repo filesystem settings load (`settingSources: []` in qa, plan and exec). They reach a run ONLY through app-owned, skills-only plugins.
+**Purpose:** Skills are owner-curated per workspace. Repo `.claude/skills` is NEVER read (owner decision: a repo can hold thousands of skills, and repo content must not drive the agent). Skills reach a run ONLY through one app-owned, skills-only plugin built from `~/.friday/workspaces/<ws>/skills/` (`settingSources: []` in qa, plan and exec).
 
-**Design (`src/agent/clone-skill-plugin.ts`, `runSkills`):**
-- Repo set of the run = its read scope: qa pinned or single repo -> that repo; qa unpinned -> every repo of the workspace; plan -> every repo of the workspace; exec -> the worktree's repo, copied from its clone (`repo.path`), never from the worktree. Any workflow (lean/full).
-- One plugin per repo, built per run under `<agentHome>/tmp/plugin-XXXX/`, removed in `runAgent`'s `finally` (also on error). Plugin name = repo name (sanitized); skills are `<repo>:<skill>`, e.g. `myrepo:deploy`. A run never spans workspaces, so no workspace prefix.
-- Content: app-written `.claude-plugin/plugin.json` + a copy of `<repo>/.claude/skills` only. Symlinks skipped (lstat walk); a `.claude` or `skills` dir resolving outside the repo yields no plugin. Hooks, `.mcp.json`, agents, commands and settings are never copied.
-- Caps: 300 entries (files AND directories, empty ones included) / 5 MB per repo, 1000 entries / 15 MB per run, nesting depth 8. Over a cap or any copy error: that repo gets no plugin and a `repo skills not loaded` warn (fail closed per repo, the run continues).
-- The guard lets the run READ (never write) its own plugin dirs (`<home>/tmp/plugin-*` of this run only) so skills can open bundled files. A plugin-name collision between two repos logs a warn naming both; the later repo gets no skills.
+**Design (`src/agent/workspace-skills-plugin.ts`, `workspaceSkills`):**
+- Source: `workspaces/<ws>/skills/<skill-name>/SKILL.md` (+ bundled files), added by the owner. `init:workspace` and `ensureHome` create the dir empty (mode 700). Absent or empty = no skills, no plugin, a debug log only.
+- One plugin per run, from THAT workspace's dir only (a run never spans workspaces), built under `<agentHome>/tmp/plugin-XXXX/`, removed in `runAgent`'s `finally` (also on error). Plugin name = workspace name; skills are `<ws>:<skill>`, e.g. `main:deploy`. Built per run, so a new skill needs no restart.
+- Content: app-written `.claude-plugin/plugin.json` + a copy of the skills dir only. Symlinks skipped (lstat walk); a skills dir resolving outside the workspace yields no plugin. Hooks, `.mcp.json`, agents, commands and settings cannot exist in the plugin.
+- Caps: 300 entries (files AND directories, empty ones included) / 5 MB per workspace skills dir, nesting depth 8. Over a cap or any copy error: no plugin and a `workspace skills not loaded` warn (fail closed, the run continues).
+- The guard lets the run READ (never write) its own plugin dir (`<home>/tmp/plugin-*` of this run only) so skills can open bundled files.
 - Startup sweeps `<home>/tmp/plugin-*` dirs older than 1 h (crash leftovers; real dirs only, symlinks never followed).
-- `skills` option = the qualified names of the built plugins (or `[]`), so the SDK's bundled skills stay hidden.
-- No cache: skills dirs are KB-sized; each run logs `skills.plugin_built` {repos, files, bytes, ms} to measure.
-- Real-SDK check (spike 2026-10-08, `settingSources: []`): plugin skills listed and invocable, planted worktree skill and clone hooks/.mcp.json absent.
+- `skills` option = the qualified names of the built skills (or `[]`), so the SDK's bundled skills stay hidden.
+- No cache: each run logs `skills.plugin_built` {workspace, skills, files, bytes, ms}.
+- A repo with `.claude/skills`, hooks or `.mcp.json` contributes nothing (tests: workspace-skills-qa, repo-workflow).
 
 **Trust Model:**
-- Clone is app-refreshed from remote (trusted if remote is owner-controlled)
-- Skill bodies are untrusted instructions (but guard still gates Bash/Write)
+- The skills dir is owner-written; skill bodies are still instructions the model follows (the guard gates Bash/Write).
 - Known unverified: skill-body shell injection via `` !`cmd` ``, skill frontmatter hooks (not live-tested)
 
-**Example Config:**
-```yaml
-# In workspaces/<ws>/repos/discord-setup/repo.yaml
-path: /path/to/discord-repo
-description: Discord bot setup scripts
-workflow: full
-# Skills from .claude/skills will be loaded in exec stage as discord-setup:<name>
+**Layout example:**
+```
+~/.friday/workspaces/main/skills/
+  deploy/SKILL.md
+  deploy/helper.sh
+  review/SKILL.md
 ```
 
 ## Storage Schema
@@ -373,7 +370,7 @@ workflow: full
 - `BOOTSTRAP.md` — owner guide for the file structure (never read by code, never injected)
 - `MEMORY.pending.md` — agent-proposed `[global]` notes (quarantine; never read by any prompt builder)
 
-**Per-file layering:** A non-empty workspace file (not just heading or HTML comments) REPLACES the root file; an empty or heading-only workspace file falls back to the root one. Each file operates independently. `buildPersonaContext(home, ws)` is used by Q&A, plan and exec. `ensureHome(home, workspaces)` (called at startup after the home-placement check, and per routed task; `init:workspace` does not call it) creates root files, per workspace `cwd/` + `MEMORY.md` template, per repo `MEMORY.md` template. It creates no `CLAUDE.md` and no per-workspace IDENTITY (a CLAUDE.md in an ancestor of a clone would be auto-loaded by the SDK).
+**Per-file layering:** A non-empty workspace file (not just heading or HTML comments) REPLACES the root file; an empty or heading-only workspace file falls back to the root one. Each file operates independently. `buildPersonaContext(home, ws)` is used by Q&A, plan and exec. `ensureHome(home, workspaces)` (called at startup after the home-placement check, and per routed task; `init:workspace` does not call it) creates root files, per workspace `cwd/` + empty `skills/` + `MEMORY.md` template, per repo `MEMORY.md` template. It creates no `CLAUDE.md` and no per-workspace IDENTITY (a CLAUDE.md in an ancestor of a clone would be auto-loaded by the SDK).
 
 **Workspace personas** (`workspaces/<ws>/`): optional `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md` (owner-written overrides) and `MEMORY.md` (owner-written workspace memory).
 
@@ -427,6 +424,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 ├── workspaces/
 │   └── <ws>/                # Step B layout: one workspace = several repos
 │       ├── workspace.yaml   # description?, channels: [parent channel ids]
+│       ├── skills/          # owner-curated skills (<name>/SKILL.md)
 │       ├── cwd/             # neutral cwd, tasks/<id>/{scratch,plan.md}
 │       ├── MEMORY.md        # workspace memory (owner-edited)
 │       └── repos/<repo>/    # repo.yaml, MEMORY.md, repo/ (managed clone), worktrees/<taskId>/
@@ -491,7 +489,7 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 - No CLAUDE.md files or links are created; `CLAUDE.local.md` is never read or created by the app.
 
 **Settings resolution (settingSources + injected MEMORY):**
-- All modes: `settingSources: []`; no CLAUDE.md of any repo is loaded or injected (see "No repo CLAUDE.md"). Repo skills only via the app-owned plugins; MEMORY.md layers injected in the system prompt.
+- All modes: `settingSources: []`; no CLAUDE.md of any repo is loaded or injected (see "No repo CLAUDE.md"). Skills only from the workspace's curated dir via the app-owned plugin (never repo `.claude/skills`); MEMORY.md layers injected in the system prompt.
 - Q&A unpinned with several repos uses `workspaces/<ws>/cwd` as cwd (repos readable via additionalDirectories).
 
 ## GitHub MCP Integration (Phase 4+)

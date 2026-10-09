@@ -27,11 +27,11 @@ import { buildToolHooks } from "../observability/tool-hooks";
 import type { Workflow } from "../repos/repo-registry";
 import { setTaskSession } from "../storage/run-store";
 import { SUBAGENTS, type ToolMode, toolOptions } from "../tools/tool-catalog";
-import { runSkills, type SkillRepo } from "./clone-skill-plugin";
 import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
 import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
 import { buildToolPermissions, type ToolPermissionInput } from "./tool-permissions";
+import { workspaceSkills } from "./workspace-skills-plugin";
 
 /** Signature of the SDK `query` function; injectable for tests. */
 export type QueryFn = (args: { prompt: string; options?: Options }) => AsyncIterable<SDKMessage>;
@@ -65,8 +65,8 @@ export interface RunAgentInput {
   };
   /** `full` repo workflow (plan: some candidate repo is full; exec: the repo is): adds its rules to the prompt. */
   workflow?: Workflow;
-  /** Repos whose `.claude/skills` the run may use, via the app-owned plugin copy (trusted clones, never a worktree). */
-  skillRepos?: SkillRepo[];
+  /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never repo content). */
+  skillsWorkspace?: string;
   /** Existing Claude session id to resume. */
   resume?: string;
   config: AgentConfig;
@@ -158,8 +158,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   let rejected = false;
   let resetsAt: number | undefined;
 
-  // Repo skills as app-owned plugin copies (fail closed, never throws); the dirs are removed in `finally`.
-  const sk = runSkills(input.skillRepos, config.agentHome);
+  // Workspace skills as an app-owned plugin copy (fail closed, never throws); removed in `finally`.
+  const sk = workspaceSkills(input.skillsWorkspace, config.agentHome);
 
   // Every mode goes through the permission layer when it has a guard (Q&A has no gateway: ask = deny).
   // This run's plugin dirs (and only those) become READABLE so skills can open their bundled files.
@@ -188,8 +188,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       mcpServers: await mcpServersFor(mode, input),
       ...(mode === "plan" && { permissionMode: "plan" as const }),
       ...(perms && { canUseTool: perms.canUseTool }),
-      // Subagents with explicit read-only tools in every mode. Skills: only the run's repos' own, through the
-      // plugins above; the list hides the SDK's bundled ones (a model once reached for `update-config`).
+      // Subagents with explicit read-only tools in every mode. Skills: only the workspace's curated ones, through
+      // the plugin above; the list hides the SDK's bundled ones (a model once reached for `update-config`).
       agents: SUBAGENTS,
       skills: sk.skills,
       ...(sk.plugins && { plugins: sk.plugins }),

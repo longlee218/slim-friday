@@ -40,11 +40,11 @@ src/
 │   ├── discord-message-handler.ts
 │   └── discord-message-rules.ts
 ├── agent/                      # Agent SDK logic
-│   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; opts.handoff for delegate tool; repo skills from app-owned plugins, `settingSources: []` (Step B P3)
+│   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; opts.handoff for delegate tool; workspace skills from an app-owned plugin, `settingSources: []`
 │   ├── system-prompt.ts        # Sections: MODE (qa/plan/exec contract), HANDOFF (delegate tool when opts.handoff=true), ASK_RULES (Phase 3), COMMON (safety), then context. Identity/tone in persona files, not here.
 │   ├── code-rules.ts           # ASK_RULES text constant; FULL_RULES for full-mode repos (Phase 3)
 │   ├── tool-permissions.ts     # core permission layer: PreToolUse (hard deny/force ask) + canUseTool (approvals, ONE ask per task via askLimit, Phase 3)
-│   ├── clone-skill-plugin.ts   # build app-owned per-repo plugins: copy repo/.claude/skills with validation and caps (Step B P3)
+│   ├── workspace-skills-plugin.ts # build the app-owned plugin from workspaces/<ws>/skills with validation and caps
 │   ├── run-errors.ts           # error classification (quota, rate_limit, billing, overloaded); phase 5+
 │   └── sdk-env.ts              # environment builder per provider (anthropic/openrouter)
 ├── mcp/                        # MCP client & server management
@@ -97,7 +97,7 @@ src/
 │   └── approval-types.ts       # request/response shapes (ExitPlanMode, AskUserQuestion, CreatePR; phase 4+)
 ├── config/                     # Configuration & workspace paths
 │   ├── agent-config.ts         # load/validate env (zod); MODEL, CODE_MODEL, LLM_PROVIDER, OPENROUTER_API_KEY
-│   └── workspace-paths.ts      # AGENT_HOME layout: workspaces/<ws>/{workspace.yaml, cwd/, tasks/, repos/<repo>/{repo.yaml, repo/, worktrees/}}, data, logs
+│   └── workspace-paths.ts      # AGENT_HOME layout: workspaces/<ws>/{workspace.yaml, skills/, cwd/, tasks/, repos/<repo>/{repo.yaml, repo/, worktrees/}}, data, logs
 ├── storage/                    # Database & persistence
 │   ├── db.ts                   # SQLite setup; worktrees table (phase 4+); tasks.brief column (phase 1c+, idempotent ALTER)
 │   ├── run-store.ts            # runs table ops; insertTask stores brief redacted (phase 1c+); memory append on exec success
@@ -126,8 +126,9 @@ test/
 ├── db-schema.test.ts           # DB migration, idempotency (phase 1c+)
 ├── delegate-eval.live.test.ts  # Golden set: 21 live Sonnet/deepseek runs (phase 1c+, opt-in: DELEGATE_EVAL=1)
 ├── ask-boundary.test.ts        # ask limit per task, timeout → awaiting, plan/exec stages, stop vs clarification (Phase 3)
-├── clone-skill-plugin.test.ts  # per-repo plugins, symlink/cap validation, cleanup (Step B P3)
-├── repo-workflow.test.ts       # lean vs full modes, exec skills loading, path boundaries (Phase 3)
+├── workspace-skills-plugin.test.ts # workspace plugin, symlink/cap validation, cleanup
+├── workspace-skills-qa.test.ts # qa: workspace skills only, repo skills/hooks ignored, guard read access
+├── repo-workflow.test.ts       # lean vs full modes, workspace skills in plan/exec, path boundaries
 ├── stage-control.test.ts       # abort listener, stageControl semantics (Phase 3)
 ├── worktree.test.ts            # worktree create/remove/list (phase 4+)
 ├── publish-pr.test.ts          # push + gh pr create (phase 4+)
