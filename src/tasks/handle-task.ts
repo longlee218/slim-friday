@@ -13,21 +13,19 @@ import {
   logger,
   runWithLogContext,
   setLogContext,
-  tryLog,
 } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { finishTask } from "../storage/run-store";
 import { deleteSession, getSession } from "../storage/session-store";
 import { selectWorkspace } from "../workspaces/task-workspace";
-import { HANDOFF_OUTCOMES, runHandoff } from "./code-handoff";
+import { runHandoff } from "./code-handoff";
 import { runCodeFlow } from "./code-task-flow";
 import { runQaFlow } from "./qa-flow";
 import type { RunLimiter } from "./run-limiter";
 import { parseTaskCommand } from "./task-commands";
 import type { FlowResult } from "./task-result";
-import { closeTask, OUTCOME_REPLY } from "./task-result";
+import { closeTask, OUTCOME_REPLY, RESUMABLE_OUTCOMES } from "./task-result";
 import { resolveCommand, routeTask } from "./task-routing";
-import { beginTask, createRunTracker, refused, taskLogContext } from "./task-tracker";
+import { beginTask, createRunTracker, failTask, refused, taskLogContext } from "./task-tracker";
 import { cleanupWorktree } from "./task-worktree";
 
 /** Dependencies of the task handler. */
@@ -158,7 +156,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       const o = { stopping: tracker.isStopping(), t0, repo: taskRepo() };
       const reply = closeTask(db, { taskId, threadId }, res, o);
       // `DelegateTask` was called: the plan stage starts now, same thread and lock (`await`: finally must wait).
-      if (res.proposal && HANDOFF_OUTCOMES.has(res.outcome)) {
+      if (res.proposal && RESUMABLE_OUTCOMES.has(res.outcome)) {
         const h = { ...codeDeps, stopping: tracker.isStopping };
         return await runHandoff(h, {
           task,
@@ -181,7 +179,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       return reply;
     } catch (err) {
       // Never throw from the error path (db may be closed during shutdown).
-      if (taskInserted) tryLog(log, "finishTask failed", () => finishTask(db, taskId, "failed"));
+      if (taskInserted) failTask(db, log, taskId);
       logEvent(
         log,
         "task.finished",

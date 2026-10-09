@@ -7,7 +7,7 @@ export const RESUME_PROMPT =
 /** What an owner message means: a control command, or a Q&A / code task with an optional repo hint. */
 export type TaskCommand =
   | { kind: "stop" }
-  /** The Resume button: continue the thread's saved session (see `resolveResume`). */
+  /** The Resume button: continue the thread's saved session. */
   | { kind: "resume" }
   /** `cleanup:` removes this thread's worktree; `cleanup:<task-id>` a specific one. */
   | { kind: "cleanup"; taskId?: string }

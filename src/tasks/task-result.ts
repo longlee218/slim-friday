@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { RunAgentResult } from "../agent/run-agent";
 import { excerpt, logEvent, logger } from "../observability/logger";
+import type { RunOutcome } from "../observability/record-run";
 import { redactText } from "../observability/redact";
 import { finishTask, setTaskStatus, type TaskStatus } from "../storage/run-store";
 import { setSession } from "../storage/session-store";
@@ -44,8 +45,15 @@ const TASK_STATUS: Record<string, TaskStatus> = {
   timeout: "timeout",
 };
 
-/** Outcomes where a result message arrived, so the session transcript exists and can be resumed. */
-const SAVE_SESSION_OUTCOMES = new Set(["success", "max_turns", "max_budget"]);
+/**
+ * Outcomes where a result message arrived, so the session transcript exists and can be resumed (the session
+ * is saved) and a recorded `DelegateTask` proposal is still acted on.
+ */
+export const RESUMABLE_OUTCOMES: ReadonlySet<RunOutcome> = new Set([
+  "success",
+  "max_turns",
+  "max_budget",
+]);
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "task-result" });
@@ -56,7 +64,7 @@ export function finishRun(
   ids: { taskId: string; threadId: string },
   res: FlowResult,
 ): string {
-  if (res.sessionId && res.cwd && (res.keepSession || SAVE_SESSION_OUTCOMES.has(res.outcome))) {
+  if (res.sessionId && res.cwd && (res.keepSession || RESUMABLE_OUTCOMES.has(res.outcome))) {
     setSession(db, {
       threadId: ids.threadId,
       sessionId: res.sessionId,

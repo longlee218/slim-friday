@@ -5,7 +5,7 @@ import { buildMemoryContext, readMemoryLayers } from "./repo-memory";
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "prompt-context" });
 
-/** Heading of the rejected-plans block; the HANDOFF rule in system-prompt.ts names it (a test ties them). */
+/** Heading of the rejected-plans block; HANDOFF_RULES (DelegateTaskTool/prompt.ts) names it (a test ties them). */
 export const REJECTED_PLANS_HEADING = "Rejected code-task plans in this thread:";
 
 /** What a flow knows when it builds the context of one run. */

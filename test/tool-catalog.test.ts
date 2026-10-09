@@ -120,6 +120,12 @@ test("auto-allowed tools are a subset of the mode's tools and never include writ
   expect(autoAllowedTools("exec")).toContain(ENTER_PLAN_MODE_TOOL_NAME);
 });
 
+test("DelegateTask is auto-allowed in qa only when the run registers it", () => {
+  expect(autoAllowedTools("qa", { delegate: false })).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
+  expect(autoAllowedTools("qa", { delegate: true })).toContain(DELEGATE_TASK_MCP_TOOL_NAME);
+  expect(autoAllowedTools("exec", { delegate: true })).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
+});
+
 test("git tools: reads everywhere, commit/change only in exec, hidden = the complement", () => {
   expect(gitToolsFor("qa")).toEqual(gitToolsFor("plan"));
   for (const t of [...GIT_GROUPS.read, ...Object.keys(GIT_READ_BY_MODE)])

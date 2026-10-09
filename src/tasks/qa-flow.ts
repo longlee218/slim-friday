@@ -97,10 +97,15 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
     // Curated skills of this workspace (never repo content), via the app-owned plugin.
     skillsWorkspace: i.workspace,
     // Q&A guardrails: read only the registered repos (+ workspace); git MCP reads only those repos.
-    guard: guardFor("qa", {
-      readPaths: [cwd, ...additionalDirectories].map(realOrSame),
-      gitReadRepos: scope.map((r) => realOrSame(r.path)),
-    }),
+    // `DelegateTask` is auto-allowed only when this run registers it (`appServer`).
+    guard: guardFor(
+      "qa",
+      {
+        readPaths: [cwd, ...additionalDirectories].map(realOrSame),
+        gitReadRepos: scope.map((r) => realOrSame(r.path)),
+      },
+      { delegate: !!i.allowDelegate },
+    ),
     extraContext: buildPromptContext({
       agentHome: config.agentHome,
       workspace: i.workspace,

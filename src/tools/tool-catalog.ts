@@ -43,8 +43,10 @@ export type Capability =
   | "ask" // AskUserQuestion: answered by the owner through Discord buttons
   | "planControl"; // enter / leave plan mode (leaving needs the owner's approval)
 
-/** Plan-flow tools: ExitPlanMode and AskUserQuestion are answered by the owner (canUseTool); Enter is harmless. */
-/** The guard lets these through; the approval flow (not the guard) decides on them. */
+/**
+ * Plan-flow tools: ExitPlanMode and AskUserQuestion are answered by the owner (canUseTool); Enter is harmless.
+ * The guard lets these through; the approval flow (not the guard) decides on them.
+ */
 export const PLAN_FLOW_TOOLS: ReadonlySet<string> = new Set([
   EXIT_PLAN_MODE_TOOL_NAME,
   ASK_USER_QUESTION_TOOL_NAME,
@@ -101,10 +103,13 @@ const AUTO_ALLOWED = new Set<string>([
 export const toolsFor = (mode: ToolMode): string[] =>
   MODE_CAPABILITIES[mode].flatMap((c) => CAPABILITY_TOOLS[c]);
 
-/** Tools of a mode that need no approval (the guard's `allowTools`); `DelegateTask` only exists in Q&A. */
-export const autoAllowedTools = (mode: ToolMode): string[] => [
+/**
+ * Tools of a mode that need no approval (the guard's `allowTools`). `DelegateTask` exists in Q&A only, and is
+ * allowed only when the run registers it (`delegate`, default true); otherwise the guard denies the unknown tool.
+ */
+export const autoAllowedTools = (mode: ToolMode, opts: { delegate?: boolean } = {}): string[] => [
   ...toolsFor(mode).filter((t) => AUTO_ALLOWED.has(t)),
-  ...(mode === "qa" ? [DELEGATE_TASK_MCP_TOOL_NAME] : []),
+  ...(mode === "qa" && (opts.delegate ?? true) ? [DELEGATE_TASK_MCP_TOOL_NAME] : []),
 ];
 
 /* ---------------- git MCP tools (@cyanheads/git-mcp-server 2.15.3) ---------------- */

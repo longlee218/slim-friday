@@ -65,8 +65,12 @@ export type GuardScope = Omit<GuardrailContext, "allowTools" | "allowedSubagents
  * The guard context of a run: the mode's auto-allowed tools and the configured subagents come from the
  * tool catalog, the paths from the caller. One builder for Q&A, plan and execute stages.
  */
-export function guardFor(mode: ToolMode, scope: GuardScope): GuardrailContext {
-  return { ...scope, allowTools: autoAllowedTools(mode), allowedSubagents: SUBAGENT_NAMES };
+export function guardFor(
+  mode: ToolMode,
+  scope: GuardScope,
+  opts: { delegate?: boolean } = {},
+): GuardrailContext {
+  return { ...scope, allowTools: autoAllowedTools(mode, opts), allowedSubagents: SUBAGENT_NAMES };
 }
 
 const WRITE_TOOLS = new Set([

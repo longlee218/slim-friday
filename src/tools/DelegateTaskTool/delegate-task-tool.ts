@@ -31,7 +31,7 @@ export function createDelegateTaskTool(h: {
     DELEGATE_TASK_TOOL_NAME,
     DESCRIPTION,
     {
-      // Single role on purpose: dev = plan stage then exec stage. Any other value fails the schema.
+      // Only the dev role exists (plan stage, then exec stage); any other value fails the schema.
       role: z.enum(["dev"]),
       brief: z.string().min(20).max(4000),
       repo: z.string().min(1).max(100).optional(),

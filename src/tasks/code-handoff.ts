@@ -1,27 +1,20 @@
 import type { Database } from "bun:sqlite";
 import type { Task } from "../ingress/discord-message-handler";
-import { excerpt, logEvent, logger, setLogContext, tryLog } from "../observability/logger";
+import { excerpt, logEvent, logger, setLogContext } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { isManagedClone } from "../repos/refresh-repo";
 import type { Repo } from "../repos/repo-registry";
-import { finishTask, insertTask } from "../storage/run-store";
 import type { Proposal } from "../tools/DelegateTaskTool/delegate-task-tool";
 import { type CodeFlowDeps, runCodeFlow } from "./code-task-flow";
 import { closeTask } from "./task-result";
 import { codeTaskBlocker } from "./task-routing";
+import { beginTask, failTask } from "./task-tracker";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "code-handoff" });
 
 /** Max chars of the brief shown in the "Starting plan" notice. */
 const NOTICE_BRIEF_MAX = 200;
-
-/** Q&A outcomes after which a recorded proposal is still acted on (a result message arrived). */
-export const HANDOFF_OUTCOMES: ReadonlySet<string> = new Set([
-  "success",
-  "max_turns",
-  "max_budget",
-]);
 
 /**
  * Repo name the blocker should pick from: the proposal's `repo`, else the thread's pinned repo when it is a
@@ -94,16 +87,14 @@ export async function runHandoff(deps: HandoffDeps, i: HandoffInput): Promise<st
   const taskId = crypto.randomUUID();
   // Repo of the row: the picked one (`*` = the plan chooses among the candidates).
   const repo = hint ? (blocked.candidates[0]?.name ?? "*") : "*";
-  insertTask(db, {
-    id: taskId,
-    threadId: i.task.threadId,
-    source: i.task.source,
-    repo,
-    type: "code",
-    brief: proposal.brief,
-  });
-  setLogContext({ taskId, repo, mode: "plan" });
-  logEvent(log, "task.started", { repo, type: "code" });
+  // From here every log line of the code task carries its own taskId (not the Q&A row's).
+  setLogContext({ taskId });
+  beginTask(
+    db,
+    log,
+    { taskId, threadId: i.task.threadId, source: i.task.source },
+    { repo, type: "code", mode: "plan", brief: proposal.brief },
+  );
   logEvent(log, "handoff.started", { repo, brief: excerpt(proposal.brief) });
   const t0 = Date.now();
 
@@ -126,7 +117,7 @@ export async function runHandoff(deps: HandoffDeps, i: HandoffInput): Promise<st
     ac: i.ac,
   }).catch((err: unknown) => {
     // The caller's crash path only knows the Q&A row: close this one so its slot is released.
-    tryLog(log, "finishTask failed", () => finishTask(db, taskId, "failed"));
+    failTask(db, log, taskId);
     throw err;
   });
   const reply = closeTask(db, { taskId, threadId: i.task.threadId }, res, {

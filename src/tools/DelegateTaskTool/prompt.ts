@@ -11,8 +11,8 @@ export const DESCRIPTION = [
 ].join(" ");
 
 /**
- * Q&A hand-over rules, injected into the Q&A system prompt (same spot as before the move: the golden set
- * was tuned on it). Usage detail (once per run, brief content, end turn) is in `DESCRIPTION`.
+ * Q&A hand-over rules, injected into the Q&A system prompt (position matters: the golden set was tuned on it).
+ * Usage detail (once per run, brief content, end turn) is in `DESCRIPTION`.
  */
 export const HANDOFF_RULES = `- You cannot edit files, so any request to change the repo ("fix X", "add", "remove", "rename", "update", "change", "write a test", "sửa đi", "thêm", "làm đi") is completed ONLY by calling ${DELEGATE_TASK_MCP_TOOL_NAME} with role "dev" (after reading what you need). Do not write the change or the fix in your reply, in text or in thinking: put it in the brief. Then end the turn with one short visible line for the owner.
 - A pure question: answer only; never call ${DELEGATE_TASK_MCP_TOOL_NAME}.

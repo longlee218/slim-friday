@@ -43,6 +43,12 @@ const refuse = (
   reply,
 });
 
+/** Refusal for a repo name that is not in the workspace (lists the available ones). */
+const unknownRepo = (repos: Repo[], name: string): Refusal => {
+  const names = repos.map((r) => r.name).join(", ");
+  return refuse("unknown_repo", `Unknown repo "${name}". Available: ${names}`);
+};
+
 /**
  * Decide how a Q&A / code message is run: pinned repo, code or Q&A, candidate repos, or a refusal
  * (unknown repo, empty text, no approval flow, no clone, too many code tasks).
@@ -61,10 +67,7 @@ export function routeTask(
   const pinned = hint
     ? repos.find((r) => r.name.toLowerCase() === hint)
     : repos.find((r) => r.name === existing?.repo); // thread stays on its pinned repo
-  if (cmd.repo && !pinned) {
-    const names = repos.map((r) => r.name).join(", ");
-    return refuse("unknown_repo", `Unknown repo "${cmd.repo}". Available: ${names}`);
-  }
+  if (cmd.repo && !pinned) return unknownRepo(repos, cmd.repo);
   if (cmd.repo && !cmd.text)
     return refuse("empty_text", `Send your question after "repo:${pinned!.name}".`);
   // Code only for a follow-up in a thread with a worktree, or the Resume of an interrupted plan stage.
@@ -122,8 +125,7 @@ export function codeTaskBlocker(
   const hint = repoName?.toLowerCase();
   const picked = hint ? repos.find((r) => r.name.toLowerCase() === hint) : undefined;
   if (repoName && !picked) {
-    const names = repos.map((r) => r.name).join(", ");
-    return refuse("unknown_repo", `Unknown repo "${repoName}". Available: ${names}`);
+    return unknownRepo(repos, repoName);
   }
   const candidates = (picked ? [picked] : repos).filter((r) => isManagedClone(r.path, agentHome));
   if (candidates.length === 0) {
