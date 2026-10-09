@@ -14,7 +14,7 @@ import {
 } from "./memory-compaction";
 import { formatCompactResult } from "./memory-compaction-report";
 import { type EditResult, ownerForget, ownerRemember } from "./memory-owner-edit";
-import { type MemoryPlace, resolveMemoryTarget } from "./memory-scope";
+import { type MemoryPlace, refineWriteCommand, resolveMemoryTarget } from "./memory-scope";
 import { type MemoryTarget, rootTarget, workspaceTargets } from "./memory-targets";
 import { ensureHome } from "./persona";
 
@@ -112,15 +112,17 @@ export function createMemoryRunner(deps: MemoryRunnerDeps): MemoryRunner {
         : [rootTarget(home), ...all.flatMap((w) => workspaceTargets(home, w))];
       return compactReply(cmd, targets);
     }
+    const refined = refineWriteCommand(ws, cmd);
+    if ("reply" in refined) return refined.reply;
     const t = resolveMemoryTarget(
       { db: deps.db, home, ws, threadId: req.threadId, place: where },
-      cmd.scope,
+      refined.scope,
     );
     if ("reply" in t) return t.reply;
     const result =
       cmd.kind === "remember"
-        ? ownerRemember(t, cmd.text, new Date().toISOString().slice(0, 10))
-        : ownerForget(t, cmd.needle);
+        ? ownerRemember(t, refined.text, new Date().toISOString().slice(0, 10))
+        : ownerForget(t, refined.text);
     logEvent(log, "memory.owner_edit", { kind: cmd.kind, file: t.label, ok: result.ok });
     return editReply(result, t);
   };

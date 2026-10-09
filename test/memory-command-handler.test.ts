@@ -167,3 +167,59 @@ test("via handleTask: answered without any task row, quota slot or agent call", 
   expect(called).toBe(false);
   expect(env.db.query("SELECT COUNT(*) AS n FROM tasks").get()).toEqual({ n: 0 });
 });
+
+test("bare repo name as first word selects that repo (owner's live message)", async () => {
+  const { ask, file } = setup(["friday-slim-agent"]);
+  const r = await ask("remember:friday-slim-agent Trả lời lại cho tôi dưới 100 kí tự");
+  expect(r).toContain("workspaces/main/repos/friday-slim-agent/MEMORY.md");
+  expect(file("friday-slim-agent")).toContain("- Trả lời lại cho tôi dưới 100 kí tự");
+  expect(file("friday-slim-agent")).not.toContain("- friday-slim-agent");
+  // case-insensitive
+  await ask("remember: FRIDAY-Slim-Agent another note");
+  expect(file("friday-slim-agent")).toContain("- another note");
+});
+
+test("first word not a repo of this workspace stays plain text", async () => {
+  const { ask, file } = setup(); // single repo "repo": default scope
+  await ask("remember: other-ws-repo keep this word");
+  expect(file("repo")).toContain("- other-ws-repo keep this word");
+});
+
+test("length rules apply after the repo word is stripped", async () => {
+  const { ask, file } = setup(["web"]);
+  expect(await ask("remember: web ab")).toContain("must be 3-300 chars (got 2)");
+  expect(await ask("remember: web")).toContain("got 0");
+  expect(await ask(`remember: web ${"x".repeat(300)}`)).toContain("web/MEMORY.md");
+  expect(file("web")).toContain("x".repeat(300));
+  expect(await ask(`remember: ${"x".repeat(301)}`)).toContain("got 301");
+  expect(await ask("forget: web ab")).toContain("must be 3-100 chars (got 2)");
+});
+
+test("forget with a bare repo name", async () => {
+  const { ask, file } = setup(["web"]);
+  await ask("remember: repo:web alpha note");
+  expect(await ask("forget: web alpha")).toContain("web/MEMORY.md");
+  expect(file("web")).not.toContain("alpha note");
+});
+
+test("workspace/global words win over a repo with the same name", async () => {
+  const { env, ask, file } = setup(["ws", "chung"]);
+  await ask("remember: ws scoped to workspace");
+  expect(readFileSync(workspacePaths(env.home).workspace("main").memory, "utf8")).toContain(
+    "- scoped to workspace",
+  );
+  await ask("remember: chung scoped to global");
+  expect(readFileSync(workspacePaths(env.home).memory, "utf8")).toContain("- scoped to global");
+  expect(file("ws")).not.toContain("scoped");
+  expect(file("chung")).not.toContain("scoped");
+});
+
+test("'Which repo?' lists repos and both forms", async () => {
+  const { ask } = setup(["web"]);
+  const r = (await ask("remember: something useful")) ?? "";
+  expect(r).toContain("`repo`, `web`");
+  expect(r).toContain("remember: <repo-name> <text>");
+  expect(r).toContain("remember: repo:<name> <text>");
+  expect(r).toContain("`ws`");
+  expect(r).toContain("`chung`");
+});

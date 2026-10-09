@@ -27,7 +27,16 @@ const COMPACT_CMD = /^(?:compact memory|gom nén)(\s+dry-run)?\s*$/iu;
 const FIRST_WORD = /^(\S+)\s*([\s\S]*)$/u;
 const REPO_SCOPE = /^repo:(.+)$/iu;
 
-/** Split the optional scope word off the front of the text. */
+/** First word and the trimmed rest of a text (both empty for an empty text). */
+export function splitFirstWord(rest: string): { word: string; tail: string } {
+  const m = FIRST_WORD.exec(rest);
+  return { word: m?.[1] ?? "", tail: m?.[2]?.trim() ?? "" };
+}
+
+/**
+ * Split the optional scope word off the front of the text. A bare repo name is NOT recognised here (the parser
+ * does not know the workspace's repos): memory-scope.ts resolves it for the default scope.
+ */
 function splitScope(rest: string): { scope: MemoryScope; text: string } {
   const m = FIRST_WORD.exec(rest);
   const word = m?.[1]?.toLowerCase() ?? "";
@@ -39,9 +48,16 @@ function splitScope(rest: string): { scope: MemoryScope; text: string } {
   return { scope: { kind: "default" }, text: rest.trim() };
 }
 
+/** Reply for a text outside the length rules, or undefined when it is fine. */
+export function lengthReply(isRemember: boolean, body: string): string | undefined {
+  const [min, max] = isRemember ? [REMEMBER_MIN, REMEMBER_MAX] : [FORGET_MIN, FORGET_MAX];
+  if (body.length >= min && body.length <= max) return undefined;
+  return `${isRemember ? "Text" : "Needle"} must be ${min}-${max} chars (got ${body.length}). ${USAGE}`;
+}
+
 /** Usage line shown for an invalid command. */
 const USAGE =
-  "Usage: `remember: [global|workspace|repo:<name>] <text>` (3-300 chars), `forget: [scope] <text>` (3-100 chars), `compact memory [dry-run]`. Vietnamese: `nhớ:`, `quên:`, `chung`, `ws`, `gom nén`.";
+  "Usage: `remember: [global|workspace|repo:<name>|<repo-name>] <text>` (3-300 chars), `forget: [scope] <text>` (3-100 chars), `compact memory [dry-run]`. Vietnamese: `nhớ:`, `quên:`, `chung`, `ws`, `gom nén`.";
 
 /**
  * Parse a message as an owner memory command, or null when it is anything else (then it is a normal task).
@@ -56,12 +72,11 @@ export function parseMemoryCommand(input: string): MemoryCommand | null {
   if (!w) return null;
   const isRemember = ["remember", "nhớ"].includes((w[1] ?? "").toLowerCase());
   const { scope, text: body } = splitScope((w[2] ?? "").trim());
-  const [min, max] = isRemember ? [REMEMBER_MIN, REMEMBER_MAX] : [FORGET_MIN, FORGET_MAX];
-  if (body.length < min || body.length > max)
-    return {
-      kind: "invalid",
-      reply: `${isRemember ? "Text" : "Needle"} must be ${min}-${max} chars (got ${body.length}). ${USAGE}`,
-    };
+  // Default scope: the first word may be a bare repo name stripped later (memory-scope.ts), which only
+  // shortens the text. So the max is checked after that step (the handler re-checks); min is safe now.
+  const reply = lengthReply(isRemember, body);
+  if (reply && (scope.kind !== "default" || body.length < (isRemember ? REMEMBER_MIN : FORGET_MIN)))
+    return { kind: "invalid", reply };
   return isRemember
     ? { kind: "remember", scope, text: body }
     : { kind: "forget", scope, needle: body };

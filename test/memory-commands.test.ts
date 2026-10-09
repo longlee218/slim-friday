@@ -54,11 +54,12 @@ test("forget/quên, compact/gom nén, and non-commands", () => {
 
 test("bad lengths and scope-only commands are invalid (never null, never the agent)", () => {
   expect(parseMemoryCommand("remember: ab")).toMatchObject({ kind: "invalid" });
-  expect(parseMemoryCommand(`remember: ${"x".repeat(301)}`)).toMatchObject({ kind: "invalid" });
+  // default scope: the max is enforced after the bare-repo-word step (handler), explicit scopes now
+  expect(parseMemoryCommand(`remember: ws ${"x".repeat(301)}`)).toMatchObject({ kind: "invalid" });
   expect(parseMemoryCommand(`remember: ${"x".repeat(300)}`)).toMatchObject({ kind: "remember" });
   expect(parseMemoryCommand("remember: global")).toMatchObject({ kind: "invalid" });
   expect(parseMemoryCommand("forget: ab")).toMatchObject({ kind: "invalid" });
-  expect(parseMemoryCommand(`forget: ${"x".repeat(101)}`)).toMatchObject({ kind: "invalid" });
+  expect(parseMemoryCommand(`forget: ws ${"x".repeat(101)}`)).toMatchObject({ kind: "invalid" });
   expect(parseMemoryCommand("remember:")).toMatchObject({ kind: "invalid" });
 });
 

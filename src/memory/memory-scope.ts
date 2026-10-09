@@ -1,7 +1,12 @@
 import type { Database } from "bun:sqlite";
 import { liveWorktree } from "../storage/worktree-store";
 import type { Workspace } from "../workspaces/workspace-registry";
-import type { MemoryScope } from "./memory-commands";
+import {
+  lengthReply,
+  type MemoryCommand,
+  type MemoryScope,
+  splitFirstWord,
+} from "./memory-commands";
 import { type MemoryTarget, repoTarget, rootTarget, workspaceTarget } from "./memory-targets";
 
 /** Where a command was typed, which decides the scopes it may use. */
@@ -30,6 +35,31 @@ function latestTaskRepo(db: Database, threadId: string): string | undefined {
 
 /** Names of the repos, for refusal texts. */
 const names = (ws: Workspace): string => ws.repos.map((r) => `\`${r.name}\``).join(", ");
+
+/**
+ * Final scope and text of a remember/forget command in a workspace channel. With the default scope, a first word
+ * equal to a repo name of the workspace (case-insensitive, NFC) selects that repo and is stripped; otherwise it
+ * stays plain text. `global`/`chung`/`workspace`/`ws` and `repo:<n>` were already taken by the parser, so those
+ * words win over a repo that happens to share the name. The length rules apply to the text after the strip.
+ */
+export function refineWriteCommand(
+  ws: Workspace | undefined,
+  cmd: Extract<MemoryCommand, { kind: "remember" | "forget" }>,
+): { scope: MemoryScope; text: string } | { reply: string } {
+  let scope = cmd.scope;
+  let text = cmd.kind === "remember" ? cmd.text : cmd.needle;
+  if (scope.kind === "default" && ws) {
+    const { word, tail } = splitFirstWord(text);
+    const key = word.normalize("NFC").toLowerCase();
+    const hit = ws.repos.find((r) => r.name.normalize("NFC").toLowerCase() === key);
+    if (hit) {
+      scope = { kind: "repo", name: hit.name };
+      text = tail;
+    }
+  }
+  const reply = lengthReply(cmd.kind === "remember", text);
+  return reply ? { reply } : { scope, text };
+}
 
 /**
  * Turn a scope into one memory file. Names come from the registry only (user text is compared, never joined
@@ -66,5 +96,7 @@ export function resolveMemoryTarget(
   const repo = fromThread ?? only;
   return repo
     ? repoTarget(i.home, ws.name, repo)
-    : { reply: `Which repo? \`remember: repo:<name> ...\`. Repos: ${names(ws)}.` };
+    : {
+        reply: `Which repo? Repos: ${names(ws)}. Write \`remember: <repo-name> <text>\` or \`remember: repo:<name> <text>\`; \`ws\` = this workspace, \`chung\` = global.`,
+      };
 }
