@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { runAgent } from "../src/agent/run-agent";
-import { sdkEnv } from "../src/agent/sdk-env";
+import { runAgent } from "../src/runtime/run-agent";
+import { sdkEnv } from "../src/runtime/sdk-env";
 import {
   AGENT_TOOL_NAME,
   GLOB_TOOL_NAME,

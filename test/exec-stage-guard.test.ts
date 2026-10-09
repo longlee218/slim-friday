@@ -2,7 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
-import { runCodeFlow } from "../src/tasks/code-task-flow";
+import { runCodeFlow } from "../src/orchestrator/code-task-flow";
 import { makeEnv, stubGateway } from "./helpers";
 
 const git = createGitMcp();

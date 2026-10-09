@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { Task } from "../src/ingress/discord-message-handler";
 import { createResumeHandler } from "../src/lifecycle/resume-interrupted";
 import { captureLogs } from "../src/observability/logger";
-import { createTaskHandler } from "../src/tasks/handle-task";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { makeEnv } from "./helpers";
 
 const OWNER = "111";

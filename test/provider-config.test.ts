@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { runAgent } from "../src/agent/run-agent";
-import { sdkEnv } from "../src/agent/sdk-env";
 import { loadConfig, logProviderSelected } from "../src/config/agent-config";
 import { createLogger } from "../src/observability/logger";
 import { MASK, redactText } from "../src/observability/redact";
+import { runAgent } from "../src/runtime/run-agent";
+import { sdkEnv } from "../src/runtime/sdk-env";
 import { fakeQuery, makeEnv, resultMsg } from "./helpers";
 
 // FAKE keys, concatenated so no real-looking literal sits in the source.

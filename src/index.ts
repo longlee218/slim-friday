@@ -14,10 +14,10 @@ import { runStartupHygiene } from "./lifecycle/startup";
 import { ensureHome } from "./memory/persona";
 import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
+import { createTaskHandler } from "./orchestrator/handle-task";
+import { createRunLimiter } from "./orchestrator/run-limiter";
 import { openDb } from "./storage/db";
 import { interruptRunningTasks } from "./storage/run-store";
-import { createTaskHandler } from "./tasks/handle-task";
-import { createRunLimiter } from "./tasks/run-limiter";
 import { loadWorkspaces } from "./workspaces/workspace-registry";
 
 const log = logger.child({ module: "index" });

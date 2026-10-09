@@ -6,8 +6,8 @@ import { sendReply, startTyping } from "../ingress/discord-message-handler";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { RESUME_PROMPT } from "../orchestrator/task-commands";
 import { ackInterrupted, listInterruptedThreads } from "../storage/run-store";
-import { RESUME_PROMPT } from "../tasks/task-commands";
 
 /** customId prefix of the Resume button: `resume:<threadId>:go` (same format as the approval buttons). */
 const PREFIX = "resume";

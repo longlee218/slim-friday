@@ -14,9 +14,9 @@ import {
   runWithLogContext,
   setLogContext,
 } from "../src/observability/logger";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { openDb } from "../src/storage/db";
 import { insertTask } from "../src/storage/run-store";
-import { createTaskHandler } from "../src/tasks/handle-task";
 import {
   BASH_TOOL_NAME,
   EXIT_PLAN_MODE_TOOL_NAME,

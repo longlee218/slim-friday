@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
-import { createTaskHandler } from "../src/tasks/handle-task";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { addRepo, clearWorkspaces, makeEnv, TEST_CHANNEL } from "./helpers";
 
 // Live test: verifies the SDK honors `additionalDirectories` (open spike item for phase 02).

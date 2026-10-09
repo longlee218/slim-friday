@@ -3,10 +3,10 @@ import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { GIT_TOOL } from "../src/mcp/mcp-tool-names";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { isManagedClone, refreshRepo } from "../src/repos/refresh-repo";
 import { buildRegistryContext } from "../src/repos/repo-registry";
 import { getSession } from "../src/storage/session-store";
-import { createTaskHandler } from "../src/tasks/handle-task";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { addRepo, clearWorkspaces, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 

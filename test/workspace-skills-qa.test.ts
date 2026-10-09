@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createTaskHandler } from "../src/tasks/handle-task";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { GLOB_TOOL_NAME, READ_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { addRepo, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 

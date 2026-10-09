@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { buildSystemPrompt } from "../src/agent/system-prompt";
+import { buildSystemPrompt } from "../src/runtime/system-prompt";
 import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { GIT_GROUPS, type ToolMode } from "../src/tools/tool-catalog";

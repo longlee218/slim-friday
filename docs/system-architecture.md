@@ -72,18 +72,18 @@ Task mode (plan approval flow)
 |-----------|------|---------|
 | **Discord Ingress** | src/ingress/discord-bot.ts | discord.js client, owner check, thread lifecycle |
 | **Message Router** | src/ingress/discord-message-handler.ts | routing: own bot, DM, mention, reply |
-| **Task Handler** | src/tasks/handle-task.ts | session lookup/create, run lock, Q&A/code routing, stage detection (phase 4+), reply |
+| **Task Handler** | src/orchestrator/handle-task.ts | session lookup/create, run lock, Q&A/code routing, stage detection (phase 4+), reply |
 | **Delegate Tool** | src/tools/DelegateTaskTool/delegate-task-tool.ts | MCP tool `mcp__tasks__DelegateTask(role, brief, repo?)` for Q&A→plan handoff (phase 1+) |
-| **Code Handoff** | src/tasks/code-handoff.ts | after Q&A ends: inserts code task row, posts notice, runs plan stage (phase 1+) |
-| **Code Task Flow** | src/tasks/code-task-flow.ts | two-stage lifecycle: plan (plan mode) → execute (worktree); cwd switching (phase 4+) |
-| **Code Task Finish** | src/tasks/code-task-finish.ts | summary + diff, Create PR button, follow-up, cleanup command (phase 4+) |
-| **Agent Runner** | src/agent/run-agent.ts | SDK query() loop, PreToolUse/canUseTool hooks, error handling |
-| **Prompt** | src/agent/system-prompt.ts | Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), COMMON (safety rules once), then context. Identity/tone in persona files, not here. |
-| **Context Injection** | src/agent/run-agent.ts | repo name, branch, git status, worktree context via git MCP (phase 4+); memory bullets in prompt (soft: 3, hard: 5 in code) |
+| **Code Handoff** | src/orchestrator/code-handoff.ts | after Q&A ends: inserts code task row, posts notice, runs plan stage (phase 1+) |
+| **Code Task Flow** | src/orchestrator/code-task-flow.ts | two-stage lifecycle: plan (plan mode) → execute (worktree); cwd switching (phase 4+) |
+| **Code Task Finish** | src/orchestrator/code-task-finish.ts | summary + diff, Create PR button, follow-up, cleanup command (phase 4+) |
+| **Agent Runner** | src/runtime/run-agent.ts | SDK query() loop, PreToolUse/canUseTool hooks, error handling |
+| **Prompt** | src/runtime/system-prompt.ts | Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), COMMON (safety rules once), then context. Identity/tone in persona files, not here. |
+| **Context Injection** | src/runtime/run-agent.ts | repo name, branch, git status, worktree context via git MCP (phase 4+); memory bullets in prompt (soft: 3, hard: 5 in code) |
 | **Tool Config** | src/tools/tool-catalog.ts | single source: tool lists by capability + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS |
 | **Guardrails** | src/guardrails/ | check-tool-call (core guard logic, GuardrailContext), deny-dangerous, bash-policy, bash-parser, paths (isInside, resolveReal) |
 | **Approvals** | src/approvals/ + src/storage/approval-store.ts | discord-approval, approval-buttons, approval-types; insertApproval/decideApproval moved to approval-store; rejectedPlans query (phase 1c+) |
-| **Task Commands** | src/tasks/task-commands.ts | parse task: prefix → code task; stop; cleanup; qa/code/code-task mode; repo pin |
+| **Task Commands** | src/orchestrator/task-commands.ts | parse task: prefix → code task; stop; cleanup; qa/code/code-task mode; repo pin |
 | **Git MCP client** | src/mcp/git-mcp.ts | server config/env + one long-lived MCP client the app uses for worktrees, fetch, push, inspection |
 | **PR Publishing** | src/repos/publish-pr.ts | `git_push` of agent/* via git MCP, then GitHub MCP `create_pull_request` |
 | **Workspace Registry** | src/workspaces/workspace-registry.ts | scan workspaces/*/workspace.yaml {description, channels}; fail-closed validation; legacy dirs listed, never loaded |
@@ -176,7 +176,7 @@ Discord Q&A message
 
 ## Error Classification (Phase 5+)
 
-**Error Detection & Outcome Mapping (`src/agent/run-errors.ts`):**
+**Error Detection & Outcome Mapping (`src/runtime/run-errors.ts`):**
 - Quota errors (rate_limit):
   - `error.type === "api_error" && error.status === 429` → outcome `quota`
   - `rate_limit_event` at query start contains `rate_limit_info` → logged at debug level
@@ -321,7 +321,7 @@ task: <description> (message)
 
 **Purpose:** Skills are owner-curated per workspace. Repo `.claude/skills` is NEVER read (owner decision: a repo can hold thousands of skills, and repo content must not drive the agent). Skills reach a run ONLY through one app-owned, skills-only plugin built from `~/.friday/workspaces/<ws>/skills/` (`settingSources: []` in qa, plan and exec).
 
-**Design (`src/agent/workspace-skills-plugin.ts`, `workspaceSkills`):**
+**Design (`src/runtime/workspace-skills-plugin.ts`, `workspaceSkills`):**
 - Source: `workspaces/<ws>/skills/<skill-name>/SKILL.md` (+ bundled files), added by the owner. `init:workspace` and `ensureHome` create the dir empty (mode 700). Absent or empty = no skills, no plugin, a debug log only.
 - One plugin per run, from THAT workspace's dir only (a run never spans workspaces), built under `<agentHome>/tmp/plugin-XXXX/`, removed in `runAgent`'s `finally` (also on error). Plugin name = workspace name; skills are `<ws>:<skill>`, e.g. `main:deploy`. Built per run, so a new skill needs no restart.
 - Content: app-written `.claude-plugin/plugin.json` + a copy of the skills dir only. Symlinks skipped (lstat walk); a skills dir that is itself a symlink (or resolves outside the workspace) yields no plugin and a warn (it could point at a repo's skills). Dependency and VCS dirs inside a skill are skipped (debug log). A skill dir without `SKILL.md` is skipped (debug log). Hooks, `.mcp.json`, agents, commands and settings cannot exist in the plugin.

@@ -5,7 +5,7 @@ import { PLACEHOLDER } from "../src/config/agent-config";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import { createTaskHandler } from "../src/tasks/handle-task";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { DELEGATE_TASK_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import { g, makeRepo } from "./git-fixture";
 import { addRepo, clearWorkspaces, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";

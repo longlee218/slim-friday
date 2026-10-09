@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runAgent } from "../src/agent/run-agent";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { guardFor } from "../src/guardrails/check-tool-call";
+import { runAgent } from "../src/runtime/run-agent";
 import { makeEnv } from "./helpers";
 
 // Live check: with settingSources [] the SDK must load NONE of the CLAUDE.md / CLAUDE.local.md files around a

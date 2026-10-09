@@ -4,8 +4,8 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createGitMcp } from "../src/mcp/git-mcp";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
-import { createTaskHandler } from "../src/tasks/handle-task";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
 import {

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { runAgent } from "../src/agent/run-agent";
 import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { parseAuthor } from "../src/repos/repo-registry";
+import { runAgent } from "../src/runtime/run-agent";
 import { makeEnv, resultMsg } from "./helpers";
 
 /** Run the execute stage with a fake SDK whose init reports the git MCP server in `status`. */

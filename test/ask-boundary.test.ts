@@ -1,11 +1,11 @@
 import { afterAll, expect, test } from "bun:test";
 import { realpathSync } from "node:fs";
-import { buildToolPermissions } from "../src/agent/tool-permissions";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { createGitMcp } from "../src/mcp/git-mcp";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
-import { createTaskHandler } from "../src/tasks/handle-task";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
 import { BRIEF, delegatingQuery, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";

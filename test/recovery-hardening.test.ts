@@ -1,8 +1,12 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { runAgent } from "../src/agent/run-agent";
 import { checkWorktrees, cleanupTaskLogs } from "../src/lifecycle/startup";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { RESUME_PROMPT } from "../src/orchestrator/task-commands";
+import { finishRun } from "../src/orchestrator/task-result";
+import { resolveCommand } from "../src/orchestrator/task-routing";
+import { runAgent } from "../src/runtime/run-agent";
 import {
   ackInterrupted,
   insertTask,
@@ -13,10 +17,6 @@ import {
 } from "../src/storage/run-store";
 import { getSession, setSession } from "../src/storage/session-store";
 import { insertWorktree, listWorktrees } from "../src/storage/worktree-store";
-import { createTaskHandler } from "../src/tasks/handle-task";
-import { RESUME_PROMPT } from "../src/tasks/task-commands";
-import { finishRun } from "../src/tasks/task-result";
-import { resolveCommand } from "../src/tasks/task-routing";
 import {
   addRepo,
   clearWorkspaces,

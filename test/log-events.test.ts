@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { runAgent } from "../src/agent/run-agent";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { rollingFile } from "../src/observability/log-files";
 import {
@@ -13,6 +12,7 @@ import {
 } from "../src/observability/logger";
 import { RunRecorder } from "../src/observability/record-run";
 import { buildToolHooks } from "../src/observability/tool-hooks";
+import { runAgent } from "../src/runtime/run-agent";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { addRepo, fakeQuery, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
 

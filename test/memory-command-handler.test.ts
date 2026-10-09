@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createMemoryRunner, type MemoryRequest } from "../src/memory/memory-command-handler";
 import { repoMemoryFile } from "../src/memory/repo-memory";
-import { createTaskHandler } from "../src/tasks/handle-task";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { addRepo, makeEnv, TEST_CHANNEL } from "./helpers";
 
 /** Env with workspace main (channel TEST_CHANNEL) and a runner on it. */

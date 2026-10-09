@@ -6,9 +6,9 @@ import { appendTaskMemory } from "../src/memory/memory-writer";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { extractMemory, repoMemoryFile } from "../src/memory/repo-memory";
 import { repoOfTool } from "../src/observability/tool-hooks";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { routeTask } from "../src/orchestrator/task-routing";
 import type { Repo } from "../src/repos/repo-registry";
-import { createTaskHandler } from "../src/tasks/handle-task";
-import { routeTask } from "../src/tasks/task-routing";
 import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import {
   CHANNEL_2,

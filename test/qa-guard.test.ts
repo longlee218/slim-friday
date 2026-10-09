@@ -5,7 +5,7 @@ import { workspacePaths } from "../src/config/workspace-paths";
 import { checkToolCall } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { repoMemoryFile } from "../src/memory/repo-memory";
-import { createTaskHandler } from "../src/tasks/handle-task";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import {
   AGENT_TOOL_NAME,
   BASH_TOOL_NAME,

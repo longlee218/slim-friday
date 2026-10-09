@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { parseMemoryCommand } from "../src/memory/memory-commands";
-import { parseTaskCommand } from "../src/tasks/task-commands";
+import { parseTaskCommand } from "../src/orchestrator/task-commands";
 
 test("remember/nhớ with every scope word; only the first word is a scope", () => {
   const p = (s: string) => parseMemoryCommand(s);

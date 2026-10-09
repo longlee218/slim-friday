@@ -1,9 +1,9 @@
 import { mkdirSync, realpathSync } from "node:fs";
-import { runAgent } from "../agent/run-agent";
 import { claudePlansDir, workspacePaths } from "../config/workspace-paths";
 import { guardFor } from "../guardrails/check-tool-call";
 import { buildPromptContext } from "../memory/prompt-context";
 import { buildRegistryContext } from "../repos/repo-registry";
+import { runAgent } from "../runtime/run-agent";
 import { planWorkflow, stageControl } from "./code-flow-workflow";
 import type { CodeFlowDeps, CodeFlowInput } from "./code-task-flow";
 import type { FlowResult } from "./task-result";

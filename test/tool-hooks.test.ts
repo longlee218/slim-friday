@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { buildToolPermissions } from "../src/agent/tool-permissions";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { captureLogs } from "../src/observability/logger";
 import { RunRecorder } from "../src/observability/record-run";
 import { buildToolHooks } from "../src/observability/tool-hooks";
+import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import { EDIT_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv } from "./helpers";
 

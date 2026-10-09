@@ -3,8 +3,8 @@ import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { ApprovalGateway, ApprovalRequest } from "../src/approvals/approval-types";
 import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import { createTaskHandler } from "../src/tasks/handle-task";
-import { parseTaskCommand } from "../src/tasks/task-commands";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { parseTaskCommand } from "../src/orchestrator/task-commands";
 import {
   ASK_USER_QUESTION_TOOL_NAME,
   BASH_TOOL_NAME,

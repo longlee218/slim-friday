@@ -3,12 +3,12 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { runHandoff } from "../src/orchestrator/code-handoff";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { insertTask } from "../src/storage/run-store";
 import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
-import { runHandoff } from "../src/tasks/code-handoff";
-import { createTaskHandler } from "../src/tasks/handle-task";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 /** The real git MCP server (pinned package), shared by the tests of this file. */

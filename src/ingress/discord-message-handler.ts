@@ -3,7 +3,7 @@ import { type DiscordSetup, EMPTY_SETUP, opsIds } from "../discord-setup/discord
 import type { MemoryRunner } from "../memory/memory-command-handler";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { parseTaskCommand } from "../tasks/task-commands";
+import { parseTaskCommand } from "../orchestrator/task-commands";
 import {
   prepareOutput,
   routeMessage,

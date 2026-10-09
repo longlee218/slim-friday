@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { captureLogs } from "../src/observability/logger";
-import { createTaskHandler } from "../src/tasks/handle-task";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { resolveTaskWorkspace, selectWorkspace } from "../src/workspaces/task-workspace";
 import type { Workspace } from "../src/workspaces/workspace-registry";
 import { addRepo, clearWorkspaces, makeEnv, TEST_CHANNEL } from "./helpers";

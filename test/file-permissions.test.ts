@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { existsSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { rollingFile } from "../src/observability/log-files";
-import { createTaskHandler } from "../src/tasks/handle-task";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { makeEnv, resultMsg, rolledFiles, TEST_CHANNEL } from "./helpers";
 
 /** Permission bits (octal string) of a path. */

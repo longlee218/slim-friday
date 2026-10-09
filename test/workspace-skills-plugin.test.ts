@@ -13,9 +13,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { sweepStalePlugins, workspaceSkills } from "../src/agent/workspace-skills-plugin";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { captureLogs } from "../src/observability/logger";
+import { sweepStalePlugins, workspaceSkills } from "../src/runtime/workspace-skills-plugin";
 
 const dirs: string[] = [];
 /** A fresh temp agent home. */

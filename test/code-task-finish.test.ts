@@ -3,9 +3,9 @@ import { join } from "node:path";
 import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { GIT_TOOL } from "../src/mcp/mcp-tool-names";
+import { finishCodeTask } from "../src/orchestrator/code-task-finish";
 import { openDb } from "../src/storage/db";
 import { insertWorktree, type WorktreeRow } from "../src/storage/worktree-store";
-import { finishCodeTask } from "../src/tasks/code-task-finish";
 import { g, makeRepo } from "./git-fixture";
 import { stubGateway } from "./helpers";
 

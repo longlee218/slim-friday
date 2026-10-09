@@ -39,7 +39,7 @@ src/
 │   ├── discord-bot.ts          # discord.js client setup
 │   ├── discord-message-handler.ts
 │   └── discord-message-rules.ts
-├── agent/                      # Agent SDK logic
+├── runtime/                    # Agent SDK logic
 │   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; opts.handoff for delegate tool; workspace skills from an app-owned plugin, `settingSources: []`
 │   ├── system-prompt.ts        # Sections: MODE (qa/plan/exec contract), HANDOFF (delegate tool when opts.handoff=true), ASK_RULES (Phase 3), COMMON (safety), then context. Identity/tone in persona files, not here.
 │   ├── code-rules.ts           # ASK_RULES text constant; FULL_RULES for full-mode repos (Phase 3)
@@ -64,7 +64,7 @@ src/
 │   ├── prompt-context.ts       # Build full context order: persona → registry → memory → rejected-plans (phase 1c+)
 │   ├── memory-writer.ts        # Append task memory + [global] bullets
 │   └── repo-memory.ts          # MEMORY.md loader/writer, append on exec success
-├── tasks/                      # Task lifecycle
+├── orchestrator/               # Task lifecycle
 │   ├── handle-task.ts          # map thread → session; task command parse; stage detection (phase 4+)
 │   ├── task-commands.ts        # parse task/stop/cleanup commands; repo pinning; Resume routing (phase 5+)
 │   ├── task-tracker.ts         # thread locking, session resume context tracking (phase 5+)

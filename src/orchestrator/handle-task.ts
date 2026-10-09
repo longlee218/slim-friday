@@ -1,6 +1,4 @@
 import type { Database } from "bun:sqlite";
-import type { QueryFn } from "../agent/run-agent";
-import { RESUME_FAILED } from "../agent/run-errors";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
 import { realOrSame } from "../guardrails/paths";
@@ -15,6 +13,8 @@ import {
   setLogContext,
 } from "../observability/logger";
 import { errText } from "../observability/redact";
+import type { QueryFn } from "../runtime/run-agent";
+import { RESUME_FAILED } from "../runtime/run-errors";
 import { deleteSession, getSession } from "../storage/session-store";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import { runHandoff } from "./code-handoff";

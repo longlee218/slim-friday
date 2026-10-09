@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { getSession, setSession } from "../src/storage/session-store";
-import { createTaskHandler } from "../src/tasks/handle-task";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 const task = (text: string, threadId = "th1") => ({

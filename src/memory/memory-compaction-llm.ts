@@ -1,8 +1,8 @@
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import type { QueryFn } from "../agent/run-agent";
-import { sdkEnv } from "../agent/sdk-env";
 import type { AgentConfig } from "../config/agent-config";
 import { type ResultShape, type RunUsage, usageFromResult } from "../observability/record-run";
+import type { QueryFn } from "../runtime/run-agent";
+import { sdkEnv } from "../runtime/sdk-env";
 
 /** One model call: system + user text in, text + token usage out. Injected so tests never call a model. */
 export type CompactLlm = (

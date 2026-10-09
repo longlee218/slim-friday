@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { mcpToolName, TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { insertTask } from "../src/storage/run-store";
-import { createTaskHandler } from "../src/tasks/handle-task";
 import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import {
   addRepo,

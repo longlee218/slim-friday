@@ -1,8 +1,8 @@
 import type { Database } from "bun:sqlite";
-import type { RunAgentResult } from "../agent/run-agent";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import type { RunOutcome } from "../observability/record-run";
 import { redactText } from "../observability/redact";
+import type { RunAgentResult } from "../runtime/run-agent";
 import { finishTask, setTaskStatus, type TaskStatus } from "../storage/run-store";
 import { setSession } from "../storage/session-store";
 import type { Proposal } from "../tools/DelegateTaskTool/delegate-task-tool";

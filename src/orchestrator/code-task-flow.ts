@@ -1,7 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
-import { type QueryFn, runAgent } from "../agent/run-agent";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
 import { claudePlansDir, workspacePaths } from "../config/workspace-paths";
@@ -13,6 +12,7 @@ import { buildPromptContext } from "../memory/prompt-context";
 import { extractMemory } from "../memory/repo-memory";
 import { logEvent, logger, setLogContext } from "../observability/logger";
 import { type Repo, resolveAuthor } from "../repos/repo-registry";
+import { type QueryFn, runAgent } from "../runtime/run-agent";
 import type { WorktreeRow } from "../storage/worktree-store";
 import { awaitingResult, execWorkflow, stageControl } from "./code-flow-workflow";
 import { runPlanStage } from "./code-plan-stage";

@@ -1,10 +1,10 @@
 import type { Database } from "bun:sqlite";
 import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { sweepStalePlugins } from "../agent/workspace-skills-plugin";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import { logEvent, logger } from "../observability/logger";
+import { sweepStalePlugins } from "../runtime/workspace-skills-plugin";
 import { deleteWorktree, listWorktrees } from "../storage/worktree-store";
 
 /** Raw per-task logs older than this are deleted at startup. */

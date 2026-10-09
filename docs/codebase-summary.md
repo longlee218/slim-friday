@@ -142,8 +142,8 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 
 ### Delegate Tool & Q&A→Code Handoff (Phase 1b+)
 - **DelegateTaskTool/delegate-task-tool.ts (src/tools/):** MCP tool `mcp__tasks__DelegateTask({role:"dev", brief, repo?})`; validated schema; blocker checks; one call per Q&A run
-- **code-handoff.ts (src/tasks/):** after Q&A ends, process proposal: insert code task row with brief (Phase 1c+), post notice, run plan stage
-- **task-routing.ts (src/tasks/):** shared `codeTaskBlocker()` blocker check (cap MAX_CODE_TASKS, managed clone validation, repo lookup)
+- **code-handoff.ts (src/orchestrator/):** after Q&A ends, process proposal: insert code task row with brief (Phase 1c+), post notice, run plan stage
+- **task-routing.ts (src/orchestrator/):** shared `codeTaskBlocker()` blocker check (cap MAX_CODE_TASKS, managed clone validation, repo lookup)
 
 ### Repository Management
 - **workspaces/workspace-registry.ts:** `loadWorkspaces(home)` -> `{workspaces, legacy}`: scans workspaces/*/workspace.yaml (zod: description, channels), fail-closed validation (name rules, real dirs not symlinks, duplicate channel ids dropped from both, `repo.overlap` warning); each workspace carries its own repos (no flat cross-workspace list: repo names are unique only inside a workspace)

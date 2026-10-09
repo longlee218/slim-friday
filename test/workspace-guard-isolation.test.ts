@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildToolPermissions } from "../src/agent/tool-permissions";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
-import { createTaskHandler } from "../src/tasks/handle-task";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import {
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,

@@ -1,7 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
-import { type QueryFn, runAgent } from "../agent/run-agent";
 import type { AgentConfig } from "../config/agent-config";
 import { workspacePaths } from "../config/workspace-paths";
 import { guardFor } from "../guardrails/check-tool-call";
@@ -12,6 +11,7 @@ import { buildPromptContext } from "../memory/prompt-context";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { isManagedClone, refreshRepo } from "../repos/refresh-repo";
 import { buildRegistryContext, type Repo } from "../repos/repo-registry";
+import { type QueryFn, runAgent } from "../runtime/run-agent";
 import { rejectedPlans } from "../storage/approval-store";
 import type { SessionRow } from "../storage/session-store";
 import {

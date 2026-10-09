@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync } from "node:fs";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { workspacePaths } from "../src/config/workspace-paths";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
-import { createTaskHandler } from "../src/tasks/handle-task";
 import { g, makeRepo } from "./git-fixture";
 import { addRepo, clearWorkspaces, makeEnv, stubGateway, TEST_CHANNEL } from "./helpers";
 
