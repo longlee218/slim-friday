@@ -111,6 +111,7 @@ async function main(): Promise<void> {
       await handleResume(i);
     },
     setup,
+    handleTask.memory,
   );
   botClient = client;
   // One #ops-log line per start / shutdown / uncaught error; no-op without ops.log in discord.yaml.

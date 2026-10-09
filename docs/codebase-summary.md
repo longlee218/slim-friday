@@ -115,7 +115,12 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 - **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER -> registry -> memory (root, workspace, repos) -> rejected-plans block (when delegate enabled); logs `prompt.context` event with character counts per layer
 - **memory-writer.ts:** `appendTaskMemory(home, ws, repo, title, bullets)` writes plain bullets to the repo MEMORY.md and `[global]` bullets to `MEMORY.pending.md`; deduplication, trimming; max 2 global bullets per task
 - **sanitize-bullet.ts:** `sanitizeBullet()`: one line, no markup/fences/HTML/role prefixes, redacted, 200 chars (applied in `extractMemory` and the writer)
-- **repo-memory.ts:** `readMemoryLayers`/`buildMemoryContext(home, ws, repos)`; `repoMemoryFile`; `extractMemory`
+- **repo-memory.ts:** `readMemoryLayers`/`buildMemoryContext(home, ws, repos)` (layers also report `overCap` and `skippedRepos`); `repoMemoryFile`; `extractMemory`
+- **memory-file-lock.ts:** `withMemoryLock(file, fn)` (`<file>.lock`, PID body, stale reclaim, 5 s wait, `MemoryBusyError`), `writeAtomic`
+- **memory-commands.ts:** pure grammar of `remember:`/`nhớ:`, `forget:`/`quên:`, `compact memory`/`gom nén` (scopes `global|chung`, `workspace|ws`, `repo:<n>`)
+- **memory-command-handler.ts:** `createMemoryRunner` (owner commands before any agent run; places workspace/control/ops); **memory-scope.ts** scope -> file; **memory-targets.ts** file/label/cap per layer; **memory-owner-edit.ts** `ownerRemember`/`ownerForget`
+- **memory-compaction.ts / -prompt.ts / -report.ts / memory-compact-cli.ts:** manual compaction (MEMORY_MODEL, derivability check, `.bak`, dry-run); `bun run memory:compact`
+- **ingress/memory-ingress.ts:** inline reply to memory commands in channels/threads
 ### Discord setup (Step B phase 5, `src/discord-setup/`)
 - **discord-setup-config.ts:** discord.yaml (ops ids, controlChannels); missing = none, unparsable = throw (startup refusal); `opsIds`
 - **private-channels.ts:** `privateOverwrites`, strict `isPrivateOverwrites`/`isPrivateChannel`, `botPermissionReport`, create-only `createPrivate`
@@ -233,6 +238,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 | LOG_LEVEL | optional | default: info |
 | MODEL | optional | default: anthropic haiku, openrouter deepseek-v4-flash |
 | CODE_MODEL | optional | for code tasks; default: anthropic/claude-haiku-4.5 on openrouter |
+| MEMORY_MODEL | optional | memory compaction; default: anthropic haiku, openrouter anthropic/claude-haiku-4.5 |
 | MAX_TURNS | optional | default: 20 |
 | MAX_BUDGET_USD | optional | default: 0.5 on anthropic |
 | TIMEOUT_MS | optional | default: 300000 (5 min); code tasks ≥30 min (includes approval + plan + execute) |

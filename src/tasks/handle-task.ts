@@ -6,6 +6,7 @@ import type { AgentConfig } from "../config/agent-config";
 import { realOrSame } from "../guardrails/paths";
 import type { Task } from "../ingress/discord-message-handler";
 import { createGitMcp, type GitMcp } from "../mcp/git-mcp";
+import { createMemoryRunner } from "../memory/memory-command-handler";
 import {
   getLogContext,
   logEvent,
@@ -26,7 +27,7 @@ import { parseTaskCommand } from "./task-commands";
 import type { FlowResult } from "./task-result";
 import { closeTask, OUTCOME_REPLY } from "./task-result";
 import { resolveCommand, routeTask } from "./task-routing";
-import { beginTask, createRunTracker, taskLogContext } from "./task-tracker";
+import { beginTask, createRunTracker, refused, taskLogContext } from "./task-tracker";
 import { cleanupWorktree } from "./task-worktree";
 
 /** Dependencies of the task handler. */
@@ -51,7 +52,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
   const log = logger.child({ module: "handle-task" });
   const tracker = createRunTracker(db, log, active);
   const git = deps.git ?? createGitMcp();
-
+  const memory = createMemoryRunner({ db, config, queryFn: deps.queryFn, limiter: deps.limiter });
   /** Handle one task and return the (redacted) reply text. */
   const run = async (task: Task): Promise<string> => {
     const { threadId } = task;
@@ -63,6 +64,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       repoHint: "repo" in parsed ? (parsed.repo ?? null) : null,
     });
 
+    if (parsed.kind === "memory") return (await memory(task)) ?? ""; // owner memory command: no agent
     // `stop` aborts the active run; the running call marks the task cancelled.
     if (parsed.kind === "stop") {
       if (!running) return "Nothing is running.";
@@ -100,10 +102,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     try {
       const stored = getSession(db, threadId);
       const picked = selectWorkspace(config.agentHome, task.channelId);
-      if ("reply" in picked) {
-        logEvent(log, "task.refused", { reason: picked.reason, reply: picked.reply });
-        return picked.reply;
-      }
+      if ("reply" in picked) return refused(log, picked);
       const { ws } = picked;
       const { repos } = ws; // every repo lookup below stays inside this workspace
       setLogContext({ workspace: ws.name });
@@ -114,10 +113,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
         parsed,
         threadId,
       );
-      if ("reply" in resolved) {
-        logEvent(log, "task.refused", { reason: resolved.reason, reply: resolved.reply });
-        return resolved.reply;
-      }
+      if ("reply" in resolved) return refused(log, resolved);
       const { cmd, planResume } = resolved;
       const existing = resolved.existing ?? stored;
       const route = routeTask(
@@ -203,6 +199,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     tracker.track(runWithLogContext(taskLogContext(task), () => run(task)));
   /** Stop the git MCP server process (shutdown). */
   handleTask.close = () => git.close();
+  handleTask.memory = memory; // same runner for ingress (inline channel replies, #ops-control)
   handleTask.abortAll = tracker.abortAll;
   handleTask.drain = tracker.drain;
   return handleTask;

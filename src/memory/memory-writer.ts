@@ -1,7 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import { logEvent, logger } from "../observability/logger";
+import {
+  MemoryBusyError,
+  MemorySymlinkError,
+  withMemoryLock,
+  writeAtomic,
+} from "./memory-file-lock";
 import { repoMemoryFile } from "./repo-memory";
 import { sanitizeBullet } from "./sanitize-bullet";
 
@@ -11,6 +17,9 @@ const log = logger.child({ module: "memory-writer" });
 /** A memory file is kept at or under this many lines; trimmed (oldest sections first) once it passes +5%. */
 const MAX_LINES = 300;
 const TRIM_AT_LINES = Math.ceil(MAX_LINES * 1.05);
+
+/** Number of `## ` sections in a memory text. */
+const sectionCount = (text: string): number => text.split(/\n(?=## )/).length - 1;
 
 /** Drop the oldest `## ` sections until the text has at most MAX_LINES lines (header always kept). */
 function trimToLines(text: string): string {
@@ -33,6 +42,33 @@ function appendMemory(
 ): void {
   if (bullets.length === 0) return;
   mkdirSync(dirname(file), { recursive: true });
+  try {
+    // Read-modify-write under the per-file lock (owner commands and compaction write the same files).
+    withMemoryLock(file, () => appendLocked(file, header, title, bullets, fields));
+  } catch (err) {
+    if (!(err instanceof MemoryBusyError || err instanceof MemorySymlinkError)) throw err;
+    // Never silent: the lessons of this task are lost, say so.
+    logEvent(
+      log,
+      "memory.write_failed",
+      {
+        ...fields,
+        bullets: bullets.length,
+        reason: err instanceof MemorySymlinkError ? "symlink" : "busy",
+      },
+      "warn",
+    );
+  }
+}
+
+/** The read-modify-write of `appendMemory`; the caller holds the file lock. */
+function appendLocked(
+  file: string,
+  header: string,
+  title: string,
+  bullets: string[],
+  fields: { workspace: string; repo: string; layer: "repo" | "pending" },
+): void {
   const old = existsSync(file) ? readFileSync(file, "utf8") : `${header}\n`;
   const known = new Set(old.split("\n"));
   const fresh = bullets
@@ -44,8 +80,18 @@ function appendMemory(
   const date = new Date().toISOString().slice(0, 10);
   const section = `\n## ${date} ${sanitizeBullet(title, 80)}\n${fresh.join("\n")}\n`;
   let next = `${old.trimEnd()}\n${section}`;
-  if (next.split("\n").length > TRIM_AT_LINES) next = trimToLines(next);
-  writeFileSync(file, next);
+  if (next.split("\n").length > TRIM_AT_LINES) {
+    const before = sectionCount(next);
+    next = trimToLines(next);
+    // Oldest sections vanish here: the owner must be able to see it in the log.
+    logEvent(
+      log,
+      "memory.trimmed",
+      { ...fields, droppedSections: before - sectionCount(next) },
+      "warn",
+    );
+  }
+  writeAtomic(file, next);
   logEvent(log, "memory.appended", { ...fields, bullets: fresh.length });
 }
 

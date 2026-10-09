@@ -71,3 +71,9 @@ export function beginTask(
   setLogContext({ repo: logRepo, mode: t.mode });
   logEvent(log, "task.started", { repo: logRepo, type: t.type });
 }
+
+/** Log a refused task (`task.refused`) and return the reply text for the owner. */
+export function refused(log: Logger, r: { reason: string; reply: string }): string {
+  logEvent(log, "task.refused", { reason: r.reason, reply: r.reply });
+  return r.reply;
+}

@@ -1,5 +1,6 @@
 import type { Message } from "discord.js";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
+import type { MemoryRunner } from "../memory/memory-command-handler";
 import { logEvent, logger } from "../observability/logger";
 import { adminGate, parseAdminCommand } from "./admin-command";
 import type { DiscordSetup } from "./discord-setup-config";
@@ -17,6 +18,8 @@ export interface AdminDeps {
   /** Id of the logged-in bot user. */
   botId: () => string | undefined;
   setup: DiscordSetup;
+  /** Owner memory commands typed in #ops-control (global scope and `compact memory` only). */
+  memory?: MemoryRunner;
 }
 
 /**
@@ -62,6 +65,9 @@ export function createAdminHandler(deps: AdminDeps) {
       logEvent(log, "admin.refused", { channelId: ch.id, reply: gate.reply }, "warn");
       return void (await reply(gate.reply));
     }
+    // `remember: global ...`, `forget: global ...`, `compact memory`: after the same gate as admin commands.
+    const memo = await deps.memory?.({ where: "control", channelId: ch.id, text: prompt });
+    if (memo != null) return void (await reply(memo));
     const cmd = parseAdminCommand(prompt);
     if (cmd.kind !== "init_workspace") return void (await reply(cmd.reply));
     await reply(

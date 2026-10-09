@@ -1,9 +1,17 @@
 import { AttachmentBuilder, type Message, type SendableChannels } from "discord.js";
 import { type DiscordSetup, EMPTY_SETUP, opsIds } from "../discord-setup/discord-setup-config";
+import type { MemoryRunner } from "../memory/memory-command-handler";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { parseTaskCommand } from "../tasks/task-commands";
-import { prepareOutput, routeMessage, SAFE_MENTIONS, threadName } from "./discord-message-rules";
+import {
+  prepareOutput,
+  routeMessage,
+  SAFE_MENTIONS,
+  stripMention,
+  threadName,
+} from "./discord-message-rules";
+import { replyToMemoryCommand } from "./memory-ingress";
 
 /** A unit of work arriving from any ingress (Discord, tests). */
 export interface Task {
@@ -61,6 +69,8 @@ export interface MessageHandlerDeps {
   setup?: DiscordSetup;
   /** Admin handling for messages routed as `control` (gate + commands); never the agent. */
   admin?: (msg: Message, prompt: string) => Promise<void>;
+  /** Owner memory commands (`remember:` ...): answered inline before any thread or task is created. */
+  memory?: MemoryRunner;
 }
 
 /** Build the `messageCreate` handler: route, run the task, reply. Never throws. */
@@ -113,6 +123,11 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       // Strangers' and bots' messages are noise (debug); the owner's ignored ones are worth seeing.
       const stranger = route.reason === "bot" || route.reason === "not_owner";
       logEvent(log, "message.ignored", { reason: route.reason }, stranger ? "debug" : "info");
+      // A memory command in a non-control ops channel is refused with a reply (nothing is executed).
+      if (route.reason === "ops_channel" && deps.memory)
+        await replyToMemoryCommand(deps.memory, msg, "ops", stripMention(msg.content, botId)).catch(
+          (err) => log.error({ err: errText(err) }, "memory refusal failed"),
+        );
       return;
     }
     if (route.kind === "control") {
@@ -136,6 +151,9 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     // Where error replies go: the thread once it exists, else the message's channel.
     let errorTarget: SendableChannels | null = ch.isSendable() ? ch : null;
     try {
+      // Memory commands never reach the agent: answered in place (thread or channel), no thread, no task row.
+      if (deps.memory && (await replyToMemoryCommand(deps.memory, msg, "workspace", route.prompt)))
+        return;
       if (route.kind === "thread") {
         if (ch.isSendable() && channelId)
           await answer(ch, { threadId: ch.id, channelId }, route.prompt);

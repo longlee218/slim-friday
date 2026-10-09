@@ -7,7 +7,7 @@ export const ROOT_CHARS = 2000;
 /** Max chars of the workspace memory (owner-edited, never written by the agent). */
 export const WORKSPACE_CHARS = 2000;
 /** Max chars of one repo's memory injected into a prompt (the newest part is kept). */
-const PER_REPO_CHARS = 4000;
+export const PER_REPO_CHARS = 4000;
 /** Max chars of all repo memories of the workspace together (root and workspace layers are counted apart). */
 const REPOS_TOTAL_CHARS = 8000;
 /** Heading the agent uses for the lessons it wants remembered (see EXEC_RULES). */
@@ -22,14 +22,25 @@ const MAX_GLOBAL = 2;
 export const repoMemoryFile = (agentHome: string, ws: string, repo: string): string =>
   workspacePaths(agentHome).workspace(ws).repo(repo).memory;
 
+/** Injected text of a memory file plus whether its oldest part was cut to fit the cap. */
+interface Capped {
+  text: string;
+  cut: boolean;
+}
+
 /** Newest `max` chars of a memory file, or "" when missing / still only the template. */
-function readMemoryFile(file: string, max: number): string {
-  if (!existsSync(file)) return "";
+function readCapped(file: string, max: number): Capped {
+  if (!existsSync(file)) return { text: "", cut: false };
   const body = readFileSync(file, "utf8").trim();
   // Template = header + intro line only (no "##" entries yet).
-  if (!body.includes("\n## ")) return "";
-  return body.length > max ? `...${body.slice(-max)}` : body;
+  if (!body.includes("\n## ")) return { text: "", cut: false };
+  return body.length > max
+    ? { text: `...${body.slice(-max)}`, cut: true }
+    : { text: body, cut: false };
 }
+
+/** Newest `max` chars of a memory file, or "" when missing / still only the template. */
+const readMemoryFile = (file: string, max: number): string => readCapped(file, max).text;
 
 /** Newest part of one repo's memory, or "" when missing / still only the template. */
 export function readRepoMemory(
@@ -57,22 +68,40 @@ export interface MemoryLayers {
   workspace: string;
   /** Repos with a non-empty memory (total capped at REPOS_TOTAL_CHARS). */
   repos: { name: string; text: string }[];
+  /** Layers whose oldest part was cut at read ("root", "workspace", repo names): visible via `prompt.context`. */
+  overCap: string[];
+  /** Repos left out because the repos total (REPOS_TOTAL_CHARS) was already used. */
+  skippedRepos: string[];
 }
 
-/** Read the three layers for workspace `ws` and the repos the run may touch. */
+/** Read the three layers for workspace `ws` and the repos the run may touch. Pure: callers log what was cut. */
 export function readMemoryLayers(agentHome: string, ws: string, repos: string[]): MemoryLayers {
   let total = 0;
   const out: MemoryLayers["repos"] = [];
+  const overCap: string[] = [];
+  const skippedRepos: string[] = [];
+  const layer = (label: string, file: string, max: number): string => {
+    const r = readCapped(file, max);
+    if (r.cut) overCap.push(label);
+    return r.text;
+  };
   for (const name of repos) {
-    const text = readRepoMemory(agentHome, ws, name);
-    if (!text || total + text.length > REPOS_TOTAL_CHARS) continue;
+    const text = layer(name, repoMemoryFile(agentHome, ws, name), PER_REPO_CHARS);
+    if (!text) continue;
+    if (total + text.length > REPOS_TOTAL_CHARS) {
+      skippedRepos.push(name);
+      continue;
+    }
     total += text.length;
     out.push({ name, text });
   }
+  const paths = workspacePaths(agentHome);
   return {
-    root: readRootMemory(agentHome),
-    workspace: readWorkspaceMemory(agentHome, ws),
+    root: layer("root", paths.memory, ROOT_CHARS),
+    workspace: layer("workspace", paths.workspace(ws).memory, WORKSPACE_CHARS),
     repos: out,
+    overCap,
+    skippedRepos,
   };
 }
 

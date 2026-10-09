@@ -153,7 +153,7 @@ export interface ResumePlan {
  */
 export function resolveCommand(
   deps: { db: Database; agentHome: string; workspace: string; repos: Repo[] },
-  cmd: Exclude<TaskCommand, { kind: "stop" | "cleanup" }>,
+  cmd: Exclude<TaskCommand, { kind: "stop" | "cleanup" | "memory" }>,
   threadId: string,
 ): ResumePlan | Refusal {
   if (cmd.kind !== "resume") return { cmd };
