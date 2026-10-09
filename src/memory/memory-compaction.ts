@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import type { CompactLlm } from "./memory-compaction-llm";
+import { CallTimeoutError, type CompactLlm } from "./memory-compaction-llm";
 import {
   buildCompacted,
   bulletDiff,
@@ -89,7 +89,10 @@ export async function compactFile(
   try {
     call = await llm(compactionSystem(t.cap), compactionPrompt(raw.trim()));
   } catch (err) {
-    return abort(`model call failed: ${errText(err)}`);
+    // A deadline abort reads "model call timed out after N s", not the SDK's "aborted by user".
+    return abort(
+      err instanceof CallTimeoutError ? err.message : `model call failed: ${errText(err)}`,
+    );
   }
   logEvent(log, "memory.compacted", { file: t.label, dryRun: opts.dryRun, ...call.usage });
   const parsed = parseCompacted(call.text);

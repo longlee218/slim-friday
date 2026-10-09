@@ -124,6 +124,56 @@ test("sdk call: deadline-safe options (budget, no persistence) are set", async (
   } as any);
   await llm("s", "p");
   expect(opts).toMatchObject({ maxBudgetUsd: 0.05, persistSession: false, tools: [], maxTurns: 1 });
+  expect(opts.thinking).toEqual({ type: "disabled" }); // adaptive thinking cost 3-5k output tokens
+});
+
+/** Stub SDK stream that never answers and ends with an abort error when its signal fires. */
+const hangingQuery = (calls: { n: number }) =>
+  async function* (a: any) {
+    calls.n++;
+    await new Promise((_, rej) =>
+      a.options.abortController.signal.addEventListener("abort", () =>
+        rej(new Error("Claude Code process aborted by user")),
+      ),
+    );
+    yield resultMsg({ result: "" });
+  } as any;
+
+test("sdk call: deadline abort reads 'timed out', is retried once, then aborts the file untouched", async () => {
+  const env = makeEnv();
+  const { t } = big(env);
+  const before = readFileSync(t.file, "utf8");
+  const config = loadConfig({ AGENT_HOME: "/tmp/x", TIMEOUT_MS: "20" });
+  const calls = { n: 0 };
+  const [r] = await compactTargets([t], sdkCompactLlm(config, hangingQuery(calls)), {
+    dryRun: false,
+  });
+  expect(calls.n).toBe(2);
+  expect(r).toMatchObject({ status: "aborted", reason: "model call timed out after 0.02 s" });
+  expect(readFileSync(t.file, "utf8")).toBe(before);
+});
+
+test("sdk call: a timeout then a success is retried; a non-timeout error is not", async () => {
+  const config = loadConfig({ AGENT_HOME: "/tmp/x", TIMEOUT_MS: "20" });
+  let n = 0;
+  const flaky = sdkCompactLlm(config, async function* (a: any) {
+    if (++n === 1)
+      await new Promise((_, rej) =>
+        a.options.abortController.signal.addEventListener("abort", () => rej(new Error("x"))),
+      );
+    yield resultMsg({ result: "- ok" });
+  } as any);
+  expect((await flaky("s", "p")).text).toBe("- ok");
+  expect(n).toBe(2);
+  let m = 0;
+  const failing = sdkCompactLlm(config, (() => {
+    m++;
+    return {
+      [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(new Error("boom")) }),
+    };
+  }) as any);
+  await expect(failing("s", "p")).rejects.toThrow("boom");
+  expect(m).toBe(1);
 });
 
 test("symlinked memory file: owner remember refused, agent append logs write_failed, compaction aborts", async () => {

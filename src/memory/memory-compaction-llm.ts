@@ -10,22 +10,35 @@ export type CompactLlm = (
   prompt: string,
 ) => Promise<{ text: string; usage: RunUsage }>;
 
-/** Total deadline of one model call. */
-const CALL_DEADLINE_MS = 90_000;
+/** Deadline of ONE model call attempt (thinking off: a ~300-token answer takes seconds). */
+const CALL_DEADLINE_MS = 60_000;
+/** One automatic retry, on timeout only. Worst case total = 2 x CALL_DEADLINE_MS = 120 s per file. */
+const MAX_ATTEMPTS = 2;
 /** Cost ceiling of one model call (a few thousand Haiku tokens cost far less). */
 const CALL_BUDGET_USD = 0.05;
 
+/** Thrown when the per-attempt deadline fires (so it is not reported as "aborted by user"). */
+export class CallTimeoutError extends Error {}
+
 /**
- * The real model call: Claude Agent SDK `query` with no tools, one turn, no settings, no persona, the
- * MEMORY_MODEL (never MODEL / CODE_MODEL). Works with the owner's OAuth token because it goes through the SDK.
+ * The real model call: Claude Agent SDK `query` with no tools, one turn, no settings, no persona, no
+ * extended thinking (default adaptive thinking made a ~300-token answer cost 3-5k output tokens and 18-49 s),
+ * the MEMORY_MODEL (never MODEL / CODE_MODEL). Works with the owner's OAuth token because it goes through the SDK.
+ * A timed-out attempt is retried once; other errors (budget, model error) are not retried.
  */
 export function sdkCompactLlm(
   config: AgentConfig,
   queryFn: QueryFn = sdkQuery as QueryFn,
 ): CompactLlm {
-  return async (system, prompt) => {
+  const deadlineMs = Math.min(config.limits.timeoutMs, CALL_DEADLINE_MS);
+  /** One attempt with its own deadline. */
+  const attempt: CompactLlm = async (system, prompt) => {
     const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), Math.min(config.limits.timeoutMs, CALL_DEADLINE_MS));
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      ac.abort();
+    }, deadlineMs);
     try {
       let text = "";
       let usage: RunUsage | undefined;
@@ -36,6 +49,7 @@ export function sdkCompactLlm(
           model: config.memoryModel,
           systemPrompt: system,
           tools: [],
+          thinking: { type: "disabled" },
           maxTurns: 1,
           maxBudgetUsd: CALL_BUDGET_USD,
           persistSession: false, // the transcript would hold the whole memory text
@@ -53,8 +67,20 @@ export function sdkCompactLlm(
       }
       if (!usage) throw new Error("no result message");
       return { text, usage };
+    } catch (err) {
+      if (timedOut) throw new CallTimeoutError(`model call timed out after ${deadlineMs / 1000} s`);
+      throw err;
     } finally {
       clearTimeout(timer);
+    }
+  };
+  return async (system, prompt) => {
+    for (let n = 1; ; n++) {
+      try {
+        return await attempt(system, prompt);
+      } catch (err) {
+        if (!(err instanceof CallTimeoutError) || n >= MAX_ATTEMPTS) throw err;
+      }
     }
   };
 }
