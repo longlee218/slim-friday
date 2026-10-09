@@ -17,7 +17,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
-import { SUBAGENT_NAMES } from "../src/tools/tool-catalog";
+import { SUBAGENTS } from "../src/tools/tool-catalog";
 import { addRepo, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 /** Run one Q&A message and return the SDK options the handler built. */
@@ -84,7 +84,7 @@ test("Q&A git MCP: reads on registered repos only, never writes", async () => {
 });
 
 test("Agent tool: only configured subagents; general-purpose (Bash/Write capable) is denied", () => {
-  const ctx = { writePaths: [], allowedSubagents: SUBAGENT_NAMES };
+  const ctx = { writePaths: [], allowedSubagents: Object.keys(SUBAGENTS) };
   const d = (input: Record<string, unknown>, tool = AGENT_TOOL_NAME) =>
     checkToolCall(tool, input, ctx).decision;
   expect(d({ subagent_type: "repo-searcher", prompt: "p" })).toBe("allow");

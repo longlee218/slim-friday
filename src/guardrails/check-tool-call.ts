@@ -12,6 +12,7 @@ import {
   MCP_PREFIX,
   mcpServerPrefix,
 } from "../mcp/mcp-tool-names";
+import { type StageRef, stageOf } from "../roles/role-registry";
 import { DELEGATE_TASK_MCP_TOOL_NAME } from "../tools/DelegateTaskTool/constants";
 import {
   AGENT_TOOL_NAME,
@@ -30,8 +31,6 @@ import {
   GIT_GROUPS,
   GIT_READ_BY_MODE,
   PLAN_FLOW_TOOLS,
-  SUBAGENT_NAMES,
-  type ToolMode,
 } from "../tools/tool-catalog";
 import { checkBash } from "./bash-policy";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
@@ -62,15 +61,20 @@ export interface GuardrailContext {
 export type GuardScope = Omit<GuardrailContext, "allowTools" | "allowedSubagents">;
 
 /**
- * The guard context of a run: the mode's auto-allowed tools and the configured subagents come from the
- * tool catalog, the paths from the caller. One builder for Q&A, plan and execute stages.
+ * The guard context of a run: the stage's auto-allowed tools come from the tool catalog, its subagent
+ * allowlist from the stage itself (none listed = none allowed, fail closed), the paths from the caller.
+ * One builder for every stage.
  */
 export function guardFor(
-  mode: ToolMode,
+  stage: StageRef,
   scope: GuardScope,
   opts: { delegate?: boolean } = {},
 ): GuardrailContext {
-  return { ...scope, allowTools: autoAllowedTools(mode, opts), allowedSubagents: SUBAGENT_NAMES };
+  return {
+    ...scope,
+    allowTools: autoAllowedTools(stage, opts),
+    allowedSubagents: stageOf(stage).subagents ?? [],
+  };
 }
 
 const WRITE_TOOLS = new Set([

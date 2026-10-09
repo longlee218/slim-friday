@@ -1,6 +1,9 @@
 import type { AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../mcp/mcp-tool-names";
+import { type StageRef, stageOf } from "../roles/role-registry";
+import type { Capability } from "../roles/role-types";
 import { DELEGATE_TASK_MCP_TOOL_NAME } from "./DelegateTaskTool/constants";
+import { GIT_GROUPS } from "./git-tool-groups";
 import {
   AGENT_TOOL_NAME,
   ASK_USER_QUESTION_TOOL_NAME,
@@ -22,26 +25,13 @@ import {
   WRITE_TOOL_NAME,
 } from "./sdk-tool-names";
 
+export { GIT_GROUPS };
+
 /**
- * The single place that says WHICH tools exist and WHICH mode gets what. Everything else (SDK options,
- * the guard's auto-allowed list, hidden git tools) is derived by the functions below: change a mode here,
- * nothing else needs editing.
+ * The single place that says WHICH tools exist. WHICH stage gets what is data in `src/roles` (capabilities,
+ * gitGroups, subagents); everything here (SDK options, the guard's auto-allowed list, hidden git tools) is
+ * derived from a stage by the functions below. Functions take a StageDefinition (or its name).
  */
-
-/** Where a run is: Q&A, the plan stage of a code task, or its execute stage in the worktree. */
-export type ToolMode = "qa" | "plan" | "exec";
-
-/** A group of built-in tools that belong together. */
-export type Capability =
-  | "read" // look at files
-  | "write" // change files (paths limited by the guard)
-  | "shell" // Bash (policy + owner approval)
-  | "web" // search / fetch
-  | "skills"
-  | "subagents" // Agent: only the configured read-only subagents (guard)
-  | "tasks" // progress tracking
-  | "ask" // AskUserQuestion: answered by the owner through Discord buttons
-  | "planControl"; // enter / leave plan mode (leaving needs the owner's approval)
 
 /**
  * Plan-flow tools: ExitPlanMode and AskUserQuestion are answered by the owner (canUseTool); Enter is harmless.
@@ -70,25 +60,8 @@ const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
   ],
   ask: [ASK_USER_QUESTION_TOOL_NAME],
   planControl: [EXIT_PLAN_MODE_TOOL_NAME, ENTER_PLAN_MODE_TOOL_NAME],
-};
-
-/** Capabilities of a code task. Plan and execute stages share them: the guard narrows what a call may do. */
-const CODE_CAPABILITIES: readonly Capability[] = [
-  "read",
-  "write",
-  "shell",
-  "skills",
-  "subagents",
-  "tasks",
-  "ask",
-  "planControl",
-];
-
-/** The owner-approved matrix: which capabilities each mode has. */
-const MODE_CAPABILITIES: Record<ToolMode, readonly Capability[]> = {
-  qa: ["read", "web", "skills", "subagents"],
-  plan: CODE_CAPABILITIES,
-  exec: CODE_CAPABILITIES,
+  // The handoff tool is an MCP tool (not in `tools`); this capability only gates its server and prompt.
+  recommend: [],
 };
 
 /** Tools that run without asking anyone (the other tools go through path/policy checks or the owner). */
@@ -99,34 +72,30 @@ const AUTO_ALLOWED = new Set<string>([
   ENTER_PLAN_MODE_TOOL_NAME,
 ]);
 
-/** Built-in tools of a mode (the SDK `tools` option). */
-export const toolsFor = (mode: ToolMode): string[] =>
-  MODE_CAPABILITIES[mode].flatMap((c) => CAPABILITY_TOOLS[c]);
+/** Built-in tools of a stage (the SDK `tools` option). */
+export const toolsFor = (stage: StageRef): string[] =>
+  stageOf(stage).capabilities.flatMap((c) => CAPABILITY_TOOLS[c]);
 
 /**
- * Tools of a mode that need no approval (the guard's `allowTools`). `DelegateTask` exists in Q&A only, and is
- * allowed only when the run registers it (`delegate`, default true); otherwise the guard denies the unknown tool.
+ * Tools of a stage that need no approval (the guard's `allowTools`). `DelegateTask` exists in stages with the
+ * `recommend` capability, and is allowed only when the run registers it (`delegate`, default true); otherwise
+ * the guard denies the unknown tool.
  */
-export const autoAllowedTools = (mode: ToolMode, opts: { delegate?: boolean } = {}): string[] => [
-  ...toolsFor(mode).filter((t) => AUTO_ALLOWED.has(t)),
-  ...(mode === "qa" && (opts.delegate ?? true) ? [DELEGATE_TASK_MCP_TOOL_NAME] : []),
-];
+export const autoAllowedTools = (stage: StageRef, opts: { delegate?: boolean } = {}): string[] => {
+  const s = stageOf(stage);
+  return [
+    ...toolsFor(s).filter((t) => AUTO_ALLOWED.has(t)),
+    ...(s.capabilities.includes("recommend") && (opts.delegate ?? true)
+      ? [DELEGATE_TASK_MCP_TOOL_NAME]
+      : []),
+  ];
+};
 
 /* ---------------- git MCP tools (@cyanheads/git-mcp-server 2.15.3) ---------------- */
 
-/** Git MCP tools by purpose. */
-export const GIT_GROUPS = {
-  /** Pure reads, allowed on the worktree and on registered repos. */
-  read: [GIT_TOOL.STATUS, GIT_TOOL.DIFF, GIT_TOOL.LOG, GIT_TOOL.SHOW, GIT_TOOL.BLAME],
-  /** Staging and committing: the task worktree only. */
-  commit: [GIT_TOOL.ADD, GIT_TOOL.COMMIT],
-  /** Moves HEAD / the index: the worktree only, owner is asked. */
-  change: [GIT_TOOL.CHECKOUT, GIT_TOOL.RESET],
-} as const;
-
 /**
- * Tools visible in every mode that are reads only in some `mode` values (an absent mode is the server's
- * default: list). The guard derives its check from this table: tool -> read-only modes.
+ * Tools visible in every stage that are reads only in some `mode` values (an absent mode is the server's
+ * default: list). The guard derives its check from this table: tool -> read-only modes (the git tool's own `mode` argument).
  */
 export const GIT_READ_BY_MODE: Record<string, readonly string[]> = {
   [GIT_TOOL.BRANCH]: ["list", "show-current"],
@@ -135,22 +104,15 @@ export const GIT_READ_BY_MODE: Record<string, readonly string[]> = {
 /** Every tool of the server. Agents never get push/pull/fetch/clone/worktree/...: the app calls those. */
 const ALL_GIT_TOOLS: readonly string[] = Object.values(GIT_TOOL);
 
-/** Git tool groups each mode may use (plus the by-mode reads, always). */
-const MODE_GIT_GROUPS: Record<ToolMode, readonly (keyof typeof GIT_GROUPS)[]> = {
-  qa: ["read"],
-  plan: ["read"],
-  exec: ["read", "commit", "change"],
-};
-
-/** Git MCP tools a mode may see. */
-export const gitToolsFor = (mode: ToolMode): string[] => [
-  ...MODE_GIT_GROUPS[mode].flatMap((g) => GIT_GROUPS[g]),
+/** Git MCP tools a stage may see (its groups, plus the by-mode reads, always). */
+export const gitToolsFor = (stage: StageRef): string[] => [
+  ...stageOf(stage).gitGroups.flatMap((g) => GIT_GROUPS[g]),
   ...Object.keys(GIT_READ_BY_MODE),
 ];
 
-/** Git MCP tools to hide from a mode (`mcp__git__…`): a shorter tool list and a second lock behind the guard. */
-export const hiddenGitTools = (mode: ToolMode): string[] => {
-  const allowed = new Set<string>(gitToolsFor(mode));
+/** Git MCP tools to hide from a stage (`mcp__git__…`): a shorter tool list and a second lock behind the guard. */
+export const hiddenGitTools = (stage: StageRef): string[] => {
+  const allowed = new Set<string>(gitToolsFor(stage));
   return ALL_GIT_TOOLS.filter((t) => !allowed.has(t)).map((t) => mcpToolName(GIT_MCP_SERVER, t));
 };
 
@@ -169,15 +131,15 @@ export const SECRET_FILE_RULES = [
 ];
 
 /**
- * SDK options fragment for a mode, derived from this catalog. ONLY `tools` restricts the built-in set
+ * SDK options fragment for a stage, derived from this catalog. ONLY `tools` restricts the built-in set
  * (we trust the SDK for that, verified per mode with the real SDK); `allowedTools` would auto-approve and
  * bypass canUseTool, so it is never used. `disallowedTools` only carries what `tools` cannot express: the
- * path-scoped secret-file rules and the git MCP tools of other modes.
+ * path-scoped secret-file rules and the git MCP tools of other stages.
  */
-export function toolOptions(mode: ToolMode) {
+export function toolOptions(stage: StageRef) {
   return {
-    tools: toolsFor(mode),
-    disallowedTools: [...hiddenGitTools(mode), ...SECRET_FILE_RULES],
+    tools: toolsFor(stage),
+    disallowedTools: [...hiddenGitTools(stage), ...SECRET_FILE_RULES],
     // Only the MCP servers we pass in `mcpServers`; ignore account connectors and project .mcp.json.
     strictMcpConfig: true,
   };
@@ -196,6 +158,3 @@ export const SUBAGENTS: Record<string, AgentDefinition> = {
     tools: [READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME],
   },
 };
-
-/** Names for the guard's Agent-tool allowlist. */
-export const SUBAGENT_NAMES = Object.keys(SUBAGENTS);

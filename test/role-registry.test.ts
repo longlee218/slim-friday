@@ -1,0 +1,93 @@
+import { expect, test } from "bun:test";
+import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
+import { mcpServersFor } from "../src/mcp/mcp-servers";
+import { GIT_MCP_SERVER, GITHUB_MCP_SERVER, TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import {
+  delegableRoleNames,
+  findStage,
+  getRole,
+  getStage,
+  intentRoles,
+  ROLES,
+  stageOf,
+} from "../src/roles/role-registry";
+import type { StageDefinition } from "../src/roles/role-types";
+import { AGENT_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { toolsFor } from "../src/tools/tool-catalog";
+
+/** A stage with no `subagents`: the default that must fail closed. */
+const BARE: StageDefinition = {
+  name: "bare",
+  capabilities: ["read", "subagents"],
+  gitGroups: [],
+  promptSections: () => [],
+};
+
+test("registry: assistant and dev, unknown role fails", () => {
+  expect(Object.keys(ROLES).sort()).toEqual(["assistant", "dev"]);
+  expect(() => getRole("nope")).toThrow("Unknown role");
+  expect(() => stageOf("nope" as never)).toThrow("Unknown stage");
+  expect(getRole("dev").stages.map((s) => s.name)).toEqual(["plan", "exec"]);
+  expect(getRole("assistant").stages.map((s) => s.name)).toEqual(["qa"]);
+});
+
+test("stages: plan-mode only in plan, worktree only in exec, code model on code stages", () => {
+  expect(getStage("dev", "plan").permissionMode).toBe("plan");
+  expect(getStage("dev", "exec").permissionMode).toBeUndefined();
+  expect(getStage("dev", "exec").isolation).toBe("worktree");
+  expect(getStage("assistant", "qa").model).toBe("default");
+  expect(getStage("dev", "plan").model).toBe("code");
+});
+
+test("whenToUse: every role has one, all different; modelTiers only for dev", () => {
+  const roles = intentRoles();
+  expect(roles.map((r) => r.name).sort()).toEqual(["assistant", "dev"]);
+  for (const r of roles) expect(r.whenToUse.length).toBeGreaterThan(20);
+  expect(new Set(roles.map((r) => r.whenToUse)).size).toBe(roles.length);
+  expect(getRole("dev").modelTiers).toBe(true);
+  expect(getRole("assistant").modelTiers).toBeUndefined();
+});
+
+test("delegableRoleNames: roles with whenToUse except the assistant", () => {
+  expect(delegableRoleNames()).toEqual(["dev"]);
+});
+
+test("guard: subagent allowlist comes from the stage; a stage without subagents allows none", () => {
+  const scope = { readPaths: ["/r"] };
+  const qa = guardFor("qa", scope);
+  expect(qa.allowedSubagents).toEqual(["repo-searcher"]);
+  expect(checkToolCall(AGENT_TOOL_NAME, { subagent_type: "repo-searcher" }, qa).decision).toBe(
+    "allow",
+  );
+  const bare = guardFor(BARE, scope);
+  expect(bare.allowedSubagents).toEqual([]);
+  expect(checkToolCall(AGENT_TOOL_NAME, { subagent_type: "repo-searcher" }, bare).decision).toBe(
+    "deny",
+  );
+});
+
+test("mcp servers follow capabilities: git by groups, tasks by recommend, github by write", async () => {
+  const app = { type: "sdk", name: TASKS_MCP_SERVER, instance: {} } as never;
+  const qa = await mcpServersFor(getStage("assistant", "qa"), { appServer: app });
+  expect(Object.keys(qa).sort()).toEqual([GIT_MCP_SERVER, TASKS_MCP_SERVER].sort());
+  // No app server: no tasks server even with the capability.
+  expect(Object.keys(await mcpServersFor("qa", {}))).toEqual([GIT_MCP_SERVER]);
+  // A stage without git groups or recommend gets neither server, and no github (no write).
+  expect(await mcpServersFor(BARE, { appServer: app })).toEqual({});
+  // Code stages never get the tasks server; github is added when a token is available.
+  const exec = Object.keys(await mcpServersFor("exec", { appServer: app }));
+  expect(exec).toContain(GIT_MCP_SERVER);
+  expect(exec).not.toContain(TASKS_MCP_SERVER);
+  expect(exec.filter((k) => k !== GIT_MCP_SERVER && k !== GITHUB_MCP_SERVER)).toEqual([]);
+});
+
+test("tools derive from capabilities (recommend adds no built-in tool)", () => {
+  expect(toolsFor(BARE)).toEqual(["Read", "Glob", "Grep", AGENT_TOOL_NAME]);
+  expect(toolsFor("qa").every((t) => !t.includes("DelegateTask"))).toBe(true);
+});
+
+test("findStage: a stage name in two roles is ambiguous and throws", () => {
+  const dup = { ...getRole("dev"), name: "dev2" };
+  expect(() => findStage([getRole("dev"), dup], "plan")).toThrow("Ambiguous stage");
+  expect(findStage([getRole("dev"), getRole("assistant")], "qa").name).toBe("qa");
+});

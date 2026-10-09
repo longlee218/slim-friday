@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
+import type { StageName as ToolMode } from "../src/roles/role-registry";
 import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import {
   AGENT_TOOL_NAME,
@@ -29,8 +30,7 @@ import {
   gitToolsFor,
   hiddenGitTools,
   SECRET_FILE_RULES,
-  SUBAGENT_NAMES,
-  type ToolMode,
+  SUBAGENTS,
   toolOptions,
   toolsFor,
 } from "../src/tools/tool-catalog";
@@ -157,7 +157,7 @@ test("git tools: reads everywhere, commit/change only in exec, hidden = the comp
 test("guardFor: one builder per mode, auto-allowed tools and subagents from the catalog", () => {
   const qa = guardFor("qa", { readPaths: ["/r"], gitReadRepos: ["/r"] });
   expect(qa.allowTools).toEqual(autoAllowedTools("qa"));
-  expect(qa.allowedSubagents).toEqual(SUBAGENT_NAMES);
+  expect(qa.allowedSubagents).toEqual(Object.keys(SUBAGENTS));
   expect(qa.writePaths).toBeUndefined(); // Q&A writes nothing
   expect(qa.gitWriteRepo).toBeUndefined();
   const exec = guardFor("exec", {

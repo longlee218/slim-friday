@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
+import type { StageName as ToolMode } from "../src/roles/role-registry";
 import { buildSystemPrompt } from "../src/runtime/system-prompt";
 import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { GIT_GROUPS, type ToolMode } from "../src/tools/tool-catalog";
+import { GIT_GROUPS } from "../src/tools/tool-catalog";
 
 /** Rules text of a mode (no context). */
 const rules = (mode: ToolMode, handoff = false) => buildSystemPrompt("", mode, { handoff }).append;

@@ -1,5 +1,6 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { delegableRoleNames } from "../../roles/role-registry";
 import { DELEGATE_TASK_TOOL_NAME } from "./constants";
 import { DESCRIPTION } from "./prompt";
 
@@ -31,8 +32,8 @@ export function createDelegateTaskTool(h: {
     DELEGATE_TASK_TOOL_NAME,
     DESCRIPTION,
     {
-      // Only the dev role exists (plan stage, then exec stage); any other value fails the schema.
-      role: z.enum(["dev"]),
+      // Roles the registry lets Q&A hand work to (today: dev); any other value fails the schema.
+      role: z.enum(delegableRoleNames()),
       brief: z.string().min(20).max(4000),
       repo: z.string().min(1).max(100).optional(),
     },

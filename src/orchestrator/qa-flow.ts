@@ -11,6 +11,7 @@ import { buildPromptContext } from "../memory/prompt-context";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { isManagedClone, refreshRepo } from "../repos/refresh-repo";
 import { buildRegistryContext, type Repo } from "../repos/repo-registry";
+import { getStage } from "../roles/role-registry";
 import { type QueryFn, runAgent } from "../runtime/run-agent";
 import { rejectedPlans } from "../storage/approval-store";
 import type { SessionRow } from "../storage/session-store";
@@ -99,7 +100,7 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
     // Q&A guardrails: read only the registered repos (+ workspace); git MCP reads only those repos.
     // `DelegateTask` is auto-allowed only when this run registers it (`appServer`).
     guard: guardFor(
-      "qa",
+      getStage("assistant", "qa"),
       {
         readPaths: [cwd, ...additionalDirectories].map(realOrSame),
         gitReadRepos: scope.map((r) => realOrSame(r.path)),

@@ -1,7 +1,7 @@
 import type { McpSdkServerConfigWithInstance, Options } from "@anthropic-ai/claude-agent-sdk";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import type { ToolMode } from "../tools/tool-catalog";
+import { type StageRef, stageOf } from "../roles/role-registry";
 import { type GitIdentity, gitMcpServerConfig } from "./git-mcp";
 import { ghToken, githubMcpServer } from "./github-mcp";
 import { GIT_MCP_SERVER, GITHUB_MCP_SERVER, TASKS_MCP_SERVER } from "./mcp-tool-names";
@@ -10,25 +10,32 @@ import { GIT_MCP_SERVER, GITHUB_MCP_SERVER, TASKS_MCP_SERVER } from "./mcp-tool-
 const log = logger.child({ module: "mcp-servers" });
 
 /**
- * MCP servers of a mode: the git server always (the guard limits `path` and tools by mode); the READ-ONLY
- * GitHub server in code tasks (issues, PRs, code search); the in-process `tasks` server (`DelegateTask`) in Q&A.
- * PRs are created by the app, never by the agent.
+ * MCP servers of a stage: the git server when it has git groups (the guard limits `path` and tools by stage);
+ * the READ-ONLY GitHub server for stages that write (code tasks: issues, PRs, code search); the in-process
+ * `tasks` server (`DelegateTask`) for stages with the `recommend` capability. PRs are created by the app.
  */
 export async function mcpServersFor(
-  mode: ToolMode,
+  stage: StageRef,
   input: {
     githubAccount?: string;
     gitAuthor?: GitIdentity;
     gitBaseDir?: string;
-    /** In-process app server (the Q&A `DelegateTask` tool); registered in Q&A only. */
+    /** In-process app server (the `DelegateTask` tool); registered for stages with `recommend` only. */
     appServer?: McpSdkServerConfigWithInstance;
   },
 ): Promise<NonNullable<Options["mcpServers"]>> {
-  const servers: NonNullable<Options["mcpServers"]> = {
-    [GIT_MCP_SERVER]: gitMcpServerConfig({ author: input.gitAuthor, baseDir: input.gitBaseDir }),
-  };
-  if (mode === "qa" && input.appServer) servers[TASKS_MCP_SERVER] = input.appServer;
-  if (mode !== "qa") {
+  const s = stageOf(stage);
+  const servers: NonNullable<Options["mcpServers"]> = {};
+  if (s.gitGroups.length) {
+    servers[GIT_MCP_SERVER] = gitMcpServerConfig({
+      author: input.gitAuthor,
+      baseDir: input.gitBaseDir,
+    });
+  }
+  if (s.capabilities.includes("recommend") && input.appServer) {
+    servers[TASKS_MCP_SERVER] = input.appServer;
+  }
+  if (s.capabilities.includes("write")) {
     try {
       servers[GITHUB_MCP_SERVER] = githubMcpServer({
         token: await ghToken(input.githubAccount),

@@ -12,6 +12,7 @@ import { buildPromptContext } from "../memory/prompt-context";
 import { extractMemory } from "../memory/repo-memory";
 import { logEvent, logger, setLogContext } from "../observability/logger";
 import { type Repo, resolveAuthor } from "../repos/repo-registry";
+import { getStage } from "../roles/role-registry";
 import { type QueryFn, runAgent } from "../runtime/run-agent";
 import type { WorktreeRow } from "../storage/worktree-store";
 import { awaitingResult, execWorkflow, stageControl } from "./code-flow-workflow";
@@ -125,7 +126,7 @@ export async function runCodeFlow(deps: CodeFlowDeps, i: CodeFlowInput): Promise
         workspace: i.workspace,
         memoryRepos: [wt.repo],
       }),
-      guard: guardFor("exec", {
+      guard: guardFor(getStage("dev", "exec"), {
         writePaths: [cwd, plans],
         readPaths: [cwd, scratchReal, plans, ...flow.readPaths],
         gitWriteRepo: cwd,

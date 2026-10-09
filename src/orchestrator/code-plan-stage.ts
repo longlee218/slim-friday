@@ -3,6 +3,7 @@ import { claudePlansDir, workspacePaths } from "../config/workspace-paths";
 import { guardFor } from "../guardrails/check-tool-call";
 import { buildPromptContext } from "../memory/prompt-context";
 import { buildRegistryContext } from "../repos/repo-registry";
+import { getStage } from "../roles/role-registry";
 import { runAgent } from "../runtime/run-agent";
 import { planWorkflow, stageControl } from "./code-flow-workflow";
 import type { CodeFlowDeps, CodeFlowInput } from "./code-task-flow";
@@ -49,7 +50,7 @@ export async function runPlanStage(
       registry: buildRegistryContext(i.workspace, i.repos, true),
       memoryRepos: i.repos.map((r) => r.name),
     }),
-    guard: guardFor("plan", {
+    guard: guardFor(getStage("dev", "plan"), {
       writePaths: [scratchReal, plans],
       readPaths: [scratchReal, plans, ...repoPaths],
       gitReadRepos: repoPaths,
