@@ -1,6 +1,12 @@
 import type { Database } from "bun:sqlite";
 import { insertRun, insertToolCall } from "../storage/run-metrics-store";
 import { createLogger, fileDestination, logger, tryLog } from "./logger";
+import {
+  type ModelUsage,
+  mergeModelUsage,
+  modelUsageFromResult,
+  type ResultModelUsage,
+} from "./model-usage";
 import { redactDeep, safePreview } from "./redact";
 
 /** How a run ended. */
@@ -23,6 +29,8 @@ export interface RunUsage {
   turns: number;
   durationMs: number;
   compactions: number;
+  /** Per-model split of the run (all agents), from the result message; absent when the SDK gave none. */
+  modelUsage?: ModelUsage;
 }
 
 /** Zeroed usage used when no result message arrived (abort/crash). */
@@ -52,6 +60,7 @@ export class RunRecorder {
    * @param taskId owning task id
    * @param model model name stored on the runs row
    * @param taskLogFile path of the per-task JSONL
+   * @param stageIdx stage index of the task this run belongs to; omitted for non-stage runs (stored as NULL)
    */
   constructor(
     private readonly db: Database,
@@ -59,6 +68,7 @@ export class RunRecorder {
     private readonly taskId: string,
     private readonly model: string,
     taskLogFile: string,
+    private readonly stageIdx?: number,
   ) {
     this.dest = fileDestination(taskLogFile);
     this.taskLog = createLogger(this.dest, "trace");
@@ -84,6 +94,8 @@ export class RunRecorder {
     output: unknown;
     isError: boolean;
     durationMs: number;
+    /** Subagent that made the call; absent for the main agent. */
+    agentId?: string;
   }): void {
     this.safely("recordToolCall", () =>
       insertToolCall(this.db, {
@@ -94,6 +106,7 @@ export class RunRecorder {
         outputPreview: safePreview(c.output),
         isError: c.isError,
         durationMs: c.durationMs,
+        agentId: c.agentId,
       }),
     );
   }
@@ -101,7 +114,14 @@ export class RunRecorder {
   /** Insert the final runs row. */
   finish(outcome: RunOutcome, u: RunUsage): void {
     this.safely("finish", () =>
-      insertRun(this.db, { id: this.runId, taskId: this.taskId, model: this.model, outcome, ...u }),
+      insertRun(this.db, {
+        id: this.runId,
+        taskId: this.taskId,
+        model: this.model,
+        stageIdx: this.stageIdx,
+        outcome,
+        ...u,
+      }),
     );
   }
 
@@ -130,6 +150,7 @@ export interface ResultShape {
   errors?: string[];
   total_cost_usd?: number;
   num_turns?: number;
+  modelUsage?: ResultModelUsage;
   duration_ms?: number;
   usage?: {
     input_tokens?: number;
@@ -150,6 +171,7 @@ export function usageFromResult(r: ResultShape, compactions: number): RunUsage {
     turns: r.num_turns ?? 0,
     durationMs: r.duration_ms ?? 0,
     compactions,
+    modelUsage: modelUsageFromResult(r.modelUsage),
   };
 }
 
@@ -170,5 +192,8 @@ export function addUsage(a: RunUsage, b: RunUsage): RunUsage {
     turns: a.turns + b.turns,
     durationMs: a.durationMs + b.durationMs,
     compactions: a.compactions + b.compactions,
+    // modelUsage follows the cost semantics (cumulative, per-field max), NOT the summed top-level tokens above:
+    // an unverified assumption until a live multi-result run (see mergeModelUsage).
+    modelUsage: mergeModelUsage(a.modelUsage, b.modelUsage),
   };
 }

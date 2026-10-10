@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { Options, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { GIT_MCP_SERVER } from "../mcp/mcp-tool-names";
-import { logger, tryLog } from "../observability/logger";
+import { logEvent, logger, tryLog } from "../observability/logger";
 import {
   addUsage,
   emptyUsage,
@@ -13,6 +13,7 @@ import {
   usageFromResult,
 } from "../observability/record-run";
 import { errText, redactText } from "../observability/redact";
+import { createTurnUsage } from "../observability/turn-usage";
 import { setTaskSession } from "../storage/run-store";
 import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
 
@@ -96,6 +97,7 @@ export async function consumeStream(p: {
   let rejected = false;
   let resetsAt: number | undefined;
   let lastText: string | undefined;
+  const turns = createTurnUsage(); // one `llm.turn` line per distinct model call
   try {
     for await (const msg of p.run({ prompt: p.prompt, options: p.options })) {
       recorder.logMessage(msg);
@@ -112,6 +114,10 @@ export async function consumeStream(p: {
       const ext = m as unknown as { error?: string; rate_limit_info?: { status?: string } };
       // A later assistant message without `error` means the SDK retry worked: forget the old error.
       if (m.type === "assistant") {
+        tryLog(log, "turn usage failed", () => {
+          const t = turns.onMessage(m);
+          if (t) logEvent(log, "llm.turn", t);
+        });
         assistantError = ext.error;
         const said = assistantText(m);
         if (said) lastText = said;

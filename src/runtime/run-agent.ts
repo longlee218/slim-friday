@@ -53,6 +53,8 @@ export interface RunAgentInput {
   skillsWorkspace?: string;
   /** Routing facts (class, effort, forced tier, escalation); omitted = the stage defaults. */
   route?: Route;
+  /** Index of the stage this run executes (written to runs.stage_idx); omitted for non-stage runs. */
+  stageIdx?: number;
   /** Existing Claude session id to resume. */
   resume?: string;
   /**
@@ -114,6 +116,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     input.taskId,
     config.model,
     workspacePaths(config.agentHome).taskLog(input.taskId),
+    input.stageIdx,
   );
   const run = input.queryFn ?? (sdkQuery as QueryFn);
 
@@ -165,6 +168,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     recorder.close();
   }
   const { text, sessionId, outcome, usage, resetsAt, lastText } = res;
+  // `usage` is the main agent's tokens; `costUsd` is the total cost (all agents); `modelUsage` splits both per model.
   logEvent(log, "run.finished", { outcome, ...usage, durationMs: Date.now() - startedAt });
   return {
     text,

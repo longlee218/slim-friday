@@ -22,7 +22,7 @@ const TOOL_KEYS = [
   "approx",
   "lines",
   "files",
-].concat(["truncated", "err", "decision", "reason"]);
+].concat(["truncated", "err", "decision", "reason", "agentId", "agentType"]);
 
 /** Events that always show where they happened (thread/channel). */
 const SHOW_THREAD = new Set(["task.started", "message.received"]);
@@ -38,7 +38,8 @@ const s = (v: unknown) => (typeof v === "string" ? v : v === undefined ? "" : St
 
 /** Compact body of a tool.* line: `Read src/a.ts:1-9 ok 1ms 90 lines 3.7KB`. */
 function toolBody(l: Log): string {
-  const head = [s(l.tool), s(l.target)].filter(Boolean);
+  // A subagent's call shows its type (`Read src/a.ts @explorer`); the main agent's has none.
+  const head = [s(l.tool), s(l.target), l.agentType && `@${s(l.agentType)}`].filter(Boolean);
   if (l.event === "tool.start") return head.join(" ");
   if (l.event === "tool.denied") return [...head, "DENIED", s(l.reason)].filter(Boolean).join(" ");
   const parts = [...head, l.ok === false ? "FAILED" : "ok", `${s(l.durationMs)}ms`];
@@ -49,6 +50,28 @@ function toolBody(l: Log): string {
   if (l.decision) parts.push(`${s(l.decision)}:${s(l.reason)}`);
   if (l.err) parts.push(`err="${s(l.err)}"`);
   return parts.join(" ");
+}
+
+/** Detail keys of an `llm.turn` line from the stream (see turn-usage.ts): folded into the message body. */
+const TURN_KEYS = [
+  "turn",
+  "in",
+  "cacheRead",
+  "cacheCreate",
+  "outApprox",
+  "ctxTotal",
+  "model",
+].concat(["sub", "agentId"]);
+
+/** Token count as `27.3k` (below 1000: as is). */
+const kilo = (n: number) => (n < 1000 ? String(n) : `${(n / 1000).toFixed(1)}k`);
+
+/** Compact body of a stream `llm.turn`: `llm.turn #3 ctx 27.3k (cache 99%) out~16 sub:a1b2c3 model`. */
+function turnBody(l: Log): string {
+  const inn = Number(l.in);
+  const cache = inn > 0 ? Math.round((Number(l.cacheRead) / inn) * 100) : 0;
+  const who = l.sub ? ` sub${l.agentId ? `:${s(l.agentId).slice(0, 6)}` : ""}` : "";
+  return `llm.turn #${s(l.turn)} ctx ${kilo(inn)} (cache ${cache}%) out~${s(l.outApprox)}${who}${l.model ? ` ${s(l.model)}` : ""}`;
 }
 
 /**
@@ -62,7 +85,9 @@ export function consoleMessage(l: Log): string {
   const isTool = event.startsWith("tool.");
   // pino-pretty prints an `err` key itself only when it is an Error object; our `err` is a string.
   const errPart = !isTool && l.err !== undefined ? ` err=${s(l.err)}` : "";
-  const body = isTool ? `${event} ${toolBody(l)}` : s(l.msg) + errPart;
+  // Only the stream's llm.turn has `turn` (attachment/intent llm.turn lines keep their own fields).
+  const isTurn = event === "llm.turn" && typeof l.turn === "number";
+  const body = isTool ? `${event} ${toolBody(l)}` : isTurn ? turnBody(l) : s(l.msg) + errPart;
   const showThread =
     SHOW_THREAD.has(event) || event.startsWith("message.") || Number(l.level) >= WARN_LEVEL;
   const inContext = l.mode !== undefined;
@@ -79,6 +104,7 @@ export function consoleMessage(l: Log): string {
   // Hide what is now in the message (pretty prints every remaining key as a JSON tail).
   for (const k of CONTEXT_KEYS) delete l[k];
   if (isTool) for (const k of TOOL_KEYS) delete l[k];
+  else if (isTurn) for (const k of TURN_KEYS) delete l[k];
   else if (errPart) delete l.err;
   return clip(body, LINE_MAX) + (suffix ? `  · ${suffix}` : "");
 }

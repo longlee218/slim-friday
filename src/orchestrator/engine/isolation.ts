@@ -65,6 +65,7 @@ export async function runCloneRun(
   const ctl = stageControl(i.ac.signal, (t) => (awaiting = t));
   const res = await runAgent({
     stage,
+    stageIdx: c.idx,
     route: i.route,
     prompt: a.prompt,
     steer: stage.streaming ? deps.steer?.hook(i.threadId) : undefined, // streaming stage: the owner can steer it

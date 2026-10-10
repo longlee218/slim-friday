@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { captureLogs } from "../src/observability/logger";
 import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { sdkEnv } from "../src/runtime/sdk-env";
@@ -156,4 +157,104 @@ describe("run-agent stream handling", () => {
       env.config.oauthToken,
     );
   });
+});
+
+/** Assistant message of one model call (usage as the SDK sends it). */
+const asstMsg = (id: string, usage: object, extra: Record<string, unknown> = {}) =>
+  ({
+    type: "assistant",
+    parent_tool_use_id: null,
+    message: { id, model: "claude-haiku-4-5", usage, content: [{ type: "text", text: "x" }] },
+    ...extra,
+  }) as never;
+
+test("llm.turn: one line per distinct message.id, subagent turn flagged, parts sum to the result usage", async () => {
+  const env = makeEnv();
+  const cap = captureLogs();
+  const u = (i: number, cr: number, cc: number) => ({
+    input_tokens: i,
+    cache_read_input_tokens: cr,
+    cache_creation_input_tokens: cc,
+    output_tokens: 3,
+  });
+  const msgs = [
+    initMsg,
+    asstMsg("m1", u(2, 0, 8)),
+    asstMsg("m1", u(2, 0, 8)), // parallel tool_use of the same call: same id, same usage
+    asstMsg("m2", u(1, 10, 0), { parent_tool_use_id: "toolu_1", agent_id: "agent-1" }),
+    asstMsg("m3", u(7, 30, 32)),
+    resultMsg({
+      usage: {
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_input_tokens: 40,
+        cache_creation_input_tokens: 40,
+      },
+    }),
+  ];
+  await go(env, fakeQuery(msgs));
+  cap.stop();
+  const turns = cap.lines.filter((l) => l.event === "llm.turn");
+  expect(turns.map((t) => [t.turn, t.in, t.ctxTotal, t.sub, t.agentId])).toEqual([
+    [1, 10, 10, undefined, undefined],
+    [2, 11, 21, true, "agent-1"],
+    [3, 69, 90, undefined, undefined],
+  ]);
+  // input + cacheRead + cacheCreate over distinct ids == the result's totals
+  expect(turns.reduce((a, t) => a + Number(t.in), 0)).toBe(10 + 40 + 40);
+});
+
+test("run.finished keeps usage, adds modelUsage per model and the total cost", async () => {
+  const env = makeEnv();
+  const cap = captureLogs();
+  await go(
+    env,
+    fakeQuery([
+      initMsg,
+      resultMsg({
+        modelUsage: {
+          "claude-sonnet-5-5": {
+            inputTokens: 5,
+            outputTokens: 6,
+            cacheReadInputTokens: 7,
+            cacheCreationInputTokens: 8,
+            costUSD: 0.001,
+          },
+          "claude-haiku-5-5": { inputTokens: 1, costUSD: 0.0002 },
+        },
+      }),
+    ]),
+  );
+  cap.stop();
+  const fin = cap.lines.find((l) => l.event === "run.finished") as any;
+  expect(fin.inputTokens).toBe(10);
+  expect(fin.costUsd).toBeCloseTo(0.0012);
+  expect(fin.modelUsage["claude-sonnet-5-5"]).toEqual({
+    inputTokens: 5,
+    outputTokens: 6,
+    cacheReadTokens: 7,
+    cacheCreationTokens: 8,
+    costUsd: 0.001,
+  });
+  expect(fin.modelUsage["claude-haiku-5-5"].inputTokens).toBe(1);
+});
+
+test("runs.stage_idx: written when the stage index is given, NULL for a non-stage run", async () => {
+  const env = makeEnv();
+  await go(env, fakeQuery([initMsg, resultMsg()]));
+  await runAgent({
+    prompt: "q",
+    taskId: "T",
+    stage: getStage("assistant", "qa"),
+    stageIdx: 1,
+    cwd: env.home,
+    config: env.config,
+    db: env.db,
+    abortController: new AbortController(),
+    queryFn: fakeQuery([initMsg, resultMsg()]),
+  });
+  const rows = env.db
+    .query<{ stage_idx: number | null }, []>("SELECT stage_idx FROM runs ORDER BY rowid")
+    .all();
+  expect(rows.map((r) => r.stage_idx)).toEqual([null, 1]);
 });

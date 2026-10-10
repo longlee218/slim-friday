@@ -71,6 +71,20 @@ exports[`options lock: qa options snapshot 1`] = `
         ],
       },
     ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
+    ],
   },
   "maxBudgetUsd": 0.5,
   "maxTurns": 7,
@@ -175,6 +189,20 @@ exports[`options lock: plan options snapshot 1`] = `
           "[fn]",
         ],
       },
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
+    ],
+    "SubagentStop": [
       {
         "hooks": [
           "[fn]",
@@ -303,6 +331,20 @@ exports[`options lock: exec options snapshot 1`] = `
           "[fn]",
         ],
       },
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
+    ],
+    "SubagentStop": [
       {
         "hooks": [
           "[fn]",

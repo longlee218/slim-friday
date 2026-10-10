@@ -87,6 +87,8 @@ const V2_COLUMNS: Record<string, Array<[name: string, ddl: string]>> = {
     ["stage_idx", "INTEGER"],
     ["model", "TEXT"],
   ],
+  // Subagent that made the call (P3.1); NULL = the main agent.
+  tool_calls: [["agent_id", "TEXT"]],
   // Independent task clone (P2): where it came from and how it was delivered.
   worktrees: [
     ["workspace", "TEXT"],

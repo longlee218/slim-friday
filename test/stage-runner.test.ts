@@ -102,6 +102,33 @@ test("stage rows: plan then exec, with model, cost and verdict; task keeps role,
   expect(stages.every((s) => s.startedAt && s.endedAt)).toBe(true);
 });
 
+test("runs.stage_idx joins every stage run to its stage row (same cost)", async () => {
+  const env = await setup();
+  await handler(env)(msg("[dev] please add b.txt"));
+  const t = codeTask(env)[0];
+  const rows = env.db
+    .query<{ idx: number; name: string; stageCost: number | null; runCost: number }, [string]>(
+      `SELECT s.idx, s.name, s.cost_usd AS stageCost, r.cost_usd AS runCost
+       FROM runs r JOIN stages s ON s.task_id = r.task_id AND s.idx = r.stage_idx
+       WHERE r.task_id = ? ORDER BY s.idx`,
+    )
+    .all(t.id);
+  expect(rows.map((r) => [r.idx, r.name])).toEqual([
+    [0, "plan"],
+    [1, "exec"],
+  ]);
+  for (const r of rows) expect(r.stageCost).toBeCloseTo(r.runCost); // stages.cost_usd is the run's total cost
+  expect(rows[1]!.runCost).toBeCloseTo(0.25);
+  // No run of the task is left without a stage.
+  expect(
+    env.db
+      .query<{ n: number }, [string]>(
+        "SELECT COUNT(*) n FROM runs WHERE task_id = ? AND stage_idx IS NULL",
+      )
+      .get(t.id)?.n,
+  ).toBe(0);
+});
+
 test("class design: the stage rows record the Opus model", async () => {
   const env = await setup();
   await handler(env)(msg("[design] [dev] please add b.txt"));

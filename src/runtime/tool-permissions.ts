@@ -3,6 +3,7 @@ import type { ApprovalGateway } from "../approvals/approval-types";
 import { checkToolCall, type Decision, type GuardrailContext } from "../guardrails/check-tool-call";
 import { logEvent, logger } from "../observability/logger";
 import { clip, errText } from "../observability/redact";
+import { agentIdentity } from "../observability/subagent-hooks";
 import { describeTool } from "../observability/tool-target";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
 import { PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
@@ -87,6 +88,7 @@ export function buildToolPermissions(p: ToolPermissionInput): {
               log,
               "tool.denied",
               {
+                ...agentIdentity(i),
                 tool: i.tool_name,
                 toolUseId: i.tool_use_id,
                 target: describeTool(i.tool_name, i.tool_input, p.guard.readPaths).target,

@@ -59,6 +59,7 @@ export async function runPlain(c: StageCtx): Promise<FlowResult> {
     if (r?.escalated) rerunModel = resolveModel(stage, role, route ?? {}, config);
     return runAgent({
       stage,
+      stageIdx: c.idx,
       prompt: i.text,
       steer: stage.streaming ? deps.steer?.hook(i.threadId) : undefined, // a streaming plain stage takes steers too
       taskId: i.taskId,

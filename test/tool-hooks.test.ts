@@ -1,8 +1,11 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { captureLogs } from "../src/observability/logger";
 import { RunRecorder } from "../src/observability/record-run";
+import { buildSubagentHooks } from "../src/observability/subagent-hooks";
 import { buildToolHooks } from "../src/observability/tool-hooks";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import { EDIT_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -231,4 +234,87 @@ test("Write/Edit input preview in tool.done has no file content; Edit failure er
   cap.stop();
   expect(JSON.stringify(cap.lines)).not.toContain("SECRET-BODY");
   expect(cap.lines[0]!.err).toBe("String to replace not found");
+});
+
+/** Real SDK 0.3.295 hook payloads (P3.0 fixtures). */
+const fixture = (name: string) =>
+  JSON.parse(readFileSync(join(import.meta.dir, "fixtures/sdk-hooks", `${name}.json`), "utf8"));
+
+test("P3.1: tool.start/done/denied of a subagent carry agentId/agentType; tool_calls.agent_id is stored; main agent has none", async () => {
+  const { db, paths } = makeEnv();
+  const cap = captureLogs();
+  const rec = new RunRecorder(db, "r1", "t1", "m", paths.taskLog("t1"));
+  const hooks = buildToolHooks(rec);
+  const pre = fixture("pre-tool-use-subagent-builtin-read");
+  const post = fixture("post-tool-use-subagent-read");
+  await hooks.PreToolUse![0]!.hooks[0]!(pre, pre.tool_use_id, SIG);
+  await hooks.PostToolUse![0]!.hooks[0]!(post, post.tool_use_id, SIG);
+  // The main agent's call (the parent's Agent call fixture has no agent_id).
+  const main = fixture("pre-tool-use-parent-agent-call");
+  await hooks.PreToolUse![0]!.hooks[0]!(main, main.tool_use_id, SIG);
+  rec.close();
+  cap.stop();
+  const [start, done, mainStart] = cap.lines;
+  expect(start).toMatchObject({ agentId: "a982bfd6ad035924e", agentType: "limited" });
+  expect(done).toMatchObject({ event: "tool.done", agentId: "a982bfd6ad035924e" });
+  expect(mainStart).not.toHaveProperty("agentId");
+  expect(mainStart).not.toHaveProperty("agentType");
+  expect(
+    db.query<{ agent_id: string | null }, []>("SELECT agent_id FROM tool_calls").get()?.agent_id,
+  ).toBe("a982bfd6ad035924e");
+});
+
+test("P3.1: tool.denied of a subagent carries its identity", async () => {
+  const cap = captureLogs();
+  const perms = buildToolPermissions({
+    taskId: "t1",
+    threadId: "th",
+    guard: guardFor("qa", { readPaths: ["/ws/repo"] }),
+  });
+  const pre = {
+    ...fixture("pre-tool-use-subagent-builtin-read"),
+    tool_input: { file_path: "/etc/passwd" },
+  };
+  const out: any = await perms.hooks[0]!.hooks[0]!(pre, pre.tool_use_id, SIG);
+  cap.stop();
+  expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
+  expect(cap.lines.find((l) => l.event === "tool.denied")).toMatchObject({
+    agentId: "a982bfd6ad035924e",
+    agentType: "limited",
+  });
+});
+
+test("P3.1: SubagentStart/Stop log ids, duration and result size only; hooks never block", async () => {
+  const cap = captureLogs();
+  const hooks = buildSubagentHooks();
+  const start = fixture("subagent-start");
+  const stop = fixture("subagent-stop");
+  const a = await hooks.SubagentStart![0]!.hooks[0]!(start, undefined, SIG);
+  const b = await hooks.SubagentStop![0]!.hooks[0]!(stop, undefined, SIG);
+  cap.stop();
+  expect(a).toEqual({ continue: true });
+  expect(b).toEqual({ continue: true });
+  const [s, e] = cap.lines;
+  expect(s).toMatchObject({
+    event: "subagent.start",
+    agentId: "a982bfd6ad035924e",
+    agentType: "limited",
+  });
+  expect(e).toMatchObject({
+    event: "subagent.stop",
+    agentId: "a982bfd6ad035924e",
+    agentType: "limited",
+    resultChars: stop.last_assistant_message.length,
+  });
+  expect(typeof e!.durationMs).toBe("number");
+  expect(JSON.stringify(cap.lines)).not.toContain("PELICAN"); // the subagent's text is never logged
+});
+
+test("P3.1: a throwing logger path never propagates (stop without start)", async () => {
+  const hooks = buildSubagentHooks();
+  expect(await hooks.SubagentStop![0]!.hooks[0]!(fixture("subagent-stop"), undefined, SIG)).toEqual(
+    {
+      continue: true,
+    },
+  );
 });

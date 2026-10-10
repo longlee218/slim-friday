@@ -76,6 +76,8 @@ export interface StageCtx {
   deps: StageRunnerDeps;
   i: StageRunInput;
   stage: StageDefinition;
+  /** Index of `stage` in the role: stored on the run row (runs.stage_idx) to join runs to stage rows. */
+  idx: number;
   role: RoleDefinition;
   /** One question round per task: shared by every stage (enforced in the permission guard). */
   askLimit: { asked: boolean };
@@ -129,7 +131,7 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
   const first = wt ? followUpStart(role) : 0;
   for (const [idx, stage] of role.stages.entries()) {
     if (idx < first) continue; // a follow-up skips the stages before its start stage
-    const ctx: StageCtx = { deps, i, stage, role, askLimit };
+    const ctx: StageCtx = { deps, i, stage, idx, role, askLimit };
     const kind = stageKind(stage);
     // The row is written best effort: a storage error never stops the task.
     const write = (r: Parameters<typeof upsertStage>[1]) =>

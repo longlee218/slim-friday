@@ -6,6 +6,7 @@ import { BASH_TOOL_NAME } from "../tools/sdk-tool-names";
 import { loadWorkspaces } from "../workspaces/workspace-registry";
 import { getLogContext, logEvent, logger, setLogContext, tryLog } from "./logger";
 import type { RunRecorder } from "./record-run";
+import { type AgentIdentity, agentIdentity, buildSubagentHooks } from "./subagent-hooks";
 import { inputPreview, scrubEditError } from "./tool-input-preview";
 import { summarizeResult } from "./tool-result-summary";
 import { describeTool, EDIT_TOOLS } from "./tool-target";
@@ -85,19 +86,25 @@ export function buildToolHooks(
   /** Hook callbacks must never throw into the SDK: log (redacted) and continue. */
   const guard = (fn: () => void) => tryLog(log, "tool hook failed", fn);
 
-  /** Shared finish logic for success and failure events. */
+  /** Shared finish logic for success and failure events (`i` is the Post hook input). */
   const done = (
-    id: string,
-    tool: string,
-    input: unknown,
+    i: {
+      tool_use_id: string;
+      tool_name: string;
+      tool_input: unknown;
+      duration_ms?: number;
+      agent_id?: string;
+      agent_type?: string;
+    },
     output: unknown,
     isError: boolean,
-    sdkMs?: number,
   ) => {
+    const { tool_use_id: id, tool_name: tool, tool_input: input, duration_ms: sdkMs } = i;
+    const who = agentIdentity(i);
     const t0 = started.get(id);
     started.delete(id);
     const durationMs = sdkMs ?? (t0 ? Date.now() - t0 : 0);
-    recorder.recordToolCall({ id, tool, input, output, isError, durationMs });
+    recorder.recordToolCall({ id, tool, input, output, isError, durationMs, agentId: who.agentId });
     // No guard (unit tests) = no decision recorded.
     const d = decisions?.get(id);
     decisions?.delete(id);
@@ -119,6 +126,7 @@ export function buildToolHooks(
     if (r.err && EDIT_TOOLS.includes(tool)) r.err = scrubEditError(r.err, input);
     logEvent(log, "tool.done", {
       ...(repo && { repo }),
+      ...who,
       tool,
       toolUseId: id,
       target: describeTool(tool, input, roots).target,
@@ -136,6 +144,7 @@ export function buildToolHooks(
   };
 
   return {
+    ...buildSubagentHooks(),
     PreToolUse: [
       {
         hooks: [
@@ -144,6 +153,7 @@ export function buildToolHooks(
               guard(() => {
                 started.set(i.tool_use_id, Date.now());
                 logEvent(log, "tool.start", {
+                  ...agentIdentity(i),
                   tool: i.tool_name,
                   toolUseId: i.tool_use_id,
                   target: describeTool(i.tool_name, i.tool_input, roots).target,
@@ -158,17 +168,7 @@ export function buildToolHooks(
       {
         hooks: [
           async (i) => {
-            if (i.hook_event_name === "PostToolUse")
-              guard(() =>
-                done(
-                  i.tool_use_id,
-                  i.tool_name,
-                  i.tool_input,
-                  i.tool_response,
-                  false,
-                  i.duration_ms,
-                ),
-              );
+            if (i.hook_event_name === "PostToolUse") guard(() => done(i, i.tool_response, false));
             return { continue: true };
           },
         ],
@@ -178,10 +178,7 @@ export function buildToolHooks(
       {
         hooks: [
           async (i) => {
-            if (i.hook_event_name === "PostToolUseFailure")
-              guard(() =>
-                done(i.tool_use_id, i.tool_name, i.tool_input, i.error, true, i.duration_ms),
-              );
+            if (i.hook_event_name === "PostToolUseFailure") guard(() => done(i, i.error, true));
             return { continue: true };
           },
         ],

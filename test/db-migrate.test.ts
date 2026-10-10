@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { addUsage, emptyUsage } from "../src/observability/record-run";
 import { openDb } from "../src/storage/db";
 import { countActiveCappedTasks, insertTask } from "../src/storage/run-store";
 import { getWorktreeByTask } from "../src/storage/worktree-store";
@@ -275,4 +276,38 @@ test("run_messages (Rev 11): created on a v1 db, second open is a no-op, rows su
   const again = openDb(file); // guarded, idempotent: nothing is dropped or re-created
   expect(count(again, "run_messages")).toBe(1);
   expect(count(again, "tasks")).toBe(2);
+});
+
+test("tool_calls.agent_id is added to an old table and migration stays idempotent", () => {
+  const { file } = v1Home();
+  const raw = new Database(file);
+  raw.exec(
+    "CREATE TABLE tool_calls (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, tool TEXT NOT NULL, input_json TEXT NOT NULL, output_preview TEXT NOT NULL, is_error INTEGER NOT NULL DEFAULT 0, duration_ms INTEGER NOT NULL DEFAULT 0)",
+  );
+  raw.close();
+  for (let n = 0; n < 2; n++) {
+    const db = openDb(file);
+    const cols = db.query<{ name: string }, []>("PRAGMA table_info(tool_calls)").all();
+    expect(cols.filter((c) => c.name === "agent_id")).toHaveLength(1);
+    db.close();
+  }
+});
+
+test("modelUsage merge is cumulative (per-field max), a new model key is added; top-level tokens are summed", () => {
+  const e = (n: number) => ({
+    inputTokens: n,
+    outputTokens: n,
+    cacheReadTokens: n,
+    cacheCreationTokens: n,
+    costUsd: n,
+  });
+  const a = emptyUsage();
+  a.inputTokens = 5;
+  a.modelUsage = { sonnet: e(10) };
+  const b = emptyUsage();
+  b.inputTokens = 3;
+  b.modelUsage = { sonnet: e(4), haiku: e(2) }; // second result smaller + a new model
+  const m = addUsage(a, b);
+  expect(m.inputTokens).toBe(8);
+  expect(m.modelUsage).toEqual({ sonnet: e(10), haiku: e(2) });
 });

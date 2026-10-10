@@ -171,3 +171,40 @@ test("Read-shaped tool.done shows exact size, approx size shows ~", () => {
     }),
   ).toContain("~2.0KB");
 });
+
+test("stream llm.turn renders ctx, cache share, approx output, subagent; other llm.turn lines keep their message", () => {
+  expect(
+    consoleMessage({
+      event: "llm.turn",
+      msg: "llm.turn",
+      turn: 3,
+      in: 27300,
+      cacheRead: 27000,
+      cacheCreate: 0,
+      outApprox: 16,
+      ctxTotal: 60000,
+      ...ctx,
+    }),
+  ).toBe("llm.turn #3 ctx 27.3k (cache 99%) out~16  · 8f3a1c2e reelme/reelme-v2 qa");
+  expect(
+    consoleMessage({
+      event: "llm.turn",
+      msg: "llm.turn",
+      turn: 1,
+      in: 900,
+      cacheRead: 0,
+      outApprox: 5,
+      sub: true,
+      agentId: "a982bfd6ad035924e",
+      model: "claude-haiku-4-5",
+    }),
+  ).toBe("llm.turn #1 ctx 900 (cache 0%) out~5 sub:a982bf claude-haiku-4-5");
+  // attachment / intent lines have no `turn`: untouched
+  expect(consoleMessage({ event: "llm.turn", msg: "llm.turn", kind: "intent" })).toBe("llm.turn");
+});
+
+test("tool line of a subagent shows its type", () => {
+  expect(
+    consoleMessage({ event: "tool.start", tool: "Read", target: "a.ts", agentType: "limited" }),
+  ).toBe("tool.start Read a.ts @limited");
+});
