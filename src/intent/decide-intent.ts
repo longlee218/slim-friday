@@ -1,6 +1,6 @@
 import type { TaskClass } from "../config/model-routing";
 import { logEvent, logger } from "../observability/logger";
-import { entryRole, hasClassTiers, ROLES } from "../roles/role-registry";
+import { entryRole, hasClassTiers, isGated, ROLES } from "../roles/role-registry";
 import { isIdleState } from "./alias-router";
 import type { EffortSignals } from "./effort-signals";
 import type { GateAnswer } from "./gate-answer";
@@ -21,7 +21,14 @@ export type AskReason = "low_confidence" | "unknown_role" | "unclassified";
 /** What the intent layer decided for one message. */
 export type IntentDecision =
   | { kind: "gate-answer"; answer: GateAnswer["answer"]; target: GateAnswer["target"] }
-  | { kind: "role"; role: string; scope: "active" | "new"; cls?: TaskClass }
+  | {
+      kind: "role";
+      role: string;
+      scope: "active" | "new";
+      cls?: TaskClass;
+      /** L4 alone chose a new staged task right after an answering (discussion) turn: the owner confirms first. */
+      confirmDev?: true;
+    }
   | { kind: "ask"; reason: AskReason };
 
 /** Pipeline + optional L4 engine: built once at startup. */
@@ -49,6 +56,9 @@ export interface DecideInput extends IntentPipelineInput {
 /** Class of a role's task: owner prefix > the L4 class > the L2 hint; only for a role with class tiers. */
 const classFor = (role: string, ...sources: (TaskClass | undefined)[]): TaskClass | undefined =>
   ROLES[role] && hasClassTiers(ROLES[role]) ? sources.find(Boolean) : undefined;
+
+/** The role is a registry role that answers (not staged): its turn was a conversation. */
+const isAnswering = (role?: string): boolean => !!role && !!ROLES[role] && !isGated(ROLES[role]);
 
 /**
  * Failure / no-engine fallback: an idle thread goes to the entry role (assistant: read-only, cheapest, the worst
@@ -105,7 +115,8 @@ export async function decideIntent(
     return { decision: fallback(i.state), effort };
   }
   try {
-    const raw = await deps.classifier.classify(i.l4Input(), i.signal);
+    const input = i.l4Input();
+    const raw = await deps.classifier.classify(input, i.signal);
     const v = validateIntent(raw, {
       hasTask: i.hasTask,
       ownerClass: i.ownerClass,
@@ -123,7 +134,23 @@ export async function decideIntent(
     // Low confidence = ONE owner question; medium proceeds.
     if (confidence === "low")
       return { decision: { kind: "ask", reason: "low_confidence" }, effort };
-    return { decision: { kind: "role", role, scope, ...(cls && { cls }) }, effort };
+    // Discussion guard: a model-only "new staged task" straight after an answering turn may be a proposal, not an
+    // order (no L3 alias or [dev] tag backs it): ask once before opening a task.
+    const confirmDev =
+      scope === "new" &&
+      isIdleState(i.state) &&
+      isGated(ROLES[role]) &&
+      isAnswering(input.thread.lastTurn?.role);
+    return {
+      decision: {
+        kind: "role",
+        role,
+        scope,
+        ...(cls && { cls }),
+        ...(confirmDev && { confirmDev }),
+      },
+      effort,
+    };
   } catch (err) {
     const reason = err instanceof IntentEngineError ? err.reason : "sdk";
     logEvent(log, "intent.fallback", { reason }, "warn");

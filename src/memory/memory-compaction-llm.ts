@@ -29,8 +29,11 @@ export class CallTimeoutError extends Error {}
 export function sdkCompactLlm(
   config: AgentConfig,
   queryFn: QueryFn = sdkQuery as QueryFn,
+  /** Tighter limits for a small caller (attachment summary); defaults are the compaction's. */
+  limits: { deadlineMs?: number; budgetUsd?: number; attempts?: number } = {},
 ): CompactLlm {
-  const deadlineMs = Math.min(config.limits.timeoutMs, CALL_DEADLINE_MS);
+  const deadlineMs = Math.min(config.limits.timeoutMs, limits.deadlineMs ?? CALL_DEADLINE_MS);
+  const maxAttempts = limits.attempts ?? MAX_ATTEMPTS;
   /** One attempt with its own deadline. */
   const attempt: CompactLlm = async (system, prompt) => {
     const ac = new AbortController();
@@ -51,7 +54,7 @@ export function sdkCompactLlm(
           tools: [],
           thinking: { type: "disabled" },
           maxTurns: 1,
-          maxBudgetUsd: CALL_BUDGET_USD,
+          maxBudgetUsd: limits.budgetUsd ?? CALL_BUDGET_USD,
           persistSession: false, // the transcript would hold the whole memory text
           settingSources: [],
           abortController: ac,
@@ -79,7 +82,7 @@ export function sdkCompactLlm(
       try {
         return await attempt(system, prompt);
       } catch (err) {
-        if (!(err instanceof CallTimeoutError) || n >= MAX_ATTEMPTS) throw err;
+        if (!(err instanceof CallTimeoutError) || n >= maxAttempts) throw err;
       }
     }
   };

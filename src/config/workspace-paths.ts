@@ -24,6 +24,8 @@ export function workspacePaths(agentHome: string) {
     memoryPending: join(agentHome, "MEMORY.pending.md"),
     /** Working dir of the intent classifier call (empty: it has no tools and reads nothing). */
     intentScratch: join(agentHome, "tmp", "intent"),
+    /** Full text of a long owner attachment, per thread (read-only for the assistant). */
+    attachments: (threadKey: string) => join(agentHome, "tmp", "attachments", threadKey),
     /** Pre-cutover copies of the home (migration backups). */
     backups: join(agentHome, "backups"),
     /** Workspaces: each holds several repos (`workspaces/<ws>/repos/<repo>/`). */

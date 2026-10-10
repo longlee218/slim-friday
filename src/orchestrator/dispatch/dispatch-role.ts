@@ -1,4 +1,5 @@
 import { type Effort, resolveModel } from "../../config/model-routing";
+import { stripAttachmentPaths } from "../../ingress/attachment-text";
 import type { Task } from "../../ingress/discord-message-handler";
 import { excerpt, logEvent, logger, setLogContext } from "../../observability/logger";
 import { errText } from "../../observability/redact";
@@ -58,7 +59,8 @@ export interface DispatchInput {
  */
 export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promise<string> {
   const { db, config } = deps;
-  const { request } = i;
+  // The saved attachment copy is readable by the assistant only: a dev task gets the summary, not the path.
+  const request = { ...i.request, brief: stripAttachmentPaths(i.request.brief) };
   // Persist first (A6): a crash from here on leaves a pending row that `go` can start.
   const proposalId =
     request.proposalId ??

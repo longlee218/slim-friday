@@ -89,6 +89,8 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
     });
     if (out.kind === "reply") return out.text;
     picked = out;
+    // An outcome may swap the text to run (declined dev task); its `notice` is put before the reply below.
+    if (out.text) resolved = { ...resolved, cmd: { ...resolved.cmd, text: out.text } };
   }
   const route = routeTask(
     { db, agentHome: config.agentHome, hasApprovals: c.hasApprovals },
@@ -104,5 +106,12 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
     logEvent(rc.log, route.event, { reason: route.reason, reply: route.reply });
     return route.reply;
   }
-  return runTurn(rc, { route, plan: resolved, existing: stored, extraBudgetUsd, intent: picked });
+  const reply = await runTurn(rc, {
+    route,
+    plan: resolved,
+    existing: stored,
+    extraBudgetUsd,
+    intent: picked,
+  });
+  return picked?.notice ? `${picked.notice}\n\n${reply}` : reply;
 }

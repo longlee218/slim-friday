@@ -4,6 +4,7 @@ import type { MemoryRunner } from "../memory/memory-command-handler";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { parseTaskCommand } from "../orchestrator/task-commands";
+import { type AttachmentDeps, withAttachments } from "./attachment-text";
 import {
   prepareOutput,
   routeMessage,
@@ -71,6 +72,8 @@ export interface MessageHandlerDeps {
   admin?: (msg: Message, prompt: string) => Promise<void>;
   /** Owner memory commands (`remember:` ...): answered inline before any thread or task is created. */
   memory?: MemoryRunner;
+  /** Ports of the attachment reader (summary, saved copy, fetch); tests inject fakes. */
+  attachments?: AttachmentDeps;
 }
 
 /** Build the `messageCreate` handler: route, run the task, reply. Never throws. */
@@ -113,6 +116,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         inBotThread: ch.isThread() && ch.ownerId === botId,
         mentionsBot: msg.mentions.has(botId, { ignoreEveryone: true, ignoreRoles: true }),
         content: msg.content,
+        hasAttachments: (msg.attachments?.size ?? 0) > 0,
         opsChannel: ops.has(ch.id) || (ch.isThread() && !!ch.parentId && ops.has(ch.parentId)),
         controlChannel: !ch.isThread() && setup.controlChannels.includes(ch.id),
       },
@@ -154,9 +158,11 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       // Memory commands never reach the agent: answered in place (thread or channel), no thread, no task row.
       if (deps.memory && (await replyToMemoryCommand(deps.memory, msg, "workspace", route.prompt)))
         return;
+      // Text attachments (a message > 2000 chars arrives as message.txt) join the agent's text as a DATA block.
+      const key = route.kind === "thread" ? ch.id : msg.id; // a thread started from a message has its id
+      const text = await withAttachments(msg.attachments, route.prompt, key, deps.attachments);
       if (route.kind === "thread") {
-        if (ch.isSendable() && channelId)
-          await answer(ch, { threadId: ch.id, channelId }, route.prompt);
+        if (ch.isSendable() && channelId) await answer(ch, { threadId: ch.id, channelId }, text);
         else
           logEvent(
             log,
@@ -176,7 +182,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       }
       const thread = await msg.startThread({ name: threadName(route.prompt) });
       errorTarget = thread;
-      await answer(thread, { threadId: thread.id, channelId: ch.id }, route.prompt);
+      await answer(thread, { threadId: thread.id, channelId: ch.id }, text);
     } catch (err) {
       // Full error to the log (redacted), short generic text to the user.
       log.error({ err: errText(err) }, "message handling failed");

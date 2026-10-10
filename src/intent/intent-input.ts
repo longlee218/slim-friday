@@ -36,6 +36,14 @@ export function buildIntentInput(
         )
         .get(task.id)
     : null;
+  // The previous turn of the thread, open or closed (assistant answers write a task row with a `qa` stage).
+  const last = db
+    .query<{ role: string; kind: string }, [string]>(
+      `SELECT t.role AS role,
+         COALESCE((SELECT s.name FROM stages s WHERE s.task_id = t.id ORDER BY s.idx DESC LIMIT 1), t.type) AS kind
+       FROM tasks t WHERE t.thread_id = ? ORDER BY t.started_at DESC, t.rowid DESC LIMIT 1`,
+    )
+    .get(p.threadId);
   return {
     text: p.text,
     thread: {
@@ -43,6 +51,7 @@ export function buildIntentInput(
       ...(task && { activeRole: task.role }),
       ...(stage && { activeStage: stage.name }),
       ...(GATE_OF[p.state] && { gate: GATE_OF[p.state] }),
+      ...(last && { lastTurn: { role: last.role, kind: last.kind } }),
     },
     ledger: ledgerLines(db, p.threadId, LEDGER_TASKS),
     roles: intentRoles(),

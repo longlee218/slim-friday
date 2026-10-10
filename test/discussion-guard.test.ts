@@ -1,0 +1,151 @@
+import { afterAll, expect, test } from "bun:test";
+import { workspacePaths } from "../src/config/workspace-paths";
+import { ATTACHMENT_PATH_PREFIX } from "../src/ingress/attachment-text";
+import { createAliasRouter } from "../src/intent/alias-router";
+import type { IntentDeps } from "../src/intent/decide-intent";
+import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
+import { loadLexicon } from "../src/intent/load-lexicon";
+import { createGitMcp } from "../src/mcp/git-mcp";
+import { CONFIRM_DEV_QUESTION } from "../src/orchestrator/dispatch/queued-tasks";
+import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { NO_CLONE_NOTICE } from "../src/orchestrator/thread/intent-replies";
+import { ROLES } from "../src/roles/role-registry";
+import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { g, makeRepo } from "./git-fixture";
+import { addRepo, clearWorkspaces, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+
+// Discussion guard: L4 alone picks a NEW dev task right after an assistant turn -> ONE yes/no question first.
+// yes -> the task opens; no -> the assistant answers the original message. No clone -> assistant + one note.
+
+const git = createGitMcp();
+afterAll(() => git.close());
+
+/** Env with a managed clone (`withClone`) or only an external working copy (the live no_clone case). */
+async function setup(withClone = true) {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  const src = await makeRepo("main");
+  if (!withClone) {
+    addRepo(env.home, "wc", {}, { path: src.repo });
+    return env;
+  }
+  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
+  addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
+  await g(env.home, "clone", "-q", src.repo, clone);
+  return env;
+}
+
+/** Fake L4: answers `dev/new/high`, and records the inputs it saw. */
+function engine(role = "dev") {
+  const inputs: Parameters<IntentClassifier["classify"]>[0][] = [];
+  const classifier: IntentClassifier = {
+    classify: async (i) => {
+      inputs.push(i);
+      return { role, scope: "new", confidence: "high", reason: "r" } satisfies IntentResult;
+    },
+  };
+  return { classifier, inputs };
+}
+
+/** Plan stage rejects its plan; every other run is an assistant answer. */
+function fakeSdk(seen: any[]) {
+  return (a: any) => {
+    seen.push(a);
+    return (async function* () {
+      if (a.options.permissionMode === "plan") {
+        await a.options.canUseTool(EXIT_PLAN_MODE_TOOL_NAME, { plan: "repo: real\nplan" }, {});
+        yield resultMsg({ result: "plan rejected" });
+        return;
+      }
+      yield resultMsg({ result: "assistant answer", session_id: "sess-qa" });
+    })();
+  };
+}
+
+async function build(withClone = true) {
+  const env = await setup(withClone);
+  const e = engine();
+  const seen: any[] = [];
+  const handle = createTaskHandler({
+    git,
+    db: env.db,
+    config: env.config,
+    approvals: stubGateway({
+      confirm: async () => ({ approved: false, reason: "no" }),
+      askChoice: async (a) => a.options[0],
+    }),
+    queryFn: fakeSdk(seen) as never,
+    intent: {
+      pipeline: {
+        lexicon: loadLexicon(env.home),
+        aliasRouter: createAliasRouter(Object.values(ROLES)),
+      },
+      classifier: e.classifier,
+    } satisfies IntentDeps,
+  });
+  const msg = (text: string) => ({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "th1",
+    text,
+  });
+  const q = (sql: string) => env.db.query(sql).all() as any[];
+  return { env, e, seen, handle, msg, q };
+}
+
+const PROPOSAL = "Tôi đề xuất xây dựng một lớp cache cho bảng giá, bạn thấy sao?";
+
+test("dev/new from L4 alone after an assistant turn asks first; yes opens the task", async () => {
+  const { e, seen, handle, msg, q } = await build();
+  await handle(msg("[ask] explain the repo")); // assistant turn (L3 prefix)
+  expect(await handle(msg(PROPOSAL))).toBe(CONFIRM_DEV_QUESTION);
+  expect(e.inputs).toHaveLength(1);
+  expect(e.inputs[0]?.thread.lastTurn).toEqual({ role: "assistant", kind: "qa" });
+  expect(q("SELECT role FROM tasks")).toEqual([{ role: "assistant" }]); // nothing opened yet
+  expect(q("SELECT status, reason FROM proposals")).toEqual([
+    { status: "pending", reason: "confirm_dev" },
+  ]);
+  const reply = await handle(msg("yes"));
+  expect(reply).toContain("Starting plan");
+  expect(seen.some((s) => s.options.permissionMode === "plan")).toBe(true);
+  expect(q("SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
+});
+
+test("no -> the assistant answers the original message (no dev task)", async () => {
+  const { seen, handle, msg, q } = await build();
+  await handle(msg("[ask] explain the repo"));
+  await handle(msg(PROPOSAL));
+  expect(await handle(msg("no"))).toBe("assistant answer");
+  expect(seen.at(-1).prompt).toContain(PROPOSAL);
+  expect(q("SELECT role FROM tasks")).toEqual([{ role: "assistant" }, { role: "assistant" }]);
+  expect(q("SELECT status FROM proposals")).toEqual([{ status: "refused" }]);
+});
+
+test("no guard: a first message, a [dev] tag or a role other than a staged one is unaffected", async () => {
+  const { handle, msg, q } = await build();
+  expect(await handle(msg("please add b.txt"))).toContain("Starting plan"); // idle thread, no earlier turn
+  const second = await build();
+  await second.handle(second.msg("[ask] explain the repo"));
+  expect(await second.handle(second.msg("[dev] add b.txt"))).toContain("Starting plan");
+  expect(q("SELECT role FROM tasks")).toEqual([{ role: "dev" }]);
+});
+
+test("no workspace clone: the message is answered by the assistant with ONE note, no question", async () => {
+  const { handle, msg, q } = await build(false);
+  await handle(msg("[ask] explain the repo"));
+  const reply = await handle(msg(PROPOSAL));
+  expect(reply).toBe(`${NO_CLONE_NOTICE}\n\nassistant answer`);
+  expect(q("SELECT count(*) AS n FROM proposals")).toEqual([{ n: 0 }]);
+});
+
+test("the saved-copy path of a long attachment reaches the assistant, never the dev task brief", async () => {
+  const { seen, handle, msg, q } = await build();
+  const withPath = `${PROPOSAL}\n\n${ATTACHMENT_PATH_PREFIX}/home/x/tmp/attachments/th1/1-r.md`;
+  await handle(msg("[ask] explain the repo"));
+  await handle(msg(withPath));
+  await handle(msg("yes"));
+  expect(q("SELECT brief FROM tasks WHERE role = 'dev'")[0].brief).not.toContain("/home/x/tmp");
+  expect(q("SELECT brief FROM proposals")[0].brief).toContain("/home/x/tmp"); // kept for a later 'no'
+  expect(seen.length).toBeGreaterThan(1);
+});

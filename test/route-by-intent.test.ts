@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { IntentDecision } from "../src/intent/decide-intent";
-import { drainQueued } from "../src/orchestrator/dispatch/queued-tasks";
+import { DECLINE_BUSY_REPLY, drainQueued } from "../src/orchestrator/dispatch/queued-tasks";
 import { STILL_WORKING, stripRoleTag } from "../src/orchestrator/thread/intent-replies";
 import {
   actionFor,
@@ -251,4 +251,26 @@ test("stripRoleTag drops the leading role tag only", () => {
   expect(stripRoleTag("  [ASK]  why?")).toBe("why?");
   expect(stripRoleTag("add [dev] x")).toBe("add [dev] x");
   expect(stripRoleTag("[dev]")).toBe("[dev]"); // nothing left: keep the text
+});
+
+test("'no' to 'Open a dev task for this?': free thread -> assistant answers the message; busy -> waits, question stays", async () => {
+  const { env, c } = ctx();
+  const id = insertProposal(env.db, {
+    threadId: "th",
+    workspace: "main",
+    role: "dev",
+    brief: "Tôi đề xuất xây dựng cache",
+    reason: "confirm_dev",
+  });
+  const no = { kind: "answer-ask", answer: "no" } as const;
+  const busy = await routeByIntent({ ...c, busy: true }, no);
+  expect(text(busy)).toBe(DECLINE_BUSY_REPLY);
+  expect(getProposal(env.db, id)?.status).toBe("pending"); // still answerable later
+  const free = await routeByIntent({ ...c, busy: false }, no);
+  expect(free).toMatchObject({
+    kind: "run",
+    role: "assistant",
+    text: "Tôi đề xuất xây dựng cache",
+  });
+  expect(getProposal(env.db, id)?.status).toBe("refused");
 });

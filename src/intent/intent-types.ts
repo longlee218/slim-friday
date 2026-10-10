@@ -16,6 +16,8 @@ export interface IntentInput {
     activeRole?: string;
     activeStage?: string;
     gate?: "plan-approval" | "delivery";
+    /** The thread's latest finished or running turn: its role and last stage (e.g. assistant / qa). Absent in a new thread. */
+    lastTurn?: { role: string; kind: string };
   };
   /** Last 3 tasks of the thread, 1 line each. */
   ledger: LedgerLine[];

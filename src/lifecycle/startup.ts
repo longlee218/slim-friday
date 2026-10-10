@@ -3,6 +3,7 @@ import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
+import { cleanupAttachments } from "../ingress/attachment-summary";
 import { logEvent, logger } from "../observability/logger";
 import { sweepStalePlugins } from "../runtime/workspace-skills-plugin";
 import { deleteWorktree, listWorktrees } from "../storage/worktree-store";
@@ -82,6 +83,7 @@ export function runStartupHygiene(db: Database, agentHome: string): void {
     cleanupTaskLogs(agentHome);
     sweepStalePlugins(agentHome);
     checkWorktrees(db, agentHome);
+    cleanupAttachments(agentHome);
   } catch (err) {
     log.warn({ err: String(err) }, "startup hygiene failed");
   }

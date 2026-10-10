@@ -16,7 +16,16 @@ export const ASSISTANT_ROLE: RoleDefinition = {
     "Questions about the code or the repos: explain, find, summarize, compare. Changes nothing and answers with file:line sources.",
   aliases: {
     tag: "[ask]",
-    strong: [],
+    // Explicit "do not code" statements: a conversation, never a task. Negation handling applies. Generic
+    // discussion words (thảo luận, trao đổi, discuss...) are NOT aliases: they also appear in code requests
+    // ("thêm API trao đổi dữ liệu"), so the L4 conversation rule decides those.
+    strong: [
+      "tôi không yêu cầu bạn code",
+      "đừng code",
+      "không cần code",
+      "just discuss",
+      "do not code",
+    ],
     // Common question openers: only count on an idle thread and never beat a strong dev alias.
     weak: ["hỏi chút", "cho hỏi", "giải thích", "là gì", "tại sao", "như thế nào"],
   },

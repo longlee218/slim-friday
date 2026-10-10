@@ -3,14 +3,23 @@ import type { Task } from "../../ingress/discord-message-handler";
 import type { IntentDecision } from "../../intent/decide-intent";
 import { logEvent, logger } from "../../observability/logger";
 import type { Repo } from "../../repos/repo-registry";
-import { isGated, ROLES } from "../../roles/role-registry";
+import { entryRole, isGated, ROLES } from "../../roles/role-registry";
 import { type DispatchDeps, dispatchRole } from "../dispatch/dispatch-role";
-import { answerPending, queueTask, taskBrief } from "../dispatch/queued-tasks";
+import {
+  answerPending,
+  DECLINE_BUSY_REPLY,
+  declineConfirmedDev,
+  queueTask,
+  taskBrief,
+} from "../dispatch/queued-tasks";
+import { resolveTaskRepo } from "../dispatch/task-repo";
+import { repoHint } from "../dispatch/validate-request";
 import {
   ASK_TEXT,
   type AskKind,
   GATE_HINT,
   NO_APPROVALS,
+  NO_CLONE_NOTICE,
   NOTHING_PENDING,
   STILL_WORKING,
 } from "./intent-replies";
@@ -32,6 +41,7 @@ export const FIX_LIMIT_REPLY = `This task already had ${MAX_FIX_ROUNDS} fix roun
 export type IntentAction =
   | { kind: "run"; role: string } // idle: run the role (assistant)
   | { kind: "open"; role: string } // idle: open a new staged task (proposal -> plan)
+  | { kind: "confirm-dev"; role: string } // idle, L4 alone chose a task right after a discussion turn: ask yes/no first
   | { kind: "fix"; role: string } // staged role, active, clone exists: bounded fix round in the same clone
   | { kind: "fix-limit" }
   | { kind: "feedback"; role: string } // plan gate: feedback re-runs the plan stage
@@ -54,7 +64,7 @@ export interface TableInput {
 
 /**
  * THE table. Rows (state x role x scope), `answering` = a role that is not gated (assistant), `staged` = gated (dev):
- * idle: answering -> run; staged new -> open; staged active (clone) -> fix (max rounds) | fix-limit.
+ * idle: answering -> run; staged new -> open (confirm-dev when the discussion guard flagged it); staged active (clone) -> fix (max rounds) | fix-limit.
  * plan gate: answering -> side; staged active -> feedback; staged new -> queue.
  * running: answering -> side; staged active -> steer; staged new -> queue.
  * result gate: answering -> side; staged active -> fix | fix-limit; staged new -> queue.
@@ -71,8 +81,10 @@ export function actionFor(i: TableInput): IntentAction {
     i.fixRounds >= MAX_FIX_ROUNDS ? { kind: "fix-limit" } : { kind: "fix", role: d.role };
   if (!isGated(role))
     return isIdleLike(i.state) ? { kind: "run", role: d.role } : { kind: "side", role: d.role };
-  if (isIdleLike(i.state))
-    return d.scope === "active" && i.hasClone ? fix() : { kind: "open", role: d.role };
+  if (isIdleLike(i.state)) {
+    if (d.scope === "active" && i.hasClone) return fix();
+    return { kind: d.confirmDev ? "confirm-dev" : "open", role: d.role };
+  }
   if (d.scope === "new") return { kind: "queue", role: d.role };
   if (i.state === "awaiting_plan_approval") return { kind: "feedback", role: d.role };
   if (i.state === "awaiting_result") return fix();
@@ -82,7 +94,16 @@ export function actionFor(i: TableInput): IntentAction {
 /** What the handler does next. */
 export type IntentOutcome =
   | { kind: "reply"; text: string }
-  | { kind: "run"; role: string; cls?: TaskClass; effort?: Effort };
+  | {
+      kind: "run";
+      role: string;
+      cls?: TaskClass;
+      effort?: Effort;
+      /** Text to run instead of the message (the owner declined a dev task: the original message). */
+      text?: string;
+      /** One line put before the reply (why the message was answered rather than run as a task). */
+      notice?: string;
+    };
 
 /** What the executor needs from the handler (a slice of its run context). */
 export interface RouteCtx {
@@ -118,8 +139,13 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       return reply(GATE_HINT);
     case "fix-limit":
       return reply(FIX_LIMIT_REPLY);
-    case "answer-ask":
+    case "answer-ask": {
+      // "no" to "open a dev task?": the assistant answers the original message (busy: it must wait).
+      const declined = a.answer === "no" ? declineConfirmedDev(c, c.busy) : undefined;
+      if (declined?.kind === "busy") return reply(DECLINE_BUSY_REPLY);
+      if (declined) return { kind: "run", role: entryRole().name, text: declined.text };
       return reply(await answerPending(c, a.answer, NOTHING_PENDING));
+    }
     case "queue":
       if (!c.deps.approvals) return reply(NO_APPROVALS);
       return reply(queueTask(c, { role: a.role, text: c.text, repo: c.repo, cls: c.cls }));
@@ -136,9 +162,25 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       return c.busy
         ? reply(STILL_WORKING)
         : { kind: "run", role: a.role, cls: c.cls, effort: c.effort };
-    case "open":
+    case "confirm-dev":
+    case "open": {
       if (c.busy) return reply(STILL_WORKING);
       if (!c.deps.approvals) return reply(NO_APPROVALS);
+      // No workspace clone: a dev task would be refused (`no_clone`), so answer as a conversation with a note.
+      const home = c.deps.config.agentHome;
+      const clone = resolveTaskRepo(home, c.repos, repoHint(home, c.pinned, c.repo));
+      if ("reply" in clone && clone.reason === "no_clone") {
+        logEvent(log, "task.refused", {
+          reason: clone.reason,
+          reply: clone.reply,
+          fallback: "assistant",
+        });
+        return { kind: "run", role: entryRole().name, text: c.text, notice: NO_CLONE_NOTICE };
+      }
+      if (a.kind === "confirm-dev")
+        return reply(
+          queueTask(c, { role: a.role, text: c.text, repo: c.repo, cls: c.cls, confirm: true }),
+        );
       // No source turn: the dispatcher persists the proposal, validates, asks or starts the plan stage.
       return reply(
         await dispatchRole(c.deps, {
@@ -152,5 +194,6 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
           effort: c.effort,
         }),
       );
+    }
   }
 }

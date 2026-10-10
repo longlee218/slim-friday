@@ -200,10 +200,13 @@ Expected:
 | `cleanup:` / `cleanup:<task-id>` | remove the worktree |
 | `[mechanical]` / `[standard]` / `[design]` prefix, `repo:<name>` | task class / repo hint |
 | `[dev]` / `[ask]` prefix | force the role (dev: plan, approve, worktree, PR; ask: read-only answer). Without a prefix the intent layer picks the role from the wording (rules first, then one small Haiku call) |
-| `yes` / `no` / `ok` / `duyet` / `khong` | answer the one question the bot asked (queue a second task, or a low-confidence question). `yes` = `go`. They do not press plan/PR buttons: use the button |
+| `yes` / `no` / `ok` / `duyet` / `khong` | answer the one question the bot asked (queue a second task, "Open a dev task for this? (yes/no)" after a discussion turn, or a low-confidence question). `yes` = `go`; `no` to the dev-task question makes the assistant answer your message. They do not press plan/PR buttons: use the button |
 | `[base:<branch>]` prefix | NOT built yet: a dev task branches from the repo's default branch. The proposal and dispatcher already carry a `base` field (validated: the branch must exist locally) for when a parser is added |
 
 Buttons of a dead process answer "This action expired." (the Resume button keeps working after a restart). Proposals older than 24h expire at startup.
+
+### Attachments
+A message over 2000 chars arrives as `message.txt`; the bot reads text attachments (`.txt`, `.md`, `text/*`; at most 2 files, 64 KB in total) and passes them as data. A short file is passed whole; a longer one (> 2000 chars) is summarized by the cheap model, and the full redacted text is saved under `$AGENT_HOME/tmp/attachments/<thread id>/` for the assistant to read on demand. Other types, files over the limits or failed downloads get a one-line notice in the agent's input (the agent will tell you). Secrets in the file are masked.
 
 ### Deploy: drain
 Before a deploy set `FRIDAY_DRAIN=1` (env) or `touch $AGENT_HOME/DRAIN`; new tasks get "deploying, retry in a minute" while running ones finish (or send `stop`). Restart, then remove the flag. Tasks still running at restart become `interrupted` and get a Resume button; pending proposals survive.
@@ -216,6 +219,7 @@ can you add a greeting function to src/hello.ts?
 Expected:
 - The intent layer routes it to the dev role (no assistant answer first): "Starting plan: <repo>, add greeting..." appears
 - If the wording is unclear the bot asks ONE question ("resend with `[ask]` or `[dev]`"); an idle thread whose classifier failed falls back to a read-only answer
+- A proposal or idea in a thread that was just a conversation ("I propose building ...") is not run: the bot asks "Open a dev task for this? (yes/no)". Until the per-task clone lands (P2.1) a repo without a workspace clone cannot get a dev task: the assistant answers instead, with one line saying so
 - While a task runs, a second change request is queued: "run it after the current task?" Reply `yes` (starts when the first ends) or `no`. Questions during a run get `still working...` for now (side answers and steering come with P1.4b)
 - Owner gets a Discord message with Approve/Deny buttons (owner-only, redacted summary)
 - Approve → bot creates/modifies file in plan stage; Deny → bot revises plan

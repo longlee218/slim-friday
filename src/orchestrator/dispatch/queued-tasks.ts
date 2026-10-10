@@ -30,27 +30,65 @@ export interface QueueCtx {
   pinned?: Repo;
 }
 
+/** Heading of the thread reference appended to a brief. */
+const EARLIER_HEADING = "\n\nEarlier tasks in this thread:\n";
+
 /** Brief of a new task: the owner message plus a thread reference (the last tasks, one line each). */
 export function taskBrief(c: Pick<QueueCtx, "deps" | "task">, text: string): string {
   const lines = ledgerLines(c.deps.db, c.task.threadId, 3);
   if (!lines.length) return text;
-  return `${text}\n\nEarlier tasks in this thread:\n${lines.map((l) => `- ${l}`).join("\n")}`;
+  return `${text}${EARLIER_HEADING}${lines.map((l) => `- ${l}`).join("\n")}`;
 }
+
+/** The owner message of a brief (without the thread reference). */
+export const briefText = (brief: string): string => brief.split(EARLIER_HEADING)[0] ?? brief;
+
+/** `reason` of a proposal that only asks "open a dev task for this?" (a discussion turn that looked like a task). */
+export const CONFIRM_DEV_REASON = "confirm_dev";
+/** The ONE question of that confirmation. */
+export const CONFIRM_DEV_QUESTION = "Open a dev task for this? (yes/no)";
 
 /** Persist the task `pending` and return the ONE question (older open questions of the thread are superseded). */
 export function queueTask(
   c: QueueCtx,
-  r: { role: string; text: string; repo?: string; cls?: TaskClass },
+  r: { role: string; text: string; repo?: string; cls?: TaskClass; confirm?: true },
 ): string {
   const { db } = c.deps;
   const id = persistProposal(db, log, {
-    request: { role: r.role, brief: taskBrief(c, r.text), repo: r.repo, cls: r.cls },
+    request: {
+      role: r.role,
+      brief: taskBrief(c, r.text),
+      repo: r.repo,
+      cls: r.cls,
+      ...(r.confirm && { reason: CONFIRM_DEV_REASON }),
+    },
     threadId: c.task.threadId,
     workspace: c.workspace,
   });
   if (!id) return "Could not queue it; send it again after the current task.";
   supersedePending(db, c.task.threadId, id);
+  if (r.confirm) return CONFIRM_DEV_QUESTION;
   return `A task is running. Run this after it? Reply yes or no: "${excerpt(r.text, 120)}"`;
+}
+
+/** `no` while a run holds the thread: the original message cannot be answered yet, the question stays open. */
+export const DECLINE_BUSY_REPLY =
+  "still working... send `no` again when the current task ends and I will answer your message.";
+
+/**
+ * "no" to an "open a dev task?" confirmation. Free thread: the proposal is dropped and the owner message comes
+ * back so the assistant answers it as a conversation. Busy thread (the lock makes an answer impossible): the
+ * question stays pending and the reply says so. Undefined when the pending proposal is anything else.
+ */
+export function declineConfirmedDev(
+  c: QueueCtx,
+  busy: boolean,
+): { kind: "run"; text: string } | { kind: "busy" } | undefined {
+  const p = pendingProposalFor(c.deps.db, c.task.threadId, c.workspace);
+  if (!p || p === "expired" || p.reason !== CONFIRM_DEV_REASON) return undefined;
+  if (busy) return { kind: "busy" };
+  setProposalStatus(c.deps.db, p.id, "refused");
+  return { kind: "run", text: briefText(p.brief) };
 }
 
 /**

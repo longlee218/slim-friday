@@ -54,7 +54,8 @@ describe("alias router (real registry data)", () => {
     expect(e.decided && e.role).toBe("dev");
   });
   test("negation, code and quoted text do not route", () => {
-    expect(route("đừng code đi").decided).toBe(false);
+    const dont = route("đừng code đi"); // negated dev phrase; "đừng code" is a strong assistant signal
+    expect(dont.decided && dont.role).toBe("assistant");
     expect(route("không fix bug").decided).toBe(false);
     expect(route("xem `fix bug` trong log").decided).toBe(false);
     expect(route("```\nfix bug\n```").decided).toBe(false);

@@ -7,6 +7,7 @@ import { runIntentPipeline } from "../src/intent/run-intent-pipeline";
 import { intentRoles } from "../src/roles/role-registry";
 import { makeEnv } from "./helpers";
 import { GOLDEN, type GoldenCase } from "./intent-eval-cases";
+import { scoreClass } from "./intent-eval-score";
 
 // Golden set of the intent layer (LIVE: real Haiku through the owner's Claude login; non-deterministic).
 // It runs the production path (`buildIntentDeps` + `decideIntent`: L1 gate answer, L3 alias, then L4 Haiku),
@@ -47,6 +48,8 @@ interface Row {
   role?: boolean;
   scope?: boolean;
   cls?: boolean;
+  /** Raw class pass (the decision's own class, missing = fail); `cls` is the EFFECTIVE one the gate uses. */
+  clsRaw?: boolean;
   /** A change request that reached a non-dev role (or no role) on an idle thread. */
   codeLeak: boolean;
 }
@@ -54,23 +57,30 @@ interface Row {
 /** Short text of a decision for the table. */
 const show = (d: IntentDecision) =>
   d.kind === "role"
-    ? `${d.role}/${d.scope}${d.cls ? `/${d.cls}` : ""}`
+    ? `${d.role}/${d.scope}${d.cls ? `/${d.cls}` : ""}${d.confirmDev ? "?confirm" : ""}`
     : d.kind === "ask"
       ? `ask(${d.reason})`
       : `gate-answer(${d.answer})`;
 
 /** Score one decision against the expectation. */
-function score(c: GoldenCase, d: IntentDecision): Pick<Row, "role" | "scope" | "cls" | "codeLeak"> {
+function score(
+  c: GoldenCase,
+  d: IntentDecision,
+): Pick<Row, "role" | "scope" | "cls" | "clsRaw" | "codeLeak"> {
   const e = c.expect;
   const role = d.kind === "role" ? d.role : undefined;
-  const out: Pick<Row, "role" | "scope" | "cls" | "codeLeak"> = {
+  const out: Pick<Row, "role" | "scope" | "cls" | "clsRaw" | "codeLeak"> = {
     codeLeak: !!c.codeRequest && c.thread.state === "idle" && role !== undefined && role !== "dev",
   };
   if (e.role) out.role = role === e.role;
   if (e.ask) out.role = d.kind === "ask";
   if (e.anyRegistryRoleOrAsk) out.role = d.kind === "ask" || role === "assistant" || role === "dev";
   if (e.scope) out.scope = d.kind === "role" && d.scope === e.scope;
-  if (e.cls) out.cls = d.kind === "role" && d.cls === e.cls;
+  if (e.cls) {
+    const c = scoreClass(d, e.cls);
+    out.cls = c.effective;
+    out.clsRaw = c.raw;
+  }
   return out;
 }
 
@@ -118,6 +128,7 @@ describe.skipIf(!live)("intent golden set (live, Haiku)", () => {
           ...(t.activeRole && { activeRole: t.activeRole }),
           ...(t.activeStage && { activeStage: t.activeStage }),
           ...(t.gate && { gate: t.gate }),
+          ...(t.lastTurn && { lastTurn: t.lastTurn }),
         },
         ledger: t.ledger ?? [],
         roles: intentRoles(),
@@ -134,7 +145,7 @@ describe.skipIf(!live)("intent golden set (live, Haiku)", () => {
       rows.push({ c, layer, decision, ms: Date.now() - t0, ...score(c, decision) });
     }
 
-    const rate = (k: "role" | "scope" | "cls", of: Row[] = rows) => {
+    const rate = (k: "role" | "scope" | "cls" | "clsRaw", of: Row[] = rows) => {
       const scored = of.filter((r) => r[k] !== undefined);
       const pass = scored.filter((r) => r[k]).length;
       return { pass, total: scored.length, ratio: scored.length ? pass / scored.length : 1 };
@@ -159,7 +170,7 @@ describe.skipIf(!live)("intent golden set (live, Haiku)", () => {
       }),
     ].join("\n");
     const grp = (name: string, of: Row[]) =>
-      `${name}: role ${fmt(rate("role", of))}, scope ${fmt(rate("scope", of))}, class ${fmt(rate("cls", of))}`;
+      `${name}: role ${fmt(rate("role", of))}, scope ${fmt(rate("scope", of))}, class effective ${fmt(rate("cls", of))} (raw ${fmt(rate("clsRaw", of))})`;
     const groups = `${grp(
       "tuning",
       rows.filter((r) => r.c.group !== "holdout"),
@@ -167,7 +178,7 @@ describe.skipIf(!live)("intent golden set (live, Haiku)", () => {
       "holdout",
       rows.filter((r) => r.c.group === "holdout"),
     )}`;
-    const summary = `${groups}\nrole ${fmt(role)}, scope ${fmt(scope)}, class ${fmt(cls)}; code requests leaked to a non-dev role while idle: ${leaks.length}; layers ${JSON.stringify(byLayer)}; model ${env.config.intent.model}`;
+    const summary = `${groups}\nrole ${fmt(role)}, scope ${fmt(scope)}, class effective ${fmt(cls)} (raw ${fmt(rate("clsRaw"))}); code requests leaked to a non-dev role while idle: ${leaks.length}; layers ${JSON.stringify(byLayer)}; model ${env.config.intent.model}`;
     process.stderr.write(`INTENT GOLDEN SET\n${table}\n${summary}\n`);
     if (process.env.INTENT_EVAL_OUT)
       writeFileSync(process.env.INTENT_EVAL_OUT, `${summary}\n\n${table}\n`);

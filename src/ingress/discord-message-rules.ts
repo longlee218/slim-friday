@@ -28,6 +28,8 @@ export interface MessageFacts {
   /** True when the message mentions this bot. */
   mentionsBot: boolean;
   content: string;
+  /** The message carries files: an empty text is then not "empty" (the files are read later). */
+  hasAttachments?: boolean;
   /** True when the channel (or the parent of its thread) is an ops channel from discord.yaml. */
   opsChannel?: boolean;
   /** True when the channel itself (not a thread) accepts admin commands (discord.yaml controlChannels). */
@@ -66,7 +68,7 @@ export function routeMessage(f: MessageFacts, ownerId: string, botId: string): R
   if (!f.inGuild) return { kind: "ignore", reason: "dm" };
   if (f.otherGuild) return { kind: "ignore", reason: "other_guild" };
   const prompt = stripMention(f.content, botId);
-  if (!prompt) return { kind: "ignore", reason: "empty" };
+  if (!prompt && !f.hasAttachments) return { kind: "ignore", reason: "empty" };
   // Ops channels (and their threads) never reach the agent: only admin handling, which re-checks the gate.
   if (f.opsChannel)
     return f.controlChannel || isAdminText(prompt)

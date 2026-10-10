@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { type Route, resolveModel } from "../../config/model-routing";
 import { workspacePaths } from "../../config/workspace-paths";
 import { guardFor } from "../../guardrails/check-tool-call";
@@ -34,7 +34,13 @@ export async function runPlain(c: StageCtx): Promise<FlowResult> {
   const cwd = pinned?.path ?? (storedOk ? existing.cwd : unpinnedCwd);
   // Claude sessions are keyed by cwd: never resume across a cwd change (re-pin, repo removed).
   const resume = existing && existing.cwd === cwd ? existing.session_id : undefined;
-  const additionalDirectories = pinned ? [] : repos.map((r) => r.path).filter((p) => p !== cwd);
+  // Full text of a long owner attachment (saved by ingress, read-only): readable only when this thread has one.
+  const attached = workspacePaths(config.agentHome).attachments(i.threadId);
+  const attachedDirs = existsSync(attached) ? [attached] : [];
+  const additionalDirectories = [
+    ...(pinned ? [] : repos.map((r) => r.path).filter((p) => p !== cwd)),
+    ...attachedDirs,
+  ];
   const scope = pinned ? [pinned] : repos;
   // Only workspace clones are refreshed; never touch a developer's working copy.
   await Promise.all(

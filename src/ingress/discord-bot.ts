@@ -5,6 +5,7 @@ import { type DiscordSetup, EMPTY_SETUP } from "../discord-setup/discord-setup-c
 import type { MemoryRunner } from "../memory/memory-command-handler";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { createAttachmentDeps } from "./attachment-summary";
 import { createMessageHandler, type HandleTask } from "./discord-message-handler";
 import { SAFE_MENTIONS } from "./discord-message-rules";
 
@@ -35,6 +36,7 @@ export function createDiscordBot(
     handleTask,
     setup,
     memory,
+    attachments: createAttachmentDeps(config),
     // Admin commands (init:workspace) run outside the task handler, behind their own gate.
     admin: createAdminHandler({
       home: config.agentHome,

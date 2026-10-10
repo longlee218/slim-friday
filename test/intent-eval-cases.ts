@@ -1,6 +1,7 @@
 import type { TaskClass } from "../src/config/model-routing";
 import type { ThreadState } from "../src/orchestrator/thread/thread-state";
 import { CLASS_CASES } from "./intent-eval-cases-class";
+import { DISCUSSION_CASES } from "./intent-eval-cases-discussion";
 import { IDLE_CASES } from "./intent-eval-cases-idle";
 
 /* Golden cases of the intent layer (data only; the runner is intent-eval.live.test.ts). */
@@ -15,6 +16,8 @@ export interface ThreadFacts {
   ledger?: string[];
   /** The thread has a task or a live clone (scope `active` is possible). Default: state is not idle/done. */
   hasTask?: boolean;
+  /** Role and last stage of the thread's previous turn (L4 input `lastTurn`). */
+  lastTurn?: { role: string; kind: string };
 }
 
 /** What the layer must decide. A missing field is not scored. `ask` = low confidence (the owner is asked). */
@@ -63,6 +66,7 @@ const DONE_CLONE: ThreadFacts = { state: "done", ledger: LEDGER, hasTask: true }
 export const GOLDEN: GoldenCase[] = [
   ...IDLE_CASES,
   ...CLASS_CASES,
+  ...DISCUSSION_CASES,
   // Plan gate: feedback on the plan is dev/active; a question is the assistant; a separate request is new.
   {
     text: "Please also handle the null case in the plan.",

@@ -39,3 +39,6 @@ export const GATE_HINT = "Use the Approve / Reject buttons on the message above.
 export const NOTHING_PENDING = "Nothing is waiting for an answer.";
 /** A staged task cannot start without the approval flow (same text as the legacy refusal). */
 export const NO_APPROVALS = "This task needs the Discord approval flow.";
+/** Prepended to an assistant answer when a dev task cannot start for lack of a workspace clone (until the per-task clone lands). */
+export const NO_CLONE_NOTICE =
+  "Note: dev tasks need a workspace clone of the repo, which is not set up yet, so I answer this as a conversation instead.";

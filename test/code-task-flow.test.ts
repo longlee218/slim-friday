@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { NO_CLONE_NOTICE } from "../src/orchestrator/thread/intent-replies";
 import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { insertTask } from "../src/storage/run-store";
 import { getSession } from "../src/storage/session-store";
@@ -167,8 +168,10 @@ test("code task needs a managed clone; unmanaged working copies are refused", as
     intent: devIntent(env.home),
   });
   const reply = await handle(msg_("[dev] please do it"));
-  expect(reply).toContain("A task needs a workspace clone");
-  expect(seen).toHaveLength(0); // no plan stage
+  // No dev task (no plan stage): the message is answered as a conversation, with one line saying why.
+  expect(reply).toContain(NO_CLONE_NOTICE);
+  expect(seen).toHaveLength(1);
+  expect(seen[0].options.permissionMode).not.toBe("plan");
 });
 
 test("busy when the code-task cap is reached", async () => {
