@@ -36,12 +36,16 @@ export function removeCloneDir(wt: WorktreeRow, agentHome: string): boolean {
 /** Remove a task's checkout. A clone is a plain directory; a legacy row (no `base_sha`) is a git worktree of the owner repo. */
 async function removeCheckout(wt: WorktreeRow, agentHome: string): Promise<boolean> {
   if (wt.baseSha !== null) return removeCloneDir(wt, agentHome);
-  // Legacy `git worktree` row: unregister it from the owner repo, then drop its local branch. Best effort.
+  await removeLegacyWorktree(wt);
+  return true;
+}
+
+/** Unregister a legacy `git worktree` row from the owner repo, then drop its local branch. Best effort. */
+export async function removeLegacyWorktree(wt: WorktreeRow): Promise<void> {
   await runGit(["worktree", "remove", "--force", wt.path], wt.repoPath).catch(() => undefined);
   // `--` ends options; the branch shape check keeps a tampered row from deleting an owner branch.
   if (LEGACY_BRANCH_RE.test(wt.branch) || TASK_BRANCH_RE.test(wt.branch))
     await runGit(["branch", "-D", "--", wt.branch], wt.repoPath).catch(() => undefined);
-  return true;
 }
 
 /** Remove a clone row's checkout, then the row and its session. False when the removal was refused (row kept). */

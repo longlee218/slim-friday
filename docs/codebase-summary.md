@@ -101,7 +101,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 - **tasks/task-result.ts:** result types and flow completion
 - **outputs/pr-output.ts + pr-publish.ts:** GitHub origin: summary + diff + secret scan + Create PR button; the app pushes `friday/*` to the origin url, then opens the PR
 - **outputs/local-result-output.ts + approvals/clone-decision.ts:** no GitHub origin: branch/base/commits/diff stat, fetch command, patch file (<= 1 MB attached), Keep/Discard buttons (`clone:<keep|discard>:<taskId>`, expired after restart)
-- **lifecycle/clone-retention.ts:** startup: remove delivered/kept clones older than `CLONE_RETENTION_DAYS` (14), orphan dirs, rows without a dir
+- **lifecycle/clone-retention.ts:** startup: remove delivered/kept clones older than `CLONE_RETENTION_DAYS` (14), orphan dirs, rows without a dir, legacy worktree rows (no base_sha) idle past retention
 - **storage/files-changed.ts:** delivery diff stat -> file count + top paths for the ledger
 - **tasks/run-limiter.ts:** max 3 concurrent runs; max 2 active capped tasks (`MAX_CAPPED_TASKS`)
 

@@ -1,13 +1,14 @@
 import type { Database } from "bun:sqlite";
-import { rmSync } from "node:fs";
-import { join } from "node:path";
-import { workspacePaths } from "../config/workspace-paths";
+import { lstatSync, rmSync } from "node:fs";
+import { join, relative, resolve, sep } from "node:path";
+import { REPO_NAME, WORKSPACE_NAME, workspacePaths } from "../config/workspace-paths";
 import { logEvent, logger } from "../observability/logger";
 import { deleteSession } from "../storage/session-store";
 import { deleteWorktree, listWorktrees, type WorktreeRow } from "../storage/worktree-store";
-import { removeCloneDir } from "../workspaces/clone-cleanup";
+import { removeCloneDir, removeLegacyWorktree } from "../workspaces/clone-cleanup";
 
-/* Startup retention of task clones: a delivered or kept clone is removed after CLONE_RETENTION_DAYS. */
+/* Startup retention of task clones: a delivered or kept clone is removed after CLONE_RETENTION_DAYS.
+   Legacy pre-P2.1 git-worktree rows (no base_sha) expire on the same age rule. */
 
 const log = logger.child({ module: "clone-retention" });
 
@@ -54,6 +55,56 @@ export function expireClones(
     deleteSession(db, w.threadId);
     removed.push(w.taskId);
     logEvent(log, "clone.expired", { repo: w.repo, branch: w.branch, status: w.status });
+  }
+  return removed;
+}
+
+/**
+ * True when `path` is exactly `<home>/workspaces/<ws>/repos/<repo>/worktrees/<id>` (names validated, not a symlink):
+ * the only place a legacy worktree may be removed from. Anything else is refused.
+ */
+function inExpectedWorktreesDir(agentHome: string, path: string): boolean {
+  const parts = relative(workspacePaths(agentHome).workspaces, resolve(path)).split(sep);
+  const [ws, repos, repo, wts, id] = parts;
+  if (parts.length !== 5 || repos !== "repos" || wts !== "worktrees" || !id) return false;
+  if (!WORKSPACE_NAME.test(ws as string) || !REPO_NAME.test(repo as string)) return false;
+  try {
+    return !lstatSync(path).isSymbolicLink();
+  } catch {
+    return true; // dir already gone: only git's registration is left to prune
+  }
+}
+
+/**
+ * Remove legacy worktree rows (`base_sha` null, registered in the owner repo) idle longer than the retention, of any
+ * status: migrated rows all read `active`, so the status cannot tell them apart; age from last activity does.
+ * Removal is `git worktree remove` + `branch -D --` (agent/*|friday/* only) via the legacy cleanup path, and only
+ * inside the expected worktrees dir. A refused or failed row stays and is retried next start. Not counted in the
+ * kept-clones cap (that cap only lists clones). Returns the task ids removed.
+ */
+export async function expireLegacyWorktrees(
+  db: Database,
+  agentHome: string,
+  retentionDays = DEFAULT_CLONE_RETENTION_DAYS,
+  now = Date.now(),
+): Promise<string[]> {
+  const cutoff = now - retentionDays * DAY_MS;
+  const removed: string[] = [];
+  for (const w of listWorktrees(db)) {
+    if (w.baseSha !== null || lastActivity(db, w) >= cutoff) continue;
+    try {
+      if (!inExpectedWorktreesDir(agentHome, w.path)) {
+        logEvent(log, "worktree.expire_refused", { taskId: w.taskId }, "warn");
+        continue;
+      }
+      await removeLegacyWorktree(w);
+      deleteWorktree(db, w.taskId);
+      deleteSession(db, w.threadId);
+      removed.push(w.taskId);
+      logEvent(log, "worktree.expired", { repo: w.repo, branch: w.branch, status: w.status });
+    } catch (err) {
+      log.warn({ taskId: w.taskId, err: String(err) }, "legacy worktree expiry failed");
+    }
   }
   return removed;
 }

@@ -99,9 +99,9 @@ test("runStartupHygiene applies the retention it is given", async () => {
   const wt = await e.start(tid("00000006"));
   setDelivered(e.env.db, wt.taskId, "local", null);
   age(e, wt.taskId, Date.now() - 2 * DAY_MS);
-  runStartupHygiene(e.env.db, e.env.home, 14);
+  await runStartupHygiene(e.env.db, e.env.home, 14);
   expect(existsSync(wt.path)).toBe(true);
-  runStartupHygiene(e.env.db, e.env.home, 1);
+  await runStartupHygiene(e.env.db, e.env.home, 1);
   expect(existsSync(wt.path)).toBe(false);
 });
 

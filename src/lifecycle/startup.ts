@@ -9,7 +9,12 @@ import { errText } from "../observability/redact";
 import { sweepStalePlugins } from "../runtime/workspace-skills-plugin";
 import { deleteWorktree, listWorktrees } from "../storage/worktree-store";
 import { safeRemoveClone } from "../workspaces/clone-safety";
-import { DAY_MS, DEFAULT_CLONE_RETENTION_DAYS, expireClones } from "./clone-retention";
+import {
+  DAY_MS,
+  DEFAULT_CLONE_RETENTION_DAYS,
+  expireClones,
+  expireLegacyWorktrees,
+} from "./clone-retention";
 
 /** Raw per-task logs older than this are deleted at startup. */
 export const LOG_RETENTION_DAYS = 30;
@@ -94,18 +99,19 @@ export function checkWorktrees(
   return { noRow, missingDir: missingDir.map((r) => r.taskId), removedOrphans };
 }
 
-/** Startup hygiene: log retention + stale plugin dirs + clone retention and orphan check. Never throws (best effort). */
-export function runStartupHygiene(
+/** Startup hygiene: log retention + stale plugin dirs + clone + legacy worktree retention and orphan check. Never throws (best effort). */
+export async function runStartupHygiene(
   db: Database,
   agentHome: string,
   cloneRetentionDays = DEFAULT_CLONE_RETENTION_DAYS,
-): void {
+): Promise<void> {
   try {
     cleanupTaskLogs(agentHome);
     sweepStalePlugins(agentHome);
     expireClones(db, agentHome, cloneRetentionDays);
     checkWorktrees(db, agentHome, cloneRetentionDays);
     cleanupAttachments(agentHome);
+    await expireLegacyWorktrees(db, agentHome, cloneRetentionDays);
   } catch (err) {
     log.warn({ err: String(err) }, "startup hygiene failed");
   }

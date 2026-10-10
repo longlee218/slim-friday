@@ -215,7 +215,7 @@ Canonical forms are slash commands (L0). The LEGACY forms still work in this rel
 | `[mechanical]` / `[standard]` / `[design]` prefix, `repo:<name>` | task class / repo hint |
 | `[dev]` / `[ask]` at the very START of the message | force the role (dev: plan, approve, task clone, PR or local result; ask: read-only answer); case-insensitive; the tag is dropped from the task text. A tag anywhere else, or a word like "dev", does nothing. Without a tag one small Haiku call (L3) reads your message together with the last 4 messages of the thread and decides; no wording lists |
 | a natural reply to the bot's question (e.g. "okay đồng ý", "thôi để sau", "yeah go for it") | answer the one question the bot asked (queue a second task, "Open a dev task for this? (yes/no)" after a discussion turn). The same Haiku call reads the reply against the pending question; `yes` = `go`; `no` to the dev-task question makes the assistant answer your message. If it cannot tell, the bot asks again. They do not press plan/PR buttons: use the button |
-| `[base:<branch>]` prefix | NOT built yet: a dev task branches from the repo's default branch. The proposal and dispatcher already carry a `base` field (validated: the branch must exist locally) for when a parser is added |
+| `[base:<branch>]` prefix | Dropped by owner (no parser). A dev task branches from the repo's `defaultBranch`, else `main` (local branch, validated in preflight) |
 
 Buttons of a dead process answer "This action expired." (the Resume button keeps working after a restart). Proposals older than 24h expire at startup.
 
@@ -348,7 +348,7 @@ cp -R /path/to/deploy ~/.friday/workspaces/<ws>/skills/deploy     # needs deploy
 
 ### Cleanup and retention
 - `/cleanup` removes a task clone: the target path is rebuilt from the validated workspace, repo and task id (never taken from the database or from your text) and must be a real directory strictly inside the repo's `worktrees/` dir; anything else is refused.
-- Startup removes delivered or kept clones older than `CLONE_RETENTION_DAYS` (default 14) with their patch file, removes orphan clone dirs (no row) older than that, and marks active rows whose dir is gone as removed. Orphans are logged as `clone.orphan`.
+- Startup removes delivered or kept clones older than `CLONE_RETENTION_DAYS` (default 14) with their patch file, removes orphan clone dirs (no row) older than that, and marks active rows whose dir is gone as removed. Orphans are logged as `clone.orphan`. Old pre-P2.1 git-worktree rows (registered in the source repo) expire the same way: idle past the retention, they are removed with `git worktree remove` and their `agent/*|friday/*` branch (only inside the workspace worktrees dir; failures are logged and retried next start).
 - Resume of an interrupted task whose clone is gone: the task is marked `failed` and you are told to start it again.
 
 ### Posting a Code Task
