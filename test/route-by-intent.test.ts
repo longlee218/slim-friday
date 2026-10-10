@@ -176,9 +176,6 @@ test("executor: asks, hints, fix limit and the P1.4b rows are replies; none runs
   expect(
     text(await routeByIntent({ ...c, busy: true }, { kind: "ask", reason: "low_confidence" })),
   ).toBe(STILL_WORKING);
-  expect(text(await routeByIntent(idle, { kind: "ask", reason: "max_effort" }))).toContain(
-    "max effort",
-  );
   expect(text(await routeByIntent(c, { kind: "gate-hint" }))).toContain("Approve / Reject");
   expect(text(await routeByIntent(c, { kind: "fix-limit" }))).toBe(FIX_LIMIT_REPLY);
   expect(text(await routeByIntent(c, { kind: "steer", role: "dev" }))).toBe(STILL_WORKING);

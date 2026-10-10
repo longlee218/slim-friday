@@ -1,11 +1,11 @@
 # Codebase Summary
 
 ## Overview
-**Friday agent v1** — Discord-driven personal coding agent on Claude Agent SDK. Owner posts a message in a Discord thread → the intent layer (src/intent) picks the role: the read-only assistant answers with file:line references; dev plans, then after approval makes changes in a Git worktree via git/GitHub MCP and opens a PR.
+**Friday agent v1** — Discord-driven personal coding agent on Claude Agent SDK. Owner posts a message in a Discord thread → the intent layer (src/intent) picks the role: the read-only assistant answers with file:line references; dev plans, then after approval makes changes in an independent task clone (commits via git MCP) and delivers a PR (GitHub origin) or a local result (fetch command + patch).
 
 **Stack:** Bun + TypeScript + Discord.js + Claude Agent SDK + SQLite + Official MCP servers (git, GitHub)
 
-**Test Coverage:** 993 tests pass, 22 skipped (live smokes and the opt-in golden set) | Type check: clean | No console.* in src/
+**Test Coverage:** 1117 tests pass, 22 skipped (live smokes and the opt-in golden set) | Type check: clean | No console.* in src/
 **Phase 1c (Delegate Phase 2):** history: rejected-plans memory and the DelegateTask eval (both retired in P1.4c; the golden set is now `test/intent-eval.live.test.ts`, INTENT_EVAL=1)
 **Phase 1e (Tool folders & naming):** All tool names from exported constants; `src/tools/<Name>Tool/` layout (PascalCase folder, kebab-case files); MCP servers `git` and `github` (the `tasks` server was retired in P1.4c); scan test enforces literals-free source
 **Phase 3 (Delegate Phase 3):** Per-repo workflow (lean/full), ask limit enforcement, workspace-curated skills via an app-owned plugin (was clone-based; replaced, see changelog)
@@ -44,8 +44,8 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 │   └── repos/<repo>/
 │       ├── repo.yaml          # path?, description, defaultBranch?, testCommand?, githubAccount?, gitAuthor?, workflow?
 │       ├── MEMORY.md          # Repo memory (the only file the agent writes; 4000 chars injected)
-│       ├── repo/              # Managed clone (gitignored)
-│       └── worktrees/<taskId>/  # Execute stage git worktree (gitignored)
+│       ├── repo/              # Managed clone (optional: a repo may be any checkout via `path:`)
+│       └── worktrees/<taskId>/  # Execute stage task clone: independent `git clone --local`, branch friday/<task8>-<slug> (gitignored)
 ├── logs/
 │   ├── app.<date>.<n>.jsonl   # Application log (daily rotated, 14 days kept)
 │   └── tasks/                 # Per-task logs (one log dir; lines carry `workspace`)
@@ -56,7 +56,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 |------|-------|-----------|-------|
 | Q&A | Read, Glob, Grep | Git MCP read-only, no GitHub | owner-only, additionalDirectories enabled |
 | Plan | R/W/Edit/Bash/Task/ExitPlanMode | Git MCP read, GitHub MCP read | Edit blocked before approval; cwd = task scratch |
-| Exec | R/W/Edit/Bash/Git MCP/Task | Git MCP (add/commit auto, checkout ask), no GitHub | worktree only; cwd = worktree on agent/<id> branch |
+| Exec | R/W/Edit/Bash/Git MCP/Task | Git MCP (add/commit auto, checkout ask), no GitHub | task clone only; cwd = the clone on branch friday/<task8>-<slug> |
 
 ### 4. Memory System & Persona Layering (Phase 1+, Step B 1b)
 - **Persona layering:** Root files (AGENTS, IDENTITY, SOUL, USER) auto-created; workspace files replace root per file; `buildPersonaContext(home, ws)`
@@ -95,9 +95,14 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 - **engine/plain-run.ts:** read-only stage run (Q&A is the 1-stage `assistant` role): cwd pick, clone refresh; reply through `outputs/answer-output.ts` (ESCALATE re-run when the role flag `escalation` is set)
 - **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal (from the intent result), validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
 - **engine/stage-runner.ts + gates.ts / plan-run.ts / plain-run.ts / isolation.ts / handoff.ts:** loop over role.stages, run kind from stage data (`gate`, `isolation`; no role names), stage handoff template (plan -> exec prompt), `stages` rows; `orchestrator/run-turn.ts` = one routed message as a role
-- **tasks/task-worktree.ts:** worktree creation/removal via git MCP; stage switching
+- **workspaces/{task-clone,clone-safety,clone-cleanup,clone-lookup}.ts:** task clone creation (`git clone --local`, local base, preflight), safe removal (path rebuilt from validated ids), `/cleanup <id>` lookup in the channel's workspace; `repos/git-cli.ts` = plain argv-only git
+- **engine/owner-confirm.ts + thread/max-effort-gate.ts:** owner-confirm yes/no buttons (fails closed) for effort `max` and `ESCALATE: opus`
+- **engine/budget.ts:** budget-hit message (spent/limit, last words, clone `git diff --stat`, `/go +<usd>` offer)
 - **tasks/task-result.ts:** result types and flow completion
-- **outputs/pr-output.ts:** summary + diff + Create PR button; follow-up detection (reuse worktree); cleanup
+- **outputs/pr-output.ts + pr-publish.ts:** GitHub origin: summary + diff + secret scan + Create PR button; the app pushes `friday/*` to the origin url, then opens the PR
+- **outputs/local-result-output.ts + approvals/clone-decision.ts:** no GitHub origin: branch/base/commits/diff stat, fetch command, patch file (<= 1 MB attached), Keep/Discard buttons (`clone:<keep|discard>:<taskId>`, expired after restart)
+- **lifecycle/clone-retention.ts:** startup: remove delivered/kept clones older than `CLONE_RETENTION_DAYS` (14), orphan dirs, rows without a dir
+- **storage/files-changed.ts:** delivery diff stat -> file count + top paths for the ledger
 - **tasks/run-limiter.ts:** max 3 concurrent runs; max 2 active capped tasks (`MAX_CAPPED_TASKS`)
 
 ### Agent & Prompts
@@ -146,7 +151,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 - **workspaces/workspace-registry.ts:** `loadWorkspaces(home)` -> `{workspaces, legacy}`: scans workspaces/*/workspace.yaml (zod: description, channels), fail-closed validation (name rules, real dirs not symlinks, duplicate channel ids dropped from both, `repo.overlap` warning); each workspace carries its own repos (no flat cross-workspace list: repo names are unique only inside a workspace)
 - **repo-registry.ts:** `loadRepos(ws, forbidden)` reads workspaces/<ws>/repos/*/repo.yaml (zod); optional defaultBranch, testCommand, githubAccount, `workflow` (lean|full, default lean); repo path must be a git root and not cover $HOME / AGENT_HOME; `buildRegistryContext(ws, repos, force)`
 - **git-identity.ts:** parse/resolve identity per repo.yaml gitAuthor; attribution check; no git calls
-- **engine/isolation.ts + tasks/task-worktree.ts:** git_fetch + git_worktree add (new branch agent/<taskId-prefix> from origin/<defaultBranch>); managed clones only; ask limit per task (shared across plan & exec stages)
+- **engine/isolation.ts + workspaces/task-clone.ts:** task clone from a LOCAL base (no fetch, `origin` removed, branch friday/<task8>-<slug>, any registered repo); ask limit per task (shared across plan & exec stages)
 - **engine/stage-control.ts:** determine execWorkflow per repo (lean/full); stage control with abort listener; ask timeout handling
 - **workspace-skills-plugin.ts:** `workspaceSkills(ws, home)`: one app-owned plugin per run from `workspaces/<ws>/skills` only (repo `.claude/skills` is never read; no hooks/.mcp.json), skills `<ws>:<skill>`; realpath validation, symlink skipping, caps 300 entries (files+dirs)/5MB, depth 8; `sweepStalePlugins` at startup, fail closed with a warn, `skills.plugin_built` log
 - **home-placement-check.ts:** startup refusal when AGENT_HOME is inside a registered repo or a git working tree
@@ -218,7 +223,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 2. **Redaction** — all replies + logs masked (tokens, keys, .env patterns)
 3. **Tool gates** — PreToolUse (hard deny) + canUseTool (Discord approval)
 4. **Read-only Q&A** — no write/exec tools
-5. **Worktree isolation** — code tasks confined to worktree + tasks/<id>/; no `~/.claude` settings load
+5. **Task clone isolation** — code tasks confined to their own clone + tasks/<id>/ (the owner repo's git dir is only read); no `~/.claude` settings load
 6. **Sensitive file guard** — never quote .env* or key files; file:line summary only
 7. **Provider credential isolation** — SDK child env allowlist; never both providers' keys
 
@@ -262,7 +267,7 @@ bun run start          # start bot (reads .env)
 
 ## Known Limits (Phase 5 candidates)
 - Worktree not a sandbox: approved/allowlisted commands run agent-edited code as bot user
-- No TTL/GC for worktrees on startup (stale worktrees pile up)
+- Delivered/kept clones are removed after `CLONE_RETENTION_DAYS` (14); PR-delivered clones are not removed at once; a Keep/Discard click is lost on restart (the clone stays until retention)
 - Publishing PRs tested with fake gh + local bare origin; live GitHub auth not end-to-end verified
 - Bash parsing best-effort (bypassable via `bash -c`) → worktree isolation is real boundary
 - npm ci runs lifecycle scripts (third-party script risk)

@@ -70,11 +70,11 @@ src/
 │   ├── task-routing.ts         # routeTask (pin / follow-up / refusals -> role), resolveCommand (Resume), runRoute; route-by-intent replaces routeTask in P1.4c
 │   ├── route-and-run.ts        # one plain message: Resume / `go` / intent turn -> runTurn
 │   ├── intent-turn.ts          # state -> intent decision -> effort -> table action; replyWhileBusy
-│   ├── thread/                 # thread-state.ts (derived from the gate table), effort-floor.ts, route-by-intent.ts (behavior table), intent-replies.ts, turn-effort.ts
+│   ├── thread/                 # thread-state.ts (derived from the gate table), effort-floor.ts, route-by-intent.ts (behavior table), intent-replies.ts, turn-effort.ts, max-effort-gate.ts (effort max asks the owner)
 │   ├── dispatch/               # dispatch-role.ts, validate-request.ts, task-repo.ts, proposal-flow.ts, start-proposal.ts (never import runtime/)
-│   ├── engine/                 # generic stage engine, knows no role names: stage-runner.ts (loop over role.stages), gates.ts (gate table + stageKind), plan-run.ts (gate plan-approval), plain-run.ts (read-only stage), isolation.ts (clone stage + switch), handoff.ts (template), stage-control.ts, budget.ts
-│   ├── outputs/                # answer-output.ts (ESCALATE re-run), pr-output.ts (delivery gate: PR)
-│   └── tasks/                  # task-tracker.ts, task-result.ts, run-limiter.ts, task-worktree.ts
+│   ├── engine/                 # generic stage engine, knows no role names: stage-runner.ts (loop over role.stages), gates.ts (gate table + stageKind), owner-confirm.ts (yes/no gate, fails closed), plan-run.ts (gate plan-approval), plain-run.ts (read-only stage), isolation.ts (clone stage + switch), handoff.ts (template), stage-control.ts, budget.ts (budget-hit message + clone diff stat)
+│   ├── outputs/                # answer-output.ts (ESCALATE re-run; opus asks the owner), pr-output.ts + pr-publish.ts (delivery gate: PR), local-result-output.ts (delivery gate: local result + patch), diffstat-cap.ts
+│   └── tasks/                  # task-tracker.ts, task-result.ts, run-limiter.ts
 │   └── ...
 ├── tools/                      # Tool configuration & custom tools
 │   ├── tool-catalog.ts         # single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS (196/200 lines: split before adding more tools)
@@ -199,36 +199,43 @@ bun test --timeout 10000           # per-test timeout (ms)
 - **Authorship:** user's own git identity only (no Claude attribution)
 - **Pre-commit:** run `bun run format && bun run lint && bun test && bunx tsc --noEmit` before staging
 - **Pre-push:** ensure all tests pass; no secrets in diffs
-- **Code task branches (Phase 4+):** `agent/<first-8-chars-of-taskId>` created per code task; pushed only after owner clicks Create PR button
+- **Code task branches (P2):** `friday/<first-8-chars-of-taskId>-<slug>` created per code task clone (legacy `agent/<task8>`); pushed by the app only after the owner clicks Create PR (GitHub origin)
 
 ## Worktree Paths
 
+(Folder name kept for history: since P2 these are independent task clones, not git worktrees.)
+
 **Structure:**
 ```
-$AGENT_HOME/workspaces/<repo-name>/
-├── worktrees/
-│   └── <taskId>/                  # git worktree for one code task
-│       ├── .git                   # worktree-specific git dir
-│       ├── (repo files)           # checked out on agent/<taskId> branch
-│       └── (run as if in main repo)
+$AGENT_HOME/workspaces/<ws>/
+├── repos/<repo>/
+│   ├── repo.yaml
+│   └── worktrees/
+│       └── <taskId>/              # independent `git clone --local` for one code task (UUID dir name)
+│           ├── <own git dir>      # its OWN git dir; no `origin`; hardlinked objects
+│           └── (repo files)       # on branch friday/<task8>-<slug>
 └── tasks/
     └── <taskId>/
         ├── scratch/               # plan stage cwd; plan.md stored here
         │   └── plan.md            # copied here on approval
-        └── plan.md                # copied to worktree on execute stage for reference
+        ├── plan.md                # seeded into the clone's session on the execute stage
+        └── <task8>.patch          # local delivery only (0600)
 ```
 
 **Session Context:**
 - Plan stage: cwd = `$AGENT_HOME/workspaces/<ws>/tasks/<taskId>/scratch` (plan mode, read-only)
-- Execute stage: cwd = `$AGENT_HOME/workspaces/<ws>/repos/<repo>/worktrees/<taskId>` (default mode, edit/git allowed)
+- Execute stage: cwd = `$AGENT_HOME/workspaces/<ws>/repos/<repo>/worktrees/<taskId>` (default mode, edit/git allowed; Write/Edit and Bash writes to the clone's git dir denied)
 - Plan.md available in both stages (seeded from scratch/ on execute start)
 
 **Rules:**
-- Worktree created only on managed clones (realpath under `$AGENT_HOME/workspaces/<ws>/repos/<repo>/repo/`)
-- Branch: `agent/<first-8-chars-taskId>` from `origin/<defaultBranch>`
-- Concurrency: max 2 capped tasks (`MAX_CAPPED_TASKS`; running or waiting_approval)
-- Cleanup: `cleanup:<task-id>` removes worktree + local branch + session; can be posted anytime
-- No GC/TTL on startup (phase 5 candidate)
+- Clone is made for ANY registered repo (`workspaces/task-clone.ts`): local base branch only, NO fetch, `origin` removed, base commit stored as `worktrees.base_sha`; the owner repo's git dir is only read. Refusals: no commits, missing base, submodules, LFS, < 2 GB free.
+- Branch: `friday/<first-8-chars-taskId>-<slug>` (slug `a-z0-9-`, <= 30 chars; `TASK_BRANCH_RE`)
+- Git for the app (clone, diffstat, patch, push) = `repos/git-cli.ts` `runGit`/`gitOut`: argv only, never a shell
+- Removal = `clone-cleanup.ts` / `clone-safety.ts`: path rebuilt from validated workspace + repo + UUID task id, a DB path is only compared; real dir, not a symlink, strictly inside the repo's `worktrees/` dir; else refuse + `clone.remove_refused`. Never `rmSync` a path from the DB or user text. Rows without `base_sha` are pre-P2 git worktrees (legacy remove)
+- Concurrency: max 2 capped tasks (`MAX_CAPPED_TASKS`; running or waiting_approval); max 10 clones held by the owner per workspace (`MAX_KEPT_CLONES`)
+- Cleanup: `/cleanup [<taskId8|taskId>]` (id resolved in the channel's workspace) removes the clone + row + session; the Discard button does the same unless a task runs in the thread
+- Retention: delivered/kept clones older than `CLONE_RETENTION_DAYS` (default 14) are removed at startup, with orphan dirs and their patch files
+- Owner-confirm (`engine/owner-confirm.ts`): any costlier step needing a yes/no uses it and must fail closed (no answer = do not run)
 
 ## TypeScript Config
 - **Target:** ES2022 (Bun supports modern syntax)
@@ -278,12 +285,12 @@ All config loaded via zod schema in `src/config/agent-config.ts`:
 - Plan mode: ExitPlanMode triggers canUseTool with input.plan; multi-round approval allowed (EnterPlanMode to revise)
 - Create PR button (phase 4+): owner-only, 10 min timeout; push only after button click
 
-**Worktree Permissions (Phase 4+):**
-- Edit/Write: auto-allowed in worktree + $AGENT_HOME/tasks/<id>/ only (PreToolUse hard deny outside)
+**Task clone permissions:**
+- Edit/Write: auto-allowed in the task clone + $AGENT_HOME/tasks/<id>/ only (PreToolUse hard deny outside)
 - Git operations: git MCP tools only (no Bash `git add/commit`; Bash git now asks "use git MCP tools")
-  - git add/commit auto-allowed inside worktree; checkout/branch/reset ask; others denied
+  - git add/commit auto-allowed inside the clone; checkout/branch/reset ask; others denied
 - Bash (test command): exact match from registry → auto-allowed (prevents ad-hoc injection)
-- Settings: `settingSources: []` in every mode (no repo CLAUDE.md, no agent-written .claude/* loads); write to .claude/.husky/.git/.github/.mcp.json/.vscode/.devcontainer inside worktree denied
+- Settings: `settingSources: []` in every mode (no repo CLAUDE.md, no agent-written .claude/* loads); write to .claude/.husky/.git/.github/.mcp.json/.vscode/.devcontainer inside the clone denied (the clone's own git dir too)
 
 **Testing Guardrails:**
 - test/deny-dangerous.test.ts: 30+ command/path/host/install cases

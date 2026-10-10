@@ -30,6 +30,7 @@ export function latestTaskSession(
   db: Database,
   threadId: string,
 ): {
+  id: string;
   status: string;
   repo: string;
   /** Role that ran it (a plan-stage Resume starts the same role again). */
@@ -42,6 +43,7 @@ export function latestTaskSession(
   const row = db
     .query<
       {
+        id: string;
         status: string;
         repo: string;
         role: string;
@@ -51,7 +53,7 @@ export function latestTaskSession(
       },
       [string]
     >(
-      `SELECT status, repo, role, session_id AS sessionId, session_cwd AS cwd,
+      `SELECT id, status, repo, role, session_id AS sessionId, session_cwd AS cwd,
          (SELECT r.outcome FROM runs r WHERE r.task_id = tasks.id ORDER BY r.rowid DESC LIMIT 1) AS outcome
        FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
     )

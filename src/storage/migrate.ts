@@ -73,6 +73,9 @@ const V2_COLUMNS: Record<string, Array<[name: string, ddl: string]>> = {
     ["status", "TEXT NOT NULL DEFAULT 'active'"],
     ["patch_path", "TEXT"],
     ["delivered_at", "INTEGER"],
+    // Delivery diffstat summary for the ledger: file count and the top paths (newline separated).
+    ["files_changed", "INTEGER"],
+    ["files_top", "TEXT"],
   ],
 };
 

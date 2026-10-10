@@ -1,5 +1,8 @@
 import { logEvent, logger } from "../../observability/logger";
-import { redactText } from "../../observability/redact";
+import { clip, errText, redactText } from "../../observability/redact";
+import { runGit } from "../../repos/git-cli";
+import type { WorktreeRow } from "../../storage/worktree-store";
+import { capStat } from "../outputs/diffstat-cap";
 
 /* Budget hit (outcome `max_budget`): the owner-facing text, never silent, always says what happened. */
 
@@ -20,6 +23,10 @@ export interface BudgetHit {
   goPlusUsd?: number;
 }
 
+/** Caps of the two quoted parts of the message (the owner reads a Discord reply, not a log). */
+export const BUDGET_SUMMARY_MAX = 500;
+export const BUDGET_STAT_MAX = 600;
+
 const usd = (n: number | undefined): string => (n === undefined ? "?" : `$${n.toFixed(2)}`);
 
 /**
@@ -31,8 +38,9 @@ export function budgetHitMessage(h: BudgetHit): string {
   const lines = [
     `Stopped: budget reached (${usd(h.spentUsd)} of ${usd(h.limitUsd)}; the limit is checked between turns, so a small overshoot is possible). The session is kept.`,
   ];
-  if (h.summary?.trim()) lines.push(`Last summary:\n${h.summary.trim()}`);
-  if (h.diffStat?.trim()) lines.push(`Changes so far:\n${h.diffStat.trim()}`);
+  if (h.summary?.trim()) lines.push(`Last summary:\n${clip(h.summary.trim(), BUDGET_SUMMARY_MAX)}`);
+  if (h.diffStat?.trim())
+    lines.push(`Changes so far:\n${capStat(h.diffStat.trim(), BUDGET_STAT_MAX)}`);
   if (h.goPlusUsd !== undefined) {
     lines.push(`Reply \`/go +${h.goPlusUsd}\` to continue with that much more budget.`);
   }
@@ -40,11 +48,33 @@ export function budgetHitMessage(h: BudgetHit): string {
 }
 
 /**
- * Reply of a stage run that stopped on its budget: logs `budget.exceeded` and words the stop (redacted).
- * `res.text` holds SDK error strings here, not an assistant summary, so no summary / diff stat is passed yet.
- * Offers the same amount again: `go +<usd>` resumes the kept session with that much more.
+ * `git diff --stat` of a task clone against its base commit (committed, staged and unstaged changes of tracked
+ * files), capped. Undefined when git fails, the dir is gone or nothing changed: a budget message never fails on it.
  */
-export function budgetHitReply(res: { usage?: { costUsd?: number }; budgetUsd?: number }): string {
+export async function budgetDiffStat(
+  wt: Pick<WorktreeRow, "path" | "baseSha">,
+): Promise<string | undefined> {
+  try {
+    const r = await runGit(["diff", "--stat", wt.baseSha ?? "HEAD"], wt.path);
+    const stat = r.stdout.trim();
+    return r.code === 0 && stat ? capStat(stat, BUDGET_STAT_MAX) : undefined;
+  } catch (err) {
+    log.warn({ err: errText(err) }, "budget diff stat failed");
+    return undefined;
+  }
+}
+
+/**
+ * Reply of a stage run that stopped on its budget: logs `budget.exceeded` and words the stop (redacted):
+ * spent/limit, the agent's last words, the clone's diff stat when there is a clone. Offers the same amount
+ * again: `go +<usd>` resumes the kept session with that much more.
+ */
+export function budgetHitReply(res: {
+  usage?: { costUsd?: number };
+  budgetUsd?: number;
+  lastText?: string;
+  diffStat?: string;
+}): string {
   logEvent(log, "budget.exceeded", {
     spentUsd: res.usage?.costUsd,
     limitUsd: res.budgetUsd ?? null,
@@ -53,6 +83,8 @@ export function budgetHitReply(res: { usage?: { costUsd?: number }; budgetUsd?: 
     budgetHitMessage({
       spentUsd: res.usage?.costUsd,
       limitUsd: res.budgetUsd,
+      summary: res.lastText,
+      diffStat: res.diffStat,
       goPlusUsd: res.budgetUsd === undefined ? undefined : Number(res.budgetUsd.toFixed(2)),
     }),
   );

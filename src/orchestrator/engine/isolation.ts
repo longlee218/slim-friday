@@ -109,7 +109,7 @@ export async function runCloneRun(
   if (stage.gate !== "delivery") return { ...base, text: memory.text };
   // validate-role.ts already refused a delivery gate on a role whose output is not `pr`.
   const text = await finishCodeTask(
-    { db, approvals, git: deps.git },
+    { db, approvals, git: deps.git, agentHome: config.agentHome, threadBusy: deps.threadBusy },
     {
       wt,
       taskId: i.taskId,

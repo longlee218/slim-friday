@@ -15,6 +15,7 @@ import { findRepo } from "./dispatch/task-repo";
 import type { TaskCommand } from "./task-commands";
 import type { EffortFloors } from "./thread/effort-floor";
 import { STILL_WORKING, stripRoleTag } from "./thread/intent-replies";
+import { MAX_DECLINED_NOTICE, settleMaxEffort } from "./thread/max-effort-gate";
 import {
   actionFor,
   type IntentOutcome,
@@ -79,14 +80,26 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
     // A busy thread pays for L3 only to read the answer to a pending question; else only the `[dev]` tag (L1) acts on it.
     c.busy && !pendingQuestion ? { ...c.intent, classifier: undefined } : c.intent,
   );
-  let action = actionFor({ decision, state, hasClone: !!clone, fixRounds });
-  // Effort only matters for a run that starts now; `max` needs the owner's confirmation (ask instead).
+  const action = actionFor({ decision, state, hasClone: !!clone, fixRounds });
+  // Effort only matters for a run that starts now; `max` runs only after the owner-confirm gate says yes
+  // (a busy thread cannot start a run, so it does not ask).
   let turn: ReturnType<typeof turnEffort> = { pendingMax: false };
+  let maxDeclined = false;
   if (decision.kind === "role" && ["run", "open", "fix"].includes(action.kind)) {
     turn = turnEffort(c.floors, threadId, decision.cls, effort);
-    if (turn.pendingMax) action = { kind: "ask", reason: "max_effort" };
+    if (turn.pendingMax && !c.busy) {
+      ({ turn, declined: maxDeclined } = await settleMaxEffort({
+        approvals: c.deps.approvals,
+        floors: c.floors,
+        threadId,
+        cls: decision.cls,
+        signals: effort,
+        turn,
+        signal: c.ac.signal,
+      }));
+    }
   }
-  return routeByIntent(
+  const out = await routeByIntent(
     {
       ...c,
       pinned: pinnedRepo(c.repos, c.cmd.repo, c.stored),
@@ -97,6 +110,10 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
     },
     action,
   );
+  // The declined notice goes before the reply of a run that started at the capped effort.
+  if (maxDeclined && out.kind === "run")
+    return { ...out, notice: [MAX_DECLINED_NOTICE, out.notice].filter(Boolean).join("\n") };
+  return out;
 }
 
 /**

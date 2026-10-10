@@ -11,7 +11,10 @@ import { budgetHitReply } from "../engine/budget";
 
 /** What the task handler needs back from a Q&A or code flow. */
 export interface FlowResult
-  extends Pick<RunAgentResult, "text" | "outcome" | "sessionId" | "resetsAt" | "budgetUsd"> {
+  extends Pick<
+    RunAgentResult,
+    "text" | "outcome" | "sessionId" | "resetsAt" | "budgetUsd" | "lastText"
+  > {
   /** Metrics of the run (spent USD for the budget-hit message); absent when no run happened. */
   usage?: RunUsage;
   /** cwd + repo of the session to save (resume needs the same cwd), when a session should be stored. */
@@ -19,6 +22,8 @@ export interface FlowResult
   repo?: string;
   /** Save the session although the outcome is not success/limit (a stage stopped to await the owner's reply). */
   keepSession?: boolean;
+  /** `git diff --stat` of the task clone at a budget stop (the stage runner fills it; budget-hit message). */
+  diffStat?: string;
   /** Model of an escalated re-run (the stage row then records it instead of the first run's model). */
   model?: string;
 }

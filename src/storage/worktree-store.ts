@@ -132,6 +132,48 @@ export function setPrUrl(db: Database, taskId: string, url: string): void {
   db.query("UPDATE worktrees SET pr_url = ? WHERE task_id = ?").run(url, taskId);
 }
 
+/** Mark a clone delivered (PR opened or local result posted); `patchPath` is the patch file of a local delivery. */
+export function setDelivered(
+  db: Database,
+  taskId: string,
+  delivery: "pr" | "local",
+  patchPath: string | null,
+): void {
+  db.query(
+    "UPDATE worktrees SET status = 'delivered', delivery = ?, patch_path = ?, delivered_at = ? WHERE task_id = ?",
+  ).run(delivery, patchPath, Date.now(), taskId);
+}
+
+/** Set the status of a clone row (`kept` = the owner keeps it until retention). */
+export function setWorktreeStatus(
+  db: Database,
+  taskId: string,
+  status: WorktreeRow["status"],
+): void {
+  db.query("UPDATE worktrees SET status = ? WHERE task_id = ?").run(status, taskId);
+}
+
+/** Clone rows of one workspace (oldest first): the scope of `/cleanup <id>` and the kept cap. */
+export function listWorktreesOfWorkspace(db: Database, workspace: string): WorktreeRow[] {
+  return db
+    .query<Raw, [string]>("SELECT * FROM worktrees WHERE workspace = ? ORDER BY created_at, rowid")
+    .all(workspace)
+    .map((r) => toRow(r) as WorktreeRow);
+}
+
+/**
+ * Clones of a workspace the owner still holds: `kept`, or `delivered` locally (the owner has to fetch it).
+ * A PR-delivered clone is not counted: its work is on GitHub. Old git-worktree rows (no `baseSha`) are not
+ * counted either: retention never expires them, so they would hold the cap forever (only `/cleanup` frees them).
+ */
+export function listKeptClones(db: Database, workspace: string): WorktreeRow[] {
+  return listWorktreesOfWorkspace(db, workspace).filter(
+    (w) =>
+      w.baseSha !== null &&
+      (w.status === "kept" || (w.status === "delivered" && w.delivery === "local")),
+  );
+}
+
 /** Forget a worktree row (after cleanup). */
 export function deleteWorktree(db: Database, taskId: string): void {
   db.query("DELETE FROM worktrees WHERE task_id = ?").run(taskId);

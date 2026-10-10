@@ -30,6 +30,21 @@ export interface StreamResult {
   usage: RunUsage;
   /** Quota outcome: when the limit resets (epoch ms), if the SDK reported it. */
   resetsAt?: number;
+  /** Last assistant message that had text (what the agent last said); undefined = none. Used by the budget-hit message. */
+  lastText?: string;
+}
+
+/** Text blocks of an assistant message, joined; empty when it only called tools. */
+function assistantText(m: SDKMessage): string {
+  const content = (m as { message?: { content?: unknown } }).message?.content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter(
+      (b): b is { type: "text"; text: string } => b?.type === "text" && typeof b.text === "string",
+    )
+    .map((b) => b.text)
+    .join("\n")
+    .trim();
 }
 
 /** Outcome for a run that ended by abort: timeout if our timer fired, else user stop. */
@@ -66,6 +81,7 @@ export async function consumeStream(p: {
   let assistantError: string | undefined;
   let rejected = false;
   let resetsAt: number | undefined;
+  let lastText: string | undefined;
   try {
     for await (const msg of p.run({ prompt: p.prompt, options: p.options })) {
       recorder.logMessage(msg);
@@ -80,7 +96,11 @@ export async function consumeStream(p: {
       }
       const ext = m as unknown as { error?: string; rate_limit_info?: { status?: string } };
       // A later assistant message without `error` means the SDK retry worked: forget the old error.
-      if (m.type === "assistant") assistantError = ext.error;
+      if (m.type === "assistant") {
+        assistantError = ext.error;
+        const said = assistantText(m);
+        if (said) lastText = said;
+      }
       if (m.type === "rate_limit_event") {
         // Raw shape at debug: the real payload of limit events is still being learned.
         log.debug({ info: ext.rate_limit_info }, "rate_limit_event");
@@ -139,5 +159,5 @@ export async function consumeStream(p: {
     outcome = "error";
     text = startupError;
   }
-  return { text, sessionId, outcome, usage: { ...usage, compactions }, resetsAt };
+  return { text, sessionId, outcome, usage: { ...usage, compactions }, resetsAt, lastText };
 }

@@ -2,12 +2,21 @@ import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../../approvals/approval-types";
 import { hasAttribution } from "../../guardrails/check-tool-call";
 import type { GitData, GitIdentity, GitMcp } from "../../mcp/git-mcp";
-import { createPullRequest, parseRemote } from "../../mcp/github-mcp";
+import { createPullRequest } from "../../mcp/github-mcp";
 import { GIT_TOOL } from "../../mcp/mcp-tool-names";
 import { logEvent, logger } from "../../observability/logger";
 import { clip, errText, redactText } from "../../observability/redact";
-import { setPrUrl, type WorktreeRow } from "../../storage/worktree-store";
+import { recordFilesChanged } from "../../storage/files-changed";
+import {
+  setDelivered,
+  setPrUrl,
+  setWorktreeStatus,
+  type WorktreeRow,
+} from "../../storage/worktree-store";
+import { deliveryFor } from "../../workspaces/task-clone";
 import { CREATE_PR_APPROVAL } from "../engine/gates";
+import { finishLocalResult } from "./local-result-output";
+import { mayPublish, originSlug, pushBranch } from "./pr-publish";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "pr-output" });
@@ -33,10 +42,6 @@ function commitProblems(commits: BranchCommit[], a: GitIdentity): string[] {
   }
   return [...problems];
 }
-
-/** Reply for a managed clone while PR delivery for clones is missing. */
-const CLONE_PR_PENDING = (wt: WorktreeRow): string =>
-  `PR delivery for task clones arrives with P2.2. Branch ${wt.branch} stays in the clone at ${wt.path}.`;
 
 /** Cap of the diff attached to the PR offer. */
 const DIFF_CAP = 200_000;
@@ -75,6 +80,10 @@ export async function finishCodeTask(
     db: Database;
     approvals: ApprovalGateway;
     git: GitMcp;
+    /** Agent home: where the local result patch is written. */
+    agentHome: string;
+    /** Thread lock check for the Keep/Discard click of a local result (see `LocalResultDeps`). */
+    threadBusy?: (threadId: string) => boolean;
     /** PR creator; injectable in tests. */
     createPr?: typeof createPullRequest;
   },
@@ -94,13 +103,22 @@ export async function finishCodeTask(
   },
 ): Promise<string> {
   const { wt } = o;
-  // REMOVABLE SEAM (P2.2): a managed clone (base_sha set) has no origin and a `friday/*` branch, so the
-  // push below would fail after the owner approved. Remove this line when P2.2 adds clone delivery.
-  if (wt.baseSha !== null) return `${o.text}\n\n${CLONE_PR_PENDING(wt)}`;
+  // A clone whose owner repo has no GitHub origin is delivered as a local result (branch + fetch command + patch).
+  if (wt.baseSha !== null && deliveryFor(wt.originUrl) !== "pr")
+    return finishLocalResult(
+      {
+        db: deps.db,
+        approvals: deps.approvals,
+        agentHome: deps.agentHome,
+        threadBusy: deps.threadBusy,
+      },
+      { wt, taskId: o.taskId, threadId: o.threadId, text: o.text },
+    );
   /** A failed publish: logged as pr.failed, returned as the reply tail. */
   const prFailed = (why: string): string => {
+    // A git error can echo the remote url: both the log and the owner reply get the redacted text.
     logEvent(log, "pr.failed", { repo: wt.repo, branch: wt.branch, reason: errText(why) }, "warn");
-    return `${o.text}\n\nPR failed: ${why}`;
+    return `${o.text}\n\nPR failed: ${errText(why)}`;
   };
   const { git } = deps;
   const { ref, log: ahead } = await commitsAhead(git, wt.path, wt.base);
@@ -114,11 +132,14 @@ export async function finishCodeTask(
   if (commits.length === 0) return `${o.text}\n\nNo commits on ${wt.branch}.${dirty}`;
   const range = { path: wt.path, source: ref, target: "HEAD" };
   const stat = String((await git.call(GIT_TOOL.DIFF, { ...range, stat: true })).diff ?? "").trim();
-  const diff = String((await git.call(GIT_TOOL.DIFF, range)).diff ?? "").slice(0, DIFF_CAP);
+  recordFilesChanged(deps.db, wt.taskId, stat); // ledger: files changed
+  const fullDiff = String((await git.call(GIT_TOOL.DIFF, range)).diff ?? "");
   // Pushed commits carry raw content while the owner sees a redacted diff: never push a possible secret.
-  if (redactText(diff) !== diff) {
+  // The scan covers the WHOLE diff; the cap below only limits what is shown.
+  if (redactText(fullDiff) !== fullDiff) {
     return `${o.text}\n\nPossible secret in the diff of ${wt.branch}: PR not offered. Remove it and commit again.`;
   }
+  const diff = fullDiff.slice(0, DIFF_CAP);
   const shown = await Promise.all(
     commits.map(async (c) => ({
       authorEmail: c.authorEmail,
@@ -142,29 +163,19 @@ export async function finishCodeTask(
     ["Create PR", "Not now"],
   );
   if (!ok.approved) {
+    setWorktreeStatus(deps.db, wt.taskId, "kept"); // not published: the owner still holds the clone
     return `${o.text}\n\nBranch ${wt.branch} is ready, not pushed. Reply in this thread to continue; the PR is offered again after the next changes.`;
   }
   if (o.signal.aborted) return `${o.text}\n\nStopped before pushing.`;
-  // Push the agent branch (never forced; agent/* only), then open the PR through the GitHub MCP server.
-  if (!wt.branch.startsWith("agent/")) return prFailed("refusing to publish non-agent branch.");
+  // Push the task branch (never forced; `friday/*` from a clone), then open the PR through the GitHub MCP server.
+  if (!mayPublish(wt)) return prFailed("refusing to publish non-agent branch.");
   try {
-    await git.call(GIT_TOOL.PUSH, {
-      path: wt.path,
-      remote: "origin",
-      branch: wt.branch,
-      setUpstream: true,
-    });
+    await pushBranch(git, wt);
   } catch (err) {
-    return prFailed(String(err instanceof Error ? err.message : err));
+    return prFailed(err instanceof Error ? err.message : String(err));
   }
   logEvent(log, "push", { repo: wt.repo, branch: wt.branch });
-  const remotes: GitData = await git
-    .call(GIT_TOOL.REMOTE, { path: wt.path, mode: "list" })
-    .catch(() => ({}));
-  const origin = (remotes.remotes as { name: string; fetchUrl?: string }[] | undefined)?.find(
-    (x) => x.name === "origin",
-  );
-  const slug = parseRemote(origin?.fetchUrl ?? "");
+  const slug = await originSlug(git, wt);
   if (!slug) return prFailed("cannot parse origin remote as a GitHub repo");
   const r = await (deps.createPr ?? createPullRequest)({
     account: o.githubAccount,
@@ -176,6 +187,7 @@ export async function finishCodeTask(
   });
   if (!r.ok) return prFailed(r.error);
   setPrUrl(deps.db, wt.taskId, r.url);
+  setDelivered(deps.db, wt.taskId, "pr", null);
   logEvent(log, "pr.created", { repo: wt.repo, branch: wt.branch, url: r.url });
   return `${o.text}\n\nPR: ${r.url}`;
 }

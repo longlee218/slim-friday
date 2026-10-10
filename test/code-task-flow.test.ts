@@ -43,6 +43,8 @@ async function setup() {
   await g(env.home, "clone", "-q", src.repo, clone);
   await g(clone, "config", "user.email", "test@example.com");
   await g(clone, "config", "user.name", "t");
+  // A GitHub-looking origin: the task clone is delivered through the PR gate (nothing is pushed in these tests).
+  await g(clone, "remote", "set-url", "origin", "git@github.com:Acme/widgets");
   return { env, clone };
 }
 
@@ -133,10 +135,9 @@ test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; 
   expect(readFileSync(env.paths.workspace("main").task(wt.taskId).plan, "utf8")).toContain(
     "add b.txt",
   );
-  // P2.2 seam: a clone has no PR delivery yet, so the owner is not asked (remove with the seam).
-  expect(confirms).toHaveLength(0);
+  expect(confirms[0]).toContain("1 commit");
   expect(reply).toContain("Xong");
-  expect(reply).toContain("P2.2");
+  expect(reply).toContain("not pushed");
   expect(getSession(env.db, "th1")).toMatchObject({ cwd: realpathSync(wt.path), repo: "real" });
   // The clone itself is untouched.
   expect(await g(clone, "status", "--short")).toBe("");
@@ -191,8 +192,7 @@ test("plan rejected -> no worktree is created", async () => {
   expect(seen).toHaveLength(1);
 });
 
-// The identity check itself is covered on legacy rows in code-task-finish.test.ts; clones skip it until P2.2.
-test("clone task: no PR offer yet, whatever the commit identity (P2.2 seam)", async () => {
+test("commits must carry the owner's identity: wrong author or attribution blocks the PR offer", async () => {
   for (const [commit, msg] of [
     [["-c", "user.email=claude@anthropic.com", "-c", "user.name=Claude"], "add b"],
     [
@@ -211,7 +211,7 @@ test("clone task: no PR offer yet, whatever the commit identity (P2.2 seam)", as
       intent: devIntent(env.home),
     });
     const reply = await handle(msg_(DEV_REQUEST));
-    expect(reply).toContain("P2.2");
+    expect(reply).toContain("PR not offered");
     expect(confirms).toHaveLength(0);
   }
 });

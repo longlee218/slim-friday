@@ -14,6 +14,7 @@ import { setTaskStatus } from "../storage/run-store";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../tools/sdk-tool-names";
 import { type ButtonSpec, buildButtonRows, type Pending, toResult } from "./approval-buttons";
 import type { ApprovalGateway, ApprovalRequest, ApprovalResult } from "./approval-types";
+import { createDecisionPoster } from "./clone-decision";
 
 /** Inline summary cap; longer text goes in the attachment. */
 const SUMMARY_MAX = 1500;
@@ -36,6 +37,7 @@ export function createDiscordApprovalGateway(
   const log = logger.child({ module: "discord-approval" });
   /** Open requests by approval id. */
   const pending = new Map<string, Pending>();
+  const decisions = createDecisionPoster({ getClient, ownerId });
 
   /** Run a db write; approvals must never crash the agent on a storage error. */
   const safeDb = (fn: () => void) => tryLog(log, "approval db write failed", fn);
@@ -134,6 +136,7 @@ export function createDiscordApprovalGateway(
   }
 
   return {
+    postDecision: decisions.post,
     request: (req) => decide(req, ["Approve", "Deny"], "owner denied"),
     confirm: (req, labels) => decide(req, labels, "owner declined"),
     requestPlan: (req) => decide(req, ["Approve", "Reject"], "owner rejected plan"),
@@ -167,6 +170,7 @@ export function createDiscordApprovalGateway(
     },
 
     async handleInteraction(i) {
+      if (await decisions.handle(i)) return;
       try {
         if (!i.isButton()) return;
         const [prefix, id, value] = i.customId.split(":");

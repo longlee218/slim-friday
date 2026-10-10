@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createGitMcp } from "../src/mcp/git-mcp";
@@ -128,6 +128,58 @@ test("exec on its budget: stage row interrupted + verdict budget, reply offers `
   expect(stages[1]!.costUsd).toBeCloseTo(3.2);
   expect(reply).toContain("budget reached");
   expect(reply).toContain("`/go +");
+});
+
+test("budget hit in a clone: spent/limit, last summary, diff stat of the clone, offer, clone + session kept", async () => {
+  const env = await setup();
+  // Exec edits a tracked file, says something, then runs out of budget.
+  const sdk = (a: any) => {
+    if (a.options.permissionMode === "plan") return fakeSdk()(a);
+    return (async function* () {
+      writeFileSync(join(a.options.cwd, "a.txt"), "changed by the agent\n");
+      yield {
+        type: "assistant",
+        session_id: "sess-exec",
+        message: {
+          content: [{ type: "text", text: "Half done: a.txt updated, tests still missing." }],
+        },
+      };
+      yield resultMsg({
+        subtype: "error_max_budget_usd",
+        is_error: true,
+        errors: ["budget"],
+        total_cost_usd: 3.2,
+        session_id: "sess-exec",
+      });
+    })();
+  };
+  const handle = createTaskHandler({
+    git,
+    db: env.db,
+    config: env.config,
+    approvals: stubGateway({
+      confirm: async () => ({ approved: false, reason: "owner declined" }),
+    }),
+    queryFn: sdk as never,
+    intent: devIntent(env.home),
+  });
+  const reply = await handle(msg("[dev] please add b.txt"));
+  expect(reply).toContain("$3.20 of $");
+  expect(reply).toContain("small overshoot");
+  expect(reply).toContain("Last summary:\nHalf done: a.txt updated, tests still missing.");
+  expect(reply).toMatch(/Changes so far:\na\.txt \| 2 \+-/);
+  expect(reply).toContain("`/go +");
+  const wt = env.db.query<any, []>("SELECT path, status FROM worktrees").get()!;
+  expect(existsSync(wt.path)).toBe(true); // the clone is kept
+  expect(wt.status).toBe("active");
+  const t = codeTask(env)[0];
+  expect(listStages(env.db, t.id).map((s) => [s.name, s.status, s.verdict])).toEqual([
+    ["plan", "done", "approved"],
+    ["exec", "interrupted", "budget"],
+  ]);
+  expect(env.db.query<any, []>("SELECT session_id FROM sessions").get()?.session_id).toBe(
+    "sess-exec",
+  );
 });
 
 test("follow-up in a worktree thread runs only the exec stage (row idx 1) on its own task", async () => {

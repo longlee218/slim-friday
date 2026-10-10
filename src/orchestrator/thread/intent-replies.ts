@@ -2,8 +2,8 @@ import type { AskReason } from "../../intent/decide-intent";
 import { leadingRoleTag } from "../../intent/role-tag";
 import { ROLES } from "../../roles/role-registry";
 
-/** Why the owner is asked: the intent reasons, plus a `max` effort that needs a confirmation chat cannot give yet. */
-export type AskKind = AskReason | "max_effort";
+/** Why the owner is asked (the intent reasons; a `max` effort is confirmed with buttons, see max-effort-gate.ts). */
+export type AskKind = AskReason;
 
 /** Drop the leading role tag (`[dev]`, `[ask]`) the owner typed: it routed the message, it is not part of the brief. */
 export function stripRoleTag(text: string): string {
@@ -21,8 +21,6 @@ export const ASK_TEXT: Record<AskKind, () => string> = {
   unclassified: () => "I could not tell what you want. Could you send it again?",
   pending_unclear: () =>
     "I could not tell if that answers my question above. Answer it again, or send `/go` to start it, or `/stop` to drop it.",
-  max_effort: () =>
-    "That asks for max effort (Opus, costly) and needs your OK, which chat cannot give yet. Send it again without it to run at high.",
 };
 
 /** Reply while the thread's run holds the lock. */

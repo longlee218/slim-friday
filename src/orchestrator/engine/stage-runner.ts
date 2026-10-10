@@ -12,6 +12,7 @@ import type { SessionRow } from "../../storage/session-store";
 import { type StageStatus, upsertStage } from "../../storage/stage-store";
 import type { WorktreeRow } from "../../storage/worktree-store";
 import { type FlowResult, failResult } from "../tasks/task-result";
+import { budgetDiffStat } from "./budget";
 import { stageKind } from "./gates";
 import { runCloneRun, switchToClone } from "./isolation";
 import { runPlain } from "./plain-run";
@@ -32,6 +33,8 @@ export interface StageRunnerDeps {
   queryFn?: QueryFn;
   /** True once shutdown aborted the runs: an aborted stage is then `interrupted`, not `cancelled`. */
   stopping?: () => boolean;
+  /** A run of this thread holds the thread lock (a Discard click must not remove a clone a follow-up is using). */
+  threadBusy?: (threadId: string) => boolean;
 }
 
 /** One task run through a role's stages: a fresh message, a dispatched task or a follow-up in a clone. */
@@ -157,6 +160,9 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
         end("failed", failResult("The stage run threw.")); // never left `running`
         throw err;
       }
+      // A budget stop in a clone shows what the agent changed so far (the clone stays for `/go +<usd>`).
+      if (res.outcome === "max_budget" && kind === "clone" && wt)
+        res = { ...res, diffStat: await budgetDiffStat(wt) };
       const w = stageOutcome(res, { stopping: !!deps.stopping?.() });
       end(w.status, res, w.verdict);
       if (res.outcome !== "success") return res;

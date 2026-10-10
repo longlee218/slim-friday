@@ -15,13 +15,15 @@ export interface TurnEffort {
  * Apply the L2 signals of one message: a complaint (`floorDelta`) raises the thread floor (from the class base
  * effort), then `resolveEffort` combines class, floor, turn delta and minimum (logs `effort.resolved`). With
  * nothing to apply the result is empty, so an ordinary message keeps its stage's model (an assistant answer
- * stays on Haiku). `max` is never returned: `resolveEffort` caps it at `high` and flags `pendingMax`.
+ * stays on Haiku). `max` is returned only with `maxConfirmed` (the owner-confirm gate said yes); else it is capped at `high` and
+ * flagged `pendingMax`.
  */
 export function turnEffort(
   floors: EffortFloors,
   threadId: string,
   cls: TaskClass | undefined,
   s: EffortSignals,
+  maxConfirmed = false,
 ): TurnEffort {
   for (let n = 0; n < s.floorDelta; n++) floors.raise(threadId, BASE_EFFORT[cls ?? "standard"]);
   const floor = floors.get(threadId);
@@ -31,6 +33,7 @@ export function turnEffort(
     floor,
     turnDelta: s.turnDelta,
     minimum: s.minEffort,
+    maxConfirmed,
     ruleIds: s.ruleIds,
   });
   return { effort: r.final, pendingMax: r.pendingMax };

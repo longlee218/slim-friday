@@ -1,32 +1,41 @@
 import type { Database } from "bun:sqlite";
+import { join, resolve } from "node:path";
 import { REPO_NAME, WORKSPACE_NAME, workspacePaths } from "../config/workspace-paths";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { runGit } from "../repos/git-cli";
 import { deleteSession } from "../storage/session-store";
-import {
-  deleteWorktree,
-  getWorktreeByTask,
-  getWorktreeByThread,
-  type WorktreeRow,
-} from "../storage/worktree-store";
-import { safeRemoveClone, TASK_BRANCH_RE } from "./clone-safety";
+import { deleteWorktree, getWorktreeByThread, type WorktreeRow } from "../storage/worktree-store";
+import { resolveCleanupTarget } from "./clone-lookup";
+import { safeRemoveClone, TASK_BRANCH_RE, UUID_RE } from "./clone-safety";
 
 const log = logger.child({ module: "clone-cleanup" });
 
 /** Branch a legacy worktree row may have: `agent/*` (old worktrees) or `friday/*`. Never `main`, never a `-` option. */
 const LEGACY_BRANCH_RE = /^(agent|friday)\/[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
 
+/**
+ * Remove the directory of a task clone (row with `base_sha`). The target is rebuilt from the validated
+ * workspace, repo and task id; the row's own `path` is only compared with it. Returns false when refused.
+ */
+export function removeCloneDir(wt: WorktreeRow, agentHome: string): boolean {
+  // Names are validated first: a tampered `..` would widen the removal root.
+  if (!wt.workspace || !WORKSPACE_NAME.test(wt.workspace) || !REPO_NAME.test(wt.repo)) return false;
+  if (!UUID_RE.test(wt.taskId)) return false;
+  const root = workspacePaths(agentHome).workspace(wt.workspace).repo(wt.repo).worktrees;
+  const target = join(root, wt.taskId);
+  if (resolve(wt.path) !== target) {
+    log.warn({ taskId: wt.taskId }, "clone.remove_refused: row path differs from the rebuilt one");
+    return false;
+  }
+  const ok = safeRemoveClone(target, root);
+  if (!ok) logEvent(log, "clone.remove_refused", { taskId: wt.taskId }, "warn");
+  return ok;
+}
+
 /** Remove a task's checkout. A clone is a plain directory; a legacy row (no `base_sha`) is a git worktree of the owner repo. */
 async function removeCheckout(wt: WorktreeRow, agentHome: string): Promise<boolean> {
-  if (wt.baseSha !== null) {
-    // The removal root is derived from the row's workspace + repo, never from its own path: a bad row cannot widen it.
-    // Both names are validated first: a tampered `..` would widen the root.
-    if (!wt.workspace || !WORKSPACE_NAME.test(wt.workspace) || !REPO_NAME.test(wt.repo))
-      return false;
-    const root = workspacePaths(agentHome).workspace(wt.workspace).repo(wt.repo).worktrees;
-    return safeRemoveClone(wt.path, root);
-  }
+  if (wt.baseSha !== null) return removeCloneDir(wt, agentHome);
   // Legacy `git worktree` row: unregister it from the owner repo, then drop its local branch. Best effort.
   await runGit(["worktree", "remove", "--force", wt.path], wt.repoPath).catch(() => undefined);
   // `--` ends options; the branch shape check keeps a tampered row from deleting an owner branch.
@@ -35,21 +44,45 @@ async function removeCheckout(wt: WorktreeRow, agentHome: string): Promise<boole
   return true;
 }
 
-/** `/cleanup` removes a task checkout + its row + its session: this thread's, or a task's by id. Returns the reply. */
+/** Remove a clone row's checkout, then the row and its session. False when the removal was refused (row kept). */
+export async function dropClone(
+  db: Database,
+  agentHome: string,
+  wt: WorktreeRow,
+): Promise<boolean> {
+  if (!(await removeCheckout(wt, agentHome))) return false;
+  deleteWorktree(db, wt.taskId);
+  deleteSession(db, wt.threadId);
+  return true;
+}
+
+/** Where `/cleanup` was typed: the thread and its channel (the channel names the workspace). */
+export interface CleanupWhere {
+  threadId: string;
+  channelId: string;
+}
+
+/**
+ * `/cleanup` removes a task checkout + its row + its session: this thread's, or `<taskId8|taskId>` of this
+ * workspace. Returns the reply.
+ */
 export async function cleanupWorktree(
   deps: { db: Database; agentHome: string; active: ReadonlyMap<string, unknown> },
-  threadId: string,
-  taskId?: string,
+  where: CleanupWhere,
+  arg?: string,
 ): Promise<string> {
   const { db } = deps;
-  const wt = taskId ? getWorktreeByTask(db, taskId) : getWorktreeByThread(db, threadId);
+  let wt: WorktreeRow | null;
+  if (arg) {
+    const hit = resolveCleanupTarget(deps, where.channelId, arg);
+    if (typeof hit === "string") return hit;
+    wt = hit;
+  } else wt = getWorktreeByThread(db, where.threadId);
   if (!wt) return "No task clone found to clean up.";
   if (deps.active.has(wt.threadId)) return "That task clone is in use by a running task.";
   try {
-    if (!(await removeCheckout(wt, deps.agentHome)))
+    if (!(await dropClone(db, deps.agentHome, wt)))
       return "Refused: the clone row is invalid or its path is outside the task clones dir.";
-    deleteWorktree(db, wt.taskId);
-    deleteSession(db, wt.threadId);
   } catch (err) {
     log.error({ err: errText(err) }, "cleanup failed");
     return "Agent failed. Check the logs.";

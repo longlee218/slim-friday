@@ -7,7 +7,7 @@ import { EXIT_PLAN_MODE_TOOL_NAME } from "../../tools/sdk-tool-names";
 /** `approvals.tool` label of the PR confirmation (persisted in `approvals.tool`, not an SDK tool). */
 export const CREATE_PR_APPROVAL = "CreatePR";
 
-/** `approvals.tool` label of the owner-confirm gate (no stage uses it yet: vocabulary only). */
+/** `approvals.tool` label of the owner-confirm gate (asked inline by owner-confirm.ts: effort `max`, `ESCALATE: opus`). */
 export const OWNER_CONFIRM_APPROVAL = "OwnerConfirm";
 
 /** Thread states a waiting gate puts the thread in. */

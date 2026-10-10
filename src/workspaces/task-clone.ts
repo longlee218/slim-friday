@@ -22,6 +22,7 @@ import {
   TASK_BRANCH_RE,
   taskBranch,
 } from "./clone-safety";
+import { safeOriginUrl } from "./origin-url";
 
 /* Independent local clone per code task (`isolation: "clone"`): a plain `git clone --local` of the owner's
    repo into `workspaces/<ws>/repos/<name>/worktrees/<taskId>`. The owner repo's `.git` is only read:
@@ -70,12 +71,19 @@ export async function createTaskClone(o: {
     throw err;
   }
   const origin = await runGit(["remote", "get-url", "origin"], o.repoPath);
-  return { baseSha, originUrl: origin.code === 0 ? origin.stdout.trim() || null : null };
+  // An origin url with credentials is dropped (never stored or echoed): delivery then falls back to local.
+  const safe = safeOriginUrl(origin.code === 0 ? origin.stdout.trim() || null : null);
+  if (safe.refusedCredentials) logEvent(log, "clone.origin_credentials", {}, "warn");
+  return { baseSha, originUrl: safe.url };
 }
+
+/** Origin url on the github.com host (scp-like or scheme form); a `github.com` elsewhere in the url does not count. */
+const GITHUB_HOST =
+  /^(?:git@github\.com:|(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/)/i;
 
 /** `pr` when the owner repo's origin is a GitHub repo (the PR gate applies), else `local`. */
 export const deliveryFor = (originUrl: string | null): "pr" | "local" =>
-  originUrl && /github\.com/i.test(originUrl) && parseRemote(originUrl) ? "pr" : "local";
+  originUrl && GITHUB_HOST.test(originUrl.trim()) && parseRemote(originUrl) ? "pr" : "local";
 
 /**
  * Stage switch of a staged task: create the clone (new branch from the local base), record it and save the

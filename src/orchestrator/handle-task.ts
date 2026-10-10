@@ -70,6 +70,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     queryFn: deps.queryFn,
     git,
     stopping: tracker.isStopping,
+    threadBusy: (id) => active.has(id),
   };
   const memory = createMemoryRunner({ db, config, queryFn: deps.queryFn, limiter: deps.limiter });
   /** Handle one task and return the (redacted) reply text. */
@@ -104,7 +105,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
         floors,
       });
     if (parsed.kind === "cleanup")
-      return cleanupWorktree({ db, agentHome: config.agentHome, active }, threadId, parsed.taskId);
+      return cleanupWorktree({ db, agentHome: config.agentHome, active }, task, parsed.taskId);
     // Drain (deploy): no new task starts; stop / still-working / cleanup above still answer.
     if (isDraining(config.agentHome)) {
       logEvent(log, "task.refused", { reason: "drain", reply: DRAIN_REPLY });

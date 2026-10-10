@@ -76,6 +76,8 @@ export interface RunAgentResult {
   budgetUsd?: number;
   /** Quota outcome: when the limit resets (epoch ms), if the SDK reported it. */
   resetsAt?: number;
+  /** Last thing the assistant said (text of its last message with text); the budget-hit message shows it. */
+  lastText?: string;
 }
 
 /** Logger of this module (task fields come from the log context). */
@@ -151,7 +153,15 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     recorder.finish(res.outcome, res.usage);
     recorder.close();
   }
-  const { text, sessionId, outcome, usage, resetsAt } = res;
+  const { text, sessionId, outcome, usage, resetsAt, lastText } = res;
   logEvent(log, "run.finished", { outcome, ...usage, durationMs: Date.now() - startedAt });
-  return { text, sessionId, outcome, usage, resetsAt, budgetUsd: config.limits.maxBudgetUsd };
+  return {
+    text,
+    sessionId,
+    outcome,
+    usage,
+    resetsAt,
+    lastText,
+    budgetUsd: config.limits.maxBudgetUsd,
+  };
 }

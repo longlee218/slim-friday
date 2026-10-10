@@ -6,7 +6,7 @@ import { GIT_TOOL } from "../../mcp/mcp-tool-names";
 import type { Repo } from "../../repos/repo-registry";
 import { dispatchableRoleNames, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
-import { capRefusal, type Refusal, refuse, resolveTaskRepo } from "./task-repo";
+import { capRefusal, keptClonesRefusal, type Refusal, refuse, resolveTaskRepo } from "./task-repo";
 
 /* Checks of a proposed hand-over BEFORE any task row exists. Pure app code: no LLM, no side effect. */
 
@@ -47,6 +47,8 @@ export interface ValidationDeps {
   git: GitMcp;
   /** Repos of the workspace the task would run in. */
   repos: Repo[];
+  /** Workspace the task would run in (the kept-clones cap counts its clones). */
+  workspace?: string;
   /** Repo the thread is pinned to, when any. */
   pinned?: Repo;
   /** Env cap on `skills.mode` (`FRIDAY_SKILLS_MODE_MAX`): can only lower the request. */
@@ -131,7 +133,9 @@ export async function validateRequest(
     if (missing)
       return ask("unknown_base", `Branch "${req.base}" does not exist locally in ${missing}.`);
   }
-  const capped = role.countsTowardCap ? capRefusal(d.db) : undefined;
+  const capped = role.countsTowardCap
+    ? (capRefusal(d.db) ?? (d.workspace ? keptClonesRefusal(d.db, d.workspace) : undefined))
+    : undefined;
   if (capped) return { ok: false, action: "refuse", refusal: capped };
   const cls = req.cls ?? "standard";
   const budget = resolveBudget(firstStage, role, { cls }, d.config);

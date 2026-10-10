@@ -84,6 +84,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
       config,
       git: deps.git,
       repos: i.repos,
+      workspace: i.workspace,
       pinned: i.pinned,
       skillsModeMax: deps.skillsModeMax ?? process.env.FRIDAY_SKILLS_MODE_MAX,
     },

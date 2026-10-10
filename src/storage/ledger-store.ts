@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../observability/redact";
+import { filesChangedText } from "./files-changed";
 import { listStages } from "./stage-store";
 import { getWorktreeByTask } from "./worktree-store";
 
@@ -51,6 +52,7 @@ export function threadLedger(db: Database, threadId: string): string {
       wt
         ? `  repo ${oneLine(wt.repo, FIELD_CHARS)}, branch ${oneLine(wt.branch, FIELD_CHARS)} (base ${oneLine(wt.base, FIELD_CHARS)}), ${wt.prUrl ? `PR ${oneLine(wt.prUrl, URL_CHARS)}` : "no PR yet"}`
         : `  repo ${oneLine(t.repo, FIELD_CHARS)}, no worktree`,
+      filesChangedText(db, t.id) ? `  files changed: ${filesChangedText(db, t.id)}` : "",
       stages.length ? `  stages: ${stages.join(" -> ")}` : "",
     ];
     return clip(lines.filter(Boolean).join("\n"), LEDGER_TASK_CHARS);

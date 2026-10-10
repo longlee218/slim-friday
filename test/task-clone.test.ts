@@ -12,7 +12,6 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
-import { finishCodeTask } from "../src/orchestrator/outputs/pr-output";
 import { runGit } from "../src/repos/git-cli";
 import { deleteWorktree, getWorktreeByTask, insertWorktree } from "../src/storage/worktree-store";
 import { cleanupWorktree } from "../src/workspaces/clone-cleanup";
@@ -226,6 +225,7 @@ async function external() {
   return { env, src, repo, deps, input };
 }
 
+const WHERE = { threadId: "th", channelId: "c" };
 const TID = "abcdef12-1111-2222-3333-444455556666";
 
 test("startWorktree: clones an external owner repo, records the row + plan; a stop leaves nothing", async () => {
@@ -263,10 +263,10 @@ test("cleanup: removes the clone + row; a tampered row is refused; legacy rows g
   const ok = await startWorktree(deps, input(TID), repo, "p");
   if (!("wt" in ok)) throw new Error(ok.text);
   const cdeps = { db: env.db, agentHome: env.home, active: new Map<string, unknown>() };
-  expect(await cleanupWorktree({ ...cdeps, active: new Map([["th", 1]]) }, "th")).toContain(
+  expect(await cleanupWorktree({ ...cdeps, active: new Map([["th", 1]]) }, WHERE)).toContain(
     "in use",
   );
-  expect(await cleanupWorktree(cdeps, "th")).toContain("Removed the task clone");
+  expect(await cleanupWorktree(cdeps, WHERE)).toContain("Removed the task clone");
   expect(existsSync(ok.wt.path)).toBe(false);
   expect(getWorktreeByTask(env.db, TID)).toBeNull();
 
@@ -283,7 +283,7 @@ test("cleanup: removes the clone + row; a tampered row is refused; legacy rows g
     workspace: "main",
     baseSha: "x",
   });
-  expect(await cleanupWorktree(cdeps, "th9")).toContain("Refused");
+  expect(await cleanupWorktree(cdeps, { threadId: "th9", channelId: "c" })).toContain("Refused");
   expect(existsSync(victim)).toBe(true);
 
   // Legacy row (no base_sha): a real `git worktree` of the owner repo is unregistered with its branch.
@@ -299,7 +299,7 @@ test("cleanup: removes the clone + row; a tampered row is refused; legacy rows g
     base: "main",
     ...LEGACY_WT_FIELDS,
   });
-  expect(await cleanupWorktree(cdeps, "th8")).toContain("Removed");
+  expect(await cleanupWorktree(cdeps, { threadId: "th8", channelId: "c" })).toContain("Removed");
   expect(await g(src.repo, "worktree", "list")).not.toContain("legacy-");
   expect(await g(src.repo, "branch", "--list", "agent/old")).toBe("");
 });
@@ -337,7 +337,7 @@ test("cleanup: a tampered workspace or repo name is refused and nothing outside 
       workspace,
       baseSha: "x",
     });
-    expect(await cleanupWorktree(cdeps, "thx")).toContain("Refused");
+    expect(await cleanupWorktree(cdeps, { threadId: "thx", channelId: "c" })).toContain("Refused");
     expect(existsSync(victim)).toBe(true);
     deleteWorktree(env.db, `t-${workspace}-${repo}`);
   }
@@ -358,34 +358,10 @@ test("cleanup: a legacy row with a non-agent branch never deletes an owner branc
       base: "main",
       ...LEGACY_WT_FIELDS,
     });
-    await cleanupWorktree(cdeps, `thl${i}`);
+    await cleanupWorktree(cdeps, { threadId: `thl${i}`, channelId: "c" });
   }
   expect(await g(src.repo, "branch", "--list", "main", "keep-me")).toContain("keep-me");
   expect(await g(src.repo, "branch", "--list", "main")).toContain("main");
-});
-
-test("finishCodeTask: a managed clone short-circuits before any approval (P2.2 seam)", async () => {
-  const wt = { baseSha: "abc", branch: "friday/abcdef12-x", path: "/p/clone" } as never;
-  const trap = {
-    confirm: async () => {
-      throw new Error("must not ask");
-    },
-  } as never;
-  const text = await finishCodeTask(
-    { db: {} as never, approvals: trap, git: {} as never },
-    {
-      wt,
-      taskId: "t",
-      threadId: "th",
-      title: "t",
-      body: "b",
-      text: "done",
-      signal: new AbortController().signal,
-      author,
-    },
-  );
-  expect(text).toContain("P2.2");
-  expect(text).toContain("friday/abcdef12-x");
 });
 
 test("Q&A refresh (git pull) never runs on an owner checkout outside the workspace clones", async () => {

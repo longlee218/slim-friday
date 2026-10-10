@@ -454,23 +454,54 @@ test("effort: a signal raises this turn's effort; a complaint raises the thread 
   expect(JSON.stringify(cap.lines)).not.toContain("how retry works");
 });
 
-test("effort max is never used without the owner's confirmation: the owner is asked, nothing runs", async () => {
+/** One `[ask]` message with a `max` effort signal; `answer` = what the owner-confirm gate returns. */
+async function askAtMax(answer: { approved: boolean; reason?: string } | "none") {
   const env = await setup();
   writeFileSync(
     lexiconOverrideFile(env.home),
     "groups:\n  ultra:\n    effect: { minEffort: max }\n    phrases: [ultra deep dive]\n",
   );
   const seen: any[] = [];
+  const asked: string[] = [];
   const handle = createTaskHandler({
     git,
     db: env.db,
     config: env.config,
-    approvals: declinePr(),
+    approvals:
+      answer === "none"
+        ? undefined
+        : stubGateway({
+            confirm: async (r, labels) => {
+              asked.push(`${r.tool}|${labels.join("/")}`);
+              return answer;
+            },
+          }),
     queryFn: fakeSdk(seen) as never,
     intent: intentDeps(env.home),
   });
-  expect(await handle(msg("[ask] ultra deep dive on retry"))).toContain("max effort");
-  expect(seen).toHaveLength(0);
+  const reply = await handle(msg("[ask] ultra deep dive on retry"));
+  return { reply, seen, asked, env };
+}
+
+test("effort max asks the owner (buttons); yes runs ONCE on Opus", async () => {
+  const { reply, seen, asked, env } = await askAtMax({ approved: true });
+  expect(asked).toEqual(["OwnerConfirm|Yes, run it/No"]);
+  expect(seen).toHaveLength(1);
+  expect(seen[0].options.model).toBe(env.config.models.opus);
+  expect(reply).toBe("assistant answer");
+});
+
+test("effort max: owner says no, times out, or there is no button flow -> runs at high, never Opus, one line", async () => {
+  for (const answer of [
+    { approved: false, reason: "owner declined" },
+    { approved: false, reason: "timeout" },
+    "none" as const,
+  ]) {
+    const { reply, seen, env } = await askAtMax(answer);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].options.model).not.toBe(env.config.models.opus);
+    expect(reply).toBe("Max effort not confirmed: ran at high.\n\nassistant answer");
+  }
 });
 
 test("intent layer off (no deps): the legacy pick is unchanged (entry role, no classifier)", async () => {

@@ -1,7 +1,7 @@
 # Friday Agent v1 System Architecture
 
 ## Overview
-Friday is a Discord-driven personal coding agent on Claude Agent SDK. Owner posts a message in a Discord thread → the intent layer picks the role (read-only assistant answers with file:line references; dev plans, then after approval works in a Git worktree and opens a PR).
+Friday is a Discord-driven personal coding agent on Claude Agent SDK. Owner posts a message in a Discord thread → the intent layer picks the role (read-only assistant answers with file:line references; dev plans, then after approval works in an independent task clone and delivers a PR or a local result).
 
 ## Message Flow
 ```
@@ -11,7 +11,7 @@ Discord channel
      ├─ routing kinds (discord-message-rules): `ignore` | `thread` | `channel` | `control`
      │  ├─ `control`: a message in a control channel (discord.yaml `controlChannels`, no mention needed), or admin text (`/init-workspace`) anywhere: goes to the admin handler (src/discord-setup/admin-handler.ts), never to handleTask. Gate: owner -> pinned guild -> control channel id (not a thread) AND live strict `isPrivate` -> parse (name validated) -> run; refused text gets a reply ("Admin commands run only in #ops-control.")
      │  └─ ops channels (`ops.*` ids of discord.yaml) and their threads: `ignore`, reason `ops_channel` (an ops id also listed in a workspace `channels:` is dropped with a warning at start)
-     ├─ `/cleanup` is handled before workspace routing, so it still works in an unmapped or remapped channel (recovery path: removes the thread's worktree, runs no agent)
+     ├─ `/cleanup` is handled before workspace routing, so it still works in an unmapped or remapped channel (recovery path: removes a task clone, runs no agent; `/cleanup <taskId8|taskId>` is looked up among the clones of the channel's workspace)
      ├─ a thread message whose parent channel is unknown (null) is dropped, logged `message.ignored` reason `no_parent_channel` (warn)
      ├─ routing key = parent channel id (message channel for a new conversation, `parentId` for a thread message; Resume passes the thread's `parentId`) → Task.channelId
      └─ create thread
@@ -21,7 +21,7 @@ Discord channel
         │  └─ sessions.repo = repo name or "*" (unpinned)
         ├─ handle-task (look up or create session)
         │  ├─ selectWorkspace(channelId): exactly one workspace lists the channel in `channels:`, else refuse (`task.refused`, reason `unmapped_channel`, no task row); 0 repos → refuse `no_repos`
-        │  ├─ routeTask: a thread whose live worktree's clone is not in the channel's workspace is refused (`wrong_workspace`), never run
+        │  ├─ routeTask: a thread whose live task clone's repo is not in the channel's workspace is refused (`wrong_workspace`), never run
         │  ├─ L0 commands (no LLM): /stop, /go, /cleanup, /remember, /forget, /compact (legacy forms still parse), Resume; `repo:<name>` and `[design]`-style prefixes are parsed here (`[base:<branch>]` is not built yet)
         │  ├─ intent layer (src/intent, see "Intent Layer"): L0 slash/legacy commands, L1 leading role tag, L2 effort signals, L3 Haiku classifier (with recent messages + pending question) only when L0/L1 cannot decide
         │  ├─ route-by-intent (thread state x role x scope -> action; app code, never the SDK)
@@ -56,7 +56,7 @@ Task mode (plan approval flow)
   └─ task: <plan description> → enter plan mode (permissionMode: plan)
      └─ agent proposes plan via ExitPlanMode → canUseTool with input.plan
         └─ await Discord approval (owner Approve/Deny buttons)
-           ├─ Approve → mode=default, Edit/Write auto-allowed in worktree + tasks/<id>/
+           ├─ Approve → mode=default, Edit/Write auto-allowed in the task clone + tasks/<id>/
            └─ Deny → agent revises, calls ExitPlanMode again (multi-round approval)
 ```
 
@@ -134,7 +134,7 @@ Text rules for L2: `intent/normalize-text.ts` (NFC, lowercase, accent-insensitiv
 | **Intent layer** | src/intent/ | L1 role tag + L2 effort rules + L3 classifier (`decide-intent.ts`, `run-intent-pipeline.ts`, `role-tag.ts`, `recent-messages.ts`, `haiku-intent-classifier.ts`, `create-intent-classifier.ts`, lexicon in `data/`); see "Intent Layer" |
 | **Route by intent** | src/orchestrator/thread/route-by-intent.ts, dispatch/queued-tasks.ts | the behavior table (`actionFor`) and its executor; queue + yes/no; fix loop |
 | **Dispatch** | src/orchestrator/dispatch/dispatch-role.ts, validate-request.ts | app code, no LLM: persist proposal (pending) from the intent result -> validate (role in registry, repo via `resolveTaskRepo`, `base` exists locally, cap via `countsTowardCap`, budget, `skills.mode` env cap `FRIDAY_SKILLS_MODE_MAX`) -> ask owner (ONE question, proposal stays pending) or refuse -> model (`resolveModel`) -> `beginTask(role, kind, parent, hop)` -> notice -> stage runner; proposal ends `dispatched` or `refused`; log `dispatch.started` / `dispatch.dropped` |
-| **Stage Runner** | src/orchestrator/engine/{stage-runner,gates,plan-run,plain-run,isolation,handoff,stage-control,budget}.ts | loops over `role.stages`: guard scope from `isolation`, gate from `gate` (plan approval inside the plan run, delivery in the output contract), one shared `askLimit` per task, a `stages` row per stage (model, cost, verdict). After the plan gate: clone switch (`workspaces/task-clone.ts` `startWorktree`) + plan file + next prompt from `role.steps` (dev). Budget stop: stage `interrupted`, verdict `budget`, reply from `budgetHitMessage` offers `go +<usd>` |
+| **Stage Runner** | src/orchestrator/engine/{stage-runner,gates,plan-run,plain-run,isolation,handoff,stage-control,budget,owner-confirm}.ts | loops over `role.stages`: guard scope from `isolation`, gate from `gate` (plan approval inside the plan run, delivery in the output contract), one shared `askLimit` per task, a `stages` row per stage (model, cost, verdict). After the plan gate: clone switch (`workspaces/task-clone.ts` `startWorktree`) + plan file + next prompt from `role.steps` (dev). Budget stop: stage `interrupted`, verdict `budget`, reply from `budgetHitMessage` (spent/limit, last words, clone diff stat) offers `go +<usd>`. Owner-confirm gate (`owner-confirm.ts`, fails closed): see "Code Task Clone Flow" |
 | **Output contract `pr`** | src/orchestrator/outputs/{pr-output,answer-output}.ts | summary + diff, commit/secret checks, Create PR button (the delivery gate), push, PR |
 | **Run turn** | src/orchestrator/run-turn.ts | one routed message as a role (the stage runner runs ANY role): close the task row, resume-failure reply; `go` on a pending proposal starts it |
 | **Thread state + ledger** | src/orchestrator/thread/thread-state.ts, src/storage/ledger-store.ts | state derived from `tasks`/`approvals`/`stages` (idle, awaiting_plan_approval, running, awaiting_result, done; done folds to idle). The ledger is a view over `tasks`+`stages`+`worktrees` (last 5 capped tasks, <= 1.5k chars each) injected into the assistant context when the thread is idle |
@@ -148,8 +148,8 @@ Text rules for L2: `intent/normalize-text.ts` (NFC, lowercase, accent-insensitiv
 | **Approvals** | src/approvals/ + src/storage/approval-store.ts | discord-approval, approval-buttons, approval-types; insertApproval/decideApproval in approval-store |
 | **Task Commands** | src/orchestrator/task-commands.ts | parse stop, go, cleanup, memory commands, `repo:` pin, `[design]`-style class prefix (`[base:<branch>]` is not built yet); every plain message is one `task` kind (the intent layer picks the role) |
 | **Git MCP client** | src/mcp/git-mcp.ts | server config/env + one long-lived MCP client the app uses for fetch, push, inspection (task clones are made by `repos/git-cli.ts`, not the MCP) |
-| **Task clone** | src/workspaces/{task-clone,clone-safety,clone-cleanup}.ts, src/repos/git-cli.ts | `isolation: clone` = `git clone --local --branch <base> --single-branch` of ANY registered repo (owner checkouts included) into `workspaces/<ws>/repos/<name>/worktrees/<taskId>`. Base = request `base` ?? `defaultBranch` ?? `main`, LOCAL branch only, no fetch. Refused: no commits, bad/missing base (lists <= 20 local branches), submodules, LFS, < 2 GB free. The clone's `origin` is removed, branch `friday/<task8>-<slug>`, `user.name/email` from `gitAuthor`; the owner repo's git dir is only read (no worktree entry, branch or config change). `worktrees` row adds `workspace, base_sha, origin_url` (owner repo origin, read once), `delivery pr\|local`, `status`, `patch_path`, `delivered_at`. `git-cli.ts` = plain argv-only git (no shell, 120 s timeout, no hardening: owner decision, Rev 7). The guard denies Write/Edit and Bash writes to the clone's git dir. `/cleanup` = `safeRemoveClone` (real path strictly inside the repo's worktrees dir); rows without `base_sha` are legacy git worktrees. Q&A `refreshRepo` (git pull) stays managed-clone-only: owner checkouts are never pulled. SEAM (P2.2, same deploy): the PR push in `outputs/pr-output.ts` still pushes `agent/*` through the git MCP with `remote: origin`, so it fails on a clone until P2.2 moves the push to the app (`worktrees.origin_url`) and adds the `local` result gate |
-| **PR Publishing** | src/repos/publish-pr.ts | `git_push` of agent/* via git MCP, then GitHub MCP `create_pull_request` |
+| **Task clone** | src/workspaces/{task-clone,clone-safety,clone-cleanup}.ts, src/repos/git-cli.ts | `isolation: clone` = `git clone --local --branch <base> --single-branch` of ANY registered repo (owner checkouts included) into `workspaces/<ws>/repos/<name>/worktrees/<taskId>`. Base = request `base` ?? `defaultBranch` ?? `main`, LOCAL branch only, no fetch. Refused: no commits, bad/missing base (lists <= 20 local branches), submodules, LFS, < 2 GB free. The clone's `origin` is removed, branch `friday/<task8>-<slug>`, `user.name/email` from `gitAuthor`; the owner repo's git dir is only read (no worktree entry, branch or config change). `worktrees` row adds `workspace, base_sha, origin_url` (owner repo origin, read once), `delivery pr\|local`, `status`, `patch_path`, `delivered_at`. `git-cli.ts` = plain argv-only git (no shell, 120 s timeout, no hardening: owner decision, Rev 7). The guard denies Write/Edit and Bash writes to the clone's git dir. `/cleanup` = `safeRemoveClone` (real path strictly inside the repo's worktrees dir); rows without `base_sha` are legacy git worktrees. Q&A `refreshRepo` (git pull) stays managed-clone-only: owner checkouts are never pulled. |
+| **PR Publishing** | src/orchestrator/outputs/{pr-output,pr-publish}.ts | the app pushes `HEAD:refs/heads/friday/*` to the recorded origin url (plain git CLI, `runGit`), then GitHub MCP `create_pull_request` |
 | **Workspace Registry** | src/workspaces/workspace-registry.ts | scan workspaces/*/workspace.yaml {description, channels}; fail-closed validation; legacy dirs listed, never loaded |
 | **Repo Registry** | src/repos/repo-registry.ts | load workspaces/<ws>/repos/*/repo.yaml; each repo has {path, description, defaultBranch?, testCommand?, githubAccount?, gitAuthor?, workflow?} |
 | **Repo Memory** | src/memory/repo-memory.ts, memory-writer.ts, sanitize-bullet.ts | 3 read layers (root 2000, workspace 2000 owner-edited, repo 4000 each / 8000 total); agent writes `repos/<r>/MEMORY.md` only; `[global]` bullets go to root `MEMORY.pending.md` (never injected); every bullet sanitized |
@@ -229,9 +229,7 @@ Text rules for L2: `intent/normalize-text.ts` (NFC, lowercase, accent-insensitiv
 **Log Cleanup (`src/lifecycle/startup.ts`):**
 - Delete raw task logs (*.jsonl files) in `$AGENT_HOME/logs/tasks/` older than 30 days
 - Prevents unbounded log disk usage; pino-roll app logs already have 14-day retention
-- Orphan detection: log worktree.orphan events for:
-  - worktrees DB rows whose path dir doesn't exist → likely manual deletion; rows deleted
-  - Directories in $AGENT_HOME/worktrees without DB rows → cleanup deferred (manual operation or phase 6 GC)
+- Clone hygiene (`checkWorktrees` + `clone-retention.ts`): `delivered|kept` rows older than `CLONE_RETENTION_DAYS` (default 14) are removed; orphan dirs (no row) are logged `clone.orphan` and removed when older than the retention; active rows whose dir is gone are deleted
 
 **Signal Handlers (`src/index.ts`):**
 - SIGINT/SIGTERM → mark running/waiting_approval tasks `interrupted` (resumable on restart)
@@ -251,14 +249,14 @@ Text rules for L2: `intent/normalize-text.ts` (NFC, lowercase, accent-insensitiv
 **Two-layer decision model:**
 1. **PreToolUse Hook (`deny-dangerous`):** Hard deny rules; cannot be overridden by approval.
    - Dangerous commands: `rm -rf`, `git push -f`, push to main/master, `curl|sh`, `sudo`, read `.env*`/key files
-   - Write outside allowed paths (only worktree + tasks/<id>/ + ~/.claude/plans/)
+   - Write outside allowed paths (only the task clone + tasks/<id>/ + ~/.claude/plans/)
    - Violation → return `{deny: reason}` immediately; agent sees "denied" error
 
 2. **canUseTool Gate (`discord-approval`):** Ask-for-approval rules; user can approve/deny via Discord buttons.
    - Bash: allowlist (git status/diff/log, npm ci/bun install --frozen-lockfile, test commands) → auto-allow; others → ask
    - Network: allowlist (github.com, registry.npmjs.org) → auto-allow; curl|pipe combo → hard deny; others → ask
    - Package install: lockfile-only (`npm ci`) → auto-allow; new package (`npm install X`) → ask (shows name + version)
-   - Edit/Write in plan mode: blocked before ExitPlanMode; after approved plan → auto-allow in worktree + tasks/<id>/
+   - Edit/Write in plan mode: blocked before ExitPlanMode; after approved plan → auto-allow in the task clone + tasks/<id>/
    - Approval wait: 10 min timeout (default, configurable) → deny + message to agent if no response
 
 **Plan Approval Flow (Code Tasks):**
@@ -273,7 +271,7 @@ Text rules for L2: `intent/normalize-text.ts` (NFC, lowercase, accent-insensitiv
 - `task.status = waiting_approval` while approval pending; updated on decision
 - Bot restart: pending approvals marked cancelled (phase 5 improvement: resumability)
 
-## Code Task Worktree Flow (Phase 4+)
+## Code Task Clone Flow (P2: independent clone per task)
 
 **Two-stage execution:**
 ```
@@ -283,39 +281,54 @@ task: <description> (message)
   │     └─ await Discord approval (owner Approve/Deny buttons, 10 min)
   │        ├─ Approve → mode=default, proceed to stage 2
   │        └─ Deny → agent revises, calls ExitPlanMode again (multi-round)
-  └─ Stage 2: Execute (cwd = $AGENT_HOME/workspaces/<ws>/repos/<repo>/worktrees/<taskId>, branch agent/<first-8-chars-taskId>)
+  └─ Stage 2: Execute (cwd = $AGENT_HOME/workspaces/<ws>/repos/<repo>/worktrees/<taskId>, an independent `git clone --local`, branch friday/<task8>-<slug>)
      └─ session resumed with plan.md seeded from scratch/
-     ├─ agent makes changes; commits via git MCP (@cyanheads/git-mcp-server 2.15.3, stdio; path must be the worktree; no push tool). Tests run via Bash
+     ├─ agent makes changes; commits via git MCP (@cyanheads/git-mcp-server 2.15.3, stdio; path must be the clone; no push tool). Tests run via Bash
      ├─ runs test command (exact match, auto-allowed)
-     └─ finish: summary + diff attachment + Create PR button
-        └─ owner clicks Create PR (10 min window)
-           └─ app pushes agent/<id> branch + `gh pr create`
-              └─ PR link posted to thread
-                 └─ follow-up in same thread = reuse worktree + branch
-                    └─ `/cleanup <task-id>` removes worktree + local branch + session
+     └─ finish (delivery gate, by `worktrees.origin_url`):
+        ├─ GitHub origin -> PR gate: summary + secret-scanned diff + Create PR button (10 min)
+        │  └─ the APP pushes `git push <origin_url> HEAD:refs/heads/friday/...` (runGit in the clone, branch must match `^friday/`) + PR via GitHub MCP; PR link posted
+        └─ else -> local result gate: branch, base, commits, capped diff stat, fetch command (display only), patch file; Keep / Discard buttons
+           └─ follow-up in same thread = reuse clone + branch
+              └─ `/cleanup <taskId8|taskId>` removes the clone (+ row, session); retention removes old ones
 ```
 
-**Worktree creation rules:**
-- Created only after plan approval (not during plan stage).
-- Branch: `agent/<first-8-chars-of-taskId>` from `origin/<defaultBranch>` (git fetch first; fallback to local).
-- Path: `$AGENT_HOME/workspaces/<ws>/repos/<repo>/worktrees/<taskId>`.
-- Only for managed clones (under `$AGENT_HOME/workspaces/<ws>/repos/<repo>/repo/`; realpath check, `^[^/]+/repos/[^/]+/repo(/|$)`); code tasks on clones elsewhere refused.
-- Max 2 active code tasks (running or waiting_approval).
+**Clone creation rules (`workspaces/task-clone.ts`, `clone-safety.ts`):**
+- Created only after plan approval (not during plan stage), for ANY registered repo (owner checkouts included).
+- `git clone --local --branch <base> --single-branch` of a LOCAL base (request `base` ?? `defaultBranch` ?? `main`), NO fetch; the clone's `origin` is removed; branch `friday/<task8>-<slug>`; `base_sha` recorded. The owner repo's git dir is only read.
+- Path: `$AGENT_HOME/workspaces/<ws>/repos/<repo>/worktrees/<taskId>` (taskId = UUID). Refusals: no commits, bad/missing base, submodules, LFS, < 2 GB free, kept-clone cap.
+- Caps: max 2 active tasks (`counts_toward_cap`); max 10 clones per workspace the owner still holds (`MAX_KEPT_CLONES`: status `kept`, or `delivered` locally; PR-delivered clones are not counted).
+- Rows without `base_sha` are legacy git worktrees of the pre-P2 layout (old remove path).
+
+**Delivery gates (`orchestrator/outputs/`):**
+- `deliveryFor(originUrl)` = `pr` only for a github.com host (scp or scheme form), else `local`.
+- PR (`pr-output.ts` + `pr-publish.ts`): the agent has no push tool; the app pushes with the plain git CLI to the recorded url. Declined -> row `kept`; success -> `delivered/pr`.
+- Local (`local-result-output.ts`): patch = `git format-patch <base_sha>..HEAD --stdout`, redact-scanned BEFORE write/attach, written 0600 to `workspaces/<ws>/tasks/<taskId>/<task8>.patch`, attached <= 1 MB; message <= 1800 chars; row `delivered/local`. Buttons `clone:<keep|discard>:<taskId>` (`approvals/clone-decision.ts`): pending clicks are in memory only, so a click after a restart or on a decided row answers "This action expired." (no side effect). Discard = `dropClone` (safe remove + row + session), refused while `threadBusy(threadId)` (the thread lock) is held.
+- Both paths record the delivery diff stat's file count + top 3 paths (`storage/files-changed.ts`, columns `worktrees.files_changed/files_top`); the ledger prints `files changed: N (a, b, c +M more)`. The `tests` field is not built (P3.5).
+
+**Cleanup safety + retention:**
+- `safeRemove`: target rebuilt from validated workspace + repo + UUID (never a DB/user path; DB path only compared); real dir (not symlink) strictly inside the repo's `worktrees/` dir; else refuse + `clone.remove_refused` warn. `/cleanup` resolves the id inside the channel's workspace (`workspaces/clone-lookup.ts`).
+- Startup (`lifecycle/clone-retention.ts`, config `CLONE_RETENTION_DAYS`, default 14): delivered|kept older than retention are removed (dir, patch, row, session); orphan dirs (no row) are logged `clone.orphan` and removed past retention; active rows without a dir are deleted.
+- Resume with the clone gone: reply refuses and the task is marked `failed` (`clone_missing`).
+
+**Owner-confirm gate (`engine/owner-confirm.ts`, `OWNER_CONFIRM_APPROVAL` in `engine/gates.ts`):** yes/no buttons ("Yes, run it" / "No", customId `appr:<id>:allow|deny`, approval row tool `OwnerConfirm`) before a costlier step. FAILS CLOSED: only a yes click runs the step; no/timeout (10 min)/stop/restart (pending clicks are in memory: "This action expired.")/no button flow = do not run. Two callers, no role names in the engine: (1) effort `max` (`thread/max-effort-gate.ts`): yes -> `max` with `ownerConfirmedMax` (Opus), else the run goes on at `high` with the line "Max effort not confirmed: ran at high."; (2) the answer output's `ESCALATE: opus` (`outputs/answer-output.ts`): yes -> ONE re-run on Opus (same session, escalated budget), else the cheaper answer + "Not run on Opus (not confirmed)". `ESCALATE: sonnet` still re-runs without asking.
+
+**Budget stop (`engine/budget.ts`):** outcome `max_budget` -> stage `interrupted` (verdict `budget`), clone + session kept, event `budget.exceeded`. The reply shows spent / limit, the "checked between turns, small overshoot possible" note, the agent's last words (last assistant text, capped 500 chars), `git diff --stat <base_sha>` of the clone (runGit, capped, a git failure just drops the section) and `Reply /go +<usd>`.
 
 **Session management:**
 - Plan stage: session created normally (workspace repo cwd, plan mode)
-- Execute stage: same session resumed with cwd = worktree; plan.md copied to scratch/ for reference
-- Worktree outlives session (follow-ups reuse it); cleanup removes worktree + deletes session
+- Execute stage: same session resumed with cwd = the task clone; plan.md copied to scratch/ for reference
+- The clone outlives the session (follow-ups reuse it); cleanup removes the clone + deletes the session
 
-**Bash allowlist (worktree only):**
-- Git in the execute stage: git MCP tools (mcp__git__*). Reads + git_add/git_commit auto-allowed for the worktree only; git_checkout/git_create_branch/git_reset ask; other repos or MCP tools denied. Bash git add/commit now asks (use the git tools)
+**Bash allowlist (task clone only):**
+- Git in the execute stage: git MCP tools (mcp__git__*). Reads + git_add/git_commit auto-allowed for the clone only; git_checkout/git_create_branch/git_reset ask; other repos or MCP tools denied. Bash git add/commit now asks (use the git tools)
 - No -F, -C, -c, --amend, --no-verify
 - Test command (exact match from registry) auto-allowed
 - Other Bash → ask (via Discord button)
 
 **After finish (no commits):** Reply "No changes made" (no diff, no PR button).
 
-**After finish (commits present):** Summary + Create PR button (owner-only, 10 min timeout) → push on click.
+**After finish (commits present):** GitHub origin: summary + Create PR button (owner-only, 10 min timeout) → the app pushes on click. Otherwise the local result message (see Delivery gates).
 
 ## Per-Repo Workflow Modes (Phase 3)
 
@@ -385,7 +398,7 @@ task: <description> (message)
 | runs | id, task_id, timestamp, agent_message, tool_names, usage_tokens, status, cost_usd | agent turn, usage tracking |
 | tool_calls | id, run_id, tool_name, input_redacted, output_redacted, duration_ms | tool invocation, redacted |
 | approvals | id, task_id, request_type, request_data, owner_decision, decision_reason, created_at, decided_at | approval decisions for Edit/Write/Bash/plan/network |
-| worktrees | id, task_id, repo_name, path, branch, created_at | one per code task (phase 4+); path = AGENT_HOME/worktrees/<taskId>; branch = agent/<first-8-chars-taskId> |
+| worktrees | task_id, thread_id, repo, repo_path, path, branch, base, pr_url, created_at, workspace, base_sha, origin_url, delivery (`pr\|local`), status (`active\|delivered\|kept\|removed`), patch_path, delivered_at, files_changed, files_top | one per code task clone; path = AGENT_HOME/workspaces/<ws>/repos/<repo>/worktrees/<taskId>; branch = friday/<task8>-<slug> |
 
 **Schema v2 (additive migration, `src/storage/migrate.ts`, P1.4a).** `meta(key, value)` holds `schema_version = 2` and is the only version marker (a fresh db writes it too). A db without `meta` is v1: `openDb` first writes `VACUUM INTO <home>/db-backups/friday-v1-<ts>.db` (log `db.snapshot`; a failed snapshot aborts startup, nothing migrated), then migrates in one transaction; opening again is a no-op. New tables:
 
@@ -504,7 +517,7 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 
 **Per-call gates in code tasks:**
 - Bash restricted: allowlist (git status/diff/log reads, test command) -> auto-allow; others -> ask via Discord button; git writes via Bash are denied (use the git MCP tools)
-- Write/Edit: plan mode blocks them before ExitPlanMode; after approval -> worktree only
+- Write/Edit: plan mode blocks them before ExitPlanMode; after approval -> task clone only
 - PreToolUse hard deny: dangerous commands, write outside allowed paths (cannot be overridden by approval)
 - Never load any filesystem settings (`settingSources: []` in every mode); plans dir = ~/.claude/plans/ (read-only cwd for plan files)
 
@@ -521,8 +534,8 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 
 ## Built (v1 Complete)
 
-- **Worktrees** (Phase 4) — git worktree per code task; auto-created after plan approval; auto-removed on cleanup.
-- **PR Creation** (Phase 4) — `gh pr create` on owner button click; branch pushed only after PR creation.
+- **Task clones** (Phase 4, rebuilt in P2) — independent local clone per code task; created after plan approval; removed by `/cleanup`, Discard or retention.
+- **Delivery** (Phase 4, P2.2) — GitHub origin: owner button, then the app pushes `friday/*` and opens the PR; no GitHub origin: local result (fetch command + patch, Keep/Discard).
 - **Code Task Approval** (Phases 3-4) — plan approval gate + Create PR button; Discord buttons for all risky operations.
 - **Guardrails** (Phase 3-4) — hard deny dangerous commands; allowlist gates (Bash, network, package install); bash option allowlist (git add/commit).
 
@@ -557,25 +570,24 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 - Token: per-process from `gh auth token --user <githubAccount>` (repo.yaml optional `githubAccount`, default active account); passed via env only
 - Git push: app-only (Bash, never force); GitHub MCP cannot push local commits
 
-**Worktree constraints:**
-- PR creation blocked on non-managed clones (realpath check)
-- `origin` remote required (fetched during plan stage)
-- Branch: agent/<taskId-prefix>, pushed only after owner button click
+**Clone constraints:**
+- No managed-clone or `origin` requirement: any registered repo works; a GitHub origin selects the PR gate, anything else the local result gate
+- Branch: `friday/<task8>-<slug>` (must match `^friday/` to be pushed; legacy `agent/`), pushed only after the owner's button click
 
 ## Git Backend (@cyanheads/git-mcp-server v2.15.3)
 
 **Agent (git MCP tools via @cyanheads/git-mcp-server):**
 - Server: pinned dep, runs via bun binary (dist entry), stdio MCP client in src/mcp/git-mcp.ts (gitServerEnv + createGitMcp + call + shutdown)
 - Execute stage: git add/commit auto-allowed; reads allowed; checkout/branch/reset ask; others denied
-- Worktree-only: `path` param must be worktree; reads ok on registered repos
+- Clone-only: `path` param must be the task clone; reads ok on registered repos
 - Restrictions: No -F, -C, -c, --amend, --no-verify flags; no Co-Authored-By in message
 - Never performs: push, worktree management, fetch, config changes
-- Identity: GIT_AUTHOR_NAME/EMAIL + GIT_COMMITTER_NAME/EMAIL = owner (per-repo repo.yaml gitAuthor); GIT_BASE_DIR = worktree (sandbox); GIT_SIGN_COMMITS=false
+- Identity: GIT_AUTHOR_NAME/EMAIL + GIT_COMMITTER_NAME/EMAIL = owner (per-repo repo.yaml gitAuthor); GIT_BASE_DIR = the task clone (sandbox); GIT_SIGN_COMMITS=false
 
 **App (also through the git MCP server; no git CLI, no hand-written git functions in src/):**
-- Worktree: `git_worktree` add/remove + `git_branch` delete (task-worktree.ts, handle-task.ts cleanup)
+- Clone create/remove: plain git CLI (`repos/git-cli.ts`) via `workspaces/task-clone.ts` and `clone-cleanup.ts`; legacy git worktrees (rows without `base_sha`) keep the git MCP remove path
 - Fetch/pull: `git_fetch` + `git_pull` fast-forward only (src/repos/refresh-repo.ts, throttled 10 min)
-- Push: `git push` agent/<id> (via src/repos/publish-pr.ts, never force)
+- Push: `git push <origin_url> HEAD:refs/heads/friday/...` (src/orchestrator/outputs/pr-publish.ts, never force)
 - Config: set repo's LOCAL git config before run (via src/repos/git-identity.ts; identity validated at startup)
 - Verification: git_log (author email) + git_show (no attribution) before PR offer
 
@@ -589,7 +601,7 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 ## Not Built Yet (v2 backlog)
 
 - **Approval Persistence** — pending approvals lost on restart (by design: SIMPLE model); consider re-issue on Resume if complexity acceptable (v2+)
-- **Orphan Worktree Cleanup** — logged on startup but not auto-deleted; manual cleanup or v2 GC
+- **Orphan clone cleanup** — orphan clone dirs are removed at startup after `CLONE_RETENTION_DAYS`; PR-delivered clones wait for retention too
 - **Worktree Sandbox** — current: approved commands run agent-edited code as bot user; no privilege isolation.
 - **PreCompact Hook** — transcript compression for long sessions.
 - **HTTP Webhook** — Discord-only for now.

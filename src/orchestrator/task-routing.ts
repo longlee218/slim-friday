@@ -1,13 +1,14 @@
 import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import type { Effort, Route as ModelRoute, TaskClass } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import type { Repo } from "../repos/repo-registry";
 import { entryRole, followUpRole, getRole, isGated } from "../roles/role-registry";
-import { latestTaskSession, taskRole } from "../storage/run-store";
+import { latestTaskSession, setTaskStatus, taskRole } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
-import { liveWorktree, type WorktreeRow } from "../storage/worktree-store";
+import { getWorktreeByThread, liveWorktree, type WorktreeRow } from "../storage/worktree-store";
 import {
   cappedTaskBlocker,
   capRefusal,
@@ -144,6 +145,19 @@ export function resolveCommand(
   };
   const text = RESUME_PROMPT;
   const worktree = liveWorktree(deps.db, threadId);
+  // The task ran in a clone that is gone (removed, cleaned up, or lost): nothing to continue, the task fails.
+  const gone = worktree ? undefined : getWorktreeByThread(deps.db, threadId);
+  // The clone dir is gone, so its own real path cannot be resolved: resolve the parent (the session stored a real cwd).
+  if (
+    gone?.baseSha != null &&
+    existing.cwd === join(realOrSame(dirname(gone.path)), basename(gone.path))
+  ) {
+    setTaskStatus(deps.db, last.id, "failed");
+    return refuse(
+      "clone_missing",
+      "Cannot resume: the task clone is gone (removed or cleaned up). The task is marked failed. Start it again.",
+    );
+  }
   if (worktree)
     return existing.cwd === realOrSame(worktree.path)
       ? { cmd: { kind: "task", text }, existing }
@@ -163,12 +177,21 @@ export function resolveCommand(
   return plainCwd ? { cmd: { kind: "task", text }, existing } : cannot;
 }
 
-/** Route of a run: owner class and `go +<usd>` raise; undefined when neither is set (stage defaults). */
+/**
+ * Route of a run: owner class, effort and `go +<usd>` raise; undefined when none is set (stage defaults).
+ * Effort `max` only arrives here after the owner-confirm gate said yes (`resolveEffort` caps it otherwise), so it
+ * carries the confirmation into the model routing.
+ */
 export const runRoute = (r: {
   cls?: TaskClass;
   effort?: Effort;
   extraBudgetUsd?: number;
 }): ModelRoute | undefined =>
   r.cls || r.effort || r.extraBudgetUsd
-    ? { cls: r.cls, effort: r.effort, extraBudgetUsd: r.extraBudgetUsd }
+    ? {
+        cls: r.cls,
+        effort: r.effort,
+        extraBudgetUsd: r.extraBudgetUsd,
+        ...(r.effort === "max" && { ownerConfirmedMax: true }),
+      }
     : undefined;

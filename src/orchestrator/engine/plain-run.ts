@@ -9,11 +9,16 @@ import { buildRegistryContext } from "../../repos/repo-registry";
 import { runAgent } from "../../runtime/run-agent";
 import { answerOutput } from "../outputs/answer-output";
 import type { FlowResult } from "../tasks/task-result";
+import { ownerConfirm } from "./owner-confirm";
 import type { StageCtx } from "./stage-runner";
 
 /* A stage with no isolation and no gate: a read-only run over the registered repos (the pinned one, or the
    whole workspace) whose reply goes to the owner through the role's output. Only `answer` has a handler here;
    the stage runner refuses any other output before running (validate-role.ts). */
+
+/** Question of the Opus escalation gate. */
+const ESCALATE_OPUS_QUESTION =
+  "The cheaper model could not answer this well. Re-run it on Opus (about 5x the cost)?";
 
 /**
  * Run a plain stage: pick the cwd (pinned repo, stored session's, or the workspace dir), refresh managed
@@ -80,6 +85,15 @@ export async function runPlain(c: StageCtx): Promise<FlowResult> {
       queryFn: deps.queryFn,
     });
   };
-  const res = await answerOutput({ role, stage, config, run: runOnce, resume });
+  // An Opus escalation asks the owner first (buttons; fails closed).
+  const confirmOpus = () =>
+    ownerConfirm(deps.approvals, {
+      kind: "escalate_opus",
+      taskId: i.taskId,
+      threadId: i.threadId,
+      summary: ESCALATE_OPUS_QUESTION,
+      signal: i.ac.signal,
+    });
+  const res = await answerOutput({ role, stage, config, run: runOnce, resume, confirmOpus });
   return { ...res, cwd, repo: pinned?.name ?? "*", model: rerunModel };
 }

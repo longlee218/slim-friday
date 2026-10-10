@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { budgetHitMessage } from "../src/orchestrator/engine/budget";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { escalationAction, parseEscalation } from "../src/orchestrator/outputs/answer-output";
 import { parseTaskCommand } from "../src/orchestrator/task-commands";
 import { listStages } from "../src/storage/stage-store";
-import { fakeQuery, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+import { fakeQuery, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
 describe("parseEscalation (fail closed)", () => {
   test("last line `ESCALATE: sonnet|opus` is parsed and stripped", () => {
@@ -34,7 +35,11 @@ describe("parseEscalation (fail closed)", () => {
 });
 
 describe("Q&A escalation through the handler", () => {
-  async function ask(answers: string[], extra: Record<string, string> = {}) {
+  async function ask(
+    answers: string[],
+    extra: Record<string, string> = {},
+    approvals?: ApprovalGateway,
+  ) {
     const env = makeEnv(extra);
     const calls: {
       model?: string;
@@ -61,6 +66,7 @@ describe("Q&A escalation through the handler", () => {
       db: env.db,
       config: env.config,
       queryFn: queryFn as never,
+      approvals,
     })({
       source: "t",
       channelId: TEST_CHANNEL,
@@ -135,11 +141,39 @@ describe("Q&A escalation through the handler", () => {
     expect(reply).not.toContain("Escalated to");
     expect(reply).toContain("not available");
   });
-  test("ESCALATE: opus is not run; the owner is told", async () => {
+  test("ESCALATE: opus without the button flow is not run (fails closed)", async () => {
     const { reply, calls } = await ask(["hmm\nESCALATE: opus"]);
     expect(calls.length).toBe(1);
-    expect(reply).toContain("needs your OK");
+    expect(reply).toContain("Not run on Opus");
     expect(reply).not.toContain("ESCALATE");
+  });
+  test("ESCALATE: opus, owner says no or times out: cheaper answer, one line", async () => {
+    const gw = stubGateway({ confirm: async () => ({ approved: false, reason: "timeout" }) });
+    const { reply, calls } = await ask(["hmm\nESCALATE: opus"], {}, gw);
+    expect(calls.length).toBe(1);
+    expect(reply).toBe("hmm\n\nNot run on Opus (not confirmed); this is the cheaper answer.");
+  });
+  test("ESCALATE: opus, owner says yes: ONE re-run on Opus, same session, with a notice", async () => {
+    const asked: string[] = [];
+    const gw = stubGateway({
+      confirm: async (r, labels) => {
+        asked.push(`${r.tool}|${labels.join("/")}`);
+        return { approved: true };
+      },
+    });
+    const { reply, calls } = await ask(
+      ["hmm\nESCALATE: opus", "deep answer\nESCALATE: opus"],
+      {},
+      gw,
+    );
+    expect(asked).toEqual(["OwnerConfirm|Yes, run it/No"]);
+    expect(calls.length).toBe(2);
+    expect(calls[1]).toMatchObject({
+      model: "claude-opus-5-5",
+      resume: "s0",
+      prompt: "hard question",
+    });
+    expect(reply).toBe("Escalated to Opus.\n\ndeep answer");
   });
   test("malformed line: one run, text unchanged", async () => {
     const { reply, calls } = await ask(["hmm\nESCALATE: gpt"]);

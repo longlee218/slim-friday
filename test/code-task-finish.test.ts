@@ -55,7 +55,7 @@ const gateway = (approve: boolean): ApprovalGateway =>
 
 const run = (s: Awaited<ReturnType<typeof setup>>, approve: boolean, createPr: any) =>
   finishCodeTask(
-    { db: s.db, approvals: gateway(approve), git, createPr },
+    { db: s.db, approvals: gateway(approve), git, createPr, agentHome: "/unused" },
     {
       wt: s.row,
       taskId: "t1",
@@ -131,7 +131,13 @@ test("push failure and an unparseable remote are reported without creating a PR"
 test("wrong commit author blocks the offer before anything is pushed", async () => {
   const s = await setup();
   const reply = await finishCodeTask(
-    { db: s.db, approvals: gateway(true), git, createPr: async () => ({ ok: true, url: "u" }) },
+    {
+      db: s.db,
+      approvals: gateway(true),
+      git,
+      createPr: async () => ({ ok: true, url: "u" }),
+      agentHome: "/unused",
+    },
     {
       wt: s.row,
       taskId: "t1",

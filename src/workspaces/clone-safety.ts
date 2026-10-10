@@ -12,6 +12,8 @@ export const MIN_FREE_DISK_BYTES = 2 * 1024 ** 3;
 export const MAX_LISTED_BRANCHES = 20;
 /** Branch name a task clone gets: `friday/<task8>-<slug>`. */
 export const TASK_BRANCH_RE = /^friday\/[0-9a-f]{8}-[a-z0-9-]{1,30}$/;
+/** Task id shape (UUID): the only name a clone dir may have under the clones root. */
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Shape of a base branch name (no leading `-`, so it can never read as a git option). */
 const BASE_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
 

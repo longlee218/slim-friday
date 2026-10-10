@@ -71,7 +71,7 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
 - A channel id listed by two workspaces is dropped from both (warning `channel.duplicate`): no routing.
 - Edits to a workspace's channel list apply to the next message, but the guild pin is checked at startup only: the **first** time you add `channels:` to any `workspace.yaml`, and any change to `DISCORD_GUILD_ID` or `.env`, needs a bot restart. Startup refuses (exit 1, "DISCORD_GUILD_ID required") when channels exist without the id.
 - `/cleanup` works in any thread, even in an unmapped or remapped channel (it runs before routing and starts no agent): use it to recover a thread whose channel was unlinked.
-- Remapping a channel moves its existing threads to the new workspace. A thread with a live worktree whose repo is not in the new workspace is refused (`wrong_workspace`) until the channel is re-linked or `cleanup:` is run.
+- Remapping a channel moves its existing threads to the new workspace. A thread with a live task clone whose repo is not in the new workspace is refused (`wrong_workspace`) until the channel is re-linked or `/cleanup` is run.
 
 ## Server organization (one guild)
 
@@ -208,12 +208,12 @@ Canonical forms are slash commands (L0). The LEGACY forms still work in this rel
 |---------|--------|--------|
 | `/stop` | `stop` | abort the running task |
 | `/go` | `go` | start this thread's pending proposal (after a restart: "Proposal not started; reply `/go`"), else resume an interrupted task. With nothing to start or resume it is an ordinary message |
-| `/go +<usd>` | `go +<usd>` | resume the thread's interrupted or budget-stopped task with `<usd>` more budget, e.g. `/go +1.5` (amount must be > 0; anything else is a plain message). A budget stop says "Reply `go +<usd>`" |
-| `/cleanup` / `/cleanup <task-id>` | `cleanup:` / `cleanup:<task-id>` | remove the worktree |
+| `/go +<usd>` | `go +<usd>` | resume the thread's interrupted or budget-stopped task with `<usd>` more budget, e.g. `/go +1.5` (amount must be > 0; anything else is a plain message). A budget stop shows spent / limit, the agent's last words and the clone's `git diff --stat`, and says "Reply `/go +<usd>`" (the session and the clone are kept) |
+| `/cleanup` / `/cleanup <taskId8\|taskId>` | `cleanup:` / `cleanup:<task-id>` | remove a task clone (see "Cleanup" below): no argument = this thread's clone; an argument is looked up among the clones of THIS channel's workspace (a unique 8-char prefix is enough; several matches list up to 10 candidates; an unknown, malformed or other-workspace id gets one refusal line) |
 | `/remember [scope] <text>`, `/forget [scope] <text>`, `/compact [dry-run]` | `remember:` / `nhớ:`, `forget:` / `quên:`, `compact memory` / `gom nén` | owner memory (see Memory below; same scopes and length rules) |
 | `/init-workspace <name>` (ops control channel only) | `init:workspace:<name>` | create the workspace folder, private category and `#<name>-agent` |
 | `[mechanical]` / `[standard]` / `[design]` prefix, `repo:<name>` | task class / repo hint |
-| `[dev]` / `[ask]` at the very START of the message | force the role (dev: plan, approve, worktree, PR; ask: read-only answer); case-insensitive; the tag is dropped from the task text. A tag anywhere else, or a word like "dev", does nothing. Without a tag one small Haiku call (L3) reads your message together with the last 4 messages of the thread and decides; no wording lists |
+| `[dev]` / `[ask]` at the very START of the message | force the role (dev: plan, approve, task clone, PR or local result; ask: read-only answer); case-insensitive; the tag is dropped from the task text. A tag anywhere else, or a word like "dev", does nothing. Without a tag one small Haiku call (L3) reads your message together with the last 4 messages of the thread and decides; no wording lists |
 | a natural reply to the bot's question (e.g. "okay đồng ý", "thôi để sau", "yeah go for it") | answer the one question the bot asked (queue a second task, "Open a dev task for this? (yes/no)" after a discussion turn). The same Haiku call reads the reply against the pending question; `yes` = `go`; `no` to the dev-task question makes the assistant answer your message. If it cannot tell, the bot asks again. They do not press plan/PR buttons: use the button |
 | `[base:<branch>]` prefix | NOT built yet: a dev task branches from the repo's default branch. The proposal and dispatcher already carry a `base` field (validated: the branch must exist locally) for when a parser is added |
 
@@ -233,11 +233,12 @@ can you add a greeting function to src/hello.ts?
 Expected:
 - The intent layer routes it to the dev role (no assistant answer first): "Starting plan: <repo>, add greeting..." appears
 - If the message is unclear on an idle thread (low confidence, or the classifier failed) the assistant answers it read-only: no clarifying question and never a dev task. A pending question or a button gate is still asked again
-- A proposal or idea in a thread that was just a conversation ("I propose building ...") is not run: the bot asks "Open a dev task for this? (yes/no)". Until the per-task clone lands (P2.1) a repo without a workspace clone cannot get a dev task: the assistant answers instead, with one line saying so
+- A proposal or idea in a thread that was just a conversation ("I propose building ...") is not run: the bot asks "Open a dev task for this? (yes/no)".
 - While a task runs, a second change request is queued: "run it after the current task?" Answer yes (starts when the first ends) or no, in your own words. Questions during a run get `still working...` for now (side answers and steering come with P1.4b)
 - Owner gets a Discord message with Approve/Deny buttons (owner-only, redacted summary)
 - Approve → bot creates/modifies file in plan stage; Deny → bot revises plan
-- If approved, execution creates a Git worktree with commits and a PR
+- If approved, execution runs in an independent clone of the repo (commits on a `friday/...` branch); the result is a PR (GitHub origin) or a local result message (see "Delivery")
+- A request with effort `max` (e.g. an owner-defined "ultra deep dive" phrase) or an assistant answer ending in `ESCALATE: opus` first asks you "Run it?" with [Yes, run it] [No] buttons (10 min). No answer, "No" or a click after a restart ("This action expired.") never runs Opus: `max` runs at `high`, an escalation keeps the cheaper answer, each with one line saying so
 
 **Guardrails Test:** Try dangerous operations in code context:
 ```
@@ -326,12 +327,29 @@ cp -R /path/to/deploy ~/.friday/workspaces/<ws>/skills/deploy     # needs deploy
 - `workflow: full` — for owner-controlled repos only; tells the agent to run the workspace's curated skills autonomously; enables broader assumptions in prompts; requires that the remote is owned/controlled by the agent owner
 
 **Important:**
-- Repos must be **managed clones under AGENT_HOME/workspaces/<ws>/repos/<name>/repo/**. Code tasks on clones elsewhere are refused.
+- A repo may be ANY git checkout (registered with `path:`, e.g. your own working copy). A managed clone under `AGENT_HOME/workspaces/<ws>/repos/<name>/repo/` is **not required**. Q&A on a managed clone is refreshed with `git pull`; an owner checkout is never pulled.
+- Each code task works in its own **app clone**: `git clone --local` of the repo into `workspaces/<ws>/repos/<name>/worktrees/<taskId>`, cut from a **local** base branch (request `base`, else `defaultBranch`, else `main`) with no fetch, so unpushed local commits of the base branch are included. The clone's `origin` is removed; branch `friday/<task8>-<slug>`. Your repo's `.git` is only read: no branch, worktree entry or config is added to it.
+- **Refusals** (one line, nothing is created): the repo has no commits; the base branch is missing locally (lists up to 20 local branches); the repo has submodules; the repo uses Git LFS; less than 2 GB free disk; no `gitAuthor`; 10 task clones already kept in the workspace (`/cleanup <taskId8>` one; the reply lists them).
 - Repo name = directory name under `repos/` (e.g., `workspaces/personal/repos/myapp/` → repo name is `myapp`).
 - `gitAuthor: "Name <email>"` required for code tasks (validates ≥2 chars name, email with 2+ letter domain; startup exits(1) if invalid).
-- Each repo must have a Git remote named `origin` (needed for fetch, PR creation).
+- A repo needs NO `origin` remote. If its `origin` is a GitHub repo the result goes through the PR gate; otherwise through the local result gate.
 - `defaultBranch` optional (defaults origin/HEAD → main/master).
 - `testCommand` optional; if set, exact match only (no ad-hoc shell injection).
+
+### Delivery (after the exec stage)
+- **PR (origin is on github.com):** summary + diff + secret scan + **Create PR** button (10 min). The app (not the agent) pushes `HEAD:refs/heads/friday/...` to the recorded origin url and opens the PR through the GitHub MCP. Branch must start with `friday/` (legacy `agent/`). Declined or timed out: the clone is kept.
+- **Local result (no origin, or not GitHub):** one message with branch, base (name + short sha), commit count, a capped `git diff --stat` (`+N more files`), and a copy-paste command that YOU run to bring the branch into your repo:
+  ```
+  git -C <your repo> fetch <clone path> friday/<task8>-<slug>:friday/<task8>-<slug>
+  ```
+  The app never runs it. A patch (`git format-patch <base_sha>..HEAD`) is written to `workspaces/<ws>/tasks/<taskId>/<task8>.patch` (mode 0600) and attached when <= 1 MB, else only its path is shown. The same secret scan as the PR path runs BEFORE anything is written: a possible secret blocks the patch and the message. Message <= 1800 chars.
+- **Keep / Discard buttons** (local result): `Keep` marks the clone kept. `Discard` removes the clone and deletes branch `friday/...` (the patch file stays until retention). No answer = the clone stays (counts toward the 10-clone cap). Discard is refused while a task is running in that thread (use `/cleanup <taskId8>` when it ends). A click after a restart answers "This action expired." with no side effect.
+- The ledger (assistant context) shows per task the file count and top 3 changed paths from this diff stat.
+
+### Cleanup and retention
+- `/cleanup` removes a task clone: the target path is rebuilt from the validated workspace, repo and task id (never taken from the database or from your text) and must be a real directory strictly inside the repo's `worktrees/` dir; anything else is refused.
+- Startup removes delivered or kept clones older than `CLONE_RETENTION_DAYS` (default 14) with their patch file, removes orphan clone dirs (no row) older than that, and marks active rows whose dir is gone as removed. Orphans are logged as `clone.orphan`.
+- Resume of an interrupted task whose clone is gone: the task is marked `failed` and you are told to start it again.
 
 ### Posting a Code Task
 
@@ -346,13 +364,13 @@ add a greeting function to src/hello.ts that takes a name and returns "Hello, <n
 3. **Plan Stage:** Bot enters plan mode and proposes a detailed plan (shows which files, what changes).
 4. **Plan Approval:** Owner gets Discord Approve/Deny buttons (owner-only, 10 min timeout).
 5. **Approval:** 
-   - If **Approve**: Bot moves to execute stage, creates a Git worktree on branch `agent/<id>`.
+   - If **Approve**: Bot moves to execute stage, creates the task clone on branch `friday/<id>-<slug>`.
    - If **Deny**: Bot revises the plan and asks for approval again (multi-round OK).
-6. **Execute Stage:** Bot makes changes in the worktree, runs the test command (if set), commits.
+6. **Execute Stage:** Bot makes changes in the clone, runs the test command (if set), commits.
 7. **Finish:** Bot posts summary + diff attachment + **Create PR** button (owner-only, 10 min).
-8. **PR Creation:** Owner clicks **Create PR** → bot pushes the branch and opens a PR on GitHub.
-9. **Follow-up:** Reply in the same thread → bot reuses the worktree and makes more commits to the same branch.
-10. **Cleanup:** Post `/cleanup` in the thread to remove the worktree and reset the session.
+8. **PR Creation:** Owner clicks **Create PR** → the app pushes the branch and opens a PR on GitHub. Without a GitHub origin: local result message + fetch command + patch (see Delivery).
+9. **Follow-up:** Reply in the same thread → bot reuses the clone and makes more commits to the same branch (max 2 fix rounds).
+10. **Cleanup:** Post `/cleanup` in the thread to remove the clone and reset the session.
 
 ### Guardrails
 
@@ -364,8 +382,8 @@ add a greeting function to src/hello.ts that takes a name and returns "Hello, <n
 - Network operations (curl/wget to non-github/npmjs hosts) → Discord button
 - New package installs (lockfile-only auto-allowed) → Discord button
 
-**Git operations (in worktree):**
-- Commits via git MCP (@cyanheads/git-mcp-server 2.15.3); auto-allowed in worktree only
+**Git operations (in the task clone):**
+- Commits via git MCP (@cyanheads/git-mcp-server 2.15.3); auto-allowed in the clone only; Write/Edit and Bash writes to the clone's `.git` are denied
 - `git status`, `git diff`, `git log` (via git MCP); `git add`, `git commit` (via git MCP); others ask
 - Tests run with Bash (`testCommand` exact match auto-allowed)
 
@@ -378,7 +396,7 @@ add a greeting function to src/hello.ts that takes a name and returns "Hello, <n
   → Bot proposes: "Fix typos in src/ using grep + sed" [Approve] [Deny]
   
 Owner clicks [Approve]
-  → Bot creates worktree, runs sed, commits
+  → Bot creates the task clone, runs sed, commits
   → "Fixed 3 files. [Create PR] [Not now]"
   
 Owner clicks [Create PR]
@@ -387,7 +405,7 @@ Owner clicks [Create PR]
 
 (in same thread)
 Looks good, also fix the same typo in docs/
-  → Bot reuses worktree, makes more commits
+  → Bot reuses the clone, makes more commits
   → Bot updates the same PR on GitHub
 ```
 
@@ -397,14 +415,17 @@ Looks good, also fix the same typo in docs/
 |---------|-------|-----|
 | "No repos registered" | No workspace has a valid `repo.yaml` | Run `/init-workspace <ws>` and add `workspaces/<ws>/repos/<name>/repo.yaml` |
 | Bot exits at start: "AGENT_HOME is inside a registered repo" / "inside a git working tree" | `AGENT_HOME` (or the target of a symlink) sits in a repo, e.g. the old `<project>/.friday` | Point `AGENT_HOME` at a real dir outside every repo (`/Users/<you>/.friday`); see the cutover runbook |
-| "Code task on non-managed clone" | Repo not under AGENT_HOME/workspaces | Clone repo under ~/.friday/workspaces/<ws>/repos/<name>/repo/ |
-| "No origin remote" | Repo missing `origin` remote | Run `git remote add origin <url>` in the repo |
+| "Base branch ... not found" | The base is not a LOCAL branch of the repo (no fetch is done) | `git branch` in the repo and create/checkout the branch, or use the listed one |
+| Refused: no commits / submodules / LFS / low disk | Preflight of the task clone | Commit once; remove submodules/LFS from the repo or work elsewhere; free 2 GB |
+| "N task clones are kept in this workspace (max 10)" | Kept/locally delivered clones fill the cap | `/cleanup <taskId8>` one of the listed clones |
+| Local result: "Possible secret ... no patch written" | The secret scan found a token in the diff | Remove it, commit again |
 | "gh: command not found" | gh CLI not installed | `brew install gh` (macOS) or `apt install gh` (Linux) |
 | "gh auth failed" | gh not authenticated | Run `gh auth login` and choose HTTP/SSH |
 | "PR button not shown" | No commits made | Check bot's response (usually "No changes made") |
 | Bad DB after an upgrade | The first start of schema v2 migrates the db | Stop the bot; restore the snapshot `$AGENT_HOME/db-backups/friday-v1-<ts>.db`: `cp` it over `data/agent.db` and delete `data/agent.db-wal` and `-shm` (data written after the snapshot is lost). Old code also runs on the migrated db unchanged |
 | Bot exits "db snapshot failed" | `db-backups/` not writable or disk full; nothing was migrated | Fix the dir / space and start again |
-| "Create PR button timed out" | Took >10 min to decide | Worktree still exists; use `/cleanup` to reset |
+| "Create PR button timed out" | Took >10 min to decide | The clone is kept (until retention); use `/cleanup` to remove it |
+| "This action expired." on a button | The bot restarted since the message (pending clicks are in memory) | Nothing ran; use `/cleanup` or send the request again |
 
 ## Memory (three layers)
 

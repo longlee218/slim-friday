@@ -61,6 +61,7 @@ const envSchema = z.object({
   MODEL_INTENT: z.string().trim().min(1).optional(),
   INTENT_BUDGET_USD: z.coerce.number().positive().default(0.02),
   INTENT_TIMEOUT_MS: z.coerce.number().int().min(8000).default(8000),
+  CLONE_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
 });
 
 /** Engines of the intent layer's L3 classifier (`none` = rules L0-L2 only). */
@@ -98,13 +99,12 @@ export interface AgentConfig {
   memoryModel: string;
   /** Default commit identity `Name <email>` for repos without their own `gitAuthor`. */
   gitAuthor: string | undefined;
-  /**
-   * Run limits applied to every agent run. maxBudgetUsd = the optional global cap MAX_BUDGET_USD (min with the
-   * stage budget); no default: the per-stage budgets replace the old global 0.5. OpenRouter: only this cap.
-   */
+  /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the stage budget; OpenRouter: only this). */
   limits: { maxTurns: number; maxBudgetUsd: number | undefined; timeoutMs: number };
   /** Global cap on simultaneous agent runs. */
   maxConcurrentRuns: number;
+  /** Days a delivered/kept task clone is retained before startup removes it (CLONE_RETENTION_DAYS). */
+  cloneRetentionDays: number;
   /** Intent layer L3: engine, model id (MODEL_INTENT, tier-resolvable), per-call budget and timeout. */
   intent: { engine: IntentEngine; model: string; budgetUsd: number; timeoutMs: number };
 }
@@ -159,6 +159,7 @@ export function loadConfig(
       timeoutMs: e.TIMEOUT_MS,
     },
     maxConcurrentRuns: e.MAX_CONCURRENT_RUNS,
+    cloneRetentionDays: e.CLONE_RETENTION_DAYS,
     intent: {
       engine: e.INTENT_ENGINE,
       // A tier name (haiku|sonnet|opus) resolves to its id on Anthropic; OpenRouter takes the id as is.
