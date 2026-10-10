@@ -37,7 +37,7 @@ export function createHaikuIntentClassifier(
 ): IntentClassifier {
   const { model, budgetUsd, timeoutMs } = config.intent;
   return {
-    async classify(input: IntentInput): Promise<IntentResult> {
+    async classify(input: IntentInput, signal?: AbortSignal): Promise<IntentResult> {
       const scratch = workspacePaths(config.agentHome).intentScratch;
       mkdirSync(scratch, { recursive: true });
       const ac = new AbortController();
@@ -46,6 +46,10 @@ export function createHaikuIntentClassifier(
         timedOut = true;
         ac.abort();
       }, timeoutMs);
+      // The thread's stop / shutdown cancels the call too.
+      const onAbort = () => ac.abort();
+      if (signal?.aborted) ac.abort();
+      else signal?.addEventListener("abort", onAbort, { once: true });
       const t0 = Date.now();
       let usage: RunUsage | undefined;
       let failure: IntentEngineError | undefined;
@@ -88,6 +92,7 @@ export function createHaikuIntentClassifier(
         throw failure;
       } finally {
         clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
         // One telemetry line per call, success or not; no message text.
         logEvent(log, "llm.turn", {
           kind: "intent",

@@ -10,9 +10,9 @@ import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
-  BRIEF,
   clearWorkspaces,
-  delegatingQuery,
+  DEV_REQUEST,
+  devIntent,
   makeEnv,
   resultMsg,
   stubGateway,
@@ -81,9 +81,10 @@ async function started() {
     db: env.db,
     config: env.config,
     approvals: gw,
-    queryFn: delegatingQuery([{ brief: BRIEF }], fakeSdk(seen), []) as never,
+    queryFn: fakeSdk(seen) as never,
+    intent: devIntent(env.home),
   });
-  await handle(msg("add b"));
+  await handle(msg("[dev] add b"));
   return { env, seen, handle };
 }
 
@@ -92,7 +93,7 @@ test("two workspaces with repo `real`: a follow-up stays in the worktree's works
   // An alphabetically earlier workspace gains the same repo name after the worktree exists.
   await addCloneRepo(env.home, "w-a", "Aye <aye@example.com>");
   const n = seen.length;
-  await handle(msg("also c"));
+  await handle(msg("[dev] also c"));
   expect(seen).toHaveLength(n + 1);
   const wt = getWorktreeByThread(env.db, "th1")!;
   expect(seen[n].options.cwd).toContain("/w-b/");
@@ -127,7 +128,7 @@ test("channel remapped to a workspace with another clone of `real`: follow-up re
   const n = seen.length;
   const rows = () => env.db.query("SELECT count(*) AS n FROM tasks").get();
   const before = rows();
-  const reply = await handle(msg("also c"));
+  const reply = await handle(msg("[dev] also c"));
   expect(reply).toContain("not in this channel's workspace");
   expect(seen).toHaveLength(n); // the agent never ran with w-a's identity
   expect(rows()).toEqual(before); // refusal made no task row
@@ -147,7 +148,7 @@ test("channel remapped to a workspace without that repo: follow-up refused, work
     },
   );
   const n = seen.length;
-  const reply = await handle(msg("also c"));
+  const reply = await handle(msg("[dev] also c"));
   expect(reply).toContain("not in this channel's workspace");
   expect(seen).toHaveLength(n);
   expect(getWorktreeByThread(env.db, "th1")).not.toBeNull();
@@ -167,7 +168,7 @@ test("cleanup: still works from an unmapped channel (recovery path) and runs no 
       path: workspacePaths(env.home).workspace("w-b").repo("real").clone,
     },
   );
-  expect(await handle({ ...msg("also c"), channelId: "100000000000000099" })).toContain(
+  expect(await handle({ ...msg("[dev] also c"), channelId: "100000000000000099" })).toContain(
     "not linked to a workspace",
   );
   const n = seen.length;

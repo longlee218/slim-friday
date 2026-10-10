@@ -199,6 +199,9 @@ Expected:
 | `go +<usd>` | resume the thread's interrupted or budget-stopped task with `<usd>` more budget, e.g. `go +1.5` (amount must be > 0; anything else is a plain message). A budget stop says "Reply `go +<usd>`" |
 | `cleanup:` / `cleanup:<task-id>` | remove the worktree |
 | `[mechanical]` / `[standard]` / `[design]` prefix, `repo:<name>` | task class / repo hint |
+| `[dev]` / `[ask]` prefix | force the role (dev: plan, approve, worktree, PR; ask: read-only answer). Without a prefix the intent layer picks the role from the wording (rules first, then one small Haiku call) |
+| `yes` / `no` / `ok` / `duyet` / `khong` | answer the one question the bot asked (queue a second task, or a low-confidence question). `yes` = `go`. They do not press plan/PR buttons: use the button |
+| `[base:<branch>]` prefix | NOT built yet: a dev task branches from the repo's default branch. The proposal and dispatcher already carry a `base` field (validated: the branch must exist locally) for when a parser is added |
 
 Buttons of a dead process answer "This action expired." (the Resume button keeps working after a restart). Proposals older than 24h expire at startup.
 
@@ -211,8 +214,9 @@ Post a natural-language code request:
 can you add a greeting function to src/hello.ts?
 ```
 Expected:
-- Bot answers with file:line context and proposes a code task
-- If the bot delegates to a code task: "Starting plan: <repo>, add greeting..." appears
+- The intent layer routes it to the dev role (no assistant answer first): "Starting plan: <repo>, add greeting..." appears
+- If the wording is unclear the bot asks ONE question ("resend with `[ask]` or `[dev]`"); an idle thread whose classifier failed falls back to a read-only answer
+- While a task runs, a second change request is queued: "run it after the current task?" Reply `yes` (starts when the first ends) or `no`. Questions during a run get `still working...` for now (side answers and steering come with P1.4b)
 - Owner gets a Discord message with Approve/Deny buttons (owner-only, redacted summary)
 - Approve → bot creates/modifies file in plan stage; Deny → bot revises plan
 - If approved, execution creates a Git worktree with commits and a PR
@@ -319,8 +323,8 @@ add a greeting function to src/hello.ts that takes a name and returns "Hello, <n
 ```
 
 **Flow:**
-1. **Q&A Analysis:** Bot reads repo and understands the request.
-2. **Delegation:** If bot decides a code change is needed, it proposes via internal delegate tool. Bot posts "Starting plan: <repo>, add greeting function..." notice.
+1. **Intent:** rules (`[dev]` tag, aliases such as "fix bug", "code đi") or one Haiku call pick the dev role; the assistant is never involved and has no handoff tool.
+2. **Dispatch:** the app records a proposal from your message, validates repo / cap / budget, and posts "Starting plan: <repo>, add greeting function..." notice.
 3. **Plan Stage:** Bot enters plan mode and proposes a detailed plan (shows which files, what changes).
 4. **Plan Approval:** Owner gets Discord Approve/Deny buttons (owner-only, 10 min timeout).
 5. **Approval:** 

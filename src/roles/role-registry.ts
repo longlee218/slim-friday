@@ -51,8 +51,8 @@ export function findStage(roles: readonly RoleDefinition[], name: string): Stage
   return found[0];
 }
 
-/** Roles an `answer` run may hand work to (`DelegateTask` enum): every role with a `whenToUse` that does not itself answer. */
-export function delegableRoleNames(): [string, ...string[]] {
+/** Roles the dispatcher may start from a request: every role with a `whenToUse` that does not itself answer. */
+export function dispatchableRoleNames(): [string, ...string[]] {
   const names = Object.values(ROLES)
     .filter((r) => r.whenToUse && r.output !== "answer")
     .map((r) => r.name);

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { IntentDecision } from "../src/intent/decide-intent";
 import { drainQueued } from "../src/orchestrator/dispatch/queued-tasks";
-import { STILL_WORKING } from "../src/orchestrator/thread/intent-replies";
+import { STILL_WORKING, stripRoleTag } from "../src/orchestrator/thread/intent-replies";
 import {
   actionFor,
   FIX_LIMIT_REPLY,
@@ -151,16 +151,21 @@ test("executor: without the approval flow a staged task is refused by text (queu
   const bare = { ...c, deps: { db: env.db, config: env.config } as never };
   for (const kind of ["queue", "open"] as const) {
     const r = await routeByIntent({ ...bare, busy: kind === "queue" }, { kind, role: "dev" });
-    expect(text(r)).toBe("Code tasks need the Discord approval flow.");
+    expect(text(r)).toBe("This task needs the Discord approval flow.");
   }
 });
 
 test("executor: asks, hints, fix limit and the P1.4b rows are replies; none runs anything", async () => {
   const { c } = ctx();
-  expect(text(await routeByIntent(c, { kind: "ask", reason: "low_confidence" }))).toContain(
+  const idle = { ...c, busy: false };
+  expect(text(await routeByIntent(idle, { kind: "ask", reason: "low_confidence" }))).toContain(
     "[ask] or [dev]",
   );
-  expect(text(await routeByIntent(c, { kind: "ask", reason: "max_effort" }))).toContain(
+  // busy: never the ask, the run is still going
+  expect(
+    text(await routeByIntent({ ...c, busy: true }, { kind: "ask", reason: "low_confidence" })),
+  ).toBe(STILL_WORKING);
+  expect(text(await routeByIntent(idle, { kind: "ask", reason: "max_effort" }))).toContain(
     "max effort",
   );
   expect(text(await routeByIntent(c, { kind: "gate-hint" }))).toContain("Approve / Reject");
@@ -239,4 +244,11 @@ test("stop refuses queued proposals; an aborted run does not drain them", async 
   c.ac.abort();
   expect(await drainQueued({ ...c, deps: c.deps }, "done.")).toBe("done.");
   expect(oldestQueuedProposal(env.db, "th")).not.toBeNull();
+});
+
+test("stripRoleTag drops the leading role tag only", () => {
+  expect(stripRoleTag("[dev] add x")).toBe("add x");
+  expect(stripRoleTag("  [ASK]  why?")).toBe("why?");
+  expect(stripRoleTag("add [dev] x")).toBe("add [dev] x");
+  expect(stripRoleTag("[dev]")).toBe("[dev]"); // nothing left: keep the text
 });

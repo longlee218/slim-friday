@@ -11,10 +11,15 @@ import { workspacePaths } from "./config/workspace-paths";
 import { opsIds, readDiscordSetup } from "./discord-setup/discord-setup-config";
 import { createOpsLog } from "./discord-setup/ops-log";
 import { warnIfBotAdministrator } from "./discord-setup/ready-checks";
+import { warnOpsChannelsInWorkspaces } from "./discord-setup/warn-ops-channels";
 import { createDiscordBot } from "./ingress/discord-bot";
 import { buildIntentDeps } from "./intent/intent-deps";
 import { homePlacementError } from "./lifecycle/home-placement-check";
-import { expireStaleProposals, postProposalNotices } from "./lifecycle/proposal-notices";
+import {
+  expireStaleProposals,
+  postProposalNotices,
+  releaseQueuedProposals,
+} from "./lifecycle/proposal-notices";
 import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
@@ -72,14 +77,7 @@ async function main(): Promise<void> {
   } catch (err) {
     return fail(String(err instanceof Error ? err.message : err));
   }
-  // An ops channel id inside a workspace `channels:` is dropped: ingress never routes ops channels to a workspace.
-  const ops = opsIds(setup);
-  for (const w of workspaces)
-    for (const c of w.channels.filter((id) => ops.has(id)))
-      log.warn(
-        { workspace: w.name, channelId: c },
-        "ops channel listed in workspace channels: dropped",
-      );
+  warnOpsChannelsInWorkspaces(workspaces, opsIds(setup), log);
 
   // Provider and model only; never keys.
   logProviderSelected(log, config);
@@ -92,10 +90,10 @@ async function main(): Promise<void> {
   } catch (err) {
     return fail(errText(err));
   }
-  // A crash leaves tasks "running"/"waiting_approval": they stop counting against the code-task cap and
-  // become "interrupted"; after Discord is ready each such thread gets a Resume button.
+  // A crash leaves tasks "running"/"waiting_approval": they become "interrupted" (Resume button once ready).
   interruptRunningTasks(db);
   expireStaleProposals(db); // open proposals older than 24h; the rest get a `go` notice once ready
+  const queuedThreads = releaseQueuedProposals(db); // queued tasks lost their run: back to `go`
   runStartupHygiene(db, config.agentHome);
   // Fail closed: an invalid lexicon override, a duplicate role alias or INTENT_ENGINE=jev refuse the start.
   let intent: ReturnType<typeof buildIntentDeps>;
@@ -142,7 +140,7 @@ async function main(): Promise<void> {
   const opsLog = createOpsLog(() => botClient, setup.ops.log);
   client.once(Events.ClientReady, () => {
     void postResumeNotices({ db, getClient: () => botClient });
-    void postProposalNotices({ db, getClient: () => botClient });
+    void postProposalNotices({ db, getClient: () => botClient, queuedThreads });
     warnIfBotAdministrator(client, config.discordGuildId);
     void opsLog.post("start", `pid=${process.pid} v${pkg.version}`);
   });

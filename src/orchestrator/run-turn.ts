@@ -9,11 +9,11 @@ import { RESUME_FAILED } from "../runtime/run-errors";
 import { threadLedger } from "../storage/ledger-store";
 import { deleteSession, type SessionRow } from "../storage/session-store";
 import { liveWorktree } from "../storage/worktree-store";
-import { type DispatchDeps, dispatchRole } from "./dispatch/dispatch-role";
+import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { runStages, startStage } from "./engine/stage-runner";
 import { type ResumePlan, type Route, runRoute } from "./task-routing";
 import type { FlowResult } from "./tasks/task-result";
-import { closeTask, RESUMABLE_OUTCOMES } from "./tasks/task-result";
+import { closeTask } from "./tasks/task-result";
 import { deriveThreadState, isIdleLike } from "./thread/thread-state";
 
 /** Everything one task run needs from the handler (which owns the lock and the task row). */
@@ -27,8 +27,6 @@ export interface RoleRunCtx {
   workspace: string;
   repos: Repo[];
   ac: AbortController;
-  /** An `answer` role may hand work over only when the next role can ask for the owner's approval. */
-  allowDelegate: boolean;
   /** Creates the task row (called once, after the refusals, before the flow runs). */
   begin: (
     repo: string,
@@ -43,8 +41,8 @@ export interface RoleRunCtx {
 }
 
 /**
- * Run a routed message as the role the route names (the stage runner runs ANY role): close its task row, then
- * hand over a recorded proposal (AFTER the turn is closed) and map a failed resume to the owner's reply.
+ * Run a routed message as the role the route names (the stage runner runs ANY role): close its task row and
+ * map a failed resume to the owner's reply.
  * `plan` is what `resolveCommand` made of the message (Resume adds a session / plan scratch dir).
  */
 export async function runTurn(
@@ -88,7 +86,6 @@ export async function runTurn(
       worktree && existing?.cwd === realOrSame(worktree.path) ? existing.session_id : undefined,
     pinned,
     existing,
-    allowDelegate: c.allowDelegate,
     ledger,
   });
   const o = { stopping: deps.stopping(), t0: c.t0, repo: c.taskRepo() };
@@ -100,24 +97,6 @@ export async function runTurn(
     keepClone ? { ...res, sessionId: undefined } : res,
     o,
   );
-  // `DelegateTask` was called: the proposed role starts now, same thread and lock (`await`: finally must wait).
-  if (res.proposal && RESUMABLE_OUTCOMES.has(res.outcome)) {
-    return dispatchRole(deps, {
-      request: {
-        role: res.proposal.role,
-        brief: res.proposal.brief,
-        repo: res.proposal.repo,
-        cls,
-      },
-      task,
-      reply,
-      workspace: ws,
-      repos: c.repos,
-      pinned,
-      ac: c.ac,
-      fromTaskId: taskId,
-    });
-  }
   // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
   if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {
     // The plan session lives on the task row (the failed task now has none, so Resume stops offering it).

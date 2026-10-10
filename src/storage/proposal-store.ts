@@ -148,6 +148,19 @@ export function oldestQueuedProposal(db: Database, threadId: string): Proposal |
     .get(threadId);
 }
 
+/**
+ * Startup: a `queued` proposal lost the run it waited for (restart). Put it back to `pending` so `go` starts it
+ * and nothing launches silently later. Returns the threads that have one.
+ */
+export function releaseQueued(db: Database): string[] {
+  return db
+    .query<{ thread_id: string }, []>(
+      `UPDATE proposals SET status = 'pending', decided_at = NULL WHERE status = 'queued' RETURNING thread_id`,
+    )
+    .all()
+    .map((r) => r.thread_id);
+}
+
 /** Refuse every `queued` proposal of a thread (`stop`: the owner cancelled the work); returns how many. */
 export function refuseQueued(db: Database, threadId: string, now = Date.now()): number {
   return db

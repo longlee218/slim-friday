@@ -85,7 +85,7 @@ test("owner mention in channel -> thread created, task run, reply sent in thread
   expect(tasks).toMatchObject([
     { source: "discord", userId: OWNER, threadId: "thr1", channelId: "chan", text: "hello" },
   ]);
-  expect(tasks[0]!.notify).toBeFunction(); // lets the handoff post into the thread mid-run
+  expect(tasks[0]!.notify).toBeFunction(); // lets a dispatched plan post into the thread mid-run
   expect(m.thread.sent[0].content).toBe("hi @everyone");
   expect(m.thread.sent[0].allowedMentions).toEqual({ parse: [], repliedUser: false });
 });

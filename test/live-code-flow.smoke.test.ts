@@ -5,9 +5,9 @@ import { workspacePaths } from "../src/config/workspace-paths";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { g, makeRepo } from "./git-fixture";
-import { addRepo, clearWorkspaces, makeEnv, stubGateway, TEST_CHANNEL } from "./helpers";
+import { addRepo, clearWorkspaces, devIntent, makeEnv, stubGateway, TEST_CHANNEL } from "./helpers";
 
-// Live test: Q&A agent delegates -> plan -> approve -> worktree -> agent edits + commits in the worktree (real SDK, OpenRouter).
+// Live test: a `[dev]` message (intent L3) -> plan -> approve -> worktree -> agent edits + commits in the worktree (real SDK, OpenRouter).
 const key = process.env.OPENROUTER_API_KEY;
 const live = !!key && key !== PLACEHOLDER;
 if (!live) {
@@ -43,13 +43,18 @@ describe.skipIf(!live)("live worktree code flow (OpenRouter)", () => {
       confirm: async () => (asked.push("confirm"), { approved: false, reason: "owner declined" }),
       askChoice: async (a) => a.options[0],
     });
-    const handle = createTaskHandler({ db: env.db, config: env.config, approvals: gw });
+    const handle = createTaskHandler({
+      db: env.db,
+      config: env.config,
+      approvals: gw,
+      intent: devIntent(env.home),
+    });
     const reply = await handle({
       source: "test",
       channelId: TEST_CHANNEL,
       userId: "u",
       threadId: "live-flow1",
-      text: "Create a file named hello.txt containing exactly the word hi, and commit it.",
+      text: "[dev] Create a file named hello.txt containing exactly the word hi, and commit it.",
     });
 
     const wt = getWorktreeByThread(env.db, "live-flow1");

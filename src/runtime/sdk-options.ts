@@ -46,7 +46,7 @@ function mergeHooks(
 
 /**
  * The SDK `Options` of one run, derived from the stage (tools, git groups, permission mode, subagents,
- * handoff server, prompt) and the run input (paths, context, resume). `config` is already the stage's
+ * prompt) and the run input (paths, context, resume). `config` is already the stage's
  * (see `stageConfig`). Only the MCP server start is async; no I/O else happens here.
  */
 export async function buildSdkOptions(
@@ -105,7 +105,6 @@ export async function buildSdkOptions(
       (input.extraContext ?? []).filter(Boolean).join("\n\n"),
       stage,
       {
-        handoff: !!input.appServer,
         workflow: input.workflow,
         escalation: !!input.route?.offerEscalation,
       },

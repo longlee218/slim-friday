@@ -1,7 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createGitMcp } from "../src/mcp/git-mcp";
-import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { listPendingProposals } from "../src/storage/proposal-store";
@@ -12,7 +11,7 @@ import {
   addRepo,
   BRIEF,
   clearWorkspaces,
-  delegatingQuery,
+  devIntent,
   makeEnv,
   resultMsg,
   stubGateway,
@@ -48,33 +47,16 @@ const deps = (env: Awaited<ReturnType<typeof setup>>["env"], runs: unknown[]) =>
   stopping: () => false,
 });
 
-test("ordering: the source stream has ended before the proposal is persisted, validated and dispatched", async () => {
+test("ordering: the proposal is persisted and validated before the plan stage runs; no assistant turn first", async () => {
   const { env } = await setup();
-  let closed = false;
   const events: string[] = [];
-  const seenWhileOpen: number[] = [];
-  const count = () => rows(env, "SELECT 1 FROM proposals").length;
-  const inner = delegatingQuery([{ brief: BRIEF }], (a: any) => {
-    // Stage run = dispatch happened: the Q&A stream must already be over and the row persisted.
-    events.push(`stage-run closed=${closed} proposals=${count()}`);
-    void a;
+  const query = (a: any) => {
+    // Stage run = dispatch happened: the proposal row must already exist.
+    events.push(
+      `stage-run ${a.options.permissionMode} proposals=${rows(env, "SELECT 1 FROM proposals").length}`,
+    );
     return (async function* () {
       yield resultMsg();
-    })();
-  });
-  const query = (a: any) => {
-    if (!a.options?.mcpServers?.[TASKS_MCP_SERVER]) return inner(a);
-    const stream = inner(a);
-    return (async function* () {
-      try {
-        for await (const m of stream) {
-          seenWhileOpen.push(count()); // proposals visible while the source turn is still open
-          yield m;
-        }
-      } finally {
-        closed = true;
-        events.push("qa-closed");
-      }
     })();
   };
   const handle = createTaskHandler({
@@ -83,11 +65,10 @@ test("ordering: the source stream has ended before the proposal is persisted, va
     config: env.config,
     approvals: stubGateway(),
     queryFn: query as never,
+    intent: devIntent(env.home),
   });
-  await handle(task);
-  expect(seenWhileOpen.length).toBeGreaterThan(0);
-  expect(seenWhileOpen.every((n) => n === 0)).toBe(true); // nothing persisted during the turn
-  expect(events).toEqual(["qa-closed", "stage-run closed=true proposals=1"]);
+  await handle({ ...task, text: "[dev] add a file with the answer" });
+  expect(events).toEqual(["stage-run plan proposals=1"]);
   expect(rows(env, "SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
 });
 

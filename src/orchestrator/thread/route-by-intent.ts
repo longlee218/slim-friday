@@ -112,7 +112,8 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
   logEvent(log, "intent.routed", { action: a.kind, busy: c.busy });
   switch (a.kind) {
     case "ask":
-      return reply(ASK_TEXT[a.reason]());
+      // A busy thread never asks: whatever the owner meant, the run is still going.
+      return reply(c.busy ? STILL_WORKING : ASK_TEXT[a.reason]());
     case "gate-hint":
       return reply(GATE_HINT);
     case "fix-limit":

@@ -5,7 +5,7 @@ import type { GitData, GitMcp } from "../../mcp/git-mcp";
 import { GIT_TOOL } from "../../mcp/mcp-tool-names";
 import { isManagedClone } from "../../repos/refresh-repo";
 import type { Repo } from "../../repos/repo-registry";
-import { delegableRoleNames, ROLES } from "../../roles/role-registry";
+import { dispatchableRoleNames, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
 import { capRefusal, type Refusal, refuse, resolveTaskRepo } from "./task-repo";
 
@@ -18,7 +18,7 @@ const SKILLS_ORDER: readonly SkillsMode[] = ["off", "lean", "full"];
 /** Below this a recommendation is not acted on: the owner is asked once instead (never a guess). */
 export const LOW_CONFIDENCE = 0.4;
 
-/** What a proposer (the DelegateTask capture now, the intent layer in P1.4c) asks the orchestrator to run. */
+/** What a proposer (the intent layer, the owner's `go`) asks the orchestrator to run. */
 export interface DispatchRequest {
   role: string;
   brief: string;
@@ -29,7 +29,7 @@ export interface DispatchRequest {
   /** Task class; missing = standard. */
   cls?: TaskClass;
   intent?: string;
-  /** 0..1; below `LOW_CONFIDENCE` the owner is asked. Missing = confident (owner-typed or tool-recorded). */
+  /** 0..1; below `LOW_CONFIDENCE` the owner is asked. Missing = confident (owner-typed). */
   confidence?: number;
   /** Why the proposer chose this (log only, redacted when stored). */
   reason?: string;
@@ -81,23 +81,6 @@ export interface InvalidRequest {
 export const repoHint = (agentHome: string, pinned: Repo | undefined, repo?: string) =>
   repo ?? (pinned && isManagedClone(pinned.path, agentHome) ? pinned.name : undefined);
 
-/**
- * The `DelegateTask` tool's pre-check: refusal text (cap full, no managed clone, unknown repo), or undefined
- * when a code task may start. Same repo + cap rule as the dispatcher's validation.
- */
-export function delegateCheck(p: {
-  db: Database;
-  agentHome: string;
-  repos: Repo[];
-  pinned?: Repo;
-}): (repo?: string) => string | undefined {
-  return (repo) => {
-    const r = resolveTaskRepo(p.agentHome, p.repos, repoHint(p.agentHome, p.pinned, repo));
-    const b = "reply" in r ? r : capRefusal(p.db);
-    return b ? b.reply : undefined;
-  };
-}
-
 /** `skills.mode` after the env cap; an unknown cap value fails closed to `off`. */
 export function clampSkillsMode(requested: SkillsMode = "off", cap?: string): SkillsMode {
   if (cap === undefined || cap === "") return requested;
@@ -112,7 +95,7 @@ const ask = (reason: string, question: string): InvalidRequest => ({
 });
 
 /**
- * Validate a request: role in the registry (and delegable), confidence, repo in the workspace
+ * Validate a request: role in the registry (and dispatchable), confidence, repo in the workspace
  * (`resolveTaskRepo`), `base` an existing local branch, cap (when the role counts), budget, `skills.mode`.
  * What the owner can fix (unknown role/repo/base, low confidence) -> `ask`; what only waiting fixes (cap, no
  * clone, no budget) -> `refuse`.
@@ -121,11 +104,14 @@ export async function validateRequest(
   d: ValidationDeps,
   req: DispatchRequest,
 ): Promise<ValidRequest | InvalidRequest> {
-  const delegable: string[] = delegableRoleNames();
+  const dispatchable: string[] = dispatchableRoleNames();
   const role = Object.hasOwn(ROLES, req.role) ? ROLES[req.role] : undefined;
   const firstStage = role?.stages[0];
-  if (!role || !firstStage || !delegable.includes(req.role)) {
-    return ask("unknown_role", `Unknown role "${req.role}". Available: ${delegable.join(", ")}.`);
+  if (!role || !firstStage || !dispatchable.includes(req.role)) {
+    return ask(
+      "unknown_role",
+      `Unknown role "${req.role}". Available: ${dispatchable.join(", ")}.`,
+    );
   }
   if (!req.confirmed && req.confidence !== undefined && req.confidence < LOW_CONFIDENCE) {
     return ask(

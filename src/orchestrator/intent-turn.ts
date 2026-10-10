@@ -14,8 +14,13 @@ import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { findRepo } from "./dispatch/task-repo";
 import type { TaskCommand } from "./task-commands";
 import type { EffortFloors } from "./thread/effort-floor";
-import { STILL_WORKING } from "./thread/intent-replies";
-import { actionFor, type IntentOutcome, routeByIntent } from "./thread/route-by-intent";
+import { STILL_WORKING, stripRoleTag } from "./thread/intent-replies";
+import {
+  actionFor,
+  type IntentOutcome,
+  MAX_FIX_ROUNDS,
+  routeByIntent,
+} from "./thread/route-by-intent";
 import { deriveThreadState, isIdleLike } from "./thread/thread-state";
 import { turnEffort } from "./thread/turn-effort";
 
@@ -50,23 +55,23 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   const threadId = c.task.threadId;
   const state = deriveThreadState(db, threadId);
   const clone = liveWorktree(db, threadId);
+  const fixRounds = clone ? countFollowUps(db, clone.taskId) : 0;
   const { decision, effort } = await decideIntent(
     {
       text: c.cmd.text,
       state,
       pendingAsk: pendingProposal(db, threadId) !== null,
-      hasTask: !isIdleLike(state) || !!clone,
+      // A busy thread cannot steer yet (P1.4b): a dev request is a NEW task (queue question). A clone that
+      // used its fix rounds takes no more work either: the next dev request is a NEW task.
+      hasTask: !c.busy && (!isIdleLike(state) || !!clone) && fixRounds < MAX_FIX_ROUNDS,
       ownerClass: c.cmd.cls,
+      signal: c.ac.signal,
       l4Input: () => buildIntentInput(db, { threadId, text: c.cmd.text, state }),
     },
-    c.intent,
+    // A busy thread never pays for L4: only L1 / L3 can act on it (yes/no, `[dev]` queue question).
+    c.busy ? { ...c.intent, classifier: undefined } : c.intent,
   );
-  let action = actionFor({
-    decision,
-    state,
-    hasClone: !!clone,
-    fixRounds: clone ? countFollowUps(db, clone.taskId) : 0,
-  });
+  let action = actionFor({ decision, state, hasClone: !!clone, fixRounds });
   // Effort only matters for a run that starts now; `max` needs the owner's confirmation (ask instead).
   let turn: ReturnType<typeof turnEffort> = { pendingMax: false };
   if (decision.kind === "role" && ["run", "open", "fix"].includes(action.kind)) {
@@ -77,7 +82,7 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
     {
       ...c,
       pinned: pinnedRepo(c.repos, c.cmd.repo, c.stored),
-      text: c.cmd.text,
+      text: stripRoleTag(c.cmd.text),
       repo: c.cmd.repo,
       cls: decision.kind === "role" ? decision.cls : undefined,
       effort: turn.effort,

@@ -5,7 +5,6 @@ import { redactText } from "../../observability/redact";
 import type { RunAgentResult } from "../../runtime/run-agent";
 import { finishTask, setTaskStatus, type TaskStatus } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
-import type { Proposal } from "../../tools/DelegateTaskTool/delegate-task-tool";
 import { budgetHitReply } from "../engine/budget";
 
 /* The result of a Q&A or code flow, and the bookkeeping that closes a run. */
@@ -18,8 +17,6 @@ export interface FlowResult
   /** cwd + repo of the session to save (resume needs the same cwd), when a session should be stored. */
   cwd?: string;
   repo?: string;
-  /** Q&A only: the agent called `DelegateTask`; the handler starts the plan stage after the run. */
-  proposal?: Proposal;
   /** Save the session although the outcome is not success/limit (a stage stopped to await the owner's reply). */
   keepSession?: boolean;
   /** Model of an escalated re-run (the stage row then records it instead of the first run's model). */
@@ -52,7 +49,7 @@ const TASK_STATUS: Record<string, TaskStatus> = {
 
 /**
  * Outcomes where a result message arrived, so the session transcript exists and can be resumed (the session
- * is saved) and a recorded `DelegateTask` proposal is still acted on.
+ * is saved).
  */
 export const RESUMABLE_OUTCOMES: ReadonlySet<RunOutcome> = new Set([
   "success",

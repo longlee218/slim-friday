@@ -13,7 +13,6 @@ import {
   mcpServerPrefix,
 } from "../mcp/mcp-tool-names";
 import { type StageRef, stageOf } from "../roles/role-registry";
-import { DELEGATE_TASK_MCP_TOOL_NAME } from "../tools/DelegateTaskTool/constants";
 import {
   AGENT_TOOL_NAME,
   BASH_TOOL_NAME,
@@ -65,14 +64,10 @@ export type GuardScope = Omit<GuardrailContext, "allowTools" | "allowedSubagents
  * allowlist from the stage itself (none listed = none allowed, fail closed), the paths from the caller.
  * One builder for every stage.
  */
-export function guardFor(
-  stage: StageRef,
-  scope: GuardScope,
-  opts: { delegate?: boolean } = {},
-): GuardrailContext {
+export function guardFor(stage: StageRef, scope: GuardScope): GuardrailContext {
   return {
     ...scope,
-    allowTools: autoAllowedTools(stage, opts),
+    allowTools: autoAllowedTools(stage),
     allowedSubagents: stageOf(stage).subagents ?? [],
   };
 }
@@ -165,11 +160,6 @@ export function checkToolCall(
   // GitHub MCP is started read-only for agents (the app creates PRs itself): every tool it has is a read.
   if (toolName.startsWith(mcpServerPrefix(GITHUB_MCP_SERVER)))
     return { decision: "allow", reason: "github read tool" };
-  // The Q&A agent's handoff tool: only modes that list it (qa) may call it; plan/exec never recurse.
-  if (toolName === DELEGATE_TASK_MCP_TOOL_NAME)
-    return ctx.allowTools?.includes(DELEGATE_TASK_MCP_TOOL_NAME)
-      ? { decision: "allow", reason: "DelegateTask tool (qa)" }
-      : { decision: "deny", reason: "DelegateTask is only available in Q&A" };
   if (toolName.startsWith(MCP_PREFIX)) return { decision: "deny", reason: "unknown MCP tool" };
   if (toolName === AGENT_TOOL_NAME || toolName === LEGACY_AGENT_TOOL_NAME) {
     const type = input.subagent_type;

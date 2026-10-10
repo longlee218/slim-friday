@@ -20,7 +20,7 @@ export type TaskCommand =
   /** `remember:` / `forget:` / `compact memory` (see memory-commands.ts): answered by app code, never by the agent. */
   | { kind: "memory" }
   /**
-   * Every plain message is a task of the entry role (the agent hands changes over with its `DelegateTask` tool).
+   * Every plain message is a task; the intent layer picks its role (no intent layer: the entry role).
    * `role` is never parsed: only a Resume of an interrupted plan stage sets it (that task's role starts again).
    * `repo:<name>` is an optional hint.
    */

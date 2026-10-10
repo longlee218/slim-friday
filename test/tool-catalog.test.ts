@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
 import type { StageName as ToolMode } from "../src/roles/role-registry";
-import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import {
   AGENT_TOOL_NAME,
   ASK_USER_QUESTION_TOOL_NAME,
@@ -94,9 +93,7 @@ test("no tool is listed twice", () => {
 
 test("auto-allowed tools are a subset of the mode's tools and never include writes, shell or questions", () => {
   for (const m of MODES) {
-    // `DelegateTask` is an MCP tool (not in the built-in `tools` list) allowed in qa only.
-    for (const t of autoAllowedTools(m).filter((x) => x !== DELEGATE_TASK_MCP_TOOL_NAME))
-      expect(toolsFor(m)).toContain(t);
+    for (const t of autoAllowedTools(m)) expect(toolsFor(m)).toContain(t);
     for (const t of [
       WRITE_TOOL_NAME,
       EDIT_TOOL_NAME,
@@ -113,17 +110,8 @@ test("auto-allowed tools are a subset of the mode's tools and never include writ
     WEB_SEARCH_TOOL_NAME,
     WEB_FETCH_TOOL_NAME,
     SKILL_TOOL_NAME,
-    DELEGATE_TASK_MCP_TOOL_NAME,
   ]);
-  expect(autoAllowedTools("plan")).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
-  expect(autoAllowedTools("exec")).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
   expect(autoAllowedTools("exec")).toContain(ENTER_PLAN_MODE_TOOL_NAME);
-});
-
-test("DelegateTask is auto-allowed in qa only when the run registers it", () => {
-  expect(autoAllowedTools("qa", { delegate: false })).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
-  expect(autoAllowedTools("qa", { delegate: true })).toContain(DELEGATE_TASK_MCP_TOOL_NAME);
-  expect(autoAllowedTools("exec", { delegate: true })).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
 });
 
 test("git tools: reads everywhere, commit/change only in exec, hidden = the complement", () => {

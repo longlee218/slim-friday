@@ -3,6 +3,8 @@ import {
   expireStaleProposals,
   PROPOSAL_NOTICE,
   postProposalNotices,
+  QUEUED_NOTICE,
+  releaseQueuedProposals,
 } from "../src/lifecycle/proposal-notices";
 import {
   PROPOSAL_EXPIRED_REPLY,
@@ -17,6 +19,7 @@ import {
   insertProposal,
   listPendingProposals,
   PROPOSAL_TTL_MS,
+  setProposalStatus,
 } from "../src/storage/proposal-store";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTask, setTaskSession } from "../src/storage/run-store";
@@ -24,7 +27,7 @@ import {
   addRepo,
   BRIEF,
   clearWorkspaces,
-  delegatingQuery,
+  devIntent,
   makeEnv,
   resultMsg,
   stubGateway,
@@ -39,30 +42,31 @@ const msg = (text: string) => ({
   text,
 });
 
-/** Env with a managed clone, a handler whose Q&A agent delegates `BRIEF`, and every plan-stage run captured. */
+/** Env with a managed clone, a handler with the intent layer (L0-L3), and every plan-stage run captured. */
 function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
   addRepo(env.home, "repo");
   const stageRuns: any[] = [];
-  const query = delegatingQuery([{ brief: BRIEF }], (a: any) => {
+  const query = (a: any) => {
     stageRuns.push(a.options);
     return (async function* () {
       yield resultMsg();
     })();
-  });
+  };
   const handle = createTaskHandler({
     db: env.db,
     config: env.config,
     queryFn: query as never,
     approvals: stubGateway(),
+    intent: devIntent(env.home),
   });
   return { env, handle, stageRuns };
 }
 
-test("DelegateTask: proposal row persisted after the Q&A turn, dispatched with the task; class kept on both", async () => {
+test("intent: a dev request persists a proposal row, dispatched with the task; class kept", async () => {
   const { env, handle, stageRuns } = setup();
-  await handle(msg("[design] fix it"));
+  await handle(msg("[design] [dev] fix it"));
   const [p] = env.db.query<any, []>("SELECT * FROM proposals").all();
   expect(p).toMatchObject({
     thread_id: "t1",
@@ -71,17 +75,11 @@ test("DelegateTask: proposal row persisted after the Q&A turn, dispatched with t
     class: "design",
     status: "dispatched",
   });
-  expect(p.from_task_id).toBeString();
+  expect(p.from_task_id).toBeNull(); // no source turn: the orchestrator wrote it from the owner message
   expect(p.decided_at).toBeNumber();
-  const tasks = env.db
-    .query<any, []>("SELECT id, type, class, proposal_id FROM tasks ORDER BY type DESC")
-    .all();
-  expect(tasks.map((t) => [t.type, t.class])).toEqual([
-    ["qa", "design"],
-    ["code", "design"],
-  ]);
-  expect(tasks[1].proposal_id).toBe(p.id);
-  expect(tasks[0].id).toBe(p.from_task_id);
+  const tasks = env.db.query<any, []>("SELECT type, class, proposal_id FROM tasks").all();
+  expect(tasks.map((t) => [t.type, t.class])).toEqual([["code", "design"]]);
+  expect(tasks[0].proposal_id).toBe(p.id);
   expect(stageRuns).toHaveLength(1); // the plan stage ran
 });
 
@@ -102,15 +100,10 @@ test("`go` starts a pending proposal that survived a restart; a second `go` is p
   expect(env.db.query("SELECT type, class, proposal_id FROM tasks").all()).toEqual([
     { type: "code", class: "mechanical", proposal_id: id },
   ]);
-  // Nothing pending now: "go" is an ordinary message (a Q&A run; this fake agent delegates again, so the
-  // new proposal comes from a Q&A task and the first one is not touched).
+  // Nothing pending now: "go" is an ordinary message (no L4 here: the assistant answers); no new proposal.
   await handle(msg("go"));
-  const rows = env.db
-    .query<any, []>("SELECT id, from_task_id FROM proposals ORDER BY created_at, rowid")
-    .all();
-  expect(rows).toHaveLength(2);
-  expect(rows[0].from_task_id).toBeNull();
-  expect(rows[1].from_task_id).toBeString();
+  const rows = env.db.query<any, []>("SELECT id, status FROM proposals").all();
+  expect(rows).toEqual([{ id, status: "dispatched" }]);
 });
 
 test("`go` in another thread does not start this thread's proposal", async () => {
@@ -248,4 +241,30 @@ test("use-time TTL: pendingProposalFor expires an old pending proposal (fake clo
   );
   expect(await handle(msg("go"))).toBe(PROPOSAL_EXPIRED_REPLY);
   expect(getProposal(env.db, old)?.status).toBe("expired");
+});
+
+test("startup: a queued proposal goes back to pending and gets its own notice", async () => {
+  const env = makeEnv();
+  const id = insertProposal(env.db, {
+    threadId: "q",
+    workspace: "main",
+    role: "dev",
+    brief: BRIEF,
+  });
+  setProposalStatus(env.db, id, "queued");
+  const queuedThreads = releaseQueuedProposals(env.db);
+  expect([...queuedThreads]).toEqual(["q"]);
+  expect(getProposal(env.db, id)?.status).toBe("pending");
+  const sent: Array<[string, string]> = [];
+  const client: any = {
+    channels: {
+      fetch: async (tid: string) => ({
+        isSendable: () => true,
+        send: async (m: any) => sent.push([tid, m.content]),
+      }),
+    },
+  };
+  await postProposalNotices({ db: env.db, getClient: () => client, queuedThreads });
+  expect(sent).toEqual([["q", QUEUED_NOTICE]]);
+  expect(QUEUED_NOTICE).toContain("Queued task not started");
 });

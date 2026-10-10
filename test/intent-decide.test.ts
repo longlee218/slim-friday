@@ -194,3 +194,16 @@ test("the L4 input is built lazily, only when L4 runs", async () => {
   await run(d, lazy(VAGUE));
   expect(built).toBe(1);
 });
+
+test("the thread's stop signal is handed to the L4 call", async () => {
+  const signals: (AbortSignal | undefined)[] = [];
+  const classifier: IntentClassifier = {
+    classify: async (_i, signal) => {
+      signals.push(signal);
+      return answer();
+    },
+  };
+  const ac = new AbortController();
+  await run({ pipeline, classifier }, input(VAGUE, { signal: ac.signal }));
+  expect(signals).toEqual([ac.signal]);
+});

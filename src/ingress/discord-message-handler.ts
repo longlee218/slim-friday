@@ -24,7 +24,7 @@ export interface Task {
   /** Routing key: the parent channel of the thread (or the channel of a new conversation). */
   channelId: string;
   text: string;
-  /** Posts a message into the thread while the task still runs (a delegated plan waits for approval). */
+  /** Posts a message into the thread while the task still runs (a dispatched plan waits for approval). */
   notify?: (text: string) => Promise<void>;
 }
 

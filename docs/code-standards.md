@@ -25,8 +25,8 @@ bun run start          # Start bot (reads .env)
 **Tools:** Custom tools use a structured layout:
 - Folder: `src/tools/<Name>Tool/` (PascalCase folder per tool)
 - Files: `constants.ts` (tool name), `prompt.ts` (schema description + tool-owned rules), `<name>-tool.ts` (schema + handler)
-- Tool names: PascalCase (e.g., `DelegateTask`), stored in `src/tools/sdk-tool-names.ts` (SDK tools) and `src/mcp/mcp-tool-names.ts` (MCP tools)
-- MCP servers: Created per domain boundary (`tasks`, `git`, `github`); in-process SDK server type only
+- Tool names: PascalCase, stored in `src/tools/sdk-tool-names.ts` (SDK tools) and `src/mcp/mcp-tool-names.ts` (MCP tools)
+- MCP servers: `git` and `github` only (the in-process `tasks` server and its `DelegateTask` tool were retired in P1.4c: the assistant has no handoff tool, the intent layer routes change requests)
 - Enforcement: Every tool name from a constant; no string literals. Test `test/tool-name-literals.test.ts` scans source; `test/tool-names.test.ts` pins wire values.
 
 **Structure:**
@@ -40,8 +40,8 @@ src/
 │   ├── discord-message-handler.ts
 │   └── discord-message-rules.ts
 ├── runtime/                    # Agent SDK logic
-│   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; opts.handoff for delegate tool; workspace skills from an app-owned plugin, `settingSources: []`
-│   ├── system-prompt.ts        # Sections: MODE (qa/plan/exec contract), HANDOFF (delegate tool when opts.handoff=true), ASK_RULES (Phase 3), COMMON (safety), then context. Identity/tone in persona files, not here.
+│   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; workspace skills from an app-owned plugin, `settingSources: []`
+│   ├── system-prompt.ts        # Sections: stage sections (qa/plan/exec contract), ASK_RULES (Phase 3), COMMON (safety), then context. Identity/tone in persona files, not here.
 │   ├── code-rules.ts           # ASK_RULES text constant; FULL_RULES for full-mode repos (Phase 3)
 │   ├── tool-permissions.ts     # core permission layer: PreToolUse (hard deny/force ask) + canUseTool (approvals, ONE ask per task via askLimit, Phase 3)
 │   ├── workspace-skills-plugin.ts # build the app-owned plugin from workspaces/<ws>/skills with validation and caps
@@ -61,26 +61,31 @@ src/
 ├── memory/                     # Persistent per-repo context & persona layering (phase 1+)
 │   ├── persona.ts              # Persona layering: root + workspace overrides
 │   ├── persona-templates.ts    # Default file templates
-│   ├── prompt-context.ts       # Build full context order: persona → registry → memory → rejected-plans (phase 1c+)
+│   ├── prompt-context.ts       # Build full context order: persona → registry → memory → task ledger
 │   ├── memory-writer.ts        # Append task memory + [global] bullets
 │   └── repo-memory.ts          # MEMORY.md loader/writer, append on exec success
 ├── orchestrator/               # Task lifecycle
 │   ├── handle-task.ts          # map thread → session; task command parse; stage detection (phase 4+)
 │   ├── task-commands.ts        # parse task/stop/cleanup commands; repo pinning; Resume routing (phase 5+)
 │   ├── task-routing.ts         # routeTask (pin / follow-up / refusals -> role), resolveCommand (Resume), runRoute; route-by-intent replaces routeTask in P1.4c
-│   ├── thread/                 # thread-state.ts (derived from the gate table), effort-floor.ts
+│   ├── route-and-run.ts        # one plain message: Resume / `go` / intent turn -> runTurn
+│   ├── intent-turn.ts          # state -> intent decision -> effort -> table action; replyWhileBusy
+│   ├── thread/                 # thread-state.ts (derived from the gate table), effort-floor.ts, route-by-intent.ts (behavior table), intent-replies.ts, turn-effort.ts
 │   ├── dispatch/               # dispatch-role.ts, validate-request.ts, task-repo.ts, proposal-flow.ts, start-proposal.ts (never import runtime/)
-│   ├── engine/                 # generic stage engine, knows no role names: stage-runner.ts (loop over role.stages), run-turn.ts (one routed message), gates.ts (gate table + stageKind), plan-run.ts (gate plan-approval), plain-run.ts (read-only stage), isolation.ts (clone stage + switch), handoff.ts (template), stage-control.ts, budget.ts
+│   ├── engine/                 # generic stage engine, knows no role names: stage-runner.ts (loop over role.stages), gates.ts (gate table + stageKind), plan-run.ts (gate plan-approval), plain-run.ts (read-only stage), isolation.ts (clone stage + switch), handoff.ts (template), stage-control.ts, budget.ts
 │   ├── outputs/                # answer-output.ts (ESCALATE re-run), pr-output.ts (delivery gate: PR)
 │   └── tasks/                  # task-tracker.ts, task-result.ts, run-limiter.ts, task-worktree.ts
 │   └── ...
 ├── tools/                      # Tool configuration & custom tools
 │   ├── tool-catalog.ts         # single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS (196/200 lines: split before adding more tools)
 │   ├── sdk-tool-names.ts       # SDK tool names (exported constants)
-│   └── DelegateTaskTool/       # Custom tool for delegating code tasks
-│       ├── constants.ts        # tool name constant: DelegateTask
-│       ├── prompt.ts           # tool schema description + HANDOFF rules
-│       └── delegate-task-tool.ts # schema + handler
+│   └── (no custom tool today; a new one goes in src/tools/<Name>Tool/)
+├── intent/                     # Intent layer (P1.4c): which role handles a message
+│   ├── run-intent-pipeline.ts  # L1 gate answer -> L3 alias (L2 effort signals alongside)
+│   ├── decide-intent.ts        # pipeline + L4 + validation + fallbacks; logs intent.layer
+│   ├── haiku-intent-classifier.ts / create-intent-classifier.ts / intent-prompt.ts / intent-schema.ts / intent-types.ts
+│   ├── normalize-text.ts / phrase-matcher.ts / alias-router.ts / gate-answer.ts / effort-signals.ts
+│   └── load-lexicon.ts / lexicon-schema.ts / data/intent-lexicon.yaml
 ├── guardrails/                 # Tool call validation
 │   ├── check-tool-call.ts      # core guard: route tool → allow/ask/deny; GuardrailContext
 │   ├── paths.ts                # isInside, resolveReal/realOrSame path helpers
@@ -98,7 +103,7 @@ src/
 ├── storage/                    # Database & persistence
 │   ├── db.ts                   # SQLite setup; worktrees table (phase 4+); tasks.brief column (phase 1c+, idempotent ALTER)
 │   ├── run-store.ts            # runs table ops; insertTask stores brief redacted (phase 1c+); memory append on exec success
-│   ├── approval-store.ts       # insertApproval/decideApproval (moved from run-store); rejectedPlans query per thread (phase 1c+)
+│   ├── approval-store.ts       # insertApproval/decideApproval (moved from run-store)
 │   ├── worktree-store.ts       # worktrees table ops (phase 4+)
 │   ├── session-store.ts        # session table ops
 │   └── ...
@@ -123,9 +128,9 @@ test/
 ├── bash-policy.test.ts         # Bash allowlist + gates
 ├── code-task.test.ts           # code task approval flow
 ├── approval-gateway.test.ts    # PreToolUse + canUseTool integration
-├── rejected-plans.test.ts      # rejectedPlans query logic, thread isolation, clipping (phase 1c+)
 ├── db-schema.test.ts           # DB migration, idempotency (phase 1c+)
-├── delegate-eval.live.test.ts  # Golden set: 21 live Sonnet/deepseek runs (phase 1c+, opt-in: DELEGATE_EVAL=1)
+├── intent-eval.live.test.ts    # Golden set of the intent layer on real Haiku (opt-in: INTENT_EVAL=1; cases in intent-eval-cases*.ts)
+├── handoff-retired-scan.test.ts # the retired DelegateTask / handoff names must not return to src or test
 ├── ask-boundary.test.ts        # ask limit per task, timeout → awaiting, plan/exec stages, stop vs clarification (Phase 3)
 ├── workspace-skills-plugin.test.ts # workspace plugin, symlink/cap validation, cleanup
 ├── workspace-skills-qa.test.ts # qa: workspace skills only, repo skills/hooks ignored, guard read access
@@ -221,7 +226,7 @@ $AGENT_HOME/workspaces/<repo-name>/
 **Rules:**
 - Worktree created only on managed clones (realpath under `$AGENT_HOME/workspaces/<ws>/repos/<repo>/repo/`)
 - Branch: `agent/<first-8-chars-taskId>` from `origin/<defaultBranch>`
-- Concurrency: max 2 code tasks (running or waiting_approval)
+- Concurrency: max 2 capped tasks (`MAX_CAPPED_TASKS`; running or waiting_approval)
 - Cleanup: `cleanup:<task-id>` removes worktree + local branch + session; can be posted anytime
 - No GC/TTL on startup (phase 5 candidate)
 

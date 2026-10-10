@@ -1,13 +1,13 @@
 # Codebase Summary
 
 ## Overview
-**Friday agent v1** — Discord-driven personal coding agent on Claude Agent SDK. Owner posts code questions in a Discord thread → agent reads repo, answers with file:line references. Approved code tasks create a Git worktree, make changes via git/GitHub MCP, and open a PR.
+**Friday agent v1** — Discord-driven personal coding agent on Claude Agent SDK. Owner posts a message in a Discord thread → the intent layer (src/intent) picks the role: the read-only assistant answers with file:line references; dev plans, then after approval makes changes in a Git worktree via git/GitHub MCP and opens a PR.
 
 **Stack:** Bun + TypeScript + Discord.js + Claude Agent SDK + SQLite + Official MCP servers (git, GitHub)
 
-**Test Coverage:** 438 tests pass, 6 skipped (live smoke tests) | Type check: clean | No console.* in src/
-**Phase 1c (Delegate Phase 2):** Rejected-plans memory + approvals refactor; eval test opt-in (DELEGATE_EVAL=1)
-**Phase 1e (Tool folders & naming):** All tool names from exported constants; `src/tools/<Name>Tool/` layout (PascalCase folder, kebab-case files); MCP server per domain (`tasks`); scan test enforces literals-free source
+**Test Coverage:** 993 tests pass, 22 skipped (live smokes and the opt-in golden set) | Type check: clean | No console.* in src/
+**Phase 1c (Delegate Phase 2):** history: rejected-plans memory and the DelegateTask eval (both retired in P1.4c; the golden set is now `test/intent-eval.live.test.ts`, INTENT_EVAL=1)
+**Phase 1e (Tool folders & naming):** All tool names from exported constants; `src/tools/<Name>Tool/` layout (PascalCase folder, kebab-case files); MCP servers `git` and `github` (the `tasks` server was retired in P1.4c); scan test enforces literals-free source
 **Phase 3 (Delegate Phase 3):** Per-repo workflow (lean/full), ask limit enforcement, workspace-curated skills via an app-owned plugin (was clone-based; replaced, see changelog)
 
 ## Key Architecture
@@ -15,14 +15,11 @@
 ### 1. Message Flow
 ```
 Discord channel @bot <question>
-  └─ create thread, parse prefix (repo:<name> only; no task: prefix)
-     └─ handle-task: lookup/create session, pin repo
-        └─ run-agent: Q&A mode (read-only) with PreToolUse + canUseTool hooks
-           ├─ Q&A tools: Read/Glob/Grep/WebFetch/WebSearch; git MCP reads; delegate tool (MCP, if approvals enabled)
-           ├─ Delegate tool: records code proposal → "end turn"
-           └─ After Q&A ends: if proposal → dispatchRole():
-              ├─ insert code task row, post "Starting plan" notice
-              └─ runStages(plan stage) → [plan approval] → execute → PR
+  └─ create thread, parse prefix (repo:<name>, [dev]/[ask], [design]...)
+     └─ handle-task: lookup/create session, L0 commands, intent turn (L1 yes/no, L3 alias, L4 Haiku when undecided)
+        ├─ route-by-intent (thread state x role x scope): assistant -> run-agent read-only (Read/Glob/Grep/WebFetch/WebSearch; git MCP reads; no handoff tool)
+        └─ dev request -> dispatchRole() (proposal from the intent result, validate, "Starting plan" notice)
+           └─ runStages(plan stage) → [plan approval] → execute → PR
 ```
 
 ### 2. AGENT_HOME Structure
@@ -91,20 +88,21 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 - **discord-message-rules.ts:** owner check, thread lifecycle
 
 ### Session & Task Management
-- **handle-task.ts:** thread→session mapping, repo pin, Q&A/code routing, stage detection; call dispatchRole after Q&A if proposal exists
+- **handle-task.ts / route-and-run.ts / intent-turn.ts:** thread→session mapping, repo pin, L0 commands, intent turn (role choice), run lock; `route-by-intent.ts` holds the behavior table
+- **src/intent/:** L1-L3 rules + L4 classifier (`decide-intent.ts`); see docs/system-architecture.md "Intent Layer"
 - **task-commands.ts:** parse stop/cleanup commands; repo pinning; Resume routing logic (phase 5+)
 - **tasks/task-tracker.ts:** thread locking, session resume context tracking (phase 5+)
-- **engine/plain-run.ts:** read-only stage run (Q&A is the 1-stage `assistant` role): cwd pick, clone refresh, DelegateTask tool when the stage has `recommend`; reply through `outputs/answer-output.ts` (ESCALATE re-run when the role flag `escalation` is set)
-- **dispatch/dispatch-role.ts / validate-request.ts:** after the source turn closes: persist proposal, validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
-- **engine/stage-runner.ts + gates.ts / plan-run.ts / plain-run.ts / isolation.ts / handoff.ts / run-turn.ts:** loop over role.stages, run kind from stage data (`gate`, `isolation`; no role names), handoff template, `stages` rows; run-turn = one routed message as a role
+- **engine/plain-run.ts:** read-only stage run (Q&A is the 1-stage `assistant` role): cwd pick, clone refresh; reply through `outputs/answer-output.ts` (ESCALATE re-run when the role flag `escalation` is set)
+- **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal (from the intent result), validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
+- **engine/stage-runner.ts + gates.ts / plan-run.ts / plain-run.ts / isolation.ts / handoff.ts:** loop over role.stages, run kind from stage data (`gate`, `isolation`; no role names), stage handoff template (plan -> exec prompt), `stages` rows; `orchestrator/run-turn.ts` = one routed message as a role
 - **tasks/task-worktree.ts:** worktree creation/removal via git MCP; stage switching
 - **tasks/task-result.ts:** result types and flow completion
 - **outputs/pr-output.ts:** summary + diff + Create PR button; follow-up detection (reuse worktree); cleanup
-- **tasks/run-limiter.ts:** max 3 concurrent runs; max 2 active code tasks (phase 4+)
+- **tasks/run-limiter.ts:** max 3 concurrent runs; max 2 active capped tasks (`MAX_CAPPED_TASKS`)
 
 ### Agent & Prompts
-- **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; opts.handoff flag for HANDOFF section; workspace skills from one app-owned plugin in every mode (`settingSources: []`)
-- **system-prompt.ts:** Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), ASK_RULES (Phase 3: ask only if not derivable, costly/irreversible, >=2 options), COMMON (safety rules once), context last. Identity/tone in persona files ($AGENT_HOME/IDENTITY|SOUL|USER.md), not in system prompt.
+- **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; workspace skills from one app-owned plugin in every mode (`settingSources: []`)
+- **system-prompt.ts:** Sections: stage sections (qa/plan/exec operational contract), ASK_RULES (Phase 3: ask only if not derivable, costly/irreversible, >=2 options), COMMON (safety rules once), context last. Identity/tone in persona files ($AGENT_HOME/IDENTITY|SOUL|USER.md), not in system prompt.
 - **code-rules.ts:** ASK_RULES text constant (ask limit enforcement, vague request handling, full mode assumptions recording)
 - **tool-permissions.ts:** permission layer: PreToolUse hook (hard deny / force ask) + `canUseTool` (plan approval, AskUserQuestion buttons, owner approval; ONE ask per task enforced via askLimit flag); ask timeout → "Awaiting clarification:" with defaults, session kept
 - **run-errors.ts:** error classification (quota, rate_limit, billing, overloaded → outcome + user reply with reset times); phase 5+
@@ -112,7 +110,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 ### Persona & Memory (Phase 1+, Step B 1b)
 - **persona.ts:** `ensureHome(home, workspaces)` creates root files, per-workspace `cwd/` + empty `skills/` + MEMORY.md and per-repo MEMORY.md templates (no CLAUDE.md, no per-workspace IDENTITY); `buildPersonaContext(home, ws)` applies per-file layering; caps 1500 chars/file with truncation marker
 - **persona-templates.ts:** Default files: AGENTS, IDENTITY, SOUL, USER, ROOT_MEMORY (owner-only), BOOTSTRAP (explains MEMORY.pending.md and promotion), workspace and repo MEMORY templates
-- **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER -> registry -> memory (root, workspace, repos) -> rejected-plans block (when delegate enabled); logs `prompt.context` event with character counts per layer
+- **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER -> registry -> memory (root, workspace, repos) -> task ledger; logs `prompt.context` event with character counts per layer
 - **memory-writer.ts:** `appendTaskMemory(home, ws, repo, title, bullets)` writes plain bullets to the repo MEMORY.md and `[global]` bullets to `MEMORY.pending.md`; deduplication, trimming; max 2 global bullets per task
 - **sanitize-bullet.ts:** `sanitizeBullet()`: one line, no markup/fences/HTML/role prefixes, redacted, 200 chars (applied in `extractMemory` and the writer)
 - **repo-memory.ts:** `readMemoryLayers`/`buildMemoryContext(home, ws, repos)` (layers also report `overCap` and `skippedRepos`); `repoMemoryFile`; `extractMemory`
@@ -132,18 +130,17 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 - **src/workspaces/task-workspace.ts:** `resolveTaskWorkspace`/`selectWorkspace`: the workspace of a run = the one listing the task's `channelId` (parent channel) in `channels:`, else a refusal (`unmapped_channel`, `no_repos`, `legacy_layout`); all repo lookups stay inside it
 
 ### Guardrails & Approvals
-- **check-tool-call.ts:** core guard: route tool → allow/ask/deny; explicit DELEGATE allow (before generic MCP deny); GuardrailContext
+- **check-tool-call.ts:** core guard: route tool → allow/ask/deny; generic MCP deny; GuardrailContext
 - **paths.ts:** path helpers (isInside, resolveReal, realOrSame)
 - **deny-dangerous.ts:** hard deny `rm -rf`, `git push -f`, push to main/master, `curl|sh`, `sudo`, read .env*, write outside paths
 - **bash-policy.ts:** Bash allowlist (git status/diff/log, test cmd, npm ci/bun install --frozen-lockfile); network host check; package install gate
 - **discord-approval.ts:** pending map, 10 min timeout, Promise resolution
 - **approval-buttons.ts:** Discord buttons (Approve/Deny/Create PR)
-- **approval-store.ts (Phase 1c+):** insertApproval, decideApproval, rejectedPlans query; rejected-plans recall per thread (last 5, denied|timeout only, excluding approved tasks, whitespace-collapsed, clipped 200 chars, redacted)
+- **approval-store.ts (Phase 1c+):** insertApproval, decideApproval
 
-### Delegate Tool & Q&A→Code Handoff (Phase 1b+)
-- **DelegateTaskTool/delegate-task-tool.ts (src/tools/):** MCP tool `mcp__tasks__DelegateTask({role:"dev", brief, repo?})`; validated schema; blocker checks; one call per Q&A run
-- **dispatch/dispatch-role.ts / validate-request.ts:** after the source turn closes: persist proposal, validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
-- **task-routing.ts (src/orchestrator/):** shared `codeTaskBlocker()` blocker check (cap MAX_CODE_TASKS, managed clone validation, repo lookup)
+### Dispatch (P1.4c: the Q&A delegate tool is retired)
+- **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal from the intent result, validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
+- **task-routing.ts (src/orchestrator/):** shared `cappedTaskBlocker()` blocker check (cap MAX_CAPPED_TASKS, managed clone validation, repo lookup)
 
 ### Repository Management
 - **workspaces/workspace-registry.ts:** `loadWorkspaces(home)` -> `{workspaces, legacy}`: scans workspaces/*/workspace.yaml (zod: description, channels), fail-closed validation (name rules, real dirs not symlinks, duplicate channel ids dropped from both, `repo.overlap` warning); each workspace carries its own repos (no flat cross-workspace list: repo names are unique only inside a workspace)
@@ -165,7 +162,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 ### Storage & Observability
 - **db.ts:** SQLite (WAL); sessions, tasks, runs, tool_calls, approvals, worktrees tables; idempotent ALTER TABLE tasks ADD COLUMN brief TEXT (Phase 1c+)
 - **run-store.ts:** runs table ops; insertTask stores brief redacted (Phase 1c+); calls repo-memory.ts to append on exec success; approval functions moved to approval-store.ts
-- **approval-store.ts (Phase 1c+):** insertApproval, decideApproval, rejectedPlans query per thread
+- **approval-store.ts (Phase 1c+):** insertApproval, decideApproval
 - **worktree-store.ts:** worktrees table ops
 - **session-store.ts:** sessions table ops
 - **logger.ts:** pino singleton (no console.* anywhere in src/)
@@ -192,7 +189,6 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 | Guardrails | test/deny-dangerous.test.ts | 30+ command/path/host cases |
 | Bash policy | test/bash-policy.test.ts | allowlist, network, install gates |
 | Approval flow | test/approval-gateway.test.ts | PreToolUse + canUseTool integration |
-| Rejected plans | test/rejected-plans.test.ts | query logic, thread isolation, clipping, redaction (Phase 1c+) |
 | Code tasks | test/code-task-flow.test.ts | plan→execute stage, cwd switching, plan.md seeding |
 | Ask boundary (Phase 3) | test/ask-boundary.test.ts | ask limit per task, timeout → awaiting, plan/exec stages, stop vs clarification |
 | Workspace skills plugin | test/workspace-skills-plugin.test.ts, test/workspace-skills-qa.test.ts | workspace plugin, symlink/cap validation, cleanup, repo skills/hooks ignored |
@@ -204,7 +200,8 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 | Repo registry | test/repo-registry.test.ts | yaml parse, validate, workflow field (lean|full), deduplicate |
 | Tool config | test/tool-config.test.ts | tool allowlist per mode |
 | DB schema | test/db-schema.test.ts | migration, idempotency (Phase 1c+) |
-| Delegate eval | test/delegate-eval.live.test.ts | golden set: 21 live runs, opt-in DELEGATE_EVAL=1 (Phase 1c+) |
+| Intent eval | test/intent-eval.live.test.ts | golden set of the intent layer: ~40 live Haiku cases, opt-in INTENT_EVAL=1 |
+| Handoff retired | test/handoff-retired-scan.test.ts | old DelegateTask / handoff names absent from src and test |
 | Live smoke | test/live-*.smoke.test.ts | real agent runs (skip without token) |
 
 ## Code Standards
@@ -241,7 +238,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 | MAX_TURNS | optional | default: 20 |
 | MAX_BUDGET_USD | optional | default: 0.5 on anthropic |
 | TIMEOUT_MS | optional | default: 300000 (5 min); code tasks ≥30 min (includes approval + plan + execute) |
-| MAX_CONCURRENT_RUNS | optional | default: 3; max 2 active code tasks |
+| MAX_CONCURRENT_RUNS | optional | default: 3; max 2 active capped tasks |
 
 ## Development Commands
 ```bash
@@ -255,12 +252,12 @@ bun run start          # start bot (reads .env)
 ## Phase Completion Status
 - **Phase 0 (Spike):** Done — SDK behavior verified
 - **Phase 1a (Q&A + Discord):** Code complete — awaiting manual setup + live verification
-- **Phase 1b (Agent decides code vs Q&A):** **Code complete** (386 tests, 1 skip) — delegate tool + Q&A→plan handoff; `task:` prefix removed; pending manual Discord live check
+- **Phase 1b (Agent decides code vs Q&A):** **Code complete** (386 tests, 1 skip) — (history: the delegate tool and Q&A→plan handoff were retired in P1.4c; the intent layer routes now); `task:` prefix removed; pending manual Discord live check
 - **Phase 2 (Multi-repo registry):** Code complete — repo.yaml loader (per-workspace, Step B) + repo pin + git refresh verified
 - **Phase 3 (Approval + guardrails):** Code complete — PreToolUse hook + canUseTool gates + plan mode
 - **Phase 4 (Worktree → PR + Memory + MCP):** Code complete (343 tests, 2 skip; live verified) — plan stage → execute stage → git/GitHub MCP commit → PR
 - **Phase 5 (Hardening):** **Code complete** (367 tests pass incl. live) — crash recovery (interrupted + Resume), output quota (attachments), error classification (quota/rate_limit/billing/overloaded), startup cleanup (30d logs + orphan logging)
-- **Delegate Phase 3 (Workflow modes + ask limit):** **Code complete** (438 tests, 6 skip) — per-repo `workflow: lean|full` in repo.yaml; ask limit ONE per task (enforced across plan & exec); workspace-curated skills via an app-owned plugin (was clone-based; replaced, see changelog) (app-owned plugin dir, symlink/cap validation); vague requests → "Need X"; timeouts → "Awaiting clarification:" with session kept
+- **Delegate Phase 3 (Workflow modes + ask limit):** **Code complete** (438 tests, 6 skip; history, the delegate tool is retired) — per-repo `workflow: lean|full` in repo.yaml; ask limit ONE per task (enforced across plan & exec); workspace-curated skills via an app-owned plugin (was clone-based; replaced, see changelog) (app-owned plugin dir, symlink/cap validation); vague requests → "Need X"; timeouts → "Awaiting clarification:" with session kept
 - **Phase 6 (Eval + daily use):** Deferred — revisit before model change
 
 ## Known Limits (Phase 5 candidates)

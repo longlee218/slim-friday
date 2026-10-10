@@ -32,11 +32,9 @@ export interface StageRunnerDeps {
   queryFn?: QueryFn;
   /** True once shutdown aborted the runs: an aborted stage is then `interrupted`, not `cancelled`. */
   stopping?: () => boolean;
-  /** Port of the handoff tool's pre-check (cap, repo): built by the handler, so the engine knows no dispatcher. Missing = no handoff tool. */
-  delegateCheck?: (p: { repos: Repo[]; pinned?: Repo }) => (repo?: string) => string | undefined;
 }
 
-/** One task run through a role's stages: a fresh message, a delegated task or a follow-up in a clone. */
+/** One task run through a role's stages: a fresh message, a dispatched task or a follow-up in a clone. */
 export interface StageRunInput {
   taskId: string;
   threadId: string;
@@ -63,8 +61,6 @@ export interface StageRunInput {
   pinned?: Repo;
   /** Plain stage: stored session of the thread, resumed when its cwd still matches. */
   existing?: SessionRow | null;
-  /** Plain stage: register the handoff tool (needs the approval flow: the next role asks the owner). */
-  allowDelegate?: boolean;
   /** Plain stage: task ledger of the thread (idle thread only); empty = none. */
   ledger?: string;
 }

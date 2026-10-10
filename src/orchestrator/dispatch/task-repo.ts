@@ -3,8 +3,8 @@ import { isManagedClone } from "../../repos/refresh-repo";
 import type { Repo } from "../../repos/repo-registry";
 import { countActiveCappedTasks } from "../../storage/run-store";
 
-/** Max code tasks running or waiting for approval at once (RAM/quota; spike Q12). */
-export const MAX_CODE_TASKS = 2;
+/** Max capped tasks (roles with `countsTowardCap`) running or waiting for approval at once (RAM/quota; spike Q12). */
+export const MAX_CAPPED_TASKS = 2;
 
 /** A task that cannot start: `reason` is logged (`event` names it), `reply` goes to the owner. */
 export interface Refusal {
@@ -30,19 +30,19 @@ export const unknownRepo = (repos: Repo[], name: string): Refusal => {
 export const findRepo = (repos: Repo[], name: string): Repo | undefined =>
   repos.find((r) => r.name.toLowerCase() === name.toLowerCase());
 
-/** Refusal when `MAX_CODE_TASKS` capped tasks already run or wait for approval, else undefined. */
+/** Refusal when `MAX_CAPPED_TASKS` capped tasks already run or wait for approval, else undefined. */
 export function capRefusal(db: Database): Refusal | undefined {
-  return countActiveCappedTasks(db) >= MAX_CODE_TASKS
+  return countActiveCappedTasks(db) >= MAX_CAPPED_TASKS
     ? refuse(
         "code_task_limit",
-        `busy, ${MAX_CODE_TASKS} code tasks running, try again later`,
+        `busy, ${MAX_CAPPED_TASKS} tasks running, try again later`,
         "task.busy",
       )
     : undefined;
 }
 
 /**
- * THE single repo resolver (B2): routing, the `DelegateTask` pre-check and the dispatcher's validation all
+ * THE single repo resolver (B2): routing and the dispatcher's validation both
  * go through it. `repoName` picks one repo of the workspace (unknown name -> refusal); else every managed
  * clone is a candidate. Worktrees branch off managed clones only, never a developer's working copy.
  */
@@ -57,14 +57,14 @@ export function resolveTaskRepo(
   if (candidates.length === 0) {
     return refuse(
       "no_clone",
-      "Code tasks need a workspace clone (workspaces/<ws>/repos/<name>/repo, with a repo.yaml next to it). Clone the repo there first.",
+      "A task needs a workspace clone (workspaces/<ws>/repos/<name>/repo, with a repo.yaml next to it). Clone the repo there first.",
     );
   }
   return { candidates };
 }
 
-/** Can a new code task start now? `resolveTaskRepo` plus the concurrency cap (shared by routing, the tool and dispatch). */
-export function codeTaskBlocker(
+/** Can a new capped task start now? `resolveTaskRepo` plus the concurrency cap (shared by routing and dispatch). */
+export function cappedTaskBlocker(
   db: Database,
   agentHome: string,
   repos: Repo[],

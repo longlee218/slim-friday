@@ -12,8 +12,7 @@ export type Capability =
   | "subagents" // Agent: only the subagents named by the stage (guard)
   | "tasks" // progress tracking
   | "ask" // AskUserQuestion: answered by the owner through Discord buttons
-  | "planControl" // enter / leave plan mode (leaving needs the owner's approval)
-  | "recommend"; // DelegateTask handoff tool; removed when the intent layer lands (P1.4c)
+  | "planControl"; // enter / leave plan mode (leaving needs the owner's approval)
 
 /** What the role hands back to the owner (the engine picks the output module from it). */
 export type OutputContract = "answer" | "plan" | "pr" | "verdict";
@@ -47,8 +46,6 @@ export interface StageHandoff {
 export interface PromptCtx {
   /** Plan/exec: `full` adds the repo-workflow rules. */
   workflow?: Workflow;
-  /** The handoff tool is registered in this run: adds the HANDOFF section (stages with `recommend` only). */
-  handoff?: boolean;
   /** Answer output on the cheap tier: adds the `ESCALATE: sonnet|opus` rule (never on an already escalated run). */
   escalation?: boolean;
 }

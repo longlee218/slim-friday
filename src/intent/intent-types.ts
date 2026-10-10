@@ -36,7 +36,8 @@ export interface IntentResult {
 
 /** Pluggable L4 engine: Haiku today, the owner's own engine later. */
 export interface IntentClassifier {
-  classify(input: IntentInput): Promise<IntentResult>;
+  /** `signal` aborts the call (the thread's `stop` / shutdown). */
+  classify(input: IntentInput, signal?: AbortSignal): Promise<IntentResult>;
 }
 
 /** Why an engine call produced no usable result (logged as `intent.fallback {reason}`). */

@@ -2,7 +2,6 @@ import type { AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../mcp/mcp-tool-names";
 import { type StageRef, stageOf } from "../roles/role-registry";
 import type { Capability } from "../roles/role-types";
-import { DELEGATE_TASK_MCP_TOOL_NAME } from "./DelegateTaskTool/constants";
 import { GIT_GROUPS } from "./git-tool-groups";
 import {
   AGENT_TOOL_NAME,
@@ -60,8 +59,6 @@ const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
   ],
   ask: [ASK_USER_QUESTION_TOOL_NAME],
   planControl: [EXIT_PLAN_MODE_TOOL_NAME, ENTER_PLAN_MODE_TOOL_NAME],
-  // The handoff tool is an MCP tool (not in `tools`); this capability only gates its server and prompt.
-  recommend: [],
 };
 
 /** Tools that run without asking anyone (the other tools go through path/policy checks or the owner). */
@@ -76,20 +73,9 @@ const AUTO_ALLOWED = new Set<string>([
 export const toolsFor = (stage: StageRef): string[] =>
   stageOf(stage).capabilities.flatMap((c) => CAPABILITY_TOOLS[c]);
 
-/**
- * Tools of a stage that need no approval (the guard's `allowTools`). `DelegateTask` exists in stages with the
- * `recommend` capability, and is allowed only when the run registers it (`delegate`, default true); otherwise
- * the guard denies the unknown tool.
- */
-export const autoAllowedTools = (stage: StageRef, opts: { delegate?: boolean } = {}): string[] => {
-  const s = stageOf(stage);
-  return [
-    ...toolsFor(s).filter((t) => AUTO_ALLOWED.has(t)),
-    ...(s.capabilities.includes("recommend") && (opts.delegate ?? true)
-      ? [DELEGATE_TASK_MCP_TOOL_NAME]
-      : []),
-  ];
-};
+/** Tools of a stage that need no approval (the guard's `allowTools`). */
+export const autoAllowedTools = (stage: StageRef): string[] =>
+  toolsFor(stage).filter((t) => AUTO_ALLOWED.has(t));
 
 /* ---------------- git MCP tools (@cyanheads/git-mcp-server 2.15.3) ---------------- */
 

@@ -8,7 +8,7 @@ import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
-import { BRIEF, delegatingQuery, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
 /** The real git MCP server (pinned package), shared by the tests of this file. */
 const git = createGitMcp();
@@ -78,14 +78,15 @@ test("one round per task across stages: asked in plan, denied in exec", async ()
       },
       confirm: async () => ({ approved: false, reason: "no" }),
     }),
-    queryFn: delegatingQuery([{ brief: BRIEF }], next) as never,
+    queryFn: next as never,
+    intent: devIntent(env.home),
   });
   await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "change the schema",
+    text: "[dev] change the schema",
   });
   expect(exec[0]).toMatchObject({ behavior: "allow" }); // plan stage: the one round
   expect(exec[1]).toMatchObject({ behavior: "deny" }); // exec stage: refused
@@ -111,14 +112,15 @@ test("exec: no answer in time -> 'Awaiting clarification', session kept, task ca
     db: env.db,
     config: env.config,
     approvals: stubGateway({ askChoice: async () => undefined }), // owner never answers
-    queryFn: delegatingQuery([{ brief: BRIEF }], next) as never,
+    queryFn: next as never,
+    intent: devIntent(env.home),
   });
   const reply = await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "change it",
+    text: "[dev] change it",
     notify: async () => {},
   });
   expect(reply.startsWith("Awaiting clarification:")).toBe(true);
@@ -147,14 +149,15 @@ test("plan stage: no answer in time -> 'Awaiting clarification', no plan approva
     db: env.db,
     config: env.config,
     approvals: stubGateway({ askChoice: async () => undefined }),
-    queryFn: delegatingQuery([{ brief: BRIEF }], next) as never,
+    queryFn: next as never,
+    intent: devIntent(env.home),
   });
   const reply = await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "change it",
+    text: "[dev] change it",
     notify: async () => {},
   });
   expect(reply.startsWith("Awaiting clarification:")).toBe(true);
@@ -174,7 +177,8 @@ function handlerWith(
     db: env.db,
     config: env.config,
     approvals: stubGateway({ askChoice }),
-    queryFn: delegatingQuery([{ brief: BRIEF }], (a: any) => stage(a.options, call++)) as never,
+    queryFn: (a: any) => stage(a.options, call++) as never,
+    intent: devIntent(env.home),
   });
   return handle;
 }
@@ -212,11 +216,11 @@ test("stop while a question is pending (plan): not 'Awaiting clarification', ses
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "go",
+    text: "[dev] please start",
   });
   expect(reply.startsWith("Awaiting clarification")).toBe(false);
-  // Only the Q&A session of the delegating thread; no plan/exec session kept for the cancelled stage.
-  expect(getSession(env.db, "th1")?.session_id).toBe("sess-qa");
+  // No plan/exec session kept for the cancelled stage (and no assistant turn before the dev task).
+  expect(getSession(env.db, "th1")).toBeNull();
 });
 
 test("stop while a question is pending (exec): not 'Awaiting clarification', session not kept", async () => {
@@ -234,11 +238,11 @@ test("stop while a question is pending (exec): not 'Awaiting clarification', ses
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "go",
+    text: "[dev] please start",
   });
   expect(reply.startsWith("Awaiting clarification")).toBe(false);
-  // Only the Q&A session of the delegating thread; no plan/exec session kept for the cancelled stage.
-  expect(getSession(env.db, "th1")?.session_id).toBe("sess-qa");
+  // No plan/exec session kept for the cancelled stage (and no assistant turn before the dev task).
+  expect(getSession(env.db, "th1")).toBeNull();
 });
 
 test("one AskUserQuestion call with 2 questions: both reach the owner, all answered, one round used", async () => {
@@ -292,8 +296,20 @@ test("two concurrent tasks have independent ask limits", async () => {
       })(),
   );
   await Promise.all([
-    handle({ source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th1", text: "one" }),
-    handle({ source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th2", text: "two" }),
+    handle({
+      source: "t",
+      channelId: TEST_CHANNEL,
+      userId: "u",
+      threadId: "th1",
+      text: "[dev] one",
+    }),
+    handle({
+      source: "t",
+      channelId: TEST_CHANNEL,
+      userId: "u",
+      threadId: "th2",
+      text: "[dev] two",
+    }),
   ]);
   expect(results).toEqual(["allow", "allow"]); // a shared limit would deny the second
 });
@@ -308,7 +324,7 @@ test("resume after 'Awaiting clarification': the owner's reply resumes the exec 
     config: env.config,
     // First ask: owner silent (timeout). After the reply: the owner answers the next ask.
     approvals: stubGateway({ askChoice: async (a) => (++ask === 1 ? undefined : a.options[0]) }),
-    queryFn: delegatingQuery([{ brief: BRIEF }], (a: any) => {
+    queryFn: ((a: any) => {
       const o = a.options;
       if (o.permissionMode === "plan" || !execRuns.length) {
         return planThen(o, async () => {
@@ -325,13 +341,14 @@ test("resume after 'Awaiting clarification': the owner's reply resumes the exec 
         yield resultMsg({ result: "continued", session_id: "sess-exec" });
       })();
     }) as never,
+    intent: devIntent(env.home),
   });
   const first = await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "go",
+    text: "[dev] please start",
     notify: async () => {},
   });
   expect(first.startsWith("Awaiting clarification")).toBe(true);
@@ -341,14 +358,14 @@ test("resume after 'Awaiting clarification': the owner's reply resumes the exec 
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "keep the column",
+    text: "[dev] keep the column",
     notify: async () => {},
   });
   const resumed = execRuns[1]!;
   expect(resumed).toMatchObject({
     resume: "sess-exec",
     cwd: realpathSync(wt.path),
-    prompt: "keep the column",
+    prompt: "[dev] keep the column",
     second: "allow",
   });
 });

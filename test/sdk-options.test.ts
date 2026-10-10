@@ -1,7 +1,7 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
-import type { McpSdkServerConfigWithInstance, Options } from "@anthropic-ai/claude-agent-sdk";
+import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { guardFor } from "../src/guardrails/check-tool-call";
-import { GIT_MCP_SERVER, TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { makeEnv, resultMsg } from "./helpers";
@@ -12,7 +12,7 @@ import { makeEnv, resultMsg } from "./helpers";
  * compared by presence, not identity; per-run values (cwd, env, abort controller) are asserted apart.
  */
 
-type Kind = "qa" | "qa-handoff" | "plan" | "exec";
+type Kind = "qa" | "plan" | "exec";
 
 /** Config limits are fixed so timeout and budget assertions are exact. */
 const ENV = {
@@ -54,18 +54,12 @@ async function capture(kind: Kind) {
     abortController: new AbortController(),
     queryFn: queryFn as never,
   };
-  const appServer = {
-    type: "sdk",
-    name: TASKS_MCP_SERVER,
-    instance: {},
-  } as never as McpSdkServerConfigWithInstance;
   const scope = { readPaths: [env.repo], gitReadRepos: [env.repo], writePaths: [] };
-  if (kind === "qa" || kind === "qa-handoff") {
+  if (kind === "qa") {
     await runAgent({
       ...base,
       stage: getStage("assistant", "qa"),
-      guard: guardFor("qa", scope, { delegate: kind === "qa-handoff" }),
-      ...(kind === "qa-handoff" && { appServer }),
+      guard: guardFor("qa", scope),
     });
   } else if (kind === "plan") {
     await runAgent({
@@ -109,7 +103,7 @@ function normalize(o: Options, home: string) {
   };
 }
 
-const KINDS: Kind[] = ["qa", "qa-handoff", "plan", "exec"];
+const KINDS: Kind[] = ["qa", "plan", "exec"];
 
 for (const kind of KINDS) {
   test(`options lock: ${kind} options snapshot`, async () => {
@@ -120,7 +114,6 @@ for (const kind of KINDS) {
 
 test("options lock: tools, mcp servers, permission mode per stage", async () => {
   const qa = await capture("qa");
-  const handoff = await capture("qa-handoff");
   const plan = await capture("plan");
   const exec = await capture("exec");
   // Built-in tools: Q&A is read + web; both code stages share the code set.
@@ -128,13 +121,11 @@ test("options lock: tools, mcp servers, permission mode per stage", async () => 
   expect(plan.o.tools).toEqual(exec.o.tools);
   expect(plan.o.tools).toContain("Write");
   expect(qa.o.tools).not.toContain("Write");
-  // MCP: git always; the tasks server only with the app server in Q&A.
-  for (const r of [qa, handoff, plan, exec])
+  // MCP: git always; no in-process app server in any stage (no handoff tool).
+  for (const r of [qa, plan, exec]) {
     expect(Object.keys(r.o.mcpServers ?? {})).toContain(GIT_MCP_SERVER);
-  expect(Object.keys(qa.o.mcpServers ?? {})).not.toContain(TASKS_MCP_SERVER);
-  expect(Object.keys(handoff.o.mcpServers ?? {})).toContain(TASKS_MCP_SERVER);
-  expect(Object.keys(plan.o.mcpServers ?? {})).not.toContain(TASKS_MCP_SERVER);
-  expect(Object.keys(exec.o.mcpServers ?? {})).not.toContain(TASKS_MCP_SERVER);
+    expect(Object.keys(r.o.mcpServers ?? {})).not.toContain("tasks");
+  }
   // plan mode only in the plan stage.
   expect(plan.o.permissionMode).toBe("plan");
   expect(exec.o.permissionMode).toBeUndefined();

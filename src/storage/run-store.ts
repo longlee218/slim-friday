@@ -76,7 +76,7 @@ export function insertTask(
     repo: string;
     /** Role that runs it: `type`, `kind` and the cap flag are derived from its data (never from a type argument). */
     role: string;
-    /** Delegated task text (handoff only); stored redacted so a rejected plan can be recalled. */
+    /** Task text of a dispatched task; stored redacted. */
     brief?: string;
     /** Task class (owner prefix / proposal); null = standard. */
     cls?: TaskClass;

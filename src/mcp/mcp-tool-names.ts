@@ -18,9 +18,6 @@ export const GIT_MCP_SERVER = "git";
 /** GitHub MCP server (read-only for agents; the app opens PRs through a write-enabled one). */
 export const GITHUB_MCP_SERVER = "github";
 
-/** In-process app server of the domain "tasks" (code-task handoff tools); registered in Q&A only. */
-export const TASKS_MCP_SERVER = "tasks";
-
 /** Every tool of the git MCP server (names fixed by that server). */
 export const GIT_TOOL = {
   STATUS: "git_status",

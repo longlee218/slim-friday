@@ -6,12 +6,7 @@ import {
   GITHUB_TOOL,
   mcpServerPrefix,
   mcpToolName,
-  TASKS_MCP_SERVER,
 } from "../src/mcp/mcp-tool-names";
-import {
-  DELEGATE_TASK_MCP_TOOL_NAME,
-  DELEGATE_TASK_TOOL_NAME,
-} from "../src/tools/DelegateTaskTool/constants";
 import * as sdk from "../src/tools/sdk-tool-names";
 
 // The ONLY test with tool-name literals: it pins the wire contract (SDK / MCP server names) that every
@@ -58,12 +53,5 @@ test("full MCP names: mcp__<server>__<tool>, valid characters", () => {
   expect(mcpServerPrefix("git")).toBe("mcp__git__");
   expect(mcpToolName("git", "git_log")).toBe("mcp__git__git_log");
   const valid = /^mcp__[a-zA-Z0-9_-]+__[a-zA-Z0-9_-]+$/;
-  expect(DELEGATE_TASK_MCP_TOOL_NAME).toMatch(valid);
   for (const t of Object.values(GIT_TOOL)) expect(mcpToolName("git", t)).toMatch(valid);
-});
-
-test("the Q&A handoff tool wire name", () => {
-  expect(TASKS_MCP_SERVER).toBe("tasks");
-  expect(DELEGATE_TASK_TOOL_NAME).toBe("DelegateTask");
-  expect(DELEGATE_TASK_MCP_TOOL_NAME).toBe("mcp__tasks__DelegateTask");
 });

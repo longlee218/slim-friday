@@ -9,8 +9,8 @@ import { latestTaskSession, taskRole } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
 import { liveWorktree, type WorktreeRow } from "../storage/worktree-store";
 import {
+  cappedTaskBlocker,
   capRefusal,
-  codeTaskBlocker,
   findRepo,
   type Refusal,
   refuse,
@@ -63,7 +63,7 @@ export function routeTask(
   const worktree = live && owner === role.name ? live : undefined;
   if (!isGated(role)) return { pinned, role: role.name, candidates: [], repo: pinned?.name ?? "*" };
   if (!deps.hasApprovals)
-    return refuse("no_approvals", "Code tasks need the Discord approval flow.");
+    return refuse("no_approvals", "This task needs the Discord approval flow.");
   if (!cmd.text) return refuse("empty_text", "Send a message with the task.");
   // A follow-up reuses its worktree: only the task cap applies. A plan resume re-checks clone + cap.
   if (worktree) {
@@ -83,7 +83,7 @@ export function routeTask(
       }
     );
   }
-  const blocked = codeTaskBlocker(deps.db, deps.agentHome, repos, cmd.repo);
+  const blocked = cappedTaskBlocker(deps.db, deps.agentHome, repos, cmd.repo);
   if ("reply" in blocked) return blocked;
   return {
     pinned,

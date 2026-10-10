@@ -12,9 +12,10 @@ import {
 import type { DispatchRequest } from "./validate-request";
 
 /**
- * Persist the proposal of a closed source turn (`pending`) so a crash before the plan starts cannot lose
- * it (startup then offers `go`). `fromTaskId` = the Q&A task whose turn proposed it. Never throws: on a
- * storage error the handoff still runs, only without the crash safety (returns undefined).
+ * Persist a proposal (`pending`) written by the orchestrator from the intent result and the owner message, so a
+ * crash before the plan starts cannot lose it (startup then offers `go`). `fromTaskId` = the source task, when
+ * there is one. Never throws: on a storage error the dispatch still runs, only without the crash safety
+ * (returns undefined).
  */
 export function persistProposal(
   db: Database,

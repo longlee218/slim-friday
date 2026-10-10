@@ -11,6 +11,15 @@ const tags = (): string =>
     .filter(Boolean)
     .join(" or ");
 
+/** Drop the leading role tag (`[dev]`, `[ask]`) the owner typed: it routed the message, it is not part of the brief. */
+export function stripRoleTag(text: string): string {
+  const head = text.trimStart().toLowerCase();
+  const tag = Object.values(ROLES)
+    .map((r) => r.aliases?.tag.toLowerCase())
+    .find((t) => t && head.startsWith(t));
+  return tag ? text.trimStart().slice(tag.length).trim() || text : text;
+}
+
 /** The ONE question of each ask reason. */
 export const ASK_TEXT: Record<AskKind, () => string> = {
   low_confidence: () =>
@@ -29,4 +38,4 @@ export const STILL_WORKING = "still working...";
 export const GATE_HINT = "Use the Approve / Reject buttons on the message above.";
 export const NOTHING_PENDING = "Nothing is waiting for an answer.";
 /** A staged task cannot start without the approval flow (same text as the legacy refusal). */
-export const NO_APPROVALS = "Code tasks need the Discord approval flow.";
+export const NO_APPROVALS = "This task needs the Discord approval flow.";

@@ -9,9 +9,8 @@ import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
-  BRIEF,
   clearWorkspaces,
-  delegatingQuery,
+  devIntent,
   makeEnv,
   resultMsg,
   stubGateway,
@@ -78,7 +77,8 @@ const handler = (env: Awaited<ReturnType<typeof setup>>, exec?: Record<string, u
     approvals: stubGateway({
       confirm: async () => ({ approved: false, reason: "owner declined" }),
     }),
-    queryFn: delegatingQuery([{ brief: BRIEF }], fakeSdk(exec)) as never,
+    queryFn: fakeSdk(exec) as never,
+    intent: devIntent(env.home),
   });
 
 const codeTask = (env: Awaited<ReturnType<typeof setup>>) =>
@@ -86,12 +86,11 @@ const codeTask = (env: Awaited<ReturnType<typeof setup>>) =>
 
 test("stage rows: plan then exec, with model, cost and verdict; task keeps role, kind, parent and hop", async () => {
   const env = await setup();
-  await handler(env)(msg("please add b.txt"));
+  await handler(env)(msg("[dev] please add b.txt"));
   const [t] = codeTask(env);
-  expect(t).toMatchObject({ role: "dev", kind: "staged", hop: 1, counts_toward_cap: 1 });
-  const qa = env.db.query<any, []>("SELECT id, role, kind, hop FROM tasks WHERE type = 'qa'").get();
-  expect(qa).toMatchObject({ role: "assistant", kind: "single", hop: 0 });
-  expect(t.parent_task_id).toBe(qa.id);
+  expect(t).toMatchObject({ role: "dev", kind: "staged", hop: 0, counts_toward_cap: 1 });
+  expect(t.parent_task_id).toBeNull(); // opened by the intent layer: no source turn
+  expect(env.db.query("SELECT id FROM tasks WHERE type = 'qa'").all()).toEqual([]);
   const stages = listStages(env.db, t.id);
   expect(stages.map((s) => [s.idx, s.name, s.status, s.verdict])).toEqual([
     [0, "plan", "done", "approved"],
@@ -105,7 +104,7 @@ test("stage rows: plan then exec, with model, cost and verdict; task keeps role,
 
 test("class design: the stage rows record the Opus model", async () => {
   const env = await setup();
-  await handler(env)(msg("[design] please add b.txt"));
+  await handler(env)(msg("[design] [dev] please add b.txt"));
   const stages = listStages(env.db, codeTask(env)[0].id);
   expect(stages.map((s) => s.model)).toEqual([env.config.models.opus, env.config.models.opus]);
 });
@@ -119,7 +118,7 @@ test("exec on its budget: stage row interrupted + verdict budget, reply offers `
     total_cost_usd: 3.2,
     session_id: "sess-exec",
   });
-  const reply = await handle(msg("please add b.txt"));
+  const reply = await handle(msg("[dev] please add b.txt"));
   const t = codeTask(env)[0];
   const stages = listStages(env.db, t.id);
   expect(stages.map((s) => [s.name, s.status, s.verdict])).toEqual([
@@ -134,8 +133,8 @@ test("exec on its budget: stage row interrupted + verdict budget, reply offers `
 test("follow-up in a worktree thread runs only the exec stage (row idx 1) on its own task", async () => {
   const env = await setup();
   const handle = handler(env);
-  await handle(msg("please add b.txt"));
-  await handle(msg("also add c"));
+  await handle(msg("[dev] please add b.txt"));
+  await handle(msg("[dev] also add c"));
   const tasks = codeTask(env);
   expect(tasks).toHaveLength(2);
   expect(listStages(env.db, tasks[1].id).map((s) => [s.idx, s.name])).toEqual([[1, "exec"]]);

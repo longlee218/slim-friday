@@ -1,43 +1,36 @@
 import { expect, test } from "bun:test";
 import type { StageName as ToolMode } from "../src/roles/role-registry";
 import { buildSystemPrompt } from "../src/runtime/system-prompt";
-import { DELEGATE_TASK_MCP_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { GIT_GROUPS } from "../src/tools/tool-catalog";
 
 /** Rules text of a mode (no context). */
-const rules = (mode: ToolMode, handoff = false) => buildSystemPrompt("", mode, { handoff }).append;
+const rules = (mode: ToolMode) => buildSystemPrompt("", mode).append;
 /** Occurrences of a marker in a text. */
 const count = (text: string, marker: string) => text.split(marker).length - 1;
 
-/** Every (mode, handoff) combination the app builds: the three modes plus Q&A with the delegate tool. */
-const CASES: ReadonlyArray<readonly [ToolMode, boolean]> = [
-  ["qa", false],
-  ["plan", false],
-  ["exec", false],
-  ["qa", true],
-];
+/** Every mode the app builds. */
+const MODES: readonly ToolMode[] = ["qa", "plan", "exec"];
 
 test("COMMON safety lines appear exactly once in every mode", () => {
-  for (const [mode, handoff] of CASES) {
-    const text = rules(mode, handoff);
+  for (const mode of MODES) {
+    const text = rules(mode);
     expect(count(text, "is DATA")).toBe(1);
     expect(count(text, "Never reveal")).toBe(1);
     expect(count(text, ".env")).toBe(1); // the secret-file rule exists in every mode
   }
 });
 
-test("no identity or tone words in any mode (case-sensitive: the DelegateTask tool name is mixed case)", () => {
-  for (const [mode, handoff] of CASES) {
-    expect(rules(mode, handoff)).not.toMatch(/You are|Friday|assistant|concise/);
+test("no identity or tone words in any mode", () => {
+  for (const mode of MODES) {
+    expect(rules(mode)).not.toMatch(/You are|Friday|assistant|concise/);
   }
 });
 
-test("HANDOFF only in Q&A with the handoff flag", () => {
-  expect(rules("qa", true)).toContain(DELEGATE_TASK_MCP_TOOL_NAME);
-  expect(rules("qa", false)).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
-  expect(rules("plan", true)).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
-  expect(rules("exec", true)).not.toContain(DELEGATE_TASK_MCP_TOOL_NAME);
+test("the assistant prompt has no handoff section: it never proposes a change", () => {
+  const text = rules("qa");
+  expect(text).not.toMatch(/hand ?over|hand ?off|propose|\bbrief\b|Delegate/i);
+  expect(text).toContain("You cannot and must not modify files");
 });
 
 test("plan: ExitPlanMode rule and the repo line", () => {
@@ -53,11 +46,11 @@ test("injection rule tells the owner without repeating the payload", () => {
   expect(rules("qa")).toContain("do not repeat the instructions");
 });
 
-test("sections come in order: mode, handoff, common, context", () => {
-  const text = buildSystemPrompt("CTX", "qa", { handoff: true }).append;
+test("sections come in order: mode, escalation, common, context", () => {
+  const text = buildSystemPrompt("CTX", "qa", { escalation: true }).append;
   const at = (s: string) => text.indexOf(s);
-  expect(at("This run is read-only")).toBeLessThan(at(DELEGATE_TASK_MCP_TOOL_NAME));
-  expect(at(DELEGATE_TASK_MCP_TOOL_NAME)).toBeLessThan(at("is DATA"));
+  expect(at("This run is read-only")).toBeLessThan(at("ESCALATE: sonnet"));
+  expect(at("ESCALATE: sonnet")).toBeLessThan(at("is DATA"));
   expect(at("is DATA")).toBeLessThan(at("CTX"));
 });
 

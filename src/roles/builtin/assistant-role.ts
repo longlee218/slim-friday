@@ -1,4 +1,3 @@
-import { HANDOFF_RULES } from "../../tools/DelegateTaskTool/prompt";
 import type { RoleDefinition } from "../role-types";
 
 /** Q&A run contract: read-only answers with sources. */
@@ -10,7 +9,7 @@ const QA = `This run is read-only code Q&A on the registered repositories.
 /** Escalation offer (Q&A run on the cheap tier only; the app parses the line, see orchestrator/outputs/answer-output.ts). */
 const ESCALATE = `- If you cannot answer well (deep design, many files, subtle reasoning), end the reply with ONE last line exactly \`ESCALATE: sonnet\` (or \`ESCALATE: opus\` for architecture-level questions); the app then escalates to that model (Opus needs the owner's OK). Otherwise never write that line.`;
 
-/** Read-only Q&A on the registered repos. One stage, `qa`; it can hand a change over to `dev` (`recommend`). */
+/** Read-only Q&A on the registered repos. One stage, `qa`; no handoff tool: change requests are routed to `dev` by the intent layer. */
 export const ASSISTANT_ROLE: RoleDefinition = {
   name: "assistant",
   whenToUse:
@@ -30,18 +29,14 @@ export const ASSISTANT_ROLE: RoleDefinition = {
   stages: [
     {
       name: "qa",
-      capabilities: ["read", "web", "skills", "subagents", "recommend"],
+      capabilities: ["read", "web", "skills", "subagents"],
       gitGroups: ["read"],
       isolation: "none",
       model: "haiku",
       budgetUsd: 0.5,
       escalatedBudgetUsd: 1.5,
       subagents: ["repo-searcher"],
-      promptSections: (ctx) => [
-        QA,
-        ctx.handoff ? HANDOFF_RULES : "",
-        ctx.escalation ? ESCALATE : "",
-      ],
+      promptSections: (ctx) => [QA, ctx.escalation ? ESCALATE : ""],
     },
   ],
 };

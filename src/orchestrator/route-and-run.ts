@@ -26,23 +26,38 @@ export interface RouteAndRunInput {
 }
 
 /**
- * From a parsed command to a finished run: `go` starts the pending proposal; the Resume button becomes a
- * follow-up / plan run / Q&A; a PLAIN message goes through the intent layer (which picks the role and may
- * ask, queue or open a task instead) and then `routeTask` + `runTurn`. Queued tasks start when this one ends.
+ * From a parsed command to a finished turn, then the queued tasks start (whatever the turn did: reply, refusal
+ * or crash; a crash is re-thrown after the drain so the handler still reports it).
  */
 export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
+  const { rc, stored } = c;
+  const q = { ...rc, pinned: pinnedRepo(rc.repos, undefined, stored) };
+  let reply: string;
+  try {
+    reply = await routeTurn(c);
+  } catch (err) {
+    // Best effort: a failing queued task must not hide the crash that ended this one.
+    await drainQueued(q, "").catch(() => undefined);
+    throw err;
+  }
+  return drainQueued(q, reply);
+}
+
+/**
+ * From a parsed command to a finished run: `go` starts the pending proposal; the Resume button becomes a
+ * follow-up / plan run / Q&A; a PLAIN message goes through the intent layer (which picks the role and may
+ * ask, queue or open a task instead) and then `routeTask` + `runTurn`.
+ */
+async function routeTurn(c: RouteAndRunInput): Promise<string> {
   const { rc, parsed, stored } = c;
   const { db, config } = rc.deps;
   const { task, workspace: ws, repos } = rc;
-  /** Start the thread's queued tasks (the owner said yes) once this turn is over. */
-  const done = async (reply: string) =>
-    drainQueued({ ...rc, pinned: pinnedRepo(repos, undefined, stored) }, reply);
   // `go` starts the thread's pending proposal (it survived a restart), else it resumes like the button.
   const pending = parsed.kind === "go" ? pendingProposalFor(db, task.threadId, ws) : null;
   if (pending === "expired") return PROPOSAL_EXPIRED_REPLY;
   if (parsed.kind === "go" && pending) {
     const pinned = repos.find((r) => r.name === stored?.repo);
-    return done(await startPendingProposal({ ...rc, pinned }, pending, parsed.extraBudgetUsd));
+    return startPendingProposal({ ...rc, pinned }, pending, parsed.extraBudgetUsd);
   }
   let extraBudgetUsd = "extraBudgetUsd" in parsed ? parsed.extraBudgetUsd : undefined;
   const input = parsed.kind === "go" ? { kind: "resume" as const, extraBudgetUsd } : parsed;
@@ -72,7 +87,7 @@ export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
       busy: false,
       cmd: resolved.cmd,
     });
-    if (out.kind === "reply") return done(out.text);
+    if (out.kind === "reply") return out.text;
     picked = out;
   }
   const route = routeTask(
@@ -89,7 +104,5 @@ export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
     logEvent(rc.log, route.event, { reason: route.reason, reply: route.reply });
     return route.reply;
   }
-  return done(
-    await runTurn(rc, { route, plan: resolved, existing: stored, extraBudgetUsd, intent: picked }),
-  );
+  return runTurn(rc, { route, plan: resolved, existing: stored, extraBudgetUsd, intent: picked });
 }

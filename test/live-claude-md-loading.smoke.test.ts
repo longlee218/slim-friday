@@ -12,7 +12,7 @@ import { makeEnv } from "./helpers";
 // managed-clone cwd (`p/ws/repo`). Canaries: A=p/CLAUDE.md B=p/ws/CLAUDE.md C=p/ws/CLAUDE.local.md
 // D=repo/CLAUDE.md E=repo/CLAUDE.local.md F=repo/.claude/CLAUDE.md. Expected result: "none loaded".
 // OPT-IN: runs only with RUN_CANARY=1 AND a real CLAUDE_CODE_OAUTH_TOKEN (the owner's Claude login, like
-// test/delegate-eval.live.test.ts), so a plain `bun test` skips it. Command:
+// test/intent-eval.live.test.ts), so a plain `bun test` skips it. Command:
 //   RUN_CANARY=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/live-claude-md-loading.smoke.test.ts
 // Model: CANARY_MODEL, else claude-sonnet-5-5.
 const key = process.env.CLAUDE_CODE_OAUTH_TOKEN;

@@ -1,8 +1,5 @@
 import type { Database } from "bun:sqlite";
-import {
-  type McpSdkServerConfigWithInstance,
-  query as sdkQuery,
-} from "@anthropic-ai/claude-agent-sdk";
+import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
 import type { Route } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
@@ -42,8 +39,6 @@ export interface RunAgentInput {
   gitAuthor?: GitIdentity;
   /** Directory tree the agent's git MCP server is sandboxed to (execute stage: the worktree). */
   gitBaseDir?: string;
-  /** In-process MCP server of the app (Q&A `DelegateTask` tool); registered only when the stage has the `recommend` capability (Q&A today). */
-  appServer?: McpSdkServerConfigWithInstance;
   /** GitHub login whose token the read-only GitHub MCP server uses (code tasks); default = active gh account. */
   githubAccount?: string;
   /** The stage to run: its tools, model slot, permission mode, timeout and prompt. */

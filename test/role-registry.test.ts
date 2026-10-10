@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { mcpServersFor } from "../src/mcp/mcp-servers";
-import { GIT_MCP_SERVER, GITHUB_MCP_SERVER, TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { GIT_MCP_SERVER, GITHUB_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import {
-  delegableRoleNames,
+  dispatchableRoleNames,
   findStage,
   getRole,
   getStage,
@@ -56,8 +56,8 @@ test("whenToUse: every role has one, all different; class tiers only for dev", (
   expect(hasClassTiers(getRole("assistant"))).toBe(false);
 });
 
-test("delegableRoleNames: roles with whenToUse except the assistant", () => {
-  expect(delegableRoleNames()).toEqual(["dev"]);
+test("dispatchableRoleNames: roles with whenToUse except the assistant", () => {
+  expect(dispatchableRoleNames()).toEqual(["dev"]);
 });
 
 test("guard: subagent allowlist comes from the stage; a stage without subagents allows none", () => {
@@ -74,24 +74,20 @@ test("guard: subagent allowlist comes from the stage; a stage without subagents 
   );
 });
 
-test("mcp servers follow capabilities: git by groups, tasks by recommend, github by write", async () => {
-  const app = { type: "sdk", name: TASKS_MCP_SERVER, instance: {} } as never;
-  const qa = await mcpServersFor(getStage("assistant", "qa"), { appServer: app });
-  expect(Object.keys(qa).sort()).toEqual([GIT_MCP_SERVER, TASKS_MCP_SERVER].sort());
-  // No app server: no tasks server even with the capability.
-  expect(Object.keys(await mcpServersFor("qa", {}))).toEqual([GIT_MCP_SERVER]);
-  // A stage without git groups or recommend gets neither server, and no github (no write).
-  expect(await mcpServersFor(BARE, { appServer: app })).toEqual({});
-  // Code stages never get the tasks server; github is added when a token is available.
-  const exec = Object.keys(await mcpServersFor("exec", { appServer: app }));
+test("mcp servers follow capabilities: git by groups, github by write", async () => {
+  expect(Object.keys(await mcpServersFor(getStage("assistant", "qa"), {}))).toEqual([
+    GIT_MCP_SERVER,
+  ]);
+  // A stage without git groups gets no server, and no github (no write).
+  expect(await mcpServersFor(BARE, {})).toEqual({});
+  // Code stages: github is added when a token is available.
+  const exec = Object.keys(await mcpServersFor("exec", {}));
   expect(exec).toContain(GIT_MCP_SERVER);
-  expect(exec).not.toContain(TASKS_MCP_SERVER);
   expect(exec.filter((k) => k !== GIT_MCP_SERVER && k !== GITHUB_MCP_SERVER)).toEqual([]);
 });
 
-test("tools derive from capabilities (recommend adds no built-in tool)", () => {
+test("tools derive from capabilities", () => {
   expect(toolsFor(BARE)).toEqual(["Read", "Glob", "Grep", AGENT_TOOL_NAME]);
-  expect(toolsFor("qa").every((t) => !t.includes("DelegateTask"))).toBe(true);
 });
 
 test("findStage: a stage name in two roles is ambiguous and throws", () => {

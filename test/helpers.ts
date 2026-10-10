@@ -11,15 +11,15 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join, sep } from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { loadConfig } from "../src/config/agent-config";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { createAliasRouter } from "../src/intent/alias-router";
+import type { IntentDeps } from "../src/intent/decide-intent";
+import { loadLexicon } from "../src/intent/load-lexicon";
 import { ensureHome } from "../src/memory/persona";
+import { ROLES } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
-import { DELEGATE_TASK_TOOL_NAME } from "../src/tools/DelegateTaskTool/constants";
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 
@@ -165,55 +165,17 @@ export function readLogLines(base: string): Record<string, unknown>[] {
   }
 }
 
-/**
- * Talk to an in-process MCP server of the SDK options the way the SDK would: a real MCP client over an
- * in-memory transport linked to `options.mcpServers[name].instance`. `call` runs one tool.
- */
-export async function connectAppTool(options: any, name = TASKS_MCP_SERVER) {
-  const server = options.mcpServers[name].instance;
-  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "test", version: "1.0.0" });
-  await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
-  return {
-    call: (tool: string, args: Record<string, unknown>) =>
-      client.callTool({ name: tool, arguments: args }) as Promise<{
-        isError?: boolean;
-        content: { type: string; text: string }[];
-      }>,
-    close: () => client.close(),
-  };
-}
+/** Intent layer with L0-L3 only (no L4 engine): a `[dev]` message opens a dev task straight through the dispatcher. */
+export const devIntent = (home: string): IntentDeps => ({
+  pipeline: { lexicon: loadLexicon(home), aliasRouter: createAliasRouter(Object.values(ROLES)) },
+});
 
-/**
- * Fake SDK for handoff tests: a run that has the `tasks` server is the Q&A run; it calls `DelegateTask` once
- * per entry of `calls`, then ends with a result. Every other run (plan / exec stage) goes to `next`.
- * `results` collects what each `DelegateTask` call returned.
- */
-export function delegatingQuery(
-  calls: Record<string, unknown>[],
-  next: (a: any) => AsyncIterable<SDKMessage>,
-  results: { isError?: boolean; text: string }[] = [],
-) {
-  return (a: any) => {
-    if (!a.options?.mcpServers?.[TASKS_MCP_SERVER]) return next(a);
-    return (async function* () {
-      const tool = await connectAppTool(a.options);
-      try {
-        for (const c of calls) {
-          const r = await tool.call(DELEGATE_TASK_TOOL_NAME, { role: "dev", ...c });
-          results.push({ isError: r.isError, text: r.content[0]?.text ?? "" });
-        }
-      } finally {
-        await tool.close();
-      }
-      yield resultMsg({ result: "I will hand this over.", session_id: "sess-qa" });
-    })();
-  };
-}
-
-/** A valid brief for the `DelegateTask` tool (min 20 chars). */
+/** A valid brief of a dev task (the owner's message, tagged so L3 routes it to the dev role). */
 export const BRIEF =
   "Add b.txt containing two. Findings: a.txt:1 holds one. Acceptance: file exists.";
+
+/** `BRIEF` as the owner would type it to open a dev task. */
+export const DEV_REQUEST = `[dev] ${BRIEF}`;
 
 /** Channel mapped to `w2` (w1 owns TEST_CHANNEL). */
 export const CHANNEL_2 = "200000000000000002";

@@ -125,6 +125,25 @@ test("L4 picks the role of an undecided message, once; assistant answers a quest
   expect(await handle(msg("what does the fetch helper do"))).toBe("assistant answer");
   expect(e.seen).toHaveLength(1);
   expect(roles(env)).toEqual(["assistant"]);
+  // The assistant is a plain read-only role: no app MCP server, no handoff section in its prompt.
+  expect(Object.keys(seen[0].options.mcpServers)).not.toContain("tasks");
+  expect(seen[0].options.systemPrompt.append).not.toMatch(/hand ?over|propose/i);
+});
+
+test("dev request with an unknown repo is refused with the repo name, no plan stage", async () => {
+  const env = await setup();
+  const seen: any[] = [];
+  const handle = createTaskHandler({
+    git,
+    db: env.db,
+    config: env.config,
+    approvals: declinePr(),
+    queryFn: fakeSdk(seen) as never,
+    intent: intentDeps(env.home),
+  });
+  const reply = await handle(msg("repo:nope [dev] add b.txt"));
+  expect(reply).toContain('Unknown repo "nope"');
+  expect(seen).toHaveLength(0);
 });
 
 test("no L4 call for L0 commands, unique aliases, or when the engine is none", async () => {
@@ -156,7 +175,7 @@ test("no L4 call for L0 commands, unique aliases, or when the engine is none", a
   expect(await none(msg("vague words", "th2"))).toBe("assistant answer"); // idle + ambiguous -> entry role
 });
 
-test("L4 -> dev opens the task by the dispatcher: plan stage runs, no assistant turn, no DelegateTask", async () => {
+test("L4 -> dev opens the task by the dispatcher: plan stage runs, no assistant turn", async () => {
   const env = await setup();
   const e = engine(verdict({ class: "mechanical" }));
   const seen: any[] = [];
@@ -256,8 +275,10 @@ test("a second dev task while one runs: asked once, yes queues it, it starts whe
   });
   const first = handle(msg("[ask] explain the repo"));
   await Bun.sleep(50);
-  // second message while running: L4 says dev/new -> QUEUE question
-  const q = await handle(msg("please add b.txt with two"));
+  // second message while running: the `[dev]` alias (L3) -> QUEUE question; L4 is never called while busy
+  const q = await handle(msg("[dev] please add b.txt with two"));
+  expect(e.seen).toHaveLength(0);
+  expect(q).toContain('"please add b.txt with two"'); // the tag is not part of the brief
   expect(q).toContain("Run this after it? Reply yes or no");
   expect(listPendingProposals(env.db)).toHaveLength(1);
   // "yes" is an L1 answer to the ask: no L4 call, proposal queued
@@ -265,8 +286,9 @@ test("a second dev task while one runs: asked once, yes queues it, it starts whe
   expect(await handle(msg("yes"))).toContain("Queued");
   expect(e.seen).toHaveLength(callsBefore);
   expect(rows(env, "SELECT status FROM proposals")).toEqual([{ status: "queued" }]);
-  // other messages still get "still working..."
-  expect(await handle(msg("[dev] steer please"))).toBe("still working...");
+  // an undecided message gets "still working..." (no L4 call, no ask)
+  expect(await handle(msg("hmm and then what"))).toBe("still working...");
+  expect(e.seen).toHaveLength(0);
   release();
   const reply = await first;
   expect(reply).toContain("slow answer");
@@ -296,9 +318,9 @@ test("'no' drops the queued task; stop refuses queued ones", async () => {
   });
   const first = handle(msg("[ask] explain"));
   await Bun.sleep(50);
-  await handle(msg("add a feature please"));
+  await handle(msg("[dev] add a feature please"));
   expect(await handle(msg("no"))).toBe("Dropped.");
-  await handle(msg("add another feature please"));
+  await handle(msg("[dev] add another feature please"));
   await handle(msg("ok"));
   expect(
     rows(env, "SELECT status FROM proposals ORDER BY created_at, rowid").map((r) => r.status),
@@ -345,10 +367,13 @@ test("fix loop: [dev] follow-ups continue in the same clone/session, max 2 round
       (r) => r.parent_task_id,
     ),
   ).toEqual([wt.taskId, wt.taskId]);
-  // round 3: refused with the limit, nothing runs
+  // round 3: the limit is reached, so the request is a NEW task (plan stage), not a fix round or a dead end
   const n = seen.length;
-  expect(await handle(msg("[dev] fix it once more"))).toContain("2 fix rounds");
-  expect(seen).toHaveLength(n);
+  const third = await handle(msg("[dev] fix it once more"));
+  expect(third).not.toContain("2 fix rounds");
+  expect(third).toContain("Starting plan");
+  expect(seen.length).toBeGreaterThan(n);
+  expect(seen[n].options.resume).toBeUndefined();
 });
 
 test("effort: a signal raises this turn's effort; a complaint raises the thread floor; the default message keeps the stage model", async () => {
@@ -421,7 +446,7 @@ test("a staged task without the approval flow is refused by text, never dispatch
     queryFn: fakeSdk(seen) as never,
     intent: intentDeps(env.home),
   });
-  expect(await handle(msg("[dev] add b.txt"))).toBe("Code tasks need the Discord approval flow.");
+  expect(await handle(msg("[dev] add b.txt"))).toBe("This task needs the Discord approval flow.");
   expect(seen).toHaveLength(0);
   expect(rows(env, "SELECT 1 FROM proposals")).toEqual([]);
 });
@@ -449,4 +474,45 @@ test("yes / no on an idle thread answers the pending proposal (yes starts it lik
   expect(seen[0].options.permissionMode).toBe("plan");
   expect(e.seen).toHaveLength(0); // L1 answers: no classifier call
   expect(roles(env)).toEqual(["dev"]);
+});
+
+test("a crash of the active run still starts the queued task; the classifier is never called while busy", async () => {
+  const env = await setup();
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const seen: any[] = [];
+  const inner = fakeSdk(seen);
+  // the first (assistant) run blocks, then crashes the turn
+  const query = (a: any) =>
+    !a.options.permissionMode && !a.options.cwd.includes("worktrees") && seen.length === 0
+      ? (async function* () {
+          seen.push(a);
+          await gate;
+          yield resultMsg({ result: "slow answer" });
+        })()
+      : inner(a);
+  const e = engine(verdict());
+  const handle = createTaskHandler({
+    git,
+    db: env.db,
+    config: env.config,
+    approvals: declinePr(),
+    queryFn: query as never,
+    intent: intentDeps(env.home, e.classifier),
+  });
+  // finishing the assistant task fails in storage: the turn throws (a crash), the dev task must still start
+  env.db.run(
+    "CREATE TRIGGER boom BEFORE UPDATE ON tasks WHEN NEW.role = 'assistant' AND NEW.status != 'running' BEGIN SELECT RAISE(ABORT, 'boom'); END",
+  );
+  const first = handle(msg("[ask] explain the repo"));
+  await Bun.sleep(50);
+  expect(await handle(msg("[dev] add b.txt"))).toContain("Run this after it?");
+  expect(await handle(msg("yes"))).toContain("Queued");
+  expect(e.seen).toHaveLength(0); // busy: L4 never ran
+  release();
+  const out = await first;
+  expect(out).toBe("Agent failed. Check the logs."); // the handler reported the crash
+  // whatever the first run did, the queued dev task was started, not left behind
+  expect(rows(env, "SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
+  expect(roles(env)).toContain("dev");
 });

@@ -3,7 +3,6 @@ import { type ModelTier, type Route, resolveModel } from "../../config/model-rou
 import { logEvent, logger } from "../../observability/logger";
 import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
 import type { RunAgentResult } from "../../runtime/run-agent";
-import type { Proposal } from "../../tools/DelegateTaskTool/delegate-task-tool";
 
 /* Output `answer`: the reply is the agent's text. With the role's `escalation` flag a cheap-tier answer may end in
    `ESCALATE: sonnet|opus` (one line, last) and is then re-run on that tier. */
@@ -47,17 +46,15 @@ export function escalationAction(
 /**
  * Haiku triage: when the answer ends with `ESCALATE: sonnet`, run the same message ONCE more on Sonnet (same
  * session, escalated budget) and say so in one line; `ESCALATE: opus` needs the owner's OK, so it is only
- * reported (the owner-confirmation flow is P1.4). Anything else is kept as is (fail closed). A run that
- * recorded a handoff proposal is never escalated. `canRerun` false (same model would run again): no re-run,
+ * reported (the owner-confirmation flow is P1.4). Anything else is kept as is (fail closed). `canRerun` false (same model would run again): no re-run,
  * one owner line says why. The "Escalated" prefix is only for a re-run that ran and succeeded.
  */
 export async function withEscalation(
   first: RunAgentResult,
-  proposal: Proposal | undefined,
   rerun: (sessionId: string | undefined) => Promise<RunAgentResult>,
   canRerun = true,
 ): Promise<RunAgentResult> {
-  if (first.outcome !== "success" || proposal) return first;
+  if (first.outcome !== "success") return first;
   const { text, tier } = parseEscalation(first.text);
   const action = escalationAction(tier, false);
   logEvent(log, "escalation", { tier: tier ?? null, action });
@@ -93,7 +90,6 @@ export async function answerOutput(a: {
   config: AgentConfig;
   run: (route: Route | undefined, sessionId?: string) => Promise<RunAgentResult>;
   resume?: string;
-  proposal: () => Proposal | undefined;
 }): Promise<RunAgentResult> {
   const { role, stage, config } = a;
   if (!role.escalation) return a.run(undefined, a.resume);
@@ -103,7 +99,6 @@ export async function answerOutput(a: {
   const first = await a.run({ offerEscalation: canEscalate }, a.resume);
   return withEscalation(
     first,
-    a.proposal(),
     (sessionId) => a.run({ tier: "sonnet", escalated: true }, sessionId),
     canEscalate,
   );

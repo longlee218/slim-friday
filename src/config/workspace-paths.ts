@@ -77,7 +77,7 @@ export function workspacePaths(agentHome: string) {
 export const WORKSPACE_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
 /** Workspace names that cannot be used (`ops` is the ops category). */
 export const RESERVED_WORKSPACES = ["ops"];
-/** Repo dir name; also the `repo:` pin and DelegateTask `repo` value. */
+/** Repo dir name; also the `repo:` pin and a request's `repo` value. */
 export const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
 /** True when `name` may become a workspace dir. */

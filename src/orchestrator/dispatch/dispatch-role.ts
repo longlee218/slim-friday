@@ -72,7 +72,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   // `stop` / shutdown after the source turn ended: the first stage would get an already-aborted signal whose
   // abort listener never fires, so it could still post an approval prompt. Drop the proposal.
   if (i.ac.signal.aborted) {
-    logEvent(log, "handoff.dropped", { reason: "aborted" });
+    logEvent(log, "dispatch.dropped", { reason: "aborted" });
     refuseProposal();
     return i.reply;
   }
@@ -123,11 +123,11 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   );
   // A failed transition (already dispatched / expired) means another path owns the proposal: never run twice.
   if (proposalId && !setProposalStatus(db, proposalId, "dispatched")) {
-    logEvent(log, "handoff.dropped", { reason: "proposal_not_pending" });
+    logEvent(log, "dispatch.dropped", { reason: "proposal_not_pending" });
     failTask(db, log, taskId);
     return `${i.reply ? `${i.reply}\n\n` : ""}That proposal is no longer pending; nothing was started.`;
   }
-  logEvent(log, "handoff.started", {
+  logEvent(log, "dispatch.started", {
     role: role.name,
     repo,
     brief: excerpt(request.brief),
@@ -141,7 +141,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   const posted = await i.task.notify?.(head).then(
     () => true,
     (err: unknown) => {
-      log.warn({ err: errText(err) }, "handoff notify failed; notice joins the final reply");
+      log.warn({ err: errText(err) }, "dispatch notify failed; notice joins the final reply");
       return false;
     },
   );

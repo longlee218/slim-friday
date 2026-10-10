@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { ApprovalGateway, ApprovalRequest } from "../src/approvals/approval-types";
-import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { parseTaskCommand, RESUME_PROMPT } from "../src/orchestrator/task-commands";
 import {
@@ -13,9 +12,9 @@ import {
 } from "../src/tools/sdk-tool-names";
 import {
   addRepo,
-  BRIEF,
   clearWorkspaces,
-  delegatingQuery,
+  DEV_REQUEST,
+  devIntent,
   makeEnv,
   resultMsg,
   stubGateway,
@@ -40,34 +39,35 @@ function fakeGateway(approved = true) {
 }
 
 /**
- * Run one message whose Q&A agent delegates a code task; capture the SDK options of the plan stage.
- * Without `gw` the approval flow is off (no `DelegateTask` tool, no plan stage).
+ * Run one `[dev]` message (the intent layer opens a dev task); capture the SDK options of the plan stage.
+ * Without `gw` the approval flow is off (nothing runs).
  */
 async function runCodeTask(gw?: ApprovalGateway) {
   const env = makeEnv();
   clearWorkspaces(env.home);
   const repo = addRepo(env.home, "repo"); // managed clone (code tasks need one)
   let opts: any;
-  const qa: any[] = [];
-  const next = (a: any) => {
+  const qa: any[] = []; // every run
+  const query = (a: any) => {
     opts = a.options;
+    qa.push(a.options);
     return (async function* () {
       yield resultMsg();
     })();
   };
-  const query = delegatingQuery([{ brief: BRIEF }], next);
   const handle = createTaskHandler({
     db: env.db,
     config: env.config,
-    queryFn: ((a: any) => (qa.push(a.options), query(a))) as never,
+    queryFn: query as never,
     approvals: gw,
+    intent: devIntent(env.home),
   });
   const reply = await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "t1",
-    text: "fix it",
+    text: DEV_REQUEST,
   });
   return { env, opts, reply, repo, qa };
 }
@@ -119,18 +119,16 @@ test("parseTaskCommand: go, go +<usd>; invalid raises are plain messages; Resume
   expect(parseTaskCommand(RESUME_PROMPT)).toEqual({ kind: "resume" });
 });
 
-test("without approvals the agent has no delegate tool and no plan stage starts", async () => {
-  const { qa } = await runCodeTask();
-  expect(qa).toHaveLength(1); // the Q&A run only
-  expect(qa[0].mcpServers[TASKS_MCP_SERVER]).toBeUndefined();
-  expect(qa[0].permissionMode).toBeUndefined();
+test("without approvals no run starts: the owner is told code tasks need the approval flow", async () => {
+  const { qa, reply } = await runCodeTask();
+  expect(qa).toHaveLength(0);
+  expect(reply).toContain("approval flow");
 });
 
 test("code task runs in plan mode in the scratch dir with write tools and no allowedTools", async () => {
   const { gw } = fakeGateway();
   const { env, opts, repo, qa } = await runCodeTask(gw);
-  expect(qa[0].permissionMode).toBeUndefined(); // the Q&A run is read-only and offers `DelegateTask`
-  expect(qa[0].mcpServers[TASKS_MCP_SERVER]).toBeDefined();
+  expect(qa).toHaveLength(1); // the plan stage only: no assistant turn before it
   expect(opts.permissionMode).toBe("plan");
   expect(opts.tools).toContain(WRITE_TOOL_NAME);
   expect(opts.allowedTools).toBeUndefined(); // would bypass canUseTool
@@ -138,12 +136,9 @@ test("code task runs in plan mode in the scratch dir with write tools and no all
   expect(opts.additionalDirectories).toEqual([realpathSync(repo)]);
   expect(opts.canUseTool).toBeFunction();
   expect(opts.systemPrompt.append).toContain("plan mode");
-  // Only the Q&A run saved a session (its own cwd); the plan stage keeps its session on the task row.
-  expect(env.db.query("SELECT cwd FROM sessions").all()).toEqual([{ cwd: repo }]);
-  expect(env.db.query("SELECT type FROM tasks ORDER BY type").all()).toEqual([
-    { type: "code" },
-    { type: "qa" },
-  ]);
+  // The plan stage keeps its session on the task row, never in the thread's session table.
+  expect(env.db.query("SELECT cwd FROM sessions").all()).toEqual([]);
+  expect(env.db.query("SELECT type FROM tasks").all()).toEqual([{ type: "code" }]);
 });
 
 test("canUseTool: plan goes to owner; writes only in scratch; risky Bash asks; denial reaches agent", async () => {

@@ -33,10 +33,15 @@ export interface IntentDeps {
 
 /** Everything one decision reads. */
 export interface DecideInput extends IntentPipelineInput {
-  /** The thread has a task (in flight, on a gate, or a live clone): decides `scope` of an L3 route. */
+  /**
+   * The thread has a task (in flight, on a gate, or a live clone) that can still take the message: decides `scope`
+   * of an L3 route. False when the clone used up its fix rounds: the next request is a NEW task.
+   */
   hasTask: boolean;
   /** Owner prefix class (`[design]`): overrides any other class. */
   ownerClass?: TaskClass;
+  /** The thread's stop signal: cancels the L4 call. */
+  signal?: AbortSignal;
   /** Builds the L4 input; called only when L4 runs (so the DB is not read for a decided message). */
   l4Input: () => IntentInput;
 }
@@ -100,7 +105,7 @@ export async function decideIntent(
     return { decision: fallback(i.state), effort };
   }
   try {
-    const raw = await deps.classifier.classify(i.l4Input());
+    const raw = await deps.classifier.classify(i.l4Input(), i.signal);
     const v = validateIntent(raw, {
       hasTask: i.hasTask,
       ownerClass: i.ownerClass,

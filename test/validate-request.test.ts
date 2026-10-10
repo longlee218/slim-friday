@@ -4,7 +4,6 @@ import { createGitMcp } from "../src/mcp/git-mcp";
 import {
   clampSkillsMode,
   type DispatchRequest,
-  delegateCheck,
   LOW_CONFIDENCE,
   validateRequest,
 } from "../src/orchestrator/dispatch/validate-request";
@@ -50,9 +49,7 @@ test("repo given: resolved through the single resolver; unknown repo asks, no cl
   expect(ok).toMatchObject({ ok: true, repoName: "real" });
   const bad = await validateRequest(deps, req({ repo: "nope" }));
   expect(bad).toMatchObject({ ok: false, action: "ask", refusal: { reason: "unknown_repo" } });
-  // Same answer as the DelegateTask tool pre-check (one rule).
-  const check = delegateCheck({ db: deps.db, agentHome: deps.config.agentHome, repos: deps.repos });
-  expect(check("nope")).toContain('Unknown repo "nope"');
+  expect(bad).toMatchObject({ refusal: { reply: expect.stringContaining('Unknown repo "nope"') } });
   const unmanaged = await validateRequest(
     { ...deps, repos: [{ ...deps.repos[0]!, path: "/somewhere/else" }] },
     req(),
@@ -60,7 +57,7 @@ test("repo given: resolved through the single resolver; unknown repo asks, no cl
   expect(unmanaged).toMatchObject({ ok: false, action: "refuse", refusal: { reason: "no_clone" } });
 });
 
-test("unknown or non-delegable role asks the owner (never a guess)", async () => {
+test("unknown or non-dispatchable role asks the owner (never a guess)", async () => {
   const { deps } = await setup();
   for (const role of ["nope", "assistant", "constructor"]) {
     const v = await validateRequest(deps, req({ role }));

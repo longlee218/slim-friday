@@ -20,7 +20,6 @@ import { refuseQueued } from "../storage/proposal-store";
 import { getSession } from "../storage/session-store";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
-import { delegateCheck } from "./dispatch/validate-request";
 import { replyWhileBusy } from "./intent-turn";
 import { routeAndRun } from "./route-and-run";
 import type { RoleRunCtx } from "./run-turn";
@@ -47,7 +46,7 @@ export interface TaskHandlerDeps {
   limiter?: RunLimiter;
   /** The git MCP server the app uses (worktrees, fetch, push, inspection); started on first use. */
   git?: GitMcp;
-  /** Owner approval gateway; required for code tasks (the `DelegateTask` tool, worktree follow-ups). */
+  /** Owner approval gateway; required for staged (gated) roles such as dev, and their worktree follow-ups. */
   approvals?: ApprovalGateway;
   /** Intent layer (pipeline + L4 engine), built at startup. Missing = off: every message takes the legacy pick (entry role / clone owner). */
   intent?: IntentDeps;
@@ -71,7 +70,6 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     queryFn: deps.queryFn,
     git,
     stopping: tracker.isStopping,
-    delegateCheck: (p) => delegateCheck({ db, agentHome: config.agentHome, ...p }),
   };
   const memory = createMemoryRunner({ db, config, queryFn: deps.queryFn, limiter: deps.limiter });
   /** Handle one task and return the (redacted) reply text. */
@@ -151,7 +149,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       const { repos } = ws; // every repo lookup below stays inside this workspace
       setLogContext({ workspace: ws.name });
       single = repos.length === 1 ? repos[0]!.name : undefined;
-      // Everything a role run needs (the approval gateway exists whenever a code task is routed).
+      // Everything a role run needs (the approval gateway exists whenever a staged role is routed).
       const rc: RoleRunCtx = {
         deps: dispatchDeps,
         log,
@@ -161,7 +159,6 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
         workspace: ws.name,
         repos,
         ac,
-        allowDelegate: !!deps.approvals, // handoff only when the next role can be approved
         begin,
         taskRepo,
       };

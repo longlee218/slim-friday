@@ -6,13 +6,13 @@ import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
-import { BRIEF, delegatingQuery, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
 /** The real git MCP server (pinned package), shared by the tests of this file. */
 const git = createGitMcp();
 afterAll(() => git.close());
 
-/** Run a delegated task to the end of the exec stage; return the options of the plan and exec runs. */
+/** Run a dev task to the end of the exec stage; return the options of the plan and exec runs. */
 async function runTask(
   config: Record<string, string>,
   skills: string[],
@@ -47,14 +47,15 @@ async function runTask(
     db: env.db,
     config: env.config,
     approvals: stubGateway({ confirm: async () => ({ approved: false, reason: "no" }) }),
-    queryFn: delegatingQuery([{ brief: BRIEF }], next) as never,
+    queryFn: next as never,
+    intent: devIntent(env.home),
   });
   await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "change it",
+    text: "[dev] change it",
   });
   const [plan, exec] = seen;
   return { env, clone, plan, exec, pluginFiles, wt: getWorktreeByThread(env.db, "th1")! };

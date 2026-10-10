@@ -51,7 +51,7 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
 }
 
 /**
- * Create the task row (`brief` = the delegated task's prompt) and set the log context of the task (repo, mode). `single` = the only registered
+ * Create the task row (`brief` = the dispatched task's prompt) and set the log context of the task (repo, mode). `single` = the only registered
  * workspace: an unpinned task ("*" row) then logs under it. Lines logged before the repo is known
  * (message.received, task.started with "*") stay in the main log only; tool-hooks sets the repo later
  * for unpinned multi-repo tasks.
