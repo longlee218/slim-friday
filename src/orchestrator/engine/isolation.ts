@@ -11,15 +11,15 @@ import { resolveAuthor } from "../../repos/repo-registry";
 import type { StageHandoff } from "../../roles/role-types";
 import { runAgent } from "../../runtime/run-agent";
 import type { WorktreeRow } from "../../storage/worktree-store";
+import { startWorktree } from "../../workspaces/task-clone";
 import { finishCodeTask, prTitle } from "../outputs/pr-output";
 import { type FlowResult, failResult } from "../tasks/task-result";
-import { startWorktree } from "../tasks/task-worktree";
 import { DEFAULT_PLAN_FILE, renderHandoff } from "./handoff";
 import { awaitingResult, execWorkflow, stageControl } from "./stage-control";
 import type { StageCtx } from "./stage-runner";
 
-/* Isolation `clone`: the stage runs in an isolated checkout on its own branch (today the git worktree path;
-   Part 2 swaps the implementation behind these two functions). */
+/* Isolation `clone`: the stage runs in an independent local clone of the repo on its own branch
+   (`workspaces/task-clone.ts`; the owner repo's `.git` is never touched). */
 
 /** Refusal text when the worktree's repo is not the clone of the workspace this run resolved to. */
 const wrongWorkspace = (ws: string, repo: string): FlowResult =>
@@ -126,8 +126,8 @@ export async function runCloneRun(
 }
 
 /**
- * Switch into the isolation of the stage after an approved gate: create the clone (new branch from the repo
- * base), save the plan next to it and word the next stage's prompt from the handoff data. A failure leaves
+ * Switch into the isolation of the stage after an approved gate: create the clone (new branch from the local
+ * base branch), save the plan next to it and word the next stage's prompt from the handoff data. A failure leaves
  * nothing behind and is the task's result.
  */
 export async function switchToClone(

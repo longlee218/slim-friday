@@ -8,7 +8,6 @@ import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { CONFIRM_DEV_QUESTION } from "../src/orchestrator/dispatch/queued-tasks";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
-import { NO_CLONE_NOTICE } from "../src/orchestrator/thread/intent-replies";
 import { ROLES } from "../src/roles/role-registry";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
@@ -23,20 +22,16 @@ import {
 } from "./helpers";
 
 // Discussion guard: L3 alone picks a NEW dev task right after an assistant turn -> ONE yes/no question first.
-// yes -> the task opens; no -> the assistant answers the original message. No clone -> assistant + one note.
+// yes -> the task opens; no -> the assistant answers the original message.
 
 const git = createGitMcp();
 afterAll(() => git.close());
 
-/** Env with a managed clone (`withClone`) or only an external working copy (the live no_clone case). */
-async function setup(withClone = true) {
+/** Env with a workspace clone of a repo. */
+async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
   const src = await makeRepo("main");
-  if (!withClone) {
-    addRepo(env.home, "wc", {}, { path: src.repo });
-    return env;
-  }
   const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
   addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
   await g(env.home, "clone", "-q", src.repo, clone);
@@ -75,8 +70,8 @@ function fakeSdk(seen: any[]) {
   };
 }
 
-async function build(withClone = true) {
-  const env = await setup(withClone);
+async function build() {
+  const env = await setup();
   const e = engine();
   const seen: any[] = [];
   const handle = createTaskHandler({
@@ -142,14 +137,6 @@ test("no guard: a first message, a [dev] tag or a role other than a staged one i
   await second.handle(second.msg("[ask] explain the repo"));
   expect(await second.handle(second.msg("[dev] add b.txt"))).toContain("Starting plan");
   expect(q("SELECT role FROM tasks")).toEqual([{ role: "dev" }]);
-});
-
-test("no workspace clone: the message is answered by the assistant with ONE note, no question", async () => {
-  const { handle, msg, q } = await build(false);
-  await handle(msg("[ask] explain the repo"));
-  const reply = await handle(msg(PROPOSAL));
-  expect(reply).toBe(`${NO_CLONE_NOTICE}\n\nassistant answer`);
-  expect(q("SELECT count(*) AS n FROM proposals")).toEqual([{ n: 0 }]);
 });
 
 test("the saved-copy path of a long attachment reaches the assistant, never the dev task brief", async () => {

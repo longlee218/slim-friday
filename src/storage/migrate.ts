@@ -64,6 +64,16 @@ const V2_COLUMNS: Record<string, Array<[name: string, ddl: string]>> = {
     ["stage_idx", "INTEGER"],
     ["model", "TEXT"],
   ],
+  // Independent task clone (P2): where it came from and how it was delivered.
+  worktrees: [
+    ["workspace", "TEXT"],
+    ["base_sha", "TEXT"],
+    ["origin_url", "TEXT"],
+    ["delivery", "TEXT"],
+    ["status", "TEXT NOT NULL DEFAULT 'active'"],
+    ["patch_path", "TEXT"],
+    ["delivered_at", "INTEGER"],
+  ],
 };
 
 /** True when the table exists. */

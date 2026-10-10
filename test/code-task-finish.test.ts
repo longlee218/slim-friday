@@ -6,7 +6,7 @@ import { GIT_TOOL } from "../src/mcp/mcp-tool-names";
 import { finishCodeTask } from "../src/orchestrator/outputs/pr-output";
 import { openDb } from "../src/storage/db";
 import { insertWorktree, type WorktreeRow } from "../src/storage/worktree-store";
-import { g, makeRepo } from "./git-fixture";
+import { g, LEGACY_WT_FIELDS, makeRepo } from "./git-fixture";
 import { stubGateway } from "./helpers";
 
 /** The real git MCP server (pinned package). */
@@ -43,6 +43,7 @@ async function setup(branch = "agent/x") {
     base: "main",
     prUrl: null,
     createdAt: Date.now(),
+    ...LEGACY_WT_FIELDS,
   };
   insertWorktree(db, row);
   return { ...r, wt, db, row };

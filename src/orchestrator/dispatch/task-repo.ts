@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import { isManagedClone } from "../../repos/refresh-repo";
 import type { Repo } from "../../repos/repo-registry";
 import { countActiveCappedTasks } from "../../storage/run-store";
 
@@ -43,33 +42,24 @@ export function capRefusal(db: Database): Refusal | undefined {
 
 /**
  * THE single repo resolver (B2): routing and the dispatcher's validation both
- * go through it. `repoName` picks one repo of the workspace (unknown name -> refusal); else every managed
- * clone is a candidate. Worktrees branch off managed clones only, never a developer's working copy.
+ * go through it. `repoName` picks one repo of the workspace (unknown name -> refusal); else every registered
+ * repo is a candidate. Any registered repo works: the task gets its own local clone, the repo itself is only read.
  */
 export function resolveTaskRepo(
-  agentHome: string,
   repos: Repo[],
   repoName?: string,
 ): Refusal | { candidates: Repo[] } {
   const picked = repoName ? findRepo(repos, repoName) : undefined;
   if (repoName && !picked) return unknownRepo(repos, repoName);
-  const candidates = (picked ? [picked] : repos).filter((r) => isManagedClone(r.path, agentHome));
-  if (candidates.length === 0) {
-    return refuse(
-      "no_clone",
-      "A task needs a workspace clone (workspaces/<ws>/repos/<name>/repo, with a repo.yaml next to it). Clone the repo there first.",
-    );
-  }
-  return { candidates };
+  return { candidates: picked ? [picked] : repos };
 }
 
 /** Can a new capped task start now? `resolveTaskRepo` plus the concurrency cap (shared by routing and dispatch). */
 export function cappedTaskBlocker(
   db: Database,
-  agentHome: string,
   repos: Repo[],
   repoName?: string,
 ): Refusal | { candidates: Repo[] } {
-  const r = resolveTaskRepo(agentHome, repos, repoName);
+  const r = resolveTaskRepo(repos, repoName);
   return "reply" in r ? r : (capRefusal(db) ?? r);
 }

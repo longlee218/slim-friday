@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
-import { NO_CLONE_NOTICE } from "../src/orchestrator/thread/intent-replies";
 import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { insertTask } from "../src/storage/run-store";
 import { getSession } from "../src/storage/session-store";
@@ -119,7 +118,7 @@ test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; 
   // Stage 2: runs in the worktree, default mode, commits allowed by guard.
   const wt = getWorktreeByThread(env.db, "th1")!;
   expect(wt.repo).toBe("real");
-  expect(wt.branch).toMatch(/^agent\//);
+  expect(wt.branch).toMatch(/^friday\/[0-9a-f]{8}-/);
   expect(seen).toHaveLength(2);
   expect(seen[1].options.cwd).toBe(realpathSync(wt.path));
   expect(seen[1].options.permissionMode).toBeUndefined();
@@ -134,9 +133,10 @@ test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; 
   expect(readFileSync(env.paths.workspace("main").task(wt.taskId).plan, "utf8")).toContain(
     "add b.txt",
   );
-  expect(confirms[0]).toContain("1 commit");
+  // P2.2 seam: a clone has no PR delivery yet, so the owner is not asked (remove with the seam).
+  expect(confirms).toHaveLength(0);
   expect(reply).toContain("Xong");
-  expect(reply).toContain("not pushed");
+  expect(reply).toContain("P2.2");
   expect(getSession(env.db, "th1")).toMatchObject({ cwd: realpathSync(wt.path), repo: "real" });
   // The clone itself is untouched.
   expect(await g(clone, "status", "--short")).toBe("");
@@ -150,28 +150,6 @@ test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; 
   expect(await handle(msg_("cleanup:"))).toContain("Removed");
   expect(existsSync(wt.path)).toBe(false);
   expect(getWorktreeByThread(env.db, "th1")).toBeNull();
-});
-
-test("code task needs a managed clone; unmanaged working copies are refused", async () => {
-  const env = makeEnv();
-  const src = await makeRepo("main"); // outside AGENT_HOME/repos
-  clearWorkspaces(env.home);
-  addRepo(env.home, "wc", {}, { path: src.repo });
-  const { gw } = gateway(false);
-  const seen: any[] = [];
-  const handle = createTaskHandler({
-    git,
-    db: env.db,
-    config: env.config,
-    approvals: gw,
-    queryFn: fakeSdk(seen) as never,
-    intent: devIntent(env.home),
-  });
-  const reply = await handle(msg_("[dev] please do it"));
-  // No dev task (no plan stage): the message is answered as a conversation, with one line saying why.
-  expect(reply).toContain(NO_CLONE_NOTICE);
-  expect(seen).toHaveLength(1);
-  expect(seen[0].options.permissionMode).not.toBe("plan");
 });
 
 test("busy when the code-task cap is reached", async () => {
@@ -213,7 +191,8 @@ test("plan rejected -> no worktree is created", async () => {
   expect(seen).toHaveLength(1);
 });
 
-test("commits must carry the owner's identity: wrong author or attribution blocks the PR offer", async () => {
+// The identity check itself is covered on legacy rows in code-task-finish.test.ts; clones skip it until P2.2.
+test("clone task: no PR offer yet, whatever the commit identity (P2.2 seam)", async () => {
   for (const [commit, msg] of [
     [["-c", "user.email=claude@anthropic.com", "-c", "user.name=Claude"], "add b"],
     [
@@ -232,7 +211,7 @@ test("commits must carry the owner's identity: wrong author or attribution block
       intent: devIntent(env.home),
     });
     const reply = await handle(msg_(DEV_REQUEST));
-    expect(reply).toContain("PR not offered");
+    expect(reply).toContain("P2.2");
     expect(confirms).toHaveLength(0);
   }
 });

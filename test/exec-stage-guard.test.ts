@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { runStages } from "../src/orchestrator/engine/stage-runner";
+import { LEGACY_WT_FIELDS } from "./git-fixture";
 import { makeEnv, stubGateway } from "./helpers";
 
 const git = createGitMcp();
@@ -57,6 +58,7 @@ test("execStage refuses when the resolved repo path differs from the worktree's 
         base: "main",
         prUrl: null,
         createdAt: 0,
+        ...LEGACY_WT_FIELDS,
       },
     },
   );

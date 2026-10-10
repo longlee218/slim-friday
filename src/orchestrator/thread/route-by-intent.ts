@@ -12,14 +12,11 @@ import {
   queueTask,
   taskBrief,
 } from "../dispatch/queued-tasks";
-import { resolveTaskRepo } from "../dispatch/task-repo";
-import { repoHint } from "../dispatch/validate-request";
 import {
   ASK_TEXT,
   type AskKind,
   GATE_HINT,
   NO_APPROVALS,
-  NO_CLONE_NOTICE,
   NOTHING_PENDING,
   STILL_WORKING,
 } from "./intent-replies";
@@ -166,17 +163,6 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
     case "open": {
       if (c.busy) return reply(STILL_WORKING);
       if (!c.deps.approvals) return reply(NO_APPROVALS);
-      // No workspace clone: a dev task would be refused (`no_clone`), so answer as a conversation with a note.
-      const home = c.deps.config.agentHome;
-      const clone = resolveTaskRepo(home, c.repos, repoHint(home, c.pinned, c.repo));
-      if ("reply" in clone && clone.reason === "no_clone") {
-        logEvent(log, "task.refused", {
-          reason: clone.reason,
-          reply: clone.reply,
-          fallback: "assistant",
-        });
-        return { kind: "run", role: entryRole().name, text: c.text, notice: NO_CLONE_NOTICE };
-      }
       if (a.kind === "confirm-dev")
         return reply(
           queueTask(c, { role: a.role, text: c.text, repo: c.repo, cls: c.cls, confirm: true }),

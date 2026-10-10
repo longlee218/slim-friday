@@ -18,6 +18,7 @@ import { errText } from "../observability/redact";
 import type { QueryFn } from "../runtime/run-agent";
 import { refuseQueued } from "../storage/proposal-store";
 import { getSession } from "../storage/session-store";
+import { cleanupWorktree } from "../workspaces/clone-cleanup";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { replyWhileBusy } from "./intent-turn";
@@ -33,7 +34,6 @@ import {
   refused,
   taskLogContext,
 } from "./tasks/task-tracker";
-import { cleanupWorktree } from "./tasks/task-worktree";
 import { EffortFloors } from "./thread/effort-floor";
 
 /** Dependencies of the task handler. */
@@ -104,7 +104,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
         floors,
       });
     if (parsed.kind === "cleanup")
-      return cleanupWorktree({ db, git, inUse: (t) => active.has(t) }, threadId, parsed.taskId);
+      return cleanupWorktree({ db, agentHome: config.agentHome, active }, threadId, parsed.taskId);
     // Drain (deploy): no new task starts; stop / still-working / cleanup above still answer.
     if (isDraining(config.agentHome)) {
       logEvent(log, "task.refused", { reason: "drain", reply: DRAIN_REPLY });

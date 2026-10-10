@@ -43,18 +43,19 @@ test("valid dev request: role, candidate clones, row repo `*` until the plan pic
   }
 });
 
-test("repo given: resolved through the single resolver; unknown repo asks, no clone refuses", async () => {
+test("repo given: resolved through the single resolver; unknown repo asks; an owner checkout outside the workspace clones is accepted", async () => {
   const { deps } = await setup();
   const ok = await validateRequest(deps, req({ repo: "REAL" }));
   expect(ok).toMatchObject({ ok: true, repoName: "real" });
   const bad = await validateRequest(deps, req({ repo: "nope" }));
   expect(bad).toMatchObject({ ok: false, action: "ask", refusal: { reason: "unknown_repo" } });
   expect(bad).toMatchObject({ refusal: { reply: expect.stringContaining('Unknown repo "nope"') } });
-  const unmanaged = await validateRequest(
+  // Any registered repo works (the task clones it): no managed-clone requirement any more.
+  const external = await validateRequest(
     { ...deps, repos: [{ ...deps.repos[0]!, path: "/somewhere/else" }] },
     req(),
   );
-  expect(unmanaged).toMatchObject({ ok: false, action: "refuse", refusal: { reason: "no_clone" } });
+  expect(external).toMatchObject({ ok: true });
 });
 
 test("unknown or non-dispatchable role asks the owner (never a guess)", async () => {

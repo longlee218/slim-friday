@@ -13,6 +13,7 @@ import { basename, isAbsolute } from "node:path";
 import { parseCommand, type Segment } from "./bash-parser";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { isSecretPath } from "./deny-dangerous";
+import { isGitDirArg, writesGitDir } from "./git-dir-guard";
 import { isInside, resolveReal } from "./paths";
 
 /** Hosts curl/wget may reach without asking. */
@@ -32,18 +33,8 @@ const READERS = new Set([
   ...["grep", "rg", "awk", "sed", "cp", "mv", "base64", "source", ".", "tee", "sort", "cut"],
 ]);
 const NETWORK = new Set([
-  "curl",
-  "wget",
-  "http",
-  "https",
-  "nc",
-  "ncat",
-  "telnet",
-  "ssh",
-  "scp",
-  "sftp",
-  "rsync",
-  "ftp",
+  ...["curl", "wget", "http", "https", "nc", "ncat", "telnet"],
+  ...["ssh", "scp", "sftp", "rsync", "ftp"],
 ]);
 const PKG_MANAGERS = new Set(["bun", "npm", "pnpm", "yarn"]);
 
@@ -174,6 +165,9 @@ function checkSegment(seg: Segment): Decision {
   const cmd = basename(words[0]);
   const args = words.slice(1);
 
+  // The clone's git dir (hooks, config) may be read, never written: it would run code in later app git calls.
+  if (writesGitDir(cmd, args, seg.redirect))
+    return deny("writing to the .git directory is blocked");
   if (["sudo", "su", "doas"].includes(cmd)) return deny("privilege escalation is blocked");
   if (cmd === "eval") return deny("eval is blocked");
   if (SHELLS.has(cmd)) {
@@ -208,6 +202,7 @@ function commandKey(command: string): string | null {
 function isCdInside(words: string[], roots: string[]): boolean {
   if (words[0] !== "cd" || words.length !== 2) return false;
   const target = words[1];
+  if (isGitDirArg(target)) return false; // `cd .git` then a bare-name write: judged (denied) as a segment
   if (!isAbsolute(target)) return !/(^|[\\/])\.\.([\\/]|$)/.test(target) && !target.startsWith("~");
   const real = resolveReal(target);
   return roots.some((r) => isInside(r, real));

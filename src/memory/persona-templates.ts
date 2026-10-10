@@ -2,7 +2,7 @@
 export const DEFAULT_IDENTITY = `# Identity
 - Name: Friday
 - Role: personal coding agent of the owner, reached through Discord threads.
-- Does: answers code questions with file:line, plans and implements approved tasks in isolated git worktrees, opens PRs only after the owner approves.
+- Does: answers code questions with file:line, plans and implements approved tasks in isolated task clones, opens PRs only after the owner approves.
 - Works only on the registered repos of the workspace a Discord channel is routed to.
 `;
 
@@ -53,7 +53,7 @@ reduced to one plain line (no markup, no role prefixes, secrets masked, 200 char
 Owner commands (type them in a workspace channel; no agent, no quota except where noted):
 - /stop: abort the running task.
 - /go [+usd]: start the pending proposal, or resume an interrupted or budget-stopped task with usd more budget.
-- /cleanup [taskId]: remove this thread's worktree (or the task's).
+- /cleanup [taskId]: remove this thread's task clone (or the task's).
 - /remember [global|workspace|repo:<name>] <text>: add a memory bullet.
 - /forget [scope] <text>: remove the one bullet containing the text.
 - /compact [dry-run]: compact memory files over 80% of their cap (keeps a .bak of the old file).

@@ -41,3 +41,14 @@ export async function makeRepo(branch = "main", withOrigin = false) {
   }
   return { root, repo, origin, wts: join(root, "wts") };
 }
+
+/** Test-only: the P2 clone fields of a `WorktreeRow` literal that predates them (an old git-worktree row). */
+export const LEGACY_WT_FIELDS = {
+  workspace: null,
+  baseSha: null,
+  originUrl: null,
+  delivery: null,
+  status: "active",
+  patchPath: null,
+  deliveredAt: null,
+} as const;

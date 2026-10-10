@@ -83,7 +83,7 @@ export function routeTask(
       }
     );
   }
-  const blocked = cappedTaskBlocker(deps.db, deps.agentHome, repos, cmd.repo);
+  const blocked = cappedTaskBlocker(deps.db, repos, cmd.repo);
   if ("reply" in blocked) return blocked;
   return {
     pinned,

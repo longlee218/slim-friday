@@ -3,7 +3,6 @@ import type { AgentConfig } from "../../config/agent-config";
 import { resolveBudget, type TaskClass } from "../../config/model-routing";
 import type { GitData, GitMcp } from "../../mcp/git-mcp";
 import { GIT_TOOL } from "../../mcp/mcp-tool-names";
-import { isManagedClone } from "../../repos/refresh-repo";
 import type { Repo } from "../../repos/repo-registry";
 import { dispatchableRoleNames, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
@@ -77,9 +76,8 @@ export interface InvalidRequest {
   refusal: Refusal;
 }
 
-/** Repo name the resolver starts from: the request's, else the pinned repo when it is a managed clone. */
-export const repoHint = (agentHome: string, pinned: Repo | undefined, repo?: string) =>
-  repo ?? (pinned && isManagedClone(pinned.path, agentHome) ? pinned.name : undefined);
+/** Repo name the resolver starts from: the request's, else the pinned repo's name as is. */
+export const repoHint = (pinned: Repo | undefined, repo?: string) => repo ?? pinned?.name;
 
 /** `skills.mode` after the env cap; an unknown cap value fails closed to `off`. */
 export function clampSkillsMode(requested: SkillsMode = "off", cap?: string): SkillsMode {
@@ -119,8 +117,8 @@ export async function validateRequest(
       `Not sure I understood: start a ${role.name} task for "${req.brief.slice(0, 120)}"? Reply \`/go\` to start it.`,
     );
   }
-  const hint = repoHint(d.config.agentHome, d.pinned, req.repo);
-  const resolved = resolveTaskRepo(d.config.agentHome, d.repos, hint);
+  const hint = repoHint(d.pinned, req.repo);
+  const resolved = resolveTaskRepo(d.repos, hint);
   if ("reply" in resolved) {
     return resolved.reason === "unknown_repo"
       ? ask(resolved.reason, `${resolved.reply}. Send the task again with repo:<name>.`)

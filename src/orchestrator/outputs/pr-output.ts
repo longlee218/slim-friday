@@ -34,6 +34,10 @@ function commitProblems(commits: BranchCommit[], a: GitIdentity): string[] {
   return [...problems];
 }
 
+/** Reply for a managed clone while PR delivery for clones is missing. */
+const CLONE_PR_PENDING = (wt: WorktreeRow): string =>
+  `PR delivery for task clones arrives with P2.2. Branch ${wt.branch} stays in the clone at ${wt.path}.`;
+
 /** Cap of the diff attached to the PR offer. */
 const DIFF_CAP = 200_000;
 
@@ -90,6 +94,9 @@ export async function finishCodeTask(
   },
 ): Promise<string> {
   const { wt } = o;
+  // REMOVABLE SEAM (P2.2): a managed clone (base_sha set) has no origin and a `friday/*` branch, so the
+  // push below would fail after the owner approved. Remove this line when P2.2 adds clone delivery.
+  if (wt.baseSha !== null) return `${o.text}\n\n${CLONE_PR_PENDING(wt)}`;
   /** A failed publish: logged as pr.failed, returned as the reply tail. */
   const prFailed = (why: string): string => {
     logEvent(log, "pr.failed", { repo: wt.repo, branch: wt.branch, reason: errText(why) }, "warn");
@@ -101,9 +108,9 @@ export async function finishCodeTask(
   const status = await git.call(GIT_TOOL.STATUS, { path: wt.path });
   // The reviewed diff is HEAD's; the push sends wt.branch. They must be the same branch.
   if (status.currentBranch !== wt.branch) {
-    return `${o.text}\n\nWorktree is on "${status.currentBranch}", not ${wt.branch}: no PR offered.`;
+    return `${o.text}\n\nThe clone is on "${status.currentBranch}", not ${wt.branch}: no PR offered.`;
   }
-  const dirty = status.isClean === false ? "\nUncommitted changes remain in the worktree." : "";
+  const dirty = status.isClean === false ? "\nUncommitted changes remain in the clone." : "";
   if (commits.length === 0) return `${o.text}\n\nNo commits on ${wt.branch}.${dirty}`;
   const range = { path: wt.path, source: ref, target: "HEAD" };
   const stat = String((await git.call(GIT_TOOL.DIFF, { ...range, stat: true })).diff ?? "").trim();

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/storage/db";
 import { countActiveCappedTasks, insertTask } from "../src/storage/run-store";
+import { getWorktreeByTask } from "../src/storage/worktree-store";
 
 /** The v1 schema as the bot shipped it before the migration (no meta table, no stages / proposals). */
 const V1 = `
@@ -182,4 +183,41 @@ test("cap query counts code tasks only (counts_toward_cap), not Q&A", () => {
     proposal_id: "p1",
     counts_toward_cap: 1,
   });
+});
+
+test("worktrees: clone columns are added; an old row reads back as a legacy row (no base sha, active)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mig-wt-"));
+  const file = join(dir, "data", "agent.db");
+  mkdirSync(join(dir, "data"));
+  const old = new Database(file);
+  old.exec(V1);
+  old.exec(
+    "CREATE TABLE worktrees (task_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, repo TEXT NOT NULL, repo_path TEXT NOT NULL, path TEXT NOT NULL, branch TEXT NOT NULL, base TEXT NOT NULL, pr_url TEXT, created_at INTEGER NOT NULL)",
+  );
+  old.exec(
+    "INSERT INTO worktrees VALUES ('t1', 'th1', 'r', '/r', '/w', 'agent/t1', 'main', NULL, 5)",
+  );
+  old.close();
+  const db = openDb(file);
+  const cols = db
+    .query<{ name: string }, []>("PRAGMA table_info(worktrees)")
+    .all()
+    .map((c) => c.name);
+  for (const c of [
+    "workspace",
+    "base_sha",
+    "origin_url",
+    "delivery",
+    "status",
+    "patch_path",
+    "delivered_at",
+  ])
+    expect(cols).toContain(c);
+  expect(getWorktreeByTask(db, "t1")).toMatchObject({
+    baseSha: null,
+    workspace: null,
+    delivery: null,
+    status: "active",
+  });
+  openDb(file).close(); // idempotent
 });
