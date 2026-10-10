@@ -153,3 +153,12 @@ export function countActiveCappedTasks(db: Database): number {
     )
     .get()!.n;
 }
+
+/** Follow-up tasks (fix rounds) run in the clone of task `taskId`: rows whose parent is that task. */
+export function countFollowUps(db: Database, taskId: string): number {
+  return (
+    db
+      .query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM tasks WHERE parent_task_id = ?")
+      .get(taskId)?.n ?? 0
+  );
+}

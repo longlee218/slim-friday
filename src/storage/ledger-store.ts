@@ -57,3 +57,26 @@ export function threadLedger(db: Database, threadId: string): string {
   });
   return [LEDGER_HEADING, ...entries].join("\n");
 }
+
+/** Cap of one line of `ledgerLines`, chars. */
+export const LEDGER_LINE_CHARS = 160;
+
+/**
+ * The last `n` staged tasks of a thread, ONE short line each (oldest first), for the intent classifier:
+ * `<id8> <role> <status>: "<brief>"`. Redacted, whitespace collapsed, each line <= LEDGER_LINE_CHARS.
+ */
+export function ledgerLines(db: Database, threadId: string, n: number): string[] {
+  return db
+    .query<{ id: string; role: string; status: string; brief: string | null }, [string, number]>(
+      `SELECT id, role, status, brief FROM tasks WHERE thread_id = ? AND counts_toward_cap = 1
+       ORDER BY started_at DESC, rowid DESC LIMIT ?`,
+    )
+    .all(threadId, n)
+    .reverse()
+    .map((t) =>
+      oneLine(
+        `${t.id.slice(0, 8)} ${t.role} ${t.status}: "${oneLine(t.brief ?? "", 90)}"`,
+        LEDGER_LINE_CHARS,
+      ),
+    );
+}

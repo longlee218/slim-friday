@@ -67,7 +67,7 @@ describe("resolveModel", () => {
     expect(resolveModel(exec, dev, {}, c)).toBe(S); // missing class = standard
     expect(resolveModel(exec, dev, { cls: "design" }, c)).toBe(O);
   });
-  test("class never moves qa (no modelTiers)", () => {
+  test("class never moves qa (no class tiers)", () => {
     expect(resolveModel(qa, assistant, { cls: "design" }, c)).toBe(H);
   });
   test("effort: low haiku, medium sonnet, high by class, max opus", () => {

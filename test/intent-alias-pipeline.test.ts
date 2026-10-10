@@ -192,7 +192,15 @@ describe("load-lexicon", () => {
   });
 });
 
-test("layering: src/intent imports no orchestrator/engine and no runtime/", () => {
+/**
+ * Only the L4 Haiku classifier talks to the SDK (the one SDK call outside runtime/ besides memory compaction):
+ * it may import the runtime's child-env builder (provider credentials + env allowlist), nothing else from runtime/.
+ */
+const RUNTIME_ALLOW: Record<string, string[]> = {
+  "haiku-intent-classifier.ts": ["../runtime/sdk-env"],
+};
+
+test("layering: src/intent imports no orchestrator/engine and no runtime/ (except the allow-list)", () => {
   const files = readdirSync("src/intent").filter((f) => f.endsWith(".ts"));
   expect(files.length).toBeGreaterThan(5);
   for (const f of files) {
@@ -200,6 +208,25 @@ test("layering: src/intent imports no orchestrator/engine and no runtime/", () =
     const specs = [...text.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)].map(
       (m) => m[1] as string,
     );
-    expect(specs.filter((s) => /orchestrator\/engine|(^|\/)runtime\//.test(s))).toEqual([]);
+    const bad = specs.filter((s) => /orchestrator\/engine|(^|\/)runtime\//.test(s));
+    expect(bad.filter((s) => !(RUNTIME_ALLOW[f] ?? []).includes(s))).toEqual([]);
   }
+});
+
+/** Direct SDK imports of a source file. */
+const sdkImporters = (dir: string): string[] =>
+  readdirSync(dir)
+    .filter((f) => f.endsWith(".ts"))
+    .filter((f) => /claude-agent-sdk/.test(readFileSync(join(dir, f), "utf8")));
+
+test("layering: only the L4 classifier calls the SDK in intent/; routing (thread/, dispatch/, intent-turn) never does", () => {
+  // The allow-list entry must be real (a stale one would hide a future import).
+  expect(sdkImporters("src/intent")).toEqual(["haiku-intent-classifier.ts"]);
+  expect(readFileSync("src/intent/haiku-intent-classifier.ts", "utf8")).toContain(
+    '"../runtime/sdk-env"',
+  );
+  for (const dir of ["src/orchestrator/thread", "src/orchestrator/dispatch"])
+    expect(sdkImporters(dir)).toEqual([]);
+  for (const f of ["intent-turn.ts", "route-and-run.ts"])
+    expect(readFileSync(join("src/orchestrator", f), "utf8")).not.toMatch(/claude-agent-sdk/);
 });

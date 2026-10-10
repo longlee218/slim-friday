@@ -1,0 +1,50 @@
+import type { Database } from "bun:sqlite";
+import type { ThreadState } from "../orchestrator/thread/thread-state";
+import { intentRoles } from "../roles/role-registry";
+import { ledgerLines } from "../storage/ledger-store";
+import type { IntentInput } from "./intent-types";
+
+/** Earlier tasks shown to the classifier. */
+const LEDGER_TASKS = 3;
+
+/** Gate of a waiting state, for the classifier's one-line state. */
+const GATE_OF: Partial<Record<ThreadState, "plan-approval" | "delivery">> = {
+  awaiting_plan_approval: "plan-approval",
+  awaiting_result: "delivery",
+};
+
+/**
+ * The L4 input of a message: text, thread state with the task in flight (latest task's role and its running
+ * stage), the last 3 tasks and the role list read from the registry NOW. Nothing else leaves the app.
+ */
+export function buildIntentInput(
+  db: Database,
+  p: { threadId: string; text: string; state: ThreadState },
+): IntentInput {
+  const open = p.state !== "idle" && p.state !== "done";
+  const task = open
+    ? db
+        .query<{ id: string; role: string }, [string]>(
+          "SELECT id, role FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+        )
+        .get(p.threadId)
+    : null;
+  const stage = task
+    ? db
+        .query<{ name: string }, [string]>(
+          "SELECT name FROM stages WHERE task_id = ? AND status = 'running' ORDER BY idx DESC LIMIT 1",
+        )
+        .get(task.id)
+    : null;
+  return {
+    text: p.text,
+    thread: {
+      state: p.state,
+      ...(task && { activeRole: task.role }),
+      ...(stage && { activeStage: stage.name }),
+      ...(GATE_OF[p.state] && { gate: GATE_OF[p.state] }),
+    },
+    ledger: ledgerLines(db, p.threadId, LEDGER_TASKS),
+    roles: intentRoles(),
+  };
+}

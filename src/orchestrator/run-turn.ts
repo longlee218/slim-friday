@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import type { TaskClass } from "../config/model-routing";
+import type { Effort, TaskClass } from "../config/model-routing";
 import { realOrSame } from "../guardrails/paths";
 import type { Task } from "../ingress/discord-message-handler";
 import { logEvent } from "../observability/logger";
@@ -8,6 +8,7 @@ import { getRole } from "../roles/role-registry";
 import { RESUME_FAILED } from "../runtime/run-errors";
 import { threadLedger } from "../storage/ledger-store";
 import { deleteSession, type SessionRow } from "../storage/session-store";
+import { liveWorktree } from "../storage/worktree-store";
 import { type DispatchDeps, dispatchRole } from "./dispatch/dispatch-role";
 import { runStages, startStage } from "./engine/stage-runner";
 import { type ResumePlan, type Route, runRoute } from "./task-routing";
@@ -29,7 +30,14 @@ export interface RoleRunCtx {
   /** An `answer` role may hand work over only when the next role can ask for the owner's approval. */
   allowDelegate: boolean;
   /** Creates the task row (called once, after the refusals, before the flow runs). */
-  begin: (repo: string, role: string, mode: string, cls?: TaskClass) => void;
+  begin: (
+    repo: string,
+    role: string,
+    mode: string,
+    cls?: TaskClass,
+    /** Task whose clone a follow-up (fix round) continues. */
+    parentTaskId?: string,
+  ) => void;
   /** Repo of the log context, to report when the flow named none. */
   taskRepo: () => string;
 }
@@ -47,6 +55,8 @@ export async function runTurn(
     /** Thread session when the command has none of its own. */
     existing: SessionRow | null;
     extraBudgetUsd?: number;
+    /** What the intent layer decided for this run: class (owner prefix wins) and effort (signals / floor). */
+    intent?: { cls?: TaskClass; effort?: Effort };
   },
 ): Promise<string> {
   const { deps, task, taskId, workspace: ws } = c;
@@ -55,13 +65,13 @@ export async function runTurn(
   const { pinned, worktree } = a.route;
   const role = getRole(a.route.role);
   const existing = a.plan.existing ?? a.existing;
-  const cls = "cls" in cmd ? cmd.cls : undefined; // owner `[design]`-style prefix
-  const runRt = runRoute({ cls, extraBudgetUsd: a.extraBudgetUsd });
+  const cls = ("cls" in cmd ? cmd.cls : undefined) ?? a.intent?.cls; // owner `[design]` prefix, else the intent class
+  const runRt = runRoute({ cls, effort: a.intent?.effort, extraBudgetUsd: a.extraBudgetUsd });
   // State BEFORE the new row exists (it would read as `running`): a role with `context.ledger` sees its task ledger on an idle thread.
   const state = deriveThreadState(db, task.threadId);
   logEvent(c.log, "thread.state", { state });
   const ledger = role.context?.ledger && isIdleLike(state) ? threadLedger(db, task.threadId) : "";
-  c.begin(a.route.repo, role.name, startStage(role, !!worktree).name, cls);
+  c.begin(a.route.repo, role.name, startStage(role, !!worktree).name, cls, worktree?.taskId);
   const res: FlowResult = await runStages(deps, {
     taskId,
     threadId: task.threadId,
@@ -82,7 +92,14 @@ export async function runTurn(
     ledger,
   });
   const o = { stopping: deps.stopping(), t0: c.t0, repo: c.taskRepo() };
-  const reply = closeTask(db, { taskId, threadId: task.threadId }, res, o);
+  // An answer in a thread that has a clone must not replace the thread's session (the clone's fix rounds resume it).
+  const keepClone = role.output === "answer" && !!liveWorktree(db, task.threadId);
+  const reply = closeTask(
+    db,
+    { taskId, threadId: task.threadId },
+    keepClone ? { ...res, sessionId: undefined } : res,
+    o,
+  );
   // `DelegateTask` was called: the proposed role starts now, same thread and lock (`await`: finally must wait).
   if (res.proposal && RESUMABLE_OUTCOMES.has(res.outcome)) {
     return dispatchRole(deps, {

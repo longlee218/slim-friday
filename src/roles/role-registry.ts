@@ -89,6 +89,10 @@ export function followUpRole(): RoleDefinition {
   return role;
 }
 
+/** The intent `class` picks a model tier for this role: some stage has `classTiers` (data, no flag). */
+export const hasClassTiers = (role: RoleDefinition): boolean =>
+  role.stages.some((s) => s.classTiers !== undefined);
+
 /** A role with an owner gate after some stage: it needs the Discord approval flow. */
 export const isGated = (role: RoleDefinition): boolean =>
   role.stages.some((s) => (s.gate ?? "none") !== "none");

@@ -1,6 +1,6 @@
 import type { Logger } from "pino";
 import { z } from "zod";
-import { DEFAULT_TIER_MODELS, type ModelTier } from "./model-routing";
+import { DEFAULT_TIER_MODELS, type ModelTier, specToId } from "./model-routing";
 import { readRoutingEnv } from "./stage-env";
 
 /** Placeholder value used in .env.example; never a real credential. */
@@ -56,7 +56,15 @@ const envSchema = z.object({
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
   MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(3),
+  // Intent layer L4 (src/intent). `jev` is the owner's later engine: accepted here, refused by the factory until it exists.
+  INTENT_ENGINE: z.enum(["haiku", "jev", "none"]).default("haiku"),
+  MODEL_INTENT: z.string().trim().min(1).optional(),
+  INTENT_BUDGET_USD: z.coerce.number().positive().default(0.02),
+  INTENT_TIMEOUT_MS: z.coerce.number().int().min(8000).default(8000),
 });
+
+/** Engines of the intent layer's L4 classifier (`none` = pipeline L0-L3 only). */
+export type IntentEngine = "haiku" | "jev" | "none";
 
 /** Validated, typed config used across the app. Contains secrets: never log it whole. */
 export interface AgentConfig {
@@ -97,6 +105,8 @@ export interface AgentConfig {
   limits: { maxTurns: number; maxBudgetUsd: number | undefined; timeoutMs: number };
   /** Global cap on simultaneous agent runs. */
   maxConcurrentRuns: number;
+  /** Intent layer L4: engine, model id (MODEL_INTENT, tier-resolvable), per-call budget and timeout. */
+  intent: { engine: IntentEngine; model: string; budgetUsd: number; timeoutMs: number };
 }
 
 /** True when a value is missing or the placeholder. */
@@ -149,6 +159,15 @@ export function loadConfig(
       timeoutMs: e.TIMEOUT_MS,
     },
     maxConcurrentRuns: e.MAX_CONCURRENT_RUNS,
+    intent: {
+      engine: e.INTENT_ENGINE,
+      // A tier name (haiku|sonnet|opus) resolves to its id on Anthropic; OpenRouter takes the id as is.
+      model: isOpenrouter
+        ? (e.MODEL_INTENT ?? DEFAULT_OPENROUTER_MEMORY_MODEL)
+        : specToId(e.MODEL_INTENT ?? "haiku", routing),
+      budgetUsd: e.INTENT_BUDGET_USD,
+      timeoutMs: e.INTENT_TIMEOUT_MS,
+    },
   };
 }
 

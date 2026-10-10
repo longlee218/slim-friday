@@ -84,7 +84,6 @@ export const DEV_ROLE: RoleDefinition = {
   name: "dev",
   whenToUse:
     "Requests to change code: implement a feature, fix a bug, refactor, add tests. Plans first, the owner approves, then opens a pull request.",
-  modelTiers: true,
   output: "pr",
   countsTowardCap: true,
   aliases: {

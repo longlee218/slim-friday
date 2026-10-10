@@ -1,4 +1,4 @@
-import { resolveModel } from "../../config/model-routing";
+import { type Effort, resolveModel } from "../../config/model-routing";
 import type { Task } from "../../ingress/discord-message-handler";
 import { excerpt, logEvent, logger, setLogContext } from "../../observability/logger";
 import { errText } from "../../observability/redact";
@@ -45,6 +45,8 @@ export interface DispatchInput {
   fromTaskId?: string;
   /** Owner raise of the budget (`go +<usd>`). */
   extraBudgetUsd?: number;
+  /** Effort of this run (intent signals / thread floor); missing = the stage defaults. */
+  effort?: Effort;
 }
 
 /**
@@ -100,7 +102,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     return [i.reply, `${refusal.reply}${fix}`].filter(Boolean).join("\n\n");
   }
   const { role, firstStage, repoName: repo } = v;
-  const route = runRoute({ cls: request.cls, extraBudgetUsd: i.extraBudgetUsd });
+  const route = runRoute({ cls: request.cls, effort: i.effort, extraBudgetUsd: i.extraBudgetUsd });
   const taskId = crypto.randomUUID();
   // From here every log line of the new task carries its own taskId (not the source row's).
   setLogContext({ taskId });

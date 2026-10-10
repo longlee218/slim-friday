@@ -7,6 +7,7 @@ import {
   findStage,
   getRole,
   getStage,
+  hasClassTiers,
   intentRoles,
   ROLES,
   stageOf,
@@ -46,13 +47,13 @@ test("stages: plan-mode only in plan, worktree only in exec, default tier and bu
   expect(getStage("dev", "exec")).toMatchObject({ model: "sonnet", budgetUsd: 3 });
 });
 
-test("whenToUse: every role has one, all different; modelTiers only for dev", () => {
+test("whenToUse: every role has one, all different; class tiers only for dev", () => {
   const roles = intentRoles();
   expect(roles.map((r) => r.name).sort()).toEqual(["assistant", "dev"]);
   for (const r of roles) expect(r.whenToUse.length).toBeGreaterThan(20);
   expect(new Set(roles.map((r) => r.whenToUse)).size).toBe(roles.length);
-  expect(getRole("dev").modelTiers).toBe(true);
-  expect(getRole("assistant").modelTiers).toBeUndefined();
+  expect(hasClassTiers(getRole("dev"))).toBe(true);
+  expect(hasClassTiers(getRole("assistant"))).toBe(false);
 });
 
 test("delegableRoleNames: roles with whenToUse except the assistant", () => {

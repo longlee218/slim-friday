@@ -137,3 +137,22 @@ export function expireOldProposals(db: Database, now = Date.now()): number {
     )
     .run(now, now - PROPOSAL_TTL_MS).changes;
 }
+
+/** The oldest `queued` proposal of a thread (the owner said yes: it runs when the active task ends), or null. */
+export function oldestQueuedProposal(db: Database, threadId: string): Proposal | null {
+  return db
+    .query<Proposal, [string]>(
+      `SELECT ${COLS} FROM proposals WHERE thread_id = ? AND status = 'queued'
+       ORDER BY created_at, rowid LIMIT 1`,
+    )
+    .get(threadId);
+}
+
+/** Refuse every `queued` proposal of a thread (`stop`: the owner cancelled the work); returns how many. */
+export function refuseQueued(db: Database, threadId: string, now = Date.now()): number {
+  return db
+    .query(
+      `UPDATE proposals SET status = 'refused', decided_at = ? WHERE thread_id = ? AND status = 'queued'`,
+    )
+    .run(now, threadId).changes;
+}

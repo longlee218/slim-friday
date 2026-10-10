@@ -22,6 +22,8 @@ export function workspacePaths(agentHome: string) {
     bootstrap: join(agentHome, "BOOTSTRAP.md"),
     /** Agent-written `[global]` memory notes: never injected into a prompt. */
     memoryPending: join(agentHome, "MEMORY.pending.md"),
+    /** Working dir of the intent classifier call (empty: it has no tools and reads nothing). */
+    intentScratch: join(agentHome, "tmp", "intent"),
     /** Pre-cutover copies of the home (migration backups). */
     backups: join(agentHome, "backups"),
     /** Workspaces: each holds several repos (`workspaces/<ws>/repos/<repo>/`). */

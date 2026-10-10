@@ -12,6 +12,7 @@ import { opsIds, readDiscordSetup } from "./discord-setup/discord-setup-config";
 import { createOpsLog } from "./discord-setup/ops-log";
 import { warnIfBotAdministrator } from "./discord-setup/ready-checks";
 import { createDiscordBot } from "./ingress/discord-bot";
+import { buildIntentDeps } from "./intent/intent-deps";
 import { homePlacementError } from "./lifecycle/home-placement-check";
 import { expireStaleProposals, postProposalNotices } from "./lifecycle/proposal-notices";
 import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
@@ -96,6 +97,14 @@ async function main(): Promise<void> {
   interruptRunningTasks(db);
   expireStaleProposals(db); // open proposals older than 24h; the rest get a `go` notice once ready
   runStartupHygiene(db, config.agentHome);
+  // Fail closed: an invalid lexicon override, a duplicate role alias or INTENT_ENGINE=jev refuse the start.
+  let intent: ReturnType<typeof buildIntentDeps>;
+  try {
+    intent = buildIntentDeps(config);
+  } catch (err) {
+    db.close();
+    return fail(errText(err));
+  }
   // Client is created after the handler, so the gateway looks it up lazily.
   let botClient: Client | undefined;
   const approvals = createDiscordApprovalGateway({
@@ -108,6 +117,7 @@ async function main(): Promise<void> {
     config,
     approvals,
     limiter: createRunLimiter(config.maxConcurrentRuns),
+    intent,
   });
   const handleResume = createResumeHandler({
     db,
@@ -183,6 +193,7 @@ async function main(): Promise<void> {
   logEvent(log, "app.started", {
     provider: config.provider,
     model: config.model,
+    intentEngine: config.intent.engine,
     agentHome: config.agentHome,
     pid: process.pid,
   });

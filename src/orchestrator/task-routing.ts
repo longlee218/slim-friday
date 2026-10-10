@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
-import type { Route as ModelRoute, TaskClass } from "../config/model-routing";
+import type { Effort, Route as ModelRoute, TaskClass } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import type { Repo } from "../repos/repo-registry";
@@ -34,7 +34,9 @@ export interface Route {
 
 /**
  * Decide how a message is run: pinned repo, the role (from data, see `Route.role`), candidate repos, or a
- * refusal (unknown repo, empty text, no approval flow, no clone, too many capped tasks).
+ * refusal (unknown repo, empty text, no approval flow, no clone, too many capped tasks). `p.role` = the intent
+ * layer's pick: it replaces the entry / worktree-owner choice, and the thread's clone is used only by the role
+ * that owns it (an assistant answer in a thread with a clone never touches the clone).
  */
 export function routeTask(
   deps: { db: Database; agentHome: string; hasApprovals: boolean },
@@ -43,6 +45,8 @@ export function routeTask(
     threadId: string;
     repos: Repo[];
     existing: SessionRow | null;
+    /** Role the intent layer picked; missing = the legacy pick (worktree owner, else the entry role). */
+    role?: string;
   },
 ): Route | Refusal {
   const { cmd, repos, existing } = p;
@@ -53,12 +57,10 @@ export function routeTask(
     return refuse("empty_text", `Send your question after "repo:${pinned!.name}".`);
   // A staged role runs only as a follow-up in a thread with a worktree (its owner role continues) or as the
   // Resume of an interrupted plan stage (`cmd.role`, starts fresh); every other message goes to the entry role.
-  const worktree = cmd.role ? undefined : (liveWorktree(deps.db, p.threadId) ?? undefined);
-  const role = cmd.role
-    ? getRole(cmd.role)
-    : worktree
-      ? getRole(taskRole(deps.db, worktree.taskId) ?? followUpRole().name)
-      : entryRole();
+  const live = cmd.role ? undefined : (liveWorktree(deps.db, p.threadId) ?? undefined);
+  const owner = live ? (taskRole(deps.db, live.taskId) ?? followUpRole().name) : undefined;
+  const role = getRole(cmd.role ?? p.role ?? owner ?? entryRole().name);
+  const worktree = live && owner === role.name ? live : undefined;
   if (!isGated(role)) return { pinned, role: role.name, candidates: [], repo: pinned?.name ?? "*" };
   if (!deps.hasApprovals)
     return refuse("no_approvals", "Code tasks need the Discord approval flow.");
@@ -164,6 +166,9 @@ export function resolveCommand(
 /** Route of a run: owner class and `go +<usd>` raise; undefined when neither is set (stage defaults). */
 export const runRoute = (r: {
   cls?: TaskClass;
+  effort?: Effort;
   extraBudgetUsd?: number;
 }): ModelRoute | undefined =>
-  r.cls || r.extraBudgetUsd ? { cls: r.cls, extraBudgetUsd: r.extraBudgetUsd } : undefined;
+  r.cls || r.effort || r.extraBudgetUsd
+    ? { cls: r.cls, effort: r.effort, extraBudgetUsd: r.extraBudgetUsd }
+    : undefined;

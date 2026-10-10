@@ -103,8 +103,6 @@ export interface RoleDefinition {
   name: string;
   /** Mutually exclusive wording; the intent layer reads it from the registry (P1.4c). */
   whenToUse: string;
-  /** True when the intent `class` picks a model tier for this role (P1.3b). */
-  modelTiers?: boolean;
   /** Words the owner uses to reach this role directly (intent layer L3, P1.4c); omitted = never routed by alias. */
   aliases?: RoleAliases;
   /** What the role hands back: picks the output module (`answer` escalation, `pr` delivery). */
