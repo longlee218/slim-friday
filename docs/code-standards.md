@@ -27,7 +27,7 @@ bun run start          # Start bot (reads .env)
 - Files: `constants.ts` (tool name), `prompt.ts` (schema description + tool-owned rules), `<name>-tool.ts` (schema + handler)
 - Tool names: PascalCase, stored in `src/tools/sdk-tool-names.ts` (SDK tools) and `src/mcp/mcp-tool-names.ts` (MCP tools)
 - MCP servers: `git` and `github` only (the in-process `tasks` server and its `DelegateTask` tool were retired in P1.4c: the assistant has no handoff tool, the intent layer routes change requests)
-- Enforcement: Every tool name from a constant; no string literals. Test `test/tool-name-literals.test.ts` scans source; `test/tool-names.test.ts` pins wire values.
+- Enforcement: Every tool name from a constant; no string literals. Test `test/tool-name-literals.test.ts` scans source; `test/tool-names.test.ts` pins wire values; `test/tool-catalog.test.ts` requires every SDK tool constant to sit in exactly one capability.
 
 **Structure:**
 ```
@@ -77,7 +77,7 @@ src/
 │   └── tasks/                  # task-tracker.ts, task-result.ts, run-limiter.ts
 │   └── ...
 ├── tools/                      # Tool configuration & custom tools
-│   ├── tool-catalog.ts         # single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS (196/200 lines: split before adding more tools)
+│   ├── tool-catalog.ts         # single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS (168 lines; `CAPABILITY_TOOLS` is the capability map)
 │   ├── sdk-tool-names.ts       # SDK tool names (exported constants)
 │   └── (no custom tool today; a new one goes in src/tools/<Name>Tool/)
 ├── intent/                     # Intent layer (P1.4c): which role handles a message

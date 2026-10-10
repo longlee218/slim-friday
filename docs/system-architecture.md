@@ -530,12 +530,12 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 
 ## Tool Restriction Strategy
 
-Built-in tools are limited ONLY by the SDK `tools` option, per mode. The single source is `src/tools/tool-catalog.ts`: tools are grouped by capability (read, write, shell, web, skills, subagents, tasks, ask, planControl), each mode lists its capabilities once. There is no name blocklist and `allowedTools` is never used (it would bypass `canUseTool`). Guard routes per-call decisions via `check-tool-call.ts` (PreToolUse hook + GuardrailContext fields: writePaths, readPaths, gitWriteRepo, gitReadRepos, allowedCommands, allowTools, allowedSubagents).
+Built-in tools are limited ONLY by the SDK `tools` option, per mode. The single source is `src/tools/tool-catalog.ts`: tools are grouped by capability (read, write, shell, web, skills, subagents, tasks, mcp, feedback, ask, planControl), each mode lists its capabilities once. There is no name blocklist and `allowedTools` is never used (it would bypass `canUseTool`). Auto-allowed (no approval): web, skills, tasks except TaskStop, the `mcp` tools (read-only; the app's strict MCP config means only git/github servers exist). Owner `ask`: TaskStop (guard cannot tell own task ids from foreign ones), SendFeedback (sends data to Anthropic), Monitor with a WebSocket; Monitor with a command follows the Bash policy; MultiEdit/NotebookEdit follow the Write path checks. Every stage has `mcp`; qa has no write/shell/tasks/feedback. Guard routes per-call decisions via `check-tool-call.ts` (PreToolUse hook + GuardrailContext fields: writePaths, readPaths, gitWriteRepo, gitReadRepos, allowedCommands, allowTools, allowedSubagents).
 
 | Mode | Built-in tools | MCP tools |
 |---|---|---|
-| assistant (qa) | Read, Glob, Grep, Skill, Agent, WebSearch, WebFetch | `mcp__git__*` read tools only; no app MCP server (no handoff tool) |
-| Code task, plan/exec stage | Read, Glob, Grep, Write, Edit, Bash, Skill, Agent, AskUserQuestion, TodoWrite, TaskCreate/TaskUpdate/TaskList, ExitPlanMode, EnterPlanMode | `mcp__git__*` (git MCP in execute stage only; plan stage has git MCP read-only) |
+| assistant (qa) | Read, Glob, Grep, Skill, Agent, WebSearch, WebFetch, ListMcpResources, ReadMcpResource, ReadMcpResourceDir, RefreshMcpTools | `mcp__git__*` read tools only; no app MCP server (no handoff tool) |
+| Code task, plan/exec stage | Read, Glob, Grep, Write, Edit, MultiEdit, NotebookEdit, Bash, Monitor, Skill, Agent, AskUserQuestion, TodoWrite, TaskCreate/TaskUpdate/TaskList/TaskGet/TaskStop, ListMcpResources, ReadMcpResource, ReadMcpResourceDir, RefreshMcpTools, SendFeedback, ExitPlanMode, EnterPlanMode | `mcp__git__*` (git MCP in execute stage only; plan stage has git MCP read-only) |
 
 Besides `tools`, `toolOptions(mode)` adds only two kinds of `disallowedTools`: the path-scoped secret-file rules (`Read(**/.env*)`, `*.pem`, `*.key`...) and the git MCP tools of other modes (`mcp__git__*`). `strictMcpConfig: true` keeps only the MCP servers we pass.
 

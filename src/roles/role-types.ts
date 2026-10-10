@@ -5,12 +5,14 @@ import type { GIT_GROUPS } from "../tools/git-tool-groups";
 /** A group of tools that belong together; a stage lists the groups it may use. */
 export type Capability =
   | "read" // look at files
-  | "write" // change files (paths limited by the guard)
-  | "shell" // Bash (policy + owner approval)
+  | "write" // change files: Write, Edit, MultiEdit, NotebookEdit (paths limited by the guard)
+  | "shell" // Bash and Monitor (policy + owner approval)
   | "web" // search / fetch
   | "skills"
   | "subagents" // Agent: only the subagents named by the stage (guard)
-  | "tasks" // progress tracking
+  | "tasks" // progress tracking; TaskStop (stops a background task) needs the owner
+  | "mcp" // MCP resource reads (+ refresh of the app's own MCP servers)
+  | "feedback" // SendFeedback: sends a report to Anthropic, always owner-approved
   | "ask" // AskUserQuestion: answered by the owner through Discord buttons
   | "planControl"; // enter / leave plan mode (leaving needs the owner's approval)
 

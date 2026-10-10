@@ -20,6 +20,7 @@ import {
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
   LEGACY_AGENT_TOOL_NAME,
+  MONITOR_TOOL_NAME,
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
   READ_TOOL_NAME,
@@ -147,7 +148,13 @@ export function checkToolCall(
 ): Decision {
   if (WRITE_TOOLS.has(toolName)) return checkFileWrite(toolName, input, ctx.writePaths ?? []);
   if (READ_TOOLS.has(toolName)) return checkFileRead(toolName, input, ctx.readPaths);
-  if (toolName === BASH_TOOL_NAME) {
+  // Monitor runs a shell command (same policy as Bash); a WebSocket watch has no command -> owner decides.
+  if (toolName === MONITOR_TOOL_NAME && typeof input.command !== "string")
+    return {
+      decision: "ask",
+      reason: "Monitor without a shell command (WebSocket) needs approval",
+    };
+  if (toolName === BASH_TOOL_NAME || toolName === MONITOR_TOOL_NAME) {
     const command = input.command;
     if (typeof command !== "string" || command.trim() === "") {
       return { decision: "deny", reason: "Bash: missing or invalid command" };

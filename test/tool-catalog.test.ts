@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
 import type { StageName as ToolMode } from "../src/roles/role-registry";
+import * as sdkNames from "../src/tools/sdk-tool-names";
 import {
   AGENT_TOOL_NAME,
   ASK_USER_QUESTION_TOOL_NAME,
@@ -11,10 +12,20 @@ import {
   EXIT_PLAN_MODE_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
+  LIST_MCP_RESOURCES_TOOL_NAME,
+  MONITOR_TOOL_NAME,
+  MULTI_EDIT_TOOL_NAME,
+  NOTEBOOK_EDIT_TOOL_NAME,
+  READ_MCP_RESOURCE_DIR_TOOL_NAME,
+  READ_MCP_RESOURCE_TOOL_NAME,
   READ_TOOL_NAME,
+  REFRESH_MCP_TOOLS_TOOL_NAME,
+  SEND_FEEDBACK_TOOL_NAME,
   SKILL_TOOL_NAME,
   TASK_CREATE_TOOL_NAME,
+  TASK_GET_TOOL_NAME,
   TASK_LIST_TOOL_NAME,
+  TASK_STOP_TOOL_NAME,
   TASK_UPDATE_TOOL_NAME,
   TODO_WRITE_TOOL_NAME,
   TOOL_SEARCH_TOOL_NAME,
@@ -24,6 +35,7 @@ import {
 } from "../src/tools/sdk-tool-names";
 import {
   autoAllowedTools,
+  CAPABILITY_TOOLS,
   GIT_GROUPS,
   GIT_READ_BY_MODE,
   gitToolsFor,
@@ -110,8 +122,22 @@ test("auto-allowed tools are a subset of the mode's tools and never include writ
     WEB_SEARCH_TOOL_NAME,
     WEB_FETCH_TOOL_NAME,
     SKILL_TOOL_NAME,
+    LIST_MCP_RESOURCES_TOOL_NAME,
+    READ_MCP_RESOURCE_TOOL_NAME,
+    READ_MCP_RESOURCE_DIR_TOOL_NAME,
+    REFRESH_MCP_TOOLS_TOOL_NAME,
   ]);
   expect(autoAllowedTools("exec")).toContain(ENTER_PLAN_MODE_TOOL_NAME);
+  expect(autoAllowedTools("exec")).toContain(TASK_GET_TOOL_NAME);
+  // Owner / guard decide these: never auto-allowed.
+  for (const t of [
+    TASK_STOP_TOOL_NAME,
+    SEND_FEEDBACK_TOOL_NAME,
+    MONITOR_TOOL_NAME,
+    MULTI_EDIT_TOOL_NAME,
+    NOTEBOOK_EDIT_TOOL_NAME,
+  ])
+    expect(autoAllowedTools("exec")).not.toContain(t);
 });
 
 test("git tools: reads everywhere, commit/change only in exec, hidden = the complement", () => {
@@ -172,6 +198,10 @@ test("options: tools from the catalog, no allowedTools, strict MCP", () => {
     WEB_FETCH_TOOL_NAME,
     SKILL_TOOL_NAME,
     AGENT_TOOL_NAME,
+    LIST_MCP_RESOURCES_TOOL_NAME,
+    READ_MCP_RESOURCE_TOOL_NAME,
+    READ_MCP_RESOURCE_DIR_TOOL_NAME,
+    REFRESH_MCP_TOOLS_TOOL_NAME,
   ]);
   expect("allowedTools" in o).toBe(false); // would bypass canUseTool
   expect(o.strictMcpConfig).toBe(true);
@@ -199,4 +229,39 @@ test("secret-file deny rules are part of disallowedTools", () => {
     expect(SECRET_FILE_RULES).toContain(r);
     expect(d).toContain(r);
   }
+});
+
+test("every declared SDK tool name belongs to exactly one capability (a new constant cannot be forgotten)", () => {
+  // Names that are not capability tools: legacy alias of Agent.
+  const aliases = new Set<string>([sdkNames.LEGACY_AGENT_TOOL_NAME]);
+  const owners = new Map<string, number>();
+  for (const tools of Object.values(CAPABILITY_TOOLS))
+    for (const t of tools) owners.set(t, (owners.get(t) ?? 0) + 1);
+  for (const name of Object.values(sdkNames)) {
+    if (aliases.has(name)) continue;
+    expect([name, owners.get(name)]).toEqual([name, 1]);
+  }
+  for (const t of owners.keys()) expect(Object.values<string>(sdkNames)).toContain(t);
+});
+
+test("qa stays read-only: no write, shell, feedback, task or plan tools; dev stages get the full set", () => {
+  const qa = toolsFor("qa");
+  for (const t of [
+    MULTI_EDIT_TOOL_NAME,
+    NOTEBOOK_EDIT_TOOL_NAME,
+    MONITOR_TOOL_NAME,
+    TASK_GET_TOOL_NAME,
+    TASK_STOP_TOOL_NAME,
+    SEND_FEEDBACK_TOOL_NAME,
+  ])
+    expect(qa).not.toContain(t);
+  for (const t of [
+    MULTI_EDIT_TOOL_NAME,
+    NOTEBOOK_EDIT_TOOL_NAME,
+    MONITOR_TOOL_NAME,
+    TASK_GET_TOOL_NAME,
+    TASK_STOP_TOOL_NAME,
+    SEND_FEEDBACK_TOOL_NAME,
+  ])
+    expect(toolsFor("exec")).toContain(t);
 });

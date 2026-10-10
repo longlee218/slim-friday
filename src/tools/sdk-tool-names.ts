@@ -15,6 +15,8 @@ export const NOTEBOOK_EDIT_TOOL_NAME = "NotebookEdit";
 
 /* Shell and web. */
 export const BASH_TOOL_NAME = "Bash";
+/** Streams a shell command's stdout as events (also accepts a WebSocket url). */
+export const MONITOR_TOOL_NAME = "Monitor";
 export const WEB_SEARCH_TOOL_NAME = "WebSearch";
 export const WEB_FETCH_TOOL_NAME = "WebFetch";
 
@@ -28,9 +30,21 @@ export const TODO_WRITE_TOOL_NAME = "TodoWrite";
 export const TASK_CREATE_TOOL_NAME = "TaskCreate";
 export const TASK_UPDATE_TOOL_NAME = "TaskUpdate";
 export const TASK_LIST_TOOL_NAME = "TaskList";
+export const TASK_GET_TOOL_NAME = "TaskGet";
+/** Stops a background task (shell or agent) by id. */
+export const TASK_STOP_TOOL_NAME = "TaskStop";
 export const TOOL_SEARCH_TOOL_NAME = "ToolSearch";
 
 /* Plan flow: Exit and AskUserQuestion are answered by the owner; Enter is harmless. */
 export const EXIT_PLAN_MODE_TOOL_NAME = "ExitPlanMode";
 export const ENTER_PLAN_MODE_TOOL_NAME = "EnterPlanMode";
 export const ASK_USER_QUESTION_TOOL_NAME = "AskUserQuestion";
+
+/* MCP resource tools (SDK built-ins that read what the connected MCP servers expose). */
+export const LIST_MCP_RESOURCES_TOOL_NAME = "ListMcpResources";
+export const READ_MCP_RESOURCE_TOOL_NAME = "ReadMcpResource";
+export const READ_MCP_RESOURCE_DIR_TOOL_NAME = "ReadMcpResourceDir";
+export const REFRESH_MCP_TOOLS_TOOL_NAME = "RefreshMcpTools";
+
+/* Sends a bug / idea report to Anthropic: always the owner's call. */
+export const SEND_FEEDBACK_TOOL_NAME = "SendFeedback";

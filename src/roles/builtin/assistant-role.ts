@@ -31,7 +31,7 @@ export const ASSISTANT_ROLE: RoleDefinition = {
   stages: [
     {
       name: "qa",
-      capabilities: ["read", "web", "skills", "subagents"],
+      capabilities: ["read", "web", "skills", "subagents", "mcp"],
       gitGroups: ["read"],
       isolation: "none",
       model: "haiku",

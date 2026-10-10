@@ -66,6 +66,8 @@ const CODE_CAPABILITIES: Capability[] = [
   "skills",
   "subagents",
   "tasks",
+  "mcp",
+  "feedback",
   "ask",
   "planControl",
 ];

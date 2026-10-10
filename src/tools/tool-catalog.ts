@@ -12,10 +12,20 @@ import {
   EXIT_PLAN_MODE_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
+  LIST_MCP_RESOURCES_TOOL_NAME,
+  MONITOR_TOOL_NAME,
+  MULTI_EDIT_TOOL_NAME,
+  NOTEBOOK_EDIT_TOOL_NAME,
+  READ_MCP_RESOURCE_DIR_TOOL_NAME,
+  READ_MCP_RESOURCE_TOOL_NAME,
   READ_TOOL_NAME,
+  REFRESH_MCP_TOOLS_TOOL_NAME,
+  SEND_FEEDBACK_TOOL_NAME,
   SKILL_TOOL_NAME,
   TASK_CREATE_TOOL_NAME,
+  TASK_GET_TOOL_NAME,
   TASK_LIST_TOOL_NAME,
+  TASK_STOP_TOOL_NAME,
   TASK_UPDATE_TOOL_NAME,
   TODO_WRITE_TOOL_NAME,
   TOOL_SEARCH_TOOL_NAME,
@@ -43,10 +53,10 @@ export const PLAN_FLOW_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 /** Built-in tools of each capability. */
-const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
+export const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
   read: [READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME],
-  write: [WRITE_TOOL_NAME, EDIT_TOOL_NAME],
-  shell: [BASH_TOOL_NAME],
+  write: [WRITE_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME, NOTEBOOK_EDIT_TOOL_NAME],
+  shell: [BASH_TOOL_NAME, MONITOR_TOOL_NAME],
   web: [WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME],
   skills: [SKILL_TOOL_NAME],
   subagents: [AGENT_TOOL_NAME],
@@ -55,8 +65,17 @@ const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
     TASK_CREATE_TOOL_NAME,
     TASK_UPDATE_TOOL_NAME,
     TASK_LIST_TOOL_NAME,
+    TASK_GET_TOOL_NAME,
+    TASK_STOP_TOOL_NAME,
     TOOL_SEARCH_TOOL_NAME,
   ],
+  mcp: [
+    LIST_MCP_RESOURCES_TOOL_NAME,
+    READ_MCP_RESOURCE_TOOL_NAME,
+    READ_MCP_RESOURCE_DIR_TOOL_NAME,
+    REFRESH_MCP_TOOLS_TOOL_NAME,
+  ],
+  feedback: [SEND_FEEDBACK_TOOL_NAME],
   ask: [ASK_USER_QUESTION_TOOL_NAME],
   planControl: [EXIT_PLAN_MODE_TOOL_NAME, ENTER_PLAN_MODE_TOOL_NAME],
 };
@@ -65,7 +84,10 @@ const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
 const AUTO_ALLOWED = new Set<string>([
   ...CAPABILITY_TOOLS.web,
   ...CAPABILITY_TOOLS.skills,
-  ...CAPABILITY_TOOLS.tasks,
+  // TaskStop is NOT auto-allowed: it takes any task/agent id and the guard cannot tell "own" from foreign ones -> owner asks.
+  ...CAPABILITY_TOOLS.tasks.filter((t) => t !== TASK_STOP_TOOL_NAME),
+  // MCP reads, and a refresh of the app's own (strict-config) servers: no outward or persistent effect.
+  ...CAPABILITY_TOOLS.mcp,
   ENTER_PLAN_MODE_TOOL_NAME,
 ]);
 

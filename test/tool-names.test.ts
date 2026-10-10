@@ -22,6 +22,7 @@ test("SDK built-in tool names are the real wire names", () => {
     MULTI_EDIT_TOOL_NAME: "MultiEdit",
     NOTEBOOK_EDIT_TOOL_NAME: "NotebookEdit",
     BASH_TOOL_NAME: "Bash",
+    MONITOR_TOOL_NAME: "Monitor",
     WEB_SEARCH_TOOL_NAME: "WebSearch",
     WEB_FETCH_TOOL_NAME: "WebFetch",
     SKILL_TOOL_NAME: "Skill",
@@ -31,10 +32,17 @@ test("SDK built-in tool names are the real wire names", () => {
     TASK_CREATE_TOOL_NAME: "TaskCreate",
     TASK_UPDATE_TOOL_NAME: "TaskUpdate",
     TASK_LIST_TOOL_NAME: "TaskList",
+    TASK_GET_TOOL_NAME: "TaskGet",
+    TASK_STOP_TOOL_NAME: "TaskStop",
     TOOL_SEARCH_TOOL_NAME: "ToolSearch",
     EXIT_PLAN_MODE_TOOL_NAME: "ExitPlanMode",
     ENTER_PLAN_MODE_TOOL_NAME: "EnterPlanMode",
     ASK_USER_QUESTION_TOOL_NAME: "AskUserQuestion",
+    LIST_MCP_RESOURCES_TOOL_NAME: "ListMcpResources",
+    READ_MCP_RESOURCE_TOOL_NAME: "ReadMcpResource",
+    READ_MCP_RESOURCE_DIR_TOOL_NAME: "ReadMcpResourceDir",
+    REFRESH_MCP_TOOLS_TOOL_NAME: "RefreshMcpTools",
+    SEND_FEEDBACK_TOOL_NAME: "SendFeedback",
   });
 });
 

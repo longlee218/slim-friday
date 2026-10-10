@@ -6,7 +6,11 @@ import {
   AGENT_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
+  LIST_MCP_RESOURCES_TOOL_NAME,
+  READ_MCP_RESOURCE_DIR_TOOL_NAME,
+  READ_MCP_RESOURCE_TOOL_NAME,
   READ_TOOL_NAME,
+  REFRESH_MCP_TOOLS_TOOL_NAME,
   SKILL_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
@@ -117,6 +121,10 @@ describe("run-agent stream handling", () => {
       WEB_FETCH_TOOL_NAME,
       SKILL_TOOL_NAME,
       AGENT_TOOL_NAME,
+      LIST_MCP_RESOURCES_TOOL_NAME,
+      READ_MCP_RESOURCE_TOOL_NAME,
+      READ_MCP_RESOURCE_DIR_TOOL_NAME,
+      REFRESH_MCP_TOOLS_TOOL_NAME,
     ]);
     expect(Object.keys(seen.agents)).toEqual(["repo-searcher"]); // subagents have explicit tools
     expect(seen.mcpServers.git.args[0]).toContain("git-mcp-server"); // pinned package, no npx
