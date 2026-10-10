@@ -12,19 +12,19 @@ import { upsertStage } from "../src/storage/stage-store";
 import { insertWorktree, setPrUrl } from "../src/storage/worktree-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
-const mk = (db: any, id: string, o: { brief?: string; thread?: string; type?: string } = {}) =>
+const mk = (db: any, id: string, o: { brief?: string; thread?: string; role?: string } = {}) =>
   insertTask(db, {
     id,
     threadId: o.thread ?? "th",
     source: "t",
     repo: "r",
-    type: o.type ?? "code",
+    role: o.role ?? "dev",
     brief: o.brief ?? `brief of ${id}`,
   });
 
 test("empty when the thread has no code task (Q&A rows and other threads do not count)", () => {
   const { db } = makeEnv();
-  mk(db, "q1", { type: "qa" });
+  mk(db, "q1", { role: "assistant" });
   mk(db, "c1", { thread: "other" });
   expect(threadLedger(db, "th")).toBe("");
 });

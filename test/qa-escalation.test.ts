@@ -151,7 +151,7 @@ describe("Q&A escalation through the handler", () => {
 describe("class prefix", () => {
   test("leading [mechanical|standard|design] sets cls and is stripped; either order with repo:", () => {
     expect(parseTaskCommand("[Design] rethink the cache")).toEqual({
-      kind: "qa",
+      kind: "task",
       repo: undefined,
       text: "rethink the cache",
       cls: "design",

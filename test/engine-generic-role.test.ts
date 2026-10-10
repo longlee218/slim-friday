@@ -15,10 +15,8 @@ afterAll(() => git.close());
 const PROBE: RoleDefinition = {
   name: "probe-reviewer",
   whenToUse: "test only",
-  aliases: [],
   output: "answer",
   countsTowardCap: false,
-  readOnly: true,
   stages: [
     {
       name: "review",
@@ -36,7 +34,13 @@ test("a role that is only data runs through the stage runner and gets its stage 
   const roles = ROLES as Record<string, RoleDefinition>;
   roles[PROBE.name] = PROBE;
   try {
-    insertTask(env.db, { id: "t1", threadId: "th", source: "test", repo: "repo", type: "qa" });
+    insertTask(env.db, {
+      id: "t1",
+      threadId: "th",
+      source: "test",
+      repo: "repo",
+      role: "assistant",
+    });
     const res = await runStages(
       {
         git,

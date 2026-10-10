@@ -100,7 +100,7 @@ test("base must be an existing local branch of the repo", async () => {
 test("cap: refused when the role counts toward it and the cap is full", async () => {
   const { deps } = await setup();
   for (const id of ["a", "b"])
-    insertTask(deps.db, { id, threadId: id, source: "t", repo: "real", type: "code" });
+    insertTask(deps.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   expect(await validateRequest(deps, req())).toMatchObject({
     ok: false,
     action: "refuse",

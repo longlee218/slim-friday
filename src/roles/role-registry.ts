@@ -8,8 +8,8 @@ export const ROLES: Readonly<Record<string, RoleDefinition>> = {
   [DEV_ROLE.name]: DEV_ROLE,
 };
 
-/** Stage names the app runs today (log `mode` values). */
-export type StageName = "qa" | "plan" | "exec";
+/** Stage name (the log `mode` value): any name a role's stage defines. */
+export type StageName = string;
 
 /** A stage, or its name (tests and logs speak names; callers pass definitions). */
 export type StageRef = StageDefinition | StageName;
@@ -51,10 +51,10 @@ export function findStage(roles: readonly RoleDefinition[], name: string): Stage
   return found[0];
 }
 
-/** Roles a Q&A run may hand work to (`DelegateTask` enum): every role with a `whenToUse`, except the assistant. */
+/** Roles an `answer` run may hand work to (`DelegateTask` enum): every role with a `whenToUse` that does not itself answer. */
 export function delegableRoleNames(): [string, ...string[]] {
   const names = Object.values(ROLES)
-    .filter((r) => r.whenToUse && r.name !== ASSISTANT_ROLE.name)
+    .filter((r) => r.whenToUse && r.output !== "answer")
     .map((r) => r.name);
   return names as [string, ...string[]];
 }
@@ -63,3 +63,32 @@ export function delegableRoleNames(): [string, ...string[]] {
 export function intentRoles(): { name: string; whenToUse: string }[] {
   return Object.values(ROLES).map(({ name, whenToUse }) => ({ name, whenToUse }));
 }
+
+/**
+ * Legacy `tasks.type` column value of a role's task ("qa" | "code"), derived from role data: a role counted
+ * toward the task cap is "code". The column stays for old rows (additive schema); nothing reads it back.
+ */
+export const taskTypeOf = (role: RoleDefinition): "qa" | "code" =>
+  role.countsTowardCap ? "code" : "qa";
+
+/** `tasks.kind` of a role's task: several stages = `staged`, one run = `single`. */
+export const taskKindOf = (role: RoleDefinition): "staged" | "single" =>
+  role.stages.length > 1 ? "staged" : "single";
+
+/** The role a plain message starts (`entry` flag); replaced by the intent layer's pick (P1.4c). */
+export function entryRole(): RoleDefinition {
+  const role = Object.values(ROLES).find((r) => r.entry);
+  if (!role) throw new Error("No role has the entry flag");
+  return role;
+}
+
+/** The role whose follow-up messages continue in an existing clone (`followUp` data). */
+export function followUpRole(): RoleDefinition {
+  const role = Object.values(ROLES).find((r) => r.followUp);
+  if (!role) throw new Error("No role has followUp data");
+  return role;
+}
+
+/** A role with an owner gate after some stage: it needs the Discord approval flow. */
+export const isGated = (role: RoleDefinition): boolean =>
+  role.stages.some((s) => (s.gate ?? "none") !== "none");

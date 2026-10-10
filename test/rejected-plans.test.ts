@@ -34,7 +34,7 @@ function plan(
   decision: ApprovalDecision,
   tool = EXIT_PLAN_MODE_TOOL_NAME,
 ) {
-  insertTask(db, { id, threadId: thread, source: "t", repo: "r", type: "code", brief });
+  insertTask(db, { id, threadId: thread, source: "t", repo: "r", role: "dev", brief });
   approval(db, id, decision, tool);
 }
 
@@ -47,7 +47,7 @@ test("rejectedPlans: denied|timeout plan approvals of this thread only", () => {
   plan(db, "t5", "th", "pr offer brief", "denied", "Confirm");
   plan(db, "t6", "other", "other thread brief", "denied");
   // A task without a stored brief (non-delegated) is skipped.
-  insertTask(db, { id: "t7", threadId: "th", source: "t", repo: "r", type: "code" });
+  insertTask(db, { id: "t7", threadId: "th", source: "t", repo: "r", role: "dev" });
   insertApproval(db, { id: "a-t7", taskId: "t7", tool: EXIT_PLAN_MODE_TOOL_NAME, summary: "p" });
   decideApproval(db, "a-t7", "denied");
   expect(rejectedPlans(db, "th").sort()).toEqual(["denied brief", "timeout brief"]);
@@ -85,7 +85,7 @@ test("rejectedPlans: denied, revised, then approved is NOT rejected", () => {
     threadId: "th",
     source: "t",
     repo: "r",
-    type: "code",
+    role: "dev",
     brief: "revised",
   });
   approval(db, "r", "denied");
@@ -95,7 +95,7 @@ test("rejectedPlans: denied, revised, then approved is NOT rejected", () => {
 
 test("rejectedPlans: denied twice yields one row and does not eat the limit", () => {
   const { db } = makeEnv();
-  insertTask(db, { id: "d", threadId: "th", source: "t", repo: "r", type: "code", brief: "twice" });
+  insertTask(db, { id: "d", threadId: "th", source: "t", repo: "r", role: "dev", brief: "twice" });
   approval(db, "d", "denied");
   approval(db, "d", "denied");
   for (let n = 1; n <= 4; n++) plan(db, `o${n}`, "th", `other ${n}`, "denied");

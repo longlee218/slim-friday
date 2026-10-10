@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { sdkEnv } from "../src/runtime/sdk-env";
 import {
@@ -21,6 +22,7 @@ function go(
   return runAgent({
     prompt: "q",
     taskId: "T",
+    stage: getStage("assistant", "qa"),
     cwd: env.home,
     config: env.config,
     db: env.db,

@@ -33,7 +33,7 @@ bun run start          # Start bot (reads .env)
 ```
 src/
 ├── index.ts                    # entry point: load config, open db, start bot; startup: cancel stale tasks (phase 4+)
-├── config/agent-config.ts      # load/validate env (zod); MODEL, CODE_MODEL, LLM_PROVIDER, OPENROUTER_API_KEY
+├── config/agent-config.ts      # load/validate env (zod); MODEL, LLM_PROVIDER, OPENROUTER_API_KEY
 ├── discord-setup/              # Discord server setup: discord.yaml, private channels, init:workspace, bootstrap CLI, #ops-log
 ├── ingress/                    # Discord input
 │   ├── discord-bot.ts          # discord.js client setup
@@ -93,7 +93,7 @@ src/
 │   ├── approval-buttons.ts     # Discord buttons (Approve/Deny/Create PR; phase 4+)
 │   └── approval-types.ts       # request/response shapes (ExitPlanMode, AskUserQuestion, CreatePR; phase 4+)
 ├── config/                     # Configuration & workspace paths
-│   ├── agent-config.ts         # load/validate env (zod); MODEL, CODE_MODEL, LLM_PROVIDER, OPENROUTER_API_KEY
+│   ├── agent-config.ts         # load/validate env (zod); MODEL, LLM_PROVIDER, OPENROUTER_API_KEY
 │   └── workspace-paths.ts      # AGENT_HOME layout: workspaces/<ws>/{workspace.yaml, skills/, cwd/, tasks/, repos/<repo>/{repo.yaml, repo/, worktrees/}}, data, logs
 ├── storage/                    # Database & persistence
 │   ├── db.ts                   # SQLite setup; worktrees table (phase 4+); tasks.brief column (phase 1c+, idempotent ALTER)
@@ -237,7 +237,7 @@ All config loaded via zod schema in `src/config/agent-config.ts`:
 - **Optional:** 
   - LLM_PROVIDER (`anthropic` | `openrouter`; default auto-detect from credentials)
   - MODEL (overrides on either provider; default: anthropic `claude-haiku-4-5-20251001`, openrouter `deepseek/deepseek-v4-flash`)
-  - CODE_MODEL (for code tasks; default: anthropic/claude-haiku-4.5 on openrouter; note: deepseek-v4-flash does not support ExitPlanMode)
+  - MODEL_<ROLE>_<STAGE> (pins a stage; on openrouter the dev stages default to anthropic/claude-haiku-4.5 because deepseek-v4-flash does not support ExitPlanMode)
   - LOG_LEVEL, MAX_TURNS, MAX_BUDGET_USD, TIMEOUT_MS (≥30 min for code tasks with approval waits), MAX_CONCURRENT_RUNS (default 3; max 2 active code tasks phase 4+)
 - Never commit .env (use .env.example with REPLACE_ME)
 - Read-only .env.example verified against actual env vars used in code

@@ -66,5 +66,5 @@ test("bad lengths and scope-only commands are invalid (never null, never the age
 test("parseTaskCommand marks memory commands so the agent never sees them", () => {
   expect(parseTaskCommand("remember: use bun")).toEqual({ kind: "memory" });
   expect(parseTaskCommand("compact memory")).toEqual({ kind: "memory" });
-  expect(parseTaskCommand("what is remember: for?")).toMatchObject({ kind: "qa" });
+  expect(parseTaskCommand("what is remember: for?")).toMatchObject({ kind: "task" });
 });

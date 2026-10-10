@@ -5,7 +5,7 @@ import { type Route, resolveBudget, resolveModel, safeEffort } from "../config/m
 import { mcpServersFor } from "../mcp/mcp-servers";
 import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
-import { getStage, roleOfStage } from "../roles/role-registry";
+import { roleOfStage } from "../roles/role-registry";
 import type { StageDefinition } from "../roles/role-types";
 import { SUBAGENTS, toolOptions } from "../tools/tool-catalog";
 import type { RunAgentInput } from "./run-agent";
@@ -13,17 +13,6 @@ import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
 import { buildToolPermissions } from "./tool-permissions";
 import type { RunSkills } from "./workspace-skills-plugin";
-
-/**
- * The stage a run executes: the one the caller names (the stage engine always does), else the legacy default
- * for direct callers: Q&A is the assistant's `qa`; a code task is the dev role's `plan` (default) or `exec`.
- */
-export function stageForRun(input: Pick<RunAgentInput, "code" | "stage">): StageDefinition {
-  if (input.stage) return input.stage;
-  return input.code
-    ? getStage("dev", input.code.stage === "exec" ? "exec" : "plan")
-    : getStage("assistant", "qa");
-}
 
 /**
  * Config of the stage run: `model` and `limits.maxBudgetUsd` replaced by the stage's own (tier routing and
@@ -42,7 +31,7 @@ export function stageConfig(
   };
 }
 
-/** Run timeout of the stage: never below the config's; code stages include owner approval waits. */
+/** Run timeout of the stage: never below the config's; stages with owner gates include approval waits. */
 export const stageTimeoutMs = (stage: StageDefinition, config: AgentConfig): number =>
   Math.max(config.limits.timeoutMs, stage.timeoutMs ?? 0);
 
@@ -71,7 +60,7 @@ export async function buildSdkOptions(
 ): Promise<Options> {
   const { config, skills: sk } = deps;
   const effort = input.route && safeEffort(input.route);
-  // Every stage goes through the permission layer when it has a guard (Q&A has no gateway: ask = deny).
+  // Every stage goes through the permission layer when it has a guard (a stage without a gateway: ask = deny).
   // This run's plugin dir (and only it) becomes READABLE so skills can open their bundled files.
   const guard =
     input.guard?.readPaths && sk.dirs.length

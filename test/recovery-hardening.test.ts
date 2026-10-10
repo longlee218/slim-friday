@@ -6,6 +6,7 @@ import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { RESUME_PROMPT } from "../src/orchestrator/task-commands";
 import { resolveCommand } from "../src/orchestrator/task-routing";
 import { finishRun } from "../src/orchestrator/tasks/task-result";
+import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import {
   ackInterrupted,
@@ -41,6 +42,7 @@ const go = (env: ReturnType<typeof makeEnv>, q: ReturnType<typeof fakeQuery>) =>
   runAgent({
     prompt: "q",
     taskId: "T",
+    stage: getStage("assistant", "qa"),
     cwd: env.home,
     config: env.config,
     db: env.db,
@@ -51,8 +53,14 @@ const go = (env: ReturnType<typeof makeEnv>, q: ReturnType<typeof fakeQuery>) =>
 // ---- Early session persistence + interrupted status + Resume ----
 
 /** Task row of a thread that was cut short with a recorded session (what a restart leaves behind). */
-function interrupted(env: ReturnType<typeof makeEnv>, threadId: string, cwd: string, id = "T0") {
-  insertTask(env.db, { id, threadId, source: "d", repo: "*", type: "qa" });
+function interrupted(
+  env: ReturnType<typeof makeEnv>,
+  threadId: string,
+  cwd: string,
+  id = "T0",
+  role = "assistant",
+) {
+  insertTask(env.db, { id, threadId, source: "d", repo: "*", role });
   setTaskSession(env.db, id, "OLD", cwd);
   interruptRunningTasks(env.db);
 }
@@ -88,10 +96,10 @@ test("quota/error runs never replace the stored session either", async () => {
 
 test("restart marks running tasks interrupted; ack makes them cancelled (one notice)", () => {
   const { db } = makeEnv();
-  insertTask(db, { id: "a", threadId: "th", source: "d", repo: "r", type: "qa" });
-  insertTask(db, { id: "b", threadId: "th", source: "d", repo: "r", type: "code" });
+  insertTask(db, { id: "a", threadId: "th", source: "d", repo: "r", role: "assistant" });
+  insertTask(db, { id: "b", threadId: "th", source: "d", repo: "r", role: "dev" });
   setTaskStatus(db, "b", "waiting_approval");
-  insertTask(db, { id: "c", threadId: "other", source: "d", repo: "r", type: "qa" });
+  insertTask(db, { id: "c", threadId: "other", source: "d", repo: "r", role: "assistant" });
   setTaskStatus(db, "c", "done");
   interruptRunningTasks(db);
   expect(listInterruptedThreads(db)).toEqual(["th"]);
@@ -174,14 +182,14 @@ test("resolveCommand: plan stage / worktree / Q&A cwd ok; unusable cwd, stale, n
   const resume = (t: string) => resolveCommand(deps, { kind: "resume" }, t);
   const scratch = join(realpathSync(env.home), "workspaces", "main", "tasks", "T1", "scratch");
   mkdirSync(scratch, { recursive: true });
-  interrupted(env, "p", scratch, "A");
+  interrupted(env, "p", scratch, "A", "dev");
   expect(resume("p")).toMatchObject({
-    cmd: { kind: "code" },
+    cmd: { kind: "task", role: "dev" },
     planResume: { sessionId: "OLD", cwd: scratch },
   });
 
   interrupted(env, "q", env.repo, "B");
-  expect(resume("q")).toMatchObject({ cmd: { kind: "qa", text: RESUME_PROMPT } });
+  expect(resume("q")).toMatchObject({ cmd: { kind: "task", text: RESUME_PROMPT } });
 
   // cwd outside the home cwd dir / registered repos: a fresh session would have no context.
   interrupted(env, "x", "/elsewhere", "C");
@@ -199,7 +207,7 @@ test("resolveCommand: plan stage / worktree / Q&A cwd ok; unusable cwd, stale, n
     base: "main",
   });
   interrupted(env, "w", realpathSync(wtPath), "D");
-  expect(resume("w")).toMatchObject({ cmd: { kind: "qa" } });
+  expect(resume("w")).toMatchObject({ cmd: { kind: "task" } });
   interrupted(env, "w2", "/elsewhere", "E");
   insertWorktree(env.db, {
     taskId: "T3",
@@ -213,7 +221,7 @@ test("resolveCommand: plan stage / worktree / Q&A cwd ok; unusable cwd, stale, n
   expect(resume("w2")).toHaveProperty("reply");
 
   // A newer finished task makes the Resume stale.
-  insertTask(env.db, { id: "N", threadId: "q", source: "d", repo: "*", type: "qa" });
+  insertTask(env.db, { id: "N", threadId: "q", source: "d", repo: "*", role: "assistant" });
   expect(resume("q")).toMatchObject({ reason: "stale_resume" });
 });
 

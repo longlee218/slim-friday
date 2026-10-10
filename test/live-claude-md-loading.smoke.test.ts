@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { guardFor } from "../src/guardrails/check-tool-call";
+import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { makeEnv } from "./helpers";
 
@@ -49,6 +50,7 @@ describe.skipIf(!live)("live CLAUDE.md loading canaries (Claude login)", () => {
       prompt:
         "List every token of the form CANARY_<letter>_7f3 that appears in your instructions. Reply with only the tokens, comma separated, or NONE. Do not use tools.",
       taskId: "canary1",
+      stage: getStage("assistant", "qa"),
       cwd: repo,
       guard: guardFor("qa", { readPaths: [repo], gitReadRepos: [] }),
       config: env.config,

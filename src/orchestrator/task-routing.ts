@@ -4,9 +4,8 @@ import type { Route as ModelRoute, TaskClass } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import type { Repo } from "../repos/repo-registry";
-import { ASSISTANT_ROLE } from "../roles/builtin/assistant-role";
-import { DEV_ROLE } from "../roles/builtin/dev-role";
-import { latestTaskSession } from "../storage/run-store";
+import { entryRole, followUpRole, getRole, isGated } from "../roles/role-registry";
+import { latestTaskSession, taskRole } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
 import { liveWorktree, type WorktreeRow } from "../storage/worktree-store";
 import {
@@ -19,28 +18,28 @@ import {
 } from "./dispatch/task-repo";
 import { RESUME_PROMPT, type TaskCommand } from "./task-commands";
 
-/** Where a Q&A or code task runs, decided before anything is created. */
+/** Which role runs a task and where, decided before anything is created. */
 export interface Route {
   /** Repo the thread is pinned to (or hinted with `repo:`), when any. */
   pinned?: Repo;
-  /** Existing worktree of the thread (follow-up of a code task). */
+  /** Existing worktree of the thread (follow-up of a staged task). */
   worktree?: WorktreeRow;
-  /** Role that runs the message: the dev role for code (a task or a follow-up in a worktree), else the assistant. */
+  /** Role that runs the message: a follow-up in a live worktree -> the role that owns it; a plan-stage Resume -> its role; else the entry role. */
   role: string;
-  /** Code tasks: repos the plan may pick from (managed clones only). */
+  /** Gated (staged) roles: repos the plan may pick from (managed clones only). */
   candidates: Repo[];
   /** Name for the task row: the worktree's, the hinted repo's, else "*" (not chosen yet). */
   repo: string;
 }
 
 /**
- * Decide how a Q&A / code message is run: pinned repo, code or Q&A, candidate repos, or a refusal
- * (unknown repo, empty text, no approval flow, no clone, too many code tasks).
+ * Decide how a message is run: pinned repo, the role (from data, see `Route.role`), candidate repos, or a
+ * refusal (unknown repo, empty text, no approval flow, no clone, too many capped tasks).
  */
 export function routeTask(
   deps: { db: Database; agentHome: string; hasApprovals: boolean },
   p: {
-    cmd: Extract<TaskCommand, { kind: "code" | "qa" }>;
+    cmd: Extract<TaskCommand, { kind: "task" }>;
     threadId: string;
     repos: Repo[];
     existing: SessionRow | null;
@@ -52,12 +51,15 @@ export function routeTask(
   if (cmd.repo && !pinned) return unknownRepo(repos, cmd.repo);
   if (cmd.repo && !cmd.text)
     return refuse("empty_text", `Send your question after "repo:${pinned!.name}".`);
-  // Code only for a follow-up in a thread with a worktree, or the Resume of an interrupted plan stage.
-  const worktree =
-    cmd.kind === "code" ? undefined : (liveWorktree(deps.db, p.threadId) ?? undefined);
-  const isCode = cmd.kind === "code" || !!worktree;
-  if (!isCode)
-    return { pinned, role: ASSISTANT_ROLE.name, candidates: [], repo: pinned?.name ?? "*" };
+  // A staged role runs only as a follow-up in a thread with a worktree (its owner role continues) or as the
+  // Resume of an interrupted plan stage (`cmd.role`, starts fresh); every other message goes to the entry role.
+  const worktree = cmd.role ? undefined : (liveWorktree(deps.db, p.threadId) ?? undefined);
+  const role = cmd.role
+    ? getRole(cmd.role)
+    : worktree
+      ? getRole(taskRole(deps.db, worktree.taskId) ?? followUpRole().name)
+      : entryRole();
+  if (!isGated(role)) return { pinned, role: role.name, candidates: [], repo: pinned?.name ?? "*" };
   if (!deps.hasApprovals)
     return refuse("no_approvals", "Code tasks need the Discord approval flow.");
   if (!cmd.text) return refuse("empty_text", "Send a message with the task.");
@@ -73,7 +75,7 @@ export function routeTask(
       capRefusal(deps.db) ?? {
         pinned,
         worktree,
-        role: DEV_ROLE.name,
+        role: role.name,
         candidates: repos,
         repo: worktree.repo,
       }
@@ -83,7 +85,7 @@ export function routeTask(
   if ("reply" in blocked) return blocked;
   return {
     pinned,
-    role: DEV_ROLE.name,
+    role: role.name,
     candidates: blocked.candidates,
     repo: cmd.repo ? (pinned?.name ?? "*") : "*",
   };
@@ -92,9 +94,9 @@ export function routeTask(
 /** Refusal reasons after which a `go` message is treated as plain text (nothing to start or resume). */
 export const PLAIN_GO: ReadonlySet<string> = new Set(["cannot_resume", "stale_resume"]);
 
-/** A runnable command (code or Q&A) plus what a Resume adds. */
+/** A runnable command plus what a Resume adds. */
 export interface ResumePlan {
-  cmd: Extract<TaskCommand, { kind: "code" | "qa" }>;
+  cmd: Extract<TaskCommand, { kind: "task" }>;
   /** Session to resume instead of the thread's stored one (Resume: the interrupted task's own). */
   existing?: SessionRow;
   /** Plan stage cut before approval: resume this session in its scratch dir. */
@@ -102,10 +104,10 @@ export interface ResumePlan {
 }
 
 /**
- * Make the owner's command runnable. Q&A / code pass through; the Resume button continues the latest
+ * Make the owner's command runnable. A task passes through; the Resume button continues the latest
  * task of the thread, using the session that task recorded at init:
- * live worktree (cwd matches) -> follow-up there; plan scratch dir (still present) -> plan run;
- * the workspace `cwd` dir or one of its repos -> Q&A. Anything else (no session, cwd not usable, or the thread
+ * live worktree (cwd matches) -> follow-up there; plan scratch dir (still present) -> plan run of the same role;
+ * the workspace `cwd` dir or one of its repos -> a plain task. Anything else (no session, cwd not usable, or the thread
  * already moved on) -> a reply.
  */
 export function resolveCommand(
@@ -142,21 +144,21 @@ export function resolveCommand(
   const worktree = liveWorktree(deps.db, threadId);
   if (worktree)
     return existing.cwd === realOrSame(worktree.path)
-      ? { cmd: { kind: "qa", text }, existing }
+      ? { cmd: { kind: "task", text }, existing }
       : cannot;
   // Plan stage: its session cwd is the task scratch dir under <workspace>/tasks.
   const ws = workspacePaths(deps.agentHome).workspace(deps.workspace);
   if (existing.cwd.startsWith(`${realOrSame(ws.tasks)}/`)) {
     if (!existsSync(existing.cwd)) return cannot;
     return {
-      cmd: { kind: "code", text },
+      cmd: { kind: "task", role: last.role, text },
       existing,
       planResume: { sessionId: existing.session_id, cwd: existing.cwd },
     };
   }
-  // Q&A: qa-flow only resumes in the workspace cwd dir or one of its repos; else the context would be lost.
-  const qaCwd = existing.cwd === ws.cwd || deps.repos.some((r) => r.path === existing.cwd);
-  return qaCwd ? { cmd: { kind: "qa", text }, existing } : cannot;
+  // A plain task only resumes in the workspace cwd dir or one of its repos; else the context would be lost.
+  const plainCwd = existing.cwd === ws.cwd || deps.repos.some((r) => r.path === existing.cwd);
+  return plainCwd ? { cmd: { kind: "task", text }, existing } : cannot;
 }
 
 /** Route of a run: owner class and `go +<usd>` raise; undefined when neither is set (stage defaults). */

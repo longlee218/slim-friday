@@ -18,7 +18,7 @@ import {
 import type { Workflow } from "../repos/repo-registry";
 import type { StageDefinition } from "../roles/role-types";
 import { consumeStream, type QueryFn, type StreamResult } from "./run-stream";
-import { buildSdkOptions, stageConfig, stageForRun, stageTimeoutMs } from "./sdk-options";
+import { buildSdkOptions, stageConfig, stageTimeoutMs } from "./sdk-options";
 import type { ToolPermissionInput } from "./tool-permissions";
 import { type RunSkills, workspaceSkills } from "./workspace-skills-plugin";
 
@@ -46,13 +46,10 @@ export interface RunAgentInput {
   appServer?: McpSdkServerConfigWithInstance;
   /** GitHub login whose token the read-only GitHub MCP server uses (code tasks); default = active gh account. */
   githubAccount?: string;
-  /** The stage to run (the stage engine passes it); omitted = derived from `code` (direct callers, tests). */
-  stage?: StageDefinition;
-  /** Code task: plan mode + write tools behind guardrails and owner approval. Omitted = read-only Q&A. */
-  code?: Omit<ToolPermissionInput, "taskId" | "guard"> & {
-    /** "plan" (default): plan mode, read-only dirs. "exec": runs in the worktree after plan approval. */
-    stage?: "plan" | "exec";
-  };
+  /** The stage to run: its tools, model slot, permission mode, timeout and prompt. */
+  stage: StageDefinition;
+  /** Permission layer of a gated stage (gateway, plan, ask limits). Omitted = a stage without a gateway (ask = deny). */
+  code?: Omit<ToolPermissionInput, "taskId" | "guard">;
   /** `full` repo workflow (plan: some candidate repo is full; exec: the repo is): adds its rules to the prompt. */
   workflow?: Workflow;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never repo content). */
@@ -93,7 +90,7 @@ const log = logger.child({ module: "run-agent" });
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const { abortController: ac } = input;
   // The stage (role definition) decides tools, model slot, permission mode, timeout and prompt.
-  const stage = stageForRun(input);
+  const { stage } = input;
   const config = stageConfig(stage, input.config, input.route);
   // OpenRouter without a real key would only retry on 401 until timeout: fail fast instead.
   if (config.provider === "openrouter" && !config.hasRealAuth) {

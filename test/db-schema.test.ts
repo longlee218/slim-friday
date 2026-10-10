@@ -28,7 +28,7 @@ test("schema has 4 tables and WAL mode", () => {
 
 test("task/run/tool_call helpers insert rows", () => {
   const { db } = makeEnv();
-  insertTask(db, { id: "t", threadId: "th", source: "test", repo: "/r", type: "qa" });
+  insertTask(db, { id: "t", threadId: "th", source: "test", repo: "/r", role: "assistant" });
   finishTask(db, "t", "done");
   insertRun(db, {
     id: "r",
@@ -60,7 +60,7 @@ test("task/run/tool_call helpers insert rows", () => {
 
 test("restart cleanup: waiting_approval tasks become interrupted, pending approvals cancelled", () => {
   const { db } = makeEnv();
-  insertTask(db, { id: "t1", threadId: "th", source: "d", repo: "r", type: "code" });
+  insertTask(db, { id: "t1", threadId: "th", source: "d", repo: "r", role: "dev" });
   setTaskStatus(db, "t1", "waiting_approval");
   db.run(
     "INSERT INTO approvals (id, task_id, tool, summary, decision, requested_at) VALUES ('a','t1',?,'s','pending',1)",
@@ -179,7 +179,7 @@ test("migration: old db without brief column gets brief added via ALTER TABLE", 
       threadId: "th1",
       source: "test",
       repo: "r1",
-      type: "code",
+      role: "dev",
       brief: "test brief",
     });
     const newRow = newDb

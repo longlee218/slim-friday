@@ -23,10 +23,8 @@ const S: StageDefinition = {
 const probe = (o: Partial<RoleDefinition>): RoleDefinition => ({
   name: "probe-x",
   whenToUse: "test only",
-  aliases: [],
   output: "answer",
   countsTowardCap: false,
-  readOnly: true,
   stages: [S],
   ...o,
 });
@@ -38,7 +36,7 @@ async function runProbe(role: RoleDefinition, extra: { worktree?: never } = {}) 
   roles[role.name] = role;
   let calls = 0;
   try {
-    insertTask(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", type: "qa" });
+    insertTask(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
     const res = await runStages(
       {
         git,
@@ -101,7 +99,7 @@ test("a role with an isolated stage and no followUp refuses a follow-up in a clo
 
 test("a thrown stage run marks the row failed, not running", async () => {
   const env = makeEnv();
-  insertTask(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", type: "qa" });
+  insertTask(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
   const run = runStages(
     {
       git,

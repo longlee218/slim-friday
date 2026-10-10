@@ -44,15 +44,15 @@ describe("tier defaults and env", () => {
     expect(c.budgetOverrides.dev_exec).toBe(5);
     expect(() => cfg({ BUDGET_DEV_EXEC_USD: "abc" })).toThrow("BUDGET_DEV_EXEC_USD");
   });
-  test("legacy MODEL / CODE_MODEL: aliases, kept, flagged deprecated; the new pin wins", () => {
-    const c = cfg({ MODEL: "m-qa", CODE_MODEL: "m-code", MODEL_DEV_EXEC: "sonnet" });
-    expect(c.deprecated).toEqual(["MODEL", "CODE_MODEL"]);
+  test("legacy MODEL alias: pins assistant qa only, kept, flagged deprecated; the new pin wins", () => {
+    const c = cfg({ MODEL: "m-qa", MODEL_DEV_EXEC: "sonnet" });
+    expect(c.deprecated).toEqual(["MODEL"]);
     expect(resolveModel(qa, assistant, {}, c)).toBe("m-qa");
-    expect(resolveModel(plan, dev, {}, c)).toBe("m-code");
+    expect(resolveModel(plan, dev, {}, c)).toBe(S); // no longer pinned by MODEL (CODE_MODEL alias removed)
     expect(resolveModel(exec, dev, {}, c)).toBe(S);
     expect(cfg().deprecated).toEqual([]);
-    // MODEL alone also pins code stages (old behavior: codeModel defaulted to MODEL).
-    expect(resolveModel(plan, dev, {}, cfg({ MODEL: "only" }))).toBe("only");
+    // CODE_MODEL is ignored now.
+    expect(cfg({ CODE_MODEL: "x" }).deprecated).toEqual([]);
   });
 });
 
@@ -88,10 +88,14 @@ describe("resolveModel", () => {
       "claude-x",
     );
   });
-  test("openrouter: tiers unused, legacy slots kept", () => {
-    const or = cfg({ OPENROUTER_API_KEY: `sk-or-v1-${"a1b2c3d4".repeat(8)}` });
+  test("openrouter: tiers unused; env pin > the stage's openrouterModel > the one default model", () => {
+    const key = `sk-or-v1-${"a1b2c3d4".repeat(8)}`;
+    const or = cfg({ OPENROUTER_API_KEY: key });
     expect(resolveModel(qa, assistant, { tier: "opus" }, or)).toBe(or.model);
-    expect(resolveModel(exec, dev, { cls: "design" }, or)).toBe(or.codeModel);
+    expect(resolveModel(exec, dev, { cls: "design" }, or)).toBe("anthropic/claude-haiku-4.5");
+    const pinned = cfg({ OPENROUTER_API_KEY: key, MODEL_DEV_EXEC: "x/y", MODEL: "m/qa" });
+    expect(resolveModel(exec, dev, {}, pinned)).toBe("x/y");
+    expect(resolveModel(qa, assistant, {}, pinned)).toBe("m/qa");
   });
 });
 
@@ -169,6 +173,7 @@ describe("effort knobs", () => {
       runAgent({
         prompt: "q",
         taskId: "t",
+        stage: getStage("assistant", "qa"),
         cwd: env.home,
         config: env.config,
         db: env.db,

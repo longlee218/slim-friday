@@ -74,6 +74,8 @@ const CODE_CAPABILITIES: Capability[] = [
 const CODE_STAGE_BASE = {
   capabilities: CODE_CAPABILITIES,
   timeoutMs: CODE_TASK_TIMEOUT_MS,
+  // OpenRouter: plan mode needs a model that reliably calls ExitPlanMode; deepseek-v4-flash does not (live test), a Claude model does.
+  openrouterModel: "anthropic/claude-haiku-4.5",
   subagents: ["repo-searcher"],
 } satisfies Partial<StageDefinition>;
 
@@ -85,14 +87,29 @@ export const DEV_ROLE: RoleDefinition = {
   modelTiers: true,
   output: "pr",
   countsTowardCap: true,
-  readOnly: false,
-  aliases: [],
+  aliases: {
+    tag: "[dev]",
+    strong: [
+      "giao cho dev",
+      "giao việc cho dev",
+      "coder",
+      "lập trình viên",
+      "code đi",
+      "code giúp",
+      "viết code",
+      "sửa code",
+      "fix bug",
+      "implement",
+      "làm task",
+    ],
+  },
   followUp: { startAtStage: "exec" },
   stages: [
     {
       ...CODE_STAGE_BASE,
       name: "plan",
-      model: "sonnet", // class=design -> opus (model-routing.ts)
+      model: "sonnet",
+      classTiers: { mechanical: "sonnet", standard: "sonnet", design: "opus" },
       budgetUsd: 1.5,
       gitGroups: ["read"],
       permissionMode: "plan",
@@ -113,7 +130,8 @@ export const DEV_ROLE: RoleDefinition = {
     {
       ...CODE_STAGE_BASE,
       name: "exec",
-      model: "sonnet", // class: mechanical -> haiku, design -> opus (model-routing.ts)
+      model: "sonnet",
+      classTiers: { mechanical: "haiku", standard: "sonnet", design: "opus" },
       budgetUsd: 3.0,
       gitGroups: ["read", "commit", "change"],
       isolation: "clone",

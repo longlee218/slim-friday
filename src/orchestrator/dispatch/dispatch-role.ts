@@ -110,13 +110,11 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     { taskId, threadId: i.task.threadId, source: i.task.source },
     {
       repo,
-      type: role.readOnly ? "qa" : "code",
       mode: firstStage.name,
       brief: request.brief,
       cls: request.cls,
       proposalId,
       role: role.name,
-      kind: role.stages.length > 1 ? "staged" : "single",
       parentTaskId: i.fromTaskId,
       hop: i.fromTaskId ? 1 : 0,
     },

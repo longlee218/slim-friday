@@ -47,12 +47,12 @@ AGENT_HOME=/absolute/path/to/agent-home
 LOG_LEVEL=info
 # Optional:
 # MAX_CONCURRENT_RUNS=3
-# CODE_MODEL=claude-haiku-4-5-20251001  # for code tasks (phase 3+)
+# MODEL_DEV_PLAN=sonnet  # pin a stage (MODEL_<ROLE>_<STAGE>); CODE_MODEL was removed
 # OPENROUTER_API_KEY=<key>              # to use OpenRouter instead of Anthropic
 # LLM_PROVIDER=openrouter               # force OpenRouter (if both credentials set)
 ```
 
-**Note (Phase 3+):** For code task approvals to work, ensure CODE_MODEL is set to a model that supports ExitPlanMode (e.g., Claude models). DeepSeek v4 does not support plan mode approval flow.
+**Note (Phase 3+):** For code task approvals to work, ensure the dev stages (MODEL_DEV_PLAN / MODEL_DEV_EXEC on openrouter) use a model that supports ExitPlanMode (e.g., Claude models). DeepSeek v4 does not support plan mode approval flow.
 
 **Note (Phase 4+):** For PR creation, you need:
 - `gh` CLI authenticated (`gh auth login`) with at least one Git account (or set `githubAccount` in each repo's `repo.yaml`)

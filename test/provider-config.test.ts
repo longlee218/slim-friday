@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { loadConfig, logProviderSelected } from "../src/config/agent-config";
 import { createLogger } from "../src/observability/logger";
 import { MASK, redactText } from "../src/observability/redact";
+import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { sdkEnv } from "../src/runtime/sdk-env";
 import { fakeQuery, makeEnv, resultMsg } from "./helpers";
@@ -121,6 +122,7 @@ describe("run-agent wiring", () => {
     runAgent({
       prompt: "q",
       taskId: "T",
+      stage: getStage("assistant", "qa"),
       cwd: env.home,
       config: env.config,
       db: env.db,

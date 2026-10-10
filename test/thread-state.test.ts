@@ -8,9 +8,9 @@ import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv } from "./helpers";
 
 /** One thread, one code task in `status`. */
-function task(status: Parameters<typeof setTaskStatus>[2], type = "code") {
+function task(status: Parameters<typeof setTaskStatus>[2], role = "dev") {
   const { db } = makeEnv();
-  insertTask(db, { id: "t1", threadId: "th", source: "t", repo: "r", type });
+  insertTask(db, { id: "t1", threadId: "th", source: "t", repo: "r", role });
   setTaskStatus(db, "t1", status);
   return db;
 }
@@ -29,7 +29,7 @@ test("idle: the last task was cancelled, failed, timed out or interrupted", () =
 
 test("running: task running (Q&A or code)", () => {
   expect(deriveThreadState(task("running"), "th")).toBe("running");
-  expect(deriveThreadState(task("running", "qa"), "th")).toBe("running");
+  expect(deriveThreadState(task("running", "assistant"), "th")).toBe("running");
 });
 
 test("awaiting_plan_approval: waiting on the plan gate", () => {
@@ -73,7 +73,7 @@ test("done folds to idle", () => {
 
 test("the newest task decides; other threads are ignored", () => {
   const db = task("done");
-  insertTask(db, { id: "t2", threadId: "th", source: "t", repo: "r", type: "code" });
+  insertTask(db, { id: "t2", threadId: "th", source: "t", repo: "r", role: "dev" });
   expect(deriveThreadState(db, "th")).toBe("running");
   expect(deriveThreadState(db, "other")).toBe("idle");
 });

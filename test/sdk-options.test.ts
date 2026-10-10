@@ -2,6 +2,7 @@ import { afterEach, expect, spyOn, test } from "bun:test";
 import type { McpSdkServerConfigWithInstance, Options } from "@anthropic-ai/claude-agent-sdk";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { makeEnv, resultMsg } from "./helpers";
 
@@ -14,7 +15,13 @@ import { makeEnv, resultMsg } from "./helpers";
 type Kind = "qa" | "qa-handoff" | "plan" | "exec";
 
 /** Config limits are fixed so timeout and budget assertions are exact. */
-const ENV = { MODEL: "model-qa", CODE_MODEL: "model-code", MAX_TURNS: "7", MAX_BUDGET_USD: "3" };
+const ENV = {
+  MODEL: "model-qa",
+  MODEL_DEV_PLAN: "model-code",
+  MODEL_DEV_EXEC: "model-code",
+  MAX_TURNS: "7",
+  MAX_BUDGET_USD: "3",
+};
 
 const timers: ReturnType<typeof spyOn>[] = [];
 afterEach(() => {
@@ -56,22 +63,25 @@ async function capture(kind: Kind) {
   if (kind === "qa" || kind === "qa-handoff") {
     await runAgent({
       ...base,
+      stage: getStage("assistant", "qa"),
       guard: guardFor("qa", scope, { delegate: kind === "qa-handoff" }),
       ...(kind === "qa-handoff" && { appServer }),
     });
   } else if (kind === "plan") {
     await runAgent({
       ...base,
+      stage: getStage("dev", "plan"),
       guard: guardFor("plan", scope),
       code: { threadId: "th", plan: { repos: ["repo"], onApproved: () => {} } },
     });
   } else {
     await runAgent({
       ...base,
+      stage: getStage("dev", "exec"),
       guard: guardFor("exec", { ...scope, writePaths: [env.home], gitWriteRepo: env.home }),
       gitAuthor: { name: "Test Owner", email: "owner@example.com" },
       gitBaseDir: env.home,
-      code: { stage: "exec", threadId: "th", gateway: undefined },
+      code: { threadId: "th", gateway: undefined },
     });
   }
   spy.mockRestore();

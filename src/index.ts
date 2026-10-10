@@ -183,7 +183,6 @@ async function main(): Promise<void> {
   logEvent(log, "app.started", {
     provider: config.provider,
     model: config.model,
-    codeModel: config.codeModel,
     agentHome: config.agentHome,
     pid: process.pid,
   });

@@ -105,12 +105,12 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     const taskRepo = () => getLogContext().repo ?? "*";
     /** The one place a task row is created (after the refusals, before the flow runs). */
     let single: string | undefined;
-    const begin = (repo: string, type: "qa" | "code", mode: string, cls?: TaskClass) => {
+    const begin = (repo: string, role: string, mode: string, cls?: TaskClass) => {
       beginTask(
         db,
         log,
         { taskId, threadId, source: task.source, single },
-        { repo, type, mode, cls },
+        { repo, role, mode, cls },
       );
       taskInserted = true;
     };
@@ -159,7 +159,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       let resolved = resolveCommand(rdeps, input, threadId);
       // `go` with nothing to start or resume is an ordinary message (e.g. "go" as a follow-up in a worktree).
       if (parsed.kind === "go" && "reply" in resolved && PLAIN_GO.has(resolved.reason)) {
-        resolved = resolveCommand(rdeps, { kind: "qa", text: task.text.trim() }, threadId);
+        resolved = resolveCommand(rdeps, { kind: "task", text: task.text.trim() }, threadId);
         extraBudgetUsd = undefined; // the raise belongs to a resume, not a plain message
       }
       if ("reply" in resolved) return refused(log, resolved);

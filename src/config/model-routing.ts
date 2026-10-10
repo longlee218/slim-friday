@@ -6,7 +6,7 @@ import type { AgentConfig } from "./agent-config";
 /** Cost/ability tiers; the ids behind them live in `config.models` (env MODEL_HAIKU|SONNET|OPUS). */
 export type ModelTier = "haiku" | "sonnet" | "opus";
 
-/** Size of a code task: mechanical = simple edits/docs, design = architecture/strategy/UI-UX. */
+/** Size of a task: mechanical = simple edits/docs, design = architecture/strategy/UI-UX. */
 export type TaskClass = "mechanical" | "standard" | "design";
 
 /** Effort hint: maps to model tier, thinking, budget share and maxTurns (see effort-mapping.ts). */
@@ -27,21 +27,15 @@ export interface Route {
   effort?: Effort;
   /** Forced tier (Haiku triage escalation re-run); beats class and effort. */
   tier?: ModelTier;
-  /** This run is an escalated Q&A re-run: uses the stage's larger `escalatedBudgetUsd`. */
+  /** This run is an escalated answer re-run: uses the stage's larger `escalatedBudgetUsd`. */
   escalated?: boolean;
-  /** Q&A first run: tell the model it may end with `ESCALATE: sonnet|opus` (see qa-escalation.ts). */
+  /** First answer run: tell the model it may end with `ESCALATE: sonnet|opus` (see qa-escalation.ts). */
   offerEscalation?: boolean;
   /** Owner raised the budget (`go +<usd>`, parsed in P1.4): added to the stage budget. */
   extraBudgetUsd?: number;
   /** Owner explicitly confirmed `max` / Opus for this run; without it an escalation- or effort-driven opus is capped at high. */
   ownerConfirmedMax?: boolean;
 }
-
-/** Class -> tier of the stages whose model depends on the class (roles with `modelTiers`). */
-const CLASS_TIER: Record<string, Record<TaskClass, ModelTier>> = {
-  plan: { mechanical: "sonnet", standard: "sonnet", design: "opus" },
-  exec: { mechanical: "haiku", standard: "sonnet", design: "opus" },
-};
 
 /** Effort -> tier. `high` follows the class (Opus only for design); `max` is always Opus (owner-confirmed upstream). */
 export function effortTier(effort: Effort, cls: TaskClass = "standard"): ModelTier {
@@ -65,9 +59,9 @@ export function safeEffort(route: Route): Effort | undefined {
 export const stageKey = (role: string, stage: string): string => `${role}_${stage}`.toLowerCase();
 
 /**
- * Model id of a stage run. Anthropic path order: env pin (MODEL_<ROLE>_<STAGE>, or the legacy MODEL /
- * CODE_MODEL aliases) > forced tier > effort > class table (roles with `modelTiers`) > the stage's own `model`.
- * OpenRouter: tiers are not used; Q&A keeps `config.model`, code stages `config.codeModel` (unchanged).
+ * Model id of a stage run. Anthropic path order: env pin (MODEL_<ROLE>_<STAGE>, or the legacy MODEL alias) >
+ * forced tier > effort > the stage's `classTiers` > the stage's own `model`.
+ * OpenRouter: tiers are not used; env pin (used as the model id) > the stage's `openrouterModel` > `config.model`.
  */
 export function resolveModel(
   stage: StageDefinition,
@@ -75,9 +69,8 @@ export function resolveModel(
   route: Route,
   config: AgentConfig,
 ): string {
-  if (config.provider === "openrouter")
-    return role?.readOnly === false ? config.codeModel : config.model;
   const pin = role && config.modelOverrides[stageKey(role.name, stage.name)];
+  if (config.provider === "openrouter") return pin ?? stage.openrouterModel ?? config.model;
   if (pin) return specToId(pin, config);
   const cls = route.cls ?? "standard";
   // Opus from a forced tier needs the owner's confirmation; else it is capped at the high tier (class table).
@@ -87,13 +80,12 @@ export function resolveModel(
     ];
   const effort = safeEffort(route);
   if (effort) return config.models[effortTier(effort, cls)];
-  const byClass = role?.modelTiers ? CLASS_TIER[stage.name]?.[cls] : undefined;
-  return specToId(byClass ?? stage.model, config);
+  return specToId(stage.classTiers?.[cls] ?? stage.model, config);
 }
 
 /**
  * Budget (USD) of a stage run, or undefined = no cap. Anthropic: env pin BUDGET_<ROLE>_<STAGE>_USD > the stage's
- * default (escalated Q&A re-runs use the larger one), plus any owner raise, then capped by MAX_BUDGET_USD.
+ * default (escalated answer re-runs use the larger one), plus any owner raise, then capped by MAX_BUDGET_USD.
  * OpenRouter has no stage budget (SDK prices cost from Anthropic tables): only MAX_BUDGET_USD applies.
  */
 export function resolveBudget(

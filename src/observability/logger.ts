@@ -42,7 +42,7 @@ export interface LogContext {
   workspace?: string;
   /** Repo of the task ("*" = not chosen yet). */
   repo?: string;
-  /** "qa" | "plan" | "exec". */
+  /** Stage name (e.g. "qa", "plan", "exec"). */
   mode?: string;
 }
 

@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { TaskClass } from "../config/model-routing";
 import { redactText } from "../observability/redact";
+import { getRole, taskKindOf, taskTypeOf } from "../roles/role-registry";
 import { interruptRunningStages } from "./stage-store";
 
 /** Final status of a task row. */
@@ -31,6 +32,8 @@ export function latestTaskSession(
 ): {
   status: string;
   repo: string;
+  /** Role that ran it (a plan-stage Resume starts the same role again). */
+  role: string;
   sessionId: string | null;
   cwd: string | null;
   /** The task's last run ended on its budget (`go +<usd>` may resume it). */
@@ -41,13 +44,14 @@ export function latestTaskSession(
       {
         status: string;
         repo: string;
+        role: string;
         sessionId: string | null;
         cwd: string | null;
         outcome: string | null;
       },
       [string]
     >(
-      `SELECT status, repo, session_id AS sessionId, session_cwd AS cwd,
+      `SELECT status, repo, role, session_id AS sessionId, session_cwd AS cwd,
          (SELECT r.outcome FROM runs r WHERE r.task_id = tasks.id ORDER BY r.rowid DESC LIMIT 1) AS outcome
        FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
     )
@@ -55,6 +59,11 @@ export function latestTaskSession(
   if (!row) return null;
   const { outcome, ...rest } = row;
   return { ...rest, budgetStopped: outcome === "max_budget" };
+}
+
+/** Role that owns a task row, or undefined when the row is missing. */
+export function taskRole(db: Database, id: string): string | undefined {
+  return db.query<{ role: string }, [string]>("SELECT role FROM tasks WHERE id = ?").get(id)?.role;
 }
 
 /** Insert a task row in `running` state. */
@@ -65,23 +74,21 @@ export function insertTask(
     threadId: string;
     source: string;
     repo: string;
-    type: string;
+    /** Role that runs it: `type`, `kind` and the cap flag are derived from its data (never from a type argument). */
+    role: string;
     /** Delegated task text (handoff only); stored redacted so a rejected plan can be recalled. */
     brief?: string;
     /** Task class (owner prefix / proposal); null = standard. */
     cls?: TaskClass;
     /** Proposal this task was started from. */
     proposalId?: string;
-    /** Role that runs it (default: dev for code, assistant for Q&A). */
-    role?: string;
-    /** `staged` = several stages with owner gates (dev); `single` = one run (Q&A). */
-    kind?: "staged" | "single";
     /** Task whose turn proposed this one, and how many hand-overs deep it is (0 = owner-started). */
     parentTaskId?: string;
     hop?: number;
   },
 ): void {
-  // Only code tasks count against the concurrency cap (see `countActiveCappedTasks`).
+  // Only roles with `countsTowardCap` count against the concurrency cap (see `countActiveCappedTasks`).
+  const role = getRole(t.role);
   db.query(
     `INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at, brief, class, proposal_id, counts_toward_cap, role, kind, parent_task_id, hop)
      VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -90,14 +97,14 @@ export function insertTask(
     t.threadId,
     t.source,
     t.repo,
-    t.type,
+    taskTypeOf(role),
     Date.now(),
     t.brief === undefined ? null : redactText(t.brief),
     t.cls ?? null,
     t.proposalId ?? null,
-    t.type === "code" ? 1 : 0,
-    t.role ?? (t.type === "code" ? "dev" : "assistant"),
-    t.kind ?? (t.type === "code" ? "staged" : "single"),
+    role.countsTowardCap ? 1 : 0,
+    role.name,
+    taskKindOf(role),
     t.parentTaskId ?? null,
     t.hop ?? 0,
   );
@@ -138,7 +145,7 @@ export function ackInterrupted(db: Database, threadId: string): void {
   ).run(threadId);
 }
 
-/** Number of cap-counted tasks (code tasks) currently running or waiting for approval (concurrency cap). */
+/** Number of cap-counted tasks currently running or waiting for approval (concurrency cap). */
 export function countActiveCappedTasks(db: Database): number {
   return db
     .query<{ n: number }, []>(

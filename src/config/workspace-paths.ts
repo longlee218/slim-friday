@@ -61,7 +61,7 @@ export function workspacePaths(agentHome: string) {
             config: join(rroot, "repo.yaml"),
             /** Agent-written repo memory. */
             memory: join(rroot, "MEMORY.md"),
-            /** Managed clone (code tasks branch from it). */
+            /** Managed clone (staged tasks branch from it). */
             clone: join(rroot, "repo"),
             worktrees: join(rroot, "worktrees"),
           };

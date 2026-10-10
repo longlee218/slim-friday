@@ -30,7 +30,7 @@ export function decideApproval(db: Database, id: string, decision: ApprovalDecis
 }
 
 /**
- * Briefs of delegated code tasks the owner rejected, in this thread only, newest first (last 5),
+ * Briefs of delegated tasks the owner rejected, in this thread only, newest first (last 5),
  * whitespace-collapsed (cannot break out of its bullet), clipped and redacted.
  * Feeds the no-re-propose context block.
  *

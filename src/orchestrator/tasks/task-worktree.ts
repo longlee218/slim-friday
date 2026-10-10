@@ -67,7 +67,7 @@ export async function removeTaskWorktree(
 }
 
 /**
- * Stage switch of a code task: create the git worktree (new branch from the repo's base), record it and
+ * Stage switch of a staged task: create the git worktree (new branch from the repo's base), record it and
  * save the approved plan next to it. Returns the worktree + execute scratch dir, or a failure result
  * (nothing is left behind: a failed or stopped switch removes the worktree again).
  */

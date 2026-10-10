@@ -5,7 +5,7 @@ import { parseMemoryCommand } from "../memory/memory-commands";
 export const RESUME_PROMPT =
   "The bot restarted while you were working. Continue the task from where you stopped.";
 
-/** What an owner message means: a control command, or a Q&A / code task with an optional repo hint. */
+/** What an owner message means: a control command, or a task for a role with an optional repo hint. */
 export type TaskCommand =
   | { kind: "stop" }
   /** The Resume button: continue the thread's saved session. */
@@ -20,10 +20,11 @@ export type TaskCommand =
   /** `remember:` / `forget:` / `compact memory` (see memory-commands.ts): answered by app code, never by the agent. */
   | { kind: "memory" }
   /**
-   * Every plain message is Q&A (the agent hands code changes over with its `DelegateTask` tool). `code` is
-   * never parsed: only a Resume of an interrupted plan stage builds it. `repo:<name>` is an optional hint.
+   * Every plain message is a task of the entry role (the agent hands changes over with its `DelegateTask` tool).
+   * `role` is never parsed: only a Resume of an interrupted plan stage sets it (that task's role starts again).
+   * `repo:<name>` is an optional hint.
    */
-  | { kind: "code" | "qa"; repo?: string; text: string; cls?: TaskClass };
+  | { kind: "task"; role?: string; repo?: string; text: string; cls?: TaskClass };
 
 /** Owner class prefix: `[mechanical]`, `[standard]`, `[design]` (wins over the intent layer's class). Unknown tags are not prefixes. */
 const CLASS_PREFIX = /^\[(mechanical|standard|design)\]\s*/i;
@@ -63,5 +64,5 @@ export function parseTaskCommand(input: string): TaskCommand {
       rest = rest.slice(pin[0].length);
     }
   }
-  return { kind: "qa", repo, text: rest, ...(cls && { cls }) };
+  return { kind: "task", repo, text: rest, ...(cls && { cls }) };
 }

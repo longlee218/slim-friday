@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 
-/** One git worktree created for a code task. */
+/** One git worktree created for a staged task. */
 export interface WorktreeRow {
   taskId: string;
   threadId: string;

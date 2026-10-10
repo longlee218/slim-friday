@@ -21,9 +21,9 @@ const oneLine = (s: string, max: number): string =>
   clip(redactText(s).replace(/\s+/g, " ").trim(), max);
 
 /**
- * The thread's task ledger: a VIEW over `tasks` + `stages` + `worktrees` (no table). One entry per code task
- * (the last LEDGER_MAX_TASKS, oldest first): role, status, brief, repo/branch, PR url, and its stages with
- * model, cost and verdict. Empty string when the thread has no code task. Injected into the assistant context
+ * The thread's task ledger: a VIEW over `tasks` + `stages` + `worktrees` (no table). One entry per capped (staged)
+ * task (the last LEDGER_MAX_TASKS, oldest first): role, status, brief, repo/branch, PR url, and its stages with
+ * model, cost and verdict. Empty string when the thread has no such task. Injected into the assistant context
  * when the thread is idle, instead of exec transcripts.
  */
 export function threadLedger(db: Database, threadId: string): string {
@@ -32,7 +32,9 @@ export function threadLedger(db: Database, threadId: string): string {
       { id: string; role: string; status: string; repo: string; brief: string | null },
       [string, number]
     >(
-      `SELECT id, role, status, repo, brief FROM tasks WHERE thread_id = ? AND type = 'code'
+      // `counts_toward_cap` marks the staged-role tasks; the v2 migration backfills it from the legacy `type`
+      // for old rows (`type <> 'code'` -> 0), so this reads the same rows `type = 'code'` did.
+      `SELECT id, role, status, repo, brief FROM tasks WHERE thread_id = ? AND counts_toward_cap = 1
        ORDER BY started_at DESC, rowid DESC LIMIT ?`,
     )
     .all(threadId, LEDGER_MAX_TASKS)

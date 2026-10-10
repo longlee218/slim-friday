@@ -26,10 +26,10 @@ export interface RoleRunCtx {
   workspace: string;
   repos: Repo[];
   ac: AbortController;
-  /** A read-only role may hand work over only when the next role can ask for the owner's approval. */
+  /** An `answer` role may hand work over only when the next role can ask for the owner's approval. */
   allowDelegate: boolean;
   /** Creates the task row (called once, after the refusals, before the flow runs). */
-  begin: (repo: string, type: "qa" | "code", mode: string, cls?: TaskClass) => void;
+  begin: (repo: string, role: string, mode: string, cls?: TaskClass) => void;
   /** Repo of the log context, to report when the flow named none. */
   taskRepo: () => string;
 }
@@ -57,19 +57,19 @@ export async function runTurn(
   const existing = a.plan.existing ?? a.existing;
   const cls = "cls" in cmd ? cmd.cls : undefined; // owner `[design]`-style prefix
   const runRt = runRoute({ cls, extraBudgetUsd: a.extraBudgetUsd });
-  // State BEFORE the new row exists (it would read as `running`): an idle thread's read-only role sees its task ledger.
+  // State BEFORE the new row exists (it would read as `running`): a role with `context.ledger` sees its task ledger on an idle thread.
   const state = deriveThreadState(db, task.threadId);
   logEvent(c.log, "thread.state", { state });
-  const ledger = role.readOnly && isIdleLike(state) ? threadLedger(db, task.threadId) : "";
-  c.begin(a.route.repo, role.readOnly ? "qa" : "code", startStage(role, !!worktree).name, cls);
+  const ledger = role.context?.ledger && isIdleLike(state) ? threadLedger(db, task.threadId) : "";
+  c.begin(a.route.repo, role.name, startStage(role, !!worktree).name, cls);
   const res: FlowResult = await runStages(deps, {
     taskId,
     threadId: task.threadId,
     text: cmd.text,
     role: role.name,
     workspace: ws,
-    // A read-only role sees every repo of the workspace; the plan stage picks among the managed clones.
-    repos: role.readOnly ? c.repos : a.route.candidates,
+    // `repoScope: "all"` roles see every repo of the workspace; the others pick among the managed clones.
+    repos: role.repoScope === "all" ? c.repos : a.route.candidates,
     ac: c.ac,
     worktree,
     planResume,
@@ -105,7 +105,8 @@ export async function runTurn(
   if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {
     // The plan session lives on the task row (the failed task now has none, so Resume stops offering it).
     if (planResume) return "Could not resume the plan; start the task again.";
-    if (!role.readOnly || !existing) return reply;
+    // Only an `answer` role keeps a thread session to clear; staged roles resume per task row.
+    if (role.output !== "answer" || !existing) return reply;
     deleteSession(db, task.threadId);
     return "Could not resume the previous session; it was cleared. Please send your message again.";
   }

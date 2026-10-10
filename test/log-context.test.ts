@@ -144,7 +144,7 @@ test("two concurrent tasks do not mix contexts", async () => {
 
 test("approval decided by a click outside the task context still logs the task's ids", async () => {
   const db = openDb(":memory:");
-  insertTask(db, { id: "t1", threadId: "th", source: "discord", repo: "r", type: "qa" });
+  insertTask(db, { id: "t1", threadId: "th", source: "discord", repo: "r", role: "assistant" });
   const sent: any[] = [];
   const channel = {
     isSendable: () => true,

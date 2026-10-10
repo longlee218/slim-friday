@@ -153,7 +153,7 @@ test("startup: stale proposals expire, the notice goes once per thread with a pe
 
 /** A thread whose last task ended on its budget (status failed, last run max_budget) with a saved session. */
 function budgetStopped(env: ReturnType<typeof makeEnv>) {
-  insertTask(env.db, { id: "tb", threadId: "t1", source: "s", repo: "repo", type: "qa" });
+  insertTask(env.db, { id: "tb", threadId: "t1", source: "s", repo: "repo", role: "assistant" });
   setTaskSession(env.db, "tb", "sess-b", env.repo);
   insertRun(env.db, {
     id: "rb",
@@ -190,7 +190,7 @@ test("go +<usd> resumes a budget-stopped task; plain resume is refused with the 
 
 test("a budget stop offers `go +<usd>`; the message helper keeps the hint", () => {
   const env = makeEnv();
-  insertTask(env.db, { id: "t", threadId: "t1", source: "s", repo: "r", type: "qa" });
+  insertTask(env.db, { id: "t", threadId: "t1", source: "s", repo: "r", role: "assistant" });
   const text = finishRun(
     env.db,
     { taskId: "t", threadId: "t1" },

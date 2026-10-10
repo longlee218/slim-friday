@@ -23,7 +23,7 @@ export class CallTimeoutError extends Error {}
 /**
  * The real model call: Claude Agent SDK `query` with no tools, one turn, no settings, no persona, no
  * extended thinking (default adaptive thinking made a ~300-token answer cost 3-5k output tokens and 18-49 s),
- * the MEMORY_MODEL (never MODEL / CODE_MODEL). Works with the owner's OAuth token because it goes through the SDK.
+ * the MEMORY_MODEL (never MODEL). Works with the owner's OAuth token because it goes through the SDK.
  * A timed-out attempt is retried once; other errors (budget, model error) are not retried.
  */
 export function sdkCompactLlm(

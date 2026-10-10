@@ -28,7 +28,7 @@ async function delegateRun(
   }
   if (fullCap) {
     for (const id of ["a", "b"])
-      insertTask(env.db, { id, threadId: id, source: "t", repo: "repo", type: "code" });
+      insertTask(env.db, { id, threadId: id, source: "t", repo: "repo", role: "dev" });
   }
   const results: { isError?: boolean; text: string }[] = [];
   const stages: any[] = [];

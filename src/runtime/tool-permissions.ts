@@ -16,20 +16,20 @@ export interface AskQuestion {
   options: { label: string }[];
 }
 
-/** Per-task "owner was already asked" flag; the code flow owns it so plan and exec runs share one round. */
+/** Per-task "owner was already asked" flag; the stage engine owns it so a task's stages share one round. */
 export interface AskLimit {
   asked: boolean;
 }
 
-/** Inputs for one code task's permission layer. */
+/** Inputs for one gated stage's permission layer. */
 export interface ToolPermissionInput {
   taskId: string;
   threadId: string;
   guard: GuardrailContext;
-  /** Owner approval via Discord. Omitted (Q&A): every `ask` becomes a deny. */
+  /** Owner approval via Discord. Omitted (a stage without a gateway): every `ask` becomes a deny. */
   gateway?: ApprovalGateway;
   /**
-   * Plan stage of a two-stage code task: the plan must name a repo (`repo: <name>`) from `repos`;
+   * Plan-approval stage of a staged task: the plan must name a repo (`repo: <name>`) from `repos`;
    * after the owner approves, `onApproved` fires (the caller then stops the run and starts stage 2).
    */
   plan?: { repos: string[]; onApproved: (plan: string, repo: string) => void };
@@ -52,7 +52,7 @@ function summarize(tool: string, input: Record<string, unknown>): string {
 }
 
 /**
- * Permission layer for code tasks (spike findings applied):
+ * Permission layer of stages with a gateway (spike findings applied):
  * - PreToolUse hook = hard deny, and forces `ask` so even SDK-auto-allowed read-only Bash goes through policy.
  * - canUseTool = ask the owner in Discord (plan approval, AskUserQuestion, risky tools).
  * Never use `allowedTools`: it would bypass canUseTool.

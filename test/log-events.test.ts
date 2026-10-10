@@ -12,6 +12,7 @@ import {
 } from "../src/observability/logger";
 import { RunRecorder } from "../src/observability/record-run";
 import { buildToolHooks } from "../src/observability/tool-hooks";
+import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { addRepo, fakeQuery, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
@@ -135,6 +136,7 @@ test("a run logs run.started and run.finished with the task's correlation fields
     runAgent({
       prompt: "q",
       taskId: "T1",
+      stage: getStage("assistant", "qa"),
       cwd: env.home,
       config: env.config,
       db: env.db,

@@ -178,7 +178,7 @@ test("code task needs a managed clone; unmanaged working copies are refused", as
 test("busy when the code-task cap is reached", async () => {
   const { env } = await setup();
   for (const id of ["a", "b"]) {
-    insertTask(env.db, { id, threadId: id, source: "t", repo: "real", type: "code" });
+    insertTask(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   }
   const { gw } = gateway(false);
   const seen: any[] = [];

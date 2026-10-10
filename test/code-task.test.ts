@@ -74,26 +74,26 @@ async function runCodeTask(gw?: ApprovalGateway) {
 
 test("parseTaskCommand: stop, cleanup and repo: hint; task: is plain Q&A text", () => {
   expect(parseTaskCommand(" Stop ")).toEqual({ kind: "stop" });
-  expect(parseTaskCommand("stop it")).toMatchObject({ kind: "qa" });
+  expect(parseTaskCommand("stop it")).toMatchObject({ kind: "task" });
   expect(parseTaskCommand("cleanup:")).toEqual({ kind: "cleanup", taskId: undefined });
   expect(parseTaskCommand("CLEANUP: abc")).toEqual({ kind: "cleanup", taskId: "abc" });
   expect(parseTaskCommand("task: add a file")).toEqual({
-    kind: "qa",
+    kind: "task",
     repo: undefined,
     text: "task: add a file",
   });
   expect(parseTaskCommand("what is x?")).toEqual({
-    kind: "qa",
+    kind: "task",
     repo: undefined,
     text: "what is x?",
   });
   expect(parseTaskCommand("repo:api how does auth work?")).toEqual({
-    kind: "qa",
+    kind: "task",
     repo: "api",
     text: "how does auth work?",
   });
   expect(parseTaskCommand("task: repo:api fix it")).toEqual({
-    kind: "qa",
+    kind: "task",
     repo: undefined,
     text: "task: repo:api fix it",
   });
@@ -115,7 +115,7 @@ test("parseTaskCommand: go, go +<usd>; invalid raises are plain messages; Resume
     "go ahead",
     "go+1",
   ])
-    expect(parseTaskCommand(bad)).toMatchObject({ kind: "qa", text: bad });
+    expect(parseTaskCommand(bad)).toMatchObject({ kind: "task", text: bad });
   expect(parseTaskCommand(RESUME_PROMPT)).toEqual({ kind: "resume" });
 });
 

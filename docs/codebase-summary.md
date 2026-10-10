@@ -173,7 +173,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 - **redact.ts:** secret masking (sk-ant-*, sk-or-*, ghp_*, xox*, AKIA*, KEY=value; added errText, clip)
 
 ### Config & Workspace
-- **agent-config.ts:** load/validate env (zod); MODEL, CODE_MODEL, LLM_PROVIDER, OPENROUTER_API_KEY; logProviderSelected
+- **agent-config.ts:** load/validate env (zod); MODEL, LLM_PROVIDER, OPENROUTER_API_KEY; logProviderSelected
 - **tool-catalog.ts:** single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS
 - **workspace-paths.ts:** AGENT_HOME layout (`workspacePaths(home).workspace(ws).repo(r)`), name rules `WORKSPACE_NAME` / `REPO_NAME`
 - **sdk-env.ts:** environment builder per provider (anthropic/openrouter)
@@ -236,7 +236,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 | AGENT_HOME | yes | absolute path, e.g. ~/.friday |
 | LOG_LEVEL | optional | default: info |
 | MODEL | optional | default: anthropic haiku, openrouter deepseek-v4-flash |
-| CODE_MODEL | optional | for code tasks; default: anthropic/claude-haiku-4.5 on openrouter |
+| MODEL_<ROLE>_<STAGE> | optional | pins one stage (tier name or model id), e.g. MODEL_DEV_PLAN; on openrouter the dev stages default to anthropic/claude-haiku-4.5 |
 | MEMORY_MODEL | optional | memory compaction; default: anthropic haiku, openrouter anthropic/claude-haiku-4.5 |
 | MAX_TURNS | optional | default: 20 |
 | MAX_BUDGET_USD | optional | default: 0.5 on anthropic |

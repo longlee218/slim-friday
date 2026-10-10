@@ -8,19 +8,20 @@ type Env = Record<string, string | undefined>;
 export interface RoutingEnv {
   /** Tier -> model id (MODEL_HAIKU|SONNET|OPUS over the defaults). */
   models: Record<ModelTier, string>;
-  /** `<role>_<stage>` -> tier name or model id (MODEL_<ROLE>_<STAGE>; legacy MODEL / CODE_MODEL fill the gaps). */
+  /** `<role>_<stage>` -> tier name or model id (MODEL_<ROLE>_<STAGE>; the legacy MODEL alias fills the assistant `qa` gap). */
   modelOverrides: Record<string, string>;
   /** `<role>_<stage>` -> USD (BUDGET_<ROLE>_<STAGE>_USD). */
   budgetOverrides: Record<string, number>;
-  /** Deprecated env names that are set (MODEL, CODE_MODEL): the startup warns once. */
+  /** Deprecated env names that are set (MODEL): the startup warns once. */
   deprecated: string[];
 }
 
 const trimmed = (v: string | undefined): string | undefined => v?.trim() || undefined;
 
 /**
- * Read the routing env. Legacy aliases (kept one release): MODEL pins the assistant `qa` stage, CODE_MODEL (else
- * MODEL, as before) pins both dev stages; a MODEL_<ROLE>_<STAGE> pin wins over an alias.
+ * Read the routing env. The legacy MODEL alias is KEPT on purpose (the owner's real .env still sets it): it pins
+ * the assistant `qa` stage and warns once at startup. A MODEL_<ROLE>_<STAGE> pin wins over it.
+ * (The old code-model alias and MODEL's side effect of pinning both dev stages are removed.)
  */
 export function readRoutingEnv(env: Env): RoutingEnv {
   const models = { ...DEFAULT_TIER_MODELS };
@@ -45,12 +46,7 @@ export function readRoutingEnv(env: Env): RoutingEnv {
   }
   if (bad.length) throw new Error(`Invalid environment variables: ${bad.join(", ")}`);
   const legacyQa = trimmed(env.MODEL);
-  const legacyCode = trimmed(env.CODE_MODEL) ?? legacyQa;
   if (legacyQa) modelOverrides.assistant_qa ??= legacyQa;
-  if (legacyCode) {
-    modelOverrides.dev_plan ??= legacyCode;
-    modelOverrides.dev_exec ??= legacyCode;
-  }
-  const deprecated = ["MODEL", "CODE_MODEL"].filter((n) => trimmed(env[n]));
+  const deprecated = ["MODEL"].filter((n) => trimmed(env[n]));
   return { models, modelOverrides, budgetOverrides, deprecated };
 }

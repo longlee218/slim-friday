@@ -15,11 +15,18 @@ export const ASSISTANT_ROLE: RoleDefinition = {
   name: "assistant",
   whenToUse:
     "Questions about the code or the repos: explain, find, summarize, compare. Changes nothing and answers with file:line sources.",
-  aliases: [],
+  aliases: {
+    tag: "[ask]",
+    strong: [],
+    // Common question openers: only count on an idle thread and never beat a strong dev alias.
+    weak: ["hỏi chút", "cho hỏi", "giải thích", "là gì", "tại sao", "như thế nào"],
+  },
   output: "answer",
   escalation: true,
   countsTowardCap: false,
-  readOnly: true,
+  entry: true,
+  context: { ledger: true },
+  repoScope: "all",
   stages: [
     {
       name: "qa",

@@ -1,4 +1,4 @@
-import type { ModelTier } from "../config/model-routing";
+import type { ModelTier, TaskClass } from "../config/model-routing";
 import type { Workflow } from "../repos/repo-registry";
 import type { GIT_GROUPS } from "../tools/git-tool-groups";
 
@@ -49,13 +49,13 @@ export interface PromptCtx {
   workflow?: Workflow;
   /** The handoff tool is registered in this run: adds the HANDOFF section (stages with `recommend` only). */
   handoff?: boolean;
-  /** Q&A on the cheap tier: adds the `ESCALATE: sonnet|opus` rule (never on an already escalated run). */
+  /** Answer output on the cheap tier: adds the `ESCALATE: sonnet|opus` rule (never on an already escalated run). */
   escalation?: boolean;
 }
 
 /** One run of a role: WHAT it may do (tools, git, prompt, limits). HOW stages chain is the orchestrator's job. */
 export interface StageDefinition {
-  /** Log `mode` value and registry key: "qa" | "plan" | "exec". */
+  /** Stage name: the log `mode` value and the registry key (unique across roles, e.g. "qa", "plan", "exec"). */
   name: string;
   /** Built-in tools (and the guard's auto-allow list) derive from these. */
   capabilities: Capability[];
@@ -75,12 +75,27 @@ export interface StageDefinition {
   model: ModelTier | (string & {});
   /** Default budget (USD) of one run of this stage (env BUDGET_<ROLE>_<STAGE>_USD overrides). */
   budgetUsd: number;
-  /** Budget of an escalated re-run of this stage (Q&A only). Omitted = `budgetUsd`. */
+  /** Tier per task class (mechanical|standard|design) for stages whose model depends on the class. Omitted = `model`. */
+  classTiers?: Record<TaskClass, ModelTier>;
+  /** OpenRouter only (tiers are not used there): model of this stage unless an env pin or nothing is set. Omitted = the config default. */
+  openrouterModel?: string;
+  /** Budget of an escalated re-run of this stage (`answer` output only). Omitted = `budgetUsd`. */
   escalatedBudgetUsd?: number;
-  /** Minimum run timeout (code stages wait for owner approvals). Omitted = config timeout. */
+  /** Minimum run timeout (stages with owner gates wait for approvals). Omitted = config timeout. */
   timeoutMs?: number;
   /** Subagent names (from the subagent registry) the Agent tool may start. Omitted = none (fail closed). */
   subagents?: string[];
+}
+
+/**
+ * Direct-route words of a role. `tag` is the message prefix that always wins (`[dev]`); `strong` phrases decide
+ * when EXACTLY ONE role matches; `weak` phrases count only on an idle thread. Written with diacritics (the intent
+ * layer normalizes them). The same strong phrase in two roles is a startup error.
+ */
+export interface RoleAliases {
+  tag: string;
+  strong: string[];
+  weak?: string[];
 }
 
 /** A named job the agent can do: a short chain of stages. */
@@ -90,16 +105,24 @@ export interface RoleDefinition {
   whenToUse: string;
   /** True when the intent `class` picks a model tier for this role (P1.3b). */
   modelTiers?: boolean;
-  /** Other names the owner may use for the role (intent layer lexicon, P1.4c); may be empty. */
-  aliases: string[];
+  /** Words the owner uses to reach this role directly (intent layer L3, P1.4c); omitted = never routed by alias. */
+  aliases?: RoleAliases;
   /** What the role hands back: picks the output module (`answer` escalation, `pr` delivery). */
   output: OutputContract;
-  /** Runs of this role count toward the concurrent code-task cap (checked by the dispatcher). */
+  /** Runs of this role count toward the concurrent task cap (checked by the dispatcher). */
   countsTowardCap: boolean;
   /** The cheap-tier answer may end in `ESCALATE: sonnet|opus` and be re-run on that tier (`answer` output). */
   escalation?: boolean;
   /** A follow-up message in a thread that already has this role's clone starts at this stage (name), not at the first. */
   followUp?: { startAtStage: string };
-  readOnly: boolean;
+  /** The role a plain message starts, until the intent layer picks one (exactly one role sets it). */
+  entry?: boolean;
+  /** Extra context the role's runs get. Omitted = none. */
+  context?: {
+    /** On an idle thread the run sees the thread's task ledger (earlier staged tasks). */
+    ledger?: boolean;
+  };
+  /** Repos the run sees: `all` = every repo of the workspace (read-only roles); `candidates` = the managed clones the plan may pick from. Omitted = `candidates`. */
+  repoScope?: "all" | "candidates";
   stages: StageDefinition[];
 }

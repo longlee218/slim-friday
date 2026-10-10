@@ -28,11 +28,11 @@ export interface Repo {
   githubAccount?: string;
   /** Commit identity `Name <email>`; agent commits are made as this user, never the global git user. */
   gitAuthor?: string;
-  /** How code tasks run here: `lean` (default, app plan -> exec) or `full` (the repo's own workflow and skills, autonomous). */
+  /** How clone-isolated stages run here: `lean` (default, app plan -> exec) or `full` (the repo's own workflow and skills, autonomous). */
   workflow?: Workflow;
 }
 
-/** Per-repo workflow of code tasks. */
+/** Per-repo workflow of clone-isolated stages. */
 export type Workflow = "lean" | "full";
 
 /** Paths of one workspace (`workspacePaths(home).workspace(name)`). */
@@ -40,7 +40,7 @@ export type WorkspaceDirs = ReturnType<WorkspacePaths["workspace"]>;
 
 /** Schema of a `repo.yaml` (the repo name is its directory name). */
 const configSchema = z.object({
-  /** Where the agent reads the repo; default `<repo dir>/repo` (the managed clone code tasks need). */
+  /** Where the agent reads the repo; default `<repo dir>/repo` (the managed clone staged tasks need). */
   path: z.string().trim().min(1).optional(),
   description: z.string().trim().default(""),
   defaultBranch: z.string().trim().min(1).optional(),

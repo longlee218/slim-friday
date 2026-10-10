@@ -32,7 +32,7 @@ test("same repo name in two workspaces: lookups stay inside the workspace", () =
   const route = (repos: Repo[]) =>
     routeTask(
       { db: env.db, agentHome: env.home, hasApprovals: false },
-      { cmd: { kind: "qa", text: "q", repo: "api" }, threadId: "t", repos, existing: null },
+      { cmd: { kind: "task", text: "q", repo: "api" }, threadId: "t", repos, existing: null },
     );
   const r2 = route(w2!.repos);
   expect("pinned" in r2 && r2.pinned?.workspace).toBe("w2");

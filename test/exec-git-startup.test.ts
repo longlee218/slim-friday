@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { parseAuthor } from "../src/repos/repo-registry";
+import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { makeEnv, resultMsg } from "./helpers";
 
@@ -28,7 +29,8 @@ async function runExec(status: string) {
     abortController: new AbortController(),
     queryFn: queryFn as never,
     guard: { writePaths: [] },
-    code: { stage: "exec", threadId: "th", gateway: undefined },
+    stage: getStage("dev", "exec"),
+    code: { threadId: "th", gateway: undefined },
   });
 }
 

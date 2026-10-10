@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
 import type { TaskClass } from "../../config/model-routing";
 import { logEvent, setLogContext, tryLog } from "../../observability/logger";
+import { getRole, taskTypeOf } from "../../roles/role-registry";
 import { finishTask, insertTask, interruptRunningTasks } from "../../storage/run-store";
 
 /** Log-context fields every line of a call carries: its thread and its routing channel. */
@@ -50,7 +51,7 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
 }
 
 /**
- * Create the task row (`brief` = the delegated code task's prompt) and set the log context of the task (repo, mode). `single` = the only registered
+ * Create the task row (`brief` = the delegated task's prompt) and set the log context of the task (repo, mode). `single` = the only registered
  * workspace: an unpinned task ("*" row) then logs under it. Lines logged before the repo is known
  * (message.received, task.started with "*") stay in the main log only; tool-hooks sets the repo later
  * for unpinned multi-repo tasks.
@@ -61,13 +62,11 @@ export function beginTask(
   ids: { taskId: string; threadId: string; source: string; single?: string },
   t: {
     repo: string;
-    type: "qa" | "code";
     mode: string;
     brief?: string;
     cls?: TaskClass;
     proposalId?: string;
-    role?: string;
-    kind?: "staged" | "single";
+    role: string;
     parentTaskId?: string;
     hop?: number;
   },
@@ -77,18 +76,16 @@ export function beginTask(
     threadId: ids.threadId,
     source: ids.source,
     repo: t.repo,
-    type: t.type,
     brief: t.brief,
     cls: t.cls,
     proposalId: t.proposalId,
     role: t.role,
-    kind: t.kind,
     parentTaskId: t.parentTaskId,
     hop: t.hop,
   });
   const logRepo = t.repo === "*" && ids.single ? ids.single : t.repo;
   setLogContext({ repo: logRepo, mode: t.mode });
-  logEvent(log, "task.started", { repo: logRepo, type: t.type });
+  logEvent(log, "task.started", { repo: logRepo, type: taskTypeOf(getRole(t.role)) });
 }
 
 /** Log a refused task (`task.refused`) and return the reply text for the owner. */

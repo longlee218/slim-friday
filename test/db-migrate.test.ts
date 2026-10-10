@@ -164,13 +164,13 @@ test("cap query counts code tasks only (counts_toward_cap), not Q&A", () => {
   const { file } = v1Home();
   const db = openDb(file);
   expect(countActiveCappedTasks(db)).toBe(1); // the v1 code task; the v1 Q&A row was backfilled to 0
-  insertTask(db, { id: "q2", threadId: "x", source: "s", repo: "r", type: "qa" });
+  insertTask(db, { id: "q2", threadId: "x", source: "s", repo: "r", role: "assistant" });
   insertTask(db, {
     id: "c2",
     threadId: "x",
     source: "s",
     repo: "r",
-    type: "code",
+    role: "dev",
     cls: "design",
     proposalId: "p1",
   });

@@ -113,7 +113,7 @@ test("ask rule: unknown repo -> ONE question, proposal stays pending, no task ro
 test("refusal (cap full): proposal refused, reply says busy, nothing starts", async () => {
   const { env, repos } = await setup();
   for (const id of ["a", "b"])
-    insertTask(env.db, { id, threadId: id, source: "t", repo: "real", type: "code" });
+    insertTask(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   const runs: unknown[] = [];
   const reply = await dispatchRole(deps(env, runs), {
     request: { role: "dev", brief: BRIEF },
