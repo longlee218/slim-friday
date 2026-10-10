@@ -143,13 +143,13 @@ test("class is dropped for a role without class tiers", async () => {
   expect(r.decision).toEqual({ kind: "role", role: "assistant", scope: "new" });
 });
 
-test("low confidence -> ONE owner question (no role); medium proceeds", async () => {
+test("low confidence: idle -> entry role (never the model's pick); pending / busy -> owner question; medium proceeds", async () => {
   const low = await run(
-    { pipeline, classifier: engine(answer({ confidence: "low" })).classifier },
+    { pipeline, classifier: engine(answer({ role: "dev", confidence: "low" })).classifier },
     input(VAGUE),
   );
-  expect(low.decision).toEqual({ kind: "ask", reason: "low_confidence" });
-  // the model's own question (owner's language) is carried; a pending answer at low confidence is a question too
+  expect(low.decision).toEqual({ kind: "role", role: "assistant", scope: "new" });
+  // a pending question keeps the owner question (the model's own text is carried)
   const own = await run(
     {
       pipeline,
@@ -159,6 +159,12 @@ test("low confidence -> ONE owner question (no role); medium proceeds", async ()
     input(VAGUE, { pendingQuestion: "Run it?" }),
   );
   expect(own.decision).toEqual({ kind: "ask", reason: "low_confidence", text: "Ý bạn là gì?" });
+  // a busy thread keeps the ask (the executor answers `still working...`)
+  const busy = await run(
+    { pipeline, classifier: engine(answer({ confidence: "low" })).classifier },
+    input(VAGUE, { state: "running", hasTask: true }),
+  );
+  expect(busy.decision).toEqual({ kind: "ask", reason: "low_confidence" });
   const mid = await run(
     { pipeline, classifier: engine(answer({ confidence: "medium" })).classifier },
     input(VAGUE),

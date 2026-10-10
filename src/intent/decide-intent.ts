@@ -90,7 +90,7 @@ function fallback(state: DecideInput["state"], pending: boolean): IntentDecision
 /**
  * One message through the layers: L1 explicit role tag, then L3 (the LLM, which reads the conversation and any
  * pending question) ONLY when no tag decided (at most one call). Failures and low confidence never dispatch a
- * task. Logs `effort.signals`, `intent.layer {layer: L1|L3|none|fallback, ruleIds}` (L2 only adds `effort.signals`),
+ * task (an idle low-confidence message is answered by the entry role). Logs `effort.signals`, `intent.layer {layer: L1|L3|none|fallback, ruleIds}` (L2 only adds `effort.signals`),
  * `intent.classified` (no text) and `intent.fallback`.
  * Returns the decision and the L2 effort signals.
  */
@@ -143,12 +143,16 @@ export async function decideIntent(
     logEvent(log, "intent.classified", { role, scope, class: cls ?? null, confidence, reason });
     if (raw.class !== guardMechanical(raw))
       logEvent(log, "intent.class_downgraded", { from: raw.class, to: "standard", confidence });
-    // Low confidence = ONE owner question (the model's own); medium proceeds.
-    if (confidence === "low")
+    // Low confidence never runs the model's pick. An idle thread with no pending question goes to the entry role
+    // (read-only Q&A: the answer itself clarifies); a pending question / gate / busy thread keeps the owner question.
+    if (confidence === "low") {
+      if (isIdleState(i.state) && !pending)
+        return { decision: { kind: "role", role: entryRole().name, scope: "new" }, effort };
       return {
         decision: { kind: "ask", reason: "low_confidence", ...(ask && { text: ask }) },
         effort,
       };
+    }
     // A yes / no to the waiting question (a pending proposal wins over the thread's button gate).
     if (pendingAnswer && (pending || GATE_STATES.has(i.state)))
       return {

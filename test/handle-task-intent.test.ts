@@ -217,31 +217,35 @@ test("L3 -> dev opens the task by the dispatcher: plan stage runs, no assistant 
   expect(getWorktreeByThread(env.db, "th1")).not.toBeNull();
 });
 
-test("engine failure or low confidence never dispatches a task", async () => {
+test("idle low confidence routes to the assistant (no ask, never dev), even when the model wrote an ask", async () => {
   const env = await setup();
   const seen: any[] = [];
-  const low = createTaskHandler({
-    git,
-    db: env.db,
-    config: env.config,
-    approvals: declinePr(),
-    queryFn: fakeSdk(seen) as never,
-    intent: intentDeps(env.home, engine(verdict({ confidence: "low" })).classifier),
-  });
-  expect(await low(msg("hmm do the thing"))).toContain("not sure what you want");
-  // the model's own question (owner's language) replaces the generic one
-  const own = createTaskHandler({
-    git,
-    db: env.db,
-    config: env.config,
-    approvals: declinePr(),
-    queryFn: fakeSdk(seen) as never,
-    intent: intentDeps(
-      env.home,
-      engine(verdict({ confidence: "low", ask: "Ý bạn là hỏi hay sửa code?" })).classifier,
+  const mk = (v: any) =>
+    createTaskHandler({
+      git,
+      db: env.db,
+      config: env.config,
+      approvals: declinePr(),
+      queryFn: fakeSdk(seen) as never,
+      intent: intentDeps(env.home, engine(v).classifier),
+    });
+  // the model picked dev at low confidence: still the assistant answers, no proposal
+  expect(await mk(verdict({ confidence: "low" }))(msg("hmm do the thing"))).toBe(
+    "assistant answer",
+  );
+  // the model-written question is not shown
+  expect(
+    await mk(verdict({ confidence: "low", ask: "Ý bạn là hỏi hay sửa code?" }))(
+      msg("cái này thì sao", "th3"),
     ),
-  });
-  expect(await own(msg("cái này thì sao", "th3"))).toBe("Ý bạn là hỏi hay sửa code?");
+  ).toBe("assistant answer");
+  expect(roles(env)).toEqual(["assistant", "assistant"]);
+  expect(rows(env, "SELECT 1 FROM proposals")).toEqual([]);
+});
+
+test("engine failure or unknown role never dispatches a task", async () => {
+  const env = await setup();
+  const seen: any[] = [];
   const unknown = createTaskHandler({
     git,
     db: env.db,

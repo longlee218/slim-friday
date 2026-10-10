@@ -232,7 +232,7 @@ can you add a greeting function to src/hello.ts?
 ```
 Expected:
 - The intent layer routes it to the dev role (no assistant answer first): "Starting plan: <repo>, add greeting..." appears
-- If the message is unclear the bot asks ONE short question written for your message (in your language, no tag instructions); an idle thread whose classifier failed falls back to a read-only answer
+- If the message is unclear on an idle thread (low confidence, or the classifier failed) the assistant answers it read-only: no clarifying question and never a dev task. A pending question or a button gate is still asked again
 - A proposal or idea in a thread that was just a conversation ("I propose building ...") is not run: the bot asks "Open a dev task for this? (yes/no)". Until the per-task clone lands (P2.1) a repo without a workspace clone cannot get a dev task: the assistant answers instead, with one line saying so
 - While a task runs, a second change request is queued: "run it after the current task?" Answer yes (starts when the first ends) or no, in your own words. Questions during a run get `still working...` for now (side answers and steering come with P1.4b)
 - Owner gets a Discord message with Approve/Deny buttons (owner-only, redacted summary)
