@@ -1,7 +1,7 @@
 import { realpathSync } from "node:fs";
-import type { Repo, Workflow } from "../repos/repo-registry";
-import type { AskQuestion } from "../runtime/tool-permissions";
-import type { FlowResult } from "./task-result";
+import type { Repo, Workflow } from "../../repos/repo-registry";
+import type { AskQuestion } from "../../runtime/tool-permissions";
+import type { FlowResult } from "../tasks/task-result";
 
 /* Per-repo workflow and ask-timeout helpers of the code-task flow. */
 

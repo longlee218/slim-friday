@@ -67,15 +67,12 @@ src/
 ├── orchestrator/               # Task lifecycle
 │   ├── handle-task.ts          # map thread → session; task command parse; stage detection (phase 4+)
 │   ├── task-commands.ts        # parse task/stop/cleanup commands; repo pinning; Resume routing (phase 5+)
-│   ├── task-tracker.ts         # thread locking, session resume context tracking (phase 5+)
-│   ├── qa-flow.ts              # Q&A path entry
-│   ├── code-task-flow.ts       # two-stage: plan → execute; cwd switching; ask limit enforcement (Phase 3)
-│   ├── code-flow-workflow.ts   # determine lean/full workflow per repo; stage control with abort listener (Phase 3)
-│   ├── code-plan-stage.ts      # plan stage entry (split from code-task-flow for size, Phase 3)
-│   ├── task-worktree.ts        # createTaskWorktree/removeTaskWorktree via git MCP; startWorktree/cleanupWorktree
-│   ├── task-result.ts          # FlowResult, failResult, finishRun, OUTCOME_REPLY; ask timeout handling (Phase 3)
-│   ├── code-task-finish.ts     # summary + diff; Create PR button; follow-up; cleanup (phase 4+)
-│   ├── run-limiter.ts          # concurrency limiter; max 2 code tasks (phase 4+)
+│   ├── task-routing.ts         # routeTask (pin / follow-up / refusals -> role), resolveCommand (Resume), runRoute; route-by-intent replaces routeTask in P1.4c
+│   ├── thread/                 # thread-state.ts (derived from the gate table), effort-floor.ts
+│   ├── dispatch/               # dispatch-role.ts, validate-request.ts, task-repo.ts, proposal-flow.ts, start-proposal.ts (never import runtime/)
+│   ├── engine/                 # generic stage engine, knows no role names: stage-runner.ts (loop over role.stages), run-turn.ts (one routed message), gates.ts (gate table + stageKind), plan-run.ts (gate plan-approval), plain-run.ts (read-only stage), isolation.ts (clone stage + switch), handoff.ts (template), stage-control.ts, budget.ts
+│   ├── outputs/                # answer-output.ts (ESCALATE re-run), pr-output.ts (delivery gate: PR)
+│   └── tasks/                  # task-tracker.ts, task-result.ts, run-limiter.ts, task-worktree.ts
 │   └── ...
 ├── tools/                      # Tool configuration & custom tools
 │   ├── tool-catalog.ts         # single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS (196/200 lines: split before adding more tools)
@@ -136,7 +133,7 @@ test/
 ├── stage-control.test.ts       # abort listener, stageControl semantics (Phase 3)
 ├── worktree.test.ts            # worktree create/remove/list (phase 4+)
 ├── publish-pr.test.ts          # push + gh pr create (phase 4+)
-├── code-task-flow.test.ts      # two-stage flow (phase 4+)
+├── code-task-flow.test.ts      # two-stage flow (dispatch + stage runner end to end) (phase 4+)
 ├── git-fixture.ts              # temp repo + worktree helpers (phase 4+)
 ├── guardrail-git-commit.test.ts # Bash option allowlist (phase 4+)
 ├── worktree-store.test.ts      # worktree table ops (phase 4+)

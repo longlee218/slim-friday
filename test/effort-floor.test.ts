@@ -3,7 +3,7 @@ import {
   EFFORT_FLOOR_DECAY_TURNS,
   EffortFloors,
   resolveEffort,
-} from "../src/orchestrator/effort-floor";
+} from "../src/orchestrator/thread/effort-floor";
 
 describe("resolveEffort", () => {
   test("base from class, turn delta, minimum", () => {

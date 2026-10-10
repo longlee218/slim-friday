@@ -1,12 +1,12 @@
 import type { Database } from "bun:sqlite";
-import { excerpt, logEvent, logger } from "../observability/logger";
-import type { RunOutcome, RunUsage } from "../observability/record-run";
-import { redactText } from "../observability/redact";
-import type { RunAgentResult } from "../runtime/run-agent";
-import { finishTask, setTaskStatus, type TaskStatus } from "../storage/run-store";
-import { setSession } from "../storage/session-store";
-import type { Proposal } from "../tools/DelegateTaskTool/delegate-task-tool";
-import { budgetHitMessage } from "./budget-message";
+import { excerpt, logEvent, logger } from "../../observability/logger";
+import type { RunOutcome, RunUsage } from "../../observability/record-run";
+import { redactText } from "../../observability/redact";
+import type { RunAgentResult } from "../../runtime/run-agent";
+import { finishTask, setTaskStatus, type TaskStatus } from "../../storage/run-store";
+import { setSession } from "../../storage/session-store";
+import type { Proposal } from "../../tools/DelegateTaskTool/delegate-task-tool";
+import { budgetHitReply } from "../engine/budget";
 
 /* The result of a Q&A or code flow, and the bookkeeping that closes a run. */
 
@@ -22,6 +22,8 @@ export interface FlowResult
   proposal?: Proposal;
   /** Save the session although the outcome is not success/limit (a stage stopped to await the owner's reply). */
   keepSession?: boolean;
+  /** Model of an escalated re-run (the stage row then records it instead of the first run's model). */
+  model?: string;
 }
 
 /** A run that did not start or failed before any agent result: reply text, no session. */
@@ -77,15 +79,8 @@ export function finishRun(
     logEvent(log, "session.saved", { repo: res.repo ?? "*", sessionId: res.sessionId });
   }
   finishTask(db, ids.taskId, TASK_STATUS[res.outcome] ?? "failed");
-  // Budget hit is never silent: spent / limit, the last summary and the overshoot note; event `budget.exceeded`.
-  if (res.outcome === "max_budget") {
-    logEvent(log, "budget.exceeded", {
-      spentUsd: res.usage?.costUsd,
-      limitUsd: res.budgetUsd ?? null,
-    });
-    // `res.text` holds SDK error strings here, not an assistant summary: the stage runner (P1.4) adds summary + diff stat.
-    return redactText(budgetHitMessage({ spentUsd: res.usage?.costUsd, limitUsd: res.budgetUsd }));
-  }
+  // Budget hit is never silent: spent / limit, the overshoot note; event `budget.exceeded`.
+  if (res.outcome === "max_budget") return budgetHitReply(res);
   // Quota: say when it resets, when the SDK told us.
   const reset =
     res.outcome === "quota" && res.resetsAt

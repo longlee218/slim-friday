@@ -1,0 +1,74 @@
+import type { Database } from "bun:sqlite";
+
+/** Status of one stage row of a task. */
+export type StageStatus = "running" | "done" | "interrupted" | "failed" | "cancelled";
+
+/** One stage of a task (`idx` = position in the role's stage list). */
+export interface StageRow {
+  taskId: string;
+  idx: number;
+  name: string;
+  status: StageStatus;
+  sessionId: string | null;
+  cwd: string | null;
+  verdict: string | null;
+  /** Model the stage ran on (resolved id, e.g. from `resolveModel`). */
+  model: string | null;
+  costUsd: number | null;
+  startedAt: number | null;
+  endedAt: number | null;
+}
+
+/** Key + required fields of an upsert; the other fields only overwrite when given. */
+export type StageUpsert = Pick<StageRow, "taskId" | "idx" | "name" | "status"> &
+  Partial<Omit<StageRow, "taskId" | "idx" | "name" | "status">>;
+
+/**
+ * Insert the stage row, or update it in place (same task + idx). Optional fields left undefined keep their
+ * stored value, so `start` and `finish` can each write only what they know.
+ */
+export function upsertStage(db: Database, s: StageUpsert): void {
+  db.query(
+    `INSERT INTO stages (task_id, idx, name, status, session_id, cwd, verdict, model, cost_usd, started_at, ended_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (task_id, idx) DO UPDATE SET
+       name = excluded.name,
+       status = excluded.status,
+       session_id = COALESCE(excluded.session_id, stages.session_id),
+       cwd = COALESCE(excluded.cwd, stages.cwd),
+       verdict = COALESCE(excluded.verdict, stages.verdict),
+       model = COALESCE(excluded.model, stages.model),
+       cost_usd = COALESCE(excluded.cost_usd, stages.cost_usd),
+       started_at = COALESCE(excluded.started_at, stages.started_at),
+       ended_at = COALESCE(excluded.ended_at, stages.ended_at)`,
+  ).run(
+    s.taskId,
+    s.idx,
+    s.name,
+    s.status,
+    s.sessionId ?? null,
+    s.cwd ?? null,
+    s.verdict ?? null,
+    s.model ?? null,
+    s.costUsd ?? null,
+    s.startedAt ?? null,
+    s.endedAt ?? null,
+  );
+}
+
+const COLS = `task_id AS taskId, idx, name, status, session_id AS sessionId, cwd, verdict, model,
+  cost_usd AS costUsd, started_at AS startedAt, ended_at AS endedAt`;
+
+/** The stages of a task in order. */
+export function listStages(db: Database, taskId: string): StageRow[] {
+  return db
+    .query<StageRow, [string]>(`SELECT ${COLS} FROM stages WHERE task_id = ? ORDER BY idx`)
+    .all(taskId);
+}
+
+/** Mark every still-`running` stage `interrupted` (restart/shutdown, same rule as the task rows). */
+export function interruptRunningStages(db: Database): void {
+  db.query("UPDATE stages SET status = 'interrupted', ended_at = ? WHERE status = 'running'").run(
+    Date.now(),
+  );
+}

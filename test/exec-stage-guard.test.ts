@@ -2,14 +2,14 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
-import { runCodeFlow } from "../src/orchestrator/code-task-flow";
+import { runStages } from "../src/orchestrator/engine/stage-runner";
 import { makeEnv, stubGateway } from "./helpers";
 
 const git = createGitMcp();
 afterAll(() => git.close());
 
 /**
- * runCodeFlow called directly with a worktree row (routeTask is bypassed, so its earlier refusal cannot
+ * runStages called directly with a worktree row (routeTask is bypassed, so its earlier refusal cannot
  * hide the exec-stage guard): the workspace's repo `real` has another clone path than the worktree's.
  */
 test("execStage refuses when the resolved repo path differs from the worktree's repoPath", async () => {
@@ -19,7 +19,7 @@ test("execStage refuses when the resolved repo path differs from the worktree's 
   mkdirSync(mine);
   mkdirSync(theirs);
   let ran = false;
-  const res = await runCodeFlow(
+  const res = await runStages(
     {
       git,
       db: env.db,
@@ -32,6 +32,7 @@ test("execStage refuses when the resolved repo path differs from the worktree's 
     },
     {
       taskId: "t1",
+      role: "dev",
       threadId: "th1",
       text: "go",
       workspace: "w",

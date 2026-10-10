@@ -1,8 +1,9 @@
 import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
-import { realOrSame } from "../guardrails/paths";
+import type { TaskClass } from "../config/model-routing";
 import type { Task } from "../ingress/discord-message-handler";
+import { DRAIN_REPLY, isDraining } from "../lifecycle/drain";
 import { createGitMcp, type GitMcp } from "../mcp/git-mcp";
 import { createMemoryRunner } from "../memory/memory-command-handler";
 import {
@@ -14,19 +15,25 @@ import {
 } from "../observability/logger";
 import { errText } from "../observability/redact";
 import type { QueryFn } from "../runtime/run-agent";
-import { RESUME_FAILED } from "../runtime/run-errors";
-import { deleteSession, getSession } from "../storage/session-store";
+import { getSession } from "../storage/session-store";
 import { selectWorkspace } from "../workspaces/task-workspace";
-import { runHandoff } from "./code-handoff";
-import { runCodeFlow } from "./code-task-flow";
-import { runQaFlow } from "./qa-flow";
-import type { RunLimiter } from "./run-limiter";
+import { PROPOSAL_EXPIRED_REPLY, pendingProposalFor } from "./dispatch/proposal-flow";
+import { startPendingProposal } from "./dispatch/start-proposal";
+import { delegateCheck } from "./dispatch/validate-request";
+import { type RoleRunCtx, runTurn } from "./run-turn";
 import { parseTaskCommand } from "./task-commands";
-import type { FlowResult } from "./task-result";
-import { closeTask, OUTCOME_REPLY, RESUMABLE_OUTCOMES } from "./task-result";
-import { resolveCommand, routeTask } from "./task-routing";
-import { beginTask, createRunTracker, failTask, refused, taskLogContext } from "./task-tracker";
-import { cleanupWorktree } from "./task-worktree";
+import { PLAIN_GO, resolveCommand, routeTask } from "./task-routing";
+import type { RunLimiter } from "./tasks/run-limiter";
+import { OUTCOME_REPLY } from "./tasks/task-result";
+import {
+  beginTask,
+  createRunTracker,
+  failTask,
+  refused,
+  taskLogContext,
+} from "./tasks/task-tracker";
+import { cleanupWorktree } from "./tasks/task-worktree";
+import { EffortFloors } from "./thread/effort-floor";
 
 /** Dependencies of the task handler. */
 export interface TaskHandlerDeps {
@@ -50,6 +57,8 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
   const log = logger.child({ module: "handle-task" });
   const tracker = createRunTracker(db, log, active);
   const git = deps.git ?? createGitMcp();
+  /** Per-thread effort floors; `quietTurn` runs every turn so entries decay (nothing raises one until P1.4c). */
+  const floors = new EffortFloors();
   const memory = createMemoryRunner({ db, config, queryFn: deps.queryFn, limiter: deps.limiter });
   /** Handle one task and return the (redacted) reply text. */
   const run = async (task: Task): Promise<string> => {
@@ -61,7 +70,6 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       kind: parsed.kind,
       repoHint: "repo" in parsed ? (parsed.repo ?? null) : null,
     });
-
     if (parsed.kind === "memory") return (await memory(task)) ?? ""; // owner memory command: no agent
     // `stop` aborts the active run; the running call marks the task cancelled.
     if (parsed.kind === "stop") {
@@ -75,13 +83,18 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     }
     if (parsed.kind === "cleanup")
       return cleanupWorktree({ db, git, inUse: (t) => active.has(t) }, threadId, parsed.taskId);
+    // Drain (deploy): no new task starts; stop / still-working / cleanup above still answer.
+    if (isDraining(config.agentHome)) {
+      logEvent(log, "task.refused", { reason: "drain", reply: DRAIN_REPLY });
+      return DRAIN_REPLY;
+    }
     // Global cap is checked after stop/still-working so those always answer.
     const release = deps.limiter ? deps.limiter.tryAcquire() : () => {};
     if (!release) {
       logEvent(log, "task.busy", { reason: "run_limit", active: deps.limiter!.active() });
       return `busy, ${deps.limiter!.active()} runs active, try again in a minute`;
     }
-
+    floors.quietTurn(threadId);
     const ac = new AbortController();
     active.set(threadId, ac);
     const taskId = crypto.randomUUID();
@@ -92,8 +105,13 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     const taskRepo = () => getLogContext().repo ?? "*";
     /** The one place a task row is created (after the refusals, before the flow runs). */
     let single: string | undefined;
-    const begin = (repo: string, type: "qa" | "code", mode: string) => {
-      beginTask(db, log, { taskId, threadId, source: task.source, single }, { repo, type, mode });
+    const begin = (repo: string, type: "qa" | "code", mode: string, cls?: TaskClass) => {
+      beginTask(
+        db,
+        log,
+        { taskId, threadId, source: task.source, single },
+        { repo, type, mode, cls },
+      );
       taskInserted = true;
     };
     // Everything after the lock is taken lives in try so `finally` always releases it.
@@ -105,78 +123,55 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       const { repos } = ws; // every repo lookup below stays inside this workspace
       setLogContext({ workspace: ws.name });
       single = repos.length === 1 ? repos[0]!.name : undefined;
+      // Everything a role run needs (the approval gateway exists whenever a code task is routed).
+      const rc: RoleRunCtx = {
+        deps: {
+          db,
+          config,
+          approvals: deps.approvals!,
+          queryFn: deps.queryFn,
+          git,
+          stopping: tracker.isStopping,
+          delegateCheck: (p) => delegateCheck({ db, agentHome: config.agentHome, ...p }),
+        },
+        log,
+        task,
+        taskId,
+        t0,
+        workspace: ws.name,
+        repos,
+        ac,
+        allowDelegate: !!deps.approvals, // handoff only when the next role can be approved
+        begin,
+        taskRepo,
+      };
+      // `go` starts the thread's pending proposal (it survived a restart), else it resumes like the button.
+      const pending = parsed.kind === "go" ? pendingProposalFor(db, threadId, ws.name) : null;
+      if (pending === "expired") return PROPOSAL_EXPIRED_REPLY;
+      if (parsed.kind === "go" && pending) {
+        const pinned = repos.find((r) => r.name === stored?.repo);
+        return await startPendingProposal({ ...rc, pinned }, pending, parsed.extraBudgetUsd);
+      }
+      let extraBudgetUsd = "extraBudgetUsd" in parsed ? parsed.extraBudgetUsd : undefined;
+      const input = parsed.kind === "go" ? { kind: "resume" as const, extraBudgetUsd } : parsed;
       // Resume button becomes a follow-up / plan run / Q&A from the interrupted task's session (or a refusal).
-      const resolved = resolveCommand(
-        { db, agentHome: config.agentHome, workspace: ws.name, repos },
-        parsed,
-        threadId,
-      );
+      const rdeps = { db, agentHome: config.agentHome, workspace: ws.name, repos };
+      let resolved = resolveCommand(rdeps, input, threadId);
+      // `go` with nothing to start or resume is an ordinary message (e.g. "go" as a follow-up in a worktree).
+      if (parsed.kind === "go" && "reply" in resolved && PLAIN_GO.has(resolved.reason)) {
+        resolved = resolveCommand(rdeps, { kind: "qa", text: task.text.trim() }, threadId);
+        extraBudgetUsd = undefined; // the raise belongs to a resume, not a plain message
+      }
       if ("reply" in resolved) return refused(log, resolved);
-      const { cmd, planResume } = resolved;
-      const existing = resolved.existing ?? stored;
       const route = routeTask(
         { db, agentHome: config.agentHome, hasApprovals: !!deps.approvals },
-        { cmd, threadId, repos, existing },
+        { cmd: resolved.cmd, threadId, repos, existing: resolved.existing ?? stored },
       );
       if ("reply" in route) {
         logEvent(log, route.event, { reason: route.reason, reply: route.reply });
         return route.reply;
       }
-      const { pinned, worktree, isCode } = route;
-      begin(route.repo, isCode ? "code" : "qa", !isCode ? "qa" : worktree ? "exec" : "plan");
-      // Dependencies of the code flow (the approval gateway exists whenever a code task is routed).
-      const allowDelegate = !!deps.approvals; // Q&A may hand code over only when the plan can be approved
-      const codeDeps = { db, config, approvals: deps.approvals!, queryFn: deps.queryFn, git };
-      const res: FlowResult = isCode
-        ? await runCodeFlow(codeDeps, {
-            taskId,
-            threadId,
-            text: cmd.text,
-            workspace: ws.name,
-            repos: route.candidates,
-            ac,
-            worktree,
-            planResume,
-            resume:
-              worktree && existing?.cwd === realOrSame(worktree.path)
-                ? existing.session_id
-                : undefined,
-          })
-        : await runQaFlow(codeDeps, {
-            taskId,
-            threadId,
-            text: cmd.text,
-            workspace: ws.name,
-            repos,
-            pinned,
-            existing,
-            ac,
-            allowDelegate,
-          });
-      const o = { stopping: tracker.isStopping(), t0, repo: taskRepo() };
-      const reply = closeTask(db, { taskId, threadId }, res, o);
-      // `DelegateTask` was called: the plan stage starts now, same thread and lock (`await`: finally must wait).
-      if (res.proposal && RESUMABLE_OUTCOMES.has(res.outcome)) {
-        const h = { ...codeDeps, stopping: tracker.isStopping };
-        return await runHandoff(h, {
-          task,
-          reply,
-          proposal: res.proposal,
-          workspace: ws.name,
-          repos,
-          pinned,
-          ac,
-        });
-      }
-      // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
-      if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {
-        // The plan session lives on the task row (the failed task now has none, so Resume stops offering it).
-        if (planResume) return "Could not resume the plan; start the task again.";
-        if (isCode || !existing) return reply;
-        deleteSession(db, threadId);
-        return "Could not resume the previous session; it was cleared. Please send your message again.";
-      }
-      return reply;
+      return await runTurn(rc, { route, plan: resolved, existing: stored, extraBudgetUsd });
     } catch (err) {
       // Never throw from the error path (db may be closed during shutdown).
       if (taskInserted) failTask(db, log, taskId);

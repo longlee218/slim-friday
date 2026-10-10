@@ -191,6 +191,20 @@ Expected:
 - Current run aborts
 - Session ends cleanly
 
+### Command grammar (thread scoped)
+| Message | Effect |
+|---------|--------|
+| `stop` | abort the running task |
+| `go` | start this thread's pending proposal (after a restart: "Proposal not started; reply `go`"), else resume an interrupted task. With nothing to start or resume it is an ordinary message |
+| `go +<usd>` | resume the thread's interrupted or budget-stopped task with `<usd>` more budget, e.g. `go +1.5` (amount must be > 0; anything else is a plain message). A budget stop says "Reply `go +<usd>`" |
+| `cleanup:` / `cleanup:<task-id>` | remove the worktree |
+| `[mechanical]` / `[standard]` / `[design]` prefix, `repo:<name>` | task class / repo hint |
+
+Buttons of a dead process answer "This action expired." (the Resume button keeps working after a restart). Proposals older than 24h expire at startup.
+
+### Deploy: drain
+Before a deploy set `FRIDAY_DRAIN=1` (env) or `touch $AGENT_HOME/DRAIN`; new tasks get "deploying, retry in a minute" while running ones finish (or send `stop`). Restart, then remove the flag. Tasks still running at restart become `interrupted` and get a Resume button; pending proposals survive.
+
 ### Test 6: Code Task Proposal (Phase 1+)
 Post a natural-language code request:
 ```
@@ -366,6 +380,8 @@ Looks good, also fix the same typo in docs/
 | "gh: command not found" | gh CLI not installed | `brew install gh` (macOS) or `apt install gh` (Linux) |
 | "gh auth failed" | gh not authenticated | Run `gh auth login` and choose HTTP/SSH |
 | "PR button not shown" | No commits made | Check bot's response (usually "No changes made") |
+| Bad DB after an upgrade | The first start of schema v2 migrates the db | Stop the bot; restore the snapshot `$AGENT_HOME/db-backups/friday-v1-<ts>.db`: `cp` it over `data/agent.db` and delete `data/agent.db-wal` and `-shm` (data written after the snapshot is lost). Old code also runs on the migrated db unchanged |
+| Bot exits "db snapshot failed" | `db-backups/` not writable or disk full; nothing was migrated | Fix the dir / space and start again |
 | "Create PR button timed out" | Took >10 min to decide | Worktree still exists; use `cleanup:` to reset |
 
 ## Memory (three layers)

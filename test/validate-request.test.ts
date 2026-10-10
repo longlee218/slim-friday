@@ -1,0 +1,127 @@
+import { afterAll, expect, test } from "bun:test";
+import { workspacePaths } from "../src/config/workspace-paths";
+import { createGitMcp } from "../src/mcp/git-mcp";
+import {
+  clampSkillsMode,
+  type DispatchRequest,
+  delegateCheck,
+  LOW_CONFIDENCE,
+  validateRequest,
+} from "../src/orchestrator/dispatch/validate-request";
+import { insertTask } from "../src/storage/run-store";
+import { loadWorkspaces } from "../src/workspaces/workspace-registry";
+import { g, makeRepo } from "./git-fixture";
+import { addRepo, clearWorkspaces, makeEnv } from "./helpers";
+
+const git = createGitMcp();
+afterAll(() => git.close());
+
+/** Workspace `main` with a managed clone `real` (a real git repo, branch main) and an unmanaged `wc`. */
+async function setup() {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  const src = await makeRepo("main");
+  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
+  addRepo(env.home, "real", {}, { path: clone });
+  await g(env.home, "clone", "-q", src.repo, clone);
+  const repos = loadWorkspaces(env.home).workspaces[0]!.repos;
+  return { env, repos, deps: { db: env.db, config: env.config, git, repos } };
+}
+
+const req = (over: Partial<DispatchRequest> = {}): DispatchRequest => ({
+  role: "dev",
+  brief: "Add b.txt with two",
+  ...over,
+});
+
+test("valid dev request: role, candidate clones, row repo `*` until the plan picks, class standard", async () => {
+  const { deps, repos } = await setup();
+  const v = await validateRequest(deps, req());
+  expect(v).toMatchObject({ ok: true, repoName: "*", cls: "standard", skillsMode: "off" });
+  if (v.ok) {
+    expect(v.role.name).toBe("dev");
+    expect(v.candidates).toEqual(repos);
+  }
+});
+
+test("repo given: resolved through the single resolver; unknown repo asks, no clone refuses", async () => {
+  const { deps } = await setup();
+  const ok = await validateRequest(deps, req({ repo: "REAL" }));
+  expect(ok).toMatchObject({ ok: true, repoName: "real" });
+  const bad = await validateRequest(deps, req({ repo: "nope" }));
+  expect(bad).toMatchObject({ ok: false, action: "ask", refusal: { reason: "unknown_repo" } });
+  // Same answer as the DelegateTask tool pre-check (one rule).
+  const check = delegateCheck({ db: deps.db, agentHome: deps.config.agentHome, repos: deps.repos });
+  expect(check("nope")).toContain('Unknown repo "nope"');
+  const unmanaged = await validateRequest(
+    { ...deps, repos: [{ ...deps.repos[0]!, path: "/somewhere/else" }] },
+    req(),
+  );
+  expect(unmanaged).toMatchObject({ ok: false, action: "refuse", refusal: { reason: "no_clone" } });
+});
+
+test("unknown or non-delegable role asks the owner (never a guess)", async () => {
+  const { deps } = await setup();
+  for (const role of ["nope", "assistant", "constructor"]) {
+    const v = await validateRequest(deps, req({ role }));
+    expect(v).toMatchObject({ ok: false, action: "ask", refusal: { reason: "unknown_role" } });
+  }
+});
+
+test("low confidence asks once; `confirmed` (owner said go) skips the question", async () => {
+  const { deps } = await setup();
+  const low = req({ confidence: LOW_CONFIDENCE - 0.01 });
+  expect(await validateRequest(deps, low)).toMatchObject({
+    ok: false,
+    action: "ask",
+    refusal: { reason: "low_confidence" },
+  });
+  expect(await validateRequest(deps, { ...low, confirmed: true })).toMatchObject({
+    ok: true,
+  });
+  expect(await validateRequest(deps, req({ confidence: LOW_CONFIDENCE }))).toMatchObject({
+    ok: true,
+  });
+});
+
+test("base must be an existing local branch of the repo", async () => {
+  const { deps } = await setup();
+  expect(await validateRequest(deps, req({ base: "main" }))).toMatchObject({
+    ok: true,
+    base: "main",
+  });
+  expect(await validateRequest(deps, req({ base: "release/9" }))).toMatchObject({
+    ok: false,
+    action: "ask",
+    refusal: { reason: "unknown_base" },
+  });
+});
+
+test("cap: refused when the role counts toward it and the cap is full", async () => {
+  const { deps } = await setup();
+  for (const id of ["a", "b"])
+    insertTask(deps.db, { id, threadId: id, source: "t", repo: "real", type: "code" });
+  expect(await validateRequest(deps, req())).toMatchObject({
+    ok: false,
+    action: "refuse",
+    refusal: { reason: "code_task_limit", event: "task.busy" },
+  });
+});
+
+test("budget: a non-positive stage budget refuses", async () => {
+  const { deps } = await setup();
+  const config = { ...deps.config, budgetOverrides: { dev_plan: 0 } };
+  expect(await validateRequest({ ...deps, config }, req())).toMatchObject({
+    ok: false,
+    refusal: { reason: "no_budget" },
+  });
+});
+
+test("skills.mode: the env cap only lowers; an unknown cap fails closed to off", () => {
+  expect(clampSkillsMode("full")).toBe("full");
+  expect(clampSkillsMode("full", "lean")).toBe("lean");
+  expect(clampSkillsMode("lean", "full")).toBe("lean");
+  expect(clampSkillsMode("full", "off")).toBe("off");
+  expect(clampSkillsMode("full", "bogus")).toBe("off");
+  expect(clampSkillsMode(undefined, "lean")).toBe("off");
+});

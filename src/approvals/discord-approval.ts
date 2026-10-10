@@ -177,7 +177,7 @@ export function createDiscordApprovalGateway(
         }
         const p = pending.get(id);
         if (!p) {
-          await i.reply({ content: "This request expired.", flags: MessageFlags.Ephemeral });
+          await i.reply({ content: "This action expired.", flags: MessageFlags.Ephemeral });
           return;
         }
         pending.delete(id);

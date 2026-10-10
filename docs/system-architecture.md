@@ -39,9 +39,9 @@ Discord channel
         │     │     └─ handler: validate, check blockers, record proposal → "end turn" message
         │     ├─ storage/db (insert runs, tool_calls, raw JSONL)
         │     └─ Q&A ends (success/max_turns/max_budget)
-        │        └─ if proposal recorded → runHandoff():
+        │        └─ if proposal recorded → dispatchRole():
         │           ├─ insertTask(code row) → reserves slot, posts notice "Starting plan: <repo>, <brief>"
-        │           └─ runCodeFlow(plan stage) → [plan approval] → execute → PR
+        │           └─ runStages(plan stage) → [plan approval] → execute → PR
         └─ reply to thread (redacted, truncated, chunked)
 
 Discord thread (approval button interaction)
@@ -74,9 +74,13 @@ Task mode (plan approval flow)
 | **Message Router** | src/ingress/discord-message-handler.ts | routing: own bot, DM, mention, reply |
 | **Task Handler** | src/orchestrator/handle-task.ts | session lookup/create, run lock, Q&A/code routing, stage detection (phase 4+), reply |
 | **Delegate Tool** | src/tools/DelegateTaskTool/delegate-task-tool.ts | MCP tool `mcp__tasks__DelegateTask(role, brief, repo?)` for Q&A→plan handoff (phase 1+) |
-| **Code Handoff** | src/orchestrator/code-handoff.ts | after Q&A ends: inserts code task row, posts notice, runs plan stage (phase 1+) |
-| **Code Task Flow** | src/orchestrator/code-task-flow.ts | two-stage lifecycle: plan (plan mode) → execute (worktree); cwd switching (phase 4+) |
-| **Code Task Finish** | src/orchestrator/code-task-finish.ts | summary + diff, Create PR button, follow-up, cleanup command (phase 4+) |
+| **Dispatch** | src/orchestrator/dispatch/dispatch-role.ts, validate-request.ts | app code, no LLM, runs only AFTER the source turn closed: persist proposal (pending) -> validate (role in registry, repo via `resolveTaskRepo`, `base` exists locally, cap via `countsTowardCap`, budget, `skills.mode` env cap `FRIDAY_SKILLS_MODE_MAX`) -> ask owner (ONE question, proposal stays pending) or refuse -> model (`resolveModel`) -> `beginTask(role, kind, parent, hop)` -> notice -> stage runner; proposal ends `dispatched` or `refused` |
+| **Stage Runner** | src/orchestrator/engine/{stage-runner,gates,plan-run,plain-run,isolation,handoff,stage-control,budget}.ts | loops over `role.stages`: guard scope from `isolation`, gate from `gate` (plan approval inside the plan run, delivery in the output contract), one shared `askLimit` per task, a `stages` row per stage (model, cost, verdict). After the plan gate: worktree switch (`task-worktree.ts`) + plan file + next prompt from `role.steps` (dev). Budget stop: stage `interrupted`, verdict `budget`, reply from `budgetHitMessage` offers `go +<usd>` |
+| **Output contract `pr`** | src/orchestrator/outputs/{pr-output,answer-output}.ts | summary + diff, commit/secret checks, Create PR button (the delivery gate), push, PR |
+| **Run turn** | src/orchestrator/engine/run-turn.ts | one routed message as a role (the stage runner runs ANY role, Q&A included): close the task row, dispatch a recorded proposal, resume-failure reply; `go` on a pending proposal |
+| **Thread state + ledger** | src/orchestrator/thread/thread-state.ts, src/storage/ledger-store.ts | state derived from `tasks`/`approvals`/`stages` (idle, awaiting_plan_approval, running, awaiting_result, done; done folds to idle). The ledger is a view over `tasks`+`stages`+`worktrees` (last 5 code tasks, <= 1.5k chars each) injected into the assistant context when the thread is idle |
+| **Role vocabulary** | src/roles/role-types.ts | roles are DATA run by one engine. Closed sets: gate `none\|plan-approval\|delivery\|owner-confirm` (owner-confirm: vocabulary only, the engine fails closed), isolation `none\|clone` (`clone` = the git worktree today), output `answer\|plan\|pr\|verdict`; role flags `escalation`, `modelTiers`, `aliases`, `whenToUse`, `followUp.startAtStage`; stage `handoff` = template (`{plan} {planPath} {task} {testLine}`) + plan file name. Layering tests: engine has no role-name literals, thread/ and dispatch/ never import runtime/, roles/ never imports orchestrator/ (test/engine-layering.test.ts) |
+| **Repo resolver** | src/orchestrator/dispatch/task-repo.ts | `resolveTaskRepo` (the one repo rule of routing, the DelegateTask pre-check and dispatch validation), `codeTaskBlocker` (+ cap), `MAX_CODE_TASKS` |
 | **Agent Runner** | src/runtime/run-agent.ts | SDK query() loop, PreToolUse/canUseTool hooks, error handling |
 | **Prompt** | src/runtime/system-prompt.ts | Sections: MODE (qa/plan/exec operational contract), HANDOFF (delegate tool in Q&A only), COMMON (safety rules once), then context. Identity/tone in persona files, not here. |
 | **Context Injection** | src/runtime/run-agent.ts | repo name, branch, git status, worktree context via git MCP (phase 4+); memory bullets in prompt (soft: 3, hard: 5 in code) |
@@ -356,6 +360,18 @@ task: <description> (message)
 | tool_calls | id, run_id, tool_name, input_redacted, output_redacted, duration_ms | tool invocation, redacted |
 | approvals | id, task_id, request_type, request_data, owner_decision, decision_reason, created_at, decided_at | approval decisions for Edit/Write/Bash/plan/network |
 | worktrees | id, task_id, repo_name, path, branch, created_at | one per code task (phase 4+); path = AGENT_HOME/worktrees/<taskId>; branch = agent/<first-8-chars-taskId> |
+
+**Schema v2 (additive migration, `src/storage/migrate.ts`, P1.4a).** `meta(key, value)` holds `schema_version = 2` and is the only version marker (a fresh db writes it too). A db without `meta` is v1: `openDb` first writes `VACUUM INTO <home>/db-backups/friday-v1-<ts>.db` (log `db.snapshot`; a failed snapshot aborts startup, nothing migrated), then migrates in one transaction; opening again is a no-op. New tables:
+
+| Table | Columns | Purpose |
+|-------|---------|---------|
+| meta | key PK, value | schema version |
+| stages | task_id, idx (PK), name, status, session_id, cwd, verdict, model, cost_usd, started_at, ended_at | one row per stage of a task; `model` = resolved model id (rows are written by the stage runner, P1.4 Part B) |
+| proposals | id PK, thread_id, workspace, from_task_id, role, brief (redacted), repo, base, class, scope, confidence, reason, status, created_at, decided_at | status `pending` -> `queued` -> `dispatched` / `refused` / `expired`; written by the orchestrator right after the source turn closes (`proposal-flow.ts`); open ones older than 24h expire at startup; a pending one after a restart gets the notice "Proposal not started; reply `go`" |
+
+Guarded `ALTER ADD COLUMN` (old rows keep valid defaults, an old binary ignores them): `tasks.role` ('dev'), `kind` ('staged'), `parent_task_id`, `proposal_id`, `hop` (0), `counts_toward_cap` (1; Q&A rows 0), `class`; `runs.stage_idx`, `runs.model` (if absent). The concurrency cap counts `counts_toward_cap = 1` rows (`countActiveCappedTasks`). Rollback: old code runs on the migrated db; on a db problem restore the snapshot (see discord-setup troubleshooting).
+
+**Drain (deploy):** `FRIDAY_DRAIN=1` or a `DRAIN` file in `AGENT_HOME` (`src/lifecycle/drain.ts`) makes the handler refuse new tasks with "deploying, retry in a minute" (`stop` and `cleanup:` still answer). At start, tasks still `running` / `waiting_approval` become `interrupted` (their running stages too) and each thread gets the Resume button.
 
 **Raw logs:** `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (pino-roll, daily, 14 days kept; one log for all workspaces, every task line carries `workspace`, `repo`, `taskId`, `threadId`, `mode`)
 

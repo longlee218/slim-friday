@@ -1,18 +1,16 @@
 import type { Database } from "bun:sqlite";
-import type { ApprovalGateway } from "../approvals/approval-types";
-import { hasAttribution } from "../guardrails/check-tool-call";
-import type { GitData, GitIdentity, GitMcp } from "../mcp/git-mcp";
-import { createPullRequest, parseRemote } from "../mcp/github-mcp";
-import { GIT_TOOL } from "../mcp/mcp-tool-names";
-import { logEvent, logger } from "../observability/logger";
-import { clip, errText, redactText } from "../observability/redact";
-import { setPrUrl, type WorktreeRow } from "../storage/worktree-store";
-
-/** Approval label of the PR confirmation (persisted in `approvals.tool`, not an SDK tool). */
-export const CREATE_PR_APPROVAL = "CreatePR";
+import type { ApprovalGateway } from "../../approvals/approval-types";
+import { hasAttribution } from "../../guardrails/check-tool-call";
+import type { GitData, GitIdentity, GitMcp } from "../../mcp/git-mcp";
+import { createPullRequest, parseRemote } from "../../mcp/github-mcp";
+import { GIT_TOOL } from "../../mcp/mcp-tool-names";
+import { logEvent, logger } from "../../observability/logger";
+import { clip, errText, redactText } from "../../observability/redact";
+import { setPrUrl, type WorktreeRow } from "../../storage/worktree-store";
+import { CREATE_PR_APPROVAL } from "../engine/gates";
 
 /** Logger of this module (task fields come from the log context). */
-const log = logger.child({ module: "code-task-finish" });
+const log = logger.child({ module: "pr-output" });
 
 /** A commit of the branch as the app sees it (git_log author + git_show text). */
 interface BranchCommit {

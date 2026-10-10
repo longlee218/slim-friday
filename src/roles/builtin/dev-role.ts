@@ -86,6 +86,8 @@ export const DEV_ROLE: RoleDefinition = {
   output: "pr",
   countsTowardCap: true,
   readOnly: false,
+  aliases: [],
+  followUp: { startAtStage: "exec" },
   stages: [
     {
       ...CODE_STAGE_BASE,
@@ -96,6 +98,11 @@ export const DEV_ROLE: RoleDefinition = {
       permissionMode: "plan",
       isolation: "none",
       gate: "plan-approval",
+      handoff: {
+        planFile: "plan.md",
+        template:
+          "Approved plan (also saved at {planPath}):\n\n{plan}\n\nOriginal task: {task}\n\n{testLine}",
+      },
       promptSections: (ctx) => [
         PLAN,
         ASK_RULES,
@@ -109,7 +116,7 @@ export const DEV_ROLE: RoleDefinition = {
       model: "sonnet", // class: mechanical -> haiku, design -> opus (model-routing.ts)
       budgetUsd: 3.0,
       gitGroups: ["read", "commit", "change"],
-      isolation: "worktree",
+      isolation: "clone",
       gate: "delivery",
       promptSections: (ctx) => [EXEC, ASK_RULES, workflowRules("exec", ctx.workflow)],
     },

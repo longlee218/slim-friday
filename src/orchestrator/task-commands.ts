@@ -9,7 +9,12 @@ export const RESUME_PROMPT =
 export type TaskCommand =
   | { kind: "stop" }
   /** The Resume button: continue the thread's saved session. */
-  | { kind: "resume" }
+  | { kind: "resume"; extraBudgetUsd?: number }
+  /**
+   * `go` / `go +<usd>` (thread scoped, the handler decides): start the thread's pending proposal, else
+   * resume its interrupted or budget-stopped task, with `extraBudgetUsd` more budget when given.
+   */
+  | { kind: "go"; extraBudgetUsd?: number }
   /** `cleanup:` removes this thread's worktree; `cleanup:<task-id>` a specific one. */
   | { kind: "cleanup"; taskId?: string }
   /** `remember:` / `forget:` / `compact memory` (see memory-commands.ts): answered by app code, never by the agent. */
@@ -23,11 +28,21 @@ export type TaskCommand =
 /** Owner class prefix: `[mechanical]`, `[standard]`, `[design]` (wins over the intent layer's class). Unknown tags are not prefixes. */
 const CLASS_PREFIX = /^\[(mechanical|standard|design)\]\s*/i;
 
+/** Largest `go +<usd>` raise accepted; a bigger (or non-finite) amount is a plain message. */
+export const MAX_GO_EXTRA_USD = 1000;
+
+/** `go` or `go +<usd>` (a positive amount, e.g. `go +1.5`); anything else is a normal message. */
+const GO_COMMAND = /^go(?:\s+\+(\d+(?:\.\d+)?))?$/i;
+
 /** Parse a message into one command. The only place that knows the `stop` / `cleanup:` / `repo:` syntax. */
 export function parseTaskCommand(input: string): TaskCommand {
   const text = input.trim();
   if (text.toLowerCase() === "stop") return { kind: "stop" };
   if (text === RESUME_PROMPT) return { kind: "resume" };
+  const go = GO_COMMAND.exec(text);
+  // `go +0` is not a raise: it stays a plain message.
+  if (go && (go[1] === undefined || (Number(go[1]) > 0 && Number(go[1]) <= MAX_GO_EXTRA_USD)))
+    return { kind: "go", ...(go[1] !== undefined && { extraBudgetUsd: Number(go[1]) }) };
   if (parseMemoryCommand(text)) return { kind: "memory" };
   const cleanup = /^cleanup:\s*(\S*)/i.exec(text);
   if (cleanup) return { kind: "cleanup", taskId: cleanup[1] || undefined };

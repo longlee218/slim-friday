@@ -3,7 +3,7 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import { runHandoff } from "../src/orchestrator/code-handoff";
+import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { insertTask } from "../src/storage/run-store";
@@ -366,7 +366,7 @@ test("a handoff whose thread was already stopped starts nothing and leaves no co
   const seen: any[] = [];
   const ac = new AbortController();
   ac.abort(); // `stop` / shutdown arrived after the Q&A run ended, before the plan stage
-  const reply = await runHandoff(
+  const reply = await dispatchRole(
     {
       git,
       db: env.db,
@@ -378,7 +378,7 @@ test("a handoff whose thread was already stopped starts nothing and leaves no co
     {
       task: msg_("please add b.txt"),
       reply: "Q&A answer",
-      proposal: { brief: BRIEF },
+      request: { role: "dev", brief: BRIEF },
       workspace: "main",
       repos: [],
       ac,

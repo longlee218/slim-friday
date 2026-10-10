@@ -4,8 +4,10 @@ import { delegableRoleNames } from "../../roles/role-registry";
 import { DELEGATE_TASK_TOOL_NAME } from "./constants";
 import { DESCRIPTION } from "./prompt";
 
-/** What the Q&A agent asked to hand over: the brief for the plan stage and an optional repo name. */
+/** What the Q&A agent asked to hand over: the role, the brief for its first stage and an optional repo name. */
 export interface Proposal {
+  /** Role from the tool's enum (the registry's delegable roles). */
+  role: string;
   brief: string;
   repo?: string;
 }
@@ -37,12 +39,12 @@ export function createDelegateTaskTool(h: {
       brief: z.string().min(20).max(4000),
       repo: z.string().min(1).max(100).optional(),
     },
-    async ({ brief, repo }) => {
+    async ({ role, brief, repo }) => {
       if (proposed) return result("Already delegated in this run. End your turn now.", true);
       const refusal = h.check(repo);
       if (refusal) return result(`Cannot delegate: ${refusal}`, true);
       proposed = true;
-      h.onPropose({ brief, repo });
+      h.onPropose({ role, brief, repo });
       return result("Proposal recorded. The plan stage starts after this turn. End your turn now.");
     },
     // Keep the routing tool in the initial prompt even if ToolSearch ever reaches Q&A (MCP tools are

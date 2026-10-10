@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { checkWorktrees, cleanupTaskLogs } from "../src/lifecycle/startup";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { RESUME_PROMPT } from "../src/orchestrator/task-commands";
-import { finishRun } from "../src/orchestrator/task-result";
 import { resolveCommand } from "../src/orchestrator/task-routing";
+import { finishRun } from "../src/orchestrator/tasks/task-result";
 import { runAgent } from "../src/runtime/run-agent";
 import {
   ackInterrupted,

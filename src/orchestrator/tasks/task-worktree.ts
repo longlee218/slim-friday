@@ -1,21 +1,21 @@
 import type { Database } from "bun:sqlite";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { workspacePaths } from "../config/workspace-paths";
-import type { GitMcp } from "../mcp/git-mcp";
-import { GIT_TOOL } from "../mcp/mcp-tool-names";
-import { logEvent, logger } from "../observability/logger";
-import { errText } from "../observability/redact";
-import type { Repo } from "../repos/repo-registry";
-import { deleteSession } from "../storage/session-store";
+import { workspacePaths } from "../../config/workspace-paths";
+import type { GitMcp } from "../../mcp/git-mcp";
+import { GIT_TOOL } from "../../mcp/mcp-tool-names";
+import { logEvent, logger } from "../../observability/logger";
+import { errText } from "../../observability/redact";
+import type { Repo } from "../../repos/repo-registry";
+import { deleteSession } from "../../storage/session-store";
 import {
   deleteWorktree,
   getWorktreeByTask,
   getWorktreeByThread,
   insertWorktree,
   type WorktreeRow,
-} from "../storage/worktree-store";
-import type { CodeFlowDeps, CodeFlowInput } from "./code-task-flow";
+} from "../../storage/worktree-store";
+import type { StageRunInput, StageRunnerDeps } from "../engine/stage-runner";
 import { type FlowResult, failResult, OUTCOME_REPLY } from "./task-result";
 
 /** Logger of this module (task fields come from the log context). */
@@ -72,13 +72,14 @@ export async function removeTaskWorktree(
  * (nothing is left behind: a failed or stopped switch removes the worktree again).
  */
 export async function startWorktree(
-  deps: CodeFlowDeps,
-  i: CodeFlowInput,
+  deps: StageRunnerDeps,
+  i: StageRunInput,
   repo: Repo,
   plan: string,
+  planFile = "plan.md",
 ): Promise<{ wt: WorktreeRow; execScratch: string } | FlowResult> {
   const ws = workspacePaths(deps.config.agentHome).workspace(i.workspace);
-  const base = repo.defaultBranch ?? "main";
+  const base = i.base ?? repo.defaultBranch ?? "main";
   const branch = `agent/${i.taskId.slice(0, 8)}`;
   const wtPath = join(ws.repo(repo.name).worktrees, i.taskId);
   try {
@@ -102,7 +103,7 @@ export async function startWorktree(
     if (i.ac.signal.aborted) throw new Error("stopped");
     insertWorktree(deps.db, wt);
     mkdirSync(execScratch, { recursive: true, mode: 0o700 });
-    writeFileSync(join(execScratch, "plan.md"), plan);
+    writeFileSync(join(execScratch, planFile), plan);
   } catch (err) {
     await removeTaskWorktree(deps.git, {
       repoPath: repo.path,

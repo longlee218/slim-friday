@@ -1,5 +1,7 @@
 import type { Database } from "bun:sqlite";
+import type { TaskClass } from "../config/model-routing";
 import { redactText } from "../observability/redact";
+import { interruptRunningStages } from "./stage-store";
 
 /** Final status of a task row. */
 export type TaskStatus =
@@ -26,16 +28,33 @@ export function setTaskSession(db: Database, id: string, sessionId: string, cwd:
 export function latestTaskSession(
   db: Database,
   threadId: string,
-): { status: string; repo: string; sessionId: string | null; cwd: string | null } | null {
-  return db
+): {
+  status: string;
+  repo: string;
+  sessionId: string | null;
+  cwd: string | null;
+  /** The task's last run ended on its budget (`go +<usd>` may resume it). */
+  budgetStopped: boolean;
+} | null {
+  const row = db
     .query<
-      { status: string; repo: string; sessionId: string | null; cwd: string | null },
+      {
+        status: string;
+        repo: string;
+        sessionId: string | null;
+        cwd: string | null;
+        outcome: string | null;
+      },
       [string]
     >(
-      `SELECT status, repo, session_id AS sessionId, session_cwd AS cwd FROM tasks
-       WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
+      `SELECT status, repo, session_id AS sessionId, session_cwd AS cwd,
+         (SELECT r.outcome FROM runs r WHERE r.task_id = tasks.id ORDER BY r.rowid DESC LIMIT 1) AS outcome
+       FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
     )
     .get(threadId);
+  if (!row) return null;
+  const { outcome, ...rest } = row;
+  return { ...rest, budgetStopped: outcome === "max_budget" };
 }
 
 /** Insert a task row in `running` state. */
@@ -49,10 +68,23 @@ export function insertTask(
     type: string;
     /** Delegated task text (handoff only); stored redacted so a rejected plan can be recalled. */
     brief?: string;
+    /** Task class (owner prefix / proposal); null = standard. */
+    cls?: TaskClass;
+    /** Proposal this task was started from. */
+    proposalId?: string;
+    /** Role that runs it (default: dev for code, assistant for Q&A). */
+    role?: string;
+    /** `staged` = several stages with owner gates (dev); `single` = one run (Q&A). */
+    kind?: "staged" | "single";
+    /** Task whose turn proposed this one, and how many hand-overs deep it is (0 = owner-started). */
+    parentTaskId?: string;
+    hop?: number;
   },
 ): void {
+  // Only code tasks count against the concurrency cap (see `countActiveCappedTasks`).
   db.query(
-    "INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at, brief) VALUES (?, ?, ?, ?, ?, 'running', ?, ?)",
+    `INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at, brief, class, proposal_id, counts_toward_cap, role, kind, parent_task_id, hop)
+     VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     t.id,
     t.threadId,
@@ -61,6 +93,13 @@ export function insertTask(
     t.type,
     Date.now(),
     t.brief === undefined ? null : redactText(t.brief),
+    t.cls ?? null,
+    t.proposalId ?? null,
+    t.type === "code" ? 1 : 0,
+    t.role ?? (t.type === "code" ? "dev" : "assistant"),
+    t.kind ?? (t.type === "code" ? "staged" : "single"),
+    t.parentTaskId ?? null,
+    t.hop ?? 0,
   );
 }
 
@@ -75,6 +114,7 @@ export function interruptRunningTasks(db: Database): void {
   db.query(
     "UPDATE tasks SET status = 'interrupted', ended_at = ? WHERE status IN ('running', 'waiting_approval')",
   ).run(now);
+  interruptRunningStages(db);
   // Buttons of a dead process can never be answered (a resumed run asks again).
   db.query(
     "UPDATE approvals SET decision = 'cancelled', decided_at = ? WHERE decision = 'pending'",
@@ -98,68 +138,11 @@ export function ackInterrupted(db: Database, threadId: string): void {
   ).run(threadId);
 }
 
-/** One agent run's metrics. */
-export interface RunRecord {
-  id: string;
-  taskId: string;
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheCreationTokens: number;
-  costUsd: number;
-  turns: number;
-  durationMs: number;
-  outcome: string;
-  compactions: number;
-}
-
-/** Insert a run row. */
-export function insertRun(db: Database, r: RunRecord): void {
-  db.query(
-    `INSERT INTO runs (id, task_id, model, input_tokens, output_tokens, cache_read_tokens,
-       cache_creation_tokens, cost_usd, turns, duration_ms, outcome, compactions)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    r.id,
-    r.taskId,
-    r.model,
-    r.inputTokens,
-    r.outputTokens,
-    r.cacheReadTokens,
-    r.cacheCreationTokens,
-    r.costUsd,
-    r.turns,
-    r.durationMs,
-    r.outcome,
-    r.compactions,
-  );
-}
-
-/** One tool call; input/output must already be redacted + truncated. */
-export interface ToolCallRecord {
-  id: string;
-  runId: string;
-  tool: string;
-  inputJson: string;
-  outputPreview: string;
-  isError: boolean;
-  durationMs: number;
-}
-
-/** Insert (or replace on repeated tool_use id) a tool_calls row. */
-export function insertToolCall(db: Database, c: ToolCallRecord): void {
-  db.query(
-    `INSERT OR REPLACE INTO tool_calls (id, run_id, tool, input_json, output_preview, is_error, duration_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(c.id, c.runId, c.tool, c.inputJson, c.outputPreview, c.isError ? 1 : 0, c.durationMs);
-}
-
-/** Number of code tasks currently running or waiting for approval (concurrency cap). */
-export function countActiveCodeTasks(db: Database): number {
+/** Number of cap-counted tasks (code tasks) currently running or waiting for approval (concurrency cap). */
+export function countActiveCappedTasks(db: Database): number {
   return db
     .query<{ n: number }, []>(
-      "SELECT COUNT(*) AS n FROM tasks WHERE type = 'code' AND status IN ('running', 'waiting_approval')",
+      "SELECT COUNT(*) AS n FROM tasks WHERE counts_toward_cap = 1 AND status IN ('running', 'waiting_approval')",
     )
     .get()!.n;
 }

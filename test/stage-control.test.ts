@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { stageControl } from "../src/orchestrator/code-flow-workflow";
+import { stageControl } from "../src/orchestrator/engine/stage-control";
 
 // stageControl links a stage's abort controller to the task's `stop` signal.
 

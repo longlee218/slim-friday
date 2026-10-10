@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { insertRun, insertToolCall } from "../storage/run-store";
+import { insertRun, insertToolCall } from "../storage/run-metrics-store";
 import { createLogger, fileDestination, logger, tryLog } from "./logger";
 import { redactDeep, safePreview } from "./redact";
 

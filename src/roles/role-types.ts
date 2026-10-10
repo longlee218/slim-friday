@@ -15,8 +15,33 @@ export type Capability =
   | "planControl" // enter / leave plan mode (leaving needs the owner's approval)
   | "recommend"; // DelegateTask handoff tool; removed when the intent layer lands (P1.4c)
 
-/** What the role hands back to the owner. */
-export type OutputContract = "answer" | "report" | "verdict" | "pr";
+/** What the role hands back to the owner (the engine picks the output module from it). */
+export type OutputContract = "answer" | "plan" | "pr" | "verdict";
+
+/**
+ * Owner gate that follows a stage (closed set, each implemented once in `orchestrator/engine/gates.ts`):
+ * `none` runs straight on, `plan-approval` waits for the owner to approve the plan, `delivery` offers the
+ * result (the PR) to the owner, `owner-confirm` asks a yes/no before a costlier step (vocabulary only: no
+ * stage uses it yet, the engine fails closed on it).
+ */
+export type Gate = "none" | "plan-approval" | "delivery" | "owner-confirm";
+
+/**
+ * Where a stage runs: `none` = no isolation (registered repos read-only, or the task scratch dir); `clone` =
+ * an isolated checkout on its own branch. Today `clone` is the git worktree path; Part 2 swaps the
+ * implementation without touching roles.
+ */
+export type Isolation = "none" | "clone";
+
+/**
+ * What a stage hands on to the next one, as data. `template` words the next stage's prompt; `{plan}`,
+ * `{planPath}`, `{task}` and `{testLine}` are replaced in ONE pass (text inserted is never re-expanded).
+ */
+export interface StageHandoff {
+  /** File name the approved plan is saved under in the task scratch dir. */
+  planFile: string;
+  template: string;
+}
 
 /** Run-time facts a stage needs to word its prompt. */
 export interface PromptCtx {
@@ -38,10 +63,12 @@ export interface StageDefinition {
   gitGroups: (keyof typeof GIT_GROUPS)[];
   /** SDK permission mode; only the plan stage uses `plan` (ExitPlanMode lives there). */
   permissionMode?: "plan";
-  /** Where the stage runs: today's git worktree for exec; Part 2 swaps it for a clone; read by the Part 2 isolation step. */
-  isolation?: "none" | "worktree";
-  /** Owner gate that follows the stage. */
-  gate?: "plan-approval" | "delivery";
+  /** Where the stage runs. Omitted = `none`. */
+  isolation?: Isolation;
+  /** Owner gate that follows the stage. Omitted = `none`. */
+  gate?: Gate;
+  /** What this stage hands on to the next one (the plan stage of a role whose next stage starts from it). */
+  handoff?: StageHandoff;
   /** Prompt sections between the run contract start and the COMMON safety rules. */
   promptSections: (ctx: PromptCtx) => string[];
   /** Default model: a tier name (`haiku|sonnet|opus`) or an explicit model id. Class and effort may override it. */
@@ -63,11 +90,16 @@ export interface RoleDefinition {
   whenToUse: string;
   /** True when the intent `class` picks a model tier for this role (P1.3b). */
   modelTiers?: boolean;
-  /** Read by the orchestrator in a later phase (not yet consumed). */
+  /** Other names the owner may use for the role (intent layer lexicon, P1.4c); may be empty. */
+  aliases: string[];
+  /** What the role hands back: picks the output module (`answer` escalation, `pr` delivery). */
   output: OutputContract;
-  /** Runs of this role count toward the concurrent code-task cap. */
-  /** Read by the orchestrator in a later phase (concurrent-task cap; not yet consumed). */
+  /** Runs of this role count toward the concurrent code-task cap (checked by the dispatcher). */
   countsTowardCap: boolean;
+  /** The cheap-tier answer may end in `ESCALATE: sonnet|opus` and be re-run on that tier (`answer` output). */
+  escalation?: boolean;
+  /** A follow-up message in a thread that already has this role's clone starts at this stage (name), not at the first. */
+  followUp?: { startAtStage: string };
   readOnly: boolean;
   stages: StageDefinition[];
 }

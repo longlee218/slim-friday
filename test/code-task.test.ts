@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { ApprovalGateway, ApprovalRequest } from "../src/approvals/approval-types";
 import { TASKS_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
-import { parseTaskCommand } from "../src/orchestrator/task-commands";
+import { parseTaskCommand, RESUME_PROMPT } from "../src/orchestrator/task-commands";
 import {
   ASK_USER_QUESTION_TOOL_NAME,
   BASH_TOOL_NAME,
@@ -97,6 +97,26 @@ test("parseTaskCommand: stop, cleanup and repo: hint; task: is plain Q&A text", 
     repo: undefined,
     text: "task: repo:api fix it",
   });
+});
+
+test("parseTaskCommand: go, go +<usd>; invalid raises are plain messages; Resume prompt unchanged", () => {
+  expect(parseTaskCommand("go")).toEqual({ kind: "go" });
+  expect(parseTaskCommand(" GO ")).toEqual({ kind: "go" });
+  expect(parseTaskCommand("go +1.5")).toEqual({ kind: "go", extraBudgetUsd: 1.5 });
+  expect(parseTaskCommand("go +2")).toEqual({ kind: "go", extraBudgetUsd: 2 });
+  for (const bad of [
+    "go +0",
+    `go +${"9".repeat(400)}`,
+    "go +1000.5",
+    "go -1",
+    "go +abc",
+    "go 1.5",
+    "go +1.5 now",
+    "go ahead",
+    "go+1",
+  ])
+    expect(parseTaskCommand(bad)).toMatchObject({ kind: "qa", text: bad });
+  expect(parseTaskCommand(RESUME_PROMPT)).toEqual({ kind: "resume" });
 });
 
 test("without approvals the agent has no delegate tool and no plan stage starts", async () => {

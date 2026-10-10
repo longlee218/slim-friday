@@ -13,6 +13,7 @@ import { createOpsLog } from "./discord-setup/ops-log";
 import { warnIfBotAdministrator } from "./discord-setup/ready-checks";
 import { createDiscordBot } from "./ingress/discord-bot";
 import { homePlacementError } from "./lifecycle/home-placement-check";
+import { expireStaleProposals, postProposalNotices } from "./lifecycle/proposal-notices";
 import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
@@ -20,7 +21,7 @@ import { ensureHome } from "./memory/persona";
 import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
 import { createTaskHandler } from "./orchestrator/handle-task";
-import { createRunLimiter } from "./orchestrator/run-limiter";
+import { createRunLimiter } from "./orchestrator/tasks/run-limiter";
 import { openDb } from "./storage/db";
 import { interruptRunningTasks } from "./storage/run-store";
 import { loadWorkspaces } from "./workspaces/workspace-registry";
@@ -83,10 +84,17 @@ async function main(): Promise<void> {
   logProviderSelected(log, config);
   logDeprecatedConfig(log, config);
 
-  const db = openDb(workspacePaths(config.agentHome).dbFile);
+  // A v1 db is snapshotted before its first migration; a failed snapshot aborts the start, db untouched.
+  let db: ReturnType<typeof openDb>;
+  try {
+    db = openDb(workspacePaths(config.agentHome).dbFile);
+  } catch (err) {
+    return fail(errText(err));
+  }
   // A crash leaves tasks "running"/"waiting_approval": they stop counting against the code-task cap and
   // become "interrupted"; after Discord is ready each such thread gets a Resume button.
   interruptRunningTasks(db);
+  expireStaleProposals(db); // open proposals older than 24h; the rest get a `go` notice once ready
   runStartupHygiene(db, config.agentHome);
   // Client is created after the handler, so the gateway looks it up lazily.
   let botClient: Client | undefined;
@@ -124,6 +132,7 @@ async function main(): Promise<void> {
   const opsLog = createOpsLog(() => botClient, setup.ops.log);
   client.once(Events.ClientReady, () => {
     void postResumeNotices({ db, getClient: () => botClient });
+    void postProposalNotices({ db, getClient: () => botClient });
     warnIfBotAdministrator(client, config.discordGuildId);
     void opsLog.post("start", `pid=${process.pid} v${pkg.version}`);
   });

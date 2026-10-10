@@ -16,6 +16,7 @@ import {
   type RunUsage,
 } from "../observability/record-run";
 import type { Workflow } from "../repos/repo-registry";
+import type { StageDefinition } from "../roles/role-types";
 import { consumeStream, type QueryFn, type StreamResult } from "./run-stream";
 import { buildSdkOptions, stageConfig, stageForRun, stageTimeoutMs } from "./sdk-options";
 import type { ToolPermissionInput } from "./tool-permissions";
@@ -45,6 +46,8 @@ export interface RunAgentInput {
   appServer?: McpSdkServerConfigWithInstance;
   /** GitHub login whose token the read-only GitHub MCP server uses (code tasks); default = active gh account. */
   githubAccount?: string;
+  /** The stage to run (the stage engine passes it); omitted = derived from `code` (direct callers, tests). */
+  stage?: StageDefinition;
   /** Code task: plan mode + write tools behind guardrails and owner approval. Omitted = read-only Q&A. */
   code?: Omit<ToolPermissionInput, "taskId" | "guard"> & {
     /** "plan" (default): plan mode, read-only dirs. "exec": runs in the worktree after plan approval. */

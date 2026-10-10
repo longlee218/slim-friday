@@ -1,7 +1,8 @@
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
-import { logEvent, setLogContext, tryLog } from "../observability/logger";
-import { finishTask, insertTask, interruptRunningTasks } from "../storage/run-store";
+import type { TaskClass } from "../../config/model-routing";
+import { logEvent, setLogContext, tryLog } from "../../observability/logger";
+import { finishTask, insertTask, interruptRunningTasks } from "../../storage/run-store";
 
 /** Log-context fields every line of a call carries: its thread and its routing channel. */
 export const taskLogContext = (t: { threadId: string; channelId: string }) => ({
@@ -58,7 +59,18 @@ export function beginTask(
   db: Database,
   log: Logger,
   ids: { taskId: string; threadId: string; source: string; single?: string },
-  t: { repo: string; type: "qa" | "code"; mode: string; brief?: string },
+  t: {
+    repo: string;
+    type: "qa" | "code";
+    mode: string;
+    brief?: string;
+    cls?: TaskClass;
+    proposalId?: string;
+    role?: string;
+    kind?: "staged" | "single";
+    parentTaskId?: string;
+    hop?: number;
+  },
 ): void {
   insertTask(db, {
     id: ids.taskId,
@@ -67,6 +79,12 @@ export function beginTask(
     repo: t.repo,
     type: t.type,
     brief: t.brief,
+    cls: t.cls,
+    proposalId: t.proposalId,
+    role: t.role,
+    kind: t.kind,
+    parentTaskId: t.parentTaskId,
+    hop: t.hop,
   });
   const logRepo = t.repo === "*" && ids.single ? ids.single : t.repo;
   setLogContext({ repo: logRepo, mode: t.mode });

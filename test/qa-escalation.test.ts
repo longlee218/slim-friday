@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { budgetHitMessage } from "../src/orchestrator/budget-message";
+import { budgetHitMessage } from "../src/orchestrator/engine/budget";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
-import { escalationAction, parseEscalation } from "../src/orchestrator/qa-escalation";
+import { escalationAction, parseEscalation } from "../src/orchestrator/outputs/answer-output";
 import { parseTaskCommand } from "../src/orchestrator/task-commands";
+import { listStages } from "../src/storage/stage-store";
 import { fakeQuery, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 describe("parseEscalation (fail closed)", () => {
@@ -67,7 +68,7 @@ describe("Q&A escalation through the handler", () => {
       threadId: "t1",
       text: "hard question",
     });
-    return { reply, calls };
+    return { reply, calls, db: env.db };
   }
   test("ESCALATE: sonnet re-runs once on sonnet, same session and message, escalated budget, with a notice", async () => {
     const { reply, calls } = await ask([
@@ -83,6 +84,16 @@ describe("Q&A escalation through the handler", () => {
       prompt: "hard question",
     });
     expect(reply).toBe("Escalated to Sonnet.\n\nreal answer");
+  });
+  test("qa stage row records the escalated re-run's model, else the first run's", async () => {
+    const stageModel = (db: Awaited<ReturnType<typeof ask>>["db"]) => {
+      const t = db.query<{ id: string }, []>("SELECT id FROM tasks").get()!;
+      return listStages(db, t.id).map((r) => [r.name, r.model]);
+    };
+    const esc = await ask(["no idea\nESCALATE: sonnet", "real answer"]);
+    expect(stageModel(esc.db)).toEqual([["qa", "claude-sonnet-5-5"]]);
+    const plain = await ask(["fine"]);
+    expect(stageModel(plain.db)).toEqual([["qa", "claude-haiku-4-5-20251001"]]);
   });
   test("rerun that fails: no 'Escalated' prefix", async () => {
     const env = makeEnv();

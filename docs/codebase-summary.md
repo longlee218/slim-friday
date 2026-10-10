@@ -20,9 +20,9 @@ Discord channel @bot <question>
         └─ run-agent: Q&A mode (read-only) with PreToolUse + canUseTool hooks
            ├─ Q&A tools: Read/Glob/Grep/WebFetch/WebSearch; git MCP reads; delegate tool (MCP, if approvals enabled)
            ├─ Delegate tool: records code proposal → "end turn"
-           └─ After Q&A ends: if proposal → runHandoff():
+           └─ After Q&A ends: if proposal → dispatchRole():
               ├─ insert code task row, post "Starting plan" notice
-              └─ runCodeFlow(plan stage) → [plan approval] → execute → PR
+              └─ runStages(plan stage) → [plan approval] → execute → PR
 ```
 
 ### 2. AGENT_HOME Structure
@@ -91,16 +91,16 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 - **discord-message-rules.ts:** owner check, thread lifecycle
 
 ### Session & Task Management
-- **handle-task.ts:** thread→session mapping, repo pin, Q&A/code routing, stage detection; call runHandoff after Q&A if proposal exists
+- **handle-task.ts:** thread→session mapping, repo pin, Q&A/code routing, stage detection; call dispatchRole after Q&A if proposal exists
 - **task-commands.ts:** parse stop/cleanup commands; repo pinning; Resume routing logic (phase 5+)
-- **task-tracker.ts:** thread locking, session resume context tracking (phase 5+)
-- **qa-flow.ts:** Q&A entry point; wire delegate tool (MCP) when approvals enabled; return proposal in result
-- **code-handoff.ts:** after Q&A ends, insert code task row, post notice "Starting plan", run plan stage (phase 1b+)
-- **code-task-flow.ts:** two-stage (plan mode → approval → execute); cwd/git context switching
-- **task-worktree.ts:** worktree creation/removal via git MCP; stage switching
-- **task-result.ts:** result types and flow completion
-- **code-task-finish.ts:** summary + diff + Create PR button; follow-up detection (reuse worktree); cleanup
-- **run-limiter.ts:** max 3 concurrent runs; max 2 active code tasks (phase 4+)
+- **tasks/task-tracker.ts:** thread locking, session resume context tracking (phase 5+)
+- **engine/plain-run.ts:** read-only stage run (Q&A is the 1-stage `assistant` role): cwd pick, clone refresh, DelegateTask tool when the stage has `recommend`; reply through `outputs/answer-output.ts` (ESCALATE re-run when the role flag `escalation` is set)
+- **dispatch/dispatch-role.ts / validate-request.ts:** after the source turn closes: persist proposal, validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
+- **engine/stage-runner.ts + gates.ts / plan-run.ts / plain-run.ts / isolation.ts / handoff.ts / run-turn.ts:** loop over role.stages, run kind from stage data (`gate`, `isolation`; no role names), handoff template, `stages` rows; run-turn = one routed message as a role
+- **tasks/task-worktree.ts:** worktree creation/removal via git MCP; stage switching
+- **tasks/task-result.ts:** result types and flow completion
+- **outputs/pr-output.ts:** summary + diff + Create PR button; follow-up detection (reuse worktree); cleanup
+- **tasks/run-limiter.ts:** max 3 concurrent runs; max 2 active code tasks (phase 4+)
 
 ### Agent & Prompts
 - **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; opts.handoff flag for HANDOFF section; workspace skills from one app-owned plugin in every mode (`settingSources: []`)
@@ -142,16 +142,15 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 
 ### Delegate Tool & Q&A→Code Handoff (Phase 1b+)
 - **DelegateTaskTool/delegate-task-tool.ts (src/tools/):** MCP tool `mcp__tasks__DelegateTask({role:"dev", brief, repo?})`; validated schema; blocker checks; one call per Q&A run
-- **code-handoff.ts (src/orchestrator/):** after Q&A ends, process proposal: insert code task row with brief (Phase 1c+), post notice, run plan stage
+- **dispatch/dispatch-role.ts / validate-request.ts:** after the source turn closes: persist proposal, validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
 - **task-routing.ts (src/orchestrator/):** shared `codeTaskBlocker()` blocker check (cap MAX_CODE_TASKS, managed clone validation, repo lookup)
 
 ### Repository Management
 - **workspaces/workspace-registry.ts:** `loadWorkspaces(home)` -> `{workspaces, legacy}`: scans workspaces/*/workspace.yaml (zod: description, channels), fail-closed validation (name rules, real dirs not symlinks, duplicate channel ids dropped from both, `repo.overlap` warning); each workspace carries its own repos (no flat cross-workspace list: repo names are unique only inside a workspace)
 - **repo-registry.ts:** `loadRepos(ws, forbidden)` reads workspaces/<ws>/repos/*/repo.yaml (zod); optional defaultBranch, testCommand, githubAccount, `workflow` (lean|full, default lean); repo path must be a git root and not cover $HOME / AGENT_HOME; `buildRegistryContext(ws, repos, force)`
 - **git-identity.ts:** parse/resolve identity per repo.yaml gitAuthor; attribution check; no git calls
-- **code-task-flow.ts:** git_fetch + git_worktree add (new branch agent/<taskId-prefix> from origin/<defaultBranch>); managed clones only; ask limit per task (shared across plan & exec stages)
-- **code-flow-workflow.ts:** determine execWorkflow per repo (lean/full); stage control with abort listener; ask timeout handling
-- **code-plan-stage.ts:** plan stage entry (extracted from code-task-flow for size management)
+- **engine/isolation.ts + tasks/task-worktree.ts:** git_fetch + git_worktree add (new branch agent/<taskId-prefix> from origin/<defaultBranch>); managed clones only; ask limit per task (shared across plan & exec stages)
+- **engine/stage-control.ts:** determine execWorkflow per repo (lean/full); stage control with abort listener; ask timeout handling
 - **workspace-skills-plugin.ts:** `workspaceSkills(ws, home)`: one app-owned plugin per run from `workspaces/<ws>/skills` only (repo `.claude/skills` is never read; no hooks/.mcp.json), skills `<ws>:<skill>`; realpath validation, symlink skipping, caps 300 entries (files+dirs)/5MB, depth 8; `sweepStalePlugins` at startup, fail closed with a warn, `skills.plugin_built` log
 - **home-placement-check.ts:** startup refusal when AGENT_HOME is inside a registered repo or a git working tree
 - **publish-pr.ts:** push agent/<id> + GitHub MCP create_pull_request; title = task first line; body = redacted plan

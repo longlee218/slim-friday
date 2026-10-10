@@ -4,11 +4,10 @@ import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/storage/db";
+import { insertRun, insertToolCall } from "../src/storage/run-metrics-store";
 import {
   finishTask,
-  insertRun,
   insertTask,
-  insertToolCall,
   interruptRunningTasks,
   setTaskStatus,
 } from "../src/storage/run-store";

@@ -1,0 +1,61 @@
+import type { Database } from "bun:sqlite";
+import { logger } from "../../observability/logger";
+import { ROLES } from "../../roles/role-registry";
+import { type GateState, stateOfApprovalTool, stateOfGate } from "../engine/gates";
+
+/**
+ * State of a thread, DERIVED from its rows (no stored state, no new status values):
+ * - `idle`: no task, or the last one was cancelled / failed / timed out / interrupted
+ * - `awaiting_plan_approval`: the task waits on the plan gate
+ * - `running`: a task runs (also while it waits for a tool approval or an answer)
+ * - `awaiting_result`: the task waits on the delivery gate (the PR offer)
+ * - `awaiting_confirmation`: the task waits on an owner-confirm gate (no stage has one yet)
+ * - `done`: the last task finished; folds to `idle` (see `isIdleLike`) and the thread ledger describes it
+ */
+export type ThreadState = "idle" | "running" | "done" | GateState;
+
+/** Logger of this module. */
+const log = logger.child({ module: "thread-state" });
+
+/* The waiting states come from the gate table (engine/gates.ts): no gate is hard-coded here. */
+
+/** Gate state of a task parked in `waiting_approval`: by its pending approval, else by its running stage. */
+function waitingState(db: Database, taskId: string): ThreadState {
+  const pending = db
+    .query<{ tool: string }, [string]>(
+      "SELECT tool FROM approvals WHERE task_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
+    )
+    .get(taskId);
+  if (pending) return stateOfApprovalTool(pending.tool) ?? "running";
+  // No pending row (the decision just landed): fall back to the gate of the stage that is running.
+  const stage = db
+    .query<{ role: string; name: string }, [string]>(
+      `SELECT t.role AS role, s.name AS name FROM stages s JOIN tasks t ON t.id = s.task_id
+       WHERE s.task_id = ? AND s.status = 'running' ORDER BY s.idx DESC LIMIT 1`,
+    )
+    .get(taskId);
+  const role = stage ? ROLES[stage.role] : undefined;
+  if (stage && !role) {
+    // A row of a role this build does not know (renamed / removed): idle-like, never a crash.
+    log.warn({ role: stage.role, taskId }, "unknown role in a task row");
+    return "idle";
+  }
+  const gate = role?.stages.find((s) => s.name === stage?.name)?.gate;
+  return stateOfGate(gate ?? undefined) ?? "running";
+}
+
+/** Derive the state of `threadId` from its latest task (and that task's approvals / stages). */
+export function deriveThreadState(db: Database, threadId: string): ThreadState {
+  const last = db
+    .query<{ id: string; status: string }, [string]>(
+      "SELECT id, status FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+    )
+    .get(threadId);
+  if (!last) return "idle";
+  if (last.status === "running") return "running";
+  if (last.status === "waiting_approval") return waitingState(db, last.id);
+  return last.status === "done" ? "done" : "idle";
+}
+
+/** `done` folds to `idle`: both route to the assistant, which then sees the thread ledger. */
+export const isIdleLike = (s: ThreadState): boolean => s === "idle" || s === "done";

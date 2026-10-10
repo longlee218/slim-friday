@@ -1,6 +1,8 @@
 import { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { ensureParentDir, restrictFile } from "../config/workspace-paths";
+import { isV1Db, migrate, snapshotDb } from "./migrate";
 
 /** Schema; idempotent so it runs on every start. */
 const SCHEMA = `
@@ -74,12 +76,27 @@ CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_run ON tool_calls(run_id);
 `;
 
-/** Open (creating if needed) the SQLite db in WAL mode and ensure the schema. */
-export function openDb(file: string): Database {
+/**
+ * Open (creating if needed) the SQLite db in WAL mode and ensure the schema. A v1 db (no `meta` table) is
+ * snapshotted to `backupDir` (default `<home>/db-backups`, home = parent of the db's `data/` dir) before the
+ * first migration; a failed snapshot throws, so startup aborts with the db untouched.
+ */
+export function openDb(
+  file: string,
+  backupDir = join(dirname(dirname(file)), "db-backups"),
+): Database {
   // ":memory:" is allowed for callers that want a throwaway db.
   const db = new Database(file === ":memory:" ? file : ensureParentDir(file), { create: true });
   db.run("PRAGMA journal_mode = WAL");
   db.run("PRAGMA busy_timeout = 5000");
+  if (file !== ":memory:" && isV1Db(db)) {
+    try {
+      snapshotDb(db, backupDir);
+    } catch (err) {
+      db.close(); // abort: no migration on an unsaved db
+      throw new Error(`db snapshot failed, startup aborted: ${String(err)}`);
+    }
+  }
   db.exec(SCHEMA);
   // Idempotent column additions for databases created by older versions.
   const have = db
@@ -88,6 +105,7 @@ export function openDb(file: string): Database {
     .map((c) => c.name);
   for (const col of ["session_id", "session_cwd", "brief"])
     if (!have.includes(col)) db.exec(`ALTER TABLE tasks ADD COLUMN ${col} TEXT`);
+  migrate(db);
   if (file !== ":memory:") {
     // db holds tool output: owner-only, including the WAL/SHM sidecars created before this chmod.
     for (const f of [file, `${file}-wal`, `${file}-shm`]) if (existsSync(f)) restrictFile(f);

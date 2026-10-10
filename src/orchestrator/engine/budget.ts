@@ -1,4 +1,10 @@
-/* Owner-facing text of a budget hit (outcome `max_budget`): never silent, always says what happened. */
+import { logEvent, logger } from "../../observability/logger";
+import { redactText } from "../../observability/redact";
+
+/* Budget hit (outcome `max_budget`): the owner-facing text, never silent, always says what happened. */
+
+/** Logger of this module (task fields come from the log context). */
+const log = logger.child({ module: "budget" });
 
 /** Facts of a stage that stopped on its budget. */
 export interface BudgetHit {
@@ -10,7 +16,7 @@ export interface BudgetHit {
   summary?: string;
   /** `git diff --stat` of the clone (P2.1 safe git; the stage runner passes it from P1.4). */
   diffStat?: string;
-  /** Raise offered to the owner: the message ends with "Reply `go +<usd>`" (the `go` parser lands in P1.4). */
+  /** Raise offered to the owner: the message ends with "Reply `go +<usd>`". */
   goPlusUsd?: number;
 }
 
@@ -31,4 +37,23 @@ export function budgetHitMessage(h: BudgetHit): string {
     lines.push(`Reply \`go +${h.goPlusUsd}\` to continue with that much more budget.`);
   }
   return lines.join("\n");
+}
+
+/**
+ * Reply of a stage run that stopped on its budget: logs `budget.exceeded` and words the stop (redacted).
+ * `res.text` holds SDK error strings here, not an assistant summary, so no summary / diff stat is passed yet.
+ * Offers the same amount again: `go +<usd>` resumes the kept session with that much more.
+ */
+export function budgetHitReply(res: { usage?: { costUsd?: number }; budgetUsd?: number }): string {
+  logEvent(log, "budget.exceeded", {
+    spentUsd: res.usage?.costUsd,
+    limitUsd: res.budgetUsd ?? null,
+  });
+  return redactText(
+    budgetHitMessage({
+      spentUsd: res.usage?.costUsd,
+      limitUsd: res.budgetUsd,
+      goPlusUsd: res.budgetUsd === undefined ? undefined : Number(res.budgetUsd.toFixed(2)),
+    }),
+  );
 }

@@ -1,23 +1,23 @@
 import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
+import type { Route as ModelRoute, TaskClass } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
-import { isManagedClone } from "../repos/refresh-repo";
 import type { Repo } from "../repos/repo-registry";
-import { countActiveCodeTasks, latestTaskSession } from "../storage/run-store";
+import { ASSISTANT_ROLE } from "../roles/builtin/assistant-role";
+import { DEV_ROLE } from "../roles/builtin/dev-role";
+import { latestTaskSession } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
 import { liveWorktree, type WorktreeRow } from "../storage/worktree-store";
+import {
+  capRefusal,
+  codeTaskBlocker,
+  findRepo,
+  type Refusal,
+  refuse,
+  unknownRepo,
+} from "./dispatch/task-repo";
 import { RESUME_PROMPT, type TaskCommand } from "./task-commands";
-
-/** Max code tasks running or waiting for approval at once (RAM/quota; spike Q12). */
-export const MAX_CODE_TASKS = 2;
-
-/** A task that cannot start: `reason` is logged (`event` names it), `reply` goes to the owner. */
-export interface Refusal {
-  event: "task.refused" | "task.busy";
-  reason: string;
-  reply: string;
-}
 
 /** Where a Q&A or code task runs, decided before anything is created. */
 export interface Route {
@@ -25,29 +25,13 @@ export interface Route {
   pinned?: Repo;
   /** Existing worktree of the thread (follow-up of a code task). */
   worktree?: WorktreeRow;
-  isCode: boolean;
+  /** Role that runs the message: the dev role for code (a task or a follow-up in a worktree), else the assistant. */
+  role: string;
   /** Code tasks: repos the plan may pick from (managed clones only). */
   candidates: Repo[];
   /** Name for the task row: the worktree's, the hinted repo's, else "*" (not chosen yet). */
   repo: string;
 }
-
-/** Refusal helper (keeps the call sites one line). */
-const refuse = (
-  reason: string,
-  reply: string,
-  event: Refusal["event"] = "task.refused",
-): Refusal => ({
-  event,
-  reason,
-  reply,
-});
-
-/** Refusal for a repo name that is not in the workspace (lists the available ones). */
-const unknownRepo = (repos: Repo[], name: string): Refusal => {
-  const names = repos.map((r) => r.name).join(", ");
-  return refuse("unknown_repo", `Unknown repo "${name}". Available: ${names}`);
-};
 
 /**
  * Decide how a Q&A / code message is run: pinned repo, code or Q&A, candidate repos, or a refusal
@@ -64,9 +48,7 @@ export function routeTask(
 ): Route | Refusal {
   const { cmd, repos, existing } = p;
   const hint = cmd.repo?.toLowerCase();
-  const pinned = hint
-    ? repos.find((r) => r.name.toLowerCase() === hint)
-    : repos.find((r) => r.name === existing?.repo); // thread stays on its pinned repo
+  const pinned = hint ? findRepo(repos, hint) : repos.find((r) => r.name === existing?.repo); // thread stays on its pinned repo
   if (cmd.repo && !pinned) return unknownRepo(repos, cmd.repo);
   if (cmd.repo && !cmd.text)
     return refuse("empty_text", `Send your question after "repo:${pinned!.name}".`);
@@ -74,7 +56,8 @@ export function routeTask(
   const worktree =
     cmd.kind === "code" ? undefined : (liveWorktree(deps.db, p.threadId) ?? undefined);
   const isCode = cmd.kind === "code" || !!worktree;
-  if (!isCode) return { pinned, isCode, candidates: [], repo: pinned?.name ?? "*" };
+  if (!isCode)
+    return { pinned, role: ASSISTANT_ROLE.name, candidates: [], repo: pinned?.name ?? "*" };
   if (!deps.hasApprovals)
     return refuse("no_approvals", "Code tasks need the Discord approval flow.");
   if (!cmd.text) return refuse("empty_text", "Send a message with the task.");
@@ -87,55 +70,27 @@ export function routeTask(
         `This thread's worktree belongs to repo ${worktree.repo}, which is not in this channel's workspace. Re-link the channel, or clean up the thread.`,
       );
     return (
-      capRefusal(deps.db) ?? { pinned, worktree, isCode, candidates: repos, repo: worktree.repo }
+      capRefusal(deps.db) ?? {
+        pinned,
+        worktree,
+        role: DEV_ROLE.name,
+        candidates: repos,
+        repo: worktree.repo,
+      }
     );
   }
   const blocked = codeTaskBlocker(deps.db, deps.agentHome, repos, cmd.repo);
   if ("reply" in blocked) return blocked;
   return {
     pinned,
-    isCode,
+    role: DEV_ROLE.name,
     candidates: blocked.candidates,
     repo: cmd.repo ? (pinned?.name ?? "*") : "*",
   };
 }
 
-/** Refusal when `MAX_CODE_TASKS` code tasks already run or wait for approval, else undefined. */
-function capRefusal(db: Database): Refusal | undefined {
-  return countActiveCodeTasks(db) >= MAX_CODE_TASKS
-    ? refuse(
-        "code_task_limit",
-        `busy, ${MAX_CODE_TASKS} code tasks running, try again later`,
-        "task.busy",
-      )
-    : undefined;
-}
-
-/**
- * Can a new code task start now? Shared by routing, the `DelegateTask` tool and the handoff (one rule).
- * `repoName` picks one repo (unknown name -> refusal); else every managed clone is a candidate.
- * Worktrees branch off managed clones only, never a developer's working copy.
- */
-export function codeTaskBlocker(
-  db: Database,
-  agentHome: string,
-  repos: Repo[],
-  repoName?: string,
-): Refusal | { candidates: Repo[] } {
-  const hint = repoName?.toLowerCase();
-  const picked = hint ? repos.find((r) => r.name.toLowerCase() === hint) : undefined;
-  if (repoName && !picked) {
-    return unknownRepo(repos, repoName);
-  }
-  const candidates = (picked ? [picked] : repos).filter((r) => isManagedClone(r.path, agentHome));
-  if (candidates.length === 0) {
-    return refuse(
-      "no_clone",
-      "Code tasks need a workspace clone (workspaces/<ws>/repos/<name>/repo, with a repo.yaml next to it). Clone the repo there first.",
-    );
-  }
-  return capRefusal(db) ?? { candidates };
-}
+/** Refusal reasons after which a `go` message is treated as plain text (nothing to start or resume). */
+export const PLAIN_GO: ReadonlySet<string> = new Set(["cannot_resume", "stale_resume"]);
 
 /** A runnable command (code or Q&A) plus what a Resume adds. */
 export interface ResumePlan {
@@ -155,7 +110,7 @@ export interface ResumePlan {
  */
 export function resolveCommand(
   deps: { db: Database; agentHome: string; workspace: string; repos: Repo[] },
-  cmd: Exclude<TaskCommand, { kind: "stop" | "cleanup" | "memory" }>,
+  cmd: Exclude<TaskCommand, { kind: "stop" | "cleanup" | "memory" | "go" }>,
   threadId: string,
 ): ResumePlan | Refusal {
   if (cmd.kind !== "resume") return { cmd };
@@ -165,9 +120,15 @@ export function resolveCommand(
   );
   const last = latestTaskSession(deps.db, threadId);
   if (!last) return cannot;
-  // Only a task that was cut short (or stopped) can be resumed; a newer finished/failed one means stale.
-  if (last.status !== "interrupted" && last.status !== "cancelled")
+  // Only a task that was cut short (or stopped, or ended on its budget) can be resumed; a newer finished/failed one means stale.
+  if (last.status !== "interrupted" && last.status !== "cancelled" && !last.budgetStopped)
     return refuse("stale_resume", "This Resume is out of date: the thread has moved on.");
+  // A budget stop with the same budget would stop again: the owner must raise it.
+  if (last.budgetStopped && last.status !== "interrupted" && cmd.extraBudgetUsd === undefined)
+    return refuse(
+      "budget_stop",
+      "That task stopped on its budget. Reply `go +<usd>` to continue with more budget.",
+    );
   if (!last.sessionId || !last.cwd) return cannot;
   const existing: SessionRow = {
     thread_id: threadId,
@@ -197,3 +158,10 @@ export function resolveCommand(
   const qaCwd = existing.cwd === ws.cwd || deps.repos.some((r) => r.path === existing.cwd);
   return qaCwd ? { cmd: { kind: "qa", text }, existing } : cannot;
 }
+
+/** Route of a run: owner class and `go +<usd>` raise; undefined when neither is set (stage defaults). */
+export const runRoute = (r: {
+  cls?: TaskClass;
+  extraBudgetUsd?: number;
+}): ModelRoute | undefined =>
+  r.cls || r.extraBudgetUsd ? { cls: r.cls, extraBudgetUsd: r.extraBudgetUsd } : undefined;

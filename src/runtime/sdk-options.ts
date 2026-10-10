@@ -14,8 +14,12 @@ import { buildSystemPrompt } from "./system-prompt";
 import { buildToolPermissions } from "./tool-permissions";
 import type { RunSkills } from "./workspace-skills-plugin";
 
-/** The stage a run executes: Q&A is the assistant's `qa`; a code task is the dev role's `plan` (default) or `exec`. */
-export function stageForRun(input: Pick<RunAgentInput, "code">): StageDefinition {
+/**
+ * The stage a run executes: the one the caller names (the stage engine always does), else the legacy default
+ * for direct callers: Q&A is the assistant's `qa`; a code task is the dev role's `plan` (default) or `exec`.
+ */
+export function stageForRun(input: Pick<RunAgentInput, "code" | "stage">): StageDefinition {
+  if (input.stage) return input.stage;
   return input.code
     ? getStage("dev", input.code.stage === "exec" ? "exec" : "plan")
     : getStage("assistant", "qa");

@@ -1,15 +1,16 @@
 import { mkdirSync, realpathSync } from "node:fs";
-import { claudePlansDir, workspacePaths } from "../config/workspace-paths";
-import { guardFor } from "../guardrails/check-tool-call";
-import { buildPromptContext } from "../memory/prompt-context";
-import { buildRegistryContext } from "../repos/repo-registry";
-import { getStage } from "../roles/role-registry";
-import { runAgent } from "../runtime/run-agent";
-import { planWorkflow, stageControl } from "./code-flow-workflow";
-import type { CodeFlowDeps, CodeFlowInput } from "./code-task-flow";
-import type { FlowResult } from "./task-result";
+import { claudePlansDir, workspacePaths } from "../../config/workspace-paths";
+import { guardFor } from "../../guardrails/check-tool-call";
+import { buildPromptContext } from "../../memory/prompt-context";
+import { buildRegistryContext } from "../../repos/repo-registry";
+import { runAgent } from "../../runtime/run-agent";
+import type { FlowResult } from "../tasks/task-result";
+import { planWorkflow, stageControl } from "./stage-control";
+import type { StageCtx } from "./stage-runner";
 
-/** Outcome of the plan stage: the approved plan + repo, or the questions left unanswered, or neither. */
+/* Gate `plan-approval`: a plan-mode run in the task scratch dir; the owner approves the plan to leave it. */
+
+/** Outcome of a plan-approval stage: the approved plan + repo, or the questions left unanswered, or neither. */
 export interface PlanStageResult {
   res: FlowResult;
   approved?: { plan: string; repo: string };
@@ -18,14 +19,12 @@ export interface PlanStageResult {
 }
 
 /**
- * Plan stage: plan mode in the task scratch dir, repos read-only. Ends (run aborted) when the plan is
- * approved, or when the questions time out; `stop` aborts it through the task's controller.
+ * Stage with `isolation: none` + `gate: plan-approval`: plan mode in the task scratch dir, repos read-only.
+ * Ends (run aborted) when the plan is approved, or when the questions time out; `stop` aborts it through
+ * the task's controller.
  */
-export async function runPlanStage(
-  deps: CodeFlowDeps,
-  i: CodeFlowInput,
-  askLimit: { asked: boolean },
-): Promise<PlanStageResult> {
+export async function runPlanRun(c: StageCtx): Promise<PlanStageResult> {
+  const { deps, i, stage, askLimit } = c;
   const { db, config, approvals } = deps;
   const plans = claudePlansDir();
   const scratch =
@@ -35,8 +34,10 @@ export async function runPlanStage(
   const scratchReal = realpathSync(scratch);
   const repoPaths = i.repos.map((r) => realpathSync(r.path));
   const out: Omit<PlanStageResult, "res"> = {};
-  const stage = stageControl(i.ac.signal, (t) => (out.awaiting = t));
+  const ctl = stageControl(i.ac.signal, (t) => (out.awaiting = t));
   const res = await runAgent({
+    stage,
+    route: i.route,
     prompt: i.text,
     taskId: i.taskId,
     cwd: scratchReal,
@@ -50,26 +51,26 @@ export async function runPlanStage(
       registry: buildRegistryContext(i.workspace, i.repos, true),
       memoryRepos: i.repos.map((r) => r.name),
     }),
-    guard: guardFor(getStage("dev", "plan"), {
+    guard: guardFor(stage, {
       writePaths: [scratchReal, plans],
       readPaths: [scratchReal, plans, ...repoPaths],
       gitReadRepos: repoPaths,
     }),
     config,
     db,
-    abortController: stage.ac,
+    abortController: ctl.ac,
     queryFn: deps.queryFn,
     workflow: planWorkflow(i.repos),
     code: {
       threadId: i.threadId,
       gateway: approvals,
       askLimit,
-      onAskTimeout: stage.onAskTimeout,
+      onAskTimeout: ctl.onAskTimeout,
       plan: {
         repos: i.repos.map((r) => r.name),
         onApproved: (plan, repo) => {
           out.approved = { plan, repo };
-          stage.ac.abort();
+          ctl.ac.abort();
         },
       },
     },
