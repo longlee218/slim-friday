@@ -4,6 +4,7 @@ import {
   query as sdkQuery,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
+import type { Route } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import type { GuardrailContext } from "../guardrails/check-tool-call";
 import type { GitIdentity } from "../mcp/git-mcp";
@@ -53,6 +54,8 @@ export interface RunAgentInput {
   workflow?: Workflow;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never repo content). */
   skillsWorkspace?: string;
+  /** Routing facts (class, effort, forced tier, escalation); omitted = the stage defaults. */
+  route?: Route;
   /** Existing Claude session id to resume. */
   resume?: string;
   config: AgentConfig;
@@ -74,6 +77,8 @@ export interface RunAgentResult {
   outcome: RunOutcome;
   /** Token/cost/time metrics. */
   usage: RunUsage;
+  /** Budget (USD) this run was capped at; undefined = no cap. Read by the budget-hit message. */
+  budgetUsd?: number;
   /** Quota outcome: when the limit resets (epoch ms), if the SDK reported it. */
   resetsAt?: number;
 }
@@ -86,7 +91,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const { abortController: ac } = input;
   // The stage (role definition) decides tools, model slot, permission mode, timeout and prompt.
   const stage = stageForRun(input);
-  const config = stageConfig(stage, input.config);
+  const config = stageConfig(stage, input.config, input.route);
   // OpenRouter without a real key would only retry on 401 until timeout: fail fast instead.
   if (config.provider === "openrouter" && !config.hasRealAuth) {
     log.error("OPENROUTER_API_KEY missing or placeholder");
@@ -153,5 +158,5 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   }
   const { text, sessionId, outcome, usage, resetsAt } = res;
   logEvent(log, "run.finished", { outcome, ...usage, durationMs: Date.now() - startedAt });
-  return { text, sessionId, outcome, usage, resetsAt };
+  return { text, sessionId, outcome, usage, resetsAt, budgetUsd: config.limits.maxBudgetUsd };
 }

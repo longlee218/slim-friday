@@ -68,8 +68,8 @@ describe("model and budget", () => {
     expect(cfg({ MODEL: "m1" }).model).toBe("m1");
     expect(cfg({ OPENROUTER_API_KEY: OR_KEY, MODEL: "x/y" }).model).toBe("x/y");
   });
-  test("maxBudgetUsd: 0.5 anthropic, omitted openrouter, honored when set", () => {
-    expect(cfg().limits.maxBudgetUsd).toBe(0.5);
+  test("maxBudgetUsd: no global default (stage budgets), honored when set", () => {
+    expect(cfg().limits.maxBudgetUsd).toBeUndefined();
     expect(cfg({ OPENROUTER_API_KEY: OR_KEY }).limits.maxBudgetUsd).toBeUndefined();
     expect(cfg({ OPENROUTER_API_KEY: OR_KEY, MAX_BUDGET_USD: "2" }).limits.maxBudgetUsd).toBe(2);
     expect(cfg({ MAX_BUDGET_USD: "1.5" }).limits.maxBudgetUsd).toBe(1.5);

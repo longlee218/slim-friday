@@ -70,10 +70,9 @@ const CODE_CAPABILITIES: Capability[] = [
   "planControl",
 ];
 
-/** What plan and exec have in common: model slot, tools, run timeout and the (read-only) subagents. */
+/** What plan and exec have in common: tools, run timeout and the (read-only) subagents. */
 const CODE_STAGE_BASE = {
   capabilities: CODE_CAPABILITIES,
-  model: "code",
   timeoutMs: CODE_TASK_TIMEOUT_MS,
   subagents: ["repo-searcher"],
 } satisfies Partial<StageDefinition>;
@@ -91,6 +90,8 @@ export const DEV_ROLE: RoleDefinition = {
     {
       ...CODE_STAGE_BASE,
       name: "plan",
+      model: "sonnet", // class=design -> opus (model-routing.ts)
+      budgetUsd: 1.5,
       gitGroups: ["read"],
       permissionMode: "plan",
       isolation: "none",
@@ -105,6 +106,8 @@ export const DEV_ROLE: RoleDefinition = {
     {
       ...CODE_STAGE_BASE,
       name: "exec",
+      model: "sonnet", // class: mechanical -> haiku, design -> opus (model-routing.ts)
+      budgetUsd: 3.0,
       gitGroups: ["read", "commit", "change"],
       isolation: "worktree",
       gate: "delivery",

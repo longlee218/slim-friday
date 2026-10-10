@@ -1,11 +1,13 @@
 import type { Logger } from "pino";
 import { z } from "zod";
+import { DEFAULT_TIER_MODELS, type ModelTier } from "./model-routing";
+import { readRoutingEnv } from "./stage-env";
 
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
 
-/** Default model on the Anthropic path: cheap Haiku for v1. Overridable via MODEL env. */
-const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+/** Default `model` on the Anthropic path (Haiku tier). Stages resolve their own model (model-routing.ts); this one is the legacy MODEL slot. */
+const DEFAULT_MODEL = DEFAULT_TIER_MODELS.haiku;
 
 /** Default model on the OpenRouter path. Overridable via MODEL env. */
 const DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash";
@@ -17,14 +19,10 @@ const DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash";
 const DEFAULT_OPENROUTER_CODE_MODEL = "anthropic/claude-haiku-4.5";
 
 /**
- * Default model for owner-triggered memory compaction: cheap Haiku on both paths (same model family; the
- * OpenRouter id differs). Never MODEL / CODE_MODEL.
+ * Default model for owner-triggered memory compaction: tier haiku on Anthropic (MODEL_HAIKU applies), a Haiku
+ * id on OpenRouter. Never MODEL / CODE_MODEL.
  */
-const DEFAULT_MEMORY_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_OPENROUTER_MEMORY_MODEL = "anthropic/claude-haiku-4.5";
-
-/** Default per-run budget (USD) on the Anthropic path; OpenRouter has none unless MAX_BUDGET_USD is set. */
-const DEFAULT_ANTHROPIC_BUDGET_USD = 0.5;
 
 /** LLM backend the SDK child talks to. */
 export type LlmProvider = "anthropic" | "openrouter";
@@ -84,16 +82,25 @@ export interface AgentConfig {
   discordGuildId: string | undefined;
   agentHome: string;
   logLevel: string;
+  /** Legacy Q&A model slot: used on OpenRouter and in logs. Anthropic stages resolve via `models` (model-routing.ts). */
   model: string;
-  /** Model for code tasks (delegated plan + exec) (plan mode + tools). Defaults to `model` on Anthropic. */
+  /** Legacy code-task model slot (OpenRouter path, logs). */
   codeModel: string;
+  /** Tier -> model id (env MODEL_HAIKU|SONNET|OPUS). */
+  models: Record<ModelTier, string>;
+  /** `<role>_<stage>` -> tier or id (env MODEL_<ROLE>_<STAGE>, plus the legacy MODEL / CODE_MODEL aliases). */
+  modelOverrides: Record<string, string>;
+  /** `<role>_<stage>` -> USD (env BUDGET_<ROLE>_<STAGE>_USD). */
+  budgetOverrides: Record<string, number>;
+  /** Deprecated env vars that are set (logged once at startup as `config.deprecated`). */
+  deprecated: string[];
   /** Model of the manual memory compaction call (one cheap call per over-threshold file). */
   memoryModel: string;
   /** Default commit identity `Name <email>` for repos without their own `gitAuthor`. */
   gitAuthor: string | undefined;
   /**
-   * Run limits applied to every agent run. maxBudgetUsd is undefined (no cap) on openrouter unless
-   * MAX_BUDGET_USD is set: the SDK prices cost from Anthropic tables, wrong for other models.
+   * Run limits applied to every agent run. maxBudgetUsd = the optional global cap MAX_BUDGET_USD (min with the
+   * stage budget); no default: the per-stage budgets replace the old global 0.5. OpenRouter: only this cap.
    */
   limits: { maxTurns: number; maxBudgetUsd: number | undefined; timeoutMs: number };
   /** Global cap on simultaneous agent runs. */
@@ -127,7 +134,9 @@ export function loadConfig(
   const hasRealOauth = !isPlaceholder(e.CLAUDE_CODE_OAUTH_TOKEN);
   const provider: LlmProvider = e.LLM_PROVIDER ?? (hasRealOpenrouter ? "openrouter" : "anthropic");
   const isOpenrouter = provider === "openrouter";
+  const routing = readRoutingEnv(env);
   return {
+    ...routing,
     oauthToken: e.CLAUDE_CODE_OAUTH_TOKEN,
     openrouterApiKey: e.OPENROUTER_API_KEY,
     provider,
@@ -143,10 +152,10 @@ export function loadConfig(
     codeModel:
       e.CODE_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_CODE_MODEL : (e.MODEL ?? DEFAULT_MODEL)),
     memoryModel:
-      e.MEMORY_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MEMORY_MODEL : DEFAULT_MEMORY_MODEL),
+      e.MEMORY_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MEMORY_MODEL : routing.models.haiku),
     limits: {
       maxTurns: e.MAX_TURNS,
-      maxBudgetUsd: e.MAX_BUDGET_USD ?? (isOpenrouter ? undefined : DEFAULT_ANTHROPIC_BUDGET_USD),
+      maxBudgetUsd: e.MAX_BUDGET_USD,
       timeoutMs: e.TIMEOUT_MS,
     },
     maxConcurrentRuns: e.MAX_CONCURRENT_RUNS,
@@ -168,4 +177,13 @@ export function logProviderSelected(log: Logger, config: AgentConfig): void {
   log.info({ provider: config.provider, model: config.model }, "llm provider selected");
   if (config.ambiguousCredentials)
     log.warn("both credentials set; using openrouter (set LLM_PROVIDER=anthropic to change)");
+}
+
+/** Warn once at startup about env vars kept only as aliases (MODEL, CODE_MODEL). Names only. */
+export function logDeprecatedConfig(log: Logger, config: AgentConfig): void {
+  if (!config.deprecated.length) return;
+  log.warn(
+    { event: "config.deprecated", vars: config.deprecated },
+    "deprecated env vars (use MODEL_ASSISTANT_QA, MODEL_DEV_PLAN, MODEL_DEV_EXEC or the MODEL_<TIER> ids)",
+  );
 }

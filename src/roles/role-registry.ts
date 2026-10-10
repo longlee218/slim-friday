@@ -34,6 +34,11 @@ export function stageOf(ref: StageRef): StageDefinition {
   return findStage(Object.values(ROLES), ref);
 }
 
+/** Role that owns `stage` (identity match), or undefined for an ad-hoc stage that is in no role. */
+export function roleOfStage(stage: StageDefinition): RoleDefinition | undefined {
+  return Object.values(ROLES).find((r) => r.stages.includes(stage));
+}
+
 /** Unique stage `name` across `roles`; unknown or ambiguous (in several roles) throws. */
 export function findStage(roles: readonly RoleDefinition[], name: string): StageDefinition {
   const found = roles.flatMap((r) => r.stages).filter((s) => s.name === name);

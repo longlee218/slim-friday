@@ -563,11 +563,14 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 | OWNER_DISCORD_ID | yes | string | your Discord user ID |
 | AGENT_HOME | yes | path | absolute, e.g. ~/.friday |
 | LOG_LEVEL | no | string | default: info |
-| MODEL | no | string | overrides on either provider; default: anthropic `claude-haiku-4-5-20251001`, openrouter `deepseek/deepseek-v4-flash` |
-| CODE_MODEL | no | string | agent model for code tasks (phase 3+); default: anthropic/claude-haiku-4.5 on openrouter (deepseek-v4-flash does not call ExitPlanMode in plan mode — live-verified) |
-| MEMORY_MODEL | no | string | model of the manual memory compaction call; default: anthropic `claude-haiku-4-5-20251001`, openrouter `anthropic/claude-haiku-4.5` (never MODEL/CODE_MODEL) |
+| MODEL | no | string | DEPRECATED alias (warn `config.deprecated`): pins assistant `qa` (and dev stages when CODE_MODEL is unset); openrouter model slot, default `deepseek/deepseek-v4-flash` |
+| MODEL_HAIKU / MODEL_SONNET / MODEL_OPUS | no | string | tier ids; defaults `claude-haiku-4-5-20251001`, `claude-sonnet-5-5`, `claude-opus-5-5` |
+| MODEL_<ROLE>_<STAGE> | no | string | pins one stage (tier name or id), e.g. `MODEL_DEV_PLAN=opus`. Resolution (`src/config/model-routing.ts`): pin > forced tier (escalation) > effort > class table (dev: plan sonnet/opus for design; exec haiku/sonnet/opus) > stage default (qa haiku). Opus from a forced tier or effort `max` needs `ownerConfirmedMax`, else capped at the high tier. Escalation is offered only when the re-run model differs from the first (not on OpenRouter, not with a qa pin) |
+| BUDGET_<ROLE>_<STAGE>_USD | no | number | per-stage budget; defaults qa 0.5 (escalated 1.5), plan 1.5, exec 3.0. Worst case of one Q&A message with escalation ~2.0 (0.5 + 1.5). Changed vs the old uniform 0.5: plan 1.5, exec 3.0 |
+| CODE_MODEL | no | string | DEPRECATED alias: pins dev plan AND exec (so class=design never gets Opus on plan while set); openrouter code slot, default `anthropic/claude-haiku-4.5` |
+| MEMORY_MODEL | no | string | model of the manual memory compaction call; default: anthropic haiku tier, openrouter `anthropic/claude-haiku-4.5` (never MODEL/CODE_MODEL) |
 | MAX_TURNS | no | number | default: 20 |
-| MAX_BUDGET_USD | no | number | default: 0.5 on anthropic; on openrouter no cap unless set |
+| MAX_BUDGET_USD | no | number | optional global cap = min(stage budget, cap); no default (replaces the old global 0.5); openrouter: the only budget |
 | TIMEOUT_MS | no | number | default: 300000 (5 min); code tasks ≥ 30 min (includes approval + plan + execute waits) |
 | MAX_CONCURRENT_RUNS | no | number | default: 3; max 2 active code tasks (phase 4+) |
 | DOCKER_CONFIG | no (auto on ghcr failure) | path | temporary docker config for GitHub MCP image pull (phase 4+ workaround for stale ghcr credentials) |

@@ -1,7 +1,12 @@
 import { type Client, Events } from "discord.js";
 import pkg from "../package.json";
 import { createDiscordApprovalGateway } from "./approvals/discord-approval";
-import { type AgentConfig, loadConfig, logProviderSelected } from "./config/agent-config";
+import {
+  type AgentConfig,
+  loadConfig,
+  logDeprecatedConfig,
+  logProviderSelected,
+} from "./config/agent-config";
 import { workspacePaths } from "./config/workspace-paths";
 import { opsIds, readDiscordSetup } from "./discord-setup/discord-setup-config";
 import { createOpsLog } from "./discord-setup/ops-log";
@@ -76,6 +81,7 @@ async function main(): Promise<void> {
 
   // Provider and model only; never keys.
   logProviderSelected(log, config);
+  logDeprecatedConfig(log, config);
 
   const db = openDb(workspacePaths(config.agentHome).dbFile);
   // A crash leaves tasks "running"/"waiting_approval": they stop counting against the code-task cap and

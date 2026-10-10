@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
+import { type Route, resolveModel } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import { guardFor } from "../guardrails/check-tool-call";
 import { realOrSame } from "../guardrails/paths";
@@ -11,7 +12,8 @@ import { buildPromptContext } from "../memory/prompt-context";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { isManagedClone, refreshRepo } from "../repos/refresh-repo";
 import { buildRegistryContext, type Repo } from "../repos/repo-registry";
-import { getStage } from "../roles/role-registry";
+import { getRole, getStage } from "../roles/role-registry";
+import type { RunAgentResult } from "../runtime/run-agent";
 import { type QueryFn, runAgent } from "../runtime/run-agent";
 import { rejectedPlans } from "../storage/approval-store";
 import type { SessionRow } from "../storage/session-store";
@@ -20,6 +22,7 @@ import {
   type Proposal,
 } from "../tools/DelegateTaskTool/delegate-task-tool";
 import { delegateCheck } from "./code-handoff";
+import { escalationAction, parseEscalation } from "./qa-escalation";
 import type { FlowResult } from "./task-result";
 
 /** Logger of this module (task fields come from the log context). */
@@ -90,37 +93,89 @@ export async function runQaFlow(deps: QaFlowDeps, i: QaFlowInput): Promise<FlowR
         ],
       })
     : undefined;
-  const res = await runAgent({
-    prompt: i.text,
-    taskId: i.taskId,
-    cwd,
-    additionalDirectories,
-    // Curated skills of this workspace (never repo content), via the app-owned plugin.
-    skillsWorkspace: i.workspace,
-    // Q&A guardrails: read only the registered repos (+ workspace); git MCP reads only those repos.
-    // `DelegateTask` is auto-allowed only when this run registers it (`appServer`).
-    guard: guardFor(
-      getStage("assistant", "qa"),
-      {
-        readPaths: [cwd, ...additionalDirectories].map(realOrSame),
-        gitReadRepos: scope.map((r) => realOrSame(r.path)),
-      },
-      { delegate: !!i.allowDelegate },
-    ),
-    extraContext: buildPromptContext({
-      agentHome: config.agentHome,
-      workspace: i.workspace,
-      registry: pinned ? "" : buildRegistryContext(i.workspace, repos),
-      memoryRepos: scope.map((r) => r.name),
-      // Only when the agent can delegate: it must not re-propose what the owner rejected here.
-      rejectedPlans: i.allowDelegate ? rejectedPlans(deps.db, i.threadId) : undefined,
-    }),
-    resume,
-    config,
-    db: deps.db,
-    abortController: i.ac,
-    queryFn: deps.queryFn,
-    appServer,
-  });
+  const runOnce = (route?: Route, resumeId?: string) =>
+    runAgent({
+      prompt: i.text,
+      taskId: i.taskId,
+      cwd,
+      additionalDirectories,
+      // Curated skills of this workspace (never repo content), via the app-owned plugin.
+      skillsWorkspace: i.workspace,
+      // Q&A guardrails: read only the registered repos (+ workspace); git MCP reads only those repos.
+      // `DelegateTask` is auto-allowed only when this run registers it (`appServer`).
+      guard: guardFor(
+        getStage("assistant", "qa"),
+        {
+          readPaths: [cwd, ...additionalDirectories].map(realOrSame),
+          gitReadRepos: scope.map((r) => realOrSame(r.path)),
+        },
+        { delegate: !!i.allowDelegate },
+      ),
+      extraContext: buildPromptContext({
+        agentHome: config.agentHome,
+        workspace: i.workspace,
+        registry: pinned ? "" : buildRegistryContext(i.workspace, repos),
+        memoryRepos: scope.map((r) => r.name),
+        // Only when the agent can delegate: it must not re-propose what the owner rejected here.
+        rejectedPlans: i.allowDelegate ? rejectedPlans(deps.db, i.threadId) : undefined,
+      }),
+      resume: resumeId,
+      route,
+      config,
+      db: deps.db,
+      abortController: i.ac,
+      queryFn: deps.queryFn,
+      appServer,
+    });
+  // Escalation only makes sense when the re-run would use a DIFFERENT model than the first run: OpenRouter
+  // ignores tiers and a MODEL / MODEL_ASSISTANT_QA pin beats them. Then the rule is not offered at all.
+  const qaStage = getStage("assistant", "qa");
+  const qaRole = getRole("assistant");
+  const canEscalate =
+    resolveModel(qaStage, qaRole, { offerEscalation: true }, config) !==
+    resolveModel(qaStage, qaRole, { tier: "sonnet", escalated: true }, config);
+  const res = await withEscalation(
+    await runOnce({ offerEscalation: canEscalate }, resume),
+    proposal,
+    (sessionId) => runOnce({ tier: "sonnet", escalated: true }, sessionId),
+    canEscalate,
+  );
   return { ...res, cwd, repo: pinned?.name ?? "*", proposal };
+}
+
+/**
+ * Haiku triage: when the answer ends with `ESCALATE: sonnet`, run the same message ONCE more on Sonnet (same
+ * session, escalated budget) and say so in one line; `ESCALATE: opus` needs the owner's OK, so it is only
+ * reported (the owner-confirmation flow is P1.4). Anything else is kept as is (fail closed). A run that
+ * recorded a handoff proposal is never escalated. `canRerun` false (same model would run again): no re-run,
+ * one owner line says why. The "Escalated" prefix is only for a re-run that ran and succeeded.
+ */
+export async function withEscalation(
+  first: RunAgentResult,
+  proposal: Proposal | undefined,
+  rerun: (sessionId: string | undefined) => Promise<RunAgentResult>,
+  canRerun = true,
+): Promise<RunAgentResult> {
+  if (first.outcome !== "success" || proposal) return first;
+  const { text, tier } = parseEscalation(first.text);
+  const action = escalationAction(tier, false);
+  logEvent(log, "escalation", { tier: tier ?? null, action });
+  if (action === "none") return first;
+  if (action === "ask-owner") {
+    return {
+      ...first,
+      text: `${text}\n\nA stronger model (${tier}) could answer better; it needs your OK, so I did not run it.`,
+    };
+  }
+  if (!canRerun) {
+    return {
+      ...first,
+      text: `${text}\n\nA stronger model is not available here (model is fixed by config).`,
+    };
+  }
+  const second = await rerun(first.sessionId);
+  // One escalation per message: a second ESCALATE line is dropped, never followed.
+  const secondText = parseEscalation(second.text).text;
+  if (second.outcome !== "success") return { ...second, text: secondText };
+  return { ...second, text: `Escalated to Sonnet.\n\n${secondText}` };
 }

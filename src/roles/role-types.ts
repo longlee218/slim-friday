@@ -1,3 +1,4 @@
+import type { ModelTier } from "../config/model-routing";
 import type { Workflow } from "../repos/repo-registry";
 import type { GIT_GROUPS } from "../tools/git-tool-groups";
 
@@ -23,6 +24,8 @@ export interface PromptCtx {
   workflow?: Workflow;
   /** The handoff tool is registered in this run: adds the HANDOFF section (stages with `recommend` only). */
   handoff?: boolean;
+  /** Q&A on the cheap tier: adds the `ESCALATE: sonnet|opus` rule (never on an already escalated run). */
+  escalation?: boolean;
 }
 
 /** One run of a role: WHAT it may do (tools, git, prompt, limits). HOW stages chain is the orchestrator's job. */
@@ -41,8 +44,12 @@ export interface StageDefinition {
   gate?: "plan-approval" | "delivery";
   /** Prompt sections between the run contract start and the COMMON safety rules. */
   promptSections: (ctx: PromptCtx) => string[];
-  /** Model slot: "default" = config.model, "code" = config.codeModel. */
-  model?: "default" | "code";
+  /** Default model: a tier name (`haiku|sonnet|opus`) or an explicit model id. Class and effort may override it. */
+  model: ModelTier | (string & {});
+  /** Default budget (USD) of one run of this stage (env BUDGET_<ROLE>_<STAGE>_USD overrides). */
+  budgetUsd: number;
+  /** Budget of an escalated re-run of this stage (Q&A only). Omitted = `budgetUsd`. */
+  escalatedBudgetUsd?: number;
   /** Minimum run timeout (code stages wait for owner approvals). Omitted = config timeout. */
   timeoutMs?: number;
   /** Subagent names (from the subagent registry) the Agent tool may start. Omitted = none (fail closed). */

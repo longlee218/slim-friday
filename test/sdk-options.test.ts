@@ -145,10 +145,11 @@ test("options lock: model, limits and timeout per stage", async () => {
   expect(qa.o.model).toBe("model-qa");
   expect(plan.o.model).toBe("model-code");
   expect(exec.o.model).toBe("model-code");
-  for (const r of [qa, plan, exec]) {
-    expect(r.o.maxTurns).toBe(7);
-    expect(r.o.maxBudgetUsd).toBe(3);
-  }
+  for (const r of [qa, plan, exec]) expect(r.o.maxTurns).toBe(7);
+  // Per-stage budget (qa 0.5, plan 1.5, exec 3) capped by MAX_BUDGET_USD=3.
+  expect(qa.o.maxBudgetUsd).toBe(0.5);
+  expect(plan.o.maxBudgetUsd).toBe(1.5);
+  expect(exec.o.maxBudgetUsd).toBe(3);
   // Q&A uses the configured timeout; code tasks at least 30 minutes (owner approval waits).
   expect(qa.delays).toContain(5000);
   expect(plan.delays).toContain(30 * 60 * 1000);

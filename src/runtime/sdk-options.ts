@@ -1,9 +1,11 @@
 import type { HookCallbackMatcher, Options } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
+import { effortKnobs } from "../config/effort-mapping";
+import { type Route, resolveBudget, resolveModel, safeEffort } from "../config/model-routing";
 import { mcpServersFor } from "../mcp/mcp-servers";
 import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
-import { getStage } from "../roles/role-registry";
+import { getStage, roleOfStage } from "../roles/role-registry";
 import type { StageDefinition } from "../roles/role-types";
 import { SUBAGENTS, toolOptions } from "../tools/tool-catalog";
 import type { RunAgentInput } from "./run-agent";
@@ -19,9 +21,22 @@ export function stageForRun(input: Pick<RunAgentInput, "code">): StageDefinition
     : getStage("assistant", "qa");
 }
 
-/** Config of the stage: its model slot replaces `model` (code stages need a stronger model than cheap Q&A). */
-export const stageConfig = (stage: StageDefinition, config: AgentConfig): AgentConfig =>
-  stage.model === "code" ? { ...config, model: config.codeModel } : config;
+/**
+ * Config of the stage run: `model` and `limits.maxBudgetUsd` replaced by the stage's own (tier routing and
+ * per-stage budget, see model-routing.ts), so everything downstream (SDK env, runs row, options) reads one place.
+ */
+export function stageConfig(
+  stage: StageDefinition,
+  config: AgentConfig,
+  route: Route = {},
+): AgentConfig {
+  const role = roleOfStage(stage);
+  return {
+    ...config,
+    model: resolveModel(stage, role, route, config),
+    limits: { ...config.limits, maxBudgetUsd: resolveBudget(stage, role, route, config) },
+  };
+}
 
 /** Run timeout of the stage: never below the config's; code stages include owner approval waits. */
 export const stageTimeoutMs = (stage: StageDefinition, config: AgentConfig): number =>
@@ -51,6 +66,7 @@ export async function buildSdkOptions(
   },
 ): Promise<Options> {
   const { config, skills: sk } = deps;
+  const effort = input.route && safeEffort(input.route);
   // Every stage goes through the permission layer when it has a guard (Q&A has no gateway: ask = deny).
   // This run's plugin dir (and only it) becomes READABLE so skills can open their bundled files.
   const guard =
@@ -84,7 +100,9 @@ export async function buildSdkOptions(
     skills: sk.skills,
     ...(sk.plugins && { plugins: sk.plugins }),
     maxTurns: config.limits.maxTurns,
-    // Omitted (undefined) on openrouter unless MAX_BUDGET_USD is set: SDK cost uses Anthropic prices.
+    // Effort (when the orchestrator passes one) sets thinking and scales maxTurns; otherwise SDK defaults.
+    ...(effort && effortKnobs(effort, config.limits.maxTurns)),
+    // Stage budget (already capped by MAX_BUDGET_USD in `stageConfig`); omitted on openrouter without the cap.
     ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
     abortController: input.abortController,
     // No filesystem settings in any stage: no repo (or ancestor) CLAUDE.md, no repo hooks/settings. Friday's
@@ -96,6 +114,7 @@ export async function buildSdkOptions(
       {
         handoff: !!input.appServer,
         workflow: input.workflow,
+        escalation: !!input.route?.offerEscalation,
       },
     ),
     hooks: mergeHooks(

@@ -20,6 +20,8 @@ const BARE: StageDefinition = {
   name: "bare",
   capabilities: ["read", "subagents"],
   gitGroups: [],
+  model: "haiku",
+  budgetUsd: 0.5,
   promptSections: () => [],
 };
 
@@ -31,12 +33,17 @@ test("registry: assistant and dev, unknown role fails", () => {
   expect(getRole("assistant").stages.map((s) => s.name)).toEqual(["qa"]);
 });
 
-test("stages: plan-mode only in plan, worktree only in exec, code model on code stages", () => {
+test("stages: plan-mode only in plan, worktree only in exec, default tier and budget per stage", () => {
   expect(getStage("dev", "plan").permissionMode).toBe("plan");
   expect(getStage("dev", "exec").permissionMode).toBeUndefined();
   expect(getStage("dev", "exec").isolation).toBe("worktree");
-  expect(getStage("assistant", "qa").model).toBe("default");
-  expect(getStage("dev", "plan").model).toBe("code");
+  expect(getStage("assistant", "qa")).toMatchObject({
+    model: "haiku",
+    budgetUsd: 0.5,
+    escalatedBudgetUsd: 1.5,
+  });
+  expect(getStage("dev", "plan")).toMatchObject({ model: "sonnet", budgetUsd: 1.5 });
+  expect(getStage("dev", "exec")).toMatchObject({ model: "sonnet", budgetUsd: 3 });
 });
 
 test("whenToUse: every role has one, all different; modelTiers only for dev", () => {

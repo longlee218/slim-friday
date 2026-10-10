@@ -1,0 +1,112 @@
+import type { RoleDefinition, StageDefinition } from "../roles/role-types";
+import type { AgentConfig } from "./agent-config";
+
+/* Model tiers and per-stage budgets: WHICH model a stage runs on and HOW MUCH it may spend. Pure functions. */
+
+/** Cost/ability tiers; the ids behind them live in `config.models` (env MODEL_HAIKU|SONNET|OPUS). */
+export type ModelTier = "haiku" | "sonnet" | "opus";
+
+/** Size of a code task: mechanical = simple edits/docs, design = architecture/strategy/UI-UX. */
+export type TaskClass = "mechanical" | "standard" | "design";
+
+/** Effort hint: maps to model tier, thinking, budget share and maxTurns (see effort-mapping.ts). */
+export type Effort = "low" | "medium" | "high" | "max";
+
+/** Default ids per tier (owner, Rev 2 #1). */
+export const DEFAULT_TIER_MODELS: Record<ModelTier, string> = {
+  haiku: "claude-haiku-4-5-20251001",
+  sonnet: "claude-sonnet-5-5",
+  opus: "claude-opus-5-5",
+};
+
+/** Per-run routing facts the orchestrator knows; every field is optional (missing = stage defaults). */
+export interface Route {
+  /** Task class (intent layer or owner prefix); missing = `standard`. */
+  cls?: TaskClass;
+  /** Effort hint; missing = derive everything from the class table. */
+  effort?: Effort;
+  /** Forced tier (Haiku triage escalation re-run); beats class and effort. */
+  tier?: ModelTier;
+  /** This run is an escalated Q&A re-run: uses the stage's larger `escalatedBudgetUsd`. */
+  escalated?: boolean;
+  /** Q&A first run: tell the model it may end with `ESCALATE: sonnet|opus` (see qa-escalation.ts). */
+  offerEscalation?: boolean;
+  /** Owner raised the budget (`go +<usd>`, parsed in P1.4): added to the stage budget. */
+  extraBudgetUsd?: number;
+  /** Owner explicitly confirmed `max` / Opus for this run; without it an escalation- or effort-driven opus is capped at high. */
+  ownerConfirmedMax?: boolean;
+}
+
+/** Class -> tier of the stages whose model depends on the class (roles with `modelTiers`). */
+const CLASS_TIER: Record<string, Record<TaskClass, ModelTier>> = {
+  plan: { mechanical: "sonnet", standard: "sonnet", design: "opus" },
+  exec: { mechanical: "haiku", standard: "sonnet", design: "opus" },
+};
+
+/** Effort -> tier. `high` follows the class (Opus only for design); `max` is always Opus (owner-confirmed upstream). */
+export function effortTier(effort: Effort, cls: TaskClass = "standard"): ModelTier {
+  if (effort === "low") return "haiku";
+  if (effort === "medium") return "sonnet";
+  if (effort === "max") return "opus";
+  return cls === "design" ? "opus" : "sonnet";
+}
+
+/** Tier name -> configured id; anything else is an explicit model id and passes through. */
+export function specToId(spec: string, config: Pick<AgentConfig, "models">): string {
+  return Object.hasOwn(config.models, spec) ? config.models[spec as ModelTier] : spec;
+}
+
+/** Effort of a run with `max` capped at `high` unless the owner confirmed (defense in depth; knobs and tier use it). */
+export function safeEffort(route: Route): Effort | undefined {
+  return route.effort === "max" && !route.ownerConfirmedMax ? "high" : route.effort;
+}
+
+/** Env override key of a stage: `dev_plan` for MODEL_DEV_PLAN / BUDGET_DEV_PLAN_USD. */
+export const stageKey = (role: string, stage: string): string => `${role}_${stage}`.toLowerCase();
+
+/**
+ * Model id of a stage run. Anthropic path order: env pin (MODEL_<ROLE>_<STAGE>, or the legacy MODEL /
+ * CODE_MODEL aliases) > forced tier > effort > class table (roles with `modelTiers`) > the stage's own `model`.
+ * OpenRouter: tiers are not used; Q&A keeps `config.model`, code stages `config.codeModel` (unchanged).
+ */
+export function resolveModel(
+  stage: StageDefinition,
+  role: RoleDefinition | undefined,
+  route: Route,
+  config: AgentConfig,
+): string {
+  if (config.provider === "openrouter")
+    return role?.readOnly === false ? config.codeModel : config.model;
+  const pin = role && config.modelOverrides[stageKey(role.name, stage.name)];
+  if (pin) return specToId(pin, config);
+  const cls = route.cls ?? "standard";
+  // Opus from a forced tier needs the owner's confirmation; else it is capped at the high tier (class table).
+  if (route.tier)
+    return config.models[
+      route.tier === "opus" && !route.ownerConfirmedMax ? effortTier("high", cls) : route.tier
+    ];
+  const effort = safeEffort(route);
+  if (effort) return config.models[effortTier(effort, cls)];
+  const byClass = role?.modelTiers ? CLASS_TIER[stage.name]?.[cls] : undefined;
+  return specToId(byClass ?? stage.model, config);
+}
+
+/**
+ * Budget (USD) of a stage run, or undefined = no cap. Anthropic: env pin BUDGET_<ROLE>_<STAGE>_USD > the stage's
+ * default (escalated Q&A re-runs use the larger one), plus any owner raise, then capped by MAX_BUDGET_USD.
+ * OpenRouter has no stage budget (SDK prices cost from Anthropic tables): only MAX_BUDGET_USD applies.
+ */
+export function resolveBudget(
+  stage: StageDefinition,
+  role: RoleDefinition | undefined,
+  route: Route,
+  config: AgentConfig,
+): number | undefined {
+  const cap = config.limits.maxBudgetUsd;
+  if (config.provider === "openrouter") return cap;
+  const pin = role && config.budgetOverrides[stageKey(role.name, stage.name)];
+  const base =
+    pin ?? (route.escalated ? (stage.escalatedBudgetUsd ?? stage.budgetUsd) : stage.budgetUsd);
+  const total = base + (route.extraBudgetUsd ?? 0);
+  return cap === undefined ? total : Math.min(total, cap);
+}

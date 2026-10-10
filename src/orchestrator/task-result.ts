@@ -1,17 +1,20 @@
 import type { Database } from "bun:sqlite";
 import { excerpt, logEvent, logger } from "../observability/logger";
-import type { RunOutcome } from "../observability/record-run";
+import type { RunOutcome, RunUsage } from "../observability/record-run";
 import { redactText } from "../observability/redact";
 import type { RunAgentResult } from "../runtime/run-agent";
 import { finishTask, setTaskStatus, type TaskStatus } from "../storage/run-store";
 import { setSession } from "../storage/session-store";
 import type { Proposal } from "../tools/DelegateTaskTool/delegate-task-tool";
+import { budgetHitMessage } from "./budget-message";
 
 /* The result of a Q&A or code flow, and the bookkeeping that closes a run. */
 
 /** What the task handler needs back from a Q&A or code flow. */
 export interface FlowResult
-  extends Pick<RunAgentResult, "text" | "outcome" | "sessionId" | "resetsAt"> {
+  extends Pick<RunAgentResult, "text" | "outcome" | "sessionId" | "resetsAt" | "budgetUsd"> {
+  /** Metrics of the run (spent USD for the budget-hit message); absent when no run happened. */
+  usage?: RunUsage;
   /** cwd + repo of the session to save (resume needs the same cwd), when a session should be stored. */
   cwd?: string;
   repo?: string;
@@ -74,6 +77,15 @@ export function finishRun(
     logEvent(log, "session.saved", { repo: res.repo ?? "*", sessionId: res.sessionId });
   }
   finishTask(db, ids.taskId, TASK_STATUS[res.outcome] ?? "failed");
+  // Budget hit is never silent: spent / limit, the last summary and the overshoot note; event `budget.exceeded`.
+  if (res.outcome === "max_budget") {
+    logEvent(log, "budget.exceeded", {
+      spentUsd: res.usage?.costUsd,
+      limitUsd: res.budgetUsd ?? null,
+    });
+    // `res.text` holds SDK error strings here, not an assistant summary: the stage runner (P1.4) adds summary + diff stat.
+    return redactText(budgetHitMessage({ spentUsd: res.usage?.costUsd, limitUsd: res.budgetUsd }));
+  }
   // Quota: say when it resets, when the SDK told us.
   const reset =
     res.outcome === "quota" && res.resetsAt
