@@ -85,3 +85,17 @@ test("validate: class only for a role with class tiers; owner prefix > model > L
     cls(raw({ role: "assistant", class: "design" }), { hasTask: false, ownerClass: "design" }),
   ).toBeUndefined();
 });
+
+test("validate: `mechanical` is kept only with high confidence, else standard; never upgraded", () => {
+  const cls = (c: IntentResult["class"], confidence: IntentResult["confidence"], v = {}) => {
+    const out = validateIntent(raw({ class: c, confidence }), { hasTask: false, ...v });
+    return out.ok ? out.result.class : "not-ok";
+  };
+  expect(cls("mechanical", "high")).toBe("mechanical");
+  expect(cls("mechanical", "medium")).toBe("standard");
+  expect(cls("mechanical", "low")).toBe("standard");
+  expect(cls("standard", "medium")).toBe("standard");
+  expect(cls("design", "medium")).toBe("design");
+  // owner prefix is not downgraded
+  expect(cls("mechanical", "medium", { ownerClass: "mechanical" })).toBe("mechanical");
+});

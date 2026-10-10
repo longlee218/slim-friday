@@ -1,5 +1,6 @@
 import type { TaskClass } from "../src/config/model-routing";
 import type { ThreadState } from "../src/orchestrator/thread/thread-state";
+import { CLASS_CASES } from "./intent-eval-cases-class";
 import { IDLE_CASES } from "./intent-eval-cases-idle";
 
 /* Golden cases of the intent layer (data only; the runner is intent-eval.live.test.ts). */
@@ -32,6 +33,8 @@ export interface GoldenCase {
   thread: ThreadFacts;
   expect: Expected;
   codeRequest?: true;
+  /** `holdout` = never used to tune the prompt; scored and reported apart. */
+  group?: "holdout";
 }
 
 const LEDGER = ["dev: add isEmail helper to src/utils.ts (done, 1 commit)"];
@@ -59,6 +62,7 @@ const DONE_CLONE: ThreadFacts = { state: "done", ledger: LEDGER, hasTask: true }
 
 export const GOLDEN: GoldenCase[] = [
   ...IDLE_CASES,
+  ...CLASS_CASES,
   // Plan gate: feedback on the plan is dev/active; a question is the assistant; a separate request is new.
   {
     text: "Please also handle the null case in the plan.",

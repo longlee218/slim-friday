@@ -55,6 +55,11 @@ export type ValidatedIntent =
   | { ok: true; result: IntentResult }
   | { ok: false; reason: "unknown_role" };
 
+/** The model's class with the `mechanical` guard applied (see `validateIntent`). */
+export function guardMechanical(raw: IntentResult): TaskClass | undefined {
+  return raw.class === "mechanical" && raw.confidence !== "high" ? "standard" : raw.class;
+}
+
 /**
  * Checks AFTER the parse, in code: the role must be in the registry (else the owner is asked); `scope` only
  * means something when the thread has a task (else `new`); `class` is kept only for a role with class tiers
@@ -64,7 +69,10 @@ export function validateIntent(raw: IntentResult, v: IntentValidation): Validate
   const role = Object.hasOwn(ROLES, raw.role) ? ROLES[raw.role] : undefined;
   if (!role) return { ok: false, reason: "unknown_role" };
   const { class: _modelClass, ...rest } = raw;
-  const cls = hasClassTiers(role) ? (v.ownerClass ?? raw.class ?? v.classHint) : undefined;
+  // Guard: Haiku over-uses `mechanical` (it routes exec to the cheapest model). Keep the model's `mechanical`
+  // only with `high` confidence, else `standard`. Never upgrades; owner prefix and L2 hint are not touched.
+  const modelClass = guardMechanical(raw);
+  const cls = hasClassTiers(role) ? (v.ownerClass ?? modelClass ?? v.classHint) : undefined;
   return {
     ok: true,
     result: { ...rest, scope: v.hasTask ? raw.scope : "new", ...(cls && { class: cls }) },

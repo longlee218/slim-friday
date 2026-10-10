@@ -4,7 +4,7 @@ import { entryRole, hasClassTiers, ROLES } from "../roles/role-registry";
 import { isIdleState } from "./alias-router";
 import type { EffortSignals } from "./effort-signals";
 import type { GateAnswer } from "./gate-answer";
-import { validateIntent } from "./intent-schema";
+import { guardMechanical, validateIntent } from "./intent-schema";
 import { type IntentClassifier, IntentEngineError, type IntentInput } from "./intent-types";
 import {
   type IntentPipelineDeps,
@@ -118,6 +118,8 @@ export async function decideIntent(
     }
     const { role, scope, class: cls, confidence, reason } = v.result;
     logEvent(log, "intent.classified", { role, scope, class: cls ?? null, confidence, reason });
+    if (raw.class !== guardMechanical(raw))
+      logEvent(log, "intent.class_downgraded", { from: raw.class, to: "standard", confidence });
     // Low confidence = ONE owner question; medium proceeds.
     if (confidence === "low")
       return { decision: { kind: "ask", reason: "low_confidence" }, effort };

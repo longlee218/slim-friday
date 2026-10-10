@@ -207,3 +207,13 @@ test("the thread's stop signal is handed to the L4 call", async () => {
   await run({ pipeline, classifier }, input(VAGUE, { signal: ac.signal }));
   expect(signals).toEqual([ac.signal]);
 });
+
+test("a medium-confidence `mechanical` is downgraded to standard; high stays mechanical", async () => {
+  const run1 = (confidence: "high" | "medium") =>
+    run(
+      { pipeline, classifier: engine(answer({ class: "mechanical", confidence })).classifier },
+      input(VAGUE),
+    );
+  expect((await run1("medium")).decision).toMatchObject({ role: "dev", cls: "standard" });
+  expect((await run1("high")).decision).toMatchObject({ role: "dev", cls: "mechanical" });
+});
