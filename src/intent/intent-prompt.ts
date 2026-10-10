@@ -47,6 +47,7 @@ export function buildIntentSystemPrompt(roles: IntentInput["roles"]): string {
     "Rules:",
     "- role is exactly one of the names above.",
     '- scope "active" = the message is about the task in progress or the thread\'s existing work (feedback, a fix, a status question). "new" = a separate request. An idle thread is always "new".',
+    '- While a task runs (thread state running), "active" = the message adds to, changes or corrects the running work (it is handed to the running agent); "new" = independent work that can wait until the task ends. When unsure, "active".',
     "- class only for a role that changes code, else null. Pick by the WORK, not by how short the message is:",
     "  - mechanical = ONLY a rename, a typo, formatting, a docs/comment edit, or a one-line config/constant value change with no behavior to design or test.",
     "  - standard = anything that adds or changes tests, fixes a bug or wrong behavior, or adds/changes a function or feature of normal size. Also a follow-up fix on earlier work.",

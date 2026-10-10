@@ -1,6 +1,9 @@
 import { AttachmentBuilder, type SendableChannels } from "discord.js";
 import { prepareOutput, SAFE_MENTIONS } from "./discord-message-rules";
 
+/** Reaction put on a message that reaches a busy thread, at once (before the intent layer reads it). */
+export const BUSY_ACK_EMOJI = "👀";
+
 /** Typing indicator lasts ~10s on Discord; refresh a bit earlier. */
 const TYPING_REFRESH_MS = 8000;
 

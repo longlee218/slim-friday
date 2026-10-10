@@ -1,26 +1,33 @@
-import type { TaskClass } from "../../config/model-routing";
+import type { Effort, TaskClass } from "../../config/model-routing";
 import type { Task } from "../../ingress/discord-message-handler";
 import { RECENT_HEADING, recentBlock } from "../../intent/recent-messages";
 import { excerpt, logEvent, logger } from "../../observability/logger";
 import type { Repo } from "../../repos/repo-registry";
 import { ledgerLines } from "../../storage/ledger-store";
 import {
+  countQueuedProposals,
   oldestQueuedProposal,
   pendingProposal,
   setProposalStatus,
   supersedePending,
 } from "../../storage/proposal-store";
+import { QUEUE_FULL, QUEUE_RECEIVED } from "../thread/intent-replies";
 import type { DispatchDeps } from "./dispatch-role";
 import { PROPOSAL_EXPIRED_REPLY, pendingProposalFor, persistProposal } from "./proposal-flow";
 import { startPendingProposal } from "./start-proposal";
 
-/* A second staged task asked while one is active: persisted, asked ONCE, run when the active task ends. */
+/* An independent message of ANY role sent while a task runs: persisted as a queued proposal (no question: the owner
+   decision of Rev 11), run when the active task ends. A discussion turn that looked like a task is the one case that
+   still asks a yes/no (confirm), on an idle thread. */
 
 /** Logger of this module. */
 const log = logger.child({ module: "queued-tasks" });
 
 /** Queued tasks one finished task starts back to back (the capped-task limit stops it earlier anyway). */
 const MAX_DRAIN = 3;
+
+/** Queued follow-ups one thread holds: the drain starts at most MAX_DRAIN per finished task, so more would wait unseen. */
+export const MAX_QUEUED = MAX_DRAIN;
 
 /** What a queue step needs from the handler. */
 export interface QueueCtx {
@@ -49,10 +56,16 @@ export function taskBrief(c: Pick<QueueCtx, "deps" | "task">, text: string): str
 export const briefText = (brief: string): string =>
   brief.split(EARLIER_HEADING)[0]?.split(RECENT_HEADING)[0] ?? brief;
 
-/** `reason` of a proposal that only asks "open a dev task for this?" (a discussion turn that looked like a task). */
-export const CONFIRM_DEV_REASON = "confirm_dev";
+/** `reason` of a proposal that only asks "open a task for this?" (a discussion turn that looked like a task). */
+export const CONFIRM_TASK_REASON = "confirm_task";
+/** Value the same reason had before the wording became role-agnostic (rows written by an older build). */
+const LEGACY_CONFIRM_REASON = "confirm_dev";
 /** The ONE question of that confirmation. */
-export const CONFIRM_DEV_QUESTION = "Open a dev task for this? (yes/no)";
+export const CONFIRM_TASK_QUESTION = "Open a task for this? (yes/no)";
+
+/** The proposal only asks the confirm question. */
+const isConfirm = (reason: string | null): boolean =>
+  reason === CONFIRM_TASK_REASON || reason === LEGACY_CONFIRM_REASON;
 
 /**
  * The thread's unanswered question (the pending proposal's ONE question, same wording the owner saw), for L3 to
@@ -62,32 +75,44 @@ export function pendingQuestionOf(db: DispatchDeps["db"], threadId: string): str
   const p = pendingProposal(db, threadId);
   if (!p) return undefined;
   const what = `"${excerpt(briefText(p.brief), 200)}"`;
-  return p.reason === CONFIRM_DEV_REASON
-    ? `${CONFIRM_DEV_QUESTION} ${what}`
-    : `A task is running. Run this after it? ${what}`;
+  return isConfirm(p.reason) ? `${CONFIRM_TASK_QUESTION} ${what}` : `Start this task now? ${what}`;
 }
 
-/** Persist the task `pending` and return the ONE question (older open questions of the thread are superseded). */
+/**
+ * Accept an independent message while a run holds the thread. Normal: persist it `queued` (it starts when the
+ * active task ends) and answer "received": no question. `confirm`: persist it `pending` and ask the ONE yes/no
+ * question. Older open questions of the thread are superseded. A full queue is refused out loud.
+ */
 export function queueTask(
   c: QueueCtx,
-  r: { role: string; text: string; repo?: string; cls?: TaskClass; confirm?: true },
+  r: {
+    role: string;
+    text: string;
+    repo?: string;
+    cls?: TaskClass;
+    effort?: Effort;
+    confirm?: true;
+  },
 ): string {
   const { db } = c.deps;
+  if (!r.confirm && countQueuedProposals(db, c.task.threadId) >= MAX_QUEUED) return QUEUE_FULL;
   const id = persistProposal(db, log, {
     request: {
       role: r.role,
       brief: taskBrief(c, r.text),
       repo: r.repo,
       cls: r.cls,
-      ...(r.confirm && { reason: CONFIRM_DEV_REASON }),
+      effort: r.effort,
+      ...(r.confirm && { reason: CONFIRM_TASK_REASON }),
     },
     threadId: c.task.threadId,
     workspace: c.workspace,
   });
   if (!id) return "Could not queue it; send it again after the current task.";
   supersedePending(db, c.task.threadId, id);
-  if (r.confirm) return CONFIRM_DEV_QUESTION;
-  return `A task is running. Run this after it? Reply yes or no: "${excerpt(r.text, 120)}"`;
+  if (r.confirm) return CONFIRM_TASK_QUESTION;
+  setProposalStatus(db, id, "queued");
+  return QUEUE_RECEIVED;
 }
 
 /** `no` while a run holds the thread: the original message cannot be answered yet, the question stays open. */
@@ -95,16 +120,16 @@ export const DECLINE_BUSY_REPLY =
   "still working... send `no` again when the current task ends and I will answer your message.";
 
 /**
- * "no" to an "open a dev task?" confirmation. Free thread: the proposal is dropped and the owner message comes
+ * "no" to an "open a task?" confirmation. Free thread: the proposal is dropped and the owner message comes
  * back so the assistant answers it as a conversation. Busy thread (the lock makes an answer impossible): the
  * question stays pending and the reply says so. Undefined when the pending proposal is anything else.
  */
-export function declineConfirmedDev(
+export function declineConfirmedTask(
   c: QueueCtx,
   busy: boolean,
 ): { kind: "run"; text: string } | { kind: "busy" } | undefined {
   const p = pendingProposalFor(c.deps.db, c.task.threadId, c.workspace);
-  if (!p || p === "expired" || p.reason !== CONFIRM_DEV_REASON) return undefined;
+  if (!p || p === "expired" || !isConfirm(p.reason)) return undefined;
   if (busy) return { kind: "busy" };
   setProposalStatus(c.deps.db, p.id, "refused");
   return { kind: "run", text: briefText(p.brief) };

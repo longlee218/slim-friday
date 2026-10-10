@@ -6,7 +6,7 @@ import type { IntentClassifier, IntentResult } from "../src/intent/intent-types"
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createGitMcp } from "../src/mcp/git-mcp";
-import { CONFIRM_DEV_QUESTION } from "../src/orchestrator/dispatch/queued-tasks";
+import { CONFIRM_TASK_QUESTION } from "../src/orchestrator/dispatch/queued-tasks";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { ROLES } from "../src/roles/role-registry";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -107,12 +107,12 @@ const PROPOSAL = "Tôi đề xuất xây dựng một lớp cache cho bảng gi�
 test("dev/new from L3 alone after an assistant turn asks first; yes opens the task", async () => {
   const { e, seen, handle, msg, q } = await build();
   await handle(msg("[ask] explain the repo")); // assistant turn (L1 tag)
-  expect(await handle(msg(PROPOSAL))).toBe(CONFIRM_DEV_QUESTION);
+  expect(await handle(msg(PROPOSAL))).toBe(CONFIRM_TASK_QUESTION);
   expect(e.inputs).toHaveLength(1);
   expect(e.inputs[0]?.thread.lastTurn).toEqual({ role: "assistant", kind: "qa" });
   expect(q("SELECT role FROM tasks")).toEqual([{ role: "assistant" }]); // nothing opened yet
   expect(q("SELECT status, reason FROM proposals")).toEqual([
-    { status: "pending", reason: "confirm_dev" },
+    { status: "pending", reason: "confirm_task" },
   ]);
   const reply = await handle(msg("yes"));
   expect(reply).toContain("Starting plan");

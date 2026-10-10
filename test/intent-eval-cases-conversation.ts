@@ -17,13 +17,6 @@ const AFTER_DEV: ThreadFacts = {
   lastTurn: { role: "dev", kind: "exec" },
   hasTask: true,
 };
-const RUNNING: ThreadFacts = {
-  state: "running",
-  activeRole: "dev",
-  activeStage: "exec",
-  ledger: ["dev: round formatPrice to 2 decimals (running)"],
-};
-
 const CACHE_TALK = [
   { from: "owner" as const, text: "Có nên thêm cache cho bảng giá không?" },
   {
@@ -96,29 +89,29 @@ export const CONVERSATION_CASES: GoldenCase[] = [
     codeRequest: true,
   },
   {
-    // pending queue question, natural yes (Vietnamese)
+    // pending "open a task?" question (the discussion guard; independent work while a task runs is auto-queued, no question), natural yes (Vietnamese)
     text: "okay đồng ý",
-    thread: RUNNING,
-    pending: 'A task is running. Run this after it? "rename slug to toSlug everywhere"',
+    thread: AFTER_CHAT,
+    pending: 'Open a task for this? (yes/no) "rename slug to toSlug everywhere"',
     recent: [
       { from: "owner", text: "rename slug to toSlug everywhere" },
       {
         from: "bot",
-        text: 'A task is running. Run this after it? Reply yes or no: "rename slug to toSlug everywhere"',
+        text: "Open a task for this? (yes/no)",
       },
     ],
     expect: { pendingAnswer: "yes" },
   },
   {
-    // pending queue question, natural no (Vietnamese)
+    // pending "open a task?" question, natural no (Vietnamese)
     text: "thôi để sau đi, chưa cần",
-    thread: RUNNING,
-    pending: 'A task is running. Run this after it? "rename slug to toSlug everywhere"',
+    thread: AFTER_CHAT,
+    pending: 'Open a task for this? (yes/no) "rename slug to toSlug everywhere"',
     recent: [
       { from: "owner", text: "rename slug to toSlug everywhere" },
       {
         from: "bot",
-        text: 'A task is running. Run this after it? Reply yes or no: "rename slug to toSlug everywhere"',
+        text: "Open a task for this? (yes/no)",
       },
     ],
     expect: { pendingAnswer: "no" },

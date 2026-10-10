@@ -3,6 +3,7 @@ import type { Logger } from "pino";
 import type { TaskClass } from "../../config/model-routing";
 import { logEvent, setLogContext, tryLog } from "../../observability/logger";
 import { getRole, taskTypeOf } from "../../roles/role-registry";
+import { countQueuedProposals } from "../../storage/proposal-store";
 import { finishTask, insertTask, interruptRunningTasks } from "../../storage/run-store";
 
 /** Log-context fields every line of a call carries: its thread and its routing channel. */
@@ -10,6 +11,28 @@ export const taskLogContext = (t: { threadId: string; channelId: string }) => ({
   threadId: t.threadId,
   channelId: t.channelId,
 });
+
+/**
+ * `stop` (an orchestrator command, never steer): abort the thread's active run at once. The thread's queued tasks
+ * are KEPT: they start, in order, once the stopped run has ended (a stop cancels the running work, not the
+ * owner's other requests). The run's input channel closes on that abort (nothing more is yielded).
+ */
+export function stopThread(db: Database, threadId: string, running?: AbortController): string {
+  if (!running) return "Nothing is running.";
+  running.abort();
+  const queued = countQueuedProposals(db, threadId);
+  return queued > 0 ? `Stopping... ${queued} queued, they run after it.` : "Stopping...";
+}
+
+/** Register a fresh controller as the thread's active one (the queue that runs after a user `/stop`) and return it. */
+export function renewActive(
+  active: Map<string, AbortController>,
+  threadId: string,
+): AbortController {
+  const fresh = new AbortController();
+  active.set(threadId, fresh);
+  return fresh;
+}
 
 /** Tracks calls in flight and the active runs, so shutdown can abort and await them. */
 export function createRunTracker(db: Database, log: Logger, active: Map<string, AbortController>) {

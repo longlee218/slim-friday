@@ -7,6 +7,7 @@ import { cleanupAttachments } from "../ingress/attachment-summary";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { sweepStalePlugins } from "../runtime/workspace-skills-plugin";
+import { purgeRunMessages } from "../storage/run-message-store";
 import { deleteWorktree, listWorktrees } from "../storage/worktree-store";
 import { safeRemoveClone } from "../workspaces/clone-safety";
 import {
@@ -111,6 +112,8 @@ export async function runStartupHygiene(
     expireClones(db, agentHome, cloneRetentionDays);
     checkWorktrees(db, agentHome, cloneRetentionDays);
     cleanupAttachments(agentHome);
+    const purged = purgeRunMessages(db); // owner messages kept for the audit (Rev 11) age out too
+    if (purged) logEvent(log, "run_messages.purged", { deleted: purged });
     await expireLegacyWorktrees(db, agentHome, cloneRetentionDays);
   } catch (err) {
     log.warn({ err: String(err) }, "startup hygiene failed");

@@ -52,6 +52,7 @@ test("L3 prompt: principles (conversation, corrections, pending answer, ask), no
   expect(sys).toContain("WHOLE conversation");
   expect(sys).toContain("pendingAnswer");
   expect(sys).toContain("`ask`");
+  expect(sys).toContain("independent work that can wait until the task ends"); // running-task scope (Rev 11)
   expect(sys).not.toMatch(/\[ask\]|\[dev\]|Start your message/);
   const up = buildIntentUserPrompt({
     text: "x".repeat(9000),
@@ -133,11 +134,11 @@ test("guard: L3 alone, dev/new, previous turn answered -> confirmDev; otherwise 
   expect(await decide("[dev] thêm cache", {}, "assistant")).not.toHaveProperty("confirmDev");
 });
 
-test("table: confirmDev on an idle thread -> confirm-dev action; without it -> open", () => {
+test("table: confirmDev on an idle thread -> confirm-task action; without it -> open", () => {
   const base = { state: "idle" as const, hasClone: false, fixRounds: 0 };
   const d = { kind: "role" as const, role: "dev", scope: "new" as const };
   expect(actionFor({ ...base, decision: { ...d, confirmDev: true } })).toEqual({
-    kind: "confirm-dev",
+    kind: "confirm-task",
     role: "dev",
   });
   expect(actionFor({ ...base, decision: d })).toEqual({ kind: "open", role: "dev" });

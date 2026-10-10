@@ -1,8 +1,9 @@
 import type { Database } from "bun:sqlite";
-import type { Options, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { GIT_MCP_SERVER } from "../mcp/mcp-tool-names";
 import { logger, tryLog } from "../observability/logger";
 import {
+  addUsage,
   emptyUsage,
   outcomeFromSubtype,
   type ResultShape,
@@ -18,8 +19,14 @@ import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "run-stream" });
 
+/** What `query` takes as prompt: one string (qa), or a streaming input the owner can add to (plan / exec, see run-input-channel.ts). */
+export type QueryPrompt = string | AsyncIterable<SDKUserMessage>;
+
 /** Signature of the SDK `query` function; injectable for tests. */
-export type QueryFn = (args: { prompt: string; options?: Options }) => AsyncIterable<SDKMessage>;
+export type QueryFn = (args: {
+  prompt: QueryPrompt;
+  options?: Options;
+}) => AsyncIterable<SDKMessage>;
 
 /** What a finished stream says about the run. */
 export interface StreamResult {
@@ -57,7 +64,7 @@ const abortOutcome = (timedOut: boolean): RunOutcome => (timedOut ? "timeout" : 
  */
 export async function consumeStream(p: {
   run: QueryFn;
-  prompt: string;
+  prompt: QueryPrompt;
   options: Options;
   recorder: RunRecorder;
   ac: AbortController;
@@ -69,6 +76,13 @@ export async function consumeStream(p: {
   /** The stage is useless without its git tools (it commits): abort when that server is not connected. */
   requireGit: boolean;
   resume?: string;
+  /** Streaming input: called for every stream message first (echo tracking, hold timer). */
+  onMessage?: (msg: SDKMessage) => void;
+  /**
+   * Streaming input: called on each `result` with its subtype. The caller closes the channel (the CLI exits once its
+   * input ends) or keeps it open to wait for a steer that was not echoed yet (the CLI answers it with its own `result`).
+   */
+  onResult?: (subtype: string) => void;
 }): Promise<StreamResult> {
   const { ac, recorder } = p;
   let text = "";
@@ -85,6 +99,7 @@ export async function consumeStream(p: {
   try {
     for await (const msg of p.run({ prompt: p.prompt, options: p.options })) {
       recorder.logMessage(msg);
+      p.onMessage?.(msg);
       const m = msg as SDKMessage & { subtype?: string; session_id?: string };
       sessionId = m.session_id ?? sessionId;
       if (m.type === "system" && m.subtype === "compact_boundary") compactions++;
@@ -122,9 +137,10 @@ export async function consumeStream(p: {
       }
       if (m.type === "result") {
         const r = m as unknown as ResultShape;
+        p.onResult?.(r.subtype);
         outcome = outcomeFromSubtype(r.subtype);
         text = r.subtype === "success" ? (r.result ?? "") : (r.errors ?? []).join("; ");
-        usage = usageFromResult(r, compactions);
+        usage = addUsage(usage, usageFromResult(r, 0)); // several results per run: see addUsage
         // Failure (error subtype, or success flagged is_error): quota, or unknown (raw error to the log only).
         if (outcome === "error" || (outcome === "success" && r.is_error)) {
           const errors = outcome === "error" ? text : (r.result ?? "");

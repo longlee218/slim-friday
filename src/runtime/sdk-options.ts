@@ -1,7 +1,13 @@
 import type { HookCallbackMatcher, Options } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
 import { effortKnobs } from "../config/effort-mapping";
-import { type Route, resolveBudget, resolveModel, safeEffort } from "../config/model-routing";
+import {
+  type Route,
+  resolveBudget,
+  resolveCompactWindow,
+  resolveModel,
+  safeEffort,
+} from "../config/model-routing";
 import { mcpServersFor } from "../mcp/mcp-servers";
 import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
@@ -98,6 +104,8 @@ export async function buildSdkOptions(
     // Stage budget (already capped by MAX_BUDGET_USD in `stageConfig`); omitted on openrouter without the cap.
     ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
     abortController: input.abortController,
+    // Streaming input: the CLI echoes each consumed user message (isReplay): the proof a steer was read (steered-stream.ts).
+    ...(input.steer && { extraArgs: { "replay-user-messages": null } }),
     // No filesystem settings in any stage: no repo (or ancestor) CLAUDE.md, no repo hooks/settings. Friday's
     // persona, AGENTS.md and memory are the only instructions; the exec worktree is agent-writable anyway.
     settingSources: [],
@@ -113,6 +121,6 @@ export async function buildSdkOptions(
       buildToolHooks(deps.recorder, hookOptions(perms, config, input)),
       perms?.hooks,
     ),
-    env: sdkEnv(config),
+    env: sdkEnv(config, process.env, resolveCompactWindow(stage, roleOfStage(stage), config)),
   };
 }

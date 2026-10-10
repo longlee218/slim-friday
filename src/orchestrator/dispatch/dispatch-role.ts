@@ -4,7 +4,11 @@ import type { Task } from "../../ingress/discord-message-handler";
 import { excerpt, logEvent, logger, setLogContext } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import type { Repo } from "../../repos/repo-registry";
+import { isGated } from "../../roles/role-registry";
+import { threadLedger } from "../../storage/ledger-store";
 import { setProposalStatus, supersedePending } from "../../storage/proposal-store";
+import { getSession } from "../../storage/session-store";
+import { liveWorktree } from "../../storage/worktree-store";
 import { runStages, type StageRunnerDeps } from "../engine/stage-runner";
 import { runRoute } from "../task-routing";
 import { closeTask } from "../tasks/task-result";
@@ -138,35 +142,49 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   });
   const t0 = Date.now();
 
-  const notice = `Starting plan: ${repo === "*" ? "repo chosen by the plan" : repo}, ${excerpt(request.brief, NOTICE_BRIEF_MAX)}`;
-  const head = i.reply ? `${i.reply}\n\n${notice}` : notice;
+  // A role with an owner gate may wait minutes for approval: say that it started (stage name from role data). A
+  // role that just answers has no notice: its reply is the answer.
+  const notice = isGated(role)
+    ? `Starting ${firstStage.name}: ${repo === "*" ? "repo chosen by the plan" : repo}, ${excerpt(request.brief, NOTICE_BRIEF_MAX)}`
+    : "";
+  const head = [i.reply, notice].filter(Boolean).join("\n\n");
   // Post the source answer + notice now (the plan can wait minutes for approval); on failure they join the reply.
-  const posted = await i.task.notify?.(head).then(
-    () => true,
-    (err: unknown) => {
-      log.warn({ err: errText(err) }, "dispatch notify failed; notice joins the final reply");
-      return false;
-    },
-  );
+  const posted = !head
+    ? true
+    : await i.task.notify?.(head).then(
+        () => true,
+        (err: unknown) => {
+          log.warn({ err: errText(err) }, "dispatch notify failed; notice joins the final reply");
+          return false;
+        },
+      );
   const res = await runStages(deps, {
     taskId,
     threadId: i.task.threadId,
     text: request.brief,
     role: role.name,
     workspace: i.workspace,
-    repos: v.candidates,
+    // `repoScope: "all"` roles see every repo of the workspace; the others pick among the managed clones.
+    repos: role.repoScope === "all" ? i.repos : v.candidates,
     ac: i.ac,
     base: v.base,
     route,
+    pinned: i.pinned,
+    // An answering role continues the thread's conversation and sees its task ledger (same as a fresh message).
+    existing: role.output === "answer" ? getSession(db, i.task.threadId) : undefined,
+    ledger: role.context?.ledger ? threadLedger(db, i.task.threadId) : "",
   }).catch((err: unknown) => {
     // The caller's crash path only knows the source row: close this one so its slot is released.
     failTask(db, log, taskId);
     throw err;
   });
-  const reply = closeTask(db, { taskId, threadId: i.task.threadId }, res, {
-    stopping: deps.stopping(),
-    t0,
-    repo,
-  });
+  // An answer in a thread that has a clone must not replace the thread's session (the clone's fix rounds resume it).
+  const keepClone = role.output === "answer" && !!liveWorktree(db, i.task.threadId);
+  const reply = closeTask(
+    db,
+    { taskId, threadId: i.task.threadId },
+    keepClone ? { ...res, sessionId: undefined } : res,
+    { stopping: deps.stopping(), t0, repo },
+  );
   return posted ? reply : `${head}\n\n${reply}`;
 }

@@ -8,7 +8,7 @@ import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
-import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { devIntent, initMsg, promptText, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
 /** The real git MCP server (pinned package), shared by the tests of this file. */
 const git = createGitMcp();
@@ -328,7 +328,7 @@ test("resume after 'Awaiting clarification': the owner's reply resumes the exec 
       const o = a.options;
       if (o.permissionMode === "plan" || !execRuns.length) {
         return planThen(o, async () => {
-          execRuns.push({ cwd: o.cwd, prompt: a.prompt });
+          execRuns.push({ cwd: o.cwd, prompt: await promptText(a.prompt) });
           await askAndMaybeStop(o);
         });
       }
@@ -337,7 +337,12 @@ test("resume after 'Awaiting clarification': the owner's reply resumes the exec 
         // Current behavior (kept): a resumed reply is a fresh flow with a fresh limit, so the owner
         // can be asked a second round after having answered.
         const r = await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {});
-        execRuns.push({ resume: o.resume, cwd: o.cwd, prompt: a.prompt, second: r.behavior });
+        execRuns.push({
+          resume: o.resume,
+          cwd: o.cwd,
+          prompt: await promptText(a.prompt),
+          second: r.behavior,
+        });
         yield resultMsg({ result: "continued", session_id: "sess-exec" });
       })();
     }) as never,

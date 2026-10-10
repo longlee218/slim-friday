@@ -9,8 +9,9 @@ import { getRole } from "../../roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
 import type { QueryFn } from "../../runtime/run-agent";
 import type { SessionRow } from "../../storage/session-store";
-import { type StageStatus, upsertStage } from "../../storage/stage-store";
+import { GATE_APPROVED_VERDICT, type StageStatus, upsertStage } from "../../storage/stage-store";
 import type { WorktreeRow } from "../../storage/worktree-store";
+import type { SteerRegistry } from "../tasks/steer-registry";
 import { type FlowResult, failResult } from "../tasks/task-result";
 import { budgetDiffStat } from "./budget";
 import { stageKind } from "./gates";
@@ -35,6 +36,8 @@ export interface StageRunnerDeps {
   stopping?: () => boolean;
   /** A run of this thread holds the thread lock (a Discard click must not remove a clone a follow-up is using). */
   threadBusy?: (threadId: string) => boolean;
+  /** Where plan / exec runs register their streaming input so the owner can steer them. Omitted = string prompts, no steer. */
+  steer?: SteerRegistry;
 }
 
 /** One task run through a role's stages: a fresh message, a dispatched task or a follow-up in a clone. */
@@ -83,7 +86,7 @@ function stageOutcome(
   res: FlowResult,
   o: { approved?: boolean; stopping: boolean },
 ): { status: StageStatus; verdict?: string } {
-  if (o.approved) return { status: "done", verdict: "approved" }; // the approval itself aborts the run
+  if (o.approved) return { status: "done", verdict: GATE_APPROVED_VERDICT }; // the approval itself aborts the run
   if (res.outcome === "max_budget") return { status: "interrupted", verdict: "budget" };
   if (res.keepSession && res.outcome === "aborted")
     return { status: "interrupted", verdict: "awaiting_answer" };

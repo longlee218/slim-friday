@@ -51,10 +51,10 @@ export function findStage(roles: readonly RoleDefinition[], name: string): Stage
   return found[0];
 }
 
-/** Roles the dispatcher may start from a request: every role with a `whenToUse` that does not itself answer. */
+/** Roles the dispatcher may start from a request (a queued follow-up of any role included): every role with a `whenToUse`. */
 export function dispatchableRoleNames(): [string, ...string[]] {
   const names = Object.values(ROLES)
-    .filter((r) => r.whenToUse && r.output !== "answer")
+    .filter((r) => r.whenToUse)
     .map((r) => r.name);
   return names as [string, ...string[]];
 }
@@ -96,3 +96,7 @@ export const hasClassTiers = (role: RoleDefinition): boolean =>
 /** A role with an owner gate after some stage: it needs the Discord approval flow. */
 export const isGated = (role: RoleDefinition): boolean =>
   role.stages.some((s) => (s.gate ?? "none") !== "none");
+
+/** Some stage of the role works in an isolated clone: only then a follow-up "fix round" in that clone makes sense. */
+export const usesClone = (role: RoleDefinition): boolean =>
+  role.stages.some((s) => s.isolation === "clone");

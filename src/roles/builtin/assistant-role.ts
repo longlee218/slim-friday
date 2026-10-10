@@ -1,5 +1,12 @@
 import type { RoleDefinition } from "../role-types";
 
+/**
+ * Auto-compact window of the assistant `qa` stage: the top of the range P3.0 saw accepted (100k-1M), so the
+ * SDK threshold stays at its own default (min(window, model window) - reserve): effectively OFF until the
+ * retest of Q12 shows the setting fires. Lower it per stage with COMPACT_WINDOW_ASSISTANT_QA.
+ */
+export const QA_AUTO_COMPACT_WINDOW = 1_000_000;
+
 /** Q&A run contract: read-only answers with sources. */
 const QA = `This run is read-only code Q&A on the registered repositories.
 - You cannot and must not modify files or run commands.
@@ -29,6 +36,7 @@ export const ASSISTANT_ROLE: RoleDefinition = {
       isolation: "none",
       model: "haiku",
       budgetUsd: 0.5,
+      autoCompactWindow: QA_AUTO_COMPACT_WINDOW,
       escalatedBudgetUsd: 1.5,
       subagents: ["repo-searcher"],
       promptSections: (ctx) => [QA, ctx.escalation ? ESCALATE : ""],

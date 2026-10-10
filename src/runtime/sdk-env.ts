@@ -3,6 +3,9 @@ import { type AgentConfig, pickEnv } from "../config/agent-config";
 /** Env vars the SDK child may inherit. Everything else (GITHUB_TOKEN, AWS_*, ...) is withheld. */
 const ENV_ALLOWLIST = ["PATH", "HOME", "USER", "SHELL", "LANG", "TMPDIR", "CLAUDE_CONFIG_DIR"];
 
+/** Compaction var the orchestrator sets per stage (never copied from the owner's shell). */
+export const AUTO_COMPACT_WINDOW_VAR = "CLAUDE_CODE_AUTO_COMPACT_WINDOW";
+
 /** OpenRouter's Anthropic-compatible endpoint. */
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api";
 
@@ -21,10 +24,13 @@ const MODEL_ALIAS_VARS = [
 /**
  * Build the SDK child env from an allowlist plus the resolved provider's credentials only:
  * anthropic -> OAuth token (when real); openrouter -> base URL, auth token, empty API key, aliases.
+ * `compactWindow` (the stage's, from `resolveCompactWindow`) is the ONLY source of the compaction var: it is not
+ * in the allowlist, so a value in the caller env never passes through.
  */
 export function sdkEnv(
   config: AgentConfig,
   source: Record<string, string | undefined> = process.env,
+  compactWindow?: number,
 ): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = pickEnv(ENV_ALLOWLIST, source);
   if (config.provider === "openrouter") {
@@ -36,5 +42,6 @@ export function sdkEnv(
   } else if (config.hasRealAuth) {
     env.CLAUDE_CODE_OAUTH_TOKEN = config.oauthToken;
   }
+  if (compactWindow) env[AUTO_COMPACT_WINDOW_VAR] = String(compactWindow);
   return env;
 }

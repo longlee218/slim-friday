@@ -14,8 +14,10 @@ import {
 } from "../observability/record-run";
 import type { Workflow } from "../repos/repo-registry";
 import type { StageDefinition } from "../roles/role-types";
+import type { SteerHook } from "./run-input-channel";
 import { consumeStream, type QueryFn, type StreamResult } from "./run-stream";
 import { buildSdkOptions, stageConfig, stageTimeoutMs } from "./sdk-options";
+import { consumeSteered } from "./steered-stream";
 import type { ToolPermissionInput } from "./tool-permissions";
 import { type RunSkills, workspaceSkills } from "./workspace-skills-plugin";
 
@@ -53,6 +55,11 @@ export interface RunAgentInput {
   route?: Route;
   /** Existing Claude session id to resume. */
   resume?: string;
+  /**
+   * Streaming-input mode (plan / exec stages): the prompt goes in as the first item of an input channel whose
+   * sink is registered here, so the owner's later messages reach the model. Omitted = a plain string prompt (qa).
+   */
+  steer?: SteerHook;
   config: AgentConfig;
   /** sqlite handle for runs/tool_calls rows. */
   db: Database;
@@ -100,9 +107,10 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     };
   }
   const startedAt = Date.now();
+  const runId = crypto.randomUUID();
   const recorder = new RunRecorder(
     input.db,
-    crypto.randomUUID(),
+    runId,
     input.taskId,
     config.model,
     workspacePaths(config.agentHome).taskLog(input.taskId),
@@ -135,9 +143,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       mcpServers: Object.keys(options.mcpServers ?? {}),
     });
     if (input.resume) logEvent(log, "session.resumed", { sessionId: input.resume });
-    res = await consumeStream({
+    // Streaming input (steer): the channel, its registration and the step-7 wait live in steered-stream.ts.
+    const common = {
       run,
-      prompt: input.prompt,
       options,
       recorder,
       ac,
@@ -146,7 +154,10 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       taskId: input.taskId,
       cwd: input.cwd,
       requireGit: stage.gitGroups.includes("commit"),
-    });
+    };
+    res = input.steer
+      ? await consumeSteered({ ...common, first: input.prompt, hook: input.steer, runId })
+      : await consumeStream({ ...common, prompt: input.prompt });
   } finally {
     clearTimeout(timer);
     sk.cleanup();

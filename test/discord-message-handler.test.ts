@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { CLIENT_OPTIONS } from "../src/ingress/discord-bot";
 import type { Task } from "../src/ingress/discord-message-handler";
 import { createMessageHandler } from "../src/ingress/discord-message-handler";
+import { BUSY_ACK_EMOJI } from "../src/ingress/discord-send";
 import { captureLogs } from "../src/observability/logger";
 
 const OWNER = "111";
@@ -239,4 +240,56 @@ test("an admin hook that throws is contained", async () => {
     },
   });
   await onMessage(fakeMsg({ channel: fakeChannel(CTRL), mention: false, content: "help" }).msg);
+});
+
+test("a thread message carries an ack that reacts on the owner's message (M-d); a failing reaction is the caller's to catch", async () => {
+  const { onMessage, tasks } = setup();
+  const th = fakeChannel("thr7", { thread: true, ownerId: BOT, parentId: "parent9" });
+  const m = fakeMsg({ channel: th, mention: false, content: "follow up" });
+  const reacted: string[] = [];
+  m.msg.react = async (e: string) => void reacted.push(e);
+  await onMessage(m.msg);
+  await tasks[0]!.ack?.();
+  expect(reacted).toEqual([BUSY_ACK_EMOJI]);
+  m.msg.react = async () => {
+    throw new Error("Missing Permissions");
+  };
+  await expect(tasks[0]!.ack?.()).rejects.toThrow("Missing Permissions");
+});
+
+test("messages of one thread reach the task layer in arrival order, even when the first one is slow to prepare (attachment download)", async () => {
+  const { tasks } = setup();
+  const order: string[] = [];
+  const onMessage = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    handleTask: async (t) => {
+      order.push(t.text.split("\n")[0]!);
+      tasks.push(t);
+      return "ok";
+    },
+    // a slow download delays the first message's preparation
+    attachments: {
+      fetchFn: async () => {
+        await Bun.sleep(80);
+        return new Response("file body");
+      },
+    },
+  });
+  const th = fakeChannel("thr7", { thread: true, ownerId: BOT, parentId: "parent9" });
+  const first = fakeMsg({ channel: th, mention: false, content: "first message" });
+  (first.msg as any).attachments = new Map([
+    [
+      "1",
+      {
+        name: "n.txt",
+        url: "https://cdn.discordapp.com/a/n.txt",
+        size: 9,
+        contentType: "text/plain",
+      },
+    ],
+  ]);
+  const second = fakeMsg({ channel: th, mention: false, content: "second message" });
+  await Promise.all([onMessage(first.msg), onMessage(second.msg)]);
+  expect(order).toEqual(["first message", "second message"]);
 });

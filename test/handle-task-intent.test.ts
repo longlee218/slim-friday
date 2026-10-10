@@ -9,8 +9,10 @@ import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { captureLogs } from "../src/observability/logger";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { QUEUE_RECEIVED } from "../src/orchestrator/thread/intent-replies";
 import { ROLES } from "../src/roles/role-registry";
 import { getProposal, insertProposal, listPendingProposals } from "../src/storage/proposal-store";
+import { listRunMessages } from "../src/storage/run-message-store";
 import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -299,7 +301,7 @@ test("L3 failure while a question is pending re-asks naturally (no role, no tag 
   expect(seen).toHaveLength(0);
 });
 
-test("a second dev task while one runs: asked once, yes queues it, it starts when the active task ends; stop refuses it", async () => {
+test('a second dev task while one runs: auto-queued with "received" (no question), it starts when the active task ends; stop refuses it', async () => {
   const env = await setup();
   let release!: () => void;
   const gate = new Promise<void>((r) => (release = r));
@@ -325,20 +327,17 @@ test("a second dev task while one runs: asked once, yes queues it, it starts whe
   });
   const first = handle(msg("[ask] explain the repo"));
   await Bun.sleep(50);
-  // second message while running: the `[dev]` tag (L1) -> QUEUE question; L3 is not called while busy and nothing is pending
+  // second message while running: the `[dev]` tag (L1) picks the role; the run has no steer, so it is NEW work:
+  // queued at once, no question, no L3 call
   const q = await handle(msg("[dev] please add b.txt with two"));
   expect(e.seen).toHaveLength(0);
-  expect(q).toContain('"please add b.txt with two"'); // the tag is not part of the brief
-  expect(q).toContain("Run this after it? Reply yes or no");
-  expect(listPendingProposals(env.db)).toHaveLength(1);
-  // "yes" is read by L3 as the answer to the pending question (the one call a busy thread pays): proposal queued
-  expect(await handle(msg("yes"))).toContain("Queued");
-  expect(e.seen).toHaveLength(1);
-  expect(e.seen[0]).toBe("yes");
-  expect(rows(env, "SELECT status FROM proposals")).toEqual([{ status: "queued" }]);
+  expect(q).toBe(QUEUE_RECEIVED);
+  expect(listPendingProposals(env.db)).toHaveLength(0);
+  expect(rows(env, "SELECT status, brief FROM proposals")).toMatchObject([{ status: "queued" }]);
+  expect(rows(env, "SELECT brief FROM proposals")[0]?.brief).toStartWith("please add b.txt"); // the tag is not part of the brief
   // an undecided message gets "still working..." (nothing pending: no L3 call, no ask)
   expect(await handle(msg("hmm and then what"))).toBe("still working...");
-  expect(e.seen).toHaveLength(1);
+  expect(e.seen).toHaveLength(0);
   release();
   const reply = await first;
   expect(reply).toContain("slow answer");
@@ -347,7 +346,7 @@ test("a second dev task while one runs: asked once, yes queues it, it starts whe
   expect(roles(env)).toEqual(["assistant", "dev"]);
 });
 
-test("'no' drops the queued task; stop refuses queued ones", async () => {
+test("stop keeps the queued tasks: the reply counts them, they run after the stopped run, in order (the interrupt is stored in run_messages)", async () => {
   const env = await setup();
   let release!: () => void;
   const gate = new Promise<void>((r) => (release = r));
@@ -368,20 +367,32 @@ test("'no' drops the queued task; stop refuses queued ones", async () => {
   });
   const first = handle(msg("[ask] explain"));
   await Bun.sleep(50);
-  await handle(msg("[dev] add a feature please"));
-  expect(await handle(msg("no"))).toBe("Dropped.");
-  await handle(msg("[dev] add another feature please"));
-  await handle(msg("ok"));
+  expect(await handle(msg("[dev] add a feature please"))).toBe(QUEUE_RECEIVED);
+  expect(await handle(msg("[dev] add another feature please"))).toBe(QUEUE_RECEIVED);
   expect(
     rows(env, "SELECT status FROM proposals ORDER BY created_at, rowid").map((r) => r.status),
-  ).toEqual(["refused", "queued"]);
-  expect(await handle(msg("stop"))).toBe("Stopping...");
+  ).toEqual(["queued", "queued"]);
+  expect(await handle(msg("stop"))).toBe("Stopping... 2 queued, they run after it.");
   expect(
     rows(env, "SELECT status FROM proposals ORDER BY created_at, rowid").map((r) => r.status),
-  ).toEqual(["refused", "refused"]);
+  ).toEqual(["queued", "queued"]);
+  expect(listRunMessages(env.db, "th1").map((r) => [r.kind, r.status])).toEqual([
+    ["followup", "delivered"],
+    ["followup", "delivered"],
+    ["stop", "delivered"],
+  ]);
   release();
   await first;
-  expect(roles(env)).toEqual(["assistant"]);
+  // the queue ran after the stopped run, oldest first, each as its own task
+  expect(roles(env)).toEqual(["assistant", "dev", "dev"]);
+  expect(
+    rows(env, "SELECT status FROM proposals ORDER BY created_at, rowid").map((r) => r.status),
+  ).toEqual(["dispatched", "dispatched"]);
+  expect(
+    rows(env, "SELECT brief FROM tasks WHERE role = 'dev' ORDER BY started_at, rowid").map(
+      (r) => String(r.brief).split("\n")[0],
+    ),
+  ).toEqual(["add a feature please", "add another feature please"]);
 });
 
 test("fix loop: [dev] follow-ups continue in the same clone/session, max 2 rounds; an assistant answer keeps the clone's session", async () => {
@@ -557,7 +568,7 @@ test("yes / no on an idle thread (read by L3) answers the pending proposal (yes 
   expect(roles(env)).toEqual(["dev"]);
 });
 
-test("a crash of the active run still starts the queued task; L3 is called while busy only to read an answer", async () => {
+test("a crash of the active run still starts the queued task (no L3 call while a run without steer works)", async () => {
   const env = await setup();
   let release!: () => void;
   const gate = new Promise<void>((r) => (release = r));
@@ -587,9 +598,8 @@ test("a crash of the active run still starts the queued task; L3 is called while
   );
   const first = handle(msg("[ask] explain the repo"));
   await Bun.sleep(50);
-  expect(await handle(msg("[dev] add b.txt"))).toContain("Run this after it?");
-  expect(await handle(msg("yes"))).toContain("Queued");
-  expect(e.seen).toEqual(["yes"]); // busy: L3 ran only for the answer
+  expect(await handle(msg("[dev] add b.txt"))).toBe(QUEUE_RECEIVED);
+  expect(e.seen).toEqual([]); // busy, the run takes no steer: no L3 call
   release();
   const out = await first;
   expect(out).toBe("Agent failed. Check the logs."); // the handler reported the crash

@@ -1,7 +1,7 @@
 import type { Logger } from "pino";
 import { z } from "zod";
 import { DEFAULT_TIER_MODELS, type ModelTier, specToId } from "./model-routing";
-import { readRoutingEnv } from "./stage-env";
+import { type RoutingEnv, readRoutingEnv } from "./stage-env";
 
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
@@ -68,7 +68,8 @@ const envSchema = z.object({
 export type IntentEngine = "haiku" | "jev" | "none";
 
 /** Validated, typed config used across the app. Contains secrets: never log it whole. */
-export interface AgentConfig {
+/** `compactOverrides` (env COMPACT_WINDOW_<ROLE>_<STAGE>) is declared with the other routing env in stage-env.ts. */
+export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   /** OAuth token from `claude setup-token`; undefined when missing. Never log. */
   oauthToken: string | undefined;
   /** OpenRouter API key; undefined when missing. Never log. */

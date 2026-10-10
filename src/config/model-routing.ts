@@ -102,3 +102,18 @@ export function resolveBudget(
   const total = base + (route.extraBudgetUsd ?? 0);
   return cap === undefined ? total : Math.min(total, cap);
 }
+
+/**
+ * Auto-compact window (tokens) the orchestrator sets for a stage run, or undefined = leave the SDK default.
+ * Env pin COMPACT_WINDOW_<ROLE>_<STAGE> (0 = off) > the stage's `autoCompactWindow`. Never read from the
+ * owner's shell by the SDK child: only this value reaches it (see runtime/sdk-env.ts).
+ */
+export function resolveCompactWindow(
+  stage: StageDefinition,
+  role: RoleDefinition | undefined,
+  config: AgentConfig,
+): number | undefined {
+  const pin = role && config.compactOverrides[stageKey(role.name, stage.name)];
+  const tokens = pin ?? stage.autoCompactWindow;
+  return tokens && tokens > 0 ? tokens : undefined;
+}

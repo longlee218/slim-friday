@@ -39,6 +39,7 @@ export async function runPlanRun(c: StageCtx): Promise<PlanStageResult> {
     stage,
     route: i.route,
     prompt: i.text,
+    steer: stage.streaming ? deps.steer?.hook(i.threadId) : undefined, // streaming stage: the owner can steer it
     taskId: i.taskId,
     cwd: scratchReal,
     resume: i.planResume?.sessionId,

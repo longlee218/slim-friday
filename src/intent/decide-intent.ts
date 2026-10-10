@@ -10,6 +10,7 @@ import {
   type IntentPipelineInput,
   runIntentPipeline,
 } from "./run-intent-pipeline";
+import { modelScope, supplement } from "./steer-scope";
 
 /** Logger of this module. */
 const log = logger.child({ module: "decide-intent" });
@@ -58,6 +59,8 @@ export interface DecideInput extends IntentPipelineInput {
    * of an L3 route. False when the clone used up its fix rounds: the next request is a NEW task.
    */
   hasTask: boolean;
+  /** A running task takes steers: the scope of every message (tagged or not) is L3's; unclear = supplement (steer-scope.ts). */
+  scopeFromModel?: boolean;
   /** Owner prefix class (`[design]`): overrides any other class. */
   ownerClass?: TaskClass;
   /** The thread's stop signal: cancels the L3 call. */
@@ -86,6 +89,10 @@ function fallback(state: DecideInput["state"], pending: boolean): IntentDecision
     ? { kind: "role", role: entryRole().name, scope: "new" }
     : { kind: "ask", reason: "unclassified" };
 }
+
+/** No engine / the engine failed: a steerable run takes the message as a supplement, else the plain fallback. */
+const undecided = (i: DecideInput, pending: boolean): IntentDecision =>
+  i.scopeFromModel && !pending ? supplement() : fallback(i.state, pending);
 
 /**
  * One message through the layers: L1 explicit role tag, then L3 (the LLM, which reads the conversation and any
@@ -118,13 +125,18 @@ export async function decideIntent(
   if (p.decidedBy === "L1" && p.route?.kind === "role") {
     layer("L1");
     const { role } = p.route;
-    const scope = i.hasTask ? "active" : "new";
+    // The tag picks the role only. With a steerable run the scope is L3's call (the task is `hasTask`).
+    const scope = i.scopeFromModel
+      ? await modelScope(deps.classifier, i)
+      : i.hasTask
+        ? "active"
+        : "new";
     const cls = classFor(role, i.ownerClass, effort.classHint);
     return { decision: { kind: "role", role, scope, ...(cls && { cls }) }, effort };
   }
   if (!deps.classifier) {
     layer("none"); // INTENT_ENGINE=none: L0-L2 only
-    return { decision: fallback(i.state, pending), effort };
+    return { decision: undecided(i, pending), effort };
   }
   try {
     const input = i.l3Input();
@@ -137,6 +149,7 @@ export async function decideIntent(
     layer("L3");
     if (!v.ok) {
       logEvent(log, "intent.fallback", { reason: v.reason, role: raw.role.slice(0, 64) }, "warn");
+      if (i.scopeFromModel && !pending) return { decision: supplement(), effort };
       return { decision: { kind: "ask", reason: v.reason }, effort };
     }
     const { role, scope, class: cls, confidence, reason, ask, pendingAnswer } = v.result;
@@ -146,6 +159,7 @@ export async function decideIntent(
     // Low confidence never runs the model's pick. An idle thread with no pending question goes to the entry role
     // (read-only Q&A: the answer itself clarifies); a pending question / gate / busy thread keeps the owner question.
     if (confidence === "low") {
+      if (i.scopeFromModel && !pending) return { decision: supplement(role), effort }; // ambiguous -> supplement
       if (isIdleState(i.state) && !pending)
         return { decision: { kind: "role", role: entryRole().name, scope: "new" }, effort };
       return {
@@ -180,6 +194,6 @@ export async function decideIntent(
     const reason = err instanceof IntentEngineError ? err.reason : "sdk";
     logEvent(log, "intent.fallback", { reason }, "warn");
     layer("fallback");
-    return { decision: fallback(i.state, pending), effort };
+    return { decision: undecided(i, pending), effort };
   }
 }

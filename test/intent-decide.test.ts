@@ -286,3 +286,55 @@ test("a medium-confidence `mechanical` is downgraded to standard; high stays mec
   expect((await run1("medium")).decision).toMatchObject({ role: "dev", cls: "standard" });
   expect((await run1("high")).decision).toMatchObject({ role: "dev", cls: "mechanical" });
 });
+
+test("scopeFromModel (a steerable run works): a tag picks the role only, L3 decides the scope; unclear = supplement", async () => {
+  const busy = { state: "running" as const, hasTask: true, scopeFromModel: true };
+  // tagged + L3 says independent: role from the tag, scope new (-> queue), class from the tag path
+  const indep = engine(answer({ role: "assistant", scope: "new" }));
+  const a = await run({ pipeline, classifier: indep.classifier }, input("[dev] other task", busy));
+  expect(a.decision).toMatchObject({ kind: "role", role: "dev", scope: "new" });
+  expect(indep.inputs).toHaveLength(1); // the tag no longer spares the L3 call
+  // tagged + L3 says supplement
+  const sup = engine(answer({ scope: "active" }));
+  const b = await run({ pipeline, classifier: sup.classifier }, input("[dev] also this", busy));
+  expect(b.decision).toMatchObject({ role: "dev", scope: "active" });
+  // ambiguous: low confidence, engine failure, unknown role, no engine -> supplement (tagged and untagged)
+  const cases: [string, IntentDeps][] = [
+    [
+      "[dev] hmm",
+      { pipeline, classifier: engine(answer({ confidence: "low", scope: "new" })).classifier },
+    ],
+    [
+      "[dev] hmm",
+      { pipeline, classifier: engine(new IntentEngineError("timeout", "slow")).classifier },
+    ],
+    [
+      "[dev] hmm",
+      { pipeline, classifier: engine(answer({ role: "nope", scope: "new" })).classifier },
+    ],
+    ["[dev] hmm", { pipeline }],
+    [
+      VAGUE,
+      { pipeline, classifier: engine(answer({ confidence: "low", scope: "new" })).classifier },
+    ],
+    [VAGUE, { pipeline, classifier: engine(new Error("down")).classifier }],
+    [VAGUE, { pipeline, classifier: engine(answer({ role: "nope" })).classifier }],
+    [VAGUE, { pipeline }],
+  ];
+  for (const [text, d] of cases) {
+    const r = await run(d, input(text, busy));
+    expect(r.decision).toMatchObject({ kind: "role", scope: "active" });
+  }
+  // untagged + L3 independent: its own role and scope are kept
+  const own = engine(answer({ role: "assistant", scope: "new" }));
+  const c = await run({ pipeline, classifier: own.classifier }, input(VAGUE, busy));
+  expect(c.decision).toMatchObject({ role: "assistant", scope: "new" });
+});
+
+test("without scopeFromModel a tag still sets scope from hasTask and L3 is not called (a run without steer)", async () => {
+  const e = engine(answer({ scope: "active" }));
+  const d = { pipeline, classifier: e.classifier };
+  const noTask = await run(d, input("[dev] x", { state: "running", hasTask: false }));
+  expect(noTask.decision).toMatchObject({ role: "dev", scope: "new" });
+  expect(e.inputs).toHaveLength(0);
+});

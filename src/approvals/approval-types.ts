@@ -36,6 +36,11 @@ export interface ApprovalGateway {
   request(req: ApprovalRequest): Promise<ApprovalResult>;
   /** Plan approval variant: Approve / Reject (reason "owner rejected plan" on reject). */
   requestPlan(req: ApprovalRequest): Promise<ApprovalResult>;
+  /**
+   * Typed owner feedback on the thread's open plan request: the same as Reject, with the text as the reason (the
+   * planner revises and asks again). False when no plan request waits. Absent in test fakes.
+   */
+  feedbackPlan?(threadId: string, text: string): boolean;
   /** Like `request` with custom [approve, decline] labels; decline reason "owner declined". */
   confirm(req: ApprovalRequest, labels: [string, string]): Promise<ApprovalResult>;
   /** Drop every open request of a task (run aborted): buttons removed, decision "cancelled". */

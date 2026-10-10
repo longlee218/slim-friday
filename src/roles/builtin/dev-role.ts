@@ -74,6 +74,7 @@ const CODE_CAPABILITIES: Capability[] = [
 const CODE_STAGE_BASE = {
   capabilities: CODE_CAPABILITIES,
   timeoutMs: CODE_TASK_TIMEOUT_MS,
+  streaming: true, // plan and exec are background runs: the owner can steer them
   // OpenRouter: plan mode needs a model that reliably calls ExitPlanMode; deepseek-v4-flash does not (live test), a Claude model does.
   openrouterModel: "anthropic/claude-haiku-4.5",
   subagents: ["repo-searcher"],

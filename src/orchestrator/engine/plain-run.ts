@@ -60,6 +60,7 @@ export async function runPlain(c: StageCtx): Promise<FlowResult> {
     return runAgent({
       stage,
       prompt: i.text,
+      steer: stage.streaming ? deps.steer?.hook(i.threadId) : undefined, // a streaming plain stage takes steers too
       taskId: i.taskId,
       cwd,
       additionalDirectories,

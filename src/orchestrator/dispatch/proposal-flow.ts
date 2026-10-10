@@ -40,6 +40,7 @@ export function persistProposal(
       class: i.request.cls,
       confidence: i.request.confidence,
       reason: i.request.reason,
+      effort: i.request.effort,
     });
     logEvent(log, "proposal.persisted", { proposalId: id, brief: excerpt(i.request.brief) });
     return id;

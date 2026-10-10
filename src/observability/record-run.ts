@@ -152,3 +152,23 @@ export function usageFromResult(r: ResultShape, compactions: number): RunUsage {
     compactions,
   };
 }
+
+/**
+ * Usage of a run that produced several `result`s (streaming input: one per owner message; a resumed round counts as
+ * one more). `total_cost_usd` is CUMULATIVE per the SDK doc (each result carries the running total; a resumed
+ * session continues from the saved total), so the cost keeps the largest value. `num_turns` is per result (spike
+ * q16, scenario C: 1, 1, 1), so turns are summed. Tokens and duration are not proven by any fixture: summed as
+ * per-result figures (they only feed logs, never a budget).
+ */
+export function addUsage(a: RunUsage, b: RunUsage): RunUsage {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
+    cacheCreationTokens: a.cacheCreationTokens + b.cacheCreationTokens,
+    costUsd: Math.max(a.costUsd, b.costUsd),
+    turns: a.turns + b.turns,
+    durationMs: a.durationMs + b.durationMs,
+    compactions: a.compactions + b.compactions,
+  };
+}

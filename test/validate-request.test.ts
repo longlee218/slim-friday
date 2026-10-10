@@ -58,12 +58,13 @@ test("repo given: resolved through the single resolver; unknown repo asks; an ow
   expect(external).toMatchObject({ ok: true });
 });
 
-test("unknown or non-dispatchable role asks the owner (never a guess)", async () => {
+test("unknown role asks the owner (never a guess); an answering role is valid (a queued follow-up may be any role)", async () => {
   const { deps } = await setup();
-  for (const role of ["nope", "assistant", "constructor"]) {
+  for (const role of ["nope", "constructor"]) {
     const v = await validateRequest(deps, req({ role }));
     expect(v).toMatchObject({ ok: false, action: "ask", refusal: { reason: "unknown_role" } });
   }
+  expect(await validateRequest(deps, req({ role: "assistant" }))).toMatchObject({ ok: true });
 });
 
 test("low confidence asks once; `confirmed` (owner said go) skips the question", async () => {

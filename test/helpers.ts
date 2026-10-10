@@ -89,6 +89,18 @@ export function fakeQuery(msgs: SDKMessage[], thenThrow?: Error) {
     })();
 }
 
+/**
+ * Text of the first user message of a query's `prompt`: the string itself (qa), or the first item of the
+ * streaming input (plan / exec stages, see run-input-channel.ts). Reads one item; the rest is left unread.
+ */
+export async function promptText(prompt: unknown): Promise<string> {
+  if (typeof prompt === "string") return prompt;
+  const first = await (prompt as AsyncIterable<{ message: { content: string } }>)
+    [Symbol.asyncIterator]()
+    .next();
+  return first.value?.message.content ?? "";
+}
+
 /** Fail unless `home` is under the OS temp dir: tests must never touch the real ~/.friday. */
 export function assertTempHome(home: string): void {
   const root = realpathSync(tmpdir());

@@ -23,6 +23,7 @@ import {
   DEV_REQUEST,
   devIntent,
   makeEnv,
+  promptText,
   resultMsg,
   stubGateway,
   TEST_CHANNEL,
@@ -74,6 +75,8 @@ function fakeSdk(
     seen.push(a);
     const o = a.options;
     return (async function* () {
+      // the plan / exec stages stream their input: read the first message while the run is live (as the SDK does)
+      a.promptText = await promptText(a.prompt);
       if (o.permissionMode === "plan") {
         const r = await o.canUseTool(
           EXIT_PLAN_MODE_TOOL_NAME,
@@ -273,7 +276,8 @@ test("dev task: plan stage prompt is the owner message; notice posted before the
       posted.push(t);
     },
   });
-  expect(seen[0].prompt).toContain(BRIEF);
+  // the plan stage runs in streaming-input mode: its prompt is the first item of the input channel
+  expect(seen[0].promptText).toContain(BRIEF);
   expect(posted).toHaveLength(1);
   expect(posted[0]).toContain("Starting plan: repo chosen by the plan");
   expect(reply).not.toContain("Starting plan"); // already posted, not repeated

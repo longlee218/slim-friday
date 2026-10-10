@@ -59,3 +59,7 @@ export function deriveThreadState(db: Database, threadId: string): ThreadState {
 
 /** `done` folds to `idle`: both route to the assistant, which then sees the thread ledger. */
 export const isIdleLike = (s: ThreadState): boolean => s === "idle" || s === "done";
+
+/** The thread waits on an owner gate (approval buttons): plan, result or confirmation. */
+export const isGateState = (s: ThreadState): boolean =>
+  s !== "idle" && s !== "running" && s !== "done";

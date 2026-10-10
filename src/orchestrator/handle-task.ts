@@ -16,22 +16,24 @@ import {
 } from "../observability/logger";
 import { errText } from "../observability/redact";
 import type { QueryFn } from "../runtime/run-agent";
-import { refuseQueued } from "../storage/proposal-store";
 import { getSession } from "../storage/session-store";
 import { cleanupWorktree } from "../workspaces/clone-cleanup";
 import { selectWorkspace } from "../workspaces/task-workspace";
+import { createBusyLane } from "./busy-lane";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
-import { replyWhileBusy } from "./intent-turn";
 import { routeAndRun } from "./route-and-run";
 import type { RoleRunCtx } from "./run-turn";
 import { parseTaskCommand } from "./task-commands";
 import type { RunLimiter } from "./tasks/run-limiter";
+import { createSteerRegistry } from "./tasks/steer-registry";
 import { OUTCOME_REPLY } from "./tasks/task-result";
 import {
   beginTask,
   createRunTracker,
   failTask,
   refused,
+  renewActive,
+  stopThread,
   taskLogContext,
 } from "./tasks/task-tracker";
 import { EffortFloors } from "./thread/effort-floor";
@@ -71,7 +73,16 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     git,
     stopping: tracker.isStopping,
     threadBusy: (id) => active.has(id),
+    steer: createSteerRegistry(db), // streaming stages take the owner's messages while they run
   };
+  const busyLane = createBusyLane({
+    deps: dispatchDeps,
+    log,
+    intent: deps.intent,
+    floors,
+    limiter: deps.limiter,
+    active,
+  });
   const memory = createMemoryRunner({ db, config, queryFn: deps.queryFn, limiter: deps.limiter });
   /** Handle one task and return the (redacted) reply text. */
   const run = async (task: Task): Promise<string> => {
@@ -86,24 +97,12 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
     if (parsed.kind !== "task")
       logEvent(log, "intent.layer", { layer: "L0", ruleIds: [parsed.kind] });
     if (parsed.kind === "memory") return (await memory(task)) ?? ""; // owner memory command: no agent
-    // `stop` aborts the active run; the running call marks the task cancelled.
     if (parsed.kind === "stop") {
-      if (!running) return "Nothing is running.";
-      running.abort();
-      refuseQueued(db, threadId); // the owner cancelled: queued tasks do not start
-      return "Stopping...";
+      if (running) dispatchDeps.steer?.record(task, task.text, "stop"); // audit; stopThread aborts, the queue stays
+      return stopThread(db, threadId, running);
     }
-    // The run holds the thread: `still working...`, or (intent layer on) queue a second task / take a yes/no.
-    if (running)
-      return replyWhileBusy({
-        deps: dispatchDeps,
-        log,
-        task,
-        parsed,
-        ac: running,
-        intent: deps.intent,
-        floors,
-      });
+    // The run holds the thread: `still working...`, or (intent layer on) steer / side answer / queue / yes-no.
+    if (running) return busyLane(task, parsed, running);
     if (parsed.kind === "cleanup")
       return cleanupWorktree({ db, agentHome: config.agentHome, active }, task, parsed.taskId);
     // Drain (deploy): no new task starts; stop / still-working / cleanup above still answer.
@@ -172,6 +171,7 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
         floors,
         intent: deps.intent,
         hasApprovals: !!deps.approvals,
+        renewAc: () => renewActive(active, threadId), // the queue after a user `/stop`
       });
     } catch (err) {
       // Never throw from the error path (db may be closed during shutdown).

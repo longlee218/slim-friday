@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
-import { resolveBudget, type TaskClass } from "../../config/model-routing";
+import { type Effort, resolveBudget, type TaskClass } from "../../config/model-routing";
 import type { GitData, GitMcp } from "../../mcp/git-mcp";
 import { GIT_TOOL } from "../../mcp/mcp-tool-names";
 import type { Repo } from "../../repos/repo-registry";
@@ -27,6 +27,8 @@ export interface DispatchRequest {
   base?: string;
   /** Task class; missing = standard. */
   cls?: TaskClass;
+  /** Effort resolved when the request was queued; kept so queue -> start runs at it. Missing = the stage defaults. */
+  effort?: Effort;
   intent?: string;
   /** 0..1; below `LOW_CONFIDENCE` the owner is asked. Missing = confident (owner-typed). */
   confidence?: number;

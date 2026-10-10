@@ -1,0 +1,920 @@
+{
+  "A-steer-during-tool": {
+    "name": "A-steer-during-tool",
+    "endedAtMs": 25240,
+    "thrown": "Error: Claude Code returned an error result: Reached maximum budget ($0.035)",
+    "cost": 0.1416134,
+    "results": [
+      {
+        "t": 20294,
+        "subtype": "error_max_budget_usd",
+        "turns": 2,
+        "cost": 0.1416134,
+        "text": ""
+      }
+    ],
+    "pulledByCli": [
+      {
+        "t": 12,
+        "text": "Run the Bash command `sleep 8 && echo AAA`. Then reply with exactly: DONE-A. Do not run anything else."
+      },
+      {
+        "t": 8267,
+        "text": "STEER1: when you finish, ALSO append the word ALPHA to your final reply."
+      },
+      {
+        "t": 9274,
+        "text": "STEER2: and append the word BRAVO after ALPHA."
+      },
+      {
+        "t": 24296,
+        "text": "<iterable returned>"
+      }
+    ],
+    "hookTools": [
+      {
+        "ev": "PreToolUse",
+        "t": 6776,
+        "cmd": "sleep 8 && echo AAA"
+      },
+      {
+        "ev": "PostToolUse",
+        "t": 16497,
+        "cmd": "sleep 8 && echo AAA"
+      }
+    ],
+    "markers": ["a.mark:false", "b.mark:false", "c.mark:false"],
+    "timeline": [
+      {
+        "t": 5183,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 6338,
+        "kind": "rate_limit_event",
+        "detail": ""
+      },
+      {
+        "t": 6508,
+        "kind": "user:replay",
+        "detail": "str:Run the Bash command `sleep 8 && echo AAA`. Then reply with exactly: DONE-A. Do not run anything else."
+      },
+      {
+        "t": 6513,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 6766,
+        "kind": "assistant",
+        "detail": "tool_use:Bash:{\"command\":\"sleep 8 && echo AAA\"}"
+      },
+      {
+        "t": 8267,
+        "kind": "PUSH:steer1",
+        "detail": "STEER1"
+      },
+      {
+        "t": 9274,
+        "kind": "PUSH:steer2",
+        "detail": "STEER2"
+      },
+      {
+        "t": 16502,
+        "kind": "user",
+        "detail": "tool_result:\"AAA\""
+      },
+      {
+        "t": 16512,
+        "kind": "user:replay",
+        "detail": "str:STEER1: when you finish, ALSO append the word ALPHA to your final reply."
+      },
+      {
+        "t": 16513,
+        "kind": "user:replay",
+        "detail": "str:STEER2: and append the word BRAVO after ALPHA."
+      },
+      {
+        "t": 20210,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 20250,
+        "kind": "assistant",
+        "detail": "text:DONE-A ALPHA BRAVO"
+      },
+      {
+        "t": 20294,
+        "kind": "result:error_max_budget_usd",
+        "detail": "result:error_max_budget_usd:"
+      }
+    ]
+  },
+  "B-multi-tool-one-turn": {
+    "name": "B-multi-tool-one-turn",
+    "endedAtMs": 21617,
+    "cost": 0.0235866,
+    "results": [
+      {
+        "t": 16634,
+        "subtype": "success",
+        "turns": 4,
+        "cost": 0.0235866,
+        "text": "STEERED."
+      }
+    ],
+    "pulledByCli": [
+      {
+        "t": 12,
+        "text": "In ONE single response emit exactly three Bash tool calls (parallel, same turn): `sleep 3 && touch a.mark`, `sleep 3 && touch b.mark`, `sleep 3 && touch c.mark`. Then reply with exactly: DONE-B."
+      },
+      {
+        "t": 4634,
+        "text": "STEER: stop, do not run any more commands. Reply with exactly: STEERED."
+      },
+      {
+        "t": 20636,
+        "text": "<iterable returned>"
+      }
+    ],
+    "hookTools": [
+      {
+        "ev": "PreToolUse",
+        "t": 3644,
+        "cmd": "sleep 3 && touch a.mark"
+      },
+      {
+        "ev": "PostToolUse",
+        "t": 7762,
+        "cmd": "sleep 3 && touch a.mark"
+      },
+      {
+        "ev": "PreToolUse",
+        "t": 7765,
+        "cmd": "sleep 3 && touch b.mark"
+      },
+      {
+        "ev": "PostToolUse",
+        "t": 10808,
+        "cmd": "sleep 3 && touch b.mark"
+      },
+      {
+        "ev": "PreToolUse",
+        "t": 10812,
+        "cmd": "sleep 3 && touch c.mark"
+      },
+      {
+        "ev": "PostToolUse",
+        "t": 13870,
+        "cmd": "sleep 3 && touch c.mark"
+      }
+    ],
+    "markers": ["a.mark:true", "b.mark:true", "c.mark:true"],
+    "timeline": [
+      {
+        "t": 938,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 2144,
+        "kind": "rate_limit_event",
+        "detail": ""
+      },
+      {
+        "t": 3108,
+        "kind": "user:replay",
+        "detail": "str:In ONE single response emit exactly three Bash tool calls (parallel, same turn): `sleep 3 && touch a.mark`, `sleep 3 && "
+      },
+      {
+        "t": 3114,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 3633,
+        "kind": "assistant",
+        "detail": "tool_use:Bash:{\"command\":\"sleep 3 && touch a.mark\",\"description\":\"Sleep 3 seconds and create a"
+      },
+      {
+        "t": 3666,
+        "kind": "canUseTool",
+        "detail": "Bash ALLOW sleep 3 && touch a.mark"
+      },
+      {
+        "t": 4035,
+        "kind": "assistant",
+        "detail": "tool_use:Bash:{\"command\":\"sleep 3 && touch b.mark\",\"description\":\"Sleep 3 seconds and create b"
+      },
+      {
+        "t": 4463,
+        "kind": "assistant",
+        "detail": "tool_use:Bash:{\"command\":\"sleep 3 && touch c.mark\",\"description\":\"Sleep 3 seconds and create c"
+      },
+      {
+        "t": 4634,
+        "kind": "PUSH:steer",
+        "detail": "STOP"
+      },
+      {
+        "t": 7766,
+        "kind": "user",
+        "detail": "tool_result:\"(Bash completed with no output)\""
+      },
+      {
+        "t": 7771,
+        "kind": "canUseTool",
+        "detail": "Bash ALLOW sleep 3 && touch b.mark"
+      },
+      {
+        "t": 10813,
+        "kind": "user",
+        "detail": "tool_result:\"(Bash completed with no output)\""
+      },
+      {
+        "t": 10819,
+        "kind": "canUseTool",
+        "detail": "Bash ALLOW sleep 3 && touch c.mark"
+      },
+      {
+        "t": 13874,
+        "kind": "user",
+        "detail": "tool_result:\"(Bash completed with no output)\""
+      },
+      {
+        "t": 13881,
+        "kind": "user:replay",
+        "detail": "str:STEER: stop, do not run any more commands. Reply with exactly: STEERED."
+      },
+      {
+        "t": 16567,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 16585,
+        "kind": "assistant",
+        "detail": "text:STEERED."
+      },
+      {
+        "t": 16634,
+        "kind": "result:success",
+        "detail": "result:success:STEERED."
+      }
+    ]
+  },
+  "B2-sequential-tools": {
+    "name": "B2-sequential-tools",
+    "endedAtMs": 17713,
+    "cost": 0.0228318,
+    "results": [
+      {
+        "t": 12648,
+        "subtype": "success",
+        "turns": 2,
+        "cost": 0.0228318,
+        "text": "STEERED-B2"
+      }
+    ],
+    "pulledByCli": [
+      {
+        "t": 5,
+        "text": "Run these Bash commands strictly one per turn (never parallel): `sleep 4 && touch a.mark`, then `touch b.mark`, then `touch c.mark`. Then reply DONE-B2."
+      },
+      {
+        "t": 4610,
+        "text": "STEER: skip the remaining commands (b and c), just reply STEERED-B2."
+      },
+      {
+        "t": 16653,
+        "text": "<iterable returned>"
+      }
+    ],
+    "hookTools": [
+      {
+        "ev": "PreToolUse",
+        "t": 3518,
+        "cmd": "sleep 4 && touch a.mark"
+      },
+      {
+        "ev": "PostToolUse",
+        "t": 9652,
+        "cmd": "sleep 4 && touch a.mark"
+      }
+    ],
+    "markers": ["a.mark:true", "b.mark:false", "c.mark:false"],
+    "timeline": [
+      {
+        "t": 404,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 1973,
+        "kind": "rate_limit_event",
+        "detail": ""
+      },
+      {
+        "t": 2988,
+        "kind": "user:replay",
+        "detail": "str:Run these Bash commands strictly one per turn (never parallel): `sleep 4 && touch a.mark`, then `touch b.mark`, then `to"
+      },
+      {
+        "t": 2988,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 3508,
+        "kind": "assistant",
+        "detail": "tool_use:Bash:{\"command\":\"sleep 4 && touch a.mark\",\"description\":\"Sleep for 4 seconds then cre"
+      },
+      {
+        "t": 3542,
+        "kind": "canUseTool",
+        "detail": "Bash ALLOW sleep 4 && touch a.mark"
+      },
+      {
+        "t": 4602,
+        "kind": "PUSH:steer",
+        "detail": "SKIP-REST"
+      },
+      {
+        "t": 9655,
+        "kind": "user",
+        "detail": "tool_result:\"(Bash completed with no output)\""
+      },
+      {
+        "t": 9663,
+        "kind": "user:replay",
+        "detail": "str:STEER: skip the remaining commands (b and c), just reply STEERED-B2."
+      },
+      {
+        "t": 12545,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 12570,
+        "kind": "assistant",
+        "detail": "text:STEERED-B2"
+      },
+      {
+        "t": 12648,
+        "kind": "result:success",
+        "detail": "result:success:STEERED-B2"
+      }
+    ]
+  },
+  "C-results-per-message": {
+    "name": "C-results-per-message",
+    "endedAtMs": 14411,
+    "thrown": "Error: Claude Code returned an error result: Reached maximum budget ($0.025)",
+    "cost": 0.027627699999999998,
+    "results": [
+      {
+        "t": 2145,
+        "subtype": "success",
+        "turns": 1,
+        "cost": 0.009302099999999999,
+        "text": "ONE."
+      },
+      {
+        "t": 9116,
+        "subtype": "success",
+        "turns": 1,
+        "cost": 0.020647199999999997,
+        "text": "TWO."
+      },
+      {
+        "t": 10472,
+        "subtype": "error_max_budget_usd",
+        "turns": 1,
+        "cost": 0.027627699999999998,
+        "text": ""
+      }
+    ],
+    "pulledByCli": [
+      {
+        "t": 6,
+        "text": "Reply with exactly: ONE."
+      },
+      {
+        "t": 7154,
+        "text": "Reply with exactly: TWO."
+      },
+      {
+        "t": 9116,
+        "text": "Reply with exactly: THREE."
+      },
+      {
+        "t": 13478,
+        "text": "<iterable returned>"
+      }
+    ],
+    "hookTools": [],
+    "markers": ["a.mark:false", "b.mark:false", "c.mark:false"],
+    "timeline": [
+      {
+        "t": 480,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 1891,
+        "kind": "rate_limit_event",
+        "detail": ""
+      },
+      {
+        "t": 2110,
+        "kind": "user:replay",
+        "detail": "str:Reply with exactly: ONE."
+      },
+      {
+        "t": 2116,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 2123,
+        "kind": "assistant",
+        "detail": "text:ONE."
+      },
+      {
+        "t": 2145,
+        "kind": "result:success",
+        "detail": "result:success:ONE."
+      },
+      {
+        "t": 7154,
+        "kind": "PUSH:after-result-2nd",
+        "detail": "TWO"
+      },
+      {
+        "t": 7183,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 9047,
+        "kind": "user:replay",
+        "detail": "str:Reply with exactly: TWO."
+      },
+      {
+        "t": 9048,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 9067,
+        "kind": "assistant",
+        "detail": "text:TWO."
+      },
+      {
+        "t": 9116,
+        "kind": "result:success",
+        "detail": "result:success:TWO."
+      },
+      {
+        "t": 9116,
+        "kind": "PUSH:right-after-result-3rd",
+        "detail": "THREE"
+      },
+      {
+        "t": 9123,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 10419,
+        "kind": "user:replay",
+        "detail": "str:Reply with exactly: THREE."
+      },
+      {
+        "t": 10419,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 10446,
+        "kind": "assistant",
+        "detail": "text:THREE."
+      },
+      {
+        "t": 10472,
+        "kind": "result:error_max_budget_usd",
+        "detail": "result:error_max_budget_usd:"
+      }
+    ]
+  },
+  "E-push-after-last-turn": {
+    "name": "E-push-after-last-turn",
+    "endedAtMs": 14561,
+    "thrown": "Error: Claude Code returned an error result: Reached maximum budget ($0.025)",
+    "cost": 0.0282536,
+    "results": [
+      {
+        "t": 5600,
+        "subtype": "success",
+        "turns": 2,
+        "cost": 0.0213015,
+        "text": "DONE-E"
+      },
+      {
+        "t": 6681,
+        "subtype": "error_max_budget_usd",
+        "turns": 1,
+        "cost": 0.0282536,
+        "text": ""
+      }
+    ],
+    "pulledByCli": [
+      {
+        "t": 5,
+        "text": "Run the Bash command `echo EEE`. Then reply with exactly: DONE-E."
+      },
+      {
+        "t": 5574,
+        "text": "LATE: reply with exactly: LATE-ACK."
+      },
+      {
+        "t": 13603,
+        "text": "<iterable returned>"
+      }
+    ],
+    "hookTools": [
+      {
+        "ev": "PreToolUse",
+        "t": 2760,
+        "cmd": "echo EEE"
+      },
+      {
+        "ev": "PostToolUse",
+        "t": 4098,
+        "cmd": "echo EEE"
+      }
+    ],
+    "markers": ["a.mark:false", "b.mark:false", "c.mark:false"],
+    "timeline": [
+      {
+        "t": 435,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 2082,
+        "kind": "rate_limit_event",
+        "detail": ""
+      },
+      {
+        "t": 2328,
+        "kind": "user:replay",
+        "detail": "str:Run the Bash command `echo EEE`. Then reply with exactly: DONE-E."
+      },
+      {
+        "t": 2331,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 2756,
+        "kind": "assistant",
+        "detail": "tool_use:Bash:{\"command\":\"echo EEE\",\"description\":\"Echo the text EEE\"}"
+      },
+      {
+        "t": 4103,
+        "kind": "user",
+        "detail": "tool_result:\"EEE\""
+      },
+      {
+        "t": 5573,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 5573,
+        "kind": "assistant",
+        "detail": "text:DONE-E"
+      },
+      {
+        "t": 5573,
+        "kind": "PUSH:late",
+        "detail": "LATE"
+      },
+      {
+        "t": 5600,
+        "kind": "result:success",
+        "detail": "result:success:DONE-E"
+      },
+      {
+        "t": 5617,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 6645,
+        "kind": "user:replay",
+        "detail": "str:LATE: reply with exactly: LATE-ACK."
+      },
+      {
+        "t": 6647,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 6665,
+        "kind": "assistant",
+        "detail": "text:LATE-ACK"
+      },
+      {
+        "t": 6681,
+        "kind": "result:error_max_budget_usd",
+        "detail": "result:error_max_budget_usd:"
+      }
+    ]
+  },
+  "F1-interrupt": {
+    "name": "F1-interrupt",
+    "endedAtMs": 21767,
+    "cost": 0.0319717,
+    "results": [
+      {
+        "t": 7057,
+        "subtype": "error_during_execution",
+        "turns": 3,
+        "cost": 0.010890799999999999,
+        "text": ""
+      },
+      {
+        "t": 12165,
+        "subtype": "success",
+        "turns": 1,
+        "cost": 0.0235919,
+        "text": "AFTER-INTERRUPT."
+      },
+      {
+        "t": 20761,
+        "subtype": "success",
+        "turns": 1,
+        "cost": 0.0319717,
+        "text": "Background task completed: `sleep 12 && touch a.mark` (exit code 0). File `a.mark` has been created."
+      }
+    ],
+    "pulledByCli": [
+      {
+        "t": 12,
+        "text": "Run the Bash command `sleep 12 && touch a.mark`. Then reply DONE-F1."
+      },
+      {
+        "t": 6029,
+        "text": "STEER: after this, reply with exactly: PENDING-SEEN."
+      },
+      {
+        "t": 11029,
+        "text": "Reply with exactly: AFTER-INTERRUPT."
+      },
+      {
+        "t": 16060,
+        "text": "<iterable returned>"
+      }
+    ],
+    "hookTools": [
+      {
+        "ev": "PreToolUse",
+        "t": 5032,
+        "cmd": "sleep 12 && touch a.mark"
+      },
+      {
+        "ev": "PostToolUse",
+        "t": 6040,
+        "cmd": "sleep 12 && touch a.mark"
+      }
+    ],
+    "markers": ["a.mark:true", "b.mark:false", "c.mark:false"],
+    "timeline": [
+      {
+        "t": 398,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 1809,
+        "kind": "rate_limit_event",
+        "detail": ""
+      },
+      {
+        "t": 4630,
+        "kind": "user:replay",
+        "detail": "str:Run the Bash command `sleep 12 && touch a.mark`. Then reply DONE-F1."
+      },
+      {
+        "t": 4656,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 5027,
+        "kind": "assistant",
+        "detail": "tool_use:Bash:{\"command\":\"sleep 12 && touch a.mark\",\"run_in_background\":true}"
+      },
+      {
+        "t": 5049,
+        "kind": "canUseTool",
+        "detail": "Bash ALLOW sleep 12 && touch a.mark"
+      },
+      {
+        "t": 6029,
+        "kind": "PUSH:steer-pending",
+        "detail": "PENDING"
+      },
+      {
+        "t": 6042,
+        "kind": "user",
+        "detail": "tool_result:\"Command running in background with ID: b04nfvjxg. Output is being written to: /private/tmp/claude-501/-private-var-fold"
+      },
+      {
+        "t": 6046,
+        "kind": "user:replay",
+        "detail": "str:STEER: after this, reply with exactly: PENDING-SEEN."
+      },
+      {
+        "t": 7031,
+        "kind": "PUSH:interrupt()",
+        "detail": ""
+      },
+      {
+        "t": 7055,
+        "kind": "user",
+        "detail": "text:[Request interrupted by user]"
+      },
+      {
+        "t": 7057,
+        "kind": "result:error_during_execution",
+        "detail": "result:error_during_execution:"
+      },
+      {
+        "t": 11029,
+        "kind": "PUSH:after-interrupt",
+        "detail": "AFTER"
+      },
+      {
+        "t": 11051,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 12100,
+        "kind": "user:replay",
+        "detail": "str:Reply with exactly: AFTER-INTERRUPT."
+      },
+      {
+        "t": 12100,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 12140,
+        "kind": "assistant",
+        "detail": "text:AFTER-INTERRUPT."
+      },
+      {
+        "t": 12165,
+        "kind": "result:success",
+        "detail": "result:success:AFTER-INTERRUPT."
+      },
+      {
+        "t": 18088,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 20455,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 20739,
+        "kind": "assistant",
+        "detail": "text:Background task completed: `sleep 12 && touch a.mark` (exit code 0). File `a.mark` has been created."
+      },
+      {
+        "t": 20761,
+        "kind": "result:success",
+        "detail": "result:success:Background task completed: `sleep 12 && touch a.mark` (exit code 0). File `a.mark` has been created."
+      }
+    ]
+  },
+  "F2-abort": {
+    "name": "F2-abort",
+    "endedAtMs": 8958,
+    "thrown": "Error: Claude Code process aborted by user",
+    "cost": 0.0237099,
+    "results": [
+      {
+        "t": 8337,
+        "subtype": "success",
+        "turns": 2,
+        "cost": 0.0237099,
+        "text": "PENDING-SEEN"
+      }
+    ],
+    "pulledByCli": [
+      {
+        "t": 11,
+        "text": "Run the Bash command `sleep 12 && touch b.mark`. Then reply DONE-F2."
+      },
+      {
+        "t": 5938,
+        "text": "STEER: reply with exactly: PENDING-SEEN."
+      }
+    ],
+    "hookTools": [
+      {
+        "ev": "PreToolUse",
+        "t": 4947,
+        "cmd": "sleep 12 && touch b.mark"
+      },
+      {
+        "ev": "PostToolUse",
+        "t": 5996,
+        "cmd": "sleep 12 && touch b.mark"
+      }
+    ],
+    "markers": ["a.mark:false", "b.mark:false", "c.mark:false"],
+    "timeline": [
+      {
+        "t": 418,
+        "kind": "system:init",
+        "detail": ""
+      },
+      {
+        "t": 2014,
+        "kind": "rate_limit_event",
+        "detail": ""
+      },
+      {
+        "t": 4185,
+        "kind": "user:replay",
+        "detail": "str:Run the Bash command `sleep 12 && touch b.mark`. Then reply DONE-F2."
+      },
+      {
+        "t": 4188,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 4936,
+        "kind": "assistant",
+        "detail": "tool_use:Bash:{\"command\":\"sleep 12 && touch b.mark\",\"description\":\"Sleep for 12 seconds then c"
+      },
+      {
+        "t": 4976,
+        "kind": "canUseTool",
+        "detail": "Bash ALLOW sleep 12 && touch b.mark"
+      },
+      {
+        "t": 5938,
+        "kind": "PUSH:steer-pending",
+        "detail": "PENDING"
+      },
+      {
+        "t": 5998,
+        "kind": "user",
+        "detail": "tool_result:\"Command running in background with ID: bi08yyeln. Output is being written to: /private/tmp/claude-501/-private-var-fold"
+      },
+      {
+        "t": 6002,
+        "kind": "user:replay",
+        "detail": "str:STEER: reply with exactly: PENDING-SEEN."
+      },
+      {
+        "t": 6939,
+        "kind": "PUSH:abort()",
+        "detail": ""
+      },
+      {
+        "t": 8249,
+        "kind": "assistant",
+        "detail": "thinking"
+      },
+      {
+        "t": 8282,
+        "kind": "assistant",
+        "detail": "text:PENDING-SEEN"
+      },
+      {
+        "t": 8309,
+        "kind": "rate_limit_event",
+        "detail": ""
+      },
+      {
+        "t": 8337,
+        "kind": "result:success",
+        "detail": "result:success:PENDING-SEEN"
+      }
+    ]
+  },
+  "totalCostUsd": 0.29959470000000005
+}

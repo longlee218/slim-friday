@@ -56,8 +56,8 @@ test("whenToUse: every role has one, all different; class tiers only for dev", (
   expect(hasClassTiers(getRole("assistant"))).toBe(false);
 });
 
-test("dispatchableRoleNames: roles with whenToUse except the assistant", () => {
-  expect(dispatchableRoleNames()).toEqual(["dev"]);
+test("dispatchableRoleNames: every role with whenToUse (a queued follow-up may be any role)", () => {
+  expect(dispatchableRoleNames()).toEqual(["assistant", "dev"]);
 });
 
 test("guard: subagent allowlist comes from the stage; a stage without subagents allows none", () => {

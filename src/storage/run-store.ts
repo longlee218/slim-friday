@@ -25,6 +25,15 @@ export function setTaskSession(db: Database, id: string, sessionId: string, cwd:
   db.query("UPDATE tasks SET session_id = ?, session_cwd = ? WHERE id = ?").run(sessionId, cwd, id);
 }
 
+/** Claude session a task recorded at `system/init`, or undefined (not started yet / no row). */
+export function taskSessionId(db: Database, id: string): string | undefined {
+  return (
+    db
+      .query<{ session_id: string | null }, [string]>("SELECT session_id FROM tasks WHERE id = ?")
+      .get(id)?.session_id ?? undefined
+  );
+}
+
 /** Latest task of a thread with the session it recorded (what Resume continues), or null. */
 export function latestTaskSession(
   db: Database,

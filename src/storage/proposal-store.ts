@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { TaskClass } from "../config/model-routing";
+import type { Effort, TaskClass } from "../config/model-routing";
 import { redactText } from "../observability/redact";
 
 /** Lifecycle of a proposal: `pending` -> (`queued`) -> `dispatched` | `refused` | `expired`. */
@@ -32,6 +32,8 @@ export interface Proposal {
   scope: string | null;
   confidence: number | null;
   reason: string | null;
+  /** Effort resolved when it was queued (null = the stage defaults); read back when the queue starts it. */
+  effort: Effort | null;
   status: ProposalStatus;
   createdAt: number;
   decidedAt: number | null;
@@ -42,15 +44,15 @@ export type NewProposal = Pick<Proposal, "threadId" | "workspace" | "role" | "br
   Partial<Omit<Proposal, "id" | "status" | "createdAt" | "decidedAt">>;
 
 const COLS = `id, thread_id AS threadId, workspace, from_task_id AS fromTaskId, role, brief, repo, base,
-  class, scope, confidence, reason, status, created_at AS createdAt, decided_at AS decidedAt`;
+  class, scope, confidence, reason, effort, status, created_at AS createdAt, decided_at AS decidedAt`;
 
 /** Insert a `pending` proposal (brief stored redacted) and return its id. */
 export function insertProposal(db: Database, p: NewProposal, now = Date.now()): string {
   const id = crypto.randomUUID();
   db.query(
     `INSERT INTO proposals (id, thread_id, workspace, from_task_id, role, brief, repo, base, class,
-       scope, confidence, reason, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+       scope, confidence, reason, effort, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
   ).run(
     id,
     p.threadId,
@@ -64,6 +66,7 @@ export function insertProposal(db: Database, p: NewProposal, now = Date.now()): 
     p.scope ?? null,
     p.confidence ?? null,
     p.reason === undefined || p.reason === null ? null : redactText(p.reason),
+    p.effort ?? null,
     now,
   );
   return id;
@@ -146,6 +149,17 @@ export function oldestQueuedProposal(db: Database, threadId: string): Proposal |
        ORDER BY created_at, rowid LIMIT 1`,
     )
     .get(threadId);
+}
+
+/** How many `queued` proposals the thread holds. */
+export function countQueuedProposals(db: Database, threadId: string): number {
+  return (
+    db
+      .query<{ n: number }, [string]>(
+        "SELECT COUNT(*) AS n FROM proposals WHERE thread_id = ? AND status = 'queued'",
+      )
+      .get(threadId)?.n ?? 0
+  );
 }
 
 /**

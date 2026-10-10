@@ -11,6 +11,7 @@ import type { TaskCommand } from "./task-commands";
 import { PLAIN_GO, resolveCommand, routeTask } from "./task-routing";
 import { refused } from "./tasks/task-tracker";
 import type { EffortFloors } from "./thread/effort-floor";
+import { STILL_WORKING } from "./thread/intent-replies";
 import type { IntentOutcome } from "./thread/route-by-intent";
 
 /** What the handler hands over once it holds the lock and knows the workspace. */
@@ -23,24 +24,48 @@ export interface RouteAndRunInput {
   /** Undefined = the intent layer is off (tests): every message goes to the legacy pick (worktree owner / entry role). */
   intent?: IntentDeps;
   hasApprovals: boolean;
+  /** A fresh abort controller registered as the thread's active one (the queue after a user `/stop`). */
+  renewAc: () => AbortController;
 }
 
 /**
  * From a parsed command to a finished turn, then the queued tasks start (whatever the turn did: reply, refusal
- * or crash; a crash is re-thrown after the drain so the handler still reports it).
+ * or crash; a crash is re-thrown after the drain so the handler still reports it). After the owner's `/stop` the
+ * queue still runs, on a fresh controller (the thread's `/stop` then aborts that one); a shutdown abort does not.
  */
 export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
   const { rc, stored } = c;
+  const { steer, stopping } = rc.deps;
+  const thread = rc.task.threadId;
   const q = { ...rc, pinned: pinnedRepo(rc.repos, undefined, stored) };
+  /** Notes of steers a finished run never read (the ones of this turn go out BEFORE the queue starts: a held steer must not leak into the next task). */
+  const notes: string[] = [];
+  const unread = () => {
+    const n = steer?.undeliveredNotice(thread);
+    if (n) notes.push(n);
+  };
+  const next = () => {
+    if (rc.ac.signal.aborted && !stopping()) q.ac = c.renewAc();
+  };
   let reply: string;
   try {
     reply = await routeTurn(c);
+    unread();
   } catch (err) {
+    unread();
+    next();
     // Best effort: a failing queued task must not hide the crash that ended this one.
     await drainQueued(q, "").catch(() => undefined);
+    unread();
+    // The notes are not lost with the crash: posted into the thread (best effort), then the crash is re-thrown.
+    if (notes.length) await rc.task.notify?.(notes.join("\n\n")).catch(() => undefined);
     throw err;
   }
-  return drainQueued(q, reply);
+  next();
+  const out = await drainQueued(q, reply);
+  unread();
+  // Steers the run(s) ended without reading are never silent.
+  return notes.length ? `${out}\n\n${notes.join("\n\n")}` : out;
 }
 
 /**
@@ -88,6 +113,7 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
       cmd: resolved.cmd,
     });
     if (out.kind === "reply") return out.text;
+    if (out.kind === "side") return STILL_WORKING; // only a busy thread gets one (see route-by-intent `side`)
     picked = out;
     // An outcome may swap the text to run (declined dev task); its `notice` is put before the reply below.
     if (out.text) resolved = { ...resolved, cmd: { ...resolved.cmd, text: out.text } };

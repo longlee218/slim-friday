@@ -6,6 +6,7 @@ import type { RunAgentResult } from "../../runtime/run-agent";
 import { finishTask, setTaskStatus, type TaskStatus } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
 import { budgetHitReply } from "../engine/budget";
+import { compactIdleSession } from "./session-compaction";
 
 /* The result of a Q&A or code flow, and the bookkeeping that closes a run. */
 
@@ -79,6 +80,8 @@ export function finishRun(
       cwd: res.cwd,
     });
     logEvent(log, "session.saved", { repo: res.repo ?? "*", sessionId: res.sessionId });
+    // A finished task over the size threshold: forget the session, the next turn starts fresh with the ledger.
+    if (res.outcome === "success") compactIdleSession(db, ids, res.usage);
   }
   finishTask(db, ids.taskId, TASK_STATUS[res.outcome] ?? "failed");
   // Budget hit is never silent: spent / limit, the overshoot note; event `budget.exceeded`.

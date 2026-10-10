@@ -1,102 +1,53 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
 import type { Task } from "../../ingress/discord-message-handler";
-import type { IntentDecision } from "../../intent/decide-intent";
 import { logEvent, logger } from "../../observability/logger";
 import type { Repo } from "../../repos/repo-registry";
 import { entryRole, isGated, ROLES } from "../../roles/role-registry";
+import type { RoleDefinition } from "../../roles/role-types";
+import { PLAN_NOT_REAPPROVED } from "../../storage/ledger-store";
 import { type DispatchDeps, dispatchRole } from "../dispatch/dispatch-role";
 import {
   answerPending,
   DECLINE_BUSY_REPLY,
-  declineConfirmedDev,
+  declineConfirmedTask,
   queueTask,
   taskBrief,
 } from "../dispatch/queued-tasks";
 import {
   ASK_TEXT,
-  type AskKind,
+  FEEDBACK_MISSED,
+  FEEDBACK_SENT,
   GATE_HINT,
   NO_APPROVALS,
   NOTHING_PENDING,
+  QUEUE_FULL,
+  STEER_ENDED,
+  STEER_FULL,
+  STEER_HELD,
+  STEER_RECEIVED,
   STILL_WORKING,
 } from "./intent-replies";
-import { isIdleLike, type ThreadState } from "./thread-state";
+import { FIX_LIMIT_REPLY, type IntentAction, isSideRole } from "./intent-table";
 
-/* The behavior table of the intent layer (decisions Rev 4/5/8). Pure table + an executor that calls only
-   `dispatch/` and returns what the handler should run: it never calls the SDK. */
+export { actionFor, FIX_LIMIT_REPLY, type IntentAction, MAX_FIX_ROUNDS } from "./intent-table";
+
+/* Executor of the behavior table (intent-table.ts, decisions Rev 4/5/8/11): it calls only `dispatch/` and the steer
+   registry, and returns what the handler should run: it never calls the SDK. */
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "route-by-intent" });
 
-/** Fix rounds one task's clone accepts (same clone / session; each round is its own task row and budget). */
-export const MAX_FIX_ROUNDS = 2;
-
-/** Reply when a task's clone used up its fix rounds. */
-export const FIX_LIMIT_REPLY = `This task already had ${MAX_FIX_ROUNDS} fix rounds. Send \`/cleanup\` to drop its clone, then ask again.`;
-
-/** What the table says to do with one message. */
-export type IntentAction =
-  | { kind: "run"; role: string } // idle: run the role (assistant)
-  | { kind: "open"; role: string } // idle: open a new staged task (proposal -> plan)
-  | { kind: "confirm-dev"; role: string } // idle, L3 alone chose a task right after a discussion turn: ask yes/no first
-  | { kind: "fix"; role: string } // staged role, active, clone exists: bounded fix round in the same clone
-  | { kind: "fix-limit" }
-  | { kind: "feedback"; role: string } // plan gate: feedback re-runs the plan stage
-  | { kind: "side"; role: string } // running / gate: the answering role answers, the task is not interrupted
-  | { kind: "steer"; role: string } // running: steer into the run (P1.4b)
-  | { kind: "queue"; role: string } // a second task while one is active
-  | { kind: "answer-ask"; answer: "yes" | "no" } // L3 read a yes/no to a pending proposal
-  | { kind: "gate-hint" } // yes/no text to a button gate
-  | { kind: "ask"; reason: AskKind; text?: string };
-
-/** Facts of the thread the table needs. */
-export interface TableInput {
-  decision: IntentDecision;
-  state: ThreadState;
-  /** The thread has a live clone (an earlier staged task's work). */
-  hasClone: boolean;
-  /** Follow-up rounds already run in that clone. */
-  fixRounds: number;
-}
-
-/**
- * THE table. Rows (state x role x scope), `answering` = a role that is not gated (assistant), `staged` = gated (dev):
- * idle: answering -> run; staged new -> open (confirm-dev when the discussion guard flagged it); staged active (clone) -> fix (max rounds) | fix-limit.
- * plan gate: answering -> side; staged active -> feedback; staged new -> queue.
- * running: answering -> side; staged active -> steer; staged new -> queue.
- * result gate: answering -> side; staged active -> fix | fix-limit; staged new -> queue.
- * Any state: low confidence / unknown role / failure -> ask (the fallback of an idle thread already is the entry role).
- */
-export function actionFor(i: TableInput): IntentAction {
-  const d = i.decision;
-  if (d.kind === "ask") return { kind: "ask", reason: d.reason, ...(d.text && { text: d.text }) };
-  if (d.kind === "gate-answer")
-    return d.target === "ask" ? { kind: "answer-ask", answer: d.answer } : { kind: "gate-hint" };
-  const role = ROLES[d.role];
-  if (!role) return { kind: "ask", reason: "unknown_role" };
-  const fix = (): IntentAction =>
-    i.fixRounds >= MAX_FIX_ROUNDS ? { kind: "fix-limit" } : { kind: "fix", role: d.role };
-  if (!isGated(role))
-    return isIdleLike(i.state) ? { kind: "run", role: d.role } : { kind: "side", role: d.role };
-  if (isIdleLike(i.state)) {
-    if (d.scope === "active" && i.hasClone) return fix();
-    return { kind: d.confirmDev ? "confirm-dev" : "open", role: d.role };
-  }
-  if (d.scope === "new") return { kind: "queue", role: d.role };
-  if (i.state === "awaiting_plan_approval") return { kind: "feedback", role: d.role };
-  if (i.state === "awaiting_result") return fix();
-  return { kind: "steer", role: d.role };
-}
-
 /** What the handler does next. */
 export type IntentOutcome =
   | { kind: "reply"; text: string }
+  /** A busy thread's independent question for an answering role: answered at once in a parallel read-only run (side lane). */
+  | { kind: "side"; role: string; text: string; repo?: string; cls?: TaskClass; effort?: Effort }
   | {
       kind: "run";
       role: string;
       cls?: TaskClass;
       effort?: Effort;
-      /** Text to run instead of the message (the owner declined a dev task: the original message). */
+      /** Text to run instead of the message (the owner declined an "open a task?" question: the original message). */
       text?: string;
       /** One line put before the reply (why the message was answered rather than run as a task). */
       notice?: string;
@@ -112,6 +63,8 @@ export interface RouteCtx {
   pinned?: Repo;
   /** A run of this thread holds the lock (the handler answered `still working...` before the intent layer). */
   busy: boolean;
+  /** The thread waits on an owner gate (a low-confidence message is then asked about, not dropped). */
+  gated?: boolean;
   /** Owner text without `[design]` / `repo:` prefixes, and the `repo:` hint. */
   text: string;
   repo?: string;
@@ -120,53 +73,107 @@ export interface RouteCtx {
   effort?: Effort;
 }
 
+/** The steer reply plus, when the task already passed its approved plan, the one-line warning. */
+const withPlanNote = (text: string, afterPlan: boolean): string =>
+  afterPlan ? `${text}\n${PLAN_NOT_REAPPROVED}` : text;
+
+/** What a queued request stores: the owner text plus the class and effort decided for it (kept until it starts). */
+const queued = (c: RouteCtx, role: string) => ({
+  role,
+  text: c.text,
+  repo: c.repo,
+  cls: c.cls,
+  effort: c.effort,
+});
+
+/** Actions that store their own `run_messages` row (the others are stored here as `other`). */
+const STORES_ITSELF: ReadonlySet<IntentAction["kind"]> = new Set(["steer", "queue", "feedback"]);
+
 /**
- * Carry out one table action. A row that needs the thread free (run, open, fix, feedback) while a run holds
- * the lock cannot run: the reply is `still working...` (side questions and plan feedback need P1.4b's lane;
- * the buttons carry the gate). Logs `intent.routed {action}` (no text).
+ * Carry out one table action. A row that needs the thread free (run, open, fix) while a run holds the lock cannot
+ * run: the reply is `still working...`. `steer` pushes the text into the run's input channel (or holds it for the
+ * next streaming stage), `feedback` hands it to the plan gate, `side` returns the question for the parallel
+ * read-only run the handler starts. Every message of a busy thread leaves a `run_messages` row. Logs
+ * `intent.routed {action}` (no text).
  */
 export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<IntentOutcome> {
   const reply = (text: string): IntentOutcome => ({ kind: "reply", text });
   logEvent(log, "intent.routed", { action: a.kind, busy: c.busy });
+  if (c.busy && !STORES_ITSELF.has(a.kind))
+    c.deps.steer?.record(
+      c.task,
+      c.text,
+      "other",
+      a.kind === "side" || a.kind === "answer-ask" ? "delivered" : "skipped",
+    );
   switch (a.kind) {
     case "ask":
-      // A busy thread never asks: whatever the owner meant, the run is still going.
-      return reply(c.busy ? STILL_WORKING : (a.text ?? ASK_TEXT[a.reason]()));
+      // A busy thread never asks (the run is still going) unless it waits on an owner gate: there the owner is asked.
+      return reply(c.busy && !c.gated ? STILL_WORKING : (a.text ?? ASK_TEXT[a.reason]()));
     case "gate-hint":
       return reply(GATE_HINT);
     case "fix-limit":
       return reply(FIX_LIMIT_REPLY);
     case "answer-ask": {
-      // "no" to "open a dev task?": the assistant answers the original message (busy: it must wait).
-      const declined = a.answer === "no" ? declineConfirmedDev(c, c.busy) : undefined;
+      // "no" to "open a task?": the assistant answers the original message (busy: it must wait).
+      const declined = a.answer === "no" ? declineConfirmedTask(c, c.busy) : undefined;
       if (declined?.kind === "busy") return reply(DECLINE_BUSY_REPLY);
       if (declined) return { kind: "run", role: entryRole().name, text: declined.text };
       return reply(await answerPending(c, a.answer, NOTHING_PENDING));
     }
-    case "queue":
-      if (!c.deps.approvals) return reply(NO_APPROVALS);
-      return reply(queueTask(c, { role: a.role, text: c.text, repo: c.repo, cls: c.cls }));
-    case "steer":
-      // TODO(P1.4b): steer `c.text` into the running exec stage instead of this reply.
-      return reply(STILL_WORKING);
-    case "side":
-      // TODO(P1.4b): answer from a side lane; one run per thread makes it impossible today.
-      return reply(STILL_WORKING);
-    case "feedback":
-      return reply(c.busy ? GATE_HINT : STILL_WORKING);
+    case "queue": {
+      // Independent work of ANY role waits for the run: no question, "received". A staged role needs the approval flow.
+      if (!c.deps.approvals && isGated(ROLES[a.role] as RoleDefinition)) return reply(NO_APPROVALS);
+      const text = queueTask(c, queued(c, a.role));
+      c.deps.steer?.record(
+        c.task,
+        c.text,
+        "followup",
+        text === QUEUE_FULL ? "skipped" : "delivered",
+      );
+      return reply(text);
+    }
+    case "steer": {
+      // Plain user text into the running stage's input: no scope, guard, budget or gate changes (see steer-registry.ts).
+      // The reply says "received", never that the agent read it (it reads at its next turn boundary). A steer into
+      // work that sits after the approved plan gate says so: the plan is NOT approved again for that change.
+      const sent = c.deps.steer?.steer(c.task, c.text);
+      if (sent?.result === "held") return reply(withPlanNote(STEER_HELD, sent.afterPlan));
+      if (sent?.result === "queued") return reply(withPlanNote(STEER_RECEIVED, sent.afterPlan));
+      return reply(sent?.result === "full" ? STEER_FULL : STEER_ENDED);
+    }
+    case "side": {
+      // Not busy (a gate state with a free lock): the answering role simply runs. Busy: the parallel read-only run.
+      const role = ROLES[a.role] as RoleDefinition;
+      if (!c.busy) return { kind: "run", role: a.role, cls: c.cls, effort: c.effort };
+      if (!isSideRole(role)) return reply(STILL_WORKING);
+      return {
+        kind: "side",
+        role: a.role,
+        text: c.text,
+        repo: c.repo,
+        cls: c.cls,
+        effort: c.effort,
+      };
+    }
+    case "feedback": {
+      // Typed feedback on the plan = the Reject button with a reason: the planner revises and asks again.
+      if (!c.busy) return reply(STILL_WORKING);
+      const applied = c.deps.approvals?.feedbackPlan?.(c.task.threadId, c.text) ?? false;
+      c.deps.steer?.record(c.task, c.text, "steer", applied ? "delivered" : "skipped");
+      return reply(applied ? FEEDBACK_SENT : FEEDBACK_MISSED);
+    }
     case "run":
     case "fix":
       return c.busy
         ? reply(STILL_WORKING)
         : { kind: "run", role: a.role, cls: c.cls, effort: c.effort };
-    case "confirm-dev":
+    case "confirm-task":
     case "open": {
       if (c.busy) return reply(STILL_WORKING);
       if (!c.deps.approvals) return reply(NO_APPROVALS);
-      if (a.kind === "confirm-dev")
-        return reply(
-          queueTask(c, { role: a.role, text: c.text, repo: c.repo, cls: c.cls, confirm: true }),
-        );
+      if (a.kind === "confirm-task")
+        return reply(queueTask(c, { ...queued(c, a.role), confirm: true }));
       // No source turn: the dispatcher persists the proposal, validates, asks or starts the plan stage.
       return reply(
         await dispatchRole(c.deps, {

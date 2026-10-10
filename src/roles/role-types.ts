@@ -66,6 +66,11 @@ export interface StageDefinition {
   gate?: Gate;
   /** What this stage hands on to the next one (the plan stage of a role whose next stage starts from it). */
   handoff?: StageHandoff;
+  /**
+   * Background stage: its run takes the owner's later messages while it works (streaming input, "steer"). Omitted =
+   * a string prompt, no steer (a short answer turn). Data, so any role's stage can opt in; the engine reads no role name.
+   */
+  streaming?: boolean;
   /** Prompt sections between the run contract start and the COMMON safety rules. */
   promptSections: (ctx: PromptCtx) => string[];
   /** Default model: a tier name (`haiku|sonnet|opus`) or an explicit model id. Class and effort may override it. */
@@ -80,6 +85,12 @@ export interface StageDefinition {
   escalatedBudgetUsd?: number;
   /** Minimum run timeout (stages with owner gates wait for approvals). Omitted = config timeout. */
   timeoutMs?: number;
+  /**
+   * Auto-compact window (tokens) the app hands the SDK child for this stage (CLAUDE_CODE_AUTO_COMPACT_WINDOW).
+   * Omitted = the SDK default. P3.0 Q12 is UNKNOWN (the setting was not observed to fire), so defaults stay
+   * conservative (effectively off); the app-driven fresh session after a task is the reliable path.
+   */
+  autoCompactWindow?: number;
   /** Subagent names (from the subagent registry) the Agent tool may start. Omitted = none (fail closed). */
   subagents?: string[];
 }

@@ -72,3 +72,13 @@ export function interruptRunningStages(db: Database): void {
     Date.now(),
   );
 }
+
+/** Verdict of a stage whose owner gate (the plan) was approved. */
+export const GATE_APPROVED_VERDICT = "approved";
+
+/** The task already passed an approved gate: work after it runs on a plan the owner approved earlier. */
+export function gatePassed(db: Database, taskId: string): boolean {
+  return !!db
+    .query("SELECT 1 FROM stages WHERE task_id = ? AND verdict = ? LIMIT 1")
+    .get(taskId, GATE_APPROVED_VERDICT);
+}

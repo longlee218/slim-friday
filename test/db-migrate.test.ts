@@ -221,3 +221,58 @@ test("worktrees: clone columns are added; an old row reads back as a legacy row 
   });
   openDb(file).close(); // idempotent
 });
+
+test("proposals.effort: added once by the guarded ALTER, old rows read null, re-open keeps it (idempotent)", () => {
+  const { file } = v1Home();
+  const cols = (d: Database) =>
+    d
+      .query<{ name: string }, []>("PRAGMA table_info(proposals)")
+      .all()
+      .filter((c) => c.name === "effort");
+  const db = openDb(file);
+  expect(cols(db)).toHaveLength(1);
+  db.run(
+    "INSERT INTO proposals (id, thread_id, workspace, role, brief, status, created_at) VALUES ('p1', 'th1', 'main', 'dev', 'b', 'pending', 1)",
+  );
+  const effort = () =>
+    db.query<{ effort: string | null }, []>("SELECT effort FROM proposals").get()?.effort;
+  expect(effort()).toBeNull();
+  // An older v2 db that lacks only the column gets it on the next open; a plain re-open changes nothing.
+  db.run("ALTER TABLE proposals DROP COLUMN effort");
+  db.close();
+  const again = openDb(file);
+  expect(cols(again)).toHaveLength(1);
+  again.close();
+  expect(cols(openDb(file))).toHaveLength(1);
+});
+
+test("run_messages (Rev 11): created on a v1 db, second open is a no-op, rows survive, existing tables untouched", () => {
+  const { file } = v1Home();
+  const db = openDb(file);
+  expect(count(db, "run_messages")).toBe(0);
+  const cols = db
+    .query<{ name: string }, []>("PRAGMA table_info(run_messages)")
+    .all()
+    .map((c) => c.name);
+  expect(cols).toEqual([
+    "id",
+    "message_id",
+    "thread_id",
+    "session_id",
+    "run_id",
+    "seq",
+    "kind",
+    "status",
+    "content",
+    "created_at",
+    "task_id",
+    "after_plan",
+  ]);
+  db.query(
+    "INSERT INTO run_messages (id, thread_id, seq, kind, status, content, created_at) VALUES ('m1', 'th1', 1, 'steer', 'pending', 'hi', 1)",
+  ).run();
+  db.close();
+  const again = openDb(file); // guarded, idempotent: nothing is dropped or re-created
+  expect(count(again, "run_messages")).toBe(1);
+  expect(count(again, "tasks")).toBe(2);
+});

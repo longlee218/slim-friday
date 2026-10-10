@@ -11,8 +11,16 @@ import { logEvent, logger, runWithLogContext, tryLog } from "../observability/lo
 import { clip, errText, redactText } from "../observability/redact";
 import { type ApprovalDecision, decideApproval, insertApproval } from "../storage/approval-store";
 import { setTaskStatus } from "../storage/run-store";
-import { ASK_USER_QUESTION_TOOL_NAME } from "../tools/sdk-tool-names";
-import { type ButtonSpec, buildButtonRows, type Pending, toResult } from "./approval-buttons";
+import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
+import {
+  type ButtonSpec,
+  buildButtonRows,
+  cancelPending,
+  type Pending,
+  settleClick,
+  settleWithFeedback,
+  toResult,
+} from "./approval-buttons";
 import type { ApprovalGateway, ApprovalRequest, ApprovalResult } from "./approval-types";
 import { createDecisionPoster } from "./clone-decision";
 
@@ -41,7 +49,6 @@ export function createDiscordApprovalGateway(
 
   /** Run a db write; approvals must never crash the agent on a storage error. */
   const safeDb = (fn: () => void) => tryLog(log, "approval db write failed", fn);
-
   /**
    * Post a message with buttons and wait for a click.
    * customId = `${prefix}:${id}:${value}`. Resolves undefined on timeout, "no-channel" if unsendable.
@@ -97,13 +104,14 @@ export function createDiscordApprovalGateway(
           const p = pending.get(id);
           pending.delete(id);
           finish("timeout");
-          // Best effort: show the timeout and drop the buttons.
-          void p?.edit(`${content}\n\nTimed out`);
+          void p?.edit(`${content}\n\nTimed out`); // best effort: drop the buttons
           resolve(undefined);
         }, timeoutMs);
         pending.set(id, {
           taskId: o.taskId,
-          settle: (v) => resolve(v),
+          threadId: o.threadId,
+          tool: o.tool,
+          settle: resolve,
           timer,
           content,
           finish,
@@ -140,6 +148,8 @@ export function createDiscordApprovalGateway(
     request: (req) => decide(req, ["Approve", "Deny"], "owner denied"),
     confirm: (req, labels) => decide(req, labels, "owner declined"),
     requestPlan: (req) => decide(req, ["Approve", "Reject"], "owner rejected plan"),
+    feedbackPlan: (threadId, text) =>
+      settleWithFeedback(pending, threadId, EXIT_PLAN_MODE_TOOL_NAME, text),
 
     async askChoice(a) {
       const value = await ask({
@@ -158,16 +168,7 @@ export function createDiscordApprovalGateway(
       return a.options[Number(value)];
     },
 
-    cancelTask(taskId) {
-      for (const [id, p] of pending) {
-        if (p.taskId !== taskId) continue;
-        pending.delete(id);
-        clearTimeout(p.timer);
-        p.finish("cancelled");
-        void p.edit(`${p.content}\n\nCancelled`);
-        p.settle("cancelled");
-      }
-    },
+    cancelTask: (taskId) => cancelPending(pending, taskId),
 
     async handleInteraction(i) {
       if (await decisions.handle(i)) return;
@@ -185,12 +186,7 @@ export function createDiscordApprovalGateway(
           return;
         }
         pending.delete(id);
-        clearTimeout(p.timer);
-        const approved = prefix === "choice" || value === "allow";
-        const label =
-          prefix === "choice" ? `chose #${Number(value) + 1}` : approved ? "approved" : "denied";
-        p.finish(approved ? "approved" : "denied");
-        p.settle(value);
+        const label = settleClick(p, prefix, value);
         await i.update({ content: `${p.content}\n\nOwner ${label}`, components: [] });
       } catch (err) {
         log.warn({ err: errText(err) }, "approval interaction failed");

@@ -22,7 +22,7 @@ import {
   MAX_FIX_ROUNDS,
   routeByIntent,
 } from "./thread/route-by-intent";
-import { deriveThreadState, isIdleLike } from "./thread/thread-state";
+import { deriveThreadState, isGateState, isIdleLike } from "./thread/thread-state";
 import { turnEffort } from "./thread/turn-effort";
 
 /** What one intent decision needs from the handler. */
@@ -58,14 +58,24 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   const clone = liveWorktree(db, threadId);
   const fixRounds = clone ? countFollowUps(db, clone.taskId) : 0;
   const pendingQuestion = pendingQuestionOf(db, threadId);
+  // A running task that takes steers (a stage reads its input now, or a streaming stage is still to come): L3 decides
+  // the SCOPE of every message, tagged or not (supplement -> steer, independent -> side / queue; a `[tag]` only picks
+  // the role). On the plan gate the typed text is feedback on the plan (L3 tells feedback, a question or other work).
+  // Any other busy state keeps the old path (a tagged message queues; L3 only reads a pending answer or a gate state).
+  const steerable = c.busy && state === "running" && !!c.deps.steer?.canTake(threadId);
+  const gated = c.busy && isGateState(state);
   const { decision, effort } = await decideIntent(
     {
       text: c.cmd.text,
       state,
       pendingQuestion,
-      // A busy thread cannot steer yet (P1.4b): a dev request is a NEW task (queue question). A clone that
-      // used its fix rounds takes no more work either: the next dev request is a NEW task.
-      hasTask: !c.busy && (!isIdleLike(state) || !!clone) && fixRounds < MAX_FIX_ROUNDS,
+      // A busy thread continues its task only through a steer or the plan gate's feedback; else a request is a NEW
+      // task (queued). A clone that used its fix rounds takes no more work either: the next staged request is NEW.
+      hasTask:
+        steerable ||
+        (c.busy && state === "awaiting_plan_approval") ||
+        (!c.busy && (!isIdleLike(state) || !!clone) && fixRounds < MAX_FIX_ROUNDS),
+      scopeFromModel: steerable,
       ownerClass: c.cmd.cls,
       signal: c.ac.signal,
       l3Input: () =>
@@ -77,17 +87,22 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
           pendingQuestion,
         }),
     },
-    // A busy thread pays for L3 only to read the answer to a pending question; else only the `[dev]` tag (L1) acts on it.
-    c.busy && !pendingQuestion ? { ...c.intent, classifier: undefined } : c.intent,
+    // A busy thread pays for L3 only to read the answer to a pending question, to scope a steerable run's message or
+    // to read a message on an owner gate; else only a role tag (L1) acts on it.
+    c.busy && !pendingQuestion && !steerable && !gated
+      ? { ...c.intent, classifier: undefined }
+      : c.intent,
   );
   const action = actionFor({ decision, state, hasClone: !!clone, fixRounds });
   // Effort only matters for a run that starts now; `max` runs only after the owner-confirm gate says yes
   // (a busy thread cannot start a run, so it does not ask).
   let turn: ReturnType<typeof turnEffort> = { pendingMax: false };
   let maxDeclined = false;
-  if (decision.kind === "role" && ["run", "open", "fix"].includes(action.kind)) {
+  // A queued request resolves its effort now (stored with the proposal) but never asks the max gate: it stays capped.
+  const queuing = action.kind === "queue" || action.kind === "confirm-task";
+  if (decision.kind === "role" && (queuing || ["run", "open", "fix"].includes(action.kind))) {
     turn = turnEffort(c.floors, threadId, decision.cls, effort);
-    if (turn.pendingMax && !c.busy) {
+    if (turn.pendingMax && !c.busy && !queuing) {
       ({ turn, declined: maxDeclined } = await settleMaxEffort({
         approvals: c.deps.approvals,
         floors: c.floors,
@@ -102,6 +117,7 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   const out = await routeByIntent(
     {
       ...c,
+      gated,
       pinned: pinnedRepo(c.repos, c.cmd.repo, c.stored),
       text: stripRoleTag(c.cmd.text),
       repo: c.cmd.repo,
@@ -117,8 +133,10 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
 }
 
 /**
- * The thread's run holds the lock. A plain message may still be queued as a second task (`[dev]` tag) or answer
- * a pending question (read by L3, intent layer on); everything else is `still working...`.
+ * The thread's run holds the lock. A plain message may steer a running stage (or wait for the next one), be answered
+ * at once by the side lane (an independent question for an answering role), be queued as independent work, be
+ * feedback on the plan gate, or answer a pending question (read by L3, intent layer on); everything else is
+ * `still working...`. Returns the outcome: a reply text, or `side` for the handler to run next to the task.
  */
 export async function replyWhileBusy(c: {
   deps: DispatchDeps;
@@ -128,15 +146,18 @@ export async function replyWhileBusy(c: {
   ac: AbortController;
   intent?: IntentDeps;
   floors: EffortFloors;
-}): Promise<string> {
+}): Promise<Exclude<IntentOutcome, { kind: "run" }>> {
   const picked =
     c.intent && c.parsed.kind === "task"
       ? selectWorkspace(c.deps.config.agentHome, c.task.channelId)
       : undefined;
-  if (!c.intent || c.parsed.kind !== "task" || !picked || "reply" in picked) {
+  const still = (): { kind: "reply"; text: string } => {
     logEvent(c.log, "task.still_working");
-    return STILL_WORKING;
-  }
+    // Never lost: the message is stored even when nothing acts on it.
+    if (c.parsed.kind === "task") c.deps.steer?.record(c.task, c.task.text, "other", "skipped");
+    return { kind: "reply", text: STILL_WORKING };
+  };
+  if (!c.intent || c.parsed.kind !== "task" || !picked || "reply" in picked) return still();
   const { ws } = picked;
   const out = await intentTurn({
     ...c,
@@ -147,7 +168,8 @@ export async function replyWhileBusy(c: {
     busy: true,
     cmd: c.parsed,
   });
-  if (out.kind === "reply" && out.text !== STILL_WORKING) return out.text;
-  logEvent(c.log, "task.still_working");
-  return STILL_WORKING;
+  // A busy thread never starts a run (the table rows that would give `still working...`); its row is stored already.
+  if (out.kind === "run") return { kind: "reply", text: STILL_WORKING };
+  if (out.kind === "reply" && out.text === STILL_WORKING) logEvent(c.log, "task.still_working");
+  return out;
 }

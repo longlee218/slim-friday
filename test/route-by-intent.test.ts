@@ -1,7 +1,18 @@
 import { expect, test } from "bun:test";
 import type { IntentDecision } from "../src/intent/decide-intent";
-import { DECLINE_BUSY_REPLY, drainQueued } from "../src/orchestrator/dispatch/queued-tasks";
-import { STILL_WORKING, stripRoleTag } from "../src/orchestrator/thread/intent-replies";
+import {
+  DECLINE_BUSY_REPLY,
+  drainQueued,
+  MAX_QUEUED,
+} from "../src/orchestrator/dispatch/queued-tasks";
+import {
+  NO_APPROVALS,
+  QUEUE_FULL,
+  QUEUE_RECEIVED,
+  STEER_ENDED,
+  STILL_WORKING,
+  stripRoleTag,
+} from "../src/orchestrator/thread/intent-replies";
 import {
   actionFor,
   FIX_LIMIT_REPLY,
@@ -11,7 +22,9 @@ import {
   routeByIntent,
 } from "../src/orchestrator/thread/route-by-intent";
 import type { ThreadState } from "../src/orchestrator/thread/thread-state";
+import { ROLES } from "../src/roles/role-registry";
 import {
+  countQueuedProposals,
   getProposal,
   insertProposal,
   oldestQueuedProposal,
@@ -58,8 +71,9 @@ test("awaiting_plan_approval: dev active = plan feedback; assistant answers, gat
   expect(act(role("dev", "new"), "awaiting_plan_approval")).toEqual({ kind: "queue", role: "dev" });
 });
 
-test("running: dev active steers (P1.4b); assistant = side question; dev new queues", () => {
+test("running: scope decides for ANY role (Rev 11): active (supplement) steers, new (independent) is answered by the side lane (answering role, no clone) or queues", () => {
   expect(act(role("dev", "active"), "running")).toEqual({ kind: "steer", role: "dev" });
+  expect(act(role("assistant", "active"), "running")).toEqual({ kind: "steer", role: "assistant" });
   expect(act(role("assistant", "new"), "running")).toEqual({ kind: "side", role: "assistant" });
   expect(act(role("dev", "new"), "running")).toEqual({ kind: "queue", role: "dev" });
 });
@@ -178,8 +192,22 @@ test("executor: asks, hints, fix limit and the P1.4b rows are replies; none runs
   ).toBe(STILL_WORKING);
   expect(text(await routeByIntent(c, { kind: "gate-hint" }))).toContain("Approve / Reject");
   expect(text(await routeByIntent(c, { kind: "fix-limit" }))).toBe(FIX_LIMIT_REPLY);
-  expect(text(await routeByIntent(c, { kind: "steer", role: "dev" }))).toBe(STILL_WORKING);
-  expect(text(await routeByIntent(c, { kind: "side", role: "assistant" }))).toBe(STILL_WORKING);
+  // no steerable run registered: the message cannot be delivered (steer rows with a run: test/steer-route.test.ts)
+  expect(text(await routeByIntent(c, { kind: "steer", role: "dev" }))).toBe(STEER_ENDED);
+  // side: a free lock (a gate state) simply runs the answering role; busy hands the question to the side lane
+  expect(
+    await routeByIntent({ ...c, busy: false }, { kind: "side", role: "assistant" }),
+  ).toMatchObject({
+    kind: "run",
+    role: "assistant",
+  });
+  expect(await routeByIntent(c, { kind: "side", role: "assistant" })).toMatchObject({
+    kind: "side",
+    role: "assistant",
+    text: c.text,
+  });
+  // a staged role is never a side run: it waits
+  expect(text(await routeByIntent(c, { kind: "side", role: "dev" }))).toBe(STILL_WORKING);
 });
 
 test("executor: rows that need the thread free give 'still working...' while a run holds the lock, else run", async () => {
@@ -203,28 +231,52 @@ test("executor: rows that need the thread free give 'still working...' while a r
   });
 });
 
-test("queue: a second dev task is persisted pending and asked ONCE; a newer ask supersedes the older", async () => {
+test('queue: independent work is persisted `queued` at once, answered "received" (no question), any role; capped', async () => {
   const { env, c } = ctx({ repo: "api", cls: "mechanical" });
-  const q = text(await routeByIntent(c, { kind: "queue", role: "dev" }));
-  expect(q).toContain("Run this after it? Reply yes or no");
-  const p1 = pendingProposal(env.db, "th")!;
-  expect(p1).toMatchObject({ role: "dev", repo: "api", class: "mechanical", status: "pending" });
+  expect(text(await routeByIntent(c, { kind: "queue", role: "dev" }))).toBe(QUEUE_RECEIVED);
+  const p1 = oldestQueuedProposal(env.db, "th")!;
+  expect(p1).toMatchObject({ role: "dev", repo: "api", class: "mechanical", status: "queued" });
   expect(p1.brief).toContain("please add retries");
-  await routeByIntent({ ...c, text: "second ask" }, { kind: "queue", role: "dev" });
-  expect(getProposal(env.db, p1.id)!.status).toBe("expired");
-  expect(pendingProposal(env.db, "th")!.brief).toContain("second ask");
+  expect(pendingProposal(env.db, "th")).toBeNull(); // nothing waits for a yes
+  // an answering role queues too (it used to get `still working...` and be lost)
+  expect(
+    text(await routeByIntent({ ...c, text: "second ask" }, { kind: "queue", role: "assistant" })),
+  ).toBe(QUEUE_RECEIVED);
+  expect(getProposal(env.db, p1.id)!.status).toBe("queued"); // the older one is not superseded
+  expect(countQueuedProposals(env.db, "th")).toBe(2);
+  await routeByIntent(c, { kind: "queue", role: "dev" });
+  // MAX_QUEUED reached: refused out loud, nothing stored
+  expect(text(await routeByIntent(c, { kind: "queue", role: "dev" }))).toBe(QUEUE_FULL);
+  expect(countQueuedProposals(env.db, "th")).toBe(MAX_QUEUED);
 });
 
-test("yes while running -> queued (starts at the end of the active task); no -> refused; nothing pending -> told", async () => {
+test("a staged role cannot queue without the approval flow", async () => {
+  const { env, c } = ctx();
+  const noApprovals = { ...c, deps: { ...c.deps, approvals: undefined } } as never;
+  expect(text(await routeByIntent(noApprovals, { kind: "queue", role: "dev" }))).toBe(NO_APPROVALS);
+  expect(text(await routeByIntent(noApprovals, { kind: "queue", role: "assistant" }))).toBe(
+    QUEUE_RECEIVED,
+  );
+  expect(countQueuedProposals(env.db, "th")).toBe(1);
+});
+
+test("yes/no to a PENDING proposal (confirm question, restart release): yes while running -> queued; no -> refused; nothing pending -> told", async () => {
   const { env, c } = ctx();
   expect(text(await routeByIntent(c, { kind: "answer-ask", answer: "yes" }))).toBe(
     "Nothing is waiting for an answer.",
   );
-  await routeByIntent(c, { kind: "queue", role: "dev" });
+  const pend = () =>
+    insertProposal(env.db, {
+      threadId: "th",
+      workspace: "main",
+      role: "dev",
+      brief: "pending one",
+    });
+  pend();
   expect(text(await routeByIntent(c, { kind: "answer-ask", answer: "yes" }))).toContain("Queued");
   expect(oldestQueuedProposal(env.db, "th")).toMatchObject({ status: "queued", role: "dev" });
   expect(pendingProposal(env.db, "th")).toBeNull();
-  await routeByIntent(c, { kind: "queue", role: "dev" });
+  pend();
   expect(text(await routeByIntent(c, { kind: "answer-ask", answer: "no" }))).toBe("Dropped.");
   expect(pendingProposal(env.db, "th")).toBeNull();
 });
@@ -243,12 +295,10 @@ test("a pending proposal older than the TTL is expired, not queued", async () =>
 test("stop refuses queued proposals; an aborted run does not drain them", async () => {
   const { env, c } = ctx();
   await routeByIntent(c, { kind: "queue", role: "dev" });
-  await routeByIntent(c, { kind: "answer-ask", answer: "yes" });
   expect(refuseQueued(env.db, "th")).toBe(1);
   expect(oldestQueuedProposal(env.db, "th")).toBeNull();
   // drain with an aborted run: nothing starts, the reply is unchanged
   await routeByIntent(c, { kind: "queue", role: "dev" });
-  await routeByIntent(c, { kind: "answer-ask", answer: "yes" });
   c.ac.abort();
   expect(await drainQueued({ ...c, deps: c.deps }, "done.")).toBe("done.");
   expect(oldestQueuedProposal(env.db, "th")).not.toBeNull();
@@ -261,7 +311,7 @@ test("stripRoleTag drops the leading role tag only", () => {
   expect(stripRoleTag("[dev]")).toBe("[dev]"); // nothing left: keep the text
 });
 
-test("'no' to 'Open a dev task for this?': free thread -> assistant answers the message; busy -> waits, question stays", async () => {
+test("'no' to 'Open a task for this?' (also a row written by the older wording): free thread -> assistant answers the message; busy -> waits, question stays", async () => {
   const { env, c } = ctx();
   const id = insertProposal(env.db, {
     threadId: "th",
@@ -281,4 +331,27 @@ test("'no' to 'Open a dev task for this?': free thread -> assistant answers the 
     text: "Tôi đề xuất xây dựng cache",
   });
   expect(getProposal(env.db, id)?.status).toBe("refused");
+});
+
+test("table reads role DATA, not names: a gated role without a clone stage never gets a fix round", () => {
+  const fake = {
+    ...ROLES.dev,
+    name: "design",
+    stages: [{ ...ROLES.dev!.stages[0]!, name: "design-plan", isolation: "none" as const }],
+  } as never;
+  (ROLES as Record<string, unknown>).design = fake;
+  try {
+    // idle thread with a clone, active scope: dev fixes in its clone, the clone-less role opens a new task
+    expect(act(role("dev", "active"), "idle", true)).toEqual({ kind: "fix", role: "dev" });
+    expect(act(role("design", "active"), "idle", true)).toEqual({ kind: "open", role: "design" });
+    // result gate: no clone to fix in -> the answer stays a side reply
+    expect(act(role("design", "active"), "awaiting_result", true)).toEqual({
+      kind: "side",
+      role: "design",
+    });
+    // independent work queues whatever the role
+    expect(act(role("design", "new"), "running")).toEqual({ kind: "queue", role: "design" });
+  } finally {
+    delete (ROLES as Record<string, unknown>).design;
+  }
 });

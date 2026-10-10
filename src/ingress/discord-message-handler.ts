@@ -7,26 +7,13 @@ import { errText } from "../observability/redact";
 import { parseTaskCommand } from "../orchestrator/task-commands";
 import { type AttachmentDeps, withAttachments } from "./attachment-text";
 import { routeMessage, SAFE_MENTIONS, stripMention, threadName } from "./discord-message-rules";
-import { sendReply, startTyping } from "./discord-send";
+import { BUSY_ACK_EMOJI, sendReply, startTyping } from "./discord-send";
 import { replyToMemoryCommand } from "./memory-ingress";
+import type { Task } from "./task-type";
 import { fetchRecent } from "./thread-history";
+import { createThreadTurns } from "./thread-turns";
 
-/** A unit of work arriving from any ingress (Discord, tests). */
-export interface Task {
-  /** Where it came from, e.g. "discord". */
-  source: string;
-  /** Sender id; ingress enforces the owner allowlist. */
-  userId: string;
-  /** Conversation thread; maps 1:1 to a Claude session. */
-  threadId: string;
-  /** Routing key: the parent channel of the thread (or the channel of a new conversation). */
-  channelId: string;
-  text: string;
-  /** The last messages of the thread before this one (owner and bot, redacted, clipped), oldest first; for the intent layer. Absent = none. */
-  recent?: RecentMessage[];
-  /** Posts a message into the thread while the task still runs (a dispatched plan waits for approval). */
-  notify?: (text: string) => Promise<void>;
-}
+export type { Task } from "./task-type";
 
 /** Longest wait (ms) for the thread history; the message then goes on without it. */
 export const FETCH_RECENT_TIMEOUT_MS = 1500;
@@ -59,17 +46,19 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
   const log = logger.child({ module: "discord-message-handler" });
   const setup = deps.setup ?? EMPTY_SETUP;
   const ops = opsIds(setup);
+  const takeTurn = createThreadTurns(); // per-thread arrival order up to the task call
 
-  /** Run the task with typing shown, then post the reply into `channel`. */
+  /** Run the task with typing shown, then post the reply into `channel`. `started` runs right after the task call began. */
   async function answer(
     channel: SendableChannels,
-    ids: { threadId: string; channelId: string },
+    ids: { threadId: string; channelId: string; messageId: string; ack?: () => Promise<void> },
     text: string,
     recent?: RecentMessage[],
+    started?: () => void,
   ): Promise<void> {
     const stopTyping = startTyping(channel);
     try {
-      const reply = await deps.handleTask({
+      const call = deps.handleTask({
         source: "discord",
         userId: deps.ownerId,
         ...ids,
@@ -77,7 +66,8 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         ...(recent?.length && { recent }),
         notify: (m) => sendReply(channel, m),
       });
-      await sendReply(channel, reply);
+      started?.();
+      await sendReply(channel, await call);
     } finally {
       stopTyping();
     }
@@ -151,7 +141,9 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     const channelId = ch.isThread() ? ch.parentId : ch.id;
     // Where error replies go: the thread once it exists, else the message's channel.
     let errorTarget: SendableChannels | null = ch.isSendable() ? ch : null;
+    const turn = route.kind === "thread" ? takeTurn(ch.id) : undefined;
     try {
+      await turn?.wait;
       // Memory commands never reach the agent: answered in place (thread or channel), no thread, no task row.
       if (deps.memory && (await replyToMemoryCommand(deps.memory, msg, "workspace", route.prompt)))
         return;
@@ -163,9 +155,15 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         if (ch.isSendable() && channelId)
           await answer(
             ch,
-            { threadId: ch.id, channelId },
+            {
+              threadId: ch.id,
+              channelId,
+              messageId: msg.id,
+              ack: async () => void (await msg.react(BUSY_ACK_EMOJI)),
+            },
             text,
             await recentFor(ch, msg.id, botId, text),
+            turn?.done,
           );
         else
           logEvent(
@@ -186,7 +184,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       }
       const thread = await msg.startThread({ name: threadName(route.prompt) });
       errorTarget = thread;
-      await answer(thread, { threadId: thread.id, channelId: ch.id }, text);
+      await answer(thread, { threadId: thread.id, channelId: ch.id, messageId: msg.id }, text);
     } catch (err) {
       // Full error to the log (redacted), short generic text to the user.
       log.error({ err: errText(err) }, "message handling failed");
@@ -195,6 +193,8 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       } catch {
         /* channel unusable; already logged */
       }
+    } finally {
+      turn?.done(); // never leave the next message waiting
     }
   };
 }
