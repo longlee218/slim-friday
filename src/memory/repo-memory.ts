@@ -3,13 +3,13 @@ import { workspacePaths } from "../config/workspace-paths";
 import { sanitizeBullet } from "./sanitize-bullet";
 
 /** Max chars of the root (global, owner-edited) memory injected into a prompt (the newest part is kept). */
-export const ROOT_CHARS = 2000;
+export const ROOT_CHARS = 5000;
 /** Max chars of the workspace memory (owner-edited, never written by the agent). */
-export const WORKSPACE_CHARS = 2000;
+export const WORKSPACE_CHARS = 5000;
 /** Max chars of one repo's memory injected into a prompt (the newest part is kept). */
-export const PER_REPO_CHARS = 4000;
+export const PER_REPO_CHARS = 8000;
 /** Max chars of all repo memories of the workspace together (root and workspace layers are counted apart). */
-const REPOS_TOTAL_CHARS = 8000;
+const REPOS_TOTAL_CHARS = 16000;
 /** Heading the agent uses for the lessons it wants remembered (see EXEC_RULES). */
 const MEMORY_HEADING = /^#{0,3}\s*(memory|ghi nhớ)\s*:?\s*$/i;
 /** Marks a bullet as true for every workspace (goes to the pending file, never into a prompt). */

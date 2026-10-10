@@ -29,7 +29,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 ├── IDENTITY.md                # Shared identity (auto-created)
 ├── SOUL.md                    # Shared persona: tone (auto-created)
 ├── USER.md                    # Owner preferences (language, habits) (auto-created, Phase 1+)
-├── MEMORY.md                  # Global memory (owner-written only, max 2000 chars injected)
+├── MEMORY.md                  # Global memory (owner-written only, max 5000 chars injected)
 ├── BOOTSTRAP.md               # Owner guide (auto-created, never read by code, Phase 1+)
 ├── data/agent.db              # SQLite: sessions, tasks, runs, tool_calls, approvals, worktrees
 ├── MEMORY.pending.md          # Agent `[global]` notes (never injected; Step B 1b)
@@ -37,13 +37,13 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 ├── workspaces/<ws>/           # One workspace = several repos (Step B layout; <ws> lowercase-hyphen, not `ops`)
 │   ├── workspace.yaml         # description?, channels: [Discord parent-channel ids] (each id in one workspace)
 │   ├── AGENTS/IDENTITY/SOUL/USER.md  # Workspace persona overrides (per file)
-│   ├── MEMORY.md              # Workspace memory (owner-written only, 2000 chars injected)
+│   ├── MEMORY.md              # Workspace memory (owner-written only, 5000 chars injected)
 │   ├── skills/                # Owner-curated skills (<name>/SKILL.md), the only skills a run gets
 │   ├── cwd/                   # Neutral cwd of runs not bound to one repo
 │   ├── tasks/<taskId>/        # scratch/ (plan stage) + plan.md (execute stage)
 │   └── repos/<repo>/
 │       ├── repo.yaml          # path?, description, defaultBranch?, testCommand?, githubAccount?, gitAuthor?, workflow?
-│       ├── MEMORY.md          # Repo memory (the only file the agent writes; 4000 chars injected)
+│       ├── MEMORY.md          # Repo memory (the only file the agent writes; 8000 chars injected)
 │       ├── repo/              # Managed clone (optional: a repo may be any checkout via `path:`)
 │       └── worktrees/<taskId>/  # Execute stage task clone: independent `git clone --local`, branch friday/<task8>-<slug> (gitignored)
 ├── logs/
@@ -60,9 +60,9 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 
 ### 4. Memory System & Persona Layering (Phase 1+, Step B 1b)
 - **Persona layering:** Root files (AGENTS, IDENTITY, SOUL, USER) auto-created; workspace files replace root per file; `buildPersonaContext(home, ws)`
-- **Memory read:** root 2000 + workspace 2000 (both owner-written) + repo 4000 each (8000 total), headings `### global`, `### workspace <ws>`, `### <repo>`
+- **Memory read:** root 5000 + workspace 5000 (both owner-written) + repo 8000 each (16000 total), headings `### global`, `### workspace <ws>`, `### <repo>`
 - **Memory write:** after exec success the agent's "Memory:" bullets (max 5, sanitized, redacted, dated) go to `workspaces/<ws>/repos/<repo>/MEMORY.md` only; `[global]` bullets (max 2) go to root `MEMORY.pending.md` (never injected, owner promotes by hand)
-- **Cap per file:** persona files 1500 chars (with truncation marker)
+- **Cap per file:** persona files 6000 chars (with truncation marker)
 - **File management:** no CLAUDE.md symlinks, no CLAUDE.local.md handling in the app, no repo CLAUDE.md loaded or injected (`settingSources: []`); no per-workspace IDENTITY template
 - **Logs:** one `logs/` dir; lines carry `workspace`/`repo`/`taskId`; tasks in `logs/tasks/<id>.jsonl`
 

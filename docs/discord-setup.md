@@ -433,9 +433,9 @@ Memory lives in three owner-visible places; the bot injects them into Q&A, plan 
 
 | Layer | File | Written by | Injected |
 |---|---|---|---|
-| Global | `$AGENT_HOME/MEMORY.md` | you only | newest 2000 chars |
-| Workspace | `$AGENT_HOME/workspaces/<ws>/MEMORY.md` | you only | newest 2000 chars |
-| Repo | `$AGENT_HOME/workspaces/<ws>/repos/<repo>/MEMORY.md` | the agent (and you) | newest 4000 chars per repo, 8000 for all repos of the workspace |
+| Global | `$AGENT_HOME/MEMORY.md` | you only | newest 5000 chars |
+| Workspace | `$AGENT_HOME/workspaces/<ws>/MEMORY.md` | you only | newest 5000 chars |
+| Repo | `$AGENT_HOME/workspaces/<ws>/repos/<repo>/MEMORY.md` | the agent (and you) | newest 8000 chars per repo, 16000 for all repos of the workspace |
 
 An entry needs a `## <topic>` heading to count (a file with only the template header injects nothing).
 

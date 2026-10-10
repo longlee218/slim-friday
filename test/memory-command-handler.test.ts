@@ -26,7 +26,7 @@ test("remember with a single repo: written under '## <date> owner', reply names 
   const { ask, file } = setup();
   const r = await ask("remember: tests run with bun test");
   expect(r).toContain("workspaces/main/repos/repo/MEMORY.md");
-  expect(r).toMatch(/\d+\/4000/);
+  expect(r).toMatch(/\d+\/8000/);
   const date = new Date().toISOString().slice(0, 10);
   expect(file("repo")).toContain(`## ${date} owner\n- tests run with bun test`);
   // second note reuses the last owner section
@@ -118,9 +118,9 @@ test("storage limit: owner write refused at 300 lines, never trimmed", async () 
 test("cap feedback: >80% suggests compaction, >100% says how many chars are out of prompts", async () => {
   const { env, ask } = setup();
   const f = repoMemoryFile(env.home, "main", "repo");
-  writeFileSync(f, `# repo memory\n\n## old\n${"- x\n".repeat(1)}${"- ".padEnd(3300, "y")}\n`);
+  writeFileSync(f, `# repo memory\n\n## old\n${"- x\n".repeat(1)}${"- ".padEnd(6600, "y")}\n`);
   expect(await ask("remember: tip note")).toContain("Run `/compact`");
-  writeFileSync(f, `# repo memory\n\n## old\n${"- ".padEnd(4500, "y")}\n`);
+  writeFileSync(f, `# repo memory\n\n## old\n${"- ".padEnd(9000, "y")}\n`);
   expect(await ask("remember: tip two")).toMatch(/\d+ oldest chars are not in prompts/);
 });
 

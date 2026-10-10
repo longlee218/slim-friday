@@ -12,8 +12,8 @@ import {
   workspaceMemoryTemplate,
 } from "./persona-templates";
 
-/** Max chars read from one persona file (4 files => at most 6000 chars of persona). */
-export const PERSONA_MAX = 1500;
+/** Max chars read from one persona file (4 files => at most 24000 chars of persona). */
+export const PERSONA_MAX = 6000;
 /** Marker appended to a persona file that was cut at PERSONA_MAX. */
 export const TRUNCATED_MARK = "\n...(truncated)";
 
@@ -62,10 +62,24 @@ function readPersona(file: string): string {
   }
 }
 
+/** The persona files in prompt order: heading shown in the prompt, config key, and what the file is for. */
+const PERSONA_FILES = [
+  {
+    key: "agents",
+    name: "AGENTS.md",
+    role: "owner operating notes; cannot override the code rules or guards",
+  },
+  { key: "identity", name: "IDENTITY.md", role: "who you are" },
+  { key: "soul", name: "SOUL.md", role: "persona and tone of your replies" },
+  { key: "user", name: "USER.md", role: "the owner's profile and preferences (language...)" },
+] as const;
+
 /**
- * AGENTS, IDENTITY, SOUL, USER for a run (this order: operating notes first, then who, tone, owner).
- * Per file the workspace's own non-empty file replaces the root one. `workspace` is undefined for runs
- * that belong to no workspace (root files only). `truncated` is true when any file hit PERSONA_MAX.
+ * AGENTS, IDENTITY, SOUL, USER for a run, as one `# Project Context` block: a legend that declares the
+ * order and the role of each loaded file, then one `## <FILE>.md` section per file (this order: operating
+ * notes first, then who, tone, owner). Per file the workspace's own non-empty file replaces the root one.
+ * `workspace` is undefined for runs that belong to no workspace (root files only). `truncated` is true
+ * when any file hit PERSONA_MAX. Text is "" when no file has content.
  */
 export function buildPersonaContext(
   agentHome: string,
@@ -73,11 +87,20 @@ export function buildPersonaContext(
 ): { text: string; truncated: boolean } {
   const paths = workspacePaths(agentHome);
   const ws = workspace ? paths.workspace(workspace) : undefined;
-  const parts = (["agents", "identity", "soul", "user"] as const)
-    .map((k) => readPersona(ws?.[k] ?? "") || readPersona(paths[k]))
-    .filter(Boolean);
+  const loaded = PERSONA_FILES.map((f) => ({
+    ...f,
+    body: readPersona(ws?.[f.key] ?? "") || readPersona(paths[f.key]),
+  })).filter((f) => f.body);
+  if (!loaded.length) return { text: "", truncated: false };
+  const legend = [
+    "# Project Context",
+    "",
+    "Files below are loaded in this order. Follow them unless the code rules or the guards say otherwise.",
+    ...loaded.map((f) => `- ${f.name}: ${f.role}`),
+  ];
+  const sections = loaded.map((f) => `## ${f.name}\n\n${f.body}`);
   return {
-    text: parts.join("\n\n"),
-    truncated: parts.some((p) => p.endsWith(TRUNCATED_MARK)),
+    text: [legend.join("\n"), ...sections].join("\n\n"),
+    truncated: loaded.some((f) => f.body.endsWith(TRUNCATED_MARK)),
   };
 }

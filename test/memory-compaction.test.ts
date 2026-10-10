@@ -11,11 +11,11 @@ import { captureLogs } from "../src/observability/logger";
 import { emptyUsage } from "../src/observability/record-run";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
-/** A repo memory (cap 4000) well over 80%: many bullets, some duplicated. */
+/** A repo memory (cap 8000) well over 80%: many bullets, some duplicated. */
 function bigMemory(env: ReturnType<typeof makeEnv>) {
   const t = repoTarget(env.home, "main", "repo");
   const bullets = Array.from(
-    { length: 70 },
+    { length: 140 },
     (_, i) => `- the deploy pipeline step number ${i} uses cache folder alpha${i}`,
   );
   bullets.push(
@@ -71,7 +71,7 @@ test("success: bak kept, atomic write, header kept, sizes and removed count, usa
   );
   expect(existsSync(`${t.file}.tmp`)).toBe(false);
   expect(existsSync(`${t.file}.lock`)).toBe(false);
-  expect(formatCompactResult(r)).toMatch(/-> .* chars, 72 -> 21 bullets \(51 removed\)/);
+  expect(formatCompactResult(r)).toMatch(/-> .* chars, 142 -> 21 bullets \(121 removed\)/);
   const ev = logs.lines.find((l) => l.event === "memory.compacted");
   expect(ev).toMatchObject({ inputTokens: 1200, outputTokens: 300 });
 });

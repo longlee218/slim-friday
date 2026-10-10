@@ -16,7 +16,7 @@ const fill = (home: string, repo: string, chars: number) =>
 
 test("a layer cut at read logs memory.truncated and sets memoryOverCap in prompt.context", () => {
   const env = makeEnv();
-  fill(env.home, "repo", 4500);
+  fill(env.home, "repo", 9000);
   const logs = captureLogs();
   ctx(env.home, ["repo"]);
   logs.stop();
@@ -29,10 +29,10 @@ test("a layer cut at read logs memory.truncated and sets memoryOverCap in prompt
   });
 });
 
-test("a repo skipped by the 8000 total logs memory.repo_skipped", () => {
+test("a repo skipped by the 16000 total logs memory.repo_skipped", () => {
   const env = makeEnv();
   for (const r of ["a", "b", "c"]) addRepo(env.home, r);
-  for (const r of ["a", "b", "c"]) fill(env.home, r, 3500);
+  for (const r of ["a", "b", "c"]) fill(env.home, r, 7500);
   const logs = captureLogs();
   ctx(env.home, ["a", "b", "c"]);
   logs.stop();

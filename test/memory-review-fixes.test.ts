@@ -17,16 +17,16 @@ const stub =
   (text: string): CompactLlm =>
   async () => ({ text, usage: emptyUsage() });
 
-/** Big repo memory (over 80% of 4000) with bullets `- the deploy pipeline step number N ...`. */
+/** Big repo memory (over 80% of 8000) with bullets `- the deploy pipeline step number N ...`. */
 function big(env: ReturnType<typeof makeEnv>, extra = "") {
   const t = repoTarget(env.home, "main", "repo");
   const b = Array.from(
-    { length: 70 },
+    { length: 140 },
     (_, i) => `- the deploy pipeline step number ${i} uses cache folder alpha${i}`,
   );
   writeFileSync(
     t.file,
-    `# repo memory\n\nIntro.\n\n## 2026-01-01 a\n${b.slice(0, 35).join("\n")}\n${extra}\n## 2026-03-05 b\n${b.slice(35).join("\n")}\n`,
+    `# repo memory\n\nIntro.\n\n## 2026-01-01 a\n${b.slice(0, 70).join("\n")}\n${extra}\n## 2026-03-05 b\n${b.slice(70).join("\n")}\n`,
   );
   return { t, b };
 }
@@ -193,7 +193,7 @@ test("symlinked memory file: owner remember refused, agent append logs write_fai
     reason: "symlink",
   });
   expect(readFileSync(`${t.file}.real`, "utf8")).toBe("# repo memory\n");
-  writeFileSync(`${t.file}.real`, `# repo memory\n\n## d\n${"- ".padEnd(3500, "y")}\n`);
+  writeFileSync(`${t.file}.real`, `# repo memory\n\n## d\n${"- ".padEnd(9000, "y")}\n`);
   const res = await compactTargets([t], stub("- a b c"), { dryRun: false });
   expect(res[0]).toMatchObject({ status: "aborted" });
 });

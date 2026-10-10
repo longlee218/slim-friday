@@ -69,18 +69,39 @@ test("persona: workspace files replace root per file; templates and comments inj
   expect(en).toContain("Concise, direct"); // empty workspace SOUL -> root SOUL
 });
 
-test("persona: order is AGENTS, IDENTITY, SOUL, USER; a file over 1500 chars is cut and flagged", () => {
+test("persona: order is AGENTS, IDENTITY, SOUL, USER; a file over 6000 chars is cut and flagged", () => {
   const env = makeEnv();
   ensureHome(env.home, []);
   const p = workspacePaths(env.home);
   writeFileSync(p.agents, "# Agents\n- AGENTS_MARK\n");
-  writeFileSync(p.user, `# User\n- USER_MARK\n${"x".repeat(2000)}`);
+  writeFileSync(p.user, `# User\n- USER_MARK\n${"x".repeat(7000)}`);
   const r = buildPersonaContext(env.home);
   const at = (m: string) => r.text.indexOf(m);
   expect(at("AGENTS_MARK")).toBeLessThan(at("Name: Friday"));
   expect(at("Name: Friday")).toBeLessThan(at("# Soul"));
   expect(at("# Soul")).toBeLessThan(at("USER_MARK"));
+  // Legend declares the order, then one `## <FILE>.md` heading per file in the same order.
+  expect(r.text.startsWith("# Project Context")).toBe(true);
+  const heads = ["## AGENTS.md", "## IDENTITY.md", "## SOUL.md", "## USER.md"].map(at);
+  expect(heads.every((h) => h >= 0)).toBe(true);
+  expect(heads).toEqual([...heads].sort((a, b) => a - b));
+  expect(at("- AGENTS.md:")).toBeLessThan(at("- IDENTITY.md:"));
   expect(r.truncated).toBe(true);
   expect(r.text).toContain("(truncated)");
   expect(buildPersonaContext(env.home).text).not.toContain("BOOTSTRAP");
+});
+
+test("persona: the legend and headings list only the files that have content", () => {
+  const env = makeEnv();
+  ensureHome(env.home, []);
+  const p = workspacePaths(env.home);
+  writeFileSync(p.soul, "# Soul\n- Be brief.\n");
+  writeFileSync(p.identity, "# Identity\n");
+  writeFileSync(p.user, "<!-- nothing -->");
+  const { text } = buildPersonaContext(env.home);
+  expect(text).toContain("- SOUL.md:");
+  expect(text).toContain("## SOUL.md");
+  for (const f of ["AGENTS.md", "IDENTITY.md", "USER.md"]) expect(text).not.toContain(f);
+  writeFileSync(p.soul, "<!-- nothing -->");
+  expect(buildPersonaContext(env.home).text).toBe("");
 });

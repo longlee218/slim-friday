@@ -152,7 +152,7 @@ Text rules for L2: `intent/normalize-text.ts` (NFC, lowercase, accent-insensitiv
 | **PR Publishing** | src/orchestrator/outputs/{pr-output,pr-publish}.ts | the app pushes `HEAD:refs/heads/friday/*` to the recorded origin url (plain git CLI, `runGit`), then GitHub MCP `create_pull_request` |
 | **Workspace Registry** | src/workspaces/workspace-registry.ts | scan workspaces/*/workspace.yaml {description, channels}; fail-closed validation; legacy dirs listed, never loaded |
 | **Repo Registry** | src/repos/repo-registry.ts | load workspaces/<ws>/repos/*/repo.yaml; each repo has {path, description, defaultBranch?, testCommand?, githubAccount?, gitAuthor?, workflow?} |
-| **Repo Memory** | src/memory/repo-memory.ts, memory-writer.ts, sanitize-bullet.ts | 3 read layers (root 2000, workspace 2000 owner-edited, repo 4000 each / 8000 total); agent writes `repos/<r>/MEMORY.md` only; `[global]` bullets go to root `MEMORY.pending.md` (never injected); every bullet sanitized |
+| **Repo Memory** | src/memory/repo-memory.ts, memory-writer.ts, sanitize-bullet.ts | 3 read layers (root 5000, workspace 5000 owner-edited, repo 8000 each / 16000 total); agent writes `repos/<r>/MEMORY.md` only; `[global]` bullets go to root `MEMORY.pending.md` (never injected); every bullet sanitized |
 | **GitHub MCP** | src/mcp/github-mcp.ts | github-mcp-config (read-only for agent, write for app PR creation), github-token (`gh auth token` per githubAccount), create-pr (Docker image: ghcr.io/github/github-mcp-server, phase 4+) |
 | **Observability** | src/observability/ | pino logger, hooks, record-run, redact (added errText, clip, tryLog) |
 | **Storage** | src/storage/ | db.ts (sessions, tasks, runs, tool_calls, approvals, worktrees), run-store.ts (insertTask stores brief redacted, phase 1c+), approval-store.ts (insertApproval, decideApproval), memory append on exec success via repo-memory.ts |
@@ -426,7 +426,7 @@ Guarded `ALTER ADD COLUMN` (old rows keep valid defaults, an old binary ignores 
 - `IDENTITY.md` — who the agent is (name, role, capabilities)
 - `SOUL.md` — tone of replies (concise, direct, etc.)
 - `USER.md` — owner profile & preferences (language, habits)
-- `MEMORY.md` — global facts true for every workspace; written by the owner only (2000 chars kept)
+- `MEMORY.md` — global facts true for every workspace; written by the owner only (5000 chars kept)
 - `BOOTSTRAP.md` — owner guide for the file structure (never read by code, never injected)
 - `MEMORY.pending.md` — agent-proposed `[global]` notes (quarantine; never read by any prompt builder)
 
@@ -437,16 +437,16 @@ Guarded `ALTER ADD COLUMN` (old rows keep valid defaults, an old binary ignores 
 **Prompt order** (system prompt append):
 ```
 system-prompt (stage sections + COMMON + context)
-  -> AGENTS -> IDENTITY -> SOUL -> USER (workspace file or root)
+  -> "# Project Context": legend (order + role of each loaded file), then "## AGENTS.md" -> "## IDENTITY.md" -> "## SOUL.md" -> "## USER.md" (workspace file or root; only files with content)
   -> registry (assistant unpinned, plan mode)
   -> MEMORY: "### global" (root) / "### workspace <ws>" / "### <repo>" per repo
   -> task ledger (idle thread, roles with `context.ledger`)
 ```
 
 **Memory caps** (newest kept, `...` prefix when cut):
-- Root 2000, workspace 2000 (both owner-edited), each repo 4000, all repos of a workspace 8000
+- Root 5000, workspace 5000 (both owner-edited), each repo 8000, all repos of a workspace 16000
 - A file with no `## ` entry yet (template only) injects nothing
-- Each persona file: 1500 (truncation marked "...(truncated)")
+- Each persona file: 6000 (truncation marked "...(truncated)")
 
 **Memory writes** (`memory-writer.ts`; the only files the agent writes):
 - Plain `Memory:` bullets (max 5 per task) -> `workspaces/<ws>/repos/<repo>/MEMORY.md`
@@ -471,7 +471,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 ├── IDENTITY.md             # Shared identity (auto-created)
 ├── SOUL.md                 # Shared persona: tone (auto-created)
 ├── USER.md                 # Owner profile & preferences (auto-created)
-├── MEMORY.md               # Global memory (auto-created, max 2000 chars)
+├── MEMORY.md               # Global memory (auto-created, max 5000 chars)
 ├── BOOTSTRAP.md            # Owner guide (auto-created, never read by code)
 ├── discord.yaml            # ops channel ids + controlChannels (bootstrap:discord); unparsable = startup refusal
 ├── data/agent.db           # SQLite DB + WAL files
@@ -542,8 +542,8 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 ## Memory System (Phase 4+, Step B 1b)
 
 **Three layers, one workspace per run:**
-- Root `$AGENT_HOME/MEMORY.md` (owner-written, 2000 chars) and `workspaces/<ws>/MEMORY.md` (owner-written, 2000 chars)
-- Repo `workspaces/<ws>/repos/<repo>/MEMORY.md` (agent-written, newest 4000 chars per repo, 8000 for all repos of the workspace)
+- Root `$AGENT_HOME/MEMORY.md` (owner-written, 5000 chars) and `workspaces/<ws>/MEMORY.md` (owner-written, 5000 chars)
+- Repo `workspaces/<ws>/repos/<repo>/MEMORY.md` (agent-written, newest 8000 chars per repo, 16000 for all repos of the workspace)
 - Injected into Q&A + plan + exec prompts under `### global`, `### workspace <ws>`, `### <repo>`
 - After successful exec runs, the agent's final "Memory:" bullets (max 5) are sanitized and appended to the repo file (dated); `[global]` bullets (max 2) go to `MEMORY.pending.md`, which no prompt builder reads (owner promotes by hand). See Persona & Memory Layering.
 - No CLAUDE.md files or links are created; `CLAUDE.local.md` is never read or created by the app.
@@ -553,7 +553,7 @@ What each call may do is decided per call by the guard (PreToolUse hook + `canUs
 - Owner commands (`memory-commands.ts` grammar, `memory-command-handler.ts`, `memory-scope.ts`, `memory-owner-edit.ts`): `/remember`, `/forget`, `/compact [dry-run]` (legacy `remember:`/`nhớ:`, `forget:`/`quên:`, `compact memory`/`gom nén`), parsed by app code before routing (`parseTaskCommand` returns `{kind: "memory"}`): no agent, no LLM for remember/forget, no task row, no quota. Owner and pinned guild are enforced by ingress. A workspace channel or its threads reply inline (no thread created) and may use every scope; `#ops-control` (admin gate: control channel id + live privacy) only `global`/`chung` and `compact memory` (all files); other ops channels and unmapped channels refuse without executing.
 - Scope resolution uses registry names only (user text is compared, never joined into a path): default repo = live worktree repo of the thread, else its latest task row with a real repo, else the workspace's only repo, else "Which repo?"; `repo:<n>` (case-insensitive), `workspace`/`ws`, `global`/`chung` (root `MEMORY.md`, never `MEMORY.pending.md`).
 - Owner write = sanitized bullet under `## <date> owner`; duplicate -> "already remembered"; at 300 lines the write is refused ("file full: run `/compact`"), owner data is never trimmed. Replies name the file and `chars/cap`, advise `compact memory` above 80% and state how many oldest chars are out of prompts above 100%. `forget:` = case-insensitive substring over bullet lines (one match removed, none/several change nothing).
-- **Visible truncation:** `prompt.context` has `memoryOverCap` (layers cut at read) and a `memory.truncated` warn per run; `memory.repo_skipped` (warn) for a repo left out by the 8000 total; `memory.trimmed` (warn, dropped sections) when an agent append trims past 315 lines.
+- **Visible truncation:** `prompt.context` has `memoryOverCap` (layers cut at read) and a `memory.truncated` warn per run; `memory.repo_skipped` (warn) for a repo left out by the 16000 total; `memory.trimmed` (warn, dropped sections) when an agent append trims past 315 lines.
 
 **Manual compaction** (`memory-compaction.ts`, `memory-compaction-prompt.ts`, `memory-compaction-report.ts`, CLI `memory-compact-cli.ts`: `bun run memory:compact [--dry-run] [--workspace <ws>] [--global]`): only files above 80% of their cap, never `MEMORY.pending.md`; one SDK `query()` per file (`tools: []`, `maxTurns: 1`, `settingSources: []`, no persona) with `MEMORY_MODEL`. Memory text is passed as escaped DATA inside `<memory>` tags. No lock during the LLM call. Call limits: 90 s deadline, `maxBudgetUsd` 0.05, `persistSession: false` (documented in the current SDK docs; the pinned version type-checks it). Not registered with `abortAll`. A batch continues past a file that fails. Output file = old header + one `## compacted <oldest>..<newest>` section; non-bullet prose is not carried over (counted in the reply, kept in `.bak`). Safeguards: output must be only `- ` bullets, re-sanitized, total <= cap, and every bullet must share >= 50% of its content words with its best-matching input bullet AND carry exactly the same numbers (any length: ports, versions) and negation/modality words (`không`, `chưa`, `never`, `not`, `must`, `only`, `always`...) as that bullet, or as the union of the bullets it merges (`memory-derivability.ts`); else that file aborts, untouched, with the diff. NFC-normalized; false aborts are accepted (a reword that drops `always` aborts); hash re-check under the lock (changed -> abort); previous version kept as `<file>.bak` (one generation), temp file + atomic rename; `--dry-run` writes nothing. Each call logs `memory.compacted` (tokens, cost); aborts log `memory.compact_aborted`.
 
