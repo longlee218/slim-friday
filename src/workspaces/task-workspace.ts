@@ -46,6 +46,6 @@ export function selectWorkspace(
     };
   return {
     reason: "unmapped_channel",
-    reply: `This channel is not linked to a workspace. Add its id \`${channelId}\` to \`channels:\` in workspaces/<ws>/workspace.yaml (or run \`init:workspace:<name>\` in #ops-control).`,
+    reply: `This channel is not linked to a workspace. Add its id \`${channelId}\` to \`channels:\` in workspaces/<ws>/workspace.yaml (or run \`/init-workspace <name>\` in #ops-control).`,
   };
 }

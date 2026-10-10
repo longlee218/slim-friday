@@ -105,13 +105,18 @@ test("any state: ask decisions (low confidence, unknown role, failure) and unkno
     "awaiting_result",
   ];
   for (const s of states) {
-    for (const reason of ["low_confidence", "unknown_role", "unclassified"] as const)
+    for (const reason of [
+      "low_confidence",
+      "unknown_role",
+      "unclassified",
+      "pending_unclear",
+    ] as const)
       expect(act({ kind: "ask", reason }, s)).toEqual({ kind: "ask", reason });
     expect(act(role("ghost", "new"), s)).toEqual({ kind: "ask", reason: "unknown_role" });
   }
 });
 
-test("gate answers: to a queued/pending ask -> answer-ask; to a button gate -> hint", () => {
+test("pending answers (read by L3): to a queued/pending ask -> answer-ask; to a button gate -> hint", () => {
   for (const s of ["idle", "running", "awaiting_plan_approval"] as ThreadState[]) {
     expect(act({ kind: "gate-answer", answer: "yes", target: "ask" }, s)).toEqual({
       kind: "answer-ask",
@@ -158,9 +163,15 @@ test("executor: without the approval flow a staged task is refused by text (queu
 test("executor: asks, hints, fix limit and the P1.4b rows are replies; none runs anything", async () => {
   const { c } = ctx();
   const idle = { ...c, busy: false };
-  expect(text(await routeByIntent(idle, { kind: "ask", reason: "low_confidence" }))).toContain(
-    "[ask] or [dev]",
-  );
+  const generic = text(await routeByIntent(idle, { kind: "ask", reason: "low_confidence" }));
+  expect(generic).toContain("not sure what you want");
+  expect(generic).not.toMatch(/\[ask\]|\[dev\]|Start your message/); // no tag instructions
+  // the model's own question wins over the generic text
+  expect(
+    text(
+      await routeByIntent(idle, { kind: "ask", reason: "low_confidence", text: "Ý bạn là gì?" }),
+    ),
+  ).toBe("Ý bạn là gì?");
   // busy: never the ask, the run is still going
   expect(
     text(await routeByIntent({ ...c, busy: true }, { kind: "ask", reason: "low_confidence" })),

@@ -48,7 +48,7 @@ export interface TaskHandlerDeps {
   git?: GitMcp;
   /** Owner approval gateway; required for staged (gated) roles such as dev, and their worktree follow-ups. */
   approvals?: ApprovalGateway;
-  /** Intent layer (pipeline + L4 engine), built at startup. Missing = off: every message takes the legacy pick (entry role / clone owner). */
+  /** Intent layer (pipeline + L3 engine), built at startup. Missing = off: every message takes the legacy pick (entry role / clone owner). */
   intent?: IntentDeps;
 }
 
@@ -82,6 +82,8 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       kind: parsed.kind,
       repoHint: "repo" in parsed ? (parsed.repo ?? null) : null,
     });
+    if (parsed.kind !== "task")
+      logEvent(log, "intent.layer", { layer: "L0", ruleIds: [parsed.kind] });
     if (parsed.kind === "memory") return (await memory(task)) ?? ""; // owner memory command: no agent
     // `stop` aborts the active run; the running call marks the task cancelled.
     if (parsed.kind === "stop") {

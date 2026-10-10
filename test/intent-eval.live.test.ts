@@ -10,15 +10,15 @@ import { GOLDEN, type GoldenCase } from "./intent-eval-cases";
 import { scoreClass } from "./intent-eval-score";
 
 // Golden set of the intent layer (LIVE: real Haiku through the owner's Claude login; non-deterministic).
-// It runs the production path (`buildIntentDeps` + `decideIntent`: L1 gate answer, L3 alias, then L4 Haiku),
-// so a case decided by a rule never costs a call; the table says which layer decided each case.
+// It runs the production path (`buildIntentDeps` + `decideIntent`: L1 explicit leading tag, then L3 Haiku with the
+// recent messages and any pending question), so a case decided by the tag never costs a call; the table says which layer decided each case.
 //
 // Gate: >= 9/10 (0.9) on role, scope and class, and 0 code requests routed to a non-dev role while idle.
-// L4 class rubric: mechanical only for rename/typo/format/docs/one-line config, standard for tests/bugs/features,
+// L3 class rubric: mechanical only for rename/typo/format/docs/one-line config, standard for tests/bugs/features,
 // design for architecture/UX/migration; code guard: a model `mechanical` without `high` confidence becomes `standard`.
 // Cases with group "holdout" (intent-eval-cases-class.ts) are never used to tune the prompt: run them ONCE at
 // the end (INTENT_EVAL_GROUP=holdout); tune with INTENT_EVAL_GROUP=tuning; default = all. Scores are printed per group.
-// OPT-IN (costs quota, ~40 sequential calls, a few minutes). Run it TWICE and compare both scores:
+// OPT-IN (costs quota, ~65 sequential calls, a few minutes). Run it TWICE and compare both scores:
 //   INTENT_EVAL=1 bun test test/intent-eval.live.test.ts
 //   INTENT_EVAL=1 bun test test/intent-eval.live.test.ts      # second run
 // Optional: INTENT_EVAL_OUT=<file> also writes the table; MODEL_INTENT=sonnet re-runs on another model
@@ -41,7 +41,7 @@ const GATE = 0.9;
 /** Result of one case. */
 interface Row {
   c: GoldenCase;
-  layer: "L1" | "L3" | "L4" | "fallback" | "none";
+  layer: "L1" | "L3" | "fallback" | "none";
   decision: IntentDecision;
   ms: number;
   /** Pass flag per scored dimension (absent = not scored for this case). */
@@ -74,6 +74,7 @@ function score(
   };
   if (e.role) out.role = role === e.role;
   if (e.ask) out.role = d.kind === "ask";
+  if (e.pendingAnswer) out.role = d.kind === "gate-answer" && d.answer === e.pendingAnswer;
   if (e.anyRegistryRoleOrAsk) out.role = d.kind === "ask" || role === "assistant" || role === "dev";
   if (e.scope) out.scope = d.kind === "role" && d.scope === e.scope;
   if (e.cls) {
@@ -95,7 +96,7 @@ describe.skipIf(!live)("intent golden set (live, Haiku)", () => {
       INTENT_ENGINE: "haiku",
       INTENT_TIMEOUT_MS: "30000",
     });
-    // The production deps; the engine is wrapped only to tell "L4 decided" from "L4 failed".
+    // The production deps; the engine is wrapped only to tell "L3 decided" from "L3 failed".
     const prod = buildIntentDeps(env.config);
     let called = false;
     let failed = false;
@@ -118,10 +119,10 @@ describe.skipIf(!live)("intent golden set (live, Haiku)", () => {
       const input = {
         text: c.text,
         state: t.state,
-        pendingAsk: false,
+        pendingQuestion: c.pending,
         hasTask: t.hasTask ?? (t.state !== "idle" && t.state !== "done"),
       };
-      const l4Input = (): IntentInput => ({
+      const l3Input = (): IntentInput => ({
         text: c.text,
         thread: {
           state: t.state,
@@ -131,16 +132,18 @@ describe.skipIf(!live)("intent golden set (live, Haiku)", () => {
           ...(t.lastTurn && { lastTurn: t.lastTurn }),
         },
         ledger: t.ledger ?? [],
+        recent: c.recent ?? [],
+        ...(c.pending && { pendingQuestion: c.pending }),
         roles: intentRoles(),
       });
       called = false;
       failed = false;
       const t0 = Date.now();
-      const { decision } = await decideIntent({ ...input, l4Input }, deps);
+      const { decision } = await decideIntent({ ...input, l3Input }, deps);
       const layer = called
         ? failed
           ? "fallback"
-          : "L4"
+          : "L3"
         : (runIntentPipeline(input, deps.pipeline).decidedBy as Row["layer"]);
       rows.push({ c, layer, decision, ms: Date.now() - t0, ...score(c, decision) });
     }
@@ -162,9 +165,11 @@ describe.skipIf(!live)("intent golden set (live, Haiku)", () => {
         const e = r.c.expect;
         const exp = e.ask
           ? "ask"
-          : e.anyRegistryRoleOrAsk
-            ? "any|ask"
-            : `${e.role ?? "-"}/${e.scope ?? "-"}/${e.cls ?? "-"}`;
+          : e.pendingAnswer
+            ? `answer:${e.pendingAnswer}`
+            : e.anyRegistryRoleOrAsk
+              ? "any|ask"
+              : `${e.role ?? "-"}/${e.scope ?? "-"}/${e.cls ?? "-"}`;
         const mark = (v?: boolean) => (v === undefined ? "." : v ? "ok" : "MISS");
         return `| ${i + 1} | ${r.c.thread.state} | ${r.c.text.replace(/\|/g, "/").slice(0, 60)} | ${exp} | ${show(r.decision)} | ${r.layer} | ${r.ms} | ${mark(r.role)} | ${mark(r.scope)} | ${mark(r.cls)} |`;
       }),

@@ -81,10 +81,10 @@ src/
 │   ├── sdk-tool-names.ts       # SDK tool names (exported constants)
 │   └── (no custom tool today; a new one goes in src/tools/<Name>Tool/)
 ├── intent/                     # Intent layer (P1.4c): which role handles a message
-│   ├── run-intent-pipeline.ts  # L1 gate answer -> L3 alias (L2 effort signals alongside)
-│   ├── decide-intent.ts        # pipeline + L4 + validation + fallbacks; logs intent.layer
+│   ├── run-intent-pipeline.ts  # L1 leading role tag (L2 effort signals alongside)
+│   ├── decide-intent.ts        # pipeline + L3 + validation + fallbacks; logs intent.layer
 │   ├── haiku-intent-classifier.ts / create-intent-classifier.ts / intent-prompt.ts / intent-schema.ts / intent-types.ts
-│   ├── normalize-text.ts / phrase-matcher.ts / alias-router.ts / gate-answer.ts / effort-signals.ts
+│   ├── normalize-text.ts / phrase-matcher.ts / role-tag.ts / recent-messages.ts / effort-signals.ts
 │   └── load-lexicon.ts / lexicon-schema.ts / data/intent-lexicon.yaml
 ├── guardrails/                 # Tool call validation
 │   ├── check-tool-call.ts      # core guard: route tool → allow/ask/deny; GuardrailContext

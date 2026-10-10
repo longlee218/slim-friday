@@ -16,7 +16,7 @@ export interface BudgetHit {
   summary?: string;
   /** `git diff --stat` of the clone (P2.1 safe git; the stage runner passes it from P1.4). */
   diffStat?: string;
-  /** Raise offered to the owner: the message ends with "Reply `go +<usd>`". */
+  /** Raise offered to the owner: the message ends with "Reply `/go +<usd>`". */
   goPlusUsd?: number;
 }
 
@@ -34,7 +34,7 @@ export function budgetHitMessage(h: BudgetHit): string {
   if (h.summary?.trim()) lines.push(`Last summary:\n${h.summary.trim()}`);
   if (h.diffStat?.trim()) lines.push(`Changes so far:\n${h.diffStat.trim()}`);
   if (h.goPlusUsd !== undefined) {
-    lines.push(`Reply \`go +${h.goPlusUsd}\` to continue with that much more budget.`);
+    lines.push(`Reply \`/go +${h.goPlusUsd}\` to continue with that much more budget.`);
   }
   return lines.join("\n");
 }

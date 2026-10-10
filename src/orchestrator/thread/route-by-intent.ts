@@ -35,22 +35,22 @@ const log = logger.child({ module: "route-by-intent" });
 export const MAX_FIX_ROUNDS = 2;
 
 /** Reply when a task's clone used up its fix rounds. */
-export const FIX_LIMIT_REPLY = `This task already had ${MAX_FIX_ROUNDS} fix rounds. Send \`cleanup:\` to drop its clone, then ask again.`;
+export const FIX_LIMIT_REPLY = `This task already had ${MAX_FIX_ROUNDS} fix rounds. Send \`/cleanup\` to drop its clone, then ask again.`;
 
 /** What the table says to do with one message. */
 export type IntentAction =
   | { kind: "run"; role: string } // idle: run the role (assistant)
   | { kind: "open"; role: string } // idle: open a new staged task (proposal -> plan)
-  | { kind: "confirm-dev"; role: string } // idle, L4 alone chose a task right after a discussion turn: ask yes/no first
+  | { kind: "confirm-dev"; role: string } // idle, L3 alone chose a task right after a discussion turn: ask yes/no first
   | { kind: "fix"; role: string } // staged role, active, clone exists: bounded fix round in the same clone
   | { kind: "fix-limit" }
   | { kind: "feedback"; role: string } // plan gate: feedback re-runs the plan stage
   | { kind: "side"; role: string } // running / gate: the answering role answers, the task is not interrupted
   | { kind: "steer"; role: string } // running: steer into the run (P1.4b)
   | { kind: "queue"; role: string } // a second task while one is active
-  | { kind: "answer-ask"; answer: "yes" | "no" } // yes/no to a pending proposal
+  | { kind: "answer-ask"; answer: "yes" | "no" } // L3 read a yes/no to a pending proposal
   | { kind: "gate-hint" } // yes/no text to a button gate
-  | { kind: "ask"; reason: AskKind };
+  | { kind: "ask"; reason: AskKind; text?: string };
 
 /** Facts of the thread the table needs. */
 export interface TableInput {
@@ -72,7 +72,7 @@ export interface TableInput {
  */
 export function actionFor(i: TableInput): IntentAction {
   const d = i.decision;
-  if (d.kind === "ask") return { kind: "ask", reason: d.reason };
+  if (d.kind === "ask") return { kind: "ask", reason: d.reason, ...(d.text && { text: d.text }) };
   if (d.kind === "gate-answer")
     return d.target === "ask" ? { kind: "answer-ask", answer: d.answer } : { kind: "gate-hint" };
   const role = ROLES[d.role];
@@ -134,7 +134,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
   switch (a.kind) {
     case "ask":
       // A busy thread never asks: whatever the owner meant, the run is still going.
-      return reply(c.busy ? STILL_WORKING : ASK_TEXT[a.reason]());
+      return reply(c.busy ? STILL_WORKING : (a.text ?? ASK_TEXT[a.reason]()));
     case "gate-hint":
       return reply(GATE_HINT);
     case "fix-limit":

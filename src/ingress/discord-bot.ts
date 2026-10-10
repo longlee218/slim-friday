@@ -8,6 +8,7 @@ import { errText } from "../observability/redact";
 import { createAttachmentDeps } from "./attachment-summary";
 import { createMessageHandler, type HandleTask } from "./discord-message-handler";
 import { SAFE_MENTIONS } from "./discord-message-rules";
+import { createSlashHandler, registerSlashCommands } from "./slash-interaction";
 
 /** Client options: needed intents and a mention policy that never pings anyone. */
 export const CLIENT_OPTIONS = {
@@ -53,7 +54,13 @@ export function createDiscordBot(
   });
   // Button clicks (approvals); the handler never throws, void keeps the listener sync.
   if (handleInteraction) client.on(Events.InteractionCreate, (i) => void handleInteraction(i));
-  client.on(Events.ClientReady, (c) => log.info({ bot: c.user.tag }, "discord ready"));
+  // Native slash commands: same owner/guild/channel rules as a message (they run through `onMessage`).
+  const onSlash = createSlashHandler({ ownerId: config.ownerDiscordId!, onMessage });
+  client.on(Events.InteractionCreate, (i) => void onSlash(i));
+  client.on(Events.ClientReady, (c) => {
+    log.info({ bot: c.user.tag }, "discord ready");
+    void registerSlashCommands(client, config.discordGuildId);
+  });
   client.on(Events.Error, (err) => log.error({ err: errText(err) }, "discord client error"));
 
   return { client, onMessage };

@@ -1,10 +1,10 @@
 import { afterAll, expect, test } from "bun:test";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { ATTACHMENT_PATH_PREFIX } from "../src/ingress/attachment-text";
-import { createAliasRouter } from "../src/intent/alias-router";
 import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
+import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { CONFIRM_DEV_QUESTION } from "../src/orchestrator/dispatch/queued-tasks";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
@@ -12,9 +12,17 @@ import { NO_CLONE_NOTICE } from "../src/orchestrator/thread/intent-replies";
 import { ROLES } from "../src/roles/role-registry";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
-import { addRepo, clearWorkspaces, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import {
+  addRepo,
+  answering,
+  clearWorkspaces,
+  makeEnv,
+  resultMsg,
+  stubGateway,
+  TEST_CHANNEL,
+} from "./helpers";
 
-// Discussion guard: L4 alone picks a NEW dev task right after an assistant turn -> ONE yes/no question first.
+// Discussion guard: L3 alone picks a NEW dev task right after an assistant turn -> ONE yes/no question first.
 // yes -> the task opens; no -> the assistant answers the original message. No clone -> assistant + one note.
 
 const git = createGitMcp();
@@ -35,13 +43,18 @@ async function setup(withClone = true) {
   return env;
 }
 
-/** Fake L4: answers `dev/new/high`, and records the inputs it saw. */
+/** Fake L3: answers `dev/new/high`, and records the inputs it saw. */
 function engine(role = "dev") {
   const inputs: Parameters<IntentClassifier["classify"]>[0][] = [];
   const classifier: IntentClassifier = {
     classify: async (i) => {
       inputs.push(i);
-      return { role, scope: "new", confidence: "high", reason: "r" } satisfies IntentResult;
+      return answering({
+        role,
+        scope: "new",
+        confidence: "high",
+        reason: "r",
+      } satisfies IntentResult)(i);
     },
   };
   return { classifier, inputs };
@@ -78,7 +91,7 @@ async function build(withClone = true) {
     intent: {
       pipeline: {
         lexicon: loadLexicon(env.home),
-        aliasRouter: createAliasRouter(Object.values(ROLES)),
+        tagRouter: createRoleTagRouter(Object.values(ROLES)),
       },
       classifier: e.classifier,
     } satisfies IntentDeps,
@@ -96,9 +109,9 @@ async function build(withClone = true) {
 
 const PROPOSAL = "Tôi đề xuất xây dựng một lớp cache cho bảng giá, bạn thấy sao?";
 
-test("dev/new from L4 alone after an assistant turn asks first; yes opens the task", async () => {
+test("dev/new from L3 alone after an assistant turn asks first; yes opens the task", async () => {
   const { e, seen, handle, msg, q } = await build();
-  await handle(msg("[ask] explain the repo")); // assistant turn (L3 prefix)
+  await handle(msg("[ask] explain the repo")); // assistant turn (L1 tag)
   expect(await handle(msg(PROPOSAL))).toBe(CONFIRM_DEV_QUESTION);
   expect(e.inputs).toHaveLength(1);
   expect(e.inputs[0]?.thread.lastTurn).toEqual({ role: "assistant", kind: "qa" });
@@ -148,4 +161,26 @@ test("the saved-copy path of a long attachment reaches the assistant, never the 
   expect(q("SELECT brief FROM tasks WHERE role = 'dev'")[0].brief).not.toContain("/home/x/tmp");
   expect(q("SELECT brief FROM proposals")[0].brief).toContain("/home/x/tmp"); // kept for a later 'no'
   expect(seen.length).toBeGreaterThan(1);
+});
+
+test("a dev brief carries the recent conversation (capped, data); a declined task answers the original message only", async () => {
+  const { seen, handle, msg, q } = await build();
+  await handle(msg("[ask] explain the repo"));
+  const recent = [
+    { from: "owner" as const, text: "what about caching?" },
+    {
+      from: "bot" as const,
+      text: "Option B: cache prices for 5 minutes. token=sk-ant-abcdefghijklmnop123456",
+    },
+  ];
+  await handle({ ...msg("làm cái đó đi"), recent });
+  const brief = q("SELECT brief FROM proposals")[0].brief as string;
+  expect(brief.startsWith("làm cái đó đi")).toBe(true);
+  expect(brief).toContain("Recent conversation (data):");
+  expect(brief).toContain("- bot: Option B: cache prices for 5 minutes.");
+  expect(brief).not.toContain("sk-ant-abcdefghijklmnop123456"); // redacted
+  expect(brief.length).toBeLessThan(1500);
+  expect(await handle(msg("no"))).toBe("assistant answer");
+  expect(seen.at(-1).prompt).toContain("làm cái đó đi");
+  expect(seen.at(-1).prompt).not.toContain("Recent conversation");
 });

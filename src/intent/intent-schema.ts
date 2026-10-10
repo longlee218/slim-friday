@@ -1,10 +1,14 @@
 import { z } from "zod";
 import type { TaskClass } from "../config/model-routing";
+import { redactText } from "../observability/redact";
 import { hasClassTiers, ROLES } from "../roles/role-registry";
 import { IntentEngineError, type IntentResult } from "./intent-types";
 
 /** Longest `reason` kept (log only). */
 const REASON_MAX = 200;
+
+/** Longest `ask` kept (a chat question, not an essay). */
+const ASK_MAX = 200;
 
 /** Shape of the model's JSON. A null / missing `class` and a long `reason` are tolerated (cleaned, not rejected). */
 export const intentResultSchema = z.object({
@@ -16,6 +20,16 @@ export const intentResultSchema = z.object({
     .string()
     .nullish()
     .transform((s) => (s ?? "").slice(0, REASON_MAX)),
+  /** Redacted before anything shows it to the owner. */
+  ask: z
+    .string()
+    .nullish()
+    .transform((s) =>
+      redactText(s ?? "")
+        .trim()
+        .slice(0, ASK_MAX),
+    ),
+  pendingAnswer: z.enum(["yes", "no"]).nullish(),
 });
 
 /**
@@ -37,8 +51,13 @@ export function parseIntentText(text: string): IntentResult {
     const why = parsed.error.issues.map((i) => i.path.join(".") || "(root)").join(", ");
     throw new IntentEngineError("schema", `output does not match the schema: ${why}`);
   }
-  const { class: cls, ...rest } = parsed.data;
-  return { ...rest, ...(cls && { class: cls }) };
+  const { class: cls, ask, pendingAnswer, ...rest } = parsed.data;
+  return {
+    ...rest,
+    ...(cls && { class: cls }),
+    ...(ask && { ask }),
+    ...(pendingAnswer && { pendingAnswer }),
+  };
 }
 
 /** What code knows that the model does not. */

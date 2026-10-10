@@ -16,7 +16,7 @@
 ```
 Discord channel @bot <question>
   └─ create thread, parse prefix (repo:<name>, [dev]/[ask], [design]...)
-     └─ handle-task: lookup/create session, L0 commands, intent turn (L1 yes/no, L3 alias, L4 Haiku when undecided)
+     └─ handle-task: lookup/create session, L0 commands, intent turn (L1 leading role tag, L3 Haiku with recent messages + pending question when undecided)
         ├─ route-by-intent (thread state x role x scope): assistant -> run-agent read-only (Read/Glob/Grep/WebFetch/WebSearch; git MCP reads; no handoff tool)
         └─ dev request -> dispatchRole() (proposal from the intent result, validate, "Starting plan" notice)
            └─ runStages(plan stage) → [plan approval] → execute → PR
@@ -89,7 +89,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 
 ### Session & Task Management
 - **handle-task.ts / route-and-run.ts / intent-turn.ts:** thread→session mapping, repo pin, L0 commands, intent turn (role choice), run lock; `route-by-intent.ts` holds the behavior table
-- **src/intent/:** L1-L3 rules + L4 classifier (`decide-intent.ts`); see docs/system-architecture.md "Intent Layer"
+- **src/intent/:** L1 role tag + L2 effort rules + L3 classifier (`decide-intent.ts`); see docs/system-architecture.md "Intent Layer"
 - **task-commands.ts:** parse stop/cleanup commands; repo pinning; Resume routing logic (phase 5+)
 - **tasks/task-tracker.ts:** thread locking, session resume context tracking (phase 5+)
 - **engine/plain-run.ts:** read-only stage run (Q&A is the 1-stage `assistant` role): cwd pick, clone refresh; reply through `outputs/answer-output.ts` (ESCALATE re-run when the role flag `escalation` is set)

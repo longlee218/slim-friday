@@ -84,24 +84,16 @@ export interface StageDefinition {
   subagents?: string[];
 }
 
-/**
- * Direct-route words of a role. `tag` is the message prefix that always wins (`[dev]`); `strong` phrases decide
- * when EXACTLY ONE role matches; `weak` phrases count only on an idle thread. Written with diacritics (the intent
- * layer normalizes them). The same strong phrase in two roles is a startup error.
- */
-export interface RoleAliases {
-  tag: string;
-  strong: string[];
-  weak?: string[];
-}
-
 /** A named job the agent can do: a short chain of stages. */
 export interface RoleDefinition {
   name: string;
   /** Mutually exclusive wording; the intent layer reads it from the registry (P1.4c). */
   whenToUse: string;
-  /** Words the owner uses to reach this role directly (intent layer L3, P1.4c); omitted = never routed by alias. */
-  aliases?: RoleAliases;
+  /**
+   * Explicit role tag (`[dev]`): a message that STARTS with it goes to this role (intent layer L1) and the tag is
+   * stripped from the brief. Case-insensitive, unique across roles (startup error otherwise); omitted = no tag.
+   */
+  tag?: string;
   /** What the role hands back: picks the output module (`answer` escalation, `pr` delivery). */
   output: OutputContract;
   /** Runs of this role count toward the concurrent task cap (checked by the dispatcher). */

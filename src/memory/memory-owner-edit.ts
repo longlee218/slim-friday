@@ -74,7 +74,7 @@ export function ownerRemember(t: MemoryTarget, text: string, date: string): Edit
         : `${old.trimEnd()}\n\n${heading}\n${line}\n`;
     // The result itself may not pass 300 lines (never trim owner data).
     if (next.trimEnd().split("\n").length > OWNER_MAX_LINES)
-      return { ok: false, reply: `file full (${t.label}): run \`compact memory\`.` };
+      return { ok: false, reply: `file full (${t.label}): run \`/compact\`.` };
     writeAtomic(t.file, next);
     return { ok: true, reply: `Remembered in ${t.label}: ${line}`, chars: bodyChars(next) };
   });

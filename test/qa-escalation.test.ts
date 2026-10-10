@@ -187,7 +187,7 @@ describe("budget hit message", () => {
     expect(m).toContain("did A");
     expect(m).toContain("a.ts | 2 +-");
     expect(m).not.toContain("go +");
-    expect(budgetHitMessage({ goPlusUsd: 1.5 })).toContain("`go +1.5`");
+    expect(budgetHitMessage({ goPlusUsd: 1.5 })).toContain("`/go +1.5`");
     expect(budgetHitMessage({})).toContain("? of ?");
   });
   test("a max_budget run replies with the message, keeps the session, logs the stop", async () => {

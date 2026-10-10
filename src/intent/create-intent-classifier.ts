@@ -3,9 +3,9 @@ import { createHaikuIntentClassifier, type IntentQueryFn } from "./haiku-intent-
 import type { IntentClassifier } from "./intent-types";
 
 /**
- * L4 engine of `INTENT_ENGINE`: `haiku` (default) -> the Haiku classifier; `none` -> undefined (rules L0-L3 only,
+ * L3 engine of `INTENT_ENGINE`: `haiku` (default) -> the Haiku classifier; `none` -> undefined (rules L0-L2 only,
  * an undecided message is asked / goes to the entry role); `jev` -> throws (the owner's later engine is not built
- * and there is no stub, so startup refuses it instead of silently running without L4).
+ * and there is no stub, so startup refuses it instead of silently running without L3).
  */
 export function createIntentClassifier(
   config: AgentConfig,

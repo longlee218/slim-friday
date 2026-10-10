@@ -3,6 +3,15 @@ import type { GoldenCase, ThreadFacts } from "./intent-eval-cases";
 /* Golden cases of a thread that is a conversation with the assistant (P1.4d): proposals, ideas and research
    findings are discussion; an explicit order to implement is a dev task. `holdout` cases never tune the prompt. */
 
+/** What the thread said before the proposal-style messages below (they refer to it: "the analysis above"). */
+const CHAT = [
+  { from: "owner" as const, text: "Bảng giá đang chậm, mình nên làm gì?" },
+  {
+    from: "bot" as const,
+    text: "Phân tích: truy vấn bảng giá chạy mỗi request (src/price.ts:42); cache 5 phút theo sản phẩm sẽ giảm tải DB.",
+  },
+];
+
 const AFTER_CHAT: ThreadFacts = {
   state: "idle",
   ledger: [],
@@ -28,6 +37,7 @@ export const DISCUSSION_CASES: GoldenCase[] = [
   {
     text: "Dựa trên phân tích trên, tôi đề xuất xây dựng một lớp cache cho bảng giá. Hướng này ổn không?",
     thread: AFTER_CHAT,
+    recent: CHAT,
     expect: { role: "assistant", scope: "new" },
   },
   {
@@ -39,6 +49,7 @@ export const DISCUSSION_CASES: GoldenCase[] = [
   {
     text: "OK, go ahead and implement the cache layer we just talked about.",
     thread: AFTER_CHAT,
+    recent: CHAT,
     expect: { role: "dev", scope: "new" },
     codeRequest: true,
   },

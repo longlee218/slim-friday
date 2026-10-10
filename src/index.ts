@@ -95,7 +95,7 @@ async function main(): Promise<void> {
   expireStaleProposals(db); // open proposals older than 24h; the rest get a `go` notice once ready
   const queuedThreads = releaseQueuedProposals(db); // queued tasks lost their run: back to `go`
   runStartupHygiene(db, config.agentHome);
-  // Fail closed: an invalid lexicon override, a duplicate role alias or INTENT_ENGINE=jev refuse the start.
+  // Fail closed: an invalid lexicon override, a duplicate role tag or INTENT_ENGINE=jev refuse the start.
   let intent: ReturnType<typeof buildIntentDeps>;
   try {
     intent = buildIntentDeps(config);

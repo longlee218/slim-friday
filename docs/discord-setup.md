@@ -23,7 +23,7 @@
 3. Select scopes: `bot`
 4. Select permissions (least privilege; the integer is computed from discord.js `PermissionFlagsBits`):
    - View Channels, Send Messages, Send Messages in Threads, Create Public Threads, Read Message History, Attach Files, Embed Links
-   - Manage Channels and Manage Roles (only needed by `bootstrap:discord` and `init:workspace` to create private channels with overwrites; revoke them afterwards if you only create channels by hand)
+   - Manage Channels and Manage Roles (only needed by `bootstrap:discord` and `/init-workspace` to create private channels with overwrites; revoke them afterwards if you only create channels by hand)
    - **Never Administrator**: it bypasses every channel overwrite, so private channels would hide nothing from the bot
    Permission integer `309506198544`. Equivalent URL (replace the placeholder with the Application ID from the General Information tab):
    `https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=309506198544`
@@ -70,7 +70,7 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
 3. Set `DISCORD_GUILD_ID` in `.env` and restart (startup refuses without it once any workspace has `channels`).
 - A channel id listed by two workspaces is dropped from both (warning `channel.duplicate`): no routing.
 - Edits to a workspace's channel list apply to the next message, but the guild pin is checked at startup only: the **first** time you add `channels:` to any `workspace.yaml`, and any change to `DISCORD_GUILD_ID` or `.env`, needs a bot restart. Startup refuses (exit 1, "DISCORD_GUILD_ID required") when channels exist without the id.
-- `cleanup:` works in any thread, even in an unmapped or remapped channel (it runs before routing and starts no agent): use it to recover a thread whose channel was unlinked.
+- `/cleanup` works in any thread, even in an unmapped or remapped channel (it runs before routing and starts no agent): use it to recover a thread whose channel was unlinked.
 - Remapping a channel moves its existing threads to the new workspace. A thread with a live worktree whose repo is not in the new workspace is refused (`wrong_workspace`) until the channel is re-linked or `cleanup:` is run.
 
 ## Server organization (one guild)
@@ -78,7 +78,7 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
 ```
 guild (DISCORD_GUILD_ID)
 ├─ ops            (private category)
-│   ├─ #ops-control     admin commands only (init:workspace:<name>); never reaches the agent
+│   ├─ #ops-control     admin commands only (/init-workspace <name>); never reaches the agent
 │   ├─ #ops-log         one line on start / shutdown / uncaught error
 │   ├─ #ops-health      reserved (no producer yet)
 │   └─ #ops-analytics   reserved (no producer yet)
@@ -113,9 +113,17 @@ controlChannels:   # default: [ops.control]
 ```
 - An ops id listed in a workspace `channels:` is dropped (warning); messages in any ops channel or its threads are ignored (`message.ignored`, reason `ops_channel`), except admin handling in a control channel.
 
-## Add a workspace: `init:workspace:<name>`
+## Native slash commands (picker)
 
-Type in `#ops-control` (no mention needed): `init:workspace:reelme`.
+On every start the bot bulk-overwrites its own application commands (`src/commands/slash-definitions.ts`): the guild commands when `DISCORD_GUILD_ID` is set (instant), else global (can take up to an hour to show). The picker then lists exactly: `/stop`, `/go [usd]`, `/cleanup [task]`, `/remember <text>`, `/forget <text>`, `/compact [dry-run]`, `/init-workspace <name>`.
+- A pick runs as the owner's message `/name arg` through the same handler: same owner, guild, ops-channel and admin gates (`/init-workspace` still works only in `#ops-control`). A non-owner gets an ephemeral "Not allowed."; a pick that routing ignores just clears the placeholder.
+- Answers are posted in the channel or thread (as for a typed message); the interaction's "thinking" placeholder is deleted. In a plain channel a command that starts work opens a thread via `channel.threads.create`.
+- Registration failure is logged (`slash command registration failed`) and never blocks startup. Typed `/stop` etc. and the legacy forms keep working.
+- UNKNOWN (not live-tested): the picker behaviour in Discord, the `contexts` (guild-only) field accepted by the pinned discord.js 14.27, and whether the thread created from a slash in a channel looks right.
+
+## Add a workspace: `/init-workspace <name>`
+
+Type in `#ops-control` (no mention needed): `/init-workspace reelme` (legacy form, still works: `init:workspace:reelme`).
 - Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops`. Checked before anything is created.
 - Gate (all must hold): you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else (any other channel or a thread): not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
 - Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `repos/`, `cwd/`, an empty `skills/` (mode 700), `MEMORY.md` header, heading-only persona stubs); a pre-Step-B dir with that name is refused. (2) private category `<name>` and `#<name>-agent`, create-only (existing names refused, nothing changed). (3) the new channel id is written into `workspace.yaml` (re-rendered deterministically: **comments in that file are lost**, other fields kept). (4) reply with what was created; next: add repos at `workspaces/<name>/repos/<repo>/repo.yaml`.
@@ -125,9 +133,9 @@ Type in `#ops-control` (no mention needed): `init:workspace:reelme`.
 ## Manual live check (owner, before relying on it)
 1. `bun run bootstrap:discord --dry-run`, then without `--dry-run`: the 5 items appear; `discord.yaml` written.
 2. Restart the bot: `#ops-log` shows `[start] pid=... v...`; no `discord.bot_administrator` warning in the log.
-3. `init:workspace:<ws>` in `#ops-control` per workspace: category + `#<ws>-agent` appear, `workspace.yaml` lists the id.
+3. `/init-workspace <ws>` in `#ops-control` per workspace: category + `#<ws>-agent` appear, `workspace.yaml` lists the id.
 4. A second Discord account (not owner/admin) cannot see the ops or workspace channels.
-5. `init:workspace:<ws>` typed in `#<ws>-agent` is refused with the "only in #ops-control" reply and starts no run; same text in a thread.
+5. `/init-workspace <ws>` typed in `#<ws>-agent` is refused with the "only in #ops-control" reply and starts no run; same text in a thread.
 6. Ask a question in `#<ws>-agent`: answered. Mention the bot in `#ops-log`: ignored.
 7. Stop the bot (Ctrl-C): `#ops-log` shows `[shutdown] SIGINT`.
 
@@ -192,15 +200,21 @@ Expected:
 - Session ends cleanly
 
 ### Command grammar (thread scoped)
-| Message | Effect |
-|---------|--------|
-| `stop` | abort the running task |
-| `go` | start this thread's pending proposal (after a restart: "Proposal not started; reply `go`"), else resume an interrupted task. With nothing to start or resume it is an ordinary message |
-| `go +<usd>` | resume the thread's interrupted or budget-stopped task with `<usd>` more budget, e.g. `go +1.5` (amount must be > 0; anything else is a plain message). A budget stop says "Reply `go +<usd>`" |
-| `cleanup:` / `cleanup:<task-id>` | remove the worktree |
+Canonical forms are slash commands (L0). The LEGACY forms still work in this release (they will be removed later); both parse to the same command.
+
+**UNKNOWN (owner to verify live):** the Discord client may intercept a plain-text `/command` as its own slash-command UI (autocomplete / "unknown command") and not send it as a message. If so, send it with a leading space or use the legacy form until the owner decides (for example registering real application commands).
+
+| Message (canonical) | Legacy form | Effect |
+|---------|--------|--------|
+| `/stop` | `stop` | abort the running task |
+| `/go` | `go` | start this thread's pending proposal (after a restart: "Proposal not started; reply `/go`"), else resume an interrupted task. With nothing to start or resume it is an ordinary message |
+| `/go +<usd>` | `go +<usd>` | resume the thread's interrupted or budget-stopped task with `<usd>` more budget, e.g. `/go +1.5` (amount must be > 0; anything else is a plain message). A budget stop says "Reply `go +<usd>`" |
+| `/cleanup` / `/cleanup <task-id>` | `cleanup:` / `cleanup:<task-id>` | remove the worktree |
+| `/remember [scope] <text>`, `/forget [scope] <text>`, `/compact [dry-run]` | `remember:` / `nhớ:`, `forget:` / `quên:`, `compact memory` / `gom nén` | owner memory (see Memory below; same scopes and length rules) |
+| `/init-workspace <name>` (ops control channel only) | `init:workspace:<name>` | create the workspace folder, private category and `#<name>-agent` |
 | `[mechanical]` / `[standard]` / `[design]` prefix, `repo:<name>` | task class / repo hint |
-| `[dev]` / `[ask]` prefix | force the role (dev: plan, approve, worktree, PR; ask: read-only answer). Without a prefix the intent layer picks the role from the wording (rules first, then one small Haiku call) |
-| `yes` / `no` / `ok` / `duyet` / `khong` | answer the one question the bot asked (queue a second task, "Open a dev task for this? (yes/no)" after a discussion turn, or a low-confidence question). `yes` = `go`; `no` to the dev-task question makes the assistant answer your message. They do not press plan/PR buttons: use the button |
+| `[dev]` / `[ask]` at the very START of the message | force the role (dev: plan, approve, worktree, PR; ask: read-only answer); case-insensitive; the tag is dropped from the task text. A tag anywhere else, or a word like "dev", does nothing. Without a tag one small Haiku call (L3) reads your message together with the last 4 messages of the thread and decides; no wording lists |
+| a natural reply to the bot's question (e.g. "okay đồng ý", "thôi để sau", "yeah go for it") | answer the one question the bot asked (queue a second task, "Open a dev task for this? (yes/no)" after a discussion turn). The same Haiku call reads the reply against the pending question; `yes` = `go`; `no` to the dev-task question makes the assistant answer your message. If it cannot tell, the bot asks again. They do not press plan/PR buttons: use the button |
 | `[base:<branch>]` prefix | NOT built yet: a dev task branches from the repo's default branch. The proposal and dispatcher already carry a `base` field (validated: the branch must exist locally) for when a parser is added |
 
 Buttons of a dead process answer "This action expired." (the Resume button keeps working after a restart). Proposals older than 24h expire at startup.
@@ -218,9 +232,9 @@ can you add a greeting function to src/hello.ts?
 ```
 Expected:
 - The intent layer routes it to the dev role (no assistant answer first): "Starting plan: <repo>, add greeting..." appears
-- If the wording is unclear the bot asks ONE question ("resend with `[ask]` or `[dev]`"); an idle thread whose classifier failed falls back to a read-only answer
+- If the message is unclear the bot asks ONE short question written for your message (in your language, no tag instructions); an idle thread whose classifier failed falls back to a read-only answer
 - A proposal or idea in a thread that was just a conversation ("I propose building ...") is not run: the bot asks "Open a dev task for this? (yes/no)". Until the per-task clone lands (P2.1) a repo without a workspace clone cannot get a dev task: the assistant answers instead, with one line saying so
-- While a task runs, a second change request is queued: "run it after the current task?" Reply `yes` (starts when the first ends) or `no`. Questions during a run get `still working...` for now (side answers and steering come with P1.4b)
+- While a task runs, a second change request is queued: "run it after the current task?" Answer yes (starts when the first ends) or no, in your own words. Questions during a run get `still working...` for now (side answers and steering come with P1.4b)
 - Owner gets a Discord message with Approve/Deny buttons (owner-only, redacted summary)
 - Approve → bot creates/modifies file in plan stage; Deny → bot revises plan
 - If approved, execution creates a Git worktree with commits and a PR
@@ -245,14 +259,14 @@ Expected:
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Reply "This channel is not linked to a workspace" (`task.refused`, reason `unmapped_channel`) | The channel's id is in no workspace `channels:` list | Paste the id from the reply into `workspaces/<ws>/workspace.yaml` under `channels:` (see "Link a channel to a workspace") |
-| Normal messages refused in a thread but `cleanup:` works | By design: `cleanup:` is the recovery path and skips workspace routing | Re-link the channel, or `cleanup:` then start again |
+| Normal messages refused in a thread but `/cleanup` works | By design: `/cleanup` is the recovery path and skips workspace routing | Re-link the channel, or `/cleanup` then start again |
 | Bot ignores every message (`message.ignored`, reason `other_guild`) | `DISCORD_GUILD_ID` is not the server you write in | Fix `DISCORD_GUILD_ID` in `.env`, restart |
 | Bot exits at start: "DISCORD_GUILD_ID required" | A workspace lists `channels` but no guild is pinned | Set `DISCORD_GUILD_ID` in `.env` |
 | Reply "Workspace <ws> has no repos" | Channel maps to a workspace with no `repos/<name>/repo.yaml` | Add a repo to the workspace |
 | Bot exits at start naming `discord.yaml` | The file is not valid YAML or has a bad id | Fix or delete `$AGENT_HOME/discord.yaml` (fail closed) |
-| Reply "Admin commands run only in #ops-control." | `init:workspace:` typed outside a control channel | Type it in `#ops-control` |
+| Reply "Admin commands run only in #ops-control." | `/init-workspace` typed outside a control channel | Type it in `#ops-control` |
 | Reply "This control channel is not private" | The control channel has extra overwrites (another role/member) | Remove them so only @everyone (denied), you and the bot remain |
-| `init:workspace` says "already exists in this server" | A category/channel with that name exists | Rename or delete it by hand, rerun |
+| `/init-workspace` says "already exists in this server" | A category/channel with that name exists | Rename or delete it by hand, rerun |
 | "Bot is not responding" | Bot not running or DISCORD_TOKEN invalid | `bun run start` and check logs |
 | "Missing MESSAGE CONTENT" | Intent not enabled | Re-enable in Developer Portal Bot tab |
 | "Thread creation failed" | Missing "Create Public Threads" permission | Regenerate invite URL with correct scopes |
@@ -283,7 +297,7 @@ Sessions are stored in SQLite at `$AGENT_HOME/data/agent.db`:
 
 ### Repository Setup
 
-Repos live inside a workspace: `$AGENT_HOME/workspaces/<ws>/repos/<name>/repo.yaml` (the clone sits at `.../repos/<name>/repo/`). Create the workspace with `init:workspace:<ws>`, then add each repo by hand:
+Repos live inside a workspace: `$AGENT_HOME/workspaces/<ws>/repos/<name>/repo.yaml` (the clone sits at `.../repos/<name>/repo/`). Create the workspace with `/init-workspace <ws>`, then add each repo by hand:
 
 ```yaml
 # workspaces/<ws>/repos/<name>/repo.yaml
@@ -327,7 +341,7 @@ add a greeting function to src/hello.ts that takes a name and returns "Hello, <n
 ```
 
 **Flow:**
-1. **Intent:** rules (`[dev]` tag, aliases such as "fix bug", "code đi") or one Haiku call pick the dev role; the assistant is never involved and has no handoff tool.
+1. **Intent:** a leading `[dev]` tag, or one Haiku call that reads your message with the last messages of the thread, picks the dev role; the assistant is never involved and has no handoff tool.
 2. **Dispatch:** the app records a proposal from your message, validates repo / cap / budget, and posts "Starting plan: <repo>, add greeting function..." notice.
 3. **Plan Stage:** Bot enters plan mode and proposes a detailed plan (shows which files, what changes).
 4. **Plan Approval:** Owner gets Discord Approve/Deny buttons (owner-only, 10 min timeout).
@@ -338,7 +352,7 @@ add a greeting function to src/hello.ts that takes a name and returns "Hello, <n
 7. **Finish:** Bot posts summary + diff attachment + **Create PR** button (owner-only, 10 min).
 8. **PR Creation:** Owner clicks **Create PR** → bot pushes the branch and opens a PR on GitHub.
 9. **Follow-up:** Reply in the same thread → bot reuses the worktree and makes more commits to the same branch.
-10. **Cleanup:** Post `cleanup:` in the thread to remove the worktree and reset the session.
+10. **Cleanup:** Post `/cleanup` in the thread to remove the worktree and reset the session.
 
 ### Guardrails
 
@@ -381,7 +395,7 @@ Looks good, also fix the same typo in docs/
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| "No repos registered" | No workspace has a valid `repo.yaml` | Run `init:workspace:<ws>` and add `workspaces/<ws>/repos/<name>/repo.yaml` |
+| "No repos registered" | No workspace has a valid `repo.yaml` | Run `/init-workspace <ws>` and add `workspaces/<ws>/repos/<name>/repo.yaml` |
 | Bot exits at start: "AGENT_HOME is inside a registered repo" / "inside a git working tree" | `AGENT_HOME` (or the target of a symlink) sits in a repo, e.g. the old `<project>/.friday` | Point `AGENT_HOME` at a real dir outside every repo (`/Users/<you>/.friday`); see the cutover runbook |
 | "Code task on non-managed clone" | Repo not under AGENT_HOME/workspaces | Clone repo under ~/.friday/workspaces/<ws>/repos/<name>/repo/ |
 | "No origin remote" | Repo missing `origin` remote | Run `git remote add origin <url>` in the repo |
@@ -390,7 +404,7 @@ Looks good, also fix the same typo in docs/
 | "PR button not shown" | No commits made | Check bot's response (usually "No changes made") |
 | Bad DB after an upgrade | The first start of schema v2 migrates the db | Stop the bot; restore the snapshot `$AGENT_HOME/db-backups/friday-v1-<ts>.db`: `cp` it over `data/agent.db` and delete `data/agent.db-wal` and `-shm` (data written after the snapshot is lost). Old code also runs on the migrated db unchanged |
 | Bot exits "db snapshot failed" | `db-backups/` not writable or disk full; nothing was migrated | Fix the dir / space and start again |
-| "Create PR button timed out" | Took >10 min to decide | Worktree still exists; use `cleanup:` to reset |
+| "Create PR button timed out" | Took >10 min to decide | Worktree still exists; use `/cleanup` to reset |
 
 ## Memory (three layers)
 
@@ -409,7 +423,7 @@ An entry needs a `## <topic>` heading to count (a file with only the template he
 - Bullets prefixed `[global]` (max 2) go to `$AGENT_HOME/MEMORY.pending.md`, stamped `<date> <ws>/<repo>: <title>`. **This file is never injected into any prompt.** Review it now and then; copy the facts you trust into `MEMORY.md` (global) or `workspaces/<ws>/MEMORY.md` by hand, then delete them from the pending file. Reason: the agent may have read hostile text in a repo, and a global fact would reach every workspace.
 - The agent never writes the global or workspace `MEMORY.md`.
 
-**Owner commands (Step B 6):** type them in a `#<ws>-agent` channel or one of its threads (reply comes in place, no thread, no quota) or in `#ops-control` (global only). Only you, only the pinned guild. English or Vietnamese:
+**Owner commands (Step B 6):** canonical forms are `/remember`, `/forget`, `/compact [dry-run]` (the rows below show the legacy forms, which keep working this release; `/remember global x` = `remember: global x`). type them in a `#<ws>-agent` channel or one of its threads (reply comes in place, no thread, no quota) or in `#ops-control` (global only). Only you, only the pinned guild. English or Vietnamese:
 
 | Command | Effect |
 |---|---|
@@ -461,7 +475,7 @@ tail -f ~/.friday/logs/launchd.err.log ~/.friday/logs/launchd.out.log
 4. Land the code in the deployed checkout: confirm `git -C <project> status` is clean, then `git -C <project> checkout <merged master>`, `bun install`. The untrack commit removes the tracked `.friday` files from the working tree; then `rm -rf <project>/.friday` (untracked leftovers: data, logs, clone; the step-2 copy exists). `<project>/.env` already has `AGENT_HOME=/Users/example/.friday`: verify the exact value (must be this real directory; never print or commit `.env`).
 5. Discord: `bun run bootstrap:discord --dry-run` lists ALL guild channels (category / name / id) and the ops items it would create. Review and save the list. Then `bun run bootstrap:discord` (writes `~/.friday/discord.yaml`).
 6. launchd: `cp deploy/com.friday.agent.plist ~/Library/LaunchAgents/`, then `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.friday.agent.plist`. `launchctl print gui/$(id -u)/com.friday.agent` shows `state = running` and the new log paths. Startup creates the root persona files (`ensureHome`), an empty DB and a `#ops-log` start line.
-7. In `#ops-control`: `init:workspace:personal`, `init:workspace:reelme`, `init:workspace:superminds`.
+7. In `#ops-control`: `/init-workspace personal`, `/init-workspace reelme`, `/init-workspace superminds`.
 8. Register repos by hand (see "Register repos" below), copying fields from the old `config.yaml` in the step-2 copy. Re-add important memory facts by editing the repo `MEMORY.md`.
 9. **LAST, only after step 10 passes:** delete the old Discord channels BY HAND in the Discord client, using the step-5 list, confirming each. No code deletes channels; `bootstrap:discord` stays create-only.
 10. Smoke: a Q&A in each `#<ws>-agent`; one code task in `#superminds-agent` up to the plan approval; `#ops-log` shows the start line; `$AGENT_HOME/logs/app.*` lines carry `workspace`.

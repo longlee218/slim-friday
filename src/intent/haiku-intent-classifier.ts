@@ -26,7 +26,7 @@ export type IntentQueryFn = (args: {
 const log = logger.child({ module: "haiku-intent-classifier" });
 
 /**
- * L4 on Haiku. ONE SDK `query` (OAuth works only through the SDK): no tools, one turn, thinking off, no
+ * L3 on Haiku. ONE SDK `query` (OAuth works only through the SDK): no tools, one turn, thinking off, no
  * settings / plugins / MCP, a scratch cwd, a per-call budget and a timeout. The model answers with JSON TEXT that
  * zod parses (`outputFormat` json_schema took 2 turns, 2x the cost: spike Q15). It only SELECTS a role; the
  * result is validated by code before use. Every failure throws `IntentEngineError` (the caller falls back).

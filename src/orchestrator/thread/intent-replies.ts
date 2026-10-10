@@ -1,33 +1,26 @@
 import type { AskReason } from "../../intent/decide-intent";
+import { leadingRoleTag } from "../../intent/role-tag";
 import { ROLES } from "../../roles/role-registry";
 
 /** Why the owner is asked: the intent reasons, plus a `max` effort that needs a confirmation chat cannot give yet. */
 export type AskKind = AskReason | "max_effort";
 
-/** Role tags (`[ask]`, `[dev]`) from the registry: the owner's way to force a role. */
-const tags = (): string =>
-  Object.values(ROLES)
-    .map((r) => r.aliases?.tag)
-    .filter(Boolean)
-    .join(" or ");
-
 /** Drop the leading role tag (`[dev]`, `[ask]`) the owner typed: it routed the message, it is not part of the brief. */
 export function stripRoleTag(text: string): string {
-  const head = text.trimStart().toLowerCase();
-  const tag = Object.values(ROLES)
-    .map((r) => r.aliases?.tag.toLowerCase())
-    .find((t) => t && head.startsWith(t));
-  return tag ? text.trimStart().slice(tag.length).trim() || text : text;
+  const hit = leadingRoleTag(text, Object.values(ROLES));
+  return hit?.rest || text;
 }
 
-/** The ONE question of each ask reason. */
+/**
+ * The ONE question of each ask reason when the model wrote none: neutral, no tag or command instructions (the
+ * owner just says it again, more clearly). A model-written `ask` (owner's language) takes its place.
+ */
 export const ASK_TEXT: Record<AskKind, () => string> = {
-  low_confidence: () =>
-    `Not sure what you want. Start your message with ${tags()} and send it again.`,
-  unknown_role: () =>
-    `I could not match that to a role. Start your message with ${tags()} and send it again.`,
-  unclassified: () =>
-    `Could not classify that. Send it again starting with ${tags()}, or \`stop\`.`,
+  low_confidence: () => "I am not sure what you want. Could you say it a bit more specifically?",
+  unknown_role: () => "I could not tell what you want. Could you rephrase it?",
+  unclassified: () => "I could not tell what you want. Could you send it again?",
+  pending_unclear: () =>
+    "I could not tell if that answers my question above. Answer it again, or send `/go` to start it, or `/stop` to drop it.",
   max_effort: () =>
     "That asks for max effort (Opus, costly) and needs your OK, which chat cannot give yet. Send it again without it to run at high.",
 };

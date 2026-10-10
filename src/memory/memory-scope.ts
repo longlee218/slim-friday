@@ -75,7 +75,7 @@ export function resolveMemoryTarget(
       ? rootTarget(i.home)
       : {
           reply:
-            "In #ops-control only the global memory can be changed: `remember: global <text>`.",
+            "In #ops-control only the global memory can be changed: `/remember global <text>`.",
         };
   }
   const { ws } = i;
@@ -97,6 +97,6 @@ export function resolveMemoryTarget(
   return repo
     ? repoTarget(i.home, ws.name, repo)
     : {
-        reply: `Which repo? Repos: ${names(ws)}. Write \`remember: <repo-name> <text>\` or \`remember: repo:<name> <text>\`; \`ws\` = this workspace, \`chung\` = global.`,
+        reply: `Which repo? Repos: ${names(ws)}. Write \`/remember <repo-name> <text>\` or \`/remember repo:<name> <text>\`; \`ws\` = this workspace, \`chung\` = global.`,
       };
 }

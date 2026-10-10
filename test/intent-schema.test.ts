@@ -99,3 +99,22 @@ test("validate: `mechanical` is kept only with high confidence, else standard; n
   // owner prefix is not downgraded
   expect(cls("mechanical", "medium", { ownerClass: "mechanical" })).toBe("mechanical");
 });
+
+test("parse: `ask` is redacted and cut to 200, `pendingAnswer` only yes / no; null / empty are dropped", () => {
+  const r = parseIntentText(
+    json({
+      ...ok,
+      confidence: "low",
+      ask: `Ý bạn là gì? token sk-ant-abcdefghijklmnop123456 ${"x".repeat(400)}`,
+      pendingAnswer: "yes",
+    }),
+  );
+  expect(r.ask?.length).toBeLessThanOrEqual(200);
+  expect(r.ask).not.toContain("sk-ant-abcdefghijklmnop123456");
+  expect(r.pendingAnswer).toBe("yes");
+  const n = parseIntentText(json({ ...ok, ask: null, pendingAnswer: null }));
+  expect(n).not.toHaveProperty("ask");
+  expect(n).not.toHaveProperty("pendingAnswer");
+  expect(parseIntentText(json({ ...ok, ask: "  " }))).not.toHaveProperty("ask");
+  expect(() => parseIntentText(json({ ...ok, pendingAnswer: "maybe" }))).toThrow(IntentEngineError);
+});

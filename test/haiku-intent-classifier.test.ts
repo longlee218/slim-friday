@@ -11,6 +11,7 @@ const INPUT: IntentInput = {
   text: "please add a retry to the fetch helper",
   thread: { state: "idle" },
   ledger: ['ab12cd34 dev done: "earlier"'],
+  recent: [],
   roles: intentRoles(),
 };
 const ANSWER = JSON.stringify({

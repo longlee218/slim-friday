@@ -1,18 +1,15 @@
-import { AttachmentBuilder, type Message, type SendableChannels } from "discord.js";
+import type { Message, SendableChannels } from "discord.js";
 import { type DiscordSetup, EMPTY_SETUP, opsIds } from "../discord-setup/discord-setup-config";
+import type { RecentMessage } from "../intent/intent-types";
 import type { MemoryRunner } from "../memory/memory-command-handler";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { parseTaskCommand } from "../orchestrator/task-commands";
 import { type AttachmentDeps, withAttachments } from "./attachment-text";
-import {
-  prepareOutput,
-  routeMessage,
-  SAFE_MENTIONS,
-  stripMention,
-  threadName,
-} from "./discord-message-rules";
+import { routeMessage, SAFE_MENTIONS, stripMention, threadName } from "./discord-message-rules";
+import { sendReply, startTyping } from "./discord-send";
 import { replyToMemoryCommand } from "./memory-ingress";
+import { fetchRecent } from "./thread-history";
 
 /** A unit of work arriving from any ingress (Discord, tests). */
 export interface Task {
@@ -25,37 +22,18 @@ export interface Task {
   /** Routing key: the parent channel of the thread (or the channel of a new conversation). */
   channelId: string;
   text: string;
+  /** The last messages of the thread before this one (owner and bot, redacted, clipped), oldest first; for the intent layer. Absent = none. */
+  recent?: RecentMessage[];
   /** Posts a message into the thread while the task still runs (a dispatched plan waits for approval). */
   notify?: (text: string) => Promise<void>;
 }
 
-/** Typing indicator lasts ~10s on Discord; refresh a bit earlier. */
-const TYPING_REFRESH_MS = 8000;
-
+/** Longest wait (ms) for the thread history; the message then goes on without it. */
+export const FETCH_RECENT_TIMEOUT_MS = 1500;
 /** What the handler needs from the task layer. */
 export type HandleTask = (task: Task) => Promise<string>;
 
-/** Send a (possibly long) reply as redacted, chunked, non-pinging messages; a very long one or a diff as head + file. */
-export async function sendReply(channel: SendableChannels, text: string): Promise<void> {
-  const { chunks, file } = prepareOutput(text);
-  for (const [i, chunk] of chunks.entries()) {
-    const files =
-      file && i === chunks.length - 1
-        ? [new AttachmentBuilder(Buffer.from(file.content), { name: file.name })]
-        : [];
-    await channel.send({ content: chunk, files, allowedMentions: SAFE_MENTIONS });
-  }
-}
-
-/** Show the typing indicator until the returned stop function is called. */
-export function startTyping(channel: SendableChannels): () => void {
-  const ping = () => {
-    channel.sendTyping().catch(() => {});
-  };
-  ping();
-  const timer = setInterval(ping, TYPING_REFRESH_MS);
-  return () => clearInterval(timer);
-}
+export { sendReply, startTyping } from "./discord-send";
 
 /** Inputs of the message handler (injectable for tests). */
 export interface MessageHandlerDeps {
@@ -87,6 +65,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     channel: SendableChannels,
     ids: { threadId: string; channelId: string },
     text: string,
+    recent?: RecentMessage[],
   ): Promise<void> {
     const stopTyping = startTyping(channel);
     try {
@@ -95,6 +74,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         userId: deps.ownerId,
         ...ids,
         text,
+        ...(recent?.length && { recent }),
         notify: (m) => sendReply(channel, m),
       });
       await sendReply(channel, reply);
@@ -102,6 +82,23 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       stopTyping();
     }
   }
+
+  /**
+   * The thread history for the intent layer. Skipped for commands (slash or legacy: `/stop` must be instant) and
+   * raced against FETCH_RECENT_TIMEOUT_MS: a hang or an error is no history, the message still proceeds.
+   */
+  const recentFor = (
+    ch: Parameters<typeof fetchRecent>[0],
+    id: string,
+    botId: string,
+    text: string,
+  ) =>
+    parseTaskCommand(text).kind !== "task"
+      ? []
+      : Promise.race([
+          fetchRecent(ch, { currentId: id, ownerId: deps.ownerId, botId }),
+          new Promise<never[]>((r) => setTimeout(() => r([]), FETCH_RECENT_TIMEOUT_MS).unref()),
+        ]);
 
   return async function onMessage(msg: Message): Promise<void> {
     const botId = deps.botId();
@@ -162,7 +159,14 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       const key = route.kind === "thread" ? ch.id : msg.id; // a thread started from a message has its id
       const text = await withAttachments(msg.attachments, route.prompt, key, deps.attachments);
       if (route.kind === "thread") {
-        if (ch.isSendable() && channelId) await answer(ch, { threadId: ch.id, channelId }, text);
+        // The thread's last messages give the intent layer the conversation (a new thread has none yet).
+        if (ch.isSendable() && channelId)
+          await answer(
+            ch,
+            { threadId: ch.id, channelId },
+            text,
+            await recentFor(ch, msg.id, botId, text),
+          );
         else
           logEvent(
             log,
@@ -175,7 +179,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       // `stop` only makes sense inside a thread that has a run.
       if (parseTaskCommand(route.prompt).kind === "stop") {
         await msg.reply({
-          content: "Send `stop` inside the thread of the run.",
+          content: "Send `/stop` inside the thread of the run.",
           allowedMentions: SAFE_MENTIONS,
         });
         return;

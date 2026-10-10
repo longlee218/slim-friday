@@ -56,14 +56,14 @@ const envSchema = z.object({
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
   MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(3),
-  // Intent layer L4 (src/intent). `jev` is the owner's later engine: accepted here, refused by the factory until it exists.
+  // Intent layer L3 (src/intent). `jev` is the owner's later engine: accepted here, refused by the factory until it exists.
   INTENT_ENGINE: z.enum(["haiku", "jev", "none"]).default("haiku"),
   MODEL_INTENT: z.string().trim().min(1).optional(),
   INTENT_BUDGET_USD: z.coerce.number().positive().default(0.02),
   INTENT_TIMEOUT_MS: z.coerce.number().int().min(8000).default(8000),
 });
 
-/** Engines of the intent layer's L4 classifier (`none` = pipeline L0-L3 only). */
+/** Engines of the intent layer's L3 classifier (`none` = rules L0-L2 only). */
 export type IntentEngine = "haiku" | "jev" | "none";
 
 /** Validated, typed config used across the app. Contains secrets: never log it whole. */
@@ -105,7 +105,7 @@ export interface AgentConfig {
   limits: { maxTurns: number; maxBudgetUsd: number | undefined; timeoutMs: number };
   /** Global cap on simultaneous agent runs. */
   maxConcurrentRuns: number;
-  /** Intent layer L4: engine, model id (MODEL_INTENT, tier-resolvable), per-call budget and timeout. */
+  /** Intent layer L3: engine, model id (MODEL_INTENT, tier-resolvable), per-call budget and timeout. */
   intent: { engine: IntentEngine; model: string; budgetUsd: number; timeoutMs: number };
 }
 

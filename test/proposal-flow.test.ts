@@ -141,7 +141,7 @@ test("startup: stale proposals expire, the notice goes once per thread with a pe
   };
   expect(await postProposalNotices({ db: env.db, getClient: () => client })).toBe(1);
   expect(sent).toEqual([["b", PROPOSAL_NOTICE]]);
-  expect(PROPOSAL_NOTICE).toContain("reply `go`");
+  expect(PROPOSAL_NOTICE).toContain("reply `/go`");
 });
 
 /** A thread whose last task ended on its budget (status failed, last run max_budget) with a saved session. */
@@ -195,7 +195,7 @@ test("a budget stop offers `go +<usd>`; the message helper keeps the hint", () =
       usage: { costUsd: 1.6 } as any,
     },
   );
-  expect(text).toContain("`go +1.5`");
+  expect(text).toContain("`/go +1.5`");
   expect(budgetHitMessage({ spentUsd: 1, limitUsd: 1 })).not.toContain("go +");
 });
 

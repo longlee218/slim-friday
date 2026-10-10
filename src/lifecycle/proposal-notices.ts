@@ -6,10 +6,10 @@ import { errText } from "../observability/redact";
 import { expireOldProposals, listPendingProposals, releaseQueued } from "../storage/proposal-store";
 
 /** Text of the notice: a pending proposal survived a restart without being started. */
-export const PROPOSAL_NOTICE = "Proposal not started; reply `go` to start";
+export const PROPOSAL_NOTICE = "Proposal not started; reply `/go` to start";
 
 /** Text of the notice: a queued task lost the run it waited for (restart). */
-export const QUEUED_NOTICE = "Queued task not started; reply `go` to start";
+export const QUEUED_NOTICE = "Queued task not started; reply `/go` to start";
 
 const log = logger.child({ module: "proposal-notices" });
 

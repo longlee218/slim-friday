@@ -127,7 +127,7 @@ test("exec on its budget: stage row interrupted + verdict budget, reply offers `
   ]);
   expect(stages[1]!.costUsd).toBeCloseTo(3.2);
   expect(reply).toContain("budget reached");
-  expect(reply).toContain("`go +");
+  expect(reply).toContain("`/go +");
 });
 
 test("follow-up in a worktree thread runs only the exec stage (row idx 1) on its own task", async () => {

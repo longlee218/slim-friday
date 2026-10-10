@@ -131,7 +131,7 @@ export function resolveCommand(
   if (last.budgetStopped && last.status !== "interrupted" && cmd.extraBudgetUsd === undefined)
     return refuse(
       "budget_stop",
-      "That task stopped on its budget. Reply `go +<usd>` to continue with more budget.",
+      "That task stopped on its budget. Reply `/go +<usd>` to continue with more budget.",
     );
   if (!last.sessionId || !last.cwd) return cannot;
   const existing: SessionRow = {

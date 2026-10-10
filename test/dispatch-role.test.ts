@@ -124,7 +124,7 @@ test("owner `go` on a pending proposal: confirmed, re-validated, dispatched with
     repos,
     ac: new AbortController(),
   });
-  expect(first).toContain("Reply `go`");
+  expect(first).toContain("Reply `/go`");
   const [p] = listPendingProposals(env.db);
   expect(p!.confidence).toBeCloseTo(0.1);
   // ... then `go` (confirmed) starts it and marks it dispatched.

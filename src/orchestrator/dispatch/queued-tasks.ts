@@ -1,10 +1,12 @@
 import type { TaskClass } from "../../config/model-routing";
 import type { Task } from "../../ingress/discord-message-handler";
+import { RECENT_HEADING, recentBlock } from "../../intent/recent-messages";
 import { excerpt, logEvent, logger } from "../../observability/logger";
 import type { Repo } from "../../repos/repo-registry";
 import { ledgerLines } from "../../storage/ledger-store";
 import {
   oldestQueuedProposal,
+  pendingProposal,
   setProposalStatus,
   supersedePending,
 } from "../../storage/proposal-store";
@@ -33,20 +35,37 @@ export interface QueueCtx {
 /** Heading of the thread reference appended to a brief. */
 const EARLIER_HEADING = "\n\nEarlier tasks in this thread:\n";
 
-/** Brief of a new task: the owner message plus a thread reference (the last tasks, one line each). */
+/**
+ * Brief of a new task: the owner message, a thread reference (the last tasks, one line each) and the recent
+ * conversation (<= 1200 chars, data) so a reference like "do that" makes sense to the plan stage.
+ */
 export function taskBrief(c: Pick<QueueCtx, "deps" | "task">, text: string): string {
   const lines = ledgerLines(c.deps.db, c.task.threadId, 3);
-  if (!lines.length) return text;
-  return `${text}${EARLIER_HEADING}${lines.map((l) => `- ${l}`).join("\n")}`;
+  const earlier = lines.length ? `${EARLIER_HEADING}${lines.map((l) => `- ${l}`).join("\n")}` : "";
+  return `${text}${earlier}${recentBlock(c.task.recent)}`;
 }
 
-/** The owner message of a brief (without the thread reference). */
-export const briefText = (brief: string): string => brief.split(EARLIER_HEADING)[0] ?? brief;
+/** The owner message of a brief (without the thread reference and the recent conversation). */
+export const briefText = (brief: string): string =>
+  brief.split(EARLIER_HEADING)[0]?.split(RECENT_HEADING)[0] ?? brief;
 
 /** `reason` of a proposal that only asks "open a dev task for this?" (a discussion turn that looked like a task). */
 export const CONFIRM_DEV_REASON = "confirm_dev";
 /** The ONE question of that confirmation. */
 export const CONFIRM_DEV_QUESTION = "Open a dev task for this? (yes/no)";
+
+/**
+ * The thread's unanswered question (the pending proposal's ONE question, same wording the owner saw), for L3 to
+ * read the next message against; undefined when nothing is pending.
+ */
+export function pendingQuestionOf(db: DispatchDeps["db"], threadId: string): string | undefined {
+  const p = pendingProposal(db, threadId);
+  if (!p) return undefined;
+  const what = `"${excerpt(briefText(p.brief), 200)}"`;
+  return p.reason === CONFIRM_DEV_REASON
+    ? `${CONFIRM_DEV_QUESTION} ${what}`
+    : `A task is running. Run this after it? ${what}`;
+}
 
 /** Persist the task `pending` and return the ONE question (older open questions of the thread are superseded). */
 export function queueTask(

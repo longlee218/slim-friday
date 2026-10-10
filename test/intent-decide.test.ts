@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { createAliasRouter } from "../src/intent/alias-router";
 import { type DecideInput, decideIntent, type IntentDeps } from "../src/intent/decide-intent";
 import {
   type IntentClassifier,
@@ -8,10 +7,11 @@ import {
   type IntentResult,
 } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
+import { createRoleTagRouter } from "../src/intent/role-tag";
 import { captureLogs } from "../src/observability/logger";
 import { ROLES } from "../src/roles/role-registry";
 
-const pipeline = { lexicon: loadLexicon(), aliasRouter: createAliasRouter(Object.values(ROLES)) };
+const pipeline = { lexicon: loadLexicon(), tagRouter: createRoleTagRouter(Object.values(ROLES)) };
 const answer = (o: Partial<IntentResult> = {}): IntentResult => ({
   role: "dev",
   scope: "new",
@@ -20,7 +20,7 @@ const answer = (o: Partial<IntentResult> = {}): IntentResult => ({
   ...o,
 });
 
-/** A fake L4 engine that counts its calls and records its inputs. */
+/** A fake L3 engine that counts its calls and records its inputs. */
 function engine(result: IntentResult | Error) {
   const inputs: IntentInput[] = [];
   const classifier: IntentClassifier = {
@@ -37,25 +37,80 @@ const input = (text: string, over: Partial<DecideInput> = {}): DecideInput => ({
   text,
   state: "idle",
   hasTask: false,
-  l4Input: () => ({ text, thread: { state: "idle" }, ledger: [], roles: [] }),
+  l3Input: () => ({ text, thread: { state: "idle" }, ledger: [], recent: [], roles: [] }),
   ...over,
 });
 const run = (d: IntentDeps, i: DecideInput) => decideIntent(i, d);
-// Undecided by L1-L3: no alias, no gate
+// Undecided by L1 (no leading tag): L3 decides
 const VAGUE = "can you look at the auth thing";
 
-test("L4 is never called for a gate answer or a unique alias", async () => {
-  const e = engine(answer());
+test("L3 is never called for an explicit leading tag; words without a tag are not a route", async () => {
+  const e = engine(answer({ role: "assistant" }));
   const d = { pipeline, classifier: e.classifier };
-  const gate = await run(d, input("ok", { state: "awaiting_plan_approval" }));
-  expect(gate.decision).toEqual({ kind: "gate-answer", answer: "yes", target: "gate" });
-  const ask = await run(d, input("yes", { pendingAsk: true, state: "running" }));
-  expect(ask.decision).toEqual({ kind: "gate-answer", answer: "yes", target: "ask" });
   const tagged = await run(d, input("[dev] fix the retry"));
   expect(tagged.decision).toMatchObject({ kind: "role", role: "dev", scope: "new" });
-  const strong = await run(d, input("giao cho dev sửa lỗi này"));
-  expect(strong.decision).toMatchObject({ kind: "role", role: "dev" });
   expect(e.inputs).toHaveLength(0);
+  // dev wording without a tag goes to the model, which decides
+  const words = await run(d, input("giao cho dev sửa lỗi này"));
+  expect(words.decision).toMatchObject({ kind: "role", role: "assistant" });
+  expect(e.inputs).toHaveLength(1);
+});
+
+test("pending answers come from L3 only: yes/no to a pending question (ask) or a gate; ignored when nothing waits", async () => {
+  const yes = answer({ pendingAnswer: "yes" });
+  const d = { pipeline, classifier: engine(yes).classifier };
+  const ask = await run(d, input("okay đồng ý", { state: "running", pendingQuestion: "Run it?" }));
+  expect(ask.decision).toEqual({ kind: "gate-answer", answer: "yes", target: "ask" });
+  const gate = await run(d, input("ok", { state: "awaiting_plan_approval" }));
+  expect(gate.decision).toEqual({ kind: "gate-answer", answer: "yes", target: "gate" });
+  // a pending proposal wins over the button gate
+  const both = await run(
+    { pipeline, classifier: engine(answer({ pendingAnswer: "no" })).classifier },
+    input("không", { state: "awaiting_plan_approval", pendingQuestion: "Run it?" }),
+  );
+  expect(both.decision).toEqual({ kind: "gate-answer", answer: "no", target: "ask" });
+  // nothing waits: the model's pendingAnswer is ignored, the message is routed as usual
+  const none = await run(d, input("ok", { state: "idle" }));
+  expect(none.decision).toMatchObject({ kind: "role" });
+  // the model says the message is not an answer: normal routing even with a question pending
+  const other = await run(
+    { pipeline, classifier: engine(answer()).classifier },
+    input("add a cache too", { pendingQuestion: "Run it?" }),
+  );
+  expect(other.decision).toMatchObject({ kind: "role", role: "dev" });
+});
+
+test("L3 gets the pending question and recent messages through its input builder", async () => {
+  const e = engine(answer({ pendingAnswer: "no" }));
+  await run(
+    { pipeline, classifier: e.classifier },
+    input("thôi", {
+      pendingQuestion: "Open a dev task for this?",
+      l3Input: () => ({
+        text: "thôi",
+        thread: { state: "idle" },
+        ledger: [],
+        recent: [{ from: "bot", text: "Open a dev task for this?" }],
+        pendingQuestion: "Open a dev task for this?",
+        roles: [],
+      }),
+    }),
+  );
+  expect(e.inputs[0]?.pendingQuestion).toBe("Open a dev task for this?");
+  expect(e.inputs[0]?.recent).toEqual([{ from: "bot", text: "Open a dev task for this?" }]);
+});
+
+test("L3 failure or no engine while a question is pending -> re-ask naturally, never a role", async () => {
+  const fail = {
+    pipeline,
+    classifier: engine(new IntentEngineError("timeout", "t")).classifier,
+  };
+  const withQ = input("ok", { pendingQuestion: "Run it?" });
+  expect((await run(fail, withQ)).decision).toEqual({ kind: "ask", reason: "pending_unclear" });
+  expect((await run({ pipeline }, withQ)).decision).toEqual({
+    kind: "ask",
+    reason: "pending_unclear",
+  });
 });
 
 test("L3 scope is derived by code: active only when the thread has a task", async () => {
@@ -66,14 +121,14 @@ test("L3 scope is derived by code: active only when the thread has a task", asyn
   expect((await run(d, input("[dev] more"))).decision).toMatchObject({ scope: "new" });
 });
 
-test("an undecided message reaches L4 exactly once", async () => {
+test("an undecided message reaches L3 exactly once", async () => {
   const e = engine(answer({ class: "design" }));
   const r = await run({ pipeline, classifier: e.classifier }, input(VAGUE));
   expect(e.inputs).toHaveLength(1);
   expect(r.decision).toEqual({ kind: "role", role: "dev", scope: "new", cls: "design" });
 });
 
-test("owner prefix class beats the model class; L4 scope is forced new without a task", async () => {
+test("owner prefix class beats the model class; L3 scope is forced new without a task", async () => {
   const e = engine(answer({ class: "mechanical", scope: "active" }));
   const d = { pipeline, classifier: e.classifier };
   const r = await run(d, input(VAGUE, { ownerClass: "design" }));
@@ -94,6 +149,16 @@ test("low confidence -> ONE owner question (no role); medium proceeds", async ()
     input(VAGUE),
   );
   expect(low.decision).toEqual({ kind: "ask", reason: "low_confidence" });
+  // the model's own question (owner's language) is carried; a pending answer at low confidence is a question too
+  const own = await run(
+    {
+      pipeline,
+      classifier: engine(answer({ confidence: "low", ask: "Ý bạn là gì?", pendingAnswer: "yes" }))
+        .classifier,
+    },
+    input(VAGUE, { pendingQuestion: "Run it?" }),
+  );
+  expect(own.decision).toEqual({ kind: "ask", reason: "low_confidence", text: "Ý bạn là gì?" });
   const mid = await run(
     { pipeline, classifier: engine(answer({ confidence: "medium" })).classifier },
     input(VAGUE),
@@ -130,7 +195,7 @@ test("engine failure: idle / done -> entry role; any other state -> ask; never a
   expect((await run(d, input(VAGUE))).decision).toMatchObject({ role: "assistant" });
 });
 
-test("engine none: L0-L3 only; ambiguous -> entry role when idle, else ask", async () => {
+test("engine none: L0-L2 only; ambiguous -> entry role when idle, else ask", async () => {
   const d = { pipeline };
   expect((await run(d, input(VAGUE))).decision).toEqual({
     kind: "role",
@@ -144,7 +209,7 @@ test("engine none: L0-L3 only; ambiguous -> entry role when idle, else ask", asy
   expect((await run(d, input("[dev] x"))).decision).toMatchObject({ role: "dev" });
 });
 
-test("effort signals are returned whoever decides, and the L4 class hint feeds the class", async () => {
+test("effort signals are returned whoever decides, and the L2 class hint feeds the class", async () => {
   const e = engine(answer({ class: undefined }));
   const r = await run(
     { pipeline, classifier: e.classifier },
@@ -158,7 +223,6 @@ test("effort signals are returned whoever decides, and the L4 class hint feeds t
 test("logs: intent.layer for each deciding layer, intent.classified and intent.fallback without text", async () => {
   const cap = captureLogs();
   const ok = { pipeline, classifier: engine(answer()).classifier };
-  await run(ok, input("ok", { state: "awaiting_result" }));
   await run(ok, input("[dev] SECRET-TEXT-1"));
   await run(ok, input("SECRET-TEXT-2 vague"));
   await run(
@@ -168,7 +232,7 @@ test("logs: intent.layer for each deciding layer, intent.classified and intent.f
   await run({ pipeline }, input("SECRET-TEXT-4"));
   cap.stop();
   const layers = cap.lines.filter((l) => l.event === "intent.layer").map((l) => l.layer);
-  expect(layers).toEqual(["L1", "L3", "L4", "fallback", "none"]);
+  expect(layers).toEqual(["L1", "L3", "fallback", "none"]);
   expect(cap.lines.find((l) => l.event === "intent.classified")).toMatchObject({
     role: "dev",
     scope: "new",
@@ -178,24 +242,23 @@ test("logs: intent.layer for each deciding layer, intent.classified and intent.f
   expect(JSON.stringify(cap.lines)).not.toContain("SECRET-TEXT");
 });
 
-test("the L4 input is built lazily, only when L4 runs", async () => {
+test("the L3 input is built lazily, only when L3 runs", async () => {
   let built = 0;
   const d = { pipeline, classifier: engine(answer()).classifier };
   const lazy = (text: string) =>
     input(text, {
-      l4Input: () => {
+      l3Input: () => {
         built++;
-        return { text, thread: { state: "idle" }, ledger: [], roles: [] };
+        return { text, thread: { state: "idle" }, ledger: [], recent: [], roles: [] };
       },
     });
   await run(d, lazy("[dev] x"));
-  await run(d, { ...lazy("ok"), state: "awaiting_result" });
   expect(built).toBe(0);
   await run(d, lazy(VAGUE));
   expect(built).toBe(1);
 });
 
-test("the thread's stop signal is handed to the L4 call", async () => {
+test("the thread's stop signal is handed to the L3 call", async () => {
   const signals: (AbortSignal | undefined)[] = [];
   const classifier: IntentClassifier = {
     classify: async (_i, signal) => {

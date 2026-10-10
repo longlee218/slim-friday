@@ -86,22 +86,7 @@ export const DEV_ROLE: RoleDefinition = {
     "Requests to change code: implement a feature, fix a bug, refactor, add tests. Plans first, the owner approves, then opens a pull request.",
   output: "pr",
   countsTowardCap: true,
-  aliases: {
-    tag: "[dev]",
-    strong: [
-      "giao cho dev",
-      "giao việc cho dev",
-      "coder",
-      "lập trình viên",
-      "code đi",
-      "code giúp",
-      "viết code",
-      "sửa code",
-      "fix bug",
-      "implement",
-      "làm task",
-    ],
-  },
+  tag: "[dev]",
   followUp: { startAtStage: "exec" },
   stages: [
     {

@@ -95,3 +95,11 @@ test("findStage: a stage name in two roles is ambiguous and throws", () => {
   expect(() => findStage([getRole("dev"), dup], "plan")).toThrow("Ambiguous stage");
   expect(findStage([getRole("dev"), getRole("assistant")], "qa").name).toBe("qa");
 });
+
+test("role tags: dev = [dev], assistant = [ask], unique across roles", () => {
+  expect(ROLES.dev?.tag).toBe("[dev]");
+  expect(ROLES.assistant?.tag).toBe("[ask]");
+  const tags = Object.values(ROLES).flatMap((r) => (r.tag ? [r.tag.toLowerCase()] : []));
+  expect(new Set(tags).size).toBe(tags.length);
+  expect("aliases" in (ROLES.dev ?? {})).toBe(false); // natural-language aliases are gone
+});

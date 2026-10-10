@@ -1,6 +1,8 @@
 import type { TaskClass } from "../src/config/model-routing";
+import type { RecentMessage } from "../src/intent/intent-types";
 import type { ThreadState } from "../src/orchestrator/thread/thread-state";
 import { CLASS_CASES } from "./intent-eval-cases-class";
+import { CONVERSATION_CASES } from "./intent-eval-cases-conversation";
 import { DISCUSSION_CASES } from "./intent-eval-cases-discussion";
 import { IDLE_CASES } from "./intent-eval-cases-idle";
 
@@ -16,7 +18,7 @@ export interface ThreadFacts {
   ledger?: string[];
   /** The thread has a task or a live clone (scope `active` is possible). Default: state is not idle/done. */
   hasTask?: boolean;
-  /** Role and last stage of the thread's previous turn (L4 input `lastTurn`). */
+  /** Role and last stage of the thread's previous turn (L3 input `lastTurn`). */
   lastTurn?: { role: string; kind: string };
 }
 
@@ -26,6 +28,8 @@ export interface Expected {
   scope?: "active" | "new";
   cls?: TaskClass;
   ask?: true;
+  /** The message answers the pending question: the decision must be this yes / no (a `gate-answer`). */
+  pendingAnswer?: "yes" | "no";
   /** Injection-style text: any registry role or an owner question passes (never a crash / unknown role). */
   anyRegistryRoleOrAsk?: true;
 }
@@ -35,6 +39,10 @@ export interface GoldenCase {
   text: string;
   thread: ThreadFacts;
   expect: Expected;
+  /** The last messages of the thread before this one (multi-turn cases), oldest first. Default: none. */
+  recent?: RecentMessage[];
+  /** The unanswered question the bot asked (queue / open-dev), for a pending-answer case. */
+  pending?: string;
   codeRequest?: true;
   /** `holdout` = never used to tune the prompt; scored and reported apart. */
   group?: "holdout";
@@ -67,6 +75,7 @@ export const GOLDEN: GoldenCase[] = [
   ...IDLE_CASES,
   ...CLASS_CASES,
   ...DISCUSSION_CASES,
+  ...CONVERSATION_CASES,
   // Plan gate: feedback on the plan is dev/active; a question is the assistant; a separate request is new.
   {
     text: "Please also handle the null case in the plan.",

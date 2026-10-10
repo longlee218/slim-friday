@@ -1,66 +1,49 @@
-import type { ThreadState } from "../orchestrator/thread/thread-state";
-import { type AliasRouter, type AliasVia, isIdleState } from "./alias-router";
 import { computeEffortSignals, type EffortSignals } from "./effort-signals";
-import { type GateAnswer, matchGateAnswer } from "./gate-answer";
 import type { CompiledLexicon } from "./load-lexicon";
+import type { RoleTagRouter } from "./role-tag";
 
-/** One message and the thread it arrived in. */
+/** One message of the owner. */
 export interface IntentPipelineInput {
   text: string;
-  state: ThreadState;
-  /** A queued proposal / ask waits for a yes/no. */
-  pendingAsk?: boolean;
 }
 
 /** Compiled data the pipeline runs on (built once at startup). */
 export interface IntentPipelineDeps {
   lexicon: CompiledLexicon;
-  aliasRouter: AliasRouter;
+  tagRouter: RoleTagRouter;
 }
 
 /** What the deciding layer produced. */
-export type IntentRoute =
-  | { kind: "gate-answer"; answer: GateAnswer["answer"]; target: GateAnswer["target"] }
-  | { kind: "role"; role: string; via: AliasVia };
+export type IntentRoute = { kind: "role"; role: string; via: "tag" };
 
 export interface IntentPipelineResult {
-  /** First layer that decided; `none` = undecided (the caller goes to L4 or asks the owner). */
-  decidedBy: "L1" | "L3" | "none";
+  /** First layer that decided; `none` = undecided (the caller goes to L3 or the no-engine fallback). */
+  decidedBy: "L1" | "none";
   route?: IntentRoute;
   /** L2 signals: always computed, whoever decides the route. */
   effort: EffortSignals;
-  /** Rule ids of the deciding layer (for `intent.layer`); on `none`, the ambiguous alias hits. */
+  /** Rule ids of the deciding layer (for `intent.layer`). */
   ruleIds: string[];
 }
 
 /**
- * L1 gate answer -> L3 alias -> undecided (L4 later). L2 effort signals are computed first and never decide.
- * L1 runs BEFORE L3: with a plan waiting, "code di" = approve. Pure: no I/O, no LLM, no logging.
+ * The rule layers of one message: L1 explicit leading role tag -> undecided (L3 later). L2 effort signals are
+ * computed first and never decide. (L0, the slash / legacy commands, is parsed before a message gets here.)
+ * Pure: no I/O, no LLM, no logging.
  */
 export function runIntentPipeline(
   input: IntentPipelineInput,
   deps: IntentPipelineDeps,
 ): IntentPipelineResult {
   const effort = computeEffortSignals(input.text, deps.lexicon);
-
-  const gate = matchGateAnswer(input);
-  if (gate) {
+  const tag = deps.tagRouter.route(input.text);
+  if (tag) {
     return {
       decidedBy: "L1",
-      route: { kind: "gate-answer", answer: gate.answer, target: gate.target },
+      route: { kind: "role", role: tag.role, via: "tag" },
       effort,
-      ruleIds: [gate.ruleId],
+      ruleIds: [`tag:${tag.role}`],
     };
   }
-
-  const alias = deps.aliasRouter.route(input.text, isIdleState(input.state));
-  if (alias.decided) {
-    return {
-      decidedBy: "L3",
-      route: { kind: "role", role: alias.role, via: alias.via },
-      effort,
-      ruleIds: alias.ruleIds,
-    };
-  }
-  return { decidedBy: "none", effort, ruleIds: alias.ruleIds };
+  return { decidedBy: "none", effort, ruleIds: [] };
 }

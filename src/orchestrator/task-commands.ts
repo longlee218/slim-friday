@@ -1,3 +1,4 @@
+import { slashToLegacy } from "../commands/slash-commands";
 import type { TaskClass } from "../config/model-routing";
 import { parseMemoryCommand } from "../memory/memory-commands";
 
@@ -35,9 +36,9 @@ export const MAX_GO_EXTRA_USD = 1000;
 /** `go` or `go +<usd>` (a positive amount, e.g. `go +1.5`); anything else is a normal message. */
 const GO_COMMAND = /^go(?:\s+\+(\d+(?:\.\d+)?))?$/i;
 
-/** Parse a message into one command. The only place that knows the `stop` / `cleanup:` / `repo:` syntax. */
+/** Parse a message into one command. The only place that knows the `stop` / `cleanup:` / `repo:` syntax (canonical `/stop`, `/cleanup`: legacy forms still work). */
 export function parseTaskCommand(input: string): TaskCommand {
-  const text = input.trim();
+  const text = slashToLegacy(input).trim(); // L0: `/stop`, `/go`, `/cleanup` ... map onto the legacy forms below
   if (text.toLowerCase() === "stop") return { kind: "stop" };
   if (text === RESUME_PROMPT) return { kind: "resume" };
   const go = GO_COMMAND.exec(text);

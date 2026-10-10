@@ -5,12 +5,12 @@ import { decideIntent, type IntentDeps } from "../intent/decide-intent";
 import { buildIntentInput } from "../intent/intent-input";
 import { logEvent } from "../observability/logger";
 import type { Repo } from "../repos/repo-registry";
-import { pendingProposal } from "../storage/proposal-store";
 import { countFollowUps } from "../storage/run-store";
 import { getSession, type SessionRow } from "../storage/session-store";
 import { liveWorktree } from "../storage/worktree-store";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
+import { pendingQuestionOf } from "./dispatch/queued-tasks";
 import { findRepo } from "./dispatch/task-repo";
 import type { TaskCommand } from "./task-commands";
 import type { EffortFloors } from "./thread/effort-floor";
@@ -47,7 +47,7 @@ export const pinnedRepo = (repos: Repo[], hint: string | undefined, stored: Sess
   hint ? findRepo(repos, hint) : repos.find((r) => r.name === stored?.repo);
 
 /**
- * One plain message through the intent layer: thread facts -> L1-L4 decision -> effort -> table action ->
+ * One plain message through the intent layer: thread facts -> L1 / L3 decision -> effort -> table action ->
  * outcome (a reply to send, or the role the handler runs). Engine failures never dispatch a task.
  */
 export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
@@ -56,20 +56,28 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   const state = deriveThreadState(db, threadId);
   const clone = liveWorktree(db, threadId);
   const fixRounds = clone ? countFollowUps(db, clone.taskId) : 0;
+  const pendingQuestion = pendingQuestionOf(db, threadId);
   const { decision, effort } = await decideIntent(
     {
       text: c.cmd.text,
       state,
-      pendingAsk: pendingProposal(db, threadId) !== null,
+      pendingQuestion,
       // A busy thread cannot steer yet (P1.4b): a dev request is a NEW task (queue question). A clone that
       // used its fix rounds takes no more work either: the next dev request is a NEW task.
       hasTask: !c.busy && (!isIdleLike(state) || !!clone) && fixRounds < MAX_FIX_ROUNDS,
       ownerClass: c.cmd.cls,
       signal: c.ac.signal,
-      l4Input: () => buildIntentInput(db, { threadId, text: c.cmd.text, state }),
+      l3Input: () =>
+        buildIntentInput(db, {
+          threadId,
+          text: c.cmd.text,
+          state,
+          recent: c.task.recent,
+          pendingQuestion,
+        }),
     },
-    // A busy thread never pays for L4: only L1 / L3 can act on it (yes/no, `[dev]` queue question).
-    c.busy ? { ...c.intent, classifier: undefined } : c.intent,
+    // A busy thread pays for L3 only to read the answer to a pending question; else only the `[dev]` tag (L1) acts on it.
+    c.busy && !pendingQuestion ? { ...c.intent, classifier: undefined } : c.intent,
   );
   let action = actionFor({ decision, state, hasClone: !!clone, fixRounds });
   // Effort only matters for a run that starts now; `max` needs the owner's confirmation (ask instead).
@@ -92,8 +100,8 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
 }
 
 /**
- * The thread's run holds the lock. A plain message may still be queued as a second task or answer a pending
- * yes/no (intent layer on); everything else is `still working...`.
+ * The thread's run holds the lock. A plain message may still be queued as a second task (`[dev]` tag) or answer
+ * a pending question (read by L3, intent layer on); everything else is `still working...`.
  */
 export async function replyWhileBusy(c: {
   deps: DispatchDeps;

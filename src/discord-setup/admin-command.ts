@@ -1,3 +1,4 @@
+import { slashToLegacy } from "../commands/slash-commands";
 import { isWorkspaceName, RESERVED_WORKSPACES, WORKSPACE_NAME } from "../config/workspace-paths";
 
 /** Prefix of the one admin command. */
@@ -11,20 +12,20 @@ export type AdminCommand =
 
 /** Shown for any non-command text in a control channel. */
 export const ADMIN_HELP =
-  "Admin commands:\n- `init:workspace:<name>`: create the workspace folder, a private category `<name>` and `#<name>-agent`.";
+  "Admin commands:\n- `/init-workspace <name>` (legacy: `init:workspace:<name>`): create the workspace folder, a private category `<name>` and `#<name>-agent`.";
 
 /** Shown when a command comes from a place that may not run admin commands. */
 export const ADMIN_ONLY_CONTROL = "Admin commands run only in #ops-control.";
 
 /** True when the text starts like an admin command (so it never goes to the agent, wherever it is typed). */
-export const isAdminText = (text: string): boolean => INIT_PREFIX.test(text.trim());
+export const isAdminText = (text: string): boolean => INIT_PREFIX.test(slashToLegacy(text).trim());
 
 /**
  * Parse admin text (already stripped of the bot mention). The name is validated here, before any
  * filesystem or Discord call: lowercase letters, digits, hyphens; max 32 chars; not reserved.
  */
 export function parseAdminCommand(text: string): AdminCommand {
-  const t = text.trim();
+  const t = slashToLegacy(text).trim();
   if (!INIT_PREFIX.test(t)) return { kind: "help", reply: ADMIN_HELP };
   const name = t.replace(INIT_PREFIX, "");
   if (isWorkspaceName(name)) return { kind: "init_workspace", name };

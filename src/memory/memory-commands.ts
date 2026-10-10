@@ -1,3 +1,5 @@
+import { slashToLegacy } from "../commands/slash-commands";
+
 /** Where an owner memory command writes: the default repo, a named repo, the workspace file, or the root file. */
 export type MemoryScope =
   | { kind: "default" }
@@ -57,7 +59,7 @@ export function lengthReply(isRemember: boolean, body: string): string | undefin
 
 /** Usage line shown for an invalid command. */
 const USAGE =
-  "Usage: `remember: [global|workspace|repo:<name>|<repo-name>] <text>` (3-300 chars), `forget: [scope] <text>` (3-100 chars), `compact memory [dry-run]`. Vietnamese: `nhớ:`, `quên:`, `chung`, `ws`, `gom nén`.";
+  "Usage: `/remember [global|workspace|repo:<name>|<repo-name>] <text>` (3-300 chars), `/forget [scope] <text>` (3-100 chars), `/compact [dry-run]`. Legacy forms still work: `remember:`, `forget:`, `compact memory`; Vietnamese: `nhớ:`, `quên:`, `chung`, `ws`, `gom nén`.";
 
 /**
  * Parse a message as an owner memory command, or null when it is anything else (then it is a normal task).
@@ -65,7 +67,7 @@ const USAGE =
  * can send decomposed accents).
  */
 export function parseMemoryCommand(input: string): MemoryCommand | null {
-  const text = input.normalize("NFC").trim();
+  const text = slashToLegacy(input).normalize("NFC").trim(); // `/remember`, `/forget`, `/compact` are the canonical forms
   const compact = COMPACT_CMD.exec(text);
   if (compact) return { kind: "compact", dryRun: !!compact[1] };
   const w = WRITE_CMD.exec(text);

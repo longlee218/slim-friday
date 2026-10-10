@@ -51,7 +51,7 @@ export interface MemoryRunnerDeps {
 /** Cap line after a write: exact file, `chars/cap`, advice above 80% and a notice above 100%. */
 function capNote(label: string, chars: number, cap: number): string {
   const over = chars > cap ? ` ${chars - cap} oldest chars are not in prompts.` : "";
-  const advice = chars > cap * COMPACT_THRESHOLD ? " Run `compact memory`." : "";
+  const advice = chars > cap * COMPACT_THRESHOLD ? " Run `/compact`." : "";
   return `${label}: ${chars}/${cap}.${over}${advice}`;
 }
 

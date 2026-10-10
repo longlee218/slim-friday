@@ -111,7 +111,7 @@ test("storage limit: owner write refused at 300 lines, never trimmed", async () 
   );
   const r = await ask("remember: one more");
   expect(r).toContain("file full");
-  expect(r).toContain("compact memory");
+  expect(r).toContain("/compact");
   expect(file("repo")).toContain("- n0");
 });
 
@@ -119,7 +119,7 @@ test("cap feedback: >80% suggests compaction, >100% says how many chars are out 
   const { env, ask } = setup();
   const f = repoMemoryFile(env.home, "main", "repo");
   writeFileSync(f, `# repo memory\n\n## old\n${"- x\n".repeat(1)}${"- ".padEnd(3300, "y")}\n`);
-  expect(await ask("remember: tip note")).toContain("Run `compact memory`");
+  expect(await ask("remember: tip note")).toContain("Run `/compact`");
   writeFileSync(f, `# repo memory\n\n## old\n${"- ".padEnd(4500, "y")}\n`);
   expect(await ask("remember: tip two")).toMatch(/\d+ oldest chars are not in prompts/);
 });
@@ -218,8 +218,8 @@ test("'Which repo?' lists repos and both forms", async () => {
   const { ask } = setup(["web"]);
   const r = (await ask("remember: something useful")) ?? "";
   expect(r).toContain("`repo`, `web`");
-  expect(r).toContain("remember: <repo-name> <text>");
-  expect(r).toContain("remember: repo:<name> <text>");
+  expect(r).toContain("/remember <repo-name> <text>");
+  expect(r).toContain("/remember repo:<name> <text>");
   expect(r).toContain("`ws`");
   expect(r).toContain("`chung`");
 });

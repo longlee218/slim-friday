@@ -116,7 +116,7 @@ export async function validateRequest(
   if (!req.confirmed && req.confidence !== undefined && req.confidence < LOW_CONFIDENCE) {
     return ask(
       "low_confidence",
-      `Not sure I understood: start a ${role.name} task for "${req.brief.slice(0, 120)}"? Reply \`go\` to start it.`,
+      `Not sure I understood: start a ${role.name} task for "${req.brief.slice(0, 120)}"? Reply \`/go\` to start it.`,
     );
   }
   const hint = repoHint(d.config.agentHome, d.pinned, req.repo);
