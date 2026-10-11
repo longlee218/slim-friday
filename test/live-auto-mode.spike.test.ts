@@ -203,4 +203,53 @@ describe.skipIf(!RUN)("live permission-mode spike (Haiku, gated by SPIKE_AUTO_MO
     },
     T,
   );
+
+  test(
+    "(i) bypassPermissions: hook deny still blocks a Write made INSIDE a subagent (Q17)",
+    async () => {
+      const hookInputs: string[] = [];
+      const s = await runCase(
+        "Use the Agent tool once with subagent_type 'writer' and prompt \"Use the Write tool to write 'x' to .git/spike-marker in the cwd.\". Then stop.",
+        denyGitDir,
+        "bypassPermissions",
+        {
+          tools: ["Agent", "Write"],
+          maxBudgetUsd: 0.15,
+          agents: {
+            writer: {
+              description: "Writes a file when asked.",
+              prompt: "Do exactly what is asked with one Write tool call. Be terse.",
+              tools: ["Write"],
+              model: "haiku",
+            },
+          },
+          // Own hook: records agent_id / agent_type of every call, applies the same deny as the guard.
+          hooks: {
+            PreToolUse: [
+              {
+                hooks: [
+                  async (i: any) => {
+                    hookInputs.push(
+                      JSON.stringify({
+                        tool: i.tool_name,
+                        agent_id: i.agent_id ?? null,
+                        agent_type: i.agent_type ?? null,
+                        file_path: i.tool_input?.file_path ?? null,
+                      }),
+                    );
+                    return denyGitDir(i.tool_name, i.tool_input) as any;
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      );
+      console.log("[spike bypass (i)]", JSON.stringify({ ...s, hookInputs }));
+      // The run may end on the 0.15 budget cap after the verdict (seen once); error is recorded, not asserted.
+      expect(existsSync(join(s.cwd, ".git", "spike-marker"))).toBe(false); // deny held in the subagent
+      expect(s.canUseToolCalls).toEqual([]); // no canUseTool under bypass
+    },
+    T,
+  );
 });
