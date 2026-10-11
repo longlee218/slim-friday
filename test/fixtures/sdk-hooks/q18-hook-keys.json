@@ -1,0 +1,151 @@
+[
+  {
+    "event": "PreToolUse",
+    "tool": "Agent",
+    "keys": [
+      "session_id",
+      "transcript_path",
+      "cwd",
+      "prompt_id",
+      "permission_mode",
+      "hook_event_name",
+      "tool_name",
+      "tool_input",
+      "tool_use_id"
+    ],
+    "input_keys": [
+      "description",
+      "prompt",
+      "subagent_type",
+      "model",
+      "run_in_background"
+    ],
+    "response_keys": null,
+    "agent_id": null,
+    "agent_type": null
+  },
+  {
+    "event": "SubagentStart",
+    "tool": null,
+    "keys": [
+      "session_id",
+      "transcript_path",
+      "cwd",
+      "prompt_id",
+      "agent_id",
+      "agent_type",
+      "hook_event_name"
+    ],
+    "input_keys": null,
+    "response_keys": null,
+    "agent_id": "ad1a8dd6a2543e1dc",
+    "agent_type": "general-purpose"
+  },
+  {
+    "event": "PreToolUse",
+    "tool": "Agent",
+    "keys": [
+      "session_id",
+      "transcript_path",
+      "cwd",
+      "prompt_id",
+      "permission_mode",
+      "hook_event_name",
+      "tool_name",
+      "tool_input",
+      "tool_use_id"
+    ],
+    "input_keys": [
+      "description",
+      "prompt",
+      "subagent_type",
+      "model",
+      "run_in_background"
+    ],
+    "response_keys": null,
+    "agent_id": null,
+    "agent_type": null
+  },
+  {
+    "event": "SubagentStart",
+    "tool": null,
+    "keys": [
+      "session_id",
+      "transcript_path",
+      "cwd",
+      "prompt_id",
+      "agent_id",
+      "agent_type",
+      "hook_event_name"
+    ],
+    "input_keys": null,
+    "response_keys": null,
+    "agent_id": "a3648c2ed341100d9",
+    "agent_type": "claude"
+  },
+  {
+    "event": "SubagentStop",
+    "tool": null,
+    "keys": [
+      "session_id",
+      "transcript_path",
+      "cwd",
+      "prompt_id",
+      "permission_mode",
+      "agent_id",
+      "agent_type",
+      "hook_event_name",
+      "stop_hook_active",
+      "agent_transcript_path",
+      "last_assistant_message",
+      "background_tasks",
+      "session_crons"
+    ],
+    "input_keys": null,
+    "response_keys": null,
+    "agent_id": "a3648c2ed341100d9",
+    "agent_type": "claude"
+  },
+  {
+    "event": "PostToolUse",
+    "tool": "Agent",
+    "keys": [
+      "session_id",
+      "transcript_path",
+      "cwd",
+      "prompt_id",
+      "permission_mode",
+      "hook_event_name",
+      "tool_name",
+      "tool_input",
+      "tool_response",
+      "tool_use_id",
+      "duration_ms"
+    ],
+    "input_keys": [
+      "description",
+      "prompt",
+      "subagent_type",
+      "model",
+      "run_in_background"
+    ],
+    "response_keys": [
+      "status",
+      "prompt",
+      "agentId",
+      "agentType",
+      "harnessNoteCount",
+      "harnessTailCount",
+      "harnessSectionHash",
+      "content",
+      "resolvedModel",
+      "totalDurationMs",
+      "totalTokens",
+      "totalToolUseCount",
+      "usage",
+      "canContinueAgent"
+    ],
+    "agent_id": null,
+    "agent_type": null
+  }
+]
