@@ -1,12 +1,16 @@
 import type { CanUseTool, HookCallbackMatcher } from "@anthropic-ai/claude-agent-sdk";
 import type { ApprovalGateway } from "../approvals/approval-types";
-import { checkToolCall, type Decision, type GuardrailContext } from "../guardrails/check-tool-call";
-import { logEvent, logger } from "../observability/logger";
+import {
+  checkToolCall,
+  type GuardrailContext,
+  type LoggedDecision,
+} from "../guardrails/check-tool-call";
+import { logger } from "../observability/logger";
 import { clip, errText } from "../observability/redact";
-import { agentIdentity } from "../observability/subagent-hooks";
-import { describeTool } from "../observability/tool-target";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
 import { PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
+import { guardHook } from "./guard-hook";
+import type { AutoModeState } from "./permission-mode";
 
 /** Max chars of a tool input shown inline in the approval message (full input goes in the attachment). */
 const SUMMARY_MAX = 300;
@@ -36,6 +40,11 @@ export interface ToolPermissionInput {
   plan?: { repos: string[]; onApproved: (plan: string, repo: string) => void };
   /** Shared across the task's runs: the single allowed question round. Omitted = limit per permission layer. */
   askLimit?: AskLimit;
+  /**
+   * Stage runs in SDK `auto` mode: a SOFT guard `ask` is left to the SDK classifier (canUseTool only if it cannot
+   * decide). Owner-only asks (`Decision.ownerOnly`) and every ask when `active` is false still force the owner prompt.
+   */
+  autoMode?: AutoModeState;
   /** The owner did not answer the questions in time: the caller stops the run and replies "Awaiting clarification". */
   onAskTimeout?: (questions: AskQuestion[]) => void;
 }
@@ -61,52 +70,14 @@ function summarize(tool: string, input: Record<string, unknown>): string {
 export function buildToolPermissions(p: ToolPermissionInput): {
   canUseTool: CanUseTool;
   hooks: HookCallbackMatcher[];
-  /** Guard decision per tool_use_id (allow/ask), read by the tool hooks to complete the `tool.done` line. */
-  decisions: Map<string, Decision>;
+  /** Guard decision per tool_use_id (allow/ask/auto), read by the tool hooks to complete the `tool.done` line. */
+  decisions: Map<string, LoggedDecision>;
 } {
   const log = logger.child({ module: "tool-permissions" });
-  const decisions = new Map<string, Decision>();
+  const decisions = new Map<string, LoggedDecision>();
   const askLimit = p.askLimit ?? { asked: false };
 
-  const hooks: HookCallbackMatcher[] = [
-    {
-      hooks: [
-        async (i) => {
-          if (i.hook_event_name !== "PreToolUse") return { continue: true };
-          // Plan/question tools are handled by canUseTool.
-          if (PLAN_FLOW_TOOLS.has(i.tool_name)) return { continue: true };
-          const d = checkToolCall(
-            i.tool_name,
-            (i.tool_input ?? {}) as Record<string, unknown>,
-            p.guard,
-          );
-          if (d.decision !== "deny") decisions.set(i.tool_use_id, d);
-          if (d.decision === "allow") return { continue: true };
-          // A denied call never runs, so no Post hook: its `tool.denied` line is written here.
-          if (d.decision === "deny")
-            logEvent(
-              log,
-              "tool.denied",
-              {
-                ...agentIdentity(i),
-                tool: i.tool_name,
-                toolUseId: i.tool_use_id,
-                target: describeTool(i.tool_name, i.tool_input, p.guard.readPaths).target,
-                reason: d.reason,
-              },
-              "warn",
-            );
-          return {
-            hookSpecificOutput: {
-              hookEventName: "PreToolUse" as const,
-              permissionDecision: d.decision,
-              permissionDecisionReason: d.reason,
-            },
-          };
-        },
-      ],
-    },
-  ];
+  const hooks: HookCallbackMatcher[] = [{ hooks: [guardHook(p, decisions, log)] }];
 
   const canUseTool: CanUseTool = async (tool, rawInput, opts) => {
     // Run stopped/timed out/shut down while waiting: drop the open request (buttons + timer).

@@ -25,6 +25,15 @@ import { isPureGitRead, isReadCommand } from "./bash-read-commands";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { isSecretPath } from "./deny-dangerous";
 import { writesGitDir } from "./git-dir-guard";
+import {
+  FIND_EXEC_FLAGS,
+  HOME_REF,
+  INDIRECT_LAUNCHERS,
+  OWNER_ONLY_ENV,
+  ownerAsk,
+  redirectLeavesWritePaths,
+  SUBSTITUTION,
+} from "./owner-only";
 
 const RANK = { allow: 0, ask: 1, deny: 2 } as const;
 
@@ -52,8 +61,8 @@ function checkSegment(seg: Segment): Decision {
   const words = [...seg.words];
   // Drop env assignments and wrapper commands (`FOO=1 env nice cmd`).
   while (words.length > 0) {
-    if (/^(PATH|LD_\w+|DYLD_\w+|GIT_\w+|NODE_OPTIONS|BASH_ENV)=/.test(words[0])) {
-      return ask("environment override needs approval");
+    if (OWNER_ONLY_ENV.test(words[0])) {
+      return ownerAsk("environment override needs approval");
     }
     if (/^[A-Za-z_]\w*=/.test(words[0])) words.shift();
     else if (WRAPPERS.has(basename(words[0]))) {
@@ -61,7 +70,7 @@ function checkSegment(seg: Segment): Decision {
       while (words[0]?.startsWith("-")) words.shift();
     } else break;
   }
-  if (words.length === 0) return ask("no command to evaluate");
+  if (words.length === 0) return ownerAsk("no command to evaluate");
   const cmd = basename(words[0]);
   const args = words.slice(1);
 
@@ -70,16 +79,22 @@ function checkSegment(seg: Segment): Decision {
     return deny("writing to the .git directory is blocked");
   if (["sudo", "su", "doas"].includes(cmd)) return deny("privilege escalation is blocked");
   if (cmd === "eval") return deny("eval is blocked");
+  // The app opens PRs (like `git push`, which is denied): the GitHub CLIs never run from the agent.
+  if (cmd === "gh" || cmd === "hub") return deny("use the app for GitHub actions (it opens PRs)");
   if (SHELLS.has(cmd)) {
     const inline = args.some((a) => /^-[a-zA-Z]*c/.test(a));
     const hasScript = args.some((a) => !a.startsWith("-"));
     if (seg.piped) return deny("piping into a shell is blocked");
     if (inline || !hasScript) return deny("shell wrapper (-c / stdin) is blocked");
-    return ask("running a shell script needs approval");
+    return ownerAsk("running a shell script needs approval");
   }
   if ((READERS.has(cmd) || NETWORK.has(cmd) || cmd === "git") && args.some(isSecretArg)) {
     return deny("access to secret files is blocked");
   }
+  if (INDIRECT_LAUNCHERS.has(cmd) || (cmd === "find" && args.some((a) => FIND_EXEC_FLAGS.has(a))))
+    return ownerAsk(`${cmd} can launch other commands`);
+  if (INDIRECT_LAUNCHERS.has(cmd) || (cmd === "find" && args.some((a) => FIND_EXEC_FLAGS.has(a))))
+    return ownerAsk(`${cmd} can launch other commands`);
   if (cmd === "rm") return checkRm(args);
   if (cmd === "chmod") return checkChmod(args);
   if (cmd === "git") return checkGit(args);
@@ -104,9 +119,9 @@ export function checkBash(command: string, ctx: GuardrailContext): Decision {
   try {
     segments = parseCommand(command);
   } catch {
-    return ask("command could not be parsed");
+    return ownerAsk("command could not be parsed");
   }
-  if (segments.length === 0) return ask("empty command");
+  if (segments.length === 0) return ownerAsk("empty command");
   const allowed = new Set((ctx.allowedCommands ?? []).map(commandKey));
   const roots = [...(ctx.writePaths ?? []), ...(ctx.readPaths ?? [])];
   // `cwd` follows the line's `cd`s. After a cd into a dir that is only READABLE nothing may write or install there:
@@ -114,6 +129,7 @@ export function checkBash(command: string, ctx: GuardrailContext): Decision {
   let cwd = ctx.cwd;
   let readOnly = false;
   let worst: Decision | null = null;
+  let ownerSeen = false; // some segment asked owner-only: the whole line is owner-only
   let prevCd = false; // the previous segment was a tracked cd (it ran, or the line stopped there)
   for (const [n, seg] of segments.entries()) {
     // A cd moves the guard's cwd only when it surely runs in the main shell: top level, not piped, joined by `&&`
@@ -144,16 +160,34 @@ export function checkBash(command: string, ctx: GuardrailContext): Decision {
         d = allow("allowlisted command");
       }
     }
-    // A file redirect can write anywhere, so an otherwise-safe command must ask.
-    if (d.decision === "allow" && seg.redirect) d = ask("output redirection needs approval");
+    // A file redirect can write anywhere, so an otherwise-safe command must ask; leaving the write paths = the
+    // owner decides, even in auto mode (owner-only.ts).
+    if (
+      d.decision !== "deny" &&
+      seg.redirect &&
+      redirectLeavesWritePaths(seg.words, cwd, ctx.writePaths ?? [])
+    )
+      d = ownerAsk("output redirection outside the write paths needs approval");
+    else if (d.decision === "allow" && seg.redirect) d = ask("output redirection needs approval");
+    ownerSeen ||= d.decision === "ask" && !!d.ownerOnly;
     if (!worst || RANK[d.decision] > RANK[worst.decision]) worst = d;
     if (d.decision === "deny") break;
   }
   // An expansion anywhere (`$VAR`, `${..}`, `$(..)`, backtick, `~`, `{a,b}`, `<(..)`) can read what the guard never saw
-  // (env secrets leak through error text): the line never runs without the owner. A deny stays a deny.
+  // (env secrets leak through error text): the line never runs without a decision. A deny stays a deny.
+  // `~` / `$HOME` reach the owner's real files: owner-only even when another reason already asked.
   const expands =
     /[<>]\(/.test(command) ||
     segments.some((s) => s.words.some((w) => /[$`{}]/.test(w) || w.startsWith("~")));
-  if (expands && worst?.decision === "allow") return ask("shell expansion needs approval");
-  return worst ?? ask("empty command");
+  const homeRef = segments.some((s) => s.words.some((w) => HOME_REF.test(w)));
+  // A substitution can launch anything (`$(echo gh)`): owner-only whatever else was decided (a deny stays).
+  if (worst && worst.decision !== "deny" && SUBSTITUTION.test(command))
+    return ownerAsk("command substitution needs approval");
+  if (worst?.decision === "allow" && (expands || homeRef))
+    return homeRef
+      ? ownerAsk("home directory expansion needs approval")
+      : ask("shell expansion needs approval");
+  if (worst?.decision === "ask" && (ownerSeen || homeRef) && !worst.ownerOnly)
+    return { ...worst, ownerOnly: true };
+  return worst ?? ownerAsk("empty command");
 }

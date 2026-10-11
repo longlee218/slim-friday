@@ -14,6 +14,7 @@ import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
 import { roleOfStage } from "../roles/role-registry";
 import type { StageDefinition } from "../roles/role-types";
 import { SUBAGENTS, toolOptions } from "../tools/tool-catalog";
+import { type AutoModeState, resolvePermissionMode } from "./permission-mode";
 import type { RunAgentInput } from "./run-agent";
 import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
@@ -62,6 +63,8 @@ export async function buildSdkOptions(
     config: AgentConfig;
     recorder: RunRecorder;
     skills: RunSkills;
+    /** Shared with the stream watch: flips off when the SDK did not enter the requested auto mode. */
+    autoState: AutoModeState;
   },
 ): Promise<Options> {
   const { config, skills: sk } = deps;
@@ -72,12 +75,14 @@ export async function buildSdkOptions(
     input.guard?.readPaths && sk.dirs.length
       ? { ...input.guard, readPaths: [...input.guard.readPaths, ...sk.dirs] }
       : input.guard;
+  const permissionMode = resolvePermissionMode(stage, config);
   const perms = guard
     ? buildToolPermissions({
         ...input.code, // gateway, plan, askLimit, onAskTimeout
         taskId: input.taskId,
         threadId: input.code?.threadId ?? "",
         guard,
+        autoMode: deps.autoState,
       })
     : undefined;
   return {
@@ -89,7 +94,7 @@ export async function buildSdkOptions(
     resume: input.resume,
     ...toolOptions(stage),
     mcpServers: await mcpServersFor(stage, input),
-    ...(stage.permissionMode && { permissionMode: stage.permissionMode }),
+    ...(permissionMode && { permissionMode }),
     ...(perms && { canUseTool: perms.canUseTool }),
     // Only the subagents this stage names (read-only tools each). Skills: only the workspace's curated ones,
     // through the plugin; the list hides the SDK's bundled ones (a model once reached for `update-config`).

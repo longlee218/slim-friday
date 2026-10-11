@@ -19,6 +19,7 @@ const ENV = {
   MODEL: "model-qa",
   MODEL_DEV_PLAN: "model-code",
   MODEL_DEV_EXEC: "model-code",
+  CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test", // real Anthropic login: exec may use auto mode
   MAX_TURNS: "7",
   MAX_BUDGET_USD: "3",
 };
@@ -126,9 +127,9 @@ test("options lock: tools, mcp servers, permission mode per stage", async () => 
     expect(Object.keys(r.o.mcpServers ?? {})).toContain(GIT_MCP_SERVER);
     expect(Object.keys(r.o.mcpServers ?? {})).not.toContain("tasks");
   }
-  // plan mode only in the plan stage.
+  // plan mode in the plan stage, auto mode (classifier) in exec.
   expect(plan.o.permissionMode).toBe("plan");
-  expect(exec.o.permissionMode).toBeUndefined();
+  expect(exec.o.permissionMode).toBe("auto");
   expect(qa.o.permissionMode).toBeUndefined();
   // Never any filesystem settings; strict MCP config.
   for (const r of [qa, plan, exec]) {

@@ -77,6 +77,8 @@ export async function consumeStream(p: {
   /** The stage is useless without its git tools (it commits): abort when that server is not connected. */
   requireGit: boolean;
   resume?: string;
+  /** Sees every stream message: logs the actual permission mode and classifier denials (permission-watch.ts). */
+  permissionWatch?: (msg: SDKMessage) => void;
   /** Streaming input: called for every stream message first (echo tracking, hold timer). */
   onMessage?: (msg: SDKMessage) => void;
   /**
@@ -101,6 +103,7 @@ export async function consumeStream(p: {
   try {
     for await (const msg of p.run({ prompt: p.prompt, options: p.options })) {
       recorder.logMessage(msg);
+      p.permissionWatch?.(msg);
       p.onMessage?.(msg);
       const m = msg as SDKMessage & { subtype?: string; session_id?: string };
       sessionId = m.session_id ?? sessionId;

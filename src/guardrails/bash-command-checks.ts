@@ -1,6 +1,7 @@
 /* Per-command checks of the Bash policy (network, rm, chmod, git, package managers). Each returns allow / ask / deny. */
 import { homedir } from "node:os";
 import type { Decision } from "./check-tool-call";
+import { ownerAsk } from "./owner-only";
 
 /** Hosts curl/wget may reach without asking. */
 const ALLOWED_HOSTS = ["github.com", "api.github.com", "registry.npmjs.org"];
@@ -20,7 +21,7 @@ function hostOf(word: string): string | null {
 
 /** curl/wget: allow only when every URL/host-looking argument is in the allowlist. */
 export function checkNetwork(cmd: string, args: string[]): Decision {
-  if (cmd !== "curl" && cmd !== "wget") return ask(`network command ${cmd} needs approval`);
+  if (cmd !== "curl" && cmd !== "wget") return ownerAsk(`network command ${cmd} needs approval`);
   // Output/upload/config flags can write or read anywhere: always ask.
   if (
     args.some(
@@ -29,16 +30,16 @@ export function checkNetwork(cmd: string, args: string[]): Decision {
         /^--(output|upload-file|config|remote-name|cookie-jar)/.test(a),
     )
   ) {
-    return ask(`${cmd} with file output/upload flags`);
+    return ownerAsk(`${cmd} with file output/upload flags`);
   }
   const targets = args.filter(
     (a) => a.includes("://") || /^[\w.-]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(a),
   );
-  if (targets.length === 0) return ask(`${cmd} with no recognizable host`);
+  if (targets.length === 0) return ownerAsk(`${cmd} with no recognizable host`);
   for (const t of targets) {
     const host = hostOf(t);
     if (!host || !ALLOWED_HOSTS.includes(host)) {
-      return ask(`${cmd} to host not in allowlist: ${host ?? "unparseable"}`);
+      return ownerAsk(`${cmd} to host not in allowlist: ${host ?? "unparseable"}`);
     }
   }
   return allow(`${cmd} to allowlisted host`);

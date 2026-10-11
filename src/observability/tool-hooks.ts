@@ -1,5 +1,5 @@
 import type { HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-sdk";
-import type { Decision } from "../guardrails/check-tool-call";
+import type { LoggedDecision } from "../guardrails/check-tool-call";
 import { READ_ONLY_REASON } from "../guardrails/deny-dangerous";
 import { isInside, resolveReal } from "../guardrails/paths";
 import { BASH_TOOL_NAME } from "../tools/sdk-tool-names";
@@ -51,7 +51,7 @@ export function repoOfTool(
 /** Options of `buildToolHooks`. */
 export interface ToolHookOptions {
   /** Guard decision per tool_use_id; a non-default one is added to the `tool.done` line. */
-  decisions?: Map<string, Decision>;
+  decisions?: Map<string, LoggedDecision>;
   /** AGENT_HOME: enables attributing a tool call to the registered repo whose files it touches. */
   agentHome?: string;
   /** Directories paths are shown relative to in `target` (cwd + additional dirs). */
@@ -60,7 +60,7 @@ export interface ToolHookOptions {
 
 /** Hook options of one run: guard decisions, home, and the cwd + extra dirs targets are shown relative to. */
 export function hookOptions(
-  perms: { decisions: Map<string, Decision> } | undefined,
+  perms: { decisions: Map<string, LoggedDecision> } | undefined,
   config: { agentHome: string },
   input: { cwd: string; additionalDirectories?: string[] },
 ): ToolHookOptions {

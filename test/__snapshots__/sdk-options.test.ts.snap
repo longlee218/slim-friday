@@ -358,6 +358,7 @@ exports[`options lock: exec options snapshot 1`] = `
     "git": "stdio",
   },
   "model": "model-code",
+  "permissionMode": "auto",
   "settingSources": [],
   "skills": [],
   "strictMcpConfig": true,

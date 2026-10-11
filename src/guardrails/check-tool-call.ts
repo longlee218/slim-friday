@@ -37,7 +37,15 @@ import { checkFileRead, checkFileWrite } from "./deny-dangerous";
 import { resolveReal } from "./paths";
 
 /** Outcome of a guardrail check. `deny` is never approvable; `ask` needs the owner. */
-export type Decision = { decision: "allow" | "ask" | "deny"; reason: string };
+export type Decision = {
+  decision: "allow" | "ask" | "deny";
+  reason: string;
+  /** `ask` only: the owner decides even in SDK auto mode (see owner-only.ts); other asks may go to the classifier. */
+  ownerOnly?: boolean;
+};
+
+/** Decision as logged on `tool.done`: the guard's, or "auto" = guard asked, the SDK classifier decided. */
+export type LoggedDecision = { decision: Decision["decision"] | "auto"; reason: string };
 
 /** Per-task settings for guardrail checks. */
 export interface GuardrailContext {

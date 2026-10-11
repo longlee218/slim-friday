@@ -120,13 +120,14 @@ test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; 
   // Stage 1: plan mode in scratch, repo read-only via additionalDirectories.
   expect(seen[0].options.permissionMode).toBe("plan");
   expect(seen[0].options.additionalDirectories).toEqual([realpathSync(clone)]);
-  // Stage 2: runs in the worktree, default mode, commits allowed by guard.
+  // Stage 2: runs in the worktree, fail-closed default mode, commits allowed by guard.
   const wt = getWorktreeByThread(env.db, "th1")!;
   expect(wt.repo).toBe("real");
   expect(wt.branch).toMatch(/^friday\/[0-9a-f]{8}-/);
   expect(seen).toHaveLength(2);
   expect(seen[1].options.cwd).toBe(realpathSync(wt.path));
-  expect(seen[1].options.permissionMode).toBeUndefined();
+  // Test env has no real Claude login: the exec stage's "auto" fails closed to "default".
+  expect(seen[1].options.permissionMode).toBe("default");
   const gitEnv = seen[1].options.mcpServers.git.env;
   expect(gitEnv.GIT_AUTHOR_EMAIL).toBe("test@example.com");
   expect(gitEnv.GIT_COMMITTER_EMAIL).toBe("test@example.com");
