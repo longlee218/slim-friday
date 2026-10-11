@@ -56,6 +56,11 @@ export interface GuardrailContext {
   writePaths?: string[];
   /** Real dirs Read/Glob/Grep may touch (scratch, plans dir, registered repos). Omitted = no limit. */
   readPaths?: string[];
+  /**
+   * Real plugin dirs of this run (its loaded skills, copied whole). Readable like `readPaths`, and the scripts in them
+   * may be started from Bash without approval (`skill-script.ts`). Set by the SDK options builder, not by a stage.
+   */
+  skillDirs?: string[];
   /** Real path of the worktree: the only repo git MCP tools may WRITE to (add/commit/...). */
   gitWriteRepo?: string;
   /** Real paths of registered repos: git MCP tools may READ (log/diff/show/...) these. */

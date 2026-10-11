@@ -101,6 +101,13 @@ export interface StageDefinition {
   subagents?: string[];
 }
 
+/** One publisher skill of a role: its dir name under `.agents/skills/` and the subagents it cannot work without. */
+export interface RoleSkill {
+  name: string;
+  /** Subagent names (subagent registry) the stage must list; omitted = none needed. */
+  needs?: string[];
+}
+
 /** A named job the agent can do: a short chain of stages. */
 export interface RoleDefinition {
   name: string;
@@ -113,8 +120,12 @@ export interface RoleDefinition {
   tag?: string;
   /** What the role hands back: picks the output module (`answer` escalation, `pr` delivery). */
   output: OutputContract;
-  /** Skill sets (names under `vendor/skill-sets/`) every stage of this role loads. Omitted/empty = none. */
-  skillSets?: string[];
+  /**
+   * Publisher skills (dirs of `.agents/skills/`) every stage of this role gets: the single switch for what is loaded.
+   * Omitted/empty = none (the workspace's own skills dir still loads). A skill with `needs` is loaded only by a stage
+   * whose `subagents` list has every named subagent.
+   */
+  skills?: RoleSkill[];
   /** Runs of this role count toward the concurrent task cap (checked by the dispatcher). */
   countsTowardCap: boolean;
   /** The cheap-tier answer may end in `ESCALATE: sonnet|opus` and be re-run on that tier (`answer` output). */

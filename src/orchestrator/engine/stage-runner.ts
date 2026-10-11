@@ -7,6 +7,7 @@ import { logEvent, logger, setLogContext, tryLog } from "../../observability/log
 import type { Repo } from "../../repos/repo-registry";
 import { getRole } from "../../roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
+import { type AskLimit, newAskLimit } from "../../runtime/ask-limit";
 import type { QueryFn } from "../../runtime/run-agent";
 import type { SessionRow } from "../../storage/session-store";
 import { type StageStatus, upsertStage } from "../../storage/stage-store";
@@ -83,8 +84,8 @@ export interface StageCtx {
   /** Index of `stage` in the role: stored on the run row (runs.stage_idx) to join runs to stage rows. */
   idx: number;
   role: RoleDefinition;
-  /** One question round per task: shared by every stage (enforced in the permission guard). */
-  askLimit: { asked: boolean };
+  /** Ask budget of the task (AskUserQuestion calls): shared by every stage, enforced in the permission guard. */
+  askLimit: AskLimit;
 }
 
 /** Index of the stage a follow-up starts at (`followUp.startAtStage`); the first stage when the role has none. */
@@ -114,7 +115,7 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
   // Every stage is checked before the first one runs: a refusal has no side effect.
   const refusal = validateRole(role, !!i.worktree);
   if (refusal) return failResult(refusal);
-  const askLimit = { asked: false };
+  const askLimit = newAskLimit();
   let wt = i.worktree;
   let prompt = i.text;
   let plan = "";

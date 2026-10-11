@@ -8,7 +8,7 @@ import {
 import { logger } from "../observability/logger";
 import { clip, errText } from "../observability/redact";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
-import { PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
+import { ASK_LIMIT_DENIAL, type AskLimit, MAX_ASK_CALLS_PER_TASK, newAskLimit } from "./ask-limit";
 import { guardHook } from "./guard-hook";
 import type { ModeActive } from "./permission-mode";
 
@@ -19,11 +19,6 @@ const SUMMARY_MAX = 300;
 export interface AskQuestion {
   question: string;
   options: { label: string }[];
-}
-
-/** Per-task "owner was already asked" flag; the stage engine owns it so a task's stages share one round. */
-export interface AskLimit {
-  asked: boolean;
 }
 
 /** Inputs for one gated stage's permission layer. */
@@ -38,7 +33,7 @@ export interface ToolPermissionInput {
    * after the owner approves, `onApproved` fires (the caller then stops the run and starts stage 2).
    */
   plan?: { repos: string[]; onApproved: (plan: string, repo: string) => void };
-  /** Shared across the task's runs: the single allowed question round. Omitted = limit per permission layer. */
+  /** Shared across the task's runs: the AskUserQuestion budget of the task. Omitted = budget per permission layer. */
   askLimit?: AskLimit;
   /**
    * Stage runs in SDK `auto` mode: a SOFT guard `ask` is left to the SDK classifier (canUseTool only if it cannot
@@ -81,7 +76,7 @@ export function buildToolPermissions(p: ToolPermissionInput): {
 } {
   const log = logger.child({ module: "tool-permissions" });
   const decisions = new Map<string, LoggedDecision>();
-  const askLimit = p.askLimit ?? { asked: false };
+  const askLimit = p.askLimit ?? newAskLimit();
 
   const hooks: HookCallbackMatcher[] = [{ hooks: [guardHook(p, decisions, log)] }];
 
@@ -125,14 +120,10 @@ export function buildToolPermissions(p: ToolPermissionInput): {
             };
       }
       if (tool === ASK_USER_QUESTION_TOOL_NAME) {
-        // One question round per task, enforced here (not only in the prompt): a second call never reaches the owner.
-        if (askLimit.asked)
-          return {
-            behavior: "deny",
-            message:
-              "Already asked once for this task; use the defaults and record the assumptions.",
-          };
-        askLimit.asked = true;
+        // At most MAX_ASK_CALLS_PER_TASK calls per task, enforced here (not only in the prompt): later ones never reach the owner.
+        if (askLimit.calls >= MAX_ASK_CALLS_PER_TASK)
+          return { behavior: "deny", message: ASK_LIMIT_DENIAL };
+        askLimit.calls++;
         const questions = (input.questions ?? []) as AskQuestion[];
         const answers: Record<string, string> = {};
         for (const q of questions) {

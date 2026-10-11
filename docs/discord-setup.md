@@ -327,15 +327,15 @@ cp -R /path/to/deploy ~/.friday/workspaces/<ws>/skills/deploy     # needs deploy
 - Skills appear as `<ws>:<skill>`. No restart: the plugin is rebuilt on every run. Empty/missing dir = no skills.
 - Limits: per skill 100 entries (files + dirs) / 2 MB / depth 8; a skill over a limit is skipped alone with a `skill skipped` warning naming it and the reason. Whole dir: 300 entries / 5 MB, over it nothing loads. Dependency and VCS dirs inside a skill are not copied. Symlinks are skipped, and `skills/` itself must not be a symlink (rejected with a warning).
 
-**Skill sets:** vendored skill sets (first: Superpowers 6.4.1 under `vendor/skill-sets/superpowers`) belong to the ROLE, not the workspace: the dev role loads `superpowers` in its plan and exec stages (one app-owned plugin per set, next to the workspace dir above); the assistant loads no set. No mode, no per-repo override.
+**Publisher skills:** the publisher's skills (Superpowers, pinned by `skills-lock.json`) live in the app's `.agents/skills/` and belong to the ROLE, not the workspace: the dev role lists them in its role data and loads them, whole and unmodified, in its plan and exec stages (one app-owned plugin named `superpowers`, next to the workspace dir above); the assistant loads none. No mode, no per-repo override.
 
 | File | Key | Values | Default |
 |---|---|---|---|
 | `workspace.yaml` | `skills.extra` | also load `workspaces/<ws>/skills/` | `true` |
 
 - Old `skills.sets` / `skills.mode` keys in workspace.yaml or repo.yaml are ignored.
-- Dev skills: brainstorming, writing-plans, executing-plans, test-driven-development, verification-before-completion, systematic-debugging. `subagent-driven-development` and the two code-review skills are excluded until P3.4 (`SKILLS_DEFERRED_TO_P34`).
-- A workspace cannot be named `superpowers` (set names are reserved). Set plugins hold only `.md` files (+ the 3 sha-pinned SDD scripts once SDD is enabled); caps 120 entries / 1 MB per set. `init:workspace` writes `skills: {extra: true}` and the `workflow` skill.
+- Dev skills: brainstorming, writing-plans, executing-plans, test-driven-development, verification-before-completion, systematic-debugging. `subagent-driven-development` and the two code-review skills are listed in the role data with `needs` (subagents) and load once the stage can start them (P3.4 A2). Brainstorming is interactive: its questions go to the owner through AskUserQuestion, at most 3 calls per task (plan and exec together).
+- A workspace cannot be named `superpowers` (the plugin name is reserved). The plugin holds the whole skill dirs (scripts keep their exec bit; symlinks, hooks and MCP/settings files are never copied); caps 100 entries / 1 MB per skill, 300 entries / 5 MB total, 1 MB per file. `init:workspace` writes `skills: {extra: true}` and the `workflow` skill.
 
 **Workflow Modes (Phase 3+):**
 - `workflow: lean` (default) — safe for any repo; standard rules apply

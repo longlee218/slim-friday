@@ -5,11 +5,8 @@ import { logger } from "../observability/logger";
 
 const log = logger.child({ module: "skills-config" });
 
-/** Name of a skill set (a directory under `vendor/skill-sets/`): lowercase-hyphen, no path characters. */
-export const SKILL_SET_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
-
 /**
- * `skills` block of workspace.yaml. Skill SETS belong to the role (data), not the workspace. Unknown keys (an old
+ * `skills` block of workspace.yaml. Publisher skills belong to the role (data), not the workspace. Unknown keys (an old
  * `sets` or `mode`) are ignored, never an error.
  */
 export const workspaceSkillsSchema = z

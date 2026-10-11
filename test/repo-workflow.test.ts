@@ -30,6 +30,8 @@ async function runTask(
   skills: string[],
   prep?: (clone: string) => void,
   repoSkills: string[] = [],
+  /** Called with the options of each stage while its run is alive (plugin dirs exist), e.g. to probe canUseTool. */
+  probe?: (o: any) => Promise<void>,
 ) {
   const { env, clone } = await setupWorkflow(config, skills, repoSkills);
   prep?.(clone);
@@ -42,6 +44,7 @@ async function runTask(
     if (pdir) pluginFiles = (readdirSync(pdir, { recursive: true }) as string[]).sort();
     return (async function* () {
       yield initMsg;
+      await probe?.(a.options);
       if (a.options.permissionMode === "plan") {
         const p = await a.options.canUseTool(
           EXIT_PLAN_MODE_TOOL_NAME,
@@ -81,7 +84,7 @@ test("lean (default): no full rules; workspace skills load in plan and exec", as
   expect(plan.settingSources).toEqual([]);
   for (const o of [plan, exec]) {
     expect(o.systemPrompt.append).not.toContain("workflow: full");
-    expect(o.systemPrompt.append).toContain("ONE"); // the ask boundary applies to every code task
+    expect(o.systemPrompt.append).toContain("At most 3"); // the ask boundary applies to every code task
   }
 });
 
@@ -162,4 +165,36 @@ test("full: the clone is readable in the exec guard but never writable", async (
   );
   const write = await exec.canUseTool("Write", { file_path: skillFile, content: "x" }, {});
   expect(write.behavior).toBe("deny");
+});
+
+test("skills of the run: the plugin dir is readable and its publisher scripts run without approval, in plan and exec; nothing else opens up", async () => {
+  const probed: { stage: string; [k: string]: unknown }[] = [];
+  await runTask({}, ["deploy"], undefined, [], async (o) => {
+    const [pub, ws] = o.plugins.map((p: { path: string }) => p.path);
+    const script = join(pub, "skills", "executing-plans", "scripts", "task-start");
+    const decide = async (tool: string, input: object) =>
+      (await o.canUseTool(tool, input, {})).behavior;
+    probed.push({
+      stage: o.permissionMode === "plan" ? "plan" : "exec",
+      readSkill: await decide("Read", {
+        file_path: join(pub, "skills", "writing-plans", "SKILL.md"),
+      }),
+      readWorkspace: await decide("Read", { file_path: join(ws, "skills", "deploy", "SKILL.md") }),
+      run: await decide("Bash", { command: `${script} ${join(o.cwd, "plan.md")} 1` }),
+      runViaBash: await decide("Bash", { command: `bash ${script} ${join(o.cwd, "plan.md")} 1` }),
+      chainedHardDeny: await decide("Bash", {
+        command: `${script} ${join(o.cwd, "plan.md")} 1 && sudo ls`,
+      }),
+    });
+  });
+  expect(probed.map((p) => p.stage)).toEqual(["plan", "exec"]);
+  for (const p of probed) {
+    expect(p).toMatchObject({
+      readSkill: "allow",
+      readWorkspace: "allow",
+      run: "allow",
+      runViaBash: "allow",
+      chainedHardDeny: "deny",
+    });
+  }
 });

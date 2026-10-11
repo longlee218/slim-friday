@@ -6,7 +6,6 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
-  rmSync,
   symlinkSync,
   utimesSync,
   writeFileSync,
@@ -15,15 +14,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { captureLogs } from "../src/observability/logger";
+import { removeTree } from "../src/runtime/skills-plugin/plugin-copy";
 import { sweepStalePlugins } from "../src/runtime/skills-plugin/plugin-sweep";
 import { buildRunSkills } from "../src/runtime/skills-plugin/run-skills";
 
-/** The workspace-dir plugin alone (stage without sets), env-independent. */
+/** The workspace-dir plugin alone (stage without publisher skills), env-independent. */
 const workspaceSkills = (workspace: string | undefined, agentHome: string) =>
   buildRunSkills({
     agentHome,
     workspace,
-    sets: [],
+    skills: [],
     subagents: [],
   });
 
@@ -35,7 +35,7 @@ const tmp = () => {
   return d;
 };
 afterAll(() => {
-  for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  for (const d of dirs) removeTree(d);
 });
 
 /** The skills dir of workspace `main` in `home` (created). */
@@ -124,7 +124,9 @@ test("one bad skill is skipped alone with a warn naming it; the good ones stay",
   const home = homeWithSkills(2); // s0, s1 good
   const sd = skillsDir(home);
   skill(sd, "big");
-  writeFileSync(join(sd, "big", "blob"), Buffer.alloc(3 * 1024 * 1024)); // over 2 MB per skill
+  for (const n of ["a", "b", "c"]) writeFileSync(join(sd, "big", n), Buffer.alloc(900 * 1024)); // 2.7 MB: over 2 MB per skill
+  skill(sd, "fat");
+  writeFileSync(join(sd, "fat", "blob"), Buffer.alloc(1024 * 1024 + 1)); // one file over 1 MB
   skill(sd, "many");
   for (let i = 0; i < 101; i++) writeFileSync(join(sd, "many", `f${i}`), "x"); // over 100 entries
   skill(sd, "deep");
@@ -137,9 +139,10 @@ test("one bad skill is skipped alone with a warn naming it; the good ones stay",
   expect(warns.map((w) => [w.skill, w.reason]).sort()).toEqual([
     ["main:big", "too big"],
     ["main:deep", "too deep"],
+    ["main:fat", "file too big"],
     ["main:many", "too many entries"],
   ]);
-  expect(list(p.plugins![0]!.path).some((f) => /big|many|deep/.test(f))).toBe(false);
+  expect(list(p.plugins![0]!.path).some((f) => /big|fat|many|deep/.test(f))).toBe(false);
   p.cleanup();
   expect(readdirSync(join(home, "tmp"))).toEqual([]);
 });

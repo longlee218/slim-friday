@@ -43,9 +43,9 @@ src/
 │   ├── run-agent.ts            # SDK query() loop; PreToolUse + canUseTool hooks; context injection; workspace skills from an app-owned plugin, `settingSources: []`
 │   ├── system-prompt.ts        # Sections: stage sections (qa/plan/exec contract), ASK_RULES (Phase 3), COMMON (safety), then context. Identity/tone in persona files, not here.
 │   ├── code-rules.ts           # ASK_RULES text constant; FULL_RULES for full-mode repos (Phase 3)
-│   ├── tool-permissions.ts     # core permission layer: PreToolUse (hard deny/force ask) + canUseTool (approvals, ONE ask per task via askLimit, Phase 3)
+│   ├── tool-permissions.ts     # core permission layer: PreToolUse (hard deny/force ask) + canUseTool (approvals, AskUserQuestion capped per task via ask-limit.ts)
 │   ├── skills-config.ts        # workspace skills schema (P3.2)
-│   ├── skills-plugin/          # plugin-builder, plugin-copy, plugin-sweep, skill-sets, run-skills (P3.2)
+│   ├── skills-plugin/          # plugin-builder, plugin-copy, plugin-sweep, publisher-skills, run-skills, stage-skills
 │   ├── (workspace-skills-plugin.ts removed; see skills-plugin/) # build the app-owned plugin from workspaces/<ws>/skills with validation and caps
 │   ├── run-errors.ts           # error classification (quota, rate_limit, billing, overloaded); phase 5+
 │   └── sdk-env.ts              # environment builder per provider (anthropic/openrouter)

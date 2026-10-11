@@ -61,8 +61,7 @@ test("exec: follow-up, memory contract and commit git tools; no repo line", () =
   expect(text).toContain("[global]");
   expect(text).toContain("NEVER add Co-Authored-By");
   for (const tool of GIT_GROUPS.commit) expect(text).toContain(tool);
-  // The writing-plans overlay (shared plan/exec skill list) mentions the repo line; check the rules only.
-  expect(text.split("## Skill overlays")[0]).not.toContain("repo: <name>");
+  expect(text).not.toContain("repo: <name>");
 });
 
 test("context goes after the rules with a blank line; empty context gives rules only", () => {
@@ -80,7 +79,7 @@ test("preset shape is unchanged", () => {
 test("ask boundary in plan and exec only; vague exception in plan only; full rules only for full", () => {
   for (const mode of ["plan", "exec"] as const) {
     expect(rules(mode)).toContain(ASK_USER_QUESTION_TOOL_NAME);
-    expect(rules(mode)).toContain("ONE");
+    expect(rules(mode)).toContain("At most 3");
     expect(rules(mode)).not.toContain("[workflow: full]");
     expect(buildSystemPrompt("", mode, { workflow: "full" }).append).toContain("[workflow: full]");
     expect(buildSystemPrompt("", mode, { workflow: "lean" }).append).toBe(rules(mode));

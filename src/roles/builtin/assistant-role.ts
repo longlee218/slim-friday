@@ -23,7 +23,6 @@ export const ASSISTANT_ROLE: RoleDefinition = {
     "Questions about the code or the repos: explain, find, summarize, compare. Changes nothing and answers with file:line sources.",
   tag: "[ask]",
   output: "answer",
-  skillSets: [], // Q&A loads no set skills (only the workspace dir)
   escalation: true,
   countsTowardCap: false,
   entry: true,

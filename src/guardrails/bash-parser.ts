@@ -12,6 +12,8 @@ export interface Segment {
   piped: boolean;
   /** Has an unquoted output redirection (`>`, `>>`, `&>`) to a file. */
   redirect: boolean;
+  /** The words that follow a `>`, `>>`, `&>` or `N>` operator (the files written; also in the glued form `>path`). */
+  redirectTargets: string[];
   /** Operator that ends this segment: `&&` `||` `;` `\n` `|` `&` `(` `)`; "" at the end of the line. */
   next: string;
   /** Nesting: 0 = top level; > 0 inside `( )` or a `$()` / backtick substitution. */
@@ -52,11 +54,17 @@ export function parseCommand(src: string): Segment[] {
   let inWord = false;
   let piped = false;
   let redirect = false;
+  let targets: string[] = [];
+  let expectTarget = false; // the next word completed is a redirect target
   let depth = 0;
   let quote: "'" | '"' | null = null;
 
   const endWord = () => {
-    if (inWord) words.push(buf);
+    if (inWord) {
+      words.push(buf);
+      if (expectTarget) targets.push(buf);
+      expectTarget = false;
+    }
     buf = "";
     inWord = false;
   };
@@ -67,9 +75,11 @@ export function parseCommand(src: string): Segment[] {
       if (pipe) piped = true;
       return;
     }
-    out.push({ words, piped, redirect, next: op, depth });
+    out.push({ words, piped, redirect, redirectTargets: targets, next: op, depth });
     words = [];
     redirect = false;
+    targets = [];
+    expectTarget = false;
     piped = pipe;
   };
   // Parse a substitution body as its own commands; the outer word gets a placeholder.
@@ -131,7 +141,7 @@ export function parseCommand(src: string): Segment[] {
       endWord();
       // `>&2` / `>&-` duplicate descriptors; anything else writes a file.
       if (next === "&" && /[\d-]/.test(src[i + 2] ?? "")) i++;
-      else redirect = true;
+      else redirect = expectTarget = true;
       if (next === ">") i++;
     } else if (c === "<" && next === "<" && src[i + 2] !== "<") {
       // A heredoc body would be tokenized as commands (a `cd` in it never runs): the line cannot be judged.

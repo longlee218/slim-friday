@@ -1,22 +1,42 @@
 import type { Workflow } from "../../repos/repo-registry";
+import { MAX_ASK_CALLS_PER_TASK } from "../../runtime/ask-limit";
 import { GIT_GROUPS } from "../../tools/git-tool-groups";
 import {
   ASK_USER_QUESTION_TOOL_NAME,
   EXIT_PLAN_MODE_TOOL_NAME,
   SKILL_TOOL_NAME,
 } from "../../tools/sdk-tool-names";
-import type { Capability, RoleDefinition, StageDefinition } from "../role-types";
+import type { Capability, RoleDefinition, RoleSkill, StageDefinition } from "../role-types";
 
 /** Code tasks include owner approval waits (10 min each), so their run timeout is at least this. */
 const CODE_TASK_TIMEOUT_MS = 30 * 60 * 1000;
 
 /**
- * When the agent may ask the owner (all code tasks). The one-call limit is also enforced in the permission
- * guard (per task, across plan and exec); the text only tells the agent why a second call is denied.
+ * Publisher skills of the dev role (plan and exec share one list): the single switch for what a dev run loads.
+ * `needs` gates a skill until the stage can start the subagents it dispatches (registered by the subagent
+ * registry; the stages list them in `subagents`). Not loaded on purpose, Friday's own clone + delivery replace them:
+ * using-git-worktrees, finishing-a-development-branch, using-superpowers, dispatching-parallel-agents, writing-skills,
+ * diagnosing-superpowers.
  */
-const ASK_RULES = `- Ask the owner with ${ASK_USER_QUESTION_TOOL_NAME} ONLY when all three hold: (1) the answer cannot be derived from the repo or the request; (2) a wrong guess is costly or irreversible (schema, public API, data deletion, user-visible behavior); (3) there are 2+ reasonable options with different outcomes.
+const DEV_SKILLS: RoleSkill[] = [
+  { name: "brainstorming" },
+  { name: "writing-plans" },
+  { name: "executing-plans" },
+  { name: "test-driven-development" },
+  { name: "verification-before-completion" },
+  { name: "systematic-debugging" },
+  { name: "subagent-driven-development", needs: ["implementer", "task-reviewer"] },
+  { name: "requesting-code-review", needs: ["task-reviewer"] },
+  { name: "receiving-code-review", needs: ["task-reviewer"] },
+];
+
+/**
+ * When the agent may ask the owner (all code tasks). The call cap is also enforced in the permission guard (per
+ * task, across plan and exec, `MAX_ASK_CALLS_PER_TASK`); the text only tells the agent why a later call is denied.
+ */
+const ASK_RULES = `- Ask the owner with ${ASK_USER_QUESTION_TOOL_NAME} when the answer cannot be derived from the repo or the request and a wrong guess is costly or irreversible (schema, public API, data deletion, user-visible behavior), or when a loaded skill's own process calls for a question (brainstorming).
 - Never ask about naming, file layout, libraries already in the repo, style, test location, anything readable from the repo, or small scope the owner can fix at plan review. Pick a sensible default and state it as an assumption.
-- At most ONE ${ASK_USER_QUESTION_TOOL_NAME} call per task (plan and execute stages together): batch every question in it, default option first with a label ending "(default)". A second call is denied: use the defaults.
+- At most ${MAX_ASK_CALLS_PER_TASK} ${ASK_USER_QUESTION_TOOL_NAME} calls per task (plan and execute stages together; questions a skill asks count): batch the questions of one round in one call, default option first with a label ending "(default)". A call over the limit is denied: use the defaults.
 - If the owner does not answer in time the run stops. Do not guess and do not continue.`;
 
 /** Plan stage only: the one case where the plan is not submitted. */
@@ -33,8 +53,8 @@ function workflowRules(stage: "plan" | "exec", workflow: Workflow | undefined): 
       ? "For a repo marked [workflow: full] in the repo list"
       : "This repo is [workflow: full]";
   return `- ${scope}: follow the workspace's curated skills end to end (use the ${SKILL_TOOL_NAME} tool; none listed means none exist) instead of a minimal plan-then-implement run.
-- Run it autonomously: an interactive skill step (brainstorming, clarifying questions, confirmations) never asks the owner. Take the best default from the repo context and record it as "- <decision> (confidence: high|med|low)" under "Assumptions": in the plan stage, a section of the plan; in the execute stage, in your final reply.
-- These rules override skill instructions about asking. Owner approvals for the plan, writes and commands still apply.`;
+- Skill steps that ask the owner follow the ask rules above. Where you take a default instead of asking (a question not worth a call, or the limit is reached), record it as "- <decision> (confidence: high|med|low)" under "Assumptions": in the plan stage, a section of the plan; in the execute stage, in your final reply.
+- Owner approvals for the plan, writes and commands still apply.`;
 }
 
 /**
@@ -45,7 +65,6 @@ const PLAN = `This run is the plan stage of a code task, in plan mode.
 - Write your plan to the plan file, then you MUST call ${EXIT_PLAN_MODE_TOOL_NAME} to submit it. Never end your turn without calling ${EXIT_PLAN_MODE_TOOL_NAME} (only exception: a request too vague to plan, see below).
 - Do NOT implement here: after approval the app creates a clone and starts a separate execute run.
 - Your plan MUST contain one line exactly like "repo: <name>" naming the repo to change (names are listed below).
-- Plan format: a "## Global Constraints" section first (project-wide rules every task obeys, one line each: conventions, forbidden changes, the test command), then one heading per task exactly like "### Task N: <name>" (N counts from 1) with its files, steps and the test that proves it. Never use a heading other than "### Task N: ..." for a task.
 - Registered repos are read-only references. Any shell command may need owner approval or be denied: if denied, adapt, do not retry the same call.`;
 
 /** Execute stage contract: work in the clone, follow the approved plan, small commits, repo memory. */
@@ -89,7 +108,7 @@ export const DEV_ROLE: RoleDefinition = {
   whenToUse:
     "Requests to change code: implement a feature, fix a bug, refactor, add tests. Plans first, the owner approves, then opens a pull request.",
   output: "pr",
-  skillSets: ["superpowers"],
+  skills: DEV_SKILLS,
   countsTowardCap: true,
   tag: "[dev]",
   followUp: { startAtStage: "exec" },

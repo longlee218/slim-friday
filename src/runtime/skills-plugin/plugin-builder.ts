@@ -5,7 +5,6 @@ import {
   mkdtempSync,
   readdirSync,
   realpathSync,
-  rmSync,
   writeFileSync,
 } from "node:fs";
 import { join, sep } from "node:path";
@@ -13,10 +12,11 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { logEvent } from "../../observability/logger";
 import {
   copySkillTree,
-  type FileFilter,
   frontmatterName,
+  lockTree,
   log,
   type PluginCaps,
+  removeTree,
 } from "./plugin-copy";
 import { PLUGIN_PREFIX } from "./plugin-sweep";
 
@@ -26,6 +26,8 @@ export interface RunSkills {
   plugins?: NonNullable<Options["plugins"]>;
   /** Real paths of the plugin dirs of THIS run: the guard may let the run READ them (bundled skill files). */
   dirs: string[];
+  /** Subset of `dirs` whose scripts may run from Bash (the publisher's pinned skills); a workspace dir is only readable. */
+  scriptDirs: string[];
   /** Removes the app-owned plugin dirs (no-op when none was created). */
   cleanup: () => void;
 }
@@ -34,21 +36,28 @@ export interface RunSkills {
 export interface PluginSpec {
   /** Plugin name: the skills of it are `<name>:<skill>`. */
   name: string;
-  /** `workspace` (owner dir, logs say so) or `set` (vendored skill set). */
-  kind: "workspace" | "set";
+  /** `workspace` (owner dir, logs say so) or `publisher` (the publisher's skills in `.agents/skills/`). */
+  kind: "workspace" | "publisher";
   /** Dir holding `<skill>/SKILL.md` folders. */
   srcDir: string;
   /** Skill dir names to copy; omitted = every skill dir found. */
   allow?: string[];
+  /**
+   * Skill dir names that are LISTED (loadable through the Skill tool); omitted = every copied one. A copied but unlisted
+   * skill stays on disk only because another skill's scripts reach into its dir (executing-plans calls the scripts of
+   * subagent-driven-development by relative path).
+   */
+  expose?: string[];
   caps: PluginCaps;
-  /** File-level filter (sets: `.md` plus the sha-pinned scripts only). */
-  filter?: FileFilter;
   /** The real path of `srcDir` must sit inside this dir (a workspace dir must not escape its workspace). */
   trustRoot?: string;
 }
 
+/** A skill dir name the builder copies (also what a path-traversal name could never match). */
+const SKILL_DIR_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+
 /** No skills, nothing to clean. */
-export const NO_SKILLS: RunSkills = { skills: [], dirs: [], cleanup: () => {} };
+export const NO_SKILLS: RunSkills = { skills: [], dirs: [], scriptDirs: [], cleanup: () => {} };
 
 /** Concatenate the skills, plugins, dirs and cleanups of several plugins into one run's view. */
 export function mergeRunSkills(parts: RunSkills[]): RunSkills {
@@ -57,6 +66,7 @@ export function mergeRunSkills(parts: RunSkills[]): RunSkills {
     skills: parts.flatMap((p) => p.skills),
     ...(plugins.length && { plugins }),
     dirs: parts.flatMap((p) => p.dirs),
+    scriptDirs: parts.flatMap((p) => p.scriptDirs),
     cleanup: () => {
       for (const p of parts) p.cleanup();
     },
@@ -65,7 +75,8 @@ export function mergeRunSkills(parts: RunSkills[]): RunSkills {
 
 /**
  * Build ONE app-owned plugin: a fresh dir under `<agentHome>/tmp` holding ONLY an app-written manifest and a copy of
- * the skill dirs: symlinks are skipped, no hooks/.mcp.json/agents/commands/settings exist in it. Caps per skill (an
+ * the skill dirs, whole (every regular file, exec bit kept): symlinks are skipped, no hooks/.mcp.json/agents/commands/
+ * settings exist in it. Caps per skill (entries, bytes, one file's size; an
  * offending skill is skipped alone with a warn) and for the whole dir (over it, or on an IO error, nothing loads:
  * fail closed, warn). A missing/empty source is the normal case (debug log only). Never throws.
  * Logs `skills.plugin_built`. The caller runs `cleanup` in a `finally`.
@@ -92,6 +103,7 @@ export function buildSkillsPlugin(spec: PluginSpec, agentHome: string): RunSkill
     const skills: string[] = [];
     for (const e of readdirSync(src, { withFileTypes: true })) {
       if (spec.allow && !spec.allow.includes(e.name)) continue;
+      if (!SKILL_DIR_NAME.test(e.name)) continue; // a plain slug: never a path (traversal) or a dotfile
       const from = join(src, e.name);
       if (!lstatSync(from).isDirectory()) continue; // files and symlinks at the top are not skills
       if (!existsSync(join(from, "SKILL.md"))) {
@@ -102,9 +114,9 @@ export function buildSkillsPlugin(spec: PluginSpec, agentHome: string): RunSkill
       const to = join(dir, "skills", e.name);
       const one = { files: 1, bytes: 0, maxFiles: caps.skill.files, maxBytes: caps.skill.bytes }; // the skill dir itself counts
       try {
-        copySkillTree(from, to, one, e.name, spec.filter, 1); // depth 1: the skill dir sits one level below skills/
+        copySkillTree(from, to, one, 1); // depth 1: the skill dir sits one level below skills/
       } catch (err) {
-        rmSync(to, { recursive: true, force: true });
+        removeTree(to);
         log.warn({ skill: `${name}:${e.name}`, reason: (err as Error).message }, "skill skipped");
         continue;
       }
@@ -118,13 +130,14 @@ export function buildSkillsPlugin(spec: PluginSpec, agentHome: string): RunSkill
       if (fm && fm !== e.name) {
         log.debug({ dir: e.name, name: fm }, "skill frontmatter name differs from dir name");
       }
-      skills.push(`${name}:${fm ?? e.name}`);
+      if (!spec.expose || spec.expose.includes(e.name)) skills.push(`${name}:${fm ?? e.name}`);
     }
     if (!skills.length) {
-      rmSync(dir, { recursive: true, force: true });
+      removeTree(dir);
       log.debug({ [kind]: name }, `${kind} has no skills`);
       return NO_SKILLS;
     }
+    lockTree(dir); // read-only from here on (cleanup unlocks)
     const real = realpathSync(dir);
     logEvent(log, "skills.plugin_built", {
       [kind]: name,
@@ -137,10 +150,11 @@ export function buildSkillsPlugin(spec: PluginSpec, agentHome: string): RunSkill
       plugins: [{ type: "local" as const, path: real }],
       skills,
       dirs: [real],
-      cleanup: () => rmSync(real, { recursive: true, force: true }),
+      scriptDirs: kind === "publisher" ? [real] : [],
+      cleanup: () => removeTree(real),
     };
   } catch (err) {
-    if (root) rmSync(root, { recursive: true, force: true });
+    if (root) removeTree(root);
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       log.debug({ [kind]: name }, `${kind} has no skills dir`);
     } else {

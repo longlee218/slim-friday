@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { initWorkflowSkill } from "../src/discord-setup/discord-cli";
 import { createWorkspaceDir, writeWorkflowSkill } from "../src/discord-setup/workspace-template";
-import { allowedSkills } from "../src/runtime/skills-plugin/skill-sets";
+import { ROLES } from "../src/roles/role-registry";
+import { allowedSkills } from "../src/runtime/skills-plugin/publisher-skills";
 import { assertTempHome } from "./helpers";
 
 const tmpHome = () => {
@@ -36,7 +37,10 @@ test("template: the which-skill table lists exactly the loaded dev skills, no de
     (l) => l.startsWith("| ") && l.includes("`superpowers:"),
   );
   const named = rows.map((l) => /`superpowers:([a-z-]+)`/.exec(l)?.[1]).sort();
-  expect(named).toEqual([...allowedSkills("superpowers", ["explorer"])].sort());
+  const devStage = ROLES.dev?.stages[0];
+  expect(named).toEqual(
+    [...allowedSkills(ROLES.dev?.skills ?? [], devStage?.subagents ?? [])].sort(),
+  );
   expect(named).toHaveLength(6);
   expect(TEMPLATE).not.toMatch(/subagent-driven|requesting-code-review|receiving-code-review/);
 });

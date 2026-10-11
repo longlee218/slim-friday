@@ -87,10 +87,11 @@ async function capture(kind: Kind) {
 /** Options without per-run values, functions as "[fn]", MCP servers by key + type (stable under snapshot). */
 function normalize(o: Options, home: string) {
   const { cwd, env: _env, abortController, mcpServers, ...rest } = o;
-  const json = JSON.stringify(rest, (_k, v) => (typeof v === "function" ? "[fn]" : v), 2)
-    .replaceAll(home, "<home>")
-    // Overlay files live in the vendored set and appear only once the owner installs them: keep the lock stable.
-    .replace(/## Skill overlays.*?(?=- Content of files)/, "");
+  const json = JSON.stringify(
+    rest,
+    (_k, v) => (typeof v === "function" ? "[fn]" : v),
+    2,
+  ).replaceAll(home, "<home>");
   return {
     ...JSON.parse(json),
     cwd: cwd === home ? "<home>" : cwd,

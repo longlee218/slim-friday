@@ -1,8 +1,11 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { workspacePaths } from "../../config/workspace-paths";
+import { PUBLISHER_PLUGIN, workspacePaths } from "../../config/workspace-paths";
+import type { RoleSkill } from "../../roles/role-types";
 import { readWorkspaceSkills } from "../skills-config";
 import { buildSkillsPlugin, mergeRunSkills, NO_SKILLS, type RunSkills } from "./plugin-builder";
-import { allowedSkills, SET_CAPS, SKILL_SETS_DIR, setFileFilter } from "./skill-sets";
+import { log } from "./plugin-copy";
+import { allowedSkills, PUBLISHER_CAPS, PUBLISHER_SKILLS_DIR } from "./publisher-skills";
 
 /** Caps of the owner-curated workspace dir: per skill 100 entries / 2 MB, whole dir 300 entries / 5 MB. */
 export const WORKSPACE_CAPS = {
@@ -15,35 +18,44 @@ export interface RunSkillsInput {
   agentHome: string;
   /** Workspace of the run; none = no skills at all. */
   workspace: string | undefined;
-  /** Skill sets of the run's role (`RoleDefinition.skillSets`); none = the workspace dir only. */
-  sets: string[];
+  /** Publisher skills of the run's role (`RoleDefinition.skills`); none = the workspace dir only. */
+  skills: readonly RoleSkill[];
   /** Subagent names the stage may start: a skill that needs one the stage lacks is not loaded. */
   subagents: readonly string[];
+  /** Publisher skills dir (test seam); defaults to the app's `.agents/skills`. */
+  publisherDir?: string;
 }
 
 /**
  * Skills option of a run, the ONLY source of skills (settingSources is always [] and repo `.claude/skills` is never
- * read): one plugin per skill set the run's role names, plus the workspace's own dir (when workspace.yaml
- * `skills.extra`, default true). `skills` lists exactly the qualified names (`superpowers:<name>`, `<ws>:<name>`),
- * so the SDK's bundled skills stay hidden. A role with no sets gets the workspace-only plugin, as before sets existed.
+ * read): one plugin of the publisher skills the run's role lists (`superpowers:<name>`) plus the workspace's own dir
+ * (when workspace.yaml `skills.extra`, default true; `<ws>:<name>`). `skills` lists exactly the loadable qualified
+ * names, so the SDK's bundled skills stay hidden. Every skill of the role is COPIED (whole), only the allowed ones are
+ * listed: a listed skill's scripts may reach into a gated sibling's dir.
  */
 export function buildRunSkills(i: RunSkillsInput): RunSkills {
   if (!i.workspace) return NO_SKILLS;
   const cfg = readWorkspaceSkills(i.agentHome, i.workspace);
   const parts: RunSkills[] = [];
   try {
-    for (const set of i.sets) {
-      const allow = allowedSkills(set, i.subagents);
-      if (!allow.length) continue;
+    const expose = allowedSkills(i.skills, i.subagents);
+    if (expose.length) {
+      const srcDir = i.publisherDir ?? PUBLISHER_SKILLS_DIR;
+      const allow = i.skills.map((s) => s.name);
+      for (const name of allow.filter((n) => !existsSync(join(srcDir, n, "SKILL.md"))))
+        log.warn(
+          { skill: `${PUBLISHER_PLUGIN}:${name}` },
+          "role lists a skill that is not on disk",
+        );
       parts.push(
         buildSkillsPlugin(
           {
-            name: set,
-            kind: "set",
-            srcDir: join(SKILL_SETS_DIR, set, "skills"),
+            name: PUBLISHER_PLUGIN,
+            kind: "publisher",
+            srcDir,
             allow,
-            caps: SET_CAPS,
-            filter: setFileFilter,
+            expose,
+            caps: PUBLISHER_CAPS,
           },
           i.agentHome,
         ),

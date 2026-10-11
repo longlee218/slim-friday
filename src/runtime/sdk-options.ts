@@ -73,10 +73,15 @@ export async function buildSdkOptions(
   const { config, skills: sk } = deps;
   const effort = input.route && safeEffort(input.route);
   // Every stage goes through the permission layer when it has a guard (a stage without a gateway: ask = deny).
-  // This run's plugin dir (and only it) becomes READABLE so skills can open their bundled files.
+  // This run's plugin dirs (and only them) become READABLE so skills can open their bundled files; the scripts of the
+  // publisher's skills may also run (`skillDirs`: Bash allows them; the hard denies still apply).
   const guard =
     input.guard?.readPaths && sk.dirs.length
-      ? { ...input.guard, readPaths: [...input.guard.readPaths, ...sk.dirs] }
+      ? {
+          ...input.guard,
+          readPaths: [...input.guard.readPaths, ...sk.dirs],
+          skillDirs: sk.scriptDirs,
+        }
       : input.guard;
   const permissionMode = resolvePermissionMode(stage, config);
   const perms = guard

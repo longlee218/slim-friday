@@ -77,8 +77,13 @@ export function workspacePaths(agentHome: string) {
 
 /** Workspace dir name = Discord category + `#<ws>-agent`: lowercase letters, digits, hyphens only. */
 export const WORKSPACE_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
-/** Workspace names that cannot be used (`ops` is the ops category; a skill-set name would clash with `<set>:<skill>`). */
-export const RESERVED_WORKSPACES = ["ops", "superpowers"];
+/**
+ * Name of the plugin that carries the publisher's skills (`<plugin>:<skill>`). It is the name the skill texts use for
+ * each other (`superpowers:writing-plans`), so those references resolve without editing a skill.
+ */
+export const PUBLISHER_PLUGIN = "superpowers";
+/** Workspace names that cannot be used (`ops` is the ops category; the plugin name would clash with `<ws>:<skill>`). */
+export const RESERVED_WORKSPACES = ["ops", PUBLISHER_PLUGIN];
 /** Repo dir name; also the `repo:` pin and a request's `repo` value. */
 export const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 

@@ -52,7 +52,7 @@ test("the registry ignores the skills block: even a bad one never skips the work
   expect(readWorkspaceSkills(h, "old")).toEqual(DEFAULTS);
 });
 
-test("a workspace cannot be named like a skill set", () => {
+test("a workspace cannot be named like the publisher skills plugin", () => {
   expect(isWorkspaceName("superpowers")).toBe(false);
   expect(isWorkspaceName("reelme")).toBe(true);
 });

@@ -34,6 +34,8 @@ import {
   redirectLeavesWritePaths,
   SUBSTITUTION,
 } from "./owner-only";
+import { writesSkillDir } from "./skill-dir-writes";
+import { checkSkillScript, isSkillScript } from "./skill-script";
 
 const RANK = { allow: 0, ask: 1, deny: 2 } as const;
 
@@ -93,8 +95,6 @@ function checkSegment(seg: Segment): Decision {
   }
   if (INDIRECT_LAUNCHERS.has(cmd) || (cmd === "find" && args.some((a) => FIND_EXEC_FLAGS.has(a))))
     return ownerAsk(`${cmd} can launch other commands`);
-  if (INDIRECT_LAUNCHERS.has(cmd) || (cmd === "find" && args.some((a) => FIND_EXEC_FLAGS.has(a))))
-    return ownerAsk(`${cmd} can launch other commands`);
   if (cmd === "rm") return checkRm(args);
   if (cmd === "chmod") return checkChmod(args);
   if (cmd === "git") return checkGit(args);
@@ -146,8 +146,13 @@ export function checkBash(command: string, ctx: GuardrailContext): Decision {
       d = allow("cd inside allowed directory");
       cwd = cd.cwd;
       readOnly ||= cd.readOnly;
+    } else if (writesSkillDir(seg, cwd, ctx.skillDirs)) {
+      d = deny("writing to a skill directory is blocked");
     } else if (isReadCommand(seg.words, cwd, roots)) {
       d = allow("read-only command");
+    } else if (isSkillScript(seg, cwd, ctx, readOnly)) {
+      // Skill script of this run, main agent only (a subagent has no owner path: ask -> deny).
+      d = checkSkillScript(seg, allowed, checkSegment, cwd, ctx);
     } else {
       d = checkSegment(seg);
       if (d.decision === "allow" && (readOnly || seg.words[0] === "git")) {
