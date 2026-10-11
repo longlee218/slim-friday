@@ -113,6 +113,8 @@ export interface RoleDefinition {
   tag?: string;
   /** What the role hands back: picks the output module (`answer` escalation, `pr` delivery). */
   output: OutputContract;
+  /** Skill sets (names under `vendor/skill-sets/`) every stage of this role loads. Omitted/empty = none. */
+  skillSets?: string[];
   /** Runs of this role count toward the concurrent task cap (checked by the dispatcher). */
   countsTowardCap: boolean;
   /** The cheap-tier answer may end in `ESCALATE: sonnet|opus` and be re-run on that tier (`answer` output). */

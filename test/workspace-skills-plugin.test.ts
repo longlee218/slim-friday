@@ -15,7 +15,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { captureLogs } from "../src/observability/logger";
-import { sweepStalePlugins, workspaceSkills } from "../src/runtime/workspace-skills-plugin";
+import { sweepStalePlugins } from "../src/runtime/skills-plugin/plugin-sweep";
+import { buildRunSkills } from "../src/runtime/skills-plugin/run-skills";
+
+/** The workspace-dir plugin alone (stage without sets), env-independent. */
+const workspaceSkills = (workspace: string | undefined, agentHome: string) =>
+  buildRunSkills({
+    agentHome,
+    workspace,
+    sets: [],
+  });
 
 const dirs: string[] = [];
 /** A fresh temp agent home. */

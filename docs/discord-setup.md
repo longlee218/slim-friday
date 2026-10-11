@@ -323,6 +323,16 @@ cp -R /path/to/deploy ~/.friday/workspaces/<ws>/skills/deploy     # needs deploy
 - Skills appear as `<ws>:<skill>`. No restart: the plugin is rebuilt on every run. Empty/missing dir = no skills.
 - Limits: per skill 100 entries (files + dirs) / 2 MB / depth 8; a skill over a limit is skipped alone with a `skill skipped` warning naming it and the reason. Whole dir: 300 entries / 5 MB, over it nothing loads. Dependency and VCS dirs inside a skill are not copied. Symlinks are skipped, and `skills/` itself must not be a symlink (rejected with a warning).
 
+**Skill sets:** vendored skill sets (first: Superpowers 6.4.1 under `vendor/skill-sets/superpowers`) belong to the ROLE, not the workspace: the dev role loads `superpowers` in its plan and exec stages (one app-owned plugin per set, next to the workspace dir above); the assistant loads no set. No mode, no per-repo override.
+
+| File | Key | Values | Default |
+|---|---|---|---|
+| `workspace.yaml` | `skills.extra` | also load `workspaces/<ws>/skills/` | `true` |
+
+- Old `skills.sets` / `skills.mode` keys in workspace.yaml or repo.yaml are ignored.
+- Dev skills: brainstorming, writing-plans, executing-plans, test-driven-development, verification-before-completion, systematic-debugging. `subagent-driven-development` and the two code-review skills are excluded until P3.4 (`SKILLS_DEFERRED_TO_P34`).
+- A workspace cannot be named `superpowers` (set names are reserved). Set plugins hold only `.md` files (+ the 3 sha-pinned SDD scripts once SDD is enabled); caps 120 entries / 1 MB per set. `init:workspace` writes `skills: {extra: true}`.
+
 **Workflow Modes (Phase 3+):**
 - `workflow: lean` (default) — safe for any repo; standard rules apply
 - `workflow: full` — for owner-controlled repos only; tells the agent to run the workspace's curated skills autonomously; enables broader assumptions in prompts; requires that the remote is owned/controlled by the agent owner

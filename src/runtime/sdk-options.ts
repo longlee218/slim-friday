@@ -17,9 +17,9 @@ import { SUBAGENTS, toolOptions } from "../tools/tool-catalog";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import type { RunAgentInput } from "./run-agent";
 import { sdkEnv } from "./sdk-env";
+import type { RunSkills } from "./skills-plugin/plugin-builder";
 import { buildSystemPrompt } from "./system-prompt";
 import { buildToolPermissions } from "./tool-permissions";
-import type { RunSkills } from "./workspace-skills-plugin";
 
 /**
  * Config of the stage run: `model` and `limits.maxBudgetUsd` replaced by the stage's own (tier routing and

@@ -19,9 +19,10 @@ import { createPermissionWatch } from "./permission-watch";
 import type { SteerHook } from "./run-input-channel";
 import { consumeStream, type QueryFn, type StreamResult } from "./run-stream";
 import { buildSdkOptions, stageConfig, stageTimeoutMs } from "./sdk-options";
+import { NO_SKILLS, type RunSkills } from "./skills-plugin/plugin-builder";
+import { buildStageSkills } from "./skills-plugin/stage-skills";
 import { consumeSteered } from "./steered-stream";
 import type { ToolPermissionInput } from "./tool-permissions";
-import { type RunSkills, workspaceSkills } from "./workspace-skills-plugin";
 
 export type { QueryFn };
 
@@ -134,10 +135,10 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
   let res: StreamResult = { text: "", sessionId: undefined, outcome: "error", usage: emptyUsage() };
   // Workspace skills plugin (fail closed, never throws); built inside the try so `finally` always removes it.
-  let sk: RunSkills = { skills: [], dirs: [], cleanup: () => {} };
+  let sk: RunSkills = NO_SKILLS;
 
   try {
-    sk = workspaceSkills(input.skillsWorkspace, config.agentHome);
+    sk = buildStageSkills(stage, input.skillsWorkspace, config.agentHome);
     // Auto mode is requested here and confirmed by the SDK init message (permission-watch.ts).
     const requestedMode = resolvePermissionMode(stage, config);
     const autoState: ModeActive = { active: requestedMode === "auto" };

@@ -88,6 +88,7 @@ export const DEV_ROLE: RoleDefinition = {
   whenToUse:
     "Requests to change code: implement a feature, fix a bug, refactor, add tests. Plans first, the owner approves, then opens a pull request.",
   output: "pr",
+  skillSets: ["superpowers"],
   countsTowardCap: true,
   tag: "[dev]",
   followUp: { startAtStage: "exec" },

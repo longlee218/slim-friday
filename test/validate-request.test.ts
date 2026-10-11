@@ -2,7 +2,6 @@ import { afterAll, expect, test } from "bun:test";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import {
-  clampSkillsMode,
   type DispatchRequest,
   LOW_CONFIDENCE,
   validateRequest,
@@ -36,7 +35,7 @@ const req = (over: Partial<DispatchRequest> = {}): DispatchRequest => ({
 test("valid dev request: role, candidate clones, row repo `*` until the plan picks, class standard", async () => {
   const { deps, repos } = await setup();
   const v = await validateRequest(deps, req());
-  expect(v).toMatchObject({ ok: true, repoName: "*", cls: "standard", skillsMode: "off" });
+  expect(v).toMatchObject({ ok: true, repoName: "*", cls: "standard" });
   if (v.ok) {
     expect(v.role.name).toBe("dev");
     expect(v.candidates).toEqual(repos);
@@ -114,13 +113,4 @@ test("budget: a non-positive stage budget refuses", async () => {
     ok: false,
     refusal: { reason: "no_budget" },
   });
-});
-
-test("skills.mode: the env cap only lowers; an unknown cap fails closed to off", () => {
-  expect(clampSkillsMode("full")).toBe("full");
-  expect(clampSkillsMode("full", "lean")).toBe("lean");
-  expect(clampSkillsMode("lean", "full")).toBe("lean");
-  expect(clampSkillsMode("full", "off")).toBe("off");
-  expect(clampSkillsMode("full", "bogus")).toBe("off");
-  expect(clampSkillsMode(undefined, "lean")).toBe("off");
 });

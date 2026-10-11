@@ -10,10 +10,6 @@ import { capRefusal, keptClonesRefusal, type Refusal, refuse, resolveTaskRepo } 
 
 /* Checks of a proposed hand-over BEFORE any task row exists. Pure app code: no LLM, no side effect. */
 
-/** `skills.mode` values, lowest first (a role's skill set can be off, lean or full; Part 3). */
-export type SkillsMode = "off" | "lean" | "full";
-const SKILLS_ORDER: readonly SkillsMode[] = ["off", "lean", "full"];
-
 /** Below this a recommendation is not acted on: the owner is asked once instead (never a guess). */
 export const LOW_CONFIDENCE = 0.4;
 
@@ -34,8 +30,6 @@ export interface DispatchRequest {
   confidence?: number;
   /** Why the proposer chose this (log only, redacted when stored). */
   reason?: string;
-  /** Requested `skills.mode` (clamped by the env cap). */
-  skillsMode?: SkillsMode;
   /** Already persisted proposal row (the `go` path); else the dispatcher persists one. */
   proposalId?: string;
   /** The owner confirmed it (`go`): the low-confidence question is not asked again. */
@@ -53,8 +47,6 @@ export interface ValidationDeps {
   workspace?: string;
   /** Repo the thread is pinned to, when any. */
   pinned?: Repo;
-  /** Env cap on `skills.mode` (`FRIDAY_SKILLS_MODE_MAX`): can only lower the request. */
-  skillsModeMax?: string;
 }
 
 /** A request that may start, with what validation resolved. */
@@ -69,8 +61,6 @@ export interface ValidRequest {
   repoName: string;
   base?: string;
   cls: TaskClass;
-  /** Requested mode clamped by the env cap (invalid cap = off, fail closed). */
-  skillsMode: SkillsMode;
 }
 
 /** A request that must not start: `ask` = the owner can fix it (ONE question, proposal stays pending). */
@@ -83,13 +73,6 @@ export interface InvalidRequest {
 /** Repo name the resolver starts from: the request's, else the pinned repo's name as is. */
 export const repoHint = (pinned: Repo | undefined, repo?: string) => repo ?? pinned?.name;
 
-/** `skills.mode` after the env cap; an unknown cap value fails closed to `off`. */
-export function clampSkillsMode(requested: SkillsMode = "off", cap?: string): SkillsMode {
-  if (cap === undefined || cap === "") return requested;
-  const max = SKILLS_ORDER.indexOf(cap as SkillsMode);
-  return max < 0 ? "off" : (SKILLS_ORDER[Math.min(SKILLS_ORDER.indexOf(requested), max)] ?? "off");
-}
-
 const ask = (reason: string, question: string): InvalidRequest => ({
   ok: false,
   action: "ask",
@@ -98,7 +81,7 @@ const ask = (reason: string, question: string): InvalidRequest => ({
 
 /**
  * Validate a request: role in the registry (and dispatchable), confidence, repo in the workspace
- * (`resolveTaskRepo`), `base` an existing local branch, cap (when the role counts), budget, `skills.mode`.
+ * (`resolveTaskRepo`), `base` an existing local branch, cap (when the role counts), budget.
  * What the owner can fix (unknown role/repo/base, low confidence) -> `ask`; what only waiting fixes (cap, no
  * clone, no budget) -> `refuse`.
  */
@@ -155,7 +138,6 @@ export async function validateRequest(
     repoName,
     base: req.base,
     cls,
-    skillsMode: clampSkillsMode(req.skillsMode, d.skillsModeMax),
   };
 }
 

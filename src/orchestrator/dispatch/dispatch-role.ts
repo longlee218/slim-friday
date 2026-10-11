@@ -28,8 +28,6 @@ export type { DispatchRequest };
 export interface DispatchDeps extends StageRunnerDeps {
   /** True once shutdown aborted the runs: an aborted task is then `interrupted` (resumable), not cancelled. */
   stopping: () => boolean;
-  /** Env cap on `skills.mode` (`FRIDAY_SKILLS_MODE_MAX`). */
-  skillsModeMax?: string;
 }
 
 /** One dispatch: the source turn is over and proposed `request`. */
@@ -90,7 +88,6 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
       repos: i.repos,
       workspace: i.workspace,
       pinned: i.pinned,
-      skillsModeMax: deps.skillsModeMax ?? process.env.FRIDAY_SKILLS_MODE_MAX,
     },
     request,
   );

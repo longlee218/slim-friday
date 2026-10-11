@@ -60,7 +60,6 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
       repos: i.repos,
       workspace: i.workspace,
       pinned: i.pinned,
-      skillsModeMax: deps.skillsModeMax ?? process.env.FRIDAY_SKILLS_MODE_MAX,
     },
     { role: i.role, brief, repo: i.repo, cls: i.cls },
   );

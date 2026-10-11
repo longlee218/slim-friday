@@ -11,7 +11,7 @@ export const planWorkflow = (repos: Repo[]): Workflow =>
 
 /**
  * Execute-stage options of a repo's workflow. `full`: its rules and the clone readable (never writable) so
- * the repo's own files stay readable. `lean`: nothing extra. Skills come from the workspace for both (see workspaceSkills).
+ * the repo's own files stay readable. `lean`: nothing extra. Skills come from the workspace for both (see buildRunSkills).
  */
 export function execWorkflow(repo: Repo): {
   workflow: Workflow;

@@ -6,7 +6,7 @@ import { realOrSame } from "../guardrails/paths";
 import { cleanupAttachments } from "../ingress/attachment-summary";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { sweepStalePlugins } from "../runtime/workspace-skills-plugin";
+import { sweepStalePlugins } from "../runtime/skills-plugin/plugin-sweep";
 import { purgeRunMessages } from "../storage/run-message-store";
 import { deleteWorktree, listWorktrees } from "../storage/worktree-store";
 import { safeRemoveClone } from "../workspaces/clone-safety";
