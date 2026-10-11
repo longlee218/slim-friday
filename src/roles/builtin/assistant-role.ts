@@ -20,7 +20,7 @@ const ESCALATE = `- If you cannot answer well (deep design, many files, subtle r
 export const ASSISTANT_ROLE: RoleDefinition = {
   name: "assistant",
   whenToUse:
-    "Questions about the code or the repos: explain, find, summarize, compare. Changes nothing and answers with file:line sources.",
+    "Outcome is an answer now: explain or research how EXISTING code works, find, summarize, compare, give an opinion or pros/cons; cites file:line, changes nothing. Not for: asking to design, plan or change something.",
   tag: "[ask]",
   output: "answer",
   escalation: true,

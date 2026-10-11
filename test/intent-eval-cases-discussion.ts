@@ -25,9 +25,10 @@ const withFile = (typed: string, summary: string) =>
 export const DISCUSSION_CASES: GoldenCase[] = [
   // Tuning set.
   {
+    // A proposal right after an analysis is genuinely ambiguous: dev + confirmDev ("open a dev task?") is accepted, a plain dev start is a miss (owner decision 2026-10-12).
     text: "Friday có thể nhớ ngữ cảnh giữa các luồng không? Tôi đề xuất thêm một lớp trung gian giữa ingress và agent để chuẩn hóa phản hồi, bạn thấy sao?",
     thread: AFTER_CHAT,
-    expect: { role: "assistant", scope: "new" },
+    expect: { role: "assistant", scope: "new", orDevConfirm: true },
   },
   {
     text: "I propose we put an event bus between ingestion and the workers. What are the trade-offs?",
@@ -35,10 +36,11 @@ export const DISCUSSION_CASES: GoldenCase[] = [
     expect: { role: "assistant", scope: "new" },
   },
   {
+    // A proposal right after an analysis is genuinely ambiguous: dev + confirmDev ("open a dev task?") is accepted, a plain dev start is a miss (owner decision 2026-10-12).
     text: "Dựa trên phân tích trên, tôi đề xuất xây dựng một lớp cache cho bảng giá. Hướng này ổn không?",
     thread: AFTER_CHAT,
     recent: CHAT,
-    expect: { role: "assistant", scope: "new" },
+    expect: { role: "assistant", scope: "new", orDevConfirm: true },
   },
   {
     text: "Hãy làm đi: thêm lớp cache cho bảng giá như vừa bàn.",

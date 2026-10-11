@@ -106,7 +106,7 @@ const CODE_STAGE_BASE = {
 export const DEV_ROLE: RoleDefinition = {
   name: "dev",
   whenToUse:
-    "Requests to change code: implement a feature, fix a bug, refactor, add tests. Plans first, the owner approves, then opens a pull request.",
+    "Outcome is a change to the code: implement, fix, refactor, add tests; also research, design or plan a FUTURE change of the project. Plans, owner approves, then a PR. Not for: learning how existing code works.",
   output: "pr",
   skills: DEV_SKILLS,
   countsTowardCap: true,

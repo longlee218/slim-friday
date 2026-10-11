@@ -3,6 +3,7 @@ import type { RecentMessage } from "../src/intent/intent-types";
 import type { ThreadState } from "../src/orchestrator/thread/thread-state";
 import { CLASS_CASES } from "./intent-eval-cases-class";
 import { CONVERSATION_CASES } from "./intent-eval-cases-conversation";
+import { DESIGN_CASES } from "./intent-eval-cases-design";
 import { DISCUSSION_CASES } from "./intent-eval-cases-discussion";
 import { IDLE_CASES } from "./intent-eval-cases-idle";
 
@@ -26,6 +27,11 @@ export interface ThreadFacts {
 export interface Expected {
   role?: "assistant" | "dev";
   scope?: "active" | "new";
+  /**
+   * Also accept `dev` WITH the `confirmDev` yes/no step (a plain dev start stays a miss). Only for a message that is
+   * genuinely ambiguous: `confirmDev` is the designed safety net (owner decision 2026-10-12).
+   */
+  orDevConfirm?: true;
   cls?: TaskClass;
   ask?: true;
   /** The message answers the pending question: the decision must be this yes / no (a `gate-answer`). */
@@ -75,6 +81,7 @@ export const GOLDEN: GoldenCase[] = [
   ...IDLE_CASES,
   ...CLASS_CASES,
   ...DISCUSSION_CASES,
+  ...DESIGN_CASES,
   ...CONVERSATION_CASES,
   // Plan gate: feedback on the plan is dev/active; a question is the assistant; a separate request is new.
   {

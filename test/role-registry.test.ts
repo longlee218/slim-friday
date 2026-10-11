@@ -57,6 +57,10 @@ test("whenToUse: every role has one, all different; class tiers only for dev", (
   expect(hasClassTiers(getRole("assistant"))).toBe(false);
 });
 
+test("whenToUse stays within the 220-char budget of prompt-standard.md", () => {
+  for (const r of intentRoles()) expect(r.whenToUse.length).toBeLessThanOrEqual(220);
+});
+
 test("dispatchableRoleNames: every role with whenToUse (a queued follow-up may be any role)", () => {
   expect(dispatchableRoleNames()).toEqual(["assistant", "dev"]);
 });
