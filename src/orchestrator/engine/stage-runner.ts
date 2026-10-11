@@ -14,7 +14,7 @@ import { type StageStatus, upsertStage } from "../../storage/stage-store";
 import type { WorktreeRow } from "../../storage/worktree-store";
 import type { SteerRegistry } from "../tasks/steer-registry";
 import { type FlowResult, failResult } from "../tasks/task-result";
-import { budgetDiffStat } from "./budget";
+import { budgetDiffStat, ceilingRefusal, withSpent } from "./budget";
 import { stageKind } from "./gates";
 import { switchToClone } from "./isolation";
 import { runPlain } from "./plain-run";
@@ -125,7 +125,9 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
     ({ prompt, plan } = resumePrompt(deps.config, role, i, wt, i.approved.plan));
   for (const [idx, stage] of role.stages.entries()) {
     if (idx < first) continue; // a follow-up skips the stages before its start stage
-    const ctx: StageCtx = { deps, i, stage, idx, role, askLimit };
+    const ctx: StageCtx = { deps, i: withSpent(db, i, idx), stage, idx, role, askLimit };
+    const stop = ceilingRefusal(ctx.i.route); // task ceiling already used up: refuse, never start with budget 0
+    if (stop) return failResult(stop);
     const kind = stageKind(stage);
     // The row is written best effort: a storage error never stops the task.
     const write = (r: Parameters<typeof upsertStage>[1]) =>

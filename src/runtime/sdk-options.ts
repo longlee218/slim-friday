@@ -1,4 +1,4 @@
-import type { HookCallbackMatcher, Options } from "@anthropic-ai/claude-agent-sdk";
+import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
 import { effortKnobs } from "../config/effort-mapping";
 import {
@@ -43,13 +43,25 @@ export function stageConfig(
 export const stageTimeoutMs = (stage: StageDefinition, config: AgentConfig): number =>
   Math.max(config.limits.timeoutMs, stage.timeoutMs ?? 0);
 
-/** Put the guardrail PreToolUse matchers before the recording hooks (deny must win early). */
+/**
+ * Put the guardrail PreToolUse matchers before the recording hooks (deny must win early); the guard's Post hooks (subagent
+ * state) go after the recording ones.
+ */
 function mergeHooks(
   rec: ReturnType<typeof buildToolHooks>,
-  guard: HookCallbackMatcher[] | undefined,
+  perms: ReturnType<typeof buildToolPermissions> | undefined,
 ): ReturnType<typeof buildToolHooks> {
-  if (!guard) return rec;
-  return { ...rec, PreToolUse: [...guard, ...(rec.PreToolUse ?? [])] };
+  if (!perms) return rec;
+  const post = (e: "PostToolUse" | "PostToolUseFailure") => [
+    ...(rec[e] ?? []),
+    ...(perms.postHooks[e] ?? []),
+  ];
+  return {
+    ...rec,
+    PreToolUse: [...perms.hooks, ...(rec.PreToolUse ?? [])],
+    PostToolUse: post("PostToolUse"),
+    PostToolUseFailure: post("PostToolUseFailure"),
+  };
 }
 
 /**
@@ -107,7 +119,7 @@ export async function buildSdkOptions(
     // The SDK refuses bypassPermissions without this explicit opt-in (the guard hook stays the gate).
     ...(permissionMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),
     ...(perms && { canUseTool: perms.canUseTool }),
-    // Only the subagents this stage names (read-only tools each). Skills: only the workspace's curated ones,
+    // Only the subagents this stage names (each with its own explicit tools). Skills: only the workspace's curated ones,
     // through the plugin; the list hides the SDK's bundled ones (a model once reached for `update-config`).
     agents: agentsOf(stage.subagents),
     skills: sk.skills,
@@ -131,10 +143,7 @@ export async function buildSdkOptions(
         escalation: !!input.route?.offerEscalation,
       },
     ),
-    hooks: mergeHooks(
-      buildToolHooks(deps.recorder, hookOptions(perms, config, input)),
-      perms?.hooks,
-    ),
+    hooks: mergeHooks(buildToolHooks(deps.recorder, hookOptions(perms, config, input)), perms),
     env: sdkEnv(config, process.env, resolveCompactWindow(stage, roleOfStage(stage), config)),
   };
 }

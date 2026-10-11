@@ -68,10 +68,14 @@ export async function runPlain(c: StageCtx): Promise<FlowResult> {
       // Curated skills of this workspace (never repo content), via the app-owned plugin.
       skillsWorkspace: i.workspace,
       // Guardrails: read only the registered repos (+ workspace); git MCP reads only those repos.
-      guard: guardFor(stage, {
-        readPaths: [cwd, ...additionalDirectories].map(realOrSame),
-        gitReadRepos: scope.map((r) => realOrSame(r.path)),
-      }),
+      guard: guardFor(
+        stage,
+        {
+          readPaths: [cwd, ...additionalDirectories].map(realOrSame),
+          gitReadRepos: scope.map((r) => realOrSame(r.path)),
+        },
+        route?.cls,
+      ),
       extraContext: buildPromptContext({
         agentHome: config.agentHome,
         workspace: i.workspace,

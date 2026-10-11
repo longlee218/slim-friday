@@ -55,7 +55,9 @@ test("persona: workspace files replace root per file; templates and comments inj
   expect(shared.text).toContain("Name: Friday");
   expect(shared.text).toContain("Vietnamese"); // from USER
   expect(shared.text).not.toContain("<!--"); // comments stripped
-  expect(shared.text).not.toContain("# Agents"); // heading-only AGENTS = empty
+  // The default AGENTS.md carries the commit rule for task clones (A2): injected in a new home.
+  expect(shared.text).toContain("## Commits in task clones");
+  expect(shared.text).toContain("No AI attribution");
   // The workspace has no persona files yet: everything falls back to root.
   const forMain = buildPersonaContext(env.home, "main");
   expect(forMain.text).toContain("Name: Friday");
@@ -98,6 +100,7 @@ test("persona: the legend and headings list only the files that have content", (
   writeFileSync(p.soul, "# Soul\n- Be brief.\n");
   writeFileSync(p.identity, "# Identity\n");
   writeFileSync(p.user, "<!-- nothing -->");
+  writeFileSync(p.agents, "# Agents\n"); // an emptied AGENTS.md (the default one carries the commit rule)
   const { text } = buildPersonaContext(env.home);
   expect(text).toContain("- SOUL.md:");
   expect(text).toContain("## SOUL.md");

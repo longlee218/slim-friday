@@ -5,6 +5,8 @@
  * NOTE: Bash parsing is best effort and can be bypassed (variable tricks, scripts, etc).
  * The git worktree is the real security boundary; this layer reduces risk.
  */
+
+import { type ModelTier, subagentTiers, type TaskClass } from "../config/model-routing";
 import {
   GIT_MCP_SERVER,
   GITHUB_MCP_SERVER,
@@ -24,13 +26,14 @@ import {
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
   READ_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
 import { autoAllowedTools, PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
 import { checkBash } from "./bash-policy";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
 import { checkGitMcp, hasAttribution } from "./git-mcp-guard";
-import { type AgentCaller, checkSpawn, checkSubagentCall } from "./subagent-guard";
+import { type AgentCaller, checkMessage, checkSpawn, checkSubagentCall } from "./subagent-guard";
 
 export { hasAttribution };
 
@@ -71,6 +74,8 @@ export interface GuardrailContext {
   allowedSubagents?: string[];
   /** Guard scope per subagent type the stage may start (registry data). A caller type missing here is denied. */
   subagentScopes?: Record<string, SubagentScope>;
+  /** Model tiers a subagent dispatch (`model` of an Agent call) may ask for: the stage cap, from the task class. */
+  subagentTiers?: ModelTier[];
   /** Set only for a call made inside a subagent (hook input `agent_id`/`agent_type`); the main agent has none. */
   agent?: AgentCaller;
   /** Exact bash commands auto-allowed besides the built-ins (the repo's test command). */
@@ -80,21 +85,22 @@ export interface GuardrailContext {
 /** What differs between runs of one mode: where it may read/write and which repos git may touch. */
 export type GuardScope = Omit<
   GuardrailContext,
-  "allowTools" | "allowedSubagents" | "subagentScopes" | "agent"
+  "allowTools" | "allowedSubagents" | "subagentScopes" | "subagentTiers" | "agent"
 >;
 
 /**
  * The guard context of a run: the stage's auto-allowed tools come from the tool catalog, its subagent
  * allowlist from the stage itself (none listed = none allowed, fail closed), the paths from the caller.
- * One builder for every stage.
+ * The subagent model cap follows the task class (`cls`; none = standard). One builder for every stage.
  */
-export function guardFor(stage: StageRef, scope: GuardScope): GuardrailContext {
+export function guardFor(stage: StageRef, scope: GuardScope, cls?: TaskClass): GuardrailContext {
   const subagents = stageOf(stage).subagents ?? [];
   return {
     ...scope,
     allowTools: autoAllowedTools(stage),
     allowedSubagents: subagents,
     subagentScopes: scopesOf(subagents),
+    subagentTiers: subagentTiers(cls),
   };
 }
 
@@ -150,6 +156,7 @@ function checkMainCall(
   if (toolName.startsWith(MCP_PREFIX)) return { decision: "deny", reason: "unknown MCP tool" };
   if (toolName === AGENT_TOOL_NAME || toolName === LEGACY_AGENT_TOOL_NAME)
     return checkSpawn(input, ctx);
+  if (toolName === SEND_MESSAGE_TOOL_NAME) return checkMessage(input, ctx);
   if (ctx.allowTools?.includes(toolName))
     return { decision: "allow", reason: "tool allowed in this mode" };
   if (PLAN_FLOW_TOOLS.has(toolName)) {

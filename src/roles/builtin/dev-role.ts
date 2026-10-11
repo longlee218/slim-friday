@@ -7,6 +7,7 @@ import {
   SKILL_TOOL_NAME,
 } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition, RoleSkill, StageDefinition } from "../role-types";
+import { subagentRunFacts } from "./dev-subagent-rules";
 
 /** Code tasks include owner approval waits (10 min each), so their run timeout is at least this. */
 const CODE_TASK_TIMEOUT_MS = 30 * 60 * 1000;
@@ -78,6 +79,13 @@ const EXEC = `This run is the execute stage of a code task, in an isolated clone
 - When done, reply with a short summary of what changed.
 - Last, add a section titled exactly "Memory:" with at most 3 bullets ("- ...") of durable facts about this repo (commands, conventions, pitfalls); no task-specific facts (branch, clone, task ids). Prefix a bullet with "[global]" only for a fact true in every workspace (e.g. an owner preference); at most 2; [global] bullets are reviewed by the owner before they apply. Omit the section if there is nothing.`;
 
+/**
+ * Subagents of the exec stage, and the single switch of subagent-driven work: this list also loads the skills that
+ * `needs` them (DEV_SKILLS) and adds the run facts to the prompt. Remove implementer and task-reviewer here and the
+ * three skills, both subagents and the facts are gone again (kill switch = role data, no env var).
+ */
+const EXEC_SUBAGENTS = ["explorer", "implementer", "task-reviewer"];
+
 /** Capabilities of a code task. Plan and execute stages share them: the guard narrows what a call may do. */
 const CODE_CAPABILITIES: Capability[] = [
   "read",
@@ -92,7 +100,7 @@ const CODE_CAPABILITIES: Capability[] = [
   "planControl",
 ];
 
-/** What plan and exec have in common: tools, run timeout and the (read-only) subagents. */
+/** What plan and exec have in common: tools, run timeout and the (read-only) subagents; exec adds more below. */
 const CODE_STAGE_BASE = {
   capabilities: CODE_CAPABILITIES,
   timeoutMs: CODE_TASK_TIMEOUT_MS,
@@ -139,13 +147,19 @@ export const DEV_ROLE: RoleDefinition = {
       ...CODE_STAGE_BASE,
       name: "exec",
       permissionMode: "bypassPermissions",
+      subagents: EXEC_SUBAGENTS,
       model: "sonnet",
       classTiers: { mechanical: "haiku", standard: "sonnet", design: "opus" },
       budgetUsd: 3.0,
       gitGroups: ["read", "commit", "change"],
       isolation: "clone",
       gate: "delivery",
-      promptSections: (ctx) => [EXEC, ASK_RULES, workflowRules("exec", ctx.workflow)],
+      promptSections: (ctx) => [
+        EXEC,
+        subagentRunFacts(EXEC_SUBAGENTS),
+        ASK_RULES,
+        workflowRules("exec", ctx.workflow),
+      ],
     },
   ],
 };

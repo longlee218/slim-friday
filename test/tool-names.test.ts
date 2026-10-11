@@ -28,6 +28,7 @@ test("SDK built-in tool names are the real wire names", () => {
     SKILL_TOOL_NAME: "Skill",
     AGENT_TOOL_NAME: "Agent",
     LEGACY_AGENT_TOOL_NAME: "Task",
+    SEND_MESSAGE_TOOL_NAME: "SendMessage",
     TODO_WRITE_TOOL_NAME: "TodoWrite",
     TASK_CREATE_TOOL_NAME: "TaskCreate",
     TASK_UPDATE_TOOL_NAME: "TaskUpdate",

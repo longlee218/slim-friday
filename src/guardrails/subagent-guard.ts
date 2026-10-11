@@ -17,9 +17,11 @@ import {
   MONITOR_TOOL_NAME,
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
 import type { Decision, GuardrailContext } from "./check-tool-call";
+import { isSecretPath } from "./deny-dangerous";
 import { isGitReadTool } from "./git-mcp-guard";
 
 /** Who made the call: present only inside a subagent (the main agent has no `agent_id`). */
@@ -37,6 +39,14 @@ const deny = (reason: string): Decision => ({ decision: "deny", reason });
 const isSpawnTool = (name: string): boolean =>
   name === AGENT_TOOL_NAME || name === LEGACY_AGENT_TOOL_NAME;
 
+/** The file-writing tools (Bash writes are judged by the Bash policy). */
+const FILE_WRITES = new Set<string>([
+  WRITE_TOOL_NAME,
+  EDIT_TOOL_NAME,
+  MULTI_EDIT_TOOL_NAME,
+  NOTEBOOK_EDIT_TOOL_NAME,
+]);
+
 /** File writes and shell: what a read-only subagent never gets. */
 const WRITE_OR_SHELL = new Set<string>([
   WRITE_TOOL_NAME,
@@ -48,29 +58,89 @@ const WRITE_OR_SHELL = new Set<string>([
 ]);
 
 /**
- * Input keys of an Agent call that are accepted. Observed: exactly `description, prompt, subagent_type,
- * run_in_background` (fixture pre-tool-use-parent-agent-call.json); that is only what the spike passed, the SDK
- * schema may have more (unverified). Anything else (`model`, `mode`, `isolation`...) is denied.
+ * Input keys of an Agent call that are accepted (the SDK `AgentInput` has more: effort, mode, isolation, team_name,
+ * which stay denied: a per-call mode or isolation key would be unreviewed under bypass). `model` and `name` are
+ * checked below.
  */
-const SPAWN_KEYS = new Set(["description", "prompt", "subagent_type", "run_in_background"]);
+const SPAWN_KEYS = new Set([
+  ...["description", "prompt", "subagent_type", "model", "name", "run_in_background"],
+]);
+
+/** A spawn `name`: a slug (the SendMessage target; it is echoed in logs and prompts, so keep it plain and short). */
+const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
+
+const clip = (v: unknown): string => String(v).slice(0, 40);
+
+/** Denial of a `subagent_type` outside the stage list: names the valid types and which template maps to which. */
+function wrongTypeReason(type: unknown, ctx: GuardrailContext): string {
+  const valid = ctx.allowedSubagents ?? [];
+  const uses = valid.flatMap((n) => {
+    const use = ctx.subagentScopes?.[n]?.use;
+    return use ? [`use subagent_type: ${n} for the ${use}`] : [];
+  });
+  return [
+    `subagent_type "${clip(type)}" is not available in this run. Valid types: ${valid.join(", ") || "none"}.`,
+    ...(uses.length ? [`${uses.join("; ")}.`] : []),
+  ].join(" ");
+}
 
 /**
- * Agent/Task call from the MAIN agent: the type must be one of the stage's subagents, the input only carries
- * known keys (a per-call mode/isolation/model key would be unreviewed under bypass), and never in background
+ * Agent/Task call from the MAIN agent (stateless rules; run caps and the unique name are the guard hook's, see
+ * `subagent-run.ts`): the type is one of the stage's subagents, the input only has known keys, `model` is a tier
+ * inside the stage cap (`ctx.subagentTiers`, none = no explicit model), `name` is a slug, and never in background
  * (a background subagent outlives its turn and is not watched).
  */
 export function checkSpawn(input: Record<string, unknown>, ctx: GuardrailContext): Decision {
   const type = input.subagent_type;
   if (typeof type !== "string" || !ctx.allowedSubagents?.includes(type))
-    return deny("only the configured subagents may be started");
+    return deny(wrongTypeReason(type, ctx));
   const extra = Object.keys(input).filter((k) => !SPAWN_KEYS.has(k));
   if (extra.length)
     return deny(
       `Agent input key not allowed: ${extra.join(", ")} (use only ${[...SPAWN_KEYS].join(", ")})`,
     );
+  const { model, name } = input;
+  if (
+    model !== undefined &&
+    !(typeof model === "string" && ctx.subagentTiers?.includes(model as never))
+  )
+    return deny(
+      `model "${clip(model)}" is above this run's cap: use ${ctx.subagentTiers?.join(", ") || "no explicit model"}`,
+    );
+  if (name !== undefined && !(typeof name === "string" && NAME_RE.test(name)))
+    return deny("name must be a short slug: letters, digits, - and _ (max 40)");
   if (input.run_in_background !== undefined && input.run_in_background !== false)
     return deny("background subagents are not allowed: run it in the foreground");
   return { decision: "allow", reason: "configured subagent" };
+}
+
+/** SendMessage input keys seen in the recorded Q19 PreToolUse (fixtures q19-hook-inputs.json); any other key is denied. */
+const MESSAGE_KEYS = new Set([
+  "to",
+  "message",
+  "summary",
+  "type",
+  "recipient",
+  "recipient_kind",
+  "content",
+]);
+
+/**
+ * SendMessage from the MAIN agent (stateless rules): only in a stage that has a resumable subagent, `to` a plain
+ * string, `message` a string (no structured protocol messages), `type` absent or "message". WHICH target is allowed
+ * (a name or agentId spawned in this run) is decided by the guard hook, which owns the run state.
+ */
+export function checkMessage(input: Record<string, unknown>, ctx: GuardrailContext): Decision {
+  if (!Object.values(ctx.subagentScopes ?? {}).some((s) => s.resumable))
+    return deny("no subagent of this stage can be resumed");
+  const extra = Object.keys(input).filter((k) => !MESSAGE_KEYS.has(k));
+  if (extra.length) return deny(`SendMessage input key not allowed: ${extra.join(", ")}`);
+  const { to, message, type } = input;
+  if (typeof to !== "string" || to === "" || to.length > 80)
+    return deny("SendMessage needs `to`: the name or agentId of a subagent you started");
+  if (typeof message !== "string") return deny("SendMessage `message` must be a text");
+  if (type !== undefined && type !== "message") return deny("only plain messages are allowed");
+  return { decision: "allow", reason: "resume of a subagent (target checked per run)" };
 }
 
 /** Rules that apply before the normal checks to a call with `agent_id`; undefined = go on to the normal checks. */
@@ -81,6 +151,8 @@ function preflight(toolName: string, ctx: GuardrailContext): Decision | undefine
     return deny(`not allowed in a subagent: ${STOP_HINT}`);
   // Depth 1: a subagent never starts another one.
   if (isSpawnTool(toolName)) return deny("a subagent may not start subagents");
+  // Resuming is the controller's job: a subagent never messages (another) one (R13 extended).
+  if (toolName === SEND_MESSAGE_TOOL_NAME) return deny("a subagent may not message subagents");
   // Unknown or missing type (not listed by the stage) = no scope = fail closed.
   const scope = agent.type ? ctx.subagentScopes?.[agent.type] : undefined;
   if (!scope) return deny(`unknown subagent type "${agent.type ?? ""}"`);
@@ -109,6 +181,15 @@ export function checkSubagentCall(
 ): Decision {
   const pre = preflight(toolName, ctx);
   if (pre) return pre;
-  const d = base(toolName, input, ctx);
+  // No file named like a secret (.env*, keys, credentials) is written by a subagent, wherever it is.
+  const target = input.file_path ?? input.notebook_path;
+  if (FILE_WRITES.has(toolName) && typeof target === "string" && isSecretPath(target))
+    return deny(`writing secret files is not allowed in a subagent: ${STOP_HINT}`);
+  // A subagent writes only in the task clone (the git write repo): not in the plan/scratch dirs the main agent may
+  // use. No clone known = no write path at all (fail closed). Bash redirects and `cd` use the same list.
+  const writePaths = ctx.gitWriteRepo
+    ? (ctx.writePaths ?? []).filter((p) => p === ctx.gitWriteRepo)
+    : [];
+  const d = base(toolName, input, { ...ctx, writePaths });
   return d.decision === "ask" ? deny(`not allowed in a subagent (${d.reason}): ${STOP_HINT}`) : d;
 }

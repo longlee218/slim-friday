@@ -22,6 +22,7 @@ import {
   READ_TOOL_NAME,
   REFRESH_MCP_TOOLS_TOOL_NAME,
   SEND_FEEDBACK_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   SKILL_TOOL_NAME,
   TASK_CREATE_TOOL_NAME,
   TASK_GET_TOOL_NAME,
@@ -70,8 +71,9 @@ test("Q&A: read + web + skills + subagents; nothing that writes or runs commands
     expect(t).not.toContain(x);
 });
 
-test("code tasks: plan and exec share one full toolset", () => {
-  expect(toolsFor("plan")).toEqual(toolsFor("exec"));
+test("code tasks: plan and exec share one full toolset; exec adds SendMessage for its resumable subagent", () => {
+  expect(toolsFor("exec")).toEqual([...toolsFor("plan"), SEND_MESSAGE_TOOL_NAME]);
+  expect(toolsFor("qa")).not.toContain(SEND_MESSAGE_TOOL_NAME);
   for (const x of [
     ...[
       READ_TOOL_NAME,
@@ -171,7 +173,8 @@ test("git tools: reads everywhere, commit/change only in exec, hidden = the comp
 test("guardFor: one builder per mode, auto-allowed tools and subagents from the catalog", () => {
   const qa = guardFor("qa", { readPaths: ["/r"], gitReadRepos: ["/r"] });
   expect(qa.allowTools).toEqual(autoAllowedTools("qa"));
-  expect(qa.allowedSubagents).toEqual(Object.keys(SUBAGENTS));
+  expect(qa.allowedSubagents).toEqual(["explorer"]); // the stage's own list, not every registry entry
+  expect(Object.keys(SUBAGENTS)).toEqual(["explorer", "implementer", "task-reviewer"]);
   expect(qa.writePaths).toBeUndefined(); // Q&A writes nothing
   expect(qa.gitWriteRepo).toBeUndefined();
   const exec = guardFor("exec", {
@@ -232,8 +235,11 @@ test("secret-file deny rules are part of disallowedTools", () => {
 });
 
 test("every declared SDK tool name belongs to exactly one capability (a new constant cannot be forgotten)", () => {
-  // Names that are not capability tools: legacy alias of Agent.
-  const aliases = new Set<string>([sdkNames.LEGACY_AGENT_TOOL_NAME]);
+  // Names that are not capability tools: legacy alias of Agent, and SendMessage (added by `toolsFor` for a stage with a resumable subagent).
+  const aliases = new Set<string>([
+    sdkNames.LEGACY_AGENT_TOOL_NAME,
+    sdkNames.SEND_MESSAGE_TOOL_NAME,
+  ]);
   const owners = new Map<string, number>();
   for (const tools of Object.values(CAPABILITY_TOOLS))
     for (const t of tools) owners.set(t, (owners.get(t) ?? 0) + 1);

@@ -24,6 +24,8 @@ export const WEB_FETCH_TOOL_NAME = "WebFetch";
 export const SKILL_TOOL_NAME = "Skill";
 export const AGENT_TOOL_NAME = "Agent";
 export const LEGACY_AGENT_TOOL_NAME = "Task";
+/** Resumes a named subagent with a new message (spike Q19: `to` = the spawn `name`). */
+export const SEND_MESSAGE_TOOL_NAME = "SendMessage";
 
 /* Progress tracking and tool discovery. */
 export const TODO_WRITE_TOOL_NAME = "TodoWrite";

@@ -35,7 +35,7 @@ const DEV_NOW = [
   "verification-before-completion",
   "writing-plans",
 ];
-const _GATED = [SDD, "requesting-code-review", "receiving-code-review"];
+const GATED = [SDD, "requesting-code-review", "receiving-code-review"];
 
 /** A home whose workspace `main` has the given extra yaml and an empty own skills dir. */
 function homeWith(yaml = ""): string {
@@ -158,14 +158,17 @@ test("the workspace dir (extra) gets its own plugin next to the publisher one; s
   only.cleanup();
 });
 
-test("dev stages: plan and exec get the same publisher skills; a stage outside the registry loads none and warns", () => {
+test("dev stages: plan loads the six skills, exec also the three subagent skills; a stage outside the registry loads none and warns", () => {
   const names = (st: StageDefinition) => {
     const r = buildStageSkills(st, "main", homeWith());
     r.cleanup();
     return [...r.skills].sort();
   };
   expect(DEV_STAGES.length).toBeGreaterThan(1);
-  for (const st of DEV_STAGES) expect(names(st)).toEqual(DEV_NOW.map((k) => `superpowers:${k}`));
+  const plan = DEV_STAGES.find((s) => s.name === "plan") as StageDefinition;
+  const exec = DEV_STAGES.find((s) => s.name === "exec") as StageDefinition;
+  expect(names(plan)).toEqual(DEV_NOW.map((k) => `superpowers:${k}`));
+  expect(names(exec)).toEqual([...DEV_NOW, ...GATED].sort().map((k) => `superpowers:${k}`));
   const logs = captureLogs();
   expect(names({ ...(DEV_STAGES[0] as StageDefinition) })).toEqual([]);
   logs.stop();

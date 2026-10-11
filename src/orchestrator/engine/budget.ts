@@ -1,6 +1,9 @@
+import type { Database } from "bun:sqlite";
+import { type Route, TASK_BUDGET_USD } from "../../config/model-routing";
 import { logEvent, logger } from "../../observability/logger";
 import { clip, errText, redactText } from "../../observability/redact";
 import { runGit } from "../../repos/git-cli";
+import { spentByOtherStages } from "../../storage/stage-store";
 import type { WorktreeRow } from "../../storage/worktree-store";
 import { capStat } from "../outputs/diffstat-cap";
 
@@ -8,6 +11,25 @@ import { capStat } from "../outputs/diffstat-cap";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "budget" });
+
+/**
+ * Task ceiling (`TASK_BUDGET_USD`): the run input with `route.spentUsd` = what the task's OTHER stages already cost, so
+ * `resolveBudget` limits this stage to what is left. Unchanged when nothing was spent yet.
+ */
+export function withSpent<T extends { taskId: string; route?: Route }>(
+  db: Database,
+  i: T,
+  idx: number,
+): T {
+  const spentUsd = spentByOtherStages(db, i.taskId, idx);
+  return spentUsd > 0 ? { ...i, route: { ...i.route, spentUsd } } : i;
+}
+
+/** Owner text when the task ceiling is already used up by the other stages: the stage is refused up front (no 0 budget). */
+export const ceilingRefusal = (route?: Route): string | undefined =>
+  (route?.spentUsd ?? 0) >= TASK_BUDGET_USD
+    ? `Task ceiling reached: ${usd(TASK_BUDGET_USD)} already spent by the task's earlier stages. Nothing was started; \`/go +<usd>\` cannot lift this ceiling.`
+    : undefined;
 
 /** Facts of a stage that stopped on its budget. */
 export interface BudgetHit {
@@ -19,6 +41,8 @@ export interface BudgetHit {
   summary?: string;
   /** `git diff --stat` of the clone (P2.1 safe git; the stage runner passes it from P1.4). */
   diffStat?: string;
+  /** The task ceiling (TASK_BUDGET_USD), not the stage budget, was the limit: no raise is offered. */
+  ceilingBound?: boolean;
   /** Raise offered to the owner: the message ends with "Reply `/go +<usd>`". */
   goPlusUsd?: number;
 }
@@ -36,7 +60,9 @@ const usd = (n: number | undefined): string => (n === undefined ? "?" : `$${n.to
  */
 export function budgetHitMessage(h: BudgetHit): string {
   const lines = [
-    `Stopped: budget reached (${usd(h.spentUsd)} of ${usd(h.limitUsd)}; the limit is checked between turns, so a small overshoot is possible). The session is kept.`,
+    h.ceilingBound
+      ? `Stopped: task ceiling ${usd(TASK_BUDGET_USD)} reached (this stage spent ${usd(h.spentUsd)} of the ${usd(h.limitUsd)} left; checked between turns, so a small overshoot is possible). \`/go +<usd>\` cannot lift the task ceiling. The session is kept.`
+      : `Stopped: budget reached (${usd(h.spentUsd)} of ${usd(h.limitUsd)}; the limit is checked between turns, so a small overshoot is possible). The session is kept.`,
   ];
   if (h.summary?.trim()) lines.push(`Last summary:\n${clip(h.summary.trim(), BUDGET_SUMMARY_MAX)}`);
   if (h.diffStat?.trim())
@@ -72,6 +98,7 @@ export async function budgetDiffStat(
 export function budgetHitReply(res: {
   usage?: { costUsd?: number };
   budgetUsd?: number;
+  ceilingBound?: boolean;
   lastText?: string;
   diffStat?: string;
 }): string {
@@ -85,7 +112,11 @@ export function budgetHitReply(res: {
       limitUsd: res.budgetUsd,
       summary: res.lastText,
       diffStat: res.diffStat,
-      goPlusUsd: res.budgetUsd === undefined ? undefined : Number(res.budgetUsd.toFixed(2)),
+      ceilingBound: res.ceilingBound,
+      goPlusUsd:
+        res.budgetUsd === undefined || res.ceilingBound
+          ? undefined
+          : Number(res.budgetUsd.toFixed(2)),
     }),
   );
 }

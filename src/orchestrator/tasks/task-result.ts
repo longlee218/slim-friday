@@ -14,7 +14,7 @@ import { compactIdleSession } from "./session-compaction";
 export interface FlowResult
   extends Pick<
     RunAgentResult,
-    "text" | "outcome" | "sessionId" | "resetsAt" | "budgetUsd" | "lastText"
+    "text" | "outcome" | "sessionId" | "resetsAt" | "budgetUsd" | "ceilingBound" | "lastText"
   > {
   /** Metrics of the run (spent USD for the budget-hit message); absent when no run happened. */
   usage?: RunUsage;

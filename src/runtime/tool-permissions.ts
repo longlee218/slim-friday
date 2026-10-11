@@ -1,15 +1,16 @@
-import type { CanUseTool, HookCallbackMatcher } from "@anthropic-ai/claude-agent-sdk";
+import type { CanUseTool, HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-sdk";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import {
   checkToolCall,
   type GuardrailContext,
   type LoggedDecision,
 } from "../guardrails/check-tool-call";
+import { newSubagentRun } from "../guardrails/subagent-run";
 import { logger } from "../observability/logger";
 import { clip, errText } from "../observability/redact";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
 import { ASK_LIMIT_DENIAL, type AskLimit, MAX_ASK_CALLS_PER_TASK, newAskLimit } from "./ask-limit";
-import { guardHook } from "./guard-hook";
+import { guardHook, subagentPostHooks } from "./guard-hook";
 import type { ModeActive } from "./permission-mode";
 
 /** Max chars of a tool input shown inline in the approval message (full input goes in the attachment). */
@@ -71,6 +72,8 @@ function summarize(tool: string, input: Record<string, unknown>): string {
 export function buildToolPermissions(p: ToolPermissionInput): {
   canUseTool: CanUseTool;
   hooks: HookCallbackMatcher[];
+  /** Post(Failure) hooks of the Agent tool: they feed the run's subagent state (in flight, agent ids). */
+  postHooks: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
   /** Guard decision per tool_use_id (allow/ask/auto/bypass), read by the tool hooks to complete the `tool.done` line. */
   decisions: Map<string, LoggedDecision>;
 } {
@@ -78,7 +81,10 @@ export function buildToolPermissions(p: ToolPermissionInput): {
   const decisions = new Map<string, LoggedDecision>();
   const askLimit = p.askLimit ?? newAskLimit();
 
-  const hooks: HookCallbackMatcher[] = [{ hooks: [guardHook(p, decisions, log)] }];
+  // Subagent state of THIS run (spawn/resume counts, names, agent ids): one per permission layer, so it resets per run.
+  const run = newSubagentRun();
+  const hooks: HookCallbackMatcher[] = [{ hooks: [guardHook(p, decisions, log, run)] }];
+  const postHooks = subagentPostHooks(run, log);
 
   const canUseTool: CanUseTool = async (tool, rawInput, opts) => {
     // Run stopped/timed out/shut down while waiting: drop the open request (buttons + timer).
@@ -163,5 +169,5 @@ export function buildToolPermissions(p: ToolPermissionInput): {
     }
   };
 
-  return { canUseTool, hooks, decisions };
+  return { canUseTool, hooks, postHooks, decisions };
 }

@@ -12,7 +12,7 @@ import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./help
 const git = createGitMcp();
 afterAll(() => git.close());
 
-/** Skills the dev role gets from its Superpowers set (deferred ones excluded); plan and exec alike. */
+/** Skills the dev role gets from its Superpowers set (plan stage; exec adds the three subagent skills). */
 const SP = [
   "brainstorming",
   "executing-plans",
@@ -21,8 +21,16 @@ const SP = [
   "verification-before-completion",
   "writing-plans",
 ].map((k) => `superpowers:${k}`);
-/** The skills of a run as sorted names: the set's plus the given workspace ones. */
+/** The exec stage also loads the subagent skills (its subagent list has implementer and task-reviewer). */
+const SDD_SKILLS = [
+  "subagent-driven-development",
+  "requesting-code-review",
+  "receiving-code-review",
+].map((k) => `superpowers:${k}`);
+/** The skills of a plan run as sorted names: the set's plus the given workspace ones. */
 const withSet = (...ws: string[]) => [...SP, ...ws].sort();
+/** Same for the exec run (set + subagent skills + workspace ones). */
+const withExec = (...ws: string[]) => [...SP, ...SDD_SKILLS, ...ws].sort();
 
 /** Run a dev task to the end of the exec stage; return the options of the plan and exec runs. */
 async function runTask(
@@ -78,7 +86,7 @@ async function runTask(
 
 test("lean (default): no full rules; workspace skills load in plan and exec", async () => {
   const { plan, exec } = await runTask({}, ["deploy"]);
-  expect([...exec.skills].sort()).toEqual(withSet("main:deploy"));
+  expect([...exec.skills].sort()).toEqual(withExec("main:deploy"));
   expect([...plan.skills].sort()).toEqual(withSet("main:deploy"));
   expect(exec.settingSources).toEqual([]);
   expect(plan.settingSources).toEqual([]);
@@ -113,7 +121,8 @@ test("repo .claude/skills (clone and worktree) plus hooks never contribute to pl
     },
     ["tracked"],
   );
-  for (const o of [plan, exec]) expect([...o.skills].sort()).toEqual(withSet("main:deploy"));
+  expect([...plan.skills].sort()).toEqual(withSet("main:deploy"));
+  expect([...exec.skills].sort()).toEqual(withExec("main:deploy"));
   expect(pluginFiles.some((f) => /clone-only|tracked|hooks/.test(f))).toBe(false);
 });
 
@@ -124,7 +133,7 @@ test("full: exec lists the workspace skills through an app-owned plugin copy, no
   ]);
   const pdir: string = exec.plugins.at(-1).path; // set plugin first, workspace plugin last
   expect(exec.plugins).toHaveLength(2);
-  expect(exec.skills.sort()).toEqual(withSet("main:deploy", "main:review")); // workspace name = plugin name
+  expect(exec.skills.sort()).toEqual(withExec("main:deploy", "main:review")); // workspace name = plugin name
   // Neither the clone's .claude nor the worktree: the plugin dir is the app's own copy.
   expect(pdir.startsWith(realpathSync(clone))).toBe(false);
   expect(pdir.startsWith(realpathSync(wt.path))).toBe(false);
@@ -150,7 +159,7 @@ test("full: exec lists the workspace skills through an app-owned plugin copy, no
 test("full without workspace skills: only the role's set plugin", async () => {
   const { exec } = await runTask({ workflow: "full" }, [], undefined, ["tracked"]);
   expect(exec.plugins).toHaveLength(1);
-  expect([...exec.skills].sort()).toEqual(withSet());
+  expect([...exec.skills].sort()).toEqual(withExec());
   expect(exec.settingSources).toEqual([]);
 });
 

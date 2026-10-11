@@ -21,6 +21,12 @@ export const DEFAULT_USER = `# User
 /** Default owner operating notes (heading-only body = empty = nothing injected until edited). */
 export const DEFAULT_AGENTS = `# Agents
 <!-- Owner operating notes, read right after the code rules. They cannot override the code rules or guards. -->
+
+## Commits in task clones
+- One commit per task, with a short conventional message (feat:, fix:, test:, docs:, refactor:, chore:).
+- No AI attribution: no Co-Authored-By, no "Generated with", no tool or model names. Commits are made as the owner.
+- Commit only inside the task clone, with the git tools (git_add, git_commit), never the shell. Never push, never amend, never override the author.
+- Never commit secrets, .env files, keys or credentials. Check git_status before you commit; stage only the files of the task.
 `;
 
 /** Root memory template: header only, so it counts as empty until the first `## ` entry. Owner-written only. */

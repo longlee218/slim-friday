@@ -66,6 +66,19 @@ export function listStages(db: Database, taskId: string): StageRow[] {
     .all(taskId);
 }
 
+/**
+ * USD the task's stages OTHER than `idx` have cost so far (their `cost_usd`). The current stage is left out on purpose:
+ * a resumed stage's session total already carries its own earlier cost. Feeds the task ceiling (`TASK_BUDGET_USD`).
+ */
+export function spentByOtherStages(db: Database, taskId: string, idx: number): number {
+  const row = db
+    .query<{ usd: number }, [string, number]>(
+      "SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM stages WHERE task_id = ? AND idx <> ?",
+    )
+    .get(taskId, idx);
+  return row?.usd ?? 0;
+}
+
 /** Mark every still-`running` stage `interrupted` (restart/shutdown, same rule as the task rows). */
 export function interruptRunningStages(db: Database): void {
   db.query("UPDATE stages SET status = 'interrupted', ended_at = ? WHERE status = 'running'").run(

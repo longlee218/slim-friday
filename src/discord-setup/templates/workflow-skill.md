@@ -20,6 +20,7 @@ Owner-editable. The app gates the plan (owner approval), the PR and the result; 
    - Keep tasks small and independent. State the repo line and assumptions. Submit the plan; do not implement.
 4. Implement (execute stage)
    - Test first: write a failing test, see it fail for the right reason, make it pass, refactor. Smallest change that works.
+   - Plan with 3 or more tasks: run it with `superpowers:subagent-driven-development` (it brings `superpowers:requesting-code-review` and `superpowers:receiving-code-review`). Fewer than 3 tasks: `superpowers:executing-plans`, inline. These skills are in the execute stage's skill list only; the run rules say which subagent type each dispatch uses.
    - One short conventional commit per task through the git tools. No scope beyond the plan: if the plan no longer fits, stop and explain.
 5. Verify
    - Run the repo's `testCommand` (and typecheck/lint when the repo has them) yourself. Read the output.
@@ -33,7 +34,7 @@ Owner-editable. The app gates the plan (owner approval), the PR and the result; 
 |---|---|
 | New feature, unclear design, several ways to do it | `superpowers:brainstorming` (questions go to the owner through the ask tool, within the ask limit) |
 | A spec or request needs a multi-step plan | `superpowers:writing-plans` |
-| An approved plan exists, execute stage | `superpowers:executing-plans` |
+| An approved plan of fewer than 3 tasks, execute stage | `superpowers:executing-plans` |
 | Writing any code or a fix | `superpowers:test-driven-development` |
 | About to say "done", "fixed" or "passes" | `superpowers:verification-before-completion` |
 | A bug, a failing test or unexpected behavior | `superpowers:systematic-debugging` |

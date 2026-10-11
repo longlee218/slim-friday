@@ -4,6 +4,7 @@ import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
+import { SEND_MESSAGE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv, resultMsg } from "./helpers";
 
 /**
@@ -119,7 +120,7 @@ test("options lock: tools, mcp servers, permission mode per stage", async () => 
   const exec = await capture("exec");
   // Built-in tools: Q&A is read + web; both code stages share the code set.
   expect(qa.o.tools).toContain("WebFetch");
-  expect(plan.o.tools).toEqual(exec.o.tools);
+  expect(exec.o.tools).toEqual([...(plan.o.tools as string[]), SEND_MESSAGE_TOOL_NAME]); // exec resumes subagents
   expect(plan.o.tools).toContain("Write");
   expect(qa.o.tools).not.toContain("Write");
   // MCP: git always; no in-process app server in any stage (no handoff tool).
@@ -137,9 +138,12 @@ test("options lock: tools, mcp servers, permission mode per stage", async () => 
   for (const r of [qa, plan, exec]) {
     expect(r.o.settingSources).toEqual([]);
     expect(r.o.strictMcpConfig).toBe(true);
-    expect(Object.keys(r.o.agents ?? {})).toEqual(["explorer"]);
     expect(typeof r.o.canUseTool).toBe("function");
   }
+  // Subagents: only the exec stage gets the implementer and the task reviewer; plan and qa stay explorer-only.
+  expect(Object.keys(qa.o.agents ?? {})).toEqual(["explorer"]);
+  expect(Object.keys(plan.o.agents ?? {})).toEqual(["explorer"]);
+  expect(Object.keys(exec.o.agents ?? {})).toEqual(["explorer", "implementer", "task-reviewer"]);
 });
 
 test("options lock: model, limits and timeout per stage", async () => {

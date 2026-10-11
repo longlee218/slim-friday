@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
-import type { Route } from "../config/model-routing";
+import { ceilingBinds, type Route } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import type { GuardrailContext } from "../guardrails/check-tool-call";
 import type { GitIdentity } from "../mcp/git-mcp";
@@ -86,6 +86,8 @@ export interface RunAgentResult {
   usage: RunUsage;
   /** Budget (USD) this run was capped at; undefined = no cap. Read by the budget-hit message. */
   budgetUsd?: number;
+  /** The task ceiling (TASK_BUDGET_USD minus the other stages' spend), not the stage budget, was the cap of this run. */
+  ceilingBound?: boolean;
   /** Quota outcome: when the limit resets (epoch ms), if the SDK reported it. */
   resetsAt?: number;
   /** Last thing the assistant said (text of its last message with text); the budget-hit message shows it. */
@@ -192,5 +194,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     resetsAt,
     lastText,
     budgetUsd: config.limits.maxBudgetUsd,
+    ceilingBound: ceilingBinds(config.limits.maxBudgetUsd, input.route?.spentUsd),
   };
 }

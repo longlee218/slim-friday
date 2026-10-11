@@ -42,7 +42,14 @@ test("template: the which-skill table lists exactly the loaded dev skills, no de
     [...allowedSkills(ROLES.dev?.skills ?? [], devStage?.subagents ?? [])].sort(),
   );
   expect(named).toHaveLength(6);
-  expect(TEMPLATE).not.toMatch(/subagent-driven|requesting-code-review|receiving-code-review/);
+  // The subagent skills are named only in prose (execute stage, plans of 3+ tasks), never as a plan-stage table row.
+  expect(rows.join("\n")).not.toMatch(
+    /subagent-driven|requesting-code-review|receiving-code-review/,
+  );
+  expect(TEMPLATE).toContain("3 or more tasks");
+  expect(TEMPLATE).toContain("superpowers:subagent-driven-development");
+  expect(TEMPLATE).toContain("superpowers:requesting-code-review");
+  expect(TEMPLATE).toContain("superpowers:receiving-code-review");
 });
 
 test("createWorkspaceDir writes skills/workflow/SKILL.md from the template", () => {

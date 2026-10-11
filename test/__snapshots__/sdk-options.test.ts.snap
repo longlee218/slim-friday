@@ -53,8 +53,18 @@ exports[`options lock: qa options snapshot 1`] = `
           "[fn]",
         ],
       },
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
     ],
     "PostToolUseFailure": [
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
       {
         "hooks": [
           "[fn]",
@@ -180,8 +190,18 @@ exports[`options lock: plan options snapshot 1`] = `
           "[fn]",
         ],
       },
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
     ],
     "PostToolUseFailure": [
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
       {
         "hooks": [
           "[fn]",
@@ -298,6 +318,50 @@ exports[`options lock: exec options snapshot 1`] = `
         "Grep",
       ],
     },
+    "implementer": {
+      "description": "Implements one plan task in the task clone: edits files, runs the tests, commits with the git tools, reports a status.",
+      "maxTurns": 40,
+      "model": "sonnet",
+      "prompt": 
+"You implement one task in the clone (your current directory). Build exactly what your brief says.
+- Edit only inside the clone; no shell for git, never push or amend. Commit with git_add and git_commit (path = the clone): one short conventional commit per task, no Co-Authored-By or AI attribution.
+- Run the repo's test command with Bash; other commands may be denied: adapt, do not retry the same call.
+- You cannot ask anyone. When blocked or missing information, stop and report NEEDS_CONTEXT or BLOCKED with the specifics.
+- Never start a subagent. End with the status contract of your brief."
+,
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Edit",
+        "Write",
+        "Bash",
+        "mcp__git__git_status",
+        "mcp__git__git_add",
+        "mcp__git__git_commit",
+      ],
+    },
+    "task-reviewer": {
+      "description": "Reviews a diff against its brief: spec compliance and code quality. Read-only, reports findings by severity.",
+      "maxTurns": 20,
+      "model": "sonnet",
+      "prompt": 
+"You review a change. Read the brief, the report and the diff file you are given, then judge the code on its merits.
+- Read-only: you cannot edit, run a shell or commit. For git use git_log, git_diff, git_status, git_show with path = the clone.
+- Report findings with file:line and severity, then a verdict. Do not crawl beyond the diff except to check a risk you can name.
+- You cannot ask anyone: if the input is missing, say so in your report.
+- Never start a subagent."
+,
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "mcp__git__git_log",
+        "mcp__git__git_diff",
+        "mcp__git__git_status",
+        "mcp__git__git_show",
+      ],
+    },
   },
   "allowDangerouslySkipPermissions": true,
   "canUseTool": "[fn]",
@@ -334,8 +398,18 @@ exports[`options lock: exec options snapshot 1`] = `
           "[fn]",
         ],
       },
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
     ],
     "PostToolUseFailure": [
+      {
+        "hooks": [
+          "[fn]",
+        ],
+      },
       {
         "hooks": [
           "[fn]",
@@ -390,6 +464,13 @@ exports[`options lock: exec options snapshot 1`] = `
 - Every write and shell command may need owner approval or be denied: if denied, adapt, do not retry the same call.
 - When done, reply with a short summary of what changed.
 - Last, add a section titled exactly "Memory:" with at most 3 bullets ("- ...") of durable facts about this repo (commands, conventions, pitfalls); no task-specific facts (branch, clone, task ids). Prefix a bullet with "[global]" only for a fact true in every workspace (e.g. an owner preference); at most 2; [global] bullets are reviewed by the owner before they apply. Omit the section if there is nothing.
+<subagent-run-facts>
+- Subagent types here: explorer, implementer, task-reviewer. A skill template headed "Subagent (general-purpose)" is started with Agent and one of these \`subagent_type\` values: the implementer prompt template -> implementer; the task reviewer, re-review and final code-reviewer templates -> task-reviewer. Any other type is denied.
+- Every Agent call: pass \`name\` (a short slug, unique in this run) and \`model\` (haiku or sonnet; opus only for a design task), foreground, no other keys.
+- Resume a subagent for a fix round with SendMessage, \`to\` = its \`name\`. At most 2 run at once and 40 starts and resumes per run.
+- Subagents work in this clone, cannot ask the owner and never push. The implementer commits with git_add and git_commit (path = the clone) and may run the repo's test command; reviewers read only and cannot write or commit. On NEEDS_CONTEXT or BLOCKED, resolve it as the skill says; the owner is not asked for a subagent.
+- Use subagent-driven development only for a plan of 3 or more tasks; with fewer, execute the plan inline.
+</subagent-run-facts>
 - Ask the owner with AskUserQuestion when the answer cannot be derived from the repo or the request and a wrong guess is costly or irreversible (schema, public API, data deletion, user-visible behavior), or when a loaded skill's own process calls for a question (brainstorming).
 - Never ask about naming, file layout, libraries already in the repo, style, test location, anything readable from the repo, or small scope the owner can fix at plan review. Pick a sensible default and state it as an assumption.
 - At most 3 AskUserQuestion calls per task (plan and execute stages together; questions a skill asks count): batch the questions of one round in one call, default option first with a label ending "(default)". A call over the limit is denied: use the defaults.
@@ -437,6 +518,7 @@ Skills load through the Skill tool. Publisher skills are named \`superpowers:<na
     "AskUserQuestion",
     "ExitPlanMode",
     "EnterPlanMode",
+    "SendMessage",
   ],
 }
 `;

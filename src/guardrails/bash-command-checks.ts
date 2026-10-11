@@ -82,6 +82,26 @@ const GIT_READ_LONG = new Set([
   ...["--diff-filter", "--word-diff", "--check", "--find-renames", "--no-renames", "--relative"],
 ]);
 
+/** `git rev-parse` options that only print (no `--git-dir`, `--resolve-git-dir`, `--parseopt`, ...). */
+const REV_PARSE_FLAGS = new Set([
+  ...["--verify", "--quiet", "-q", "--short", "--abbrev-ref", "--symbolic-full-name"],
+  ...["--show-toplevel", "--is-inside-work-tree"],
+]);
+
+/**
+ * `git rev-parse` / `git merge-base`: print a commit id or a fact about the repo (what a skill needs for BASE/HEAD
+ * of a review range). Only the options above, `--short=N`, and `merge-base --is-ancestor`; revisions are plain names.
+ * Anything else asks. Path-like revisions are re-checked against the allowed dirs by `isPureGitRead`.
+ */
+function checkRevisionRead(sub: string, rest: string[]): Decision {
+  const flagOk = (a: string) =>
+    sub === "merge-base"
+      ? a === "--is-ancestor"
+      : REV_PARSE_FLAGS.has(a) || /^--short=\d{1,2}$/.test(a);
+  const bad = rest.some((a) => (a.startsWith("-") ? !flagOk(a) : !/^[\w./@^~-]+$/.test(a)));
+  return bad ? ask(`git ${sub} with unusual arguments`) : allow(`git ${sub}`);
+}
+
 /** Refs that a push must never target. */
 const PROTECTED = new Set(["main", "master"]);
 
@@ -124,6 +144,10 @@ export function checkGit(args: string[]): Decision {
       ? ask(`git ${sub} with overrides`)
       : allow(`git ${sub}`);
   }
+  if (sub === "rev-parse" || sub === "merge-base")
+    return configOverride || globalOption
+      ? ask(`git ${sub} with overrides`)
+      : checkRevisionRead(sub, rest);
   // Everything else (add, commit, checkout, ...): the git MCP tools are the way, not the shell.
   return deny(`use the git MCP tools instead of "git ${sub ?? ""}"`.replace("  ", " "));
 }

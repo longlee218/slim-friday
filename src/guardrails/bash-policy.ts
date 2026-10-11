@@ -9,6 +9,7 @@
  * command text beyond host / package names, so secrets are not leaked to the agent.
  */
 import { basename } from "node:path";
+import { allowlistWords, commandWords, extendsAllowed } from "./bash-allowlist";
 import { type CdState, checkCd } from "./bash-cd";
 import {
   allow,
@@ -105,12 +106,7 @@ function checkSegment(seg: Segment): Decision {
 
 /** Canonical key of a single simple command, used to match allowedCommands. */
 function commandKey(command: string): string | null {
-  try {
-    const segs = parseCommand(command);
-    return segs.length === 1 ? segs[0].words.join("\0") : null;
-  } catch {
-    return null;
-  }
+  return commandWords(command)?.join("\0") ?? null;
 }
 
 /** Decide a Bash command line. Strictest segment wins; unparseable input asks. */
@@ -123,6 +119,7 @@ export function checkBash(command: string, ctx: GuardrailContext): Decision {
   }
   if (segments.length === 0) return ownerAsk("empty command");
   const allowed = new Set((ctx.allowedCommands ?? []).map(commandKey));
+  const allowedWords = allowlistWords(ctx.allowedCommands);
   const roots = [...(ctx.writePaths ?? []), ...(ctx.readPaths ?? [])];
   // `cwd` follows the line's `cd`s. After a cd into a dir that is only READABLE nothing may write or install there:
   // later segments must be pure git reads or read commands (an allowed `bun install` there would write node_modules).
@@ -160,8 +157,8 @@ export function checkBash(command: string, ctx: GuardrailContext): Decision {
           d = ask("only git reads inside the allowed directories run here");
       } else if (readOnly) {
         // nothing else runs in a read-only directory
-      } else if (d.decision === "ask" && allowed.has(seg.words.join("\0"))) {
-        // Exact allowlisted commands only upgrade ask; hard denies still win.
+      } else if (d.decision === "ask" && extendsAllowed(seg.words, allowedWords)) {
+        // The allowlisted command (also with extra plain arguments) only upgrades ask; hard denies still win.
         d = allow("allowlisted command");
       }
     }

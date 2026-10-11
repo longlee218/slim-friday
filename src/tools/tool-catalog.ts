@@ -1,6 +1,7 @@
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../mcp/mcp-tool-names";
 import { type StageRef, stageOf } from "../roles/role-registry";
 import type { Capability } from "../roles/role-types";
+import { SUBAGENTS } from "../roles/subagents/subagent-registry";
 import { GIT_GROUPS } from "./git-tool-groups";
 import {
   AGENT_TOOL_NAME,
@@ -20,6 +21,7 @@ import {
   READ_TOOL_NAME,
   REFRESH_MCP_TOOLS_TOOL_NAME,
   SEND_FEEDBACK_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   SKILL_TOOL_NAME,
   TASK_CREATE_TOOL_NAME,
   TASK_GET_TOOL_NAME,
@@ -90,9 +92,20 @@ const AUTO_ALLOWED = new Set<string>([
   ENTER_PLAN_MODE_TOOL_NAME,
 ]);
 
-/** Built-in tools of a stage (the SDK `tools` option). */
-export const toolsFor = (stage: StageRef): string[] =>
-  stageOf(stage).capabilities.flatMap((c) => CAPABILITY_TOOLS[c]);
+/**
+ * Built-in tools of a stage (the SDK `tools` option). A stage that starts a resumable subagent (registry data) also
+ * gets SendMessage, the only way to resume one; the guard allows it only for subagents the run started.
+ */
+export function toolsFor(stage: StageRef): string[] {
+  const s = stageOf(stage);
+  const resumes =
+    s.capabilities.includes("subagents") &&
+    (s.subagents ?? []).some((n) => SUBAGENTS[n]?.resumable);
+  return [
+    ...s.capabilities.flatMap((c) => CAPABILITY_TOOLS[c]),
+    ...(resumes ? [SEND_MESSAGE_TOOL_NAME] : []),
+  ];
+}
 
 /** Tools of a stage that need no approval (the guard's `allowTools`). */
 export const autoAllowedTools = (stage: StageRef): string[] =>
