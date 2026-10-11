@@ -3,8 +3,10 @@
 exports[`options lock: qa options snapshot 1`] = `
 {
   "agents": {
-    "repo-searcher": {
+    "explorer": {
       "description": "Searches code across the registered repos and reports findings with file:line. Use for broad lookups.",
+      "maxTurns": 15,
+      "model": "haiku",
       "prompt": "You search code. Use Glob/Grep/Read with absolute paths. Report only what you found, each item with file:line. Do not modify anything.",
       "tools": [
         "Read",
@@ -128,8 +130,10 @@ exports[`options lock: qa options snapshot 1`] = `
 exports[`options lock: plan options snapshot 1`] = `
 {
   "agents": {
-    "repo-searcher": {
+    "explorer": {
       "description": "Searches code across the registered repos and reports findings with file:line. Use for broad lookups.",
+      "maxTurns": 15,
+      "model": "haiku",
       "prompt": "You search code. Use Glob/Grep/Read with absolute paths. Report only what you found, each item with file:line. Do not modify anything.",
       "tools": [
         "Read",
@@ -284,8 +288,10 @@ Skills are loaded for this run (use the Skill tool; names look like \`superpower
 exports[`options lock: exec options snapshot 1`] = `
 {
   "agents": {
-    "repo-searcher": {
+    "explorer": {
       "description": "Searches code across the registered repos and reports findings with file:line. Use for broad lookups.",
+      "maxTurns": 15,
+      "model": "haiku",
       "prompt": "You search code. Use Glob/Grep/Read with absolute paths. Report only what you found, each item with file:line. Do not modify anything.",
       "tools": [
         "Read",

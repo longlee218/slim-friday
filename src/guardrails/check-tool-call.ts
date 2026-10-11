@@ -7,12 +7,12 @@
  */
 import {
   GIT_MCP_SERVER,
-  GIT_TOOL,
   GITHUB_MCP_SERVER,
   MCP_PREFIX,
   mcpServerPrefix,
 } from "../mcp/mcp-tool-names";
 import { type StageRef, stageOf } from "../roles/role-registry";
+import { type SubagentScope, scopesOf } from "../roles/subagents/subagent-registry";
 import {
   AGENT_TOOL_NAME,
   BASH_TOOL_NAME,
@@ -26,15 +26,13 @@ import {
   READ_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
-import {
-  autoAllowedTools,
-  GIT_GROUPS,
-  GIT_READ_BY_MODE,
-  PLAN_FLOW_TOOLS,
-} from "../tools/tool-catalog";
+import { autoAllowedTools, PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
 import { checkBash } from "./bash-policy";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
-import { resolveReal } from "./paths";
+import { checkGitMcp, hasAttribution } from "./git-mcp-guard";
+import { type AgentCaller, checkSpawn, checkSubagentCall } from "./subagent-guard";
+
+export { hasAttribution };
 
 /** Outcome of a guardrail check. `deny` is never approvable; `ask` needs the owner. */
 export type Decision = {
@@ -66,12 +64,19 @@ export interface GuardrailContext {
   allowTools?: string[];
   /** Subagent types the Agent tool may start (each has explicit tools); anything else is denied. */
   allowedSubagents?: string[];
+  /** Guard scope per subagent type the stage may start (registry data). A caller type missing here is denied. */
+  subagentScopes?: Record<string, SubagentScope>;
+  /** Set only for a call made inside a subagent (hook input `agent_id`/`agent_type`); the main agent has none. */
+  agent?: AgentCaller;
   /** Exact bash commands auto-allowed besides the built-ins (the repo's test command). */
   allowedCommands?: string[];
 }
 
 /** What differs between runs of one mode: where it may read/write and which repos git may touch. */
-export type GuardScope = Omit<GuardrailContext, "allowTools" | "allowedSubagents">;
+export type GuardScope = Omit<
+  GuardrailContext,
+  "allowTools" | "allowedSubagents" | "subagentScopes" | "agent"
+>;
 
 /**
  * The guard context of a run: the stage's auto-allowed tools come from the tool catalog, its subagent
@@ -79,10 +84,12 @@ export type GuardScope = Omit<GuardrailContext, "allowTools" | "allowedSubagents
  * One builder for every stage.
  */
 export function guardFor(stage: StageRef, scope: GuardScope): GuardrailContext {
+  const subagents = stageOf(stage).subagents ?? [];
   return {
     ...scope,
     allowTools: autoAllowedTools(stage),
-    allowedSubagents: stageOf(stage).subagents ?? [],
+    allowedSubagents: subagents,
+    subagentScopes: scopesOf(subagents),
   };
 }
 
@@ -94,67 +101,22 @@ const WRITE_TOOLS = new Set([
 ]);
 const READ_TOOLS = new Set([READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME]);
 
-/** Attribution lines that must never appear in a commit message (AI co-author / generated-with trailers). */
-export const hasAttribution = (text: string): boolean =>
-  /co-authored-by|generated (with|by)|🤖|noreply@anthropic\.com/i.test(text);
-
-/** git MCP tools (@cyanheads/git-mcp-server) by risk. Everything else of that server is denied for agents. */
-const GIT_READ = new Set<string>(GIT_GROUPS.read);
-
-/** Decide a call of the git MCP server: allowed path only, then by risk. */
-function checkGitMcp(
-  name: string,
+/**
+ * Decide whether a tool call may run. Unknown tools need approval. A call inside a subagent (`ctx.agent`) also
+ * goes through the subagent rules: scope, no owner questions, no nested spawn, and every ask becomes a deny.
+ */
+export function checkToolCall(
+  toolName: string,
   input: Record<string, unknown>,
   ctx: GuardrailContext,
 ): Decision {
-  const path = typeof input.path === "string" ? input.path : "";
-  let real = "";
-  try {
-    real = path ? resolveReal(path) : "";
-  } catch {
-    /* unresolvable: denied below */
-  }
-  const isWorktree = !!ctx.gitWriteRepo && real === ctx.gitWriteRepo;
-  if (!real || !(isWorktree || ctx.gitReadRepos?.includes(real))) {
-    return {
-      decision: "deny",
-      reason: "git tools need an explicit path of the task worktree or a registered repo",
-    };
-  }
-  const mode = typeof input.mode === "string" ? input.mode : undefined;
-  const readModes = GIT_READ_BY_MODE[name];
-  if (GIT_READ.has(name) || (readModes && (mode === undefined || readModes.includes(mode)))) {
-    return { decision: "allow", reason: "git read tool" };
-  }
-  if (!isWorktree)
-    return { decision: "deny", reason: "git changes are only allowed in the task worktree" };
-  if (name === GIT_TOOL.ADD) return { decision: "allow", reason: "git tool in worktree" };
-  if (name === GIT_TOOL.COMMIT) {
-    // Identity comes from the server's env: the agent may not pick an author, amend, or skip hooks.
-    if (input.author !== undefined || input.amend || input.noVerify) {
-      return {
-        decision: "deny",
-        reason: "commit as configured: no author override, amend or no-verify",
-      };
-    }
-    if (typeof input.message === "string" && hasAttribution(input.message)) {
-      return {
-        decision: "deny",
-        reason:
-          "commit as the owner only: remove Co-Authored-By / generated-with / AI attribution lines",
-      };
-    }
-    return { decision: "allow", reason: "git commit in worktree" };
-  }
-  if (name === GIT_TOOL.CHECKOUT)
-    return { decision: "ask", reason: `${name} changes branch or files` };
-  if (name === GIT_TOOL.RESET && mode !== "hard")
-    return { decision: "ask", reason: `${name} changes the index/history` };
-  return { decision: "deny", reason: `${name} is not available to agents (the app handles it)` };
+  return ctx.agent
+    ? checkSubagentCall(toolName, input, ctx, checkMainCall)
+    : checkMainCall(toolName, input, ctx);
 }
 
-/** Decide whether a tool call may run. Unknown tools need approval. */
-export function checkToolCall(
+/** The checks every call goes through (the main agent's rules). */
+function checkMainCall(
   toolName: string,
   input: Record<string, unknown>,
   ctx: GuardrailContext,
@@ -181,13 +143,8 @@ export function checkToolCall(
   if (toolName.startsWith(mcpServerPrefix(GITHUB_MCP_SERVER)))
     return { decision: "allow", reason: "github read tool" };
   if (toolName.startsWith(MCP_PREFIX)) return { decision: "deny", reason: "unknown MCP tool" };
-  if (toolName === AGENT_TOOL_NAME || toolName === LEGACY_AGENT_TOOL_NAME) {
-    const type = input.subagent_type;
-    const ok = typeof type === "string" && ctx.allowedSubagents?.includes(type);
-    return ok
-      ? { decision: "allow", reason: "configured subagent" }
-      : { decision: "deny", reason: "only the configured subagents may be started" };
-  }
+  if (toolName === AGENT_TOOL_NAME || toolName === LEGACY_AGENT_TOOL_NAME)
+    return checkSpawn(input, ctx);
   if (ctx.allowTools?.includes(toolName))
     return { decision: "allow", reason: "tool allowed in this mode" };
   if (PLAN_FLOW_TOOLS.has(toolName)) {

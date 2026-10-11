@@ -16,14 +16,18 @@ function stripHeader(text: string): string {
 }
 
 /**
- * Overlay text of the skills a run loads: for each set, each skill the set gives (`allowedSkills`, so a skill
- * deferred to P3.4 gets none) that has an overlay file with a body. A missing file is normal (no overlay);
+ * Overlay text of the skills a run loads: for each set, each skill the set gives (`allowedSkills`: a skill whose
+ * subagents the stage lacks gets none) that has an overlay file with a body. A missing file is normal (no overlay);
  * an unreadable one is warned and skipped. Empty string = nothing to add.
  */
-export function skillOverlays(sets: readonly string[], setsDir = SKILL_SETS_DIR): string {
+export function skillOverlays(
+  sets: readonly string[],
+  subagents: readonly string[],
+  setsDir = SKILL_SETS_DIR,
+): string {
   const parts: string[] = [];
   for (const set of sets) {
-    for (const skill of allowedSkills(set, setsDir)) {
+    for (const skill of allowedSkills(set, subagents, setsDir)) {
       if (!SKILL_SET_NAME.test(skill)) continue; // a skill dir name is a plain slug: never a path
       try {
         const body = stripHeader(

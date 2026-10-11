@@ -64,15 +64,11 @@ test("dispatchableRoleNames: every role with whenToUse (a queued follow-up may b
 test("guard: subagent allowlist comes from the stage; a stage without subagents allows none", () => {
   const scope = { readPaths: ["/r"] };
   const qa = guardFor("qa", scope);
-  expect(qa.allowedSubagents).toEqual(["repo-searcher"]);
-  expect(checkToolCall(AGENT_TOOL_NAME, { subagent_type: "repo-searcher" }, qa).decision).toBe(
-    "allow",
-  );
+  expect(qa.allowedSubagents).toEqual(["explorer"]);
+  expect(checkToolCall(AGENT_TOOL_NAME, { subagent_type: "explorer" }, qa).decision).toBe("allow");
   const bare = guardFor(BARE, scope);
   expect(bare.allowedSubagents).toEqual([]);
-  expect(checkToolCall(AGENT_TOOL_NAME, { subagent_type: "repo-searcher" }, bare).decision).toBe(
-    "deny",
-  );
+  expect(checkToolCall(AGENT_TOOL_NAME, { subagent_type: "explorer" }, bare).decision).toBe("deny");
 });
 
 test("mcp servers follow capabilities: git by groups, github by write", async () => {

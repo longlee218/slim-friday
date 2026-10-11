@@ -40,7 +40,7 @@ export const ASSISTANT_ROLE: RoleDefinition = {
       budgetUsd: 0.5,
       autoCompactWindow: QA_AUTO_COMPACT_WINDOW,
       escalatedBudgetUsd: 1.5,
-      subagents: ["repo-searcher"],
+      subagents: ["explorer"],
       promptSections: (ctx) => [QA, ctx.escalation ? ESCALATE : ""],
     },
   ],

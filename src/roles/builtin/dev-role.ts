@@ -80,7 +80,7 @@ const CODE_STAGE_BASE = {
   streaming: true, // plan and exec are background runs: the owner can steer them
   // OpenRouter: plan mode needs a model that reliably calls ExitPlanMode; deepseek-v4-flash does not (live test), a Claude model does.
   openrouterModel: "anthropic/claude-haiku-4.5",
-  subagents: ["repo-searcher"],
+  subagents: ["explorer"],
 } satisfies Partial<StageDefinition>;
 
 /** Code changes: a plan the owner approves, then an execute run in an isolated clone on its own branch. */

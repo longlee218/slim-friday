@@ -15,5 +15,10 @@ export function buildStageSkills(
 ): RunSkills {
   const role = roleOfStage(stage);
   if (!role) log.warn({ stage: stage.name }, "stage has no role: no skill sets loaded");
-  return buildRunSkills({ agentHome, workspace, sets: role?.skillSets ?? [] });
+  return buildRunSkills({
+    agentHome,
+    workspace,
+    sets: role?.skillSets ?? [],
+    subagents: stage.subagents ?? [],
+  });
 }

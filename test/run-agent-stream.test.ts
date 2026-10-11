@@ -3,6 +3,13 @@ import { captureLogs } from "../src/observability/logger";
 import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { sdkEnv } from "../src/runtime/sdk-env";
+
+/** Vars the app always sets for the subagent limits (never taken from the caller env). */
+const SUBAGENT_ENV = {
+  CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1",
+  CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "1",
+};
+
 import {
   AGENT_TOOL_NAME,
   GLOB_TOOL_NAME,
@@ -127,7 +134,7 @@ describe("run-agent stream handling", () => {
       READ_MCP_RESOURCE_DIR_TOOL_NAME,
       REFRESH_MCP_TOOLS_TOOL_NAME,
     ]);
-    expect(Object.keys(seen.agents)).toEqual(["repo-searcher"]); // subagents have explicit tools
+    expect(Object.keys(seen.agents)).toEqual(["explorer"]); // subagents have explicit tools
     expect(seen.mcpServers.git.args[0]).toContain("git-mcp-server"); // pinned package, no npx
     expect(seen.mcpServers.git.env.GIT_AUTHOR_EMAIL).toBeUndefined(); // Q&A never commits
     expect(seen.mcpServers.github).toBeUndefined(); // GitHub MCP only in code tasks
@@ -148,7 +155,12 @@ describe("run-agent stream handling", () => {
       CLAUDE_CONFIG_DIR: "/c",
       CLAUDE_CODE_OAUTH_TOKEN: "REPLACE_ME",
     };
-    expect(sdkEnv(env.config, src)).toEqual({ PATH: "/bin", HOME: "/h", CLAUDE_CONFIG_DIR: "/c" });
+    expect(sdkEnv(env.config, src)).toEqual({
+      PATH: "/bin",
+      HOME: "/h",
+      CLAUDE_CONFIG_DIR: "/c",
+      ...SUBAGENT_ENV,
+    });
   });
 
   test("real oauth token is passed through", () => {

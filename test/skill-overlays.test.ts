@@ -34,12 +34,16 @@ function fixtureSets(): string {
 
 test("skillOverlays: header stripped, only loaded skills (deferred SDD skipped), missing set = empty", () => {
   const dir = fixtureSets();
-  const text = skillOverlays(["superpowers"], dir);
+  const text = skillOverlays(["superpowers"], [], dir);
   expect(text).toContain("### superpowers:writing-plans\nPLANS OVERLAY BODY");
   expect(text).not.toContain("overlay of");
-  expect(text).not.toContain("SDD OVERLAY BODY"); // deferred to P3.4: not loaded, so no overlay
-  expect(skillOverlays([], dir)).toBe("");
-  expect(skillOverlays(["nope"], dir)).toBe("");
+  expect(text).not.toContain("SDD OVERLAY BODY"); // needs subagents the stage lacks: not loaded, so no overlay
+  // The same set for a stage that has them: the SDD overlay comes back (one list controls agents and skills).
+  expect(skillOverlays(["superpowers"], ["implementer", "task-reviewer"], dir)).toContain(
+    "SDD OVERLAY BODY",
+  );
+  expect(skillOverlays([], [], dir)).toBe("");
+  expect(skillOverlays(["nope"], [], dir)).toBe("");
 });
 
 test("skillOverlays: a header-only stub adds nothing; a skill without an overlay file is fine", () => {
@@ -48,7 +52,7 @@ test("skillOverlays: a header-only stub adds nothing; a skill without an overlay
     join(dir, "superpowers", "overlays", "writing-plans", "app-overlay.md"),
     `${HEADER("writing-plans")}\n<!-- note -->\n`,
   );
-  expect(skillOverlays(["superpowers"], dir)).toBe("");
+  expect(skillOverlays(["superpowers"], [], dir)).toBe("");
 });
 
 test("dev plan and exec prompts carry the bootstrap and the overlay; the overlay sits before COMMON", () => {

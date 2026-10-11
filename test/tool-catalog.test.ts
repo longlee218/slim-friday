@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
 import type { StageName as ToolMode } from "../src/roles/role-registry";
+import { SUBAGENTS } from "../src/roles/subagents/subagent-registry";
 import * as sdkNames from "../src/tools/sdk-tool-names";
 import {
   AGENT_TOOL_NAME,
@@ -41,7 +42,6 @@ import {
   gitToolsFor,
   hiddenGitTools,
   SECRET_FILE_RULES,
-  SUBAGENTS,
   toolOptions,
   toolsFor,
 } from "../src/tools/tool-catalog";

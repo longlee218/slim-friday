@@ -6,6 +6,15 @@ const ENV_ALLOWLIST = ["PATH", "HOME", "USER", "SHELL", "LANG", "TMPDIR", "CLAUD
 /** Compaction var the orchestrator sets per stage (never copied from the owner's shell). */
 export const AUTO_COMPACT_WINDOW_VAR = "CLAUDE_CODE_AUTO_COMPACT_WINDOW";
 
+/**
+ * Subagent limits the app always sets (never copied from the owner's shell; both PASS in the P3.0 spike, Q3/Q5):
+ * foreground subagents only (the Agent tool otherwise defaults to background), and depth 1 (a subagent gets no Agent tool).
+ */
+const SUBAGENT_LIMIT_ENV = {
+  CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1",
+  CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "1",
+} as const;
+
 /** OpenRouter's Anthropic-compatible endpoint. */
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api";
 
@@ -42,6 +51,7 @@ export function sdkEnv(
   } else if (config.hasRealAuth) {
     env.CLAUDE_CODE_OAUTH_TOKEN = config.oauthToken;
   }
+  Object.assign(env, SUBAGENT_LIMIT_ENV);
   if (compactWindow) env[AUTO_COMPACT_WINDOW_VAR] = String(compactWindow);
   return env;
 }

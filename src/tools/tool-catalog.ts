@@ -1,4 +1,3 @@
-import type { AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../mcp/mcp-tool-names";
 import { type StageRef, stageOf } from "../roles/role-registry";
 import type { Capability } from "../roles/role-types";
@@ -124,7 +123,7 @@ export const hiddenGitTools = (stage: StageRef): string[] => {
   return ALL_GIT_TOOLS.filter((t) => !allowed.has(t)).map((t) => mcpToolName(GIT_MCP_SERVER, t));
 };
 
-/* ---------------- SDK options + subagents ---------------- */
+/* ---------------- SDK options (subagent definitions: roles/subagents) ---------------- */
 
 /**
  * Scoped deny rules for secret files (documented: disallowedTools accepts `Tool(pattern)` rules
@@ -152,17 +151,3 @@ export function toolOptions(stage: StageRef) {
     strictMcpConfig: true,
   };
 }
-
-/**
- * Subagents the main agent may start. Each one gets EXPLICIT tools: a subagent otherwise inherits the
- * default set (Bash, Write...), not the parent's restricted one (spike finding). Read-only on purpose.
- */
-export const SUBAGENTS: Record<string, AgentDefinition> = {
-  "repo-searcher": {
-    description:
-      "Searches code across the registered repos and reports findings with file:line. Use for broad lookups.",
-    prompt:
-      "You search code. Use Glob/Grep/Read with absolute paths. Report only what you found, each item with file:line. Do not modify anything.",
-    tools: [READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME],
-  },
-};

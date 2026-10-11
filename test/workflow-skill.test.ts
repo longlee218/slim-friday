@@ -36,7 +36,7 @@ test("template: the which-skill table lists exactly the loaded dev skills, no de
     (l) => l.startsWith("| ") && l.includes("`superpowers:"),
   );
   const named = rows.map((l) => /`superpowers:([a-z-]+)`/.exec(l)?.[1]).sort();
-  expect(named).toEqual([...allowedSkills("superpowers")].sort());
+  expect(named).toEqual([...allowedSkills("superpowers", ["explorer"])].sort());
   expect(named).toHaveLength(6);
   expect(TEMPLATE).not.toMatch(/subagent-driven|requesting-code-review|receiving-code-review/);
 });

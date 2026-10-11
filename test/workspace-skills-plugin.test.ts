@@ -24,6 +24,7 @@ const workspaceSkills = (workspace: string | undefined, agentHome: string) =>
     agentHome,
     workspace,
     sets: [],
+    subagents: [],
   });
 
 const dirs: string[] = [];

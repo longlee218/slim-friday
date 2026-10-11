@@ -29,7 +29,9 @@ export function buildSystemPrompt(
 ) {
   const s = stageOf(stage);
   const sets = roleOfStage(s)?.skillSets ?? [];
-  const skills = sets.length ? [SKILLS_BOOTSTRAP, skillOverlays(sets, setsDir)] : [];
+  const skills = sets.length
+    ? [SKILLS_BOOTSTRAP, skillOverlays(sets, s.subagents ?? [], setsDir)]
+    : [];
   const rules = [...s.promptSections(opts), ...skills, COMMON].filter(Boolean).join("\n");
   return {
     type: "preset" as const,

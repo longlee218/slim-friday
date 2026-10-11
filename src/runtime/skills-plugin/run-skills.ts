@@ -17,6 +17,8 @@ export interface RunSkillsInput {
   workspace: string | undefined;
   /** Skill sets of the run's role (`RoleDefinition.skillSets`); none = the workspace dir only. */
   sets: string[];
+  /** Subagent names the stage may start: a skill that needs one the stage lacks is not loaded. */
+  subagents: readonly string[];
 }
 
 /**
@@ -31,7 +33,7 @@ export function buildRunSkills(i: RunSkillsInput): RunSkills {
   const parts: RunSkills[] = [];
   try {
     for (const set of i.sets) {
-      const allow = allowedSkills(set);
+      const allow = allowedSkills(set, i.subagents);
       if (!allow.length) continue;
       parts.push(
         buildSkillsPlugin(

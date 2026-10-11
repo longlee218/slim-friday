@@ -136,7 +136,7 @@ test("options lock: tools, mcp servers, permission mode per stage", async () => 
   for (const r of [qa, plan, exec]) {
     expect(r.o.settingSources).toEqual([]);
     expect(r.o.strictMcpConfig).toBe(true);
-    expect(Object.keys(r.o.agents ?? {})).toEqual(["repo-searcher"]);
+    expect(Object.keys(r.o.agents ?? {})).toEqual(["explorer"]);
     expect(typeof r.o.canUseTool).toBe("function");
   }
 });

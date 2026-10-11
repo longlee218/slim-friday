@@ -6,6 +6,7 @@ import { checkToolCall } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { repoMemoryFile } from "../src/memory/repo-memory";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { SUBAGENTS } from "../src/roles/subagents/subagent-registry";
 import {
   AGENT_TOOL_NAME,
   BASH_TOOL_NAME,
@@ -17,7 +18,6 @@ import {
   WEB_FETCH_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
-import { SUBAGENTS } from "../src/tools/tool-catalog";
 import { addRepo, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 /** Run one Q&A message and return the SDK options the handler built. */
@@ -87,8 +87,8 @@ test("Agent tool: only configured subagents; general-purpose (Bash/Write capable
   const ctx = { writePaths: [], allowedSubagents: Object.keys(SUBAGENTS) };
   const d = (input: Record<string, unknown>, tool = AGENT_TOOL_NAME) =>
     checkToolCall(tool, input, ctx).decision;
-  expect(d({ subagent_type: "repo-searcher", prompt: "p" })).toBe("allow");
-  expect(d({ subagent_type: "repo-searcher", prompt: "p" }, LEGACY_AGENT_TOOL_NAME)).toBe("allow");
+  expect(d({ subagent_type: "explorer", prompt: "p" })).toBe("allow");
+  expect(d({ subagent_type: "explorer", prompt: "p" }, LEGACY_AGENT_TOOL_NAME)).toBe("allow");
   expect(d({ subagent_type: "general-purpose", prompt: "p" })).toBe("deny");
   expect(d({ prompt: "p" })).toBe("deny");
 });

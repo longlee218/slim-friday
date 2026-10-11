@@ -26,9 +26,10 @@ export const PINNED_SCRIPTS: Record<string, string> = {
 };
 
 /**
- * `set.json`: `{ name, skills: string[] }` = the skills the set gives its role (one list for every stage of it).
- * Tolerated legacy shape: `skills` as a record of `{ lean?, full?: stages[] }`; the list is then the skills whose
- * `full` stages include `plan` or `exec` (qa and `lean` are ignored).
+ * `set.json`: `{ name, skills: string[], needs? }` = the skills the set gives its role (one list for every stage of
+ * it). `needs` maps a skill to the subagent names it cannot work without; a stage whose subagent list lacks one
+ * does not get that skill. Tolerated legacy shape: `skills` as a record of `{ lean?, full?: stages[] }`; the list is
+ * then the skills whose `full` stages include `plan` or `exec` (qa and `lean` are ignored).
  */
 const setSchema = z.object({
   name: z.string().regex(SKILL_SET_NAME),
@@ -36,20 +37,28 @@ const setSchema = z.object({
     z.array(z.string()),
     z.record(z.string(), z.object({ full: z.array(z.string()).optional() })),
   ]),
+  needs: z.record(z.string(), z.array(z.string())).optional(),
 });
 
 /**
- * Skills that need subagents and guard rules P3.4 builds (the Agent tool is not wired for them yet: loading them
- * would steer the exec model into flows the guard denies). Never loaded. REMOVE in P3.4.
+ * `needs` of the vendored set until its set.json carries them (owner edit, see the P3.4 A1 report); merged under set.json's own
+ * `needs` (per skill, set.json wins). REMOVE with that edit.
  */
-export const SKILLS_DEFERRED_TO_P34: readonly string[] = [
-  "subagent-driven-development",
-  "requesting-code-review",
-  "receiving-code-review",
-];
+export const DEFAULT_SKILL_NEEDS: Readonly<Record<string, readonly string[]>> = {
+  "subagent-driven-development": ["implementer", "task-reviewer"],
+  "requesting-code-review": ["task-reviewer"],
+  "receiving-code-review": ["task-reviewer"],
+};
 
-/** Skill dir names of set `set` (empty for an unknown/invalid set), minus the ones deferred to P3.4. */
-export function allowedSkills(set: string, setsDir = SKILL_SETS_DIR): string[] {
+/**
+ * Skill dir names of set `set` for a stage that may start `stageSubagents` (empty for an unknown/invalid set):
+ * a skill is dropped when any subagent it `needs` is not in that list. One list controls agents AND skills.
+ */
+export function allowedSkills(
+  set: string,
+  stageSubagents: readonly string[],
+  setsDir = SKILL_SETS_DIR,
+): string[] {
   if (!SKILL_SET_NAME.test(set)) return [];
   try {
     const parsed = setSchema.parse(
@@ -61,7 +70,11 @@ export function allowedSkills(set: string, setsDir = SKILL_SETS_DIR): string[] {
       : Object.entries(parsed.skills)
           .filter(([, v]) => v.full?.some((st) => st === "plan" || st === "exec"))
           .map(([skill]) => skill);
-    return list.filter((skill) => !SKILLS_DEFERRED_TO_P34.includes(skill));
+    // set.json overrides per skill; a skill it does not mention keeps the code default.
+    const needs = { ...DEFAULT_SKILL_NEEDS, ...parsed.needs };
+    return list.filter((skill) =>
+      (needs[skill] ?? []).every((agent) => stageSubagents.includes(agent)),
+    );
   } catch (err) {
     log.warn({ set, err: String(err) }, "skill set not loaded");
     return [];

@@ -22,10 +22,10 @@ import { sweepStalePlugins } from "../src/runtime/skills-plugin/plugin-sweep";
 import { buildRunSkills } from "../src/runtime/skills-plugin/run-skills";
 import {
   allowedSkills,
+  DEFAULT_SKILL_NEEDS,
   PINNED_SCRIPTS,
   SET_CAPS,
   SKILL_SETS_DIR,
-  SKILLS_DEFERRED_TO_P34,
   setFileFilter,
 } from "../src/runtime/skills-plugin/skill-sets";
 import { buildStageSkills } from "../src/runtime/skills-plugin/stage-skills";
@@ -153,9 +153,11 @@ function homeWith(yaml: string): string {
   return home;
 }
 const SUPERPOWERS = ["superpowers"];
+/** The subagents of a dev stage today: only the explorer. */
+const EXPLORER = ["explorer"];
 /** Sorted qualified skill names of one run (plugins cleaned right away). */
 const names = (home: string, sets: string[] = SUPERPOWERS) => {
-  const r = buildRunSkills({ agentHome: home, workspace: "main", sets });
+  const r = buildRunSkills({ agentHome: home, workspace: "main", sets, subagents: EXPLORER });
   r.cleanup();
   return r.skills.sort();
 };
@@ -169,12 +171,50 @@ const DEV_SKILLS = [
   "writing-plans",
 ];
 
-test("the set's skills are the dev list; SDD and the review skills are deferred to P3.4", () => {
-  expect(allowedSkills("superpowers").sort()).toEqual(DEV_SKILLS);
-  for (const d of DEFERRED) expect(allowedSkills("superpowers")).not.toContain(d);
-  expect(SKILLS_DEFERRED_TO_P34).toEqual(DEFERRED);
-  expect(allowedSkills("../etc")).toEqual([]);
-  expect(allowedSkills("nope")).toEqual([]);
+test("the set's skills for a stage with only the explorer are the dev list; SDD and the review skills stay off", () => {
+  expect(allowedSkills("superpowers", EXPLORER).sort()).toEqual(DEV_SKILLS);
+  expect(allowedSkills("superpowers", []).sort()).toEqual(DEV_SKILLS);
+  for (const d of DEFERRED) expect(allowedSkills("superpowers", EXPLORER)).not.toContain(d);
+  expect(Object.keys(DEFAULT_SKILL_NEEDS).sort()).toEqual([...DEFERRED].sort());
+  expect(allowedSkills("../etc", EXPLORER)).toEqual([]);
+  expect(allowedSkills("nope", EXPLORER)).toEqual([]);
+});
+
+test("a skill is loaded only when the stage has every subagent it needs (default table)", () => {
+  const dir = tmp();
+  mkdirSync(join(dir, "alpha"));
+  writeFileSync(
+    join(dir, "alpha", "set.json"),
+    JSON.stringify({ name: "alpha", skills: ["x", ...DEFERRED] }),
+  );
+  const allowed = (agents: string[]) => allowedSkills("alpha", agents, dir).sort();
+  expect(allowed(["explorer"])).toEqual(["x"]);
+  expect(allowed(["explorer", "task-reviewer"])).toEqual(
+    ["x", "requesting-code-review", "receiving-code-review"].sort(),
+  );
+  expect(allowed(["explorer", "implementer", "task-reviewer"])).toEqual(["x", ...DEFERRED].sort());
+});
+
+test("set.json `needs` wins over the code default table", () => {
+  const dir = tmp();
+  mkdirSync(join(dir, "alpha"));
+  const put = (needs?: unknown) =>
+    writeFileSync(
+      join(dir, "alpha", "set.json"),
+      JSON.stringify({ name: "alpha", skills: ["x", SDD], ...(needs ? { needs } : {}) }),
+    );
+  put(); // no `needs` key: the default table keeps SDD off
+  expect(allowedSkills("alpha", ["explorer"], dir)).toEqual(["x"]);
+  put({ x: ["reviewer-z"], [SDD]: [] }); // set.json overrides per skill
+  expect(allowedSkills("alpha", ["explorer"], dir)).toEqual([SDD]);
+  expect(allowedSkills("alpha", ["explorer", "reviewer-z"], dir)).toEqual(["x", SDD]);
+  // `needs` for one skill only: the other default-gated skills stay gated.
+  writeFileSync(
+    join(dir, "alpha", "set.json"),
+    JSON.stringify({ name: "alpha", skills: ["x", ...DEFERRED], needs: { x: ["q"] } }),
+  );
+  expect(allowedSkills("alpha", ["explorer"], dir)).toEqual([]);
+  expect(allowedSkills("alpha", ["q"], dir)).toEqual(["x"]);
 });
 
 test("a role with the set gets its skills; a role without sets gets none; old yaml keys are ignored", () => {
@@ -184,7 +224,12 @@ test("a role with the set gets its skills; a role without sets gets none; old ya
 });
 
 test("only .md files reach a built plugin (the 3 SDD scripts stay out while SDD is deferred)", () => {
-  const r = buildRunSkills({ agentHome: homeWith(""), workspace: "main", sets: SUPERPOWERS });
+  const r = buildRunSkills({
+    agentHome: homeWith(""),
+    workspace: "main",
+    sets: SUPERPOWERS,
+    subagents: EXPLORER,
+  });
   const all = r.dirs.flatMap((d) => files(d));
   r.cleanup();
   expect(all.filter((f) => !f.endsWith(".md") && f !== ".claude-plugin/plugin.json")).toEqual([]);
@@ -195,7 +240,12 @@ test("the workspace dir (extra) gets its own plugin next to the set plugin; both
   const wsSkills = workspacePaths(home).workspace("main").skills;
   mkdirSync(join(wsSkills, "mine"), { recursive: true });
   writeFileSync(join(wsSkills, "mine", "SKILL.md"), "---\nname: mine\ndescription: d\n---\n");
-  const r = buildRunSkills({ agentHome: home, workspace: "main", sets: SUPERPOWERS });
+  const r = buildRunSkills({
+    agentHome: home,
+    workspace: "main",
+    sets: SUPERPOWERS,
+    subagents: EXPLORER,
+  });
   expect(r.skills).toContain("main:mine");
   expect(r.skills).toHaveLength(7);
   expect(r.dirs).toHaveLength(2);
@@ -203,7 +253,12 @@ test("the workspace dir (extra) gets its own plugin next to the set plugin; both
   r.cleanup();
   expect(readdirSync(join(home, "tmp"))).toEqual([]);
   expect(names(homeWith("skills:\n  extra: false\n"))).toHaveLength(6);
-  const only = buildRunSkills({ agentHome: home, workspace: "main", sets: [] });
+  const only = buildRunSkills({
+    agentHome: home,
+    workspace: "main",
+    sets: [],
+    subagents: EXPLORER,
+  });
   expect(only.skills).toEqual(["main:mine"]); // the pre-sets behavior
   only.cleanup();
 });
@@ -214,16 +269,16 @@ test("a set.json whose name differs from its dir loads nothing; flat and legacy 
   const put = (name: string, skills: unknown) =>
     writeFileSync(join(dir, "alpha", "set.json"), JSON.stringify({ name, skills }));
   put("other", ["x"]);
-  expect(allowedSkills("alpha", dir)).toEqual([]);
+  expect(allowedSkills("alpha", [], dir)).toEqual([]);
   put("alpha", ["x", "y"]);
-  expect(allowedSkills("alpha", dir)).toEqual(["x", "y"]);
+  expect(allowedSkills("alpha", [], dir)).toEqual(["x", "y"]);
   put("alpha", {
     x: { lean: [], full: ["exec"] },
     y: { full: ["plan"] },
     z: { full: ["qa"] },
     w: { lean: ["exec"], full: [] },
   });
-  expect(allowedSkills("alpha", dir).sort()).toEqual(["x", "y"]);
+  expect(allowedSkills("alpha", [], dir).sort()).toEqual(["x", "y"]);
 });
 
 test("a stage that is not a registry stage loads no set and warns", () => {

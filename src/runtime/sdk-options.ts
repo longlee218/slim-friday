@@ -13,7 +13,8 @@ import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
 import { roleOfStage } from "../roles/role-registry";
 import type { StageDefinition } from "../roles/role-types";
-import { SUBAGENTS, toolOptions } from "../tools/tool-catalog";
+import { agentsOf } from "../roles/subagents/subagent-registry";
+import { toolOptions } from "../tools/tool-catalog";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import type { RunAgentInput } from "./run-agent";
 import { sdkEnv } from "./sdk-env";
@@ -103,9 +104,7 @@ export async function buildSdkOptions(
     ...(perms && { canUseTool: perms.canUseTool }),
     // Only the subagents this stage names (read-only tools each). Skills: only the workspace's curated ones,
     // through the plugin; the list hides the SDK's bundled ones (a model once reached for `update-config`).
-    agents: Object.fromEntries(
-      Object.entries(SUBAGENTS).filter(([name]) => stage.subagents?.includes(name)),
-    ),
+    agents: agentsOf(stage.subagents),
     skills: sk.skills,
     ...(sk.plugins && { plugins: sk.plugins }),
     maxTurns: config.limits.maxTurns,
