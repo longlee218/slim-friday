@@ -61,7 +61,8 @@ test("exec: follow-up, memory contract and commit git tools; no repo line", () =
   expect(text).toContain("[global]");
   expect(text).toContain("NEVER add Co-Authored-By");
   for (const tool of GIT_GROUPS.commit) expect(text).toContain(tool);
-  expect(text).not.toContain("repo: <name>");
+  // The writing-plans overlay (shared plan/exec skill list) mentions the repo line; check the rules only.
+  expect(text.split("## Skill overlays")[0]).not.toContain("repo: <name>");
 });
 
 test("context goes after the rules with a blank line; empty context gives rules only", () => {

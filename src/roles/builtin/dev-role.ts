@@ -45,6 +45,7 @@ const PLAN = `This run is the plan stage of a code task, in plan mode.
 - Write your plan to the plan file, then you MUST call ${EXIT_PLAN_MODE_TOOL_NAME} to submit it. Never end your turn without calling ${EXIT_PLAN_MODE_TOOL_NAME} (only exception: a request too vague to plan, see below).
 - Do NOT implement here: after approval the app creates a clone and starts a separate execute run.
 - Your plan MUST contain one line exactly like "repo: <name>" naming the repo to change (names are listed below).
+- Plan format: a "## Global Constraints" section first (project-wide rules every task obeys, one line each: conventions, forbidden changes, the test command), then one heading per task exactly like "### Task N: <name>" (N counts from 1) with its files, steps and the test that proves it. Never use a heading other than "### Task N: ..." for a task.
 - Registered repos are read-only references. Any shell command may need owner approval or be denied: if denied, adapt, do not retry the same call.`;
 
 /** Execute stage contract: work in the clone, follow the approved plan, small commits, repo memory. */

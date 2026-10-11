@@ -91,6 +91,10 @@ guild (DISCORD_GUILD_ID)
 - The bot warns on every start (`discord.bot_administrator`) when it holds Administrator in the guild.
 - Intents: Guilds, Guild Messages, Message Content (privileged; enable in the Developer Portal). `bootstrap:discord` logs in with Guilds only.
 
+## Workflow skill: `bun run discord init-workflow-skill <ws>`
+
+`init:workspace` writes `workspaces/<ws>/skills/workflow/SKILL.md` (the dev role's master skill, from `src/discord-setup/templates/workflow-skill.md`). For a workspace made earlier, run once per workspace on the host: `bun run discord init-workflow-skill <ws>`. It writes the file only when it is missing and never overwrites an edited one; it refuses a name that is not a workspace. Startup never writes into workspaces. Edit the file freely; note that the workspace skills dir is also listed to the assistant (Q&A) runs.
+
 ## Create the ops channels: `bun run bootstrap:discord`
 
 Needs `DISCORD_TOKEN`, `DISCORD_GUILD_ID`, `OWNER_DISCORD_ID`, `AGENT_HOME` in the environment (`.env` is loaded by Bun) and the bot invited with Manage Channels + Manage Roles.
@@ -331,7 +335,7 @@ cp -R /path/to/deploy ~/.friday/workspaces/<ws>/skills/deploy     # needs deploy
 
 - Old `skills.sets` / `skills.mode` keys in workspace.yaml or repo.yaml are ignored.
 - Dev skills: brainstorming, writing-plans, executing-plans, test-driven-development, verification-before-completion, systematic-debugging. `subagent-driven-development` and the two code-review skills are excluded until P3.4 (`SKILLS_DEFERRED_TO_P34`).
-- A workspace cannot be named `superpowers` (set names are reserved). Set plugins hold only `.md` files (+ the 3 sha-pinned SDD scripts once SDD is enabled); caps 120 entries / 1 MB per set. `init:workspace` writes `skills: {extra: true}`.
+- A workspace cannot be named `superpowers` (set names are reserved). Set plugins hold only `.md` files (+ the 3 sha-pinned SDD scripts once SDD is enabled); caps 120 entries / 1 MB per set. `init:workspace` writes `skills: {extra: true}` and the `workflow` skill.
 
 **Workflow Modes (Phase 3+):**
 - `workflow: lean` (default) — safe for any repo; standard rules apply

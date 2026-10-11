@@ -51,6 +51,28 @@ export function workspaceState(home: string, name: string): WorkspaceState {
   }
 }
 
+/** Template of the `<ws>:workflow` master skill (the dev role's skill-use guide). */
+const WORKFLOW_SKILL_TEMPLATE = join(import.meta.dir, "templates", "workflow-skill.md");
+
+/**
+ * Write `skills/workflow/SKILL.md` from the template unless it exists (never overwrites, even a symlink or an
+ * owner-edited file): `wx` makes the create atomic. Returns whether it wrote. Creates `skills/` if missing.
+ */
+export function writeWorkflowSkill(home: string, name: string): "written" | "exists" {
+  const dir = join(workspacePaths(home).workspace(name).skills, "workflow");
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    writeFileSync(join(dir, "SKILL.md"), readFileSync(WORKFLOW_SKILL_TEMPLATE, "utf8"), {
+      flag: "wx",
+      mode: 0o600,
+    });
+    return "written";
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EEXIST") return "exists";
+    throw err;
+  }
+}
+
 /** Create the workspace folder from the template. The dir is created non-recursively, so an existing one throws. */
 export function createWorkspaceDir(home: string, name: string): void {
   const paths = workspacePaths(home);
@@ -59,7 +81,8 @@ export function createWorkspaceDir(home: string, name: string): void {
   mkdirSync(ws.root, { mode: 0o700 });
   mkdirSync(ws.repos);
   mkdirSync(ws.cwd);
-  mkdirSync(ws.skills, { mode: 0o700 }); // owner-curated skills, empty by default
+  mkdirSync(ws.skills, { mode: 0o700 }); // owner-curated skills: only `workflow` by default
+  writeWorkflowSkill(home, name);
   writeFileSync(ws.config, Bun.YAML.stringify({ channels: [], skills: { extra: true } }, null, 2), {
     mode: 0o600,
   });
