@@ -13,13 +13,7 @@
       "tool_input",
       "tool_use_id"
     ],
-    "input_keys": [
-      "description",
-      "prompt",
-      "subagent_type",
-      "model",
-      "run_in_background"
-    ],
+    "input_keys": ["description", "prompt", "subagent_type", "model", "run_in_background"],
     "response_keys": null,
     "agent_id": null,
     "agent_type": null
@@ -55,13 +49,7 @@
       "tool_input",
       "tool_use_id"
     ],
-    "input_keys": [
-      "description",
-      "prompt",
-      "subagent_type",
-      "model",
-      "run_in_background"
-    ],
+    "input_keys": ["description", "prompt", "subagent_type", "model", "run_in_background"],
     "response_keys": null,
     "agent_id": null,
     "agent_type": null
@@ -122,13 +110,7 @@
       "tool_use_id",
       "duration_ms"
     ],
-    "input_keys": [
-      "description",
-      "prompt",
-      "subagent_type",
-      "model",
-      "run_in_background"
-    ],
+    "input_keys": ["description", "prompt", "subagent_type", "model", "run_in_background"],
     "response_keys": [
       "status",
       "prompt",
