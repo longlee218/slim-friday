@@ -27,6 +27,10 @@ export interface FlowResult
   diffStat?: string;
   /** Model of an escalated re-run (the stage row then records it instead of the first run's model). */
   model?: string;
+  /** The run refused to start for a config reason (no commit identity, wrong workspace): a fix of the config lets it go on. */
+  configRefusal?: true;
+  /** Set by the stage runner: the failure qualifies for `failed_resumable` (the clone, plan and session are kept). */
+  resumable?: ResumeReason;
 }
 
 /** A run that did not start or failed before any agent result: reply text, no session. */
@@ -45,6 +49,29 @@ export const OUTCOME_REPLY: Record<string, string> = {
   quota: "Quota exhausted / rate limited. Not retrying automatically.",
   error: "Agent failed. Check the logs.",
 };
+
+/** Why a run after the approved plan stopped but can be continued: label shown to the owner (the key is the stage verdict). */
+export const RESUMABLE = {
+  config: "missing commit identity or workspace config",
+  budget: "budget limit reached",
+  error: "agent error",
+} as const;
+export type ResumeReason = keyof typeof RESUMABLE;
+
+/** Which failures qualify for `failed_resumable`, first match wins: one row per reason. Anything else stays `failed`. */
+const RESUMABLE_WHEN: ReadonlyArray<readonly [ResumeReason, (r: FlowResult) => boolean]> = [
+  ["config", (r) => r.configRefusal === true],
+  ["budget", (r) => r.outcome === "max_budget"],
+  ["error", (r) => r.outcome === "error"],
+];
+
+/** The reason a failed run can be resumed, or undefined (stop, restart, timeout, quota and a failure before the plan do not qualify). */
+export const resumeReasonOf = (r: FlowResult): ResumeReason | undefined =>
+  RESUMABLE_WHEN.find(([, when]) => when(r))?.[0];
+
+/** The question L3 reads the owner's next message against (same words as the notice of the failure). */
+export const resumeQuestion = (taskId: string, reason: string): string =>
+  `Task ${taskId.slice(0, 8)} stopped at exec: ${reason}. Continue with the approved plan?`;
 
 /** Map run outcome to the task status stored in db. */
 const TASK_STATUS: Record<string, TaskStatus> = {
@@ -83,7 +110,11 @@ export function finishRun(
     // A finished task over the size threshold: forget the session, the next turn starts fresh with the ledger.
     if (res.outcome === "success") compactIdleSession(db, ids, res.usage);
   }
-  finishTask(db, ids.taskId, TASK_STATUS[res.outcome] ?? "failed");
+  finishTask(
+    db,
+    ids.taskId,
+    res.resumable ? "failed_resumable" : (TASK_STATUS[res.outcome] ?? "failed"),
+  );
   // Budget hit is never silent: spent / limit, the overshoot note; event `budget.exceeded`.
   if (res.outcome === "max_budget") return budgetHitReply(res);
   // Quota: say when it resets, when the SDK told us.
@@ -91,7 +122,11 @@ export function finishRun(
     res.outcome === "quota" && res.resetsAt
       ? ` Resets at ${new Date(res.resetsAt).toISOString()}.`
       : "";
-  return redactText(res.text || `${OUTCOME_REPLY[res.outcome] ?? "No answer."}${reset}`);
+  const text = redactText(res.text || `${OUTCOME_REPLY[res.outcome] ?? "No answer."}${reset}`);
+  // A resumable failure ends with the question (reply yes or `/go`): the clone, plan and session are kept.
+  return res.resumable
+    ? `${text}\n${resumeQuestion(ids.taskId, RESUMABLE[res.resumable])} Reply yes or send \`/go\`.`
+    : text;
 }
 
 /**

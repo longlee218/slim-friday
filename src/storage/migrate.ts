@@ -87,8 +87,12 @@ const V2_COLUMNS: Record<string, Array<[name: string, ddl: string]>> = {
     ["stage_idx", "INTEGER"],
     ["model", "TEXT"],
   ],
-  // Subagent that made the call (P3.1); NULL = the main agent.
-  tool_calls: [["agent_id", "TEXT"]],
+  // Subagent that made the call (P3.1); NULL = the main agent. Task of the run: a running task has no `runs` row yet,
+  // so its latest tool (status snapshot, Rev 12) is read by task id.
+  tool_calls: [
+    ["agent_id", "TEXT"],
+    ["task_id", "TEXT"],
+  ],
   // Independent task clone (P2): where it came from and how it was delivered.
   worktrees: [
     ["workspace", "TEXT"],

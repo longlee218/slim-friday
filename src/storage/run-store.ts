@@ -13,11 +13,29 @@ export type TaskStatus =
   | "cancelled"
   /** Cut short by a restart/shutdown; the thread gets a Resume offer, then the row becomes cancelled. */
   | "interrupted"
-  | "timeout";
+  | "timeout"
+  /** Failed after the approved plan (config refusal, budget, transient error) with the clone kept: `/go` continues it (Rev 12). */
+  | "failed_resumable";
 
 /** Change a task's status without ending it (no-op when the row is missing). */
 export function setTaskStatus(db: Database, id: string, status: TaskStatus): void {
   db.query("UPDATE tasks SET status = ? WHERE id = ?").run(status, id);
+}
+
+/** Record the repo a task works in once it is known (a staged task starts with "*" until its plan picks one). */
+export function setTaskRepo(db: Database, id: string, repo: string): void {
+  db.query("UPDATE tasks SET repo = ? WHERE id = ?").run(repo, id);
+}
+
+/** Nothing is left to resume in this thread (clone removed or expired): its `failed_resumable` task becomes `failed`. */
+export function dropResumable(db: Database, threadId: string): boolean {
+  return (
+    db
+      .query(
+        "UPDATE tasks SET status = 'failed' WHERE thread_id = ? AND status = 'failed_resumable'",
+      )
+      .run(threadId).changes > 0
+  );
 }
 
 /** Record the Claude session of a task (reported at `system/init`) and the cwd it runs in. */
@@ -96,6 +114,8 @@ export function insertTask(
     /** Task whose turn proposed this one, and how many hand-overs deep it is (0 = owner-started). */
     parentTaskId?: string;
     hop?: number;
+    /** The task runs a `failed_resumable` one again (kind `resume`): it does not count as a fix round. */
+    resume?: boolean;
   },
 ): void {
   // Only roles with `countsTowardCap` count against the concurrency cap (see `countActiveCappedTasks`).
@@ -115,7 +135,7 @@ export function insertTask(
     t.proposalId ?? null,
     role.countsTowardCap ? 1 : 0,
     role.name,
-    taskKindOf(role),
+    t.resume ? "resume" : taskKindOf(role),
     t.parentTaskId ?? null,
     t.hop ?? 0,
   );
@@ -165,11 +185,13 @@ export function countActiveCappedTasks(db: Database): number {
     .get()!.n;
 }
 
-/** Follow-up tasks (fix rounds) run in the clone of task `taskId`: rows whose parent is that task. */
+/** Follow-up tasks (fix rounds) run in the clone of task `taskId`: rows whose parent is that task (a resume is not one). */
 export function countFollowUps(db: Database, taskId: string): number {
   return (
     db
-      .query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM tasks WHERE parent_task_id = ?")
+      .query<{ n: number }, [string]>(
+        "SELECT COUNT(*) AS n FROM tasks WHERE parent_task_id = ? AND kind <> 'resume'",
+      )
       .get(taskId)?.n ?? 0
   );
 }

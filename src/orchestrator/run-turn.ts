@@ -7,6 +7,7 @@ import type { Repo } from "../repos/repo-registry";
 import { getRole } from "../roles/role-registry";
 import { RESUME_FAILED } from "../runtime/run-errors";
 import { threadLedger } from "../storage/ledger-store";
+import { dropResumable } from "../storage/run-store";
 import { deleteSession, type SessionRow } from "../storage/session-store";
 import { liveWorktree } from "../storage/worktree-store";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
@@ -35,6 +36,8 @@ export interface RoleRunCtx {
     cls?: TaskClass,
     /** Task whose clone a follow-up (fix round) continues. */
     parentTaskId?: string,
+    /** The task runs a `failed_resumable` one again (not a fix round). */
+    resume?: boolean,
   ) => void;
   /** Repo of the log context, to report when the flow named none. */
   taskRepo: () => string;
@@ -69,7 +72,16 @@ export async function runTurn(
   const state = deriveThreadState(db, task.threadId);
   logEvent(c.log, "thread.state", { state });
   const ledger = role.context?.ledger && isIdleLike(state) ? threadLedger(db, task.threadId) : "";
-  c.begin(a.route.repo, role.name, startStage(role, !!worktree).name, cls, worktree?.taskId);
+  c.begin(
+    a.route.repo,
+    role.name,
+    startStage(role, !!worktree).name,
+    cls,
+    worktree?.taskId,
+    !!a.plan.approved,
+  );
+  // The held task is taken over only now that the resumed run has its own row (a start failure keeps the hold).
+  if (a.plan.approved) dropResumable(db, task.threadId);
   const res: FlowResult = await runStages(deps, {
     taskId,
     threadId: task.threadId,
@@ -81,6 +93,7 @@ export async function runTurn(
     ac: c.ac,
     worktree,
     planResume,
+    approved: a.plan.approved,
     route: runRt,
     resume:
       worktree && existing?.cwd === realOrSame(worktree.path) ? existing.session_id : undefined,

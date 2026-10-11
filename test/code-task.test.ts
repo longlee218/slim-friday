@@ -189,6 +189,6 @@ test("PreToolUse hook denies dangerous Bash and forces ask for unknown Bash", as
   const call = (command: string) =>
     hook({ hook_event_name: "PreToolUse", tool_name: BASH_TOOL_NAME, tool_input: { command } });
   expect((await call("sudo ls")).hookSpecificOutput.permissionDecision).toBe("deny");
-  expect((await call("ls -la")).hookSpecificOutput.permissionDecision).toBe("ask");
+  expect((await call("less notes.txt")).hookSpecificOutput.permissionDecision).toBe("ask");
   expect(await call("git status")).toEqual({ continue: true });
 });

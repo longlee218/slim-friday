@@ -44,6 +44,8 @@ export interface SideInput {
   pinned?: Repo;
   /** Controller of this side run (linked to the thread's `/stop` and to shutdown by the caller). */
   ac: AbortController;
+  /** Status of the thread's running task (see tasks/status-snapshot.ts), shown to the role as data; empty = none. */
+  snapshot?: string;
 }
 
 /** Answer a side question; returns the reply text. Throws only on a crash (the caller reports it). */
@@ -88,7 +90,10 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
       route: runRoute({ cls: i.cls, effort: i.effort }),
       pinned: i.pinned,
       existing: undefined, // fresh: never resumes (nor overwrites) the thread's session
-      ledger: role.context?.ledger ? threadLedger(db, i.task.threadId) : "",
+      // The status snapshot goes with the ledger: both are data blocks of the running task.
+      ledger: [i.snapshot, role.context?.ledger ? threadLedger(db, i.task.threadId) : ""]
+        .filter(Boolean)
+        .join("\n\n"),
     },
   ).catch((err: unknown) => {
     failTask(db, log, taskId);

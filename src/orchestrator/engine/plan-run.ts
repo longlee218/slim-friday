@@ -54,6 +54,7 @@ export async function runPlanRun(c: StageCtx): Promise<PlanStageResult> {
       memoryRepos: i.repos.map((r) => r.name),
     }),
     guard: guardFor(stage, {
+      cwd: scratchReal,
       writePaths: [scratchReal, plans],
       readPaths: [scratchReal, plans, ...repoPaths],
       gitReadRepos: repoPaths,

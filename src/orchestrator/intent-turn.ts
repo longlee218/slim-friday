@@ -22,7 +22,7 @@ import {
   MAX_FIX_ROUNDS,
   routeByIntent,
 } from "./thread/route-by-intent";
-import { deriveThreadState, isGateState, isIdleLike } from "./thread/thread-state";
+import { deriveThreadState, isGateState, isIdleLike, isWorking } from "./thread/thread-state";
 import { turnEffort } from "./thread/turn-effort";
 
 /** What one intent decision needs from the handler. */
@@ -62,7 +62,7 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   // the SCOPE of every message, tagged or not (supplement -> steer, independent -> side / queue; a `[tag]` only picks
   // the role). On the plan gate the typed text is feedback on the plan (L3 tells feedback, a question or other work).
   // Any other busy state keeps the old path (a tagged message queues; L3 only reads a pending answer or a gate state).
-  const steerable = c.busy && state === "running" && !!c.deps.steer?.canTake(threadId);
+  const steerable = c.busy && isWorking(state) && !!c.deps.steer?.canTake(threadId);
   const gated = c.busy && isGateState(state);
   const { decision, effort } = await decideIntent(
     {

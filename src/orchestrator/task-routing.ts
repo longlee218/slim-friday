@@ -1,7 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import type { Effort, Route as ModelRoute, TaskClass } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import type { Repo } from "../repos/repo-registry";
@@ -9,6 +8,7 @@ import { entryRole, followUpRole, getRole, isGated } from "../roles/role-registr
 import { latestTaskSession, setTaskStatus, taskRole } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
 import { getWorktreeByThread, liveWorktree, type WorktreeRow } from "../storage/worktree-store";
+import { resumeFailedPlan } from "./dispatch/resume-failed-task";
 import {
   cappedTaskBlocker,
   capRefusal,
@@ -104,6 +104,7 @@ export interface ResumePlan {
   existing?: SessionRow;
   /** Plan stage cut before approval: resume this session in its scratch dir. */
   planResume?: { sessionId: string; cwd: string };
+  approved?: { plan: string; repo: string }; // failed_resumable task: the plan to run exec from again
 }
 
 /**
@@ -125,8 +126,11 @@ export function resolveCommand(
   );
   const last = latestTaskSession(deps.db, threadId);
   if (!last) return cannot;
-  // Only a task that was cut short (or stopped, or ended on its budget) can be resumed; a newer finished/failed one means stale.
-  if (last.status !== "interrupted" && last.status !== "cancelled" && !last.budgetStopped)
+  // Only a task that was cut short (or stopped, or ended on its budget, or failed resumable) can be resumed; a newer finished/failed one means stale.
+  if (
+    !["interrupted", "cancelled", "failed_resumable"].includes(last.status) &&
+    !last.budgetStopped
+  )
     return refuse("stale_resume", "This Resume is out of date: the thread has moved on.");
   // A budget stop with the same budget would stop again: the owner must raise it.
   if (last.budgetStopped && last.status !== "interrupted" && cmd.extraBudgetUsd === undefined)
@@ -134,6 +138,7 @@ export function resolveCommand(
       "budget_stop",
       "That task stopped on its budget. Reply `/go +<usd>` to continue with more budget.",
     );
+  if (last.status === "failed_resumable") return resumeFailedPlan(deps, threadId);
   if (!last.sessionId || !last.cwd) return cannot;
   const existing: SessionRow = {
     thread_id: threadId,
@@ -177,21 +182,4 @@ export function resolveCommand(
   return plainCwd ? { cmd: { kind: "task", text }, existing } : cannot;
 }
 
-/**
- * Route of a run: owner class, effort and `go +<usd>` raise; undefined when none is set (stage defaults).
- * Effort `max` only arrives here after the owner-confirm gate said yes (`resolveEffort` caps it otherwise), so it
- * carries the confirmation into the model routing.
- */
-export const runRoute = (r: {
-  cls?: TaskClass;
-  effort?: Effort;
-  extraBudgetUsd?: number;
-}): ModelRoute | undefined =>
-  r.cls || r.effort || r.extraBudgetUsd
-    ? {
-        cls: r.cls,
-        effort: r.effort,
-        extraBudgetUsd: r.extraBudgetUsd,
-        ...(r.effort === "max" && { ownerConfirmedMax: true }),
-      }
-    : undefined;
+export { runRoute } from "./run-route";

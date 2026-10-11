@@ -9,16 +9,18 @@ import { getRole } from "../../roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
 import type { QueryFn } from "../../runtime/run-agent";
 import type { SessionRow } from "../../storage/session-store";
-import { GATE_APPROVED_VERDICT, type StageStatus, upsertStage } from "../../storage/stage-store";
+import { type StageStatus, upsertStage } from "../../storage/stage-store";
 import type { WorktreeRow } from "../../storage/worktree-store";
 import type { SteerRegistry } from "../tasks/steer-registry";
 import { type FlowResult, failResult } from "../tasks/task-result";
 import { budgetDiffStat } from "./budget";
 import { stageKind } from "./gates";
-import { runCloneRun, switchToClone } from "./isolation";
+import { switchToClone } from "./isolation";
 import { runPlain } from "./plain-run";
 import { runPlanRun } from "./plan-run";
+import { cloneRun, markResumable, resumePrompt, switchFailure } from "./resume-exec";
 import { awaitingResult } from "./stage-control";
+import { stageOutcome } from "./stage-outcome";
 import { validateRole } from "./validate-role";
 
 /** Logger of this module (task fields come from the log context). */
@@ -59,6 +61,8 @@ export interface StageRunInput {
   worktree?: WorktreeRow;
   /** Session to resume for a follow-up (same cwd as the clone). */
   resume?: string;
+  /** The approved plan of a `failed_resumable` task (`/go`): with `worktree` the exec stage runs again from it; without one (the clone was never made) the stage switch runs again. */
+  approved?: { plan: string; repo: string };
   /** Interrupted plan stage (Resume button): rerun the plan in this scratch dir and session. */
   planResume?: { sessionId: string; cwd: string };
   /** Class and `go +<usd>` raise of this run (model + budget routing); applies to every stage run. */
@@ -81,19 +85,6 @@ export interface StageCtx {
   role: RoleDefinition;
   /** One question round per task: shared by every stage (enforced in the permission guard). */
   askLimit: { asked: boolean };
-}
-
-/** Stage row status + gate verdict of a finished stage run (`budget` = stopped on its budget, `go +<usd>` resumes). */
-function stageOutcome(
-  res: FlowResult,
-  o: { approved?: boolean; stopping: boolean },
-): { status: StageStatus; verdict?: string } {
-  if (o.approved) return { status: "done", verdict: GATE_APPROVED_VERDICT }; // the approval itself aborts the run
-  if (res.outcome === "max_budget") return { status: "interrupted", verdict: "budget" };
-  if (res.keepSession && res.outcome === "aborted")
-    return { status: "interrupted", verdict: "awaiting_answer" };
-  if (res.outcome === "aborted") return { status: o.stopping ? "interrupted" : "cancelled" };
-  return { status: res.outcome === "success" ? "done" : "failed" };
 }
 
 /** Index of the stage a follow-up starts at (`followUp.startAtStage`); the first stage when the role has none. */
@@ -129,6 +120,8 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
   let plan = "";
   let res = failResult("No stage ran.");
   const first = wt ? followUpStart(role) : 0;
+  if (i.approved && wt)
+    ({ prompt, plan } = resumePrompt(deps.config, role, i, wt, i.approved.plan));
   for (const [idx, stage] of role.stages.entries()) {
     if (idx < first) continue; // a follow-up skips the stages before its start stage
     const ctx: StageCtx = { deps, i, stage, idx, role, askLimit };
@@ -159,7 +152,7 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
       try {
         res =
           kind === "clone" && wt
-            ? await runCloneRun(ctx, { wt, prompt, plan, resume: i.resume })
+            ? await cloneRun(ctx, { wt, prompt, plan, resume: i.resume })
             : await runPlain(ctx);
       } catch (err) {
         end("failed", failResult("The stage run threw.")); // never left `running`
@@ -168,6 +161,7 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
       // A budget stop in a clone shows what the agent changed so far (the clone stays for `/go +<usd>`).
       if (res.outcome === "max_budget" && kind === "clone" && wt)
         res = { ...res, diffStat: await budgetDiffStat(wt) };
+      if (kind === "clone") res = markResumable(res, i);
       const w = stageOutcome(res, { stopping: !!deps.stopping?.() });
       end(w.status, res, w.verdict);
       if (res.outcome !== "success") return res;
@@ -176,7 +170,9 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
     // Plan-approval gate: the run ends (aborted) once the owner approves the plan.
     let planned: Awaited<ReturnType<typeof runPlanRun>>;
     try {
-      planned = await runPlanRun(ctx);
+      // A resumed task whose clone never existed: its plan is already approved (the stage switch runs again below).
+      planned =
+        i.approved && !wt ? { res: failResult(""), approved: i.approved } : await runPlanRun(ctx);
     } catch (err) {
       end("failed", failResult("The stage run threw."));
       throw err;
@@ -191,7 +187,8 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
     setLogContext({ repo: planned.approved.repo }); // stage switch: clone of the managed repo
     logEvent(log, "plan.approved");
     const sw = await switchToClone(ctx, stage.handoff, planned.approved);
-    if ("outcome" in sw) return sw;
+    if ("outcome" in sw)
+      return switchFailure(db, i, { idx: idx + 1, name: role.stages[idx + 1]?.name ?? "exec" }, sw);
     ({ wt, prompt } = sw);
     plan = planned.approved.plan;
   }

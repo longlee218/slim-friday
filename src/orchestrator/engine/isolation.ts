@@ -15,6 +15,7 @@ import { startWorktree } from "../../workspaces/task-clone";
 import { finishCodeTask, prTitle } from "../outputs/pr-output";
 import { type FlowResult, failResult } from "../tasks/task-result";
 import { DEFAULT_PLAN_FILE, renderHandoff } from "./handoff";
+import { savePlanForResume } from "./save-plan";
 import { awaitingResult, execWorkflow, stageControl } from "./stage-control";
 import type { StageCtx } from "./stage-runner";
 
@@ -22,16 +23,20 @@ import type { StageCtx } from "./stage-runner";
    (`workspaces/task-clone.ts`; the owner repo's `.git` is never touched). */
 
 /** Refusal text when the worktree's repo is not the clone of the workspace this run resolved to. */
-const wrongWorkspace = (ws: string, repo: string): FlowResult =>
-  failResult(
+const wrongWorkspace = (ws: string, repo: string): FlowResult => ({
+  ...failResult(
     `This task's worktree belongs to another workspace than ${ws} (repo ${repo}). Its workspace is no longer available: fix workspaces/<ws>/workspace.yaml, or clean up the thread.`,
-  );
+  ),
+  configRefusal: true, // fixing the config lets the task go on (`failed_resumable`)
+});
 
 /** Refusal text when a repo has no commit identity: never fall back to the machine's global git user. */
-export const noAuthor = (ws: string, repo: string): FlowResult =>
-  failResult(
+export const noAuthor = (ws: string, repo: string): FlowResult => ({
+  ...failResult(
     `No commit identity for ${repo}. Set gitAuthor: "Name <email>" in workspaces/${ws}/repos/${repo}/repo.yaml (or GIT_AUTHOR in .env).`,
-  );
+  ),
+  configRefusal: true, // fixing the config lets the task go on (`failed_resumable`)
+});
 
 /**
  * Stage with `isolation: clone`: the agent works in the task's checkout. With `gate: delivery` the `pr`
@@ -89,6 +94,7 @@ export async function runCloneRun(
       memoryRepos: [wt.repo],
     }),
     guard: guardFor(stage, {
+      cwd,
       writePaths: [cwd, plans],
       readPaths: [cwd, scratchReal, plans, ...flow.readPaths],
       gitWriteRepo: cwd,
@@ -140,8 +146,13 @@ export async function switchToClone(
   const { deps, i } = c;
   const repo = i.repos.find((r) => r.name === approved.repo);
   if (!repo) return failResult(`The plan named a repo that is not available: ${approved.repo}.`);
-  if (!resolveAuthor(repo, deps.config)) return noAuthor(i.workspace, repo.name);
   const planFile = handoff?.planFile ?? DEFAULT_PLAN_FILE;
+  if (!resolveAuthor(repo, deps.config)) {
+    // No clone can be made without a commit identity, but the approved plan and its repo are kept: after the owner
+    // fixes the config, `/go` runs this stage switch again instead of planning from scratch (`failed_resumable`).
+    savePlanForResume(deps, i, repo.name, planFile, approved.plan);
+    return noAuthor(i.workspace, repo.name);
+  }
   const started = await startWorktree(deps, i, repo, approved.plan, planFile);
   if ("outcome" in started) return started;
   const prompt = handoff

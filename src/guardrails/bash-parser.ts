@@ -12,6 +12,10 @@ export interface Segment {
   piped: boolean;
   /** Has an unquoted output redirection (`>`, `>>`, `&>`) to a file. */
   redirect: boolean;
+  /** Operator that ends this segment: `&&` `||` `;` `\n` `|` `&` `(` `)`; "" at the end of the line. */
+  next: string;
+  /** Nesting: 0 = top level; > 0 inside `( )` or a `$()` / backtick substitution. */
+  depth: number;
 }
 
 /** Index of the `)` matching the `(` just before `start`; throws if unbalanced. */
@@ -48,6 +52,7 @@ export function parseCommand(src: string): Segment[] {
   let inWord = false;
   let piped = false;
   let redirect = false;
+  let depth = 0;
   let quote: "'" | '"' | null = null;
 
   const endWord = () => {
@@ -56,13 +61,13 @@ export function parseCommand(src: string): Segment[] {
     inWord = false;
   };
   // Close the current segment. An empty segment keeps a pending pipe (`a |\n sh`).
-  const endSeg = (pipe: boolean) => {
+  const endSeg = (pipe: boolean, op = "") => {
     endWord();
     if (words.length === 0 && !redirect) {
       if (pipe) piped = true;
       return;
     }
-    out.push({ words, piped, redirect });
+    out.push({ words, piped, redirect, next: op, depth });
     words = [];
     redirect = false;
     piped = pipe;
@@ -82,6 +87,8 @@ export function parseCommand(src: string): Segment[] {
       else buf += c;
     } else if (c === "\\") {
       if (next === undefined) throw new Error("trailing backslash");
+      // A line continuation could split an operator (`<\<`): the line is not judged (it asks).
+      if (next === "\n") throw new Error("line continuation");
       if (next !== "\n") {
         // Inside double quotes only a few chars are escapable; otherwise keep the backslash.
         buf += quote === '"' && !'$`"\\'.includes(next) ? `\\${next}` : next;
@@ -103,24 +110,32 @@ export function parseCommand(src: string): Segment[] {
       quote = c;
       inWord = true;
     } else if (c === " " || c === "\t") endWord();
-    else if (c === "\n") endSeg(false);
+    else if (c === "\n") endSeg(false, "\n");
     else if (c === "#" && !inWord) {
       while (i + 1 < src.length && src[i + 1] !== "\n") i++;
     } else if (c === "&") {
+      const op = next === "&" ? "&&" : "&";
       if (next === "&") i++;
       if (next === ">") redirect = true;
-      else endSeg(false);
+      else endSeg(false, op);
     } else if (c === "|") {
       const pipe = next !== "|";
+      const op = pipe ? "|" : "||";
       if (next === "|" || next === "&") i++;
-      endSeg(pipe);
-    } else if (c === ";" || c === "(" || c === ")") endSeg(false);
-    else if (c === ">") {
+      endSeg(pipe, op);
+    } else if (c === ";") endSeg(false, ";");
+    else if (c === "(" || c === ")") {
+      endSeg(false, c);
+      depth = c === "(" ? depth + 1 : Math.max(0, depth - 1);
+    } else if (c === ">") {
       endWord();
       // `>&2` / `>&-` duplicate descriptors; anything else writes a file.
       if (next === "&" && /[\d-]/.test(src[i + 2] ?? "")) i++;
       else redirect = true;
       if (next === ">") i++;
+    } else if (c === "<" && next === "<" && src[i + 2] !== "<") {
+      // A heredoc body would be tokenized as commands (a `cd` in it never runs): the line cannot be judged.
+      throw new Error("heredoc");
     } else if (c === "<") endWord();
     else {
       buf += c;
@@ -129,5 +144,5 @@ export function parseCommand(src: string): Segment[] {
   }
   if (quote) throw new Error("unbalanced quote");
   endSeg(false);
-  return [...out, ...subs];
+  return [...out, ...subs.map((s) => ({ ...s, depth: s.depth + 1 }))];
 }

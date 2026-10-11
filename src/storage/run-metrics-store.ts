@@ -52,13 +52,15 @@ export interface ToolCallRecord {
   durationMs: number;
   /** Subagent that made the call; omitted = the main agent (NULL). */
   agentId?: string;
+  /** Task the run belongs to (its `runs` row only exists once the run ends). */
+  taskId?: string;
 }
 
 /** Insert (or replace on repeated tool_use id) a tool_calls row. */
 export function insertToolCall(db: Database, c: ToolCallRecord): void {
   db.query(
-    `INSERT OR REPLACE INTO tool_calls (id, run_id, tool, input_json, output_preview, is_error, duration_ms, agent_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO tool_calls (id, run_id, tool, input_json, output_preview, is_error, duration_ms, agent_id, task_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     c.id,
     c.runId,
@@ -68,5 +70,19 @@ export function insertToolCall(db: Database, c: ToolCallRecord): void {
     c.isError ? 1 : 0,
     c.durationMs,
     c.agentId ?? null,
+    c.taskId ?? null,
   );
+}
+
+/** Latest tool call of a task (any run, subagent calls included): name and whether a subagent made it. */
+export function latestToolCall(
+  db: Database,
+  taskId: string,
+): { tool: string; subagent: boolean } | undefined {
+  const row = db
+    .query<{ tool: string; agent_id: string | null }, [string]>(
+      "SELECT tool, agent_id FROM tool_calls WHERE task_id = ? ORDER BY rowid DESC LIMIT 1",
+    )
+    .get(taskId);
+  return row ? { tool: row.tool, subagent: row.agent_id !== null } : undefined;
 }

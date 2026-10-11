@@ -4,6 +4,7 @@ import { REPO_NAME, WORKSPACE_NAME, workspacePaths } from "../config/workspace-p
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { runGit } from "../repos/git-cli";
+import { dropResumable } from "../storage/run-store";
 import { deleteSession } from "../storage/session-store";
 import { deleteWorktree, getWorktreeByThread, type WorktreeRow } from "../storage/worktree-store";
 import { resolveCleanupTarget } from "./clone-lookup";
@@ -57,6 +58,7 @@ export async function dropClone(
   if (!(await removeCheckout(wt, agentHome))) return false;
   deleteWorktree(db, wt.taskId);
   deleteSession(db, wt.threadId);
+  dropResumable(db, wt.threadId); // nothing left to resume: a held `failed_resumable` task becomes `failed`
   return true;
 }
 
@@ -82,7 +84,11 @@ export async function cleanupWorktree(
     if (typeof hit === "string") return hit;
     wt = hit;
   } else wt = getWorktreeByThread(db, where.threadId);
-  if (!wt) return "No task clone found to clean up.";
+  if (!wt)
+    // A held task that never got a clone (no commit identity) has nothing to remove: `/cleanup` just drops the hold.
+    return !arg && dropResumable(db, where.threadId)
+      ? "Dropped the held task (no clone was made)."
+      : "No task clone found to clean up.";
   if (deps.active.has(wt.threadId)) return "That task clone is in use by a running task.";
   try {
     if (!(await dropClone(db, deps.agentHome, wt)))

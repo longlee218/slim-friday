@@ -278,7 +278,7 @@ test("run_messages (Rev 11): created on a v1 db, second open is a no-op, rows su
   expect(count(again, "tasks")).toBe(2);
 });
 
-test("tool_calls.agent_id is added to an old table and migration stays idempotent", () => {
+test("tool_calls.agent_id and task_id are added to an old table and migration stays idempotent", () => {
   const { file } = v1Home();
   const raw = new Database(file);
   raw.exec(
@@ -289,6 +289,7 @@ test("tool_calls.agent_id is added to an old table and migration stays idempoten
     const db = openDb(file);
     const cols = db.query<{ name: string }, []>("PRAGMA table_info(tool_calls)").all();
     expect(cols.filter((c) => c.name === "agent_id")).toHaveLength(1);
+    expect(cols.filter((c) => c.name === "task_id")).toHaveLength(1);
     db.close();
   }
 });

@@ -4,7 +4,6 @@ import { logEvent, logger } from "../../observability/logger";
 import type { Repo } from "../../repos/repo-registry";
 import { entryRole, isGated, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
-import { PLAN_NOT_REAPPROVED } from "../../storage/ledger-store";
 import { type DispatchDeps, dispatchRole } from "../dispatch/dispatch-role";
 import {
   answerPending,
@@ -13,6 +12,7 @@ import {
   queueTask,
   taskBrief,
 } from "../dispatch/queued-tasks";
+import { resumeAnswer } from "../dispatch/resume-failed-task";
 import {
   ASK_TEXT,
   FEEDBACK_MISSED,
@@ -21,13 +21,10 @@ import {
   NO_APPROVALS,
   NOTHING_PENDING,
   QUEUE_FULL,
-  STEER_ENDED,
-  STEER_FULL,
-  STEER_HELD,
-  STEER_RECEIVED,
   STILL_WORKING,
 } from "./intent-replies";
 import { FIX_LIMIT_REPLY, type IntentAction, isSideRole } from "./intent-table";
+import { steerReply } from "./steer-reply";
 
 export { actionFor, FIX_LIMIT_REPLY, type IntentAction, MAX_FIX_ROUNDS } from "./intent-table";
 
@@ -49,6 +46,8 @@ export type IntentOutcome =
       effort?: Effort;
       /** Text to run instead of the message (the owner declined an "open a task?" question: the original message). */
       text?: string;
+      /** Yes to "continue with the approved plan?": resume the thread's failed task (the `/go` path). */
+      resume?: true;
       /** One line put before the reply (why the message was answered rather than run as a task). */
       notice?: string;
     };
@@ -72,10 +71,6 @@ export interface RouteCtx {
   cls?: TaskClass;
   effort?: Effort;
 }
-
-/** The steer reply plus, when the task already passed its approved plan, the one-line warning. */
-const withPlanNote = (text: string, afterPlan: boolean): string =>
-  afterPlan ? `${text}\n${PLAN_NOT_REAPPROVED}` : text;
 
 /** What a queued request stores: the owner text plus the class and effort decided for it (kept until it starts). */
 const queued = (c: RouteCtx, role: string) => ({
@@ -119,6 +114,8 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       const declined = a.answer === "no" ? declineConfirmedTask(c, c.busy) : undefined;
       if (declined?.kind === "busy") return reply(DECLINE_BUSY_REPLY);
       if (declined) return { kind: "run", role: entryRole().name, text: declined.text };
+      const resumed = resumeAnswer(c.deps.db, c.task.threadId, a.answer, c.busy);
+      if (resumed) return resumed;
       return reply(await answerPending(c, a.answer, NOTHING_PENDING));
     }
     case "queue": {
@@ -133,15 +130,8 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       );
       return reply(text);
     }
-    case "steer": {
-      // Plain user text into the running stage's input: no scope, guard, budget or gate changes (see steer-registry.ts).
-      // The reply says "received", never that the agent read it (it reads at its next turn boundary). A steer into
-      // work that sits after the approved plan gate says so: the plan is NOT approved again for that change.
-      const sent = c.deps.steer?.steer(c.task, c.text);
-      if (sent?.result === "held") return reply(withPlanNote(STEER_HELD, sent.afterPlan));
-      if (sent?.result === "queued") return reply(withPlanNote(STEER_RECEIVED, sent.afterPlan));
-      return reply(sent?.result === "full" ? STEER_FULL : STEER_ENDED);
-    }
+    case "steer":
+      return reply(steerReply(c.deps, c.task, c.text));
     case "side": {
       // Not busy (a gate state with a free lock): the answering role simply runs. Busy: the parallel read-only run.
       const role = ROLES[a.role] as RoleDefinition;

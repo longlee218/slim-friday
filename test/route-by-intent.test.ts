@@ -71,11 +71,23 @@ test("awaiting_plan_approval: dev active = plan feedback; assistant answers, gat
   expect(act(role("dev", "new"), "awaiting_plan_approval")).toEqual({ kind: "queue", role: "dev" });
 });
 
-test("running: scope decides for ANY role (Rev 11): active (supplement) steers, new (independent) is answered by the side lane (answering role, no clone) or queues", () => {
+test("running (Rev 12): an answering role is ALWAYS answered by the side lane; a staged role: active steers, new queues", () => {
   expect(act(role("dev", "active"), "running")).toEqual({ kind: "steer", role: "dev" });
-  expect(act(role("assistant", "active"), "running")).toEqual({ kind: "steer", role: "assistant" });
+  expect(act(role("assistant", "active"), "running")).toEqual({ kind: "side", role: "assistant" });
   expect(act(role("assistant", "new"), "running")).toEqual({ kind: "side", role: "assistant" });
   expect(act(role("dev", "new"), "running")).toEqual({ kind: "queue", role: "dev" });
+});
+
+test("awaiting_tool_approval behaves as running in the table", () => {
+  expect(act(role("dev", "active"), "awaiting_tool_approval")).toEqual({
+    kind: "steer",
+    role: "dev",
+  });
+  expect(act(role("assistant", "active"), "awaiting_tool_approval")).toEqual({
+    kind: "side",
+    role: "assistant",
+  });
+  expect(act(role("dev", "new"), "awaiting_tool_approval")).toEqual({ kind: "queue", role: "dev" });
 });
 
 test("awaiting_result: dev active = bounded fix loop; assistant answers, gate stays; dev new queues", () => {

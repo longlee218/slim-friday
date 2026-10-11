@@ -2,7 +2,7 @@ import type { IntentDecision } from "../../intent/decide-intent";
 import { isGated, ROLES, usesClone } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import type { AskKind } from "./intent-replies";
-import { isIdleLike, type ThreadState } from "./thread-state";
+import { isIdleLike, isWorking, type ThreadState } from "./thread-state";
 
 /* The behavior table of the intent layer (decisions Rev 4/5/8/11): pure, no I/O. The executor is route-by-intent.ts. */
 
@@ -45,8 +45,9 @@ export interface TableInput {
  * role with an `isolation: clone` stage (the only one a fix round applies to). No role name appears here.
  * idle: answering -> run; staged new -> open (confirm-task when the discussion guard flagged it); staged active
  * with a clone and a clone role -> fix (max rounds) | fix-limit.
- * running (ANY role): scope active -> steer; scope new -> side for a side role (answering, no clone: it is answered at
- * once, next to the task), else queue (independent work runs after the task, auto-queued).
+ * running or awaiting a tool approval: a side role (answering, no clone) -> side whatever the scope (answered at once,
+ * next to the task, with a status snapshot); any other role: scope active -> steer, scope new -> queue (independent
+ * work runs after the task, auto-queued).
  * plan gate: side role -> side (any scope); staged active -> feedback; staged new -> queue.
  * result gate: side role -> side; staged new -> queue; staged active -> fix | fix-limit for a clone role, else side.
  * Any state: low confidence / unknown role / failure -> ask (the fallback of an idle thread already is the entry role).
@@ -66,9 +67,10 @@ export function actionFor(i: TableInput): IntentAction {
     return { kind: d.confirmDev ? "confirm-task" : "open", role: d.role };
   }
   // A run works: the scope (L3's call, see decide-intent) says supplement or independent, whatever the role.
-  if (i.state === "running") {
-    if (d.scope !== "new") return { kind: "steer", role: d.role };
-    return { kind: isSideRole(role) ? "side" : "queue", role: d.role };
+  // An answering role never steers the run (a question to it is not a change of the work): the side lane answers it.
+  if (isWorking(i.state)) {
+    if (isSideRole(role)) return { kind: "side", role: d.role };
+    return { kind: d.scope !== "new" ? "steer" : "queue", role: d.role };
   }
   if (!isGated(role)) return { kind: isSideRole(role) ? "side" : "queue", role: d.role };
   if (d.scope === "new") return { kind: "queue", role: d.role };

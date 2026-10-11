@@ -1,5 +1,6 @@
 import type { AskReason } from "../../intent/decide-intent";
 import { leadingRoleTag } from "../../intent/role-tag";
+import { redactText } from "../../observability/redact";
 import { ROLES } from "../../roles/role-registry";
 
 /** Why the owner is asked (the intent reasons; a `max` effort is confirmed with buttons, see max-effort-gate.ts). */
@@ -32,6 +33,9 @@ export const NOTHING_PENDING = "Nothing is waiting for an answer.";
 export const NO_APPROVALS = "This task needs the Discord approval flow.";
 /** A steer reached the run's input. It says "received", never that the agent read it: the model takes it at its next turn boundary, after the current tools. */
 export const STEER_RECEIVED = "received, the agent takes it at its next step";
+/** A steer arrived while a tool approval waits: the message is stored and reaches the agent after the owner decides. Never says "read". */
+export const STEER_WAITING = (tool: string) =>
+  `agent is waiting for your approval of ${redactText(tool)} above (Approve/Deny); your message is saved and is delivered after the decision`;
 /** A steer arrived while the run is between two streaming stages: it goes into the next one. */
 export const STEER_HELD = "received, the agent takes it when its next stage starts";
 /** Typed feedback was handed to the plan gate: the planner revises and posts the plan again with new buttons. */

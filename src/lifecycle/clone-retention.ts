@@ -1,11 +1,13 @@
 import type { Database } from "bun:sqlite";
-import { lstatSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, rmSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { REPO_NAME, WORKSPACE_NAME, workspacePaths } from "../config/workspace-paths";
 import { logEvent, logger } from "../observability/logger";
+import { dropResumable, setTaskStatus } from "../storage/run-store";
 import { deleteSession } from "../storage/session-store";
 import { deleteWorktree, listWorktrees, type WorktreeRow } from "../storage/worktree-store";
 import { removeCloneDir, removeLegacyWorktree } from "../workspaces/clone-cleanup";
+import { UUID_RE } from "../workspaces/clone-safety";
 
 /* Startup retention of task clones: a delivered or kept clone is removed after CLONE_RETENTION_DAYS.
    Legacy pre-P2.1 git-worktree rows (no base_sha) expire on the same age rule. */
@@ -31,8 +33,46 @@ function lastActivity(db: Database, w: WorktreeRow): number {
 }
 
 /**
- * Remove delivered|kept clones idle longer than the retention (age from last activity; active clones are never touched): the clone dir
- * (safe remove only), its patch file, the row and the session. A refused removal keeps the row. Returns the task ids removed.
+ * An `active` clone is held for a resume (Rev 12): its task, or a resumed run of it, is `failed_resumable`. It
+ * expires like a kept one, also after a newer task of the thread started (no clone stays `active` forever).
+ */
+function heldForResume(db: Database, w: WorktreeRow): boolean {
+  return (
+    w.status === "active" &&
+    !!db
+      .query(
+        "SELECT 1 FROM tasks WHERE status = 'failed_resumable' AND thread_id = ? AND (id = ? OR parent_task_id = ?) LIMIT 1",
+      )
+      .get(w.threadId, w.taskId, w.taskId)
+  );
+}
+
+/** A `failed_resumable` task that never got a clone (no commit identity): its saved plan is all it holds. */
+function expireClonelessHolds(db: Database, agentHome: string, cutoff: number): string[] {
+  const rows = db
+    .query<{ id: string }, [number]>(
+      `SELECT t.id FROM tasks t WHERE t.status = 'failed_resumable'
+         AND COALESCE(t.ended_at, t.started_at) < ?
+         AND NOT EXISTS (SELECT 1 FROM worktrees w WHERE w.task_id = t.id OR w.task_id = t.parent_task_id)`,
+    )
+    .all(cutoff);
+  const ws = workspacePaths(agentHome);
+  const names = existsSync(ws.workspaces) ? readdirSync(ws.workspaces) : [];
+  for (const { id } of rows) {
+    // The task dir (saved plan) is rebuilt from validated names and a uuid, never taken from a row.
+    if (UUID_RE.test(id))
+      for (const name of names.filter((n) => WORKSPACE_NAME.test(n)))
+        rmSync(ws.workspace(name).task(id).root, { recursive: true, force: true });
+    setTaskStatus(db, id, "failed");
+    logEvent(log, "hold.expired", { taskId: id });
+  }
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Remove delivered|kept clones, and clones held for a resume, idle longer than the retention (age from last activity; other active clones are never touched): the clone dir
+ * (safe remove only), its patch file, the row and the session. A refused removal keeps the row. Held tasks without a clone
+ * expire by task age (plan file removed, task `failed`). Returns the task ids removed.
  */
 export function expireClones(
   db: Database,
@@ -43,7 +83,8 @@ export function expireClones(
   const cutoff = now - retentionDays * DAY_MS;
   const removed: string[] = [];
   for (const w of listWorktrees(db)) {
-    if (w.baseSha === null || (w.status !== "delivered" && w.status !== "kept")) continue;
+    if (w.baseSha === null) continue;
+    if (w.status !== "delivered" && w.status !== "kept" && !heldForResume(db, w)) continue;
     if (lastActivity(db, w) >= cutoff) continue;
     if (!removeCloneDir(w, agentHome)) continue; // refused: logged by the safe remove, row stays
     // The patch path is rebuilt from validated ids (removeCloneDir accepted them), never read from the row.
@@ -53,9 +94,11 @@ export function expireClones(
     rmSync(join(taskDir, `${w.taskId.slice(0, 8)}.patch`), { force: true });
     deleteWorktree(db, w.taskId);
     deleteSession(db, w.threadId);
+    dropResumable(db, w.threadId); // nothing left to resume: the held task becomes `failed`
     removed.push(w.taskId);
     logEvent(log, "clone.expired", { repo: w.repo, branch: w.branch, status: w.status });
   }
+  removed.push(...expireClonelessHolds(db, agentHome, cutoff));
   return removed;
 }
 

@@ -8,21 +8,25 @@
  * The git worktree is the real boundary. Reasons are short and never echo
  * command text beyond host / package names, so secrets are not leaked to the agent.
  */
-import { homedir } from "node:os";
-import { basename, isAbsolute } from "node:path";
+import { basename } from "node:path";
+import { type CdState, checkCd } from "./bash-cd";
+import {
+  allow,
+  ask,
+  checkChmod,
+  checkGit,
+  checkNetwork,
+  checkPackageManager,
+  checkRm,
+  deny,
+} from "./bash-command-checks";
 import { parseCommand, type Segment } from "./bash-parser";
+import { isPureGitRead, isReadCommand } from "./bash-read-commands";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { isSecretPath } from "./deny-dangerous";
-import { isGitDirArg, writesGitDir } from "./git-dir-guard";
-import { isInside, resolveReal } from "./paths";
-
-/** Hosts curl/wget may reach without asking. */
-const ALLOWED_HOSTS = ["github.com", "api.github.com", "registry.npmjs.org"];
+import { writesGitDir } from "./git-dir-guard";
 
 const RANK = { allow: 0, ask: 1, deny: 2 } as const;
-const allow = (reason: string): Decision => ({ decision: "allow", reason });
-const ask = (reason: string): Decision => ({ decision: "ask", reason });
-const deny = (reason: string): Decision => ({ decision: "deny", reason });
 
 /** Prefixes that run another command; stripped before judging the real command. */
 const WRAPPERS = new Set(["env", "command", "nohup", "time", "exec", "nice", "builtin"]);
@@ -41,110 +45,6 @@ const PKG_MANAGERS = new Set(["bun", "npm", "pnpm", "yarn"]);
 /** Strip `@` (curl -d @file) and `--opt=` prefixes, then test for a secret file name. */
 function isSecretArg(arg: string): boolean {
   return isSecretPath(arg.replace(/^--?[\w-]+=/, "").replace(/^@/, ""));
-}
-
-/** Hostname of a URL-ish word, lowercased; null when unparseable. */
-function hostOf(word: string): string | null {
-  try {
-    return new URL(word.includes("://") ? word : `http://${word}`).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-/** curl/wget: allow only when every URL/host-looking argument is in the allowlist. */
-function checkNetwork(cmd: string, args: string[]): Decision {
-  if (cmd !== "curl" && cmd !== "wget") return ask(`network command ${cmd} needs approval`);
-  // Output/upload/config flags can write or read anywhere: always ask.
-  if (
-    args.some(
-      (a) =>
-        /^-[a-zA-Z]*[oOTK]/.test(a) ||
-        /^--(output|upload-file|config|remote-name|cookie-jar)/.test(a),
-    )
-  ) {
-    return ask(`${cmd} with file output/upload flags`);
-  }
-  const targets = args.filter(
-    (a) => a.includes("://") || /^[\w.-]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(a),
-  );
-  if (targets.length === 0) return ask(`${cmd} with no recognizable host`);
-  for (const t of targets) {
-    const host = hostOf(t);
-    if (!host || !ALLOWED_HOSTS.includes(host)) {
-      return ask(`${cmd} to host not in allowlist: ${host ?? "unparseable"}`);
-    }
-  }
-  return allow(`${cmd} to allowlisted host`);
-}
-
-/** rm: deny recursive + force in any flag form (-rf, -fr, -r -f, --recursive --force). */
-function checkRm(args: string[]): Decision {
-  const flags = args.filter((a) => a.startsWith("-"));
-  const short = (re: RegExp) => flags.some((f) => !f.startsWith("--") && re.test(f));
-  const recursive = short(/[rR]/) || flags.includes("--recursive");
-  const force = short(/f/) || flags.includes("--force");
-  return recursive && force ? deny("recursive force delete is blocked") : ask("rm needs approval");
-}
-
-/** chmod: deny world-writable mode on / or the home dir. */
-function checkChmod(args: string[]): Decision {
-  const open = args.some((a) => a === "777" || /^(a|ugo)?\+rwx$/.test(a));
-  const roots = ["/", "/*", "~", "~/", "$HOME", "$HOME/", homedir()];
-  return open && args.some((a) => roots.includes(a))
-    ? deny("chmod 777 on / or home is blocked")
-    : ask("chmod needs approval");
-}
-
-/** Refs that a push must never target. */
-const PROTECTED = new Set(["main", "master"]);
-
-/** git: allow read-only status/diff/log; deny force push and push to main/master. */
-function checkGit(args: string[]): Decision {
-  let i = 0;
-  let configOverride = false;
-  // Skip global options (and the value of those that take one) to find the subcommand.
-  for (; i < args.length && args[i].startsWith("-"); i++) {
-    if (["-C", "-c", "--git-dir", "--work-tree", "--namespace"].includes(args[i])) {
-      if (args[i] === "-c") configOverride = true;
-      i++;
-    }
-  }
-  const sub = args[i];
-  const rest = args.slice(i + 1);
-  if (sub === "push") {
-    const forced = rest.some(
-      (a) => a.startsWith("--force") || /^-[^-]*f/.test(a) || a.startsWith("+"),
-    );
-    if (forced) return deny("force push is blocked");
-    const toProtected = rest
-      .filter((a) => !a.startsWith("-"))
-      .some((a) => PROTECTED.has((a.split(":").pop() ?? "").replace(/^refs\/heads\//, "")));
-    return toProtected
-      ? deny("push to main/master is blocked")
-      : deny("pushing is done by the app after the owner approves");
-  }
-  if (rest.includes("--no-index")) return deny("git --no-index reads arbitrary files");
-  if (sub === "status" || sub === "diff" || sub === "log") {
-    const writesFile = rest.some((a) => a === "--output" || a.startsWith("--output="));
-    return configOverride || writesFile ? ask(`git ${sub} with overrides`) : allow(`git ${sub}`);
-  }
-  // Everything else (add, commit, checkout, ...): the git MCP tools are the way, not the shell.
-  return deny(`use the git MCP tools instead of "git ${sub ?? ""}"`.replace("  ", " "));
-}
-
-/** Package managers: lockfile-only installs allow; adding packages asks with names. */
-function checkPackageManager(cmd: string, args: string[]): Decision {
-  const sub = args.find((a) => !a.startsWith("-"));
-  const rest = args.filter((a) => !a.startsWith("-") && a !== sub);
-  if (cmd === "npm" && sub === "ci") return ask("npm ci runs lifecycle scripts");
-  const adds = sub === "add" || (sub && ["install", "i"].includes(sub));
-  if (!adds) return ask(`${cmd} ${sub ?? ""} needs approval`.replace("  ", " "));
-  if (rest.length > 0) return ask(`${cmd} adds package: ${rest.join(", ").slice(0, 200)}`);
-  if (cmd !== "npm" && args.includes("--frozen-lockfile")) {
-    return allow(`${cmd} install --frozen-lockfile`);
-  }
-  return ask(`${cmd} install without lockfile guarantee`);
 }
 
 /** Judge one simple command. */
@@ -198,16 +98,6 @@ function commandKey(command: string): string | null {
   }
 }
 
-/** `cd <dir>` is harmless when <dir> stays inside the allowed write dirs (models prefix commands with it). */
-function isCdInside(words: string[], roots: string[]): boolean {
-  if (words[0] !== "cd" || words.length !== 2) return false;
-  const target = words[1];
-  if (isGitDirArg(target)) return false; // `cd .git` then a bare-name write: judged (denied) as a segment
-  if (!isAbsolute(target)) return !/(^|[\\/])\.\.([\\/]|$)/.test(target) && !target.startsWith("~");
-  const real = resolveReal(target);
-  return roots.some((r) => isInside(r, real));
-}
-
 /** Decide a Bash command line. Strictest segment wins; unparseable input asks. */
 export function checkBash(command: string, ctx: GuardrailContext): Decision {
   let segments: Segment[];
@@ -218,17 +108,52 @@ export function checkBash(command: string, ctx: GuardrailContext): Decision {
   }
   if (segments.length === 0) return ask("empty command");
   const allowed = new Set((ctx.allowedCommands ?? []).map(commandKey));
+  const roots = [...(ctx.writePaths ?? []), ...(ctx.readPaths ?? [])];
+  // `cwd` follows the line's `cd`s. After a cd into a dir that is only READABLE nothing may write or install there:
+  // later segments must be pure git reads or read commands (an allowed `bun install` there would write node_modules).
+  let cwd = ctx.cwd;
+  let readOnly = false;
   let worst: Decision | null = null;
-  for (const seg of segments) {
-    let d = isCdInside(seg.words, ctx.writePaths ?? [])
-      ? allow("cd inside allowed directory")
-      : checkSegment(seg);
-    // Exact allowlisted commands only upgrade ask; hard denies still win.
-    if (d.decision === "ask" && allowed.has(seg.words.join("\0"))) d = allow("allowlisted command");
+  let prevCd = false; // the previous segment was a tracked cd (it ran, or the line stopped there)
+  for (const [n, seg] of segments.entries()) {
+    // A cd moves the guard's cwd only when it surely runs in the main shell: top level, not piped, joined by `&&`
+    // or `;`, and not skipped by an earlier `&&` / `||` / background command. Anything else asks.
+    const seq = ["&&", ";", "\n", ""].includes(seg.next);
+    const reached: boolean = n === 0 || prevCd || [";", "\n"].includes(segments[n - 1]?.next ?? "");
+    const cd: CdState | undefined =
+      seg.depth === 0 && !seg.piped && seq && reached
+        ? checkCd(seg.words, cwd, ctx.writePaths ?? [], ctx.readPaths ?? [])
+        : undefined;
+    prevCd = !!cd;
+    let d: Decision;
+    if (cd) {
+      d = allow("cd inside allowed directory");
+      cwd = cd.cwd;
+      readOnly ||= cd.readOnly;
+    } else if (isReadCommand(seg.words, cwd, roots)) {
+      d = allow("read-only command");
+    } else {
+      d = checkSegment(seg);
+      if (d.decision === "allow" && (readOnly || seg.words[0] === "git")) {
+        if (!isPureGitRead(seg.words, cwd, roots))
+          d = ask("only git reads inside the allowed directories run here");
+      } else if (readOnly) {
+        // nothing else runs in a read-only directory
+      } else if (d.decision === "ask" && allowed.has(seg.words.join("\0"))) {
+        // Exact allowlisted commands only upgrade ask; hard denies still win.
+        d = allow("allowlisted command");
+      }
+    }
     // A file redirect can write anywhere, so an otherwise-safe command must ask.
     if (d.decision === "allow" && seg.redirect) d = ask("output redirection needs approval");
     if (!worst || RANK[d.decision] > RANK[worst.decision]) worst = d;
     if (d.decision === "deny") break;
   }
+  // An expansion anywhere (`$VAR`, `${..}`, `$(..)`, backtick, `~`, `{a,b}`, `<(..)`) can read what the guard never saw
+  // (env secrets leak through error text): the line never runs without the owner. A deny stays a deny.
+  const expands =
+    /[<>]\(/.test(command) ||
+    segments.some((s) => s.words.some((w) => /[$`{}]/.test(w) || w.startsWith("~")));
+  if (expands && worst?.decision === "allow") return ask("shell expansion needs approval");
   return worst ?? ask("empty command");
 }

@@ -107,6 +107,7 @@ export class RunRecorder {
         isError: c.isError,
         durationMs: c.durationMs,
         agentId: c.agentId,
+        taskId: this.taskId,
       }),
     );
   }

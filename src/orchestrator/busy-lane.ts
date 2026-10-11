@@ -10,6 +10,7 @@ import { runSideAnswer } from "./dispatch/side-answer";
 import { pinnedRepo, replyWhileBusy } from "./intent-turn";
 import type { TaskCommand } from "./task-commands";
 import type { RunLimiter } from "./tasks/run-limiter";
+import { statusSnapshot } from "./tasks/status-snapshot";
 import { OUTCOME_REPLY } from "./tasks/task-result";
 import type { EffortFloors } from "./thread/effort-floor";
 import { SIDE_BUSY } from "./thread/intent-replies";
@@ -114,6 +115,7 @@ async function runSide(
       repos: ws.repos,
       pinned,
       ac,
+      snapshot: statusSnapshot(d.deps.db, task.threadId),
     });
   } finally {
     running.signal.removeEventListener("abort", stop);

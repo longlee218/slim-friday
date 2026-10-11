@@ -56,7 +56,8 @@ export function buildIntentInput(
   return {
     text: p.text,
     thread: {
-      state: p.state,
+      // The classifier knows `running` for any working task (a tool approval wait is still a running task).
+      state: p.state === "awaiting_tool_approval" ? "running" : p.state,
       ...(task && { activeRole: task.role }),
       ...(stage && { activeStage: stage.name }),
       ...(GATE_OF[p.state] && { gate: GATE_OF[p.state] }),

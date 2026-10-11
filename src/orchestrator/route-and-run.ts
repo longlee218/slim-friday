@@ -115,8 +115,13 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
     if (out.kind === "reply") return out.text;
     if (out.kind === "side") return STILL_WORKING; // only a busy thread gets one (see route-by-intent `side`)
     picked = out;
+    // A yes to the failed task's question: the same path as `/go` (exec runs again from the approved plan).
+    if (out.resume) {
+      resolved = resolveCommand(rdeps, { kind: "resume" }, task.threadId);
+      if ("reply" in resolved) return refused(rc.log, resolved);
+    }
     // An outcome may swap the text to run (declined dev task); its `notice` is put before the reply below.
-    if (out.text) resolved = { ...resolved, cmd: { ...resolved.cmd, text: out.text } };
+    else if (out.text) resolved = { ...resolved, cmd: { ...resolved.cmd, text: out.text } };
   }
   const route = routeTask(
     { db, agentHome: config.agentHome, hasApprovals: c.hasApprovals },

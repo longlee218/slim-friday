@@ -41,6 +41,8 @@ export type Decision = { decision: "allow" | "ask" | "deny"; reason: string };
 
 /** Per-task settings for guardrail checks. */
 export interface GuardrailContext {
+  /** Real path of the run's working dir: relative paths of a Bash line resolve against it. Omitted = unknown (read commands with relative paths ask). */
+  cwd?: string;
   /** Real dirs where writes are allowed (plan stage: scratch + plans dir; execute stage: the worktree). */
   writePaths?: string[];
   /** Real dirs Read/Glob/Grep may touch (scratch, plans dir, registered repos). Omitted = no limit. */

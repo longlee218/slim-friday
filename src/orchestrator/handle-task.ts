@@ -133,12 +133,13 @@ export function createTaskHandler(deps: TaskHandlerDeps) {
       mode: string,
       cls?: TaskClass,
       parentTaskId?: string,
+      resume?: boolean,
     ) => {
       beginTask(
         db,
         log,
         { taskId, threadId, source: task.source, single },
-        { repo, role, mode, cls, parentTaskId },
+        { repo, role, mode, cls, parentTaskId, resume },
       );
       taskInserted = true;
     };

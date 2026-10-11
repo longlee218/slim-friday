@@ -92,6 +92,7 @@ export function beginTask(
     role: string;
     parentTaskId?: string;
     hop?: number;
+    resume?: boolean;
   },
 ): void {
   insertTask(db, {
@@ -105,6 +106,7 @@ export function beginTask(
     role: t.role,
     parentTaskId: t.parentTaskId,
     hop: t.hop,
+    resume: t.resume,
   });
   const logRepo = t.repo === "*" && ids.single ? ids.single : t.repo;
   setLogContext({ repo: logRepo, mode: t.mode });

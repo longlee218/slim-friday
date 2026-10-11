@@ -8,17 +8,20 @@ import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { createTaskHandler } from "../src/orchestrator/handle-task";
 import { createRunLimiter } from "../src/orchestrator/tasks/run-limiter";
+import { STATUS_HEADING } from "../src/orchestrator/tasks/status-snapshot";
 import {
   FEEDBACK_SENT,
   GATE_HINT,
   QUEUE_RECEIVED,
   SIDE_BUSY,
   STEER_RECEIVED,
+  STEER_WAITING,
 } from "../src/orchestrator/thread/intent-replies";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
 import { ROLES } from "../src/roles/role-registry";
 import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { listRunMessages } from "../src/storage/run-message-store";
+import { insertToolCall } from "../src/storage/run-metrics-store";
 import { setTaskStatus } from "../src/storage/run-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
@@ -80,6 +83,8 @@ const classifier = (p: Probe): IntentClassifier => ({
     if (i.text.includes("slow")) await Bun.sleep(150);
     const base = { confidence: "high" as const, reason: "r" };
     if (i.text.includes("ask")) return { ...base, role: "assistant", scope: "new" };
+    // a question about the running work: the model calls it a supplement (scope active), the table must still side-lane it
+    if (i.text.includes("status")) return { ...base, role: "assistant", scope: "active" };
     const dev = {
       ...base,
       role: "dev",
@@ -337,4 +342,76 @@ test("H-c plan gate: typed feedback re-runs the plan with the feedback; question
     ["other", "skipped"], // the yes (hint)
     ["steer", "delivered"], // the feedback
   ]);
+});
+
+/** The id of the thread's running task. */
+const liveTaskId = (env: { db: ReturnType<typeof makeEnv>["db"] }) =>
+  env.db.query<{ id: string }, []>("SELECT id FROM tasks WHERE thread_id = 'th1'").get()!.id;
+
+test("B: a steer while a tool approval waits gets the waiting reply (tool name), is stored pending and is delivered after the decision", async () => {
+  const h = await harness({ steersToRead: 1 });
+  const { first } = await h.start();
+  const taskId = liveTaskId(h.env);
+  insertApproval(h.env.db, { id: "tool1", taskId, tool: "Bash", summary: "cd x && ls" });
+  setTaskStatus(h.env.db, taskId, "waiting_approval");
+  expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_tool_approval");
+  const reply = await h.handle(msg("also keep it small"));
+  expect(reply).toBe(STEER_WAITING("Bash"));
+  expect(reply).not.toContain("read");
+  // stored at once as a steer, not yet read by the run
+  expect(listRunMessages(h.env.db, "th1").map((r) => [r.kind, r.status, r.content])).toEqual([
+    ["steer", "pending", "also keep it small"],
+  ]);
+  // the owner decides: the run goes on and reads it
+  decideApproval(h.env.db, "tool1", "approved");
+  setTaskStatus(h.env.db, taskId, "running");
+  expect(deriveThreadState(h.env.db, "th1")).toBe("running");
+  h.release();
+  await first;
+  expect(h.p.pulled.slice(1)).toEqual(["also keep it small"]);
+  expect(listRunMessages(h.env.db, "th1").map((r) => r.status)).toEqual(["delivered"]);
+});
+
+test("C: an answering role on a busy thread goes to the side lane even when L3 says supplement; the answer sees the status snapshot (fields only, no tool input)", async () => {
+  const h = await harness({ steersToRead: 0 });
+  const { first } = await h.start();
+  const taskId = liveTaskId(h.env);
+  // a finished tool call of the running task (a running task has no `runs` row yet) and a pending tool approval
+  insertToolCall(h.env.db, {
+    id: "tc1",
+    runId: "run-live",
+    taskId,
+    tool: "Grep",
+    inputJson: '{"pattern":"sk-ant-api03-SECRETSECRETSECRET"}',
+    outputPreview: "hit",
+    isError: false,
+    durationMs: 3,
+  });
+  insertApproval(h.env.db, { id: "tool1", taskId, tool: "Bash", summary: "ls" });
+  setTaskStatus(h.env.db, taskId, "waiting_approval");
+  expect(await h.handle(msg("status? what is the agent doing"))).toBe("assistant answer");
+  expect(h.p.sideOptions).toHaveLength(1);
+  const seen = JSON.stringify(h.p.sideOptions[0]);
+  expect(seen).toContain(STATUS_HEADING);
+  expect(seen).toContain("state: awaiting_tool_approval");
+  expect(seen).toContain("last tool: Grep");
+  expect(seen).toContain("waiting for the owner's approval of Bash");
+  expect(seen).toContain("stage plan");
+  expect(seen).not.toContain("SECRETSECRET");
+  // nothing was steered into the run
+  expect(listRunMessages(h.env.db, "th1").map((r) => [r.kind, r.status])).toEqual([
+    ["other", "delivered"],
+  ]);
+  h.release();
+  await first;
+  expect(h.p.pulled).toHaveLength(1); // only the task's own first message
+});
+
+test("C: a dev supplement on the same busy thread still steers", async () => {
+  const h = await harness({ steersToRead: 1 });
+  const { first } = await h.start();
+  expect(await h.handle(msg("also add a comment"))).toBe(STEER_RECEIVED);
+  h.release();
+  await first;
+  expect(h.p.pulled.slice(1)).toEqual(["also add a comment"]);
 });

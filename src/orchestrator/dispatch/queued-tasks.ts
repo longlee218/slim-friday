@@ -14,6 +14,7 @@ import {
 import { QUEUE_FULL, QUEUE_RECEIVED } from "../thread/intent-replies";
 import type { DispatchDeps } from "./dispatch-role";
 import { PROPOSAL_EXPIRED_REPLY, pendingProposalFor, persistProposal } from "./proposal-flow";
+import { resumeQuestionOf } from "./resume-failed-task";
 import { startPendingProposal } from "./start-proposal";
 
 /* An independent message of ANY role sent while a task runs: persisted as a queued proposal (no question: the owner
@@ -68,12 +69,12 @@ const isConfirm = (reason: string | null): boolean =>
   reason === CONFIRM_TASK_REASON || reason === LEGACY_CONFIRM_REASON;
 
 /**
- * The thread's unanswered question (the pending proposal's ONE question, same wording the owner saw), for L3 to
- * read the next message against; undefined when nothing is pending.
+ * The thread's unanswered question (the pending proposal's ONE question, same wording the owner saw, else the failed
+ * task's resume question), for L3 to read the next message against; undefined when nothing is pending.
  */
 export function pendingQuestionOf(db: DispatchDeps["db"], threadId: string): string | undefined {
   const p = pendingProposal(db, threadId);
-  if (!p) return undefined;
+  if (!p) return resumeQuestionOf(db, threadId); // else the failed task's "continue with the approved plan?"
   const what = `"${excerpt(briefText(p.brief), 200)}"`;
   return isConfirm(p.reason) ? `${CONFIRM_TASK_QUESTION} ${what}` : `Start this task now? ${what}`;
 }

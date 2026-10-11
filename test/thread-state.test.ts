@@ -1,8 +1,19 @@
 import { expect, test } from "bun:test";
 import { CREATE_PR_APPROVAL } from "../src/orchestrator/engine/gates";
-import { deriveThreadState, isIdleLike } from "../src/orchestrator/thread/thread-state";
+import {
+  deriveThreadState,
+  isGateState,
+  isIdleLike,
+  pendingToolApproval,
+} from "../src/orchestrator/thread/thread-state";
 import { insertApproval } from "../src/storage/approval-store";
-import { finishTask, insertTask, setTaskStatus } from "../src/storage/run-store";
+import {
+  finishTask,
+  insertTask,
+  interruptRunningTasks,
+  listInterruptedThreads,
+  setTaskStatus,
+} from "../src/storage/run-store";
 import { upsertStage } from "../src/storage/stage-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv } from "./helpers";
@@ -44,10 +55,27 @@ test("awaiting_result: waiting on the delivery gate", () => {
   expect(deriveThreadState(db, "th")).toBe("awaiting_result");
 });
 
-test("running: waiting for a tool approval or an answer is not a gate", () => {
+test("awaiting_tool_approval: a pending tool approval is not a gate; the decision lands -> running again", () => {
   const db = task("waiting_approval");
   pending(db, "Bash");
+  expect(deriveThreadState(db, "th")).toBe("awaiting_tool_approval");
+  expect(isGateState("awaiting_tool_approval")).toBe(false);
+  expect(isIdleLike("awaiting_tool_approval")).toBe(false);
+  expect(pendingToolApproval(db, "t1")?.tool).toBe("Bash");
+  db.query("UPDATE approvals SET decision = 'approved'").run();
+  db.query("UPDATE tasks SET status = 'running'").run();
   expect(deriveThreadState(db, "th")).toBe("running");
+  expect(pendingToolApproval(db, "t1")).toBeUndefined();
+});
+
+test("a gate approval is never a tool approval", () => {
+  const db = task("waiting_approval");
+  pending(db, EXIT_PLAN_MODE_TOOL_NAME);
+  expect(pendingToolApproval(db, "t1")).toBeUndefined();
+});
+
+test("failed_resumable folds to idle for routing, like failed", () => {
+  expect(deriveThreadState(task("failed_resumable"), "th")).toBe("idle");
 });
 
 test("gate recognized by the running stage when no approval row is pending", () => {
@@ -83,4 +111,20 @@ test("a task row of an unknown role is idle-like, not a crash", () => {
   db.query("UPDATE tasks SET role = 'ghost-role' WHERE id = 't1'").run();
   upsertStage(db, { taskId: "t1", idx: 0, name: "x", status: "running" });
   expect(deriveThreadState(db, "th")).toBe("idle");
+});
+
+test("restart while awaiting a tool approval (owner decision 6): interrupted + Resume offer, approval cancelled, thread idle", () => {
+  const db = task("waiting_approval");
+  pending(db, "Bash");
+  expect(deriveThreadState(db, "th")).toBe("awaiting_tool_approval");
+  interruptRunningTasks(db); // what startup / shutdown does to a crashed or drained run
+  expect(db.query("SELECT status FROM tasks WHERE id = 't1'").get()).toEqual({
+    status: "interrupted",
+  });
+  expect(db.query("SELECT decision FROM approvals WHERE id = 'ap1'").get()).toEqual({
+    decision: "cancelled",
+  });
+  expect(listInterruptedThreads(db)).toEqual(["th"]); // the thread gets its Resume notice
+  expect(deriveThreadState(db, "th")).toBe("idle");
+  expect(pendingToolApproval(db, "t1")).toBeUndefined();
 });
