@@ -86,8 +86,8 @@ test("ask boundary in plan and exec only; vague exception in plan only; full rul
   }
   expect(rules("qa")).not.toContain(ASK_USER_QUESTION_TOOL_NAME);
   expect(buildSystemPrompt("", "qa", { workflow: "full" }).append).toBe(rules("qa"));
-  expect(rules("plan")).toContain("too vague");
-  expect(rules("exec")).not.toContain("too vague");
+  expect(rules("plan")).toContain("no identifiable target");
+  expect(rules("exec")).not.toContain("no identifiable target");
   expect(buildSystemPrompt("", "plan", { workflow: "full" }).append).toContain(
     "For a repo marked [workflow: full]",
   );

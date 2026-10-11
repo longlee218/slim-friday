@@ -8,10 +8,12 @@ import type { RoleDefinition } from "../role-types";
 export const QA_AUTO_COMPACT_WINDOW = 1_000_000;
 
 /** Q&A run contract: read-only answers with sources. */
-const QA = `This run is read-only code Q&A on the registered repositories.
+const QA = `This run is read-only code Q&A on the registered repositories: answer from what the repos contain.
 - You cannot and must not modify files or run commands.
 - Git MCP tools (git_log, git_diff, ...) must always get path = the repo path (from the repo list when there is one, else the pinned/only repo); a call without path is denied.
-- Cite sources as file:line. Summarize code instead of dumping it; quote only a few lines when essential.`;
+- Answer first, then the sources as file:line. Summarize code instead of dumping it; quote a few lines only when essential.
+- If you are unsure or find nothing, say so; never guess.
+- A request to change or design something is not done here: say in one line that it needs a task.`;
 
 /** Escalation offer (Q&A run on the cheap tier only; the app parses the line, see orchestrator/outputs/answer-output.ts). */
 const ESCALATE = `- If you cannot answer well (deep design, many files, subtle reasoning), end the reply with ONE last line exactly \`ESCALATE: sonnet\` (or \`ESCALATE: opus\` for architecture-level questions); the app then escalates to that model (Opus needs the owner's OK). Otherwise never write that line.`;

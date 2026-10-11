@@ -4,8 +4,8 @@ import { AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME } from "../../tools/sdk-tool-na
 
 /**
  * Friday's run facts for subagent-driven work in the dev exec stage: how the publisher skills' dispatch templates map
- * onto this app's subagent types. Self-contained and delimited on purpose: the prompt-quality plan (P3) folds run facts
- * into the role prompts later and can move this block as it is. It restates no skill step, it only maps and limits.
+ * onto this app's subagent types. A delimited block placed after the exec contract and run facts (dev-role.ts); it
+ * restates no skill step, it only maps and limits.
  * Empty unless the stage lists both `implementer` and `task-reviewer` (the single switch, see `DEV_SKILLS`).
  */
 export function subagentRunFacts(stageSubagents: readonly string[]): string {
