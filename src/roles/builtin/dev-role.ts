@@ -117,7 +117,7 @@ export const DEV_ROLE: RoleDefinition = {
     {
       ...CODE_STAGE_BASE,
       name: "exec",
-      permissionMode: "auto",
+      permissionMode: "bypassPermissions",
       model: "sonnet",
       classTiers: { mechanical: "haiku", standard: "sonnet", design: "opus" },
       budgetUsd: 3.0,

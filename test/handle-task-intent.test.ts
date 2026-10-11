@@ -309,7 +309,7 @@ test('a second dev task while one runs: auto-queued with "received" (no question
   const inner = fakeSdk(seen);
   // the first (assistant) run blocks until released
   const query = (a: any) =>
-    !a.options.permissionMode && !a.options.cwd.includes("worktrees") && seen.length === 0
+    a.options.permissionMode !== "plan" && !a.options.cwd.includes("worktrees") && seen.length === 0
       ? (async function* () {
           seen.push(a);
           await gate;
@@ -576,7 +576,7 @@ test("a crash of the active run still starts the queued task (no L3 call while a
   const inner = fakeSdk(seen);
   // the first (assistant) run blocks, then crashes the turn
   const query = (a: any) =>
-    !a.options.permissionMode && !a.options.cwd.includes("worktrees") && seen.length === 0
+    a.options.permissionMode !== "plan" && !a.options.cwd.includes("worktrees") && seen.length === 0
       ? (async function* () {
           seen.push(a);
           await gate;

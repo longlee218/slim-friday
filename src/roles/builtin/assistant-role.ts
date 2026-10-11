@@ -33,6 +33,7 @@ export const ASSISTANT_ROLE: RoleDefinition = {
       name: "qa",
       capabilities: ["read", "web", "skills", "subagents", "mcp"],
       gitGroups: ["read"],
+      permissionMode: "auto",
       isolation: "none",
       model: "haiku",
       budgetUsd: 0.5,

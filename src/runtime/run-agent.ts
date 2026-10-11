@@ -14,7 +14,7 @@ import {
 } from "../observability/record-run";
 import type { Workflow } from "../repos/repo-registry";
 import type { StageDefinition } from "../roles/role-types";
-import { type AutoModeState, resolvePermissionMode } from "./permission-mode";
+import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import { createPermissionWatch } from "./permission-watch";
 import type { SteerHook } from "./run-input-channel";
 import { consumeStream, type QueryFn, type StreamResult } from "./run-stream";
@@ -140,12 +140,14 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     sk = workspaceSkills(input.skillsWorkspace, config.agentHome);
     // Auto mode is requested here and confirmed by the SDK init message (permission-watch.ts).
     const requestedMode = resolvePermissionMode(stage, config);
-    const autoState: AutoModeState = { active: requestedMode === "auto" };
+    const autoState: ModeActive = { active: requestedMode === "auto" };
+    const bypassState: ModeActive = { active: requestedMode === "bypassPermissions" };
     const options = await buildSdkOptions(stage, input, {
       config,
       recorder,
       skills: sk,
       autoState,
+      bypassState,
     });
     logEvent(log, "run.started", {
       model: config.model,
@@ -167,7 +169,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       taskId: input.taskId,
       cwd: input.cwd,
       requireGit: stage.gitGroups.includes("commit"),
-      permissionWatch: createPermissionWatch(requestedMode, autoState),
+      permissionWatch: createPermissionWatch(requestedMode, autoState, bypassState),
     };
     res = input.steer
       ? await consumeSteered({ ...common, first: input.prompt, hook: input.steer, runId })

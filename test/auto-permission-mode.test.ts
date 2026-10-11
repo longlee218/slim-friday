@@ -15,17 +15,17 @@ const cfg = (provider: "anthropic" | "openrouter", hasRealAuth: boolean) =>
   ({ provider, hasRealAuth }) as AgentConfig;
 
 test("resolver: auto only on anthropic with a real login; otherwise fail closed to default", () => {
-  const exec = getStage("dev", "exec");
-  expect(resolvePermissionMode(exec, cfg("anthropic", true))).toBe("auto");
-  expect(resolvePermissionMode(exec, cfg("anthropic", false))).toBe("default");
-  expect(resolvePermissionMode(exec, cfg("openrouter", true))).toBe("default");
-  expect(resolvePermissionMode(exec, cfg("openrouter", false))).toBe("default");
+  const qa = getStage("assistant", "qa");
+  expect(resolvePermissionMode(qa, cfg("anthropic", true))).toBe("auto");
+  expect(resolvePermissionMode(qa, cfg("anthropic", false))).toBe("default");
+  expect(resolvePermissionMode(qa, cfg("openrouter", true))).toBe("default");
+  expect(resolvePermissionMode(qa, cfg("openrouter", false))).toBe("default");
 });
 
-test("resolver: plan and qa stages are unchanged on every provider", () => {
-  for (const c of [cfg("anthropic", true), cfg("openrouter", true)]) {
+test("resolver: plan stays plan and exec stays bypassPermissions on every provider and auth state", () => {
+  for (const c of [cfg("anthropic", true), cfg("openrouter", false)]) {
     expect(resolvePermissionMode(getStage("dev", "plan"), c)).toBe("plan");
-    expect(resolvePermissionMode(getStage("assistant", "qa"), c)).toBeUndefined();
+    expect(resolvePermissionMode(getStage("dev", "exec"), c)).toBe("bypassPermissions");
   }
 });
 
@@ -189,7 +189,7 @@ test("watch: classifier denial logs tool.denied by classifier with tool and id o
   expect(JSON.stringify(denied[0])).not.toContain("secret text");
 });
 
-/** Run the dev exec stage with a fake SDK that reports `actual` in its init; returns what the guard hook then does. */
+/** Run the assistant qa stage with a fake SDK that reports `actual` in its init; returns what the guard hook then does. */
 async function execRun(actual: string) {
   const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test" });
   let hook: any;
@@ -219,8 +219,8 @@ async function execRun(actual: string) {
     db: env.db,
     abortController: new AbortController(),
     queryFn: queryFn as never,
-    stage: getStage("dev", "exec"),
-    guard: guardFor("exec", { readPaths: [env.repo], writePaths: [env.home] }),
+    stage: getStage("assistant", "qa"),
+    guard: guardFor("qa", { readPaths: [env.repo] }),
     code: { threadId: "th" },
   });
   return out;

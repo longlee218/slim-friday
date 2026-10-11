@@ -14,7 +14,7 @@ import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
 import { roleOfStage } from "../roles/role-registry";
 import type { StageDefinition } from "../roles/role-types";
 import { SUBAGENTS, toolOptions } from "../tools/tool-catalog";
-import { type AutoModeState, resolvePermissionMode } from "./permission-mode";
+import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import type { RunAgentInput } from "./run-agent";
 import { sdkEnv } from "./sdk-env";
 import { buildSystemPrompt } from "./system-prompt";
@@ -64,7 +64,9 @@ export async function buildSdkOptions(
     recorder: RunRecorder;
     skills: RunSkills;
     /** Shared with the stream watch: flips off when the SDK did not enter the requested auto mode. */
-    autoState: AutoModeState;
+    autoState: ModeActive;
+    /** Same for bypassPermissions (the exec stage). */
+    bypassState: ModeActive;
   },
 ): Promise<Options> {
   const { config, skills: sk } = deps;
@@ -83,6 +85,7 @@ export async function buildSdkOptions(
         threadId: input.code?.threadId ?? "",
         guard,
         autoMode: deps.autoState,
+        bypassMode: deps.bypassState,
       })
     : undefined;
   return {
@@ -95,6 +98,8 @@ export async function buildSdkOptions(
     ...toolOptions(stage),
     mcpServers: await mcpServersFor(stage, input),
     ...(permissionMode && { permissionMode }),
+    // The SDK refuses bypassPermissions without this explicit opt-in (the guard hook stays the gate).
+    ...(permissionMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),
     ...(perms && { canUseTool: perms.canUseTool }),
     // Only the subagents this stage names (read-only tools each). Skills: only the workspace's curated ones,
     // through the plugin; the list hides the SDK's bundled ones (a model once reached for `update-config`).

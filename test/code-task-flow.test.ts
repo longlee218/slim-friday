@@ -126,8 +126,9 @@ test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; 
   expect(wt.branch).toMatch(/^friday\/[0-9a-f]{8}-/);
   expect(seen).toHaveLength(2);
   expect(seen[1].options.cwd).toBe(realpathSync(wt.path));
-  // Test env has no real Claude login: the exec stage's "auto" fails closed to "default".
-  expect(seen[1].options.permissionMode).toBe("default");
+  // The exec stage runs in bypassPermissions (no auth check; the guard hook is the gate).
+  expect(seen[1].options.permissionMode).toBe("bypassPermissions");
+  expect(seen[1].options.allowDangerouslySkipPermissions).toBe(true);
   const gitEnv = seen[1].options.mcpServers.git.env;
   expect(gitEnv.GIT_AUTHOR_EMAIL).toBe("test@example.com");
   expect(gitEnv.GIT_COMMITTER_EMAIL).toBe("test@example.com");
@@ -254,7 +255,7 @@ test("pure question: the agent answers, no plan stage, no code task row", async 
   });
   expect(await handle(msg_("where is alpha?"))).toBe("It lives in a.txt:1");
   expect(seen).toHaveLength(1);
-  expect(seen[0].permissionMode).toBeUndefined();
+  expect(seen[0].permissionMode).toBeOneOf(["auto", "default"]); // qa: auto, fail-closed to default
   expect(env.db.query("SELECT type FROM tasks").all()).toEqual([{ type: "qa" }]);
 });
 

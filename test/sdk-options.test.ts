@@ -129,8 +129,10 @@ test("options lock: tools, mcp servers, permission mode per stage", async () => 
   }
   // plan mode in the plan stage, auto mode (classifier) in exec.
   expect(plan.o.permissionMode).toBe("plan");
-  expect(exec.o.permissionMode).toBe("auto");
-  expect(qa.o.permissionMode).toBeUndefined();
+  expect(exec.o.permissionMode).toBe("bypassPermissions");
+  expect(exec.o.allowDangerouslySkipPermissions).toBe(true);
+  expect(plan.o.allowDangerouslySkipPermissions).toBeUndefined();
+  expect(qa.o.permissionMode).toBe("auto");
   // Never any filesystem settings; strict MCP config.
   for (const r of [qa, plan, exec]) {
     expect(r.o.settingSources).toEqual([]);

@@ -44,8 +44,11 @@ export type Decision = {
   ownerOnly?: boolean;
 };
 
-/** Decision as logged on `tool.done`: the guard's, or "auto" = guard asked, the SDK classifier decided. */
-export type LoggedDecision = { decision: Decision["decision"] | "auto"; reason: string };
+/**
+ * Decision as logged on `tool.done`: the guard's, "auto" = guard asked, the SDK classifier decided,
+ * "bypass" = guard asked, the bypass-mode stage let the call run without approval.
+ */
+export type LoggedDecision = { decision: Decision["decision"] | "auto" | "bypass"; reason: string };
 
 /** Per-task settings for guardrail checks. */
 export interface GuardrailContext {

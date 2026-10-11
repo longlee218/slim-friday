@@ -36,7 +36,8 @@ test("registry: assistant and dev, unknown role fails", () => {
 
 test("stages: plan-mode only in plan, worktree only in exec, default tier and budget per stage", () => {
   expect(getStage("dev", "plan").permissionMode).toBe("plan");
-  expect(getStage("dev", "exec").permissionMode).toBe("auto");
+  expect(getStage("dev", "exec").permissionMode).toBe("bypassPermissions");
+  expect(getStage("assistant", "qa").permissionMode).toBe("auto");
   expect(getStage("dev", "exec").isolation).toBe("clone");
   expect(getStage("assistant", "qa")).toMatchObject({
     model: "haiku",

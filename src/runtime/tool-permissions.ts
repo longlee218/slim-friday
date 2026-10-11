@@ -10,7 +10,7 @@ import { clip, errText } from "../observability/redact";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
 import { PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
 import { guardHook } from "./guard-hook";
-import type { AutoModeState } from "./permission-mode";
+import type { ModeActive } from "./permission-mode";
 
 /** Max chars of a tool input shown inline in the approval message (full input goes in the attachment). */
 const SUMMARY_MAX = 300;
@@ -44,7 +44,13 @@ export interface ToolPermissionInput {
    * Stage runs in SDK `auto` mode: a SOFT guard `ask` is left to the SDK classifier (canUseTool only if it cannot
    * decide). Owner-only asks (`Decision.ownerOnly`) and every ask when `active` is false still force the owner prompt.
    */
-  autoMode?: AutoModeState;
+  autoMode?: ModeActive;
+  /**
+   * Stage runs in SDK `bypassPermissions` mode: the SDK asks nothing, so the hook is the only gate. Hard denies stay
+   * denies; EVERY guard `ask` (soft and owner-only) is let through and logged "bypass". When `active` is false (the
+   * SDK did not enter bypass) asks go to the owner as in default mode (fail closed).
+   */
+  bypassMode?: ModeActive;
   /** The owner did not answer the questions in time: the caller stops the run and replies "Awaiting clarification". */
   onAskTimeout?: (questions: AskQuestion[]) => void;
 }
@@ -70,7 +76,7 @@ function summarize(tool: string, input: Record<string, unknown>): string {
 export function buildToolPermissions(p: ToolPermissionInput): {
   canUseTool: CanUseTool;
   hooks: HookCallbackMatcher[];
-  /** Guard decision per tool_use_id (allow/ask/auto), read by the tool hooks to complete the `tool.done` line. */
+  /** Guard decision per tool_use_id (allow/ask/auto/bypass), read by the tool hooks to complete the `tool.done` line. */
   decisions: Map<string, LoggedDecision>;
 } {
   const log = logger.child({ module: "tool-permissions" });

@@ -61,10 +61,11 @@ export interface StageDefinition {
   /** Git MCP tool groups the stage may use (read-only by-mode tools are always visible). */
   gitGroups: (keyof typeof GIT_GROUPS)[];
   /**
-   * SDK permission mode: `plan` for the plan stage (ExitPlanMode lives there); `auto` for the dev exec stage
-   * (classifier decides what the guard leaves open; resolved against availability in `resolvePermissionMode`).
+   * SDK permission mode: `plan` for the plan stage (ExitPlanMode lives there); `auto` for the assistant qa stage
+   * (classifier decides what the guard leaves open; resolved against availability in `resolvePermissionMode`);
+   * `bypassPermissions` for the dev exec stage (the SDK asks nothing; only the guard's hard denies stop a call).
    */
-  permissionMode?: "plan" | "auto";
+  permissionMode?: "plan" | "auto" | "bypassPermissions";
   /** Where the stage runs. Omitted = `none`. */
   isolation?: Isolation;
   /** Owner gate that follows the stage. Omitted = `none`. */
