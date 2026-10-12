@@ -2,10 +2,24 @@ import { describe, expect, test } from "bun:test";
 import { captureLogs } from "../src/observability/logger";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
-import { sdkEnv } from "../src/runtime/sdk-env";
+import {
+  AUTO_COMPACT_WINDOW_VAR,
+  AUTOCOMPACT_PCT_VAR,
+  COMPACT_PCT,
+  COMPACT_WINDOW_TOKENS,
+  MAIN_CACHE_TTL,
+  PROMPT_CACHE_TTL_VAR,
+  SUBAGENT_CACHE_TTL,
+  SUBAGENT_CACHE_TTL_VAR,
+  sdkEnv,
+} from "../src/runtime/sdk-env";
 
-/** Vars the app always sets for the subagent limits (never taken from the caller env). */
+/** Vars the app always sets: subagent limits, compaction (window + 75%) and cache TTLs (never taken from the caller env). */
 const SUBAGENT_ENV = {
+  [AUTO_COMPACT_WINDOW_VAR]: String(COMPACT_WINDOW_TOKENS),
+  [AUTOCOMPACT_PCT_VAR]: String(COMPACT_PCT),
+  [PROMPT_CACHE_TTL_VAR]: MAIN_CACHE_TTL,
+  [SUBAGENT_CACHE_TTL_VAR]: SUBAGENT_CACHE_TTL,
   CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1",
   CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "1",
 };

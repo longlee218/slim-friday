@@ -58,7 +58,9 @@ export function sdkCompactLlm(
           persistSession: false, // the transcript would hold the whole memory text
           settingSources: [],
           abortController: ac,
-          env: sdkEnv({ ...config, model: config.memoryModel }),
+          env: sdkEnv({ ...config, model: config.memoryModel }, process.env, undefined, {
+            oneShot: true,
+          }),
         },
       });
       for await (const m of stream) {

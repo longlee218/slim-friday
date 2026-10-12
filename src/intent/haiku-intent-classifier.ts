@@ -68,7 +68,7 @@ export function createHaikuIntentClassifier(
             persistSession: false, // the transcript would hold the owner message
             settingSources: [],
             abortController: ac,
-            env: sdkEnv({ ...config, model }),
+            env: sdkEnv({ ...config, model }, process.env, undefined, { oneShot: true }),
           },
         });
         for await (const m of stream) {

@@ -1,4 +1,5 @@
 import type { RoleDefinition } from "../roles/role-types";
+import { COMPACT_WINDOW_TOKENS } from "../runtime/sdk-env";
 import type { AgentConfig } from "./agent-config";
 
 /* Model tiers and per-role budgets: WHICH model a role run uses and HOW MUCH it may spend. Pure functions. */
@@ -111,15 +112,11 @@ export function resolveBudget(
 }
 
 /**
- * Auto-compact window (tokens) the orchestrator sets for a role run, or undefined = leave the SDK default.
- * Env pin COMPACT_WINDOW_<ROLE> (0 = off) > the role's `autoCompactWindow`. Never read from the
- * owner's shell by the SDK child: only this value reaches it (see runtime/sdk-env.ts).
+ * Auto-compact window (tokens) the orchestrator sets for a role run. Env pin COMPACT_WINDOW_<ROLE> (0 = no window
+ * var, the SDK default window; the 75% share still applies) > the role's `autoCompactWindow` > the app default
+ * `COMPACT_WINDOW_TOKENS`. Never read from the owner's shell by the SDK child: only this value reaches it.
  */
-export function resolveCompactWindow(
-  role: RoleDefinition,
-  config: AgentConfig,
-): number | undefined {
+export function resolveCompactWindow(role: RoleDefinition, config: AgentConfig): number {
   const pin = config.compactOverrides[roleKey(role.name)];
-  const tokens = pin ?? role.autoCompactWindow;
-  return tokens && tokens > 0 ? tokens : undefined;
+  return pin ?? role.autoCompactWindow ?? COMPACT_WINDOW_TOKENS;
 }

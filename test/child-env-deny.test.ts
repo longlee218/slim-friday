@@ -34,7 +34,12 @@ describe("child env deny list (config/data/child-env-deny.yaml)", () => {
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_BASE_URL",
       ],
-      "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
+      ...[
+        "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
+        "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE",
+        "CLAUDE_CODE_PROMPT_CACHE_TTL",
+        "CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL",
+      ],
     ])
       expect([k, isChildEnvDenied(k)]).toEqual([k, true]);
   });

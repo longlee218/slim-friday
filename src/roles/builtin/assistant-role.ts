@@ -6,13 +6,6 @@ const MAX_ASK = 6;
 const BUDGET_USD = 1.0;
 const ESCALATED_BUDGET_USD = 2.5;
 
-/**
- * Auto-compact window of the assistant: the top of the range P3.0 saw accepted (100k-1M), so the
- * SDK threshold stays at its own default (min(window, model window) - reserve): effectively OFF until the
- * retest of Q12 shows the setting fires. Lower it with COMPACT_WINDOW_ASSISTANT.
- */
-export const QA_AUTO_COMPACT_WINDOW = 400_000;
-
 /** Run contract of the generalist: answers with sources; the tools it has come from role data, not from this text. */
 const QA = `This run is general help, answered now: answer, research, look up, summarize, compare or advise on the registered repositories and on anything else the owner asks.
 - A greeting or small talk gets a short friendly reply; do not ask which code to look at.
@@ -45,6 +38,5 @@ export const ASSISTANT_ROLE: RoleDefinition = {
   model: "haiku",
   budgetUsd: BUDGET_USD,
   escalatedBudgetUsd: ESCALATED_BUDGET_USD,
-  autoCompactWindow: QA_AUTO_COMPACT_WINDOW,
   promptSections: (ctx) => [QA, ctx.escalation ? ESCALATE : ""],
 };

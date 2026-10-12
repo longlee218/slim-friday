@@ -4,7 +4,7 @@ import { DEFAULT_TIER_MODELS, type ModelTier } from "./model-routing";
 
 type Env = Record<string, string | undefined>;
 
-/** Accepted COMPACT_WINDOW_* range (tokens): the SDK child takes 100k-1M (P3.0 Q12); 0 = off (SDK default). */
+/** Accepted COMPACT_WINDOW_* range (tokens): the SDK child takes 100k-1M (P3.0 Q12); 0 = no window var (SDK default window; the 75% share still applies). */
 export const COMPACT_WINDOW_MIN = 100_000;
 export const COMPACT_WINDOW_MAX = 1_000_000;
 
@@ -19,7 +19,7 @@ export interface RoutingEnv {
   modelOverrides: Record<string, string>;
   /** `<role>` -> USD (BUDGET_<ROLE>_USD). */
   budgetOverrides: Record<string, number>;
-  /** `<role>` -> auto-compact window in tokens (COMPACT_WINDOW_<ROLE>; 0 = leave the SDK default). */
+  /** `<role>` -> auto-compact window in tokens (COMPACT_WINDOW_<ROLE>; 0 = no window var, SDK default window, 75% share still applies). */
   compactOverrides: Record<string, number>;
   /** Deprecated env names that are set (legacy MODEL, the old two-name shapes): the startup warns once, the old shapes are ignored. */
   deprecated: string[];

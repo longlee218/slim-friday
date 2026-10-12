@@ -349,7 +349,7 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 - **Side answer** (foreground role): a parallel read-only run that starts fresh, takes a run slot, and gets a status snapshot of the running task. It never touches the thread session.
 - **Hard limits:** `MAX_PENDING_STEERS` 5 per run; `MAX_STEER_HOLDS` 2; `MAX_LATE_RESUMES` 1 (one resume of the same session when a message arrives after the input closed).
 - **Session reset:** when a `context.ledger` role's task ends with an average context ≥ 60,000 tokens, the thread's stored session is dropped; the next message starts fresh with the task ledger (`src/orchestrator/turns/session-compaction.ts`).
-- SDK auto-compact: the assistant gets `CLAUDE_CODE_AUTO_COMPACT_WINDOW` = 400,000; the dev run sets none. Effect not verified.
+- SDK auto-compact: every role run gets `CLAUDE_CODE_AUTO_COMPACT_WINDOW` = 1,000,000 (capped at the model window) and `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` = 75, plus cache TTL 1h (main and subagents); one-shot calls (intent, memory compaction) get none. Effect not verified live.
 
 ## Environment Variables and Limits
 
@@ -373,7 +373,7 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 | `MODEL_HAIKU` / `MODEL_SONNET` / `MODEL_OPUS` | `claude-haiku-4-5-20251001` / `claude-sonnet-5-5` / `claude-opus-5-5` | tier → model id |
 | `MODEL_<ROLE>` | role default | pins a role's model (tier name or id), e.g. `MODEL_DEV=opus` |
 | `BUDGET_<ROLE>_USD` | role `budgetUsd` (assistant 1.0, dev 4.5) | run budget override |
-| `COMPACT_WINDOW_<ROLE>` | role setting | 0 = off; otherwise 100,000 to 1,000,000 |
+| `COMPACT_WINDOW_<ROLE>` | role setting | 0 = no window var (SDK default window, 75% still applies); otherwise 100,000 to 1,000,000 |
 | `MAX_BUDGET_USD` | none | optional global cap on every run |
 | `MEMORY_MODEL` | haiku tier | manual memory compaction model |
 | `INTENT_ENGINE` | `haiku` | `haiku` \| `none` (`jev` is refused until built) |

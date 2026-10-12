@@ -91,8 +91,8 @@ export interface RoleDefinition {
   /** Git MCP tool groups the role may use (read-only by-mode tools are always visible). */
   gitGroups: (keyof typeof GIT_GROUPS)[];
   /**
-   * Auto-compact window (tokens) the app hands the SDK child (CLAUDE_CODE_AUTO_COMPACT_WINDOW). Omitted = the SDK
-   * default. P3.0 Q12 is UNKNOWN (the setting was not observed to fire), so defaults stay conservative.
+   * Override of the app default compaction window (tokens, CLAUDE_CODE_AUTO_COMPACT_WINDOW; default
+   * `COMPACT_WINDOW_TOKENS` in runtime/sdk-env.ts). Omitted = the app default. The 75% share applies to it.
    */
   autoCompactWindow?: number;
   /** Prompt sections between the run contract start and the COMMON safety rules. */

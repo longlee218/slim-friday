@@ -44,10 +44,13 @@ async function queueThenStart(devText: string) {
   const gate = new Promise<void>((r) => (release = r));
   const plan: any[] = [];
   let first = true;
+  let started!: () => void;
+  const startedLatch = new Promise<void>((r) => (started = r));
   const query = (a: any) =>
     (async function* () {
       if (first) {
         first = false;
+        started();
         await gate;
       } else plan.push(a.options);
       yield resultMsg({ result: "ok" });
@@ -66,12 +69,14 @@ async function queueThenStart(devText: string) {
     },
   });
   const running = handle(msg("[ask] explain the repo"));
-  await Bun.sleep(50);
+  await startedLatch; // the first run is inside `query`, so the next message queues behind it
   await handle(msg(devText));
   const stored = rows(env, "SELECT effort FROM proposals")[0].effort;
   await handle(msg("yes"));
   release();
   await running;
+  // The queued task starts after the first run ends: poll until its `query` call was seen.
+  for (let i = 0; i < 200 && plan.length === 0; i++) await Bun.sleep(25);
   return { env, plan, stored };
 }
 
@@ -81,13 +86,13 @@ test("queue -> start keeps the effort resolved when the request was queued", asy
   expect(plan.length).toBeGreaterThan(0);
   expect(plan[0].thinking).toMatchObject({ type: "enabled" }); // started at high: effort knobs applied
   expect(rows(env, "SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
-});
+}, 15_000);
 
 test("no effort signal: nothing stored, the started task keeps the stage defaults", async () => {
   const { plan, stored } = await queueThenStart("[dev] please add b.txt with two");
   expect(stored).toBeNull();
   expect(plan[0].thinking).toBeUndefined();
-});
+}, 15_000);
 
 test("a stored effort round-trips through the proposal store", async () => {
   const { db } = makeEnv();
