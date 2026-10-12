@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { runStages } from "../src/orchestrator/engine/stage-runner";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { DEV_ROLE } from "../src/roles/builtin/dev-role";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../src/roles/role-types";
@@ -127,7 +127,7 @@ test("a thrown stage run marks the row failed, not running", async () => {
 test("`go +5` that falls back to a plain message does not carry the raise into Q&A", async () => {
   const env = makeEnv();
   const budgets: unknown[] = [];
-  const handler = createTaskHandler({
+  const handler = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: ((a: { options: { maxBudgetUsd?: number } }) => {

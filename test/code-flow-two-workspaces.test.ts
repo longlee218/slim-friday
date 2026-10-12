@@ -4,7 +4,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createGitMcp } from "../src/mcp/git-mcp";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
@@ -76,7 +76,7 @@ async function started() {
     confirm: async () => ({ approved: false, reason: "no PR" }),
     askChoice: async (a) => a.options[0],
   });
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,

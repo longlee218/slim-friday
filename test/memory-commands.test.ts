@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { parseMemoryCommand } from "../src/memory/memory-commands";
-import { parseTaskCommand } from "../src/orchestrator/task-commands";
+import { parseMessageCommand } from "../src/orchestrator/message-commands";
 
 test("remember/nhớ with every scope word; only the first word is a scope", () => {
   const p = (s: string) => parseMemoryCommand(s);
@@ -63,8 +63,8 @@ test("bad lengths and scope-only commands are invalid (never null, never the age
   expect(parseMemoryCommand("remember:")).toMatchObject({ kind: "invalid" });
 });
 
-test("parseTaskCommand marks memory commands so the agent never sees them", () => {
-  expect(parseTaskCommand("remember: use bun")).toEqual({ kind: "memory" });
-  expect(parseTaskCommand("compact memory")).toEqual({ kind: "memory" });
-  expect(parseTaskCommand("what is remember: for?")).toMatchObject({ kind: "task" });
+test("parseMessageCommand marks memory commands so the agent never sees them", () => {
+  expect(parseMessageCommand("remember: use bun")).toEqual({ kind: "memory" });
+  expect(parseMessageCommand("compact memory")).toEqual({ kind: "memory" });
+  expect(parseMessageCommand("what is remember: for?")).toMatchObject({ kind: "message" });
 });

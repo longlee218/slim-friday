@@ -5,7 +5,7 @@ import { workspacePaths } from "../src/config/workspace-paths";
 import { checkToolCall } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { repoMemoryFile } from "../src/memory/repo-memory";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { SUBAGENTS } from "../src/roles/subagents/subagent-registry";
 import {
   AGENT_TOOL_NAME,
@@ -31,7 +31,7 @@ async function qaOptions(setup?: (env: ReturnType<typeof makeEnv>) => void) {
       yield resultMsg();
     })();
   };
-  await createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
+  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",

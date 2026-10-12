@@ -4,21 +4,21 @@ import type { RecentMessage } from "../intent/intent-types";
 import type { MemoryRunner } from "../memory/memory-command-handler";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { parseTaskCommand } from "../orchestrator/task-commands";
+import { parseMessageCommand } from "../orchestrator/message-commands";
 import { type AttachmentDeps, withAttachments } from "./attachment-text";
 import { routeMessage, SAFE_MENTIONS, stripMention, threadName } from "./discord-message-rules";
 import { BUSY_ACK_EMOJI, sendReply, startTyping } from "./discord-send";
+import type { InboundMessage } from "./inbound-message";
 import { replyToMemoryCommand } from "./memory-ingress";
-import type { Task } from "./task-type";
 import { fetchRecent } from "./thread-history";
 import { createThreadTurns } from "./thread-turns";
 
-export type { Task } from "./task-type";
+export type { InboundMessage } from "./inbound-message";
 
 /** Longest wait (ms) for the thread history; the message then goes on without it. */
 export const FETCH_RECENT_TIMEOUT_MS = 1500;
-/** What the handler needs from the task layer. */
-export type HandleTask = (task: Task) => Promise<string>;
+/** What the handler needs from the orchestrator. */
+export type HandleMessage = (message: InboundMessage) => Promise<string>;
 
 export { sendReply, startTyping } from "./discord-send";
 
@@ -30,8 +30,8 @@ export interface MessageHandlerDeps {
   botId: () => string | undefined;
   /** The one guild the bot serves; messages from any other guild are ignored (undefined: no pin). */
   guildId?: string;
-  handleTask: HandleTask;
-  /** discord.yaml: ops channels never reach `handleTask`; control channels run admin commands. Default: none. */
+  handleMessage: HandleMessage;
+  /** discord.yaml: ops channels never reach `handleMessage`; control channels run admin commands. Default: none. */
   setup?: DiscordSetup;
   /** Admin handling for messages routed as `control` (gate + commands); never the agent. */
   admin?: (msg: Message, prompt: string) => Promise<void>;
@@ -41,14 +41,14 @@ export interface MessageHandlerDeps {
   attachments?: AttachmentDeps;
 }
 
-/** Build the `messageCreate` handler: route, run the task, reply. Never throws. */
+/** Build the `messageCreate` handler: route, run the turn, reply. Never throws. */
 export function createMessageHandler(deps: MessageHandlerDeps) {
   const log = logger.child({ module: "discord-message-handler" });
   const setup = deps.setup ?? EMPTY_SETUP;
   const ops = opsIds(setup);
-  const takeTurn = createThreadTurns(); // per-thread arrival order up to the task call
+  const takeTurn = createThreadTurns(); // per-thread arrival order up to the `handleMessage` call
 
-  /** Run the task with typing shown, then post the reply into `channel`. `started` runs right after the task call began. */
+  /** Run the turn with typing shown, then post the reply into `channel`. `started` runs right after the `handleMessage` call began. */
   async function answer(
     channel: SendableChannels,
     ids: { threadId: string; channelId: string; messageId: string; ack?: () => Promise<void> },
@@ -58,7 +58,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
   ): Promise<void> {
     const stopTyping = startTyping(channel);
     try {
-      const call = deps.handleTask({
+      const call = deps.handleMessage({
         source: "discord",
         userId: deps.ownerId,
         ...ids,
@@ -83,7 +83,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     botId: string,
     text: string,
   ) =>
-    parseTaskCommand(text).kind !== "task"
+    parseMessageCommand(text).kind !== "message"
       ? []
       : Promise.race([
           fetchRecent(ch, { currentId: id, ownerId: deps.ownerId, botId }),
@@ -175,7 +175,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         return;
       }
       // `stop` only makes sense inside a thread that has a run.
-      if (parseTaskCommand(route.prompt).kind === "stop") {
+      if (parseMessageCommand(route.prompt).kind === "stop") {
         await msg.reply({
           content: "Send `/stop` inside the thread of the run.",
           allowedMentions: SAFE_MENTIONS,

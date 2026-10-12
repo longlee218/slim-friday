@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { runGit } from "../src/repos/git-cli";
 import { deleteWorktree, getWorktreeByTask, insertWorktree } from "../src/storage/worktree-store";
 import { cleanupWorktree } from "../src/workspaces/clone-cleanup";
@@ -374,7 +374,7 @@ test("Q&A refresh (git pull) never runs on an owner checkout outside the workspa
     },
     close: async () => {},
   } as never;
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,

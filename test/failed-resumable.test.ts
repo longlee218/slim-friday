@@ -9,7 +9,7 @@ import { DAY_MS, expireClones } from "../src/lifecycle/clone-retention";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { resumeQuestionOf } from "../src/orchestrator/dispatch/resume-failed-task";
 import { RESUME_NOTE } from "../src/orchestrator/engine/resume-exec";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { type FlowResult, RESUMABLE, resumeReasonOf } from "../src/orchestrator/tasks/task-result";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
 import { ROLES } from "../src/roles/role-registry";
@@ -130,7 +130,7 @@ const intent = (home: string): IntentDeps => ({
 async function run(steps: ExecStep[]) {
   const { env, clone } = await setup();
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -227,7 +227,7 @@ test("budget stop at exec is resumable, but only with a raise (`/go +<usd>`)", a
 
 test("a failure before the plan is approved stays failed (nothing to resume)", async () => {
   const { env } = await setup();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -247,7 +247,7 @@ test("no commit identity at the stage switch (no clone yet) is resumable: after 
   const { env, clone } = await setup();
   addRepo(env.home, "real", {}, { path: clone }); // same clone, no gitAuthor
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -276,7 +276,7 @@ test("no commit identity at the stage switch (no clone yet) is resumable: after 
 test("/cleanup of a held task that never got a clone drops the hold", async () => {
   const { env, clone } = await setup();
   addRepo(env.home, "real", {}, { path: clone }); // no gitAuthor
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -338,7 +338,7 @@ async function noIdentity(steps: ExecStep[] = []) {
   const { env, clone } = await setup();
   addRepo(env.home, "real", {}, { path: clone });
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,

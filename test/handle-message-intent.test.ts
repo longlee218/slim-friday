@@ -8,7 +8,7 @@ import { lexiconOverrideFile, loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { captureLogs } from "../src/observability/logger";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { QUEUE_RECEIVED } from "../src/orchestrator/thread/intent-replies";
 import { ROLES } from "../src/roles/role-registry";
 import { getProposal, insertProposal, listPendingProposals } from "../src/storage/proposal-store";
@@ -124,7 +124,7 @@ test("L3 picks the role of an undecided message, once; assistant answers a quest
   const env = await setup();
   const e = engine(verdict({ role: "assistant", confidence: "medium" }));
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -143,7 +143,7 @@ test("L3 picks the role of an undecided message, once; assistant answers a quest
 test("dev request with an unknown repo is refused with the repo name, no plan stage", async () => {
   const env = await setup();
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -160,7 +160,7 @@ test("no L3 call for L0 commands (legacy and slash forms), a leading tag, or whe
   const env = await setup();
   const e = engine(verdict());
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -176,7 +176,7 @@ test("no L3 call for L0 commands (legacy and slash forms), a leading tag, or whe
     await handle(msg(t));
   await handle(msg("[ask] what is retry"));
   expect(e.seen).toHaveLength(0);
-  const none = createTaskHandler({
+  const none = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -191,7 +191,7 @@ test("L3 -> dev opens the task by the dispatcher: plan stage runs, no assistant 
   const env = await setup();
   const e = engine(verdict({ class: "mechanical" }));
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -223,7 +223,7 @@ test("idle low confidence routes to the assistant (no ask, never dev), even when
   const env = await setup();
   const seen: any[] = [];
   const mk = (v: any) =>
-    createTaskHandler({
+    createTurnHandler({
       git,
       db: env.db,
       config: env.config,
@@ -248,7 +248,7 @@ test("idle low confidence routes to the assistant (no ask, never dev), even when
 test("engine failure or unknown role never dispatches a task", async () => {
   const env = await setup();
   const seen: any[] = [];
-  const unknown = createTaskHandler({
+  const unknown = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -262,7 +262,7 @@ test("engine failure or unknown role never dispatches a task", async () => {
   expect(rows(env, "SELECT 1 FROM proposals")).toEqual([]);
   // an engine failure on an idle thread -> the assistant (read-only), never dev
   const cap = captureLogs();
-  const boom = createTaskHandler({
+  const boom = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -279,7 +279,7 @@ test("engine failure or unknown role never dispatches a task", async () => {
 test("L3 failure while a question is pending re-asks naturally (no role, no tag instructions); the question stays pending", async () => {
   const env = await setup();
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -317,7 +317,7 @@ test('a second dev task while one runs: auto-queued with "received" (no question
         })()
       : inner(a);
   const e = engine(answering(verdict()));
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -357,7 +357,7 @@ test("stop keeps the queued tasks: the reply counts them, they run after the sto
       await gate;
       yield resultMsg({ result: "slow answer" });
     })();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -398,7 +398,7 @@ test("stop keeps the queued tasks: the reply counts them, they run after the sto
 test("fix loop: [dev] follow-ups continue in the same clone/session, max 2 rounds; an assistant answer keeps the clone's session", async () => {
   const env = await setup();
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -441,7 +441,7 @@ test("effort: a signal raises this turn's effort; a complaint raises the thread 
   const env = await setup();
   const seen: any[] = [];
   const cap = captureLogs();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -474,7 +474,7 @@ async function askAtMax(answer: { approved: boolean; reason?: string } | "none")
   );
   const seen: any[] = [];
   const asked: string[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -518,7 +518,7 @@ test("effort max: owner says no, times out, or there is no button flow -> runs a
 test("intent layer off (no deps): the legacy pick is unchanged (entry role, no classifier)", async () => {
   const env = await setup();
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -531,7 +531,7 @@ test("intent layer off (no deps): the legacy pick is unchanged (entry role, no c
 test("a staged task without the approval flow is refused by text, never dispatched", async () => {
   const env = await setup();
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -547,7 +547,7 @@ test("yes / no on an idle thread (read by L3) answers the pending proposal (yes 
   const env = await setup();
   const seen: any[] = [];
   const e = engine(answering(verdict()));
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -584,7 +584,7 @@ test("a crash of the active run still starts the queued task (no L3 call while a
         })()
       : inner(a);
   const e = engine(answering(verdict()));
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,

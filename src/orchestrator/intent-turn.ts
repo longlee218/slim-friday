@@ -1,6 +1,6 @@
 import type { Logger } from "pino";
 import type { TaskClass } from "../config/model-routing";
-import type { Task } from "../ingress/discord-message-handler";
+import type { InboundMessage } from "../ingress/discord-message-handler";
 import { decideIntent, type IntentDeps } from "../intent/decide-intent";
 import { buildIntentInput } from "../intent/intent-input";
 import { logEvent } from "../observability/logger";
@@ -12,7 +12,7 @@ import { selectWorkspace } from "../workspaces/task-workspace";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { pendingQuestionOf } from "./dispatch/queued-tasks";
 import { findRepo } from "./dispatch/task-repo";
-import type { TaskCommand } from "./task-commands";
+import type { MessageCommand } from "./message-commands";
 import type { EffortFloors } from "./thread/effort-floor";
 import { STILL_WORKING, stripRoleTag } from "./thread/intent-replies";
 import { MAX_DECLINED_NOTICE, settleMaxEffort } from "./thread/max-effort-gate";
@@ -29,7 +29,7 @@ import { turnEffort } from "./thread/turn-effort";
 export interface IntentTurnCtx {
   deps: DispatchDeps;
   log: Logger;
-  task: Task;
+  message: InboundMessage;
   workspace: string;
   repos: Repo[];
   ac: AbortController;
@@ -39,7 +39,7 @@ export interface IntentTurnCtx {
   stored: SessionRow | null;
   /** A run of this thread holds the lock. */
   busy: boolean;
-  /** The parsed plain task: text without prefixes, `repo:` hint, owner class. */
+  /** The parsed plain message: text without prefixes, `repo:` hint, owner class. */
   cmd: { text: string; repo?: string; cls?: TaskClass };
 }
 
@@ -53,7 +53,7 @@ export const pinnedRepo = (repos: Repo[], hint: string | undefined, stored: Sess
  */
 export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   const { db } = c.deps;
-  const threadId = c.task.threadId;
+  const threadId = c.message.threadId;
   const state = deriveThreadState(db, threadId);
   const clone = liveWorktree(db, threadId);
   const fixRounds = clone ? countFollowUps(db, clone.taskId) : 0;
@@ -83,7 +83,7 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
           threadId,
           text: c.cmd.text,
           state,
-          recent: c.task.recent,
+          recent: c.message.recent,
           pendingQuestion,
         }),
     },
@@ -141,30 +141,31 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
 export async function replyWhileBusy(c: {
   deps: DispatchDeps;
   log: Logger;
-  task: Task;
-  parsed: TaskCommand;
+  message: InboundMessage;
+  parsed: MessageCommand;
   ac: AbortController;
   intent?: IntentDeps;
   floors: EffortFloors;
 }): Promise<Exclude<IntentOutcome, { kind: "run" }>> {
   const picked =
-    c.intent && c.parsed.kind === "task"
-      ? selectWorkspace(c.deps.config.agentHome, c.task.channelId)
+    c.intent && c.parsed.kind === "message"
+      ? selectWorkspace(c.deps.config.agentHome, c.message.channelId)
       : undefined;
   const still = (): { kind: "reply"; text: string } => {
     logEvent(c.log, "task.still_working");
     // Never lost: the message is stored even when nothing acts on it.
-    if (c.parsed.kind === "task") c.deps.steer?.record(c.task, c.task.text, "other", "skipped");
+    if (c.parsed.kind === "message")
+      c.deps.steer?.record(c.message, c.message.text, "other", "skipped");
     return { kind: "reply", text: STILL_WORKING };
   };
-  if (!c.intent || c.parsed.kind !== "task" || !picked || "reply" in picked) return still();
+  if (!c.intent || c.parsed.kind !== "message" || !picked || "reply" in picked) return still();
   const { ws } = picked;
   const out = await intentTurn({
     ...c,
     intent: c.intent,
     workspace: ws.name,
     repos: ws.repos,
-    stored: getSession(c.deps.db, c.task.threadId),
+    stored: getSession(c.deps.db, c.message.threadId),
     busy: true,
     cmd: c.parsed,
   });

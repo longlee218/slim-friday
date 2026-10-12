@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { captureLogs } from "../src/observability/logger";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { resolveTaskWorkspace, selectWorkspace } from "../src/workspaces/task-workspace";
 import type { Workspace } from "../src/workspaces/workspace-registry";
 import { addRepo, clearWorkspaces, makeEnv, TEST_CHANNEL } from "./helpers";
@@ -56,7 +56,7 @@ test("selectWorkspace: a workspace with 0 repos is refused by name", () => {
 test("handler: unmapped channel is refused before any task row or agent run", async () => {
   const env = makeEnv();
   let ran = false;
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: ((_a: unknown) => {
@@ -80,7 +80,7 @@ test("handler: unmapped channel is refused before any task row or agent run", as
 test("handler: mapped channel whose workspace has no repos any more -> 0-repos refusal, logs channelId", async () => {
   const env = makeEnv();
   rmSync(join(env.home, "workspaces", "main", "repos"), { recursive: true, force: true });
-  const handle = createTaskHandler({ db: env.db, config: env.config });
+  const handle = createTurnHandler({ db: env.db, config: env.config });
   const cap = captureLogs();
   const reply = await handle({
     source: "t",

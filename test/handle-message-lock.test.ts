@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { getSession, setSession } from "../src/storage/session-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
@@ -34,7 +34,7 @@ test("second message during run -> still working; reply is redacted; session sav
     readyResolve = r;
   });
   release.ready = readyResolve;
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: slowQuery(release) as never,
@@ -57,7 +57,7 @@ test("stop aborts run and marks task cancelled", async () => {
     readyResolve = r;
   });
   release.ready = readyResolve;
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: slowQuery(release) as never,
@@ -75,7 +75,7 @@ test("stop aborts run and marks task cancelled", async () => {
 
 test("H1: DB failure before the run does not leave the thread locked", async () => {
   const env = makeEnv();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: (() => {
@@ -99,11 +99,11 @@ const failQuery = (a: any) =>
 
 test("M4: session saved on success, not on error/abort outcomes", async () => {
   const env = makeEnv();
-  await createTaskHandler({ db: env.db, config: env.config, queryFn: okQuery as never })(
+  await createTurnHandler({ db: env.db, config: env.config, queryFn: okQuery as never })(
     task("a", "ok"),
   );
   expect(getSession(env.db, "ok")?.session_id).toBe("sess-1");
-  await createTaskHandler({ db: env.db, config: env.config, queryFn: failQuery as never })(
+  await createTurnHandler({ db: env.db, config: env.config, queryFn: failQuery as never })(
     task("a", "bad"),
   );
   expect(getSession(env.db, "bad")).toBeNull();
@@ -119,7 +119,7 @@ test("M4: genuine resume failure clears the session and tells the user", async (
   const env = makeEnv();
   setSession(env.db, { threadId: "th9", sessionId: "stale", repo: env.home, cwd: env.home });
   const q = errQuery("No conversation found with session ID: stale");
-  const reply = await createTaskHandler({ db: env.db, config: env.config, queryFn: q as never })(
+  const reply = await createTurnHandler({ db: env.db, config: env.config, queryFn: q as never })(
     task("a", "th9"),
   );
   expect(reply).toContain("cleared");
@@ -130,7 +130,7 @@ test("M1: transient error (auth/rate limit) keeps the session", async () => {
   const env = makeEnv();
   setSession(env.db, { threadId: "th8", sessionId: "good", repo: env.home, cwd: env.home });
   const q = errQuery("rate limit exceeded, retry later");
-  const reply = await createTaskHandler({ db: env.db, config: env.config, queryFn: q as never })(
+  const reply = await createTurnHandler({ db: env.db, config: env.config, queryFn: q as never })(
     task("a", "th8"),
   );
   expect(reply).not.toContain("cleared");
@@ -142,7 +142,7 @@ test("M2: finishTask failure in the catch path does not throw", async () => {
   const q = (() => {
     throw new Error("boom");
   }) as never;
-  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: q });
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: q });
   // Close db after insertTask succeeds: first query throw happens in runAgent, then finishTask hits a closed db.
   const p = handle(task("hi", "th7"));
   env.db.close();
@@ -151,7 +151,7 @@ test("M2: finishTask failure in the catch path does not throw", async () => {
 
 test("M3: drain aborts runs, waits for them, and leaves no task running", async () => {
   const env = makeEnv();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: slowQuery({}) as never,
@@ -172,7 +172,7 @@ test("M3: drain times out on a stuck run and marks its task interrupted", async 
       await new Promise(() => {});
       yield resultMsg();
     })();
-  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: stuck as never });
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: stuck as never });
   void handle(task("hi", "th5"));
   await Bun.sleep(50);
   await handle.drain(100);

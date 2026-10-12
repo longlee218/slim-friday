@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { budgetHitMessage } from "../src/orchestrator/engine/budget";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { parseMessageCommand } from "../src/orchestrator/message-commands";
 import { escalationAction, parseEscalation } from "../src/orchestrator/outputs/answer-output";
-import { parseTaskCommand } from "../src/orchestrator/task-commands";
 import { listStages } from "../src/storage/stage-store";
 import { fakeQuery, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
@@ -62,7 +62,7 @@ describe("Q&A escalation through the handler", () => {
       const n = calls.length - 1;
       return fakeQuery([resultMsg({ result: answers[n] ?? "extra", session_id: `s${n}` })])(a);
     };
-    const reply = await createTaskHandler({
+    const reply = await createTurnHandler({
       db: env.db,
       config: env.config,
       queryFn: queryFn as never,
@@ -110,7 +110,7 @@ describe("Q&A escalation through the handler", () => {
           ? resultMsg({ result: "no idea\nESCALATE: sonnet", session_id: "s0" })
           : resultMsg({ subtype: "error_during_execution", is_error: true, errors: ["boom"] }),
       ])(a as never);
-    const reply = await createTaskHandler({
+    const reply = await createTurnHandler({
       db: env.db,
       config: env.config,
       queryFn: queryFn as never,
@@ -184,25 +184,25 @@ describe("Q&A escalation through the handler", () => {
 
 describe("class prefix", () => {
   test("leading [mechanical|standard|design] sets cls and is stripped; either order with repo:", () => {
-    expect(parseTaskCommand("[Design] rethink the cache")).toEqual({
-      kind: "task",
+    expect(parseMessageCommand("[Design] rethink the cache")).toEqual({
+      kind: "message",
       repo: undefined,
       text: "rethink the cache",
       cls: "design",
     });
-    expect(parseTaskCommand("[mechanical] repo:api rename x")).toMatchObject({
+    expect(parseMessageCommand("[mechanical] repo:api rename x")).toMatchObject({
       cls: "mechanical",
       repo: "api",
       text: "rename x",
     });
-    expect(parseTaskCommand("repo:api [standard] fix y")).toMatchObject({
+    expect(parseMessageCommand("repo:api [standard] fix y")).toMatchObject({
       cls: "standard",
       repo: "api",
       text: "fix y",
     });
   });
   test("unknown prefix is ignored (kept in the text)", () => {
-    const c = parseTaskCommand("[urgent] fix y");
+    const c = parseMessageCommand("[urgent] fix y");
     expect(c).toMatchObject({ text: "[urgent] fix y" });
     expect("cls" in c).toBe(false);
   });
@@ -238,7 +238,7 @@ describe("budget hit message", () => {
       ],
       new Error("x"),
     );
-    const reply = await createTaskHandler({
+    const reply = await createTurnHandler({
       db: env.db,
       config: env.config,
       queryFn: queryFn as never,

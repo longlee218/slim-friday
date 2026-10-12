@@ -1,7 +1,7 @@
 import type { Logger } from "pino";
 import type { Effort, TaskClass } from "../config/model-routing";
 import { realOrSame } from "../guardrails/paths";
-import type { Task } from "../ingress/discord-message-handler";
+import type { InboundMessage } from "../ingress/discord-message-handler";
 import { logEvent } from "../observability/logger";
 import type { Repo } from "../repos/repo-registry";
 import { getRole } from "../roles/role-registry";
@@ -12,7 +12,7 @@ import { deleteSession, type SessionRow } from "../storage/session-store";
 import { liveWorktree } from "../storage/worktree-store";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { runStages, startStage } from "./engine/stage-runner";
-import { type ResumePlan, type Route, runRoute } from "./task-routing";
+import { type ResumePlan, type Route, runRoute } from "./message-routing";
 import type { FlowResult } from "./tasks/task-result";
 import { closeTask } from "./tasks/task-result";
 import { deriveThreadState, isIdleLike } from "./thread/thread-state";
@@ -21,7 +21,7 @@ import { deriveThreadState, isIdleLike } from "./thread/thread-state";
 export interface RoleRunCtx {
   deps: DispatchDeps;
   log: Logger;
-  task: Task;
+  message: InboundMessage;
   taskId: string;
   /** Start time of the call (for `task.finished`). */
   t0: number;
@@ -40,7 +40,7 @@ export interface RoleRunCtx {
     resume?: boolean,
   ) => void;
   /** Repo of the log context, to report when the flow named none. */
-  taskRepo: () => string;
+  turnRepo: () => string;
 }
 
 /**
@@ -60,7 +60,7 @@ export async function runTurn(
     intent?: { cls?: TaskClass; effort?: Effort };
   },
 ): Promise<string> {
-  const { deps, task, taskId, workspace: ws } = c;
+  const { deps, message, taskId, workspace: ws } = c;
   const { db } = deps;
   const { cmd, planResume } = a.plan;
   const { pinned, worktree } = a.route;
@@ -69,9 +69,10 @@ export async function runTurn(
   const cls = ("cls" in cmd ? cmd.cls : undefined) ?? a.intent?.cls; // owner `[design]` prefix, else the intent class
   const runRt = runRoute({ cls, effort: a.intent?.effort, extraBudgetUsd: a.extraBudgetUsd });
   // State BEFORE the new row exists (it would read as `running`): a role with `context.ledger` sees its task ledger on an idle thread.
-  const state = deriveThreadState(db, task.threadId);
+  const state = deriveThreadState(db, message.threadId);
   logEvent(c.log, "thread.state", { state });
-  const ledger = role.context?.ledger && isIdleLike(state) ? threadLedger(db, task.threadId) : "";
+  const ledger =
+    role.context?.ledger && isIdleLike(state) ? threadLedger(db, message.threadId) : "";
   c.begin(
     a.route.repo,
     role.name,
@@ -81,10 +82,10 @@ export async function runTurn(
     !!a.plan.approved,
   );
   // The held task is taken over only now that the resumed run has its own row (a start failure keeps the hold).
-  if (a.plan.approved) dropResumable(db, task.threadId);
+  if (a.plan.approved) dropResumable(db, message.threadId);
   const res: FlowResult = await runStages(deps, {
     taskId,
-    threadId: task.threadId,
+    threadId: message.threadId,
     text: cmd.text,
     role: role.name,
     workspace: ws,
@@ -101,12 +102,12 @@ export async function runTurn(
     existing,
     ledger,
   });
-  const o = { stopping: deps.stopping(), t0: c.t0, repo: c.taskRepo() };
+  const o = { stopping: deps.stopping(), t0: c.t0, repo: c.turnRepo() };
   // An answer in a thread that has a clone must not replace the thread's session (the clone's fix rounds resume it).
-  const keepClone = role.output === "answer" && !!liveWorktree(db, task.threadId);
+  const keepClone = role.output === "answer" && !!liveWorktree(db, message.threadId);
   const reply = closeTask(
     db,
-    { taskId, threadId: task.threadId },
+    { taskId, threadId: message.threadId },
     keepClone ? { ...res, sessionId: undefined } : res,
     o,
   );
@@ -116,7 +117,7 @@ export async function runTurn(
     if (planResume) return "Could not resume the plan; start the task again.";
     // Only an `answer` role keeps a thread session to clear; staged roles resume per task row.
     if (role.output !== "answer" || !existing) return reply;
-    deleteSession(db, task.threadId);
+    deleteSession(db, message.threadId);
     return "Could not resume the previous session; it was cleared. Please send your message again.";
   }
   return reply;

@@ -1,4 +1,4 @@
-import type { Task } from "../../ingress/discord-message-handler";
+import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { PLAN_NOT_REAPPROVED } from "../../storage/ledger-store";
 import type { DispatchDeps } from "../dispatch/dispatch-role";
 import {
@@ -20,11 +20,11 @@ const withPlanNote = (text: string, afterPlan: boolean): string =>
  * waits it says so (the message is stored and delivered after the decision). A steer into work that sits after the
  * approved plan gate says that the plan is NOT approved again for that change.
  */
-export function steerReply(deps: DispatchDeps, task: Task, text: string): string {
-  const sent = deps.steer?.steer(task, text);
+export function steerReply(deps: DispatchDeps, message: InboundMessage, text: string): string {
+  const sent = deps.steer?.steer(message, text);
   if (sent?.result === "held") return withPlanNote(STEER_HELD, sent.afterPlan);
   if (sent?.result === "queued") {
-    const waiting = threadToolApproval(deps.db, task.threadId);
+    const waiting = threadToolApproval(deps.db, message.threadId);
     return withPlanNote(waiting ? STEER_WAITING(waiting.tool) : STEER_RECEIVED, sent.afterPlan);
   }
   return sent?.result === "full" ? STEER_FULL : STEER_ENDED;

@@ -3,7 +3,7 @@ import { workspacePaths } from "../src/config/workspace-paths";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createGitMcp } from "../src/mcp/git-mcp";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
 import { getProposal, insertProposal } from "../src/storage/proposal-store";
 import { g, makeRepo } from "./git-fixture";
@@ -56,7 +56,7 @@ async function queueThenStart(devText: string) {
       } else plan.push(a.options);
       yield resultMsg({ result: "ok" });
     })();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,

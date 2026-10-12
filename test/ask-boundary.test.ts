@@ -2,7 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { realpathSync } from "node:fs";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { createGitMcp } from "../src/mcp/git-mcp";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { MAX_ASK_CALLS_PER_TASK } from "../src/runtime/ask-limit";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import { getSession } from "../src/storage/session-store";
@@ -71,7 +71,7 @@ test("the ask budget is shared across stages: spent in plan, denied in exec", as
       exec.push(await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {}));
       yield resultMsg({ result: "done" });
     })();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -113,7 +113,7 @@ test("exec: no answer in time -> 'Awaiting clarification', session kept, task ca
       await askAndMaybeStop(o);
       yield resultMsg({ result: "must not be reached" });
     })();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -150,7 +150,7 @@ test("plan stage: no answer in time -> 'Awaiting clarification', no plan approva
       await askAndMaybeStop(a.options);
       yield resultMsg({ result: "must not be reached" });
     })();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -178,7 +178,7 @@ function handlerWith(
   stage: (o: any, call: number) => AsyncGenerator<any>,
 ) {
   let call = 0;
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -328,7 +328,7 @@ test("resume after 'Awaiting clarification': the owner's reply resumes the exec 
   const { env } = await setupWorkflow();
   const execRuns: { resume?: string; cwd: string; prompt: string; second?: string }[] = [];
   let ask = 0;
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,

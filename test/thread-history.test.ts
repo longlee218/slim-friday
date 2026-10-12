@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import {
   createMessageHandler,
   FETCH_RECENT_TIMEOUT_MS,
-  type Task,
+  type InboundMessage,
 } from "../src/ingress/discord-message-handler";
 import { fetchRecent, type HistoryMessage, toRecent } from "../src/ingress/thread-history";
 import { BRIEF_RECENT_CHARS, cleanRecent, recentBlock } from "../src/intent/recent-messages";
@@ -78,12 +78,12 @@ test("fetchRecent never throws: a failing or missing fetch is no history", async
 });
 
 test("ingress: a message in a bot thread reaches the task layer with the thread's recent messages", async () => {
-  const tasks: Task[] = [];
+  const messages: InboundMessage[] = [];
   const onMessage = createMessageHandler({
     ownerId: "o",
     botId: () => "b",
-    handleTask: async (t) => {
-      tasks.push(t);
+    handleMessage: async (message) => {
+      messages.push(message);
       return "ok";
     },
   });
@@ -112,8 +112,8 @@ test("ingress: a message in a bot thread reaches the task layer with the thread'
     inGuild: () => true,
     mentions: { has: () => false },
   } as never);
-  expect(tasks[0]?.text).toBe("do that");
-  expect(tasks[0]?.recent).toEqual([
+  expect(messages[0]?.text).toBe("do that");
+  expect(messages[0]?.recent).toEqual([
     { from: "owner", text: "what about caching?" },
     { from: "bot", text: "Option B: cache 5 min" },
   ]);
@@ -121,12 +121,12 @@ test("ingress: a message in a bot thread reaches the task layer with the thread'
 
 /** A thread whose history fetch never resolves (or fails), recording whether it was called. */
 async function threadRun(content: string, fetch: () => Promise<unknown>) {
-  const tasks: Task[] = [];
+  const messages: InboundMessage[] = [];
   const onMessage = createMessageHandler({
     ownerId: "o",
     botId: () => "b",
-    handleTask: async (t) => {
-      tasks.push(t);
+    handleMessage: async (message) => {
+      messages.push(message);
       return "ok";
     },
   });
@@ -151,7 +151,7 @@ async function threadRun(content: string, fetch: () => Promise<unknown>) {
     inGuild: () => true,
     mentions: { has: () => false },
   } as never);
-  return { tasks, fetched, ms: Date.now() - t0 };
+  return { messages, fetched, ms: Date.now() - t0 };
 }
 
 test("commands (slash and legacy) never wait for or call the history fetch", async () => {
@@ -165,10 +165,10 @@ test("commands (slash and legacy) never wait for or call the history fetch", asy
 test("a hanging history fetch times out (empty recent) and a failing one is ignored; the message proceeds", async () => {
   const hang = await threadRun("do that", () => new Promise(() => {}));
   expect(hang.fetched).toBe(1);
-  expect(hang.tasks[0]?.text).toBe("do that");
-  expect(hang.tasks[0]?.recent).toBeUndefined();
+  expect(hang.messages[0]?.text).toBe("do that");
+  expect(hang.messages[0]?.recent).toBeUndefined();
   expect(hang.ms).toBeGreaterThanOrEqual(FETCH_RECENT_TIMEOUT_MS - 100);
   expect(hang.ms).toBeLessThan(FETCH_RECENT_TIMEOUT_MS + 1500);
   const bad = await threadRun("do that", () => Promise.reject(new Error("403")));
-  expect(bad.tasks[0]?.recent).toBeUndefined();
+  expect(bad.messages[0]?.recent).toBeUndefined();
 });

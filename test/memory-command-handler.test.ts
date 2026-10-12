@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createMemoryRunner, type MemoryRequest } from "../src/memory/memory-command-handler";
 import { repoMemoryFile } from "../src/memory/repo-memory";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { addRepo, makeEnv, TEST_CHANNEL } from "./helpers";
 
 /** Env with workspace main (channel TEST_CHANNEL) and a runner on it. */
@@ -145,10 +145,10 @@ test("invalid command replies with usage and writes nothing", async () => {
   expect(await ask("remember: ab")).toContain("3-300");
 });
 
-test("via handleTask: answered without any task row, quota slot or agent call", async () => {
+test("via handleMessage: answered without any task row, quota slot or agent call", async () => {
   const env = makeEnv();
   let called = false;
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: () => {

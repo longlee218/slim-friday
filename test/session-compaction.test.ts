@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { captureLogs } from "../src/observability/logger";
 import { emptyUsage } from "../src/observability/record-run";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import {
   avgContextTokens,
   compactIdleSession,
@@ -75,7 +75,7 @@ describe("app-driven session compaction (fresh session + ledger)", () => {
         });
       })();
     };
-    const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+    const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
     const msg = (text: string) => ({
       source: "t",
       channelId: TEST_CHANNEL,

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { BASH_TOOL_NAME, EDIT_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
 
@@ -37,7 +37,7 @@ describe.skipIf(!live)("live agent smoke (OpenRouter)", () => {
         }
       })();
 
-    const reply = await createTaskHandler({ db: env.db, config: cfg, queryFn: queryFn as never })({
+    const reply = await createTurnHandler({ db: env.db, config: cfg, queryFn: queryFn as never })({
       source: "test",
       channelId: TEST_CHANNEL,
       userId: "u",

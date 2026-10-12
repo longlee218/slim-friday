@@ -164,7 +164,7 @@ function ctx(over: Partial<RouteCtx> = {}) {
   const env = makeEnv();
   const c = {
     deps: { db: env.db, config: env.config, approvals: stubGateway() } as never,
-    task: { source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th", text: "x" },
+    message: { source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th", text: "x" },
     workspace: "main",
     repos: [],
     ac: new AbortController(),

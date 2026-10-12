@@ -8,7 +8,7 @@ import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { captureLogs } from "../src/observability/logger";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import {
   NOT_DELIVERED,
   QUEUE_RECEIVED,
@@ -137,7 +137,7 @@ test("running exec: supplement -> steered (task.steer {len}, no body, reply says
       );
       yield resultMsg({ result: "Xong", session_id: "sess-exec" });
     })();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -255,7 +255,7 @@ test("[dev] tag while a steerable run works: the tag only picks the role, L3 dec
     })();
   const l3: string[] = [];
   const deps = intent(env.home);
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,

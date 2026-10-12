@@ -2,7 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { listPendingProposals } from "../src/storage/proposal-store";
 import { insertTask } from "../src/storage/run-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
@@ -59,7 +59,7 @@ test("ordering: the proposal is persisted and validated before the plan stage ru
       yield resultMsg();
     })();
   };
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -77,7 +77,7 @@ test("ask rule: unknown repo -> ONE question, proposal stays pending, no task ro
   const runs: unknown[] = [];
   const reply = await dispatchRole(deps(env, runs), {
     request: { role: "dev", brief: BRIEF, repo: "nope" },
-    task,
+    message: task,
     reply: "Q&A answer",
     workspace: "main",
     repos,
@@ -98,7 +98,7 @@ test("refusal (cap full): proposal refused, reply says busy, nothing starts", as
   const runs: unknown[] = [];
   const reply = await dispatchRole(deps(env, runs), {
     request: { role: "dev", brief: BRIEF },
-    task,
+    message: task,
     reply: "",
     workspace: "main",
     repos,
@@ -118,7 +118,7 @@ test("owner `go` on a pending proposal: confirmed, re-validated, dispatched with
   // Low confidence: asked once, stays pending ...
   const first = await dispatchRole(d, {
     request: { role: "dev", brief: BRIEF, confidence: 0.1 },
-    task,
+    message: task,
     reply: "",
     workspace: "main",
     repos,
@@ -136,7 +136,7 @@ test("owner `go` on a pending proposal: confirmed, re-validated, dispatched with
       proposalId: p!.id,
       confirmed: true,
     },
-    task,
+    message: task,
     reply: "",
     workspace: "main",
     repos,
@@ -157,7 +157,7 @@ test("new ask supersedes the thread's older pending proposals; go on an invalid 
   const send = (request: any) =>
     dispatchRole(d, {
       request,
-      task,
+      message: task,
       reply: "",
       workspace: "main",
       repos,
@@ -196,7 +196,7 @@ test("a proposal that is no longer pending is never started twice", async () => 
   const d = deps(env, runs);
   await dispatchRole(d, {
     request: { role: "dev", brief: BRIEF, confidence: 0.1 },
-    task,
+    message: task,
     reply: "",
     workspace: "main",
     repos,
@@ -206,7 +206,7 @@ test("a proposal that is no longer pending is never started twice", async () => 
   env.db.query("UPDATE proposals SET status = 'dispatched' WHERE id = ?").run(p!.id);
   const reply = await dispatchRole(d, {
     request: { role: "dev", brief: BRIEF, proposalId: p!.id, confirmed: true },
-    task,
+    message: task,
     reply: "",
     workspace: "main",
     repos,

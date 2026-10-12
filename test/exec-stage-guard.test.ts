@@ -10,7 +10,7 @@ const git = createGitMcp();
 afterAll(() => git.close());
 
 /**
- * runStages called directly with a worktree row (routeTask is bypassed, so its earlier refusal cannot
+ * runStages called directly with a worktree row (routeMessage is bypassed, so its earlier refusal cannot
  * hide the exec-stage guard): the workspace's repo `real` has another clone path than the worktree's.
  */
 test("execStage refuses when the resolved repo path differs from the worktree's repoPath", async () => {

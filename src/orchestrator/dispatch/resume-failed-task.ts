@@ -9,7 +9,7 @@ import type { SessionRow } from "../../storage/session-store";
 import { listStages } from "../../storage/stage-store";
 import { getWorktreeByTask, type WorktreeRow } from "../../storage/worktree-store";
 import { planFileOf } from "../engine/resume-exec";
-import type { ResumePlan } from "../task-routing";
+import type { ResumePlan } from "../message-routing";
 import { RESUMABLE, type ResumeReason, resumeQuestion } from "../tasks/task-result";
 import { type Refusal, refuse } from "./task-repo";
 
@@ -153,7 +153,7 @@ export function resumeFailedPlan(
   return {
     // No clone: the role is named (the thread's latest clone, if any, is another task's).
     cmd: {
-      kind: "task",
+      kind: "message",
       text: f.brief || "Continue the approved plan.",
       ...(!wt && { role: f.role }),
     },

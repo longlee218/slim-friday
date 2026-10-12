@@ -1,7 +1,7 @@
 import type { RecentMessage } from "../intent/intent-types";
 
 /** A unit of work arriving from any ingress (Discord, tests). */
-export interface Task {
+export interface InboundMessage {
   /** Where it came from, e.g. "discord". */
   source: string;
   /** Sender id; ingress enforces the owner allowlist. */
@@ -17,6 +17,6 @@ export interface Task {
   recent?: RecentMessage[];
   /** Shows at once that the message was received (a reaction on it); used for a message that reaches a busy thread. Never throws. */
   ack?: () => Promise<void>;
-  /** Posts a message into the thread while the task still runs (a dispatched plan waits for approval). */
+  /** Posts a message into the thread while the turn still runs (a dispatched plan waits for approval). */
   notify?: (text: string) => Promise<void>;
 }

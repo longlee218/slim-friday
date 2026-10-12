@@ -6,7 +6,7 @@ import type { MemoryRunner } from "../memory/memory-command-handler";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { createAttachmentDeps } from "./attachment-summary";
-import { createMessageHandler, type HandleTask } from "./discord-message-handler";
+import { createMessageHandler, type HandleMessage } from "./discord-message-handler";
 import { SAFE_MENTIONS } from "./discord-message-rules";
 import { createSlashHandler, registerSlashCommands } from "./slash-interaction";
 
@@ -23,7 +23,7 @@ export const CLIENT_OPTIONS = {
 /** Build the Discord bot (not connected until `login`). */
 export function createDiscordBot(
   config: AgentConfig,
-  handleTask: HandleTask,
+  handleMessage: HandleMessage,
   handleInteraction?: (i: Interaction) => Promise<void>,
   setup: DiscordSetup = EMPTY_SETUP,
   memory?: MemoryRunner,
@@ -34,11 +34,11 @@ export function createDiscordBot(
     ownerId: config.ownerDiscordId!,
     botId: () => client.user?.id,
     guildId: config.discordGuildId,
-    handleTask,
+    handleMessage,
     setup,
     memory,
     attachments: createAttachmentDeps(config),
-    // Admin commands (init:workspace) run outside the task handler, behind their own gate.
+    // Admin commands (init:workspace) run outside the turn handler, behind their own gate.
     admin: createAdminHandler({
       home: config.agentHome,
       guildId: config.discordGuildId,

@@ -17,9 +17,9 @@ import {
   refuse,
   unknownRepo,
 } from "./dispatch/task-repo";
-import { RESUME_PROMPT, type TaskCommand } from "./task-commands";
+import { type MessageCommand, RESUME_PROMPT } from "./message-commands";
 
-/** Which role runs a task and where, decided before anything is created. */
+/** Which role runs a message and where, decided before anything is created. */
 export interface Route {
   /** Repo the thread is pinned to (or hinted with `repo:`), when any. */
   pinned?: Repo;
@@ -29,7 +29,7 @@ export interface Route {
   role: string;
   /** Gated (staged) roles: repos the plan may pick from (managed clones only). */
   candidates: Repo[];
-  /** Name for the task row: the worktree's, the hinted repo's, else "*" (not chosen yet). */
+  /** Name for the turn row: the worktree's, the hinted repo's, else "*" (not chosen yet). */
   repo: string;
 }
 
@@ -39,10 +39,10 @@ export interface Route {
  * layer's pick: it replaces the entry / worktree-owner choice, and the thread's clone is used only by the role
  * that owns it (an assistant answer in a thread with a clone never touches the clone).
  */
-export function routeTask(
+export function routeMessage(
   deps: { db: Database; agentHome: string; hasApprovals: boolean },
   p: {
-    cmd: Extract<TaskCommand, { kind: "task" }>;
+    cmd: Extract<MessageCommand, { kind: "message" }>;
     threadId: string;
     repos: Repo[];
     existing: SessionRow | null;
@@ -99,7 +99,7 @@ export const PLAIN_GO: ReadonlySet<string> = new Set(["cannot_resume", "stale_re
 
 /** A runnable command plus what a Resume adds. */
 export interface ResumePlan {
-  cmd: Extract<TaskCommand, { kind: "task" }>;
+  cmd: Extract<MessageCommand, { kind: "message" }>;
   /** Session to resume instead of the thread's stored one (Resume: the interrupted task's own). */
   existing?: SessionRow;
   /** Plan stage cut before approval: resume this session in its scratch dir. */
@@ -108,15 +108,15 @@ export interface ResumePlan {
 }
 
 /**
- * Make the owner's command runnable. A task passes through; the Resume button continues the latest
+ * Make the owner's command runnable. A message passes through; the Resume button continues the latest
  * task of the thread, using the session that task recorded at init:
  * live worktree (cwd matches) -> follow-up there; plan scratch dir (still present) -> plan run of the same role;
- * the workspace `cwd` dir or one of its repos -> a plain task. Anything else (no session, cwd not usable, or the thread
+ * the workspace `cwd` dir or one of its repos -> a plain message. Anything else (no session, cwd not usable, or the thread
  * already moved on) -> a reply.
  */
 export function resolveCommand(
   deps: { db: Database; agentHome: string; workspace: string; repos: Repo[] },
-  cmd: Exclude<TaskCommand, { kind: "stop" | "cleanup" | "memory" | "go" }>,
+  cmd: Exclude<MessageCommand, { kind: "stop" | "cleanup" | "memory" | "go" }>,
   threadId: string,
 ): ResumePlan | Refusal {
   if (cmd.kind !== "resume") return { cmd };
@@ -165,21 +165,21 @@ export function resolveCommand(
   }
   if (worktree)
     return existing.cwd === realOrSame(worktree.path)
-      ? { cmd: { kind: "task", text }, existing }
+      ? { cmd: { kind: "message", text }, existing }
       : cannot;
   // Plan stage: its session cwd is the task scratch dir under <workspace>/tasks.
   const ws = workspacePaths(deps.agentHome).workspace(deps.workspace);
   if (existing.cwd.startsWith(`${realOrSame(ws.tasks)}/`)) {
     if (!existsSync(existing.cwd)) return cannot;
     return {
-      cmd: { kind: "task", role: last.role, text },
+      cmd: { kind: "message", role: last.role, text },
       existing,
       planResume: { sessionId: existing.session_id, cwd: existing.cwd },
     };
   }
-  // A plain task only resumes in the workspace cwd dir or one of its repos; else the context would be lost.
+  // A plain message only resumes in the workspace cwd dir or one of its repos; else the context would be lost.
   const plainCwd = existing.cwd === ws.cwd || deps.repos.some((r) => r.path === existing.cwd);
-  return plainCwd ? { cmd: { kind: "task", text }, existing } : cannot;
+  return plainCwd ? { cmd: { kind: "message", text }, existing } : cannot;
 }
 
 export { runRoute } from "./run-route";

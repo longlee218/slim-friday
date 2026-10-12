@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { SLASH_NAMES, slashToLegacy } from "../src/commands/slash-commands";
 import { SLASH_DEFINITIONS, slashPayload, slashText } from "../src/commands/slash-definitions";
-import { createMessageHandler, type Task } from "../src/ingress/discord-message-handler";
+import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
 import { createSlashHandler, registerSlashCommands } from "../src/ingress/slash-interaction";
 
 const OWNER = "111";
@@ -86,50 +86,50 @@ function fakeInteraction(
 }
 
 function setup(memory?: any) {
-  const tasks: Task[] = [];
+  const messages: InboundMessage[] = [];
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
     guildId: "G1",
-    handleTask: async (t) => {
-      tasks.push(t);
+    handleMessage: async (message) => {
+      messages.push(message);
       return "ok";
     },
     memory,
   });
-  return { tasks, handle: createSlashHandler({ ownerId: OWNER, onMessage }) };
+  return { messages, handle: createSlashHandler({ ownerId: OWNER, onMessage }) };
 }
 
 test("owner /stop in a thread reaches the task handler as the slash text", async () => {
-  const { tasks, handle } = setup();
+  const { messages, handle } = setup();
   const { i, log, sent } = fakeInteraction("stop", OWNER);
   await handle(i);
-  expect(tasks.map((t) => t.text)).toEqual(["/stop"]);
+  expect(messages.map((message) => message.text)).toEqual(["/stop"]);
   expect(sent[0].content).toBe("ok");
   expect(log).toEqual(["defer", "delete"]);
 });
 
 test("owner /go 5 keeps the +usd form", async () => {
-  const { tasks, handle } = setup();
+  const { messages, handle } = setup();
   await handle(fakeInteraction("go", OWNER, { usd: "5" }).i);
-  expect(tasks[0]?.text).toBe("/go +5");
+  expect(messages[0]?.text).toBe("/go +5");
 });
 
 test("non-owner gets an ephemeral refusal and nothing runs", async () => {
-  const { tasks, handle } = setup();
+  const { messages, handle } = setup();
   const { i, log } = fakeInteraction("stop", "222");
   await handle(i);
-  expect(tasks).toEqual([]);
+  expect(messages).toEqual([]);
   expect(log[0]).toStartWith("reply:Not allowed.");
 });
 
 test("memory command is answered inline, not run as a task", async () => {
-  const { tasks, handle } = setup(async (r: any) =>
+  const { messages, handle } = setup(async (r: any) =>
     r.text.startsWith("/remember") ? "saved" : null,
   );
   const { i, sent } = fakeInteraction("remember", OWNER, { text: "tabs" });
   await handle(i);
-  expect(tasks).toEqual([]);
+  expect(messages).toEqual([]);
   expect(sent[0].content).toBe("saved");
 });
 

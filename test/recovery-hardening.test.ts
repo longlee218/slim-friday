@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { mkdirSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { checkWorktrees, cleanupTaskLogs } from "../src/lifecycle/startup";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
-import { RESUME_PROMPT } from "../src/orchestrator/task-commands";
-import { resolveCommand } from "../src/orchestrator/task-routing";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { RESUME_PROMPT } from "../src/orchestrator/message-commands";
+import { resolveCommand } from "../src/orchestrator/message-routing";
 import { finishRun } from "../src/orchestrator/tasks/task-result";
 import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
@@ -70,7 +70,7 @@ test("session id is recorded on the task row at init; `sessions` keeps the previ
   setSession(env.db, { threadId: "th1", sessionId: "GOOD", repo: "*", cwd: env.repo });
   // The stream dies after init: no result message ever arrives (error outcome).
   const q = fakeQuery([initMsg], new Error("boom"));
-  await createTaskHandler({ db: env.db, config: env.config, queryFn: q as never })(task("hi"));
+  await createTurnHandler({ db: env.db, config: env.config, queryFn: q as never })(task("hi"));
   const row = env.db
     .query<{ session_id: string; session_cwd: string }, []>("SELECT * FROM tasks")
     .get();
@@ -86,7 +86,7 @@ test("quota/error runs never replace the stored session either", async () => {
     is_error: true,
     errors: ["API Error: 429 rate_limit_error"],
   });
-  await createTaskHandler({
+  await createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: fakeQuery([initMsg, m]) as never,
@@ -120,7 +120,7 @@ test("Resume: Q&A thread resumes the interrupted task's session with the fixed p
       yield resultMsg({ result: "continued" });
     })();
   };
-  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: q as never });
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: q as never });
   expect(await handle(task(RESUME_PROMPT))).toBe("continued");
   expect(seen.prompt).toBe(RESUME_PROMPT);
   expect(seen.options.resume).toBe("OLD");
@@ -135,7 +135,7 @@ test("Resume without a saved session replies it cannot resume (no run)", async (
     ran = true;
     return (async function* () {})();
   };
-  const reply = await createTaskHandler({
+  const reply = await createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: q as never,
@@ -158,7 +158,7 @@ test("Resume of a plan stage whose session cannot be resumed: tells the owner to
       errors: ["No conversation found with session ID: OLD"],
     }),
   ]);
-  const reply = await createTaskHandler({
+  const reply = await createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: q as never,
@@ -184,12 +184,12 @@ test("resolveCommand: plan stage / worktree / Q&A cwd ok; unusable cwd, stale, n
   mkdirSync(scratch, { recursive: true });
   interrupted(env, "p", scratch, "A", "dev");
   expect(resume("p")).toMatchObject({
-    cmd: { kind: "task", role: "dev" },
+    cmd: { kind: "message", role: "dev" },
     planResume: { sessionId: "OLD", cwd: scratch },
   });
 
   interrupted(env, "q", env.repo, "B");
-  expect(resume("q")).toMatchObject({ cmd: { kind: "task", text: RESUME_PROMPT } });
+  expect(resume("q")).toMatchObject({ cmd: { kind: "message", text: RESUME_PROMPT } });
 
   // cwd outside the home cwd dir / registered repos: a fresh session would have no context.
   interrupted(env, "x", "/elsewhere", "C");
@@ -207,7 +207,7 @@ test("resolveCommand: plan stage / worktree / Q&A cwd ok; unusable cwd, stale, n
     base: "main",
   });
   interrupted(env, "w", realpathSync(wtPath), "D");
-  expect(resume("w")).toMatchObject({ cmd: { kind: "task" } });
+  expect(resume("w")).toMatchObject({ cmd: { kind: "message" } });
   interrupted(env, "w2", "/elsewhere", "E");
   insertWorktree(env.db, {
     taskId: "T3",

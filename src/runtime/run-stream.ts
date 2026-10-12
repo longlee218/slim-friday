@@ -158,7 +158,7 @@ export async function consumeStream(p: {
             text = "";
           } else if (outcome === "error") {
             log.warn({ subtype: r.subtype, err: redactText(errors) }, "run failed");
-            // Only a failed resume needs the raw text (handle-task drops the stale session); else generic reply.
+            // Only a failed resume needs the raw text (handle-message drops the stale session); else generic reply.
             if (!RESUME_FAILED.test(errors)) text = "";
           }
         }

@@ -18,7 +18,7 @@ test("a crash posts the undelivered notice into the thread, then is re-thrown", 
   const rc = {
     deps: { db: env.db, config: env.config, steer, stopping: () => false },
     log: logger,
-    task: {
+    message: {
       source: "t",
       userId: "u",
       threadId: "th",
@@ -32,12 +32,12 @@ test("a crash posts the undelivered notice into the thread, then is re-thrown", 
     repos: [],
     ac,
     begin: () => {},
-    taskRepo: () => "*",
+    turnRepo: () => "*",
   };
   await expect(
     routeAndRun({
       rc: rc as never,
-      parsed: { kind: "task", text: "hello" },
+      parsed: { kind: "message", text: "hello" },
       stored: null,
       floors: new EffortFloors(),
       // a broken intent layer: the turn throws before any run

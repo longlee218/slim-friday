@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DRAIN_FILE, DRAIN_REPLY, isDraining } from "../src/lifecycle/drain";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 const msg = (text: string) => ({
@@ -25,7 +25,7 @@ test("isDraining: env FRIDAY_DRAIN=1 or a DRAIN file in AGENT_HOME", () => {
 test("draining: a new task is refused with the deploy reply and starts no run or row; stop still answers", async () => {
   const env = makeEnv();
   let runs = 0;
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: (() => {

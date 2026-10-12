@@ -1,4 +1,4 @@
-import type { Task } from "../../ingress/discord-message-handler";
+import type { InboundMessage } from "../../ingress/discord-message-handler";
 import type { Repo } from "../../repos/repo-registry";
 import type { Proposal } from "../../storage/proposal-store";
 import { type DispatchDeps, dispatchRole } from "./dispatch-role";
@@ -13,7 +13,7 @@ const QUEUED_EFFORTS: ReadonlySet<string> = new Set(["low", "medium", "high"]);
 export function startPendingProposal(
   c: {
     deps: DispatchDeps;
-    task: Task;
+    message: InboundMessage;
     workspace: string;
     repos: Repo[];
     ac: AbortController;
@@ -34,7 +34,7 @@ export function startPendingProposal(
       proposalId: p.id,
       confirmed: true,
     },
-    task: c.task,
+    message: c.message,
     reply: "",
     workspace: c.workspace,
     repos: c.repos,

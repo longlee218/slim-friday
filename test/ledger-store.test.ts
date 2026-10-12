@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import {
   LEDGER_HEADING,
   LEDGER_MAX_TASKS,
@@ -90,7 +90,7 @@ test("an idle thread's assistant sees the ledger in its system prompt; a Q&A-onl
   mk(env.db, "c1", { thread: "th1", brief: "Earlier change to the parser" });
   finishTask(env.db, "c1", "done");
   const prompts: Record<string, string> = {};
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: ((a: any) => {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import {
   GLOB_TOOL_NAME,
@@ -30,7 +30,7 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
       yield resultMsg();
     })();
   };
-  await createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
+  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",

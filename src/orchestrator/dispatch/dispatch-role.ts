@@ -1,6 +1,6 @@
 import { type Effort, resolveModel } from "../../config/model-routing";
 import { stripAttachmentPaths } from "../../ingress/attachment-text";
-import type { Task } from "../../ingress/discord-message-handler";
+import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { excerpt, logEvent, logger, setLogContext } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import type { Repo } from "../../repos/repo-registry";
@@ -10,7 +10,7 @@ import { setProposalStatus, supersedePending } from "../../storage/proposal-stor
 import { getSession } from "../../storage/session-store";
 import { liveWorktree } from "../../storage/worktree-store";
 import { runStages, type StageRunnerDeps } from "../engine/stage-runner";
-import { runRoute } from "../task-routing";
+import { runRoute } from "../message-routing";
 import { closeTask } from "../tasks/task-result";
 import { beginTask, failTask } from "../tasks/task-tracker";
 import { persistProposal } from "./proposal-flow";
@@ -34,7 +34,7 @@ export interface DispatchDeps extends StageRunnerDeps {
 export interface DispatchInput {
   request: DispatchRequest;
   /** The triggering message: thread, row source and the `notify` channel into the thread. */
-  task: Task;
+  message: InboundMessage;
   /** Reply of the finished source turn (shown before the notice). */
   reply: string;
   /** Workspace the task runs in and its repos. */
@@ -68,7 +68,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     request.proposalId ??
     persistProposal(db, log, {
       request,
-      threadId: i.task.threadId,
+      threadId: i.message.threadId,
       workspace: i.workspace,
       fromTaskId: i.fromTaskId,
     });
@@ -101,7 +101,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     // `refuse`, or `ask` on a proposal the owner already confirmed with `go` (asking again would loop): final.
     if (v.action === "refuse" || request.proposalId) refuseProposal();
     // A fresh `ask` keeps its proposal pending (the owner may answer `go`) and supersedes the thread's older ones.
-    else supersedePending(db, i.task.threadId, proposalId);
+    else supersedePending(db, i.message.threadId, proposalId);
     const fix = request.proposalId && v.action === "ask" ? " Send a new request to fix it." : "";
     return [i.reply, `${refusal.reply}${fix}`].filter(Boolean).join("\n\n");
   }
@@ -113,7 +113,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   beginTask(
     db,
     log,
-    { taskId, threadId: i.task.threadId, source: i.task.source },
+    { taskId, threadId: i.message.threadId, source: i.message.source },
     {
       repo,
       mode: firstStage.name,
@@ -148,7 +148,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   // Post the source answer + notice now (the plan can wait minutes for approval); on failure they join the reply.
   const posted = !head
     ? true
-    : await i.task.notify?.(head).then(
+    : await i.message.notify?.(head).then(
         () => true,
         (err: unknown) => {
           log.warn({ err: errText(err) }, "dispatch notify failed; notice joins the final reply");
@@ -157,7 +157,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
       );
   const res = await runStages(deps, {
     taskId,
-    threadId: i.task.threadId,
+    threadId: i.message.threadId,
     text: request.brief,
     role: role.name,
     workspace: i.workspace,
@@ -168,18 +168,18 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     route,
     pinned: i.pinned,
     // An answering role continues the thread's conversation and sees its task ledger (same as a fresh message).
-    existing: role.output === "answer" ? getSession(db, i.task.threadId) : undefined,
-    ledger: role.context?.ledger ? threadLedger(db, i.task.threadId) : "",
+    existing: role.output === "answer" ? getSession(db, i.message.threadId) : undefined,
+    ledger: role.context?.ledger ? threadLedger(db, i.message.threadId) : "",
   }).catch((err: unknown) => {
     // The caller's crash path only knows the source row: close this one so its slot is released.
     failTask(db, log, taskId);
     throw err;
   });
   // An answer in a thread that has a clone must not replace the thread's session (the clone's fix rounds resume it).
-  const keepClone = role.output === "answer" && !!liveWorktree(db, i.task.threadId);
+  const keepClone = role.output === "answer" && !!liveWorktree(db, i.message.threadId);
   const reply = closeTask(
     db,
-    { taskId, threadId: i.task.threadId },
+    { taskId, threadId: i.message.threadId },
     keepClone ? { ...res, sessionId: undefined } : res,
     { stopping: deps.stopping(), t0, repo },
   );

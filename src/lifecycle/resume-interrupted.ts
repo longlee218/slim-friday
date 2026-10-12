@@ -1,12 +1,12 @@
 import type { Database } from "bun:sqlite";
 import { ButtonStyle, type Client, type Interaction, MessageFlags } from "discord.js";
 import { buildButtonRows } from "../approvals/approval-buttons";
-import type { HandleTask } from "../ingress/discord-message-handler";
+import type { HandleMessage } from "../ingress/discord-message-handler";
 import { sendReply, startTyping } from "../ingress/discord-message-handler";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { RESUME_PROMPT } from "../orchestrator/task-commands";
+import { RESUME_PROMPT } from "../orchestrator/message-commands";
 import { ackInterrupted, listInterruptedThreads } from "../storage/run-store";
 
 /** customId prefix of the Resume button: `resume:<threadId>:go` (same format as the approval buttons). */
@@ -19,7 +19,7 @@ export interface ResumeDeps {
   db: Database;
   getClient: () => Client | undefined;
   ownerId: string;
-  handleTask: HandleTask;
+  handleMessage: HandleMessage;
   /** The one guild served (DISCORD_GUILD_ID); a button from another guild is ignored. */
   guildId?: string;
 }
@@ -80,7 +80,7 @@ export function createResumeHandler(deps: ResumeDeps) {
       logEvent(log, "resume.clicked", { threadId });
       const stopTyping = startTyping(channel);
       try {
-        const reply = await deps.handleTask({
+        const reply = await deps.handleMessage({
           source: "discord",
           userId: deps.ownerId,
           threadId,

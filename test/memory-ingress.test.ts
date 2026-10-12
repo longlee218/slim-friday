@@ -48,7 +48,7 @@ function msg(channel: any, content: string) {
 
 function handler() {
   const asked: MemoryRequest[] = [];
-  const tasks: any[] = [];
+  const messages: any[] = [];
   const memory = async (r: MemoryRequest) => {
     asked.push(r);
     return /^(remember|compact)/.test(r.text) ? `done ${r.where}` : null;
@@ -59,21 +59,21 @@ function handler() {
     guildId: "G1",
     setup,
     memory,
-    handleTask: async (t) => {
-      tasks.push(t);
+    handleMessage: async (message) => {
+      messages.push(message);
       return "answer";
     },
   });
-  return { onMessage, asked, tasks };
+  return { onMessage, asked, messages };
 }
 
 test("command in a channel: inline reply, no thread, no task", async () => {
-  const { onMessage, asked, tasks } = handler();
+  const { onMessage, asked, messages } = handler();
   const c = chan("500000000000000001");
   const x = msg(c, `<@${BOT}> remember: use bun`);
   await onMessage(x.m);
   expect(x.threads).toEqual([]);
-  expect(tasks).toEqual([]);
+  expect(messages).toEqual([]);
   expect(c.sent[0].content).toBe("done workspace");
   expect(asked[0]).toMatchObject({
     where: "workspace",
@@ -84,26 +84,26 @@ test("command in a channel: inline reply, no thread, no task", async () => {
 });
 
 test("command in a thread: replies in the thread, channelId is the parent, threadId set", async () => {
-  const { onMessage, asked, tasks } = handler();
+  const { onMessage, asked, messages } = handler();
   const t = chan("thr9", { thread: true, parentId: "500000000000000001" });
   await onMessage(msg(t, "remember: x y z").m);
-  expect(tasks).toEqual([]);
+  expect(messages).toEqual([]);
   expect(t.sent[0].content).toBe("done workspace");
   expect(asked[0]).toMatchObject({ channelId: "500000000000000001", threadId: "thr9" });
 });
 
 test("non-command still goes to the task layer", async () => {
-  const { onMessage, tasks } = handler();
+  const { onMessage, messages } = handler();
   const t = chan("thr9", { thread: true, parentId: "500000000000000001" });
   await onMessage(msg(t, "what is this").m);
-  expect(tasks).toHaveLength(1);
+  expect(messages).toHaveLength(1);
 });
 
 test("command in a non-control ops channel is refused through the runner as 'ops' (no task)", async () => {
-  const { onMessage, asked, tasks } = handler();
+  const { onMessage, asked, messages } = handler();
   const c = chan(OPS);
   await onMessage(msg(c, "remember: global abc").m);
-  expect(tasks).toEqual([]);
+  expect(messages).toEqual([]);
   expect(asked[0]).toMatchObject({ where: "ops" });
   expect(c.sent[0].content).toBe("done ops");
 });

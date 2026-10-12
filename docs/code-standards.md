@@ -67,9 +67,9 @@ src/
 │   ├── memory-writer.ts        # Append task memory + [global] bullets
 │   └── repo-memory.ts          # MEMORY.md loader/writer, append on exec success
 ├── orchestrator/               # Task lifecycle
-│   ├── handle-task.ts          # map thread → session; task command parse; stage detection (phase 4+)
-│   ├── task-commands.ts        # parse task/stop/cleanup commands; repo pinning; Resume routing (phase 5+)
-│   ├── task-routing.ts         # routeTask (pin / follow-up / refusals -> role), resolveCommand (Resume), runRoute; route-by-intent replaces routeTask in P1.4c
+│   ├── handle-message.ts       # map thread → session; message command parse; stage detection (phase 4+)
+│   ├── message-commands.ts     # parse message/stop/cleanup commands; repo pinning; Resume routing (phase 5+)
+│   ├── message-routing.ts      # routeMessage (pin / follow-up / refusals -> role), resolveCommand (Resume), runRoute; route-by-intent replaces routeMessage in P1.4c
 │   ├── route-and-run.ts        # one plain message: Resume / `go` / intent turn -> runTurn
 │   ├── intent-turn.ts          # state -> intent decision -> effort -> table action; replyWhileBusy
 │   ├── thread/                 # thread-state.ts (derived from the gate table), effort-floor.ts, route-by-intent.ts (behavior table), intent-replies.ts, turn-effort.ts, max-effort-gate.ts (effort max asks the owner)

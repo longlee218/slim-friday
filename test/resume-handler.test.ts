@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import type { Task } from "../src/ingress/discord-message-handler";
+import type { InboundMessage } from "../src/ingress/discord-message-handler";
 import { createResumeHandler } from "../src/lifecycle/resume-interrupted";
 import { captureLogs } from "../src/observability/logger";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { makeEnv } from "./helpers";
 
 const OWNER = "111";
@@ -36,37 +36,37 @@ function click(channel: any, over: { guildId?: string; userId?: string } = {}) {
 
 /** Resume handler with a recording fake task layer. */
 function setup(guildId?: string) {
-  const tasks: Task[] = [];
+  const messages: InboundMessage[] = [];
   const handle = createResumeHandler({
     db: undefined as never,
     getClient: () => undefined,
     ownerId: OWNER,
     guildId,
-    handleTask: async (t) => {
-      tasks.push(t);
+    handleMessage: async (message) => {
+      messages.push(message);
       return "ok";
     },
   });
-  return { handle, tasks };
+  return { handle, messages };
 }
 
-test("thread button: Task.channelId is the thread's parent channel", async () => {
-  const { handle, tasks } = setup();
+test("thread button: InboundMessage.channelId is the thread's parent channel", async () => {
+  const { handle, messages } = setup();
   await handle(click(fakeChannel("thr1", "parent5")).i);
-  expect(tasks).toMatchObject([{ threadId: "thr1", channelId: "parent5" }]);
+  expect(messages).toMatchObject([{ threadId: "thr1", channelId: "parent5" }]);
 });
 
 test("button outside a thread (no parent): nothing runs, no 'Resuming...' update", async () => {
-  const { handle, tasks } = setup();
+  const { handle, messages } = setup();
   const c = click(fakeChannel("chan1"));
   c.i.channel.isThread = () => false;
   await handle(c.i);
-  expect(tasks).toEqual([]);
+  expect(messages).toEqual([]);
   expect(c.calls.update).toBe(0);
 });
 
 test("pinned guild: a button from another guild is ignored, the pinned guild runs", async () => {
-  const { handle, tasks } = setup("G1");
+  const { handle, messages } = setup("G1");
   const other = click(fakeChannel("thr1", "p"), { guildId: "G2" });
   const cap = captureLogs();
   await handle(other.i);
@@ -74,10 +74,10 @@ test("pinned guild: a button from another guild is ignored, the pinned guild run
   expect(cap.lines.find((l) => l.event === "message.ignored")).toMatchObject({
     reason: "other_guild",
   });
-  expect(tasks).toEqual([]);
+  expect(messages).toEqual([]);
   expect(other.calls.update + other.calls.reply).toBe(0);
   await handle(click(fakeChannel("thr1", "p"), { guildId: "G1" }).i);
-  expect(tasks).toHaveLength(1);
+  expect(messages).toHaveLength(1);
 });
 
 test("unmapped parent channel: the real task layer refuses and the refusal is posted", async () => {
@@ -89,7 +89,7 @@ test("unmapped parent channel: the real task layer refuses and the refusal is po
     db: env.db,
     getClient: () => undefined,
     ownerId: OWNER,
-    handleTask: createTaskHandler({ db: env.db, config: env.config }),
+    handleMessage: createTurnHandler({ db: env.db, config: env.config }),
   });
   await handle(click(ch).i);
   expect(sent.join("\n")).toContain("This channel is not linked to a workspace");

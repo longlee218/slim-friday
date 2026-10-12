@@ -3,7 +3,7 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { insertTask } from "../src/storage/run-store";
 import { getSession } from "../src/storage/session-store";
@@ -107,7 +107,7 @@ test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; 
   const { env, clone } = await setup();
   const seen: any[] = [];
   const { gw, confirms } = gateway(false);
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -165,7 +165,7 @@ test("busy when the code-task cap is reached", async () => {
   }
   const { gw } = gateway(false);
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -184,7 +184,7 @@ test("plan rejected -> no worktree is created", async () => {
     request: async () => ({ approved: false }),
     requestPlan: async () => ({ approved: false, reason: "owner rejected plan" }),
   });
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -207,7 +207,7 @@ test("commits must carry the owner's identity: wrong author or attribution block
   ] as const) {
     const { env } = await setup();
     const { gw, confirms } = gateway(true);
-    const handle = createTaskHandler({
+    const handle = createTurnHandler({
       git,
       db: env.db,
       config: env.config,
@@ -225,7 +225,7 @@ test("no commit identity configured -> refused before any worktree exists", asyn
   const { env, clone } = await setup();
   addRepo(env.home, "real", {}, { path: clone }); // same clone, but no gitAuthor
   const { gw } = gateway(false);
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -241,7 +241,7 @@ test("pure question: the agent answers, no plan stage, no code task row", async 
   const { env } = await setup();
   const seen: any[] = [];
   const { gw } = gateway(false);
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -264,7 +264,7 @@ test("dev task: plan stage prompt is the owner message; notice posted before the
   const seen: any[] = [];
   const posted: string[] = [];
   const { gw } = gateway(false);
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -293,7 +293,7 @@ test("stop during the plan stage cancels the dev task", async () => {
     release = r;
   });
   const { gw } = gateway(false);
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -326,7 +326,7 @@ test("injection: a dev request alone creates no worktree and writes nothing befo
     requestPlan: async () => (asked++, { approved: false, reason: "owner rejected plan" }),
   });
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -361,7 +361,7 @@ test("a dispatch whose thread was already stopped starts nothing and leaves no c
       stopping: () => false,
     },
     {
-      task: msg_(DEV_REQUEST),
+      message: msg_(DEV_REQUEST),
       reply: "Q&A answer",
       request: { role: "dev", brief: BRIEF },
       workspace: "main",

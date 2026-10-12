@@ -5,8 +5,8 @@ import { loadConfig } from "../src/config/agent-config";
 import { DAY_MS, expireClones } from "../src/lifecycle/clone-retention";
 import { checkWorktrees, runStartupHygiene } from "../src/lifecycle/startup";
 import { keptClonesRefusal, MAX_KEPT_CLONES } from "../src/orchestrator/dispatch/task-repo";
-import { RESUME_PROMPT } from "../src/orchestrator/task-commands";
-import { resolveCommand } from "../src/orchestrator/task-routing";
+import { RESUME_PROMPT } from "../src/orchestrator/message-commands";
+import { resolveCommand } from "../src/orchestrator/message-routing";
 import {
   insertTask,
   latestTaskSession,

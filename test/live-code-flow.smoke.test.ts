@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync } from "node:fs";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { g, makeRepo } from "./git-fixture";
 import { addRepo, clearWorkspaces, devIntent, makeEnv, stubGateway, TEST_CHANNEL } from "./helpers";
@@ -43,7 +43,7 @@ describe.skipIf(!live)("live worktree code flow (OpenRouter)", () => {
       confirm: async () => (asked.push("confirm"), { approved: false, reason: "owner declined" }),
       askChoice: async (a) => a.options[0],
     });
-    const handle = createTaskHandler({
+    const handle = createTurnHandler({
       db: env.db,
       config: env.config,
       approvals: gw,

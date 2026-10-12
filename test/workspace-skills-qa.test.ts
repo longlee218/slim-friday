@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { GLOB_TOOL_NAME, READ_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { addRepo, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
@@ -39,7 +39,7 @@ async function qa(text: string, fail = false) {
       yield resultMsg();
     })();
   };
-  await createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
+  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
@@ -72,7 +72,7 @@ test("a workspace without curated skills gets no plugin even when its repos have
       yield resultMsg();
     })();
   };
-  await createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
+  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
@@ -116,7 +116,7 @@ test("guard: this run's plugin dirs are READ-only; another plugin dir and <home>
       );
       yield resultMsg();
     })();
-  await createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
+  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",

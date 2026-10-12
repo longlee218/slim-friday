@@ -23,7 +23,7 @@ import { openDb } from "../src/storage/db";
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 
-/** Discord channel id mapped to the default test workspace `main` (and carried by every test Task). */
+/** Discord channel id mapped to the default test workspace `main` (and carried by every test InboundMessage). */
 export const TEST_CHANNEL = "100000000000000001";
 
 /** Create a fresh temp AGENT_HOME, real config and real SQLite db. */

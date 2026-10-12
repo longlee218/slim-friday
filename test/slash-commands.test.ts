@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { slashToLegacy } from "../src/commands/slash-commands";
 import { isAdminText, parseAdminCommand } from "../src/discord-setup/admin-command";
 import { parseMemoryCommand } from "../src/memory/memory-commands";
-import { parseTaskCommand } from "../src/orchestrator/task-commands";
+import { parseMessageCommand } from "../src/orchestrator/message-commands";
 
 // L0: canonical slash forms and the legacy forms (still working this release) parse to the same commands.
 
@@ -20,8 +20,8 @@ test("slashToLegacy maps each canonical form and leaves everything else alone", 
   // not commands (legacy parity: stop / go [+usd] / compact [dry-run] take nothing else): ORIGINAL text kept
   for (const t of ["/go to the store and fix x", "/stop now", "/go +abc", "/compact now"])
     expect(slashToLegacy(t)).toBe(t);
-  expect(parseTaskCommand("/stop now")).toEqual({
-    kind: "task",
+  expect(parseMessageCommand("/stop now")).toEqual({
+    kind: "message",
     repo: undefined,
     text: "/stop now",
   });
@@ -38,17 +38,17 @@ test("task commands: slash and legacy forms parse the same", () => {
     ["/cleanup t-1", "cleanup: t-1"],
   ];
   for (const [slash, legacy] of same)
-    expect(parseTaskCommand(slash)).toEqual(parseTaskCommand(legacy));
-  expect(parseTaskCommand("/stop")).toEqual({ kind: "stop" });
-  expect(parseTaskCommand("/go +2")).toEqual({ kind: "go", extraBudgetUsd: 2 });
-  expect(parseTaskCommand("/cleanup t-1")).toEqual({ kind: "cleanup", taskId: "t-1" });
-  expect(parseTaskCommand("/remember global x y z")).toEqual({ kind: "memory" });
-  expect(parseTaskCommand("/compact")).toEqual({ kind: "memory" });
+    expect(parseMessageCommand(slash)).toEqual(parseMessageCommand(legacy));
+  expect(parseMessageCommand("/stop")).toEqual({ kind: "stop" });
+  expect(parseMessageCommand("/go +2")).toEqual({ kind: "go", extraBudgetUsd: 2 });
+  expect(parseMessageCommand("/cleanup t-1")).toEqual({ kind: "cleanup", taskId: "t-1" });
+  expect(parseMessageCommand("/remember global x y z")).toEqual({ kind: "memory" });
+  expect(parseMessageCommand("/compact")).toEqual({ kind: "memory" });
   // legacy forms keep working
-  expect(parseTaskCommand("stop")).toEqual({ kind: "stop" });
-  expect(parseTaskCommand("remember: x y z")).toEqual({ kind: "memory" });
+  expect(parseMessageCommand("stop")).toEqual({ kind: "stop" });
+  expect(parseMessageCommand("remember: x y z")).toEqual({ kind: "memory" });
   // a plain message that only mentions a command is a task
-  expect(parseTaskCommand("please /stop it")).toMatchObject({ kind: "task" });
+  expect(parseMessageCommand("please /stop it")).toMatchObject({ kind: "message" });
 });
 
 test("memory commands: slash and legacy forms are the same command", () => {

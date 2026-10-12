@@ -14,7 +14,7 @@ import {
   runWithLogContext,
   setLogContext,
 } from "../src/observability/logger";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { openDb } from "../src/storage/db";
 import { insertTask } from "../src/storage/run-store";
 import {
@@ -37,7 +37,7 @@ const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 test("a line from a module logger deep in a task carries taskId/threadId/repo/mode", async () => {
   const env = makeEnv();
   const cap = captureLogs();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: (() =>
@@ -106,7 +106,7 @@ test("context survives into SDK callbacks (hooks, timers): tool.done lines carry
       await a.options.canUseTool(EXIT_PLAN_MODE_TOOL_NAME, {}, {});
       yield resultMsg();
     })();
-  await createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never })(
+  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })(
     task("q", "th1"),
   );
   cap.stop();
@@ -131,7 +131,7 @@ test("two concurrent tasks do not mix contexts", async () => {
       await tick();
       yield resultMsg();
     })();
-  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
   await Promise.all([handle(task("a", "th1")), handle(task("b", "th2"))]);
   cap.stop();
   const byThread = (t: string) =>
@@ -203,7 +203,7 @@ test("context fields (workspace, repo) land on every line of the single app log;
 /** Run an unpinned Q&A whose fake query Reads `file` (when given); returns the captured lines. */
 async function runUnpinned(env: ReturnType<typeof makeEnv>, file?: string) {
   const cap = captureLogs();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: ((a: any) =>

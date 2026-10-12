@@ -6,8 +6,8 @@ import { parseMemoryCommand } from "../memory/memory-commands";
 export const RESUME_PROMPT =
   "The bot restarted while you were working. Continue the task from where you stopped.";
 
-/** What an owner message means: a control command, or a task for a role with an optional repo hint. */
-export type TaskCommand =
+/** What an owner message means: a control command, or a plain message for a role with an optional repo hint. */
+export type MessageCommand =
   | { kind: "stop" }
   /** The Resume button: continue the thread's saved session. */
   | { kind: "resume"; extraBudgetUsd?: number }
@@ -21,11 +21,11 @@ export type TaskCommand =
   /** `remember:` / `forget:` / `compact memory` (see memory-commands.ts): answered by app code, never by the agent. */
   | { kind: "memory" }
   /**
-   * Every plain message is a task; the intent layer picks its role (no intent layer: the entry role).
+   * A plain message (not a control command); the intent layer picks its role (no intent layer: the entry role).
    * `role` is never parsed: only a Resume of an interrupted plan stage sets it (that task's role starts again).
    * `repo:<name>` is an optional hint.
    */
-  | { kind: "task"; role?: string; repo?: string; text: string; cls?: TaskClass };
+  | { kind: "message"; role?: string; repo?: string; text: string; cls?: TaskClass };
 
 /** Owner class prefix: `[mechanical]`, `[standard]`, `[design]` (wins over the intent layer's class). Unknown tags are not prefixes. */
 const CLASS_PREFIX = /^\[(mechanical|standard|design)\]\s*/i;
@@ -37,7 +37,7 @@ export const MAX_GO_EXTRA_USD = 1000;
 const GO_COMMAND = /^go(?:\s+\+(\d+(?:\.\d+)?))?$/i;
 
 /** Parse a message into one command. The only place that knows the `stop` / `cleanup:` / `repo:` syntax (canonical `/stop`, `/cleanup`: legacy forms still work). */
-export function parseTaskCommand(input: string): TaskCommand {
+export function parseMessageCommand(input: string): MessageCommand {
   const text = slashToLegacy(input).trim(); // L0: `/stop`, `/go`, `/cleanup` ... map onto the legacy forms below
   if (text.toLowerCase() === "stop") return { kind: "stop" };
   if (text === RESUME_PROMPT) return { kind: "resume" };
@@ -65,5 +65,5 @@ export function parseTaskCommand(input: string): TaskCommand {
       rest = rest.slice(pin[0].length);
     }
   }
-  return { kind: "task", repo, text: rest, ...(cls && { cls }) };
+  return { kind: "message", repo, text: rest, ...(cls && { cls }) };
 }

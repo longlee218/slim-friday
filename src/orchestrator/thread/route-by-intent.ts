@@ -1,5 +1,5 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
-import type { Task } from "../../ingress/discord-message-handler";
+import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { logEvent, logger } from "../../observability/logger";
 import type { Repo } from "../../repos/repo-registry";
 import { entryRole, isGated, ROLES } from "../../roles/role-registry";
@@ -55,7 +55,7 @@ export type IntentOutcome =
 /** What the executor needs from the handler (a slice of its run context). */
 export interface RouteCtx {
   deps: DispatchDeps;
-  task: Task;
+  message: InboundMessage;
   workspace: string;
   repos: Repo[];
   ac: AbortController;
@@ -96,7 +96,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
   logEvent(log, "intent.routed", { action: a.kind, busy: c.busy });
   if (c.busy && !STORES_ITSELF.has(a.kind))
     c.deps.steer?.record(
-      c.task,
+      c.message,
       c.text,
       "other",
       a.kind === "side" || a.kind === "answer-ask" ? "delivered" : "skipped",
@@ -114,7 +114,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       const declined = a.answer === "no" ? declineConfirmedTask(c, c.busy) : undefined;
       if (declined?.kind === "busy") return reply(DECLINE_BUSY_REPLY);
       if (declined) return { kind: "run", role: entryRole().name, text: declined.text };
-      const resumed = resumeAnswer(c.deps.db, c.task.threadId, a.answer, c.busy);
+      const resumed = resumeAnswer(c.deps.db, c.message.threadId, a.answer, c.busy);
       if (resumed) return resumed;
       return reply(await answerPending(c, a.answer, NOTHING_PENDING));
     }
@@ -123,7 +123,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       if (!c.deps.approvals && isGated(ROLES[a.role] as RoleDefinition)) return reply(NO_APPROVALS);
       const text = queueTask(c, queued(c, a.role));
       c.deps.steer?.record(
-        c.task,
+        c.message,
         c.text,
         "followup",
         text === QUEUE_FULL ? "skipped" : "delivered",
@@ -131,7 +131,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       return reply(text);
     }
     case "steer":
-      return reply(steerReply(c.deps, c.task, c.text));
+      return reply(steerReply(c.deps, c.message, c.text));
     case "side": {
       // Not busy (a gate state with a free lock): the answering role simply runs. Busy: the parallel read-only run.
       const role = ROLES[a.role] as RoleDefinition;
@@ -149,8 +149,8 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
     case "feedback": {
       // Typed feedback on the plan = the Reject button with a reason: the planner revises and asks again.
       if (!c.busy) return reply(STILL_WORKING);
-      const applied = c.deps.approvals?.feedbackPlan?.(c.task.threadId, c.text) ?? false;
-      c.deps.steer?.record(c.task, c.text, "steer", applied ? "delivered" : "skipped");
+      const applied = c.deps.approvals?.feedbackPlan?.(c.message.threadId, c.text) ?? false;
+      c.deps.steer?.record(c.message, c.text, "steer", applied ? "delivered" : "skipped");
       return reply(applied ? FEEDBACK_SENT : FEEDBACK_MISSED);
     }
     case "run":
@@ -168,7 +168,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       return reply(
         await dispatchRole(c.deps, {
           request: { role: a.role, brief: taskBrief(c, c.text), repo: c.repo, cls: c.cls },
-          task: c.task,
+          message: c.message,
           reply: "",
           workspace: c.workspace,
           repos: c.repos,

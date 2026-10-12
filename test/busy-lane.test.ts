@@ -6,7 +6,7 @@ import type { IntentClassifier, IntentResult } from "../src/intent/intent-types"
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createGitMcp } from "../src/mcp/git-mcp";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/tasks/run-limiter";
 import { STATUS_HEADING } from "../src/orchestrator/tasks/status-snapshot";
 import {
@@ -182,7 +182,7 @@ async function harness(o: { steersToRead?: number; gate?: boolean; limit?: numbe
     classifier: classifier(p),
   };
   const limiter = createRunLimiter(o.limit ?? 5);
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,

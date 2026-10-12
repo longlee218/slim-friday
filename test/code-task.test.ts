@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { ApprovalGateway, ApprovalRequest } from "../src/approvals/approval-types";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
-import { parseTaskCommand, RESUME_PROMPT } from "../src/orchestrator/task-commands";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { parseMessageCommand, RESUME_PROMPT } from "../src/orchestrator/message-commands";
 import {
   ASK_USER_QUESTION_TOOL_NAME,
   BASH_TOOL_NAME,
@@ -55,7 +55,7 @@ async function runCodeTask(gw?: ApprovalGateway) {
       yield resultMsg();
     })();
   };
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: query as never,
@@ -72,38 +72,38 @@ async function runCodeTask(gw?: ApprovalGateway) {
   return { env, opts, reply, repo, qa };
 }
 
-test("parseTaskCommand: stop, cleanup and repo: hint; task: is plain Q&A text", () => {
-  expect(parseTaskCommand(" Stop ")).toEqual({ kind: "stop" });
-  expect(parseTaskCommand("stop it")).toMatchObject({ kind: "task" });
-  expect(parseTaskCommand("cleanup:")).toEqual({ kind: "cleanup", taskId: undefined });
-  expect(parseTaskCommand("CLEANUP: abc")).toEqual({ kind: "cleanup", taskId: "abc" });
-  expect(parseTaskCommand("task: add a file")).toEqual({
-    kind: "task",
+test("parseMessageCommand: stop, cleanup and repo: hint; task: is plain Q&A text", () => {
+  expect(parseMessageCommand(" Stop ")).toEqual({ kind: "stop" });
+  expect(parseMessageCommand("stop it")).toMatchObject({ kind: "message" });
+  expect(parseMessageCommand("cleanup:")).toEqual({ kind: "cleanup", taskId: undefined });
+  expect(parseMessageCommand("CLEANUP: abc")).toEqual({ kind: "cleanup", taskId: "abc" });
+  expect(parseMessageCommand("task: add a file")).toEqual({
+    kind: "message",
     repo: undefined,
     text: "task: add a file",
   });
-  expect(parseTaskCommand("what is x?")).toEqual({
-    kind: "task",
+  expect(parseMessageCommand("what is x?")).toEqual({
+    kind: "message",
     repo: undefined,
     text: "what is x?",
   });
-  expect(parseTaskCommand("repo:api how does auth work?")).toEqual({
-    kind: "task",
+  expect(parseMessageCommand("repo:api how does auth work?")).toEqual({
+    kind: "message",
     repo: "api",
     text: "how does auth work?",
   });
-  expect(parseTaskCommand("task: repo:api fix it")).toEqual({
-    kind: "task",
+  expect(parseMessageCommand("task: repo:api fix it")).toEqual({
+    kind: "message",
     repo: undefined,
     text: "task: repo:api fix it",
   });
 });
 
-test("parseTaskCommand: go, go +<usd>; invalid raises are plain messages; Resume prompt unchanged", () => {
-  expect(parseTaskCommand("go")).toEqual({ kind: "go" });
-  expect(parseTaskCommand(" GO ")).toEqual({ kind: "go" });
-  expect(parseTaskCommand("go +1.5")).toEqual({ kind: "go", extraBudgetUsd: 1.5 });
-  expect(parseTaskCommand("go +2")).toEqual({ kind: "go", extraBudgetUsd: 2 });
+test("parseMessageCommand: go, go +<usd>; invalid raises are plain messages; Resume prompt unchanged", () => {
+  expect(parseMessageCommand("go")).toEqual({ kind: "go" });
+  expect(parseMessageCommand(" GO ")).toEqual({ kind: "go" });
+  expect(parseMessageCommand("go +1.5")).toEqual({ kind: "go", extraBudgetUsd: 1.5 });
+  expect(parseMessageCommand("go +2")).toEqual({ kind: "go", extraBudgetUsd: 2 });
   for (const bad of [
     "go +0",
     `go +${"9".repeat(400)}`,
@@ -115,8 +115,8 @@ test("parseTaskCommand: go, go +<usd>; invalid raises are plain messages; Resume
     "go ahead",
     "go+1",
   ])
-    expect(parseTaskCommand(bad)).toMatchObject({ kind: "task", text: bad });
-  expect(parseTaskCommand(RESUME_PROMPT)).toEqual({ kind: "resume" });
+    expect(parseMessageCommand(bad)).toMatchObject({ kind: "message", text: bad });
+  expect(parseMessageCommand(RESUME_PROMPT)).toEqual({ kind: "resume" });
 });
 
 test("without approvals no run starts: the owner is told code tasks need the approval flow", async () => {

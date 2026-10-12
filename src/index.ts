@@ -26,7 +26,7 @@ import { runStartupHygiene } from "./lifecycle/startup";
 import { ensureHome } from "./memory/persona";
 import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
-import { createTaskHandler } from "./orchestrator/handle-task";
+import { createTurnHandler } from "./orchestrator/handle-message";
 import { createRunLimiter } from "./orchestrator/tasks/run-limiter";
 import { openDb } from "./storage/db";
 import { interruptRunningTasks } from "./storage/run-store";
@@ -110,7 +110,7 @@ async function main(): Promise<void> {
     ownerId: config.ownerDiscordId!,
     db,
   });
-  const handleTask = createTaskHandler({
+  const handleMessage = createTurnHandler({
     db,
     config,
     approvals,
@@ -121,19 +121,19 @@ async function main(): Promise<void> {
     db,
     getClient: () => botClient,
     ownerId: config.ownerDiscordId!,
-    handleTask,
+    handleMessage,
     guildId: config.discordGuildId,
   });
   // One interaction listener: each handler ignores buttons of the other (different customId prefix).
   const { client } = createDiscordBot(
     config,
-    handleTask,
+    handleMessage,
     async (i) => {
       await approvals.handleInteraction(i);
       await handleResume(i);
     },
     setup,
-    handleTask.memory,
+    handleMessage.memory,
   );
   botClient = client;
   // One #ops-log line per start / shutdown / uncaught error; no-op without ops.log in discord.yaml.
@@ -149,10 +149,10 @@ async function main(): Promise<void> {
   let closeReason = "unknown";
   /** Graceful shutdown: abort + await runs, drop the connection, close db. */
   const shutdown = createShutdown({
-    drain: handleTask.drain,
+    drain: handleMessage.drain,
     destroyClient: async () => {
       await opsLog.post("shutdown", closeReason);
-      await handleTask.close().catch(() => undefined); // stop the git MCP server process
+      await handleMessage.close().catch(() => undefined); // stop the git MCP server process
       await client.destroy();
     },
     closeDb: () => db.close(),

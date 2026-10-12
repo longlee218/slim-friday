@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { addRepo, clearWorkspaces, makeEnv, TEST_CHANNEL } from "./helpers";
 
 // Live test: verifies the SDK honors `additionalDirectories` (open spike item for phase 02).
@@ -29,7 +29,7 @@ describe.skipIf(!live)("live multi-repo smoke (OpenRouter)", () => {
     addRepo(env.home, "alpha", { description: "empty repo" }, { path: a });
     addRepo(env.home, "beta", { description: "holds magic.txt" }, { path: b });
 
-    const reply = await createTaskHandler({ db: env.db, config: env.config })({
+    const reply = await createTurnHandler({ db: env.db, config: env.config })({
       source: "test",
       channelId: TEST_CHANNEL,
       userId: "u",

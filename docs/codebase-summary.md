@@ -16,7 +16,7 @@
 ```
 Discord channel @bot <question>
   └─ create thread, parse prefix (repo:<name>, [dev]/[ask], [design]...)
-     └─ handle-task: lookup/create session, L0 commands, intent turn (L1 leading role tag, L3 Haiku with recent messages + pending question when undecided)
+     └─ handle-message: lookup/create session, L0 commands, intent turn (L1 leading role tag, L3 Haiku with recent messages + pending question when undecided)
         ├─ route-by-intent (thread state x role x scope): assistant -> run-agent read-only (Read/Glob/Grep/WebFetch/WebSearch; git MCP reads; no handoff tool)
         └─ dev request -> dispatchRole() (proposal from the intent result, validate, "Starting plan" notice)
            └─ runStages(plan stage) → [plan approval] → execute → PR
@@ -84,13 +84,13 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 
 ### Ingress & Routing
 - **discord-bot.ts:** discord.js client setup, message event listener
-- **discord-message-handler.ts:** route own bot, DM, mention, reply → task handler
+- **discord-message-handler.ts:** route own bot, DM, mention, reply → message handler
 - **discord-message-rules.ts:** owner check, thread lifecycle
 
 ### Session & Task Management
-- **handle-task.ts / route-and-run.ts / intent-turn.ts:** thread→session mapping, repo pin, L0 commands, intent turn (role choice), run lock; `route-by-intent.ts` holds the behavior table
+- **handle-message.ts / route-and-run.ts / intent-turn.ts:** thread→session mapping, repo pin, L0 commands, intent turn (role choice), run lock; `route-by-intent.ts` holds the behavior table
 - **src/intent/:** L1 role tag + L2 effort rules + L3 classifier (`decide-intent.ts`); see docs/system-architecture.md "Intent Layer"
-- **task-commands.ts:** parse stop/cleanup commands; repo pinning; Resume routing logic (phase 5+)
+- **message-commands.ts:** parse stop/cleanup commands; repo pinning; Resume routing logic (phase 5+)
 - **tasks/task-tracker.ts:** thread locking, session resume context tracking (phase 5+)
 - **engine/plain-run.ts:** read-only stage run (Q&A is the 1-stage `assistant` role): cwd pick, clone refresh; reply through `outputs/answer-output.ts` (ESCALATE re-run when the role flag `escalation` is set)
 - **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal (from the intent result), validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
@@ -127,7 +127,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 ### Discord setup (Step B phase 5, `src/discord-setup/`)
 - **discord-setup-config.ts:** discord.yaml (ops ids, controlChannels); missing = none, unparsable = throw (startup refusal); `opsIds`
 - **private-channels.ts:** `privateOverwrites`, strict `isPrivateOverwrites`/`isPrivateChannel`, `botPermissionReport`, create-only `createPrivate`
-- **admin-command.ts / admin-handler.ts:** `init:workspace:<name>` parser + gate (owner, pinned guild, control channel id + live isPrivate); handler runs outside the task handler
+- **admin-command.ts / admin-handler.ts:** `init:workspace:<name>` parser + gate (owner, pinned guild, control channel id + live isPrivate); handler runs outside the turn handler
 - **init-workspace.ts / workspace-template.ts:** fs template, create category + `#<ws>-agent`, write channel id into workspace.yaml
 - **bootstrap-discord-cli.ts:** `bun run bootstrap:discord [--dry-run]` (lists every guild channel, creates ops + 4 channels, writes discord.yaml)
 - **ops-log.ts / ready-checks.ts:** #ops-log start/shutdown/error lines; `discord.bot_administrator` warning
@@ -145,7 +145,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 
 ### Dispatch (P1.4c: the Q&A delegate tool is retired)
 - **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal from the intent result, validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
-- **task-routing.ts (src/orchestrator/):** shared `cappedTaskBlocker()` blocker check (cap MAX_CAPPED_TASKS, managed clone validation, repo lookup)
+- **message-routing.ts (src/orchestrator/):** shared `cappedTaskBlocker()` blocker check (cap MAX_CAPPED_TASKS, managed clone validation, repo lookup)
 
 ### Repository Management
 - **workspaces/workspace-registry.ts:** `loadWorkspaces(home)` -> `{workspaces, legacy}`: scans workspaces/*/workspace.yaml (zod: description, channels), fail-closed validation (name rules, real dirs not symlinks, duplicate channel ids dropped from both, `repo.overlap` warning); each workspace carries its own repos (no flat cross-workspace list: repo names are unique only inside a workspace)
@@ -192,7 +192,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 | Area | File | Coverage |
 |------|------|----------|
 | Discord routing | test/discord-*.test.ts | channel mention, thread reply, owner-only |
-| Session & locks | test/handle-task.test.ts | thread→session, concurrent access, stop signal |
+| Session & locks | test/handle-message-lock.test.ts, test/handle-message-intent.test.ts | thread→session, concurrent access, stop signal |
 | Agent runner | test/run-agent-stream.test.ts | query loop, hook integration, abort timeout |
 | Guardrails | test/deny-dangerous.test.ts | 30+ command/path/host cases |
 | Bash policy | test/bash-policy.test.ts | allowlist, network, install gates |

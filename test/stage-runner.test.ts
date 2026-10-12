@@ -3,7 +3,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createGitMcp } from "../src/mcp/git-mcp";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { listStages } from "../src/storage/stage-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
@@ -70,7 +70,7 @@ const msg = (text: string) => ({
 });
 
 const handler = (env: Awaited<ReturnType<typeof setup>>, exec?: Record<string, unknown>) =>
-  createTaskHandler({
+  createTurnHandler({
     git,
     db: env.db,
     config: env.config,
@@ -180,7 +180,7 @@ test("budget hit in a clone: spent/limit, last summary, diff stat of the clone, 
       });
     })();
   };
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     git,
     db: env.db,
     config: env.config,

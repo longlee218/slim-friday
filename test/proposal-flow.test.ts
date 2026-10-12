@@ -11,8 +11,8 @@ import {
   pendingProposalFor,
 } from "../src/orchestrator/dispatch/proposal-flow";
 import { budgetHitMessage } from "../src/orchestrator/engine/budget";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
-import { resolveCommand } from "../src/orchestrator/task-routing";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { resolveCommand } from "../src/orchestrator/message-routing";
 import { finishRun } from "../src/orchestrator/tasks/task-result";
 import {
   getProposal,
@@ -54,7 +54,7 @@ function setup() {
       yield resultMsg();
     })();
   };
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: query as never,
@@ -203,7 +203,7 @@ test("go +<usd> reaches the run: the resumed Q&A run carries extraBudgetUsd in i
   const env = makeEnv();
   budgetStopped(env);
   const seen: any[] = [];
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: ((a: any) => {

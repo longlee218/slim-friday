@@ -3,7 +3,7 @@ import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { GIT_TOOL } from "../src/mcp/mcp-tool-names";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { isManagedClone, refreshRepo } from "../src/repos/refresh-repo";
 import { buildRegistryContext } from "../src/repos/repo-registry";
 import { getSession } from "../src/storage/session-store";
@@ -54,7 +54,7 @@ test("returns empty when there is no workspaces dir or no valid workspace", () =
 test("handler tells the owner to add a workspace when none exists", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const handle = createTaskHandler({ db: env.db, config: env.config });
+  const handle = createTurnHandler({ db: env.db, config: env.config });
   const reply = await handle({
     source: "t",
     channelId: TEST_CHANNEL,
@@ -90,7 +90,7 @@ test("handler: unpinned uses all repos; pin sticks to thread; unknown pin reject
       yield resultMsg();
     })();
   };
-  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
   const t = (threadId: string, text: string) => ({
     source: "t",
     channelId: TEST_CHANNEL,
@@ -133,7 +133,7 @@ test("re-pinning to another repo starts a fresh session (no resume across cwd)",
       yield resultMsg();
     })();
   };
-  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
   const t = (text: string) => ({
     source: "t",
     channelId: TEST_CHANNEL,

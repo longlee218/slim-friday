@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/tasks/run-limiter";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
@@ -28,7 +28,7 @@ function gated(gate: { open?: () => void; ready?: () => void }) {
     })();
 }
 
-test("handleTask replies busy when cap reached, stop still works, slot released after run", async () => {
+test("handleMessage replies busy when cap reached, stop still works, slot released after run", async () => {
   const env = makeEnv();
   const limiter = createRunLimiter(1);
   const gate: { open?: () => void; ready?: () => void } = {};
@@ -37,7 +37,7 @@ test("handleTask replies busy when cap reached, stop still works, slot released 
     readyResolve = r;
   });
   gate.ready = readyResolve;
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: gated(gate) as never,
@@ -65,7 +65,7 @@ test("slot released when the run errors", async () => {
   const boom = (() => {
     throw new Error("boom");
   }) as never;
-  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: boom, limiter });
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: boom, limiter });
   await handle({ source: "test", channelId: TEST_CHANNEL, userId: "u", threadId: "t", text: "x" });
   expect(limiter.active()).toBe(0);
 });
@@ -88,7 +88,7 @@ test("abortAll aborts active runs", async () => {
       });
       yield resultMsg();
     })();
-  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: q as never });
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: q as never });
   const p = handle({
     source: "test",
     channelId: TEST_CHANNEL,

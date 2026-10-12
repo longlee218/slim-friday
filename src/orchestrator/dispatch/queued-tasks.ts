@@ -1,5 +1,5 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
-import type { Task } from "../../ingress/discord-message-handler";
+import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { RECENT_HEADING, recentBlock } from "../../intent/recent-messages";
 import { excerpt, logEvent, logger } from "../../observability/logger";
 import type { Repo } from "../../repos/repo-registry";
@@ -33,7 +33,7 @@ export const MAX_QUEUED = MAX_DRAIN;
 /** What a queue step needs from the handler. */
 export interface QueueCtx {
   deps: DispatchDeps;
-  task: Task;
+  message: InboundMessage;
   workspace: string;
   repos: Repo[];
   ac: AbortController;
@@ -47,10 +47,10 @@ const EARLIER_HEADING = "\n\nEarlier tasks in this thread:\n";
  * Brief of a new task: the owner message, a thread reference (the last tasks, one line each) and the recent
  * conversation (<= 1200 chars, data) so a reference like "do that" makes sense to the plan stage.
  */
-export function taskBrief(c: Pick<QueueCtx, "deps" | "task">, text: string): string {
-  const lines = ledgerLines(c.deps.db, c.task.threadId, 3);
+export function taskBrief(c: Pick<QueueCtx, "deps" | "message">, text: string): string {
+  const lines = ledgerLines(c.deps.db, c.message.threadId, 3);
   const earlier = lines.length ? `${EARLIER_HEADING}${lines.map((l) => `- ${l}`).join("\n")}` : "";
-  return `${text}${earlier}${recentBlock(c.task.recent)}`;
+  return `${text}${earlier}${recentBlock(c.message.recent)}`;
 }
 
 /** The owner message of a brief (without the thread reference and the recent conversation). */
@@ -96,7 +96,7 @@ export function queueTask(
   },
 ): string {
   const { db } = c.deps;
-  if (!r.confirm && countQueuedProposals(db, c.task.threadId) >= MAX_QUEUED) return QUEUE_FULL;
+  if (!r.confirm && countQueuedProposals(db, c.message.threadId) >= MAX_QUEUED) return QUEUE_FULL;
   const id = persistProposal(db, log, {
     request: {
       role: r.role,
@@ -106,11 +106,11 @@ export function queueTask(
       effort: r.effort,
       ...(r.confirm && { reason: CONFIRM_TASK_REASON }),
     },
-    threadId: c.task.threadId,
+    threadId: c.message.threadId,
     workspace: c.workspace,
   });
   if (!id) return "Could not queue it; send it again after the current task.";
-  supersedePending(db, c.task.threadId, id);
+  supersedePending(db, c.message.threadId, id);
   if (r.confirm) return CONFIRM_TASK_QUESTION;
   setProposalStatus(db, id, "queued");
   return QUEUE_RECEIVED;
@@ -129,7 +129,7 @@ export function declineConfirmedTask(
   c: QueueCtx,
   busy: boolean,
 ): { kind: "run"; text: string } | { kind: "busy" } | undefined {
-  const p = pendingProposalFor(c.deps.db, c.task.threadId, c.workspace);
+  const p = pendingProposalFor(c.deps.db, c.message.threadId, c.workspace);
   if (!p || p === "expired" || !isConfirm(p.reason)) return undefined;
   if (busy) return { kind: "busy" };
   setProposalStatus(c.deps.db, p.id, "refused");
@@ -146,7 +146,7 @@ export async function answerPending(
   nothing: string,
 ): Promise<string> {
   const { db } = c.deps;
-  const p = pendingProposalFor(db, c.task.threadId, c.workspace);
+  const p = pendingProposalFor(db, c.message.threadId, c.workspace);
   if (p === "expired") return PROPOSAL_EXPIRED_REPLY;
   if (!p) return nothing;
   if (answer === "no") {
@@ -167,7 +167,7 @@ export async function answerPending(
 export async function drainQueued(c: QueueCtx, reply: string): Promise<string> {
   let out = reply;
   for (let n = 0; n < MAX_DRAIN && !c.ac.signal.aborted; n++) {
-    const next = oldestQueuedProposal(c.deps.db, c.task.threadId);
+    const next = oldestQueuedProposal(c.deps.db, c.message.threadId);
     if (!next) break;
     logEvent(log, "proposal.dequeued", { proposalId: next.id, role: next.role });
     out = `${out}\n\n${await startPendingProposal(c, next)}`;

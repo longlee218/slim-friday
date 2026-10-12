@@ -1,11 +1,11 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
 import { stripAttachmentPaths } from "../../ingress/attachment-text";
-import type { Task } from "../../ingress/discord-message-handler";
+import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
 import type { Repo } from "../../repos/repo-registry";
 import { threadLedger } from "../../storage/ledger-store";
 import { runStages } from "../engine/stage-runner";
-import { runRoute } from "../task-routing";
+import { runRoute } from "../message-routing";
 import { closeTask } from "../tasks/task-result";
 import { beginTask, failTask } from "../tasks/task-tracker";
 import type { DispatchDeps } from "./dispatch-role";
@@ -38,7 +38,7 @@ export interface SideInput {
   cls?: TaskClass;
   effort?: Effort;
   /** The message (thread, source, recent conversation). */
-  task: Task;
+  message: InboundMessage;
   workspace: string;
   repos: Repo[];
   pinned?: Repo;
@@ -51,7 +51,7 @@ export interface SideInput {
 /** Answer a side question; returns the reply text. Throws only on a crash (the caller reports it). */
 export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<string> {
   const { db, config } = deps;
-  const brief = stripAttachmentPaths(taskBrief({ deps, task: i.task }, i.text));
+  const brief = stripAttachmentPaths(taskBrief({ deps, message: i.message }, i.text));
   const v = await validateRequest(
     {
       db,
@@ -66,12 +66,12 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
   if (!v.ok) return v.refusal.reply;
   const { role } = v;
   const taskId = crypto.randomUUID();
-  const sideThread = `${i.task.threadId}${SIDE_THREAD_SUFFIX}`;
+  const sideThread = `${i.message.threadId}${SIDE_THREAD_SUFFIX}`;
   setLogContext({ taskId });
   beginTask(
     db,
     log,
-    { taskId, threadId: sideThread, source: i.task.source },
+    { taskId, threadId: sideThread, source: i.message.source },
     { repo: v.repoName, mode: v.firstStage.name, brief, cls: v.cls, role: role.name },
   );
   logEvent(log, "side.started", { role: role.name, repo: v.repoName });
@@ -80,7 +80,7 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
     { ...deps, steer: undefined }, // no steer hook: the side run must never register a sink under the thread
     {
       taskId,
-      threadId: i.task.threadId, // approvals and the attachment copy belong to the real thread
+      threadId: i.message.threadId, // approvals and the attachment copy belong to the real thread
       text: brief,
       role: role.name,
       workspace: i.workspace,
@@ -90,7 +90,7 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
       pinned: i.pinned,
       existing: undefined, // fresh: never resumes (nor overwrites) the thread's session
       // The status snapshot goes with the ledger: both are data blocks of the running task.
-      ledger: [i.snapshot, role.context?.ledger ? threadLedger(db, i.task.threadId) : ""]
+      ledger: [i.snapshot, role.context?.ledger ? threadLedger(db, i.message.threadId) : ""]
         .filter(Boolean)
         .join("\n\n"),
     },

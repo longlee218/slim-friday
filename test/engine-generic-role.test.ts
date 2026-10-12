@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { runStages } from "../src/orchestrator/engine/stage-runner";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { insertTask } from "../src/storage/run-store";
@@ -115,7 +115,7 @@ test("Q&A is the 1-stage assistant role run by the engine: its turn leaves a qa 
       yield initMsg;
       yield resultMsg();
     })();
-  const reply = await createTaskHandler({
+  const reply = await createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: queryFn as never,

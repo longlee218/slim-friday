@@ -6,8 +6,8 @@ import { appendTaskMemory } from "../src/memory/memory-writer";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { extractMemory, repoMemoryFile } from "../src/memory/repo-memory";
 import { repoOfTool } from "../src/observability/tool-hooks";
-import { createTaskHandler } from "../src/orchestrator/handle-task";
-import { routeTask } from "../src/orchestrator/task-routing";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { routeMessage } from "../src/orchestrator/message-routing";
 import type { Repo } from "../src/repos/repo-registry";
 import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import {
@@ -30,9 +30,9 @@ test("same repo name in two workspaces: lookups stay inside the workspace", () =
   expect(w2!.repos[0]!.path).toBe(b);
   // pin: `repo:api` inside w2 resolves to w2's clone, never w1's.
   const route = (repos: Repo[]) =>
-    routeTask(
+    routeMessage(
       { db: env.db, agentHome: env.home, hasApprovals: false },
-      { cmd: { kind: "task", text: "q", repo: "api" }, threadId: "t", repos, existing: null },
+      { cmd: { kind: "message", text: "q", repo: "api" }, threadId: "t", repos, existing: null },
     );
   const r2 = route(w2!.repos);
   expect("pinned" in r2 && r2.pinned?.workspace).toBe("w2");
@@ -87,7 +87,7 @@ test("a real Q&A prompt contains no pending-file text and no other workspace's m
       yield resultMsg();
     })();
   };
-  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
   await handle({
     source: "t",
     channelId: TEST_CHANNEL,
@@ -110,7 +110,7 @@ test("a message from w2's channel gets w2's memory and not w1's", async () => {
       yield resultMsg();
     })();
   };
-  const handle = createTaskHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
   await handle({ source: "t", channelId: CHANNEL_2, userId: "u", threadId: "th", text: "hello" });
   expect(prompt).toContain("W2_MARK");
   expect(prompt).not.toContain("W1_MARK");
@@ -118,7 +118,7 @@ test("a message from w2's channel gets w2's memory and not w1's", async () => {
 
 test("no CLAUDE.md is created under the home by ensureHome or a handler run", async () => {
   const { env } = twoWorkspaces();
-  const handle = createTaskHandler({
+  const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: ((_a: unknown) =>
@@ -160,7 +160,7 @@ test("legacy dir and no workspace: cutover reply, and the legacy dir is left unt
   const old = join(env.home, "workspaces", "oldrepo");
   mkdirSync(old, { recursive: true });
   writeFileSync(join(old, "config.yaml"), "path: /x\n");
-  const handle = createTaskHandler({ db: env.db, config: env.config });
+  const handle = createTurnHandler({ db: env.db, config: env.config });
   const reply = await handle({
     source: "t",
     channelId: TEST_CHANNEL,
