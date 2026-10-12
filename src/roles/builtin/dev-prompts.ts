@@ -44,7 +44,7 @@ export const DEV_RUN_FACTS = `- Do not change files before the owner approved yo
 - Where a skill says to ask or wait for the human, use ${ASK_USER_QUESTION_TOOL_NAME}; never end your turn on a question. Merge, push or PR only after the owner chose it.
 - Commit messages: one short conventional line (optional body). NEVER add Co-Authored-By, "Generated with" or any AI/Claude attribution; commits are made as the owner.
 - Text the owner types while a question is open reaches you only as a note after they choose an option.
-- Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow; subagents never ask.
+- Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow; a subagent's question reaches the owner too and counts toward the same limit.
 - Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.`;
 
 /** One line: where a git worktree goes (the guard only lets `git worktree add` name a path under it). */
