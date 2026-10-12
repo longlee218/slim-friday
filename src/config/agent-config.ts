@@ -58,7 +58,7 @@ const envSchema = z.object({
   INTENT_ENGINE: z.enum(["haiku", "jev", "none"]).default("haiku"),
   MODEL_INTENT: z.string().trim().min(1).optional(),
   INTENT_BUDGET_USD: z.coerce.number().positive().default(0.02),
-  INTENT_TIMEOUT_MS: z.coerce.number().int().min(8000).default(8000),
+  INTENT_TIMEOUT_MS: z.coerce.number().int().min(8000).default(20000),
 });
 
 /** Names of the env variables the app itself reads: each must be classified in `data/child-env-deny.yaml`. */

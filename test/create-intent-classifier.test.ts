@@ -8,13 +8,13 @@ import { makeEnv } from "./helpers";
 
 const base = { AGENT_HOME: "/tmp/x" };
 
-test("config defaults: haiku engine, haiku tier, 0.02 USD, 8000 ms", () => {
+test("config defaults: haiku engine, haiku tier, 0.02 USD, 20000 ms", () => {
   const c = loadConfig(base);
   expect(c.intent).toEqual({
     engine: "haiku",
     model: c.models.haiku,
     budgetUsd: 0.02,
-    timeoutMs: 8000,
+    timeoutMs: 20000,
   });
 });
 
