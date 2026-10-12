@@ -138,7 +138,7 @@ test("code task runs in plan mode in the scratch dir with write tools and no all
   expect(opts.systemPrompt.append).toContain("plan mode");
   // The plan stage keeps its session on the task row, never in the thread's session table.
   expect(env.db.query("SELECT cwd FROM sessions").all()).toEqual([]);
-  expect(env.db.query("SELECT type FROM tasks").all()).toEqual([{ type: "code" }]);
+  expect(env.db.query("SELECT type FROM turns").all()).toEqual([{ type: "code" }]);
 });
 
 test("canUseTool: plan goes to owner; writes only in scratch; risky Bash asks; denial reaches agent", async () => {

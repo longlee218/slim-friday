@@ -40,7 +40,7 @@ export function startPendingProposal(
     repos: c.repos,
     pinned: c.pinned,
     ac: c.ac,
-    fromTaskId: p.fromTaskId ?? undefined,
+    fromTurnId: p.fromTurnId ?? undefined,
     extraBudgetUsd,
     // Effort stored when the request was queued (null = stage defaults); `max` never comes from here.
     effort: p.effort && QUEUED_EFFORTS.has(p.effort) ? p.effort : undefined,

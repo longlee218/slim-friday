@@ -35,7 +35,7 @@ export interface RoleRunCtx {
     mode: string,
     cls?: TaskClass,
     /** Task whose clone a follow-up (fix round) continues. */
-    parentTaskId?: string,
+    parentTurnId?: string,
     /** The task runs a `failed_resumable` one again (not a fix round). */
     resume?: boolean,
   ) => void;

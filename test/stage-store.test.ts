@@ -6,16 +6,16 @@ import { makeEnv } from "./helpers";
 test("upsert inserts, then updates in place; undefined fields keep their value; model persisted", () => {
   const { db } = makeEnv();
   upsertStage(db, {
-    taskId: "t1",
+    turnId: "t1",
     idx: 0,
     name: "plan",
     status: "running",
     model: "claude-sonnet-5-5",
     startedAt: 10,
   });
-  upsertStage(db, { taskId: "t1", idx: 1, name: "exec", status: "running" });
+  upsertStage(db, { turnId: "t1", idx: 1, name: "exec", status: "running" });
   upsertStage(db, {
-    taskId: "t1",
+    turnId: "t1",
     idx: 0,
     name: "plan",
     status: "done",
@@ -40,8 +40,8 @@ test("upsert inserts, then updates in place; undefined fields keep their value; 
 
 test("interruptRunningTurns also interrupts running stages", () => {
   const { db } = makeEnv();
-  upsertStage(db, { taskId: "t1", idx: 0, name: "plan", status: "done" });
-  upsertStage(db, { taskId: "t1", idx: 1, name: "exec", status: "running" });
+  upsertStage(db, { turnId: "t1", idx: 0, name: "plan", status: "done" });
+  upsertStage(db, { turnId: "t1", idx: 1, name: "exec", status: "running" });
   interruptRunningTurns(db);
   expect(listStages(db, "t1").map((s) => s.status)).toEqual(["done", "interrupted"]);
 });

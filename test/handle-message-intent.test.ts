@@ -118,7 +118,7 @@ const msg = (text: string, threadId = "th1") => ({
 });
 const rows = (env: { db: any }, sql: string) => env.db.query(sql).all() as any[];
 const roles = (env: { db: any }) =>
-  rows(env, "SELECT role FROM tasks ORDER BY rowid").map((r) => r.role);
+  rows(env, "SELECT role FROM turns ORDER BY rowid").map((r) => r.role);
 
 test("L3 picks the role of an undecided message, once; assistant answers a question", async () => {
   const env = await setup();
@@ -209,10 +209,10 @@ test("L3 -> dev opens the task by the dispatcher: plan stage runs, no assistant 
     role: "dev",
     status: "dispatched",
     class: "mechanical",
-    from_task_id: null,
+    from_turn_id: null,
   });
   expect(p.brief).toContain("please add b.txt with two");
-  expect(rows(env, "SELECT class, proposal_id FROM tasks")[0]).toMatchObject({
+  expect(rows(env, "SELECT class, proposal_id FROM turns")[0]).toMatchObject({
     class: "mechanical",
     proposal_id: p.id,
   });
@@ -389,7 +389,7 @@ test("stop keeps the queued tasks: the reply counts them, they run after the sto
     rows(env, "SELECT status FROM proposals ORDER BY created_at, rowid").map((r) => r.status),
   ).toEqual(["dispatched", "dispatched"]);
   expect(
-    rows(env, "SELECT brief FROM tasks WHERE role = 'dev' ORDER BY started_at, rowid").map(
+    rows(env, "SELECT brief FROM turns WHERE role = 'dev' ORDER BY started_at, rowid").map(
       (r) => String(r.brief).split("\n")[0],
     ),
   ).toEqual(["add a feature please", "add another feature please"]);
@@ -424,8 +424,8 @@ test("fix loop: [dev] follow-ups continue in the same clone/session, max 2 round
     expect(o.resume).toBe("sess-exec");
   }
   expect(
-    rows(env, "SELECT parent_task_id FROM tasks WHERE parent_task_id IS NOT NULL").map(
-      (r) => r.parent_task_id,
+    rows(env, "SELECT parent_turn_id FROM turns WHERE parent_turn_id IS NOT NULL").map(
+      (r) => r.parent_turn_id,
     ),
   ).toEqual([wt.taskId, wt.taskId]);
   // round 3: the limit is reached, so the request is a NEW task (plan stage), not a fix round or a dead end
@@ -594,7 +594,7 @@ test("a crash of the active run still starts the queued task (no L3 call while a
   });
   // finishing the assistant task fails in storage: the turn throws (a crash), the dev task must still start
   env.db.run(
-    "CREATE TRIGGER boom BEFORE UPDATE ON tasks WHEN NEW.role = 'assistant' AND NEW.status != 'running' BEGIN SELECT RAISE(ABORT, 'boom'); END",
+    "CREATE TRIGGER boom BEFORE UPDATE ON turns WHEN NEW.role = 'assistant' AND NEW.status != 'running' BEGIN SELECT RAISE(ABORT, 'boom'); END",
   );
   const first = handle(msg("[ask] explain the repo"));
   await Bun.sleep(50);

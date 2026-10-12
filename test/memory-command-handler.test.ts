@@ -72,12 +72,12 @@ test("in a thread the default repo is the latest task's repo", async () => {
   const { env, ask, file } = setup(["web"]);
   env.db
     .query(
-      "INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at) VALUES ('t1','th1','discord','web','qa','done',1)",
+      "INSERT INTO turns (id, thread_id, source, repo, type, status, started_at) VALUES ('t1','th1','discord','web','qa','done',1)",
     )
     .run();
   env.db
     .query(
-      "INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at) VALUES ('t2','th1','discord','*','qa','done',2)",
+      "INSERT INTO turns (id, thread_id, source, repo, type, status, started_at) VALUES ('t2','th1','discord','*','qa','done',2)",
     )
     .run();
   await ask("remember: thread default", { threadId: "th1" });
@@ -165,7 +165,7 @@ test("via handleMessage: answered without any task row, quota slot or agent call
   });
   expect(reply).toContain("Remembered");
   expect(called).toBe(false);
-  expect(env.db.query("SELECT COUNT(*) AS n FROM tasks").get()).toEqual({ n: 0 });
+  expect(env.db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 0 });
 });
 
 test("bare repo name as first word selects that repo (owner's live message)", async () => {

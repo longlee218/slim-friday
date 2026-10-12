@@ -93,7 +93,7 @@ describe("Q&A escalation through the handler", () => {
   });
   test("qa stage row records the escalated re-run's model, else the first run's", async () => {
     const stageModel = (db: Awaited<ReturnType<typeof ask>>["db"]) => {
-      const t = db.query<{ id: string }, []>("SELECT id FROM tasks").get()!;
+      const t = db.query<{ id: string }, []>("SELECT id FROM turns").get()!;
       return listStages(db, t.id).map((r) => [r.name, r.model]);
     };
     const esc = await ask(["no idea\nESCALATE: sonnet", "real answer"]);

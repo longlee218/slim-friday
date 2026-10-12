@@ -92,7 +92,7 @@ test("buildIntentInput: lastTurn = role and last stage of the thread's latest ta
     buildIntentInput(env.db, { threadId: "th", text: "x", state: "idle" }).thread.lastTurn,
   ).toBeUndefined();
   insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "r", role: "assistant" });
-  upsertStage(env.db, { taskId: "t1", idx: 0, name: "qa", status: "done" });
+  upsertStage(env.db, { turnId: "t1", idx: 0, name: "qa", status: "done" });
   const t = buildIntentInput(env.db, { threadId: "th", text: "x", state: "idle" }).thread;
   expect(t.lastTurn).toEqual({ role: "assistant", kind: "qa" });
 });

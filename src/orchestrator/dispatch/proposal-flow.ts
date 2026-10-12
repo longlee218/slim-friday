@@ -13,7 +13,7 @@ import type { DispatchRequest } from "./validate-request";
 
 /**
  * Persist a proposal (`pending`) written by the orchestrator from the intent result and the owner message, so a
- * crash before the plan starts cannot lose it (startup then offers `go`). `fromTaskId` = the source task, when
+ * crash before the plan starts cannot lose it (startup then offers `go`). `fromTurnId` = the source turn, when
  * there is one. Never throws: on a storage error the dispatch still runs, only without the crash safety
  * (returns undefined).
  */
@@ -25,14 +25,14 @@ export function persistProposal(
     threadId: string;
     workspace: string;
     /** Task whose turn proposed it; omitted for an intent-layer proposal. */
-    fromTaskId?: string;
+    fromTurnId?: string;
   },
 ): string | undefined {
   try {
     const id = insertProposal(db, {
       threadId: i.threadId,
       workspace: i.workspace,
-      fromTaskId: i.fromTaskId,
+      fromTurnId: i.fromTurnId,
       role: i.request.role,
       brief: i.request.brief,
       repo: i.request.repo,

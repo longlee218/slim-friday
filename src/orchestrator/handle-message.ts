@@ -131,14 +131,14 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       role: string,
       mode: string,
       cls?: TaskClass,
-      parentTaskId?: string,
+      parentTurnId?: string,
       resume?: boolean,
     ) => {
       beginTurn(
         db,
         log,
         { turnId, threadId, source: message.source, single },
-        { repo, role, mode, cls, parentTaskId, resume },
+        { repo, role, mode, cls, parentTurnId, resume },
       );
       turnInserted = true;
     };

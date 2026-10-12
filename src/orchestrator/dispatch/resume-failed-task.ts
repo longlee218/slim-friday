@@ -44,13 +44,13 @@ export function failedResumable(db: Database, threadId: string): FailedResumable
         status: string;
         brief: string | null;
         repo: string;
-        parent_task_id: string | null;
+        parent_turn_id: string | null;
         session_id: string | null;
         session_cwd: string | null;
       },
       [string]
     >(
-      "SELECT id, role, status, brief, repo, parent_task_id, session_id, session_cwd FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+      "SELECT id, role, status, brief, repo, parent_turn_id, session_id, session_cwd FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
     )
     .get(threadId);
   if (t?.status !== "failed_resumable") return undefined;
@@ -63,7 +63,7 @@ export function failedResumable(db: Database, threadId: string): FailedResumable
     role: t.role,
     brief: t.brief ?? "",
     repo: t.repo,
-    parent: t.parent_task_id,
+    parent: t.parent_turn_id,
     sessionId: t.session_id,
     cwd: t.session_cwd,
     reason: verdict,

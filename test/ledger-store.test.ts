@@ -34,7 +34,7 @@ test("entry per task: role, status, brief, branch, PR url, stages with model, co
   mk(db, "abcdef123456", { brief: "Add b.txt\nwith   two" });
   finishTurn(db, "abcdef123456", "done");
   upsertStage(db, {
-    taskId: "abcdef123456",
+    turnId: "abcdef123456",
     idx: 0,
     name: "plan",
     status: "done",
@@ -42,7 +42,7 @@ test("entry per task: role, status, brief, branch, PR url, stages with model, co
     verdict: "approved",
   });
   upsertStage(db, {
-    taskId: "abcdef123456",
+    turnId: "abcdef123456",
     idx: 1,
     name: "exec",
     status: "done",

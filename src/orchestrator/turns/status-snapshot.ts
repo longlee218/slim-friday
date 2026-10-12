@@ -4,7 +4,7 @@ import { latestToolCall } from "../../storage/run-metrics-store";
 import { deriveThreadState, threadToolApproval } from "../thread/thread-state";
 
 /* Status of a thread's running task as DATA for a side answer ("what is the agent doing?"): built from rows only
-   (tasks, stages, tool_calls, approvals), never a model call. Fields are names, a state and seconds: no tool input,
+   (turns, stages, tool_calls, approvals), never a model call. Fields are names, a state and seconds: no tool input,
    no message text, so nothing secret can leak through it. */
 
 /** Heading of the block; says the content is data from the app's records, not instructions. */
@@ -22,13 +22,13 @@ const secondsSince = (from: number, now: number): number =>
 export function statusSnapshot(db: Database, threadId: string, now = Date.now()): string {
   const task = db
     .query<{ id: string; role: string; started_at: number; status: string }, [string]>(
-      "SELECT id, role, started_at, status FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+      "SELECT id, role, started_at, status FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
     )
     .get(threadId);
   if (!task || (task.status !== "running" && task.status !== "waiting_approval")) return "";
   const stage = db
     .query<{ name: string }, [string]>(
-      "SELECT name FROM stages WHERE task_id = ? AND status = 'running' ORDER BY idx DESC LIMIT 1",
+      "SELECT name FROM stages WHERE turn_id = ? AND status = 'running' ORDER BY idx DESC LIMIT 1",
     )
     .get(task.id);
   const tool = latestToolCall(db, task.id);

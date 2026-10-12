@@ -58,7 +58,7 @@ test("parseDiffstat: count, top paths by size; binary and empty input", () => {
 test("ledger shows files changed (count + top paths, capped) once a diffstat is recorded", () => {
   const db = openDb(":memory:");
   insertTurn(db, { id: "t-1", threadId: "th", source: "d", repo: "r", role: "dev" });
-  db.query("UPDATE tasks SET counts_toward_cap = 1 WHERE id = 't-1'").run();
+  db.query("UPDATE turns SET counts_toward_cap = 1 WHERE id = 't-1'").run();
   insertWorktree(db, {
     taskId: "t-1",
     threadId: "th",

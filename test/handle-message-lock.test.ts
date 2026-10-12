@@ -66,7 +66,7 @@ test("stop aborts run and marks task cancelled", async () => {
   await ready; // Wait for slow query to be ready
   expect(await handle(task("stop"))).toBe("Stopping...");
   expect(await first).toBe("Stopped.");
-  expect(env.db.query<{ status: string }, []>("SELECT status FROM tasks").get()?.status).toBe(
+  expect(env.db.query<{ status: string }, []>("SELECT status FROM turns").get()?.status).toBe(
     "cancelled",
   );
   // lock released: stop with nothing running
@@ -161,7 +161,7 @@ test("M3: drain aborts runs, waits for them, and leaves no task running", async 
   await handle.drain(5000);
   expect(await p).toBe("Stopped.");
   expect(
-    env.db.query<{ n: number }, []>("SELECT count(*) n FROM tasks WHERE status='running'").get()?.n,
+    env.db.query<{ n: number }, []>("SELECT count(*) n FROM turns WHERE status='running'").get()?.n,
   ).toBe(0);
 });
 
@@ -176,7 +176,7 @@ test("M3: drain times out on a stuck run and marks its task interrupted", async 
   void handle(task("hi", "th5"));
   await Bun.sleep(50);
   await handle.drain(100);
-  expect(env.db.query<{ status: string }, []>("SELECT status FROM tasks").get()?.status).toBe(
+  expect(env.db.query<{ status: string }, []>("SELECT status FROM turns").get()?.status).toBe(
     "interrupted",
   );
 });

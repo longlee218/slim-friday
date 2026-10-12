@@ -126,7 +126,7 @@ test("channel remapped to a workspace with another clone of `real`: follow-up re
     },
   );
   const n = seen.length;
-  const rows = () => env.db.query("SELECT count(*) AS n FROM tasks").get();
+  const rows = () => env.db.query("SELECT count(*) AS n FROM turns").get();
   const before = rows();
   const reply = await handle(msg("[dev] also c"));
   expect(reply).toContain("not in this channel's workspace");

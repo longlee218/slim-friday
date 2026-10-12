@@ -122,7 +122,7 @@ test("Q&A is the 1-stage assistant role run by the engine: its turn leaves a qa 
   })({ source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th-qa", text: "where is x?" });
   expect(reply).toContain("alpha is in a.txt:1");
   const task = env.db
-    .query<{ id: string; role: string }, [string]>("SELECT id, role FROM tasks WHERE thread_id = ?")
+    .query<{ id: string; role: string }, [string]>("SELECT id, role FROM turns WHERE thread_id = ?")
     .get("th-qa");
   expect(task?.role).toBe("assistant");
   const rows = listStages(env.db, task?.id ?? "");

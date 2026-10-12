@@ -110,7 +110,7 @@ test("dev/new from L3 alone after an assistant turn asks first; yes opens the ta
   expect(await handle(msg(PROPOSAL))).toBe(CONFIRM_TASK_QUESTION);
   expect(e.inputs).toHaveLength(1);
   expect(e.inputs[0]?.thread.lastTurn).toEqual({ role: "assistant", kind: "qa" });
-  expect(q("SELECT role FROM tasks")).toEqual([{ role: "assistant" }]); // nothing opened yet
+  expect(q("SELECT role FROM turns")).toEqual([{ role: "assistant" }]); // nothing opened yet
   expect(q("SELECT status, reason FROM proposals")).toEqual([
     { status: "pending", reason: "confirm_task" },
   ]);
@@ -126,7 +126,7 @@ test("no -> the assistant answers the original message (no dev task)", async () 
   await handle(msg(PROPOSAL));
   expect(await handle(msg("no"))).toBe("assistant answer");
   expect(seen.at(-1).prompt).toContain(PROPOSAL);
-  expect(q("SELECT role FROM tasks")).toEqual([{ role: "assistant" }, { role: "assistant" }]);
+  expect(q("SELECT role FROM turns")).toEqual([{ role: "assistant" }, { role: "assistant" }]);
   expect(q("SELECT status FROM proposals")).toEqual([{ status: "refused" }]);
 });
 
@@ -136,7 +136,7 @@ test("no guard: a first message, a [dev] tag or a role other than a staged one i
   const second = await build();
   await second.handle(second.msg("[ask] explain the repo"));
   expect(await second.handle(second.msg("[dev] add b.txt"))).toContain("Starting plan");
-  expect(q("SELECT role FROM tasks")).toEqual([{ role: "dev" }]);
+  expect(q("SELECT role FROM turns")).toEqual([{ role: "dev" }]);
 });
 
 test("the saved-copy path of a long attachment reaches the assistant, never the dev task brief", async () => {
@@ -145,7 +145,7 @@ test("the saved-copy path of a long attachment reaches the assistant, never the 
   await handle(msg("[ask] explain the repo"));
   await handle(msg(withPath));
   await handle(msg("yes"));
-  expect(q("SELECT brief FROM tasks WHERE role = 'dev'")[0].brief).not.toContain("/home/x/tmp");
+  expect(q("SELECT brief FROM turns WHERE role = 'dev'")[0].brief).not.toContain("/home/x/tmp");
   expect(q("SELECT brief FROM proposals")[0].brief).toContain("/home/x/tmp"); // kept for a later 'no'
   expect(seen.length).toBeGreaterThan(1);
 });

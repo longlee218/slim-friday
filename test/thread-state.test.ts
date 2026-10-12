@@ -27,7 +27,7 @@ function task(status: Parameters<typeof setTurnStatus>[2], role = "dev") {
 }
 
 const pending = (db: ReturnType<typeof makeEnv>["db"], tool: string, id = "ap1") =>
-  insertApproval(db, { id, taskId: "t1", tool, summary: "s" });
+  insertApproval(db, { id, turnId: "t1", tool, summary: "s" });
 
 test("idle: no task", () => {
   expect(deriveThreadState(makeEnv().db, "th")).toBe("idle");
@@ -63,7 +63,7 @@ test("awaiting_tool_approval: a pending tool approval is not a gate; the decisio
   expect(isIdleLike("awaiting_tool_approval")).toBe(false);
   expect(pendingToolApproval(db, "t1")?.tool).toBe("Bash");
   db.query("UPDATE approvals SET decision = 'approved'").run();
-  db.query("UPDATE tasks SET status = 'running'").run();
+  db.query("UPDATE turns SET status = 'running'").run();
   expect(deriveThreadState(db, "th")).toBe("running");
   expect(pendingToolApproval(db, "t1")).toBeUndefined();
 });
@@ -80,10 +80,10 @@ test("failed_resumable folds to idle for routing, like failed", () => {
 
 test("gate recognized by the running stage when no approval row is pending", () => {
   const plan = task("waiting_approval");
-  upsertStage(plan, { taskId: "t1", idx: 0, name: "plan", status: "running" });
+  upsertStage(plan, { turnId: "t1", idx: 0, name: "plan", status: "running" });
   expect(deriveThreadState(plan, "th")).toBe("awaiting_plan_approval");
   const exec = task("waiting_approval");
-  upsertStage(exec, { taskId: "t1", idx: 1, name: "exec", status: "running" });
+  upsertStage(exec, { turnId: "t1", idx: 1, name: "exec", status: "running" });
   expect(deriveThreadState(exec, "th")).toBe("awaiting_result");
   expect(deriveThreadState(task("waiting_approval"), "th")).toBe("running"); // no hint at all
 });
@@ -108,8 +108,8 @@ test("the newest task decides; other threads are ignored", () => {
 
 test("a task row of an unknown role is idle-like, not a crash", () => {
   const db = task("waiting_approval");
-  db.query("UPDATE tasks SET role = 'ghost-role' WHERE id = 't1'").run();
-  upsertStage(db, { taskId: "t1", idx: 0, name: "x", status: "running" });
+  db.query("UPDATE turns SET role = 'ghost-role' WHERE id = 't1'").run();
+  upsertStage(db, { turnId: "t1", idx: 0, name: "x", status: "running" });
   expect(deriveThreadState(db, "th")).toBe("idle");
 });
 
@@ -118,7 +118,7 @@ test("restart while awaiting a tool approval (owner decision 6): interrupted + R
   pending(db, "Bash");
   expect(deriveThreadState(db, "th")).toBe("awaiting_tool_approval");
   interruptRunningTurns(db); // what startup / shutdown does to a crashed or drained run
-  expect(db.query("SELECT status FROM tasks WHERE id = 't1'").get()).toEqual({
+  expect(db.query("SELECT status FROM turns WHERE id = 't1'").get()).toEqual({
     status: "interrupted",
   });
   expect(db.query("SELECT decision FROM approvals WHERE id = 'ap1'").get()).toEqual({

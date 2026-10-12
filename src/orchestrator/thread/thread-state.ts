@@ -27,7 +27,7 @@ export function pendingToolApproval(
 ): { tool: string; since: number } | undefined {
   const pending = db
     .query<{ tool: string; since: number }, [string]>(
-      "SELECT tool, requested_at AS since FROM approvals WHERE task_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
+      "SELECT tool, requested_at AS since FROM approvals WHERE turn_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
     )
     .get(turnId);
   return pending && !stateOfApprovalTool(pending.tool) ? pending : undefined;
@@ -40,7 +40,7 @@ export function threadToolApproval(
 ): { tool: string; since: number } | undefined {
   const last = db
     .query<{ id: string; status: string }, [string]>(
-      "SELECT id, status FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+      "SELECT id, status FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
     )
     .get(threadId);
   return last?.status === "waiting_approval" ? pendingToolApproval(db, last.id) : undefined;
@@ -50,15 +50,15 @@ export function threadToolApproval(
 function waitingState(db: Database, turnId: string): ThreadState {
   const pending = db
     .query<{ tool: string }, [string]>(
-      "SELECT tool FROM approvals WHERE task_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
+      "SELECT tool FROM approvals WHERE turn_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
     )
     .get(turnId);
   if (pending) return stateOfApprovalTool(pending.tool) ?? "awaiting_tool_approval";
   // No pending row (the decision just landed): fall back to the gate of the stage that is running.
   const stage = db
     .query<{ role: string; name: string }, [string]>(
-      `SELECT t.role AS role, s.name AS name FROM stages s JOIN tasks t ON t.id = s.task_id
-       WHERE s.task_id = ? AND s.status = 'running' ORDER BY s.idx DESC LIMIT 1`,
+      `SELECT t.role AS role, s.name AS name FROM stages s JOIN turns t ON t.id = s.turn_id
+       WHERE s.turn_id = ? AND s.status = 'running' ORDER BY s.idx DESC LIMIT 1`,
     )
     .get(turnId);
   const role = stage ? ROLES[stage.role] : undefined;
@@ -76,7 +76,7 @@ function waitingState(db: Database, turnId: string): ThreadState {
 export function deriveThreadState(db: Database, threadId: string): ThreadState {
   const last = db
     .query<{ id: string; status: string }, [string]>(
-      "SELECT id, status FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+      "SELECT id, status FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
     )
     .get(threadId);
   if (!last) return "idle";

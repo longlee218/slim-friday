@@ -75,7 +75,7 @@ test("M-a: a steer into work after the approved plan says so, and the task ledge
   expect(reg.steer(TH, "a")).toEqual({ result: "queued", afterPlan: false });
   expect(threadLedger(env.db, "th")).not.toContain(PLAN_NOT_REAPPROVED);
   // the plan was approved (the engine writes verdict `approved` on the plan stage row)
-  upsertStage(env.db, { taskId: "t1", idx: 0, name: "plan", status: "done", verdict: "approved" });
+  upsertStage(env.db, { turnId: "t1", idx: 0, name: "plan", status: "done", verdict: "approved" });
   expect(reg.steer(TH, "b")).toEqual({ result: "queued", afterPlan: true });
   expect(threadLedger(env.db, "th")).toContain(`  ${PLAN_NOT_REAPPROVED}`);
   expect(listRunMessages(env.db, "th").map((r) => r.afterPlan)).toEqual([0, 1]);

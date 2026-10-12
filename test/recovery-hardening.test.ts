@@ -72,7 +72,7 @@ test("session id is recorded on the task row at init; `sessions` keeps the previ
   const q = fakeQuery([initMsg], new Error("boom"));
   await createTurnHandler({ db: env.db, config: env.config, queryFn: q as never })(task("hi"));
   const row = env.db
-    .query<{ session_id: string; session_cwd: string }, []>("SELECT * FROM tasks")
+    .query<{ session_id: string; session_cwd: string }, []>("SELECT * FROM turns")
     .get();
   expect(row).toMatchObject({ session_id: "sess-1", session_cwd: env.repo });
   expect(getSession(env.db, "th1")?.session_id).toBe("GOOD");
@@ -105,7 +105,7 @@ test("restart marks running tasks interrupted; ack makes them cancelled (one not
   expect(listInterruptedThreads(db)).toEqual(["th"]);
   ackInterrupted(db, "th");
   expect(listInterruptedThreads(db)).toEqual([]);
-  const st = db.query<{ status: string }, []>("SELECT status FROM tasks WHERE id='a'").get();
+  const st = db.query<{ status: string }, []>("SELECT status FROM turns WHERE id='a'").get();
   expect(st?.status).toBe("cancelled");
 });
 

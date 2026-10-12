@@ -142,7 +142,7 @@ async function run(steps: ExecStep[]) {
 }
 
 const status = (env: { db: ReturnType<typeof makeEnv>["db"] }) =>
-  env.db.query("SELECT status, parent_task_id FROM tasks ORDER BY started_at, rowid").all();
+  env.db.query("SELECT status, parent_turn_id FROM turns ORDER BY started_at, rowid").all();
 const execRuns = (seen: any[]) => seen.filter((a) => a.options.permissionMode !== "plan");
 
 test("a transient error at exec -> failed_resumable: clone, plan and reason kept; the reply asks to continue; thread is idle", async () => {
@@ -154,7 +154,7 @@ test("a transient error at exec -> failed_resumable: clone, plan and reason kept
   expect(wt.status).toBe("active");
   expect(existsSync(wt.path)).toBe(true);
   expect(existsSync(env.paths.workspace("main").task(wt.taskId).plan)).toBe(true);
-  expect(status(env)).toEqual([{ status: "failed_resumable", parent_task_id: null }]);
+  expect(status(env)).toEqual([{ status: "failed_resumable", parent_turn_id: null }]);
   const exec = listStages(env.db, wt.taskId).find((s) => s.name !== "plan")!;
   expect(exec.verdict).toBe("error");
   expect(deriveThreadState(env.db, "th1")).toBe("idle");
@@ -178,8 +178,8 @@ test("/go resumes in the same clone with the approved plan and the old session; 
   expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 1 });
   expect(seen.filter((a) => a.options.permissionMode === "plan")).toHaveLength(1); // no new plan
   expect(status(env)).toEqual([
-    { status: "failed", parent_task_id: null },
-    { status: "done", parent_task_id: wt.taskId },
+    { status: "failed", parent_turn_id: null },
+    { status: "done", parent_turn_id: wt.taskId },
   ]);
   expect(readFileSync(join(wt.path, "b.txt"), "utf8")).toBe("two\n");
 });
@@ -211,14 +211,14 @@ test("an unrelated NEW request starts a new task; the held clone is not resumed"
   expect(seen.filter((a) => a.options.permissionMode === "plan")).toHaveLength(2);
   expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 2 });
   expect(existsSync(held.path)).toBe(true);
-  expect(status(env)[0]).toEqual({ status: "failed_resumable", parent_task_id: null });
+  expect(status(env)[0]).toEqual({ status: "failed_resumable", parent_turn_id: null });
 });
 
 test("budget stop at exec is resumable, but only with a raise (`/go +<usd>`)", async () => {
   const { env, seen, handle } = await run(["budget", "ok"]);
   const reply = await handle(msg(DEV_REQUEST));
   expect(reply).toContain("budget reached");
-  expect(status(env)).toEqual([{ status: "failed_resumable", parent_task_id: null }]);
+  expect(status(env)).toEqual([{ status: "failed_resumable", parent_turn_id: null }]);
   expect(await handle(msg("/go"))).toContain("/go +<usd>"); // same budget would stop again
   expect(execRuns(seen)).toHaveLength(1);
   expect(await handle(msg("/go +1"))).toContain("Xong");
@@ -239,7 +239,7 @@ test("a failure before the plan is approved stays failed (nothing to resume)", a
     intent: intent(env.home),
   });
   await handle(msg(DEV_REQUEST));
-  expect(status(env)).toEqual([{ status: "failed", parent_task_id: null }]);
+  expect(status(env)).toEqual([{ status: "failed", parent_turn_id: null }]);
   expect(resumeQuestionOf(env.db, "th1")).toBeUndefined();
 });
 
@@ -258,7 +258,7 @@ test("no commit identity at the stage switch (no clone yet) is resumable: after 
   const reply = await handle(msg(DEV_REQUEST));
   expect(reply).toContain("No commit identity");
   expect(reply).toContain("Continue with the approved plan?");
-  expect(status(env)).toEqual([{ status: "failed_resumable", parent_task_id: null }]);
+  expect(status(env)).toEqual([{ status: "failed_resumable", parent_turn_id: null }]);
   expect(getWorktreeByThread(env.db, "th1")).toBeNull(); // nothing to keep but the plan
   // the owner fixes the config and says "continue"
   addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
@@ -268,8 +268,8 @@ test("no commit identity at the stage switch (no clone yet) is resumable: after 
   expect(readFileSync(join(wt.path, "b.txt"), "utf8")).toBe("two\n");
   expect(execRuns(seen)[0].promptText).toContain("add b.txt");
   expect(status(env)).toEqual([
-    { status: "failed", parent_task_id: null },
-    { status: "done", parent_task_id: null },
+    { status: "failed", parent_turn_id: null },
+    { status: "done", parent_turn_id: null },
   ]);
 });
 
@@ -286,7 +286,7 @@ test("/cleanup of a held task that never got a clone drops the hold", async () =
   });
   await handle(msg(DEV_REQUEST));
   expect(await handle(msg("/cleanup"))).toContain("Dropped the held task");
-  expect(status(env)).toEqual([{ status: "failed", parent_task_id: null }]);
+  expect(status(env)).toEqual([{ status: "failed", parent_turn_id: null }]);
   expect(resumeQuestionOf(env.db, "th1")).toBeUndefined();
 });
 
@@ -312,7 +312,7 @@ test("/cleanup of a held clone removes it and turns the row to failed", async ()
   expect(listKeptClones(env.db, "main")).toHaveLength(0); // MAX_KEPT_CLONES does not count it
   expect(await handle(msg("/cleanup"))).toContain("Removed");
   expect(existsSync(wt.path)).toBe(false);
-  expect(status(env)).toEqual([{ status: "failed", parent_task_id: null }]);
+  expect(status(env)).toEqual([{ status: "failed", parent_turn_id: null }]);
   expect(resumeQuestionOf(env.db, "th1")).toBeUndefined(); // nothing left to continue
 });
 
@@ -325,12 +325,12 @@ test("retention: a held clone expires after CLONE_RETENTION_DAYS idle and its ta
   const t13 = Date.now() + 13 * DAY_MS;
   expect(expireClones(env.db, home, 14, t13)).toEqual([]);
   expect(existsSync(wt.path)).toBe(true);
-  expect(status(env)).toEqual([{ status: "failed_resumable", parent_task_id: null }]);
+  expect(status(env)).toEqual([{ status: "failed_resumable", parent_turn_id: null }]);
   // 15 days idle: removed
   const t15 = Date.now() + 15 * DAY_MS;
   expect(expireClones(env.db, home, 14, t15)).toEqual([wt.taskId]);
   expect(existsSync(wt.path)).toBe(false);
-  expect(status(env)).toEqual([{ status: "failed", parent_task_id: null }]);
+  expect(status(env)).toEqual([{ status: "failed", parent_turn_id: null }]);
 });
 
 /** A handler whose repo has no commit identity: the failure is at the stage switch, before any clone. */
@@ -354,7 +354,7 @@ test("a resume is not a fix round: after a resume both real fix rounds still run
   await handle(msg(DEV_REQUEST));
   const wt = getWorktreeByThread(env.db, "th1")!;
   await handle(msg("/go"));
-  expect(env.db.query("SELECT kind FROM tasks WHERE parent_task_id IS NOT NULL").all()).toEqual([
+  expect(env.db.query("SELECT kind FROM turns WHERE parent_turn_id IS NOT NULL").all()).toEqual([
     { kind: "resume" },
   ]);
   expect(countFollowUps(env.db, wt.taskId)).toBe(0);
@@ -368,7 +368,7 @@ test("a resume is not a fix round: after a resume both real fix rounds still run
 test("clone-less hold: the question names the real reason; it expires by task age (plan file removed) and a stale yes gets no resume", async () => {
   const { env, seen, handle } = await noIdentity(["ok"]);
   await handle(msg(DEV_REQUEST));
-  const id = env.db.query<{ id: string }, []>("SELECT id FROM tasks").get()!.id;
+  const id = env.db.query<{ id: string }, []>("SELECT id FROM turns").get()!.id;
   const planFile = env.paths.workspace("main").task(id).plan;
   expect(existsSync(planFile)).toBe(true);
   expect(resumeQuestionOf(env.db, "th1")).toContain(RESUMABLE.config);
@@ -377,7 +377,7 @@ test("clone-less hold: the question names the real reason; it expires by task ag
   expect(existsSync(planFile)).toBe(true);
   expect(expireClones(env.db, home, 14, Date.now() + 15 * DAY_MS)).toEqual([id]);
   expect(existsSync(planFile)).toBe(false);
-  expect(status(env)).toEqual([{ status: "failed", parent_task_id: null }]);
+  expect(status(env)).toEqual([{ status: "failed", parent_turn_id: null }]);
   expect(resumeQuestionOf(env.db, "th1")).toBeUndefined();
   await handle(msg("continue")); // a stale yes: nothing is resumed (it is read as a new request)
   expect(seen.some((a) => String(a.promptText).includes(RESUME_NOTE))).toBe(false);
@@ -403,7 +403,7 @@ test("a resume that cannot start keeps the hold (task cap reached)", async () =>
   expect(await handle(msg("/go"))).toContain("busy");
   expect(execRuns(seen)).toHaveLength(1);
   expect(resumeQuestionOf(env.db, "th1")).toBeDefined();
-  expect(env.db.query("SELECT status FROM tasks WHERE thread_id = 'th1'").all()).toEqual([
+  expect(env.db.query("SELECT status FROM turns WHERE thread_id = 'th1'").all()).toEqual([
     { status: "failed_resumable" },
   ]);
 });

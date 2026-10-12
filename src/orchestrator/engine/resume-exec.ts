@@ -84,7 +84,7 @@ export function switchFailure(
   const res = markResumable(sw, i);
   if (res.resumable)
     upsertStage(db, {
-      taskId: i.turnId,
+      turnId: i.turnId,
       ...next,
       status: "failed",
       verdict: res.resumable,

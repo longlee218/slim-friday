@@ -44,7 +44,7 @@ export function compactIdleSession(
   try {
     if (!usage) return false;
     const row = db
-      .query<{ role: string }, [string]>("SELECT role FROM tasks WHERE id = ?")
+      .query<{ role: string }, [string]>("SELECT role FROM turns WHERE id = ?")
       .get(ids.turnId);
     if (!row || !ROLES[row.role]?.context?.ledger) return false;
     if (liveWorktree(db, ids.threadId)) return false;

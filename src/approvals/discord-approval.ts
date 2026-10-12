@@ -68,7 +68,7 @@ export function createDiscordApprovalGateway(
     const alog = log.child({ tool: o.tool, approvalId: id });
     const t0 = Date.now();
     logEvent(alog, "approval.requested", { summary: clip(summary, 300) });
-    safeDb(() => insertApproval(db, { id, taskId: o.turnId, tool: o.tool, summary }));
+    safeDb(() => insertApproval(db, { id, turnId: o.turnId, tool: o.tool, summary }));
     safeDb(() => setTurnStatus(db, o.turnId, "waiting_approval"));
 
     const finish = (decision: ApprovalDecision) => {

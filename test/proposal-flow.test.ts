@@ -75,9 +75,9 @@ test("intent: a dev request persists a proposal row, dispatched with the task; c
     class: "design",
     status: "dispatched",
   });
-  expect(p.from_task_id).toBeNull(); // no source turn: the orchestrator wrote it from the owner message
+  expect(p.from_turn_id).toBeNull(); // no source turn: the orchestrator wrote it from the owner message
   expect(p.decided_at).toBeNumber();
-  const tasks = env.db.query<any, []>("SELECT type, class, proposal_id FROM tasks").all();
+  const tasks = env.db.query<any, []>("SELECT type, class, proposal_id FROM turns").all();
   expect(tasks.map((t) => [t.type, t.class])).toEqual([["code", "design"]]);
   expect(tasks[0].proposal_id).toBe(p.id);
   expect(stageRuns).toHaveLength(1); // the plan stage ran
@@ -97,7 +97,7 @@ test("`go` starts a pending proposal that survived a restart; a second `go` is p
   expect(getProposal(env.db, id)?.status).toBe("dispatched");
   expect(stageRuns).toHaveLength(1);
   expect(stageRuns[0].permissionMode).toBe("plan");
-  expect(env.db.query("SELECT type, class, proposal_id FROM tasks").all()).toEqual([
+  expect(env.db.query("SELECT type, class, proposal_id FROM turns").all()).toEqual([
     { type: "code", class: "mechanical", proposal_id: id },
   ]);
   // Nothing pending now: "go" is an ordinary message (no L4 here: the assistant answers); no new proposal.
@@ -150,7 +150,7 @@ function budgetStopped(env: ReturnType<typeof makeEnv>) {
   setTurnSession(env.db, "tb", "sess-b", env.repo);
   insertRun(env.db, {
     id: "rb",
-    taskId: "tb",
+    turnId: "tb",
     model: "m",
     inputTokens: 0,
     outputTokens: 0,
@@ -162,7 +162,7 @@ function budgetStopped(env: ReturnType<typeof makeEnv>) {
     outcome: "max_budget",
     compactions: 0,
   });
-  env.db.query("UPDATE tasks SET status = 'failed' WHERE id = 'tb'").run();
+  env.db.query("UPDATE turns SET status = 'failed' WHERE id = 'tb'").run();
 }
 
 test("go +<usd> resumes a budget-stopped task; plain resume is refused with the go + hint", () => {

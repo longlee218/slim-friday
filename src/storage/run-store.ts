@@ -19,12 +19,12 @@ export type TurnStatus =
 
 /** Change a turn's status without ending it (no-op when the row is missing). */
 export function setTurnStatus(db: Database, id: string, status: TurnStatus): void {
-  db.query("UPDATE tasks SET status = ? WHERE id = ?").run(status, id);
+  db.query("UPDATE turns SET status = ? WHERE id = ?").run(status, id);
 }
 
 /** Record the repo a turn works in once it is known (a staged task starts with "*" until its plan picks one). */
 export function setTurnRepo(db: Database, id: string, repo: string): void {
-  db.query("UPDATE tasks SET repo = ? WHERE id = ?").run(repo, id);
+  db.query("UPDATE turns SET repo = ? WHERE id = ?").run(repo, id);
 }
 
 /** Nothing is left to resume in this thread (clone removed or expired): its `failed_resumable` task becomes `failed`. */
@@ -32,7 +32,7 @@ export function dropResumable(db: Database, threadId: string): boolean {
   return (
     db
       .query(
-        "UPDATE tasks SET status = 'failed' WHERE thread_id = ? AND status = 'failed_resumable'",
+        "UPDATE turns SET status = 'failed' WHERE thread_id = ? AND status = 'failed_resumable'",
       )
       .run(threadId).changes > 0
   );
@@ -40,14 +40,14 @@ export function dropResumable(db: Database, threadId: string): boolean {
 
 /** Record the Claude session of a turn (reported at `system/init`) and the cwd it runs in. */
 export function setTurnSession(db: Database, id: string, sessionId: string, cwd: string): void {
-  db.query("UPDATE tasks SET session_id = ?, session_cwd = ? WHERE id = ?").run(sessionId, cwd, id);
+  db.query("UPDATE turns SET session_id = ?, session_cwd = ? WHERE id = ?").run(sessionId, cwd, id);
 }
 
 /** Claude session a turn recorded at `system/init`, or undefined (not started yet / no row). */
 export function turnSessionId(db: Database, id: string): string | undefined {
   return (
     db
-      .query<{ session_id: string | null }, [string]>("SELECT session_id FROM tasks WHERE id = ?")
+      .query<{ session_id: string | null }, [string]>("SELECT session_id FROM turns WHERE id = ?")
       .get(id)?.session_id ?? undefined
   );
 }
@@ -81,8 +81,8 @@ export function latestTurnSession(
       [string]
     >(
       `SELECT id, status, repo, role, session_id AS sessionId, session_cwd AS cwd,
-         (SELECT r.outcome FROM runs r WHERE r.task_id = tasks.id ORDER BY r.rowid DESC LIMIT 1) AS outcome
-       FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
+         (SELECT r.outcome FROM runs r WHERE r.turn_id = turns.id ORDER BY r.rowid DESC LIMIT 1) AS outcome
+       FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
     )
     .get(threadId);
   if (!row) return null;
@@ -92,7 +92,7 @@ export function latestTurnSession(
 
 /** Role that owns a turn row, or undefined when the row is missing. */
 export function turnRole(db: Database, id: string): string | undefined {
-  return db.query<{ role: string }, [string]>("SELECT role FROM tasks WHERE id = ?").get(id)?.role;
+  return db.query<{ role: string }, [string]>("SELECT role FROM turns WHERE id = ?").get(id)?.role;
 }
 
 /** Insert a turn row in `running` state. */
@@ -112,7 +112,7 @@ export function insertTurn(
     /** Proposal this task was started from. */
     proposalId?: string;
     /** Turn that proposed this one, and how many hand-overs deep it is (0 = owner-started). */
-    parentTaskId?: string;
+    parentTurnId?: string;
     hop?: number;
     /** The task runs a `failed_resumable` one again (kind `resume`): it does not count as a fix round. */
     resume?: boolean;
@@ -121,7 +121,7 @@ export function insertTurn(
   // Only roles with `countsTowardCap` count against the concurrency cap (see `countActiveCappedTasks`).
   const role = getRole(t.role);
   db.query(
-    `INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at, brief, class, proposal_id, counts_toward_cap, role, kind, parent_task_id, hop)
+    `INSERT INTO turns (id, thread_id, source, repo, type, status, started_at, brief, class, proposal_id, counts_toward_cap, role, kind, parent_turn_id, hop)
      VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     t.id,
@@ -136,21 +136,21 @@ export function insertTurn(
     role.countsTowardCap ? 1 : 0,
     role.name,
     t.resume ? "resume" : turnKindOf(role),
-    t.parentTaskId ?? null,
+    t.parentTurnId ?? null,
     t.hop ?? 0,
   );
 }
 
 /** Set final status and end time of a turn. */
 export function finishTurn(db: Database, id: string, status: TurnStatus): void {
-  db.query("UPDATE tasks SET status = ?, ended_at = ? WHERE id = ?").run(status, Date.now(), id);
+  db.query("UPDATE turns SET status = ?, ended_at = ? WHERE id = ?").run(status, Date.now(), id);
 }
 
 /** Mark every still-`running` turn `interrupted` (restart/shutdown) and cancel their pending approvals. */
 export function interruptRunningTurns(db: Database): void {
   const now = Date.now();
   db.query(
-    "UPDATE tasks SET status = 'interrupted', ended_at = ? WHERE status IN ('running', 'waiting_approval')",
+    "UPDATE turns SET status = 'interrupted', ended_at = ? WHERE status IN ('running', 'waiting_approval')",
   ).run(now);
   interruptRunningStages(db);
   // Buttons of a dead process can never be answered (a resumed run asks again).
@@ -163,7 +163,7 @@ export function interruptRunningTurns(db: Database): void {
 export function listInterruptedThreads(db: Database): string[] {
   return db
     .query<{ thread_id: string }, []>(
-      "SELECT DISTINCT thread_id FROM tasks WHERE status = 'interrupted'",
+      "SELECT DISTINCT thread_id FROM turns WHERE status = 'interrupted'",
     )
     .all()
     .map((r) => r.thread_id);
@@ -172,7 +172,7 @@ export function listInterruptedThreads(db: Database): string[] {
 /** The thread was told: its interrupted tasks become plain `cancelled` (no repeat notice next start). */
 export function ackInterrupted(db: Database, threadId: string): void {
   db.query(
-    "UPDATE tasks SET status = 'cancelled' WHERE status = 'interrupted' AND thread_id = ?",
+    "UPDATE turns SET status = 'cancelled' WHERE status = 'interrupted' AND thread_id = ?",
   ).run(threadId);
 }
 
@@ -180,7 +180,7 @@ export function ackInterrupted(db: Database, threadId: string): void {
 export function countActiveCappedTasks(db: Database): number {
   return db
     .query<{ n: number }, []>(
-      "SELECT COUNT(*) AS n FROM tasks WHERE counts_toward_cap = 1 AND status IN ('running', 'waiting_approval')",
+      "SELECT COUNT(*) AS n FROM turns WHERE counts_toward_cap = 1 AND status IN ('running', 'waiting_approval')",
     )
     .get()!.n;
 }
@@ -190,7 +190,7 @@ export function countFollowUps(db: Database, taskId: string): number {
   return (
     db
       .query<{ n: number }, [string]>(
-        "SELECT COUNT(*) AS n FROM tasks WHERE parent_task_id = ? AND kind <> 'resume'",
+        "SELECT COUNT(*) AS n FROM turns WHERE parent_turn_id = ? AND kind <> 'resume'",
       )
       .get(taskId)?.n ?? 0
   );

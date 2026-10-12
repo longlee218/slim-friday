@@ -26,7 +26,7 @@ const oneLine = (s: string, max: number): string =>
   clip(redactText(s).replace(/\s+/g, " ").trim(), max);
 
 /**
- * The thread's task ledger: a VIEW over `tasks` + `stages` + `worktrees` (no table). One entry per capped (staged)
+ * The thread's task ledger: a VIEW over `turns` + `stages` + `worktrees` (no table). One entry per capped (staged)
  * task (the last LEDGER_MAX_TASKS, oldest first): role, status, brief, repo/branch, PR url, and its stages with
  * model, cost and verdict. Empty string when the thread has no such task. Injected into the assistant context
  * when the thread is idle, instead of exec transcripts.
@@ -39,7 +39,7 @@ export function threadLedger(db: Database, threadId: string): string {
     >(
       // `counts_toward_cap` marks the staged-role tasks; the v2 migration backfills it from the legacy `type`
       // for old rows (`type <> 'code'` -> 0), so this reads the same rows `type = 'code'` did.
-      `SELECT id, role, status, repo, brief FROM tasks WHERE thread_id = ? AND counts_toward_cap = 1
+      `SELECT id, role, status, repo, brief FROM turns WHERE thread_id = ? AND counts_toward_cap = 1
        ORDER BY started_at DESC, rowid DESC LIMIT ?`,
     )
     .all(threadId, LEDGER_MAX_TASKS)
@@ -75,7 +75,7 @@ export const LEDGER_LINE_CHARS = 160;
 export function ledgerLines(db: Database, threadId: string, n: number): string[] {
   return db
     .query<{ id: string; role: string; status: string; brief: string | null }, [string, number]>(
-      `SELECT id, role, status, brief FROM tasks WHERE thread_id = ? AND counts_toward_cap = 1
+      `SELECT id, role, status, brief FROM turns WHERE thread_id = ? AND counts_toward_cap = 1
        ORDER BY started_at DESC, rowid DESC LIMIT ?`,
     )
     .all(threadId, n)

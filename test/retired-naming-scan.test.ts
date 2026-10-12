@@ -57,7 +57,33 @@ const RETIRED: Record<string, RegExp> = {
   "storage role fn": new RegExp(`\\b${["task", "Role"].join("")}\\b`),
   "storage interrupt fn": new RegExp(`\\b${["interruptRunning", "Tasks"].join("")}\\b`),
   "storage status type": new RegExp(`\\b${["Task", "Status"].join("")}\\b`),
+  // phase 06: SQL of the renamed table / columns / indexes (the table is `turns` since schema v3)
+  "sql select from old table": j("FROM ", "tasks", "\\b"),
+  "sql insert into old table": j("INTO ", "tasks", "\\b"),
+  "sql update old table": j("UPDATE ", "tasks", "\\b"),
+  "sql join old table": j("JOIN ", "tasks", "\\b"),
+  "old thread index": j("idx_", "tasks", "_"),
+  "old runs index": j("idx_runs_", "task"),
+  "old parent column": j("parent_", "task", "_id"),
+  "old proposal column": j("from_", "task", "_id"),
+  "old kind literal": j("kind: ", '"task', '"'),
 };
+
+/**
+ * `task_id` is a column only of worktrees and run_messages (staged tasks) and an SDK tool input: allowed in
+ * their stores and the tests that touch them. Everywhere else the column is `turn_id`.
+ */
+const TASK_ID = j("task", "_id");
+const TASK_ID_OK = [
+  "worktree-store.ts",
+  "files-changed.ts",
+  "run-message-store.ts",
+  "clone-retention.ts",
+  "clone-retention.test.ts",
+  "legacy-worktree-expiry.test.ts",
+  "p22-review-fixes.test.ts",
+  "guard-sdk-tool-catalog.test.ts",
+];
 
 /** File-name patterns also retired in the docs (docs/project-changelog.md keeps history and is not scanned). */
 const RETIRED_IN_DOCS = [
@@ -67,8 +93,20 @@ const RETIRED_IN_DOCS = [
   j("task", "-type"),
 ];
 
-/** Files allowed to hold a retired name: this file only (the frozen legacy migration joins in phase 06). */
-const EXEMPT: string[] = ["retired-naming-scan.test.ts"];
+/**
+ * Files allowed to hold a retired name: this file, the frozen legacy schema + the v3 migration (old names on
+ * purpose), their tests, tests whose fixtures are old-shape DDL, and a spike reading an SDK message field.
+ */
+const EXEMPT: string[] = [
+  "retired-naming-scan.test.ts",
+  "legacy-schema.ts",
+  "legacy-migrate-v2.ts",
+  "migrate-v3-turns.ts",
+  "db-migrate-v3.test.ts",
+  "db-migrate.test.ts",
+  "db-schema.test.ts",
+  "live-subagents.spike.test.ts",
+];
 
 test("src and test hold no retired message / turn / task name", () => {
   const files = [...sources("src"), ...sources("test")].filter(
@@ -79,6 +117,9 @@ test("src and test hold no retired message / turn / task name", () => {
   for (const f of files)
     for (const [name, re] of Object.entries(RETIRED))
       if (re.test(f.text)) hits.push(`${f.file}: ${name}`);
+  for (const f of files)
+    if (TASK_ID.test(f.text) && !TASK_ID_OK.some((ok) => f.file.endsWith(ok)))
+      hits.push(`${f.file}: task id column`);
   expect(hits).toEqual([]);
 });
 

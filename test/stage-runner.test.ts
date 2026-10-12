@@ -82,15 +82,15 @@ const handler = (env: Awaited<ReturnType<typeof setup>>, exec?: Record<string, u
   });
 
 const codeTask = (env: Awaited<ReturnType<typeof setup>>) =>
-  env.db.query<any, []>("SELECT * FROM tasks WHERE type = 'code' ORDER BY started_at").all();
+  env.db.query<any, []>("SELECT * FROM turns WHERE type = 'code' ORDER BY started_at").all();
 
 test("stage rows: plan then exec, with model, cost and verdict; task keeps role, kind, parent and hop", async () => {
   const env = await setup();
   await handler(env)(msg("[dev] please add b.txt"));
   const [t] = codeTask(env);
   expect(t).toMatchObject({ role: "dev", kind: "staged", hop: 0, counts_toward_cap: 1 });
-  expect(t.parent_task_id).toBeNull(); // opened by the intent layer: no source turn
-  expect(env.db.query("SELECT id FROM tasks WHERE type = 'qa'").all()).toEqual([]);
+  expect(t.parent_turn_id).toBeNull(); // opened by the intent layer: no source turn
+  expect(env.db.query("SELECT id FROM turns WHERE type = 'qa'").all()).toEqual([]);
   const stages = listStages(env.db, t.id);
   expect(stages.map((s) => [s.idx, s.name, s.status, s.verdict])).toEqual([
     [0, "plan", "done", "approved"],
@@ -109,8 +109,8 @@ test("runs.stage_idx joins every stage run to its stage row (same cost)", async 
   const rows = env.db
     .query<{ idx: number; name: string; stageCost: number | null; runCost: number }, [string]>(
       `SELECT s.idx, s.name, s.cost_usd AS stageCost, r.cost_usd AS runCost
-       FROM runs r JOIN stages s ON s.task_id = r.task_id AND s.idx = r.stage_idx
-       WHERE r.task_id = ? ORDER BY s.idx`,
+       FROM runs r JOIN stages s ON s.turn_id = r.turn_id AND s.idx = r.stage_idx
+       WHERE r.turn_id = ? ORDER BY s.idx`,
     )
     .all(t.id);
   expect(rows.map((r) => [r.idx, r.name])).toEqual([
@@ -123,7 +123,7 @@ test("runs.stage_idx joins every stage run to its stage row (same cost)", async 
   expect(
     env.db
       .query<{ n: number }, [string]>(
-        "SELECT COUNT(*) n FROM runs WHERE task_id = ? AND stage_idx IS NULL",
+        "SELECT COUNT(*) n FROM runs WHERE turn_id = ? AND stage_idx IS NULL",
       )
       .get(t.id)?.n,
   ).toBe(0);

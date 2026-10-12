@@ -124,9 +124,9 @@ test("budget: the stage config carries the ceiling into the SDK maxBudgetUsd; op
 
 test("budget bookkeeping: the spend of the OTHER stages of a task comes from the stage rows", () => {
   const { db } = makeEnv();
-  upsertStage(db, { taskId: "t1", idx: 0, name: "plan", status: "done", costUsd: 1.25 });
-  upsertStage(db, { taskId: "t1", idx: 1, name: "exec", status: "running", costUsd: 2 });
-  upsertStage(db, { taskId: "t2", idx: 0, name: "plan", status: "done", costUsd: 9 });
+  upsertStage(db, { turnId: "t1", idx: 0, name: "plan", status: "done", costUsd: 1.25 });
+  upsertStage(db, { turnId: "t1", idx: 1, name: "exec", status: "running", costUsd: 2 });
+  upsertStage(db, { turnId: "t2", idx: 0, name: "plan", status: "done", costUsd: 9 });
   expect(spentByOtherStages(db, "t1", 1)).toBe(1.25); // the current stage's own cost is not counted
   expect(spentByOtherStages(db, "t1", 0)).toBe(2);
   expect(spentByOtherStages(db, "none", 1)).toBe(0);

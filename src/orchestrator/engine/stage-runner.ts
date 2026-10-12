@@ -132,7 +132,7 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
     // The row is written best effort: a storage error never stops the task.
     const write = (r: Parameters<typeof upsertStage>[1]) =>
       tryLog(log, "stage row write failed", () => upsertStage(db, r));
-    const key = { taskId: i.turnId, idx, name: stage.name };
+    const key = { turnId: i.turnId, idx, name: stage.name };
     write({
       ...key,
       status: "running",

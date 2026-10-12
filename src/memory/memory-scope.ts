@@ -27,7 +27,7 @@ export interface ScopeInput {
 function latestTurnRepo(db: Database, threadId: string): string | undefined {
   return db
     .query<{ repo: string }, [string]>(
-      `SELECT repo FROM tasks WHERE thread_id = ? AND repo != '*'
+      `SELECT repo FROM turns WHERE thread_id = ? AND repo != '*'
        ORDER BY started_at DESC, rowid DESC LIMIT 1`,
     )
     .get(threadId)?.repo;

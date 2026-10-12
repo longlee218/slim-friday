@@ -58,14 +58,14 @@ describe("discord approval gateway", () => {
     const s = setup();
     const p = s.gw.request(req);
     await s.tick();
-    expect(s.row("SELECT status FROM tasks").status).toBe("waiting_approval");
+    expect(s.row("SELECT status FROM turns").status).toBe("waiting_approval");
     expect(s.row("SELECT decision FROM approvals").decision).toBe("pending");
     const c = s.click(s.ids()[0]);
     await c.run();
     expect(await p).toEqual({ approved: true });
     expect(c.out.update.components).toEqual([]);
     expect(c.out.update.content).toContain("approved");
-    expect(s.row("SELECT status FROM tasks").status).toBe("running");
+    expect(s.row("SELECT status FROM turns").status).toBe("running");
     const a = s.row("SELECT * FROM approvals");
     expect(a.decision).toBe("approved");
     expect(a.tool).toBe(BASH_TOOL_NAME);
@@ -106,7 +106,7 @@ describe("discord approval gateway", () => {
     const r = await s.gw.request(req);
     expect(r).toEqual({ approved: false, reason: "timeout" });
     expect(s.row("SELECT decision FROM approvals").decision).toBe("timeout");
-    expect(s.row("SELECT status FROM tasks").status).toBe("running");
+    expect(s.row("SELECT status FROM turns").status).toBe("running");
     expect(s.edits[0].components).toEqual([]);
   });
 
@@ -150,7 +150,7 @@ describe("discord approval gateway", () => {
   test("unsendable channel denies with no channel", async () => {
     const s = setup(5000, false);
     expect(await s.gw.request(req)).toEqual({ approved: false, reason: "no channel" });
-    expect(s.row("SELECT status FROM tasks").status).toBe("running");
+    expect(s.row("SELECT status FROM turns").status).toBe("running");
   });
 });
 
@@ -190,11 +190,11 @@ describe("cancelTurn (run aborted while waiting)", () => {
     const s = setup();
     const p = s.gw.request(req);
     await s.tick();
-    s.db.run("UPDATE tasks SET status = 'cancelled' WHERE id = 't1'"); // handler ended the task
+    s.db.run("UPDATE turns SET status = 'cancelled' WHERE id = 't1'"); // handler ended the task
     s.gw.cancelTurn("t1");
     expect(await p).toEqual({ approved: false, reason: "cancelled" });
     expect(s.row("SELECT decision FROM approvals").decision).toBe("cancelled");
-    expect(s.row("SELECT status FROM tasks").status).toBe("cancelled");
+    expect(s.row("SELECT status FROM turns").status).toBe("cancelled");
     expect(s.edits.at(-1).content).toContain("Cancelled");
     // A late click on the dead request is "expired", not approved.
     const c = s.click(s.ids()[0]);

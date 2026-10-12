@@ -26,7 +26,7 @@ export const DAY_MS = 86_400_000;
 function lastActivity(db: Database, w: WorktreeRow): number {
   const t = db
     .query(
-      "SELECT MAX(MAX(started_at), COALESCE(MAX(ended_at), 0)) AS last FROM tasks WHERE thread_id = ?",
+      "SELECT MAX(MAX(started_at), COALESCE(MAX(ended_at), 0)) AS last FROM turns WHERE thread_id = ?",
     )
     .get(w.threadId) as { last: number | null } | null;
   return Math.max(w.deliveredAt ?? 0, w.createdAt, t?.last ?? 0);
@@ -41,7 +41,7 @@ function heldForResume(db: Database, w: WorktreeRow): boolean {
     w.status === "active" &&
     !!db
       .query(
-        "SELECT 1 FROM tasks WHERE status = 'failed_resumable' AND thread_id = ? AND (id = ? OR parent_task_id = ?) LIMIT 1",
+        "SELECT 1 FROM turns WHERE status = 'failed_resumable' AND thread_id = ? AND (id = ? OR parent_turn_id = ?) LIMIT 1",
       )
       .get(w.threadId, w.taskId, w.taskId)
   );
@@ -51,9 +51,9 @@ function heldForResume(db: Database, w: WorktreeRow): boolean {
 function expireClonelessHolds(db: Database, agentHome: string, cutoff: number): string[] {
   const rows = db
     .query<{ id: string }, [number]>(
-      `SELECT t.id FROM tasks t WHERE t.status = 'failed_resumable'
+      `SELECT t.id FROM turns t WHERE t.status = 'failed_resumable'
          AND COALESCE(t.ended_at, t.started_at) < ?
-         AND NOT EXISTS (SELECT 1 FROM worktrees w WHERE w.task_id = t.id OR w.task_id = t.parent_task_id)`,
+         AND NOT EXISTS (SELECT 1 FROM worktrees w WHERE w.task_id = t.id OR w.task_id = t.parent_turn_id)`,
     )
     .all(cutoff);
   const ws = workspacePaths(agentHome);

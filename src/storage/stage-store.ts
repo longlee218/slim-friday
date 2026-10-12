@@ -5,7 +5,7 @@ export type StageStatus = "running" | "done" | "interrupted" | "failed" | "cance
 
 /** One stage of a task (`idx` = position in the role's stage list). */
 export interface StageRow {
-  taskId: string;
+  turnId: string;
   idx: number;
   name: string;
   status: StageStatus;
@@ -20,8 +20,8 @@ export interface StageRow {
 }
 
 /** Key + required fields of an upsert; the other fields only overwrite when given. */
-export type StageUpsert = Pick<StageRow, "taskId" | "idx" | "name" | "status"> &
-  Partial<Omit<StageRow, "taskId" | "idx" | "name" | "status">>;
+export type StageUpsert = Pick<StageRow, "turnId" | "idx" | "name" | "status"> &
+  Partial<Omit<StageRow, "turnId" | "idx" | "name" | "status">>;
 
 /**
  * Insert the stage row, or update it in place (same task + idx). Optional fields left undefined keep their
@@ -29,9 +29,9 @@ export type StageUpsert = Pick<StageRow, "taskId" | "idx" | "name" | "status"> &
  */
 export function upsertStage(db: Database, s: StageUpsert): void {
   db.query(
-    `INSERT INTO stages (task_id, idx, name, status, session_id, cwd, verdict, model, cost_usd, started_at, ended_at)
+    `INSERT INTO stages (turn_id, idx, name, status, session_id, cwd, verdict, model, cost_usd, started_at, ended_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (task_id, idx) DO UPDATE SET
+     ON CONFLICT (turn_id, idx) DO UPDATE SET
        name = excluded.name,
        status = excluded.status,
        session_id = COALESCE(excluded.session_id, stages.session_id),
@@ -42,7 +42,7 @@ export function upsertStage(db: Database, s: StageUpsert): void {
        started_at = COALESCE(excluded.started_at, stages.started_at),
        ended_at = COALESCE(excluded.ended_at, stages.ended_at)`,
   ).run(
-    s.taskId,
+    s.turnId,
     s.idx,
     s.name,
     s.status,
@@ -56,13 +56,13 @@ export function upsertStage(db: Database, s: StageUpsert): void {
   );
 }
 
-const COLS = `task_id AS taskId, idx, name, status, session_id AS sessionId, cwd, verdict, model,
+const COLS = `turn_id AS turnId, idx, name, status, session_id AS sessionId, cwd, verdict, model,
   cost_usd AS costUsd, started_at AS startedAt, ended_at AS endedAt`;
 
 /** The stages of a task in order. */
 export function listStages(db: Database, turnId: string): StageRow[] {
   return db
-    .query<StageRow, [string]>(`SELECT ${COLS} FROM stages WHERE task_id = ? ORDER BY idx`)
+    .query<StageRow, [string]>(`SELECT ${COLS} FROM stages WHERE turn_id = ? ORDER BY idx`)
     .all(turnId);
 }
 
@@ -73,7 +73,7 @@ export function listStages(db: Database, turnId: string): StageRow[] {
 export function spentByOtherStages(db: Database, taskId: string, idx: number): number {
   const row = db
     .query<{ usd: number }, [string, number]>(
-      "SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM stages WHERE task_id = ? AND idx <> ?",
+      "SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM stages WHERE turn_id = ? AND idx <> ?",
     )
     .get(taskId, idx);
   return row?.usd ?? 0;
@@ -92,6 +92,6 @@ export const GATE_APPROVED_VERDICT = "approved";
 /** The task already passed an approved gate: work after it runs on a plan the owner approved earlier. */
 export function gatePassed(db: Database, taskId: string): boolean {
   return !!db
-    .query("SELECT 1 FROM stages WHERE task_id = ? AND verdict = ? LIMIT 1")
+    .query("SELECT 1 FROM stages WHERE turn_id = ? AND verdict = ? LIMIT 1")
     .get(taskId, GATE_APPROVED_VERDICT);
 }

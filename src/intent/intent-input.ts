@@ -34,14 +34,14 @@ export function buildIntentInput(
   const task = open
     ? db
         .query<{ id: string; role: string }, [string]>(
-          "SELECT id, role FROM tasks WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+          "SELECT id, role FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
         )
         .get(p.threadId)
     : null;
   const stage = task
     ? db
         .query<{ name: string }, [string]>(
-          "SELECT name FROM stages WHERE task_id = ? AND status = 'running' ORDER BY idx DESC LIMIT 1",
+          "SELECT name FROM stages WHERE turn_id = ? AND status = 'running' ORDER BY idx DESC LIMIT 1",
         )
         .get(task.id)
     : null;
@@ -49,8 +49,8 @@ export function buildIntentInput(
   const last = db
     .query<{ role: string; kind: string }, [string]>(
       `SELECT t.role AS role,
-         COALESCE((SELECT s.name FROM stages s WHERE s.task_id = t.id ORDER BY s.idx DESC LIMIT 1), t.type) AS kind
-       FROM tasks t WHERE t.thread_id = ? ORDER BY t.started_at DESC, t.rowid DESC LIMIT 1`,
+         COALESCE((SELECT s.name FROM stages s WHERE s.turn_id = t.id ORDER BY s.idx DESC LIMIT 1), t.type) AS kind
+       FROM turns t WHERE t.thread_id = ? ORDER BY t.started_at DESC, t.rowid DESC LIMIT 1`,
     )
     .get(p.threadId);
   return {

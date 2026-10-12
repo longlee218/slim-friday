@@ -6,11 +6,11 @@ export type ApprovalDecision = "pending" | "approved" | "denied" | "timeout" | "
 /** Insert a pending approval; summary must already be redacted. */
 export function insertApproval(
   db: Database,
-  a: { id: string; taskId: string; tool: string; summary: string },
+  a: { id: string; turnId: string; tool: string; summary: string },
 ): void {
   db.query(
-    "INSERT INTO approvals (id, task_id, tool, summary, decision, requested_at) VALUES (?, ?, ?, ?, 'pending', ?)",
-  ).run(a.id, a.taskId, a.tool, a.summary, Date.now());
+    "INSERT INTO approvals (id, turn_id, tool, summary, decision, requested_at) VALUES (?, ?, ?, ?, 'pending', ?)",
+  ).run(a.id, a.turnId, a.tool, a.summary, Date.now());
 }
 
 /** Record the final decision and time. */

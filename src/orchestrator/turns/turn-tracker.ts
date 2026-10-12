@@ -91,7 +91,7 @@ export function beginTurn(
     cls?: TaskClass;
     proposalId?: string;
     role: string;
-    parentTaskId?: string;
+    parentTurnId?: string;
     hop?: number;
     resume?: boolean;
   },
@@ -105,7 +105,7 @@ export function beginTurn(
     cls: t.cls,
     proposalId: t.proposalId,
     role: t.role,
-    parentTaskId: t.parentTaskId,
+    parentTurnId: t.parentTurnId,
     hop: t.hop,
     resume: t.resume,
   });

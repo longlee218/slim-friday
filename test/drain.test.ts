@@ -39,5 +39,5 @@ test("draining: a new task is refused with the deploy reply and starts no run or
   expect(await handle(msg("what is x?"))).toBe(DRAIN_REPLY);
   expect(await handle(msg("stop"))).toBe("Nothing is running.");
   expect(runs).toBe(0);
-  expect(env.db.query("SELECT COUNT(*) AS n FROM tasks").get()).toEqual({ n: 0 });
+  expect(env.db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 0 });
 });

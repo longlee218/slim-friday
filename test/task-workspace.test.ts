@@ -74,7 +74,7 @@ test("handler: unmapped channel is refused before any task row or agent run", as
   expect(reply).toContain("This channel is not linked to a workspace");
   expect(reply).toContain("`100000000000000077`");
   expect(ran).toBe(false);
-  expect(env.db.query("SELECT count(*) AS n FROM tasks").get()).toEqual({ n: 0 });
+  expect(env.db.query("SELECT count(*) AS n FROM turns").get()).toEqual({ n: 0 });
 });
 
 test("handler: mapped channel whose workspace has no repos any more -> 0-repos refusal, logs channelId", async () => {
@@ -94,5 +94,5 @@ test("handler: mapped channel whose workspace has no repos any more -> 0-repos r
   // task.routed and task.refused both carry the routing channel.
   for (const event of ["task.routed", "task.refused"])
     expect(cap.lines.find((l) => l.event === event)).toMatchObject({ channelId: TEST_CHANNEL });
-  expect(env.db.query("SELECT count(*) AS n FROM tasks").get()).toEqual({ n: 0 });
+  expect(env.db.query("SELECT count(*) AS n FROM turns").get()).toEqual({ n: 0 });
 });

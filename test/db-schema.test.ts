@@ -20,7 +20,7 @@ test("schema has 4 tables and WAL mode", () => {
     .query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type='table'")
     .all()
     .map((r) => r.name);
-  for (const t of ["sessions", "tasks", "runs", "tool_calls"]) expect(names).toContain(t);
+  for (const t of ["sessions", "turns", "runs", "tool_calls"]) expect(names).toContain(t);
   expect(db.query<{ journal_mode: string }, []>("PRAGMA journal_mode").get()?.journal_mode).toBe(
     "wal",
   );
@@ -32,7 +32,7 @@ test("task/run/tool_call helpers insert rows", () => {
   finishTurn(db, "t", "done");
   insertRun(db, {
     id: "r",
-    taskId: "t",
+    turnId: "t",
     model: "m",
     inputTokens: 1,
     outputTokens: 2,
@@ -53,7 +53,7 @@ test("task/run/tool_call helpers insert rows", () => {
     isError: false,
     durationMs: 1,
   });
-  expect(db.query<{ status: string }, []>("SELECT status FROM tasks").get()?.status).toBe("done");
+  expect(db.query<{ status: string }, []>("SELECT status FROM turns").get()?.status).toBe("done");
   expect(db.query<{ n: number }, []>("SELECT COUNT(*) n FROM runs").get()?.n).toBe(1);
   expect(db.query<{ n: number }, []>("SELECT COUNT(*) n FROM tool_calls").get()?.n).toBe(1);
 });
@@ -63,11 +63,11 @@ test("restart cleanup: waiting_approval tasks become interrupted, pending approv
   insertTurn(db, { id: "t1", threadId: "th", source: "d", repo: "r", role: "dev" });
   setTurnStatus(db, "t1", "waiting_approval");
   db.run(
-    "INSERT INTO approvals (id, task_id, tool, summary, decision, requested_at) VALUES ('a','t1',?,'s','pending',1)",
+    "INSERT INTO approvals (id, turn_id, tool, summary, decision, requested_at) VALUES ('a','t1',?,'s','pending',1)",
     [BASH_TOOL_NAME],
   );
   interruptRunningTurns(db);
-  expect(db.query<{ status: string }, []>("SELECT status FROM tasks").get()?.status).toBe(
+  expect(db.query<{ status: string }, []>("SELECT status FROM turns").get()?.status).toBe(
     "interrupted",
   );
   expect(db.query<{ decision: string }, []>("SELECT decision FROM approvals").get()?.decision).toBe(
@@ -78,7 +78,7 @@ test("restart cleanup: waiting_approval tasks become interrupted, pending approv
 test("migration: old db without brief column gets brief added via ALTER TABLE", () => {
   const path = join(tmpdir(), `test-db-migrate-${Date.now()}.sqlite`);
   try {
-    // Create old database without brief column
+    // Create old (pre-v3) database without brief column: the fixture DDL keeps the old names on purpose
     const oldDb = new Database(path, { create: true });
     oldDb.run("PRAGMA journal_mode = WAL");
     oldDb.exec(`
@@ -161,14 +161,14 @@ test("migration: old db without brief column gets brief added via ALTER TABLE", 
 
     // Verify the column was added
     const columns = newDb
-      .query<{ name: string }, []>("PRAGMA table_info(tasks)")
+      .query<{ name: string }, []>("PRAGMA table_info(turns)")
       .all()
       .map((c) => c.name);
     expect(columns).toContain("brief");
 
     // Verify old data still exists
     const row = newDb
-      .query<{ id: string; brief: string | null }, []>("SELECT id, brief FROM tasks")
+      .query<{ id: string; brief: string | null }, []>("SELECT id, brief FROM turns")
       .get();
     expect(row?.id).toBe("t1");
     expect(row?.brief).toBeNull();
@@ -184,7 +184,7 @@ test("migration: old db without brief column gets brief added via ALTER TABLE", 
     });
     const newRow = newDb
       .query<{ id: string; brief: string | null }, [string]>(
-        "SELECT id, brief FROM tasks WHERE id = ?",
+        "SELECT id, brief FROM turns WHERE id = ?",
       )
       .get("t2");
     expect(newRow?.id).toBe("t2");

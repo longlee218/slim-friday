@@ -256,7 +256,7 @@ test("pure question: the agent answers, no plan stage, no code task row", async 
   expect(await handle(msg_("where is alpha?"))).toBe("It lives in a.txt:1");
   expect(seen).toHaveLength(1);
   expect(seen[0].permissionMode).toBeOneOf(["auto", "default"]); // qa: auto, fail-closed to default
-  expect(env.db.query("SELECT type FROM tasks").all()).toEqual([{ type: "qa" }]);
+  expect(env.db.query("SELECT type FROM turns").all()).toEqual([{ type: "qa" }]);
 });
 
 test("dev task: plan stage prompt is the owner message; notice posted before the plan runs", async () => {
@@ -314,7 +314,7 @@ test("stop during the plan stage cancels the dev task", async () => {
   await planStarted;
   expect(await handle(msg_("stop"))).toBe("Stopping...");
   expect(await running).toContain("Stopped");
-  const rows = env.db.query("SELECT type, status FROM tasks ORDER BY type").all();
+  const rows = env.db.query("SELECT type, status FROM turns ORDER BY type").all();
   expect(rows).toEqual([{ type: "code", status: "cancelled" }]);
 });
 
@@ -371,5 +371,5 @@ test("a dispatch whose thread was already stopped starts nothing and leaves no c
   );
   expect(reply).toBe("Q&A answer");
   expect(seen).toHaveLength(0); // no plan stage, so no approval prompt either
-  expect(env.db.query("SELECT type FROM tasks WHERE type = 'code'").all()).toEqual([]);
+  expect(env.db.query("SELECT type FROM turns WHERE type = 'code'").all()).toEqual([]);
 });

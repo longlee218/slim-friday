@@ -3,7 +3,7 @@ import type { Database } from "bun:sqlite";
 /** One agent run's metrics. */
 export interface RunRecord {
   id: string;
-  taskId: string;
+  turnId: string;
   model: string;
   /** Stage index (stages.idx) of the run; omitted = NULL (side answer, compaction, plain run without a stage). */
   stageIdx?: number;
@@ -21,12 +21,12 @@ export interface RunRecord {
 /** Insert a run row. */
 export function insertRun(db: Database, r: RunRecord): void {
   db.query(
-    `INSERT INTO runs (id, task_id, model, input_tokens, output_tokens, cache_read_tokens,
+    `INSERT INTO runs (id, turn_id, model, input_tokens, output_tokens, cache_read_tokens,
        cache_creation_tokens, cost_usd, turns, duration_ms, outcome, compactions, stage_idx)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     r.id,
-    r.taskId,
+    r.turnId,
     r.model,
     r.inputTokens,
     r.outputTokens,
@@ -53,13 +53,13 @@ export interface ToolCallRecord {
   /** Subagent that made the call; omitted = the main agent (NULL). */
   agentId?: string;
   /** Task the run belongs to (its `runs` row only exists once the run ends). */
-  taskId?: string;
+  turnId?: string;
 }
 
 /** Insert (or replace on repeated tool_use id) a tool_calls row. */
 export function insertToolCall(db: Database, c: ToolCallRecord): void {
   db.query(
-    `INSERT OR REPLACE INTO tool_calls (id, run_id, tool, input_json, output_preview, is_error, duration_ms, agent_id, task_id)
+    `INSERT OR REPLACE INTO tool_calls (id, run_id, tool, input_json, output_preview, is_error, duration_ms, agent_id, turn_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     c.id,
@@ -70,7 +70,7 @@ export function insertToolCall(db: Database, c: ToolCallRecord): void {
     c.isError ? 1 : 0,
     c.durationMs,
     c.agentId ?? null,
-    c.taskId ?? null,
+    c.turnId ?? null,
   );
 }
 
@@ -81,7 +81,7 @@ export function latestToolCall(
 ): { tool: string; subagent: boolean } | undefined {
   const row = db
     .query<{ tool: string; agent_id: string | null }, [string]>(
-      "SELECT tool, agent_id FROM tool_calls WHERE task_id = ? ORDER BY rowid DESC LIMIT 1",
+      "SELECT tool, agent_id FROM tool_calls WHERE turn_id = ? ORDER BY rowid DESC LIMIT 1",
     )
     .get(turnId);
   return row ? { tool: row.tool, subagent: row.agent_id !== null } : undefined;

@@ -51,18 +51,18 @@ test("v1 db survives: rows kept, new tables + columns, version marker, defaults 
   const db = openDb(file);
   expect([
     count(db, "sessions"),
-    count(db, "tasks"),
+    count(db, "turns"),
     count(db, "runs"),
     count(db, "approvals"),
   ]).toEqual([2, 2, 1, 1]);
   expect(db.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({
-    value: "2",
+    value: "3",
   });
   expect(count(db, "stages")).toBe(0);
   expect(count(db, "proposals")).toBe(0);
   const old = db
     .query(
-      "SELECT id, role, kind, hop, counts_toward_cap, class, proposal_id FROM tasks ORDER BY id",
+      "SELECT id, role, kind, hop, counts_toward_cap, class, proposal_id FROM turns ORDER BY id",
     )
     .all();
   expect(old).toEqual([
@@ -110,11 +110,11 @@ test("migration is idempotent: a second and third open change nothing and take n
   db.close();
   const again = openDb(file);
   expect(count(again, "meta")).toBe(1);
-  expect(count(again, "tasks")).toBe(2);
+  expect(count(again, "turns")).toBe(2);
   expect(readdirSync(backups)).toHaveLength(1);
   expect(
     again
-      .query<{ name: string }, []>("PRAGMA table_info(tasks)")
+      .query<{ name: string }, []>("PRAGMA table_info(turns)")
       .all()
       .filter((c) => c.name === "role"),
   ).toHaveLength(1);
@@ -124,7 +124,7 @@ test("fresh db: version marker written, no snapshot", () => {
   const home = mkdtempSync(join(tmpdir(), "friday-migrate-"));
   const db = openDb(join(home, "data", "agent.db"));
   expect(db.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({
-    value: "2",
+    value: "3",
   });
   expect(existsSync(join(home, "db-backups"))).toBe(false);
 });
@@ -143,25 +143,6 @@ test("snapshot failure aborts startup and leaves the v1 db unmigrated", () => {
   raw.close();
 });
 
-test("rollback: an old-schema query and an old-style insert still work on the migrated db", () => {
-  const { file } = v1Home();
-  const db = openDb(file);
-  // Exactly what the previous binary runs (no new columns named).
-  db.query(
-    "INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at) VALUES ('old', 'th3', 's', 'r', 'code', 'running', 3)",
-  ).run();
-  expect(
-    db
-      .query<{ n: number }, []>(
-        "SELECT COUNT(*) AS n FROM tasks WHERE type = 'code' AND status IN ('running', 'waiting_approval')",
-      )
-      .get()?.n,
-  ).toBe(2);
-  expect(
-    db.query("SELECT thread_id, session_id FROM sessions ORDER BY thread_id").all(),
-  ).toHaveLength(2);
-});
-
 test("cap query counts code tasks only (counts_toward_cap), not Q&A", () => {
   const { file } = v1Home();
   const db = openDb(file);
@@ -178,7 +159,7 @@ test("cap query counts code tasks only (counts_toward_cap), not Q&A", () => {
   });
   expect(countActiveCappedTasks(db)).toBe(2);
   expect(
-    db.query("SELECT class, proposal_id, counts_toward_cap FROM tasks WHERE id = 'c2'").get(),
+    db.query("SELECT class, proposal_id, counts_toward_cap FROM turns WHERE id = 'c2'").get(),
   ).toEqual({
     class: "design",
     proposal_id: "p1",
@@ -223,7 +204,7 @@ test("worktrees: clone columns are added; an old row reads back as a legacy row 
   openDb(file).close(); // idempotent
 });
 
-test("proposals.effort: added once by the guarded ALTER, old rows read null, re-open keeps it (idempotent)", () => {
+test("proposals.effort: added once on the v1 -> v3 chain, old rows read null, re-open keeps it (idempotent)", () => {
   const { file } = v1Home();
   const cols = (d: Database) =>
     d
@@ -238,8 +219,6 @@ test("proposals.effort: added once by the guarded ALTER, old rows read null, re-
   const effort = () =>
     db.query<{ effort: string | null }, []>("SELECT effort FROM proposals").get()?.effort;
   expect(effort()).toBeNull();
-  // An older v2 db that lacks only the column gets it on the next open; a plain re-open changes nothing.
-  db.run("ALTER TABLE proposals DROP COLUMN effort");
   db.close();
   const again = openDb(file);
   expect(cols(again)).toHaveLength(1);
@@ -275,10 +254,10 @@ test("run_messages (Rev 11): created on a v1 db, second open is a no-op, rows su
   db.close();
   const again = openDb(file); // guarded, idempotent: nothing is dropped or re-created
   expect(count(again, "run_messages")).toBe(1);
-  expect(count(again, "tasks")).toBe(2);
+  expect(count(again, "turns")).toBe(2);
 });
 
-test("tool_calls.agent_id and task_id are added to an old table and migration stays idempotent", () => {
+test("tool_calls.agent_id and turn_id (renamed from the v2 task_id) end up on an old table, migration stays idempotent", () => {
   const { file } = v1Home();
   const raw = new Database(file);
   raw.exec(
@@ -289,7 +268,8 @@ test("tool_calls.agent_id and task_id are added to an old table and migration st
     const db = openDb(file);
     const cols = db.query<{ name: string }, []>("PRAGMA table_info(tool_calls)").all();
     expect(cols.filter((c) => c.name === "agent_id")).toHaveLength(1);
-    expect(cols.filter((c) => c.name === "task_id")).toHaveLength(1);
+    expect(cols.filter((c) => c.name === "turn_id")).toHaveLength(1);
+    expect(cols.filter((c) => c.name === "task_id")).toHaveLength(0);
     db.close();
   }
 });

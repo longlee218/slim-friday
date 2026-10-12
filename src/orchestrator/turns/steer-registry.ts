@@ -76,7 +76,7 @@ export function createSteerRegistry(db: Database): SteerRegistry {
   const liveTask = (threadId: string) =>
     db
       .query<{ id: string; role: string }, [string]>(
-        `SELECT id, role FROM tasks WHERE thread_id = ? AND status IN ('running', 'waiting_approval')
+        `SELECT id, role FROM turns WHERE thread_id = ? AND status IN ('running', 'waiting_approval')
          ORDER BY started_at DESC, rowid DESC LIMIT 1`,
       )
       .get(threadId) ?? undefined;

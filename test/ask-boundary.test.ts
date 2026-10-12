@@ -135,7 +135,7 @@ test("exec: no answer in time -> 'Awaiting clarification', session kept, task ca
   const wt = getWorktreeByThread(env.db, "th1")!;
   expect(getSession(env.db, "th1")).toMatchObject({ session_id: "sess-exec", repo: "real" });
   expect(getSession(env.db, "th1")!.cwd).toBe(realpathSync(wt.path));
-  expect(env.db.query("SELECT status FROM tasks WHERE type = 'code'").all()).toEqual([
+  expect(env.db.query("SELECT status FROM turns WHERE type = 'code'").all()).toEqual([
     { status: "cancelled" },
   ]);
 });

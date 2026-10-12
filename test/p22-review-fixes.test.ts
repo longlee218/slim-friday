@@ -172,7 +172,7 @@ test("insertApproval with a task id that has no task row works (no foreign keys 
   const { env } = await cloneEnv();
   insertApproval(env.db, {
     id: "ab12cd34",
-    taskId: crypto.randomUUID(),
+    turnId: crypto.randomUUID(),
     tool: "max_effort",
     summary: "s",
   });

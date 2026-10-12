@@ -87,7 +87,7 @@ test("ask rule: unknown repo -> ONE question, proposal stays pending, no task ro
   expect(reply).toContain('Unknown repo "nope"');
   expect(reply).toContain("Send the task again with repo:<name>");
   expect(listPendingProposals(env.db)).toHaveLength(1);
-  expect(rows(env, "SELECT 1 FROM tasks")).toEqual([]);
+  expect(rows(env, "SELECT 1 FROM turns")).toEqual([]);
   expect(runs).toEqual([]);
 });
 
@@ -141,12 +141,12 @@ test("owner `go` on a pending proposal: confirmed, re-validated, dispatched with
     workspace: "main",
     repos,
     ac: new AbortController(),
-    fromTaskId: "src-task",
+    fromTurnId: "src-task",
   });
   expect(runs).toHaveLength(1); // the plan stage ran
   expect(rows(env, "SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
-  expect(rows(env, "SELECT role, kind, parent_task_id, hop, proposal_id FROM tasks")).toEqual([
-    { role: "dev", kind: "staged", parent_task_id: "src-task", hop: 1, proposal_id: p!.id },
+  expect(rows(env, "SELECT role, kind, parent_turn_id, hop, proposal_id FROM turns")).toEqual([
+    { role: "dev", kind: "staged", parent_turn_id: "src-task", hop: 1, proposal_id: p!.id },
   ]);
 });
 

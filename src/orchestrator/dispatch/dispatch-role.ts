@@ -45,7 +45,7 @@ export interface DispatchInput {
   /** The thread's abort controller (`stop` aborts the stages too). */
   ac: AbortController;
   /** Task whose turn produced the request (parent of the new task); absent for an intent-layer request. */
-  fromTaskId?: string;
+  fromTurnId?: string;
   /** Owner raise of the budget (`go +<usd>`). */
   extraBudgetUsd?: number;
   /** Effort of this run (intent signals / thread floor); missing = the stage defaults. */
@@ -70,7 +70,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
       request,
       threadId: i.message.threadId,
       workspace: i.workspace,
-      fromTaskId: i.fromTaskId,
+      fromTurnId: i.fromTurnId,
     });
   const refuseProposal = () => proposalId && setProposalStatus(db, proposalId, "refused");
   // `stop` / shutdown after the source turn ended: the first stage would get an already-aborted signal whose
@@ -121,8 +121,8 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
       cls: request.cls,
       proposalId,
       role: role.name,
-      parentTaskId: i.fromTaskId,
-      hop: i.fromTaskId ? 1 : 0,
+      parentTurnId: i.fromTurnId,
+      hop: i.fromTurnId ? 1 : 0,
     },
   );
   // A failed transition (already dispatched / expired) means another path owns the proposal: never run twice.

@@ -157,7 +157,7 @@ async function harness(o: { steersToRead?: number; gate?: boolean; limit?: numbe
       if (asked >= 1) return { approved: false, reason: "a queued task: not this test's gate" };
       insertApproval(env.db, {
         id: `ap${++asked}`,
-        taskId: req.turnId,
+        turnId: req.turnId,
         tool: req.tool,
         summary: "plan",
       });
@@ -273,11 +273,11 @@ test("H-b side lane: an independent question is answered at once, in parallel wi
   expect(h.env.db.query("SELECT 1 FROM sessions WHERE thread_id = 'th1'").get()).toBeNull();
   // the thread's own rows are untouched: one running dev task; the side row lives under another thread id
   expect(state()).toBe("running");
-  expect(h.env.db.query("SELECT role, status FROM tasks WHERE thread_id = 'th1'").all()).toEqual([
+  expect(h.env.db.query("SELECT role, status FROM turns WHERE thread_id = 'th1'").all()).toEqual([
     { role: "dev", status: "running" },
   ]);
   expect(
-    h.env.db.query("SELECT role, status FROM tasks WHERE thread_id = 'th1:side'").all(),
+    h.env.db.query("SELECT role, status FROM turns WHERE thread_id = 'th1:side'").all(),
   ).toEqual([{ role: "assistant", status: "done" }]);
   // the lock is the task's: its steer input still takes messages (the side run did not register a sink or free the lock)
   expect(await h.handle(msg("also keep it small"))).toBe(STEER_RECEIVED);
@@ -346,13 +346,13 @@ test("H-c plan gate: typed feedback re-runs the plan with the feedback; question
 
 /** The id of the thread's running task. */
 const liveTaskId = (env: { db: ReturnType<typeof makeEnv>["db"] }) =>
-  env.db.query<{ id: string }, []>("SELECT id FROM tasks WHERE thread_id = 'th1'").get()!.id;
+  env.db.query<{ id: string }, []>("SELECT id FROM turns WHERE thread_id = 'th1'").get()!.id;
 
 test("B: a steer while a tool approval waits gets the waiting reply (tool name), is stored pending and is delivered after the decision", async () => {
   const h = await harness({ steersToRead: 1 });
   const { first } = await h.start();
   const taskId = liveTaskId(h.env);
-  insertApproval(h.env.db, { id: "tool1", taskId: taskId, tool: "Bash", summary: "cd x && ls" });
+  insertApproval(h.env.db, { id: "tool1", turnId: taskId, tool: "Bash", summary: "cd x && ls" });
   setTurnStatus(h.env.db, taskId, "waiting_approval");
   expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_tool_approval");
   const reply = await h.handle(msg("also keep it small"));
@@ -380,14 +380,14 @@ test("C: an answering role on a busy thread goes to the side lane even when L3 s
   insertToolCall(h.env.db, {
     id: "tc1",
     runId: "run-live",
-    taskId: taskId,
+    turnId: taskId,
     tool: "Grep",
     inputJson: '{"pattern":"sk-ant-api03-SECRETSECRETSECRET"}',
     outputPreview: "hit",
     isError: false,
     durationMs: 3,
   });
-  insertApproval(h.env.db, { id: "tool1", taskId: taskId, tool: "Bash", summary: "ls" });
+  insertApproval(h.env.db, { id: "tool1", turnId: taskId, tool: "Bash", summary: "ls" });
   setTurnStatus(h.env.db, taskId, "waiting_approval");
   expect(await h.handle(msg("status? what is the agent doing"))).toBe("assistant answer");
   expect(h.p.sideOptions).toHaveLength(1);

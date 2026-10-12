@@ -107,7 +107,7 @@ export class RunRecorder {
         isError: c.isError,
         durationMs: c.durationMs,
         agentId: c.agentId,
-        taskId: this.turnId,
+        turnId: this.turnId,
       }),
     );
   }
@@ -117,7 +117,7 @@ export class RunRecorder {
     this.safely("finish", () =>
       insertRun(this.db, {
         id: this.runId,
-        taskId: this.turnId,
+        turnId: this.turnId,
         model: this.model,
         stageIdx: this.stageIdx,
         outcome,

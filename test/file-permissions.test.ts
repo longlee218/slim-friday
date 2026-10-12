@@ -28,7 +28,7 @@ test("dirs are 0700; db, sidecars, app log and per-task jsonl are 0600", async (
   await sink.ready();
   sink.end();
 
-  const taskLog = env.db.query<{ id: string }, []>("SELECT id FROM tasks").get()!.id;
+  const taskLog = env.db.query<{ id: string }, []>("SELECT id FROM turns").get()!.id;
   const files = [
     env.paths.dbFile,
     `${env.paths.dbFile}-wal`,
