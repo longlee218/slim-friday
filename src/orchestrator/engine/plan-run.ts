@@ -4,7 +4,7 @@ import { guardFor } from "../../guardrails/check-tool-call";
 import { buildPromptContext } from "../../memory/prompt-context";
 import { buildRegistryContext } from "../../repos/repo-registry";
 import { runAgent } from "../../runtime/run-agent";
-import type { FlowResult } from "../tasks/task-result";
+import type { FlowResult } from "../turns/turn-result";
 import { planWorkflow, stageControl } from "./stage-control";
 import type { StageCtx } from "./stage-runner";
 
@@ -29,7 +29,7 @@ export async function runPlanRun(c: StageCtx): Promise<PlanStageResult> {
   const plans = claudePlansDir();
   const scratch =
     i.planResume?.cwd ??
-    workspacePaths(config.agentHome).workspace(i.workspace).task(i.taskId).scratch;
+    workspacePaths(config.agentHome).workspace(i.workspace).task(i.turnId).scratch;
   mkdirSync(scratch, { recursive: true, mode: 0o700 });
   const scratchReal = realpathSync(scratch);
   const repoPaths = i.repos.map((r) => realpathSync(r.path));
@@ -41,7 +41,7 @@ export async function runPlanRun(c: StageCtx): Promise<PlanStageResult> {
     route: i.route,
     prompt: i.text,
     steer: stage.streaming ? deps.steer?.hook(i.threadId) : undefined, // streaming stage: the owner can steer it
-    taskId: i.taskId,
+    turnId: i.turnId,
     cwd: scratchReal,
     resume: i.planResume?.sessionId,
     additionalDirectories: repoPaths,

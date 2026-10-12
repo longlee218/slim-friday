@@ -70,11 +70,11 @@ export const resumeReasonOf = (r: FlowResult): ResumeReason | undefined =>
   RESUMABLE_WHEN.find(([, when]) => when(r))?.[0];
 
 /** The question L3 reads the owner's next message against (same words as the notice of the failure). */
-export const resumeQuestion = (taskId: string, reason: string): string =>
-  `Task ${taskId.slice(0, 8)} stopped at exec: ${reason}. Continue with the approved plan?`;
+export const resumeQuestion = (turnId: string, reason: string): string =>
+  `Task ${turnId.slice(0, 8)} stopped at exec: ${reason}. Continue with the approved plan?`;
 
 /** Map run outcome to the task status stored in db. */
-const TASK_STATUS: Record<string, TaskStatus> = {
+const TURN_STATUS: Record<string, TaskStatus> = {
   success: "done",
   aborted: "cancelled",
   timeout: "timeout",
@@ -93,10 +93,10 @@ export const RESUMABLE_OUTCOMES: ReadonlySet<RunOutcome> = new Set([
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "task-result" });
 
-/** End of a run, same for Q&A and code: save the session, close the task row, return the redacted reply. */
+/** End of a run, same for Q&A and code: save the session, close the turn row, return the redacted reply. */
 export function finishRun(
   db: Database,
-  ids: { taskId: string; threadId: string },
+  ids: { turnId: string; threadId: string },
   res: FlowResult,
 ): string {
   if (res.sessionId && res.cwd && (res.keepSession || RESUMABLE_OUTCOMES.has(res.outcome))) {
@@ -112,8 +112,8 @@ export function finishRun(
   }
   finishTask(
     db,
-    ids.taskId,
-    res.resumable ? "failed_resumable" : (TASK_STATUS[res.outcome] ?? "failed"),
+    ids.turnId,
+    res.resumable ? "failed_resumable" : (TURN_STATUS[res.outcome] ?? "failed"),
   );
   // Budget hit is never silent: spent / limit, the overshoot note; event `budget.exceeded`.
   if (res.outcome === "max_budget") return budgetHitReply(res);
@@ -125,7 +125,7 @@ export function finishRun(
   const text = redactText(res.text || `${OUTCOME_REPLY[res.outcome] ?? "No answer."}${reset}`);
   // A resumable failure ends with the question (reply yes or `/go`): the clone, plan and session are kept.
   return res.resumable
-    ? `${text}\n${resumeQuestion(ids.taskId, RESUMABLE[res.resumable])} Reply yes or send \`/go\`.`
+    ? `${text}\n${resumeQuestion(ids.turnId, RESUMABLE[res.resumable])} Reply yes or send \`/go\`.`
     : text;
 }
 
@@ -133,14 +133,14 @@ export function finishRun(
  * End of a task as the handler sees it: `finishRun`, then `interrupted` instead of cancelled when shutdown
  * aborted it (resumable), then the `task.finished` line. `repo` = repo to log when the flow named none.
  */
-export function closeTask(
+export function closeTurn(
   db: Database,
-  ids: { taskId: string; threadId: string },
+  ids: { turnId: string; threadId: string },
   res: FlowResult,
   o: { stopping: boolean; t0: number; repo: string },
 ): string {
   const reply = finishRun(db, ids, res);
-  if (o.stopping && res.outcome === "aborted") setTaskStatus(db, ids.taskId, "interrupted");
+  if (o.stopping && res.outcome === "aborted") setTaskStatus(db, ids.turnId, "interrupted");
   logEvent(log, "task.finished", {
     repo: res.repo && res.repo !== "*" ? res.repo : o.repo,
     outcome: res.outcome,

@@ -7,8 +7,6 @@ import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { createRunLimiter } from "../src/orchestrator/tasks/run-limiter";
-import { STATUS_HEADING } from "../src/orchestrator/tasks/status-snapshot";
 import {
   FEEDBACK_SENT,
   GATE_HINT,
@@ -18,6 +16,8 @@ import {
   STEER_WAITING,
 } from "../src/orchestrator/thread/intent-replies";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
+import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
+import { STATUS_HEADING } from "../src/orchestrator/turns/status-snapshot";
 import { ROLES } from "../src/roles/role-registry";
 import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { listRunMessages } from "../src/storage/run-message-store";
@@ -157,14 +157,14 @@ async function harness(o: { steersToRead?: number; gate?: boolean; limit?: numbe
       if (asked >= 1) return { approved: false, reason: "a queued task: not this test's gate" };
       insertApproval(env.db, {
         id: `ap${++asked}`,
-        taskId: req.taskId,
+        taskId: req.turnId,
         tool: req.tool,
         summary: "plan",
       });
-      setTaskStatus(env.db, req.taskId, "waiting_approval");
+      setTaskStatus(env.db, req.turnId, "waiting_approval");
       const r = await new Promise<ApprovalResult>((res) => (decide = res));
       decideApproval(env.db, `ap${asked}`, r.approved ? "approved" : "denied");
-      setTaskStatus(env.db, req.taskId, "running");
+      setTaskStatus(env.db, req.turnId, "running");
       return r;
     },
     feedbackPlan: (_thread, text) => {
@@ -352,7 +352,7 @@ test("B: a steer while a tool approval waits gets the waiting reply (tool name),
   const h = await harness({ steersToRead: 1 });
   const { first } = await h.start();
   const taskId = liveTaskId(h.env);
-  insertApproval(h.env.db, { id: "tool1", taskId, tool: "Bash", summary: "cd x && ls" });
+  insertApproval(h.env.db, { id: "tool1", taskId: taskId, tool: "Bash", summary: "cd x && ls" });
   setTaskStatus(h.env.db, taskId, "waiting_approval");
   expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_tool_approval");
   const reply = await h.handle(msg("also keep it small"));
@@ -380,14 +380,14 @@ test("C: an answering role on a busy thread goes to the side lane even when L3 s
   insertToolCall(h.env.db, {
     id: "tc1",
     runId: "run-live",
-    taskId,
+    taskId: taskId,
     tool: "Grep",
     inputJson: '{"pattern":"sk-ant-api03-SECRETSECRETSECRET"}',
     outputPreview: "hit",
     isError: false,
     durationMs: 3,
   });
-  insertApproval(h.env.db, { id: "tool1", taskId, tool: "Bash", summary: "ls" });
+  insertApproval(h.env.db, { id: "tool1", taskId: taskId, tool: "Bash", summary: "ls" });
   setTaskStatus(h.env.db, taskId, "waiting_approval");
   expect(await h.handle(msg("status? what is the agent doing"))).toBe("assistant answer");
   expect(h.p.sideOptions).toHaveLength(1);

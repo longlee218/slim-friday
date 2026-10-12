@@ -31,7 +31,7 @@ export interface RunAgentInput {
   /** User question sent to the agent. */
   prompt: string;
   /** Task id; names the per-task JSONL and tags logs. */
-  taskId: string;
+  turnId: string;
   /** Repo directory the agent runs in. */
   cwd: string;
   /** Extra repo directories the agent may read (multi-repo registry). */
@@ -49,7 +49,7 @@ export interface RunAgentInput {
   /** The stage to run: its tools, model slot, permission mode, timeout and prompt. */
   stage: StageDefinition;
   /** Permission layer of a gated stage (gateway, plan, ask limits). Omitted = a stage without a gateway (ask = deny). */
-  code?: Omit<ToolPermissionInput, "taskId" | "guard">;
+  code?: Omit<ToolPermissionInput, "turnId" | "guard">;
   /** `full` repo workflow (plan: some candidate repo is full; exec: the repo is): adds its rules to the prompt. */
   workflow?: Workflow;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never repo content). */
@@ -118,9 +118,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const recorder = new RunRecorder(
     input.db,
     runId,
-    input.taskId,
+    input.turnId,
     config.model,
-    workspacePaths(config.agentHome).taskLog(input.taskId),
+    workspacePaths(config.agentHome).taskLog(input.turnId),
     input.stageIdx,
   );
   const run = input.queryFn ?? (sdkQuery as QueryFn);
@@ -169,7 +169,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       ac,
       timedOut: () => timedOut,
       db: input.db,
-      taskId: input.taskId,
+      turnId: input.turnId,
       cwd: input.cwd,
       requireGit: stage.gitGroups.includes("commit"),
       permissionWatch: createPermissionWatch(requestedMode, autoState, bypassState),

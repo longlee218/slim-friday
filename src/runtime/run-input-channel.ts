@@ -37,7 +37,7 @@ export interface SteerSink {
 /** Facts of the run a sink belongs to (stored with each message the owner sends to it). */
 export interface SteerRun {
   runId: string;
-  taskId: string;
+  turnId: string;
 }
 
 /** Registers a run's sink so the thread's next message can steer it; returns the unregister function. */

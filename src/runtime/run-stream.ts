@@ -72,7 +72,7 @@ export async function consumeStream(p: {
   /** True when our own run timer fired (relabels an abort as `timeout`). */
   timedOut: () => boolean;
   db: Database;
-  taskId: string;
+  turnId: string;
   cwd: string;
   /** The stage is useless without its git tools (it commits): abort when that server is not connected. */
   requireGit: boolean;
@@ -108,11 +108,11 @@ export async function consumeStream(p: {
       const m = msg as SDKMessage & { subtype?: string; session_id?: string };
       sessionId = m.session_id ?? sessionId;
       if (m.type === "system" && m.subtype === "compact_boundary") compactions++;
-      // Record the session on the task row at once (not in `sessions`: that table is only updated by a
+      // Record the session on the turn row at once (not in `sessions`: that table is only updated by a
       // successful finish, so a failed run never replaces the thread's good session). Resume reads it.
       if (m.type === "system" && m.subtype === "init" && m.session_id) {
         const sid = m.session_id;
-        tryLog(log, "early session save failed", () => setTaskSession(p.db, p.taskId, sid, p.cwd));
+        tryLog(log, "early session save failed", () => setTaskSession(p.db, p.turnId, sid, p.cwd));
       }
       const ext = m as unknown as { error?: string; rate_limit_info?: { status?: string } };
       // A later assistant message without `error` means the SDK retry worked: forget the old error.

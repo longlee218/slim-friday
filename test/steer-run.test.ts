@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { createSteerRegistry } from "../src/orchestrator/tasks/steer-registry";
+import { createSteerRegistry } from "../src/orchestrator/turns/steer-registry";
 import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { initMsg, makeEnv, resultMsg } from "./helpers";
@@ -38,7 +38,7 @@ function go(
 ) {
   return runAgent({
     prompt: "task prompt",
-    taskId: "T",
+    turnId: "T",
     stage: getStage("assistant", "qa"),
     cwd: env.home,
     config: env.config,
@@ -113,7 +113,7 @@ describe("steer: streaming input of a run", () => {
     const plain: Probe = { pulled: [] };
     await runAgent({
       prompt: "task prompt",
-      taskId: "T0",
+      turnId: "T0",
       stage: getStage("assistant", "qa"),
       cwd: env.home,
       config: env.config,
@@ -162,7 +162,7 @@ describe("steer: streaming input of a run", () => {
     let seen: unknown;
     await runAgent({
       prompt: "question",
-      taskId: "T",
+      turnId: "T",
       stage: getStage("assistant", "qa"),
       cwd: env.home,
       config: env.config,

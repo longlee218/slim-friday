@@ -38,7 +38,7 @@ test("post builds customIds clone:<choice>:<taskId>; a click runs onClick once",
   const s = setup();
   const seen: string[] = [];
   const ok = await s.poster.post({
-    taskId: ID,
+    turnId: ID,
     threadId: "th",
     content: "result",
     onClick: async (c) => {
@@ -59,7 +59,7 @@ test("after a restart (fresh poster) every click is expired with no side effect"
   const s = setup();
   let ran = 0;
   await s.poster.post({
-    taskId: ID,
+    turnId: ID,
     threadId: "th",
     content: "r",
     onClick: async () => {
@@ -77,7 +77,7 @@ test("malformed ids, unknown choices and strangers fail closed; other prefixes a
   const s = setup();
   let ran = 0;
   await s.poster.post({
-    taskId: ID,
+    turnId: ID,
     threadId: "th",
     content: "r",
     onClick: async () => {

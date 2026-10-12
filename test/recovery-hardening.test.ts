@@ -5,7 +5,7 @@ import { checkWorktrees, cleanupTaskLogs } from "../src/lifecycle/startup";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { RESUME_PROMPT } from "../src/orchestrator/message-commands";
 import { resolveCommand } from "../src/orchestrator/message-routing";
-import { finishRun } from "../src/orchestrator/tasks/task-result";
+import { finishRun } from "../src/orchestrator/turns/turn-result";
 import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import {
@@ -41,7 +41,7 @@ const task = (text: string, threadId = "th1") => ({
 const go = (env: ReturnType<typeof makeEnv>, q: ReturnType<typeof fakeQuery>) =>
   runAgent({
     prompt: "q",
-    taskId: "T",
+    turnId: "T",
     stage: getStage("assistant", "qa"),
     cwd: env.home,
     config: env.config,
@@ -251,7 +251,7 @@ test("quota: rejected rate_limit_event + assistant error gives reset time in the
   const r = await go(env, fakeQuery(msgs as never));
   expect(r.outcome).toBe("quota");
   expect(r.resetsAt).toBe(reset * 1000);
-  const reply = finishRun(env.db, { taskId: "T", threadId: "th" }, r);
+  const reply = finishRun(env.db, { turnId: "T", threadId: "th" }, r);
   expect(reply).toContain("Quota exhausted / rate limited");
   expect(reply).toContain(new Date(reset * 1000).toISOString());
 });
@@ -292,7 +292,7 @@ test("unknown error: generic reply, raw error not shown to the user", async () =
   });
   const r = await go(env, fakeQuery([initMsg, m]));
   expect(r.outcome).toBe("error");
-  const reply = finishRun(env.db, { taskId: "T", threadId: "th" }, r);
+  const reply = finishRun(env.db, { turnId: "T", threadId: "th" }, r);
   expect(reply).toBe("Agent failed. Check the logs.");
 });
 

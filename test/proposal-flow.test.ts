@@ -13,7 +13,7 @@ import {
 import { budgetHitMessage } from "../src/orchestrator/engine/budget";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { resolveCommand } from "../src/orchestrator/message-routing";
-import { finishRun } from "../src/orchestrator/tasks/task-result";
+import { finishRun } from "../src/orchestrator/turns/turn-result";
 import {
   getProposal,
   insertProposal,
@@ -186,7 +186,7 @@ test("a budget stop offers `go +<usd>`; the message helper keeps the hint", () =
   insertTask(env.db, { id: "t", threadId: "t1", source: "s", repo: "r", role: "assistant" });
   const text = finishRun(
     env.db,
-    { taskId: "t", threadId: "t1" },
+    { turnId: "t", threadId: "t1" },
     {
       text: "x",
       outcome: "max_budget",

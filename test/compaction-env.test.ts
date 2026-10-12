@@ -11,7 +11,7 @@ async function optionsOf(env: ReturnType<typeof makeEnv>, role: string, stage: s
   let seen: any;
   await runAgent({
     prompt: "p",
-    taskId: "T",
+    turnId: "T",
     stage: getStage(role, stage),
     cwd: env.home,
     config: env.config,

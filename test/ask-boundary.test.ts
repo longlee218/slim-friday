@@ -32,7 +32,7 @@ const askAndMaybeStop = async (o: any) => {
 test("guard: AskUserQuestion calls beyond the cap are denied and never reach the owner", async () => {
   const asked: string[] = [];
   const perms = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard: guardFor("exec", { writePaths: [], readPaths: [], allowedCommands: [] }),
     gateway: stubGateway({
@@ -254,7 +254,7 @@ test("stop while a question is pending (exec): not 'Awaiting clarification', ses
 test("one AskUserQuestion call with 2 questions: both reach the owner, all answered, one call of the budget used", async () => {
   const asked: string[] = [];
   const perms = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard: guardFor("exec", { writePaths: [], readPaths: [], allowedCommands: [] }),
     gateway: stubGateway({

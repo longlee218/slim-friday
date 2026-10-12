@@ -29,7 +29,7 @@ export async function settleMaxEffort(a: {
 }): Promise<{ turn: TurnEffort; declined: boolean }> {
   const yes = await ownerConfirm(a.approvals, {
     kind: "max_effort",
-    taskId: crypto.randomUUID(),
+    turnId: crypto.randomUUID(),
     threadId: a.threadId,
     summary: MAX_EFFORT_QUESTION,
     signal: a.signal,

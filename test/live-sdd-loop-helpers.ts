@@ -92,7 +92,7 @@ export async function runLoop() {
     stageIdx: 1,
     route: { cls: "mechanical" }, // Haiku class: the guard's subagent model cap is haiku and sonnet
     prompt: DRIVER(planPath),
-    taskId: "sdd-loop",
+    turnId: "sdd-loop",
     cwd: clone,
     additionalDirectories: [scratch],
     config: env.config,

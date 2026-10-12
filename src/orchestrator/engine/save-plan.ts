@@ -9,7 +9,7 @@ import type { StageRunInput, StageRunnerDeps } from "./stage-runner";
 const log = logger.child({ module: "save-plan" });
 
 /**
- * Best effort: keep the approved plan (in the file the exec handoff names) and the repo on the task row. Used when the
+ * Best effort: keep the approved plan (in the file the exec handoff names) and the repo on the turn row. Used when the
  * stage switch fails before a clone exists (no commit identity): `/go` can then run the switch again.
  */
 export function savePlanForResume(
@@ -20,9 +20,9 @@ export function savePlanForResume(
   plan: string,
 ): void {
   tryLog(log, "saving the approved plan failed", () => {
-    const dir = workspacePaths(deps.config.agentHome).workspace(i.workspace).task(i.taskId).root;
+    const dir = workspacePaths(deps.config.agentHome).workspace(i.workspace).task(i.turnId).root;
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     writeFileSync(join(dir, planFile), plan);
-    setTaskRepo(deps.db, i.taskId, repo);
+    setTaskRepo(deps.db, i.turnId, repo);
   });
 }

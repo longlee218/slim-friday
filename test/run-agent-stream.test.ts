@@ -33,7 +33,7 @@ function go(
 ) {
   return runAgent({
     prompt: "q",
-    taskId: "T",
+    turnId: "T",
     stage: getStage("assistant", "qa"),
     cwd: env.home,
     config: env.config,
@@ -256,7 +256,7 @@ test("runs.stage_idx: written when the stage index is given, NULL for a non-stag
   await go(env, fakeQuery([initMsg, resultMsg()]));
   await runAgent({
     prompt: "q",
-    taskId: "T",
+    turnId: "T",
     stage: getStage("assistant", "qa"),
     stageIdx: 1,
     cwd: env.home,

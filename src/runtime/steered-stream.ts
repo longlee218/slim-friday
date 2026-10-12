@@ -71,7 +71,7 @@ export async function consumeSteered(p: SteeredInput): Promise<StreamResult> {
   let resumed: Steer[] = [];
   for (let round = 0; ; round++) {
     const ch = createInputChannel(prompt);
-    const unregister = hook.register(ch, { runId, taskId: p.taskId });
+    const unregister = hook.register(ch, { runId, turnId: p.turnId });
     const stop = () => ch.close(true);
     p.ac.signal.addEventListener("abort", stop, { once: true });
     if (p.ac.signal.aborted) stop();

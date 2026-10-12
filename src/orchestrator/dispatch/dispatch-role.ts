@@ -11,8 +11,8 @@ import { getSession } from "../../storage/session-store";
 import { liveWorktree } from "../../storage/worktree-store";
 import { runStages, type StageRunnerDeps } from "../engine/stage-runner";
 import { runRoute } from "../message-routing";
-import { closeTask } from "../tasks/task-result";
-import { beginTask, failTask } from "../tasks/task-tracker";
+import { closeTurn } from "../turns/turn-result";
+import { beginTurn, failTurn } from "../turns/turn-tracker";
 import { persistProposal } from "./proposal-flow";
 import { type DispatchRequest, validateRequest } from "./validate-request";
 
@@ -54,8 +54,8 @@ export interface DispatchInput {
 
 /**
  * Hand work to a role. APP CODE, no LLM, and only AFTER the source turn closed (the caller awaits the
- * turn's stream end and `closeTask` first): persist the proposal (pending) -> validate -> ask the owner
- * (ONE question, the proposal stays pending) or refuse -> pick the model -> `beginTask` -> notice -> stage
+ * turn's stream end and `closeTurn` first): persist the proposal (pending) -> validate -> ask the owner
+ * (ONE question, the proposal stays pending) or refuse -> pick the model -> `beginTurn` -> notice -> stage
  * runner. The proposal ends `dispatched` or `refused`. Returns the reply for the thread (source text +
  * notice + result, minus what `notify` already posted).
  */
@@ -107,13 +107,13 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   }
   const { role, firstStage, repoName: repo } = v;
   const route = runRoute({ cls: request.cls, effort: i.effort, extraBudgetUsd: i.extraBudgetUsd });
-  const taskId = crypto.randomUUID();
+  const turnId = crypto.randomUUID();
   // From here every log line of the new task carries its own taskId (not the source row's).
-  setLogContext({ taskId });
-  beginTask(
+  setLogContext({ taskId: turnId }); // log schema key kept
+  beginTurn(
     db,
     log,
-    { taskId, threadId: i.message.threadId, source: i.message.source },
+    { turnId, threadId: i.message.threadId, source: i.message.source },
     {
       repo,
       mode: firstStage.name,
@@ -128,7 +128,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   // A failed transition (already dispatched / expired) means another path owns the proposal: never run twice.
   if (proposalId && !setProposalStatus(db, proposalId, "dispatched")) {
     logEvent(log, "dispatch.dropped", { reason: "proposal_not_pending" });
-    failTask(db, log, taskId);
+    failTurn(db, log, turnId);
     return `${i.reply ? `${i.reply}\n\n` : ""}That proposal is no longer pending; nothing was started.`;
   }
   logEvent(log, "dispatch.started", {
@@ -156,7 +156,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
         },
       );
   const res = await runStages(deps, {
-    taskId,
+    turnId,
     threadId: i.message.threadId,
     text: request.brief,
     role: role.name,
@@ -172,14 +172,14 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     ledger: role.context?.ledger ? threadLedger(db, i.message.threadId) : "",
   }).catch((err: unknown) => {
     // The caller's crash path only knows the source row: close this one so its slot is released.
-    failTask(db, log, taskId);
+    failTurn(db, log, turnId);
     throw err;
   });
   // An answer in a thread that has a clone must not replace the thread's session (the clone's fix rounds resume it).
   const keepClone = role.output === "answer" && !!liveWorktree(db, i.message.threadId);
-  const reply = closeTask(
+  const reply = closeTurn(
     db,
-    { taskId, threadId: i.message.threadId },
+    { turnId, threadId: i.message.threadId },
     keepClone ? { ...res, sessionId: undefined } : res,
     { stopping: deps.stopping(), t0, repo },
   );

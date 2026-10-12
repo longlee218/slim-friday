@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Options, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { RunRecorder } from "../src/observability/record-run";
-import { createSteerRegistry } from "../src/orchestrator/tasks/steer-registry";
+import { createSteerRegistry } from "../src/orchestrator/turns/steer-registry";
 import { MAX_STEER_HOLDS } from "../src/runtime/run-input-channel";
 import type { QueryFn } from "../src/runtime/run-stream";
 import { consumeSteered } from "../src/runtime/steered-stream";
@@ -48,7 +48,7 @@ function setup(
       ac: new AbortController(),
       timedOut: () => false,
       db: env.db,
-      taskId: "t1",
+      turnId: "t1",
       cwd: env.home,
       requireGit: false,
       hook: reg.hook("th"),
@@ -293,7 +293,7 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
       ac,
       timedOut: () => false,
       db: env.db,
-      taskId: "t1",
+      turnId: "t1",
       cwd: env.home,
       requireGit: false,
       hook: reg.hook("th"),

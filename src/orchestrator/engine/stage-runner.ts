@@ -12,8 +12,8 @@ import type { QueryFn } from "../../runtime/run-agent";
 import type { SessionRow } from "../../storage/session-store";
 import { type StageStatus, upsertStage } from "../../storage/stage-store";
 import type { WorktreeRow } from "../../storage/worktree-store";
-import type { SteerRegistry } from "../tasks/steer-registry";
-import { type FlowResult, failResult } from "../tasks/task-result";
+import type { SteerRegistry } from "../turns/steer-registry";
+import { type FlowResult, failResult } from "../turns/turn-result";
 import { budgetDiffStat, ceilingRefusal, withSpent } from "./budget";
 import { stageKind } from "./gates";
 import { switchToClone } from "./isolation";
@@ -45,7 +45,7 @@ export interface StageRunnerDeps {
 
 /** One task run through a role's stages: a fresh message, a dispatched task or a follow-up in a clone. */
 export interface StageRunInput {
-  taskId: string;
+  turnId: string;
   threadId: string;
   text: string;
   /** Role whose stages run (registry name). */
@@ -111,7 +111,7 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
   const role = getRole(i.role);
   // `stop` / shutdown while the owner is being asked (PR offer included): drop the open buttons.
   // (A handler built without the approval flow has no gateway: nothing to cancel.)
-  i.ac.signal.addEventListener("abort", () => approvals?.cancelTask(i.taskId), { once: true });
+  i.ac.signal.addEventListener("abort", () => approvals?.cancelTurn(i.turnId), { once: true });
   // Every stage is checked before the first one runs: a refusal has no side effect.
   const refusal = validateRole(role, !!i.worktree);
   if (refusal) return failResult(refusal);
@@ -132,7 +132,7 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
     // The row is written best effort: a storage error never stops the task.
     const write = (r: Parameters<typeof upsertStage>[1]) =>
       tryLog(log, "stage row write failed", () => upsertStage(db, r));
-    const key = { taskId: i.taskId, idx, name: stage.name };
+    const key = { taskId: i.turnId, idx, name: stage.name };
     write({
       ...key,
       status: "running",

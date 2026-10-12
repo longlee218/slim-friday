@@ -56,7 +56,7 @@ export function createDecisionPoster(deps: {
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
           (Object.keys(CHOICES) as (keyof typeof CHOICES)[]).map((c) =>
             new ButtonBuilder()
-              .setCustomId(`${CLONE_PREFIX}:${c}:${req.taskId}`)
+              .setCustomId(`${CLONE_PREFIX}:${c}:${req.turnId}`)
               .setLabel(CHOICES[c])
               .setStyle(c === "keep" ? ButtonStyle.Success : ButtonStyle.Danger),
           ),
@@ -67,7 +67,7 @@ export function createDecisionPoster(deps: {
           files: req.filePath ? [new AttachmentBuilder(req.filePath)] : [],
           allowedMentions: SAFE_MENTIONS,
         });
-        open.set(req.taskId, { content, onClick: req.onClick });
+        open.set(req.turnId, { content, onClick: req.onClick });
         return true;
       } catch (err) {
         log.warn({ err: errText(err) }, "result message failed");

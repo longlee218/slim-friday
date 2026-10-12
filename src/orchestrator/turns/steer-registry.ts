@@ -102,17 +102,17 @@ export function createSteerRegistry(db: Database): SteerRegistry {
     const run = sinks.get(m.threadId)?.run;
     let id: string | undefined;
     tryLog(log, "run message store failed", () => {
-      const taskId = run?.taskId ?? liveTask(m.threadId)?.id;
+      const turnId = run?.turnId ?? liveTask(m.threadId)?.id;
       id = insertRunMessage(db, {
         messageId: m.messageId,
         threadId: m.threadId,
         runId: run?.runId,
-        sessionId: run && taskSessionId(db, run.taskId),
+        sessionId: run && taskSessionId(db, run.turnId),
         kind,
         status,
         content: text,
-        taskId,
-        afterPlan: kind === "steer" && !!taskId && gatePassed(db, taskId),
+        taskId: turnId,
+        afterPlan: kind === "steer" && !!turnId && gatePassed(db, turnId),
       });
     });
     logEvent(log, "run_message.stored", { kind, len: text.length });
@@ -132,8 +132,8 @@ export function createSteerRegistry(db: Database): SteerRegistry {
             if (w.ref)
               tryLog(log, "run message update failed", () =>
                 setRunMessageTarget(db, w.ref as string, {
-                  taskId: run.taskId,
-                  afterPlan: gatePassed(db, run.taskId),
+                  taskId: run.turnId,
+                  afterPlan: gatePassed(db, run.turnId),
                 }),
               );
           } else {
@@ -161,7 +161,7 @@ export function createSteerRegistry(db: Database): SteerRegistry {
         const res = sink.sink.push(text, ref);
         if (res === "queued" || res === "late") {
           logEvent(log, "task.steer", { len: text.length });
-          return { result: "queued", afterPlan: afterPlan(sink.run.taskId) };
+          return { result: "queued", afterPlan: afterPlan(sink.run.turnId) };
         }
         finalize(ref, "skipped"); // never given to the run: its row is final
         return { result: res === "full" ? "full" : "none", afterPlan: false };

@@ -128,7 +128,7 @@ test("failed call: tool.done ok=false with a redacted err", async () => {
 test("guard-denied call writes tool.denied (warn) with target and reason, and no tool.done", async () => {
   const cap = captureLogs();
   const perms = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard: guardFor("qa", { readPaths: ["/ws/repo"] }),
   });
@@ -267,7 +267,7 @@ test("P3.1: tool.start/done/denied of a subagent carry agentId/agentType; tool_c
 test("P3.1: tool.denied of a subagent carries its identity", async () => {
   const cap = captureLogs();
   const perms = buildToolPermissions({
-    taskId: "t1",
+    turnId: "t1",
     threadId: "th",
     guard: guardFor("qa", { readPaths: ["/ws/repo"] }),
   });

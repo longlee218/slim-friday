@@ -53,7 +53,7 @@ test("a role that is only data runs through the stage runner and gets its stage 
           })()) as never,
       },
       {
-        taskId: "t1",
+        turnId: "t1",
         threadId: "th",
         text: "review it",
         role: PROBE.name,
@@ -91,7 +91,7 @@ test("a stage with a gate the engine cannot run fails closed, nothing is run", a
         }) as never,
       },
       {
-        taskId: "t2",
+        turnId: "t2",
         threadId: "th",
         text: "x",
         role: PROBE.name,

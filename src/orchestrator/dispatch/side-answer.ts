@@ -6,8 +6,8 @@ import type { Repo } from "../../repos/repo-registry";
 import { threadLedger } from "../../storage/ledger-store";
 import { runStages } from "../engine/stage-runner";
 import { runRoute } from "../message-routing";
-import { closeTask } from "../tasks/task-result";
-import { beginTask, failTask } from "../tasks/task-tracker";
+import { closeTurn } from "../turns/turn-result";
+import { beginTurn, failTurn } from "../turns/turn-tracker";
 import type { DispatchDeps } from "./dispatch-role";
 import { taskBrief } from "./queued-tasks";
 import { validateRequest } from "./validate-request";
@@ -26,7 +26,7 @@ import { validateRequest } from "./validate-request";
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "side-answer" });
 
-/** Suffix of the thread id the side run's task row is stored under (keeps it out of the thread's own rows). */
+/** Suffix of the thread id the side run's turn row is stored under (keeps it out of the thread's own rows). */
 export const SIDE_THREAD_SUFFIX = ":side";
 
 /** One side question. */
@@ -65,13 +65,13 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
   );
   if (!v.ok) return v.refusal.reply;
   const { role } = v;
-  const taskId = crypto.randomUUID();
+  const turnId = crypto.randomUUID();
   const sideThread = `${i.message.threadId}${SIDE_THREAD_SUFFIX}`;
-  setLogContext({ taskId });
-  beginTask(
+  setLogContext({ taskId: turnId }); // log schema key kept
+  beginTurn(
     db,
     log,
-    { taskId, threadId: sideThread, source: i.message.source },
+    { turnId, threadId: sideThread, source: i.message.source },
     { repo: v.repoName, mode: v.firstStage.name, brief, cls: v.cls, role: role.name },
   );
   logEvent(log, "side.started", { role: role.name, repo: v.repoName });
@@ -79,7 +79,7 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
   const res = await runStages(
     { ...deps, steer: undefined }, // no steer hook: the side run must never register a sink under the thread
     {
-      taskId,
+      turnId,
       threadId: i.message.threadId, // approvals and the attachment copy belong to the real thread
       text: brief,
       role: role.name,
@@ -95,13 +95,13 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
         .join("\n\n"),
     },
   ).catch((err: unknown) => {
-    failTask(db, log, taskId);
+    failTurn(db, log, turnId);
     throw err;
   });
   // `sessionId` dropped: closing the row must not save a session for the thread.
-  return closeTask(
+  return closeTurn(
     db,
-    { taskId, threadId: sideThread },
+    { turnId, threadId: sideThread },
     { ...res, sessionId: undefined },
     {
       stopping: deps.stopping(),

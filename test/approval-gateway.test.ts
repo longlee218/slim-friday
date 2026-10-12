@@ -51,7 +51,7 @@ function setup(timeoutMs = 5000, sendable = true) {
   return { gw, sent, edits, db, ids, click, row, tick };
 }
 
-const req = { taskId: "t1", threadId: "th", tool: BASH_TOOL_NAME, summary: "run ls" };
+const req = { turnId: "t1", threadId: "th", tool: BASH_TOOL_NAME, summary: "run ls" };
 
 describe("discord approval gateway", () => {
   test("approve resolves, persists, task waiting then running", async () => {
@@ -113,7 +113,7 @@ describe("discord approval gateway", () => {
   test("askChoice returns chosen label; timeout undefined", async () => {
     const s = setup();
     const p = s.gw.askChoice({
-      taskId: "t1",
+      turnId: "t1",
       threadId: "th",
       question: "which?",
       options: ["a", "b"],
@@ -123,7 +123,7 @@ describe("discord approval gateway", () => {
     expect(await p).toBe("b");
     const t = setup(20);
     expect(
-      await t.gw.askChoice({ taskId: "t1", threadId: "th", question: "q", options: ["x"] }),
+      await t.gw.askChoice({ turnId: "t1", threadId: "th", question: "q", options: ["x"] }),
     ).toBeUndefined();
   });
 
@@ -185,13 +185,13 @@ describe("confirm (custom labels)", () => {
   });
 });
 
-describe("cancelTask (run aborted while waiting)", () => {
+describe("cancelTurn (run aborted while waiting)", () => {
   test("drops open requests, records cancelled, never flips the task back to running", async () => {
     const s = setup();
     const p = s.gw.request(req);
     await s.tick();
     s.db.run("UPDATE tasks SET status = 'cancelled' WHERE id = 't1'"); // handler ended the task
-    s.gw.cancelTask("t1");
+    s.gw.cancelTurn("t1");
     expect(await p).toEqual({ approved: false, reason: "cancelled" });
     expect(s.row("SELECT decision FROM approvals").decision).toBe("cancelled");
     expect(s.row("SELECT status FROM tasks").status).toBe("cancelled");

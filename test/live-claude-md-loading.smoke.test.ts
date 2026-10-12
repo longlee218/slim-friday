@@ -49,7 +49,7 @@ describe.skipIf(!live)("live CLAUDE.md loading canaries (Claude login)", () => {
     const res = await runAgent({
       prompt:
         "List every token of the form CANARY_<letter>_7f3 that appears in your instructions. Reply with only the tokens, comma separated, or NONE. Do not use tools.",
-      taskId: "canary1",
+      turnId: "canary1",
       stage: getStage("assistant", "qa"),
       cwd: repo,
       guard: guardFor("qa", { readPaths: [repo], gitReadRepos: [] }),

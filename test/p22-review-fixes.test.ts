@@ -192,7 +192,7 @@ test("clone decision: a throwing onClick keeps the entry and answers an error; a
   const id = tid("dddd0005");
   let calls = 0;
   await poster.post({
-    taskId: id,
+    turnId: id,
     threadId: "th",
     content: "r",
     onClick: async () => {

@@ -215,7 +215,7 @@ async function external() {
   const deps = { db: env.db, config: env.config } as never;
   const input = (taskId: string, over: Record<string, unknown> = {}) =>
     ({
-      taskId,
+      turnId: taskId,
       threadId: "th",
       workspace: "main",
       text: "add b",

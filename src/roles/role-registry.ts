@@ -68,11 +68,11 @@ export function intentRoles(): { name: string; whenToUse: string }[] {
  * Legacy `tasks.type` column value of a role's task ("qa" | "code"), derived from role data: a role counted
  * toward the task cap is "code". The column stays for old rows (additive schema); nothing reads it back.
  */
-export const taskTypeOf = (role: RoleDefinition): "qa" | "code" =>
+export const turnTypeOf = (role: RoleDefinition): "qa" | "code" =>
   role.countsTowardCap ? "code" : "qa";
 
 /** `tasks.kind` of a role's task: several stages = `staged`, one run = `single`. */
-export const taskKindOf = (role: RoleDefinition): "staged" | "single" =>
+export const turnKindOf = (role: RoleDefinition): "staged" | "single" =>
   role.stages.length > 1 ? "staged" : "single";
 
 /** The role a plain message starts (`entry` flag); replaced by the intent layer's pick (P1.4c). */

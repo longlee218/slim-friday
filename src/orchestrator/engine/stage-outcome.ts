@@ -1,5 +1,5 @@
 import { GATE_APPROVED_VERDICT, type StageStatus } from "../../storage/stage-store";
-import type { FlowResult } from "../tasks/task-result";
+import type { FlowResult } from "../turns/turn-result";
 
 /** Stage row status + gate verdict of a finished stage run (`budget` = stopped on its budget, `go +<usd>` resumes). */
 export function stageOutcome(

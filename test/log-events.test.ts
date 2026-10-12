@@ -135,7 +135,7 @@ test("a run logs run.started and run.finished with the task's correlation fields
   await runWithLogContext({ taskId: "T1", threadId: "th1", repo: "repo", mode: "qa" }, () =>
     runAgent({
       prompt: "q",
-      taskId: "T1",
+      turnId: "T1",
       stage: getStage("assistant", "qa"),
       cwd: env.home,
       config: env.config,

@@ -15,7 +15,7 @@ import { exec, POST_AGENT, SEND_IN, SIG, SPAWN_IN, spawn, WT } from "./subagent-
 /** Run hooks of one run with real hook-input shapes; the state is the permission layer's (per run). */
 function run(guard = exec()) {
   const perms = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard,
     bypassMode: { active: true },

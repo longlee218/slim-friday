@@ -40,7 +40,7 @@ const worker: GuardrailContext = {
 /** Run the guard hook with a real hook-input shape (main agent: no agent fields; subagent: agent_id + agent_type). */
 async function hook(guard: GuardrailContext, tool: string, input: object, agent?: object) {
   const perms = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard,
     bypassMode: { active: true },

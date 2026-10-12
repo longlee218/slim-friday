@@ -13,22 +13,22 @@ import { liveWorktree } from "../storage/worktree-store";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { runStages, startStage } from "./engine/stage-runner";
 import { type ResumePlan, type Route, runRoute } from "./message-routing";
-import type { FlowResult } from "./tasks/task-result";
-import { closeTask } from "./tasks/task-result";
 import { deriveThreadState, isIdleLike } from "./thread/thread-state";
+import type { FlowResult } from "./turns/turn-result";
+import { closeTurn } from "./turns/turn-result";
 
-/** Everything one task run needs from the handler (which owns the lock and the task row). */
+/** Everything one task run needs from the handler (which owns the lock and the turn row). */
 export interface RoleRunCtx {
   deps: DispatchDeps;
   log: Logger;
   message: InboundMessage;
-  taskId: string;
+  turnId: string;
   /** Start time of the call (for `task.finished`). */
   t0: number;
   workspace: string;
   repos: Repo[];
   ac: AbortController;
-  /** Creates the task row (called once, after the refusals, before the flow runs). */
+  /** Creates the turn row (called once, after the refusals, before the flow runs). */
   begin: (
     repo: string,
     role: string,
@@ -44,7 +44,7 @@ export interface RoleRunCtx {
 }
 
 /**
- * Run a routed message as the role the route names (the stage runner runs ANY role): close its task row and
+ * Run a routed message as the role the route names (the stage runner runs ANY role): close its turn row and
  * map a failed resume to the owner's reply.
  * `plan` is what `resolveCommand` made of the message (Resume adds a session / plan scratch dir).
  */
@@ -60,7 +60,7 @@ export async function runTurn(
     intent?: { cls?: TaskClass; effort?: Effort };
   },
 ): Promise<string> {
-  const { deps, message, taskId, workspace: ws } = c;
+  const { deps, message, turnId, workspace: ws } = c;
   const { db } = deps;
   const { cmd, planResume } = a.plan;
   const { pinned, worktree } = a.route;
@@ -84,7 +84,7 @@ export async function runTurn(
   // The held task is taken over only now that the resumed run has its own row (a start failure keeps the hold).
   if (a.plan.approved) dropResumable(db, message.threadId);
   const res: FlowResult = await runStages(deps, {
-    taskId,
+    turnId,
     threadId: message.threadId,
     text: cmd.text,
     role: role.name,
@@ -105,17 +105,17 @@ export async function runTurn(
   const o = { stopping: deps.stopping(), t0: c.t0, repo: c.turnRepo() };
   // An answer in a thread that has a clone must not replace the thread's session (the clone's fix rounds resume it).
   const keepClone = role.output === "answer" && !!liveWorktree(db, message.threadId);
-  const reply = closeTask(
+  const reply = closeTurn(
     db,
-    { taskId, threadId: message.threadId },
+    { turnId, threadId: message.threadId },
     keepClone ? { ...res, sessionId: undefined } : res,
     o,
   );
   // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
   if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {
-    // The plan session lives on the task row (the failed task now has none, so Resume stops offering it).
+    // The plan session lives on the turn row (the failed task now has none, so Resume stops offering it).
     if (planResume) return "Could not resume the plan; start the task again.";
-    // Only an `answer` role keeps a thread session to clear; staged roles resume per task row.
+    // Only an `answer` role keeps a thread session to clear; staged roles resume per turn row.
     if (role.output !== "answer" || !existing) return reply;
     deleteSession(db, message.threadId);
     return "Could not resume the previous session; it was cleared. Please send your message again.";

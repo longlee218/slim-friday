@@ -150,7 +150,7 @@ export const stubGateway = (over: Partial<ApprovalGateway> = {}): ApprovalGatewa
   request: async () => ({ approved: true }),
   requestPlan: async () => ({ approved: true }),
   confirm: async () => ({ approved: true }),
-  cancelTask: () => {},
+  cancelTurn: () => {},
   askChoice: async () => undefined,
   ...over,
 });

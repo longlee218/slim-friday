@@ -57,7 +57,7 @@ export class RunRecorder {
   /**
    * @param db sqlite handle
    * @param runId id of the runs row this recorder writes
-   * @param taskId owning task id
+   * @param turnId owning turn id
    * @param model model name stored on the runs row
    * @param taskLogFile path of the per-task JSONL
    * @param stageIdx stage index of the task this run belongs to; omitted for non-stage runs (stored as NULL)
@@ -65,7 +65,7 @@ export class RunRecorder {
   constructor(
     private readonly db: Database,
     readonly runId: string,
-    private readonly taskId: string,
+    private readonly turnId: string,
     private readonly model: string,
     taskLogFile: string,
     private readonly stageIdx?: number,
@@ -107,7 +107,7 @@ export class RunRecorder {
         isError: c.isError,
         durationMs: c.durationMs,
         agentId: c.agentId,
-        taskId: this.taskId,
+        taskId: this.turnId,
       }),
     );
   }
@@ -117,7 +117,7 @@ export class RunRecorder {
     this.safely("finish", () =>
       insertRun(this.db, {
         id: this.runId,
-        taskId: this.taskId,
+        taskId: this.turnId,
         model: this.model,
         stageIdx: this.stageIdx,
         outcome,

@@ -54,7 +54,7 @@ export function createDiscordApprovalGateway(
    * customId = `${prefix}:${id}:${value}`. Resolves undefined on timeout, "no-channel" if unsendable.
    */
   async function ask(o: {
-    taskId: string;
+    turnId: string;
     threadId: string;
     tool: string;
     prefix: "appr" | "choice";
@@ -68,17 +68,18 @@ export function createDiscordApprovalGateway(
     const alog = log.child({ tool: o.tool, approvalId: id });
     const t0 = Date.now();
     logEvent(alog, "approval.requested", { summary: clip(summary, 300) });
-    safeDb(() => insertApproval(db, { id, taskId: o.taskId, tool: o.tool, summary }));
-    safeDb(() => setTaskStatus(db, o.taskId, "waiting_approval"));
+    safeDb(() => insertApproval(db, { id, taskId: o.turnId, tool: o.tool, summary }));
+    safeDb(() => setTaskStatus(db, o.turnId, "waiting_approval"));
 
     const finish = (decision: ApprovalDecision) => {
       // A button click runs in discord.js's event context, not the task's: re-enter the task's context.
-      runWithLogContext({ taskId: o.taskId, threadId: o.threadId }, () =>
+      // log schema key kept (taskId)
+      runWithLogContext({ taskId: o.turnId, threadId: o.threadId }, () =>
         logEvent(alog, "approval.decided", { decision, waitMs: Date.now() - t0 }),
       );
       safeDb(() => decideApproval(db, id, decision));
       // A cancelled request belongs to an ended run: never flip its task back to running.
-      if (decision !== "cancelled") safeDb(() => setTaskStatus(db, o.taskId, "running"));
+      if (decision !== "cancelled") safeDb(() => setTaskStatus(db, o.turnId, "running"));
     };
 
     try {
@@ -108,7 +109,7 @@ export function createDiscordApprovalGateway(
           resolve(undefined);
         }, timeoutMs);
         pending.set(id, {
-          taskId: o.taskId,
+          turnId: o.turnId,
           threadId: o.threadId,
           tool: o.tool,
           settle: resolve,
@@ -153,7 +154,7 @@ export function createDiscordApprovalGateway(
 
     async askChoice(a) {
       const value = await ask({
-        taskId: a.taskId,
+        turnId: a.turnId,
         threadId: a.threadId,
         tool: ASK_USER_QUESTION_TOOL_NAME,
         prefix: "choice",
@@ -168,7 +169,7 @@ export function createDiscordApprovalGateway(
       return a.options[Number(value)];
     },
 
-    cancelTask: (taskId) => cancelPending(pending, taskId),
+    cancelTurn: (turnId) => cancelPending(pending, turnId),
 
     async handleInteraction(i) {
       if (await decisions.handle(i)) return;

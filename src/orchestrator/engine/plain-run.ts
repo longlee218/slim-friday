@@ -8,7 +8,7 @@ import { isManagedClone, refreshRepo } from "../../repos/refresh-repo";
 import { buildRegistryContext } from "../../repos/repo-registry";
 import { runAgent } from "../../runtime/run-agent";
 import { answerOutput } from "../outputs/answer-output";
-import type { FlowResult } from "../tasks/task-result";
+import type { FlowResult } from "../turns/turn-result";
 import { ownerConfirm } from "./owner-confirm";
 import type { StageCtx } from "./stage-runner";
 
@@ -62,7 +62,7 @@ export async function runPlain(c: StageCtx): Promise<FlowResult> {
       stageIdx: c.idx,
       prompt: i.text,
       steer: stage.streaming ? deps.steer?.hook(i.threadId) : undefined, // a streaming plain stage takes steers too
-      taskId: i.taskId,
+      turnId: i.turnId,
       cwd,
       additionalDirectories,
       // Curated skills of this workspace (never repo content), via the app-owned plugin.
@@ -95,7 +95,7 @@ export async function runPlain(c: StageCtx): Promise<FlowResult> {
   const confirmOpus = () =>
     ownerConfirm(deps.approvals, {
       kind: "escalate_opus",
-      taskId: i.taskId,
+      turnId: i.turnId,
       threadId: i.threadId,
       summary: ESCALATE_OPUS_QUESTION,
       signal: i.ac.signal,

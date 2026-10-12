@@ -40,7 +40,7 @@ export function buildButtonRows(
 
 /** A request waiting for a click. */
 export interface Pending {
-  taskId: string;
+  turnId: string;
   threadId: string;
   /** The tool the request is for (the plan gate is the one typed feedback can answer). */
   tool: string;
@@ -57,7 +57,7 @@ export interface Pending {
 /** Drop every open request of a task (run aborted): timers cleared, decision "cancelled", buttons removed. */
 export function cancelPending(pending: Map<string, Pending>, taskId: string): void {
   for (const [id, p] of pending) {
-    if (p.taskId !== taskId) continue;
+    if (p.turnId !== taskId) continue;
     pending.delete(id);
     clearTimeout(p.timer);
     p.finish("cancelled");

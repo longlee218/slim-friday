@@ -49,7 +49,7 @@ function setup(timeoutMs = 5000) {
 
 const req = (signal?: AbortSignal) => ({
   kind: "max_effort",
-  taskId: "t-1",
+  turnId: "t-1",
   threadId: "th",
   summary: "Run at max?",
   signal,
@@ -120,7 +120,7 @@ describe("owner-confirm gate", () => {
       confirm: async () => {
         throw new Error("boom");
       },
-      cancelTask: () => undefined,
+      cancelTurn: () => undefined,
     } as any;
     expect(await ownerConfirm(gw, req())).toBe(false);
   });
@@ -135,7 +135,7 @@ describe("max effort through the gate", () => {
     ruleIds: [],
   };
   const fake = (approved: boolean) =>
-    ({ confirm: async () => ({ approved }), cancelTask: () => undefined }) as any;
+    ({ confirm: async () => ({ approved }), cancelTurn: () => undefined }) as any;
   const run = async (approved: boolean) => {
     const floors = new EffortFloors();
     const turn = turnEffort(floors, "th", undefined, signals);

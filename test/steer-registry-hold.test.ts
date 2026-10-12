@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createSteerRegistry } from "../src/orchestrator/tasks/steer-registry";
+import { createSteerRegistry } from "../src/orchestrator/turns/steer-registry";
 import type { SteerSink } from "../src/runtime/run-input-channel";
 import { PLAN_NOT_REAPPROVED, threadLedger } from "../src/storage/ledger-store";
 import { listRunMessages } from "../src/storage/run-message-store";
@@ -30,7 +30,7 @@ test("between streaming stages a steer is HELD and goes into the next stage's in
   expect(reg.steer(TH, "first").result).toBe("held");
   expect(reg.steer(TH, "second").result).toBe("held");
   const pushed: string[] = [];
-  reg.hook("th").register(sink(pushed), { runId: "r1", taskId: "t1" }); // the next streaming stage starts
+  reg.hook("th").register(sink(pushed), { runId: "r1", turnId: "t1" }); // the next streaming stage starts
   expect(pushed).toEqual(["first", "second"]);
   expect(listRunMessages(env.db, "th").map((r) => [r.content, r.status, r.taskId])).toEqual([
     ["first", "pending", "t1"],
@@ -49,7 +49,7 @@ test("held steers that no stage ever took are never silent: dropped, and the not
   expect(notice).toContain("orphan");
   expect(listRunMessages(env.db, "th")[0]?.status).toBe("dropped");
   const pushed: string[] = [];
-  reg.hook("th").register(sink(pushed), { runId: "r2", taskId: "t2" });
+  reg.hook("th").register(sink(pushed), { runId: "r2", turnId: "t2" });
   expect(pushed).toEqual([]); // the next task starts clean
 });
 
@@ -70,7 +70,7 @@ test("M-a: a steer into work after the approved plan says so, and the task ledge
   const reg = createSteerRegistry(env.db);
   dev(env.db);
   const pushed: string[] = [];
-  reg.hook("th").register(sink(pushed), { runId: "r1", taskId: "t1" });
+  reg.hook("th").register(sink(pushed), { runId: "r1", turnId: "t1" });
   // plan stage still running: no warning
   expect(reg.steer(TH, "a")).toEqual({ result: "queued", afterPlan: false });
   expect(threadLedger(env.db, "th")).not.toContain(PLAN_NOT_REAPPROVED);

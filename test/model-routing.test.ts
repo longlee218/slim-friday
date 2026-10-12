@@ -172,7 +172,7 @@ describe("effort knobs", () => {
     const run = (route?: object) =>
       runAgent({
         prompt: "q",
-        taskId: "t",
+        turnId: "t",
         stage: getStage("assistant", "qa"),
         cwd: env.home,
         config: env.config,

@@ -7,7 +7,7 @@ import { type Pending, settleWithFeedback, toResult } from "../src/approvals/app
 function pendingOf(over: Partial<Pending> = {}) {
   const seen: string[] = [];
   const p: Pending = {
-    taskId: "t1",
+    turnId: "t1",
     threadId: "th",
     tool: "ExitPlanMode",
     settle: (v) => void seen.push(`settle:${v}`),

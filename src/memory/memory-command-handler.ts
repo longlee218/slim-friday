@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../config/agent-config";
 import { logEvent, logger } from "../observability/logger";
-import type { RunLimiter } from "../orchestrator/tasks/run-limiter";
+import type { RunLimiter } from "../orchestrator/turns/run-limiter";
 import type { QueryFn } from "../runtime/run-agent";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import { loadWorkspaces, type Workspace } from "../workspaces/workspace-registry";

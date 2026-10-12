@@ -42,7 +42,7 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
   const w1wt = join(workspacePaths(env.home).workspace("w1").repo("api").worktrees, "t0");
   mkdirSync(w1wt, { recursive: true });
   const exec = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard: guardFor("exec", { writePaths: [w1wt], readPaths: [w1wt], gitWriteRepo: w1wt }),
   }).canUseTool as unknown as Can;

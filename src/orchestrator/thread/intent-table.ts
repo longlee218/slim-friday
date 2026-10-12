@@ -6,7 +6,7 @@ import { isIdleLike, isWorking, type ThreadState } from "./thread-state";
 
 /* The behavior table of the intent layer (decisions Rev 4/5/8/11): pure, no I/O. The executor is route-by-intent.ts. */
 
-/** Fix rounds one task's clone accepts (same clone / session; each round is its own task row and budget). */
+/** Fix rounds one task's clone accepts (same clone / session; each round is its own turn row and budget). */
 export const MAX_FIX_ROUNDS = 2;
 
 /** Reply when a task's clone used up its fix rounds. */

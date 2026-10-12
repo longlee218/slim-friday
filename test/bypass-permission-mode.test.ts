@@ -19,7 +19,7 @@ const guard = guardFor("exec", {
 /** Run the PreToolUse guard hook of an exec-like stage in (in)active bypass mode. */
 async function pre(bypass: boolean, tool: string, input: Record<string, unknown>) {
   const perms = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard,
     bypassMode: { active: bypass },
@@ -111,7 +111,7 @@ test("watch: init without a permissionMode switches bypass off (fail closed)", (
 
 test("qa owner-only ask is not bypassed (no bypass state on the qa stage)", async () => {
   const perms = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard,
     autoMode: { active: true },
@@ -153,7 +153,7 @@ async function execRun(actual: string) {
     })();
   await runAgent({
     prompt: "q",
-    taskId: "t1",
+    turnId: "t1",
     cwd: env.home,
     config: env.config,
     db: env.db,
@@ -185,7 +185,7 @@ test("plan and qa options carry no allowDangerouslySkipPermissions", async () =>
     let opts: Options | undefined;
     await runAgent({
       prompt: "q",
-      taskId: "t1",
+      turnId: "t1",
       cwd: env.home,
       config: env.config,
       db: env.db,

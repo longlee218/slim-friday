@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { TaskClass } from "../config/model-routing";
 import { redactText } from "../observability/redact";
-import { getRole, taskKindOf, taskTypeOf } from "../roles/role-registry";
+import { getRole, turnKindOf, turnTypeOf } from "../roles/role-registry";
 import { interruptRunningStages } from "./stage-store";
 
 /** Final status of a task row. */
@@ -128,14 +128,14 @@ export function insertTask(
     t.threadId,
     t.source,
     t.repo,
-    taskTypeOf(role),
+    turnTypeOf(role),
     Date.now(),
     t.brief === undefined ? null : redactText(t.brief),
     t.cls ?? null,
     t.proposalId ?? null,
     role.countsTowardCap ? 1 : 0,
     role.name,
-    t.resume ? "resume" : taskKindOf(role),
+    t.resume ? "resume" : turnKindOf(role),
     t.parentTaskId ?? null,
     t.hop ?? 0,
   );

@@ -154,7 +154,7 @@ export async function finishCodeTask(
 
   const ok = await deps.approvals.confirm(
     {
-      taskId: o.taskId,
+      turnId: o.taskId,
       threadId: o.threadId,
       tool: CREATE_PR_APPROVAL,
       summary: `Create PR for ${wt.repo}?\n${wt.branch} -> ${wt.base}: ${commits.length} commit(s)\n${stat}${dirty}${truncated}`,

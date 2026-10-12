@@ -20,7 +20,7 @@ export interface OwnerConfirmRequest {
   /** What is being confirmed, for the log (`max_effort` | `escalate_opus`). */
   kind: string;
   /** Id the approval row carries (the task's, or a fresh id before the task exists). */
-  taskId: string;
+  turnId: string;
   threadId: string;
   /** The question shown above the buttons. */
   summary: string;
@@ -42,12 +42,12 @@ export async function ownerConfirm(
   };
   if (!approvals) return done(false, "no approval flow");
   if (req.signal?.aborted) return done(false, "aborted");
-  const onAbort = () => approvals.cancelTask(req.taskId);
+  const onAbort = () => approvals.cancelTurn(req.turnId);
   req.signal?.addEventListener("abort", onAbort, { once: true });
   try {
     const r = await approvals.confirm(
       {
-        taskId: req.taskId,
+        turnId: req.turnId,
         threadId: req.threadId,
         tool: OWNER_CONFIRM_APPROVAL,
         summary: req.summary,

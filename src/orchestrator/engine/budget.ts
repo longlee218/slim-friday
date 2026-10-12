@@ -16,12 +16,12 @@ const log = logger.child({ module: "budget" });
  * Task ceiling (`TASK_BUDGET_USD`): the run input with `route.spentUsd` = what the task's OTHER stages already cost, so
  * `resolveBudget` limits this stage to what is left. Unchanged when nothing was spent yet.
  */
-export function withSpent<T extends { taskId: string; route?: Route }>(
+export function withSpent<T extends { turnId: string; route?: Route }>(
   db: Database,
   i: T,
   idx: number,
 ): T {
-  const spentUsd = spentByOtherStages(db, i.taskId, idx);
+  const spentUsd = spentByOtherStages(db, i.turnId, idx);
   return spentUsd > 0 ? { ...i, route: { ...i.route, spentUsd } } : i;
 }
 

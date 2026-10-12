@@ -1,6 +1,6 @@
 /** A request for the owner to approve a tool call or plan. */
 export interface ApprovalRequest {
-  taskId: string;
+  turnId: string;
   threadId: string;
   tool: string;
   /** Short one-line summary; gateway redacts it. */
@@ -18,7 +18,7 @@ export interface ApprovalResult {
 
 /** A result message with Keep/Discard buttons that does not block the task (no answer = kept). */
 export interface DecisionPost {
-  taskId: string;
+  turnId: string;
   threadId: string;
   /** Message text (the poster redacts and caps it). */
   content: string;
@@ -44,10 +44,10 @@ export interface ApprovalGateway {
   /** Like `request` with custom [approve, decline] labels; decline reason "owner declined". */
   confirm(req: ApprovalRequest, labels: [string, string]): Promise<ApprovalResult>;
   /** Drop every open request of a task (run aborted): buttons removed, decision "cancelled". */
-  cancelTask(taskId: string): void;
+  cancelTurn(turnId: string): void;
   /** AskUserQuestion: one button per option; resolve with chosen label, or undefined on timeout. */
   askChoice(a: {
-    taskId: string;
+    turnId: string;
     threadId: string;
     question: string;
     options: string[];

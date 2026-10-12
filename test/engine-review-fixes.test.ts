@@ -51,7 +51,7 @@ async function runProbe(role: RoleDefinition, extra: { worktree?: never } = {}) 
         }) as never,
       },
       {
-        taskId: "t1",
+        turnId: "t1",
         threadId: "th",
         text: "x",
         role: role.name,
@@ -111,7 +111,7 @@ test("a thrown stage run marks the row failed, not running", async () => {
       }) as never,
     },
     {
-      taskId: "t1",
+      turnId: "t1",
       threadId: "th",
       text: "x",
       role: "assistant",

@@ -17,7 +17,13 @@ export async function cloneEnv(origin?: string) {
   const start = async (taskId: string, threadId = "th") => {
     const r = await startWorktree(
       deps,
-      { taskId, threadId, workspace: "main", text: "add b", ac: new AbortController() } as never,
+      {
+        turnId: taskId,
+        threadId,
+        workspace: "main",
+        text: "add b",
+        ac: new AbortController(),
+      } as never,
       repo,
       "plan",
     );

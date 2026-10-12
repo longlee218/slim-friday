@@ -13,7 +13,7 @@ import { runAgent } from "../../runtime/run-agent";
 import type { WorktreeRow } from "../../storage/worktree-store";
 import { startWorktree } from "../../workspaces/task-clone";
 import { finishCodeTask, prTitle } from "../outputs/pr-output";
-import { type FlowResult, failResult } from "../tasks/task-result";
+import { type FlowResult, failResult } from "../turns/turn-result";
 import { DEFAULT_PLAN_FILE, renderHandoff } from "./handoff";
 import { savePlanForResume } from "./save-plan";
 import { awaitingResult, execWorkflow, stageControl } from "./stage-control";
@@ -74,7 +74,7 @@ export async function runCloneRun(
     route: i.route,
     prompt: a.prompt,
     steer: stage.streaming ? deps.steer?.hook(i.threadId) : undefined, // streaming stage: the owner can steer it
-    taskId: i.taskId,
+    turnId: i.turnId,
     cwd,
     additionalDirectories: [scratchReal],
     resume: a.resume,
@@ -124,7 +124,7 @@ export async function runCloneRun(
     { db, approvals, git: deps.git, agentHome: config.agentHome, threadBusy: deps.threadBusy },
     {
       wt,
-      taskId: i.taskId,
+      taskId: i.turnId,
       threadId: i.threadId,
       title: prTitle(i.text),
       body: a.plan,

@@ -6,7 +6,7 @@ import { parseRemote } from "../mcp/github-mcp";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import type { StageRunInput, StageRunnerDeps } from "../orchestrator/engine/stage-runner";
-import { type FlowResult, failResult } from "../orchestrator/tasks/task-result";
+import { type FlowResult, failResult } from "../orchestrator/turns/turn-result";
 import { gitOut, runGit } from "../repos/git-cli";
 import { type Repo, resolveAuthor } from "../repos/repo-registry";
 import {
@@ -101,11 +101,11 @@ export async function startWorktree(
   const author = resolveAuthor(repo, deps.config);
   if (!author) return failResult(`No commit identity for ${repo.name}.`);
   // A task id with a row already has a clone: never create (or later delete) over it.
-  if (getWorktreeByTask(deps.db, i.taskId)) return failResult("This task already has a clone.");
+  if (getWorktreeByTask(deps.db, i.turnId)) return failResult("This task already has a clone.");
   const base = i.base ?? repo.defaultBranch ?? "main";
-  const branch = taskBranch(i.taskId, i.text);
+  const branch = taskBranch(i.turnId, i.text);
   const cloneRoot = ws.repo(repo.name).worktrees;
-  const clonePath = join(cloneRoot, i.taskId);
+  const clonePath = join(cloneRoot, i.turnId);
   let made: CreatedClone;
   try {
     made = await createTaskClone({
@@ -124,7 +124,7 @@ export async function startWorktree(
     );
   }
   const wt: WorktreeRow = {
-    taskId: i.taskId,
+    taskId: i.turnId,
     threadId: i.threadId,
     repo: repo.name,
     repoPath: repo.path,
@@ -141,7 +141,7 @@ export async function startWorktree(
     patchPath: null,
     deliveredAt: null,
   };
-  const execScratch = ws.task(i.taskId).root;
+  const execScratch = ws.task(i.turnId).root;
   let inserted = false;
   try {
     if (i.ac.signal.aborted) throw new Error("stopped");
@@ -152,7 +152,7 @@ export async function startWorktree(
   } catch (err) {
     // Undo only what this call made: the clone (checked absent above) and the row if it was inserted.
     safeRemoveClone(clonePath, cloneRoot);
-    if (inserted) deleteWorktree(deps.db, i.taskId);
+    if (inserted) deleteWorktree(deps.db, i.turnId);
     return i.ac.signal.aborted
       ? failResult("Stopped.", "aborted")
       : failResult(`Could not start the task: ${errText(err, 200)}`);

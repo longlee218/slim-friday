@@ -24,7 +24,7 @@ export interface ScopeInput {
 }
 
 /** Latest task of the thread that had a real repo chosen ("*" = none yet). */
-function latestTaskRepo(db: Database, threadId: string): string | undefined {
+function latestTurnRepo(db: Database, threadId: string): string | undefined {
   return db
     .query<{ repo: string }, [string]>(
       `SELECT repo FROM tasks WHERE thread_id = ? AND repo != '*'
@@ -90,7 +90,7 @@ export function resolveMemoryTarget(
       : { reply: `Unknown repo \`${scope.name}\` in workspace ${ws.name}. Repos: ${names(ws)}.` };
   }
   const fromThread = i.threadId
-    ? (inWs(liveWorktree(i.db, i.threadId)?.repo) ?? inWs(latestTaskRepo(i.db, i.threadId)))
+    ? (inWs(liveWorktree(i.db, i.threadId)?.repo) ?? inWs(latestTurnRepo(i.db, i.threadId)))
     : undefined;
   const only = ws.repos.length === 1 ? ws.repos[0]?.name : undefined;
   const repo = fromThread ?? only;

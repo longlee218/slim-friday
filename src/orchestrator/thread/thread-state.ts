@@ -23,13 +23,13 @@ const log = logger.child({ module: "thread-state" });
 /** The task's pending approval of a TOOL call (not a gate approval), or undefined: tool name and when it was asked. */
 export function pendingToolApproval(
   db: Database,
-  taskId: string,
+  turnId: string,
 ): { tool: string; since: number } | undefined {
   const pending = db
     .query<{ tool: string; since: number }, [string]>(
       "SELECT tool, requested_at AS since FROM approvals WHERE task_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
     )
-    .get(taskId);
+    .get(turnId);
   return pending && !stateOfApprovalTool(pending.tool) ? pending : undefined;
 }
 
@@ -47,12 +47,12 @@ export function threadToolApproval(
 }
 
 /** Gate state of a task parked in `waiting_approval`: by its pending approval, else by its running stage. */
-function waitingState(db: Database, taskId: string): ThreadState {
+function waitingState(db: Database, turnId: string): ThreadState {
   const pending = db
     .query<{ tool: string }, [string]>(
       "SELECT tool FROM approvals WHERE task_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
     )
-    .get(taskId);
+    .get(turnId);
   if (pending) return stateOfApprovalTool(pending.tool) ?? "awaiting_tool_approval";
   // No pending row (the decision just landed): fall back to the gate of the stage that is running.
   const stage = db
@@ -60,11 +60,12 @@ function waitingState(db: Database, taskId: string): ThreadState {
       `SELECT t.role AS role, s.name AS name FROM stages s JOIN tasks t ON t.id = s.task_id
        WHERE s.task_id = ? AND s.status = 'running' ORDER BY s.idx DESC LIMIT 1`,
     )
-    .get(taskId);
+    .get(turnId);
   const role = stage ? ROLES[stage.role] : undefined;
   if (stage && !role) {
     // A row of a role this build does not know (renamed / removed): idle-like, never a crash.
-    log.warn({ role: stage.role, taskId }, "unknown role in a task row");
+    // log schema key kept (taskId)
+    log.warn({ role: stage.role, taskId: turnId }, "unknown role in a task row");
     return "idle";
   }
   const gate = role?.stages.find((s) => s.name === stage?.name)?.gate;

@@ -10,7 +10,7 @@ import { listStages } from "../../storage/stage-store";
 import { getWorktreeByTask, type WorktreeRow } from "../../storage/worktree-store";
 import { planFileOf } from "../engine/resume-exec";
 import type { ResumePlan } from "../message-routing";
-import { RESUMABLE, type ResumeReason, resumeQuestion } from "../tasks/task-result";
+import { RESUMABLE, type ResumeReason, resumeQuestion } from "../turns/turn-result";
 import { type Refusal, refuse } from "./task-repo";
 
 /* `failed_resumable` (Rev 12): a task that failed after the owner approved its plan (config refusal, budget, transient

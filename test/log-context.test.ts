@@ -158,7 +158,7 @@ test("approval decided by a click outside the task context still logs the task's
   const cap = captureLogs();
   // Requested inside a task context ...
   const p = runWithLogContext({ taskId: "t1", threadId: "th", mode: "exec" }, () =>
-    gw.request({ taskId: "t1", threadId: "th", tool: BASH_TOOL_NAME, summary: "ls" }),
+    gw.request({ turnId: "t1", threadId: "th", tool: BASH_TOOL_NAME, summary: "ls" }),
   );
   await tick();
   // ... clicked from the top level (discord.js event context: no store).

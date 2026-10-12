@@ -99,7 +99,7 @@ export async function buildSdkOptions(
   const perms = guard
     ? buildToolPermissions({
         ...input.code, // gateway, plan, askLimit, onAskTimeout
-        taskId: input.taskId,
+        turnId: input.turnId,
         threadId: input.code?.threadId ?? "",
         guard,
         autoMode: deps.autoState,

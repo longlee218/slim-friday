@@ -24,19 +24,19 @@ import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { parseMessageCommand } from "./message-commands";
 import { routeAndRun } from "./route-and-run";
 import type { RoleRunCtx } from "./run-turn";
-import type { RunLimiter } from "./tasks/run-limiter";
-import { createSteerRegistry } from "./tasks/steer-registry";
-import { OUTCOME_REPLY } from "./tasks/task-result";
+import { EffortFloors } from "./thread/effort-floor";
+import type { RunLimiter } from "./turns/run-limiter";
+import { createSteerRegistry } from "./turns/steer-registry";
+import { OUTCOME_REPLY } from "./turns/turn-result";
 import {
-  beginTask,
+  beginTurn,
   createRunTracker,
-  failTask,
+  failTurn,
   refused,
   renewActive,
   stopThread,
-  taskLogContext,
-} from "./tasks/task-tracker";
-import { EffortFloors } from "./thread/effort-floor";
+  turnLogContext,
+} from "./turns/turn-tracker";
 
 /** Dependencies of the turn handler. */
 export interface TurnHandlerDeps {
@@ -118,9 +118,9 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     floors.quietTurn(threadId);
     const ac = new AbortController();
     active.set(threadId, ac);
-    const taskId = crypto.randomUUID();
+    const turnId = crypto.randomUUID();
     // From here every log line of this turn (any module) carries taskId; repo/mode are set below.
-    setLogContext({ taskId });
+    setLogContext({ taskId: turnId }); // log schema key kept
     let turnInserted = false;
     /** Repo of the log context ("*" = not chosen yet); follows later setLogContext (tool-hooks). */
     const turnRepo = () => getLogContext().repo ?? "*";
@@ -134,10 +134,10 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       parentTaskId?: string,
       resume?: boolean,
     ) => {
-      beginTask(
+      beginTurn(
         db,
         log,
-        { taskId, threadId, source: message.source, single },
+        { turnId, threadId, source: message.source, single },
         { repo, role, mode, cls, parentTaskId, resume },
       );
       turnInserted = true;
@@ -156,7 +156,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         deps: dispatchDeps,
         log,
         message,
-        taskId,
+        turnId,
         t0,
         workspace: ws.name,
         repos,
@@ -175,7 +175,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       });
     } catch (err) {
       // Never throw from the error path (db may be closed during shutdown).
-      if (turnInserted) failTask(db, log, taskId);
+      if (turnInserted) failTurn(db, log, turnId);
       logEvent(
         log,
         "task.finished",
@@ -190,7 +190,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   };
   const handleMessage = (message: InboundMessage): Promise<string> =>
     // Every line logged while this call runs (any module, any await) carries the thread id and channel id.
-    tracker.track(runWithLogContext(taskLogContext(message), () => run(message)));
+    tracker.track(runWithLogContext(turnLogContext(message), () => run(message)));
   /** Stop the git MCP server process (shutdown). */
   handleMessage.close = () => git.close();
   handleMessage.memory = memory; // same runner for ingress (inline channel replies, #ops-control)

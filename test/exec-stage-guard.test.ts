@@ -32,7 +32,7 @@ test("execStage refuses when the resolved repo path differs from the worktree's 
       }) as never,
     },
     {
-      taskId: "t1",
+      turnId: "t1",
       role: "dev",
       threadId: "th1",
       text: "go",

@@ -6,7 +6,7 @@ import {
   avgContextTokens,
   compactIdleSession,
   FRESH_SESSION_CONTEXT_TOKENS,
-} from "../src/orchestrator/tasks/session-compaction";
+} from "../src/orchestrator/turns/session-compaction";
 import { LEDGER_HEADING } from "../src/storage/ledger-store";
 import { finishTask, insertTask } from "../src/storage/run-store";
 import { getSession, setSession } from "../src/storage/session-store";
@@ -34,7 +34,7 @@ describe("app-driven session compaction (fresh session + ledger)", () => {
   test("over the threshold: the stored session is dropped and the event carries sizes only", () => {
     const env = setup("assistant");
     const cap = captureLogs();
-    expect(compactIdleSession(env.db, { taskId: "t1", threadId: "th" }, big)).toBe(true);
+    expect(compactIdleSession(env.db, { turnId: "t1", threadId: "th" }, big)).toBe(true);
     cap.stop();
     expect(getSession(env.db, "th")).toBeNull();
     const ev = cap.lines.find((l) => l.event === "session.compacted")!;
@@ -44,11 +44,11 @@ describe("app-driven session compaction (fresh session + ledger)", () => {
 
   test("cost guard: a small session, a role without the ledger, or no usage keeps the session", () => {
     const a = setup("assistant");
-    expect(compactIdleSession(a.db, { taskId: "t1", threadId: "th" }, small)).toBe(false);
-    expect(compactIdleSession(a.db, { taskId: "t1", threadId: "th" }, undefined)).toBe(false);
+    expect(compactIdleSession(a.db, { turnId: "t1", threadId: "th" }, small)).toBe(false);
+    expect(compactIdleSession(a.db, { turnId: "t1", threadId: "th" }, undefined)).toBe(false);
     expect(getSession(a.db, "th")).not.toBeNull();
     const d = setup("dev");
-    expect(compactIdleSession(d.db, { taskId: "t1", threadId: "th" }, big)).toBe(false);
+    expect(compactIdleSession(d.db, { turnId: "t1", threadId: "th" }, big)).toBe(false);
     expect(getSession(d.db, "th")).not.toBeNull();
   });
 

@@ -22,7 +22,7 @@ async function runExec(status: string) {
     })();
   return runAgent({
     prompt: "x",
-    taskId: "t1",
+    turnId: "t1",
     cwd: env.home,
     config: env.config,
     db: env.db,

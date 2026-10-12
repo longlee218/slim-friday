@@ -127,7 +127,7 @@ export async function finishLocalResult(
   const content = `${headCapped}\n\`\`\`\n${capStat(stat, budget - fixed)}\n\`\`\`\n${tail}`;
 
   const posted = await deps.approvals.postDecision?.({
-    taskId: o.taskId,
+    turnId: o.taskId,
     threadId: o.threadId,
     content,
     filePath: attach ? patchPath : undefined,

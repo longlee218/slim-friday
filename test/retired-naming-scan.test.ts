@@ -34,6 +34,18 @@ const RETIRED: Record<string, RegExp> = {
   "routing file path": j("task", "-routing"),
   "handler local": new RegExp(`\\b${["task", "Inserted"].join("")}\\b`),
   "turn repo getter": new RegExp(`\\b${["task", "Repo"].join("")}\\b`),
+  // phase 04: turn-level orchestrator symbols
+  "begin fn": new RegExp(`\\b${["begin", "Task"].join("")}\\b`),
+  "fail fn": new RegExp(`\\b${["fail", "Task"].join("")}\\b`),
+  "close fn": new RegExp(`\\b${["close", "Task"].join("")}\\b`),
+  "log context fn": new RegExp(`\\b${["task", "LogContext"].join("")}\\b`),
+  "role type fn": new RegExp(`\\b${["task", "TypeOf"].join("")}\\b`),
+  "role kind fn": new RegExp(`\\b${["task", "KindOf"].join("")}\\b`),
+  "approval cancel fn": new RegExp(`\\b${["cancel", "Task"].join("")}\\b`),
+  "latest repo fn": new RegExp(`\\b${["latest", "Task", "Repo"].join("")}\\b`),
+  "turns dir path": j("orchestrator", "/tasks", "/"),
+  "tracker file path": j("/task", "-tracker"),
+  "result file path": j("/task", "-result"),
 };
 
 /** File-name patterns also retired in the docs (docs/project-changelog.md keeps history and is not scanned). */

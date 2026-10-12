@@ -9,11 +9,11 @@ import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { runSideAnswer } from "./dispatch/side-answer";
 import { pinnedRepo, replyWhileBusy } from "./intent-turn";
 import type { MessageCommand } from "./message-commands";
-import type { RunLimiter } from "./tasks/run-limiter";
-import { statusSnapshot } from "./tasks/status-snapshot";
-import { OUTCOME_REPLY } from "./tasks/task-result";
 import type { EffortFloors } from "./thread/effort-floor";
 import { SIDE_BUSY } from "./thread/intent-replies";
+import type { RunLimiter } from "./turns/run-limiter";
+import { statusSnapshot } from "./turns/status-snapshot";
+import { OUTCOME_REPLY } from "./turns/turn-result";
 
 /* Messages that arrive while the thread's run holds the lock. Two rules live here:
    1. ORDER. The decision of each message (L3, then steer / queue / feedback) runs one after the other per thread, in

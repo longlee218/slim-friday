@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { createRunLimiter } from "../src/orchestrator/tasks/run-limiter";
+import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 test("limiter caps at max and frees on release (idempotent)", () => {

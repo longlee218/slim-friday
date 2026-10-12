@@ -27,7 +27,7 @@ import { ensureHome } from "./memory/persona";
 import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
 import { createTurnHandler } from "./orchestrator/handle-message";
-import { createRunLimiter } from "./orchestrator/tasks/run-limiter";
+import { createRunLimiter } from "./orchestrator/turns/run-limiter";
 import { openDb } from "./storage/db";
 import { interruptRunningTasks } from "./storage/run-store";
 import { loadWorkspaces } from "./workspaces/workspace-registry";

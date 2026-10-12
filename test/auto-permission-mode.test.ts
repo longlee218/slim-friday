@@ -37,7 +37,7 @@ async function pre(
   guard = guardFor("qa", { readPaths: ["/ws/repo"] }),
 ) {
   const perms = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard,
     autoMode: { active: autoMode },
@@ -75,13 +75,13 @@ test("auto mode: guard deny stays a hard deny", async () => {
 test("auto mode: canUseTool (classifier undecided) still asks the owner via the gateway", async () => {
   const asked: string[] = [];
   const perms = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard: guardFor("qa", { readPaths: ["/ws/repo"] }),
     autoMode: { active: true },
     gateway: {
       request: async (r: { tool: string }) => (asked.push(r.tool), { approved: true }),
-      cancelTask: () => {},
+      cancelTurn: () => {},
     } as never,
   });
   const r = await perms.canUseTool("SomeUnknownTool", {}, { signal: SIG.signal } as never);
@@ -144,7 +144,7 @@ test("watch: after a fallback the hook forces ask and logs ask, not auto", async
   const state = { active: true };
   createPermissionWatch("auto", state)(init("default") as never);
   const perms = buildToolPermissions({
-    taskId: "t",
+    turnId: "t",
     threadId: "th",
     guard: guardFor("qa", { readPaths: ["/ws/repo"] }),
     autoMode: state,
@@ -213,7 +213,7 @@ async function execRun(actual: string) {
   let out: any;
   await runAgent({
     prompt: "q",
-    taskId: "t1",
+    turnId: "t1",
     cwd: env.home,
     config: env.config,
     db: env.db,

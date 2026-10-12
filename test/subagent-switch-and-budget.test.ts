@@ -130,13 +130,13 @@ test("budget bookkeeping: the spend of the OTHER stages of a task comes from the
   expect(spentByOtherStages(db, "t1", 1)).toBe(1.25); // the current stage's own cost is not counted
   expect(spentByOtherStages(db, "t1", 0)).toBe(2);
   expect(spentByOtherStages(db, "none", 1)).toBe(0);
-  const i: { taskId: string; route?: Route } = {
-    taskId: "t1",
+  const i: { turnId: string; route?: Route } = {
+    turnId: "t1",
     route: { cls: "design", extraBudgetUsd: 1 },
   };
   expect(withSpent(db, i, 1).route).toEqual({ cls: "design", extraBudgetUsd: 1, spentUsd: 1.25 });
-  expect(withSpent(db, { taskId: "none" } as typeof i, 1).route).toBeUndefined(); // nothing spent: input unchanged
-  expect(withSpent(db, i, 1).taskId).toBe("t1");
+  expect(withSpent(db, { turnId: "none" } as typeof i, 1).route).toBeUndefined(); // nothing spent: input unchanged
+  expect(withSpent(db, i, 1).turnId).toBe("t1");
 });
 
 test("budget: ceiling used up = the stage is refused up front with an owner message (never budget 0)", () => {

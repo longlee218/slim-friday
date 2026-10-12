@@ -24,7 +24,7 @@ export interface AskQuestion {
 
 /** Inputs for one gated stage's permission layer. */
 export interface ToolPermissionInput {
-  taskId: string;
+  turnId: string;
   threadId: string;
   guard: GuardrailContext;
   /** Owner approval via Discord. Omitted (a stage without a gateway): every `ask` becomes a deny. */
@@ -88,7 +88,7 @@ export function buildToolPermissions(p: ToolPermissionInput): {
 
   const canUseTool: CanUseTool = async (tool, rawInput, opts) => {
     // Run stopped/timed out/shut down while waiting: drop the open request (buttons + timer).
-    opts?.signal?.addEventListener("abort", () => p.gateway?.cancelTask(p.taskId), {
+    opts?.signal?.addEventListener("abort", () => p.gateway?.cancelTurn(p.turnId), {
       once: true,
     });
     const input = rawInput as Record<string, unknown>;
@@ -110,7 +110,7 @@ export function buildToolPermissions(p: ToolPermissionInput): {
           };
         }
         const req = {
-          taskId: p.taskId,
+          turnId: p.turnId,
           threadId: p.threadId,
           tool,
           summary: plan,
@@ -134,7 +134,7 @@ export function buildToolPermissions(p: ToolPermissionInput): {
         const answers: Record<string, string> = {};
         for (const q of questions) {
           const label = await gateway.askChoice({
-            taskId: p.taskId,
+            turnId: p.turnId,
             threadId: p.threadId,
             question: q.question,
             options: q.options.map((o) => o.label),
@@ -153,7 +153,7 @@ export function buildToolPermissions(p: ToolPermissionInput): {
       if (!p.gateway)
         return { behavior: "deny", message: `${d.reason} (needs approval; not available here)` };
       const r = await p.gateway.request({
-        taskId: p.taskId,
+        turnId: p.turnId,
         threadId: p.threadId,
         tool,
         summary: summarize(tool, input),

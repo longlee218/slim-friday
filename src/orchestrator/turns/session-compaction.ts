@@ -38,14 +38,14 @@ export function avgContextTokens(u: RunUsage): number {
  */
 export function compactIdleSession(
   db: Database,
-  ids: { taskId: string; threadId: string },
+  ids: { turnId: string; threadId: string },
   usage: RunUsage | undefined,
 ): boolean {
   try {
     if (!usage) return false;
     const row = db
       .query<{ role: string }, [string]>("SELECT role FROM tasks WHERE id = ?")
-      .get(ids.taskId);
+      .get(ids.turnId);
     if (!row || !ROLES[row.role]?.context?.ledger) return false;
     if (liveWorktree(db, ids.threadId)) return false;
     const ctx = avgContextTokens(usage);

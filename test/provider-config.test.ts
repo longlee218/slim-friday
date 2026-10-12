@@ -121,7 +121,7 @@ describe("run-agent wiring", () => {
   const go = (env: ReturnType<typeof makeEnv>, queryFn: never) =>
     runAgent({
       prompt: "q",
-      taskId: "T",
+      turnId: "T",
       stage: getStage("assistant", "qa"),
       cwd: env.home,
       config: env.config,

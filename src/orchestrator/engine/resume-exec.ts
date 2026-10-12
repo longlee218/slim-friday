@@ -6,7 +6,7 @@ import type { RoleDefinition } from "../../roles/role-types";
 import { RESUME_FAILED } from "../../runtime/run-errors";
 import { upsertStage } from "../../storage/stage-store";
 import type { WorktreeRow } from "../../storage/worktree-store";
-import { type FlowResult, resumeReasonOf } from "../tasks/task-result";
+import { type FlowResult, resumeReasonOf } from "../turns/turn-result";
 import { DEFAULT_PLAN_FILE, renderHandoff } from "./handoff";
 import { runCloneRun } from "./isolation";
 import type { StageCtx, StageRunInput } from "./stage-runner";
@@ -84,7 +84,7 @@ export function switchFailure(
   const res = markResumable(sw, i);
   if (res.resumable)
     upsertStage(db, {
-      taskId: i.taskId,
+      taskId: i.turnId,
       ...next,
       status: "failed",
       verdict: res.resumable,
