@@ -62,6 +62,9 @@ const envSchema = z.object({
   CLONE_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
 });
 
+/** Names of the env variables the app itself reads: each must be classified in `data/child-env-deny.yaml`. */
+export const ENV_SCHEMA_KEYS: string[] = Object.keys(envSchema.shape);
+
 /** Engines of the intent layer's L3 classifier (`none` = rules L0-L2 only). */
 export type IntentEngine = "haiku" | "jev" | "none";
 

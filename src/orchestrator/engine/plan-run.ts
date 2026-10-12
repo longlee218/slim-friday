@@ -56,8 +56,8 @@ export async function runPlanRun(c: StageCtx): Promise<PlanStageResult> {
     guard: guardFor(stage, {
       cwd: scratchReal,
       writePaths: [scratchReal, plans],
-      readPaths: [scratchReal, plans, ...repoPaths],
       gitReadRepos: repoPaths,
+      worktreeDirs: [workspacePaths(config.agentHome).workspace(i.workspace).worktrees],
     }),
     config,
     db,

@@ -39,7 +39,7 @@ test("guard: AskUserQuestion calls beyond the cap are denied and never reach the
     askLimit: newAskLimit(MAX_ASK),
     turnId: "t",
     threadId: "th",
-    guard: guardFor("exec", { writePaths: [], readPaths: [], allowedCommands: [] }),
+    guard: guardFor("exec", { writePaths: [], readPaths: [] }),
     gateway: stubGateway({
       askChoice: async (a) => {
         asked.push(a.question);
@@ -262,7 +262,7 @@ test("one AskUserQuestion call with 2 questions: both reach the owner, all answe
     askLimit: newAskLimit(MAX_ASK),
     turnId: "t",
     threadId: "th",
-    guard: guardFor("exec", { writePaths: [], readPaths: [], allowedCommands: [] }),
+    guard: guardFor("exec", { writePaths: [], readPaths: [] }),
     gateway: stubGateway({
       askChoice: async (a) => {
         asked.push(a.question);

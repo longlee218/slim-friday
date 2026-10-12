@@ -8,6 +8,7 @@ import {
   ASK_USER_QUESTION_TOOL_NAME,
   BASH_TOOL_NAME,
   EXIT_PLAN_MODE_TOOL_NAME,
+  SEND_FEEDBACK_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import {
@@ -141,7 +142,7 @@ test("code task runs in plan mode in the scratch dir with write tools and no all
   expect(env.db.query("SELECT type FROM turns").all()).toEqual([{ type: "code" }]);
 });
 
-test("canUseTool: plan goes to owner; writes only in scratch; risky Bash asks; denial reaches agent", async () => {
+test("canUseTool: plan goes to owner; writes only in scratch; a feedback report asks; denial reaches agent", async () => {
   const { gw, asked } = fakeGateway();
   const { opts } = await runCodeTask(gw);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
@@ -157,11 +158,16 @@ test("canUseTool: plan goes to owner; writes only in scratch; risky Bash asks; d
   expect(
     (await can(WRITE_TOOL_NAME, { file_path: "/etc/passwd", content: "x" }, {})).behavior,
   ).toBe("deny");
-  expect((await can(BASH_TOOL_NAME, { command: "rm -rf /tmp/x" }, {})).behavior).toBe("deny");
+  expect((await can(BASH_TOOL_NAME, { command: "rm -rf /etc/x" }, {})).behavior).toBe("deny");
   expect(asked).toHaveLength(1); // allow/deny decisions never bother the owner
 
+  // Bash never asks; a tool the owner must decide (SendFeedback) does.
   expect((await can(BASH_TOOL_NAME, { command: "bun add left-pad" }, {})).behavior).toBe("allow");
-  expect(asked[1]).toMatchObject({ kind: "request", req: { tool: BASH_TOOL_NAME } });
+  expect(asked).toHaveLength(1);
+  expect((await can(SEND_FEEDBACK_TOOL_NAME, { type: "bug", title: "t" }, {})).behavior).toBe(
+    "allow",
+  );
+  expect(asked[1]).toMatchObject({ kind: "request", req: { tool: SEND_FEEDBACK_TOOL_NAME } });
 
   const ans = await can(
     ASK_USER_QUESTION_TOOL_NAME,
@@ -178,17 +184,23 @@ test("owner rejection becomes a deny message the agent can act on", async () => 
   const plan = await can(EXIT_PLAN_MODE_TOOL_NAME, { plan: "repo: repo\np" }, {});
   expect(plan.behavior).toBe("deny");
   expect(plan.message).toContain("rejected the plan");
-  const bash = await can(BASH_TOOL_NAME, { command: "bun add x" }, {});
-  expect(bash).toMatchObject({ behavior: "deny" });
+  const feedback = await can(SEND_FEEDBACK_TOOL_NAME, { type: "bug", title: "t" }, {});
+  expect(feedback).toMatchObject({ behavior: "deny" });
 });
 
-test("PreToolUse hook denies dangerous Bash and forces ask for unknown Bash", async () => {
+test("PreToolUse hook denies dangerous Bash, lets other Bash run and forces ask for an owner-decided tool", async () => {
   const { gw } = fakeGateway();
   const { opts } = await runCodeTask(gw);
   const hook = opts.hooks.PreToolUse[0].hooks[0] as (i: any) => Promise<any>;
   const call = (command: string) =>
     hook({ hook_event_name: "PreToolUse", tool_name: BASH_TOOL_NAME, tool_input: { command } });
   expect((await call("sudo ls")).hookSpecificOutput.permissionDecision).toBe("deny");
-  expect((await call("less notes.txt")).hookSpecificOutput.permissionDecision).toBe("ask");
+  expect(await call("less notes.txt")).toEqual({ continue: true });
+  const feedback = await hook({
+    hook_event_name: "PreToolUse",
+    tool_name: SEND_FEEDBACK_TOOL_NAME,
+    tool_input: { type: "bug", title: "t" },
+  });
+  expect(feedback.hookSpecificOutput.permissionDecision).toBe("ask");
   expect(await call("git status")).toEqual({ continue: true });
 });

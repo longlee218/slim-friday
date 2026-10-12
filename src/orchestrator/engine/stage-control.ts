@@ -1,4 +1,3 @@
-import { realpathSync } from "node:fs";
 import type { Repo, Workflow } from "../../repos/repo-registry";
 import type { AskQuestion } from "../../runtime/tool-permissions";
 import type { FlowResult } from "../turns/turn-result";
@@ -10,16 +9,12 @@ export const planWorkflow = (repos: Repo[]): Workflow =>
   repos.some((r) => r.workflow === "full") ? "full" : "lean";
 
 /**
- * Execute-stage options of a repo's workflow. `full`: its rules and the clone readable (never writable) so
- * the repo's own files stay readable. `lean`: nothing extra. Skills come from the workspace for both (see buildRunSkills).
+ * Execute-stage options of a repo's workflow: `full` adds the repo's own rules to the prompt, `lean` nothing extra.
+ * Skills come from the workspace for both (see buildRunSkills). Dev reads are not limited to paths (the guard only
+ * denies secret files), so nothing needs to be made readable here.
  */
-export function execWorkflow(repo: Repo): {
-  workflow: Workflow;
-  readPaths: string[];
-} {
-  if (repo.workflow !== "full") return { workflow: "lean", readPaths: [] };
-  const clone = realpathSync(repo.path);
-  return { workflow: "full", readPaths: [clone] };
+export function execWorkflow(repo: Repo): { workflow: Workflow } {
+  return { workflow: repo.workflow === "full" ? "full" : "lean" };
 }
 
 /** Reply when the owner did not answer in time: the questions with their defaults, no guessing. */

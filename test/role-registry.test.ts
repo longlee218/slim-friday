@@ -16,14 +16,15 @@ import type { StageDefinition } from "../src/roles/role-types";
 import {
   AGENT_TOOL_NAME,
   LEGACY_AGENT_TOOL_NAME,
+  LIST_AGENTS_TOOL_NAME,
   SEND_MESSAGE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
-import { toolsFor } from "../src/tools/tool-catalog";
+import { CAPABILITY_TOOLS, toolsFor } from "../src/tools/tool-catalog";
 
-/** A minimal stage with the `subagents` capability (the stage-level data a role would give). */
+/** A minimal stage with one capability (the stage-level data a role would give). */
 const BARE: StageDefinition = {
   name: "bare",
-  capabilities: ["read", "subagents"],
+  capabilities: ["read"],
   gitGroups: [],
   model: "haiku",
   budgetUsd: 0.5,
@@ -45,8 +46,8 @@ test("stages: plan-mode only in plan, worktree only in exec, default tier and bu
   expect(getStage("dev", "exec").isolation).toBe("clone");
   expect(getStage("assistant", "qa")).toMatchObject({
     model: "haiku",
-    budgetUsd: 0.5,
-    escalatedBudgetUsd: 1.5,
+    budgetUsd: 1,
+    escalatedBudgetUsd: 2.5,
   });
   expect(getStage("dev", "plan")).toMatchObject({ model: "sonnet", budgetUsd: 1.5 });
   expect(getStage("dev", "exec")).toMatchObject({ model: "sonnet", budgetUsd: 3 });
@@ -69,14 +70,14 @@ test("dispatchableRoleNames: every role with whenToUse (a queued follow-up may b
   expect(dispatchableRoleNames()).toEqual(["assistant", "dev"]);
 });
 
-test("guard: the Agent tool is auto-allowed only in a stage with the subagents capability", () => {
+test("guard: every stage gets the subagent tools, auto-allowed, even one that lists no capability for them", () => {
   const scope = { readPaths: ["/r"] };
   const qa = guardFor("qa", scope);
   expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, qa).decision).toBe("allow");
   expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, qa).decision).toBe("allow");
-  const bare = guardFor({ ...BARE, capabilities: ["read"] }, scope); // no capability: not listed, owner decides
-  expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("ask");
-  expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("ask");
+  const bare = guardFor(BARE, scope); // lists only `read`: toolsFor adds the subagent tools
+  expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("allow");
+  expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("allow");
 });
 
 test("mcp servers follow capabilities: git by groups, github by write", async () => {
@@ -92,7 +93,12 @@ test("mcp servers follow capabilities: git by groups, github by write", async ()
 });
 
 test("tools derive from capabilities", () => {
-  expect(toolsFor(BARE)).toEqual(["Read", "Glob", "Grep", AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME]);
+  expect(toolsFor(BARE)).toEqual([
+    ...CAPABILITY_TOOLS.read,
+    AGENT_TOOL_NAME,
+    SEND_MESSAGE_TOOL_NAME,
+    LIST_AGENTS_TOOL_NAME,
+  ]);
 });
 
 test("findStage: a stage name in two roles is ambiguous and throws", () => {

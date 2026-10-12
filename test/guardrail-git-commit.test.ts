@@ -6,28 +6,28 @@ import { checkToolCall } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
-const ctx = { writePaths: ["/tmp/wt"] };
+const ctx = { cwd: "/tmp/wt", writePaths: ["/tmp/wt"] };
 
-/** Git in the shell: reads are fine, everything else belongs to the git MCP tools (or to the app). */
-const rows: [string, "allow" | "ask" | "deny"][] = [
+/** Git in the shell: only push (the app's job until phase 3) and secret pathspecs are denied; the rest is the agent's. */
+const rows: [string, "allow" | "deny"][] = [
   ["git status", "allow"],
   ["git diff HEAD~1", "allow"],
   ["git log --oneline -5", "allow"],
-  ["git diff --output=/tmp/x", "ask"],
-  ["git diff --no-index /a /b", "deny"],
+  ["git diff --output=/tmp/x", "allow"],
+  ["git diff --no-index /a /b", "allow"],
   ["git diff HEAD -- .env", "deny"],
-  // mutating commands: use the git MCP tools
-  ["git add .", "deny"],
-  ['git commit -m "feat: x"', "deny"],
-  ["git add . && git commit -m x", "deny"],
-  ["git checkout main", "deny"],
-  ["git reset --hard", "deny"],
-  ["git clean -fd", "deny"],
-  ["git config user.name x", "deny"],
-  ["git rebase main", "deny"],
+  // mutating commands are no longer denied (the agent owns git)
+  ["git add .", "allow"],
+  ['git commit -m "feat: x"', "allow"],
+  ["git add . && git commit -m x", "allow"],
+  ["git checkout main", "allow"],
+  ["git reset --hard", "allow"],
+  ["git config user.name x", "allow"],
+  ["git rebase main", "allow"],
+  ["git -C /other commit -m x", "allow"],
+  // worktrees: placed by the worktree rule (bash-policy.test.ts), not here
   ["git worktree add ../x", "deny"],
-  ["git -C /other commit -m x", "deny"],
-  // pushing is the app's job
+  // pushing is the app's job (until phase 3)
   ["git push origin feat", "deny"],
   ["git push origin main", "deny"],
   ["git push --force origin feat", "deny"],
@@ -41,17 +41,17 @@ describe("git in the shell", () => {
   }
 });
 
-test("cd inside the allowed dirs is allowed; outside, parent and home are not", () => {
+test("cd is not tracked or judged any more: it is allowed anywhere; the segments after it are judged as ever", () => {
   const dir = mkdtempSync(join(tmpdir(), "cd-"));
   const root = realpathSync(dir);
-  const c = { writePaths: [root] };
+  const c = { cwd: root, writePaths: [root] };
   const d = (cmd: string) => checkToolCall(BASH_TOOL_NAME, { command: cmd }, c).decision;
   expect(d(`cd ${root}`)).toBe("allow");
   expect(d(`cd ${root} && git status`)).toBe("allow");
   expect(d("cd sub")).toBe("allow");
-  expect(d("cd ..")).toBe("ask");
-  expect(d("cd ~")).toBe("ask");
-  expect(d("cd /etc")).toBe("ask");
+  expect(d("cd ..")).toBe("allow");
+  expect(d("cd ~")).toBe("allow");
+  expect(d("cd /etc")).toBe("allow");
   expect(d(`cd ${root} && git push`)).toBe("deny");
 });
 

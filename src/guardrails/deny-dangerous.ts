@@ -77,6 +77,7 @@ const READ_KEYS: Record<string, string[]> = {
   Read: ["file_path"],
   Glob: ["path", "pattern"],
   Grep: ["path", "glob"],
+  LSP: ["file_path", "filePath"], // input shape not in the SDK types: both spellings checked
 };
 
 /** True when a read target stays inside `roots` (real paths; symlinks and `..` resolved). */

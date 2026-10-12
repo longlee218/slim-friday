@@ -22,7 +22,6 @@ const CODE_CAPABILITIES: Capability[] = [
   "write",
   "shell",
   "skills",
-  "subagents",
   "tasks",
   "mcp",
   "feedback",

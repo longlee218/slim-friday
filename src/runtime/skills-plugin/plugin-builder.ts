@@ -26,8 +26,6 @@ export interface RunSkills {
   plugins?: NonNullable<Options["plugins"]>;
   /** Real paths of the plugin dirs of THIS run: the guard may let the run READ them (bundled skill files). */
   dirs: string[];
-  /** Subset of `dirs` whose scripts may run from Bash (the publisher's pinned skills); a workspace dir is only readable. */
-  scriptDirs: string[];
   /** Removes the app-owned plugin dirs (no-op when none was created). */
   cleanup: () => void;
 }
@@ -56,7 +54,7 @@ export interface PluginSpec {
 const SKILL_DIR_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
 /** No skills, nothing to clean. */
-export const NO_SKILLS: RunSkills = { skills: [], dirs: [], scriptDirs: [], cleanup: () => {} };
+export const NO_SKILLS: RunSkills = { skills: [], dirs: [], cleanup: () => {} };
 
 /** Concatenate the skills, plugins, dirs and cleanups of several plugins into one run's view. */
 export function mergeRunSkills(parts: RunSkills[]): RunSkills {
@@ -65,7 +63,6 @@ export function mergeRunSkills(parts: RunSkills[]): RunSkills {
     skills: parts.flatMap((p) => p.skills),
     ...(plugins.length && { plugins }),
     dirs: parts.flatMap((p) => p.dirs),
-    scriptDirs: parts.flatMap((p) => p.scriptDirs),
     cleanup: () => {
       for (const p of parts) p.cleanup();
     },
@@ -149,7 +146,6 @@ export function buildSkillsPlugin(spec: PluginSpec, agentHome: string): RunSkill
       plugins: [{ type: "local" as const, path: real }],
       skills,
       dirs: [real],
-      scriptDirs: kind === "publisher" ? [real] : [],
       cleanup: () => removeTree(real),
     };
   } catch (err) {

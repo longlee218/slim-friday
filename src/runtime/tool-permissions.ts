@@ -37,13 +37,13 @@ export interface ToolPermissionInput {
   /** Shared across the task's runs: the AskUserQuestion budget of the task. Omitted = no questions (cap 0). */
   askLimit?: AskLimit;
   /**
-   * Stage runs in SDK `auto` mode: a SOFT guard `ask` is left to the SDK classifier (canUseTool only if it cannot
-   * decide). Owner-only asks (`Decision.ownerOnly`) and every ask when `active` is false still force the owner prompt.
+   * Stage runs in SDK `auto` mode: a guard `ask` is left to the SDK classifier (canUseTool only if it cannot
+   * decide). Every ask when `active` is false still forces the owner prompt.
    */
   autoMode?: ModeActive;
   /**
    * Stage runs in SDK `bypassPermissions` mode: the SDK asks nothing, so the hook is the only gate. Hard denies stay
-   * denies; EVERY guard `ask` (soft and owner-only) is let through and logged "bypass". When `active` is false (the
+   * denies; EVERY guard `ask` is let through and logged "bypass". When `active` is false (the
    * SDK did not enter bypass) asks go to the owner as in default mode (fail closed).
    */
   bypassMode?: ModeActive;

@@ -1,0 +1,41 @@
+# Variables of the BOT that the agent's own process (the SDK child and its shell) must NOT inherit.
+# Everything else in the owner's env passes through (PATH, HOME, SSH_AUTH_SOCK, GH_*, git vars, proxies, locale ...).
+# The app sets the provider credentials, subagent limits and compaction window itself (runtime/sdk-env.ts).
+# A new key of the env schema in config/agent-config.ts must be listed here (exact/prefixes) or in `passthrough`:
+# test/child-env-deny.test.ts fails otherwise.
+
+# Exact names.
+exact:
+  # agent-config.ts env schema
+  - CLAUDE_CODE_OAUTH_TOKEN
+  - OPENROUTER_API_KEY
+  - LLM_PROVIDER
+  - AGENT_HOME
+  - LOG_LEVEL
+  - DISCORD_TOKEN
+  - OWNER_DISCORD_ID
+  - DISCORD_GUILD_ID
+  - MODEL
+  - MEMORY_MODEL
+  - GIT_AUTHOR # the app var (git's own GIT_AUTHOR_NAME / GIT_AUTHOR_EMAIL are not matched)
+  - MAX_TURNS
+  - MAX_BUDGET_USD
+  - TIMEOUT_MS
+  - MAX_CONCURRENT_RUNS
+  - CLONE_RETENTION_DAYS
+  # other app secrets
+  - GITHUB_PERSONAL_ACCESS_TOKEN
+  # set per stage by the app, never inherited
+  - CLAUDE_CODE_AUTO_COMPACT_WINDOW
+
+# Prefixes.
+prefixes:
+  - INTENT_ # INTENT_ENGINE, INTENT_BUDGET_USD, INTENT_TIMEOUT_MS
+  - MODEL_ # MODEL_HAIKU|SONNET|OPUS, MODEL_INTENT, MODEL_<ROLE>_<STAGE> (stage-env.ts)
+  - BUDGET_ # BUDGET_<ROLE>_<STAGE>_USD (stage-env.ts)
+  - COMPACT_WINDOW_ # COMPACT_WINDOW_<ROLE>_<STAGE> (stage-env.ts)
+  - FRIDAY_
+  - ANTHROPIC_ # provider vars are set again by the app for the child
+
+# Schema keys that are on purpose NOT denied (the agent may see them). None today.
+passthrough: []

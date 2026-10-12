@@ -3,6 +3,7 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
+import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { insertTurn } from "../src/storage/run-store";
@@ -160,7 +161,7 @@ test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; 
 
 test("busy when the code-task cap is reached", async () => {
   const { env } = await setup();
-  for (const id of ["a", "b"]) {
+  for (const id of Array.from({ length: MAX_CAPPED_TASKS }, (_, n) => `cap${n}`)) {
     insertTurn(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   }
   const { gw } = gateway(false);

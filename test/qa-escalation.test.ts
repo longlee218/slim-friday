@@ -82,10 +82,10 @@ describe("Q&A escalation through the handler", () => {
       "real answer\nESCALATE: opus",
     ]);
     expect(calls.length).toBe(2);
-    expect(calls[0]).toMatchObject({ model: "claude-haiku-4-5-20251001", budget: 0.5 });
+    expect(calls[0]).toMatchObject({ model: "claude-haiku-4-5-20251001", budget: 1 });
     expect(calls[1]).toMatchObject({
       model: "claude-sonnet-5-5",
-      budget: 1.5,
+      budget: 2.5,
       resume: "s0",
       prompt: "hard question",
     });
@@ -249,7 +249,7 @@ describe("budget hit message", () => {
       threadId: "t1",
       text: "q",
     });
-    expect(reply).toContain("$0.52 of $0.50");
+    expect(reply).toContain("$0.52 of $1.00");
     const row = env.db.query("SELECT session_id FROM sessions WHERE thread_id = 't1'").get() as {
       session_id: string;
     };

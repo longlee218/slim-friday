@@ -9,7 +9,7 @@ export type Capability =
   | "shell" // Bash and Monitor (policy + owner approval)
   | "web" // search / fetch
   | "skills"
-  | "subagents" // Agent + SendMessage: the SDK's own built-in subagent (no app-defined ones)
+  | "subagents" // Agent + SendMessage + ListAgents: the SDK's own built-in subagent; EVERY stage gets them (toolsFor)
   | "tasks" // progress tracking; TaskStop (stops a background task) needs the owner
   | "mcp" // MCP resource reads (+ refresh of the app's own MCP servers)
   | "feedback" // SendFeedback: sends a report to Anthropic, always owner-approved

@@ -96,9 +96,8 @@ export async function runCloneRun(
     guard: guardFor(stage, {
       cwd,
       writePaths: [cwd, plans],
-      readPaths: [cwd, scratchReal, plans, ...flow.readPaths],
       gitWriteRepo: cwd,
-      allowedCommands: repo.testCommand ? [repo.testCommand] : [],
+      worktreeDirs: [workspacePaths(config.agentHome).workspace(i.workspace).worktrees],
     }),
     code: {
       threadId: i.threadId,

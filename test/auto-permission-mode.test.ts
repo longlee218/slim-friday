@@ -89,26 +89,19 @@ test("auto mode: canUseTool (classifier undecided) still asks the owner via the 
   expect(asked).toEqual(["SomeUnknownTool"]);
 });
 
-test("auto mode: owner-only guard ask (env override) is still forced to the owner", async () => {
+test("auto mode: Bash never asks (deny list): an env override or make runs as allow, sudo is denied", async () => {
   const guard = guardFor("exec", {
     cwd: "/ws/repo",
     writePaths: ["/ws/repo"],
     readPaths: ["/ws/repo"],
   });
-  const { out, perms } = await pre(true, "Bash", { command: "PATH=./bin make" }, guard);
-  expect(out.hookSpecificOutput.permissionDecision).toBe("ask");
-  expect(perms.decisions.get("u1")?.decision).toBe("ask");
-});
-
-test("auto mode: soft Bash ask (make) defers to the classifier", async () => {
-  const guard = guardFor("exec", {
-    cwd: "/ws/repo",
-    writePaths: ["/ws/repo"],
-    readPaths: ["/ws/repo"],
-  });
-  const { out, perms } = await pre(true, "Bash", { command: "make" }, guard);
-  expect(out).toEqual({ continue: true });
-  expect(perms.decisions.get("u1")?.decision).toBe("auto");
+  for (const command of ["PATH=./bin make", "make"]) {
+    const { out, perms } = await pre(true, "Bash", { command }, guard);
+    expect(out).toEqual({ continue: true });
+    expect(perms.decisions.get("u1")?.decision).toBe("allow");
+  }
+  const { out } = await pre(true, "Bash", { command: "sudo make" }, guard);
+  expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
 });
 
 /** Feed fake SDK messages to a watch and collect its log lines. */

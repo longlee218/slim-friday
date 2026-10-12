@@ -12,7 +12,9 @@ import {
   EXIT_PLAN_MODE_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
+  LIST_AGENTS_TOOL_NAME,
   LIST_MCP_RESOURCES_TOOL_NAME,
+  LSP_TOOL_NAME,
   MONITOR_TOOL_NAME,
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
@@ -30,6 +32,7 @@ import {
   TASK_UPDATE_TOOL_NAME,
   TODO_WRITE_TOOL_NAME,
   TOOL_SEARCH_TOOL_NAME,
+  WAIT_FOR_MCP_SERVERS_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
   WRITE_TOOL_NAME,
@@ -103,6 +106,20 @@ test("code tasks: plan and exec share one full toolset; the subagents capability
   expect(toolsFor("exec")).not.toContain(WEB_FETCH_TOOL_NAME); // web stays Q&A-only
 });
 
+test("every stage gets the subagent tools (Agent, SendMessage, ListAgents) from toolsFor, whatever its capabilities", () => {
+  for (const m of MODES)
+    expect(toolsFor(m)).toEqual(expect.arrayContaining([...CAPABILITY_TOOLS.subagents]));
+  expect(CAPABILITY_TOOLS.subagents).toEqual([
+    AGENT_TOOL_NAME,
+    SEND_MESSAGE_TOOL_NAME,
+    LIST_AGENTS_TOOL_NAME,
+  ]);
+  expect(toolsFor("qa")).toContain(LSP_TOOL_NAME); // read capability
+  expect(CAPABILITY_TOOLS.mcp).toContain(WAIT_FOR_MCP_SERVERS_TOOL_NAME);
+  // No PowerShell tool: the prompt carries the OS and the agent picks its shell (owner decision).
+  for (const m of MODES) expect(toolsFor(m)).not.toContain("PowerShell");
+});
+
 test("no tool is listed twice", () => {
   for (const m of MODES) expect(new Set(toolsFor(m)).size).toBe(toolsFor(m).length);
 });
@@ -125,12 +142,14 @@ test("auto-allowed tools are a subset of the mode's tools and never include writ
     WEB_SEARCH_TOOL_NAME,
     WEB_FETCH_TOOL_NAME,
     SKILL_TOOL_NAME,
-    AGENT_TOOL_NAME,
-    SEND_MESSAGE_TOOL_NAME,
     LIST_MCP_RESOURCES_TOOL_NAME,
     READ_MCP_RESOURCE_TOOL_NAME,
     READ_MCP_RESOURCE_DIR_TOOL_NAME,
     REFRESH_MCP_TOOLS_TOOL_NAME,
+    WAIT_FOR_MCP_SERVERS_TOOL_NAME,
+    AGENT_TOOL_NAME,
+    SEND_MESSAGE_TOOL_NAME,
+    LIST_AGENTS_TOOL_NAME,
   ]);
   expect(autoAllowedTools("exec")).toContain(ENTER_PLAN_MODE_TOOL_NAME);
   expect(autoAllowedTools("exec")).toContain(TASK_GET_TOOL_NAME);
@@ -182,12 +201,12 @@ test("guardFor: one builder per mode, auto-allowed tools from the catalog", () =
     writePaths: ["/wt"],
     readPaths: ["/wt"],
     gitWriteRepo: "/wt",
-    allowedCommands: ["bun test"],
+    worktreeDirs: ["/ws/worktrees"],
   });
   expect(exec).toMatchObject({
     writePaths: ["/wt"],
     gitWriteRepo: "/wt",
-    allowedCommands: ["bun test"],
+    worktreeDirs: ["/ws/worktrees"],
   });
   expect(exec.allowTools).toEqual(autoAllowedTools("exec"));
 });
@@ -198,15 +217,18 @@ test("options: tools from the catalog, no allowedTools, strict MCP", () => {
     READ_TOOL_NAME,
     GLOB_TOOL_NAME,
     GREP_TOOL_NAME,
+    LSP_TOOL_NAME,
     WEB_SEARCH_TOOL_NAME,
     WEB_FETCH_TOOL_NAME,
     SKILL_TOOL_NAME,
-    AGENT_TOOL_NAME,
-    SEND_MESSAGE_TOOL_NAME,
     LIST_MCP_RESOURCES_TOOL_NAME,
     READ_MCP_RESOURCE_TOOL_NAME,
     READ_MCP_RESOURCE_DIR_TOOL_NAME,
     REFRESH_MCP_TOOLS_TOOL_NAME,
+    WAIT_FOR_MCP_SERVERS_TOOL_NAME,
+    AGENT_TOOL_NAME,
+    SEND_MESSAGE_TOOL_NAME,
+    LIST_AGENTS_TOOL_NAME,
   ]);
   expect("allowedTools" in o).toBe(false); // would bypass canUseTool
   expect(o.strictMcpConfig).toBe(true);
@@ -237,8 +259,11 @@ test("secret-file deny rules are part of disallowedTools", () => {
 });
 
 test("every declared SDK tool name belongs to exactly one capability (a new constant cannot be forgotten)", () => {
-  // Names that are not capability tools: the legacy alias of Agent.
-  const aliases = new Set<string>([sdkNames.LEGACY_AGENT_TOOL_NAME]);
+  // Names that are not capability tools: the legacy alias of Agent, and EnterWorktree (never offered; the guard only checks it).
+  const aliases = new Set<string>([
+    sdkNames.LEGACY_AGENT_TOOL_NAME,
+    sdkNames.ENTER_WORKTREE_TOOL_NAME,
+  ]);
   const owners = new Map<string, number>();
   for (const tools of Object.values(CAPABILITY_TOOLS))
     for (const t of tools) owners.set(t, (owners.get(t) ?? 0) + 1);

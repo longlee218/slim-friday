@@ -52,22 +52,22 @@ test("bypass: hard denies stay (git push, gh)", async () => {
   }
 });
 
-test("bypass: soft ask (make) runs and is logged bypass", async () => {
-  const { out, perms } = await pre(true, "Bash", { command: "make" });
+test("bypass: an ask (a tool the guard does not know) runs and is logged bypass", async () => {
+  const { out, perms } = await pre(true, "SomeUnknownTool", {});
   expect(out).toEqual({ continue: true });
   expect(perms.decisions.get("u1")?.decision).toBe("bypass");
 });
 
-test("bypass: owner-only asks (env override, $(), xargs, ~) run and are logged bypass", async () => {
+test("bypass: Bash never asks: lines that used to ask (env override, $(), xargs, ~) are allow", async () => {
   for (const command of ["PATH=./bin make", "echo $(date)", "ls | xargs cat", "cat ~/notes.txt"]) {
     const { out, perms } = await pre(true, "Bash", { command });
     expect(out).toEqual({ continue: true });
-    expect(perms.decisions.get("u1")?.decision).toBe("bypass");
+    expect(perms.decisions.get("u1")?.decision).toBe("allow");
   }
 });
 
 test("bypass inactive (SDK did not enter bypass): ask is forced to the owner again", async () => {
-  const { out, perms } = await pre(false, "Bash", { command: "PATH=./bin make" });
+  const { out, perms } = await pre(false, "SomeUnknownTool", {});
   expect(out.hookSpecificOutput.permissionDecision).toBe("ask");
   expect(perms.decisions.get("u1")?.decision).toBe("ask");
 });
@@ -109,19 +109,14 @@ test("watch: init without a permissionMode switches bypass off (fail closed)", (
   expect(bypass.active).toBe(false);
 });
 
-test("qa owner-only ask is not bypassed (no bypass state on the qa stage)", async () => {
-  const perms = buildToolPermissions({
-    turnId: "t",
-    threadId: "th",
-    guard,
-    autoMode: { active: true },
-  });
+test("qa ask is not bypassed (no bypass state on the qa stage)", async () => {
+  const perms = buildToolPermissions({ turnId: "t", threadId: "th", guard });
   const out: any = await perms.hooks[0]!.hooks[0]!(
     {
       hook_event_name: "PreToolUse",
       tool_use_id: "u1",
-      tool_name: "Bash",
-      tool_input: { command: "PATH=./bin make" },
+      tool_name: "SomeUnknownTool",
+      tool_input: {},
     } as never,
     "u1",
     SIG,
@@ -143,8 +138,8 @@ async function execRun(actual: string) {
         {
           hook_event_name: "PreToolUse",
           tool_use_id: "u1",
-          tool_name: "Bash",
-          tool_input: { command: "PATH=./bin make" },
+          tool_name: "SomeUnknownTool",
+          tool_input: {},
         } as never,
         "u1",
         SIG,

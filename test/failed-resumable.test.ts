@@ -8,6 +8,7 @@ import { createRoleTagRouter } from "../src/intent/role-tag";
 import { DAY_MS, expireClones } from "../src/lifecycle/clone-retention";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { resumeQuestionOf } from "../src/orchestrator/dispatch/resume-failed-task";
+import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
 import { RESUME_NOTE } from "../src/orchestrator/engine/resume-exec";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
@@ -398,7 +399,7 @@ test("a newer task releases the held clone to the normal retention path", async 
 test("a resume that cannot start keeps the hold (task cap reached)", async () => {
   const { env, seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
-  for (const id of ["x1", "x2"])
+  for (const id of Array.from({ length: MAX_CAPPED_TASKS }, (_, n) => `cap${n}`))
     insertTurn(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   expect(await handle(msg("/go"))).toContain("busy");
   expect(execRuns(seen)).toHaveLength(1);

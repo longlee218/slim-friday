@@ -15,8 +15,8 @@ import type { ToolPermissionInput } from "./tool-permissions";
 
 /**
  * PreToolUse hook of a gated stage: runs the guard. deny = hard deny (logged here: a denied call has no Post hook);
- * allow = continue; ask = force the owner prompt, except: a SOFT ask in an active auto-mode run is left to the SDK
- * classifier (logged "auto"), and EVERY ask (soft or owner-only) in an active bypass-mode run is let through
+ * allow = continue; ask (unknown tools only: Bash never asks) = force the owner prompt, except: an ask in an active
+ * auto-mode run is left to the SDK classifier (logged "auto"), and an ask in an active bypass-mode run is let through
  * (logged "bypass"; the hook is the only gate there, deny stays a hard deny). Records the decision per tool_use_id
  * for the `tool.done` line. The hook is session-level, so subagents of the run pass through it too: their calls
  * go through the same guard and carry `agent_id`/`agent_type` into the log lines.
@@ -34,8 +34,8 @@ export function guardHook(
     const input = (i.tool_input ?? {}) as Record<string, unknown>;
     const checked = checkToolCall(i.tool_name, input, p.guard);
     const d = isSpawnCall(i.tool_name) ? gateSpawn(checked, i.tool_use_id, limit) : checked;
-    // Auto mode: a soft `ask` is deferred to the classifier; logged as decision "auto" (reason only, no content).
-    const deferred = d.decision === "ask" && !d.ownerOnly && p.autoMode?.active;
+    // Auto mode: an `ask` is deferred to the classifier; logged as decision "auto" (reason only, no content).
+    const deferred = d.decision === "ask" && p.autoMode?.active;
     // Bypass mode: the owner chose "let them run"; an ask never reaches canUseTool (the SDK asks nothing).
     const bypassed = d.decision === "ask" && !!p.bypassMode?.active;
     if (d.decision !== "deny")

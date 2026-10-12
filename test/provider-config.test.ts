@@ -98,6 +98,36 @@ describe("sdkEnv per provider", () => {
     expect(e.DISCORD_TOKEN).toBeUndefined();
     expect(e.PATH).toBe("/bin");
   });
+  test("the owner's own env passes through, the bot's variables never, on both providers", () => {
+    const owner = {
+      PATH: "/bin",
+      SSH_AUTH_SOCK: "/s",
+      GH_TOKEN: "g",
+      GIT_AUTHOR_NAME: "Owner", // git's own var, not the app's GIT_AUTHOR
+      HTTPS_PROXY: "http://p",
+      LANG: "C",
+    };
+    const bot = {
+      DISCORD_TOKEN: "d",
+      OPENROUTER_API_KEY: OR_KEY,
+      AGENT_HOME: "/h",
+      GIT_AUTHOR: "A <a@a.a>",
+      MODEL_DEV_EXEC: "opus",
+      BUDGET_DEV_EXEC_USD: "9",
+      INTENT_ENGINE: "none",
+      FRIDAY_X: "1",
+    };
+    const providers: Record<string, string>[] = [
+      { OPENROUTER_API_KEY: OR_KEY },
+      { CLAUDE_CODE_OAUTH_TOKEN: OAUTH },
+    ];
+    for (const extra of providers) {
+      const e = sdkEnv(cfg(extra), { ...owner, ...bot, CLAUDE_CODE_OAUTH_TOKEN: "stale" });
+      for (const [k, v] of Object.entries(owner)) expect(e[k]).toBe(v);
+      for (const k of Object.keys(bot)) expect(k in e).toBe(false);
+      expect(e.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS).toBe("1"); // app-set on top
+    }
+  });
   test("anthropic env has no OpenRouter wiring or key", () => {
     const e = sdkEnv(
       cfg({

@@ -88,11 +88,10 @@ async function capture(kind: Kind) {
 /** Options without per-run values, functions as "[fn]", MCP servers by key + type (stable under snapshot). */
 function normalize(o: Options, home: string) {
   const { cwd, env: _env, abortController, mcpServers, ...rest } = o;
-  const json = JSON.stringify(
-    rest,
-    (_k, v) => (typeof v === "function" ? "[fn]" : v),
-    2,
-  ).replaceAll(home, "<home>");
+  const json = JSON.stringify(rest, (_k, v) => (typeof v === "function" ? "[fn]" : v), 2)
+    .replaceAll(home, "<home>")
+    // The OS line of the prompt depends on the machine running the test.
+    .replace(/- Host: [^"\\]*\./, "- Host: <os>.");
   return {
     ...JSON.parse(json),
     cwd: cwd === home ? "<home>" : cwd,
@@ -121,7 +120,7 @@ test("options lock: tools, mcp servers, permission mode per stage", async () => 
   // Built-in tools: Q&A is read + web; both code stages share the code set.
   expect(qa.o.tools).toContain("WebFetch");
   expect(exec.o.tools).toEqual(plan.o.tools);
-  expect(qa.o.tools).toContain(SEND_MESSAGE_TOOL_NAME); // the subagents capability brings Agent + SendMessage
+  expect(qa.o.tools).toContain(SEND_MESSAGE_TOOL_NAME); // every stage gets Agent + SendMessage
   expect(plan.o.tools).toContain("Write");
   expect(qa.o.tools).not.toContain("Write");
   // MCP: git always; no in-process app server in any stage (no handoff tool).
@@ -153,8 +152,8 @@ test("options lock: model and limits per stage, no run timeout", async () => {
   expect(plan.o.model).toBe("model-code");
   expect(exec.o.model).toBe("model-code");
   for (const r of [qa, plan, exec]) expect(r.o.maxTurns).toBe(MAX_TURNS);
-  // Per-stage budget (qa 0.5, plan 1.5, exec 3) capped by MAX_BUDGET_USD=3.
-  expect(qa.o.maxBudgetUsd).toBe(0.5);
+  // Per-stage budget (qa 1, plan 1.5, exec 3) capped by MAX_BUDGET_USD=3.
+  expect(qa.o.maxBudgetUsd).toBe(1);
   expect(plan.o.maxBudgetUsd).toBe(1.5);
   expect(exec.o.maxBudgetUsd).toBe(3);
   // No run timeout: no timer is armed for the run (owner decision).

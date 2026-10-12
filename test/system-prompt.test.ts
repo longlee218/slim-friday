@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
+import { release } from "node:os";
 import type { StageName as ToolMode } from "../src/roles/role-registry";
-import { buildSystemPrompt } from "../src/runtime/system-prompt";
+import { buildSystemPrompt, currentHost, hostLine } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { GIT_GROUPS } from "../src/tools/tool-catalog";
 
@@ -102,4 +103,24 @@ test("Q&A rules pin: git MCP tools must always get path, taken from the repo lis
   expect(qa).toContain("must always get path = the repo path");
   expect(qa).toContain("pinned/only repo");
   expect(rules("plan")).not.toContain("Git MCP tools (git_log");
+});
+
+test("one host line in every mode: OS and release from Node, shell from $SHELL; no PowerShell tool is named", () => {
+  const host = currentHost();
+  expect(host).toEqual({
+    platform: process.platform,
+    release: release(),
+    shell: process.env.SHELL,
+  });
+  for (const mode of MODES) {
+    const text = rules(mode);
+    expect(count(text, "- Host:")).toBe(1);
+    expect(text).toContain(hostLine(host));
+  }
+  expect(hostLine({ platform: "win32", release: "10.0.26100", shell: undefined })).toBe(
+    "- Host: win32 10.0.26100, default shell unknown.",
+  );
+  expect(hostLine({ platform: "linux", release: "6.8.0", shell: "/bin/bash" })).toBe(
+    "- Host: linux 6.8.0, default shell /bin/bash.",
+  );
 });

@@ -1,48 +1,45 @@
 /**
- * Bash command policy: allow / ask / deny for a shell command line.
+ * Bash command policy: a DENY LIST. A command line is split into segments (bash-parser.ts) and every segment is
+ * checked; the first deny wins, everything else runs without asking (bypass mode: the owner's agent works freely).
  *
- * Compound commands are split into segments (see bash-parser.ts) and each is judged on its
- * own; the strictest decision wins (deny > ask > allow). Anything that cannot be parsed asks.
+ * Denied: privilege escalation, secret files as arguments, `rm -r` outside the work dirs, force push / push to
+ * main, GitHub CLIs (until the agent owns PRs), `.git` writes, a pipe into a shell, and a git worktree created
+ * outside the workspace's worktrees dir. Network, package managers, scripts, `sh -c`, `$(..)`, `~`, redirects, cd
+ * and the rest are NOT checked.
  *
- * NOTE: parsing is BEST EFFORT and bypassable (variable expansion, scripts, aliases, ...).
- * The git worktree is the real boundary. Reasons are short and never echo
- * command text beyond host / package names, so secrets are not leaked to the agent.
+ * NOTE: parsing is BEST EFFORT and bypassable (variable expansion, `sh -c`, scripts, aliases ...). Reasons are
+ * short and never echo command text, so secrets are not leaked to the agent.
  */
-import { basename } from "node:path";
-import { allowlistWords, commandWords, extendsAllowed } from "./bash-allowlist";
-import { type CdState, checkCd } from "./bash-cd";
-import {
-  allow,
-  ask,
-  checkChmod,
-  checkGit,
-  checkNetwork,
-  checkPackageManager,
-  checkRm,
-  deny,
-} from "./bash-command-checks";
+import { basename, isAbsolute, resolve } from "node:path";
 import { parseCommand, type Segment } from "./bash-parser";
-import { isPureGitRead, isReadCommand } from "./bash-read-commands";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { isSecretPath } from "./deny-dangerous";
 import { writesGitDir } from "./git-dir-guard";
-import {
-  FIND_EXEC_FLAGS,
-  HOME_REF,
-  INDIRECT_LAUNCHERS,
-  OWNER_ONLY_ENV,
-  ownerAsk,
-  redirectLeavesWritePaths,
-  SUBSTITUTION,
-} from "./owner-only";
-import { writesSkillDir } from "./skill-dir-writes";
-import { checkSkillScript, isSkillScript } from "./skill-script";
+import { isInside, realOrSame } from "./paths";
 
-const RANK = { allow: 0, ask: 1, deny: 2 } as const;
+const allow = (reason: string): Decision => ({ decision: "allow", reason });
+const deny = (reason: string): Decision => ({ decision: "deny", reason });
 
-/** Prefixes that run another command; stripped before judging the real command. */
-const WRAPPERS = new Set(["env", "command", "nohup", "time", "exec", "nice", "builtin"]);
+/**
+ * Prefixes that run another command; stripped before judging the real command. The value: their flags that take a
+ * separate value (dropped with the flag, so `nice -n 5 sudo id` still reaches `sudo`).
+ */
+const WRAPPERS = new Map<string, Set<string>>([
+  ["env", new Set(["-u", "-C", "-S", "--unset", "--chdir"])],
+  ["command", new Set()],
+  ["nohup", new Set()],
+  ["time", new Set()],
+  ["exec", new Set(["-a"])],
+  ["nice", new Set(["-n", "--adjustment"])],
+  ["builtin", new Set()],
+  ["timeout", new Set(["-s", "-k", "--signal", "--kill-after"])],
+  ["stdbuf", new Set(["-i", "-o", "-e"])],
+  ["setsid", new Set()],
+  ["xargs", new Set(["-n", "-I", "-P", "-L", "-d", "-E", "-s", "-a", "-J"])],
+]);
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish"]);
+/** Interpreters that run a script read from a pipe, like a shell does. */
+const INTERPRETER = /^(python[\d.]*|node|perl|ruby)$/;
 /** Commands that print or copy file contents: must not touch secret files. */
 const READERS = new Set([
   ...["cat", "less", "more", "head", "tail", "bat", "nl", "tac", "strings", "xxd", "od"],
@@ -52,28 +49,124 @@ const NETWORK = new Set([
   ...["curl", "wget", "http", "https", "nc", "ncat", "telnet"],
   ...["ssh", "scp", "sftp", "rsync", "ftp"],
 ]);
-const PKG_MANAGERS = new Set(["bun", "npm", "pnpm", "yarn"]);
+/** Refs that a push must never target. */
+const PROTECTED = new Set(["main", "master"]);
+/** Words the guard cannot resolve itself: variable, command substitution, home or brace expansion. */
+const EXPANSION = /[$`~{}]/;
 
 /** Strip `@` (curl -d @file) and `--opt=` prefixes, then test for a secret file name. */
 function isSecretArg(arg: string): boolean {
   return isSecretPath(arg.replace(/^--?[\w-]+=/, "").replace(/^@/, ""));
 }
 
-/** Judge one simple command. */
-function checkSegment(seg: Segment): Decision {
-  const words = [...seg.words];
-  // Drop env assignments and wrapper commands (`FOO=1 env nice cmd`).
-  while (words.length > 0) {
-    if (OWNER_ONLY_ENV.test(words[0])) {
-      return ownerAsk("environment override needs approval");
+/** Absolute form of `p` (relative ones against `base`); undefined when it is relative and `base` is unknown. */
+const absolute = (p: string, base: string | undefined): string | undefined =>
+  isAbsolute(p) ? p : base ? resolve(base, p) : undefined;
+
+/** True when the real path `abs` lies inside one of `roots`. */
+const insideAny = (abs: string, roots: string[]): boolean =>
+  roots.some((r) => isInside(realOrSame(r), realOrSame(abs)));
+
+/** `put worktrees under <dirs>` denial, shared by `git worktree add` and the EnterWorktree tool. */
+const worktreeDenial = (ctx: GuardrailContext): Decision =>
+  deny(
+    ctx.worktreeDirs?.length
+      ? `put worktrees under ${ctx.worktreeDirs.join(", ")} (a literal path, no expansion)`
+      : "creating worktrees is not allowed here",
+  );
+
+/** The one worktree rule: `path` must be literal and inside `ctx.worktreeDirs` (`base` resolves a relative one). */
+export function checkWorktreePath(
+  path: string | undefined,
+  base: string | undefined,
+  ctx: GuardrailContext,
+): Decision {
+  if (!path || EXPANSION.test(path) || /[*?[]/.test(path)) return worktreeDenial(ctx);
+  const abs = absolute(path, base);
+  return abs && ctx.worktreeDirs && insideAny(abs, ctx.worktreeDirs)
+    ? allow("worktree inside the worktrees dir")
+    : worktreeDenial(ctx);
+}
+
+/** rm: with a recursive flag every target must resolve inside the write paths, /tmp or the worktrees dirs. */
+function checkRm(args: string[], ctx: GuardrailContext, viaXargs: boolean): Decision {
+  const flags = args.filter((a) => a.startsWith("-") && a !== "--");
+  const recursive = flags.some((f) => (f.startsWith("--") ? f === "--recursive" : /[rR]/.test(f)));
+  if (!recursive) return allow("rm");
+  // `xargs rm -r`: the targets come from stdin, the guard cannot see them.
+  if (viaXargs) return deny("recursive delete of unknown targets (xargs) is blocked");
+  const roots = [...(ctx.writePaths ?? []), "/tmp", ...(ctx.worktreeDirs ?? [])];
+  for (const t of args.filter((a) => a !== "--" && !a.startsWith("-"))) {
+    // Home, `$VAR`, backticks, braces: the guard cannot prove the target is safe. A glob is judged by its stem
+    // (`out/*` -> `out/`, `/*` -> `/`, a lone `*` -> the cwd).
+    const stem = t.replace(/[*?[].*$/, "") || ".";
+    const abs = EXPANSION.test(t) ? undefined : absolute(stem, ctx.cwd);
+    if (!abs || !insideAny(abs, roots))
+      return deny("recursive delete outside the work directories is blocked");
+  }
+  return allow("rm inside the work directories");
+}
+
+/** git: deny force push, push to main/master (any other push too until the agent owns PRs), worktree outside the dir. */
+function checkGit(args: string[], ctx: GuardrailContext): Decision {
+  let i = 0;
+  let base = ctx.cwd; // `git -C <dir>` moves the base of relative paths
+  // Skip global options (and the value of those that take one) to find the subcommand.
+  for (; i < args.length && args[i].startsWith("-"); i++) {
+    if (["-C", "-c", "--git-dir", "--work-tree", "--namespace"].includes(args[i])) {
+      if (args[i] === "-C" && args[i + 1]) base = absolute(args[i + 1], ctx.cwd);
+      i++;
     }
+  }
+  const sub = args[i];
+  const rest = args.slice(i + 1);
+  if (sub === "push") {
+    const forced = rest.some(
+      (a) => a.startsWith("--force") || /^-[^-]*f/.test(a) || a.startsWith("+"),
+    );
+    if (forced) return deny("force push is blocked");
+    const toProtected = rest
+      .filter((a) => !a.startsWith("-"))
+      .some((a) => PROTECTED.has((a.split(":").pop() ?? "").replace(/^refs\/heads\//, "")));
+    return toProtected
+      ? deny("push to main/master is blocked")
+      : deny("pushing is done by the app after the owner approves");
+  }
+  if (sub === "worktree" && rest[0] === "move") {
+    // `move <worktree> <new-path>`: the destination is the second positional.
+    return checkWorktreePath(rest.slice(1).filter((a) => !a.startsWith("-"))[1], base, ctx);
+  }
+  if (sub === "worktree" && rest[0] === "add") {
+    // First positional after `add`; `-b/-B <branch>` and `--reason <text>` take a value.
+    const tail = rest.slice(1);
+    const at = tail.findIndex(
+      (a, n) => !a.startsWith("-") && !["-b", "-B", "--reason"].includes(tail[n - 1] ?? ""),
+    );
+    return checkWorktreePath(tail[at], base, ctx);
+  }
+  return allow("git");
+}
+
+/** Judge one simple command. */
+function checkSegment(seg: Segment, ctx: GuardrailContext): Decision {
+  const words = [...seg.words];
+  // Drop env assignments and wrapper commands (`FOO=1 env nice -n 5 cmd`), with the flag values of the wrapper.
+  let viaXargs = false;
+  while (words.length > 0) {
+    const wrapper = WRAPPERS.get(basename(words[0]));
     if (/^[A-Za-z_]\w*=/.test(words[0])) words.shift();
-    else if (WRAPPERS.has(basename(words[0]))) {
+    else if (wrapper) {
+      viaXargs ||= basename(words[0]) === "xargs";
+      const isTimeout = basename(words[0]) === "timeout";
       words.shift();
-      while (words[0]?.startsWith("-")) words.shift();
+      while (words[0]?.startsWith("-")) {
+        const flag = words.shift() as string;
+        if (wrapper.has(flag)) words.shift();
+      }
+      if (isTimeout) words.shift(); // the duration
     } else break;
   }
-  if (words.length === 0) return ownerAsk("no command to evaluate");
+  if (words.length === 0) return allow("no command");
   const cmd = basename(words[0]);
   const args = words.slice(1);
 
@@ -81,115 +174,47 @@ function checkSegment(seg: Segment): Decision {
   if (writesGitDir(cmd, args, seg.redirect))
     return deny("writing to the .git directory is blocked");
   if (["sudo", "su", "doas"].includes(cmd)) return deny("privilege escalation is blocked");
-  if (cmd === "eval") return deny("eval is blocked");
   // The app opens PRs (like `git push`, which is denied): the GitHub CLIs never run from the agent.
   if (cmd === "gh" || cmd === "hub") return deny("use the app for GitHub actions (it opens PRs)");
-  if (SHELLS.has(cmd)) {
-    const inline = args.some((a) => /^-[a-zA-Z]*c/.test(a));
-    const hasScript = args.some((a) => !a.startsWith("-"));
-    if (seg.piped) return deny("piping into a shell is blocked");
-    if (inline || !hasScript) return deny("shell wrapper (-c / stdin) is blocked");
-    return ownerAsk("running a shell script needs approval");
-  }
-  if ((READERS.has(cmd) || NETWORK.has(cmd) || cmd === "git") && args.some(isSecretArg)) {
+  if ((SHELLS.has(cmd) || INTERPRETER.test(cmd)) && seg.piped)
+    return deny("piping into a shell or interpreter is blocked");
+  if ((READERS.has(cmd) || NETWORK.has(cmd) || cmd === "git") && args.some(isSecretArg))
     return deny("access to secret files is blocked");
-  }
-  if (INDIRECT_LAUNCHERS.has(cmd) || (cmd === "find" && args.some((a) => FIND_EXEC_FLAGS.has(a))))
-    return ownerAsk(`${cmd} can launch other commands`);
-  if (cmd === "rm") return checkRm(args);
-  if (cmd === "chmod") return checkChmod(args);
-  if (cmd === "git") return checkGit(args);
-  if (NETWORK.has(cmd)) return checkNetwork(cmd, args);
-  if (PKG_MANAGERS.has(cmd)) return checkPackageManager(cmd, args);
-  return ask(`${cmd} needs approval`);
+  if (cmd === "rm") return checkRm(args, ctx, viaXargs);
+  if (cmd === "git") return checkGit(args, ctx);
+  return allow("no deny rule matched");
 }
 
-/** Canonical key of a single simple command, used to match allowedCommands. */
-function commandKey(command: string): string | null {
-  return commandWords(command)?.join("\0") ?? null;
-}
+/** Raw-text patterns for a line that cannot be tokenized: the clearest dangers only (best effort, coarse). */
+const RAW_DENY: RegExp[] = [
+  /(^|[\s;&|(`])(sudo|su|doas)(\s|$)/,
+  /(^|[\s;&|(`])rm\s+(-\S*[rR]|--recursive)/,
+  /\bgit\b[^\n]*\bpush\b/,
+  /\|\s*(sudo\s+)?(sh|bash|zsh|dash|ksh|fish|python[\d.]*|node|perl|ruby)\b/,
+];
 
-/** Decide a Bash command line. Strictest segment wins; unparseable input asks. */
+/** True when the raw text of an unparseable line hits a clear danger or names a secret file. */
+const rawDanger = (command: string): boolean =>
+  RAW_DENY.some((re) => re.test(command)) ||
+  command.split(/[\s'"`;&|()<>=]+/).some((w) => w !== "" && isSecretPath(w));
+
+/**
+ * Decide a Bash command line: the first segment that hits a deny rule decides, else allow. A line that still cannot
+ * be tokenized (unbalanced quote, paren or backtick) gets a coarse raw-text check instead: a match is denied with a
+ * "rewrite" reason, anything else runs (the parser is best effort and the owner chose a deny list).
+ */
 export function checkBash(command: string, ctx: GuardrailContext): Decision {
   let segments: Segment[];
   try {
     segments = parseCommand(command);
   } catch {
-    return ownerAsk("command could not be parsed");
+    return rawDanger(command)
+      ? deny("command could not be parsed and looks dangerous: rewrite it as simple commands")
+      : allow("command not parsed, not checked");
   }
-  if (segments.length === 0) return ownerAsk("empty command");
-  const allowed = new Set((ctx.allowedCommands ?? []).map(commandKey));
-  const allowedWords = allowlistWords(ctx.allowedCommands);
-  const roots = [...(ctx.writePaths ?? []), ...(ctx.readPaths ?? [])];
-  // `cwd` follows the line's `cd`s. After a cd into a dir that is only READABLE nothing may write or install there:
-  // later segments must be pure git reads or read commands (an allowed `bun install` there would write node_modules).
-  let cwd = ctx.cwd;
-  let readOnly = false;
-  let worst: Decision | null = null;
-  let ownerSeen = false; // some segment asked owner-only: the whole line is owner-only
-  let prevCd = false; // the previous segment was a tracked cd (it ran, or the line stopped there)
-  for (const [n, seg] of segments.entries()) {
-    // A cd moves the guard's cwd only when it surely runs in the main shell: top level, not piped, joined by `&&`
-    // or `;`, and not skipped by an earlier `&&` / `||` / background command. Anything else asks.
-    const seq = ["&&", ";", "\n", ""].includes(seg.next);
-    const reached: boolean = n === 0 || prevCd || [";", "\n"].includes(segments[n - 1]?.next ?? "");
-    const cd: CdState | undefined =
-      seg.depth === 0 && !seg.piped && seq && reached
-        ? checkCd(seg.words, cwd, ctx.writePaths ?? [], ctx.readPaths ?? [])
-        : undefined;
-    prevCd = !!cd;
-    let d: Decision;
-    if (cd) {
-      d = allow("cd inside allowed directory");
-      cwd = cd.cwd;
-      readOnly ||= cd.readOnly;
-    } else if (writesSkillDir(seg, cwd, ctx.skillDirs)) {
-      d = deny("writing to a skill directory is blocked");
-    } else if (isReadCommand(seg.words, cwd, roots)) {
-      d = allow("read-only command");
-    } else if (isSkillScript(seg, cwd, ctx, readOnly)) {
-      // Skill script of this run.
-      d = checkSkillScript(seg, allowed, checkSegment, cwd, ctx);
-    } else {
-      d = checkSegment(seg);
-      if (d.decision === "allow" && (readOnly || seg.words[0] === "git")) {
-        if (!isPureGitRead(seg.words, cwd, roots))
-          d = ask("only git reads inside the allowed directories run here");
-      } else if (readOnly) {
-        // nothing else runs in a read-only directory
-      } else if (d.decision === "ask" && extendsAllowed(seg.words, allowedWords)) {
-        // The allowlisted command (also with extra plain arguments) only upgrades ask; hard denies still win.
-        d = allow("allowlisted command");
-      }
-    }
-    // A file redirect can write anywhere, so an otherwise-safe command must ask; leaving the write paths = the
-    // owner decides, even in auto mode (owner-only.ts).
-    if (
-      d.decision !== "deny" &&
-      seg.redirect &&
-      redirectLeavesWritePaths(seg.words, cwd, ctx.writePaths ?? [])
-    )
-      d = ownerAsk("output redirection outside the write paths needs approval");
-    else if (d.decision === "allow" && seg.redirect) d = ask("output redirection needs approval");
-    ownerSeen ||= d.decision === "ask" && !!d.ownerOnly;
-    if (!worst || RANK[d.decision] > RANK[worst.decision]) worst = d;
-    if (d.decision === "deny") break;
+  for (const seg of segments) {
+    const d = checkSegment(seg, ctx);
+    if (d.decision === "deny") return d;
   }
-  // An expansion anywhere (`$VAR`, `${..}`, `$(..)`, backtick, `~`, `{a,b}`, `<(..)`) can read what the guard never saw
-  // (env secrets leak through error text): the line never runs without a decision. A deny stays a deny.
-  // `~` / `$HOME` reach the owner's real files: owner-only even when another reason already asked.
-  const expands =
-    /[<>]\(/.test(command) ||
-    segments.some((s) => s.words.some((w) => /[$`{}]/.test(w) || w.startsWith("~")));
-  const homeRef = segments.some((s) => s.words.some((w) => HOME_REF.test(w)));
-  // A substitution can launch anything (`$(echo gh)`): owner-only whatever else was decided (a deny stays).
-  if (worst && worst.decision !== "deny" && SUBSTITUTION.test(command))
-    return ownerAsk("command substitution needs approval");
-  if (worst?.decision === "allow" && (expands || homeRef))
-    return homeRef
-      ? ownerAsk("home directory expansion needs approval")
-      : ask("shell expansion needs approval");
-  if (worst?.decision === "ask" && (ownerSeen || homeRef) && !worst.ownerOnly)
-    return { ...worst, ownerOnly: true };
-  return worst ?? ownerAsk("empty command");
+  return allow("no deny rule matched");
 }

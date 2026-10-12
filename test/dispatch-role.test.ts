@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
+import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { listPendingProposals } from "../src/storage/proposal-store";
 import { insertTurn } from "../src/storage/run-store";
@@ -93,7 +94,7 @@ test("ask rule: unknown repo -> ONE question, proposal stays pending, no task ro
 
 test("refusal (cap full): proposal refused, reply says busy, nothing starts", async () => {
   const { env, repos } = await setup();
-  for (const id of ["a", "b"])
+  for (const id of Array.from({ length: MAX_CAPPED_TASKS }, (_, n) => `cap${n}`))
     insertTurn(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   const runs: unknown[] = [];
   const reply = await dispatchRole(deps(env, runs), {

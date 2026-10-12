@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   GIT_MCP_SERVER,
   GIT_TOOL,
@@ -17,6 +19,7 @@ test("SDK built-in tool names are the real wire names", () => {
     READ_TOOL_NAME: "Read",
     GLOB_TOOL_NAME: "Glob",
     GREP_TOOL_NAME: "Grep",
+    LSP_TOOL_NAME: "LSP",
     WRITE_TOOL_NAME: "Write",
     EDIT_TOOL_NAME: "Edit",
     MULTI_EDIT_TOOL_NAME: "MultiEdit",
@@ -29,6 +32,8 @@ test("SDK built-in tool names are the real wire names", () => {
     AGENT_TOOL_NAME: "Agent",
     LEGACY_AGENT_TOOL_NAME: "Task",
     SEND_MESSAGE_TOOL_NAME: "SendMessage",
+    LIST_AGENTS_TOOL_NAME: "ListAgents",
+    ENTER_WORKTREE_TOOL_NAME: "EnterWorktree",
     TODO_WRITE_TOOL_NAME: "TodoWrite",
     TASK_CREATE_TOOL_NAME: "TaskCreate",
     TASK_UPDATE_TOOL_NAME: "TaskUpdate",
@@ -39,10 +44,11 @@ test("SDK built-in tool names are the real wire names", () => {
     EXIT_PLAN_MODE_TOOL_NAME: "ExitPlanMode",
     ENTER_PLAN_MODE_TOOL_NAME: "EnterPlanMode",
     ASK_USER_QUESTION_TOOL_NAME: "AskUserQuestion",
-    LIST_MCP_RESOURCES_TOOL_NAME: "ListMcpResources",
-    READ_MCP_RESOURCE_TOOL_NAME: "ReadMcpResource",
-    READ_MCP_RESOURCE_DIR_TOOL_NAME: "ReadMcpResourceDir",
+    LIST_MCP_RESOURCES_TOOL_NAME: "ListMcpResourcesTool",
+    READ_MCP_RESOURCE_TOOL_NAME: "ReadMcpResourceTool",
+    READ_MCP_RESOURCE_DIR_TOOL_NAME: "ReadMcpResourceDirTool",
     REFRESH_MCP_TOOLS_TOOL_NAME: "RefreshMcpTools",
+    WAIT_FOR_MCP_SERVERS_TOOL_NAME: "WaitForMcpServers",
     SEND_FEEDBACK_TOOL_NAME: "SendFeedback",
   });
 });
@@ -64,3 +70,33 @@ test("full MCP names: mcp__<server>__<tool>, valid characters", () => {
   const valid = /^mcp__[a-zA-Z0-9_-]+__[a-zA-Z0-9_-]+$/;
   for (const t of Object.values(GIT_TOOL)) expect(mcpToolName("git", t)).toMatch(valid);
 });
+
+/** The installed SDK package dir (and the platform packages beside it, which hold the bundled CLI binary). */
+const SCOPE = join(import.meta.dir, "..", "node_modules", "@anthropic-ai");
+const SDK_JS = join(SCOPE, "claude-agent-sdk", "sdk.mjs");
+
+test.skipIf(!existsSync(SDK_JS))(
+  "tool names the app relies on exist as strings in the installed SDK package (a rename shows up here)",
+  () => {
+    const wanted = [
+      sdk.LIST_MCP_RESOURCES_TOOL_NAME,
+      sdk.READ_MCP_RESOURCE_TOOL_NAME,
+      sdk.READ_MCP_RESOURCE_DIR_TOOL_NAME,
+      sdk.WAIT_FOR_MCP_SERVERS_TOOL_NAME,
+      sdk.LIST_AGENTS_TOOL_NAME,
+    ];
+    // sdk.mjs holds the alias map; a few names live only in the platform package's bundled CLI binary.
+    const sources = [SDK_JS];
+    for (const d of readdirSync(SCOPE).filter((n) => n.startsWith("claude-agent-sdk-"))) {
+      const bin = join(SCOPE, d, "claude");
+      if (existsSync(bin)) sources.push(bin);
+    }
+    const missing = new Set(wanted);
+    for (const file of sources) {
+      if (missing.size === 0) break;
+      const data = readFileSync(file);
+      for (const name of [...missing]) if (data.includes(name)) missing.delete(name);
+    }
+    expect([...missing]).toEqual([]);
+  },
+);

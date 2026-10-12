@@ -49,12 +49,14 @@ test("Q&A reads only the registered repos: outside paths, home dotfiles and othe
   );
   expect((await can(READ_TOOL_NAME, { file_path: "/etc/hosts" }, {})).behavior).toBe("deny");
   expect((await can(GREP_TOOL_NAME, { pattern: "x", path: "/Users" }, {})).behavior).toBe("deny");
-  // Web + skills are allowed in Q&A; writes and Bash are not even offered (and denied if asked).
+  // Web + skills are allowed in Q&A; Bash is not offered; writes are denied if asked.
   expect((await can(WEB_FETCH_TOOL_NAME, { url: "https://example.com" }, {})).behavior).toBe(
     "allow",
   );
   expect((await can(SKILL_TOOL_NAME, { skill: "x" }, {})).behavior).toBe("allow");
-  expect((await can(BASH_TOOL_NAME, { command: "ls" }, {})).behavior).toBe("deny");
+  // Bash is not offered in Q&A (`tools`); the guard denies it as well.
+  expect(opts.tools).not.toContain(BASH_TOOL_NAME);
+  expect((await can(BASH_TOOL_NAME, { command: "ls" }, {})).behavior).toBe("deny"); // and the guard denies it too
   expect(
     (await can(WRITE_TOOL_NAME, { file_path: join(repo, "z"), content: "" }, {})).behavior,
   ).toBe("deny");

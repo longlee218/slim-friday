@@ -150,15 +150,14 @@ test("full without workspace skills: only the role's set plugin", async () => {
   expect(exec.settingSources).toEqual([]);
 });
 
-test("full: the clone is readable in the exec guard but never writable", async () => {
+test("dev reads are not path-limited (secret names still are): the clone is readable in both workflows, never writable", async () => {
   const { clone, exec } = await runTask({ workflow: "full" }, ["deploy"]);
   const skillFile = join(realpathSync(clone), "a.txt");
   const lean = await runTask({}, ["deploy"]);
   const read = (o: any, p: string) => o.canUseTool("Read", { file_path: p }, {});
   expect((await read(exec, skillFile)).behavior).toBe("allow");
-  expect((await read(lean.exec, join(realpathSync(lean.clone), "a.txt"))).behavior).not.toBe(
-    "allow",
-  );
+  expect((await read(lean.exec, join(realpathSync(lean.clone), "a.txt"))).behavior).toBe("allow");
+  expect((await read(exec, join(realpathSync(clone), ".env"))).behavior).toBe("deny");
   const write = await exec.canUseTool("Write", { file_path: skillFile, content: "x" }, {});
   expect(write.behavior).toBe("deny");
 });

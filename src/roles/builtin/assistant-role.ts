@@ -3,8 +3,8 @@ import type { RoleDefinition } from "../role-types";
 /** Owner questions per task: the assistant has no ask tool today, so this only fills the role contract. */
 const MAX_ASK = 6;
 /** Budget (USD) of a Q&A run on the cheap tier, and of its escalated re-run. Wired into the stage below. */
-const BUDGET_USD = 0.5;
-const ESCALATED_BUDGET_USD = 1.5;
+const BUDGET_USD = 1.0;
+const ESCALATED_BUDGET_USD = 2.5;
 
 /**
  * Auto-compact window of the assistant `qa` stage: the top of the range P3.0 saw accepted (100k-1M), so the
@@ -41,7 +41,7 @@ export const ASSISTANT_ROLE: RoleDefinition = {
   stages: [
     {
       name: "qa",
-      capabilities: ["read", "web", "skills", "subagents", "mcp"],
+      capabilities: ["read", "web", "skills", "mcp"],
       gitGroups: ["read"],
       permissionMode: "auto",
       isolation: "none",

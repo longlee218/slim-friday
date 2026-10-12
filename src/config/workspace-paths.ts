@@ -52,6 +52,8 @@ export function workspacePaths(agentHome: string) {
         /** Working dir of runs that are not bound to one repo. */
         cwd: join(root, "cwd"),
         tasks,
+        /** Where worktrees may be created: the guard only lets `git worktree add` / EnterWorktree name a path inside it. */
+        worktrees: join(root, "worktrees"),
         /** One task's dir: scratch for the plan stage, plan.md for the execute stage. */
         task: (id: string) => {
           const troot = join(tasks, id);

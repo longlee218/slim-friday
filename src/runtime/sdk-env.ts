@@ -1,9 +1,7 @@
-import { type AgentConfig, pickEnv } from "../config/agent-config";
+import type { AgentConfig } from "../config/agent-config";
+import { isChildEnvDenied } from "../config/child-env-deny";
 
-/** Env vars the SDK child may inherit. Everything else (GITHUB_TOKEN, AWS_*, ...) is withheld. */
-const ENV_ALLOWLIST = ["PATH", "HOME", "USER", "SHELL", "LANG", "TMPDIR", "CLAUDE_CONFIG_DIR"];
-
-/** Compaction var the orchestrator sets per stage (never copied from the owner's shell). */
+/** Compaction var the orchestrator sets per stage (on the deny list: never copied from the owner's shell). */
 export const AUTO_COMPACT_WINDOW_VAR = "CLAUDE_CODE_AUTO_COMPACT_WINDOW";
 
 /**
@@ -31,17 +29,20 @@ const MODEL_ALIAS_VARS = [
 ] as const;
 
 /**
- * Build the SDK child env from an allowlist plus the resolved provider's credentials only:
- * anthropic -> OAuth token (when real); openrouter -> base URL, auth token, empty API key, aliases.
- * `compactWindow` (the stage's, from `resolveCompactWindow`) is the ONLY source of the compaction var: it is not
- * in the allowlist, so a value in the caller env never passes through.
+ * Build the SDK child env: the owner's env passes through (the agent runs as the owner, with the owner's git / gh / ssh
+ * auth) minus the bot's own variables (`config/data/child-env-deny.yaml`), then the app-owned ones on top: the resolved
+ * provider's credentials (anthropic -> OAuth token when real; openrouter -> base URL, auth token, empty API key,
+ * aliases), the subagent limits and `compactWindow` (the stage's, from `resolveCompactWindow`): the ONLY source of
+ * the compaction var, a value in the caller env is on the deny list.
  */
 export function sdkEnv(
   config: AgentConfig,
   source: Record<string, string | undefined> = process.env,
   compactWindow?: number,
 ): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = pickEnv(ENV_ALLOWLIST, source);
+  const env: Record<string, string | undefined> = {};
+  for (const [name, value] of Object.entries(source))
+    if (value !== undefined && !isChildEnvDenied(name)) env[name] = value;
   if (config.provider === "openrouter") {
     env.ANTHROPIC_BASE_URL = OPENROUTER_BASE_URL;
     if (config.hasRealAuth) env.ANTHROPIC_AUTH_TOKEN = config.openrouterApiKey;

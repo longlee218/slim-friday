@@ -11,7 +11,9 @@ import {
   EXIT_PLAN_MODE_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
+  LIST_AGENTS_TOOL_NAME,
   LIST_MCP_RESOURCES_TOOL_NAME,
+  LSP_TOOL_NAME,
   MONITOR_TOOL_NAME,
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
@@ -29,6 +31,7 @@ import {
   TASK_UPDATE_TOOL_NAME,
   TODO_WRITE_TOOL_NAME,
   TOOL_SEARCH_TOOL_NAME,
+  WAIT_FOR_MCP_SERVERS_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
   WRITE_TOOL_NAME,
@@ -54,13 +57,15 @@ export const PLAN_FLOW_TOOLS: ReadonlySet<string> = new Set([
 
 /** Built-in tools of each capability. */
 export const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
-  read: [READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME],
+  // LSP is inert unless the owner installs a code-intelligence plugin: no app code for that.
+  read: [READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME, LSP_TOOL_NAME],
   write: [WRITE_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME, NOTEBOOK_EDIT_TOOL_NAME],
   shell: [BASH_TOOL_NAME, MONITOR_TOOL_NAME],
   web: [WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME],
   skills: [SKILL_TOOL_NAME],
-  // Agent starts the SDK's built-in subagent; SendMessage resumes one (the app defines no subagent types).
-  subagents: [AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME],
+  // Agent starts the SDK's built-in subagent; SendMessage resumes one; ListAgents lists the reachable ones (the app
+  // defines no subagent types). Every stage gets these: `toolsFor` adds them, roles do not list the capability.
+  subagents: [AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME, LIST_AGENTS_TOOL_NAME],
   tasks: [
     TODO_WRITE_TOOL_NAME,
     TASK_CREATE_TOOL_NAME,
@@ -75,6 +80,7 @@ export const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
     READ_MCP_RESOURCE_TOOL_NAME,
     READ_MCP_RESOURCE_DIR_TOOL_NAME,
     REFRESH_MCP_TOOLS_TOOL_NAME,
+    WAIT_FOR_MCP_SERVERS_TOOL_NAME,
   ],
   feedback: [SEND_FEEDBACK_TOOL_NAME],
   ask: [ASK_USER_QUESTION_TOOL_NAME],
@@ -93,9 +99,16 @@ const AUTO_ALLOWED = new Set<string>([
   ENTER_PLAN_MODE_TOOL_NAME,
 ]);
 
-/** Built-in tools of a stage (the SDK `tools` option): the tools of its capabilities. */
-export const toolsFor = (stage: StageRef): string[] =>
-  stageOf(stage).capabilities.flatMap((c) => CAPABILITY_TOOLS[c]);
+/**
+ * Built-in tools of a stage (the SDK `tools` option): the tools of its capabilities, plus the `subagents` tools that
+ * EVERY stage gets (owner: all roles may spawn subagents). Deduplicated, so a role that still lists the capability is harmless.
+ */
+export const toolsFor = (stage: StageRef): string[] => [
+  ...new Set([
+    ...stageOf(stage).capabilities.flatMap((c) => CAPABILITY_TOOLS[c]),
+    ...CAPABILITY_TOOLS.subagents,
+  ]),
+];
 
 /** Tools of a stage that need no approval (the guard's `allowTools`). */
 export const autoAllowedTools = (stage: StageRef): string[] =>

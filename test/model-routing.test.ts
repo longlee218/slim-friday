@@ -100,16 +100,16 @@ describe("resolveModel", () => {
 });
 
 describe("resolveBudget", () => {
-  test("stage defaults replace the global 0.5; MAX_BUDGET_USD is a cap", () => {
+  test("stage defaults replace the global cap; MAX_BUDGET_USD is a cap", () => {
     const c = cfg();
     expect(
       [qa, plan, exec].map((s) => resolveBudget(s, getRole(s === qa ? "assistant" : "dev"), {}, c)),
-    ).toEqual([0.5, 1.5, 3]);
+    ).toEqual([1, 1.5, 3]);
     expect(resolveBudget(exec, dev, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(2);
-    expect(resolveBudget(qa, assistant, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(0.5);
+    expect(resolveBudget(qa, assistant, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(1);
   });
-  test("escalated qa 1.5; env pin; owner raise", () => {
-    expect(resolveBudget(qa, assistant, { escalated: true }, cfg())).toBe(1.5);
+  test("escalated qa 2.5; env pin; owner raise", () => {
+    expect(resolveBudget(qa, assistant, { escalated: true }, cfg())).toBe(2.5);
     expect(resolveBudget(exec, dev, {}, cfg({ BUDGET_DEV_EXEC_USD: "4" }))).toBe(4);
     expect(resolveBudget(exec, dev, { extraBudgetUsd: 1.5 }, cfg())).toBe(4.5);
   });

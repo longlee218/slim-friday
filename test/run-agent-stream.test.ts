@@ -14,13 +14,16 @@ import {
   AGENT_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
+  LIST_AGENTS_TOOL_NAME,
   LIST_MCP_RESOURCES_TOOL_NAME,
+  LSP_TOOL_NAME,
   READ_MCP_RESOURCE_DIR_TOOL_NAME,
   READ_MCP_RESOURCE_TOOL_NAME,
   READ_TOOL_NAME,
   REFRESH_MCP_TOOLS_TOOL_NAME,
   SEND_MESSAGE_TOOL_NAME,
   SKILL_TOOL_NAME,
+  WAIT_FOR_MCP_SERVERS_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
@@ -111,15 +114,18 @@ describe("run-agent stream handling", () => {
       READ_TOOL_NAME,
       GLOB_TOOL_NAME,
       GREP_TOOL_NAME,
+      LSP_TOOL_NAME,
       WEB_SEARCH_TOOL_NAME,
       WEB_FETCH_TOOL_NAME,
       SKILL_TOOL_NAME,
-      AGENT_TOOL_NAME,
-      SEND_MESSAGE_TOOL_NAME,
       LIST_MCP_RESOURCES_TOOL_NAME,
       READ_MCP_RESOURCE_TOOL_NAME,
       READ_MCP_RESOURCE_DIR_TOOL_NAME,
       REFRESH_MCP_TOOLS_TOOL_NAME,
+      WAIT_FOR_MCP_SERVERS_TOOL_NAME,
+      AGENT_TOOL_NAME,
+      SEND_MESSAGE_TOOL_NAME,
+      LIST_AGENTS_TOOL_NAME,
     ]);
     expect("agents" in seen).toBe(false); // no app-defined subagents
     expect(seen.mcpServers.git.args[0]).toContain("git-mcp-server"); // pinned package, no npx
@@ -130,21 +136,29 @@ describe("run-agent stream handling", () => {
     expect(seen.abortController).toBeDefined();
   });
 
-  test("child env is an allowlist: no placeholder token, API key, Discord or other secrets", async () => {
+  test("child env is the owner's env minus the bot's own variables: no placeholder token, Discord or app secrets", async () => {
     const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: "REPLACE_ME" });
     const src = {
       PATH: "/bin",
       HOME: "/h",
-      ANTHROPIC_API_KEY: "x",
-      DISCORD_TOKEN: "y",
+      SSH_AUTH_SOCK: "/s", // the owner's own auth passes through
+      GH_TOKEN: "g",
       GITHUB_TOKEN: "z",
       AWS_SECRET_ACCESS_KEY: "w",
       CLAUDE_CONFIG_DIR: "/c",
+      ANTHROPIC_API_KEY: "x", // provider vars are the app's to set
+      DISCORD_TOKEN: "y",
+      AGENT_HOME: "/home/agent",
+      GITHUB_PERSONAL_ACCESS_TOKEN: "p",
       CLAUDE_CODE_OAUTH_TOKEN: "REPLACE_ME",
     };
     expect(sdkEnv(env.config, src)).toEqual({
       PATH: "/bin",
       HOME: "/h",
+      SSH_AUTH_SOCK: "/s",
+      GH_TOKEN: "g",
+      GITHUB_TOKEN: "z",
+      AWS_SECRET_ACCESS_KEY: "w",
       CLAUDE_CONFIG_DIR: "/c",
       ...SUBAGENT_ENV,
     });

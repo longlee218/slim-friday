@@ -4,7 +4,7 @@ import { countActiveCappedTasks } from "../../storage/run-store";
 import { listKeptClones } from "../../storage/worktree-store";
 
 /** Max capped tasks (roles with `countsTowardCap`) running or waiting for approval at once (RAM/quota; spike Q12). */
-export const MAX_CAPPED_TASKS = 2;
+export const MAX_CAPPED_TASKS = 10;
 
 /** Max clones per workspace the owner still holds (kept, or delivered locally); the next task waits for a `/cleanup`. */
 export const MAX_KEPT_CLONES = 10;

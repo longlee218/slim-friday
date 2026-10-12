@@ -72,7 +72,6 @@ test("the real publisher plugin lists every locked skill as <plugin>:<name> and 
   const r = dev(homeWith());
   expect([...r.skills].sort()).toEqual([...INSTALLED].sort());
   const root = r.dirs[0] as string;
-  expect(r.scriptDirs).toEqual([root]);
   // Whole: the copy of every skill hashes to what skills-lock.json pins.
   for (const [name, e] of Object.entries(LOCK.skills))
     expect([name, skillDirHash(join(root, "skills", name))]).toEqual([name, e.computedHash]);
@@ -184,7 +183,6 @@ test("the workspace dir (extra) gets its own plugin next to the publisher one; s
   expect(r.skills).toHaveLength(INSTALLED.length + 1);
   expect(r.dirs).toHaveLength(2);
   expect(r.plugins).toHaveLength(2);
-  expect(r.scriptDirs).toEqual([r.dirs[0] as string]); // a workspace skill's scripts are readable, not auto-run
   r.cleanup();
   expect(readdirSync(join(home, "tmp"))).toEqual([]);
   expect(dev(homeWith("skills:\n  extra: false\n")).skills).toHaveLength(INSTALLED.length);
