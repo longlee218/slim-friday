@@ -66,7 +66,7 @@ src/
 │   ├── prompt-context.ts       # Build full context order: persona → registry → memory → task ledger
 │   ├── memory-writer.ts        # Append task memory + [global] bullets
 │   └── repo-memory.ts          # MEMORY.md loader/writer, append on exec success
-├── orchestrator/               # Task lifecycle
+├── orchestrator/               # Turn / task lifecycle
 │   ├── handle-message.ts       # map thread → session; message command parse; stage detection (phase 4+)
 │   ├── message-commands.ts     # parse message/stop/cleanup commands; repo pinning; Resume routing (phase 5+)
 │   ├── message-routing.ts      # routeMessage (pin / follow-up / refusals -> role), resolveCommand (Resume), runRoute; route-by-intent replaces routeMessage in P1.4c
@@ -76,7 +76,7 @@ src/
 │   ├── dispatch/               # dispatch-role.ts, validate-request.ts, task-repo.ts, proposal-flow.ts, start-proposal.ts (never import runtime/)
 │   ├── engine/                 # generic stage engine, knows no role names: stage-runner.ts (loop over role.stages), gates.ts (gate table + stageKind), owner-confirm.ts (yes/no gate, fails closed), plan-run.ts (gate plan-approval), plain-run.ts (read-only stage), isolation.ts (clone stage + switch), handoff.ts (template), stage-control.ts, budget.ts (budget-hit message + clone diff stat)
 │   ├── outputs/                # answer-output.ts (ESCALATE re-run; opus asks the owner), pr-output.ts + pr-publish.ts (delivery gate: PR), local-result-output.ts (delivery gate: local result + patch), diffstat-cap.ts
-│   └── tasks/                  # task-tracker.ts, task-result.ts, run-limiter.ts
+│   └── turns/                  # turn-tracker.ts, turn-result.ts, run-limiter.ts, steer-registry.ts, status-snapshot.ts
 │   └── ...
 ├── tools/                      # Tool configuration & custom tools
 │   ├── tool-catalog.ts         # single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS (168 lines; `CAPABILITY_TOOLS` is the capability map)
@@ -103,7 +103,7 @@ src/
 │   ├── agent-config.ts         # load/validate env (zod); MODEL, LLM_PROVIDER, OPENROUTER_API_KEY
 │   └── workspace-paths.ts      # AGENT_HOME layout: workspaces/<ws>/{workspace.yaml, skills/, cwd/, tasks/, repos/<repo>/{repo.yaml, repo/, worktrees/}}, data, logs
 ├── storage/                    # Database & persistence
-│   ├── db.ts                   # SQLite setup; worktrees table (phase 4+); tasks.brief column (phase 1c+, idempotent ALTER)
+│   ├── db.ts                   # SQLite setup; worktrees table (phase 4+); turns.brief column (was tasks.brief before schema v3) (phase 1c+, idempotent ALTER)
 │   ├── run-store.ts            # runs table ops; insertTurn stores brief redacted (phase 1c+); memory append on exec success
 │   ├── approval-store.ts       # insertApproval/decideApproval (moved from run-store)
 │   ├── worktree-store.ts       # worktrees table ops (phase 4+)
@@ -283,7 +283,7 @@ All config loaded via zod schema in `src/config/agent-config.ts`:
 
 **Approval Flow:**
 - All approval decisions recorded in approvals table (approval_id, request_type, status, owner_decision, created_at)
-- Task status = waiting_approval while approval pending; updated on decision
+- Turn status = waiting_approval while approval pending; updated on decision
 - Plan mode: ExitPlanMode triggers canUseTool with input.plan; multi-round approval allowed (EnterPlanMode to revise)
 - Create PR button (phase 4+): owner-only, 10 min timeout; push only after button click
 

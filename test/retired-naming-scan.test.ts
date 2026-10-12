@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 /** Every .ts file under `dir` (relative to the repo root), with its source. */
 function sources(dir: string): { file: string; text: string }[] {
@@ -15,10 +15,12 @@ function sources(dir: string): { file: string; text: string }[] {
 
 /**
  * Names retired by the message / turn / task naming cleanup (P3.7). Built from parts so this file does not
- * contain them. Grows per phase. History lives in docs/project-changelog.md only.
+ * contain them. History lives in docs/project-changelog.md only.
  */
 const j = (...parts: string[]) => new RegExp(parts.join(""));
-const RETIRED: Record<string, RegExp> = {
+
+/** Retired functions, types, locals and file paths: banned in src, test AND the living docs. */
+const SYMBOLS: Record<string, RegExp> = {
   // phase 02: ingress type and dep
   "ingress handler type": new RegExp(`\\b${["Handle", "Task"].join("")}\\b`),
   "ingress handler dep": new RegExp(`\\b${["handle", "Task"].join("")}\\b`),
@@ -57,6 +59,13 @@ const RETIRED: Record<string, RegExp> = {
   "storage role fn": new RegExp(`\\b${["task", "Role"].join("")}\\b`),
   "storage interrupt fn": new RegExp(`\\b${["interruptRunning", "Tasks"].join("")}\\b`),
   "storage status type": new RegExp(`\\b${["Task", "Status"].join("")}\\b`),
+};
+
+/**
+ * Retired SQL names and a log literal: banned in src and test (the docs may name them when they describe the
+ * schema v3 migration).
+ */
+const SQL: Record<string, RegExp> = {
   // phase 06: SQL of the renamed table / columns / indexes (the table is `turns` since schema v3)
   "sql select from old table": j("FROM ", "tasks", "\\b"),
   "sql insert into old table": j("INTO ", "tasks", "\\b"),
@@ -68,6 +77,8 @@ const RETIRED: Record<string, RegExp> = {
   "old proposal column": j("from_", "task", "_id"),
   "old kind literal": j("kind: ", '"task', '"'),
 };
+
+const RETIRED: Record<string, RegExp> = { ...SYMBOLS, ...SQL };
 
 /**
  * `task_id` is a column only of worktrees and run_messages (staged tasks) and an SDK tool input: allowed in
@@ -83,14 +94,6 @@ const TASK_ID_OK = [
   "legacy-worktree-expiry.test.ts",
   "p22-review-fixes.test.ts",
   "guard-sdk-tool-catalog.test.ts",
-];
-
-/** File-name patterns also retired in the docs (docs/project-changelog.md keeps history and is not scanned). */
-const RETIRED_IN_DOCS = [
-  j("handle", "-task"),
-  j("task", "-commands"),
-  j("task", "-routing"),
-  j("task", "-type"),
 ];
 
 /**
@@ -123,13 +126,39 @@ test("src and test hold no retired message / turn / task name", () => {
   expect(hits).toEqual([]);
 });
 
-test("docs hold no retired file name (changelog history excepted)", () => {
+test("retired table has no duplicate entry", () => {
+  const all = [...Object.values(SYMBOLS), ...Object.values(SQL)].map((r) => r.source);
+  expect(new Set(all).size).toBe(all.length);
+  expect(Object.keys(SYMBOLS).filter((k) => k in SQL)).toEqual([]);
+});
+
+test("docs hold no retired file or symbol name (changelog history excepted)", () => {
   const docs = readdirSync("docs").filter((f) => f.endsWith(".md") && f !== "project-changelog.md");
   expect(docs.length).toBeGreaterThan(3);
   const hits: string[] = [];
   for (const d of docs) {
     const text = readFileSync(join("docs", d), "utf8");
-    for (const re of RETIRED_IN_DOCS) if (re.test(text)) hits.push(`docs/${d}: ${re.source}`);
+    for (const [name, re] of Object.entries(SYMBOLS))
+      if (re.test(text)) hits.push(`docs/${d}: ${name}`);
   }
   expect(hits).toEqual([]);
+});
+
+test("relative markdown links in docs point at existing files", () => {
+  const docs = readdirSync("docs").filter((f) => f.endsWith(".md"));
+  const missing: string[] = [];
+  let checked = 0;
+  for (const d of docs) {
+    // Fenced code blocks may hold `](...)` text that is not a link: strip them first.
+    const text = readFileSync(join("docs", d), "utf8").replace(/```[\s\S]*?```/g, "");
+    // `](target)` or `](target#anchor)`; skip absolute URLs and pure anchors.
+    for (const m of text.matchAll(/\]\(([^)#\s]+)(?:#[^)]*)?\)/g)) {
+      const target = m[1] ?? "";
+      if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
+      checked++;
+      if (!existsSync(join(dirname(join("docs", d)), target))) missing.push(`docs/${d}: ${target}`);
+    }
+  }
+  expect(checked).toBeGreaterThan(0);
+  expect(missing).toEqual([]);
 });

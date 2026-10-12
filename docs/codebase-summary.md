@@ -87,23 +87,23 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 - **discord-message-handler.ts:** route own bot, DM, mention, reply → message handler
 - **discord-message-rules.ts:** owner check, thread lifecycle
 
-### Session & Task Management
+### Session & Turn Management
 - **handle-message.ts / route-and-run.ts / intent-turn.ts:** thread→session mapping, repo pin, L0 commands, intent turn (role choice), run lock; `route-by-intent.ts` holds the behavior table
 - **src/intent/:** L1 role tag + L2 effort rules + L3 classifier (`decide-intent.ts`); see docs/system-architecture.md "Intent Layer"
 - **message-commands.ts:** parse stop/cleanup commands; repo pinning; Resume routing logic (phase 5+)
-- **tasks/task-tracker.ts:** thread locking, session resume context tracking (phase 5+)
+- **turns/turn-tracker.ts:** thread locking, session resume context tracking (phase 5+)
 - **engine/plain-run.ts:** read-only stage run (Q&A is the 1-stage `assistant` role): cwd pick, clone refresh; reply through `outputs/answer-output.ts` (ESCALATE re-run when the role flag `escalation` is set)
-- **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal (from the intent result), validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
+- **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal (from the intent result), validate, ask or refuse, insert turn row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
 - **engine/stage-runner.ts + gates.ts / plan-run.ts / plain-run.ts / isolation.ts / handoff.ts:** loop over role.stages, run kind from stage data (`gate`, `isolation`; no role names), stage handoff template (plan -> exec prompt), `stages` rows; `orchestrator/run-turn.ts` = one routed message as a role
 - **workspaces/{task-clone,clone-safety,clone-cleanup,clone-lookup}.ts:** task clone creation (`git clone --local`, local base, preflight), safe removal (path rebuilt from validated ids), `/cleanup <id>` lookup in the channel's workspace; `repos/git-cli.ts` = plain argv-only git
 - **engine/owner-confirm.ts + thread/max-effort-gate.ts:** owner-confirm yes/no buttons (fails closed) for effort `max` and `ESCALATE: opus`
 - **engine/budget.ts:** budget-hit message (spent/limit, last words, clone `git diff --stat`, `/go +<usd>` offer)
-- **tasks/task-result.ts:** result types and flow completion
+- **turns/turn-result.ts:** result types and flow completion
 - **outputs/pr-output.ts + pr-publish.ts:** GitHub origin: summary + diff + secret scan + Create PR button; the app pushes `friday/*` to the origin url, then opens the PR
 - **outputs/local-result-output.ts + approvals/clone-decision.ts:** no GitHub origin: branch/base/commits/diff stat, fetch command, patch file (<= 1 MB attached), Keep/Discard buttons (`clone:<keep|discard>:<taskId>`, expired after restart)
 - **lifecycle/clone-retention.ts:** startup: remove delivered/kept clones older than `CLONE_RETENTION_DAYS` (14), orphan dirs, rows without a dir, legacy worktree rows (no base_sha) idle past retention
 - **storage/files-changed.ts:** delivery diff stat -> file count + top paths for the ledger
-- **tasks/run-limiter.ts:** max 3 concurrent runs; max 2 active capped tasks (`MAX_CAPPED_TASKS`)
+- **turns/run-limiter.ts:** max 3 concurrent runs; max 2 active capped tasks (`MAX_CAPPED_TASKS`)
 
 ### Agent & Prompts
 - **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; workspace skills from one app-owned plugin in every mode (`settingSources: []`)
@@ -144,7 +144,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 - **approval-store.ts (Phase 1c+):** insertApproval, decideApproval
 
 ### Dispatch (P1.4c: the Q&A delegate tool is retired)
-- **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal from the intent result, validate, ask or refuse, insert task row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
+- **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal from the intent result, validate, ask or refuse, insert turn row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
 - **message-routing.ts (src/orchestrator/):** shared `cappedTaskBlocker()` blocker check (cap MAX_CAPPED_TASKS, managed clone validation, repo lookup)
 
 ### Repository Management

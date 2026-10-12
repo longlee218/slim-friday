@@ -132,7 +132,7 @@ Type in `#ops-control` (no mention needed): `/init-workspace reelme` (legacy for
 - Gate (all must hold): you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else (any other channel or a thread): not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
 - Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `repos/`, `cwd/`, an empty `skills/` (mode 700), `MEMORY.md` header, heading-only persona stubs); a pre-Step-B dir with that name is refused. (2) private category `<name>` and `#<name>-agent`, create-only (existing names refused, nothing changed). (3) the new channel id is written into `workspace.yaml` (re-rendered deterministically: **comments in that file are lost**, other fields kept). (4) reply with what was created; next: add repos at `workspaces/<name>/repos/<repo>/repo.yaml`.
 - Rerun on a finished workspace: "already set up", nothing created. If channel creation fails midway the reply names what exists (delete a lone category by hand before retrying).
-- No task row, no limiter, no agent; logs `admin.init_workspace`.
+- No turn row, no limiter, no agent; logs `admin.init_workspace`.
 
 ## Manual live check (owner, before relying on it)
 1. `bun run bootstrap:discord --dry-run`, then without `--dry-run`: the 5 items appear; `discord.yaml` written.
@@ -438,7 +438,7 @@ Looks good, also fix the same typo in docs/
 | "gh: command not found" | gh CLI not installed | `brew install gh` (macOS) or `apt install gh` (Linux) |
 | "gh auth failed" | gh not authenticated | Run `gh auth login` and choose HTTP/SSH |
 | "PR button not shown" | No commits made | Check bot's response (usually "No changes made") |
-| Bad DB after an upgrade | The first start of schema v2 migrates the db | Stop the bot; restore the snapshot `$AGENT_HOME/db-backups/friday-v1-<ts>.db`: `cp` it over `data/agent.db` and delete `data/agent.db-wal` and `-shm` (data written after the snapshot is lost). Old code also runs on the migrated db unchanged |
+| Bad DB after an upgrade | The first start of schema v2 / v3 migrates the db (v3 = `tasks` renamed `turns`, backup `friday-v2-<ts>.db`; an older binary cannot open a v3 db: restore the backup and redeploy the previous commit, see [owner-checklist-schema-v3.md](owner-checklist-schema-v3.md)) | Stop the bot; restore the snapshot: `$AGENT_HOME/db-backups/friday-v1-<ts>.db` for a v1 db, `friday-v2-<ts>.db` for v2 -> v3. `cp` it over `data/agent.db` and delete `data/agent.db-wal` and `-shm` (data written after the snapshot is lost). An older binary cannot open a v3 db: restore the backup to go back, steps in [owner-checklist-schema-v3.md](owner-checklist-schema-v3.md) |
 | Bot exits "db snapshot failed" | `db-backups/` not writable or disk full; nothing was migrated | Fix the dir / space and start again |
 | "Create PR button timed out" | Took >10 min to decide | The clone is kept (until retention); use `/cleanup` to remove it |
 | "This action expired." on a button | The bot restarted since the message (pending clicks are in memory) | Nothing ran; use `/cleanup` or send the request again |
