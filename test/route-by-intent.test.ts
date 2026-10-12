@@ -49,42 +49,26 @@ test("idle / done: assistant runs; dev opens a task whatever the scope (no fix r
   }
 });
 
-test("awaiting_plan_approval: dev active = plan feedback; assistant answers, gate stays; dev new queues", () => {
-  expect(act(role("dev", "active"), "awaiting_plan_approval")).toEqual({
-    kind: "feedback",
-    role: "dev",
-  });
-  expect(act(role("assistant", "active"), "awaiting_plan_approval")).toEqual({
-    kind: "side",
-    role: "assistant",
-  });
-  expect(act(role("assistant", "new"), "awaiting_plan_approval")).toEqual({
-    kind: "side",
-    role: "assistant",
-  });
-  expect(act(role("dev", "new"), "awaiting_plan_approval")).toEqual({ kind: "queue", role: "dev" });
-});
-
-test("running (Rev 12): an answering role is ALWAYS answered by the side lane; a staged role: active steers, new queues", () => {
+test("running (Rev 12): a foreground role is ALWAYS answered by the side lane; a background role: active steers, new queues", () => {
   expect(act(role("dev", "active"), "running")).toEqual({ kind: "steer", role: "dev" });
   expect(act(role("assistant", "active"), "running")).toEqual({ kind: "side", role: "assistant" });
   expect(act(role("assistant", "new"), "running")).toEqual({ kind: "side", role: "assistant" });
   expect(act(role("dev", "new"), "running")).toEqual({ kind: "queue", role: "dev" });
 });
 
-test("awaiting_tool_approval behaves as running in the table", () => {
-  expect(act(role("dev", "active"), "awaiting_tool_approval")).toEqual({
+test("awaiting_owner (a tool approval or a question, the plan approval included) behaves as running in the table: typed feedback on a plan is a steer", () => {
+  expect(act(role("dev", "active"), "awaiting_owner")).toEqual({
     kind: "steer",
     role: "dev",
   });
-  expect(act(role("assistant", "active"), "awaiting_tool_approval")).toEqual({
+  expect(act(role("assistant", "active"), "awaiting_owner")).toEqual({
     kind: "side",
     role: "assistant",
   });
-  expect(act(role("dev", "new"), "awaiting_tool_approval")).toEqual({ kind: "queue", role: "dev" });
+  expect(act(role("dev", "new"), "awaiting_owner")).toEqual({ kind: "queue", role: "dev" });
 });
 
-test("awaiting_confirmation (no stage uses it yet): active staged waits, new queues", () => {
+test("awaiting_confirmation: an active background role steers, a new one queues", () => {
   expect(act(role("dev", "active"), "awaiting_confirmation")).toEqual({
     kind: "steer",
     role: "dev",
@@ -93,7 +77,7 @@ test("awaiting_confirmation (no stage uses it yet): active staged waits, new que
 });
 
 test("any state: ask decisions (low confidence, unknown role, failure) and unknown roles ask the owner", () => {
-  const states: ThreadState[] = ["idle", "done", "running", "awaiting_plan_approval"];
+  const states: ThreadState[] = ["idle", "done", "running", "awaiting_confirmation"];
   for (const s of states) {
     for (const reason of [
       "low_confidence",
@@ -107,7 +91,7 @@ test("any state: ask decisions (low confidence, unknown role, failure) and unkno
 });
 
 test("pending answers (read by L3): to a queued/pending ask -> answer-ask; to a button gate -> hint", () => {
-  for (const s of ["idle", "running", "awaiting_plan_approval"] as ThreadState[]) {
+  for (const s of ["idle", "running", "awaiting_confirmation"] as ThreadState[]) {
     expect(act({ kind: "gate-answer", answer: "yes", target: "ask" }, s)).toEqual({
       kind: "answer-ask",
       answer: "yes",
@@ -166,7 +150,9 @@ test("executor: asks, hints and the P1.4b rows are replies; none runs anything",
   expect(
     text(await routeByIntent({ ...c, busy: true }, { kind: "ask", reason: "low_confidence" })),
   ).toBe(STILL_WORKING);
-  expect(text(await routeByIntent(c, { kind: "gate-hint" }))).toContain("Approve / Reject");
+  expect(text(await routeByIntent(c, { kind: "gate-hint" }))).toContain(
+    "buttons on the message above",
+  );
   // no steerable run registered: the message cannot be delivered (steer rows with a run: test/steer-route.test.ts)
   expect(text(await routeByIntent(c, { kind: "steer", role: "dev" }))).toBe(STEER_ENDED);
   // side: a free lock (a gate state) simply runs the answering role; busy hands the question to the side lane
@@ -303,12 +289,8 @@ test("'no' to 'Open a task for this?' (also a row written by the older wording):
   expect(getProposal(env.db, id)?.status).toBe("refused");
 });
 
-test("table reads role DATA, not names: a gated role opens a task, and independent work queues whatever the role", () => {
-  const fake = {
-    ...ROLES.dev,
-    name: "design",
-    stages: [{ ...ROLES.dev!.stages[0]!, name: "design-plan" }],
-  } as never;
+test("table reads role DATA, not names: a background role opens a task, and independent work queues whatever the role", () => {
+  const fake = { ...ROLES.dev, name: "design" } as never;
   (ROLES as Record<string, unknown>).design = fake;
   try {
     expect(act(role("design", "active"), "idle")).toEqual({ kind: "open", role: "design" });

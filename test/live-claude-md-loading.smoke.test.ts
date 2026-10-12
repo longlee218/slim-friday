@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { guardFor } from "../src/guardrails/check-tool-call";
-import { getStage } from "../src/roles/role-registry";
+import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { makeEnv } from "./helpers";
 
@@ -28,7 +28,8 @@ describe.skipIf(!live)("live CLAUDE.md loading canaries (Claude login)", () => {
     const env = makeEnv({
       CLAUDE_CODE_OAUTH_TOKEN: key!,
       LLM_PROVIDER: "anthropic",
-      MODEL: process.env.CANARY_MODEL ?? "claude-sonnet-5-5",
+      MODEL_DEV: process.env.CANARY_MODEL ?? "claude-sonnet-5-5",
+      MODEL_ASSISTANT: process.env.CANARY_MODEL ?? "claude-sonnet-5-5",
       MAX_TURNS: "3",
       TIMEOUT_MS: "90000",
     });
@@ -50,9 +51,9 @@ describe.skipIf(!live)("live CLAUDE.md loading canaries (Claude login)", () => {
       prompt:
         "List every token of the form CANARY_<letter>_7f3 that appears in your instructions. Reply with only the tokens, comma separated, or NONE. Do not use tools.",
       turnId: "canary1",
-      stage: getStage("assistant", "qa"),
+      role: getRole("assistant"),
       cwd: repo,
-      guard: guardFor("qa", { readPaths: [repo], gitReadRepos: [] }),
+      guard: guardFor(getRole("assistant"), { readPaths: [repo], gitReadRepos: [] }),
       config: env.config,
       db: env.db,
       abortController: new AbortController(),

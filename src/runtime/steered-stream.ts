@@ -136,7 +136,7 @@ export async function consumeSteered(p: SteeredInput): Promise<StreamResult> {
       for (const s of late) hook.settle(s, "dropped");
       return total;
     }
-    // The late messages are the next turn's prompt in the SAME session (counts toward the same stage budget);
+    // The late messages are the next turn's prompt in the SAME session (counts toward the same run budget);
     // they are settled when that round ends (above), not before the model read them.
     resumed = late;
     prompt = late.map((s) => s.text).join("\n\n");

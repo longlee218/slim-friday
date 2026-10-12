@@ -16,8 +16,7 @@ function sources(dir: string): { file: string; text: string }[] {
 
 /**
  * Names of the retired Q&A handoff (the assistant never proposes a change: the intent layer routes it).
- * Built from parts so this file does not contain them. `StageHandoff` (plan -> exec prompt data) is a different
- * thing and stays. History lives in docs/project-changelog.md only.
+ * Built from parts so this file does not contain them. History lives in docs/project-changelog.md only.
  */
 const RETIRED: Record<string, RegExp> = {
   tool: new RegExp(["Delegate", "Task"].join("")),
@@ -45,8 +44,8 @@ test("src and test hold no name of the retired handoff tool (this file excepted)
   expect(hits).toEqual([]);
 });
 
-test("the assistant is a plain read-only role: no write, shell, ask or plan-control capability", () => {
-  const caps = ASSISTANT_ROLE.stages.flatMap((s) => s.capabilities);
-  for (const c of ["write", "shell", "ask", "planControl"]) expect(caps).not.toContain(c as never);
-  expect(ASSISTANT_ROLE.stages.every((s) => s.gitGroups.join() === "read")).toBe(true);
+test("the assistant is a plain read-only role: no write, shell or ask capability", () => {
+  for (const c of ["write", "shell", "ask"])
+    expect(ASSISTANT_ROLE.capabilities).not.toContain(c as never);
+  expect(ASSISTANT_ROLE.gitGroups.join()).toBe("read");
 });

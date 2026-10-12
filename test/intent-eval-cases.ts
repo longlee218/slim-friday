@@ -13,14 +13,12 @@ import { IDLE_CASES } from "./intent-eval-cases-idle";
 export interface ThreadFacts {
   state: ThreadState;
   activeRole?: string;
-  activeStage?: string;
-  gate?: "plan-approval";
   /** One line per earlier task (the classifier sees the last 3). */
   ledger?: string[];
   /** The thread has a task or a live clone (scope `active` is possible). Default: state is not idle/done. */
   hasTask?: boolean;
-  /** Role and last stage of the thread's previous turn (L3 input `lastTurn`). */
-  lastTurn?: { role: string; kind: string };
+  /** Role of the thread's previous turn (L3 input `lastTurn`). */
+  lastTurn?: { role: string };
 }
 
 /** What the layer must decide. A missing field is not scored. `ask` = low confidence (the owner is asked). */
@@ -56,23 +54,19 @@ export interface GoldenCase {
 
 const LEDGER = ["dev: add isEmail helper to src/utils.ts (done, 1 commit)"];
 const PLAN: ThreadFacts = {
-  state: "awaiting_plan_approval",
+  state: "running",
   activeRole: "dev",
-  activeStage: "plan",
-  gate: "plan-approval",
-  ledger: ["dev: round formatPrice to 2 decimals (plan waiting)"],
+  ledger: ["dev: round formatPrice to 2 decimals (plan waiting for approval)"],
 };
 const RUNNING: ThreadFacts = {
   state: "running",
   activeRole: "dev",
-  activeStage: "exec",
   ledger: ["dev: round formatPrice to 2 decimals (running)"],
 };
 // A finished task: the agent delivered it itself, so the thread is idle and every request is a new turn.
 const RESULT: ThreadFacts = {
   state: "done",
   activeRole: "dev",
-  activeStage: "exec",
   ledger: ["dev: round formatPrice to 2 decimals (done)"],
 };
 
@@ -82,7 +76,7 @@ export const GOLDEN: GoldenCase[] = [
   ...DISCUSSION_CASES,
   ...DESIGN_CASES,
   ...CONVERSATION_CASES,
-  // Plan gate: feedback on the plan is dev/active; a question is the assistant; a separate request is new.
+  // Plan waiting for approval (an ask): feedback on the plan is dev/active; a question is the assistant; a separate request is new.
   {
     text: "Please also handle the null case in the plan.",
     thread: PLAN,

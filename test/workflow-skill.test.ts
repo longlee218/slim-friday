@@ -23,12 +23,22 @@ const TEMPLATE = readFileSync(
 test("template: frontmatter name, <= 120 lines, report format and steps", () => {
   expect(TEMPLATE.split("\n").length).toBeLessThanOrEqual(120);
   expect(TEMPLATE.startsWith("---\nname: workflow\n")).toBe(true);
-  for (const s of ["Triage", "Understand", "Plan", "Implement", "Verify", "Deliver"])
+  for (const s of [
+    "Triage",
+    "Understand",
+    "Design and plan",
+    "Owner approval",
+    "Implement",
+    "Verify",
+    "Finish",
+    "Report",
+  ])
     expect(TEMPLATE).toContain(s);
   for (const s of ["TL;DR", "Changes", "Verification", "Open questions", "Definition of done"])
     expect(TEMPLATE).toContain(s);
   expect(TEMPLATE).toContain("testCommand");
   expect(TEMPLATE).toContain("path:line");
+  expect(TEMPLATE).not.toMatch(/\bstages?\b/i);
 });
 
 test("template: every skill the which-skill table names is installed (in the skills lock)", () => {
@@ -36,10 +46,10 @@ test("template: every skill the which-skill table names is installed (in the ski
     (l) => l.startsWith("| ") && l.includes("`superpowers:"),
   );
   const named = rows.map((l) => /`superpowers:([a-z-]+)`/.exec(l)?.[1]).sort();
-  expect(named).toHaveLength(6);
+  expect(named).toHaveLength(7);
   const installed = Object.keys(readSkillsLock());
   for (const n of named) expect(installed).toContain(n as string);
-  // The subagent skills are named only in prose (execute stage, plans of 3+ tasks), never as a plan-stage table row.
+  // The subagent skills are named only in prose (plans of 3+ tasks), never as a table row.
   expect(rows.join("\n")).not.toMatch(
     /subagent-driven|requesting-code-review|receiving-code-review/,
   );

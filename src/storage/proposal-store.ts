@@ -31,7 +31,7 @@ export interface Proposal {
   scope: string | null;
   confidence: number | null;
   reason: string | null;
-  /** Effort resolved when it was queued (null = the stage defaults); read back when the queue starts it. */
+  /** Effort resolved when it was queued (null = the role defaults); read back when the queue starts it. */
   effort: Effort | null;
   status: ProposalStatus;
   createdAt: number;

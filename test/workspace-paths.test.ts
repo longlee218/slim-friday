@@ -36,7 +36,6 @@ test("workspace layout: workspaces/<ws>/repos/<repo>/{repo.yaml,MEMORY.md,repo,w
   expect(ws.task("T1")).toEqual({
     root: "/h/workspaces/shop/tasks/T1",
     scratch: "/h/workspaces/shop/tasks/T1/scratch",
-    plan: "/h/workspaces/shop/tasks/T1/plan.md",
   });
   expect(ws.repos).toBe("/h/workspaces/shop/repos");
   expect(ws.repo("api")).toEqual({

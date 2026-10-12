@@ -4,7 +4,6 @@ import { budgetHitMessage } from "../src/orchestrator/engine/budget";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { parseMessageCommand } from "../src/orchestrator/message-commands";
 import { escalationAction, parseEscalation } from "../src/orchestrator/outputs/answer-output";
-import { listStages } from "../src/storage/stage-store";
 import { fakeQuery, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
 describe("parseEscalation (fail closed)", () => {
@@ -91,15 +90,16 @@ describe("Q&A escalation through the handler", () => {
     });
     expect(reply).toBe("Escalated to Sonnet.\n\nreal answer");
   });
-  test("qa stage row records the escalated re-run's model, else the first run's", async () => {
-    const stageModel = (db: Awaited<ReturnType<typeof ask>>["db"]) => {
-      const t = db.query<{ id: string }, []>("SELECT id FROM turns").get()!;
-      return listStages(db, t.id).map((r) => [r.name, r.model]);
-    };
+  test("the runs rows record each run's model: the first run's, then the escalated re-run's", async () => {
+    const models = (db: Awaited<ReturnType<typeof ask>>["db"]) =>
+      db
+        .query<{ model: string }, []>("SELECT model FROM runs ORDER BY rowid")
+        .all()
+        .map((r) => r.model);
     const esc = await ask(["no idea\nESCALATE: sonnet", "real answer"]);
-    expect(stageModel(esc.db)).toEqual([["qa", "claude-sonnet-5-5"]]);
+    expect(models(esc.db)).toEqual(["claude-haiku-4-5-20251001", "claude-sonnet-5-5"]);
     const plain = await ask(["fine"]);
-    expect(stageModel(plain.db)).toEqual([["qa", "claude-haiku-4-5-20251001"]]);
+    expect(models(plain.db)).toEqual(["claude-haiku-4-5-20251001"]);
   });
   test("rerun that fails: no 'Escalated' prefix", async () => {
     const env = makeEnv();
@@ -124,7 +124,7 @@ describe("Q&A escalation through the handler", () => {
   });
   test("pinned qa model: no re-run, no 'Escalated', one owner line", async () => {
     const { reply, calls } = await ask(["no idea\nESCALATE: sonnet"], {
-      MODEL_ASSISTANT_QA: "claude-haiku-4-5-20251001",
+      MODEL_ASSISTANT: "claude-haiku-4-5-20251001",
     });
     expect(calls.length).toBe(1);
     expect(calls[0]?.system).not.toContain("ESCALATE:");

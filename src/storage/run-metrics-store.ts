@@ -5,8 +5,6 @@ export interface RunRecord {
   id: string;
   turnId: string;
   model: string;
-  /** Stage index (stages.idx) of the run; omitted = NULL (side answer, compaction, plain run without a stage). */
-  stageIdx?: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -22,8 +20,8 @@ export interface RunRecord {
 export function insertRun(db: Database, r: RunRecord): void {
   db.query(
     `INSERT INTO runs (id, turn_id, model, input_tokens, output_tokens, cache_read_tokens,
-       cache_creation_tokens, cost_usd, turns, duration_ms, outcome, compactions, stage_idx)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       cache_creation_tokens, cost_usd, turns, duration_ms, outcome, compactions)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     r.id,
     r.turnId,
@@ -37,7 +35,6 @@ export function insertRun(db: Database, r: RunRecord): void {
     r.durationMs,
     r.outcome,
     r.compactions,
-    r.stageIdx ?? null,
   );
 }
 
@@ -85,4 +82,32 @@ export function latestToolCall(
     )
     .get(turnId);
   return row ? { tool: row.tool, subagent: row.agent_id !== null } : undefined;
+}
+
+/**
+ * USD a task has cost so far: its own runs plus the runs of the tasks it resumes. A continuation (interrupt Resume, `/go`)
+ * is a new turn row of kind `resume` whose `parent_turn_id` is the task it continues; the chain is followed up while the
+ * child is a `resume`, so `TASK_BUDGET_USD` is a ceiling over the whole task, not over one run.
+ */
+export function spentByTask(db: Database, turnId: string): number {
+  const row = db
+    .query<{ usd: number }, [string]>(
+      `WITH RECURSIVE chain(id, parent, resumed) AS (
+         SELECT id, parent_turn_id, kind = 'resume' FROM turns WHERE id = ?
+         UNION ALL
+         SELECT t.id, t.parent_turn_id, t.kind = 'resume' FROM turns t JOIN chain c ON t.id = c.parent WHERE c.resumed
+       )
+       SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM runs WHERE turn_id IN (SELECT id FROM chain)`,
+    )
+    .get(turnId);
+  return row?.usd ?? 0;
+}
+
+/** Outcome of the latest run of a turn (`max_budget`, `error`, ...), or undefined when it has no run row. */
+export function lastRunOutcome(db: Database, turnId: string): string | undefined {
+  return db
+    .query<{ outcome: string }, [string]>(
+      "SELECT outcome FROM runs WHERE turn_id = ? ORDER BY rowid DESC LIMIT 1",
+    )
+    .get(turnId)?.outcome;
 }

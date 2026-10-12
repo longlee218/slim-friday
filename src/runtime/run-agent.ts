@@ -12,14 +12,14 @@ import {
   type RunUsage,
 } from "../observability/record-run";
 import type { Workflow } from "../repos/repo-registry";
-import type { StageDefinition } from "../roles/role-types";
+import type { RoleDefinition } from "../roles/role-types";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import { createPermissionWatch } from "./permission-watch";
 import type { SteerHook } from "./run-input-channel";
 import { consumeStream, type QueryFn, type StreamResult } from "./run-stream";
-import { buildSdkOptions, stageConfig } from "./sdk-options";
+import { buildSdkOptions, roleConfig } from "./sdk-options";
 import { NO_SKILLS, type RunSkills } from "./skills-plugin/plugin-builder";
-import { buildStageSkills } from "./skills-plugin/stage-skills";
+import { buildRoleSkills } from "./skills-plugin/role-skills";
 import { consumeSteered } from "./steered-stream";
 import type { ToolPermissionInput } from "./tool-permissions";
 
@@ -39,25 +39,23 @@ export interface RunAgentInput {
   extraContext?: string[];
   /** Guardrails of the run (paths, git repos, allowed tools). Every mode has one; omitted only in unit tests. */
   guard?: GuardrailContext;
-  /** The stage to run: its tools, model slot, permission mode, timeout and prompt. */
-  stage: StageDefinition;
-  /** Permission layer of a gated stage (gateway, plan, ask limits). Omitted = a stage without a gateway (ask = deny). */
+  /** The role to run: its tools, model slot, permission mode and prompt. */
+  role: RoleDefinition;
+  /** Permission layer of the run (gateway, ask limit). Omitted = a run without a gateway (ask = deny). */
   code?: Omit<ToolPermissionInput, "turnId" | "guard">;
-  /** `full` repo workflow (plan: some candidate repo is full; exec: the repo is): adds its rules to the prompt. */
+  /** `full` repo workflow (the repo, or some repo in scope, is full): adds its rules to the prompt. */
   workflow?: Workflow;
-  /** Exec stage: where the agent may put a git worktree (`<workspace worktrees dir>/<repo>`), told in one prompt line. */
+  /** Where the agent may put a git worktree (`<workspace worktrees dir>/<repo>`), told in one prompt line. */
   worktreesDir?: string;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never repo content). */
   skillsWorkspace?: string;
-  /** Routing facts (class, effort, forced tier, escalation); omitted = the stage defaults. */
+  /** Routing facts (class, effort, forced tier, escalation); omitted = the role defaults. */
   route?: Route;
-  /** Index of the stage this run executes (written to runs.stage_idx); omitted for non-stage runs. */
-  stageIdx?: number;
   /** Existing Claude session id to resume. */
   resume?: string;
   /**
-   * Streaming-input mode (plan / exec stages): the prompt goes in as the first item of an input channel whose
-   * sink is registered here, so the owner's later messages reach the model. Omitted = a plain string prompt (qa).
+   * Streaming-input mode (background roles): the prompt goes in as the first item of an input channel whose
+   * sink is registered here, so the owner's later messages reach the model. Omitted = a plain string prompt.
    */
   steer?: SteerHook;
   config: AgentConfig;
@@ -81,8 +79,10 @@ export interface RunAgentResult {
   usage: RunUsage;
   /** Budget (USD) this run was capped at; undefined = no cap. Read by the budget-hit message. */
   budgetUsd?: number;
-  /** The task ceiling (TASK_BUDGET_USD minus the other stages' spend), not the stage budget, was the cap of this run. */
+  /** The task ceiling (TASK_BUDGET_USD minus the task's earlier spend), not the role budget, was the cap of this run. */
   ceilingBound?: boolean;
+  /** What the task's earlier runs already cost (USD), for the budget-hit message's raise offer. */
+  spentBeforeUsd?: number;
   /** Quota outcome: when the limit resets (epoch ms), if the SDK reported it. */
   resetsAt?: number;
   /** Last thing the assistant said (text of its last message with text); the budget-hit message shows it. */
@@ -92,12 +92,12 @@ export interface RunAgentResult {
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "run-agent" });
 
-/** Run the agent once (read-only Q&A, or a code task when `code` is set), recording messages, tool calls and the run row. */
+/** Run the agent once (an answer, or a code task: the role says), recording messages, tool calls and the run row. */
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const { abortController: ac } = input;
-  // The stage (role definition) decides tools, model slot, permission mode, timeout and prompt.
-  const { stage } = input;
-  const config = stageConfig(stage, input.config, input.route);
+  // The role definition decides tools, model slot, permission mode and prompt.
+  const { role } = input;
+  const config = roleConfig(role, input.config, input.route);
   // OpenRouter without a real key would only retry on 401 until timeout: fail fast instead.
   if (config.provider === "openrouter" && !config.hasRealAuth) {
     log.error("OPENROUTER_API_KEY missing or placeholder");
@@ -116,7 +116,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     input.turnId,
     config.model,
     workspacePaths(config.agentHome).taskLog(input.turnId),
-    input.stageIdx,
   );
   const run = input.queryFn ?? (sdkQuery as QueryFn);
 
@@ -127,12 +126,12 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   let sk: RunSkills = NO_SKILLS;
 
   try {
-    sk = buildStageSkills(stage, input.skillsWorkspace, config.agentHome);
+    sk = buildRoleSkills(role, input.skillsWorkspace, config.agentHome);
     // Auto mode is requested here and confirmed by the SDK init message (permission-watch.ts).
-    const requestedMode = resolvePermissionMode(stage, config);
+    const requestedMode = resolvePermissionMode(role, config);
     const autoState: ModeActive = { active: requestedMode === "auto" };
     const bypassState: ModeActive = { active: requestedMode === "bypassPermissions" };
-    const options = buildSdkOptions(stage, input, {
+    const options = buildSdkOptions(role, input, {
       config,
       recorder,
       skills: sk,
@@ -179,5 +178,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     lastText,
     budgetUsd: config.limits.maxBudgetUsd,
     ceilingBound: ceilingBinds(config.limits.maxBudgetUsd, input.route?.spentUsd),
+    spentBeforeUsd: input.route?.spentUsd,
   };
 }

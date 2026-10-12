@@ -91,7 +91,7 @@ export function fakeQuery(msgs: SDKMessage[], thenThrow?: Error) {
 
 /**
  * Text of the first user message of a query's `prompt`: the string itself (qa), or the first item of the
- * streaming input (plan / exec stages, see run-input-channel.ts). Reads one item; the rest is left unread.
+ * streaming input (streaming roles, see run-input-channel.ts). Reads one item; the rest is left unread.
  */
 export async function promptText(prompt: unknown): Promise<string> {
   if (typeof prompt === "string") return prompt;
@@ -148,7 +148,6 @@ export function clearWorkspaces(home: string): void {
 /** Approval gateway that approves everything; override the methods a test cares about. */
 export const stubGateway = (over: Partial<ApprovalGateway> = {}): ApprovalGateway => ({
   request: async () => ({ approved: true }),
-  requestPlan: async () => ({ approved: true }),
   confirm: async () => ({ approved: true }),
   cancelTurn: () => {},
   askChoice: async () => undefined,

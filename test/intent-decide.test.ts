@@ -61,12 +61,12 @@ test("pending answers come from L3 only: yes/no to a pending question (ask) or a
   const d = { pipeline, classifier: engine(yes).classifier };
   const ask = await run(d, input("okay đồng ý", { state: "running", pendingQuestion: "Run it?" }));
   expect(ask.decision).toEqual({ kind: "gate-answer", answer: "yes", target: "ask" });
-  const gate = await run(d, input("ok", { state: "awaiting_plan_approval" }));
+  const gate = await run(d, input("ok", { state: "awaiting_confirmation" }));
   expect(gate.decision).toEqual({ kind: "gate-answer", answer: "yes", target: "gate" });
   // a pending proposal wins over the button gate
   const both = await run(
     { pipeline, classifier: engine(answer({ pendingAnswer: "no" })).classifier },
-    input("không", { state: "awaiting_plan_approval", pendingQuestion: "Run it?" }),
+    input("không", { state: "awaiting_confirmation", pendingQuestion: "Run it?" }),
   );
   expect(both.decision).toEqual({ kind: "gate-answer", answer: "no", target: "ask" });
   // nothing waits: the model's pendingAnswer is ignored, the message is routed as usual
@@ -190,7 +190,7 @@ test("engine failure: idle / done -> entry role; any other state -> ask; never a
         role: "assistant",
         scope: "new",
       });
-    for (const state of ["running", "awaiting_plan_approval"] as const)
+    for (const state of ["running", "awaiting_confirmation"] as const)
       expect((await run(d, input(VAGUE, { state, hasTask: true }))).decision).toEqual({
         kind: "ask",
         reason: "unclassified",

@@ -11,8 +11,7 @@ import {
 import { mcpServersFor } from "../mcp/mcp-servers";
 import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
-import { roleOfStage } from "../roles/role-registry";
-import type { StageDefinition } from "../roles/role-types";
+import type { RoleDefinition } from "../roles/role-types";
 import { toolOptions } from "../tools/tool-catalog";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import type { RunAgentInput } from "./run-agent";
@@ -22,19 +21,18 @@ import { buildSystemPrompt } from "./system-prompt";
 import { buildToolPermissions } from "./tool-permissions";
 
 /**
- * Config of the stage run: `model` and `limits.maxBudgetUsd` replaced by the stage's own (tier routing and
- * per-stage budget, see model-routing.ts), so everything downstream (SDK env, runs row, options) reads one place.
+ * Config of the role run: `model` and `limits.maxBudgetUsd` replaced by the role's own (tier routing and
+ * per-role budget, see model-routing.ts), so everything downstream (SDK env, runs row, options) reads one place.
  */
-export function stageConfig(
-  stage: StageDefinition,
+export function roleConfig(
+  role: RoleDefinition,
   config: AgentConfig,
   route: Route = {},
 ): AgentConfig {
-  const role = roleOfStage(stage);
   return {
     ...config,
-    model: resolveModel(stage, role, route, config),
-    limits: { ...config.limits, maxBudgetUsd: resolveBudget(stage, role, route, config) },
+    model: resolveModel(role, route, config),
+    limits: { ...config.limits, maxBudgetUsd: resolveBudget(role, route, config) },
   };
 }
 
@@ -64,12 +62,12 @@ function mergeHooks(
 }
 
 /**
- * The SDK `Options` of one run, derived from the stage (tools, git groups, permission mode,
- * prompt) and the run input (paths, context, resume). `config` is already the stage's
- * (see `stageConfig`). No I/O happens here.
+ * The SDK `Options` of one run, derived from the role (tools, git groups, permission mode,
+ * prompt) and the run input (paths, context, resume). `config` is already the role's
+ * (see `roleConfig`). No I/O happens here.
  */
 export function buildSdkOptions(
-  stage: StageDefinition,
+  role: RoleDefinition,
   input: RunAgentInput,
   deps: {
     config: AgentConfig;
@@ -77,22 +75,22 @@ export function buildSdkOptions(
     skills: RunSkills;
     /** Shared with the stream watch: flips off when the SDK did not enter the requested auto mode. */
     autoState: ModeActive;
-    /** Same for bypassPermissions (the exec stage). */
+    /** Same for bypassPermissions (the dev role). */
     bypassState: ModeActive;
   },
 ): Options {
   const { config, skills: sk } = deps;
   const effort = input.route && safeEffort(input.route);
-  // Every stage goes through the permission layer when it has a guard (a stage without a gateway: ask = deny).
+  // Every run goes through the permission layer when it has a guard (a run without a gateway: ask = deny).
   // This run's plugin dirs (and only them) become READABLE so skills can open their bundled files.
   const guard =
     input.guard?.readPaths && sk.dirs.length
       ? { ...input.guard, readPaths: [...input.guard.readPaths, ...sk.dirs] }
       : input.guard;
-  const permissionMode = resolvePermissionMode(stage, config);
+  const permissionMode = resolvePermissionMode(role, config);
   const perms = guard
     ? buildToolPermissions({
-        ...input.code, // gateway, plan, askLimit, onAskTimeout
+        ...input.code, // gateway, askLimit, onAskTimeout
         turnId: input.turnId,
         threadId: input.code?.threadId ?? "",
         guard,
@@ -107,8 +105,8 @@ export function buildSdkOptions(
     }),
     model: config.model,
     resume: input.resume,
-    ...toolOptions(stage),
-    mcpServers: mcpServersFor(stage),
+    ...toolOptions(role),
+    mcpServers: mcpServersFor(role),
     ...(permissionMode && { permissionMode }),
     // The SDK refuses bypassPermissions without this explicit opt-in (the guard hook stays the gate).
     ...(permissionMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),
@@ -121,24 +119,20 @@ export function buildSdkOptions(
     maxTurns: MAX_TURNS,
     // Effort (when the orchestrator passes one) sets thinking and scales maxTurns; otherwise SDK defaults.
     ...(effort && effortKnobs(effort)),
-    // Stage budget (already capped by MAX_BUDGET_USD in `stageConfig`); omitted on openrouter without the cap.
+    // Role budget (already capped by MAX_BUDGET_USD in `roleConfig`); omitted on openrouter without the cap.
     ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
     abortController: input.abortController,
     // Streaming input: the CLI echoes each consumed user message (isReplay): the proof a steer was read (steered-stream.ts).
     ...(input.steer && { extraArgs: { "replay-user-messages": null } }),
-    // No filesystem settings in any stage: no repo (or ancestor) CLAUDE.md, no repo hooks/settings. Friday's
+    // No filesystem settings in any run: no repo (or ancestor) CLAUDE.md, no repo hooks/settings. Friday's
     // persona, AGENTS.md and memory are the only instructions.
     settingSources: [],
-    systemPrompt: buildSystemPrompt(
-      (input.extraContext ?? []).filter(Boolean).join("\n\n"),
-      stage,
-      {
-        workflow: input.workflow,
-        worktreesDir: input.worktreesDir,
-        escalation: !!input.route?.offerEscalation,
-      },
-    ),
+    systemPrompt: buildSystemPrompt((input.extraContext ?? []).filter(Boolean).join("\n\n"), role, {
+      workflow: input.workflow,
+      worktreesDir: input.worktreesDir,
+      escalation: !!input.route?.offerEscalation,
+    }),
     hooks: mergeHooks(buildToolHooks(deps.recorder, hookOptions(perms, config, input)), perms),
-    env: sdkEnv(config, process.env, resolveCompactWindow(stage, roleOfStage(stage), config)),
+    env: sdkEnv(config, process.env, resolveCompactWindow(role, config)),
   };
 }

@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Client, Interaction } from "discord.js";
 import { createDiscordApprovalGateway } from "../src/approvals/discord-approval";
-import { OWNER_CONFIRM_APPROVAL } from "../src/orchestrator/engine/gates";
-import { ownerConfirm } from "../src/orchestrator/engine/owner-confirm";
+import { OWNER_CONFIRM_APPROVAL, ownerConfirm } from "../src/orchestrator/engine/owner-confirm";
 import { runRoute } from "../src/orchestrator/message-routing";
 import { EffortFloors } from "../src/orchestrator/thread/effort-floor";
 import { MAX_DECLINED_NOTICE, settleMaxEffort } from "../src/orchestrator/thread/max-effort-gate";

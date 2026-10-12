@@ -81,14 +81,6 @@ describe("discord approval gateway", () => {
     expect(s.row("SELECT decision FROM approvals").decision).toBe("denied");
   });
 
-  test("plan reject reason", async () => {
-    const s = setup();
-    const p = s.gw.requestPlan(req);
-    await s.tick();
-    await s.click(s.ids()[1]).run();
-    expect(await p).toEqual({ approved: false, reason: "owner rejected plan" });
-  });
-
   test("non-owner click ignored, owner then resolves", async () => {
     const s = setup();
     const p = s.gw.request(req);
@@ -125,6 +117,38 @@ describe("discord approval gateway", () => {
     expect(
       await t.gw.askChoice({ turnId: "t1", threadId: "th", question: "q", options: ["x"] }),
     ).toBeUndefined();
+  });
+
+  test("a long question (a plan to approve) goes out as an attachment under a short stem; a short one stays inline", async () => {
+    const s = setup();
+    const plan = `Plan: ${"step. ".repeat(600)} token=${FAKE_TOKEN}`; // far over one Discord message
+    const p = s.gw.askChoice({
+      turnId: "t1",
+      threadId: "th",
+      question: plan,
+      options: ["Approve", "Revise"],
+    });
+    await s.tick();
+    const msg = s.sent[0];
+    expect(msg.content.length).toBeLessThan(500); // the stem, not the plan
+    expect(msg.content).toContain("Plan: step.");
+    expect(msg.content).toContain("full text in the attached file");
+    expect(msg.files).toHaveLength(1);
+    expect(msg.files[0].name).toBe("AskUserQuestion-detail.txt");
+    const text = msg.files[0].attachment.toString();
+    expect(text.length).toBeGreaterThan(3000); // the whole plan
+    expect(text).not.toContain(FAKE_TOKEN); // redacted like every attachment
+    expect(msg.components).toHaveLength(1); // the buttons are on the stem message
+    await s.click(s.ids()[0]).run();
+    expect(await p).toBe("Approve");
+    // a short question: inline, no attachment
+    const t = setup();
+    const q = t.gw.askChoice({ turnId: "t1", threadId: "th", question: "which?", options: ["a"] });
+    await t.tick();
+    expect(t.sent[0].content).toBe("which?");
+    expect(t.sent[0].files).toEqual([]);
+    await t.click(t.ids()[0]).run();
+    await q;
   });
 
   test("redacts summary (message + db) and detail attachment", async () => {

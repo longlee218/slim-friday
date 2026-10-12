@@ -1,7 +1,7 @@
 import type { Effort, Route as ModelRoute, TaskClass } from "../config/model-routing";
 
 /**
- * Route of a run: owner class, effort and `go +<usd>` raise; undefined when none is set (stage defaults).
+ * Route of a run: owner class, effort and `go +<usd>` raise; undefined when none is set (role defaults).
  * Effort `max` only arrives here after the owner-confirm gate said yes (`resolveEffort` caps it otherwise), so it
  * carries the confirmation into the model routing.
  */

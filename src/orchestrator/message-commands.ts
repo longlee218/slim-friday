@@ -20,7 +20,7 @@ export type MessageCommand =
   | { kind: "memory" }
   /**
    * A plain message (not a control command); the intent layer picks its role (no intent layer: the entry role).
-   * `role` is never parsed: only a Resume of an interrupted plan stage sets it (that task's role starts again).
+   * `role` is never parsed: only a Resume of an interrupted or failed task sets it (that task's role starts again).
    * `repo:<name>` is an optional hint.
    */
   | { kind: "message"; role?: string; repo?: string; text: string; cls?: TaskClass };

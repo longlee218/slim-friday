@@ -1,18 +1,18 @@
 import type { PermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
-import type { StageDefinition } from "../roles/role-types";
+import type { RoleDefinition } from "../roles/role-types";
 
 /**
- * SDK permission mode of a stage run. `auto` (a model classifier approves/denies each call) exists only on the
+ * SDK permission mode of a role run. `auto` (a model classifier approves/denies each call) exists only on the
  * Anthropic path with a real Claude credential; on OpenRouter or without a real login it is not available, so
- * the stage fails closed to `default` (the guard's `ask` goes to the owner). Other modes (plan, bypassPermissions)
- * pass through unchanged; bypass needs no auth.
+ * the run fails closed to `default` (the guard's `ask` goes to the owner). `bypassPermissions` passes through
+ * unchanged; bypass needs no auth.
  */
 export function resolvePermissionMode(
-  stage: StageDefinition,
+  role: RoleDefinition,
   config: AgentConfig,
 ): PermissionMode | undefined {
-  if (stage.permissionMode !== "auto") return stage.permissionMode;
+  if (role.permissionMode !== "auto") return role.permissionMode;
   return config.provider === "anthropic" && config.hasRealAuth ? "auto" : "default";
 }
 

@@ -8,8 +8,8 @@ import { repoMemoryFile } from "../src/memory/repo-memory";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import {
   AGENT_TOOL_NAME,
+  ASK_USER_QUESTION_TOOL_NAME,
   BASH_TOOL_NAME,
-  EXIT_PLAN_MODE_TOOL_NAME,
   GREP_TOOL_NAME,
   LEGACY_AGENT_TOOL_NAME,
   READ_TOOL_NAME,
@@ -60,8 +60,8 @@ test("Q&A reads only the registered repos: outside paths, home dotfiles and othe
   expect(
     (await can(WRITE_TOOL_NAME, { file_path: join(repo, "z"), content: "" }, {})).behavior,
   ).toBe("deny");
-  // No gateway in Q&A: plan/question tools are unavailable.
-  expect((await can(EXIT_PLAN_MODE_TOOL_NAME, { plan: "x" }, {})).behavior).toBe("deny");
+  // No gateway in Q&A: the question tool is unavailable.
+  expect((await can(ASK_USER_QUESTION_TOOL_NAME, { questions: [] }, {})).behavior).toBe("deny");
 });
 
 test("Q&A git MCP: reads on registered repos only, never writes", async () => {

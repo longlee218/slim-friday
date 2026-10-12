@@ -41,7 +41,7 @@ export function startPendingProposal(
     ac: c.ac,
     fromTurnId: p.fromTurnId ?? undefined,
     extraBudgetUsd,
-    // Effort stored when the request was queued (null = stage defaults); `max` never comes from here.
+    // Effort stored when the request was queued (null = role defaults); `max` never comes from here.
     effort: p.effort && QUEUED_EFFORTS.has(p.effort) ? p.effort : undefined,
   });
 }

@@ -10,11 +10,11 @@ import {
 import { logEvent } from "../observability/logger";
 import { agentIdentity } from "../observability/subagent-hooks";
 import { describeTool } from "../observability/tool-target";
-import { PLAN_FLOW_TOOLS } from "../tools/tool-catalog";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../tools/sdk-tool-names";
 import type { ToolPermissionInput } from "./tool-permissions";
 
 /**
- * PreToolUse hook of a gated stage: runs the guard. deny = hard deny (logged here: a denied call has no Post hook);
+ * PreToolUse hook of a guarded run: runs the guard. deny = hard deny (logged here: a denied call has no Post hook);
  * allow = continue; ask (unknown tools only: Bash never asks) = force the owner prompt, except: an ask in an active
  * auto-mode run is left to the SDK classifier (logged "auto"), and an ask in an active bypass-mode run is let through
  * (logged "bypass"; the hook is the only gate there, deny stays a hard deny). Records the decision per tool_use_id
@@ -29,8 +29,8 @@ export function guardHook(
 ): HookCallback {
   return async (i) => {
     if (i.hook_event_name !== "PreToolUse") return { continue: true };
-    // Plan/question tools are handled by canUseTool (the owner's buttons), for any caller.
-    if (PLAN_FLOW_TOOLS.has(i.tool_name)) return { continue: true };
+    // The question tool is handled by canUseTool (the owner's buttons), for any caller.
+    if (i.tool_name === ASK_USER_QUESTION_TOOL_NAME) return { continue: true };
     const input = (i.tool_input ?? {}) as Record<string, unknown>;
     const checked = checkToolCall(i.tool_name, input, p.guard);
     const d = isSpawnCall(i.tool_name) ? gateSpawn(checked, i.tool_use_id, limit) : checked;

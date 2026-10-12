@@ -62,7 +62,7 @@ export function parseIntentText(text: string): IntentResult {
 
 /** What code knows that the model does not. */
 export interface IntentValidation {
-  /** The thread has a task (running or waiting on a gate). */
+  /** The thread has a task (running or waiting on the owner). */
   hasTask: boolean;
   /** Owner prefix `[design]` etc.: overrides the model's class. */
   ownerClass?: TaskClass;
@@ -88,7 +88,7 @@ export function validateIntent(raw: IntentResult, v: IntentValidation): Validate
   const role = Object.hasOwn(ROLES, raw.role) ? ROLES[raw.role] : undefined;
   if (!role) return { ok: false, reason: "unknown_role" };
   const { class: _modelClass, ...rest } = raw;
-  // Guard: Haiku over-uses `mechanical` (it routes exec to the cheapest model). Keep the model's `mechanical`
+  // Guard: Haiku over-uses `mechanical` (it routes real work to the cheapest model). Keep the model's `mechanical`
   // only with `high` confidence, else `standard`. Never upgrades; owner prefix and L2 hint are not touched.
   const modelClass = guardMechanical(raw);
   const cls = hasClassTiers(role) ? (v.ownerClass ?? modelClass ?? v.classHint) : undefined;

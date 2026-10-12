@@ -1,90 +1,143 @@
 import { expect, test } from "bun:test";
-import { runStages } from "../src/orchestrator/engine/stage-runner";
+import { TASK_BUDGET_USD } from "../src/config/model-routing";
+import { runRole } from "../src/orchestrator/engine/run-role";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { ROLES } from "../src/roles/role-registry";
-import type { RoleDefinition, StageDefinition } from "../src/roles/role-types";
+import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
-import { listStages } from "../src/storage/stage-store";
-import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import {
+  addRepo,
+  clearWorkspaces,
+  initMsg,
+  makeEnv,
+  resultMsg,
+  stubGateway,
+  TEST_CHANNEL,
+} from "./helpers";
 
-const S: StageDefinition = {
-  name: "s",
-  capabilities: ["read"],
-  gitGroups: ["read"],
-  model: "haiku",
-  budgetUsd: 0.4,
-  promptSections: () => [],
-};
-const probe = (o: Partial<RoleDefinition>): RoleDefinition => ({
-  name: "probe-x",
-  whenToUse: "test only",
-  output: "answer",
-  maxAsk: 3,
-  countsTowardCap: false,
-  stages: [S],
-  ...o,
-});
+/** One finished run row of `turnId` that cost `costUsd`. */
+const spend = (db: ReturnType<typeof makeEnv>["db"], turnId: string, costUsd: number) =>
+  insertRun(db, {
+    id: crypto.randomUUID(),
+    turnId,
+    model: "m",
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    costUsd,
+    turns: 1,
+    durationMs: 1,
+    outcome: "max_budget",
+    compactions: 0,
+  });
 
-/** Run `role` (registered for the call) with a query that counts its calls. */
-async function runProbe(role: RoleDefinition) {
-  const env = makeEnv();
-  const roles = ROLES as Record<string, RoleDefinition>;
-  roles[role.name] = role;
-  let calls = 0;
-  try {
-    insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
-    const res = await runStages(
-      {
-        db: env.db,
-        config: env.config,
-        approvals: stubGateway(),
-        queryFn: ((_a: unknown) => {
-          calls++;
-          return (async function* () {
-            yield resultMsg({ result: "ok" });
-          })();
-        }) as never,
-      },
-      {
-        turnId: "t1",
-        threadId: "th",
-        text: "x",
-        role: role.name,
-        workspace: "main",
-        repos: [{ name: "repo", path: env.repo } as never],
-        ac: new AbortController(),
-      },
-    );
-    return { res, calls, rows: listStages(env.db, "t1") };
-  } finally {
-    delete roles[role.name];
-  }
+/** Dev run of `turnId` over a fake query that records its options. */
+async function runDev(env: ReturnType<typeof makeEnv>, turnId: string) {
+  const seen: any[] = [];
+  const res = await runRole(
+    {
+      db: env.db,
+      config: env.config,
+      approvals: stubGateway(),
+      queryFn: ((a: { options: unknown }) => {
+        seen.push(a.options);
+        return (async function* () {
+          yield resultMsg({ result: "ok" });
+        })();
+      }) as never,
+    },
+    {
+      turnId,
+      threadId: "th",
+      text: "continue",
+      role: "dev",
+      workspace: "main",
+      repos: [{ name: "repo", path: env.repo } as never],
+      ac: new AbortController(),
+    },
+  );
+  return { res, seen };
 }
 
-test("a plain stage with an output that has no handler fails closed before any run", async () => {
-  for (const output of ["verdict", "plan", "result"] as const) {
-    const r = await runProbe(probe({ output }));
-    expect(r.res.outcome).toBe("error");
-    expect(r.res.text).toContain("no handler");
-    expect([r.calls, r.rows.length]).toEqual([0, 0]);
-  }
+test("task ceiling: a run gets only what the task and the runs it resumes left of TASK_BUDGET_USD", async () => {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  addRepo(env.home, "repo");
+  // t1 (4.0 spent) <- t2 (resume, 1.5 spent) <- t3 (resume, this run): 5.5 spent in the chain, 0.5 left.
+  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "dev" });
+  insertTurn(env.db, {
+    id: "t2",
+    threadId: "th",
+    source: "t",
+    repo: "repo",
+    role: "dev",
+    resume: true,
+    parentTurnId: "t1",
+  });
+  insertTurn(env.db, {
+    id: "t3",
+    threadId: "th",
+    source: "t",
+    repo: "repo",
+    role: "dev",
+    resume: true,
+    parentTurnId: "t2",
+  });
+  // An unrelated task of the same thread does not count.
+  insertTurn(env.db, { id: "other", threadId: "th", source: "t", repo: "repo", role: "dev" });
+  spend(env.db, "t1", 4.0);
+  spend(env.db, "t2", 1.5);
+  spend(env.db, "other", 5.0);
+  const { res, seen } = await runDev(env, "t3");
+  expect(res.outcome).toBe("success");
+  expect(seen[0].maxBudgetUsd).toBeCloseTo(0.5);
+  expect(res.ceilingBound).toBe(true); // the cap IS the ceiling: `/go +usd` cannot help
 });
 
-test("all stages are validated before the first one runs (no side effect)", async () => {
-  const bad = { ...S, name: "late", gate: "owner-confirm" as const };
-  const r = await runProbe(probe({ stages: [S, bad] }));
-  expect(r.res.text).toContain("cannot run");
-  expect([r.calls, r.rows.length]).toEqual([0, 0]);
-  const plan = { ...S, name: "p", gate: "plan-approval" as const };
-  const r2 = await runProbe(probe({ stages: [plan, S] }));
-  expect(r2.res.text).toContain("must run in the repo");
-  expect([r2.calls, r2.rows.length]).toEqual([0, 0]);
+test("task ceiling used up: the run is refused before it starts, `/go +usd` cannot lift it", async () => {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  addRepo(env.home, "repo");
+  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "dev" });
+  insertTurn(env.db, {
+    id: "t2",
+    threadId: "th",
+    source: "t",
+    repo: "repo",
+    role: "dev",
+    resume: true,
+    parentTurnId: "t1",
+  });
+  spend(env.db, "t1", TASK_BUDGET_USD);
+  const { res, seen } = await runDev(env, "t2");
+  expect(res.outcome).toBe("error");
+  expect(res.text).toContain("Task ceiling reached");
+  expect(res.text).toContain("cannot lift");
+  expect(seen).toHaveLength(0);
 });
 
-test("a thrown stage run marks the row failed, not running", async () => {
+test("a task that is not a resume starts at zero spent (an earlier task of the thread does not count)", async () => {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  addRepo(env.home, "repo");
+  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "dev" });
+  insertTurn(env.db, {
+    id: "t2",
+    threadId: "th",
+    source: "t",
+    repo: "repo",
+    role: "dev",
+    parentTurnId: "t1",
+  }); // a proposal hop, not a resume
+  spend(env.db, "t1", 5.9);
+  const { seen } = await runDev(env, "t2");
+  expect(seen[0].maxBudgetUsd).toBe(4.5);
+});
+
+test("a thrown run does not leave a run row 'running': the runs row carries the error", async () => {
   const env = makeEnv();
   insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
-  const run = runStages(
+  const run = runRole(
     {
       db: env.db,
       config: env.config,
@@ -104,7 +157,7 @@ test("a thrown stage run marks the row failed, not running", async () => {
     },
   );
   await run.catch(() => undefined);
-  expect(listStages(env.db, "t1").map((r) => r.status)).toEqual(["failed"]);
+  expect(env.db.query("SELECT outcome FROM runs").all()).toEqual([{ outcome: "error" }]);
 });
 
 test("`go +5` that falls back to a plain message does not carry the raise into Q&A", async () => {
@@ -127,4 +180,51 @@ test("`go +5` that falls back to a plain message does not carry the raise into Q
   await send("th-b", "go +5");
   expect(budgets).toHaveLength(2);
   expect(budgets[1]).toBe(budgets[0]);
+});
+
+/** Dev run input that continues a task in `cwd` (a Resume), with an `onStarted` probe. */
+async function runResumed(env: ReturnType<typeof makeEnv>, cwd: string, onStarted: () => void) {
+  return runRole(
+    {
+      db: env.db,
+      config: env.config,
+      approvals: stubGateway(),
+      queryFn: (() =>
+        (async function* () {
+          yield resultMsg({ result: "ok" });
+        })()) as never,
+    },
+    {
+      turnId: "t1",
+      threadId: "th",
+      text: "continue",
+      role: "dev",
+      workspace: "main",
+      repos: [{ name: "repo", path: env.repo } as never],
+      ac: new AbortController(),
+      resume: { sessionId: "s1", cwd },
+      onStarted,
+    },
+  );
+}
+
+test("resume: a background session whose cwd is not a registered repo is refused and the hold is kept (onStarted not called)", async () => {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  addRepo(env.home, "repo");
+  let started = 0;
+  const res = await runResumed(env, `${env.home}/not-a-repo`, () => started++);
+  expect(res.outcome).toBe("error");
+  expect(res.text).toBe("The repo is not available.");
+  expect(started).toBe(0);
+});
+
+test("resume in a registered repo: the run starts and onStarted is called once", async () => {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  addRepo(env.home, "repo");
+  let started = 0;
+  const res = await runResumed(env, env.repo, () => started++);
+  expect(res.outcome).toBe("success");
+  expect(started).toBe(1);
 });

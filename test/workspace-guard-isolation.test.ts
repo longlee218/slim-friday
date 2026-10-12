@@ -5,6 +5,7 @@ import { workspacePaths } from "../src/config/workspace-paths";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { getRole } from "../src/roles/role-registry";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import {
   GLOB_TOOL_NAME,
@@ -44,7 +45,7 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
   const exec = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor("exec", { writePaths: [w1wt], readPaths: [w1wt] }),
+    guard: guardFor(getRole("dev"), { writePaths: [w1wt], readPaths: [w1wt] }),
   }).canUseTool as unknown as Can;
   const db = workspacePaths(env.home).dbFile;
   const cases: [string, () => Promise<{ behavior: string }>][] = [

@@ -31,7 +31,7 @@ async function setup() {
 const task = { source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th1", text: "x" };
 const rows = (env: { db: any }, sql: string) => env.db.query(sql).all() as any[];
 
-/** Dispatcher deps whose stage runs would be captured (none must start in the refusal tests). */
+/** Dispatcher deps whose runs would be captured (none must start in the refusal tests). */
 const deps = (env: Awaited<ReturnType<typeof setup>>["env"], runs: unknown[]) => ({
   db: env.db,
   config: env.config,
@@ -43,13 +43,13 @@ const deps = (env: Awaited<ReturnType<typeof setup>>["env"], runs: unknown[]) =>
   stopping: () => false,
 });
 
-test("ordering: the proposal is persisted and validated before the plan stage runs; no assistant turn first", async () => {
+test("ordering: the proposal is persisted and validated before the dev run starts; no assistant turn first", async () => {
   const { env } = await setup();
   const events: string[] = [];
   const query = (a: any) => {
-    // Stage run = dispatch happened: the proposal row must already exist.
+    // A run = dispatch happened: the proposal row must already exist.
     events.push(
-      `stage-run ${a.options.permissionMode} proposals=${rows(env, "SELECT 1 FROM proposals").length}`,
+      `run ${a.options.permissionMode} proposals=${rows(env, "SELECT 1 FROM proposals").length}`,
     );
     return (async function* () {
       yield resultMsg();
@@ -63,7 +63,7 @@ test("ordering: the proposal is persisted and validated before the plan stage ru
     intent: devIntent(env.home),
   });
   await handle({ ...task, text: "[dev] add a file with the answer" });
-  expect(events).toEqual(["stage-run plan proposals=1"]);
+  expect(events).toEqual(["run bypassPermissions proposals=1"]);
   expect(rows(env, "SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
 });
 
@@ -138,10 +138,10 @@ test("owner `go` on a pending proposal: confirmed, re-validated, dispatched with
     ac: new AbortController(),
     fromTurnId: "src-task",
   });
-  expect(runs).toHaveLength(1); // the plan stage ran
+  expect(runs).toHaveLength(1); // the dev run ran
   expect(rows(env, "SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
   expect(rows(env, "SELECT role, kind, parent_turn_id, hop, proposal_id FROM turns")).toEqual([
-    { role: "dev", kind: "staged", parent_turn_id: "src-task", hop: 1, proposal_id: p!.id },
+    { role: "dev", kind: "single", parent_turn_id: "src-task", hop: 1, proposal_id: p!.id },
   ]);
 });
 

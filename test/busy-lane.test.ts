@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import type { ApprovalResult } from "../src/approvals/approval-types";
 import { workspacePaths } from "../src/config/workspace-paths";
 import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
@@ -7,8 +6,6 @@ import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import {
-  FEEDBACK_SENT,
-  GATE_HINT,
   QUEUE_RECEIVED,
   SIDE_BUSY,
   STEER_RECEIVED,
@@ -22,7 +19,7 @@ import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { listRunMessages } from "../src/storage/run-message-store";
 import { insertToolCall } from "../src/storage/run-metrics-store";
 import { setTurnStatus } from "../src/storage/run-store";
-import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
@@ -34,8 +31,8 @@ import {
   TEST_CHANNEL,
 } from "./helpers";
 
-/* The busy lane (Rev 11 review fixes): per-thread order of busy messages (H-a), the side lane for an answering
-   role (H-b), the plan gate and typed feedback (H-c), the immediate ack (M-d). A fake CLI keeps a plan stage
+/* The busy lane (Rev 11 review fixes): per-thread order of busy messages (H-a), the side lane for a foreground
+   role (H-b), the plan question and typed feedback (H-c), the immediate ack (M-d). A fake CLI keeps a dev run
    (streaming, steerable) running until the test releases it. */
 
 /** Env with one managed clone `real` (dev tasks need it). */
@@ -60,7 +57,7 @@ const msg = (text: string, extra: object = {}) => ({
 
 /** Everything the fake CLI and the fake L3 saw, in order. */
 interface Probe {
-  /** User messages the plan stage pulled from its input. */
+  /** User messages the dev run pulled from its input. */
   pulled: string[];
   /** "l3:<text>" and "ack" in the order they happened. */
   events: string[];
@@ -68,8 +65,8 @@ interface Probe {
   sideOptions: Record<string, any>[];
   /** Highest number of queries running at the same moment. */
   maxConcurrent: number;
-  /** Denial messages the plan gate gave back to the planner. */
-  denials: string[];
+  /** Answers the owner gave to the dev run's plan question. */
+  answers: string[];
 }
 
 /** L3: `ask` = a question (assistant, independent), `other` = a NEW dev task, `slow` waits first, `yes` reads as a yes. */
@@ -91,27 +88,28 @@ const classifier = (p: Probe): IntentClassifier => ({
 });
 
 /**
- * Harness: a dev task whose plan stage runs until `release()`. `steersToRead` = how many steers the plan stage pulls
- * after the release. With `gate: true` the plan stage asks the owner through ExitPlanMode (the plan gate) and, when it is
- * rejected with feedback, ends after seeing the denial.
+ * Harness: a dev task whose run works until `release()`. `steersToRead` = how many steers the run pulls after the
+ * release. With `gate: true` the run asks the owner to approve its plan (AskUserQuestion) and, once the owner chose
+ * "Revise", reads the typed feedback (a steer, delivered after the decision) and ends.
  */
 async function harness(o: { steersToRead?: number; gate?: boolean; limit?: number } = {}) {
   const env = await setup();
-  const p: Probe = { pulled: [], events: [], sideOptions: [], maxConcurrent: 0, denials: [] };
+  const p: Probe = { pulled: [], events: [], sideOptions: [], maxConcurrent: 0, answers: [] };
   let running = 0;
   let started!: () => void;
-  const planStarted = new Promise<void>((r) => (started = r));
+  const devStarted = new Promise<void>((r) => (started = r));
   let release!: () => void;
   const released = new Promise<void>((r) => (release = r));
-  let decide: ((r: ApprovalResult) => void) | undefined;
+  let decide: ((label: string) => void) | undefined;
   let asked = 0;
+  let devRuns = 0;
   const query = (a: any) =>
     (async function* () {
       running++;
       p.maxConcurrent = Math.max(p.maxConcurrent, running);
       try {
         const o2 = a.options;
-        if (o2.permissionMode !== "plan") {
+        if (o2.permissionMode !== "bypassPermissions") {
           // a read-only answering run (the side lane, or a queued question)
           p.sideOptions.push(o2);
           yield { ...initMsg, session_id: "side-sess" } as never;
@@ -123,12 +121,33 @@ async function harness(o: { steersToRead?: number; gate?: boolean; limit?: numbe
         yield { ...initMsg, session_id: "main-sess" } as never;
         started();
         if (o.gate) {
+          if (++devRuns > 1) {
+            // a queued dev task started after the first one ended: it asks nothing and reads no steer
+            yield resultMsg({ result: "queued task done", session_id: "q-sess" });
+            return;
+          }
           const r = await o2.canUseTool(
-            EXIT_PLAN_MODE_TOOL_NAME,
-            { plan: "repo: real\nadd b" },
+            ASK_USER_QUESTION_TOOL_NAME,
+            {
+              questions: [
+                {
+                  question: "Plan: add b. Approve?",
+                  options: [{ label: "Approve" }, { label: "Revise" }],
+                },
+              ],
+            },
             {},
           );
-          if (r.behavior === "deny") p.denials.push(r.message);
+          p.answers.push(r.updatedInput.answers["Plan: add b. Approve?"]);
+          for (let n = 0; n < (o.steersToRead ?? 0); n++) {
+            const steer = (await it.next()).value.message.content as string; // the typed feedback
+            p.pulled.push(steer);
+            yield {
+              type: "user",
+              isReplay: true,
+              message: { role: "user", content: steer },
+            } as never;
+          }
           yield resultMsg({ result: "plan revised", session_id: "main-sess" });
           return;
         }
@@ -148,26 +167,20 @@ async function harness(o: { steersToRead?: number; gate?: boolean; limit?: numbe
       }
     })();
   const approvals = stubGateway({
-    // The plan gate: the approval row + waiting status are what the thread state derives from.
-    requestPlan: async (req) => {
-      if (asked >= 1) return { approved: false, reason: "a queued task: not this test's gate" };
+    // The plan question: the approval row + waiting status are what the thread state derives from.
+    askChoice: async (a) => {
+      if (asked >= 1) return a.options[0]; // a queued task: not this test's question
       insertApproval(env.db, {
         id: `ap${++asked}`,
-        turnId: req.turnId,
-        tool: req.tool,
-        summary: "plan",
+        turnId: a.turnId,
+        tool: ASK_USER_QUESTION_TOOL_NAME,
+        summary: a.question,
       });
-      setTurnStatus(env.db, req.turnId, "waiting_approval");
-      const r = await new Promise<ApprovalResult>((res) => (decide = res));
-      decideApproval(env.db, `ap${asked}`, r.approved ? "approved" : "denied");
-      setTurnStatus(env.db, req.turnId, "running");
-      return r;
-    },
-    feedbackPlan: (_thread, text) => {
-      if (!decide) return false;
-      decide({ approved: false, reason: text });
-      decide = undefined;
-      return true;
+      setTurnStatus(env.db, a.turnId, "waiting_approval");
+      const label = await new Promise<string>((res) => (decide = res));
+      decideApproval(env.db, `ap${asked}`, "approved");
+      setTurnStatus(env.db, a.turnId, "running");
+      return label;
     },
   });
   const intent: IntentDeps = {
@@ -186,13 +199,12 @@ async function harness(o: { steersToRead?: number; gate?: boolean; limit?: numbe
     intent,
     limiter,
   });
-  /** Start the dev task and wait until its plan stage runs (and, with a gate, until the plan waits). */
+  /** Start the dev task and wait until its run works (and, with a gate, until the plan question waits). */
   const start = async () => {
     const first = handle(msg("please add b.txt with two"));
-    await planStarted;
-    if (o.gate)
-      while (deriveThreadState(env.db, "th1") !== "awaiting_plan_approval") await Bun.sleep(5);
-    return { first };
+    await devStarted;
+    if (o.gate) while (deriveThreadState(env.db, "th1") !== "awaiting_owner") await Bun.sleep(5);
+    return { first, answer: (label: string) => decide?.(label) };
   };
   return { env, p, handle, start, release, limiter };
 }
@@ -259,7 +271,7 @@ test("H-b side lane: an independent question is answered at once, in parallel wi
   const { first } = await h.start();
   const state = () => deriveThreadState(h.env.db, "th1");
   expect(state()).toBe("running");
-  // answered while the task is still running (the plan stage has not been released)
+  // answered while the task is still running (the dev run has not been released)
   expect(await h.handle(msg("ask: what does a.txt hold"))).toBe("assistant answer");
   expect(h.p.maxConcurrent).toBe(2); // task + side run at the same time
   // the side run started fresh: no resume, no steer input (a string prompt)
@@ -314,27 +326,29 @@ test("H-b side lane: a side run that starts after the thread was stopped is abor
   await first;
 });
 
-test("H-c plan gate: typed feedback re-runs the plan with the feedback; questions use the side lane; other work queues; yes/no is a hint; every message is stored", async () => {
-  const h = await harness({ gate: true });
-  const { first } = await h.start();
-  expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_plan_approval");
-  // a question for the assistant: answered at once, the gate stays open
+test("H-c plan question: typed feedback is a steer delivered after the decision; questions use the side lane; other work queues; a typed yes does not approve; every message is stored", async () => {
+  const h = await harness({ gate: true, steersToRead: 2 });
+  const { first, answer } = await h.start();
+  const waiting = STEER_WAITING(ASK_USER_QUESTION_TOOL_NAME);
+  expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_owner");
+  // a question for the assistant: answered at once, the plan question stays open
   expect(await h.handle(msg("ask: why that repo"))).toBe("assistant answer");
-  expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_plan_approval");
-  // independent staged work waits for the task
+  expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_owner");
+  // independent background work waits for the task
   expect(await h.handle(msg("other: add c.txt"))).toBe(QUEUE_RECEIVED);
-  // a typed yes does not approve: the buttons do
-  expect(await h.handle(msg("yes"))).toBe(GATE_HINT);
-  // feedback on the plan: handed to the planner as the reject reason
-  expect(await h.handle(msg("make the plan smaller"))).toBe(FEEDBACK_SENT);
+  // a typed yes does not approve (the buttons do): it is stored as a steer for after the decision
+  expect(await h.handle(msg("yes"))).toBe(waiting);
+  // feedback on the plan: typed text, a steer too
+  expect(await h.handle(msg("make the plan smaller"))).toBe(waiting);
+  answer("Revise"); // the owner presses "Revise"
   const reply = await first;
-  // the planner got the typed text as the reject reason (the second denial is the queued task's own stub gate)
-  expect(h.p.denials[0]).toContain("Owner rejected the plan (make the plan smaller)");
+  expect(h.p.answers).toEqual(["Revise"]);
+  expect(h.p.pulled.slice(1, 3)).toEqual(["yes", "make the plan smaller"]); // read after the decision, in order
   expect(reply).toContain("plan revised");
   expect(listRunMessages(h.env.db, "th1").map((r) => [r.kind, r.status])).toEqual([
     ["other", "delivered"], // side question
     ["followup", "delivered"], // queued
-    ["other", "skipped"], // the yes (hint)
+    ["steer", "delivered"], // the yes
     ["steer", "delivered"], // the feedback
   ]);
 });
@@ -349,7 +363,7 @@ test("B: a steer while a tool approval waits gets the waiting reply (tool name),
   const taskId = liveTaskId(h.env);
   insertApproval(h.env.db, { id: "tool1", turnId: taskId, tool: "Bash", summary: "cd x && ls" });
   setTurnStatus(h.env.db, taskId, "waiting_approval");
-  expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_tool_approval");
+  expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_owner");
   const reply = await h.handle(msg("also keep it small"));
   expect(reply).toBe(STEER_WAITING("Bash"));
   expect(reply).not.toContain("read");
@@ -367,7 +381,7 @@ test("B: a steer while a tool approval waits gets the waiting reply (tool name),
   expect(listRunMessages(h.env.db, "th1").map((r) => r.status)).toEqual(["delivered"]);
 });
 
-test("C: an answering role on a busy thread goes to the side lane even when L3 says supplement; the answer sees the status snapshot (fields only, no tool input)", async () => {
+test("C: a foreground role on a busy thread goes to the side lane even when L3 says supplement; the answer sees the status snapshot (fields only, no tool input)", async () => {
   const h = await harness({ steersToRead: 0 });
   const { first } = await h.start();
   const taskId = liveTaskId(h.env);
@@ -388,10 +402,10 @@ test("C: an answering role on a busy thread goes to the side lane even when L3 s
   expect(h.p.sideOptions).toHaveLength(1);
   const seen = JSON.stringify(h.p.sideOptions[0]);
   expect(seen).toContain(STATUS_HEADING);
-  expect(seen).toContain("state: awaiting_tool_approval");
+  expect(seen).toContain("state: awaiting_owner");
   expect(seen).toContain("last tool: Grep");
   expect(seen).toContain("waiting for the owner's approval of Bash");
-  expect(seen).toContain("stage plan");
+  expect(seen).toContain("role dev");
   expect(seen).not.toContain("SECRETSECRET");
   // nothing was steered into the run
   expect(listRunMessages(h.env.db, "th1").map((r) => [r.kind, r.status])).toEqual([

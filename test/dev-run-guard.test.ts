@@ -4,12 +4,11 @@ import { join } from "node:path";
 import { claudePlansDir, workspacePaths } from "../src/config/workspace-paths";
 import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
 import { devIntent, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
-// Exec stage options (Rev 15 phase 3): the stage runs in the approved repo's own checkout (no clone), with the
-// guard scope of the spec, no git or GitHub MCP, the owner's env passed through, and the one worktree line.
+// Dev run options (Rev 15 phases 3 and 5): the run works in the repo's own checkout (no clone), with the guard
+// scope of the spec, no git or GitHub MCP, the owner's env passed through, and the one worktree line.
 
 const FAKE_TOKEN = "fake-owner-token-for-passthrough";
 const saved = process.env.GH_TOKEN;
@@ -18,7 +17,7 @@ afterEach(() => {
   else process.env.GH_TOKEN = saved;
 });
 
-/** Run a dev task to the end of exec; return the options of the plan and exec runs and the workspace paths. */
+/** Run a dev task to its end; return the options of its (one) run and the workspace paths. */
 async function runExec() {
   process.env.GH_TOKEN = FAKE_TOKEN;
   const { env, clone } = await setupWorkflow();
@@ -30,16 +29,7 @@ async function runExec() {
     queryFn: ((a: any) => {
       seen.push(a.options);
       return (async function* () {
-        if (a.options.permissionMode === "plan") {
-          const p = await a.options.canUseTool(
-            EXIT_PLAN_MODE_TOOL_NAME,
-            { plan: "repo: real\nchange x" },
-            {},
-          );
-          if (p.behavior === "allow") throw new Error("process aborted");
-          return;
-        }
-        yield resultMsg({ result: "done" });
+        yield resultMsg({ result: "done\n\nrepo: real" });
       })();
     }) as never,
     intent: devIntent(env.home),
@@ -51,11 +41,11 @@ async function runExec() {
     threadId: "th1",
     text: "[dev] change x",
   });
-  const [plan, exec] = seen;
-  return { env, clone: realpathSync(clone), plan, exec };
+  expect(seen).toHaveLength(1); // one run
+  return { env, clone: realpathSync(clone), exec: seen[0] };
 }
 
-test("exec runs in the repo's own checkout: cwd = repo path, scratch + worktrees dir readable, no clone made", async () => {
+test("the dev run works in the repo's own checkout: cwd = repo path, scratch + worktrees dir readable, no clone made", async () => {
   const { env, clone, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   expect(exec.cwd).toBe(clone);
@@ -65,20 +55,18 @@ test("exec runs in the repo's own checkout: cwd = repo path, scratch + worktrees
     realpathSync(ws.worktrees),
   ]);
   expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 0 });
-  // The approved plan is saved in the task scratch dir and the repo is on the turn row (what `/go` reads back).
-  expect(Bun.file(ws.task(taskId).plan).size).toBeGreaterThan(0);
+  // No plan file: the repo is on the turn row, named by the run's final `repo:` line.
   expect(env.db.query("SELECT repo FROM turns").get()).toEqual({ repo: "real" });
 });
 
-test("exec: no git or GitHub MCP server for dev (plan too); the owner's env passes through", async () => {
-  const { plan, exec } = await runExec();
+test("dev: no git or GitHub MCP server; the owner's env passes through", async () => {
+  const { exec } = await runExec();
   expect(exec.mcpServers).toEqual({});
-  expect(plan.mcpServers).toEqual({});
   expect(Object.keys(exec.mcpServers)).not.toContain(GIT_MCP_SERVER);
   expect(exec.env.GH_TOKEN).toBe(FAKE_TOKEN); // `gh` in the agent's shell uses the owner's login
 });
 
-test("exec guard: writes in the repo (its git dir and .github too), the worktrees dir, scratch and the SDK plans dir; nothing else", async () => {
+test("dev guard: writes in the repo (its git dir and .github too), the worktrees dir, scratch and the SDK plans dir; nothing else", async () => {
   const { env, clone, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   const write = async (file_path: string) =>
@@ -93,7 +81,7 @@ test("exec guard: writes in the repo (its git dir and .github too), the worktree
   expect(await write("/etc/friday-x")).toBe("deny");
 });
 
-test("exec guard: `git worktree add` only under the worktrees dir; push of a feature branch runs, main and force do not", async () => {
+test("dev guard: `git worktree add` only under the worktrees dir; push of a feature branch runs, main and force do not", async () => {
   const { env, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   const bash = async (command: string) => (await exec.canUseTool("Bash", { command }, {})).behavior;
@@ -106,11 +94,10 @@ test("exec guard: `git worktree add` only under the worktrees dir; push of a fea
   expect(await bash("git push --force origin friday/x")).toBe("deny");
 });
 
-test("exec prompt: the one worktree line names <workspace worktrees dir>/<repo>/; the plan stage has none", async () => {
-  const { env, exec, plan } = await runExec();
+test("dev prompt: the one worktree line names <workspace worktrees dir>/<repo>/", async () => {
+  const { env, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   const line = `If you use a git worktree, put it under ${join(realpathSync(ws.worktrees), "real")}/.`;
   expect(exec.systemPrompt.append).toContain(line);
-  expect(plan.systemPrompt.append).not.toContain("git worktree");
   expect(exec.systemPrompt.append).toContain("Merge, push or PR only after the owner chose it.");
 });

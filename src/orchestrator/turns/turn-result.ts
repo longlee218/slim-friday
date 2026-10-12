@@ -8,26 +8,33 @@ import { setSession } from "../../storage/session-store";
 import { budgetHitReply } from "../engine/budget";
 import { compactIdleSession } from "./session-compaction";
 
-/* The result of a Q&A or code flow, and the bookkeeping that closes a run. */
+/* The result of a role run, and the bookkeeping that closes a run. */
 
-/** What the task handler needs back from a Q&A or code flow. */
+/** What the task handler needs back from a role run. */
 export interface FlowResult
   extends Pick<
     RunAgentResult,
-    "text" | "outcome" | "sessionId" | "resetsAt" | "budgetUsd" | "ceilingBound" | "lastText"
+    | "text"
+    | "outcome"
+    | "sessionId"
+    | "resetsAt"
+    | "budgetUsd"
+    | "ceilingBound"
+    | "lastText"
+    | "spentBeforeUsd"
   > {
   /** Metrics of the run (spent USD for the budget-hit message); absent when no run happened. */
   usage?: RunUsage;
   /** cwd + repo of the session to save (resume needs the same cwd), when a session should be stored. */
   cwd?: string;
   repo?: string;
-  /** Save the session although the outcome is not success/limit (a stage stopped to await the owner's reply). */
+  /** Save the session although the outcome is not success/limit (a run stopped to await the owner's reply). */
   keepSession?: boolean;
-  /** Do not save this run's session as the thread's (an exec run in the repo itself: a later assistant message in the thread must not resume it). */
+  /** Do not save this run's session as the thread's (a background run in the repo itself: a later assistant message in the thread must not resume it). */
   skipThreadSession?: true;
-  /** Model of an escalated re-run (the stage row then records it instead of the first run's model). */
+  /** Model of an escalated re-run (the first run's model is then not the one that answered). */
   model?: string;
-  /** Set by the stage runner: the failure qualifies for `failed_resumable` (the plan is kept). */
+  /** Set by the role runner: the failure qualifies for `failed_resumable` (its session is kept). */
   resumable?: ResumeReason;
 }
 
@@ -48,7 +55,7 @@ export const OUTCOME_REPLY: Record<string, string> = {
   error: "Agent failed. Check the logs.",
 };
 
-/** Why a run after the approved plan stopped but can be continued: label shown to the owner (the key is the stage verdict). */
+/** Why a background run stopped but can be continued: label shown to the owner (the key is the reason). */
 export const RESUMABLE = {
   budget: "budget limit reached",
   error: "agent error",
@@ -61,13 +68,13 @@ const RESUMABLE_WHEN: ReadonlyArray<readonly [ResumeReason, (r: FlowResult) => b
   ["error", (r) => r.outcome === "error"],
 ];
 
-/** The reason a failed run can be resumed, or undefined (stop, restart, timeout, quota and a failure before the plan do not qualify). */
+/** The reason a failed run can be resumed, or undefined (stop, restart, timeout and quota do not qualify). */
 export const resumeReasonOf = (r: FlowResult): ResumeReason | undefined =>
   RESUMABLE_WHEN.find(([, when]) => when(r))?.[0];
 
 /** The question L3 reads the owner's next message against (same words as the notice of the failure). */
 export const resumeQuestion = (turnId: string, reason: string): string =>
-  `Task ${turnId.slice(0, 8)} stopped at exec: ${reason}. Continue with the approved plan?`;
+  `Task ${turnId.slice(0, 8)} stopped: ${reason}. Continue it from where it stopped?`;
 
 /** Map run outcome to the task status stored in db. */
 const TURN_STATUS: Record<string, TurnStatus> = {
@@ -89,7 +96,7 @@ export const RESUMABLE_OUTCOMES: ReadonlySet<RunOutcome> = new Set([
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "task-result" });
 
-/** End of a run, same for Q&A and code: save the session, close the turn row, return the redacted reply. */
+/** End of a run, same for every role: save the session, close the turn row, return the redacted reply. */
 export function finishRun(
   db: Database,
   ids: { turnId: string; threadId: string },
@@ -124,7 +131,7 @@ export function finishRun(
       ? ` Resets at ${new Date(res.resetsAt).toISOString()}.`
       : "";
   const text = redactText(res.text || `${OUTCOME_REPLY[res.outcome] ?? "No answer."}${reset}`);
-  // A resumable failure ends with the question (reply yes or `/go`): the plan is kept.
+  // A resumable failure ends with the question (reply yes or `/go`): the session is kept.
   return res.resumable
     ? `${text}\n${resumeQuestion(ids.turnId, RESUMABLE[res.resumable])} Reply yes or send \`/go\`.`
     : text;

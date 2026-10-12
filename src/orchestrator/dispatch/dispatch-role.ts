@@ -4,11 +4,10 @@ import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { excerpt, logEvent, logger, setLogContext } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import type { Repo } from "../../repos/repo-registry";
-import { isGated } from "../../roles/role-registry";
 import { threadLedger } from "../../storage/ledger-store";
 import { setProposalStatus, supersedePending } from "../../storage/proposal-store";
 import { getSession } from "../../storage/session-store";
-import { runStages, type StageRunnerDeps } from "../engine/stage-runner";
+import { type RoleRunnerDeps, runRole } from "../engine/run-role";
 import { runRoute } from "../message-routing";
 import { closeTurn } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
@@ -23,8 +22,8 @@ const NOTICE_BRIEF_MAX = 200;
 
 export type { DispatchRequest };
 
-/** Dependencies of the dispatcher: the stage runner's, plus whether shutdown is aborting runs. */
-export interface DispatchDeps extends StageRunnerDeps {
+/** Dependencies of the dispatcher: the role runner's, plus whether shutdown is aborting runs. */
+export interface DispatchDeps extends RoleRunnerDeps {
   /** True once shutdown aborted the runs: an aborted task is then `interrupted` (resumable), not cancelled. */
   stopping: () => boolean;
 }
@@ -41,20 +40,20 @@ export interface DispatchInput {
   repos: Repo[];
   /** Repo the thread is pinned to, when any. */
   pinned?: Repo;
-  /** The thread's abort controller (`stop` aborts the stages too). */
+  /** The thread's abort controller (`stop` aborts the run too). */
   ac: AbortController;
   /** Task whose turn produced the request (parent of the new task); absent for an intent-layer request. */
   fromTurnId?: string;
   /** Owner raise of the budget (`go +<usd>`). */
   extraBudgetUsd?: number;
-  /** Effort of this run (intent signals / thread floor); missing = the stage defaults. */
+  /** Effort of this run (intent signals / thread floor); missing = the role defaults. */
   effort?: Effort;
 }
 
 /**
  * Hand work to a role. APP CODE, no LLM, and only AFTER the source turn closed (the caller awaits the
  * turn's stream end and `closeTurn` first): persist the proposal (pending) -> validate -> ask the owner
- * (ONE question, the proposal stays pending) or refuse -> pick the model -> `beginTurn` -> notice -> stage
+ * (ONE question, the proposal stays pending) or refuse -> pick the model -> `beginTurn` -> notice -> role
  * runner. The proposal ends `dispatched` or `refused`. Returns the reply for the thread (source text +
  * notice + result, minus what `notify` already posted).
  */
@@ -72,7 +71,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
       fromTurnId: i.fromTurnId,
     });
   const refuseProposal = () => proposalId && setProposalStatus(db, proposalId, "refused");
-  // `stop` / shutdown after the source turn ended: the first stage would get an already-aborted signal whose
+  // `stop` / shutdown after the source turn ended: the run would get an already-aborted signal whose
   // abort listener never fires, so it could still post an approval prompt. Drop the proposal.
   if (i.ac.signal.aborted) {
     logEvent(log, "dispatch.dropped", { reason: "aborted" });
@@ -102,7 +101,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     const fix = request.proposalId && v.action === "ask" ? " Send a new request to fix it." : "";
     return [i.reply, `${refusal.reply}${fix}`].filter(Boolean).join("\n\n");
   }
-  const { role, firstStage, repoName: repo } = v;
+  const { role, repoName: repo } = v;
   const route = runRoute({ cls: request.cls, effort: i.effort, extraBudgetUsd: i.extraBudgetUsd });
   const turnId = crypto.randomUUID();
   // From here every log line of the new task carries its own taskId (not the source row's).
@@ -113,7 +112,6 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     { turnId, threadId: i.message.threadId, source: i.message.source },
     {
       repo,
-      mode: firstStage.name,
       brief: request.brief,
       cls: request.cls,
       proposalId,
@@ -132,17 +130,17 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     role: role.name,
     repo,
     brief: excerpt(request.brief),
-    model: resolveModel(firstStage, role, route ?? {}, config),
+    model: resolveModel(role, route ?? {}, config),
   });
   const t0 = Date.now();
 
-  // A role with an owner gate may wait minutes for approval: say that it started (stage name from role data). A
-  // role that just answers has no notice: its reply is the answer.
-  const notice = isGated(role)
-    ? `Starting ${firstStage.name}: ${repo === "*" ? "repo chosen by the plan" : repo}, ${excerpt(request.brief, NOTICE_BRIEF_MAX)}`
+  // A background role may work (and wait for the owner) for minutes: say that it started. A role that just answers
+  // has no notice: its reply is the answer.
+  const notice = role.background
+    ? `Starting ${role.name}: ${excerpt(request.brief, NOTICE_BRIEF_MAX)}`
     : "";
   const head = [i.reply, notice].filter(Boolean).join("\n\n");
-  // Post the source answer + notice now (the plan can wait minutes for approval); on failure they join the reply.
+  // Post the source answer + notice now (the run can take minutes); on failure they join the reply.
   const posted = !head
     ? true
     : await i.message.notify?.(head).then(
@@ -152,7 +150,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
           return false;
         },
       );
-  const res = await runStages(deps, {
+  const res = await runRole(deps, {
     turnId,
     threadId: i.message.threadId,
     text: request.brief,
@@ -163,8 +161,8 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     ac: i.ac,
     route,
     pinned: i.pinned,
-    // An answering role continues the thread's conversation and sees its task ledger (same as a fresh message).
-    existing: role.output === "answer" ? getSession(db, i.message.threadId) : undefined,
+    // A foreground role continues the thread's conversation and sees its task ledger (same as a fresh message).
+    existing: role.background ? undefined : getSession(db, i.message.threadId),
     ledger: role.context?.ledger ? threadLedger(db, i.message.threadId) : "",
   }).catch((err: unknown) => {
     // The caller's crash path only knows the source row: close this one so its slot is released.

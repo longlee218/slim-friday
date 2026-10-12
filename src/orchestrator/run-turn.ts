@@ -9,7 +9,7 @@ import { threadLedger } from "../storage/ledger-store";
 import { dropResumable } from "../storage/run-store";
 import { deleteSession, type SessionRow } from "../storage/session-store";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
-import { runStages } from "./engine/stage-runner";
+import { runRole } from "./engine/run-role";
 import { type ResumePlan, type Route, runRoute } from "./message-routing";
 import { deriveThreadState, isIdleLike } from "./thread/thread-state";
 import type { FlowResult } from "./turns/turn-result";
@@ -30,19 +30,18 @@ export interface RoleRunCtx {
   begin: (
     repo: string,
     role: string,
-    mode: string,
     cls?: TaskClass,
-    /** The task runs a `failed_resumable` one again (not a fix round). */
-    resume?: boolean,
+    /** Task this run continues (interrupt Resume, `/go`): its row is a `resume` child, its spend counts against the same ceiling. */
+    resumeOf?: string,
   ) => void;
   /** Repo of the log context, to report when the flow named none. */
   turnRepo: () => string;
 }
 
 /**
- * Run a routed message as the role the route names (the stage runner runs ANY role): close its turn row and
+ * Run a routed message as the role the route names (the role runner runs ANY role): close its turn row and
  * map a failed resume to the owner's reply.
- * `plan` is what `resolveCommand` made of the message (Resume adds a session / plan scratch dir).
+ * `plan` is what `resolveCommand` made of the message (a Resume adds the task's own session and cwd).
  */
 export async function runTurn(
   c: RoleRunCtx,
@@ -58,7 +57,7 @@ export async function runTurn(
 ): Promise<string> {
   const { deps, message, turnId, workspace: ws } = c;
   const { db } = deps;
-  const { cmd, planResume } = a.plan;
+  const { cmd, resume } = a.plan;
   const { pinned } = a.route;
   const role = getRole(a.route.role);
   const existing = a.plan.existing ?? a.existing;
@@ -69,21 +68,30 @@ export async function runTurn(
   logEvent(c.log, "thread.state", { state });
   const ledger =
     role.context?.ledger && isIdleLike(state) ? threadLedger(db, message.threadId) : "";
-  c.begin(a.route.repo, role.name, role.stages[0]?.name ?? "", cls, !!a.plan.approved);
-  // The held task is taken over only now that the resumed run has its own row (a start failure keeps the hold).
-  if (a.plan.approved) dropResumable(db, message.threadId);
-  const res: FlowResult = await runStages(deps, {
+  // A continued task keeps the repo of the task it continues (its row names it), so the ledger does not show `*`.
+  const parentRepo = resume
+    ? db.query<{ repo: string }, [string]>("SELECT repo FROM turns WHERE id = ?").get(resume.of)
+        ?.repo
+    : undefined;
+  c.begin(
+    a.route.repo === "*" && parentRepo ? parentRepo : a.route.repo,
+    role.name,
+    cls,
+    resume?.of,
+  );
+  const res: FlowResult = await runRole(deps, {
     turnId,
     threadId: message.threadId,
     text: cmd.text,
     role: role.name,
     workspace: ws,
-    // `repoScope: "all"` roles see every repo of the workspace; the others pick among the repos.
+    // `repoScope: "all"` roles see every repo of the workspace; the others the candidates.
     repos: role.repoScope === "all" ? c.repos : a.route.candidates,
     ac: c.ac,
-    planResume,
-    approved: a.plan.approved,
+    resume,
     route: runRt,
+    // The held task is taken over only when the run really starts (repo gone, a failed role check keep the hold).
+    onStarted: resume ? () => dropResumable(db, message.threadId) : undefined,
     pinned,
     existing,
     ledger,
@@ -92,10 +100,10 @@ export async function runTurn(
   const reply = closeTurn(db, { turnId, threadId: message.threadId }, res, o);
   // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
   if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {
-    // The plan session lives on the turn row (the failed task now has none, so Resume stops offering it).
-    if (planResume) return "Could not resume the plan; start the task again.";
-    // Only an `answer` role keeps a thread session to clear; staged roles resume per turn row.
-    if (role.output !== "answer" || !existing) return reply;
+    // A background task's session lives on its turn row: the owner starts the task again.
+    if (resume) return "Could not resume the task's session; start the task again.";
+    // Only a foreground role keeps a thread session to clear.
+    if (role.background || !existing) return reply;
     deleteSession(db, message.threadId);
     return "Could not resume the previous session; it was cleared. Please send your message again.";
   }

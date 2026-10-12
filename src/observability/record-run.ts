@@ -60,7 +60,6 @@ export class RunRecorder {
    * @param turnId owning turn id
    * @param model model name stored on the runs row
    * @param taskLogFile path of the per-task JSONL
-   * @param stageIdx stage index of the task this run belongs to; omitted for non-stage runs (stored as NULL)
    */
   constructor(
     private readonly db: Database,
@@ -68,7 +67,6 @@ export class RunRecorder {
     private readonly turnId: string,
     private readonly model: string,
     taskLogFile: string,
-    private readonly stageIdx?: number,
   ) {
     this.dest = fileDestination(taskLogFile);
     this.taskLog = createLogger(this.dest, "trace");
@@ -119,7 +117,6 @@ export class RunRecorder {
         id: this.runId,
         turnId: this.turnId,
         model: this.model,
-        stageIdx: this.stageIdx,
         outcome,
         ...u,
       }),

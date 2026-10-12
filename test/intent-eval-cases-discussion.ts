@@ -15,7 +15,7 @@ const CHAT = [
 const AFTER_CHAT: ThreadFacts = {
   state: "idle",
   ledger: [],
-  lastTurn: { role: "assistant", kind: "qa" },
+  lastTurn: { role: "assistant" },
 };
 
 /** An attachment as the agent and L4 see it: the typed words plus the summary block of a long file. */

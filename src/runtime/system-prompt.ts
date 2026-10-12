@@ -1,8 +1,7 @@
 import { release } from "node:os";
-import { type StageRef, stageOf } from "../roles/role-registry";
-import type { PromptCtx } from "../roles/role-types";
+import type { PromptCtx, RoleDefinition } from "../roles/role-types";
 
-/** Options of the prompt builder (the run-time facts a stage words its prompt with). */
+/** Options of the prompt builder (the run-time facts a role words its prompt with). */
 export type PromptOpts = PromptCtx;
 
 /**
@@ -35,13 +34,12 @@ export const hostLine = (h: HostInfo): string =>
   `- Host: ${h.platform} ${h.release}, default shell ${h.shell ?? "unknown"}.`;
 
 /**
- * Build the SDK systemPrompt: the stage's own sections (run contract, then ask boundary / workflow rules as
- * the stage defines), then COMMON safety, one host (OS) line, then the extra context (registry, memory, persona)
+ * Build the SDK systemPrompt: the role's own sections (run contract, then ask boundary / workflow rules as
+ * the role defines), then COMMON safety, one host (OS) line, then the extra context (registry, memory, persona)
  * last. Skills are declared in role data and listed by the SDK; no skills text is added here.
  */
-export function buildSystemPrompt(context: string, stage: StageRef, opts: PromptOpts = {}) {
-  const s = stageOf(stage);
-  const rules = [...s.promptSections(opts), COMMON, hostLine(currentHost())]
+export function buildSystemPrompt(context: string, role: RoleDefinition, opts: PromptOpts = {}) {
+  const rules = [...role.promptSections(opts), COMMON, hostLine(currentHost())]
     .filter(Boolean)
     .join("\n");
   return {

@@ -42,7 +42,7 @@ const msg = (text: string) => ({
   text,
 });
 
-/** Env with a managed clone, a handler with the intent layer (L0-L3), and every plan-stage run captured. */
+/** Env with a managed clone, a handler with the intent layer (L0-L3), and every dev run captured. */
 function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
@@ -80,7 +80,7 @@ test("intent: a dev request persists a proposal row, dispatched with the task; c
   const tasks = env.db.query<any, []>("SELECT type, class, proposal_id FROM turns").all();
   expect(tasks.map((t) => [t.type, t.class])).toEqual([["code", "design"]]);
   expect(tasks[0].proposal_id).toBe(p.id);
-  expect(stageRuns).toHaveLength(1); // the plan stage ran
+  expect(stageRuns).toHaveLength(1); // the dev run ran
 });
 
 test("`go` starts a pending proposal that survived a restart; a second `go` is plain text", async () => {
@@ -93,10 +93,10 @@ test("`go` starts a pending proposal that survived a restart; a second `go` is p
     class: "mechanical",
   });
   const reply = await handle(msg("go"));
-  expect(reply).toContain("Starting plan");
+  expect(reply).toContain("Starting dev");
   expect(getProposal(env.db, id)?.status).toBe("dispatched");
   expect(stageRuns).toHaveLength(1);
-  expect(stageRuns[0].permissionMode).toBe("plan");
+  expect(stageRuns[0].permissionMode).toBe("bypassPermissions");
   expect(env.db.query("SELECT type, class, proposal_id FROM turns").all()).toEqual([
     { type: "code", class: "mechanical", proposal_id: id },
   ]);

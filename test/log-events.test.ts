@@ -12,7 +12,7 @@ import {
 } from "../src/observability/logger";
 import { RunRecorder } from "../src/observability/record-run";
 import { buildToolHooks } from "../src/observability/tool-hooks";
-import { getStage } from "../src/roles/role-registry";
+import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { addRepo, fakeQuery, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
@@ -26,7 +26,10 @@ function capture() {
 
 test("logEvent writes a stable event field (also the message) plus fields", () => {
   const { log, lines } = capture();
-  logEvent(log.child({ taskId: "T", threadId: "th" }), "task.started", { repo: "api", type: "qa" });
+  logEvent(log.child({ taskId: "T", threadId: "th" }), "task.started", {
+    repo: "api",
+    type: "assistant",
+  });
   expect(lines[0]).toMatchObject({
     event: "task.started",
     msg: "task.started",
@@ -34,7 +37,7 @@ test("logEvent writes a stable event field (also the message) plus fields", () =
     taskId: "T",
     threadId: "th",
     repo: "api",
-    type: "qa",
+    type: "assistant",
   });
 });
 
@@ -132,11 +135,11 @@ test("tool.done line has non-default guard decision, duration, ok flag and a red
 test("a run logs run.started and run.finished with the task's correlation fields", async () => {
   const env = makeEnv();
   const { lines, stop } = captureLogs();
-  await runWithLogContext({ taskId: "T1", threadId: "th1", repo: "repo", mode: "qa" }, () =>
+  await runWithLogContext({ taskId: "T1", threadId: "th1", repo: "repo", mode: "assistant" }, () =>
     runAgent({
       prompt: "q",
       turnId: "T1",
-      stage: getStage("assistant", "qa"),
+      role: getRole("assistant"),
       cwd: env.home,
       config: env.config,
       db: env.db,
@@ -151,7 +154,7 @@ test("a run logs run.started and run.finished with the task's correlation fields
     taskId: "T1",
     threadId: "th1",
     repo: "repo",
-    mode: "qa",
+    mode: "assistant",
     resume: false,
   });
   expect(lines[1]).toMatchObject({ event: "permission.mode" });

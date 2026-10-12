@@ -1,23 +1,20 @@
-import type { Capability, RoleDefinition, StageDefinition } from "../role-types";
+import type { Capability, RoleDefinition } from "../role-types";
 import {
   askRules,
-  EXEC,
-  EXEC_MEMORY,
-  EXEC_RUN_FACTS,
-  PLAN,
-  PLAN_RUN_FACTS,
+  DEV,
+  DEV_MEMORY,
+  DEV_RUN_FACTS,
   SKILL_RUN_FACTS,
-  VAGUE_PLAN_RULE,
   workflowRules,
   worktreeRule,
 } from "./dev-prompts";
 
-/** Owner questions (AskUserQuestion) the whole task may make, plan and exec together. Wired: ask guard + prompt text. */
+/** Owner questions (AskUserQuestion) one run may make. Wired: ask guard + prompt text. */
 const MAX_ASK = 6;
-/** Budget (USD) of one task: old plan 1.5 + exec 3.0. Consumed by phase 5 (single run); the stages keep their own budgets until then. */
+/** Budget (USD) of one dev run (the task ceiling `TASK_BUDGET_USD` still caps the task over its resumes). */
 const BUDGET_USD = 4.5;
 
-/** Capabilities of a code task. Plan and execute stages share them: the guard narrows what a call may do. */
+/** Capabilities of a code task: the guard narrows what a call may do. */
 const CODE_CAPABILITIES: Capability[] = [
   "read",
   "write",
@@ -27,68 +24,37 @@ const CODE_CAPABILITIES: Capability[] = [
   "mcp",
   "feedback",
   "ask",
-  "planControl",
 ];
 
-/** What plan and exec have in common: tools; exec adds more below. */
-const CODE_STAGE_BASE = {
-  capabilities: CODE_CAPABILITIES,
-  streaming: true, // plan and exec are background runs: the owner can steer them
-  // OpenRouter: plan mode needs a model that reliably calls ExitPlanMode; deepseek-v4-flash does not (live test), a Claude model does.
-  openrouterModel: "anthropic/claude-haiku-4.5",
-} satisfies Partial<StageDefinition>;
-
-/** Code changes: a plan the owner approves, then an execute run in the repo's own checkout; the agent delivers (commit, push, PR). */
+/**
+ * Code changes: ONE run in the repo's own checkout. Brainstorm, plan, the owner's approval (AskUserQuestion), implement,
+ * verify and deliver (commit, push, PR as the owner chose) come from the skills and the run facts: no code enforces an order.
+ */
 export const DEV_ROLE: RoleDefinition = {
   name: "dev",
   whenToUse:
-    "Outcome is a change to the code: implement, fix, refactor, add tests; also research, design or plan a FUTURE change of the project. Plans, owner approves, then a PR. Not for: learning how existing code works.",
-  output: "result",
-  skills: "all", // every installed publisher skill (installing one needs no code change)
-  maxAsk: MAX_ASK,
-  countsTowardCap: true,
+    "A job that changes things or needs a plan the owner approves: implement, fix, refactor, add tests, design or plan a FUTURE change; works in the repo and delivers (merge, PR or keep) after the owner chose.",
   tag: "[dev]",
-  stages: [
-    {
-      ...CODE_STAGE_BASE,
-      name: "plan",
-      model: "sonnet",
-      classTiers: { mechanical: "sonnet", standard: "sonnet", design: "opus" },
-      budgetUsd: 1.5,
-      gitGroups: [], // no git MCP: the agent uses `git` in the shell
-      permissionMode: "plan",
-      gate: "plan-approval",
-      handoff: {
-        planFile: "plan.md",
-        template:
-          "Approved plan (also saved at {planPath}):\n\n{plan}\n\nOriginal task: {task}\n\n{testLine}",
-      },
-      promptSections: (ctx) => [
-        PLAN,
-        PLAN_RUN_FACTS,
-        SKILL_RUN_FACTS,
-        askRules(MAX_ASK),
-        VAGUE_PLAN_RULE,
-        workflowRules("plan", ctx.workflow),
-      ],
-    },
-    {
-      ...CODE_STAGE_BASE,
-      name: "exec",
-      permissionMode: "bypassPermissions",
-      model: "sonnet",
-      classTiers: { mechanical: "haiku", standard: "sonnet", design: "opus" },
-      budgetUsd: 3.0,
-      gitGroups: [],
-      promptSections: (ctx) => [
-        EXEC,
-        EXEC_RUN_FACTS,
-        ctx.worktreesDir ? worktreeRule(ctx.worktreesDir) : "",
-        SKILL_RUN_FACTS,
-        EXEC_MEMORY,
-        askRules(MAX_ASK),
-        workflowRules("exec", ctx.workflow),
-      ],
-    },
+  background: true,
+  skills: "all", // every installed publisher skill (installing one needs no code change)
+  limits: { maxAsk: MAX_ASK },
+  capabilities: CODE_CAPABILITIES,
+  gitGroups: [], // no git MCP: the agent uses `git` in the shell
+  // The SDK asks nothing; only the guard's hard denies stop a call. Approval of the plan is an ask, not a gate.
+  permissionMode: "bypassPermissions",
+  streaming: true, // a background run: the owner can steer it
+  model: "sonnet",
+  classTiers: { mechanical: "sonnet", standard: "sonnet", design: "opus" },
+  budgetUsd: BUDGET_USD,
+  // OpenRouter: a Claude model follows the ask flow reliably; deepseek-v4-flash did not call the plan tool (live test).
+  openrouterModel: "anthropic/claude-haiku-4.5",
+  promptSections: (ctx) => [
+    DEV,
+    DEV_RUN_FACTS,
+    ctx.worktreesDir ? worktreeRule(ctx.worktreesDir) : "",
+    SKILL_RUN_FACTS,
+    DEV_MEMORY,
+    askRules(MAX_ASK),
+    workflowRules(ctx.workflow),
   ],
 };

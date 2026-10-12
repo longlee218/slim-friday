@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { realpathSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import type { IntentDeps } from "../src/intent/decide-intent";
@@ -12,8 +12,6 @@ import { QUEUE_RECEIVED } from "../src/orchestrator/thread/intent-replies";
 import { ROLES } from "../src/roles/role-registry";
 import { getProposal, insertProposal, listPendingProposals } from "../src/storage/proposal-store";
 import { listRunMessages } from "../src/storage/run-message-store";
-import { getSession, setSession } from "../src/storage/session-store";
-import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
@@ -62,22 +60,12 @@ const intentDeps = (home: string, classifier?: IntentClassifier): IntentDeps => 
   classifier,
 });
 
-/** Plan stage submits a plan; exec stage (the run that can Write, in the repo) commits a file; anything else is a Q&A answer. */
+/** The dev run (the one that can Write, in the repo) commits a file; anything else is a Q&A answer. */
 function fakeSdk(seen: any[]) {
   return (a: any) => {
     seen.push(a);
     const o = a.options;
     return (async function* () {
-      if (o.permissionMode === "plan") {
-        const r = await o.canUseTool(
-          EXIT_PLAN_MODE_TOOL_NAME,
-          { plan: "repo: real\nadd b.txt" },
-          {},
-        );
-        if (r.behavior === "allow") throw new Error("process aborted");
-        yield resultMsg({ result: "plan rejected" });
-        return;
-      }
       if (o.tools.includes("Write")) {
         const f = `f${seen.length}.txt`;
         writeFileSync(join(o.cwd, f), "x\n");
@@ -92,7 +80,7 @@ function fakeSdk(seen: any[]) {
           "-qm",
           f,
         );
-        yield resultMsg({ result: "Xong", session_id: "sess-exec" });
+        yield resultMsg({ result: "Xong\n\nrepo: real", session_id: "sess-exec" });
         return;
       }
       yield resultMsg({ result: "assistant answer", session_id: "sess-qa" });
@@ -177,7 +165,7 @@ test("no L3 call for L0 commands (legacy and slash forms), a leading tag, or whe
   expect(await none(msg("vague words", "th2"))).toBe("assistant answer"); // idle + ambiguous -> entry role
 });
 
-test("L3 -> dev opens the task by the dispatcher: plan stage runs, no assistant turn", async () => {
+test("L3 -> dev opens the task by the dispatcher: the dev run starts, no assistant turn", async () => {
   const env = await setup();
   const e = engine(verdict({ class: "mechanical" }));
   const seen: any[] = [];
@@ -190,9 +178,9 @@ test("L3 -> dev opens the task by the dispatcher: plan stage runs, no assistant 
   });
   const reply = await handle(msg("please add b.txt with two"));
   expect(e.seen).toHaveLength(1);
-  expect(seen[0].options.permissionMode).toBe("plan"); // the first run is the plan stage
+  expect(seen[0].options.permissionMode).toBe("bypassPermissions"); // the first run is the dev run
   expect(roles(env)).toEqual(["dev"]);
-  expect(reply).toContain("Starting plan");
+  expect(reply).toContain("Starting dev");
   const p = rows(env, "SELECT * FROM proposals")[0];
   expect(p).toMatchObject({
     role: "dev",
@@ -293,7 +281,9 @@ test('a second dev task while one runs: auto-queued with "received" (no question
   const inner = fakeSdk(seen);
   // the first (assistant) run blocks until released
   const query = (a: any) =>
-    a.options.permissionMode !== "plan" && !a.options.cwd.includes("worktrees") && seen.length === 0
+    a.options.permissionMode !== "bypassPermissions" &&
+    !a.options.cwd.includes("worktrees") &&
+    seen.length === 0
       ? (async function* () {
           seen.push(a);
           await gate;
@@ -324,7 +314,7 @@ test('a second dev task while one runs: auto-queued with "received" (no question
   release();
   const reply = await first;
   expect(reply).toContain("slow answer");
-  expect(reply).toContain("Starting plan"); // the queued dev task started after the active one
+  expect(reply).toContain("Starting dev"); // the queued dev task started after the active one
   expect(rows(env, "SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
   expect(roles(env)).toEqual(["assistant", "dev"]);
 });
@@ -377,7 +367,7 @@ test("stop keeps the queued tasks: the reply counts them, they run after the sto
   ).toEqual(["add a feature please", "add another feature please"]);
 });
 
-test("after a task ended a [dev] message is a NEW task (plan first, fresh session, no fix round); an assistant answer in between resumes nothing of the exec", async () => {
+test("after a task ended a [dev] message is a NEW task (fresh session, no fix round); an assistant answer in between resumes nothing of the dev run", async () => {
   const env = await setup();
   const seen: any[] = [];
   const handle = createTurnHandler({
@@ -387,18 +377,18 @@ test("after a task ended a [dev] message is a NEW task (plan first, fresh sessio
     queryFn: fakeSdk(seen) as never,
     intent: intentDeps(env.home, engine(verdict()).classifier),
   });
-  await handle(msg("please add b.txt with two")); // L3 -> dev: plan -> exec in the repo
-  expect(seen).toHaveLength(2);
-  // an assistant question in the thread: answered, no exec session continued
+  await handle(msg("please add b.txt with two")); // L3 -> dev: one run in the repo
+  expect(seen).toHaveLength(1);
+  // an assistant question in the thread: answered, no dev session continued
   expect(await handle(msg("[ask] what did you change"))).toBe("assistant answer");
   expect(seen.at(-1).options.resume).toBeUndefined();
-  // any number of follow-ups: each one starts a new proposal at the plan stage
+  // any number of follow-ups: each one starts a new proposal and a new dev run
   for (const n of [1, 2, 3]) {
     const before = seen.length;
     const reply = await handle(msg(`[dev] fix it again ${n}`));
-    expect(reply).toContain("Starting plan");
+    expect(reply).toContain("Starting dev");
     expect(seen.length).toBeGreaterThan(before);
-    expect(seen[before].options.permissionMode).toBe("plan");
+    expect(seen[before].options.permissionMode).toBe("bypassPermissions");
     expect(seen[before].options.resume).toBeUndefined();
   }
   expect(rows(env, "SELECT parent_turn_id FROM turns WHERE parent_turn_id IS NOT NULL")).toEqual(
@@ -526,8 +516,8 @@ test("yes / no on an idle thread (read by L3) answers the pending proposal (yes 
   expect(getProposal(env.db, no)?.status).toBe("refused");
   pending("add b.txt with two");
   const reply = await handle(msg("ok"));
-  expect(reply).toContain("Starting plan");
-  expect(seen[0].options.permissionMode).toBe("plan");
+  expect(reply).toContain("Starting dev");
+  expect(seen[0].options.permissionMode).toBe("bypassPermissions");
   expect(e.seen).toEqual(["khong", "ok"]); // L3 read both answers
   expect(roles(env)).toEqual(["dev"]);
 });
@@ -540,7 +530,9 @@ test("a crash of the active run still starts the queued task (no L3 call while a
   const inner = fakeSdk(seen);
   // the first (assistant) run blocks, then crashes the turn
   const query = (a: any) =>
-    a.options.permissionMode !== "plan" && !a.options.cwd.includes("worktrees") && seen.length === 0
+    a.options.permissionMode !== "bypassPermissions" &&
+    !a.options.cwd.includes("worktrees") &&
+    seen.length === 0
       ? (async function* () {
           seen.push(a);
           await gate;

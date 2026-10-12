@@ -43,9 +43,7 @@ export const TASK_GET_TOOL_NAME = "TaskGet";
 export const TASK_STOP_TOOL_NAME = "TaskStop";
 export const TOOL_SEARCH_TOOL_NAME = "ToolSearch";
 
-/* Plan flow: Exit and AskUserQuestion are answered by the owner; Enter is harmless. */
-export const EXIT_PLAN_MODE_TOOL_NAME = "ExitPlanMode";
-export const ENTER_PLAN_MODE_TOOL_NAME = "EnterPlanMode";
+/* AskUserQuestion is answered by the owner (buttons); the plan approval of a dev run is one of these asks. */
 export const ASK_USER_QUESTION_TOOL_NAME = "AskUserQuestion";
 
 /*

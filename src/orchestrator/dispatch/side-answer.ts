@@ -4,7 +4,7 @@ import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
 import type { Repo } from "../../repos/repo-registry";
 import { threadLedger } from "../../storage/ledger-store";
-import { runStages } from "../engine/stage-runner";
+import { runRole } from "../engine/run-role";
 import { runRoute } from "../message-routing";
 import { closeTurn } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
@@ -12,14 +12,14 @@ import type { DispatchDeps } from "./dispatch-role";
 import { taskBrief } from "./queued-tasks";
 import { validateRequest } from "./validate-request";
 
-/* The side lane: an independent question for an ANSWERING role (no gate, no writes) sent while the thread's task runs
+/* The side lane: an independent question for a FOREGROUND role (not background, no writes) sent while the thread's task runs
    is answered at once, in a second read-only run next to the task. It shares NOTHING that a second run would break:
    - not the thread lock (the handler never takes it for a side run);
    - not the thread's session row (it starts fresh, never resumes, and saves no session: `sessionId` is dropped);
    - not the thread's task rows (its row lives under `<thread>:side`, so the thread state and the ledger of the
      running task are untouched);
    - not the task's steer input (a side run gets no steer hook, so it never registers a sink under the thread).
-   It runs the role's own stages with the role's own budget, repos and guards (read-only). Limits: no conversation
+   It runs the role itself with the role's own budget, repos and guards (read-only). Limits: no conversation
    continuity (the context is the owner text, the recent messages and the task ledger), and its answer is not part
    of the thread's session, so a later turn of the assistant does not remember it. */
 
@@ -70,11 +70,11 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
     db,
     log,
     { turnId, threadId: sideThread, source: i.message.source },
-    { repo: v.repoName, mode: v.firstStage.name, brief, cls: v.cls, role: role.name },
+    { repo: v.repoName, brief, cls: v.cls, role: role.name },
   );
   logEvent(log, "side.started", { role: role.name, repo: v.repoName });
   const t0 = Date.now();
-  const res = await runStages(
+  const res = await runRole(
     { ...deps, steer: undefined }, // no steer hook: the side run must never register a sink under the thread
     {
       turnId,

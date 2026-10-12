@@ -31,12 +31,10 @@ export interface RunMessageRow {
   content: string;
   createdAt: number;
   taskId: string | null;
-  /** 1 = steered into work after the approved plan gate. */
-  afterPlan: number;
 }
 
 const COLS = `id, message_id AS messageId, thread_id AS threadId, session_id AS sessionId, run_id AS runId,
-  seq, kind, status, content, created_at AS createdAt, task_id AS taskId, after_plan AS afterPlan`;
+  seq, kind, status, content, created_at AS createdAt, task_id AS taskId`;
 
 /** Store one message: `seq` = next arrival number of the thread; content redacted, then capped. Returns the row id. */
 export function insertRunMessage(
@@ -51,15 +49,13 @@ export function insertRunMessage(
     content: string;
     /** Task the message was meant for (a held steer learns it when it is delivered: `setRunMessageTarget`). */
     taskId?: string;
-    /** The message changed work that sits after the approved plan gate (the plan was NOT re-approved for it). */
-    afterPlan?: boolean;
   },
   now = Date.now(),
 ): string {
   const id = crypto.randomUUID();
   db.query(
-    `INSERT INTO run_messages (id, message_id, thread_id, session_id, run_id, seq, kind, status, content, created_at, task_id, after_plan)
-     VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM run_messages WHERE thread_id = ?), ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO run_messages (id, message_id, thread_id, session_id, run_id, seq, kind, status, content, created_at, task_id)
+     VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM run_messages WHERE thread_id = ?), ?, ?, ?, ?, ?)`,
   ).run(
     id,
     m.messageId ?? null,
@@ -72,7 +68,6 @@ export function insertRunMessage(
     redactClip(m.content, RUN_MESSAGE_MAX_CHARS), // redactText first, then a surrogate-safe cut that leaves no secret tail
     now,
     m.taskId ?? null,
-    m.afterPlan ? 1 : 0,
   );
   return id;
 }
@@ -86,24 +81,9 @@ export function setRunMessageStatus(db: Database, id: string, status: RunMessage
   );
 }
 
-/** Point a stored message at the task that finally took it (a steer held between stages). */
-export function setRunMessageTarget(
-  db: Database,
-  id: string,
-  t: { taskId: string; afterPlan: boolean },
-): void {
-  db.query("UPDATE run_messages SET task_id = ?, after_plan = ? WHERE id = ?").run(
-    t.taskId,
-    t.afterPlan ? 1 : 0,
-    id,
-  );
-}
-
-/** The task changed after plan approval because of an owner message (ledger line). */
-export function steeredAfterPlan(db: Database, taskId: string): boolean {
-  return !!db
-    .query("SELECT 1 FROM run_messages WHERE task_id = ? AND after_plan = 1 LIMIT 1")
-    .get(taskId);
+/** Point a stored message at the task that finally took it (a steer held until the run started). */
+export function setRunMessageTarget(db: Database, id: string, taskId: string): void {
+  db.query("UPDATE run_messages SET task_id = ? WHERE id = ?").run(taskId, id);
 }
 
 /** The thread's messages in arrival order (tests, diagnostics). */

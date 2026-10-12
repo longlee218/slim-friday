@@ -3,16 +3,12 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { workspacePaths } from "../src/config/workspace-paths";
-import { planFileOf } from "../src/orchestrator/engine/resume-exec";
 import { resolveCommand } from "../src/orchestrator/message-routing";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
-import { ROLES } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { threadLedger } from "../src/storage/ledger-store";
 import { applyLegacySchema } from "../src/storage/legacy-schema";
 import { insertTurn, latestTurnSession } from "../src/storage/run-store";
-import { listStages } from "../src/storage/stage-store";
 
 // OLD NAMES ON PURPOSE: this file builds the v2 (pre-turns) database and checks the v2 -> v3 migration.
 // Tmp dirs only: it never touches a real home.
@@ -175,10 +171,8 @@ test("d. readers work on the migrated db", () => {
   const db = openDb(file);
   insertTurn(db, { id: "t5", threadId: "th3", source: "s", repo: "r", role: "assistant" });
   expect(db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 5 });
-  expect(listStages(db, "t2").map((s) => [s.turnId, s.idx, s.name])).toEqual([
-    ["t2", 0, "plan"],
-    ["t2", 1, "exec"],
-  ]);
+  // The migrated `stages` rows stay on disk (dropped by v4) but nothing reads them any more.
+  expect(db.query("SELECT COUNT(*) AS n FROM stages WHERE turn_id = 't2'").get()).toEqual({ n: 2 });
   expect(latestTurnSession(db, "th2")).toMatchObject({
     id: "t3",
     sessionId: "s3",
@@ -186,8 +180,7 @@ test("d. readers work on the migrated db", () => {
   });
   const ledger = threadLedger(db, "th2");
   expect(ledger).toContain('- t2 dev, running: "build it"');
-  expect(ledger).toContain("  repo repo\n  stages:");
-  expect(ledger).toContain("plan done ($0.50)");
+  expect(ledger).toContain("  repo repo, cost $0.50"); // the sum of the task's `runs`
   expect(deriveThreadState(db, "th2")).toBe("idle"); // last turn t3 is failed_resumable
 });
 
@@ -266,20 +259,49 @@ test("backup failure on a v2 db aborts startup and leaves it untouched", () => {
   raw.close();
 });
 
-test("g. an old db with a worktrees row and a failed_resumable dev turn opens; `/go` resumes it from the saved plan (no clone)", () => {
+test("g. an old db with a worktrees row and a failed_resumable dev turn opens; `/go` continues its saved session in its cwd (no clone, no plan file)", () => {
   const { home, file } = v2Home();
   const db = openDb(file);
-  // The plan the stage switch saved for t3 (th2's last turn, `failed_resumable`, repo "repo", with a legacy worktrees row).
-  const dir = workspacePaths(home).workspace("main").task("t3").root;
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, planFileOf(ROLES.dev!)), "the approved plan");
+  // t3 (th2's last turn, `failed_resumable`, session s3, with a legacy worktrees row) ran in a dir that still exists.
+  const cwd = mkdtempSync(join(tmpdir(), "friday-v3-cwd-"));
+  db.query("UPDATE turns SET session_cwd = ? WHERE id = 't3'").run(cwd);
+  // The session cwd is a registered repo of the workspace: the dev run may continue in it.
+  const repo = { name: "web", workspace: "main", dir: cwd, path: cwd, description: "" };
+  const r = resolveCommand(
+    { db, agentHome: home, workspace: "main", repos: [repo] },
+    { kind: "resume" },
+    "th2",
+  );
+  expect(r).toMatchObject({
+    cmd: { kind: "message", role: "dev" },
+    resume: { sessionId: "s3", cwd, of: "t3" },
+  });
+});
+
+test("g1. an old-shaped dev session whose cwd is a task scratch dir (no registered repo) is not resumed as dev", () => {
+  const { home, file } = v2Home();
+  const db = openDb(file);
+  // The dir exists (an old plan-run scratch dir) but is not one of the workspace repos.
+  const scratch = mkdtempSync(join(tmpdir(), "friday-v3-scratch-"));
+  db.query("UPDATE turns SET session_cwd = ? WHERE id = 't3'").run(scratch);
+  const other = mkdtempSync(join(tmpdir(), "friday-v3-repo-"));
+  const repo = { name: "web", workspace: "main", dir: other, path: other, description: "" };
+  const r = resolveCommand(
+    { db, agentHome: home, workspace: "main", repos: [repo] },
+    { kind: "resume" },
+    "th2",
+  );
+  expect(r).toMatchObject({ reason: "resume_gone" });
+});
+
+test("g2. the same turn whose cwd is gone: `/go` refuses, the task becomes failed (nothing to continue)", () => {
+  const { home, file } = v2Home();
+  const db = openDb(file);
   const r = resolveCommand(
     { db, agentHome: home, workspace: "main", repos: [] },
     { kind: "resume" },
     "th2",
   );
-  expect(r).toMatchObject({
-    cmd: { kind: "message", role: "dev", text: "fix it" },
-    approved: { plan: "the approved plan", repo: "repo" },
-  });
+  expect(r).toMatchObject({ reason: "resume_gone" });
+  expect(db.query("SELECT status FROM turns WHERE id = 't3'").get()).toEqual({ status: "failed" });
 });

@@ -1,9 +1,8 @@
-// A turn is one handled message; a staged turn is a task (Rev 11).
+// A turn is one handled message; the turn of a background role is a task (Rev 11).
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
 import type { TaskClass } from "../../config/model-routing";
 import { logEvent, setLogContext, tryLog } from "../../observability/logger";
-import { getRole, turnTypeOf } from "../../roles/role-registry";
 import { countQueuedProposals } from "../../storage/proposal-store";
 import { finishTurn, insertTurn, interruptRunningTurns } from "../../storage/run-store";
 
@@ -75,7 +74,7 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
 }
 
 /**
- * Create the turn row (`brief` = the dispatched task's prompt) and set the log context of the task (repo, mode). `single` = the only registered
+ * Create the turn row (`brief` = the dispatched task's prompt) and set the log context of the task (repo, role). `single` = the only registered
  * workspace: an unpinned task ("*" row) then logs under it. Lines logged before the repo is known
  * (message.received, task.started with "*") stay in the main log only; tool-hooks sets the repo later
  * for unpinned multi-repo tasks.
@@ -86,7 +85,6 @@ export function beginTurn(
   ids: { turnId: string; threadId: string; source: string; single?: string },
   t: {
     repo: string;
-    mode: string;
     brief?: string;
     cls?: TaskClass;
     proposalId?: string;
@@ -110,8 +108,8 @@ export function beginTurn(
     resume: t.resume,
   });
   const logRepo = t.repo === "*" && ids.single ? ids.single : t.repo;
-  setLogContext({ repo: logRepo, mode: t.mode });
-  logEvent(log, "task.started", { repo: logRepo, type: turnTypeOf(getRole(t.role)) });
+  setLogContext({ repo: logRepo, mode: t.role });
+  logEvent(log, "task.started", { repo: logRepo, type: t.role });
 }
 
 /** Log a refused task (`task.refused`) and return the reply text for the owner. */

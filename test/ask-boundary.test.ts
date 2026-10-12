@@ -1,17 +1,16 @@
 import { expect, test } from "bun:test";
-import { realpathSync } from "node:fs";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { getRole } from "../src/roles/role-registry";
 import { newAskLimit } from "../src/runtime/ask-limit";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import { getSession } from "../src/storage/session-store";
-import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
 import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
 /** Ask cap of the dev role (the engine passes it to the guard; direct permission layers below get it explicitly). */
-const MAX_ASK = getRole("dev").maxAsk;
+const MAX_ASK = getRole("dev").limits.maxAsk;
 
 /** One batched AskUserQuestion input. */
 const QUESTIONS = {
@@ -20,7 +19,7 @@ const QUESTIONS = {
   ],
 };
 
-/** Stage fake: asks once through canUseTool; a deny aborts like the real SDK does when the flow aborts. */
+/** Run fake: asks once through canUseTool; a deny aborts like the real SDK does when the flow aborts. */
 const askAndMaybeStop = async (o: any) => {
   const r = await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {});
   if (o.abortController.signal.aborted) throw new Error("process aborted");
@@ -33,7 +32,7 @@ test("guard: AskUserQuestion calls beyond the cap are denied and never reach the
     askLimit: newAskLimit(MAX_ASK),
     turnId: "t",
     threadId: "th",
-    guard: guardFor("exec", { writePaths: [], readPaths: [] }),
+    guard: guardFor(getRole("dev"), { writePaths: [], readPaths: [] }),
     gateway: stubGateway({
       askChoice: async (a) => {
         asked.push(a.question);
@@ -52,22 +51,18 @@ test("guard: AskUserQuestion calls beyond the cap are denied and never reach the
   expect(asked).toHaveLength(MAX_ASK);
 });
 
-test("the ask budget is shared across stages: spent in plan, denied in exec", async () => {
+test("the ask budget is per run: MAX_ASK questions reach the owner, the next is denied; a new task has its own budget", async () => {
   const { env } = await setupWorkflow();
   const asked: string[] = [];
-  const exec: any[] = [];
+  const results: any[][] = [];
   const next = (a: any) =>
     (async function* () {
       const o = a.options;
       yield initMsg;
-      if (o.permissionMode === "plan") {
-        for (let n = 0; n < MAX_ASK; n++)
-          exec.push(await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {}));
-        const p = await o.canUseTool(EXIT_PLAN_MODE_TOOL_NAME, { plan: "repo: real\nx" }, {});
-        if (p.behavior === "allow") throw new Error("process aborted");
-        return;
-      }
-      exec.push(await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {}));
+      const mine: any[] = [];
+      for (let n = 0; n <= MAX_ASK; n++)
+        mine.push(await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {}));
+      results.push(mine);
       yield resultMsg({ result: "done" });
     })();
   const handle = createTurnHandler({
@@ -83,31 +78,31 @@ test("the ask budget is shared across stages: spent in plan, denied in exec", as
     queryFn: next as never,
     intent: devIntent(env.home),
   });
-  await handle({
+  const msg = (text: string) => ({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "[dev] change the schema",
+    text,
   });
-  const last = exec.length - 1;
-  expect(exec).toHaveLength(MAX_ASK + 1);
-  for (const r of exec.slice(0, last)) expect(r).toMatchObject({ behavior: "allow" }); // plan stage: the budget
-  expect(exec[last]).toMatchObject({ behavior: "deny" }); // exec stage: refused
-  expect(asked).toHaveLength(MAX_ASK);
+  await handle(msg("[dev] change the schema"));
+  await handle(msg("[dev] and again"));
+  expect(results).toHaveLength(2);
+  for (const mine of results) {
+    for (const r of mine.slice(0, MAX_ASK)) expect(r).toMatchObject({ behavior: "allow" });
+    expect(mine[MAX_ASK]).toMatchObject({ behavior: "deny" }); // over the cap: never reaches the owner
+  }
+  expect(asked).toHaveLength(MAX_ASK * 2);
 });
 
-test("exec: no answer in time -> 'Awaiting clarification', session kept, task cancelled", async () => {
-  const { env, clone } = await setupWorkflow();
+test("dev run: no answer in time -> 'Awaiting clarification', no thread session, task cancelled", async () => {
+  const { env } = await setupWorkflow();
+  let runs = 0;
   const next = (a: any) =>
     (async function* () {
+      runs++;
       const o = a.options;
-      yield { ...initMsg, session_id: o.permissionMode === "plan" ? "sess-plan" : "sess-exec" };
-      if (o.permissionMode === "plan") {
-        const p = await o.canUseTool(EXIT_PLAN_MODE_TOOL_NAME, { plan: "repo: real\nx" }, {});
-        if (p.behavior === "allow") throw new Error("process aborted");
-        return;
-      }
+      yield { ...initMsg, session_id: "sess-dev" };
       await askAndMaybeStop(o);
       yield resultMsg({ result: "must not be reached" });
     })();
@@ -128,73 +123,32 @@ test("exec: no answer in time -> 'Awaiting clarification', session kept, task ca
   });
   expect(reply.startsWith("Awaiting clarification:")).toBe(true);
   expect(reply).toContain("Drop the column? (default: keep)");
-  expect(reply).toContain("Reply in this thread to continue.");
-  expect(getSession(env.db, "th1")).toBeNull(); // an exec session in the repo is not the thread's (the assistant would resume it)
+  expect(reply).toContain("Send `/go` to continue, or start a new request.");
+  expect(runs).toBe(1);
+  expect(getSession(env.db, "th1")).toBeNull(); // a dev session in the repo is not the thread's (the assistant would resume it)
   expect(env.db.query("SELECT status FROM turns WHERE type = 'code'").all()).toEqual([
     { status: "cancelled" },
   ]);
 });
 
-test("plan stage: no answer in time -> 'Awaiting clarification', no plan approval, no worktree", async () => {
-  const { env } = await setupWorkflow();
-  let planCalls = 0;
-  const next = (a: any) =>
-    (async function* () {
-      planCalls++;
-      yield initMsg;
-      await askAndMaybeStop(a.options);
-      yield resultMsg({ result: "must not be reached" });
-    })();
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    approvals: stubGateway({ askChoice: async () => undefined }),
-    queryFn: next as never,
-    intent: devIntent(env.home),
-  });
-  const reply = await handle({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th1",
-    text: "[dev] change it",
-    notify: async () => {},
-  });
-  expect(reply.startsWith("Awaiting clarification:")).toBe(true);
-  expect(planCalls).toBe(1); // the exec stage never started
-});
-
-/** Handler whose stage fakes run `stage(options, runIndex)`; the owner answers via `askChoice`. */
+/** Handler whose run fakes run `run(options, runIndex)`; the owner answers via `askChoice`. */
 function handlerWith(
   env: Awaited<ReturnType<typeof setupWorkflow>>["env"],
   askChoice: (a: any) => Promise<string | undefined>,
-  stage: (o: any, call: number) => AsyncGenerator<any>,
+  run: (o: any, call: number) => AsyncGenerator<any>,
 ) {
   let call = 0;
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     approvals: stubGateway({ askChoice }),
-    queryFn: (a: any) => stage(a.options, call++) as never,
+    queryFn: (a: any) => run(a.options, call++) as never,
     intent: devIntent(env.home),
   });
   return handle;
 }
 
-/** Plan stage that approves the plan (the flow moves on to exec), exec stage runs `body`. */
-const planThen = (o: any, body: () => Promise<void>) =>
-  (async function* () {
-    yield { ...initMsg, session_id: o.permissionMode === "plan" ? "sess-plan" : "sess-exec" };
-    if (o.permissionMode === "plan") {
-      const p = await o.canUseTool(EXIT_PLAN_MODE_TOOL_NAME, { plan: "repo: real\nx" }, {});
-      if (p.behavior === "allow") throw new Error("process aborted");
-      return;
-    }
-    await body();
-    yield resultMsg({ result: "must not be reached" });
-  })();
-
-test("stop while a question is pending (plan): not 'Awaiting clarification', session not kept", async () => {
+test("stop while a question is pending: not 'Awaiting clarification', session not kept", async () => {
   const { env } = await setupWorkflow();
   const handle: ReturnType<typeof handlerWith> = handlerWith(
     env,
@@ -217,29 +171,7 @@ test("stop while a question is pending (plan): not 'Awaiting clarification', ses
     text: "[dev] please start",
   });
   expect(reply.startsWith("Awaiting clarification")).toBe(false);
-  // No plan/exec session kept for the cancelled stage (and no assistant turn before the dev task).
-  expect(getSession(env.db, "th1")).toBeNull();
-});
-
-test("stop while a question is pending (exec): not 'Awaiting clarification', session not kept", async () => {
-  const { env } = await setupWorkflow();
-  const handle: ReturnType<typeof handlerWith> = handlerWith(
-    env,
-    async () => {
-      handle.abortAll();
-      return undefined;
-    },
-    (o) => planThen(o, () => askAndMaybeStop(o)),
-  );
-  const reply = await handle({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th1",
-    text: "[dev] please start",
-  });
-  expect(reply.startsWith("Awaiting clarification")).toBe(false);
-  // No plan/exec session kept for the cancelled stage (and no assistant turn before the dev task).
+  // No session kept for the cancelled run (and no assistant turn before the dev task).
   expect(getSession(env.db, "th1")).toBeNull();
 });
 
@@ -249,7 +181,7 @@ test("one AskUserQuestion call with 2 questions: both reach the owner, all answe
     askLimit: newAskLimit(MAX_ASK),
     turnId: "t",
     threadId: "th",
-    guard: guardFor("exec", { writePaths: [], readPaths: [] }),
+    guard: guardFor(getRole("dev"), { writePaths: [], readPaths: [] }),
     gateway: stubGateway({
       askChoice: async (a) => {
         asked.push(a.question);
@@ -295,7 +227,7 @@ test("two concurrent tasks have independent ask limits", async () => {
       (async function* () {
         yield initMsg;
         results.push((await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {})).behavior);
-        yield resultMsg({ result: "plan done" });
+        yield resultMsg({ result: "done" });
       })(),
   );
   await Promise.all([
@@ -317,9 +249,9 @@ test("two concurrent tasks have independent ask limits", async () => {
   expect(results).toEqual(["allow", "allow"]); // a shared limit would deny the second
 });
 
-test("after 'Awaiting clarification' at exec (no clone): the session is kept in the repo and a typed reply is a NEW task with a fresh plan", async () => {
-  const { env, clone } = await setupWorkflow();
-  const runs: { plan: boolean; resume?: string; cwd: string }[] = [];
+test("after 'Awaiting clarification' (no clone): nothing is kept for the thread and a typed reply is a NEW task with a fresh run", async () => {
+  const { env } = await setupWorkflow();
+  const runs: { resume?: string; cwd: string }[] = [];
   let ask = 0;
   const handle = createTurnHandler({
     db: env.db,
@@ -328,8 +260,12 @@ test("after 'Awaiting clarification' at exec (no clone): the session is kept in 
     approvals: stubGateway({ askChoice: async (a) => (++ask === 1 ? undefined : a.options[0]) }),
     queryFn: ((a: any) => {
       const o = a.options;
-      runs.push({ plan: o.permissionMode === "plan", resume: o.resume, cwd: o.cwd });
-      return planThen(o, () => askAndMaybeStop(o));
+      runs.push({ resume: o.resume, cwd: o.cwd });
+      return (async function* () {
+        yield initMsg;
+        await askAndMaybeStop(o);
+        yield resultMsg({ result: "done" });
+      })();
     }) as never,
     intent: devIntent(env.home),
   });
@@ -342,11 +278,7 @@ test("after 'Awaiting clarification' at exec (no clone): the session is kept in 
     notify: async () => {},
   });
   expect((await handle(msg("[dev] please start"))).startsWith("Awaiting clarification")).toBe(true);
-  expect(getSession(env.db, "th1")).toBeNull(); // the exec session ran in the repo's own checkout: not the thread's
-  // No clone to continue in (the fix loop goes in phase 4): the reply is a new task, plan first, no resume.
+  expect(getSession(env.db, "th1")).toBeNull(); // the dev session ran in the repo's own checkout: not the thread's
   await handle(msg("[dev] keep the column"));
-  expect(runs.slice(2).map((r) => [r.plan, r.resume])).toEqual([
-    [true, undefined],
-    [false, undefined],
-  ]);
+  expect(runs.map((r) => r.resume)).toEqual([undefined, undefined]);
 });

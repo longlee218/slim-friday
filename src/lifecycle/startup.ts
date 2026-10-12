@@ -44,7 +44,7 @@ export function cleanupTaskLogs(agentHome: string, now = Date.now()): number {
 }
 
 /**
- * Held tasks (`failed_resumable`, waiting for a `/go`) older than the retention expire by age: the saved plan dir is
+ * Held tasks (`failed_resumable`, waiting for a `/go`) older than the retention expire by age: the task scratch dir is
  * removed and the task becomes `failed`, so `/go` has nothing to continue. Returns the expired task ids.
  */
 export function expireHeldTasks(
@@ -73,7 +73,7 @@ export function expireHeldTasks(
           removeDir(ws.workspace(name).task(id).root);
       logEvent(log, "hold.expired", { taskId: id });
     } catch (err) {
-      log.warn({ taskId: id, err: errText(err) }, "held task plan dir not removed");
+      log.warn({ taskId: id, err: errText(err) }, "held task scratch dir not removed");
     }
   }
   return ids;

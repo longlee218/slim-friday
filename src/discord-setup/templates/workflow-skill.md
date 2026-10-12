@@ -1,32 +1,37 @@
 ---
 name: workflow
-description: Master workflow of a code task: triage, understand, plan, TDD implement, verify with evidence, deliver, report. Use at the start of every code task (plan or execute run) to pick the right skill for each step.
+description: Master workflow of a task: triage, understand, design and plan, owner approval, TDD implement, verify with evidence, finish, report. Use at the start of every dev task to pick the right skill for each step.
 ---
 
-# Workflow of a code task
+# Workflow of a task
 
-Owner-editable. The app gates the plan (owner approval); you deliver (commit, push, PR) yourself once the owner chose it. This skill sets how you work.
+Owner-editable. One discipline for the whole run; nothing in the app enforces the order, so follow it yourself. The owner sees only Discord: every approval and choice goes through the ask tool.
 
 ## Steps
 
 1. Triage
-   - Name the task type: bug, feature, refactor, tests only, question. A pure question is answered, not implemented.
+   - Name the task type: bug, feature, refactor, tests only, research, question. A pure question is answered, not implemented.
    - Pick the repo from the registry. Check the repo memory and AGENTS notes for its test command and conventions.
 2. Understand
    - Read the code before judging it. Cite what you rely on as `path:line`.
    - Unclear request: ask the owner only as the ask rules allow (batched, limited number of calls); otherwise choose a default and write it down as an assumption.
-3. Plan (plan stage)
-   - Use `superpowers:writing-plans` for the plan format (Global Constraints, then `### Task N` per task).
-   - Keep tasks small and independent. State the repo line and assumptions. Submit the plan; do not implement.
-4. Implement (execute stage)
+3. Design and plan
+   - Unclear design or several ways to do it: `superpowers:brainstorming`.
+   - Use `superpowers:writing-plans` for the plan format (Global Constraints, then `### Task N` per task). Keep tasks small and independent. State the repo line and assumptions.
+4. Owner approval
+   - Show the plan and get the owner's approval with the ask tool. Do not change files before it. A research or design request with no change needs no approval: the plan is the result.
+5. Implement
    - Test first: write a failing test, see it fail for the right reason, make it pass, refactor. Smallest change that works.
-   - Plan with 3 or more tasks: run it with `superpowers:subagent-driven-development` (it brings `superpowers:requesting-code-review` and `superpowers:receiving-code-review`). Fewer than 3 tasks: `superpowers:executing-plans`, inline. These skills are in the execute stage's skill list only; the run rules say which subagent type each dispatch uses.
+   - Work on a branch; a git worktree is optional (use one when the checkout has other work in progress).
+   - Plan with 3 or more tasks: run it with `superpowers:subagent-driven-development` (it brings `superpowers:requesting-code-review` and `superpowers:receiving-code-review`). Fewer than 3 tasks: `superpowers:executing-plans`, inline.
    - One short conventional commit per task with `git`. No scope beyond the plan: if the plan no longer fits, stop and explain.
-5. Verify
+6. Verify
    - Run the repo's `testCommand` (and typecheck/lint when the repo has them) yourself. Read the output.
    - Paste the evidence: the command and the pass/fail line. No "should work", no claim without a fresh run.
-6. Deliver
-   - After the report, offer the options (merge, push and open a PR, keep the branch) with the ask tool and act on the owner's choice. Merge, push or PR only after the owner chose it.
+7. Finish
+   - Use `superpowers:finishing-a-development-branch`: offer the options (merge, push and open a PR, keep the branch) with the ask tool and act on the owner's choice. Merge, push or PR only after the owner chose it.
+8. Report
+   - Use the report format below.
 
 ## Which skill when
 
@@ -34,8 +39,9 @@ Owner-editable. The app gates the plan (owner approval); you deliver (commit, pu
 |---|---|
 | New feature, unclear design, several ways to do it | `superpowers:brainstorming` (questions go to the owner through the ask tool, within the ask limit) |
 | A spec or request needs a multi-step plan | `superpowers:writing-plans` |
-| An approved plan of fewer than 3 tasks, execute stage | `superpowers:executing-plans` |
+| An approved plan of fewer than 3 tasks | `superpowers:executing-plans` |
 | Writing any code or a fix | `superpowers:test-driven-development` |
+| The work is verified and the owner must choose merge, PR or keep | `superpowers:finishing-a-development-branch` |
 | About to say "done", "fixed" or "passes" | `superpowers:verification-before-completion` |
 | A bug, a failing test or unexpected behavior | `superpowers:systematic-debugging` |
 
@@ -58,4 +64,4 @@ End every run with:
 - `Verification`: each command run and its result (pasted line).
 - `Open questions`: what the owner should decide or check; "none" if empty.
 
-Then, in the execute stage, the `Memory:` section as the run rules say.
+Then the `Memory:` section as the run rules say.

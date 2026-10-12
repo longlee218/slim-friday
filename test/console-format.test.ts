@@ -5,7 +5,12 @@ import pretty from "pino-pretty";
 import { consoleMessage } from "../src/observability/console-format";
 import { consolePrettyOptions } from "../src/observability/logger";
 
-const ctx = { taskId: "8f3a1c2e-1111-2222", workspace: "reelme", repo: "reelme-v2", mode: "qa" };
+const ctx = {
+  taskId: "8f3a1c2e-1111-2222",
+  workspace: "reelme",
+  repo: "reelme-v2",
+  mode: "assistant",
+};
 
 test("tool.done renders compactly with the task suffix", () => {
   const msg = consoleMessage({
@@ -19,7 +24,7 @@ test("tool.done renders compactly with the task suffix", () => {
     ...ctx,
   });
   expect(msg).toBe(
-    "tool.done Read src/a.ts:70-159 ok 1ms 90 lines 3.7KB  · 8f3a1c2e reelme/reelme-v2 qa",
+    "tool.done Read src/a.ts:70-159 ok 1ms 90 lines 3.7KB  · 8f3a1c2e reelme/reelme-v2 assistant",
   );
 });
 
@@ -119,7 +124,7 @@ const inCtx = {
   taskId: "8f3a1c2e-1111-2222",
   workspace: "ws",
   repo: "r",
-  mode: "qa",
+  mode: "assistant",
   threadId: "T1",
 };
 
@@ -136,7 +141,7 @@ test("pretty stream, non-tool events keep their fields (review M1)", () => {
     [{ event: "pr.created", repo: "api", url: "u" }, "pr.created"],
   ]);
   expect(plugin).toContain('"files":7');
-  expect(plugin).toContain("· 8f3a1c2e ws/r qa");
+  expect(plugin).toContain("· 8f3a1c2e ws/r assistant");
   expect(plugin).not.toContain("T1"); // plain info event: no thread
   expect(git).toContain('"ok":false');
   expect(git).toContain("err=bad");
@@ -185,7 +190,7 @@ test("stream llm.turn renders ctx, cache share, approx output, subagent; other l
       ctxTotal: 60000,
       ...ctx,
     }),
-  ).toBe("llm.turn #3 ctx 27.3k (cache 99%) out~16  · 8f3a1c2e reelme/reelme-v2 qa");
+  ).toBe("llm.turn #3 ctx 27.3k (cache 99%) out~16  · 8f3a1c2e reelme/reelme-v2 assistant");
   expect(
     consoleMessage({
       event: "llm.turn",

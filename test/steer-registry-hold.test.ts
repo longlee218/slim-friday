@@ -1,13 +1,11 @@
 import { expect, test } from "bun:test";
 import { createSteerRegistry } from "../src/orchestrator/turns/steer-registry";
 import type { SteerSink } from "../src/runtime/run-input-channel";
-import { PLAN_NOT_REAPPROVED, threadLedger } from "../src/storage/ledger-store";
 import { listRunMessages } from "../src/storage/run-message-store";
 import { finishTurn, insertTurn } from "../src/storage/run-store";
-import { upsertStage } from "../src/storage/stage-store";
 import { makeEnv } from "./helpers";
 
-/* Steer registry between streaming stages (Rev 11 review, H-c) and after an approved plan (M-a). */
+/* Steer registry while a streaming run is starting (Rev 11 review, H-c): a steer is held until the run registers its input. */
 
 const TH = { threadId: "th" };
 const dev = (db: ReturnType<typeof makeEnv>["db"], id = "t1") =>
@@ -21,16 +19,16 @@ const sink = (pushed: string[]): SteerSink => ({
   },
 });
 
-test("between streaming stages a steer is HELD and goes into the next stage's input, in order; its row learns the task", () => {
+test("while a streaming run is starting a steer is HELD and goes into its input, in order; its row learns the task", () => {
   const env = makeEnv();
   const reg = createSteerRegistry(env.db);
   dev(env.db);
   expect(reg.canSteer("th")).toBe(false); // no sink right now ...
-  expect(reg.canTake("th")).toBe(true); // ... but a dev task has streaming stages: a message can wait
+  expect(reg.canTake("th")).toBe(true); // ... but a dev task is a streaming run: a message can wait
   expect(reg.steer(TH, "first").result).toBe("held");
   expect(reg.steer(TH, "second").result).toBe("held");
   const pushed: string[] = [];
-  reg.hook("th").register(sink(pushed), { runId: "r1", turnId: "t1" }); // the next streaming stage starts
+  reg.hook("th").register(sink(pushed), { runId: "r1", turnId: "t1" }); // the run opens its input
   expect(pushed).toEqual(["first", "second"]);
   expect(listRunMessages(env.db, "th").map((r) => [r.content, r.status, r.taskId])).toEqual([
     ["first", "pending", "t1"],
@@ -39,7 +37,7 @@ test("between streaming stages a steer is HELD and goes into the next stage's in
   expect(reg.undeliveredNotice("th")).toBe(""); // nothing left over
 });
 
-test("held steers that no stage ever took are never silent: dropped, and the notice lists them; nothing leaks to a later task", () => {
+test("held steers that no run ever took are never silent: dropped, and the notice lists them; nothing leaks to a later task", () => {
   const env = makeEnv();
   const reg = createSteerRegistry(env.db);
   dev(env.db);
@@ -53,30 +51,29 @@ test("held steers that no stage ever took are never silent: dropped, and the not
   expect(pushed).toEqual([]); // the next task starts clean
 });
 
-test("no running task, or one without a streaming stage: nothing is held (none)", () => {
+test("no running task, or a role that reads no steers: nothing is held (none)", () => {
   const env = makeEnv();
   const reg = createSteerRegistry(env.db);
   expect(reg.canTake("th")).toBe(false);
   expect(reg.steer(TH, "x").result).toBe("none");
   insertTurn(env.db, { id: "a1", threadId: "th", source: "t", repo: "r", role: "assistant" });
-  expect(reg.canTake("th")).toBe(false); // the assistant's qa stage reads no steers
+  expect(reg.canTake("th")).toBe(false); // the assistant reads no steers
   expect(reg.steer(TH, "y").result).toBe("none");
   expect(listRunMessages(env.db, "th").map((r) => r.status)).toEqual(["skipped", "skipped"]);
   finishTurn(env.db, "a1", "done");
 });
 
-test("M-a: a steer into work after the approved plan says so, and the task ledger carries the line", () => {
+test("a steer into a registered run is queued with the run's id and the task's id; the plan approval is no state of its own", () => {
   const env = makeEnv();
   const reg = createSteerRegistry(env.db);
   dev(env.db);
   const pushed: string[] = [];
   reg.hook("th").register(sink(pushed), { runId: "r1", turnId: "t1" });
-  // plan stage still running: no warning
-  expect(reg.steer(TH, "a")).toEqual({ result: "queued", afterPlan: false });
-  expect(threadLedger(env.db, "th")).not.toContain(PLAN_NOT_REAPPROVED);
-  // the plan was approved (the engine writes verdict `approved` on the plan stage row)
-  upsertStage(env.db, { turnId: "t1", idx: 0, name: "plan", status: "done", verdict: "approved" });
-  expect(reg.steer(TH, "b")).toEqual({ result: "queued", afterPlan: true });
-  expect(threadLedger(env.db, "th")).toContain(`  ${PLAN_NOT_REAPPROVED}`);
-  expect(listRunMessages(env.db, "th").map((r) => r.afterPlan)).toEqual([0, 1]);
+  expect(reg.steer(TH, "a")).toEqual({ result: "queued" });
+  expect(reg.steer(TH, "b")).toEqual({ result: "queued" });
+  expect(pushed).toEqual(["a", "b"]);
+  expect(listRunMessages(env.db, "th").map((r) => [r.runId, r.taskId])).toEqual([
+    ["r1", "t1"],
+    ["r1", "t1"],
+  ]);
 });

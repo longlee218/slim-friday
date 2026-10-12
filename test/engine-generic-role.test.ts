@@ -1,35 +1,30 @@
 import { expect, test } from "bun:test";
-import { runStages } from "../src/orchestrator/engine/stage-runner";
+import { runRole } from "../src/orchestrator/engine/run-role";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { insertTurn } from "../src/storage/run-store";
-import { listStages } from "../src/storage/stage-store";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
-/** A role invented in the test: data only, no engine code behind it (read-only, one stage, no gate). */
+/** A role invented in the test: data only, no engine code behind it (read-only, foreground). */
 const PROBE: RoleDefinition = {
   name: "probe-reviewer",
   whenToUse: "test only",
-  output: "answer",
-  maxAsk: 3,
-  countsTowardCap: false,
-  stages: [
-    {
-      name: "review",
-      capabilities: ["read"],
-      gitGroups: ["read"],
-      model: "haiku",
-      budgetUsd: 0.4,
-      promptSections: () => ["probe contract"],
-    },
-  ],
+  background: false,
+  limits: { maxAsk: 3 },
+  capabilities: ["read"],
+  gitGroups: ["read"],
+  model: "haiku",
+  budgetUsd: 0.4,
+  promptSections: () => ["probe contract"],
 };
 
-test("a role that is only data runs through the stage runner and gets its stage row", async () => {
+/** Run PROBE (registered for the call); the fake query records the options it was given. */
+async function runProbe(role: RoleDefinition) {
   const env = makeEnv();
   const roles = ROLES as Record<string, RoleDefinition>;
-  roles[PROBE.name] = PROBE;
+  roles[role.name] = role;
+  const seen: any[] = [];
   try {
     insertTurn(env.db, {
       id: "t1",
@@ -38,72 +33,56 @@ test("a role that is only data runs through the stage runner and gets its stage 
       repo: "repo",
       role: "assistant",
     });
-    const res = await runStages(
+    const res = await runRole(
       {
         db: env.db,
         config: env.config,
         approvals: stubGateway(),
-        queryFn: ((_a: unknown) =>
-          (async function* () {
+        queryFn: ((a: { options: unknown }) => {
+          seen.push(a.options);
+          return (async function* () {
             yield resultMsg({ result: "looks fine" });
-          })()) as never,
+          })();
+        }) as never,
       },
       {
         turnId: "t1",
         threadId: "th",
         text: "review it",
-        role: PROBE.name,
+        role: role.name,
         workspace: "main",
         repos: [{ name: "repo", path: env.repo } as never],
         ac: new AbortController(),
       },
     );
-    expect(res.outcome).toBe("success");
-    expect(res.text).toBe("looks fine");
-    const rows = listStages(env.db, "t1");
-    expect(rows.map((r) => [r.name, r.status])).toEqual([["review", "done"]]);
+    return { env, res, seen };
   } finally {
-    delete roles[PROBE.name];
+    delete roles[role.name];
   }
+}
+
+test("a role that is only data runs through the role runner: one agent run, its own model, budget and prompt", async () => {
+  const { env, res, seen } = await runProbe(PROBE);
+  expect(res.outcome).toBe("success");
+  expect(res.text).toBe("looks fine");
+  expect(seen).toHaveLength(1);
+  expect(seen[0].maxBudgetUsd).toBe(0.4);
+  expect(seen[0].systemPrompt.append).toContain("probe contract");
+  // No permission layer gateway for a role without the ask capability: a question is a deny.
+  expect(env.db.query("SELECT model, outcome FROM runs").all()).toEqual([
+    { model: env.config.models.haiku, outcome: "success" },
+  ]);
 });
 
-test("a stage with a gate the engine cannot run fails closed, nothing is run", async () => {
-  const env = makeEnv();
-  const roles = ROLES as Record<string, RoleDefinition>;
-  const first = PROBE.stages[0];
-  if (!first) throw new Error("probe has a stage");
-  roles[PROBE.name] = { ...PROBE, stages: [{ ...first, gate: "owner-confirm" }] };
-  let ran = false;
-  try {
-    const res = await runStages(
-      {
-        db: env.db,
-        config: env.config,
-        approvals: stubGateway(),
-        queryFn: ((_a: unknown) => {
-          ran = true;
-          return (async function* () {})();
-        }) as never,
-      },
-      {
-        turnId: "t2",
-        threadId: "th",
-        text: "x",
-        role: PROBE.name,
-        workspace: "main",
-        repos: [],
-        ac: new AbortController(),
-      },
-    );
-    expect(res.outcome).toBe("error");
-    expect(res.text).toContain("cannot run");
-    expect(ran).toBe(false);
-  } finally {
-    delete roles[PROBE.name];
-  }
+test("a role whose data the engine cannot run fails closed, nothing is run", async () => {
+  const { res, seen, env } = await runProbe({ ...PROBE, budgetUsd: 0 });
+  expect(res.outcome).toBe("error");
+  expect(res.text).toContain("budget");
+  expect(seen).toHaveLength(0);
+  expect(env.db.query("SELECT COUNT(*) AS n FROM runs").get()).toEqual({ n: 0 });
 });
 
-test("Q&A is the 1-stage assistant role run by the engine: its turn leaves a qa stage row", async () => {
+test("the assistant is a role run by the same engine: its turn leaves a runs row", async () => {
   const env = makeEnv();
   const queryFn = (_a: unknown) =>
     (async function* () {
@@ -120,6 +99,7 @@ test("Q&A is the 1-stage assistant role run by the engine: its turn leaves a qa 
     .query<{ id: string; role: string }, [string]>("SELECT id, role FROM turns WHERE thread_id = ?")
     .get("th-qa");
   expect(task?.role).toBe("assistant");
-  const rows = listStages(env.db, task?.id ?? "");
-  expect(rows.map((r) => [r.name, r.status])).toEqual([["qa", "done"]]);
+  expect(env.db.query("SELECT outcome FROM runs WHERE turn_id = ?").all(task?.id ?? "")).toEqual([
+    { outcome: "success" },
+  ]);
 });

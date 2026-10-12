@@ -7,8 +7,8 @@ import {
   LEDGER_TASK_CHARS,
   threadLedger,
 } from "../src/storage/ledger-store";
+import { insertRun } from "../src/storage/run-metrics-store";
 import { finishTurn, insertTurn } from "../src/storage/run-store";
-import { upsertStage } from "../src/storage/stage-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 const mk = (
@@ -32,33 +32,32 @@ test("empty when the thread has no code task (Q&A rows and other threads do not 
   expect(threadLedger(db, "th")).toBe("");
 });
 
-test("entry per task: role, status, brief, repo, stages with model, cost, verdict", () => {
+test("entry per task: role, status, brief, repo and the USD its runs cost", () => {
   const { db } = makeEnv();
   mk(db, "abcdef123456", { brief: "Add b.txt\nwith   two", repo: "real" });
   finishTurn(db, "abcdef123456", "done");
-  upsertStage(db, {
-    turnId: "abcdef123456",
-    idx: 0,
-    name: "plan",
-    status: "done",
-    model: "m1",
-    verdict: "approved",
-  });
-  upsertStage(db, {
-    turnId: "abcdef123456",
-    idx: 1,
-    name: "exec",
-    status: "done",
-    model: "m2",
-    costUsd: 0.5,
-  });
+  for (const [id, cost] of [
+    ["r1", 0.25],
+    ["r2", 0.5],
+  ] as const)
+    insertRun(db, {
+      id,
+      turnId: "abcdef123456",
+      model: "m",
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      costUsd: cost,
+      turns: 1,
+      durationMs: 1,
+      outcome: "success",
+      compactions: 0,
+    });
   expect(threadLedger(db, "th")).toBe(
-    [
-      LEDGER_HEADING,
-      '- abcdef12 dev, done: "Add b.txt with two"',
-      "  repo real",
-      "  stages: plan done (m1, approved) -> exec done (m2, $0.50)",
-    ].join("\n"),
+    [LEDGER_HEADING, '- abcdef12 dev, done: "Add b.txt with two"', "  repo real, cost $0.75"].join(
+      "\n",
+    ),
   );
 });
 
@@ -110,6 +109,6 @@ test("the repo name is one-line", () => {
   const { db } = makeEnv();
   mk(db, "wt1", { repo: "real\n- injected" });
   const out = threadLedger(db, "th");
-  expect(out.split("\n")).toHaveLength(3); // heading, brief, repo line (no stages)
+  expect(out.split("\n")).toHaveLength(3); // heading, brief, repo line
   expect(out).toContain("repo real - injected");
 });

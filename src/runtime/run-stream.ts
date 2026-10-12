@@ -19,7 +19,7 @@ import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "run-stream" });
 
-/** What `query` takes as prompt: one string (qa), or a streaming input the owner can add to (plan / exec, see run-input-channel.ts). */
+/** What `query` takes as prompt: one string (an answer run), or a streaming input the owner can add to (a background role, see run-input-channel.ts). */
 export type QueryPrompt = string | AsyncIterable<SDKUserMessage>;
 
 /** Signature of the SDK `query` function; injectable for tests. */

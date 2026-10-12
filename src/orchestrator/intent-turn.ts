@@ -49,9 +49,9 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   const threadId = c.message.threadId;
   const state = deriveThreadState(db, threadId);
   const pendingQuestion = pendingQuestionOf(db, threadId);
-  // A running task that takes steers (a stage reads its input now, or a streaming stage is still to come): L3 decides
-  // the SCOPE of every message, tagged or not (supplement -> steer, independent -> side / queue; a `[tag]` only picks
-  // the role). On the plan gate the typed text is feedback on the plan (L3 tells feedback, a question or other work).
+  // A running task that takes steers (its run reads its input now, or is about to): L3 decides the SCOPE of every
+  // message, tagged or not (supplement -> steer, independent -> side / queue; a `[tag]` only picks the role). Typed
+  // feedback on a plan waiting for approval is a supplement: it reaches the agent after the owner's decision.
   // Any other busy state keeps the old path (a tagged message queues; L3 only reads a pending answer or a gate state).
   const steerable = c.busy && isWorking(state) && !!c.deps.steer?.canTake(threadId);
   const gated = c.busy && isGateState(state);
@@ -60,12 +60,9 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
       text: c.cmd.text,
       state,
       pendingQuestion,
-      // A busy thread continues its task only through a steer or the plan gate's feedback; else a request is a NEW
-      // task (queued). After a task ended the next request is NEW.
-      hasTask:
-        steerable ||
-        (c.busy && state === "awaiting_plan_approval") ||
-        (!c.busy && !isIdleLike(state)),
+      // A busy thread continues its task only through a steer; else a request is a NEW task (queued). After a task
+      // ended the next request is NEW.
+      hasTask: steerable || (!c.busy && !isIdleLike(state)),
       scopeFromModel: steerable,
       ownerClass: c.cmd.cls,
       signal: c.ac.signal,
@@ -124,9 +121,9 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
 }
 
 /**
- * The thread's run holds the lock. A plain message may steer a running stage (or wait for the next one), be answered
- * at once by the side lane (an independent question for an answering role), be queued as independent work, be
- * feedback on the plan gate, or answer a pending question (read by L3, intent layer on); everything else is
+ * The thread's run holds the lock. A plain message may steer the running run (or wait until it has started), be answered
+ * at once by the side lane (an independent question for a foreground role), be queued as independent work, or answer a
+ * pending question (read by L3, intent layer on); everything else is
  * `still working...`. Returns the outcome: a reply text, or `side` for the handler to run next to the task.
  */
 export async function replyWhileBusy(c: {

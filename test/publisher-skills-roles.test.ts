@@ -19,6 +19,6 @@ test("dev loads all installed skills (so worktree and finishing skills load); th
 });
 
 test("limits live in the role: dev and assistant ask caps", () => {
-  expect(ROLES.dev?.maxAsk).toBe(6);
-  expect(ROLES.assistant?.maxAsk).toBe(6);
+  expect(ROLES.dev?.limits.maxAsk).toBe(6);
+  expect(ROLES.assistant?.limits.maxAsk).toBe(6);
 });

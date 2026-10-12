@@ -1,7 +1,7 @@
 import type { TaskClass } from "../config/model-routing";
 import { logEvent, logger } from "../observability/logger";
 import type { ThreadState } from "../orchestrator/thread/thread-state";
-import { entryRole, hasClassTiers, isGated, ROLES } from "../roles/role-registry";
+import { entryRole, hasClassTiers, ROLES } from "../roles/role-registry";
 import type { EffortSignals } from "./effort-signals";
 import { guardMechanical, validateIntent } from "./intent-schema";
 import { type IntentClassifier, IntentEngineError, type IntentInput } from "./intent-types";
@@ -19,10 +19,7 @@ const log = logger.child({ module: "decide-intent" });
 const isIdleState = (state: string): boolean => state === "idle" || state === "done";
 
 /** Thread states that are an owner gate (approval buttons). */
-const GATE_STATES: ReadonlySet<ThreadState> = new Set([
-  "awaiting_plan_approval",
-  "awaiting_confirmation",
-]);
+const GATE_STATES: ReadonlySet<ThreadState> = new Set(["awaiting_confirmation"]);
 
 /** Why the owner is asked instead of a role being run. */
 export type AskReason = "low_confidence" | "unknown_role" | "unclassified" | "pending_unclear";
@@ -36,7 +33,7 @@ export type IntentDecision =
       role: string;
       scope: "active" | "new";
       cls?: TaskClass;
-      /** L3 alone chose a new staged task right after an answering (discussion) turn: the owner confirms first. */
+      /** L3 alone chose a new background task right after an answering (discussion) turn: the owner confirms first. */
       confirmDev?: true;
     }
   /** `text` = the model's own question (owner's language); missing = the neutral generic one. */
@@ -74,12 +71,12 @@ export interface DecideInput extends IntentPipelineInput {
 const classFor = (role: string, ...sources: (TaskClass | undefined)[]): TaskClass | undefined =>
   ROLES[role] && hasClassTiers(ROLES[role]) ? sources.find(Boolean) : undefined;
 
-/** The role is a registry role that answers (not staged): its turn was a conversation. */
-const isAnswering = (role?: string): boolean => !!role && !!ROLES[role] && !isGated(ROLES[role]);
+/** The role is a registry role that answers (not background): its turn was a conversation. */
+const isAnswering = (role?: string): boolean => !!role && !!ROLES[role] && !ROLES[role].background;
 
 /**
  * Failure / no-engine fallback: a pending question is asked again (the owner's reply could not be read); an idle
- * thread goes to the entry role (assistant: read-only, cheapest, the worst case is that the owner re-asks a
+ * thread goes to the entry role (assistant: changes nothing, cheapest, the worst case is that the owner re-asks a
  * change); any other state asks the owner.
  */
 function fallback(state: DecideInput["state"], pending: boolean): IntentDecision {
@@ -156,7 +153,7 @@ export async function decideIntent(
     if (raw.class !== guardMechanical(raw))
       logEvent(log, "intent.class_downgraded", { from: raw.class, to: "standard", confidence });
     // Low confidence never runs the model's pick. An idle thread with no pending question goes to the entry role
-    // (read-only Q&A: the answer itself clarifies); a pending question / gate / busy thread keeps the owner question.
+    // (the assistant changes nothing: the answer itself clarifies); a pending question / gate / busy thread keeps the owner question.
     if (confidence === "low") {
       if (i.scopeFromModel && !pending) return { decision: supplement(role), effort }; // ambiguous -> supplement
       if (isIdleState(i.state) && !pending)
@@ -172,12 +169,12 @@ export async function decideIntent(
         decision: { kind: "gate-answer", answer: pendingAnswer, target: pending ? "ask" : "gate" },
         effort,
       };
-    // Discussion guard: a model-only "new staged task" straight after an answering turn may be a proposal, not an
+    // Discussion guard: a model-only "new background task" straight after an answering turn may be a proposal, not an
     // order (no [dev] tag backs it): ask once before opening a task.
     const confirmDev =
       scope === "new" &&
       isIdleState(i.state) &&
-      isGated(ROLES[role]) &&
+      ROLES[role].background &&
       isAnswering(input.thread.lastTurn?.role);
     return {
       decision: {

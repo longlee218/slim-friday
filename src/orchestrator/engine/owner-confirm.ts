@@ -1,13 +1,15 @@
 import type { ApprovalGateway } from "../../approvals/approval-types";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
-import { OWNER_CONFIRM_APPROVAL } from "./gates";
 
 /* The owner-confirm gate: a yes/no with buttons before a costlier step (effort `max`, an assistant's
    `ESCALATE: opus`). It FAILS CLOSED: anything but a click on "yes" (no button flow, no answer in time, a
    restart that dropped the pending click, stop/shutdown, a send error) means "do not run the costly step".
    The pending click lives in the gateway's memory, so a click after a restart answers "This action expired."
    with no side effect. The engine knows no role names: the callers say what is being confirmed. */
+
+/** `approvals.tool` label of this gate (the thread state `awaiting_confirmation` reads it from the pending approval row). */
+export const OWNER_CONFIRM_APPROVAL = "OwnerConfirm";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "owner-confirm" });

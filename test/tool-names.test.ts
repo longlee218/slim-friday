@@ -34,8 +34,6 @@ test("SDK built-in tool names are the real wire names", () => {
     TASK_GET_TOOL_NAME: "TaskGet",
     TASK_STOP_TOOL_NAME: "TaskStop",
     TOOL_SEARCH_TOOL_NAME: "ToolSearch",
-    EXIT_PLAN_MODE_TOOL_NAME: "ExitPlanMode",
-    ENTER_PLAN_MODE_TOOL_NAME: "EnterPlanMode",
     ASK_USER_QUESTION_TOOL_NAME: "AskUserQuestion",
     LIST_MCP_RESOURCES_TOOL_NAME: "ListMcpResourcesTool",
     READ_MCP_RESOURCE_TOOL_NAME: "ReadMcpResourceTool",

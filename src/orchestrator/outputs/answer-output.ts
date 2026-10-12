@@ -1,10 +1,10 @@
 import type { AgentConfig } from "../../config/agent-config";
 import { type ModelTier, type Route, resolveModel } from "../../config/model-routing";
 import { logEvent, logger } from "../../observability/logger";
-import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
+import type { RoleDefinition } from "../../roles/role-types";
 import type { RunAgentResult } from "../../runtime/run-agent";
 
-/* Output `answer`: the reply is the agent's text. With the role's `escalation` flag a cheap-tier answer may end in
+/* Answer escalation: the reply is the agent's text. With the role's `escalation` flag a cheap-tier answer may end in
    `ESCALATE: sonnet|opus` (one line, last) and is then re-run on that tier. */
 
 /** Logger of this module (task fields come from the log context). */
@@ -63,8 +63,9 @@ export async function withEscalation(
   if (first.outcome !== "success") return first;
   const { text, tier } = parseEscalation(first.text);
   const action = escalationAction(tier, false);
-  logEvent(log, "escalation", { tier: tier ?? null, action });
   if (action === "none" || !tier) return first;
+  // `escalatedTo` = the tier the answer is re-run on (the event is only logged when the model asked for one).
+  logEvent(log, "escalation", { escalatedTo: tier, action });
   if (!canRerun) return { ...first, text: `${text}\n\n${OPUS_UNAVAILABLE}` };
   if (action === "ask-owner" && !(await confirmOpus?.())) {
     return { ...first, text: `${text}\n\n${OPUS_DECLINED}` };
@@ -80,25 +81,24 @@ export async function withEscalation(
 }
 
 /**
- * The `answer` output of a stage run. Without the role's `escalation` flag the run is plain. With it, the
+ * An answer run with its escalation. Without the role's `escalation` flag the run is plain. With it, the
  * escalation rule is offered only when the re-run would use a DIFFERENT model than the first run (OpenRouter
  * ignores tiers and a MODEL pin beats them): then `withEscalation` handles the answer.
- * `run(route, sessionId)` runs the stage once; `resume` is the session of the first run. `confirmOpus` is the
+ * `run(route, sessionId)` runs the role once; `resume` is the session of the first run. `confirmOpus` is the
  * owner-confirm gate for an Opus escalation (missing = never runs on Opus).
  */
 export async function answerOutput(a: {
   role: RoleDefinition;
-  stage: StageDefinition;
   config: AgentConfig;
   run: (route: Route | undefined, sessionId?: string) => Promise<RunAgentResult>;
   resume?: string;
   confirmOpus?: () => Promise<boolean>;
 }): Promise<RunAgentResult> {
-  const { role, stage, config } = a;
+  const { role, config } = a;
   if (!role.escalation) return a.run(undefined, a.resume);
   const canEscalate =
-    resolveModel(stage, role, { offerEscalation: true }, config) !==
-    resolveModel(stage, role, { tier: "sonnet", escalated: true }, config);
+    resolveModel(role, { offerEscalation: true }, config) !==
+    resolveModel(role, { tier: "sonnet", escalated: true }, config);
   const first = await a.run({ offerEscalation: canEscalate }, a.resume);
   return withEscalation(
     first,

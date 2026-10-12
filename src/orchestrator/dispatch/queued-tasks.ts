@@ -45,7 +45,7 @@ const EARLIER_HEADING = "\n\nEarlier tasks in this thread:\n";
 
 /**
  * Brief of a new task: the owner message, a thread reference (the last tasks, one line each) and the recent
- * conversation (<= 1200 chars, data) so a reference like "do that" makes sense to the plan stage.
+ * conversation (<= 1200 chars, data) so a reference like "do that" makes sense to the role.
  */
 export function taskBrief(c: Pick<QueueCtx, "deps" | "message">, text: string): string {
   const lines = ledgerLines(c.deps.db, c.message.threadId, 3);
@@ -74,7 +74,7 @@ const isConfirm = (reason: string | null): boolean =>
  */
 export function pendingQuestionOf(db: DispatchDeps["db"], threadId: string): string | undefined {
   const p = pendingProposal(db, threadId);
-  if (!p) return resumeQuestionOf(db, threadId); // else the failed task's "continue with the approved plan?"
+  if (!p) return resumeQuestionOf(db, threadId); // else the failed task's "continue it from where it stopped?"
   const what = `"${excerpt(briefText(p.brief), 200)}"`;
   return isConfirm(p.reason) ? `${CONFIRM_TASK_QUESTION} ${what}` : `Start this task now? ${what}`;
 }

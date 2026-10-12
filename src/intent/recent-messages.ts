@@ -24,8 +24,7 @@ export function cleanRecent(list: readonly RecentMessage[] | undefined): RecentM
 const line = (m: RecentMessage): string => `- ${m.from}: ${m.text}`;
 
 /**
- * The block a new task's brief carries so a reference ("do that", "the second option") makes sense to the plan
- * stage: the newest messages that fit BRIEF_RECENT_CHARS, oldest first. Empty string when there are none.
+ * The block a new task's brief carries so a reference ("do that", "the second option") makes sense to the role: the newest messages that fit BRIEF_RECENT_CHARS, oldest first. Empty string when there are none.
  */
 export function recentBlock(list: readonly RecentMessage[] | undefined): string {
   const lines: string[] = [];

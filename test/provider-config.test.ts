@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { loadConfig, logProviderSelected } from "../src/config/agent-config";
 import { createLogger } from "../src/observability/logger";
 import { MASK, redactText } from "../src/observability/redact";
-import { getStage } from "../src/roles/role-registry";
+import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { sdkEnv } from "../src/runtime/sdk-env";
 import { fakeQuery, makeEnv, resultMsg } from "./helpers";
@@ -65,9 +65,11 @@ describe("model and budget", () => {
     expect(cfg().model).toBe("claude-haiku-4-5-20251001");
     expect(cfg({ OPENROUTER_API_KEY: OR_KEY }).model).toBe("deepseek/deepseek-v4-flash");
   });
-  test("MODEL overrides on both providers", () => {
-    expect(cfg({ MODEL: "m1" }).model).toBe("m1");
-    expect(cfg({ OPENROUTER_API_KEY: OR_KEY, MODEL: "x/y" }).model).toBe("x/y");
+  test("MODEL is no longer read: the default model stays", () => {
+    expect(cfg({ MODEL: "m1" }).model).toBe("claude-haiku-4-5-20251001");
+    expect(cfg({ OPENROUTER_API_KEY: OR_KEY, MODEL: "x/y" }).model).toBe(
+      "deepseek/deepseek-v4-flash",
+    );
   });
   test("maxBudgetUsd: no global default (stage budgets), honored when set", () => {
     expect(cfg().limits.maxBudgetUsd).toBeUndefined();
@@ -80,7 +82,7 @@ describe("model and budget", () => {
 describe("sdkEnv per provider", () => {
   const src = { PATH: "/bin", HOME: "/h", DISCORD_TOKEN: "d", ANTHROPIC_API_KEY: "x" };
   test("openrouter env", () => {
-    const c = cfg({ OPENROUTER_API_KEY: OR_KEY, CLAUDE_CODE_OAUTH_TOKEN: OAUTH, MODEL: "x/y" });
+    const c = cfg({ OPENROUTER_API_KEY: OR_KEY, CLAUDE_CODE_OAUTH_TOKEN: OAUTH });
     const e = sdkEnv(c, { ...src, CLAUDE_CODE_OAUTH_TOKEN: OAUTH });
     expect(e.ANTHROPIC_BASE_URL).toBe("https://openrouter.ai/api");
     expect(e.ANTHROPIC_AUTH_TOKEN).toBe(OR_KEY);
@@ -93,7 +95,7 @@ describe("sdkEnv per provider", () => {
       "ANTHROPIC_DEFAULT_FABLE_MODEL",
       "CLAUDE_CODE_SUBAGENT_MODEL",
     ])
-      expect(e[k]).toBe("x/y");
+      expect(e[k]).toBe("deepseek/deepseek-v4-flash");
     expect(e.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
     expect(e.DISCORD_TOKEN).toBeUndefined();
     expect(e.PATH).toBe("/bin");
@@ -152,7 +154,7 @@ describe("run-agent wiring", () => {
     runAgent({
       prompt: "q",
       turnId: "T",
-      stage: getStage("assistant", "qa"),
+      role: getRole("assistant"),
       cwd: env.home,
       config: env.config,
       db: env.db,
@@ -191,13 +193,6 @@ describe("run-agent wiring", () => {
 });
 
 describe("edge cases", () => {
-  test("MODEL empty string rejects", () => {
-    expect(() => cfg({ MODEL: "" })).toThrow("MODEL");
-  });
-  test("MODEL whitespace-only rejects; MODEL is trimmed", () => {
-    expect(() => cfg({ MODEL: "  " })).toThrow("MODEL");
-    expect(cfg({ MODEL: "  x/y\n" }).model).toBe("x/y");
-  });
   test("secrets are trimmed and reach sdkEnv trimmed", () => {
     const c = cfg({ OPENROUTER_API_KEY: `  ${OR_KEY}\n` });
     expect(c.hasRealAuth).toBe(true);

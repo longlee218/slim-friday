@@ -20,12 +20,10 @@ export interface IntentInput {
   text: string;
   thread: {
     state: ThreadState;
-    /** Role / stage of the task in flight (or waiting on a gate), when there is one. */
+    /** Role of the task in flight (or waiting on the owner), when there is one. */
     activeRole?: string;
-    activeStage?: string;
-    gate?: "plan-approval";
-    /** The thread's latest finished or running turn: its role and last stage (e.g. assistant / qa). Absent in a new thread. */
-    lastTurn?: { role: string; kind: string };
+    /** The thread's latest finished or running turn: its role. Absent in a new thread. */
+    lastTurn?: { role: string };
   };
   /** Last 3 tasks of the thread, 1 line each. */
   ledger: LedgerLine[];

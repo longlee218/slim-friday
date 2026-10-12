@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { captureLogs } from "../src/observability/logger";
-import { getStage } from "../src/roles/role-registry";
+import { getRole } from "../src/roles/role-registry";
 import { createPermissionWatch } from "../src/runtime/permission-watch";
 import { runAgent } from "../src/runtime/run-agent";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
@@ -10,7 +10,7 @@ import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { initMsg, makeEnv, resultMsg } from "./helpers";
 
 const SIG = { signal: new AbortController().signal };
-const guard = guardFor("exec", {
+const guard = guardFor(getRole("dev"), {
   cwd: "/ws/repo",
   writePaths: ["/ws/repo"],
   readPaths: ["/ws/repo"],
@@ -154,8 +154,12 @@ async function execRun(actual: string) {
     db: env.db,
     abortController: new AbortController(),
     queryFn: queryFn as never,
-    stage: getStage("dev", "exec"),
-    guard: guardFor("exec", { cwd: env.home, readPaths: [env.repo], writePaths: [env.home] }),
+    role: getRole("dev"),
+    guard: guardFor(getRole("dev"), {
+      cwd: env.home,
+      readPaths: [env.repo],
+      writePaths: [env.home],
+    }),
     code: { threadId: "th" },
   });
   return { opts: opts!, out };
@@ -170,12 +174,9 @@ test("runAgent: exec asks SDK for bypass with the opt-in; confirmed -> ask runs,
   expect(fallback.out.hookSpecificOutput.permissionDecision).toBe("ask");
 });
 
-test("plan and qa options carry no allowDangerouslySkipPermissions", async () => {
-  expect(getStage("dev", "plan").permissionMode).toBe("plan");
-  for (const [role, stage] of [
-    ["dev", "plan"],
-    ["assistant", "qa"],
-  ] as const) {
+test("an auto role's options carry no allowDangerouslySkipPermissions", async () => {
+  expect(getRole("dev").permissionMode).toBe("bypassPermissions");
+  for (const role of ["assistant"] as const) {
     const env = makeEnv();
     let opts: Options | undefined;
     await runAgent({
@@ -190,8 +191,8 @@ test("plan and qa options carry no allowDangerouslySkipPermissions", async () =>
           opts = a.options;
           yield resultMsg({ result: "ok" });
         })()) as never,
-      stage: getStage(role, stage),
-      guard: guardFor("qa", { readPaths: [env.repo] }),
+      role: getRole(role),
+      guard: guardFor(getRole("assistant"), { readPaths: [env.repo] }),
       code: { threadId: "th" },
     });
     expect(opts!.allowDangerouslySkipPermissions).toBeUndefined();

@@ -1,15 +1,15 @@
 import type { Logger } from "pino";
 import { z } from "zod";
 import { DEFAULT_TIER_MODELS, type ModelTier, specToId } from "./model-routing";
-import { type RoutingEnv, readRoutingEnv } from "./stage-env";
+import { type RoutingEnv, readRoutingEnv } from "./role-env";
 
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
 
-/** Default `model` on the Anthropic path (Haiku tier). Stages resolve their own model (model-routing.ts); this one is the legacy MODEL slot. */
+/** Default `model` on the Anthropic path (Haiku tier). Roles resolve their own model (model-routing.ts); this one is the default model slot of the SDK env. */
 const DEFAULT_MODEL = DEFAULT_TIER_MODELS.haiku;
 
-/** Default model on the OpenRouter path. Overridable via MODEL env. */
+/** Default model on the OpenRouter path (a role's `openrouterModel` or a MODEL_<ROLE> pin wins). */
 const DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash";
 
 /**
@@ -48,8 +48,6 @@ const envSchema = z.object({
         .optional(),
     )
     .optional(),
-  // Legacy alias, KEPT on purpose (the owner's .env still sets it): pins assistant qa, warns once at startup (stage-env.ts).
-  MODEL: z.string().trim().min(1).optional(),
   MEMORY_MODEL: z.string().trim().min(1).optional(),
   GIT_AUTHOR: z.string().trim().min(1).optional(), // accepted and IGNORED since Rev 15 (the agent uses the owner's git config)
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
@@ -68,7 +66,7 @@ export const ENV_SCHEMA_KEYS: string[] = Object.keys(envSchema.shape);
 export type IntentEngine = "haiku" | "jev" | "none";
 
 /** Validated, typed config used across the app. Contains secrets: never log it whole. */
-/** `compactOverrides` (env COMPACT_WINDOW_<ROLE>_<STAGE>) is declared with the other routing env in stage-env.ts. */
+/** `compactOverrides` (env COMPACT_WINDOW_<ROLE>) is declared with the other routing env in role-env.ts. */
 export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   /** OAuth token from `claude setup-token`; undefined when missing. Never log. */
   oauthToken: string | undefined;
@@ -86,19 +84,19 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   discordGuildId: string | undefined;
   agentHome: string;
   logLevel: string;
-  /** OpenRouter default model (every stage without its own pin / `openrouterModel`) and the log value. Anthropic stages resolve via `models` (model-routing.ts). */
+  /** OpenRouter default model (every role without its own pin / `openrouterModel`) and the log value. Anthropic roles resolve via `models` (model-routing.ts). */
   model: string;
   /** Tier -> model id (env MODEL_HAIKU|SONNET|OPUS). */
   models: Record<ModelTier, string>;
-  /** `<role>_<stage>` -> tier or id (env MODEL_<ROLE>_<STAGE>, plus the legacy MODEL alias). */
+  /** `<role>` -> tier or id (env MODEL_<ROLE>). */
   modelOverrides: Record<string, string>;
-  /** `<role>_<stage>` -> USD (env BUDGET_<ROLE>_<STAGE>_USD). */
+  /** `<role>` -> USD (env BUDGET_<ROLE>_USD). */
   budgetOverrides: Record<string, number>;
   /** Deprecated env vars that are set (logged once at startup as `config.deprecated`). */
   deprecated: string[];
   /** Model of the manual memory compaction call (one cheap call per over-threshold file). */
   memoryModel: string;
-  /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the stage budget; OpenRouter: only this). */
+  /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the role budget; OpenRouter: only this). */
   limits: { maxBudgetUsd: number | undefined; timeoutMs: number };
   /** Intent layer L3: engine, model id (MODEL_INTENT, tier-resolvable), per-call budget and timeout. */
   intent: { engine: IntentEngine; model: string; budgetUsd: number; timeoutMs: number };
@@ -144,7 +142,7 @@ export function loadConfig(
     discordGuildId: e.DISCORD_GUILD_ID,
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
-    model: e.MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL),
+    model: isOpenrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL,
     memoryModel:
       e.MEMORY_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MEMORY_MODEL : routing.models.haiku),
     limits: {
@@ -180,11 +178,11 @@ export function logProviderSelected(log: Logger, config: AgentConfig): void {
     log.warn("both credentials set; using openrouter (set LLM_PROVIDER=anthropic to change)");
 }
 
-/** Warn once at startup about env vars kept only as aliases (MODEL). Names only. */
+/** Warn once at startup about deprecated env vars (MODEL, the old two-part shapes). Names only. */
 export function logDeprecatedConfig(log: Logger, config: AgentConfig): void {
   if (!config.deprecated.length) return;
   log.warn(
     { event: "config.deprecated", vars: config.deprecated },
-    "deprecated env vars (use MODEL_ASSISTANT_QA, MODEL_DEV_PLAN, MODEL_DEV_EXEC or the MODEL_<TIER> ids)",
+    "deprecated env vars: MODEL is no longer used (use MODEL_<ROLE> / MODEL_<TIER>); the old names with a second part (MODEL_<ROLE>_<X>, BUDGET_<ROLE>_<X>_USD, COMPACT_WINDOW_<ROLE>_<X>) are ignored, use MODEL_<ROLE>, BUDGET_<ROLE>_USD, COMPACT_WINDOW_<ROLE>",
   );
 }

@@ -4,15 +4,12 @@ import { mcpServersFor } from "../src/mcp/mcp-servers";
 import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import {
   dispatchableRoleNames,
-  findStage,
   getRole,
-  getStage,
   hasClassTiers,
   intentRoles,
   ROLES,
-  stageOf,
 } from "../src/roles/role-registry";
-import type { StageDefinition } from "../src/roles/role-types";
+import type { RoleDefinition } from "../src/roles/role-types";
 import {
   AGENT_TOOL_NAME,
   LEGACY_AGENT_TOOL_NAME,
@@ -21,9 +18,12 @@ import {
 } from "../src/tools/sdk-tool-names";
 import { CAPABILITY_TOOLS, toolsFor } from "../src/tools/tool-catalog";
 
-/** A minimal stage with one capability (the stage-level data a role would give). */
-const BARE: StageDefinition = {
+/** A minimal role with one capability (the data a role file would give). */
+const BARE: RoleDefinition = {
   name: "bare",
+  whenToUse: "bare",
+  background: false,
+  limits: { maxAsk: 0 },
   capabilities: ["read"],
   gitGroups: [],
   model: "haiku",
@@ -34,23 +34,18 @@ const BARE: StageDefinition = {
 test("registry: assistant and dev, unknown role fails", () => {
   expect(Object.keys(ROLES).sort()).toEqual(["assistant", "dev"]);
   expect(() => getRole("nope")).toThrow("Unknown role");
-  expect(() => stageOf("nope" as never)).toThrow("Unknown stage");
-  expect(getRole("dev").stages.map((s) => s.name)).toEqual(["plan", "exec"]);
-  expect(getRole("assistant").stages.map((s) => s.name)).toEqual(["qa"]);
 });
 
-test("stages: plan-mode only in plan, only exec writes without a gate, default tier and budget per stage", () => {
-  expect(getStage("dev", "plan").permissionMode).toBe("plan");
-  expect(getStage("dev", "exec").permissionMode).toBe("bypassPermissions");
-  expect(getStage("assistant", "qa").permissionMode).toBe("auto");
-  expect(getStage("dev", "exec").gate).toBeUndefined(); // no delivery gate: the agent delivers
-  expect(getStage("assistant", "qa")).toMatchObject({
+test("roles: bypass only for dev, auto for the assistant, default tier and budget per role", () => {
+  expect(getRole("dev").permissionMode).toBe("bypassPermissions");
+  expect(getRole("assistant").permissionMode).toBe("auto");
+  expect(getRole("assistant")).toMatchObject({
     model: "haiku",
     budgetUsd: 1,
     escalatedBudgetUsd: 2.5,
+    background: false,
   });
-  expect(getStage("dev", "plan")).toMatchObject({ model: "sonnet", budgetUsd: 1.5 });
-  expect(getStage("dev", "exec")).toMatchObject({ model: "sonnet", budgetUsd: 3 });
+  expect(getRole("dev")).toMatchObject({ model: "sonnet", budgetUsd: 4.5, background: true });
 });
 
 test("whenToUse: every role has one, all different; class tiers only for dev", () => {
@@ -70,9 +65,9 @@ test("dispatchableRoleNames: every role with whenToUse (a queued follow-up may b
   expect(dispatchableRoleNames()).toEqual(["assistant", "dev"]);
 });
 
-test("guard: every stage gets the subagent tools, auto-allowed, even one that lists no capability for them", () => {
+test("guard: every role gets the subagent tools, auto-allowed, even one that lists no capability for them", () => {
   const scope = { readPaths: ["/r"] };
-  const qa = guardFor("qa", scope);
+  const qa = guardFor(getRole("assistant"), scope);
   expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, qa).decision).toBe("allow");
   expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, qa).decision).toBe("allow");
   const bare = guardFor(BARE, scope); // lists only `read`: toolsFor adds the subagent tools
@@ -80,11 +75,10 @@ test("guard: every stage gets the subagent tools, auto-allowed, even one that li
   expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("allow");
 });
 
-test("mcp servers come from the stage's gitGroups data only: the assistant's git reads; dev stages and a bare stage get none", () => {
-  expect(Object.keys(mcpServersFor(getStage("assistant", "qa")))).toEqual([GIT_MCP_SERVER]);
+test("mcp servers come from the role's gitGroups data only: the assistant's git reads; dev and a bare role get none", () => {
+  expect(Object.keys(mcpServersFor(getRole("assistant")))).toEqual([GIT_MCP_SERVER]);
   expect(mcpServersFor(BARE)).toEqual({});
-  expect(mcpServersFor("plan")).toEqual({});
-  expect(mcpServersFor("exec")).toEqual({}); // the agent uses git and gh in the shell
+  expect(mcpServersFor(getRole("dev"))).toEqual({}); // the agent uses git and gh in the shell
 });
 
 test("tools derive from capabilities", () => {
@@ -94,12 +88,6 @@ test("tools derive from capabilities", () => {
     SEND_MESSAGE_TOOL_NAME,
     LIST_AGENTS_TOOL_NAME,
   ]);
-});
-
-test("findStage: a stage name in two roles is ambiguous and throws", () => {
-  const dup = { ...getRole("dev"), name: "dev2" };
-  expect(() => findStage([getRole("dev"), dup], "plan")).toThrow("Ambiguous stage");
-  expect(findStage([getRole("dev"), getRole("assistant")], "qa").name).toBe("qa");
 });
 
 test("role tags: dev = [dev], assistant = [ask], unique across roles", () => {

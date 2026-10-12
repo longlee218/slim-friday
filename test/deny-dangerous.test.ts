@@ -6,8 +6,6 @@ import { checkToolCall } from "../src/guardrails/check-tool-call";
 import {
   ASK_USER_QUESTION_TOOL_NAME,
   EDIT_TOOL_NAME,
-  ENTER_PLAN_MODE_TOOL_NAME,
-  EXIT_PLAN_MODE_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
   MULTI_EDIT_TOOL_NAME,
@@ -133,9 +131,7 @@ const rows: Row[] = [
   ["grep normal", GREP_TOOL_NAME, () => ({ pattern: "credentials", path: "/repo/src" }), "allow"],
   ["grep secret path", GREP_TOOL_NAME, () => ({ pattern: "x", path: "/repo/.env" }), "deny"],
   ["grep secret glob", GREP_TOOL_NAME, () => ({ pattern: "x", glob: "*.pem" }), "deny"],
-  [EXIT_PLAN_MODE_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME, () => ({ plan: "p" }), "allow"],
   [ASK_USER_QUESTION_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME, () => ({}), "allow"],
-  [ENTER_PLAN_MODE_TOOL_NAME, ENTER_PLAN_MODE_TOOL_NAME, () => ({}), "allow"],
   ["unknown tool", WEB_FETCH_TOOL_NAME, () => ({ url: "https://x" }), "ask"],
 ];
 

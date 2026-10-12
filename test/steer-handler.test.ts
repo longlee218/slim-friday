@@ -15,9 +15,7 @@ import {
   STEER_RECEIVED,
 } from "../src/orchestrator/thread/intent-replies";
 import { ROLES } from "../src/roles/role-registry";
-import { PLAN_NOT_REAPPROVED } from "../src/storage/ledger-store";
 import { listRunMessages } from "../src/storage/run-message-store";
-import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
@@ -28,9 +26,6 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-
-/** The steer reply of a run past its approved plan: "received" plus the one-line warning (Rev 11, M-a). */
-const RECEIVED_AFTER_PLAN = `${STEER_RECEIVED}\n${PLAN_NOT_REAPPROVED}`;
 
 /** Roles of the thread's queued proposals, oldest first. */
 const queuedRoles = (db: ReturnType<typeof makeEnv>["db"]) =>
@@ -79,37 +74,27 @@ const intent = (home: string): IntentDeps => ({
   classifier,
 });
 
-test("running exec: supplement -> steered (task.steer {len}, no body, reply says received); independent dev work -> auto-queued, an independent assistant question -> answered at once (side lane); cap -> too many pending; unread steers -> notice; after the run -> not steered", async () => {
+test("running dev run: supplement -> steered (task.steer {len}, no body, reply says received); independent dev work -> auto-queued, an independent assistant question -> answered at once (side lane); cap -> too many pending; unread steers -> notice; after the run -> not steered", async () => {
   const env = await setup();
   const pulled: string[] = [];
-  let execRuns = 0;
+  let devRuns = 0;
   let started!: () => void;
-  const execStarted = new Promise<void>((r) => (started = r));
+  const devStarted = new Promise<void>((r) => (started = r));
   let release!: () => void;
   const gate = new Promise<void>((r) => (release = r));
   const query = (a: any) =>
     (async function* () {
       const o = a.options;
-      if (o.permissionMode === "plan") {
-        const r = await o.canUseTool(
-          EXIT_PLAN_MODE_TOOL_NAME,
-          { plan: "repo: real\nadd b.txt" },
-          {},
-        );
-        if (r.behavior === "allow") throw new Error("process aborted");
-        yield resultMsg({ result: "plan rejected" });
-        return;
-      }
       if (!o.tools.includes("Write")) {
         yield resultMsg({ result: "assistant answer" });
         return;
       }
-      // exec stage: streaming input; pull the task prompt, announce, wait, then read the steer the owner sent
+      // dev run: streaming input; pull the task prompt, announce, wait, then read the steer the owner sent
       const it = a.prompt[Symbol.asyncIterator]();
       const prompt = (await it.next()).value.message.content as string;
       yield initMsg;
       // a queued task that starts after the first one ended has no steer to wait for
-      if (++execRuns > 1) {
+      if (++devRuns > 1) {
         yield resultMsg({ result: "queued task done" });
         return;
       }
@@ -145,11 +130,11 @@ test("running exec: supplement -> steered (task.steer {len}, no body, reply says
   });
   const logs = captureLogs();
   const first = handle(msg("please add b.txt with two"));
-  await execStarted;
-  // a supplement while the exec run works: steered; the reply says "received", never "read"
+  await devStarted;
+  // a supplement while the dev run works: steered; the reply says "received", never "read"
   const secret = "steer-body-must-not-be-logged";
   const noted = await handle(msg(`also keep it small ${secret}`));
-  expect(noted).toBe(RECEIVED_AFTER_PLAN);
+  expect(noted).toBe(STEER_RECEIVED);
   expect(noted).not.toMatch(/read/i);
   // independent staged work: queued at once, no yes/no question; an independent QUESTION for the assistant is
   // answered at once by the side lane (a parallel read-only run) while the task still runs
@@ -158,7 +143,7 @@ test("running exec: supplement -> steered (task.steer {len}, no body, reply says
   expect(listPendingProposals(env.db)).toHaveLength(0);
   expect(queuedRoles(env.db)).toEqual(["dev"]);
   // cap: 5 pending (the fake has not pulled the steer yet), the next one is refused
-  for (let n = 0; n < 4; n++) expect(await handle(msg(`more ${n}`))).toBe(RECEIVED_AFTER_PLAN);
+  for (let n = 0; n < 4; n++) expect(await handle(msg(`more ${n}`))).toBe(STEER_RECEIVED);
   expect(await handle(msg("one more"))).toBe(STEER_FULL);
   release();
   const firstReply = await first;
@@ -222,27 +207,16 @@ function scopedClassifier(seen: string[]): IntentClassifier {
 test("[dev] tag while a steerable run works: the tag only picks the role, L3 decides the scope (independent -> queue, supplement -> steer, ambiguous -> steer)", async () => {
   const env = await setup();
   let started!: () => void;
-  const execStarted = new Promise<void>((r) => (started = r));
+  const devStarted = new Promise<void>((r) => (started = r));
   let release!: () => void;
   const gate = new Promise<void>((r) => (release = r));
-  let execRuns = 0;
+  let devRuns = 0;
   const query = (a: any) =>
     (async function* () {
-      const o = a.options;
-      if (o.permissionMode === "plan") {
-        const r = await o.canUseTool(
-          EXIT_PLAN_MODE_TOOL_NAME,
-          { plan: "repo: real\nadd b.txt" },
-          {},
-        );
-        if (r.behavior === "allow") throw new Error("process aborted");
-        yield resultMsg({ result: "plan rejected" });
-        return;
-      }
       const it = a.prompt[Symbol.asyncIterator]();
       await it.next();
       yield initMsg;
-      if (++execRuns === 1) {
+      if (++devRuns === 1) {
         started();
         await gate;
       }
@@ -261,7 +235,7 @@ test("[dev] tag while a steerable run works: the tag only picks the role, L3 dec
     intent: { ...deps, classifier: scopedClassifier(l3) },
   });
   const first = handle(msg("please add b.txt with two"));
-  await execStarted;
+  await devStarted;
   l3.length = 0; // (the first message went through L3 too: it started the task)
   // a tagged message that is a NEW task: L3 is asked (the tag no longer decides the scope), it queues
   expect(await handle(msg("[dev] other task"))).toBe(QUEUE_RECEIVED);
@@ -269,11 +243,11 @@ test("[dev] tag while a steerable run works: the tag only picks the role, L3 dec
   // role from the tag, not from L3 (which said assistant)
   expect(queuedRoles(env.db)).toEqual(["dev"]);
   // a tagged supplement steers
-  expect(await handle(msg("[dev] also keep it small"))).toBe(RECEIVED_AFTER_PLAN);
+  expect(await handle(msg("[dev] also keep it small"))).toBe(STEER_RECEIVED);
   // ambiguous (L3 unsure, or L3 failing) = supplement, never a lost message; also untagged
-  expect(await handle(msg("[dev] hmm"))).toBe(RECEIVED_AFTER_PLAN);
-  expect(await handle(msg("[dev] boom"))).toBe(RECEIVED_AFTER_PLAN);
-  expect(await handle(msg("hmm what about it"))).toBe(RECEIVED_AFTER_PLAN);
+  expect(await handle(msg("[dev] hmm"))).toBe(STEER_RECEIVED);
+  expect(await handle(msg("[dev] boom"))).toBe(STEER_RECEIVED);
+  expect(await handle(msg("hmm what about it"))).toBe(STEER_RECEIVED);
   expect(l3).toHaveLength(5); // one L3 call per message while the run works (the failing one included)
   expect(rowKinds(env.db)).toEqual(["followup", "steer", "steer", "steer", "steer"]);
   release();

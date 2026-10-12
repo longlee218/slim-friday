@@ -90,9 +90,9 @@ test("cap: refused when the role counts toward it and the cap is full", async ()
   });
 });
 
-test("budget: a non-positive stage budget refuses", async () => {
+test("budget: a non-positive role budget refuses", async () => {
   const { deps } = await setup();
-  const config = { ...deps.config, budgetOverrides: { dev_plan: 0 } };
+  const config = { ...deps.config, budgetOverrides: { dev: 0 } };
   expect(await validateRequest({ ...deps, config }, req())).toMatchObject({
     ok: false,
     refusal: { reason: "no_budget" },

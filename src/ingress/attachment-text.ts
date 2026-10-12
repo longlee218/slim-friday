@@ -113,7 +113,7 @@ async function download(url: string, d: AttachmentDeps): Promise<Uint8Array> {
   return Buffer.concat(chunks);
 }
 
-/** Text without the lines naming a saved attachment copy: the dev stages cannot read it, only the summary stays. */
+/** Text without the lines naming a saved attachment copy: a background role cannot read it, only the summary stays. */
 export const stripAttachmentPaths = (text: string): string =>
   text
     .split("\n")

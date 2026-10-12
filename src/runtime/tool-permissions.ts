@@ -8,7 +8,7 @@ import {
 import { newSubagentLimit } from "../guardrails/subagent-limit";
 import { logger } from "../observability/logger";
 import { clip, errText } from "../observability/redact";
-import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../tools/sdk-tool-names";
 import { type AskLimit, askLimitDenial, newAskLimit } from "./ask-limit";
 import { guardHook, subagentPostHooks } from "./guard-hook";
 import type { ModeActive } from "./permission-mode";
@@ -22,38 +22,28 @@ export interface AskQuestion {
   options: { label: string }[];
 }
 
-/** Inputs for one gated stage's permission layer. */
+/** Inputs for one run's permission layer. */
 export interface ToolPermissionInput {
   turnId: string;
   threadId: string;
   guard: GuardrailContext;
-  /** Owner approval via Discord. Omitted (a stage without a gateway): every `ask` becomes a deny. */
+  /** Owner approval via Discord. Omitted (a run without a gateway): every `ask` becomes a deny. */
   gateway?: ApprovalGateway;
-  /**
-   * Plan-approval stage of a staged task: the plan must name a repo (`repo: <name>`) from `repos`;
-   * after the owner approves, `onApproved` fires (the caller then stops the run and starts stage 2).
-   */
-  plan?: { repos: string[]; onApproved: (plan: string, repo: string) => void };
-  /** Shared across the task's runs: the AskUserQuestion budget of the task. Omitted = no questions (cap 0). */
+  /** The AskUserQuestion budget of the run (the role's `limits.maxAsk`). Omitted = no questions (cap 0). */
   askLimit?: AskLimit;
   /**
-   * Stage runs in SDK `auto` mode: a guard `ask` is left to the SDK classifier (canUseTool only if it cannot
+   * The run is in SDK `auto` mode: a guard `ask` is left to the SDK classifier (canUseTool only if it cannot
    * decide). Every ask when `active` is false still forces the owner prompt.
    */
   autoMode?: ModeActive;
   /**
-   * Stage runs in SDK `bypassPermissions` mode: the SDK asks nothing, so the hook is the only gate. Hard denies stay
+   * The run is in SDK `bypassPermissions` mode: the SDK asks nothing, so the hook is the only gate. Hard denies stay
    * denies; EVERY guard `ask` is let through and logged "bypass". When `active` is false (the
    * SDK did not enter bypass) asks go to the owner as in default mode (fail closed).
    */
   bypassMode?: ModeActive;
   /** The owner did not answer the questions in time: the caller stops the run and replies "Awaiting clarification". */
   onAskTimeout?: (questions: AskQuestion[]) => void;
-}
-
-/** First `repo: <name>` line of a plan, or undefined. */
-function parsePlanRepo(plan: string): string | undefined {
-  return /^\s*[-*]?\s*\**repo\**\s*:\s*`?([\w.-]+)`?/im.exec(plan)?.[1];
 }
 
 /** Short one-line description of a tool call for the approval message. */
@@ -64,9 +54,9 @@ function summarize(tool: string, input: Record<string, unknown>): string {
 }
 
 /**
- * Permission layer of stages with a gateway (spike findings applied):
+ * Permission layer of a run with a gateway (spike findings applied):
  * - PreToolUse hook = hard deny, and forces `ask` so even SDK-auto-allowed read-only Bash goes through policy.
- * - canUseTool = ask the owner in Discord (plan approval, AskUserQuestion, risky tools).
+ * - canUseTool = ask the owner in Discord (AskUserQuestion, which also carries the plan approval, and risky tools).
  * Never use `allowedTools`: it would bypass canUseTool.
  */
 export function buildToolPermissions(p: ToolPermissionInput): {
@@ -92,40 +82,12 @@ export function buildToolPermissions(p: ToolPermissionInput): {
     });
     const input = rawInput as Record<string, unknown>;
     try {
-      if (
-        (tool === EXIT_PLAN_MODE_TOOL_NAME || tool === ASK_USER_QUESTION_TOOL_NAME) &&
-        !p.gateway
-      ) {
+      if (tool === ASK_USER_QUESTION_TOOL_NAME && !p.gateway) {
         return { behavior: "deny", message: "Not available in this mode." };
       }
       const gateway = p.gateway!;
-      if (tool === EXIT_PLAN_MODE_TOOL_NAME) {
-        const plan = String(input.plan ?? "");
-        const repo = parsePlanRepo(plan);
-        if (p.plan && (!repo || !p.plan.repos.includes(repo))) {
-          return {
-            behavior: "deny",
-            message: `The plan must contain a line "repo: <name>" naming exactly one of: ${p.plan.repos.join(", ")}. Add it and call ${EXIT_PLAN_MODE_TOOL_NAME} again.`,
-          };
-        }
-        const req = {
-          turnId: p.turnId,
-          threadId: p.threadId,
-          tool,
-          summary: plan,
-          detail: plan,
-        };
-        const r = await gateway.requestPlan(req);
-        if (r.approved && p.plan && repo) p.plan.onApproved(plan, repo);
-        return r.approved
-          ? { behavior: "allow", updatedInput: input }
-          : {
-              behavior: "deny",
-              message: `Owner rejected the plan (${r.reason ?? "no reason"}). Revise it and call ${EXIT_PLAN_MODE_TOOL_NAME} again.`,
-            };
-      }
       if (tool === ASK_USER_QUESTION_TOOL_NAME) {
-        // At most the role's `maxAsk` calls per task, enforced here (not only in the prompt): later ones never reach the owner.
+        // At most the role's `limits.maxAsk` calls per run, enforced here (not only in the prompt): later ones never reach the owner.
         if (askLimit.calls >= askLimit.max)
           return { behavior: "deny", message: askLimitDenial(askLimit.max) };
         askLimit.calls++;

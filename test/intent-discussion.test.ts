@@ -8,7 +8,6 @@ import { createRoleTagRouter } from "../src/intent/role-tag";
 import { actionFor } from "../src/orchestrator/thread/route-by-intent";
 import { intentRoles, ROLES } from "../src/roles/role-registry";
 import { insertTurn } from "../src/storage/run-store";
-import { upsertStage } from "../src/storage/stage-store";
 import { makeEnv } from "./helpers";
 import { scoreClass } from "./intent-eval-score";
 
@@ -56,12 +55,12 @@ test("L3 prompt: principles (conversation, corrections, pending answer, ask), no
   expect(sys).not.toMatch(/\[ask\]|\[dev\]|Start your message/);
   const up = buildIntentUserPrompt({
     text: "x".repeat(9000),
-    thread: { state: "idle", lastTurn: { role: "assistant", kind: "qa" } },
+    thread: { state: "idle", lastTurn: { role: "assistant" } },
     ledger: [],
     recent: [],
     roles: [],
   });
-  expect(up).toContain("previous turn: assistant/qa");
+  expect(up).toContain("previous turn: assistant");
   expect(up).toContain("Recent messages: none");
   expect(up).toContain("Unanswered question: none");
   expect(up.split("<<<MESSAGE\n")[1]!.split("\nMESSAGE>>>")[0]!.length).toBe(2000);
@@ -86,15 +85,14 @@ test("L3 prompt: recent messages and the pending question are DATA between marke
   expect(up).toContain("Run it after?");
 });
 
-test("buildIntentInput: lastTurn = role and last stage of the thread's latest task; none for a new thread", () => {
+test("buildIntentInput: lastTurn = the role of the thread's latest task; none for a new thread", () => {
   const env = makeEnv();
   expect(
     buildIntentInput(env.db, { threadId: "th", text: "x", state: "idle" }).thread.lastTurn,
   ).toBeUndefined();
   insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "r", role: "assistant" });
-  upsertStage(env.db, { turnId: "t1", idx: 0, name: "qa", status: "done" });
   const t = buildIntentInput(env.db, { threadId: "th", text: "x", state: "idle" }).thread;
-  expect(t.lastTurn).toEqual({ role: "assistant", kind: "qa" });
+  expect(t.lastTurn).toEqual({ role: "assistant" });
 });
 
 /** decideIntent with a fake L3 answering `res`, for an idle thread whose previous turn was `lastRole`. */
@@ -107,7 +105,7 @@ async function decide(text: string, res: Partial<IntentResult>, lastRole?: strin
     text,
     thread: {
       state: state as never,
-      ...(lastRole && { lastTurn: { role: lastRole, kind: "qa" } }),
+      ...(lastRole && { lastTurn: { role: lastRole } }),
     },
     ledger: [],
     recent: [],

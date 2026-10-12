@@ -9,12 +9,12 @@ import type { GoldenCase, ThreadFacts } from "./intent-eval-cases";
 const AFTER_CHAT: ThreadFacts = {
   state: "idle",
   ledger: [],
-  lastTurn: { role: "assistant", kind: "qa" },
+  lastTurn: { role: "assistant" },
 };
 const AFTER_DEV: ThreadFacts = {
   state: "idle",
   ledger: ["dev: round formatPrice to 2 decimals (done, 1 commit)"],
-  lastTurn: { role: "dev", kind: "exec" },
+  lastTurn: { role: "dev" },
   hasTask: true,
 };
 const CACHE_TALK = [
@@ -170,7 +170,7 @@ export const CONVERSATION_CASES: GoldenCase[] = [
   {
     // pending open-dev question, natural yes (English)
     text: "yeah go for it",
-    thread: { state: "idle", ledger: [], lastTurn: { role: "assistant", kind: "qa" } },
+    thread: { state: "idle", ledger: [], lastTurn: { role: "assistant" } },
     pending: 'Open a dev task for this? (yes/no) "add a cache layer to getPrice"',
     recent: [
       { from: "owner", text: "add a cache layer to getPrice" },
@@ -182,7 +182,7 @@ export const CONVERSATION_CASES: GoldenCase[] = [
   {
     // pending open-dev question, natural no (English): not an answer to "yes", the owner wants the discussion
     text: "nah, just answer my question first",
-    thread: { state: "idle", ledger: [], lastTurn: { role: "assistant", kind: "qa" } },
+    thread: { state: "idle", ledger: [], lastTurn: { role: "assistant" } },
     pending: 'Open a dev task for this? (yes/no) "add a cache layer to getPrice"',
     recent: [
       { from: "owner", text: "add a cache layer to getPrice" },

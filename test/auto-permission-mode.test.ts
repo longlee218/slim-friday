@@ -3,7 +3,7 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../src/config/agent-config";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { captureLogs } from "../src/observability/logger";
-import { getStage } from "../src/roles/role-registry";
+import { getRole } from "../src/roles/role-registry";
 import { resolvePermissionMode } from "../src/runtime/permission-mode";
 import { createPermissionWatch } from "../src/runtime/permission-watch";
 import { runAgent } from "../src/runtime/run-agent";
@@ -15,18 +15,16 @@ const cfg = (provider: "anthropic" | "openrouter", hasRealAuth: boolean) =>
   ({ provider, hasRealAuth }) as AgentConfig;
 
 test("resolver: auto only on anthropic with a real login; otherwise fail closed to default", () => {
-  const qa = getStage("assistant", "qa");
+  const qa = getRole("assistant");
   expect(resolvePermissionMode(qa, cfg("anthropic", true))).toBe("auto");
   expect(resolvePermissionMode(qa, cfg("anthropic", false))).toBe("default");
   expect(resolvePermissionMode(qa, cfg("openrouter", true))).toBe("default");
   expect(resolvePermissionMode(qa, cfg("openrouter", false))).toBe("default");
 });
 
-test("resolver: plan stays plan and exec stays bypassPermissions on every provider and auth state", () => {
-  for (const c of [cfg("anthropic", true), cfg("openrouter", false)]) {
-    expect(resolvePermissionMode(getStage("dev", "plan"), c)).toBe("plan");
-    expect(resolvePermissionMode(getStage("dev", "exec"), c)).toBe("bypassPermissions");
-  }
+test("resolver: dev stays bypassPermissions on every provider and auth state", () => {
+  for (const c of [cfg("anthropic", true), cfg("openrouter", false)])
+    expect(resolvePermissionMode(getRole("dev"), c)).toBe("bypassPermissions");
 });
 
 /** Run the PreToolUse guard hook for one call. */
@@ -34,7 +32,7 @@ async function pre(
   autoMode: boolean,
   tool: string,
   input: Record<string, unknown>,
-  guard = guardFor("qa", { readPaths: ["/ws/repo"] }),
+  guard = guardFor(getRole("assistant"), { readPaths: ["/ws/repo"] }),
 ) {
   const perms = buildToolPermissions({
     turnId: "t",
@@ -77,7 +75,7 @@ test("auto mode: canUseTool (classifier undecided) still asks the owner via the 
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor("qa", { readPaths: ["/ws/repo"] }),
+    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/repo"] }),
     autoMode: { active: true },
     gateway: {
       request: async (r: { tool: string }) => (asked.push(r.tool), { approved: true }),
@@ -90,7 +88,7 @@ test("auto mode: canUseTool (classifier undecided) still asks the owner via the 
 });
 
 test("auto mode: Bash never asks (deny list): an env override or make runs as allow, sudo is denied", async () => {
-  const guard = guardFor("exec", {
+  const guard = guardFor(getRole("dev"), {
     cwd: "/ws/repo",
     writePaths: ["/ws/repo"],
     readPaths: ["/ws/repo"],
@@ -139,7 +137,7 @@ test("watch: after a fallback the hook forces ask and logs ask, not auto", async
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor("qa", { readPaths: ["/ws/repo"] }),
+    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/repo"] }),
     autoMode: state,
   });
   const out: any = await perms.hooks[0]!.hooks[0]!(
@@ -212,8 +210,8 @@ async function execRun(actual: string) {
     db: env.db,
     abortController: new AbortController(),
     queryFn: queryFn as never,
-    stage: getStage("assistant", "qa"),
-    guard: guardFor("qa", { readPaths: [env.repo] }),
+    role: getRole("assistant"),
+    guard: guardFor(getRole("assistant"), { readPaths: [env.repo] }),
     code: { threadId: "th" },
   });
   return out;

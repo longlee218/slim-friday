@@ -237,7 +237,7 @@ test("derivability: NFD output vs NFC input compares equal", () => {
 test("sdkCompactLlm: MEMORY_MODEL, no tools, one turn, no settings, no persona; usage returned", async () => {
   const config = loadConfig({
     AGENT_HOME: "/tmp/x",
-    MODEL: "other-model",
+    MODEL_DEV: "other-model",
     CODE_MODEL: "other-code",
   });
   expect(config.memoryModel).toBe("claude-haiku-4-5-20251001");

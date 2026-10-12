@@ -112,8 +112,6 @@ describe.skipIf(!live)("intent golden set (live, Haiku)", () => {
         thread: {
           state: t.state,
           ...(t.activeRole && { activeRole: t.activeRole }),
-          ...(t.activeStage && { activeStage: t.activeStage }),
-          ...(t.gate && { gate: t.gate }),
           ...(t.lastTurn && { lastTurn: t.lastTurn }),
         },
         ledger: t.ledger ?? [],

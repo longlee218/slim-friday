@@ -5,7 +5,7 @@ import { type EffortFloors, resolveEffort } from "./effort-floor";
 
 /** What the intent layer says about the effort of one run. */
 export interface TurnEffort {
-  /** Effort to run with; undefined = no signal and no floor: the stage defaults (class tiers) stay. */
+  /** Effort to run with; undefined = no signal and no floor: the role defaults (class tiers) stay. */
   effort?: Effort;
   /** The signals asked for `max` and the owner has not confirmed: ask, do not run. */
   pendingMax: boolean;
@@ -14,7 +14,7 @@ export interface TurnEffort {
 /**
  * Apply the L2 signals of one message: a complaint (`floorDelta`) raises the thread floor (from the class base
  * effort), then `resolveEffort` combines class, floor, turn delta and minimum (logs `effort.resolved`). With
- * nothing to apply the result is empty, so an ordinary message keeps its stage's model (an assistant answer
+ * nothing to apply the result is empty, so an ordinary message keeps its role's model (an assistant answer
  * stays on Haiku). `max` is returned only with `maxConfirmed` (the owner-confirm gate said yes); else it is capped at `high` and
  * flagged `pendingMax`.
  */

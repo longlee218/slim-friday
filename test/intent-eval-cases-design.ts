@@ -10,7 +10,7 @@ import type { GoldenCase } from "./intent-eval-cases";
 
 const IDLE = { state: "idle" } as const;
 /** An idle thread whose previous turn was an assistant answer (multi-turn cases). */
-const AFTER_ANSWER = { state: "idle", lastTurn: { role: "assistant", kind: "qa" } } as const;
+const AFTER_ANSWER = { state: "idle", lastTurn: { role: "assistant" } } as const;
 
 /** A research / design / planning wish: must reach `dev` as a new task (class is not scored). */
 const toDev = (text: string, group?: "holdout", more: Partial<GoldenCase> = {}): GoldenCase => ({
@@ -54,7 +54,7 @@ export const DESIGN_CASES: GoldenCase[] = [
   toDev("I want to research making agents configurable by markdown files instead of hard-coded"),
   toDev("tôi muốn cải thiện kiến trúc phần hàng đợi, lên kế hoạch giúp tôi"),
   toDev("I want to improve the architecture of the intent layer, can you come up with a plan?"),
-  // "Do not change anything yet" + an ask to plan: dev (its plan stage is read-only).
+  // "Do not change anything yet" + an ask to plan: dev (it plans and waits for the owner's approval first).
   toDev(
     "đừng sửa gì vội, lên kế hoạch giúp tôi",
     undefined,

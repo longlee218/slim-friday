@@ -10,7 +10,7 @@ const log = logger.child({ module: "permission-watch" });
  * - init message: logs the ACTUAL permission mode once (`permission.mode`); when auto was requested but the SDK
  *   runs another mode (unsupported model / plan / org policy: a silent fallback) it warns and switches
  *   `auto.active` off, so guard asks go to the owner again and `tool.done` logs "ask", not "auto". Same for
- *   `bypassPermissions` and `bypass.active` (fail closed: a stage that is not really in bypass asks the owner).
+ *   `bypassPermissions` and `bypass.active` (fail closed: a run that is not really in bypass asks the owner).
  * - `permission_denied` from the classifier: `tool.denied` with `by: "classifier"` (tool name and id only, no content).
  */
 export function createPermissionWatch(

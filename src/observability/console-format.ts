@@ -10,7 +10,7 @@ const LINE_MAX = 200;
  */
 export const CONSOLE_IGNORE = ["pid", "hostname", "module", "event", "toolUseId", "input", "runId"];
 
-/** Task context keys: shown as the `· 8f3a1c2e ws/repo <stage>` suffix, never as a JSON tail. */
+/** Task context keys: shown as the `· 8f3a1c2e ws/repo <role>` suffix, never as a JSON tail. */
 const CONTEXT_KEYS = ["threadId", "channelId", "taskId", "workspace", "repo", "mode"];
 /** Detail keys of tool.* events: folded into the message body. */
 const TOOL_KEYS = [

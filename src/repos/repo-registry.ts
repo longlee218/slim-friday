@@ -22,11 +22,11 @@ export interface Repo {
   defaultBranch?: string;
   /** Shell command the agent runs to test changes in this repo. */
   testCommand?: string;
-  /** How exec stages run here: `lean` (default, app plan -> exec) or `full` (the repo's own workflow and skills, autonomous). */
+  /** How dev runs work here: `lean` (default) or `full` (the repo's own workflow and skills, autonomous). */
   workflow?: Workflow;
 }
 
-/** Per-repo workflow of exec stages. */
+/** Per-repo workflow of dev runs. */
 export type Workflow = "lean" | "full";
 
 /** Paths of one workspace (`workspacePaths(home).workspace(name)`). */
@@ -34,7 +34,7 @@ export type WorkspaceDirs = ReturnType<WorkspacePaths["workspace"]>;
 
 /** Schema of a `repo.yaml` (the repo name is its directory name). */
 const configSchema = z.object({
-  /** Where the agent reads the repo; default `<repo dir>/repo` (the managed clone staged tasks need). */
+  /** Where the agent reads the repo; default `<repo dir>/repo` (the workspace's own checkout; a dev run works in it). */
   path: z.string().trim().min(1).optional(),
   description: z.string().trim().default(""),
   defaultBranch: z.string().trim().min(1).optional(),
@@ -127,7 +127,9 @@ export function buildRegistryContext(ws: string, repos: Repo[], force = false): 
   if (repos.length < 2 && !force) return "";
   const lines = repos.map((r) => {
     const flow = r.workflow === "full" ? " [workflow: full]" : "";
-    return `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}${flow}`;
+    // The repo's test command, shown to a dev run (it runs the tests).
+    const test = r.testCommand ? ` [test: ${r.testCommand}]` : "";
+    return `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}${flow}${test}`;
   });
   return `Available repos in workspace ${ws} (pick the one that fits the question; search only these paths):\n${lines.join("\n")}`;
 }

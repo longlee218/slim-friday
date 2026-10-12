@@ -8,7 +8,7 @@ import { createRoleTagRouter } from "../src/intent/role-tag";
 import { CONFIRM_TASK_QUESTION } from "../src/orchestrator/dispatch/queued-tasks";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
-import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
@@ -51,14 +51,18 @@ function engine(role = "dev") {
   return { classifier, inputs };
 }
 
-/** Plan stage rejects its plan; every other run is an assistant answer. */
+/** The dev run asks to approve its plan and stops (the owner never answers); every other run is an assistant answer. */
 function fakeSdk(seen: any[]) {
   return (a: any) => {
     seen.push(a);
     return (async function* () {
-      if (a.options.permissionMode === "plan") {
-        await a.options.canUseTool(EXIT_PLAN_MODE_TOOL_NAME, { plan: "repo: real\nplan" }, {});
-        yield resultMsg({ result: "plan rejected" });
+      if (a.options.permissionMode === "bypassPermissions") {
+        await a.options.canUseTool(
+          ASK_USER_QUESTION_TOOL_NAME,
+          { questions: [{ question: "Approve the plan?", options: [{ label: "Approve" }] }] },
+          {},
+        );
+        yield resultMsg({ result: "plan approved" });
         return;
       }
       yield resultMsg({ result: "assistant answer", session_id: "sess-qa" });
@@ -104,14 +108,14 @@ test("dev/new from L3 alone after an assistant turn asks first; yes opens the ta
   await handle(msg("[ask] explain the repo")); // assistant turn (L1 tag)
   expect(await handle(msg(PROPOSAL))).toBe(CONFIRM_TASK_QUESTION);
   expect(e.inputs).toHaveLength(1);
-  expect(e.inputs[0]?.thread.lastTurn).toEqual({ role: "assistant", kind: "qa" });
+  expect(e.inputs[0]?.thread.lastTurn).toEqual({ role: "assistant" });
   expect(q("SELECT role FROM turns")).toEqual([{ role: "assistant" }]); // nothing opened yet
   expect(q("SELECT status, reason FROM proposals")).toEqual([
     { status: "pending", reason: "confirm_task" },
   ]);
   const reply = await handle(msg("yes"));
-  expect(reply).toContain("Starting plan");
-  expect(seen.some((s) => s.options.permissionMode === "plan")).toBe(true);
+  expect(reply).toContain("Starting dev");
+  expect(seen.some((s) => s.options.permissionMode === "bypassPermissions")).toBe(true);
   expect(q("SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
 });
 
@@ -127,10 +131,10 @@ test("no -> the assistant answers the original message (no dev task)", async () 
 
 test("no guard: a first message, a [dev] tag or a role other than a staged one is unaffected", async () => {
   const { handle, msg, q } = await build();
-  expect(await handle(msg("please add b.txt"))).toContain("Starting plan"); // idle thread, no earlier turn
+  expect(await handle(msg("please add b.txt"))).toContain("Starting dev"); // idle thread, no earlier turn
   const second = await build();
   await second.handle(second.msg("[ask] explain the repo"));
-  expect(await second.handle(second.msg("[dev] add b.txt"))).toContain("Starting plan");
+  expect(await second.handle(second.msg("[dev] add b.txt"))).toContain("Starting dev");
   expect(q("SELECT role FROM turns")).toEqual([{ role: "dev" }]);
 });
 

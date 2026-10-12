@@ -18,8 +18,8 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { openDb } from "../src/storage/db";
 import { insertTurn } from "../src/storage/run-store";
 import {
+  ASK_USER_QUESTION_TOOL_NAME,
   BASH_TOOL_NAME,
-  EXIT_PLAN_MODE_TOOL_NAME,
   GLOB_TOOL_NAME,
   READ_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
@@ -49,7 +49,7 @@ test("a line from a module logger deep in a task carries taskId/threadId/repo/mo
   await handle(task("repo:repo what is alpha", "th1"));
   cap.stop();
   const started = cap.lines.find((l) => l.event === "run.started")!;
-  expect(started).toMatchObject({ threadId: "th1", repo: "repo", mode: "qa" });
+  expect(started).toMatchObject({ threadId: "th1", repo: "repo", mode: "assistant" });
   expect(typeof started.taskId).toBe("string");
   // Every task line has the same ids, none passed by hand.
   for (const l of cap.lines.filter((l) => String(l.event).startsWith("run."))) {
@@ -103,7 +103,7 @@ test("context survives into SDK callbacks (hooks, timers): tool.done lines carry
         "u2",
         { signal: new AbortController().signal },
       );
-      await a.options.canUseTool(EXIT_PLAN_MODE_TOOL_NAME, {}, {});
+      await a.options.canUseTool(ASK_USER_QUESTION_TOOL_NAME, {}, {});
       yield resultMsg();
     })();
   await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })(
@@ -113,8 +113,10 @@ test("context survives into SDK callbacks (hooks, timers): tool.done lines carry
   // The guard-denied Read logs tool.denied (+ tool.start from the recording hook if it ran); the Glob logs tool.done.
   const calls = cap.lines.filter((l) => l.event === "tool.done" || l.event === "tool.denied");
   expect(calls.map((c) => c.event).sort()).toEqual(["tool.denied", "tool.done"]);
-  const taskId = cap.lines.find((l) => l.event === "task.started")!.taskId;
-  for (const c of calls) expect(c).toMatchObject({ taskId, threadId: "th1", mode: "qa" });
+  const started = cap.lines.find((l) => l.event === "task.started")!;
+  expect(started.type).toBe("assistant"); // the log type is the role name
+  const taskId = started.taskId;
+  for (const c of calls) expect(c).toMatchObject({ taskId, threadId: "th1", mode: "assistant" });
   expect(calls.find((c) => c.event === "tool.denied")!.reason).toBeTruthy();
 });
 

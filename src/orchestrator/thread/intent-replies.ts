@@ -2,6 +2,7 @@ import type { AskReason } from "../../intent/decide-intent";
 import { leadingRoleTag } from "../../intent/role-tag";
 import { redactText } from "../../observability/redact";
 import { ROLES } from "../../roles/role-registry";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 
 /** Why the owner is asked (the intent reasons; a `max` effort is confirmed with buttons, see max-effort-gate.ts). */
 export type AskKind = AskReason;
@@ -26,24 +27,20 @@ export const ASK_TEXT: Record<AskKind, () => string> = {
 
 /** Reply while the thread's run holds the lock. */
 export const STILL_WORKING = "still working...";
-/** A text yes/no (or feedback) while a button gate waits. */
-export const GATE_HINT = "Use the Approve / Reject buttons on the message above.";
+/** A text yes/no while a button question waits. */
+export const GATE_HINT = "Use the buttons on the message above.";
 export const NOTHING_PENDING = "Nothing is waiting for an answer.";
-/** A staged task cannot start without the approval flow (same text as the legacy refusal). */
+/** A background task cannot start without the approval flow (same text as the legacy refusal). */
 export const NO_APPROVALS = "This task needs the Discord approval flow.";
 /** A steer reached the run's input. It says "received", never that the agent read it: the model takes it at its next turn boundary, after the current tools. */
 export const STEER_RECEIVED = "received, the agent takes it at its next step";
 /** A steer arrived while a tool approval waits: the message is stored and reaches the agent after the owner decides. Never says "read". */
 export const STEER_WAITING = (tool: string) =>
-  `agent is waiting for your approval of ${redactText(tool)} above (Approve/Deny); your message is saved and is delivered after the decision`;
-/** A steer arrived while the run is between two streaming stages: it goes into the next one. */
-export const STEER_HELD = "received, the agent takes it when its next stage starts";
-/** Typed feedback was handed to the plan gate: the planner revises and posts the plan again with new buttons. */
-export const FEEDBACK_SENT =
-  "received, the plan is being revised with your feedback; approve the new plan when it is posted";
-/** The plan was decided between the decision and the feedback (nothing waits for it any more). */
-export const FEEDBACK_MISSED =
-  "The plan was just decided, so the feedback was not applied. Send it again.";
+  tool === ASK_USER_QUESTION_TOOL_NAME
+    ? "agent is waiting for your answer above: click one of the options; typed text is only sent as a note after you choose"
+    : `agent is waiting for your approval of ${redactText(tool)} above (Approve/Deny); your message is saved and is delivered after the decision`;
+/** A steer arrived while the run is still starting: it goes into the run's input once it opens. */
+export const STEER_HELD = "received, the agent takes it when its run has started";
 /** The global run limit is full: a side question cannot get its own run right now. */
 export const SIDE_BUSY = (active: number) => `busy, ${active} runs active, try again in a minute`;
 /** The run already has the max pending steers (`MAX_PENDING_STEERS`). */

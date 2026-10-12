@@ -7,7 +7,6 @@ import { parseMessageCommand, RESUME_PROMPT } from "../src/orchestrator/message-
 import {
   ASK_USER_QUESTION_TOOL_NAME,
   BASH_TOOL_NAME,
-  EXIT_PLAN_MODE_TOOL_NAME,
   SEND_FEEDBACK_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
@@ -30,17 +29,13 @@ function fakeGateway(approved = true) {
       asked.push({ kind: "request", req });
       return approved ? { approved } : { approved, reason: "no" };
     },
-    requestPlan: async (req) => {
-      asked.push({ kind: "plan", req });
-      return approved ? { approved } : { approved, reason: "owner rejected plan" };
-    },
-    askChoice: async (a) => a.options[0],
+    askChoice: async (a) => (approved ? a.options[0] : undefined), // `approved` false = the owner never answers
   });
   return { gw, asked };
 }
 
 /**
- * Run one `[dev]` message (the intent layer opens a dev task); capture the SDK options of the plan stage.
+ * Run one `[dev]` message (the intent layer opens a dev task); capture the SDK options of its run.
  * Without `gw` the approval flow is off (nothing runs).
  */
 async function runCodeTask(gw?: ApprovalGateway) {
@@ -125,31 +120,30 @@ test("without approvals no run starts: the owner is told code tasks need the app
   expect(reply).toContain("approval flow");
 });
 
-test("code task runs in plan mode in the scratch dir with write tools and no allowedTools", async () => {
+test("code task runs in bypass mode in the repo with write tools and no allowedTools", async () => {
   const { gw } = fakeGateway();
   const { env, opts, repo, qa } = await runCodeTask(gw);
-  expect(qa).toHaveLength(1); // the plan stage only: no assistant turn before it
-  expect(opts.permissionMode).toBe("plan");
+  expect(qa).toHaveLength(1); // one run: no assistant turn before it
+  expect(opts.permissionMode).toBe("bypassPermissions");
   expect(opts.tools).toContain(WRITE_TOOL_NAME);
   expect(opts.allowedTools).toBeUndefined(); // would bypass canUseTool
-  expect(opts.cwd).toContain(join(realpathSync(env.home), "workspaces", "main", "tasks"));
-  expect(opts.additionalDirectories).toEqual([realpathSync(repo)]);
+  expect(opts.cwd).toBe(realpathSync(repo));
+  const ws = join(realpathSync(env.home), "workspaces", "main");
+  expect(opts.additionalDirectories[0]).toContain(join(ws, "tasks"));
+  expect(opts.additionalDirectories[1]).toBe(join(ws, "worktrees"));
   expect(opts.canUseTool).toBeFunction();
-  expect(opts.systemPrompt.append).toContain("plan mode");
-  // The plan stage keeps its session on the task row, never in the thread's session table.
+  expect(opts.systemPrompt.append).toContain(
+    "Do not change files before the owner approved your plan",
+  );
+  // The run keeps its session on the task row, never in the thread's session table.
   expect(env.db.query("SELECT cwd FROM sessions").all()).toEqual([]);
   expect(env.db.query("SELECT type FROM turns").all()).toEqual([{ type: "code" }]);
 });
 
-test("canUseTool: plan goes to owner; writes only in scratch; a feedback report asks; denial reaches agent", async () => {
+test("canUseTool: writes only in the workspace; a feedback report asks; the plan question goes to the owner", async () => {
   const { gw, asked } = fakeGateway();
   const { opts } = await runCodeTask(gw);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
-
-  expect((await can(EXIT_PLAN_MODE_TOOL_NAME, { plan: "repo: repo\nstep 1" }, {})).behavior).toBe(
-    "allow",
-  );
-  expect(asked[0]).toMatchObject({ kind: "plan", req: { detail: "repo: repo\nstep 1" } });
 
   expect(
     (await can(WRITE_TOOL_NAME, { file_path: join(opts.cwd, "a.txt"), content: "x" }, {})).behavior,
@@ -158,15 +152,15 @@ test("canUseTool: plan goes to owner; writes only in scratch; a feedback report 
     (await can(WRITE_TOOL_NAME, { file_path: "/etc/passwd", content: "x" }, {})).behavior,
   ).toBe("deny");
   expect((await can(BASH_TOOL_NAME, { command: "rm -rf /etc/x" }, {})).behavior).toBe("deny");
-  expect(asked).toHaveLength(1); // allow/deny decisions never bother the owner
+  expect(asked).toHaveLength(0); // allow/deny decisions never bother the owner
 
   // Bash never asks; a tool the owner must decide (SendFeedback) does.
   expect((await can(BASH_TOOL_NAME, { command: "bun add left-pad" }, {})).behavior).toBe("allow");
-  expect(asked).toHaveLength(1);
+  expect(asked).toHaveLength(0);
   expect((await can(SEND_FEEDBACK_TOOL_NAME, { type: "bug", title: "t" }, {})).behavior).toBe(
     "allow",
   );
-  expect(asked[1]).toMatchObject({ kind: "request", req: { tool: SEND_FEEDBACK_TOOL_NAME } });
+  expect(asked[0]).toMatchObject({ kind: "request", req: { tool: SEND_FEEDBACK_TOOL_NAME } });
 
   const ans = await can(
     ASK_USER_QUESTION_TOOL_NAME,
@@ -176,18 +170,22 @@ test("canUseTool: plan goes to owner; writes only in scratch; a feedback report 
   expect(ans.updatedInput.answers).toEqual({ "Q?": "A" });
 });
 
-test("owner rejection becomes a deny message the agent can act on", async () => {
+test("a tool the owner denies, or a question the owner does not answer, becomes a deny message the agent can act on", async () => {
   const { gw } = fakeGateway(false);
   const { opts } = await runCodeTask(gw);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
-  const plan = await can(EXIT_PLAN_MODE_TOOL_NAME, { plan: "repo: repo\np" }, {});
+  const plan = await can(
+    ASK_USER_QUESTION_TOOL_NAME,
+    { questions: [{ question: "Approve the plan?", options: [{ label: "Approve" }] }] },
+    {},
+  );
   expect(plan.behavior).toBe("deny");
-  expect(plan.message).toContain("rejected the plan");
+  expect(plan.message).toContain("did not answer");
   const feedback = await can(SEND_FEEDBACK_TOOL_NAME, { type: "bug", title: "t" }, {});
   expect(feedback).toMatchObject({ behavior: "deny" });
 });
 
-test("PreToolUse hook denies dangerous Bash, lets other Bash run and forces ask for an owner-decided tool", async () => {
+test("PreToolUse hook denies dangerous Bash and lets other Bash run; in bypass an owner-decided tool is let through (the SDK asks nothing)", async () => {
   const { gw } = fakeGateway();
   const { opts } = await runCodeTask(gw);
   const hook = opts.hooks.PreToolUse[0].hooks[0] as (i: any) => Promise<any>;
@@ -200,6 +198,6 @@ test("PreToolUse hook denies dangerous Bash, lets other Bash run and forces ask 
     tool_name: SEND_FEEDBACK_TOOL_NAME,
     tool_input: { type: "bug", title: "t" },
   });
-  expect(feedback.hookSpecificOutput.permissionDecision).toBe("ask");
+  expect(feedback).toEqual({ continue: true });
   expect(await call("git status")).toEqual({ continue: true });
 });

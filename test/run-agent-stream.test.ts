@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { captureLogs } from "../src/observability/logger";
-import { getStage } from "../src/roles/role-registry";
+import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { sdkEnv } from "../src/runtime/sdk-env";
 
@@ -38,7 +38,7 @@ function go(
   return runAgent({
     prompt: "q",
     turnId: "T",
-    stage: getStage("assistant", "qa"),
+    role: getRole("assistant"),
     cwd: env.home,
     config: env.config,
     db: env.db,
@@ -252,22 +252,11 @@ test("run.finished keeps usage, adds modelUsage per model and the total cost", a
   expect(fin.modelUsage["claude-haiku-5-5"].inputTokens).toBe(1);
 });
 
-test("runs.stage_idx: written when the stage index is given, NULL for a non-stage run", async () => {
+test("runs.stage_idx is never written any more (the column stays NULL until schema v4)", async () => {
   const env = makeEnv();
   await go(env, fakeQuery([initMsg, resultMsg()]));
-  await runAgent({
-    prompt: "q",
-    turnId: "T",
-    stage: getStage("assistant", "qa"),
-    stageIdx: 1,
-    cwd: env.home,
-    config: env.config,
-    db: env.db,
-    abortController: new AbortController(),
-    queryFn: fakeQuery([initMsg, resultMsg()]),
-  });
   const rows = env.db
     .query<{ stage_idx: number | null }, []>("SELECT stage_idx FROM runs ORDER BY rowid")
     .all();
-  expect(rows.map((r) => r.stage_idx)).toEqual([null, 1]);
+  expect(rows.map((r) => r.stage_idx)).toEqual([null]);
 });

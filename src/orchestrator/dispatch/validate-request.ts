@@ -3,7 +3,7 @@ import type { AgentConfig } from "../../config/agent-config";
 import { type Effort, resolveBudget, type TaskClass } from "../../config/model-routing";
 import type { Repo } from "../../repos/repo-registry";
 import { dispatchableRoleNames, ROLES } from "../../roles/role-registry";
-import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
+import type { RoleDefinition } from "../../roles/role-types";
 import { capRefusal, type Refusal, refuse, resolveTaskRepo } from "./task-repo";
 
 /* Checks of a proposed hand-over BEFORE any task row exists. Pure app code: no LLM, no side effect. */
@@ -15,11 +15,11 @@ export const LOW_CONFIDENCE = 0.4;
 export interface DispatchRequest {
   role: string;
   brief: string;
-  /** Repo name; missing = the thread's pinned repo, else the plan picks among the workspace repos. */
+  /** Repo name; missing = the thread's pinned repo, else the run works among the workspace repos. */
   repo?: string;
   /** Task class; missing = standard. */
   cls?: TaskClass;
-  /** Effort resolved when the request was queued; kept so queue -> start runs at it. Missing = the stage defaults. */
+  /** Effort resolved when the request was queued; kept so queue -> start runs at it. Missing = the role defaults. */
   effort?: Effort;
   intent?: string;
   /** 0..1; below `LOW_CONFIDENCE` the owner is asked. Missing = confident (owner-typed). */
@@ -46,11 +46,9 @@ export interface ValidationDeps {
 export interface ValidRequest {
   ok: true;
   role: RoleDefinition;
-  /** First stage of the role (its model and budget are what the start costs). */
-  firstStage: StageDefinition;
-  /** Repos the plan may pick from (one when the repo is known). */
+  /** Repos the run may work in (one when the repo is known). */
   candidates: Repo[];
-  /** Row repo: the picked one's name, or `*` (the plan chooses). */
+  /** Row repo: the picked one's name, or `*` (the run's final `repo:` marker names it). */
   repoName: string;
   cls: TaskClass;
 }
@@ -83,8 +81,7 @@ export async function validateRequest(
 ): Promise<ValidRequest | InvalidRequest> {
   const dispatchable: string[] = dispatchableRoleNames();
   const role = Object.hasOwn(ROLES, req.role) ? ROLES[req.role] : undefined;
-  const firstStage = role?.stages[0];
-  if (!role || !firstStage || !dispatchable.includes(req.role)) {
+  if (!role || !dispatchable.includes(req.role)) {
     return ask(
       "unknown_role",
       `Unknown role "${req.role}". Available: ${dispatchable.join(", ")}.`,
@@ -105,10 +102,10 @@ export async function validateRequest(
   }
   const { candidates } = resolved;
   const repoName = hint ? (candidates[0]?.name ?? "*") : "*";
-  const capped = role.countsTowardCap ? capRefusal(d.db) : undefined;
+  const capped = role.background ? capRefusal(d.db) : undefined;
   if (capped) return { ok: false, action: "refuse", refusal: capped };
   const cls = req.cls ?? "standard";
-  const budget = resolveBudget(firstStage, role, { cls }, d.config);
+  const budget = resolveBudget(role, { cls }, d.config);
   if (budget !== undefined && budget <= 0)
     return {
       ok: false,
@@ -118,7 +115,6 @@ export async function validateRequest(
   return {
     ok: true,
     role,
-    firstStage,
     candidates,
     repoName,
     cls,

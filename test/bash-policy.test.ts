@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
+import { getRole } from "../src/roles/role-registry";
 import {
   BASH_TOOL_NAME,
   ENTER_WORKTREE_TOOL_NAME,
@@ -257,13 +258,13 @@ describe("EnterWorktree tool", () => {
 });
 
 describe("shell capability", () => {
-  test("a stage without it (qa) denies Bash and Monitor; a stage with it (exec) allows them", () => {
-    const qa = guardFor("qa", { readPaths: ["/r"] });
-    const exec = guardFor("exec", { cwd: "/w", writePaths: ["/w"] });
+  test("a role without it (assistant) denies Bash and Monitor; a role with it (dev) allows them", () => {
+    const qa = guardFor(getRole("assistant"), { readPaths: ["/r"] });
+    const exec = guardFor(getRole("dev"), { cwd: "/w", writePaths: ["/w"] });
     for (const tool of [BASH_TOOL_NAME, MONITOR_TOOL_NAME]) {
       expect(checkToolCall(tool, { command: "ls" }, qa)).toEqual({
         decision: "deny",
-        reason: "no shell in this stage",
+        reason: "no shell in this role",
       });
       expect(checkToolCall(tool, { command: "ls" }, exec).decision).toBe("allow");
     }

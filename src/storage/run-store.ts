@@ -1,8 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { TaskClass } from "../config/model-routing";
 import { redactText } from "../observability/redact";
-import { getRole, turnKindOf, turnTypeOf } from "../roles/role-registry";
-import { interruptRunningStages } from "./stage-store";
+import { getRole, turnTypeOf } from "../roles/role-registry";
 
 /** Final status of a turn row. */
 export type TurnStatus =
@@ -14,7 +13,7 @@ export type TurnStatus =
   /** Cut short by a restart/shutdown; the thread gets a Resume offer, then the row becomes cancelled. */
   | "interrupted"
   | "timeout"
-  /** Failed after the approved plan (budget, transient error): `/go` continues it (Rev 12). */
+  /** A background run that failed with its session saved (budget, transient error): `/go` continues that session (Rev 12). */
   | "failed_resumable";
 
 /** Change a turn's status without ending it (no-op when the row is missing). */
@@ -22,14 +21,14 @@ export function setTurnStatus(db: Database, id: string, status: TurnStatus): voi
   db.query("UPDATE turns SET status = ? WHERE id = ?").run(status, id);
 }
 
-/** Record the repo a turn works in once it is known (a staged task starts with "*" until its plan picks one). */
+/** Record the repo a turn works in once it is known (a background task starts with "*" until its final `repo:` marker names one). */
 export function setTurnRepo(db: Database, id: string, repo: string): void {
   db.query("UPDATE turns SET repo = ? WHERE id = ?").run(repo, id);
 }
 
-/** Nothing is left to resume in this thread (plan file gone): its `failed_resumable` task becomes `failed`. */
+/** Nothing is left to resume in this thread (no saved session): its `failed_resumable` task becomes `failed`. */
 export function dropResumable(db: Database, threadId: string): boolean {
-  // An `interrupted` exec task that was resumed from its approved plan is taken over too (no second restart notice).
+  // An `interrupted` task that was resumed is taken over too (no second restart notice).
   db.query(
     "UPDATE turns SET status = 'cancelled' WHERE thread_id = ? AND status = 'interrupted'",
   ).run(threadId);
@@ -64,7 +63,7 @@ export function latestTurnSession(
   id: string;
   status: string;
   repo: string;
-  /** Role that ran it (a plan-stage Resume starts the same role again). */
+  /** Role that ran it (a Resume starts the same role again). */
   role: string;
   sessionId: string | null;
   cwd: string | null;
@@ -107,7 +106,7 @@ export function insertTurn(
     threadId: string;
     source: string;
     repo: string;
-    /** Role that runs it: `type`, `kind` and the cap flag are derived from its data (never from a type argument). */
+    /** Role that runs it: `type` and the cap flag are derived from its data (never from a type argument). */
     role: string;
     /** Task text of a dispatched task; stored redacted. */
     brief?: string;
@@ -118,11 +117,11 @@ export function insertTurn(
     /** Turn that proposed this one, and how many hand-overs deep it is (0 = owner-started). */
     parentTurnId?: string;
     hop?: number;
-    /** The task runs a `failed_resumable` one again (kind `resume`): it does not count as a fix round. */
+    /** The task continues a `failed_resumable` or interrupted one (kind `resume`, `parentTurnId` = that task): its budget ceiling is shared. */
     resume?: boolean;
   },
 ): void {
-  // Only roles with `countsTowardCap` count against the concurrency cap (see `countActiveCappedTasks`).
+  // Only background roles count against the concurrency cap (see `countActiveCappedTasks`).
   const role = getRole(t.role);
   db.query(
     `INSERT INTO turns (id, thread_id, source, repo, type, status, started_at, brief, class, proposal_id, counts_toward_cap, role, kind, parent_turn_id, hop)
@@ -137,9 +136,10 @@ export function insertTurn(
     t.brief === undefined ? null : redactText(t.brief),
     t.cls ?? null,
     t.proposalId ?? null,
-    role.countsTowardCap ? 1 : 0,
+    role.background ? 1 : 0,
     role.name,
-    t.resume ? "resume" : turnKindOf(role),
+    // `kind` is NOT NULL (default 'staged' before v4): a role run is one run, `single`; a continuation is `resume`.
+    t.resume ? "resume" : "single",
     t.parentTurnId ?? null,
     t.hop ?? 0,
   );
@@ -156,7 +156,6 @@ export function interruptRunningTurns(db: Database): void {
   db.query(
     "UPDATE turns SET status = 'interrupted', ended_at = ? WHERE status IN ('running', 'waiting_approval')",
   ).run(now);
-  interruptRunningStages(db);
   // Buttons of a dead process can never be answered (a resumed run asks again).
   db.query(
     "UPDATE approvals SET decision = 'cancelled', decided_at = ? WHERE decision = 'pending'",

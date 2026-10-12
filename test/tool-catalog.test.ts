@@ -1,15 +1,14 @@
 import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
-import type { StageName as ToolMode } from "../src/roles/role-registry";
+import { ASSISTANT_ROLE } from "../src/roles/builtin/assistant-role";
+import { DEV_ROLE } from "../src/roles/builtin/dev-role";
 import * as sdkNames from "../src/tools/sdk-tool-names";
 import {
   AGENT_TOOL_NAME,
   ASK_USER_QUESTION_TOOL_NAME,
   BASH_TOOL_NAME,
   EDIT_TOOL_NAME,
-  ENTER_PLAN_MODE_TOOL_NAME,
-  EXIT_PLAN_MODE_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
   LIST_AGENTS_TOOL_NAME,
@@ -49,10 +48,12 @@ import {
   toolsFor,
 } from "../src/tools/tool-catalog";
 
-const MODES: ToolMode[] = ["qa", "plan", "exec"];
+const ROLES = [ASSISTANT_ROLE, DEV_ROLE];
+const qaRole = ASSISTANT_ROLE;
+const dev = DEV_ROLE;
 
 test("Q&A: read + web + skills + subagents; nothing that writes or runs commands", () => {
-  const t = toolsFor("qa");
+  const t = toolsFor(qaRole);
   for (const x of [
     READ_TOOL_NAME,
     GLOB_TOOL_NAME,
@@ -63,22 +64,17 @@ test("Q&A: read + web + skills + subagents; nothing that writes or runs commands
     AGENT_TOOL_NAME,
   ])
     expect(t).toContain(x);
-  for (const x of [
-    WRITE_TOOL_NAME,
-    EDIT_TOOL_NAME,
-    BASH_TOOL_NAME,
-    ASK_USER_QUESTION_TOOL_NAME,
-    EXIT_PLAN_MODE_TOOL_NAME,
-  ])
+  for (const x of [WRITE_TOOL_NAME, EDIT_TOOL_NAME, BASH_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME])
     expect(t).not.toContain(x);
 });
 
-test("code tasks: plan and exec share one full toolset; the subagents capability brings Agent and SendMessage", () => {
-  expect(toolsFor("exec")).toEqual(toolsFor("plan"));
-  for (const stage of ["qa", "plan", "exec"])
-    expect(toolsFor(stage)).toEqual(
+test("dev gets the full toolset (no plan-mode tools); every role gets Agent and SendMessage", () => {
+  for (const role of ROLES)
+    expect(toolsFor(role)).toEqual(
       expect.arrayContaining([AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME]),
     );
+  expect(toolsFor(dev)).not.toContain("ExitPlanMode");
+  expect(toolsFor(dev)).not.toContain("EnterPlanMode");
   for (const x of [
     ...[
       READ_TOOL_NAME,
@@ -96,49 +92,46 @@ test("code tasks: plan and exec share one full toolset; the subagents capability
       TASK_CREATE_TOOL_NAME,
       TASK_UPDATE_TOOL_NAME,
       TASK_LIST_TOOL_NAME,
-      EXIT_PLAN_MODE_TOOL_NAME,
-      ENTER_PLAN_MODE_TOOL_NAME,
       TOOL_SEARCH_TOOL_NAME,
     ],
   ]) {
-    expect(toolsFor("exec")).toContain(x);
+    expect(toolsFor(dev)).toContain(x);
   }
-  expect(toolsFor("exec")).not.toContain(WEB_FETCH_TOOL_NAME); // web stays Q&A-only
+  expect(toolsFor(dev)).not.toContain(WEB_FETCH_TOOL_NAME); // web stays the assistant's
 });
 
-test("every stage gets the subagent tools (Agent, SendMessage, ListAgents) from toolsFor, whatever its capabilities", () => {
-  for (const m of MODES)
+test("every role gets the subagent tools (Agent, SendMessage, ListAgents) from toolsFor, whatever its capabilities", () => {
+  for (const m of ROLES)
     expect(toolsFor(m)).toEqual(expect.arrayContaining([...CAPABILITY_TOOLS.subagents]));
   expect(CAPABILITY_TOOLS.subagents).toEqual([
     AGENT_TOOL_NAME,
     SEND_MESSAGE_TOOL_NAME,
     LIST_AGENTS_TOOL_NAME,
   ]);
-  expect(toolsFor("qa")).toContain(LSP_TOOL_NAME); // read capability
+  expect(toolsFor(qaRole)).toContain(LSP_TOOL_NAME); // read capability
   expect(CAPABILITY_TOOLS.mcp).toContain(WAIT_FOR_MCP_SERVERS_TOOL_NAME);
   // No PowerShell tool: the prompt carries the OS and the agent picks its shell (owner decision).
-  for (const m of MODES) expect(toolsFor(m)).not.toContain("PowerShell");
+  for (const m of ROLES) expect(toolsFor(m)).not.toContain("PowerShell");
 });
 
 test("no tool is listed twice", () => {
-  for (const m of MODES) expect(new Set(toolsFor(m)).size).toBe(toolsFor(m).length);
+  for (const m of ROLES) expect(new Set(toolsFor(m)).size).toBe(toolsFor(m).length);
 });
 
-test("auto-allowed tools are a subset of the mode's tools and never include writes, shell or questions", () => {
-  for (const m of MODES) {
+test("auto-allowed tools are a subset of the role's tools and never include writes, shell or questions", () => {
+  for (const m of ROLES) {
     for (const t of autoAllowedTools(m)) expect(toolsFor(m)).toContain(t);
     for (const t of [
       WRITE_TOOL_NAME,
       EDIT_TOOL_NAME,
       BASH_TOOL_NAME,
       ASK_USER_QUESTION_TOOL_NAME,
-      EXIT_PLAN_MODE_TOOL_NAME,
       READ_TOOL_NAME,
     ]) {
       expect(autoAllowedTools(m)).not.toContain(t);
     }
   }
-  expect(autoAllowedTools("qa")).toEqual([
+  expect(autoAllowedTools(qaRole)).toEqual([
     WEB_SEARCH_TOOL_NAME,
     WEB_FETCH_TOOL_NAME,
     SKILL_TOOL_NAME,
@@ -151,8 +144,7 @@ test("auto-allowed tools are a subset of the mode's tools and never include writ
     SEND_MESSAGE_TOOL_NAME,
     LIST_AGENTS_TOOL_NAME,
   ]);
-  expect(autoAllowedTools("exec")).toContain(ENTER_PLAN_MODE_TOOL_NAME);
-  expect(autoAllowedTools("exec")).toContain(TASK_GET_TOOL_NAME);
+  expect(autoAllowedTools(dev)).toContain(TASK_GET_TOOL_NAME);
   // Owner / guard decide these: never auto-allowed.
   for (const t of [
     TASK_STOP_TOOL_NAME,
@@ -161,16 +153,15 @@ test("auto-allowed tools are a subset of the mode's tools and never include writ
     MULTI_EDIT_TOOL_NAME,
     NOTEBOOK_EDIT_TOOL_NAME,
   ])
-    expect(autoAllowedTools("exec")).not.toContain(t);
+    expect(autoAllowedTools(dev)).not.toContain(t);
 });
 
-test("git tools: only reads (group read + by-mode reads), hidden = the complement; no stage gets add/commit", () => {
+test("git tools: only reads (group read + by-mode reads), hidden = the complement; no role gets add/commit", () => {
   expect(Object.keys(GIT_GROUPS)).toEqual(["read"]);
   for (const t of [...GIT_GROUPS.read, ...Object.keys(GIT_READ_BY_MODE)])
-    expect(gitToolsFor("qa")).toContain(t);
-  expect(gitToolsFor("exec")).toEqual(Object.keys(GIT_READ_BY_MODE)); // dev stages list no git groups
-  expect(gitToolsFor("plan")).toEqual(Object.keys(GIT_READ_BY_MODE));
-  for (const m of MODES) {
+    expect(gitToolsFor(qaRole)).toContain(t);
+  expect(gitToolsFor(dev)).toEqual(Object.keys(GIT_READ_BY_MODE)); // dev lists no git groups
+  for (const m of ROLES) {
     const hidden = hiddenGitTools(m);
     for (const t of gitToolsFor(m)) expect(hidden).not.toContain(mcpToolName(GIT_MCP_SERVER, t));
     for (const t of [
@@ -186,17 +177,17 @@ test("git tools: only reads (group read + by-mode reads), hidden = the complemen
       expect(hidden).toContain(mcpToolName(GIT_MCP_SERVER, t)); // the app's tools: never offered to agents
     }
   }
-  for (const m of MODES) {
+  for (const m of ROLES) {
     expect(hiddenGitTools(m)).toContain(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.COMMIT));
     expect(hiddenGitTools(m)).toContain(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.ADD));
   }
 });
 
-test("guardFor: one builder per mode, auto-allowed tools from the catalog", () => {
-  const qa = guardFor("qa", { readPaths: ["/r"], gitReadRepos: ["/r"] });
-  expect(qa.allowTools).toEqual(autoAllowedTools("qa"));
+test("guardFor: one builder per role, auto-allowed tools from the catalog", () => {
+  const qa = guardFor(qaRole, { readPaths: ["/r"], gitReadRepos: ["/r"] });
+  expect(qa.allowTools).toEqual(autoAllowedTools(qaRole));
   expect(qa.writePaths).toBeUndefined(); // Q&A writes nothing
-  const exec = guardFor("exec", {
+  const exec = guardFor(dev, {
     writePaths: ["/repo", "/ws/worktrees"],
     readPaths: ["/repo"],
     worktreeDirs: ["/ws/worktrees"],
@@ -205,11 +196,11 @@ test("guardFor: one builder per mode, auto-allowed tools from the catalog", () =
     writePaths: ["/repo", "/ws/worktrees"],
     worktreeDirs: ["/ws/worktrees"],
   });
-  expect(exec.allowTools).toEqual(autoAllowedTools("exec"));
+  expect(exec.allowTools).toEqual(autoAllowedTools(dev));
 });
 
 test("options: tools from the catalog, no allowedTools, strict MCP", () => {
-  const o = toolOptions("qa") as Record<string, unknown>;
+  const o = toolOptions(qaRole) as Record<string, unknown>;
   expect(o.tools).toEqual([
     READ_TOOL_NAME,
     GLOB_TOOL_NAME,
@@ -231,9 +222,9 @@ test("options: tools from the catalog, no allowedTools, strict MCP", () => {
   expect(o.strictMcpConfig).toBe(true);
 });
 
-test("disallowedTools only carries what `tools` cannot express: secret-file rules and other modes' git tools", () => {
-  for (const mode of ["qa", "plan", "exec"] as const) {
-    for (const d of toolOptions(mode).disallowedTools) {
+test("disallowedTools only carries what `tools` cannot express: secret-file rules and other roles' git tools", () => {
+  for (const role of ROLES) {
+    for (const d of toolOptions(role).disallowedTools) {
       expect(SECRET_FILE_RULES.includes(d) || d.startsWith(mcpServerPrefix(GIT_MCP_SERVER))).toBe(
         true,
       );
@@ -242,7 +233,7 @@ test("disallowedTools only carries what `tools` cannot express: secret-file rule
 });
 
 test("secret-file deny rules are part of disallowedTools", () => {
-  const d = toolOptions("qa").disallowedTools;
+  const d = toolOptions(qaRole).disallowedTools;
   for (const r of [
     `${READ_TOOL_NAME}(**/.env*)`,
     `${READ_TOOL_NAME}(**/*.pem)`,
@@ -271,8 +262,8 @@ test("every declared SDK tool name belongs to exactly one capability (a new cons
   for (const t of owners.keys()) expect(Object.values<string>(sdkNames)).toContain(t);
 });
 
-test("qa stays read-only: no write, shell, feedback, task or plan tools; dev stages get the full set", () => {
-  const qa = toolsFor("qa");
+test("the assistant stays read-only: no write, shell, feedback or task tools; dev gets the full set", () => {
+  const qa = toolsFor(qaRole);
   for (const t of [
     MULTI_EDIT_TOOL_NAME,
     NOTEBOOK_EDIT_TOOL_NAME,
@@ -290,5 +281,5 @@ test("qa stays read-only: no write, shell, feedback, task or plan tools; dev sta
     TASK_STOP_TOOL_NAME,
     SEND_FEEDBACK_TOOL_NAME,
   ])
-    expect(toolsFor("exec")).toContain(t);
+    expect(toolsFor(dev)).toContain(t);
 });

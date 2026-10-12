@@ -11,20 +11,26 @@ import { logEvent, logger, runWithLogContext, tryLog } from "../observability/lo
 import { clip, errText, redactText } from "../observability/redact";
 import { type ApprovalDecision, decideApproval, insertApproval } from "../storage/approval-store";
 import { setTurnStatus } from "../storage/run-store";
-import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../tools/sdk-tool-names";
 import {
   type ButtonSpec,
   buildButtonRows,
   cancelPending,
   type Pending,
   settleClick,
-  settleWithFeedback,
   toResult,
 } from "./approval-buttons";
 import type { ApprovalGateway, ApprovalRequest, ApprovalResult } from "./approval-types";
 
 /** Inline summary cap; longer text goes in the attachment. */
 const SUMMARY_MAX = 1500;
+
+/** Chars of a long question kept inline as the stem above the buttons (the full text is the attachment). */
+const STEM_MAX = 300;
+
+/** Short stem of a long question: its first lines, cut, and a pointer to the attachment. */
+const questionStem = (q: string): string =>
+  `${clip(q.trim(), STEM_MAX)}\n\n(full text in the attached file)`;
 
 /** Dependencies of the gateway. */
 export interface ApprovalGatewayDeps {
@@ -109,7 +115,6 @@ export function createDiscordApprovalGateway(
         pending.set(id, {
           turnId: o.turnId,
           threadId: o.threadId,
-          tool: o.tool,
           settle: resolve,
           timer,
           content,
@@ -124,7 +129,7 @@ export function createDiscordApprovalGateway(
     }
   }
 
-  /** Shared body of request/requestPlan/confirm; only labels and the deny reason differ. */
+  /** Shared body of request/confirm; only labels and the deny reason differ. */
   async function decide(
     req: ApprovalRequest,
     labels: [string, string],
@@ -145,17 +150,17 @@ export function createDiscordApprovalGateway(
   return {
     request: (req) => decide(req, ["Approve", "Deny"], "owner denied"),
     confirm: (req, labels) => decide(req, labels, "owner declined"),
-    requestPlan: (req) => decide(req, ["Approve", "Reject"], "owner rejected plan"),
-    feedbackPlan: (threadId, text) =>
-      settleWithFeedback(pending, threadId, EXIT_PLAN_MODE_TOOL_NAME, text),
 
     async askChoice(a) {
+      // A question longer than a Discord message (a plan to approve) goes out as an attachment under a short stem.
+      const long = a.question.length > SUMMARY_MAX;
       const value = await ask({
         turnId: a.turnId,
         threadId: a.threadId,
         tool: ASK_USER_QUESTION_TOOL_NAME,
         prefix: "choice",
-        text: a.question,
+        text: long ? questionStem(a.question) : a.question,
+        detail: long ? a.question : undefined,
         buttons: a.options.map((label, i) => ({
           label,
           value: String(i),

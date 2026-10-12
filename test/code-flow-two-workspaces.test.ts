@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-/** Same fake SDK as the main code-flow tests, copied small: plan approves, exec commits b.txt. */
-import { existsSync, writeFileSync } from "node:fs";
+/** Same fake SDK as the main code-flow tests, copied small: the run asks to approve its plan, then commits b.txt. */
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
@@ -32,22 +32,21 @@ async function addCloneRepo(home: string, ws: string, author: string, channels: 
   return clone;
 }
 
-/** Fake SDK recording every run; the plan stage submits a plan, the exec stage commits a file. */
+/** Fake SDK recording every run; the dev run asks to approve its plan, then commits a file. */
 function fakeSdk(seen: any[]) {
   return (a: any) => {
     seen.push(a);
     const o = a.options;
     return (async function* () {
-      if (o.permissionMode === "plan") {
-        const r = await o.canUseTool(EXIT_PLAN_MODE_TOOL_NAME, { plan: "repo: real\nadd b" }, {});
-        if (r.behavior === "allow") throw new Error("process aborted");
-        yield resultMsg({ result: "plan rejected" });
-        return;
-      }
+      await o.canUseTool(
+        ASK_USER_QUESTION_TOOL_NAME,
+        { questions: [{ question: "Approve the plan?", options: [{ label: "Approve" }] }] },
+        {},
+      );
       writeFileSync(join(o.cwd, "b.txt"), "two\n");
       await g(o.cwd, "add", "b.txt");
       await g(o.cwd, "-c", "user.email=x@example.com", "-c", "user.name=t", "commit", "-qm", "b");
-      yield resultMsg({ result: "done", session_id: "sess-exec" });
+      yield resultMsg({ result: "done\n\nrepo: real", session_id: "sess-exec" });
     })();
   };
 }
@@ -60,7 +59,7 @@ const msg = (text: string) => ({
   text,
 });
 
-/** Env with workspace `w-b` (repo `real`) that ran the thread's first task (plan, then exec in the repo). */
+/** Env with workspace `w-b` (repo `real`) that ran the thread's first task (one dev run in the repo). */
 async function started() {
   const env = makeEnv();
   clearWorkspaces(env.home);
@@ -83,11 +82,11 @@ async function started() {
 
 test("two workspaces with repo `real`: every task runs in the channel's workspace repo, even after another workspace gains the same repo name", async () => {
   const { env, seen, handle } = await started();
-  expect(seen[1].options.cwd).toContain("/w-b/"); // exec of the first task: the repo of the channel's workspace
+  expect(seen[0].options.cwd).toContain("/w-b/"); // the first task: the repo of the channel's workspace
   // An alphabetically earlier workspace gains the same repo name after the first task.
   await addCloneRepo(env.home, "w-a", "Aye <aye@example.com>");
   const n = seen.length;
-  await handle(msg("[dev] also c")); // a new task (no follow-up in a finished task): plan, then exec
+  await handle(msg("[dev] also c")); // a new task (no follow-up in a finished task)
   expect(seen.length).toBeGreaterThan(n);
   expect(seen[n].options.cwd).toContain("/w-b/");
   expect(seen[n].options.mcpServers).toEqual({}); // no git MCP, no identity from the app

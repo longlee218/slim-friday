@@ -1,7 +1,7 @@
 import type { AgentConfig } from "../config/agent-config";
 import { isChildEnvDenied } from "../config/child-env-deny";
 
-/** Compaction var the orchestrator sets per stage (on the deny list: never copied from the owner's shell). */
+/** Compaction var the orchestrator sets per role (on the deny list: never copied from the owner's shell). */
 export const AUTO_COMPACT_WINDOW_VAR = "CLAUDE_CODE_AUTO_COMPACT_WINDOW";
 
 /**
@@ -32,7 +32,7 @@ const MODEL_ALIAS_VARS = [
  * Build the SDK child env: the owner's env passes through (the agent runs as the owner, with the owner's git / gh / ssh
  * auth) minus the bot's own variables (`config/data/child-env-deny.yaml`), then the app-owned ones on top: the resolved
  * provider's credentials (anthropic -> OAuth token when real; openrouter -> base URL, auth token, empty API key,
- * aliases), the subagent limits and `compactWindow` (the stage's, from `resolveCompactWindow`): the ONLY source of
+ * aliases), the subagent limits and `compactWindow` (the role's, from `resolveCompactWindow`): the ONLY source of
  * the compaction var, a value in the caller env is on the deny list.
  */
 export function sdkEnv(

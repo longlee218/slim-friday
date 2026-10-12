@@ -7,6 +7,7 @@ import { captureLogs } from "../src/observability/logger";
 import { RunRecorder } from "../src/observability/record-run";
 import { buildSubagentHooks } from "../src/observability/subagent-hooks";
 import { buildToolHooks } from "../src/observability/tool-hooks";
+import { getRole } from "../src/roles/role-registry";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import { EDIT_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv } from "./helpers";
@@ -130,7 +131,7 @@ test("guard-denied call writes tool.denied (warn) with target and reason, and no
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor("qa", { readPaths: ["/ws/repo"] }),
+    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/repo"] }),
   });
   await perms.hooks[0]!.hooks[0]!(
     {
@@ -269,7 +270,7 @@ test("P3.1: tool.denied of a subagent carries its identity", async () => {
   const perms = buildToolPermissions({
     turnId: "t1",
     threadId: "th",
-    guard: guardFor("qa", { readPaths: ["/ws/repo"] }),
+    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/repo"] }),
   });
   const pre = {
     ...fixture("pre-tool-use-subagent-builtin-read"),

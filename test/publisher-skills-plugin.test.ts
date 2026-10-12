@@ -5,14 +5,14 @@ import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { captureLogs } from "../src/observability/logger";
 import { ROLES } from "../src/roles/role-registry";
-import type { StageDefinition } from "../src/roles/role-types";
+import type { RoleDefinition } from "../src/roles/role-types";
 import { removeTree } from "../src/runtime/skills-plugin/plugin-copy";
 import {
   PUBLISHER_CAPS,
   PUBLISHER_SKILLS_DIR,
 } from "../src/runtime/skills-plugin/publisher-skills";
+import { buildRoleSkills } from "../src/runtime/skills-plugin/role-skills";
 import { buildRunSkills } from "../src/runtime/skills-plugin/run-skills";
-import { buildStageSkills } from "../src/runtime/skills-plugin/stage-skills";
 import { readSkillsLock, skillDirHash } from "./skills-lock-hash";
 
 const dirs: string[] = [];
@@ -25,7 +25,6 @@ afterAll(() => {
   for (const d of dirs) removeTree(d);
 });
 
-const DEV_STAGES = ROLES.dev?.stages ?? [];
 /** Installed publisher skills as the lock lists them (names and plugin come from data, never from this test). */
 const LOCK = readSkillsLock();
 const INSTALLED = Object.entries(LOCK.skills).map(
@@ -191,19 +190,13 @@ test("the workspace dir (extra) gets its own plugin next to the publisher one; s
   only.cleanup();
 });
 
-test("dev stages load every installed skill, assistant none; a stage outside the registry loads none and warns", () => {
-  const names = (st: StageDefinition) => {
-    const r = buildStageSkills(st, "main", homeWith());
+test("dev loads every installed skill, the assistant none; a role without `skills` loads none", () => {
+  const names = (role: RoleDefinition) => {
+    const r = buildRoleSkills(role, "main", homeWith());
     r.cleanup();
     return [...r.skills].sort();
   };
-  expect(DEV_STAGES.length).toBeGreaterThan(1);
-  for (const st of DEV_STAGES) expect(names(st)).toEqual([...INSTALLED].sort());
-  expect(names(ROLES.assistant?.stages[0] as StageDefinition)).toEqual([]);
-  const logs = captureLogs();
-  expect(names({ ...(DEV_STAGES[0] as StageDefinition) })).toEqual([]);
-  logs.stop();
-  expect(logs.lines.some((l) => l.msg === "stage has no role: no publisher skills loaded")).toBe(
-    true,
-  );
+  expect(names(ROLES.dev as RoleDefinition)).toEqual([...INSTALLED].sort());
+  expect(names(ROLES.assistant as RoleDefinition)).toEqual([]);
+  expect(names({ ...(ROLES.dev as RoleDefinition), skills: undefined })).toEqual([]);
 });

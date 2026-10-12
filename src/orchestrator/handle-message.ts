@@ -44,7 +44,7 @@ export interface TurnHandlerDeps {
   queryFn?: QueryFn;
   /** Optional global concurrency cap; when full the message is rejected with a busy reply. */
   limiter?: RunLimiter;
-  /** Owner approval gateway; required for staged (gated) roles such as dev. */
+  /** Owner approval gateway; required for background roles such as dev. */
   approvals?: ApprovalGateway;
   /** Intent layer (pipeline + L3 engine), built at startup. Missing = off: every message takes the entry role. */
   intent?: IntentDeps;
@@ -66,7 +66,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     approvals: deps.approvals!,
     queryFn: deps.queryFn,
     stopping: tracker.isStopping,
-    steer: createSteerRegistry(db), // streaming stages take the owner's messages while they run
+    steer: createSteerRegistry(db), // streaming roles take the owner's messages while they run
   };
   const busyLane = createBusyLane({
     deps: dispatchDeps,
@@ -117,12 +117,12 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     const turnRepo = () => getLogContext().repo ?? "*";
     /** The one place the turn row is created (after the refusals, before the flow runs). */
     let single: string | undefined;
-    const begin = (repo: string, role: string, mode: string, cls?: TaskClass, resume?: boolean) => {
+    const begin = (repo: string, role: string, cls?: TaskClass, resumeOf?: string) => {
       beginTurn(
         db,
         log,
         { turnId, threadId, source: message.source, single },
-        { repo, role, mode, cls, resume },
+        { repo, role, cls, resume: !!resumeOf, parentTurnId: resumeOf },
       );
       turnInserted = true;
     };
@@ -135,7 +135,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       const { repos } = ws; // every repo lookup below stays inside this workspace
       setLogContext({ workspace: ws.name });
       single = repos.length === 1 ? repos[0]!.name : undefined;
-      // Everything a role run needs (the approval gateway exists whenever a staged role is routed).
+      // Everything a role run needs (the approval gateway exists whenever a background role is routed).
       const rc: RoleRunCtx = {
         deps: dispatchDeps,
         log,

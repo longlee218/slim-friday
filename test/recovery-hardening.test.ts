@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupTaskLogs } from "../src/lifecycle/startup";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { RESUME_PROMPT } from "../src/orchestrator/message-commands";
 import { resolveCommand } from "../src/orchestrator/message-routing";
 import { finishRun } from "../src/orchestrator/turns/turn-result";
-import { getStage } from "../src/roles/role-registry";
+import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import {
   ackInterrupted,
@@ -41,7 +41,7 @@ const go = (env: ReturnType<typeof makeEnv>, q: ReturnType<typeof fakeQuery>) =>
   runAgent({
     prompt: "q",
     turnId: "T",
-    stage: getStage("assistant", "qa"),
+    role: getRole("assistant"),
     cwd: env.home,
     config: env.config,
     db: env.db,
@@ -143,13 +143,11 @@ test("Resume without a saved session replies it cannot resume (no run)", async (
   expect(ran).toBe(false);
 });
 
-test("Resume of a plan stage whose session cannot be resumed: tells the owner to start again", async () => {
+test("Resume of a dev run whose session cannot be resumed: tells the owner to start again", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addRepo(env.home, "real", { gitAuthor: "T <t@e.com>" }); // fake managed clone: code tasks are allowed
-  const scratch = join(realpathSync(env.home), "workspaces", "main", "tasks", "T1", "scratch");
-  mkdirSync(scratch, { recursive: true });
-  interrupted(env, "pl", scratch);
+  const repo = addRepo(env.home, "real", { gitAuthor: "T <t@e.com>" }); // fake managed clone: code tasks are allowed
+  interrupted(env, "pl", repo, "T1", "dev");
   const q = fakeQuery([
     resultMsg({
       subtype: "error_during_execution",
@@ -174,24 +172,22 @@ test("Resume of a plan stage whose session cannot be resumed: tells the owner to
   ).toHaveProperty("reply");
 });
 
-test("resolveCommand: plan stage / Q&A cwd ok; unusable cwd, stale, none refused", () => {
+test("resolveCommand: a dev run resumes its own session in its cwd; Q&A cwd ok; unusable cwd, stale, none refused", () => {
   const env = makeEnv();
   const repos = [{ name: "repo", path: env.repo, description: "" }] as never;
   const deps = { db: env.db, agentHome: env.home, workspace: "main", repos };
   const resume = (t: string) => resolveCommand(deps, { kind: "resume" }, t);
-  const scratch = join(realpathSync(env.home), "workspaces", "main", "tasks", "T1", "scratch");
-  mkdirSync(scratch, { recursive: true });
-  interrupted(env, "p", scratch, "A", "dev");
+  interrupted(env, "p", env.repo, "A", "dev");
   expect(resume("p")).toMatchObject({
-    cmd: { kind: "message", role: "dev" },
-    planResume: { sessionId: "OLD", cwd: scratch },
+    cmd: { kind: "message", role: "dev", text: RESUME_PROMPT },
+    resume: { sessionId: "OLD", cwd: env.repo, of: "A" },
   });
 
   interrupted(env, "q", env.repo, "B");
   expect(resume("q")).toMatchObject({ cmd: { kind: "message", text: RESUME_PROMPT } });
 
-  // A staged role's exec session ran in the repo itself (no clone since Rev 15): it is not resumed as a plain message.
-  interrupted(env, "g", env.repo, "G", "dev");
+  // A dev session whose dir is gone cannot be continued (a fresh session would have no context).
+  interrupted(env, "g", join(env.home, "gone-dir"), "G", "dev");
   expect(resume("g")).toMatchObject({ reason: "cannot_resume" });
 
   // cwd outside the home cwd dir / registered repos: a fresh session would have no context.
@@ -266,7 +262,7 @@ test("unknown error: generic reply, raw error not shown to the user", async () =
   const m = resultMsg({
     subtype: "error_during_execution",
     is_error: true,
-    errors: ["weird internal failure sk-ant-" + "x".repeat(30)],
+    errors: [`weird internal failure sk-ant-${"x".repeat(30)}`],
   });
   const r = await go(env, fakeQuery([initMsg, m]));
   expect(r.outcome).toBe("error");

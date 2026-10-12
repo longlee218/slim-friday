@@ -9,15 +9,12 @@ import {
   resolveModel,
   safeEffort,
 } from "../src/config/model-routing";
-import { getRole, getStage } from "../src/roles/role-registry";
+import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
-import { stageConfig } from "../src/runtime/sdk-options";
+import { roleConfig } from "../src/runtime/sdk-options";
 import { makeEnv, resultMsg } from "./helpers";
 
 const cfg = (extra: Record<string, string> = {}) => loadConfig({ AGENT_HOME: "/h", ...extra });
-const qa = getStage("assistant", "qa");
-const plan = getStage("dev", "plan");
-const exec = getStage("dev", "exec");
 const assistant = getRole("assistant");
 const dev = getRole("dev");
 const H = DEFAULT_TIER_MODELS.haiku;
@@ -38,18 +35,40 @@ describe("tier defaults and env", () => {
     expect(cfg({ MODEL_HAIKU: "h2" }).memoryModel).toBe("h2");
     expect(cfg({ MODEL_HAIKU: "h2", MEMORY_MODEL: "m" }).memoryModel).toBe("m");
   });
-  test("MODEL_<ROLE>_<STAGE> and BUDGET_<ROLE>_<STAGE>_USD are collected; bad budget names the var", () => {
-    const c = cfg({ MODEL_DEV_PLAN: "opus", BUDGET_DEV_EXEC_USD: "5" });
-    expect(c.modelOverrides.dev_plan).toBe("opus");
-    expect(c.budgetOverrides.dev_exec).toBe(5);
-    expect(() => cfg({ BUDGET_DEV_EXEC_USD: "abc" })).toThrow("BUDGET_DEV_EXEC_USD");
+  test("MODEL_<ROLE>, BUDGET_<ROLE>_USD and COMPACT_WINDOW_<ROLE> are collected; bad names the var; tier ids and MODEL_INTENT are no role pins", () => {
+    const c = cfg({
+      MODEL_DEV: "opus",
+      BUDGET_DEV_USD: "5",
+      COMPACT_WINDOW_DEV: "200000",
+      MODEL_INTENT: "x",
+    });
+    expect(c.modelOverrides).toEqual({ dev: "opus" });
+    expect(c.budgetOverrides.dev).toBe(5);
+    expect(c.compactOverrides.dev).toBe(200000);
+    expect(() => cfg({ BUDGET_DEV_USD: "abc" })).toThrow("BUDGET_DEV_USD");
+    expect(cfg({ MODEL_SONNET: "s" }).modelOverrides).toEqual({});
   });
-  test("legacy MODEL alias: pins assistant qa only, kept, flagged deprecated; the new pin wins", () => {
-    const c = cfg({ MODEL: "m-qa", MODEL_DEV_EXEC: "sonnet" });
+  test("old per-stage shapes (MODEL_<ROLE>_<X>, BUDGET_<ROLE>_<X>_USD, COMPACT_WINDOW_<ROLE>_<X>) are ignored and reported as deprecated", () => {
+    const c = cfg({
+      MODEL_DEV_PLAN: "opus",
+      BUDGET_DEV_EXEC_USD: "5",
+      COMPACT_WINDOW_DEV_EXEC: "200000",
+    });
+    expect(c.deprecated.sort()).toEqual([
+      "BUDGET_DEV_EXEC_USD",
+      "COMPACT_WINDOW_DEV_EXEC",
+      "MODEL_DEV_PLAN",
+    ]);
+    expect([c.modelOverrides, c.budgetOverrides, c.compactOverrides]).toEqual([{}, {}, {}]);
+    expect(resolveBudget(dev, {}, c)).toBe(4.5); // the old budget did not apply
+  });
+  test("legacy MODEL alias pins no role (Anthropic path): flagged deprecated; MODEL_<ROLE> pins stay", () => {
+    const c = cfg({ MODEL: "m-qa", MODEL_DEV: "sonnet" });
     expect(c.deprecated).toEqual(["MODEL"]);
-    expect(resolveModel(qa, assistant, {}, c)).toBe("m-qa");
-    expect(resolveModel(plan, dev, {}, c)).toBe(S); // no longer pinned by MODEL (CODE_MODEL alias removed)
-    expect(resolveModel(exec, dev, {}, c)).toBe(S);
+    expect(c.modelOverrides).toEqual({ dev: "sonnet" });
+    expect(resolveModel(assistant, {}, c)).toBe(H); // the role's own model, not MODEL
+    expect(resolveModel(dev, {}, c)).toBe(S);
+    expect(cfg({ MODEL: "m-qa", MODEL_ASSISTANT: "opus" }).modelOverrides.assistant).toBe("opus");
     expect(cfg().deprecated).toEqual([]);
     // CODE_MODEL is ignored now.
     expect(cfg({ CODE_MODEL: "x" }).deprecated).toEqual([]);
@@ -58,17 +77,15 @@ describe("tier defaults and env", () => {
 
 describe("resolveModel", () => {
   const c = cfg();
-  test("default map: qa haiku; plan sonnet (opus for design); exec by class", () => {
-    expect(resolveModel(qa, assistant, {}, c)).toBe(H);
-    expect(resolveModel(plan, dev, { cls: "standard" }, c)).toBe(S);
-    expect(resolveModel(plan, dev, { cls: "mechanical" }, c)).toBe(S);
-    expect(resolveModel(plan, dev, { cls: "design" }, c)).toBe(O);
-    expect(resolveModel(exec, dev, { cls: "mechanical" }, c)).toBe(H);
-    expect(resolveModel(exec, dev, {}, c)).toBe(S); // missing class = standard
-    expect(resolveModel(exec, dev, { cls: "design" }, c)).toBe(O);
+  test("default map: assistant haiku; dev sonnet (opus for design)", () => {
+    expect(resolveModel(assistant, {}, c)).toBe(H);
+    expect(resolveModel(dev, { cls: "standard" }, c)).toBe(S);
+    expect(resolveModel(dev, { cls: "mechanical" }, c)).toBe(S);
+    expect(resolveModel(dev, {}, c)).toBe(S); // missing class = standard
+    expect(resolveModel(dev, { cls: "design" }, c)).toBe(O);
   });
-  test("class never moves qa (no class tiers)", () => {
-    expect(resolveModel(qa, assistant, { cls: "design" }, c)).toBe(H);
+  test("class never moves the assistant (no class tiers)", () => {
+    expect(resolveModel(assistant, { cls: "design" }, c)).toBe(H);
   });
   test("effort: low haiku, medium sonnet, high by class, max opus", () => {
     expect(effortTier("low")).toBe("haiku");
@@ -76,65 +93,58 @@ describe("resolveModel", () => {
     expect(effortTier("high", "standard")).toBe("sonnet");
     expect(effortTier("high", "design")).toBe("opus");
     expect(effortTier("max")).toBe("opus");
-    expect(resolveModel(exec, dev, { cls: "standard", effort: "low" }, c)).toBe(H);
-    expect(resolveModel(qa, assistant, { effort: "medium" }, c)).toBe(S);
+    expect(resolveModel(dev, { cls: "standard", effort: "low" }, c)).toBe(H);
+    expect(resolveModel(assistant, { effort: "medium" }, c)).toBe(S);
   });
   test("precedence: env pin > forced tier > effort > class", () => {
-    expect(resolveModel(qa, assistant, { tier: "sonnet", effort: "low" }, c)).toBe(S);
-    expect(
-      resolveModel(qa, assistant, { tier: "sonnet" }, cfg({ MODEL_ASSISTANT_QA: "opus" })),
-    ).toBe(O);
-    expect(resolveModel(plan, dev, { cls: "design" }, cfg({ MODEL_DEV_PLAN: "claude-x" }))).toBe(
-      "claude-x",
-    );
+    expect(resolveModel(assistant, { tier: "sonnet", effort: "low" }, c)).toBe(S);
+    expect(resolveModel(assistant, { tier: "sonnet" }, cfg({ MODEL_ASSISTANT: "opus" }))).toBe(O);
+    expect(resolveModel(dev, { cls: "design" }, cfg({ MODEL_DEV: "claude-x" }))).toBe("claude-x");
   });
-  test("openrouter: tiers unused; env pin > the stage's openrouterModel > the one default model", () => {
+  test("openrouter: tiers unused; env pin > the role's openrouterModel > the one default model", () => {
     const key = `sk-or-v1-${"a1b2c3d4".repeat(8)}`;
     const or = cfg({ OPENROUTER_API_KEY: key });
-    expect(resolveModel(qa, assistant, { tier: "opus" }, or)).toBe(or.model);
-    expect(resolveModel(exec, dev, { cls: "design" }, or)).toBe("anthropic/claude-haiku-4.5");
-    const pinned = cfg({ OPENROUTER_API_KEY: key, MODEL_DEV_EXEC: "x/y", MODEL: "m/qa" });
-    expect(resolveModel(exec, dev, {}, pinned)).toBe("x/y");
-    expect(resolveModel(qa, assistant, {}, pinned)).toBe("m/qa");
+    expect(resolveModel(assistant, { tier: "opus" }, or)).toBe(or.model);
+    expect(resolveModel(dev, { cls: "design" }, or)).toBe("anthropic/claude-haiku-4.5");
+    const pinned = cfg({ OPENROUTER_API_KEY: key, MODEL_DEV: "x/y" });
+    expect(resolveModel(dev, {}, pinned)).toBe("x/y");
+    expect(resolveModel(assistant, {}, pinned)).toBe(pinned.model);
   });
 });
 
 describe("resolveBudget", () => {
-  test("stage defaults replace the global cap; MAX_BUDGET_USD is a cap", () => {
+  test("role defaults replace the global cap; MAX_BUDGET_USD is a cap", () => {
     const c = cfg();
-    expect(
-      [qa, plan, exec].map((s) => resolveBudget(s, getRole(s === qa ? "assistant" : "dev"), {}, c)),
-    ).toEqual([1, 1.5, 3]);
-    expect(resolveBudget(exec, dev, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(2);
-    expect(resolveBudget(qa, assistant, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(1);
+    expect([assistant, dev].map((r) => resolveBudget(r, {}, c))).toEqual([1, 4.5]);
+    expect(resolveBudget(dev, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(2);
+    expect(resolveBudget(assistant, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(1);
   });
-  test("escalated qa 2.5; env pin; owner raise", () => {
-    expect(resolveBudget(qa, assistant, { escalated: true }, cfg())).toBe(2.5);
-    expect(resolveBudget(exec, dev, {}, cfg({ BUDGET_DEV_EXEC_USD: "4" }))).toBe(4);
-    expect(resolveBudget(exec, dev, { extraBudgetUsd: 1.5 }, cfg())).toBe(4.5);
+  test("escalated assistant 2.5; env pin; owner raise; the task ceiling limits both", () => {
+    expect(resolveBudget(assistant, { escalated: true }, cfg())).toBe(2.5);
+    expect(resolveBudget(dev, {}, cfg({ BUDGET_DEV_USD: "4" }))).toBe(4);
+    expect(resolveBudget(dev, { extraBudgetUsd: 1.0 }, cfg())).toBe(5.5);
+    expect(resolveBudget(dev, { extraBudgetUsd: 3 }, cfg())).toBe(6); // TASK_BUDGET_USD
+    expect(resolveBudget(dev, { spentUsd: 4 }, cfg())).toBe(2); // what is left of the task ceiling
   });
   test("openrouter: only the global cap", () => {
     const or = cfg({ OPENROUTER_API_KEY: `sk-or-v1-${"a1b2c3d4".repeat(8)}` });
-    expect(resolveBudget(exec, dev, {}, or)).toBeUndefined();
-    expect(resolveBudget(exec, dev, {}, { ...or, limits: { ...or.limits, maxBudgetUsd: 2 } })).toBe(
-      2,
-    );
+    expect(resolveBudget(dev, {}, or)).toBeUndefined();
+    expect(resolveBudget(dev, {}, { ...or, limits: { ...or.limits, maxBudgetUsd: 2 } })).toBe(2);
   });
 });
 
 describe("opus guard (defense in depth)", () => {
   const c = cfg();
   test("effort max / tier opus resolve to Opus only with ownerConfirmedMax; else capped at high", () => {
-    expect(resolveModel(qa, assistant, { effort: "max" }, c)).toBe(S);
-    expect(resolveModel(qa, assistant, { effort: "max", ownerConfirmedMax: true }, c)).toBe(O);
-    expect(resolveModel(qa, assistant, { tier: "opus" }, c)).toBe(S);
-    expect(resolveModel(qa, assistant, { tier: "opus", ownerConfirmedMax: true }, c)).toBe(O);
+    expect(resolveModel(assistant, { effort: "max" }, c)).toBe(S);
+    expect(resolveModel(assistant, { effort: "max", ownerConfirmedMax: true }, c)).toBe(O);
+    expect(resolveModel(assistant, { tier: "opus" }, c)).toBe(S);
+    expect(resolveModel(assistant, { tier: "opus", ownerConfirmedMax: true }, c)).toBe(O);
     // design: the cap is the high tier of the class (opus already by the table)
-    expect(resolveModel(plan, dev, { cls: "design", effort: "max" }, c)).toBe(O);
+    expect(resolveModel(dev, { cls: "design", effort: "max" }, c)).toBe(O);
   });
-  test("table defaults stay: dev plan design and exec design are opus without the flag", () => {
-    expect(resolveModel(plan, dev, { cls: "design" }, c)).toBe(O);
-    expect(resolveModel(exec, dev, { cls: "design" }, c)).toBe(O);
+  test("table default stays: dev design is opus without the flag", () => {
+    expect(resolveModel(dev, { cls: "design" }, c)).toBe(O);
   });
   test("max thinking knobs are capped to high without the flag", () => {
     expect(safeEffort({ effort: "max" })).toBe("high");
@@ -142,7 +152,7 @@ describe("opus guard (defense in depth)", () => {
     expect(safeEffort({})).toBeUndefined();
   });
   test("tier lookup ignores prototype keys", () => {
-    expect(resolveModel(qa, assistant, {}, cfg({ MODEL_ASSISTANT_QA: "constructor" }))).toBe(
+    expect(resolveModel(assistant, {}, cfg({ MODEL_ASSISTANT: "constructor" }))).toBe(
       "constructor",
     );
   });
@@ -160,9 +170,9 @@ describe("effort knobs", () => {
       expect(effortKnobs(e).maxTurns).toBeLessThanOrEqual(MAX_TURNS);
     expect(MAX_TURNS).toBe(20);
   });
-  test("stageConfig carries model and budget; runAgent options carry effort knobs only when asked", async () => {
-    const sc = stageConfig(exec, cfg(), { cls: "design" });
-    expect([sc.model, sc.limits.maxBudgetUsd]).toEqual([O, 3]);
+  test("roleConfig carries model and budget; runAgent options carry effort knobs only when asked", async () => {
+    const sc = roleConfig(dev, cfg(), { cls: "design" });
+    expect([sc.model, sc.limits.maxBudgetUsd]).toEqual([O, 4.5]);
     const env = makeEnv();
     const seen: Options[] = [];
     const queryFn = (a: { options?: Options }) =>
@@ -174,7 +184,7 @@ describe("effort knobs", () => {
       runAgent({
         prompt: "q",
         turnId: "t",
-        stage: getStage("assistant", "qa"),
+        role: assistant,
         cwd: env.home,
         config: env.config,
         db: env.db,

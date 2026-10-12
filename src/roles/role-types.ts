@@ -2,94 +2,27 @@ import type { ModelTier, TaskClass } from "../config/model-routing";
 import type { Workflow } from "../repos/repo-registry";
 import type { GIT_GROUPS } from "../tools/git-tool-groups";
 
-/** A group of tools that belong together; a stage lists the groups it may use. */
+/** A group of tools that belong together; a role lists the groups it may use. */
 export type Capability =
   | "read" // look at files
   | "write" // change files: Write, Edit, MultiEdit, NotebookEdit (paths limited by the guard)
   | "shell" // Bash and Monitor (policy + owner approval)
   | "web" // search / fetch
   | "skills"
-  | "subagents" // Agent + SendMessage + ListAgents: the SDK's own built-in subagent; EVERY stage gets them (toolsFor)
+  | "subagents" // Agent + SendMessage + ListAgents: the SDK's own built-in subagent; EVERY role gets them (toolsFor)
   | "tasks" // progress tracking; TaskStop (stops a background task) needs the owner
   | "mcp" // MCP resource reads (+ refresh of the app's own MCP servers)
   | "feedback" // SendFeedback: sends a report to Anthropic, always owner-approved
-  | "ask" // AskUserQuestion: answered by the owner through Discord buttons
-  | "planControl"; // enter / leave plan mode (leaving needs the owner's approval)
+  | "ask"; // AskUserQuestion: answered by the owner through Discord buttons
 
-/**
- * What the role hands back to the owner (the engine picks the output module from it). `result` = the run's final
- * text is relayed as it is (the agent delivered its work itself: commit, push, PR).
- */
-export type OutputContract = "answer" | "plan" | "result" | "verdict";
-
-/**
- * Owner gate that follows a stage (closed set, each implemented once in `orchestrator/engine/gates.ts`):
- * `none` runs straight on, `plan-approval` waits for the owner to approve the plan, `owner-confirm` asks a yes/no
- * before a costlier step (vocabulary only: no stage uses it yet, the engine fails closed on it).
- */
-export type Gate = "none" | "plan-approval" | "owner-confirm";
-
-/**
- * What a stage hands on to the next one, as data. `template` words the next stage's prompt; `{plan}`,
- * `{planPath}`, `{task}` and `{testLine}` are replaced in ONE pass (text inserted is never re-expanded).
- */
-export interface StageHandoff {
-  /** File name the approved plan is saved under in the task scratch dir. */
-  planFile: string;
-  template: string;
-}
-
-/** Run-time facts a stage needs to word its prompt. */
+/** Run-time facts a role needs to word its prompt. */
 export interface PromptCtx {
-  /** Plan/exec: `full` adds the repo-workflow rules. */
+  /** `full` adds the repo-workflow rules. */
   workflow?: Workflow;
-  /** Exec: where the agent puts a git worktree it creates (`<workspace worktrees dir>/<repo>`); omitted = no line. */
+  /** Where the agent puts a git worktree it creates (`<workspace worktrees dir>/<repo>`); omitted = no line. */
   worktreesDir?: string;
-  /** Answer output on the cheap tier: adds the `ESCALATE: sonnet|opus` rule (never on an already escalated run). */
+  /** Answer run on the cheap tier: adds the `ESCALATE: sonnet|opus` rule (never on an already escalated run). */
   escalation?: boolean;
-}
-
-/** One run of a role: WHAT it may do (tools, git, prompt, limits). HOW stages chain is the orchestrator's job. */
-export interface StageDefinition {
-  /** Stage name: the log `mode` value and the registry key (unique across roles, e.g. "qa", "plan", "exec"). */
-  name: string;
-  /** Built-in tools (and the guard's auto-allow list) derive from these. */
-  capabilities: Capability[];
-  /** Git MCP tool groups the stage may use (read-only by-mode tools are always visible). */
-  gitGroups: (keyof typeof GIT_GROUPS)[];
-  /**
-   * SDK permission mode: `plan` for the plan stage (ExitPlanMode lives there); `auto` for the assistant qa stage
-   * (classifier decides what the guard leaves open; resolved against availability in `resolvePermissionMode`);
-   * `bypassPermissions` for the dev exec stage (the SDK asks nothing; only the guard's hard denies stop a call).
-   */
-  permissionMode?: "plan" | "auto" | "bypassPermissions";
-  /** Owner gate that follows the stage. Omitted = `none`. */
-  gate?: Gate;
-  /** What this stage hands on to the next one (the plan stage of a role whose next stage starts from it). */
-  handoff?: StageHandoff;
-  /**
-   * Background stage: its run takes the owner's later messages while it works (streaming input, "steer"). Omitted =
-   * a string prompt, no steer (a short answer turn). Data, so any role's stage can opt in; the engine reads no role name.
-   */
-  streaming?: boolean;
-  /** Prompt sections between the run contract start and the COMMON safety rules. */
-  promptSections: (ctx: PromptCtx) => string[];
-  /** Default model: a tier name (`haiku|sonnet|opus`) or an explicit model id. Class and effort may override it. */
-  model: ModelTier | (string & {});
-  /** Default budget (USD) of one run of this stage (env BUDGET_<ROLE>_<STAGE>_USD overrides). */
-  budgetUsd: number;
-  /** Tier per task class (mechanical|standard|design) for stages whose model depends on the class. Omitted = `model`. */
-  classTiers?: Record<TaskClass, ModelTier>;
-  /** OpenRouter only (tiers are not used there): model of this stage unless an env pin or nothing is set. Omitted = the config default. */
-  openrouterModel?: string;
-  /** Budget of an escalated re-run of this stage (`answer` output only). Omitted = `budgetUsd`. */
-  escalatedBudgetUsd?: number;
-  /**
-   * Auto-compact window (tokens) the app hands the SDK child for this stage (CLAUDE_CODE_AUTO_COMPACT_WINDOW).
-   * Omitted = the SDK default. P3.0 Q12 is UNKNOWN (the setting was not observed to fire), so defaults stay
-   * conservative (effectively off); the app-driven fresh session after a task is the reliable path.
-   */
-  autoCompactWindow?: number;
 }
 
 /**
@@ -98,8 +31,13 @@ export interface StageDefinition {
  */
 export type RoleSkills = "all" | "none";
 
-/** A named job the agent can do: a short chain of stages. */
+/**
+ * A named job the agent can do. ONE role run = ONE agent run: what it may do (tools, git, prompt, limits) is flat data
+ * here, so a config file can replace the TS object later. HOW the agent works (brainstorm, plan, owner approval,
+ * implement, deliver) comes from its skills and context: no code enforces an order.
+ */
 export interface RoleDefinition {
+  /** Role name: the registry key and the log `mode` value. */
   name: string;
   /** Mutually exclusive wording; the intent layer reads it from the registry (P1.4c). */
   whenToUse: string;
@@ -108,24 +46,55 @@ export interface RoleDefinition {
    * stripped from the brief. Case-insensitive, unique across roles (startup error otherwise); omitted = no tag.
    */
   tag?: string;
-  /** What the role hands back: picks the output module (`answer` escalation). */
-  output: OutputContract;
-  /** Publisher skills every stage of this role gets (see `RoleSkills`). Omitted = `none`. */
-  skills?: RoleSkills;
-  /** AskUserQuestion calls the whole run of this role may make (shared by its stages, enforced in the permission guard). */
-  maxAsk: number;
-  /** Runs of this role count toward the concurrent task cap (checked by the dispatcher). */
-  countsTowardCap: boolean;
-  /** The cheap-tier answer may end in `ESCALATE: sonnet|opus` and be re-run on that tier (`answer` output). */
-  escalation?: boolean;
+  /**
+   * Background role: a task. Its run counts toward the concurrent task cap, takes a start notice, is queued behind a
+   * busy thread, and works in a repo; the owner steers it. Not background = a short foreground answer (plus the side lane).
+   */
+  background: boolean;
   /** The role a plain message starts, until the intent layer picks one (exactly one role sets it). */
   entry?: boolean;
+  /** The cheap-tier answer may end in `ESCALATE: sonnet|opus` and be re-run on that tier. */
+  escalation?: boolean;
   /** Extra context the role's runs get. Omitted = none. */
   context?: {
-    /** On an idle thread the run sees the thread's task ledger (earlier staged tasks). */
+    /** On an idle thread the run sees the thread's task ledger (earlier tasks). */
     ledger?: boolean;
   };
-  /** Repos the run sees: `all` = every repo of the workspace (read-only roles); `candidates` = the workspace repos the plan may pick from. Omitted = `candidates`. */
+  /** Repos the run sees: `all` = every repo of the workspace; `candidates` = the workspace repos or the one the owner named. Omitted = `candidates`. */
   repoScope?: "all" | "candidates";
-  stages: StageDefinition[];
+  /** Publisher skills the role gets (see `RoleSkills`). Omitted = `none`. */
+  skills?: RoleSkills;
+  /** Limits of one run: AskUserQuestion calls (enforced in the permission guard). */
+  limits: { maxAsk: number };
+  /** Default model: a tier name (`haiku|sonnet|opus`) or an explicit model id. Class and effort may override it. */
+  model: ModelTier | (string & {});
+  /** Tier per task class (mechanical|standard|design) for roles whose model depends on the class. Omitted = `model`. */
+  classTiers?: Record<TaskClass, ModelTier>;
+  /** OpenRouter only (tiers are not used there): model of this role unless an env pin or nothing is set. Omitted = the config default. */
+  openrouterModel?: string;
+  /** Default budget (USD) of one run (env BUDGET_<ROLE>_USD overrides). */
+  budgetUsd: number;
+  /** Budget of an escalated re-run (`escalation` roles only). Omitted = `budgetUsd`. */
+  escalatedBudgetUsd?: number;
+  /**
+   * Streaming input: the run takes the owner's later messages while it works ("steer"). Omitted = a string prompt, no
+   * steer (a short answer). Data, so any role can opt in; the engine reads no role name.
+   */
+  streaming?: boolean;
+  /**
+   * SDK permission mode: `auto` (the classifier decides what the guard leaves open; resolved against availability in
+   * `resolvePermissionMode`); `bypassPermissions` (the SDK asks nothing; only the guard's hard denies stop a call).
+   */
+  permissionMode?: "auto" | "bypassPermissions";
+  /** Built-in tools (and the guard's auto-allow list) derive from these. */
+  capabilities: Capability[];
+  /** Git MCP tool groups the role may use (read-only by-mode tools are always visible). */
+  gitGroups: (keyof typeof GIT_GROUPS)[];
+  /**
+   * Auto-compact window (tokens) the app hands the SDK child (CLAUDE_CODE_AUTO_COMPACT_WINDOW). Omitted = the SDK
+   * default. P3.0 Q12 is UNKNOWN (the setting was not observed to fire), so defaults stay conservative.
+   */
+  autoCompactWindow?: number;
+  /** Prompt sections between the run contract start and the COMMON safety rules. */
+  promptSections: (ctx: PromptCtx) => string[];
 }

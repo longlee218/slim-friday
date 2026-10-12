@@ -70,7 +70,7 @@ export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
 
 /**
  * From a parsed command to a finished run: `go` starts the pending proposal; the Resume button becomes a
- * follow-up / plan run / Q&A; a PLAIN message goes through the intent layer (which picks the role and may
+ * continued task or follow-up run; a PLAIN message goes through the intent layer (which picks the role and may
  * ask, queue or open a task instead) and then `routeMessage` + `runTurn`.
  */
 async function routeTurn(c: RouteAndRunInput): Promise<string> {
@@ -86,7 +86,7 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
   }
   let extraBudgetUsd = "extraBudgetUsd" in parsed ? parsed.extraBudgetUsd : undefined;
   const input = parsed.kind === "go" ? { kind: "resume" as const, extraBudgetUsd } : parsed;
-  // Resume button becomes a plan run / exec re-run / Q&A from the interrupted task's session (or a refusal).
+  // Resume button becomes a run of the interrupted task's role in that task's own session (or a refusal).
   const rdeps = { db, agentHome: config.agentHome, workspace: ws, repos };
   let resolved = resolveCommand(rdeps, input, message.threadId);
   // Only an ordinary message goes through the intent layer: a bare `go` that falls back to plain text is still L0
@@ -119,7 +119,7 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
     if (out.kind === "reply") return out.text;
     if (out.kind === "side") return STILL_WORKING; // only a busy thread gets one (see route-by-intent `side`)
     picked = out;
-    // A yes to the failed task's question: the same path as `/go` (exec runs again from the approved plan).
+    // A yes to the failed task's question: the same path as `/go` (the task continues in its own session).
     if (out.resume) {
       resolved = resolveCommand(rdeps, { kind: "resume" }, message.threadId);
       if ("reply" in resolved) return refused(rc.log, resolved);
