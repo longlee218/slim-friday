@@ -1,80 +1,65 @@
 # Discord Setup Guide
 
+Last updated: 2026-10-12 (Rev 15). Architecture: [system-architecture.md](system-architecture.md). Roadmap: [development-roadmap.md](development-roadmap.md).
+
 ## Prerequisites
 - Discord account with admin access to a private test server
-- `claude setup-token` completed (stores OAuth token for Claude Code auth)
-- .env file (copy from .env.example)
+- `claude setup-token` completed (OAuth token for Claude auth), or an OpenRouter key
+- `.env` in the project root (copy from `.env.example`)
+- `gh` CLI logged in (`gh auth login`) and `git` configured for the owner: the dev agent commits, pushes and opens PRs with them
 
-## Step 1: Create Discord Application
-1. Go to https://discord.com/developers/applications
-2. Click "New Application"
-3. Name it (e.g., "Friday Agent")
-4. Go to "Bot" tab
-5. Click "Reset Token" and copy it (save as DISCORD_TOKEN in .env)
+## Step 1: Create the Discord application
+1. Go to https://discord.com/developers/applications and click "New Application"
+2. Name it (e.g. "Friday Agent")
+3. "Bot" tab → "Reset Token" → copy it (save as `DISCORD_TOKEN`)
 
-## Step 2: Enable Message Content Intent
-1. In Bot tab, scroll to "Privileged Gateway Intents"
-2. Enable **MESSAGE CONTENT INTENT** (required to read message text)
-3. Save
+## Step 2: Enable the Message Content Intent
+- "Bot" tab → "Privileged Gateway Intents" → enable **MESSAGE CONTENT INTENT** → Save
 
-## Step 3: Generate Invite URL
-1. Go to "OAuth2" tab
-2. Click "URL Generator"
-3. Select scopes: `bot`
-4. Select permissions (least privilege; the integer is computed from discord.js `PermissionFlagsBits`):
+## Step 3: Generate the invite URL
+1. "OAuth2" → "URL Generator" → scope `bot`
+2. Permissions (least privilege):
    - View Channels, Send Messages, Send Messages in Threads, Create Public Threads, Read Message History, Attach Files, Embed Links
-   - Manage Channels and Manage Roles (only needed by `bootstrap:discord` and `/init-workspace` to create private channels with overwrites; revoke them afterwards if you only create channels by hand)
-   - **Never Administrator**: it bypasses every channel overwrite, so private channels would hide nothing from the bot
-   Permission integer `309506198544`. Equivalent URL (replace the placeholder with the Application ID from the General Information tab):
-   `https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=309506198544`
-5. Copy the generated URL and open it in a browser
-6. Select your private test server and confirm
+   - Manage Channels and Manage Roles: only for `bootstrap:discord` and `/init-workspace` (private channels with overwrites); revoke afterwards if you create channels by hand
+   - **Never Administrator**: it bypasses every overwrite
+3. Permission integer `309506198544`. URL: `https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=309506198544`
+4. Open the URL and add the bot to your test server
 
-## Step 4: Get Your User ID
-1. Open Discord Settings
-2. Go to "Advanced" → enable "Developer Mode"
-3. Right-click your avatar
-4. Click "Copy User ID" (save as OWNER_DISCORD_ID in .env)
+## Step 4: Get your user ID
+- Settings → Advanced → enable Developer Mode → right-click your avatar → "Copy User ID" (`OWNER_DISCORD_ID`)
 
-## Step 5: Configure Environment
-Create or update `.env` in the project root:
+## Step 5: Configure the environment
 ```env
 DISCORD_TOKEN=<bot_token_from_step_1>
 OWNER_DISCORD_ID=<your_user_id_from_step_4>
-DISCORD_GUILD_ID=<server_id>   # right-click the server icon > Copy Server ID; required once any workspace lists channels
+DISCORD_GUILD_ID=<server_id>        # Copy Server ID; required once any workspace lists channels
 CLAUDE_CODE_OAUTH_TOKEN=<from_claude_setup_token>
-AGENT_HOME=/absolute/path/to/agent-home
+AGENT_HOME=/absolute/path/to/agent-home   # real dir outside every repo, e.g. /Users/<you>/.friday
 LOG_LEVEL=info
 # Optional:
-# MAX_CONCURRENT_RUNS=3
-# MODEL_DEV_PLAN=sonnet  # pin a stage (MODEL_<ROLE>_<STAGE>); CODE_MODEL was removed
-# OPENROUTER_API_KEY=<key>              # to use OpenRouter instead of Anthropic
-# LLM_PROVIDER=openrouter               # force OpenRouter (if both credentials set)
+# OPENROUTER_API_KEY=<key>            # use OpenRouter instead of Anthropic
+# LLM_PROVIDER=openrouter             # force a provider when both credentials are set
+# MODEL_DEV=sonnet                    # pin the dev role's model (MODEL_<ROLE>)
+# BUDGET_DEV_USD=4.5                  # run budget of the dev role
 ```
+- Full variable list: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-variables-and-limits).
+- Removed: `MODEL`, `MODEL_<ROLE>_<STAGE>`, `MAX_CONCURRENT_RUNS`, `MAX_TURNS`, `GIT_AUTHOR`. A set value is ignored and warned at start.
+- On OpenRouter the dev role uses `anthropic/claude-haiku-4.5` by default (the approval question flow needs a Claude model).
 
-**Note (Phase 3+):** For code task approvals to work, ensure the dev stages (MODEL_DEV_PLAN / MODEL_DEV_EXEC on openrouter) use a model that supports ExitPlanMode (e.g., Claude models). DeepSeek v4 does not support plan mode approval flow.
-
-**Note (Phase 4+):** For PR creation, you need:
-- `gh` CLI authenticated (`gh auth login`) with at least one Git account (or set `githubAccount` in each repo's `repo.yaml`)
-- Docker running (for GitHub MCP server: `ghcr.io/github/github-mcp-server`)
-- At least one Git remote named `origin` in each repo (the app fetches and pushes through the git MCP server)
-
-### Link a channel to a workspace (by hand)
+### Link a channel to a workspace
 Each Discord channel maps to exactly one workspace; the bot refuses messages from unmapped channels.
-1. Developer Mode on, right-click the channel > Copy Channel ID (for a thread use its parent channel).
+1. Developer Mode on → right-click the channel → Copy Channel ID (for a thread, use its parent channel)
 2. Add it to `$AGENT_HOME/workspaces/<ws>/workspace.yaml`:
    ```yaml
    channels:
      - "123456789012345678"
    ```
-3. Set `DISCORD_GUILD_ID` in `.env` and restart (startup refuses without it once any workspace has `channels`).
-- A channel id listed by two workspaces is dropped from both (warning `channel.duplicate`): no routing.
-- Edits to a workspace's channel list apply to the next message, but the guild pin is checked at startup only: the **first** time you add `channels:` to any `workspace.yaml`, and any change to `DISCORD_GUILD_ID` or `.env`, needs a bot restart. Startup refuses (exit 1, "DISCORD_GUILD_ID required") when channels exist without the id.
-- `/cleanup` works in any thread, even in an unmapped or remapped channel (it runs before routing and starts no agent): use it to recover a thread whose channel was unlinked.
-- Remapping a channel moves its existing threads to the new workspace. A thread with a live task clone whose repo is not in the new workspace is refused (`wrong_workspace`) until the channel is re-linked or `/cleanup` is run.
+3. Set `DISCORD_GUILD_ID` in `.env` and restart (startup refuses without it once a workspace has `channels`).
+- A channel id listed by two workspaces is dropped from both (warning `channel.duplicate`).
+- The guild pin is read at startup only: adding the first `channels:` or changing `DISCORD_GUILD_ID` needs a restart.
+- Remapping a channel moves its threads. A thread whose repo is not in the new workspace is refused (`wrong_workspace`).
 
 ## Server organization (one guild)
-
 ```
 guild (DISCORD_GUILD_ID)
 ├─ ops            (private category)
@@ -82,29 +67,28 @@ guild (DISCORD_GUILD_ID)
 │   ├─ #ops-log         one line on start / shutdown / uncaught error
 │   ├─ #ops-health      reserved (no producer yet)
 │   └─ #ops-analytics   reserved (no producer yet)
-├─ <ws>           (private category, one per workspace, e.g. personal, reelme, superminds)
+├─ <ws>           (private category, one per workspace)
 │   └─ #<ws>-agent      the channel listed in workspaces/<ws>/workspace.yaml `channels:`
 └─ ...your other channels (untouched)
 ```
-- "Private" = exactly three overwrites: `@everyone` denied View Channel; the owner allowed View Channel, Send Messages, Send Messages in Threads, Read Message History, Attach Files; the bot allowed the same plus Create Public Threads and Embed Links. Any extra overwrite makes `isPrivate` false and the bot refuses admin commands there.
-- **The guild owner and anyone with Administrator still see private channels** (Discord bypasses overwrites for them). Private channels protect from other members only.
-- The bot warns on every start (`discord.bot_administrator`) when it holds Administrator in the guild.
-- Intents: Guilds, Guild Messages, Message Content (privileged; enable in the Developer Portal). `bootstrap:discord` logs in with Guilds only.
+- "Private" = exactly three overwrites: `@everyone` denied View Channel; the owner allowed View Channel, Send Messages, Send Messages in Threads, Read Message History, Attach Files; the bot allowed the same plus Create Public Threads and Embed Links. Any extra overwrite makes the channel not private: the bot refuses admin commands there.
+- The guild owner and anyone with Administrator still see private channels.
+- The bot warns on every start (`discord.bot_administrator`) when it holds Administrator.
+- Intents: Guilds, Guild Messages, Message Content (privileged). `bootstrap:discord` logs in with Guilds only.
 
-## Workflow skill: `bun run discord init-workflow-skill <ws>`
-
-`init:workspace` writes `workspaces/<ws>/skills/workflow/SKILL.md` (the dev role's master skill, from `src/discord-setup/templates/workflow-skill.md`). For a workspace made earlier, run once per workspace on the host: `bun run discord init-workflow-skill <ws>`. It writes the file only when it is missing and never overwrites an edited one; it refuses a name that is not a workspace. Startup never writes into workspaces. Edit the file freely; note that the workspace skills dir is also listed to the assistant (Q&A) runs.
+## Workflow skill (optional): `bun run discord init-workflow-skill <ws>`
+- `/init-workspace` writes `workspaces/<ws>/skills/workflow/SKILL.md` from `src/discord-setup/templates/workflow-skill.md`.
+- For an older workspace, run the command once on the host. It writes the file only when missing and never overwrites an edited one. Startup never writes into workspaces.
+- Optional: the dev role already gets every installed publisher skill. The workflow skill adds owner-specific rules.
 
 ## Create the ops channels: `bun run bootstrap:discord`
-
-Needs `DISCORD_TOKEN`, `DISCORD_GUILD_ID`, `OWNER_DISCORD_ID`, `AGENT_HOME` in the environment (`.env` is loaded by Bun) and the bot invited with Manage Channels + Manage Roles.
+Needs `DISCORD_TOKEN`, `DISCORD_GUILD_ID`, `OWNER_DISCORD_ID`, `AGENT_HOME` and the bot with Manage Channels + Manage Roles.
 ```bash
 bun run bootstrap:discord --dry-run   # lists EVERY guild channel (category / name / id) and what would be created
 bun run bootstrap:discord             # creates ops + 4 channels, writes $AGENT_HOME/discord.yaml
 ```
-- Create-only: a category/channel with the target name that already exists is refused ("rename or delete it by hand"); nothing is adopted, edited or deleted. Use the dry-run list to review old channels before deleting them by hand.
-- Missing Manage Channels / Manage Roles: clear error, exit 1. Administrator: warning printed.
-- `discord.yaml` is not overwritten when it exists: the new ids are printed, add them by hand. If it exists but cannot be parsed, **the bot refuses to start** (fail closed). No file = no ops channels and no admin commands.
+- Create-only: an existing name is refused ("rename or delete it by hand"). Nothing is adopted, edited or deleted.
+- `discord.yaml` is not overwritten when it exists. If it cannot be parsed, **the bot refuses to start** (fail closed). No file = no ops channels and no admin commands.
 ```yaml
 ops:
   categoryId: "<id>"
@@ -115,420 +99,257 @@ ops:
 controlChannels:   # default: [ops.control]
   - "<id>"
 ```
-- An ops id listed in a workspace `channels:` is dropped (warning); messages in any ops channel or its threads are ignored (`message.ignored`, reason `ops_channel`), except admin handling in a control channel.
+- An ops id listed in a workspace `channels:` is dropped (warning). Messages in ops channels and their threads are ignored (`ops_channel`), except admin text in a control channel.
 
-## Native slash commands (picker)
-
-On every start the bot bulk-overwrites its own application commands (`src/commands/slash-definitions.ts`): the guild commands when `DISCORD_GUILD_ID` is set (instant), else global (can take up to an hour to show). The picker then lists exactly: `/stop`, `/go [usd]`, `/cleanup [task]`, `/remember <text>`, `/forget <text>`, `/compact [dry-run]`, `/init-workspace <name>`.
-- A pick runs as the owner's message `/name arg` through the same handler: same owner, guild, ops-channel and admin gates (`/init-workspace` still works only in `#ops-control`). A non-owner gets an ephemeral "Not allowed."; a pick that routing ignores just clears the placeholder.
-- Answers are posted in the channel or thread (as for a typed message); the interaction's "thinking" placeholder is deleted. In a plain channel a command that starts work opens a thread via `channel.threads.create`.
-- Registration failure is logged (`slash command registration failed`) and never blocks startup. Typed `/stop` etc. and the legacy forms keep working.
-- UNKNOWN (not live-tested): the picker behaviour in Discord, the `contexts` (guild-only) field accepted by the pinned discord.js 14.27, and whether the thread created from a slash in a channel looks right.
+## Native slash commands
+- On every start the bot overwrites its application commands (`src/commands/slash-definitions.ts`): guild commands when `DISCORD_GUILD_ID` is set (instant), else global (can take up to an hour).
+- The picker lists: `/stop`, `/go [usd]`, `/remember <text>`, `/forget <text>`, `/compact [dry-run]`, `/init-workspace <name>`.
+- `/cleanup` is removed. The picker is replaced at the next start; old entries may linger until then.
+- A pick runs as the owner's `/name arg` message through the same gates. A non-owner gets "Not allowed."
+- A failed registration is logged (`slash command registration failed`) and does not block startup.
+- Not live-tested: the picker behavior in Discord and whether a slash in a channel opens a thread correctly.
 
 ## Add a workspace: `/init-workspace <name>`
+Type in `#ops-control` (no mention needed). Legacy form: `init:workspace:<name>`.
+- Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops` or a publisher skill name (reserved).
+- Gate: you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else: not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
+- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `repos/`, `cwd/`, `skills/`, `MEMORY.md`, persona stubs, the workflow skill). (2) private category `<name>` and `#<name>-agent`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
+- Rerun on a finished workspace: "already set up". If creation fails midway, the reply names what exists.
+- No turn row, no agent. Logs `admin.init_workspace`.
 
-Type in `#ops-control` (no mention needed): `/init-workspace reelme` (legacy form, still works: `init:workspace:reelme`).
-- Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops`. Checked before anything is created.
-- Gate (all must hold): you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else (any other channel or a thread): not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
-- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `repos/`, `cwd/`, an empty `skills/` (mode 700), `MEMORY.md` header, heading-only persona stubs); a pre-Step-B dir with that name is refused. (2) private category `<name>` and `#<name>-agent`, create-only (existing names refused, nothing changed). (3) the new channel id is written into `workspace.yaml` (re-rendered deterministically: **comments in that file are lost**, other fields kept). (4) reply with what was created; next: add repos at `workspaces/<name>/repos/<repo>/repo.yaml`.
-- Rerun on a finished workspace: "already set up", nothing created. If channel creation fails midway the reply names what exists (delete a lone category by hand before retrying).
-- No turn row, no limiter, no agent; logs `admin.init_workspace`.
+## Manual live check (owner)
+1. `bun run bootstrap:discord --dry-run`, then without `--dry-run`: items appear; `discord.yaml` written.
+2. Restart: `#ops-log` shows the start line; no `discord.bot_administrator` warning.
+3. `/init-workspace <ws>` in `#ops-control`: category and `#<ws>-agent` appear; `workspace.yaml` lists the id.
+4. A second Discord account (not owner or admin) cannot see the ops or workspace channels.
+5. `/init-workspace <ws>` typed in `#<ws>-agent` is refused; same text in a thread too.
+6. A question in `#<ws>-agent` is answered. A mention in `#ops-log` is ignored.
+7. Ctrl-C: `#ops-log` shows `[shutdown] SIGINT`.
 
-## Manual live check (owner, before relying on it)
-1. `bun run bootstrap:discord --dry-run`, then without `--dry-run`: the 5 items appear; `discord.yaml` written.
-2. Restart the bot: `#ops-log` shows `[start] pid=... v...`; no `discord.bot_administrator` warning in the log.
-3. `/init-workspace <ws>` in `#ops-control` per workspace: category + `#<ws>-agent` appear, `workspace.yaml` lists the id.
-4. A second Discord account (not owner/admin) cannot see the ops or workspace channels.
-5. `/init-workspace <ws>` typed in `#<ws>-agent` is refused with the "only in #ops-control" reply and starts no run; same text in a thread.
-6. Ask a question in `#<ws>-agent`: answered. Mention the bot in `#ops-log`: ignored.
-7. Stop the bot (Ctrl-C): `#ops-log` shows `[shutdown] SIGINT`.
+**Important:** never commit `.env` with real values. `.env.example` has placeholders only.
 
-**Important:** Never commit .env with real values. .env.example has placeholders only.
-
-## Step 6: Start the Bot
+## Start the bot
 ```bash
 bun run start
 ```
+- Logs go to stdout (pretty) and `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days; lines carry `workspace`).
 
-If successful, you'll see:
-- Bot connects to Discord
-- Logs appear in stdout (pretty-printed) and $AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; one log for all workspaces, lines carry `workspace`)
-- Ready to receive messages
+## First-message checklist
 
-## First-Message Checklist
-
-Test these in your Discord server channel:
-
-### Test 1: Q&A in Channel
+### Test 1: Question in a channel
 ```
 @bot what does X do?
 ```
-Expected:
-- Bot creates a thread with name matching the question (truncated ≤90 chars)
-- Typing indicator appears (shows bot is working)
-- Answer posted in thread with file:line references
+- A thread opens; the typing indicator shows; the answer cites `file:line`.
 
-### Test 2: Continue in Thread
-Reply in the thread without mentioning the bot:
-```
-(reply in thread) tell me more about Y
-```
-Expected:
-- Same session continues (context from previous message available)
-- Answer includes follow-up info
+### Test 2: Follow-up in the thread
+Reply in the thread without mentioning the bot. Expected: the same session answers with the earlier context.
 
-### Test 3: Other User Ignored
-Have another Discord user post a message in the channel or thread.
-Expected:
-- Bot ignores it (no reply)
+### Test 3: Other user ignored
+Another Discord user posts in the channel or thread. Expected: no reply.
 
-### Test 4: Secret Masking
-Ask the bot to find a specific secret pattern in a repo file:
-```
-what's the database password in config.ts?
-```
-(assuming config.ts contains `DB_PASS=secret123` or similar)
+### Test 4: Secret masking
+Ask for a secret in a repo file. Expected: the reply masks the value.
 
-Expected:
-- Bot finds the file
-- Reply masks the secret (shows `DB_PASS=***REDACTED***` or similar)
+### Test 5: Stop
+While a long answer runs: `/stop` (or `stop`). Expected: the run stops and the reply confirms. Queued tasks of the thread are kept.
 
-### Test 5: Stop Command
-While the bot is working on a long query:
+### Test 6: Dev task
 ```
-(in thread) stop
+[dev] add a greeting function to src/hello.ts
 ```
 Expected:
-- Bot replies "Stopping..."
-- Current run aborts
-- Session ends cleanly
+- The intent layer routes it to the dev role. The notice `Starting dev: <brief>` appears.
+- The agent reads the repo, then asks you to approve its plan with buttons (AskUserQuestion). The long plan arrives as `AskUserQuestion-detail.txt` with a short question.
+- After approval it edits the repo checkout, runs the tests it chooses, commits, and asks how to finish (merge, PR or keep).
+- A question with no tag and a clear change request also routes to dev. A message on an idle thread with low confidence is answered by the assistant instead.
 
-### Command grammar (thread scoped)
-Canonical forms are slash commands (L0). The LEGACY forms still work in this release (they will be removed later); both parse to the same command.
+**While a task runs**
+- A reaction appears on your message at once; the reply follows.
+- A supplement ("also keep it small") is pushed into the running agent. The reply says `received, the agent takes it at its next step`. It is read after the current tool calls finish; it does not interrupt them. `/stop` interrupts.
+- Separate work (a new dev request) is queued. The reply says `received, it runs after the current task`. At most 3 are queued per thread.
+- A question for the assistant is answered at once, next to the task. It does not join the thread conversation later.
+- A typed message while the agent waits for your answer to a question: it is saved as a note and delivered after you choose an option. A typed "yes" does not answer the question; use the buttons.
+- `/stop` keeps the queue; the queued tasks run after the stop. The reply says how many are queued.
+- If the run ends before the agent read a supplement, the bot posts `Not delivered to the agent ... send again:` with your text.
+- Your messages are stored (secrets masked, 2000 chars) for 14 days.
 
-**UNKNOWN (owner to verify live):** the Discord client may intercept a plain-text `/command` as its own slash-command UI (autocomplete / "unknown command") and not send it as a message. If so, send it with a leading space or use the legacy form until the owner decides (for example registering real application commands).
+**Owner-confirm buttons**
+- A request with effort `max`, or an assistant answer ending in `ESCALATE: opus`, first asks "Run it?" with [Yes, run it] [No] (10 min). No answer, "No", or a click after a restart never runs Opus.
+
+### Test 7: Hard deny
+```
+remove all files in src/
+```
+Expected: the guard denies the command at once, before any approval question. The agent is told the reason and should adapt rather than retry the same call.
+
+### Test 8: Busy limit
+Long runs in several threads at once. The run limiter allows `MAX_CONCURRENT_RUNS` (30, constant) runs; a thread whose run holds it answers from the busy-thread path.
+
+## Command grammar (thread scoped)
+Canonical forms are slash commands. Legacy text forms keep working this release.
 
 | Message (canonical) | Legacy form | Effect |
-|---------|--------|--------|
-| `/stop` | `stop` | abort the running task |
-| `/go` | `go` | start this thread's pending proposal (after a restart: "Proposal not started; reply `/go`"), else resume an interrupted task. With nothing to start or resume it is an ordinary message |
-| `/go +<usd>` | `go +<usd>` | resume the thread's interrupted or budget-stopped task with `<usd>` more budget, e.g. `/go +1.5` (amount must be > 0; anything else is a plain message). A budget stop shows spent / limit, the agent's last words and the clone's `git diff --stat`, and says "Reply `/go +<usd>`" (the session and the clone are kept) |
-| `/cleanup` / `/cleanup <taskId8\|taskId>` | `cleanup:` / `cleanup:<task-id>` | remove a task clone (see "Cleanup" below): no argument = this thread's clone; an argument is looked up among the clones of THIS channel's workspace (a unique 8-char prefix is enough; several matches list up to 10 candidates; an unknown, malformed or other-workspace id gets one refusal line) |
-| `/remember [scope] <text>`, `/forget [scope] <text>`, `/compact [dry-run]` | `remember:` / `nhớ:`, `forget:` / `quên:`, `compact memory` / `gom nén` | owner memory (see Memory below; same scopes and length rules) |
-| `/init-workspace <name>` (ops control channel only) | `init:workspace:<name>` | create the workspace folder, private category and `#<name>-agent` |
-| `[mechanical]` / `[standard]` / `[design]` prefix, `repo:<name>` | task class / repo hint |
-| `[dev]` / `[ask]` at the very START of the message | force the ROLE (dev: plan, approve, task clone, PR or local result; ask: read-only answer); case-insensitive; the tag is dropped from the task text. It picks the role only, never whether the message adds to the running task or is separate work (see "While a task runs"). A tag anywhere else, or a word like "dev", does nothing. Without a tag one small Haiku call (L3) reads your message together with the last 4 messages of the thread and decides; no wording lists |
-| a natural reply to the bot's question (e.g. "okay đồng ý", "thôi để sau", "yeah go for it") | answer the one question the bot asked ("Open a task for this? (yes/no)" after a discussion turn). The same Haiku call reads the reply against the pending question; `yes` = `go`; `no` to that question makes the assistant answer your message. If it cannot tell, the bot asks again. They do not press plan/PR buttons: use the button |
-| `[base:<branch>]` prefix | Dropped by owner (no parser). A dev task branches from the repo's `defaultBranch`, else `main` (local branch, validated in preflight) |
+|---|---|---|
+| `/stop` | `stop` | stop the run of this thread; queued tasks are kept |
+| `/go` | `go` | start this thread's pending proposal (after a restart: "Proposal not started; reply `go`"), else resume an interrupted or failed-resumable task. With nothing to resume it is an ordinary message |
+| `/go +<usd>` | `go +<usd>` | resume with `<usd>` more budget, e.g. `/go +1.5` (must be > 0). Budget stops offer this; the task ceiling (6.0 USD over all resumes) still applies |
+| `/remember [scope] <text>`, `/forget [scope] <text>`, `/compact [dry-run]` | `remember:` / `nhớ:`, `forget:` / `quên:`, `compact memory` / `gom nén` | owner memory (see Memory) |
+| `/init-workspace <name>` (ops control channel only) | `init:workspace:<name>` | create the workspace, private category and `#<name>-agent` |
+| `[dev]` / `[ask]` at the very start of the message | - | force the role (dev: works in the repo; ask: read-only answer). Case-insensitive; the tag is removed from the request. A tag anywhere else, or a plain word like "dev", does nothing |
+| `repo:<name>` prefix | `repo:<name>` | pins the thread to a repo of the workspace |
 
-Buttons of a dead process answer "This action expired." (the Resume button keeps working after a restart). Proposals older than 24h expire at startup.
+- Without a tag, one small Haiku call reads your message with the last 4 messages of the thread and picks the role. There are no word lists.
+- A natural reply to the bot's yes/no question ("Open a task for this?") is read by the same call: `yes` starts the task, `no` makes the assistant answer your message.
+- Buttons of a dead process answer "This action expired." The Resume button keeps working after a restart.
 
 ### Attachments
-A message over 2000 chars arrives as `message.txt`; the bot reads text attachments (`.txt`, `.md`, `text/*`; at most 2 files, 64 KB in total) and passes them as data. A short file is passed whole; a longer one (> 2000 chars) is summarized by the cheap model, and the full redacted text is saved under `$AGENT_HOME/tmp/attachments/<thread id>/` for the assistant to read on demand. Other types, files over the limits or failed downloads get a one-line notice in the agent's input (the agent will tell you). Secrets in the file are masked.
+A message over 2000 chars arrives as `message.txt`. The bot reads text attachments (`.txt`, `.md`, `text/*`; at most 2 files, 64 KB total) as data. A short file is passed whole. A longer one is summarized; the full redacted text is saved under `$AGENT_HOME/tmp/attachments/<thread id>/` for the assistant. Other types, oversize files and failed downloads get a one-line notice.
 
 ### Deploy: drain
-Before a deploy set `FRIDAY_DRAIN=1` (env) or `touch $AGENT_HOME/DRAIN`; new tasks get "deploying, retry in a minute" while running ones finish (or send `stop`). Restart, then remove the flag. Tasks still running at restart become `interrupted` and get a Resume button; pending proposals survive.
+Set `FRIDAY_DRAIN=1` or `touch $AGENT_HOME/DRAIN` before a deploy. New tasks get "deploying, retry in a minute"; running tasks finish. Restart, then remove the flag. Tasks still running at restart become `interrupted` and get a Resume button.
 
-### Test 6: Code Task Proposal (Phase 1+)
-Post a natural-language code request:
-```
-can you add a greeting function to src/hello.ts?
-```
-Expected:
-- The intent layer routes it to the dev role (no assistant answer first): "Starting plan: <repo>, add greeting..." appears
-- If the message is unclear on an idle thread (low confidence, or the classifier failed) the assistant answers it read-only: no clarifying question and never a dev task. A pending question or a button gate is still asked again
-- A proposal or idea in a thread that was just a conversation ("I propose building ...") is not run: the bot asks "Open a task for this? (yes/no)".
-- **While a task runs** (what you see): a reaction (eyes) appears on your message at once, before the reply. Every message you send is stored, and one Haiku call reads it with the conversation to tell a SUPPLEMENT of the running work from SEPARATE work (a `[dev]` / `[ask]` tag only picks the role, never this); messages in one thread are handled in the order you sent them. A supplement ("also keep it small") is pushed into the running agent and the bot answers `received, the agent takes it at its next step`; the agent reads it after the tools of its current turn finish, it does not interrupt them. If the task already passed its approved plan, the reply adds `plan not re-approved for this change` (the plan stays as approved; the change is recorded in the task ledger). Between two stages of the task the supplement waits for the next one (`received, the agent takes it when its next stage starts`). ANY message for the assistant while a task runs (a question, or "what is the agent doing?") is answered right away, next to the task (read-only, its own answer; it does not remember it in the thread's conversation later); for a status question it also sees a snapshot of the task (stage, state, last tool, pending approval, seconds running) and is never pushed into the run. While the agent waits for your Approve / Deny on a tool call, a supplement is still saved and delivered after your decision; the bot says `agent is waiting for your approval of <tool> above (Approve/Deny); your message is saved and is delivered after the decision`. Other separate work (a new dev task) is queued without a question and the bot answers `received, it runs after the current task`; it starts when the task ends (a 4th queued message is refused: `too many queued after the current task`). When unsure the message counts as a supplement. `/stop` interrupts the run; queued work is KEPT and still runs after it, and the reply says how many (`Stopping... 2 queued, they run after it.`). If the run ends before the agent read a supplement the bot appends `Not delivered to the agent ... send again:` with your message(s). Some runs (a short answer) take no supplement: a tagged message is queued, anything else gets `still working...`. Your messages are kept (secrets masked, 2000 chars) for 14 days for diagnosis.
-- **While the plan waits for Approve / Reject** you can type too: feedback on the plan ("make it smaller") acts like Reject with your words as the reason: the old buttons are removed (`Owner sent feedback`), the planner revises and posts a new plan with new buttons; the bot answers `received, the plan is being revised with your feedback...`. A question for the assistant is answered right away and the buttons stay; a separate task is queued; a typed `yes` does NOT approve (the bot points to the buttons); if the bot cannot tell what you mean it asks.
-- Owner gets a Discord message with Approve/Deny buttons (owner-only, redacted summary)
-- Approve → bot creates/modifies file in plan stage; Deny → bot revises plan
-- If approved, execution runs in an independent clone of the repo (commits on a `friday/...` branch); the result is a PR (GitHub origin) or a local result message (see "Delivery")
-- A request with effort `max` (e.g. an owner-defined "ultra deep dive" phrase) or an assistant answer ending in `ESCALATE: opus` first asks you "Run it?" with [Yes, run it] [No] buttons (10 min). No answer, "No" or a click after a restart ("This action expired.") never runs Opus: `max` runs at `high`, an escalation keeps the cheaper answer, each with one line saying so
+## Dev task setup
 
-**Guardrails Test:** Try dangerous operations in code context:
-```
-remove all files in src/ directory
-```
-Expected:
-- Bot hard-denies immediately (PreToolUse hook denies before asking)
-- Reply includes reason: "Denied: dangerous command"
-- No approval button shown; no plan proposed
-
-### Test 7: Concurrent Limit
-Post a long question, then immediately post another in a different thread:
-Expected:
-- If MAX_CONCURRENT_RUNS = 3 and 3 are already running
-- New task replies "Still busy, 3 runs active. Try again in a minute."
-
-## Troubleshooting
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| Reply "This channel is not linked to a workspace" (`task.refused`, reason `unmapped_channel`) | The channel's id is in no workspace `channels:` list | Paste the id from the reply into `workspaces/<ws>/workspace.yaml` under `channels:` (see "Link a channel to a workspace") |
-| Normal messages refused in a thread but `/cleanup` works | By design: `/cleanup` is the recovery path and skips workspace routing | Re-link the channel, or `/cleanup` then start again |
-| Bot ignores every message (`message.ignored`, reason `other_guild`) | `DISCORD_GUILD_ID` is not the server you write in | Fix `DISCORD_GUILD_ID` in `.env`, restart |
-| Bot exits at start: "DISCORD_GUILD_ID required" | A workspace lists `channels` but no guild is pinned | Set `DISCORD_GUILD_ID` in `.env` |
-| Reply "Workspace <ws> has no repos" | Channel maps to a workspace with no `repos/<name>/repo.yaml` | Add a repo to the workspace |
-| Bot exits at start naming `discord.yaml` | The file is not valid YAML or has a bad id | Fix or delete `$AGENT_HOME/discord.yaml` (fail closed) |
-| Reply "Admin commands run only in #ops-control." | `/init-workspace` typed outside a control channel | Type it in `#ops-control` |
-| Reply "This control channel is not private" | The control channel has extra overwrites (another role/member) | Remove them so only @everyone (denied), you and the bot remain |
-| `/init-workspace` says "already exists in this server" | A category/channel with that name exists | Rename or delete it by hand, rerun |
-| "Bot is not responding" | Bot not running or DISCORD_TOKEN invalid | `bun run start` and check logs |
-| "Missing MESSAGE CONTENT" | Intent not enabled | Re-enable in Developer Portal Bot tab |
-| "Thread creation failed" | Missing "Create Public Threads" permission | Regenerate invite URL with correct scopes |
-| "No answer, only error" | CLAUDE_CODE_OAUTH_TOKEN invalid or unset | Run `claude setup-token` and export env var |
-| "still working..." on every message | Limiter at MAX_CONCURRENT_RUNS | Reduce concurrent requests or increase limit |
-| "Check the logs" in Discord but nothing in logs | Log level too high | Set LOG_LEVEL=debug in .env |
-
-## Logs Location
-- **App log:** `$AGENT_HOME/logs/app.<date>.<n>.jsonl (pino-roll, daily, 14 days kept; one log for all workspaces, lines carry `workspace`)` (JSON lines)
-- **Per-task:** `$AGENT_HOME/logs/tasks/<taskId>.jsonl`
-- **View logs:** `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq .` filter a workspace with `jq 'select(.workspace=="<ws>")'` and a task with `jq 'select(.taskId=="<id>")'`
-
-## Testing Locally (Without Discord)
-Phase 1 includes unit tests that don't require Discord:
-```bash
-bun test --match "*discord*"  # message routing tests
-bun test --match "*handle*"   # session + lock tests
-bun test --match "*run*"      # agent runner tests
-```
-
-## Session Persistence
-Sessions are stored in SQLite at `$AGENT_HOME/data/agent.db`:
-- Each Discord thread maps to one session
-- Restarting the bot preserves sessions (same thread ID → resumed session)
-- Older sessions can be queried via `SELECT * FROM sessions`
-
-## Code Task Usage
-
-### Repository Setup
-
-Repos live inside a workspace: `$AGENT_HOME/workspaces/<ws>/repos/<name>/repo.yaml` (the clone sits at `.../repos/<name>/repo/`). Create the workspace with `/init-workspace <ws>`, then add each repo by hand:
+### Register a repo
+Repos live inside a workspace: `$AGENT_HOME/workspaces/<ws>/repos/<name>/repo.yaml`. Create the workspace with `/init-workspace <ws>`, then add each repo by hand:
 
 ```yaml
 # workspaces/<ws>/repos/<name>/repo.yaml
-path: /absolute/path/to/clone              # default: repos/<name>/repo; must be a git root inside the workspace
+path: /absolute/path/to/checkout     # your own git checkout (a git root). Default: repos/<name>/repo (managed checkout)
 description: "Main application"
-gitAuthor: "Name <email>"                   # per-repo commit identity (owner field, validated at startup)
 # optional:
-defaultBranch: main                         # defaults to origin/HEAD, then main/master
-testCommand: "bun test"                     # command must match exactly for auto-allow
-githubAccount: longlhdev                    # GitHub account for PR creation; defaults to `gh auth token --user` active account
-workflow: full                               # autonomous rules text; follows the workspace's curated skills (only for owner-controlled remotes; default: lean)
+defaultBranch: main                  # schema field; not used to protect branches
+testCommand: "bun test"              # schema field; shown to the agent as `[test: cmd]` in the repo list, nothing runs it
+workflow: lean                       # lean (default) | full: changes the rules text only
+# accepted and IGNORED since Rev 15 (the agent uses the owner's git config and gh login):
+# gitAuthor: "Name <email>"
+# githubAccount: "<login>"
 ```
+- Repo name = directory name under `repos/`.
+- A repo can be ANY git checkout (`path:`). A dev run works in it directly: no clone is made.
+- A managed checkout (no `path:`) is refreshed for the assistant (fetch, fast-forward only, throttled 10 min). An owner checkout (`path:`) is never fetched or pulled by the app.
+- `full` is for repos you control. It only changes the prompt text; it adds no permissions.
 
-**Workspace skills:** Friday never loads a repo's `.claude/skills`. Each workspace has its own curated dir; copy a skill folder in to give every run of that workspace (Q&A, plan, exec) the skill:
-```
-cp -R /path/to/deploy ~/.friday/workspaces/<ws>/skills/deploy     # needs deploy/SKILL.md
-~/.friday/workspaces/<ws>/skills/
-  deploy/SKILL.md
-  deploy/helper.sh        # bundled files are readable (never writable) during the run
-```
-- Skills appear as `<ws>:<skill>`. No restart: the plugin is rebuilt on every run. Empty/missing dir = no skills.
-- Limits: per skill 100 entries (files + dirs) / 2 MB / depth 8; a skill over a limit is skipped alone with a `skill skipped` warning naming it and the reason. Whole dir: 300 entries / 5 MB, over it nothing loads. Dependency and VCS dirs inside a skill are not copied. Symlinks are skipped, and `skills/` itself must not be a symlink (rejected with a warning).
-
-**Publisher skills:** the publisher's skills (Superpowers, pinned by `skills-lock.json`) live in the app's `.agents/skills/` and belong to the ROLE, not the workspace: the dev role lists them in its role data and loads them, whole and unmodified, in its plan and exec stages (one app-owned plugin named `superpowers`, next to the workspace dir above); the assistant loads none. No mode, no per-repo override.
+### Workspace skills
+- Friday never loads a repo's `.claude/skills`. Put skills in the workspace dir; every run of that workspace gets them:
+  ```
+  ~/.friday/workspaces/<ws>/skills/
+    deploy/SKILL.md
+    deploy/helper.sh        # bundled files are readable, never writable, during the run
+  ```
+- Skills appear as `<ws>:<skill>`. No restart needed: the plugin is built per run.
+- Limits: per skill 100 entries / 2 MB / depth 8. Over a limit, the skill is skipped alone and a `skill skipped` warning names it. Whole dir: 300 entries / 5 MB. Symlinks are skipped; `skills/` itself must not be a symlink.
 
 | File | Key | Values | Default |
 |---|---|---|---|
 | `workspace.yaml` | `skills.extra` | also load `workspaces/<ws>/skills/` | `true` |
 
-- Old `skills.sets` / `skills.mode` keys in workspace.yaml or repo.yaml are ignored.
-- Dev skills: brainstorming, writing-plans, executing-plans, test-driven-development, verification-before-completion, systematic-debugging. `subagent-driven-development` and the two code-review skills are listed in the role data with `needs` (subagents) and load once the stage can start them (P3.4 A2). Brainstorming is interactive: its questions go to the owner through AskUserQuestion, at most 3 calls per task (plan and exec together).
-- A workspace cannot be named `superpowers` (the plugin name is reserved). The plugin holds the whole skill dirs (scripts keep their exec bit; symlinks, hooks and MCP/settings files are never copied); caps 100 entries / 1 MB per skill, 300 entries / 5 MB total, 1 MB per file. `init:workspace` writes `skills: {extra: true}` and the `workflow` skill.
+- A workspace cannot be named after a publisher skill plugin (`superpowers` is reserved).
 
-**Workflow Modes (Phase 3+):**
-- `workflow: lean` (default) — safe for any repo; standard rules apply
-- `workflow: full` — for owner-controlled repos only; tells the agent to run the workspace's curated skills autonomously; enables broader assumptions in prompts; requires that the remote is owned/controlled by the agent owner
+### Publisher skills
+- The publisher's skills (Superpowers, pinned by `skills-lock.json`) live in the app's `.agents/skills/`.
+- The dev role gets every installed publisher skill (`skills: "all"`). The assistant gets none. There is no per-workspace or per-repo switch.
+- Skills run whole and unmodified. Their ask steps go through AskUserQuestion (limit 6 per run).
 
-**Important:**
-- A repo may be ANY git checkout (registered with `path:`, e.g. your own working copy). A managed clone under `AGENT_HOME/workspaces/<ws>/repos/<name>/repo/` is **not required**. Q&A on a managed clone is refreshed with `git pull`; an owner checkout is never pulled.
-- Each code task works in its own **app clone**: `git clone --local` of the repo into `workspaces/<ws>/repos/<name>/worktrees/<taskId>`, cut from a **local** base branch (request `base`, else `defaultBranch`, else `main`) with no fetch, so unpushed local commits of the base branch are included. The clone's `origin` is removed; branch `friday/<task8>-<slug>`. Your repo's `.git` is only read: no branch, worktree entry or config is added to it.
-- **Refusals** (one line, nothing is created): the repo has no commits; the base branch is missing locally (lists up to 20 local branches); the repo has submodules; the repo uses Git LFS; less than 2 GB free disk; no `gitAuthor`; 10 task clones already kept in the workspace (`/cleanup <taskId8>` one; the reply lists them).
-- Repo name = directory name under `repos/` (e.g., `workspaces/personal/repos/myapp/` → repo name is `myapp`).
-- `gitAuthor: "Name <email>"` required for code tasks (validates ≥2 chars name, email with 2+ letter domain; startup exits(1) if invalid).
-- A repo needs NO `origin` remote. If its `origin` is a GitHub repo the result goes through the PR gate; otherwise through the local result gate.
-- `defaultBranch` optional (defaults origin/HEAD → main/master).
-- `testCommand` optional; if set, exact match only (no ad-hoc shell injection).
+### What the dev run does
+- Works in the repo checkout (its cwd). Writes are limited to the repo, the workspace worktrees dir, the task scratch dir and the plans dir.
+- Commits and pushes feature branches as the owner. `git push --force`, direct pushes to `main` or `master`, `gh repo delete` and `gh api` DELETE are refused by the shell guard.
+- Opens the PR and merges only after the owner chose it (AskUserQuestion).
+- A reply or a new `[dev]` message after a run is a NEW task.
+- If a run fails after work (budget, transient error), the task is kept as resumable. `/go` continues the same session; a budget stop needs `/go +<usd>`.
+- The per-run budget is 4.5 USD; the task ceiling for all its resumes is 6.0 USD.
+- No run timeout exists. Stop a run with `/stop`.
 
-### Delivery (after the exec stage)
-- **PR (origin is on github.com):** summary + diff + secret scan + **Create PR** button (10 min). The app (not the agent) pushes `HEAD:refs/heads/friday/...` to the recorded origin url and opens the PR through the GitHub MCP. Branch must start with `friday/` (legacy `agent/`). Declined or timed out: the clone is kept.
-- **Local result (no origin, or not GitHub):** one message with branch, base (name + short sha), commit count, a capped `git diff --stat` (`+N more files`), and a copy-paste command that YOU run to bring the branch into your repo:
-  ```
-  git -C <your repo> fetch <clone path> friday/<task8>-<slug>:friday/<task8>-<slug>
-  ```
-  The app never runs it. A patch (`git format-patch <base_sha>..HEAD`) is written to `workspaces/<ws>/tasks/<taskId>/<task8>.patch` (mode 0600) and attached when <= 1 MB, else only its path is shown. The same secret scan as the PR path runs BEFORE anything is written: a possible secret blocks the patch and the message. Message <= 1800 chars.
-- **Keep / Discard buttons** (local result): `Keep` marks the clone kept. `Discard` removes the clone and deletes branch `friday/...` (the patch file stays until retention). No answer = the clone stays (counts toward the 10-clone cap). Discard is refused while a task is running in that thread (use `/cleanup <taskId8>` when it ends). A click after a restart answers "This action expired." with no side effect.
-- The ledger (assistant context) shows per task the file count and top 3 changed paths from this diff stat.
+### Known limits
+- Two dev tasks in one repo share one working tree.
+- Old pre-Rev 15 clone directories under `workspaces/<ws>/repos/<name>/worktrees/` are never removed by the app. Delete them by hand when sure.
+- A task that was waiting at the old "Create PR" or result button before Rev 15 is not resumed by the app: its saved session ran in an old clone directory, which is not a registered repo, so Resume and `/go` are refused (`cannot_resume`). Check the work in the old clone by hand, then start a new request.
 
-### Cleanup and retention
-- `/cleanup` removes a task clone: the target path is rebuilt from the validated workspace, repo and task id (never taken from the database or from your text) and must be a real directory strictly inside the repo's `worktrees/` dir; anything else is refused.
-- Startup removes delivered or kept clones older than `CLONE_RETENTION_DAYS` (default 14) with their patch file, removes orphan clone dirs (no row) older than that, and marks active rows whose dir is gone as removed. Orphans are logged as `clone.orphan`. Old pre-P2.1 git-worktree rows (registered in the source repo) expire the same way: idle past the retention, they are removed with `git worktree remove` and their `agent/*|friday/*` branch (only inside the workspace worktrees dir; failures are logged and retried next start).
-- Resume of an interrupted task whose clone is gone: the task is marked `failed` and you are told to start it again.
-- A task that fails after you approved its plan (missing commit identity, budget limit, a transient agent error) keeps its clone, plan and session and ends with `Task <id8> stopped at exec: <reason>. Continue with the approved plan?`. Reply yes (or "continue") or send `/go` and exec runs again from the approved plan in the same clone (old session first, a fresh one if it is gone; a budget stop needs `/go +<usd>`). A different request starts a new task and leaves the held clone; the held clone is removed after `CLONE_RETENTION_DAYS` idle or by `/cleanup`, and then the task is `failed`. Cd into a registered repo in the plan stage (`cd <repo> && git log`) no longer asks when every other command is a git read or a read-only command (`ls`, `cat`, `head`, `wc`, `sed -n`, `grep`, `find` without `-exec`, ... on paths inside the repo; these also run without approval elsewhere inside the allowed dirs).
+## Troubleshooting
 
-### Posting a Code Task
-
-Post a natural-language request for code changes:
-```
-add a greeting function to src/hello.ts that takes a name and returns "Hello, <name>!"
-```
-
-**Flow:**
-1. **Intent:** a leading `[dev]` tag, or one Haiku call that reads your message with the last messages of the thread, picks the dev role; the assistant is never involved and has no handoff tool.
-2. **Dispatch:** the app records a proposal from your message, validates repo / cap / budget, and posts "Starting plan: <repo>, add greeting function..." notice.
-3. **Plan Stage:** Bot enters plan mode and proposes a detailed plan (shows which files, what changes).
-4. **Plan Approval:** Owner gets Discord Approve/Deny buttons (owner-only, 10 min timeout).
-5. **Approval:** 
-   - If **Approve**: Bot moves to execute stage, creates the task clone on branch `friday/<id>-<slug>`.
-   - If **Deny**: Bot revises the plan and asks for approval again (multi-round OK).
-6. **Execute Stage:** Bot makes changes in the clone, runs the test command (if set), commits.
-7. **Finish:** Bot posts summary + diff attachment + **Create PR** button (owner-only, 10 min).
-8. **PR Creation:** Owner clicks **Create PR** → the app pushes the branch and opens a PR on GitHub. Without a GitHub origin: local result message + fetch command + patch (see Delivery).
-9. **Follow-up:** Reply in the same thread → bot reuses the clone and makes more commits to the same branch (max 2 fix rounds).
-10. **Cleanup:** Post `/cleanup` in the thread to remove the clone and reset the session.
-
-### Guardrails
-
-**Dangerous commands are hard-denied:**
-- `rm -rf`, `git push --force`, pushing to main/master, `curl|sh`, `sudo`, reading `.env*` files
-
-**Risky operations require approval:**
-- Non-allowlisted Bash commands → Discord button
-- Network operations (curl/wget to non-github/npmjs hosts) → Discord button
-- New package installs (lockfile-only auto-allowed) → Discord button
-
-**Git operations (in the task clone):**
-- Commits via git MCP (@cyanheads/git-mcp-server 2.15.3); auto-allowed in the clone only; Write/Edit and Bash writes to the clone's `.git` are denied
-- `git status`, `git diff`, `git log` (via git MCP); `git add`, `git commit` (via git MCP); others ask
-- Tests run with Bash (`testCommand` exact match auto-allowed)
-
-### Example Session
-
-```
-@bot fix the typo "recieve" → "receive" in all .ts files
-  → Bot analyzes repo
-  → Bot proposes: "Starting plan: repo-name, Fix typos in src/ using grep + sed"
-  → Bot proposes: "Fix typos in src/ using grep + sed" [Approve] [Deny]
-  
-Owner clicks [Approve]
-  → Bot creates the task clone, runs sed, commits
-  → "Fixed 3 files. [Create PR] [Not now]"
-  
-Owner clicks [Create PR]
-  → Bot pushes branch + opens PR on GitHub
-  → "PR created: https://github.com/user/repo/pull/123"
-
-(in same thread)
-Looks good, also fix the same typo in docs/
-  → Bot reuses the clone, makes more commits
-  → Bot updates the same PR on GitHub
-```
-
-### Troubleshooting
+After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v4.md).
 
 | Symptom | Cause | Fix |
-|---------|-------|-----|
-| "No repos registered" | No workspace has a valid `repo.yaml` | Run `/init-workspace <ws>` and add `workspaces/<ws>/repos/<name>/repo.yaml` |
-| Bot exits at start: "AGENT_HOME is inside a registered repo" / "inside a git working tree" | `AGENT_HOME` (or the target of a symlink) sits in a repo, e.g. the old `<project>/.friday` | Point `AGENT_HOME` at a real dir outside every repo (`/Users/<you>/.friday`); see the cutover runbook |
-| "Base branch ... not found" | The base is not a LOCAL branch of the repo (no fetch is done) | `git branch` in the repo and create/checkout the branch, or use the listed one |
-| Refused: no commits / submodules / LFS / low disk | Preflight of the task clone | Commit once; remove submodules/LFS from the repo or work elsewhere; free 2 GB |
-| "N task clones are kept in this workspace (max 10)" | Kept/locally delivered clones fill the cap | `/cleanup <taskId8>` one of the listed clones |
-| Local result: "Possible secret ... no patch written" | The secret scan found a token in the diff | Remove it, commit again |
-| "gh: command not found" | gh CLI not installed | `brew install gh` (macOS) or `apt install gh` (Linux) |
-| "gh auth failed" | gh not authenticated | Run `gh auth login` and choose HTTP/SSH |
-| "PR button not shown" | No commits made | Check bot's response (usually "No changes made") |
-| Bad DB after an upgrade | The first start of schema v2 / v3 migrates the db (v3 = `tasks` renamed `turns`, backup `friday-v2-<ts>.db`; an older binary cannot open a v3 db: restore the backup and redeploy the previous commit, see [owner-checklist-schema-v3.md](owner-checklist-schema-v3.md)) | Stop the bot; restore the snapshot: `$AGENT_HOME/db-backups/friday-v1-<ts>.db` for a v1 db, `friday-v2-<ts>.db` for v2 -> v3. `cp` it over `data/agent.db` and delete `data/agent.db-wal` and `-shm` (data written after the snapshot is lost). An older binary cannot open a v3 db: restore the backup to go back, steps in [owner-checklist-schema-v3.md](owner-checklist-schema-v3.md) |
-| Bot exits "db snapshot failed" | `db-backups/` not writable or disk full; nothing was migrated | Fix the dir / space and start again |
-| "Create PR button timed out" | Took >10 min to decide | The clone is kept (until retention); use `/cleanup` to remove it |
-| "This action expired." on a button | The bot restarted since the message (pending clicks are in memory) | Nothing ran; use `/cleanup` or send the request again |
+|---|---|---|
+| "This channel is not linked to a workspace" (`unmapped_channel`) | The channel id is in no `channels:` list | Paste the id into `workspaces/<ws>/workspace.yaml` under `channels:` |
+| Messages refused in a thread (`wrong_workspace`) | The thread's repo is not in the channel's workspace | Re-link the channel, or start a new thread |
+| Bot ignores every message (`other_guild`) | `DISCORD_GUILD_ID` is not this server | Fix `DISCORD_GUILD_ID` in `.env`, restart |
+| Bot exits at start: "DISCORD_GUILD_ID required" | A workspace lists `channels` but no guild is pinned | Set `DISCORD_GUILD_ID` |
+| "Workspace <ws> has no repos" | No `repos/<name>/repo.yaml` in the workspace | Add a repo |
+| Bot exits at start naming `discord.yaml` | Invalid YAML or a bad id | Fix or delete `$AGENT_HOME/discord.yaml` (fail closed) |
+| "Admin commands run only in #ops-control." | `/init-workspace` typed elsewhere | Type it in `#ops-control` |
+| "This control channel is not private" | Extra overwrites on the control channel | Leave only @everyone (denied), the owner and the bot |
+| `/init-workspace` says the name already exists | A category or channel with that name exists | Rename or delete it by hand, rerun |
+| Bot does not respond | Not running, or `DISCORD_TOKEN` invalid | `bun run start`, check logs |
+| "Missing MESSAGE CONTENT" | Intent not enabled | Enable it in the Developer Portal (Bot tab) |
+| "Thread creation failed" | Missing "Create Public Threads" | Regenerate the invite URL with the right permissions |
+| Error replies, no answer | `CLAUDE_CODE_OAUTH_TOKEN` invalid or unset | Run `claude setup-token`, set the variable |
+| "still working..." on every message | A run holds the thread | Wait, or `/stop` |
+| Run never ends | No run timeout exists | `/stop` |
+| Plan question "Awaiting clarification" | No answer in 10 min | `/go` continues the task; a typed reply starts a new one |
+| "This action expired." on a button | The bot restarted after the message (clicks are in memory) | Nothing ran. Send the request again |
+| Hard deny message on a legit command | The deny list matched (best-effort parser) | Rewrite as simple commands, or run it yourself |
+| `gh` not authenticated | No `gh auth login` | Run `gh auth login` |
+| Startup: "AGENT_HOME is inside a registered repo" or "inside a git working tree" | `AGENT_HOME` sits in a repo | Point `AGENT_HOME` at a real dir outside every repo |
+| Startup: "db snapshot failed" | `db-backups/` not writable or disk full; nothing migrated | Fix the dir or space, start again |
+| Old DB after an upgrade | Schema v2 → v3 writes `db-backups/friday-v2-<ts>.db`; v3 → v4 writes no backup. An older binary cannot open v3 or v4 | Stop the bot, restore the backup over `data/agent.db`, delete `-wal` and `-shm`. Steps: [owner-checklist-schema-v3.md](owner-checklist-schema-v3.md) |
+| Log level too high | Missing detail | Set `LOG_LEVEL=debug` in `.env` |
+
+## Logs
+- App log: `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days; lines carry `workspace`)
+- Per task: `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (deleted after 30 days)
+- Example: `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq 'select(.workspace=="<ws>")'`
+
+## Session persistence
+- Each Discord thread maps to one stored session (`sessions` table in `$AGENT_HOME/data/agent.db`).
+- A restart keeps sessions; a new run in the same thread resumes the stored session when its cwd matches.
 
 ## Memory (three layers)
-
-Memory lives in three owner-visible places; the bot injects them into Q&A, plan and execute prompts:
 
 | Layer | File | Written by | Injected |
 |---|---|---|---|
 | Global | `$AGENT_HOME/MEMORY.md` | you only | newest 5000 chars |
 | Workspace | `$AGENT_HOME/workspaces/<ws>/MEMORY.md` | you only | newest 5000 chars |
-| Repo | `$AGENT_HOME/workspaces/<ws>/repos/<repo>/MEMORY.md` | the agent (and you) | newest 8000 chars per repo, 16000 for all repos of the workspace |
+| Repo | `$AGENT_HOME/workspaces/<ws>/repos/<repo>/MEMORY.md` | the agent and you | newest 8000 chars per repo, 16000 for all repos of the workspace |
 
-An entry needs a `## <topic>` heading to count (a file with only the template header injects nothing).
-
-**What the agent writes:**
-- After each successful code task the agent's "Memory:" bullets (max 5) are appended to the **repo** file (dated, redacted, one plain line each, 200 chars).
-- Bullets prefixed `[global]` (max 2) go to `$AGENT_HOME/MEMORY.pending.md`, stamped `<date> <ws>/<repo>: <title>`. **This file is never injected into any prompt.** Review it now and then; copy the facts you trust into `MEMORY.md` (global) or `workspaces/<ws>/MEMORY.md` by hand, then delete them from the pending file. Reason: the agent may have read hostile text in a repo, and a global fact would reach every workspace.
+- An entry needs a `## <topic>` heading to count. A template-only file injects nothing.
+- **Agent writes:** after a dev run, the agent's `Memory:` bullets go to the repo file (dated, redacted, 200 chars each; the prompt asks for at most 3, the writer keeps at most 5).
+- `[global]` bullets (max 2) go to `$AGENT_HOME/MEMORY.pending.md`. **Never injected.** Copy trusted facts into `MEMORY.md` by hand.
 - The agent never writes the global or workspace `MEMORY.md`.
 
-**Owner commands (Step B 6):** canonical forms are `/remember`, `/forget`, `/compact [dry-run]` (the rows below show the legacy forms, which keep working this release; `/remember global x` = `remember: global x`). type them in a `#<ws>-agent` channel or one of its threads (reply comes in place, no thread, no quota) or in `#ops-control` (global only). Only you, only the pinned guild. English or Vietnamese:
+**Owner commands** (type in `#<ws>-agent` or its threads; in `#ops-control` global only; you only, pinned guild):
 
 | Command | Effect |
 |---|---|
-| `remember: <text>` / `nhớ: <text>` | append `- <text>` (3-300 chars) under `## <date> owner` in the default repo's file |
-| `remember: global <text>` / `nhớ: chung <text>` | root `MEMORY.md` (also allowed in `#ops-control`) |
+| `remember: <text>` / `nhớ: <text>` | append `- <text>` under `## <date> owner` in the default repo's file |
+| `remember: global <text>` / `nhớ: chung <text>` | root `MEMORY.md` |
 | `remember: workspace <text>` / `nhớ: ws <text>` | `workspaces/<ws>/MEMORY.md` |
-| `remember: repo:<name> <text>` or `remember: <repo-name> <text>` | that repo's file (name from the registry, case-insensitive). A bare repo name only counts as the first word and only if it is a repo of this workspace, else it stays plain text; `global/chung/workspace/ws` win over a repo with the same name; `forget:` works the same |
-| `forget: [scope] <text>` / `quên: ...` | removes the one bullet containing `<text>` (3-100 chars, case-insensitive); none = "not found"; several = nothing changes, up to 5 are listed |
-| `compact memory [dry-run]` / `gom nén [dry-run]` | compacts files over 80% of their cap (see below) |
+| `remember: repo:<name> <text>` | that repo's file (name from the registry, case-insensitive) |
+| `forget: [scope] <text>` / `quên: ...` | removes the one bullet containing `<text>`; none = not found; several = nothing changes |
+| `compact memory [dry-run]` / `gom nén [dry-run]` | compacts files above 80% of their cap |
 
-Only the first word is a scope (`remember: note chung x` stores the whole text); length rules count the text after the scope word. Default repo: the thread's worktree repo, else its latest task's repo, else the workspace's only repo, else the bot asks `Which repo?`. Other ops channels and unmapped channels refuse. The reply names the exact file and `chars/cap`; above 80% it suggests `compact memory`, above 100% it says how many oldest chars no longer reach prompts. At 300 lines the write is refused (`file full`). Text is redacted and stripped of markup. A question that starts with `remember:` is taken as a command; `forget:` undoes it.
+- Default repo: the repo of the thread's latest task, else the workspace's only repo, else the bot asks `Which repo?`.
+- At 300 lines the write is refused (`file full`). Run `compact memory` first.
 
-**Compaction:** `compact memory` in chat, or `bun run memory:compact [--dry-run] [--workspace <ws>] [--global]` (no flag = all files). One cheap call per file over 80% of its cap, model `MEMORY_MODEL` (default Haiku; the weekly estimate is tens of thousands of tokens per month for 3-6 repos, UNMEASURED: read the `memory.compacted` log lines for real numbers). Safeguards: run `--dry-run` first; previous version kept as `MEMORY.md.bak` (one generation: restore by copying it back); the reply shows before/after chars, bullets and the removed count; output must be `- ` bullets only, redacted, within the cap, and each bullet must share half its words with an old bullet and keep the same numbers and negations/modality words (`không`, `never`, `must`, `always`...; a reword that drops one aborts, so rerun or edit by hand), else the file is left untouched and the diff is shown; the new section is `## compacted <oldest>..<newest>` and non-bullet prose lines are not carried over (reply counts them, `.bak` keeps them); a symlinked `MEMORY.md` is refused; CLI: unknown flags exit 2, any aborted/busy file exits 1; a file edited during the call is not overwritten. `MEMORY.pending.md` is never touched. Locks: `<file>.lock` beside each file; a crash leaves it, it is reclaimed after 10 min or when its PID is dead. Thinking is OFF for this call (`thinking: {type:"disabled"}`); each attempt has a 60 s deadline, a timeout is retried once (max 120 s per file) and reads `model call timed out after 60 s`; other model errors are not retried. `--dry-run` / `compact memory dry-run` STILL calls the model (about 2-3 cents per file, only for files over 80% of the cap); it just writes nothing.
+**Compaction:** `compact memory` in chat, or `bun run memory:compact [--dry-run] [--workspace <ws>] [--global]`. One cheap model call per file above 80% of its cap (`MEMORY_MODEL`). Run `--dry-run` first. The previous version is kept as `MEMORY.md.bak`. Output is checked: bullets only, within the cap, same numbers and negations as the input, else the file is left untouched. `MEMORY.pending.md` is never touched. A `dry-run` still calls the model (only for files over 80%).
 
-**Editing memory:** open any of the files in your editor and add facts under `## <topic>` headings; changes apply on the next task. Example: "Main app at `src/main.ts`, uses Postgres, test cmd is `bun test`".
+**Files the bot never creates:** `CLAUDE.md` and `CLAUDE.local.md`. The SDK loads no CLAUDE.md. Put the facts an agent needs in `repo.yaml` and the repo `MEMORY.md`.
 
-**Files the bot does not create:** `CLAUDE.md` / `CLAUDE.local.md` anywhere under `$AGENT_HOME` (the SDK runs with `settingSources: []` and loads no CLAUDE.md anywhere). Consequence: agents do not follow a repo's own CLAUDE.md; put the facts they need in `repo.yaml` and the repo `MEMORY.md`. The bot refuses to start when `AGENT_HOME` is inside a registered repo or a git working tree. A workspace dir from the old layout (a per-repo dir holding the old repo config file, no `workspace.yaml`) is never loaded or written; when no new-layout workspace exists the bot replies "Old workspace layout found: see the cutover runbook (docs/discord-setup.md)". There is no migration: see "Fresh cutover runbook" below.
-
-## Run in background (launchd)
-
-`deploy/com.friday.agent.plist` starts the bot at login and restarts it after a failure (paths are for this Mac; edit them if the repo or bun moves). Process output goes to `/Users/example/.friday/logs/launchd.{out,err}.log` (the home is outside the repo); app logs stay in `$AGENT_HOME/logs/app.*`.
+## Run in the background (launchd)
+`deploy/com.friday.agent.plist` starts the bot at login and restarts it after a failure (paths are for this Mac; edit them if the repo or bun moves).
 
 ```bash
-mkdir -p ~/.friday/logs                                 # launchd needs the log dir to exist
+mkdir -p ~/.friday/logs                                                          # log dir must exist
 cp deploy/com.friday.agent.plist ~/Library/LaunchAgents/
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.friday.agent.plist   # start (and at every login)
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.friday.agent.plist   # start
 launchctl bootout gui/$(id -u)/com.friday.agent                                  # stop
 tail -f ~/.friday/logs/launchd.err.log ~/.friday/logs/launchd.out.log
 ```
-
 - Settings come from `.env` in the repo root (bun loads it from the working directory).
-- Mac sleep pauses the bot (Discord drops the connection); it reconnects on wake. Use energy settings or `caffeinate` if it must stay up.
-- Never run two instances at once: stop `bun run start` before `launchctl bootstrap`.
+- Mac sleep pauses the bot; it reconnects on wake.
+- Never run two instances: stop `bun run start` before `launchctl bootstrap`.
 - After a restart, threads whose task was cut short get a **Resume** button.
 
-## Fresh cutover runbook (old single-repo layout to workspaces)
-
-**Fresh start, no migration.** New layout, new empty DB, new Discord channels. Old tasks/PR history in the old DB is lost (open PRs stay on GitHub). The old home is copied once as insurance and never restored automatically. Run it in one sitting. `<project>` = `/Users/example/orca/projects/friday-slim-agent`; `<date>` = `YYYYMMDD`.
-
-0. Prereq: the Step B branch is merged to master; the old Discord channel list is at hand for review. `.env` lives in `<project>` (launchd reads it through `WorkingDirectory`); this runbook never prints it. Before step 5 it must contain a real `OWNER_DISCORD_ID` and `DISCORD_GUILD_ID=1555444586602700811` (BE Agent Portal): `bootstrap:discord` exits 1 without the guild id, and startup refuses once workspaces have channels.
-1. Stop the bot: `launchctl bootout gui/$(id -u)/com.friday.agent`. `pgrep -f src/index.ts` must print nothing (else stop that process by hand; KeepAlive would restart code mid-change). If the job is not loaded, `bootout` prints a harmless I/O error.
-2. Insurance copy outside git: `cp -a <project>/.friday ~/friday-old-home-<date>`; `chmod 700 ~/friday-old-home-<date>`. It holds the old `config.yaml` / `MEMORY.md` to copy facts from by hand. The old IDENTITY.md / SOUL.md (tracked) and USER.md / MEMORY.md (ignored) live ONLY in this copy; the new home gets defaults, so copy your preferences over by hand.
-3. Replace the `~/.friday` symlink with a real dir. Crash-safe, three commands, no trailing slashes:
-   - a) `mv ~/.friday ~/.friday.old-link`
-   - b) `mkdir -m 700 ~/.friday`
-   - c) `rm ~/.friday.old-link` (removes the link only)
-   - d) `mkdir -p -m 700 ~/.friday/logs` (launchd must be able to open its log files before step 6)
-   - Resume by state (after an interruption): `~/.friday` is a symlink: do a. No `~/.friday`, old-link present: do b. `~/.friday` is a real dir and old-link present: do c. Real dir and no old-link: done.
-4. Land the code in the deployed checkout: confirm `git -C <project> status` is clean, then `git -C <project> checkout <merged master>`, `bun install`. The untrack commit removes the tracked `.friday` files from the working tree; then `rm -rf <project>/.friday` (untracked leftovers: data, logs, clone; the step-2 copy exists). `<project>/.env` already has `AGENT_HOME=/Users/example/.friday`: verify the exact value (must be this real directory; never print or commit `.env`).
-5. Discord: `bun run bootstrap:discord --dry-run` lists ALL guild channels (category / name / id) and the ops items it would create. Review and save the list. Then `bun run bootstrap:discord` (writes `~/.friday/discord.yaml`).
-6. launchd: `cp deploy/com.friday.agent.plist ~/Library/LaunchAgents/`, then `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.friday.agent.plist`. `launchctl print gui/$(id -u)/com.friday.agent` shows `state = running` and the new log paths. Startup creates the root persona files (`ensureHome`), an empty DB and a `#ops-log` start line.
-7. In `#ops-control`: `/init-workspace personal`, `/init-workspace reelme`, `/init-workspace superminds`.
-8. Register repos by hand (see "Register repos" below), copying fields from the old `config.yaml` in the step-2 copy. Re-add important memory facts by editing the repo `MEMORY.md`.
-9. **LAST, only after step 10 passes:** delete the old Discord channels BY HAND in the Discord client, using the step-5 list, confirming each. No code deletes channels; `bootstrap:discord` stays create-only.
-10. Smoke: a Q&A in each `#<ws>-agent`; one code task in `#superminds-agent` up to the plan approval; `#ops-log` shows the start line; `$AGENT_HOME/logs/app.*` lines carry `workspace`.
-
-**Rollback** (before step 9): `launchctl bootout gui/$(id -u)/com.friday.agent`; check out the old commit in `<project>` (this restores the tracked `<project>/.friday`); `rm -rf ~/.friday`; `rm -rf <project>/.friday` (else the next copy nests inside it); `cp -a ~/friday-old-home-<date> <project>/.friday`; `ln -s <project>/.friday ~/.friday`; bootstrap the old plist (its log paths point into the repo). After step 9 the old channels are gone, so rollback is not complete: do step 9 last.
-
-### Register repos
-
-One `repo.yaml` per repo (fields: see "Repository Setup" above).
-- Existing checkout elsewhere (`path:` absolute): `workspaces/personal/repos/{clean-macbook,friday-slim-agent}/repo.yaml`, `workspaces/reelme/repos/reelme-v2/repo.yaml`. `path:` must be a git root; `gitAuthor` is required for code tasks.
-- Managed clone (superminds-cms, no `path:`): clone once by hand, because the app's refresh only fetches/pulls an existing clone:
-  ```bash
-  git clone <remote> ~/.friday/workspaces/superminds/repos/superminds-cms/repo
-  ```
-  then write `workspaces/superminds/repos/superminds-cms/repo.yaml` without `path:` (with `gitAuthor`, optional `defaultBranch`, `testCommand`, `githubAccount`, `workflow`).
-
-## Next Steps (Phase 5+)
-- Hardening: crash recovery, orphan cleanup, output quota
-- Custom skills: MCP tools for lint, format, test runners
+## Next steps
+- Open items and phases: [development-roadmap.md](development-roadmap.md).

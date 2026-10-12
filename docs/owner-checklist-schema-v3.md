@@ -1,5 +1,7 @@
 # Owner checklist: deploy schema v3 (P3.7 naming cleanup)
 
+> **SUPERSEDED (Rev 15, 2026-10-12):** v3 is no longer deployed alone. The single Rev 15 restart runs v2 -> v3 -> v4: use [owner-checklist-schema-v4.md](owner-checklist-schema-v4.md). This file is kept for the v3 rollback wording and the count-script history.
+
 Schema v3 renames table `tasks` -> `turns` and the `task_id` columns of `runs`, `approvals`, `tool_calls`, `stages` to `turn_id` (plus `parent_turn_id`, `from_turn_id`, two index names). Rows are kept. The bot migrates the db itself at the first start. No paid or live run is needed to verify. Background and mapping: docs/project-changelog.md (entry "P3.7 naming cleanup"), docs/system-architecture.md ("Schema v3").
 
 **An older binary cannot open a v3 db** (its SQL uses `tasks` / `task_id`, which no longer exist: "no such table"). Going back needs the backup, see the Rollback section.

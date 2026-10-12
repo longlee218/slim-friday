@@ -1,277 +1,124 @@
 # Codebase Summary
 
+Last updated: 2026-10-12 (Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
+
 ## Overview
-**Friday agent v1** — Discord-driven personal coding agent on Claude Agent SDK. Owner posts a message in a Discord thread → the intent layer (src/intent) picks the role: the read-only assistant answers with file:line references; dev plans, then after approval makes changes in an independent task clone (commits via git MCP) and delivers a PR (GitHub origin) or a local result (fetch command + patch).
+- **Friday**: Discord-driven personal agent on the Claude Agent SDK. Owner posts in a thread → the intent layer picks a role → the role runs as ONE agent run.
+- **assistant**: generalist, foreground, Haiku. Reads, searches the web, uses skills and MCP resources, runs read-only shell commands. Escalates to a stronger model when needed.
+- **dev**: background task in the owner's repo checkout. Plans and asks for approval through AskUserQuestion, implements, commits, pushes and opens the PR itself with the owner's git and gh login.
+- **Stack:** Bun, TypeScript, discord.js, Claude Agent SDK, SQLite (`bun:sqlite`), zod, pino.
+- **Size:** about 190 non-test `.ts` files, about 16,300 lines under `src/`. Tests under `test/`.
 
-**Stack:** Bun + TypeScript + Discord.js + Claude Agent SDK + SQLite + Official MCP servers (git, GitHub)
+## Source Layout (`src/`)
 
-**Test Coverage:** 1117 tests pass, 22 skipped (live smokes and the opt-in golden set) | Type check: clean | No console.* in src/
-**Phase 1c (Delegate Phase 2):** history: rejected-plans memory and the DelegateTask eval (both retired in P1.4c; the golden set is now `test/intent-eval.live.test.ts`, INTENT_EVAL=1)
-**Phase 1e (Tool folders & naming):** All tool names from exported constants; `src/tools/<Name>Tool/` layout (PascalCase folder, kebab-case files); MCP servers `git` and `github` (the `tasks` server was retired in P1.4c); scan test enforces literals-free source
-**Phase 3 (Delegate Phase 3):** Per-repo workflow (lean/full), ask limit enforcement, workspace-curated skills via an app-owned plugin (was clone-based; replaced, see changelog)
+| Dir | Purpose | Key files |
+|-----|---------|-----------|
+| `index.ts` | bot entry: config, DB, startup, shutdown | - |
+| `ingress/` | Discord client, message rules, thread history, attachments, busy-thread ack, slash interactions | `discord-bot.ts`, `discord-message-handler.ts`, `discord-message-rules.ts`, `thread-turns.ts`, `attachment-text.ts`, `attachment-summary.ts` |
+| `commands/` | native slash command definitions and mapping to legacy text forms | `slash-definitions.ts`, `slash-commands.ts` |
+| `intent/` | L1 role tag, L2 effort signals, L3 Haiku classifier, lexicon | `decide-intent.ts`, `run-intent-pipeline.ts`, `haiku-intent-classifier.ts`, `role-tag.ts`, `data/intent-lexicon.yaml` |
+| `orchestrator/` | handle a message: commands, intent turn, busy lane, routing | `handle-message.ts`, `intent-turn.ts`, `message-commands.ts`, `message-routing.ts`, `route-and-run.ts`, `run-turn.ts`, `busy-lane.ts` |
+| `orchestrator/thread/` | thread state, action table, effort floor, steer reply | `thread-state.ts`, `intent-table.ts`, `route-by-intent.ts`, `max-effort-gate.ts`, `effort-floor.ts`, `steer-reply.ts` |
+| `orchestrator/dispatch/` | proposals, validation, queue, `/go` resume, side lane | `dispatch-role.ts`, `validate-request.ts`, `queued-tasks.ts`, `resume-failed-task.ts`, `side-answer.ts`, `task-repo.ts` |
+| `orchestrator/engine/` | the role engine: one run per role | `run-role.ts`, `role-scope.ts`, `budget.ts`, `ask-timeout-control.ts`, `owner-confirm.ts`, `run-report.ts`, `validate-role.ts`, `repo-activity.ts` |
+| `orchestrator/outputs/` | answer reply and `ESCALATE` re-run | `answer-output.ts` |
+| `orchestrator/turns/` | turn tracking, run limiter, steer registry, session compaction, status snapshot | `turn-tracker.ts`, `turn-result.ts`, `run-limiter.ts`, `steer-registry.ts`, `session-compaction.ts`, `status-snapshot.ts` |
+| `roles/` | role type, registry, built-in roles and their prompts | `role-types.ts`, `role-registry.ts`, `builtin/assistant-role.ts`, `builtin/dev-role.ts`, `builtin/dev-prompts.ts` |
+| `runtime/` | SDK run: query loop, hooks, permissions, env, streaming, skills plugins | `run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `system-prompt.ts`, `tool-permissions.ts`, `guard-hook.ts`, `permission-mode.ts`, `permission-watch.ts`, `ask-limit.ts`, `run-stream.ts`, `steered-stream.ts`, `run-input-channel.ts`, `run-errors.ts`, `skills-config.ts` |
+| `runtime/skills-plugin/` | per-run skill plugins from the lock and the workspace dir | `publisher-skills.ts`, `role-skills.ts`, `run-skills.ts`, `plugin-builder.ts`, `plugin-copy.ts`, `plugin-sweep.ts` |
+| `guardrails/` | deny-list guard: allow / ask / deny per tool call | `check-tool-call.ts`, `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `subagent-limit.ts` |
+| `approvals/` | owner questions and buttons over Discord | `discord-approval.ts`, `approval-buttons.ts`, `approval-types.ts` |
+| `tools/` | tool names and catalog (no custom tools exist) | `sdk-tool-names.ts`, `tool-catalog.ts`, `git-tool-groups.ts` |
+| `mcp/` | the read-only git MCP client for the assistant | `git-mcp.ts`, `mcp-servers.ts`, `mcp-tool-names.ts` |
+| `config/` | env schema, model routing, role env pins, paths, skills lock | `agent-config.ts`, `model-routing.ts`, `role-env.ts`, `effort-mapping.ts`, `skills-lock.ts`, `workspace-paths.ts`, `child-env-deny.ts`, `data/child-env-deny.yaml` |
+| `repos/` | repo registry, managed checkout refresh, git CLI | `repo-registry.ts`, `refresh-repo.ts`, `git-cli.ts` |
+| `workspaces/` | workspace registry and task workspace | `workspace-registry.ts`, `task-workspace.ts` |
+| `memory/` | persona layers, memory reads and writes, owner commands, manual compaction | `persona.ts`, `persona-templates.ts`, `prompt-context.ts`, `repo-memory.ts`, `memory-writer.ts`, `memory-commands.ts`, `memory-compaction*.ts` |
+| `storage/` | SQLite stores and migrations (v2 → v3 → v4) | `db.ts`, `migrate.ts`, `run-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `migrate-v3-turns.ts`, `migrate-v4-drop-legacy-tables.ts`, `legacy-*.ts` (frozen) |
+| `lifecycle/` | startup hygiene, drain, shutdown, interrupted-run recovery, home placement | `startup.ts`, `drain.ts`, `shutdown.ts`, `resume-interrupted.ts`, `home-placement-check.ts`, `proposal-notices.ts` |
+| `discord-setup/` | `discord.yaml`, private channels, `/init-workspace`, bootstrap CLI, ops log | `discord-setup-config.ts`, `private-channels.ts`, `admin-handler.ts`, `init-workspace.ts`, `bootstrap-discord-cli.ts`, `ops-log.ts`, `ready-checks.ts` |
+| `observability/` | pino logger, tool and subagent hooks, redaction, usage lines, log files | `logger.ts`, `tool-hooks.ts`, `subagent-hooks.ts`, `redact.ts`, `record-run.ts`, `turn-usage.ts`, `console-format.ts`, `log-files.ts` |
 
-## Key Architecture
-
-### 1. Message Flow
+## Request Flow (short)
 ```
-Discord channel @bot <question>
-  └─ create thread, parse prefix (repo:<name>, [dev]/[ask], [design]...)
-     └─ handle-message: lookup/create session, L0 commands, intent turn (L1 leading role tag, L3 Haiku with recent messages + pending question when undecided)
-        ├─ route-by-intent (thread state x role x scope): assistant -> run-agent read-only (Read/Glob/Grep/WebFetch/WebSearch; git MCP reads; no handoff tool)
-        └─ dev request -> dispatchRole() (proposal from the intent result, validate, "Starting plan" notice)
-           └─ runStages(plan stage) → [plan approval] → execute → PR
-```
-
-### 2. AGENT_HOME Structure
-```
-$AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
-├── AGENTS.md                  # Owner operating notes (auto-created, Phase 1+)
-├── IDENTITY.md                # Shared identity (auto-created)
-├── SOUL.md                    # Shared persona: tone (auto-created)
-├── USER.md                    # Owner preferences (language, habits) (auto-created, Phase 1+)
-├── MEMORY.md                  # Global memory (owner-written only, max 5000 chars injected)
-├── BOOTSTRAP.md               # Owner guide (auto-created, never read by code, Phase 1+)
-├── data/agent.db              # SQLite: sessions, tasks, runs, tool_calls, approvals, worktrees
-├── MEMORY.pending.md          # Agent `[global]` notes (never injected; Step B 1b)
-├── backups/                   # Legacy pre-Step-B dir; the new layout makes none (fresh start, no migration)
-├── workspaces/<ws>/           # One workspace = several repos (Step B layout; <ws> lowercase-hyphen, not `ops`)
-│   ├── workspace.yaml         # description?, channels: [Discord parent-channel ids] (each id in one workspace)
-│   ├── AGENTS/IDENTITY/SOUL/USER.md  # Workspace persona overrides (per file)
-│   ├── MEMORY.md              # Workspace memory (owner-written only, 5000 chars injected)
-│   ├── skills/                # Owner-curated skills (<name>/SKILL.md), the only skills a run gets
-│   ├── cwd/                   # Neutral cwd of runs not bound to one repo
-│   ├── tasks/<taskId>/        # scratch/ (plan stage) + plan.md (execute stage)
-│   └── repos/<repo>/
-│       ├── repo.yaml          # path?, description, defaultBranch?, testCommand?, githubAccount?, gitAuthor?, workflow?
-│       ├── MEMORY.md          # Repo memory (the only file the agent writes; 8000 chars injected)
-│       ├── repo/              # Managed clone (optional: a repo may be any checkout via `path:`)
-│       └── worktrees/<taskId>/  # Execute stage task clone: independent `git clone --local`, branch friday/<task8>-<slug> (gitignored)
-├── logs/
-│   ├── app.<date>.<n>.jsonl   # Application log (daily rotated, 14 days kept)
-│   └── tasks/                 # Per-task logs (one log dir; lines carry `workspace`)
+Discord message (owner, in a workspace channel or its thread)
+  └─ ingress: gates, attachments, busy-thread ack
+     └─ orchestrator/handle-message: workspace, L0 commands
+        ├─ intent layer: L1 tag → L2 effort → L3 Haiku when undecided
+        ├─ thread/intent-table: run | open | side | steer | queue | ask
+        └─ engine/run-role: scope → prompt → runAgent (runtime/)
+           ├─ guardrails via PreToolUse hook; owner questions via canUseTool
+           └─ outcome → turn row → reply
 ```
 
-### 3. Tool Matrix Per Mode
-| Mode | Tools | Git/GitHub | Notes |
-|------|-------|-----------|-------|
-| Q&A | Read, Glob, Grep | Git MCP read-only, no GitHub | owner-only, additionalDirectories enabled |
-| Plan | R/W/Edit/Bash/Task/ExitPlanMode | Git MCP read, GitHub MCP read | Edit blocked before approval; cwd = task scratch |
-| Exec | R/W/Edit/Bash/Git MCP/Task | Git MCP (add/commit auto, checkout ask), no GitHub | task clone only; cwd = the clone on branch friday/<task8>-<slug> |
+## Roles (data)
+- Defined in `src/roles/builtin/*.ts` as `RoleDefinition` objects; the engine reads only the data (test-checked: no role-name literals in the engine).
+- Fields and values: see [system-architecture.md, Role Model](system-architecture.md#role-model).
+- Dev prompt pieces are in `dev-prompts.ts`: role text, run facts (ask for approval, git and gh rules, commit message rules), the `repo:` report line and memory bullets, the skills rule.
+- Config files for roles are planned (phase 9), not built.
 
-### 4. Memory System & Persona Layering (Phase 1+, Step B 1b)
-- **Persona layering:** Root files (AGENTS, IDENTITY, SOUL, USER) auto-created; workspace files replace root per file; `buildPersonaContext(home, ws)`
-- **Memory read:** root 5000 + workspace 5000 (both owner-written) + repo 8000 each (16000 total), headings `### global`, `### workspace <ws>`, `### <repo>`
-- **Memory write:** after exec success the agent's "Memory:" bullets (max 5, sanitized, redacted, dated) go to `workspaces/<ws>/repos/<repo>/MEMORY.md` only; `[global]` bullets (max 2) go to root `MEMORY.pending.md` (never injected, owner promotes by hand)
-- **Cap per file:** persona files 6000 chars (with truncation marker)
-- **File management:** no CLAUDE.md symlinks, no CLAUDE.local.md handling in the app, no repo CLAUDE.md loaded or injected (`settingSources: []`); no per-workspace IDENTITY template
-- **Logs:** one `logs/` dir; lines carry `workspace`/`repo`/`taskId`; tasks in `logs/tasks/<id>.jsonl`
+## Guardrails and Permissions
+- **`check-tool-call.ts`**: one entry point. Routes by tool name to file checks (`deny-dangerous.ts`), Bash (`bash-policy.ts`), git MCP (`git-mcp-guard.ts`), or the auto-allow list. Bash never asks.
+- **`bash-policy.ts`**: denies privilege escalation, secret files as arguments, `rm -r` outside work dirs, force push / push to main or master / push --mirror, pipes into shells, worktrees outside the workspace dir. Parsing is best effort; a line that cannot be tokenized gets a raw-text check.
+- **`gh-policy.ts`**: denies `gh repo delete`, `gh api` DELETE, printing the gh token. Other `gh` runs.
+- **`subagent-limit.ts`**: at most 50 subagents in flight per run.
+- **`tool-permissions.ts`**: wires the guard as PreToolUse and `canUseTool`; enforces `limits.maxAsk` through `runtime/ask-limit.ts`.
+- **`permission-mode.ts`**: dev `bypassPermissions`; assistant `auto` on Anthropic with a real login, else `default`.
 
-### 5. GitHub MCP
-- **Server:** Official Docker image (`ghcr.io/github/github-mcp-server`)
-- **Agent Access:** Read-only (repos, issues, pull_requests) in plan/exec; none in Q&A (docker startup latency)
-- **Token:** Per-process from `gh auth token --user <githubAccount>` (repo.yaml optional githubAccount, default active); env-only
-- **PR Creation:** App-only via write-enabled MCP instance after owner clicks button
+## Skills
+- **Publisher skills** (`.agents/skills/`, pinned by `skills-lock.json`): loaded whole and unmodified. A role takes them with `skills: "all"` (dev) or `"none"` (assistant). Built per run by `runtime/skills-plugin/`.
+- **Workspace skills** (`workspaces/<ws>/skills/`): owner-curated, one plugin per run when `skills.extra` is true (`skills-config.ts`).
+- A repo's `.claude/skills`, hooks and `.mcp.json` are never read.
+- Adding or removing a publisher skill is a lock and directory change; no code change (test-checked).
 
-### 6. Git MCP (@cyanheads/git-mcp-server 2.15.3)
-- **Server:** Pinned dependency, runs via bun binary (dist entry); stdio MCP client in src/mcp/git-mcp.ts
-- **Agent:** git add/commit auto-allowed in worktree; git_status/diff/log/show/blame/branch read-only; checkout/branch/reset ask; others denied
-- **Identity:** GIT_AUTHOR_NAME/EMAIL per repo.yaml gitAuthor (validated at startup); GIT_BASE_DIR=worktree; GIT_SIGN_COMMITS=false
-- **Restrictions:** No -F, -C, -c, --amend, --no-verify; Bash git now asks (use git MCP tools)
-- **Blocked:** writes to .claude/.husky/.git/.github/.mcp.json/.vscode/.devcontainer inside worktree
-- **App:** worktree add/remove, fetch/pull, push, log/diff/status/show all go through the same git MCP server (src/mcp/git-mcp.ts client); no git CLI and no hand-written git functions in src/
+## Tools
+- `src/tools/tool-catalog.ts`: capability → built-in tool names (`CAPABILITY_TOOLS`), `toolsFor(role)` (adds `Agent`, `SendMessage`, `ListAgents` to every role), `autoAllowedTools`, `SECRET_FILE_RULES`, `toolOptions`.
+- Names are constants in `sdk-tool-names.ts` and `mcp-tool-names.ts`. String literals of tool names in `src/` fail a scan test.
+- No custom in-process tools exist (`src/tools/<Name>Tool/` is not used).
 
-## Key Components
+## Storage
+- `src/storage/db.ts`: opens `$AGENT_HOME/data/agent.db` (WAL), runs migrations, owner-only file mode.
+- Schema v4: `meta`, `sessions`, `turns`, `runs`, `tool_calls`, `approvals`, `run_messages`, `proposals`. Details: [system-architecture.md, Storage Schema](system-architecture.md#storage-schema).
+- Migrations: `legacy-schema.ts` and `legacy-migrate-v2.ts` (frozen v1/v2 DDL), `migrate-v3-turns.ts` (rename, snapshot first), `migrate-v4-drop-legacy-tables.ts` (drops `stages`, `worktrees` and three columns; no snapshot).
+- Stores: `run-store.ts` (turns, finish, interrupt), `run-metrics-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`.
+- Read-only row-count check for the owner (v3 and v4 copies): `plans/261012-1130-orchestrate-not-micromanage/owner-verify-counts-v4.ts`.
 
-### Ingress & Routing
-- **discord-bot.ts:** discord.js client setup, message event listener
-- **discord-message-handler.ts:** route own bot, DM, mention, reply → message handler
-- **discord-message-rules.ts:** owner check, thread lifecycle
+## Memory and Persona
+- Root files in `$AGENT_HOME` (AGENTS, IDENTITY, SOUL, USER, MEMORY, BOOTSTRAP, MEMORY.pending.md) and per-workspace and per-repo overrides. `ensureHome` creates them if missing and never overwrites.
+- `memory/prompt-context.ts` builds the context order and logs `prompt.context` counts.
+- `memory/memory-writer.ts` and `sanitize-bullet.ts`: agent writes repo memory only (`Memory:` bullets); `[global]` bullets go to `MEMORY.pending.md` (never injected).
+- `memory/memory-file-lock.ts`: one lock per memory file (`<file>.lock`).
+- `memory/memory-commands.ts`, `memory-command-handler.ts`, `memory-owner-edit.ts`: `/remember`, `/forget`, `/compact`.
+- `memory/memory-compaction*.ts`: manual compaction with `MEMORY_MODEL`, a derivability check, `.bak` backup, dry-run (`bun run memory:compact`).
 
-### Session & Turn Management
-- **handle-message.ts / route-and-run.ts / intent-turn.ts:** thread→session mapping, repo pin, L0 commands, intent turn (role choice), run lock; `route-by-intent.ts` holds the behavior table
-- **src/intent/:** L1 role tag + L2 effort rules + L3 classifier (`decide-intent.ts`); see docs/system-architecture.md "Intent Layer"
-- **message-commands.ts:** parse stop/cleanup commands; repo pinning; Resume routing logic (phase 5+)
-- **turns/turn-tracker.ts:** thread locking, session resume context tracking (phase 5+)
-- **engine/plain-run.ts:** read-only stage run (Q&A is the 1-stage `assistant` role): cwd pick, clone refresh; reply through `outputs/answer-output.ts` (ESCALATE re-run when the role flag `escalation` is set)
-- **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal (from the intent result), validate, ask or refuse, insert turn row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
-- **engine/stage-runner.ts + gates.ts / plan-run.ts / plain-run.ts / isolation.ts / handoff.ts:** loop over role.stages, run kind from stage data (`gate`, `isolation`; no role names), stage handoff template (plan -> exec prompt), `stages` rows; `orchestrator/run-turn.ts` = one routed message as a role
-- **workspaces/{task-clone,clone-safety,clone-cleanup,clone-lookup}.ts:** task clone creation (`git clone --local`, local base, preflight), safe removal (path rebuilt from validated ids), `/cleanup <id>` lookup in the channel's workspace; `repos/git-cli.ts` = plain argv-only git
-- **engine/owner-confirm.ts + thread/max-effort-gate.ts:** owner-confirm yes/no buttons (fails closed) for effort `max` and `ESCALATE: opus`
-- **engine/budget.ts:** budget-hit message (spent/limit, last words, clone `git diff --stat`, `/go +<usd>` offer)
-- **turns/turn-result.ts:** result types and flow completion
-- **outputs/pr-output.ts + pr-publish.ts:** GitHub origin: summary + diff + secret scan + Create PR button; the app pushes `friday/*` to the origin url, then opens the PR
-- **outputs/local-result-output.ts + approvals/clone-decision.ts:** no GitHub origin: branch/base/commits/diff stat, fetch command, patch file (<= 1 MB attached), Keep/Discard buttons (`clone:<keep|discard>:<taskId>`, expired after restart)
-- **lifecycle/clone-retention.ts:** startup: remove delivered/kept clones older than `CLONE_RETENTION_DAYS` (14), orphan dirs, rows without a dir, legacy worktree rows (no base_sha) idle past retention
-- **storage/files-changed.ts:** delivery diff stat -> file count + top paths for the ledger
-- **turns/run-limiter.ts:** max 3 concurrent runs; max 2 active capped tasks (`MAX_CAPPED_TASKS`)
+## Discord Setup
+- `discord-setup/`: `discord.yaml` (ops channel ids, control channels), private channel overwrites (create-only), `/init-workspace` (admin, `#ops-control` only), `bun run bootstrap:discord [--dry-run]`, `bun run discord init-workflow-skill <ws>` (writes the optional workflow skill template into an existing workspace).
+- Setup steps: [discord-setup.md](discord-setup.md).
 
-### Agent & Prompts
-- **run-agent.ts:** SDK query() loop; PreToolUse + canUseTool hooks; git context via MCP; error handling; workspace skills from one app-owned plugin in every mode (`settingSources: []`)
-- **system-prompt.ts:** Sections: stage sections (qa/plan/exec operational contract), ASK_RULES (Phase 3: ask only if not derivable, costly/irreversible, >=2 options), COMMON (safety rules once), context last. Identity/tone in persona files ($AGENT_HOME/IDENTITY|SOUL|USER.md), not in system prompt.
-- **code-rules.ts:** ASK_RULES text constant (ask limit enforcement, vague request handling, full mode assumptions recording)
-- **tool-permissions.ts:** permission layer: PreToolUse hook (hard deny / force ask) + `canUseTool` (plan approval, AskUserQuestion buttons, owner approval; at most `MAX_ASK_CALLS_PER_TASK` asks per task via the shared `AskLimit` counter in `runtime/ask-limit.ts`)
-- **run-errors.ts:** error classification (quota, rate_limit, billing, overloaded → outcome + user reply with reset times); phase 5+
+## Configuration
+- `config/agent-config.ts`: env schema (zod). Provider selection (`LLM_PROVIDER`, OpenRouter key wins over OAuth), `DISCORD_GUILD_ID`, `INTENT_*`, `MAX_BUDGET_USD`, `TIMEOUT_MS` (memory compaction only), `GIT_AUTHOR` (ignored).
+- `config/model-routing.ts`: tiers (`MODEL_HAIKU|SONNET|OPUS`), `TASK_BUDGET_USD` (6.0), budget and model resolution.
+- `config/role-env.ts`: `MODEL_<ROLE>`, `BUDGET_<ROLE>_USD`, `COMPACT_WINDOW_<ROLE>`; old two-part names are ignored with a warning; `MODEL` is removed.
+- `config/effort-mapping.ts`: `MAX_TURNS` ceiling (20) and effort scaling.
+- `config/child-env-deny.ts` + `data/child-env-deny.yaml`: env names the SDK child must not inherit. A new schema key must be listed here (test-checked).
+- `config/workspace-paths.ts`: `$AGENT_HOME` layout and name rules.
+- Full env table: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-variables-and-limits).
 
-### Persona & Memory (Phase 1+, Step B 1b)
-- **persona.ts:** `ensureHome(home, workspaces)` creates root files, per-workspace `cwd/` + empty `skills/` + MEMORY.md and per-repo MEMORY.md templates (no CLAUDE.md, no per-workspace IDENTITY); `buildPersonaContext(home, ws)` applies per-file layering; caps 1500 chars/file with truncation marker
-- **persona-templates.ts:** Default files: AGENTS, IDENTITY, SOUL, USER, ROOT_MEMORY (owner-only), BOOTSTRAP (explains MEMORY.pending.md and promotion), workspace and repo MEMORY templates
-- **prompt-context.ts:** Builds the full prompt context order: AGENTS + IDENTITY + SOUL + USER -> registry -> memory (root, workspace, repos) -> task ledger; logs `prompt.context` event with character counts per layer
-- **memory-writer.ts:** `appendTaskMemory(home, ws, repo, title, bullets)` writes plain bullets to the repo MEMORY.md and `[global]` bullets to `MEMORY.pending.md`; deduplication, trimming; max 2 global bullets per task
-- **sanitize-bullet.ts:** `sanitizeBullet()`: one line, no markup/fences/HTML/role prefixes, redacted, 200 chars (applied in `extractMemory` and the writer)
-- **repo-memory.ts:** `readMemoryLayers`/`buildMemoryContext(home, ws, repos)` (layers also report `overCap` and `skippedRepos`); `repoMemoryFile`; `extractMemory`
-- **memory-file-lock.ts:** `withMemoryLock(file, fn)` (`<file>.lock`, PID body, stale reclaim, 5 s wait, `MemoryBusyError`), `writeAtomic`
-- **memory-commands.ts:** pure grammar of `remember:`/`nhớ:`, `forget:`/`quên:`, `compact memory`/`gom nén` (scopes `global|chung`, `workspace|ws`, `repo:<n>`)
-- **memory-command-handler.ts:** `createMemoryRunner` (owner commands before any agent run; places workspace/control/ops); **memory-scope.ts** scope -> file; **memory-targets.ts** file/label/cap per layer; **memory-owner-edit.ts** `ownerRemember`/`ownerForget`
-- **memory-compaction.ts / -prompt.ts / -report.ts / memory-compact-cli.ts:** manual compaction (MEMORY_MODEL, derivability check, `.bak`, dry-run); `bun run memory:compact`
-- **ingress/memory-ingress.ts:** inline reply to memory commands in channels/threads
-### Discord setup (Step B phase 5, `src/discord-setup/`)
-- **discord-setup-config.ts:** discord.yaml (ops ids, controlChannels); missing = none, unparsable = throw (startup refusal); `opsIds`
-- **private-channels.ts:** `privateOverwrites`, strict `isPrivateOverwrites`/`isPrivateChannel`, `botPermissionReport`, create-only `createPrivate`
-- **admin-command.ts / admin-handler.ts:** `init:workspace:<name>` parser + gate (owner, pinned guild, control channel id + live isPrivate); handler runs outside the turn handler
-- **init-workspace.ts / workspace-template.ts:** fs template, create category + `#<ws>-agent`, write channel id into workspace.yaml
-- **bootstrap-discord-cli.ts:** `bun run bootstrap:discord [--dry-run]` (lists every guild channel, creates ops + 4 channels, writes discord.yaml)
-- **ops-log.ts / ready-checks.ts:** #ops-log start/shutdown/error lines; `discord.bot_administrator` warning
+## Lifecycle
+- `lifecycle/startup.ts`: task log retention (30 days), stale plugin sweep, held-task expiry (14 days), attachment copy cleanup, `run_messages` purge (14 days).
+- `lifecycle/resume-interrupted.ts`: interrupted runs get a Resume button at start.
+- `lifecycle/drain.ts`: `FRIDAY_DRAIN=1` or a `DRAIN` file refuses new tasks.
+- `lifecycle/shutdown.ts`: graceful shutdown; pending questions cancelled.
+- `lifecycle/home-placement-check.ts`: startup refuses an `AGENT_HOME` inside a repo or git working tree.
 
-- **src/workspaces/task-workspace.ts:** `resolveTaskWorkspace`/`selectWorkspace`: the workspace of a run = the one listing the task's `channelId` (parent channel) in `channels:`, else a refusal (`unmapped_channel`, `no_repos`, `legacy_layout`); all repo lookups stay inside it
+## Tests
+- `test/`: about 160 files, `bun test`. Live smokes and the golden set skip without credentials (`INTENT_EVAL=1` for the intent golden set).
+- Scan tests enforce: no skill or subagent names in `src/` (`no-hardcoded-skills-or-subagents`), no `stage` concept (`no-stage-concept`), tool names from constants (`tool-name-literals`), role limits only in role files (`role-limits-declared-in-role-files`), engine layering (`engine-layering`), retired names absent (`retired-naming-scan`, `role-leftover-scan`), child env classified (`child-env-deny`).
+- Commands: `bun test`, `bunx tsc --noEmit`, `bun run lint`, `bun run format`, `bun run start`.
+- Current counts: [CLAUDE.md](../CLAUDE.md) and [project-changelog.md](project-changelog.md).
 
-### Guardrails & Approvals
-- **check-tool-call.ts:** core guard: route tool → allow/ask/deny; generic MCP deny; GuardrailContext
-- **paths.ts:** path helpers (isInside, resolveReal, realOrSame)
-- **deny-dangerous.ts:** hard deny `rm -rf`, `git push -f`, push to main/master, `curl|sh`, `sudo`, read .env*, write outside paths
-- **bash-policy.ts:** Bash allowlist (git status/diff/log, test cmd, npm ci/bun install --frozen-lockfile); network host check; package install gate
-- **discord-approval.ts:** pending map, 10 min timeout, Promise resolution
-- **approval-buttons.ts:** Discord buttons (Approve/Deny/Create PR)
-- **approval-store.ts (Phase 1c+):** insertApproval, decideApproval
-
-### Dispatch (P1.4c: the Q&A delegate tool is retired)
-- **dispatch/dispatch-role.ts / validate-request.ts:** persist proposal from the intent result, validate, ask or refuse, insert turn row (role, kind, parent, hop), post notice "Starting plan", run the stage runner
-- **message-routing.ts (src/orchestrator/):** shared `cappedTaskBlocker()` blocker check (cap MAX_CAPPED_TASKS, managed clone validation, repo lookup)
-
-### Repository Management
-- **workspaces/workspace-registry.ts:** `loadWorkspaces(home)` -> `{workspaces, legacy}`: scans workspaces/*/workspace.yaml (zod: description, channels), fail-closed validation (name rules, real dirs not symlinks, duplicate channel ids dropped from both, `repo.overlap` warning); each workspace carries its own repos (no flat cross-workspace list: repo names are unique only inside a workspace)
-- **repo-registry.ts:** `loadRepos(ws, forbidden)` reads workspaces/<ws>/repos/*/repo.yaml (zod); optional defaultBranch, testCommand, githubAccount, `workflow` (lean|full, default lean); repo path must be a git root and not cover $HOME / AGENT_HOME; `buildRegistryContext(ws, repos, force)`
-- **git-identity.ts:** parse/resolve identity per repo.yaml gitAuthor; attribution check; no git calls
-- **engine/isolation.ts + workspaces/task-clone.ts:** task clone from a LOCAL base (no fetch, `origin` removed, branch friday/<task8>-<slug>, any registered repo); ask limit per task (shared across plan & exec stages)
-- **engine/stage-control.ts:** determine execWorkflow per repo (lean/full); stage control with abort listener; ask timeout handling
-- **subagents + guard scopes (P3.4 A1, A2):** `roles/subagents/subagent-registry.ts` (`SUBAGENTS`: explorer, implementer, task-reviewer; `scopesOf`, `agentsOf`), `guardrails/subagent-guard.ts` (`checkSubagentCall`, `checkSpawn`, `checkMessage`), `guardrails/subagent-run.ts` (run state, `MAX_SUBAGENT_SPAWNS`, `gateMainCall`), `guardrails/bash-allowlist.ts` (test command + plain args), `guardrails/git-mcp-guard.ts` (`checkGitMcp`, `hasAttribution`), `runtime/guard-hook.ts` (`subagentPostHooks`), `roles/builtin/dev-subagent-rules.ts` (exec prompt facts); skills gating by `needs` in role data (`allowedSkills`); `TASK_BUDGET_USD`, `subagentTiers` in `config/model-routing.ts`, `withSpent` in `orchestrator/engine/budget.ts`.
-- **prompts/ (P3.3):** `src/roles/builtin/dev-prompts.ts` (dev prompt consts: `PLAN`, `PLAN_RUN_FACTS`, `EXEC`, `EXEC_RUN_FACTS`, `EXEC_MEMORY`, `SKILL_RUN_FACTS`, `ASK_RULES`, `VAGUE_PLAN_RULE`; the skills bootstrap was removed in prompt-quality P3). `discord-setup/discord-cli.ts` (`init-workflow-skill`), `discord-setup/templates/workflow-skill.md`.
-- **skills-plugin/:** `plugin-builder.ts` (`buildSkillsPlugin`, `RunSkills` with `scriptDirs`), `plugin-copy.ts` (capped lstat copy walk of whole skill dirs, exec bit kept, per-file cap), `plugin-sweep.ts` (`sweepStalePlugins`), `publisher-skills.ts` (`PUBLISHER_SKILLS_DIR` = `.agents/skills`, caps, `allowedSkills(role.skills, stageSubagents)`), `run-skills.ts` (`buildRunSkills`: the `superpowers` plugin + the workspace dir), `stage-skills.ts` (`buildStageSkills`). `skills-config.ts`: `readWorkspaceSkills` (workspace.yaml `skills.extra`). `guardrails/skill-script.ts` (`isSkillScript`: publisher-plugin scripts run from Bash). Pin: repo-root `skills-lock.json` (folder hash per skill, test-checked). `RoleDefinition.skills` (data).
-- **Workspace-dir plugin (`skills-plugin/plugin-builder.ts`, built by `buildRunSkills`):** one app-owned plugin per run from `workspaces/<ws>/skills` only (repo `.claude/skills` is never read; no hooks/.mcp.json), skills `<ws>:<skill>`; realpath validation, symlink skipping, caps 300 entries (files+dirs)/5MB, depth 8; `sweepStalePlugins` at startup, fail closed with a warn, `skills.plugin_built` log
-- **home-placement-check.ts:** startup refusal when AGENT_HOME is inside a registered repo or a git working tree
-- **publish-pr.ts:** push agent/<id> + GitHub MCP create_pull_request; title = task first line; body = redacted plan
-- **refresh-repo.ts:** git_fetch + git_pull (fast-forward only) via git MCP; throttled 10 min/repo
-
-### GitHub & Git Integration
-- **github-mcp.ts (src/mcp/):** github-mcp-config (read/write instances), github-token (resolve per workspace), create-pr (MCP client)
-- **git-mcp.ts (src/mcp/):** @cyanheads/git-mcp-server 2.15.3 (stdio client, server env builder, lifecycle)
-- **mcp-stdio.ts (src/mcp/):** connectStdio helper, toolText utility
-- **mcp-servers.ts (src/mcp/):** MCP servers registry per run mode
-
-### Storage & Observability
-- **db.ts:** SQLite (WAL); sessions, tasks, runs, tool_calls, approvals, worktrees tables; idempotent ALTER TABLE tasks ADD COLUMN brief TEXT (Phase 1c+)
-- **run-store.ts:** runs table ops; insertTurn stores brief redacted (Phase 1c+); calls repo-memory.ts to append on exec success; approval functions moved to approval-store.ts
-- **approval-store.ts (Phase 1c+):** insertApproval, decideApproval
-- **worktree-store.ts:** worktrees table ops
-- **session-store.ts:** sessions table ops
-- **logger.ts:** pino singleton (no console.* anywhere in src/)
-- **record-run.ts:** run lifecycle recording
-- **redact.ts:** secret masking (sk-ant-*, sk-or-*, ghp_*, xox*, AKIA*, KEY=value; added errText, clip)
-
-### Config & Workspace
-- **agent-config.ts:** load/validate env (zod); MODEL, LLM_PROVIDER, OPENROUTER_API_KEY; logProviderSelected
-- **tool-catalog.ts:** single source: tool lists + toolOptions(mode) + SECRET_FILE_RULES + SUBAGENTS
-- **workspace-paths.ts:** AGENT_HOME layout (`workspacePaths(home).workspace(ws).repo(r)`), name rules `WORKSPACE_NAME` / `REPO_NAME`
-- **sdk-env.ts:** environment builder per provider (anthropic/openrouter)
-
-### Lifecycle & Shutdown
-- **shutdown.ts:** graceful drain + cleanup; restart cancels pending approvals + stale tasks
-- **resume-interrupted.ts:** interrupted task recovery; Resume button handler; save/load session context (phase 5+)
-- **startup.ts:** delete task logs >30 days old; log orphan worktrees; perform cleanup on app start (phase 5+)
-
-## Test Structure
-| Area | File | Coverage |
-|------|------|----------|
-| Discord routing | test/discord-*.test.ts | channel mention, thread reply, owner-only |
-| Session & locks | test/handle-message-lock.test.ts, test/handle-message-intent.test.ts | thread→session, concurrent access, stop signal |
-| Agent runner | test/run-agent-stream.test.ts | query loop, hook integration, abort timeout |
-| Guardrails | test/deny-dangerous.test.ts | 30+ command/path/host cases |
-| Bash policy | test/bash-policy.test.ts | allowlist, network, install gates |
-| Approval flow | test/approval-gateway.test.ts | PreToolUse + canUseTool integration |
-| Code tasks | test/code-task-flow.test.ts | plan→execute stage, cwd switching, plan.md seeding |
-| Ask boundary (Phase 3) | test/ask-boundary.test.ts | ask limit per task, timeout → awaiting, plan/exec stages, stop vs clarification |
-| Workspace skills plugin | test/workspace-skills-plugin.test.ts, test/workspace-skills-qa.test.ts | workspace plugin, symlink/cap validation, cleanup, repo skills/hooks ignored |
-| Home placement (Step B P3) | test/home-placement-check.test.ts, test/index-startup.test.ts | refusal in repo / git tree |
-| Repo workflow (Phase 3) | test/repo-workflow.test.ts | lean vs full modes, workspace skills in plan/exec, path boundaries |
-| Stage control (Phase 3) | test/stage-control.test.ts | abort listener, stageControl semantics |
-| Git MCP | test/git-mcp.test.ts | server env, real-server calls, refresh throttle, identity helpers |
-| PR publishing | test/publish-pr.test.ts | real git MCP push to a local bare origin + fake PR creator |
-| Repo registry | test/repo-registry.test.ts | yaml parse, validate, workflow field (lean|full), deduplicate |
-| Tool config | test/tool-config.test.ts | tool allowlist per mode |
-| DB schema | test/db-schema.test.ts | migration, idempotency (Phase 1c+) |
-| Intent eval | test/intent-eval.live.test.ts | golden set of the intent layer: ~40 live Haiku cases, opt-in INTENT_EVAL=1 |
-| Handoff retired | test/handoff-retired-scan.test.ts | old DelegateTask / handoff names absent from src and test |
-| Live smoke | test/live-*.smoke.test.ts | real agent runs (skip without token) |
-
-## Code Standards
-- **Naming:** kebab-case files, describe purpose (e.g., discord-message-handler.ts)
-- **Size limit:** keep files under 200 lines; split large modules
-- **Logging:** pino only, no console.* in src/
-- **Comments:** every function, class, complex field
-- **Commits:** conventional (feat:, fix:, docs:, refactor:, test:, chore:); no Claude attribution
-- **Testing:** bun test; coverage 70%+; no flaky timing tests
-- **Env config:** zod schema; credentials trimmed; startup exit(1) if no real auth
-
-## Security Layers
-1. **Owner allowlist** — only OWNER_DISCORD_ID sends messages
-2. **Redaction** — all replies + logs masked (tokens, keys, .env patterns)
-3. **Tool gates** — PreToolUse (hard deny) + canUseTool (Discord approval)
-4. **Read-only Q&A** — no write/exec tools
-5. **Task clone isolation** — code tasks confined to their own clone + tasks/<id>/ (the owner repo's git dir is only read); no `~/.claude` settings load
-6. **Sensitive file guard** — never quote .env* or key files; file:line summary only
-7. **Provider credential isolation** — SDK child env allowlist; never both providers' keys
-
-## Environment Variables
-| Var | Required | Notes |
-|-----|----------|-------|
-| CLAUDE_CODE_OAUTH_TOKEN | anthropic path | run `claude setup-token` first |
-| OPENROUTER_API_KEY | optional | real value → OpenRouter provider (wins over OAuth) |
-| LLM_PROVIDER | optional | forces choice; auto-detect from credentials if omitted |
-| DISCORD_TOKEN | yes | from Developer Portal |
-| OWNER_DISCORD_ID | yes | your Discord user ID |
-| AGENT_HOME | yes | absolute path, e.g. ~/.friday |
-| LOG_LEVEL | optional | default: info |
-| MODEL | optional | default: anthropic haiku, openrouter deepseek-v4-flash |
-| MODEL_<ROLE>_<STAGE> | optional | pins one stage (tier name or model id), e.g. MODEL_DEV_PLAN; on openrouter the dev stages default to anthropic/claude-haiku-4.5 |
-| MEMORY_MODEL | optional | memory compaction; default: anthropic haiku, openrouter anthropic/claude-haiku-4.5 |
-| MAX_TURNS | optional | default: 20 |
-| MAX_BUDGET_USD | optional | default: 0.5 on anthropic |
-| TIMEOUT_MS | optional | default: 300000 (5 min); code tasks ≥30 min (includes approval + plan + execute) |
-| MAX_CONCURRENT_RUNS | optional | default: 3; max 2 active capped tasks |
-
-## Development Commands
-```bash
-bun test                # run all tests
-bunx tsc --noEmit      # type check
-bun run format        # Biome format (2 spaces, width 100)
-bun run lint          # Biome lint + format check
-bun run start          # start bot (reads .env)
-```
-
-## Phase Completion Status
-- **Phase 0 (Spike):** Done — SDK behavior verified
-- **Phase 1a (Q&A + Discord):** Code complete — awaiting manual setup + live verification
-- **Phase 1b (Agent decides code vs Q&A):** **Code complete** (386 tests, 1 skip) — (history: the delegate tool and Q&A→plan handoff were retired in P1.4c; the intent layer routes now); `task:` prefix removed; pending manual Discord live check
-- **Phase 2 (Multi-repo registry):** Code complete — repo.yaml loader (per-workspace, Step B) + repo pin + git refresh verified
-- **Phase 3 (Approval + guardrails):** Code complete — PreToolUse hook + canUseTool gates + plan mode
-- **Phase 4 (Worktree → PR + Memory + MCP):** Code complete (343 tests, 2 skip; live verified) — plan stage → execute stage → git/GitHub MCP commit → PR
-- **Phase 5 (Hardening):** **Code complete** (367 tests pass incl. live) — crash recovery (interrupted + Resume), output quota (attachments), error classification (quota/rate_limit/billing/overloaded), startup cleanup (30d logs + orphan logging)
-- **Delegate Phase 3 (Workflow modes + ask limit):** **Code complete** (438 tests, 6 skip; history, the delegate tool is retired) — per-repo `workflow: lean|full` in repo.yaml; ask limit ONE per task (enforced across plan & exec); workspace-curated skills via an app-owned plugin (was clone-based; replaced, see changelog) (app-owned plugin dir, symlink/cap validation); vague requests → "Need X"; timeouts → "Awaiting clarification:" with session kept
-- **Phase 6 (Eval + daily use):** Deferred — revisit before model change
-
-## Known Limits (Phase 5 candidates)
-- Worktree not a sandbox: approved/allowlisted commands run agent-edited code as bot user
-- Delivered/kept clones are removed after `CLONE_RETENTION_DAYS` (14); PR-delivered clones are not removed at once; a Keep/Discard click is lost on restart (the clone stays until retention)
-- Publishing PRs tested with fake gh + local bare origin; live GitHub auth not end-to-end verified
-- Bash parsing best-effort (bypassable via `bash -c`) → worktree isolation is real boundary
-- npm ci runs lifecycle scripts (third-party script risk)
-- No persistent memory across threads (each thread fresh start except session)
+## Known Limits
+- No run timeout exists. Only memory compaction has a time limit. A hung run holds its slot until `/stop`.
+- Bash and guard parsing are best effort; the dev run is in bypass mode, so only hard denies stop a call.
+- Two dev tasks in one repo share one working tree.
+- Live behavior not yet verified (phase 8): AskUserQuestion under bypass, PermissionDenied hook, background-task env, SDK subagent tools, `ListAgents`, resumed-session cost, golden set.
