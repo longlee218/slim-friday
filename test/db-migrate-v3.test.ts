@@ -3,7 +3,11 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { workspacePaths } from "../src/config/workspace-paths";
+import { planFileOf } from "../src/orchestrator/engine/resume-exec";
+import { resolveCommand } from "../src/orchestrator/message-routing";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
+import { ROLES } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { threadLedger } from "../src/storage/ledger-store";
 import { applyLegacySchema } from "../src/storage/legacy-schema";
@@ -182,7 +186,7 @@ test("d. readers work on the migrated db", () => {
   });
   const ledger = threadLedger(db, "th2");
   expect(ledger).toContain('- t2 dev, running: "build it"');
-  expect(ledger).toContain("repo repo, branch agent/t2 (base main), no PR yet");
+  expect(ledger).toContain("  repo repo\n  stages:");
   expect(ledger).toContain("plan done ($0.50)");
   expect(deriveThreadState(db, "th2")).toBe("idle"); // last turn t3 is failed_resumable
 });
@@ -260,4 +264,22 @@ test("backup failure on a v2 db aborts startup and leaves it untouched", () => {
   expect(version(raw)).toBe("2");
   expect(names(raw, "table")).toContain("tasks");
   raw.close();
+});
+
+test("g. an old db with a worktrees row and a failed_resumable dev turn opens; `/go` resumes it from the saved plan (no clone)", () => {
+  const { home, file } = v2Home();
+  const db = openDb(file);
+  // The plan the stage switch saved for t3 (th2's last turn, `failed_resumable`, repo "repo", with a legacy worktrees row).
+  const dir = workspacePaths(home).workspace("main").task("t3").root;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, planFileOf(ROLES.dev!)), "the approved plan");
+  const r = resolveCommand(
+    { db, agentHome: home, workspace: "main", repos: [] },
+    { kind: "resume" },
+    "th2",
+  );
+  expect(r).toMatchObject({
+    cmd: { kind: "message", role: "dev", text: "fix it" },
+    approved: { plan: "the approved plan", repo: "repo" },
+  });
 });

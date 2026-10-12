@@ -9,15 +9,18 @@ import {
 } from "../src/storage/ledger-store";
 import { finishTurn, insertTurn } from "../src/storage/run-store";
 import { upsertStage } from "../src/storage/stage-store";
-import { insertWorktree, setPrUrl } from "../src/storage/worktree-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
-const mk = (db: any, id: string, o: { brief?: string; thread?: string; role?: string } = {}) =>
+const mk = (
+  db: any,
+  id: string,
+  o: { brief?: string; thread?: string; role?: string; repo?: string } = {},
+) =>
   insertTurn(db, {
     id,
     threadId: o.thread ?? "th",
     source: "t",
-    repo: "r",
+    repo: o.repo ?? "r",
     role: o.role ?? "dev",
     brief: o.brief ?? `brief of ${id}`,
   });
@@ -29,9 +32,9 @@ test("empty when the thread has no code task (Q&A rows and other threads do not 
   expect(threadLedger(db, "th")).toBe("");
 });
 
-test("entry per task: role, status, brief, branch, PR url, stages with model, cost, verdict", () => {
+test("entry per task: role, status, brief, repo, stages with model, cost, verdict", () => {
   const { db } = makeEnv();
-  mk(db, "abcdef123456", { brief: "Add b.txt\nwith   two" });
+  mk(db, "abcdef123456", { brief: "Add b.txt\nwith   two", repo: "real" });
   finishTurn(db, "abcdef123456", "done");
   upsertStage(db, {
     turnId: "abcdef123456",
@@ -49,25 +52,14 @@ test("entry per task: role, status, brief, branch, PR url, stages with model, co
     model: "m2",
     costUsd: 0.5,
   });
-  insertWorktree(db, {
-    taskId: "abcdef123456",
-    threadId: "th",
-    repo: "real",
-    repoPath: "/r",
-    path: "/r/wt",
-    branch: "agent/abcdef12",
-    base: "main",
-  });
   expect(threadLedger(db, "th")).toBe(
     [
       LEDGER_HEADING,
       '- abcdef12 dev, done: "Add b.txt with two"',
-      "  repo real, branch agent/abcdef12 (base main), no PR yet",
+      "  repo real",
       "  stages: plan done (m1, approved) -> exec done (m2, $0.50)",
     ].join("\n"),
   );
-  setPrUrl(db, "abcdef123456", "https://github.com/a/b/pull/1");
-  expect(threadLedger(db, "th")).toContain("PR https://github.com/a/b/pull/1");
 });
 
 test("keeps the last 5 tasks (oldest first) and caps each entry; a brief secret is redacted", () => {
@@ -114,22 +106,10 @@ test("an idle thread's assistant sees the ledger in its system prompt; a Q&A-onl
   expect(prompts.hello).not.toContain(LEDGER_HEADING);
 });
 
-test("worktree repo, branch, base and PR url are one-line and redacted", () => {
+test("the repo name is one-line", () => {
   const { db } = makeEnv();
-  mk(db, "wt1");
-  insertWorktree(db, {
-    taskId: "wt1",
-    threadId: "th",
-    repo: "real\n- injected",
-    repoPath: "/r",
-    path: "/r/wt",
-    branch: `b\nghp_${"a".repeat(36)}`,
-    base: "main",
-  });
-  setPrUrl(db, "wt1", `https://x/pull/1\nsk-ant-${"b".repeat(20)}`);
+  mk(db, "wt1", { repo: "real\n- injected" });
   const out = threadLedger(db, "th");
   expect(out.split("\n")).toHaveLength(3); // heading, brief, repo line (no stages)
-  expect(out).not.toContain("ghp_a");
-  expect(out).not.toContain("sk-ant-b");
   expect(out).toContain("repo real - injected");
 });

@@ -12,7 +12,7 @@ export interface Repo {
   name: string;
   /** Name of the workspace that owns the repo. */
   workspace: string;
-  /** Absolute path of the repo directory `workspaces/<ws>/repos/<name>` (repo.yaml, MEMORY.md, worktrees). */
+  /** Absolute path of the repo directory `workspaces/<ws>/repos/<name>` (repo.yaml, MEMORY.md). */
   dir: string;
   /** Absolute path of the repo (the workspace clone, or any other git working copy). */
   path: string;

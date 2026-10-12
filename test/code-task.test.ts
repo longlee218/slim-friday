@@ -73,11 +73,10 @@ async function runCodeTask(gw?: ApprovalGateway) {
   return { env, opts, reply, repo, qa };
 }
 
-test("parseMessageCommand: stop, cleanup and repo: hint; task: is plain Q&A text", () => {
+test("parseMessageCommand: stop and repo: hint; cleanup: is plain text; task: is plain Q&A text", () => {
   expect(parseMessageCommand(" Stop ")).toEqual({ kind: "stop" });
   expect(parseMessageCommand("stop it")).toMatchObject({ kind: "message" });
-  expect(parseMessageCommand("cleanup:")).toEqual({ kind: "cleanup", taskId: undefined });
-  expect(parseMessageCommand("CLEANUP: abc")).toEqual({ kind: "cleanup", taskId: "abc" });
+  expect(parseMessageCommand("cleanup:")).toMatchObject({ kind: "message" });
   expect(parseMessageCommand("task: add a file")).toEqual({
     kind: "message",
     repo: undefined,

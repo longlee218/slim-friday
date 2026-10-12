@@ -190,7 +190,7 @@ test("engine failure: idle / done -> entry role; any other state -> ask; never a
         role: "assistant",
         scope: "new",
       });
-    for (const state of ["running", "awaiting_plan_approval", "awaiting_result"] as const)
+    for (const state of ["running", "awaiting_plan_approval"] as const)
       expect((await run(d, input(VAGUE, { state, hasTask: true }))).decision).toEqual({
         kind: "ask",
         reason: "unclassified",

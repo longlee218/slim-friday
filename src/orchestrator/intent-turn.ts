@@ -5,9 +5,7 @@ import { decideIntent, type IntentDeps } from "../intent/decide-intent";
 import { buildIntentInput } from "../intent/intent-input";
 import { logEvent } from "../observability/logger";
 import type { Repo } from "../repos/repo-registry";
-import { countFollowUps } from "../storage/run-store";
 import { getSession, type SessionRow } from "../storage/session-store";
-import { liveWorktree } from "../storage/worktree-store";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { pendingQuestionOf } from "./dispatch/queued-tasks";
@@ -16,12 +14,7 @@ import type { MessageCommand } from "./message-commands";
 import type { EffortFloors } from "./thread/effort-floor";
 import { STILL_WORKING, stripRoleTag } from "./thread/intent-replies";
 import { MAX_DECLINED_NOTICE, settleMaxEffort } from "./thread/max-effort-gate";
-import {
-  actionFor,
-  type IntentOutcome,
-  MAX_FIX_ROUNDS,
-  routeByIntent,
-} from "./thread/route-by-intent";
+import { actionFor, type IntentOutcome, routeByIntent } from "./thread/route-by-intent";
 import { deriveThreadState, isGateState, isIdleLike, isWorking } from "./thread/thread-state";
 import { turnEffort } from "./thread/turn-effort";
 
@@ -55,8 +48,6 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   const { db } = c.deps;
   const threadId = c.message.threadId;
   const state = deriveThreadState(db, threadId);
-  const clone = liveWorktree(db, threadId);
-  const fixRounds = clone ? countFollowUps(db, clone.taskId) : 0;
   const pendingQuestion = pendingQuestionOf(db, threadId);
   // A running task that takes steers (a stage reads its input now, or a streaming stage is still to come): L3 decides
   // the SCOPE of every message, tagged or not (supplement -> steer, independent -> side / queue; a `[tag]` only picks
@@ -70,11 +61,11 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
       state,
       pendingQuestion,
       // A busy thread continues its task only through a steer or the plan gate's feedback; else a request is a NEW
-      // task (queued). A clone that used its fix rounds takes no more work either: the next staged request is NEW.
+      // task (queued). After a task ended the next request is NEW.
       hasTask:
         steerable ||
         (c.busy && state === "awaiting_plan_approval") ||
-        (!c.busy && (!isIdleLike(state) || !!clone) && fixRounds < MAX_FIX_ROUNDS),
+        (!c.busy && !isIdleLike(state)),
       scopeFromModel: steerable,
       ownerClass: c.cmd.cls,
       signal: c.ac.signal,
@@ -93,14 +84,14 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
       ? { ...c.intent, classifier: undefined }
       : c.intent,
   );
-  const action = actionFor({ decision, state, hasClone: !!clone, fixRounds });
+  const action = actionFor({ decision, state });
   // Effort only matters for a run that starts now; `max` runs only after the owner-confirm gate says yes
   // (a busy thread cannot start a run, so it does not ask).
   let turn: ReturnType<typeof turnEffort> = { pendingMax: false };
   let maxDeclined = false;
   // A queued request resolves its effort now (stored with the proposal) but never asks the max gate: it stays capped.
   const queuing = action.kind === "queue" || action.kind === "confirm-task";
-  if (decision.kind === "role" && (queuing || ["run", "open", "fix"].includes(action.kind))) {
+  if (decision.kind === "role" && (queuing || ["run", "open"].includes(action.kind))) {
     turn = turnEffort(c.floors, threadId, decision.cls, effort);
     if (turn.pendingMax && !c.busy && !queuing) {
       ({ turn, declined: maxDeclined } = await settleMaxEffort({

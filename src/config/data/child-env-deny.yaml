@@ -22,7 +22,6 @@ exact:
   - MAX_BUDGET_USD
   - TIMEOUT_MS
   - MAX_CONCURRENT_RUNS
-  - CLONE_RETENTION_DAYS
   # other app secrets
   - GITHUB_PERSONAL_ACCESS_TOKEN
   # set per stage by the app, never inherited

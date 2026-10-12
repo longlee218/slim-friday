@@ -95,7 +95,6 @@ test("done folds to idle", () => {
   expect(isIdleLike("idle")).toBe(true);
   expect(isIdleLike("running")).toBe(false);
   expect(isIdleLike("awaiting_plan_approval")).toBe(false);
-  expect(isIdleLike("awaiting_result")).toBe(false);
 });
 
 test("the newest task decides; other threads are ignored", () => {

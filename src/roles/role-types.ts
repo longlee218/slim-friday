@@ -118,8 +118,6 @@ export interface RoleDefinition {
   countsTowardCap: boolean;
   /** The cheap-tier answer may end in `ESCALATE: sonnet|opus` and be re-run on that tier (`answer` output). */
   escalation?: boolean;
-  /** A follow-up message in a thread that still has this role's (legacy) clone starts at this stage (name), not at the first. */
-  followUp?: { startAtStage: string };
   /** The role a plain message starts, until the intent layer picks one (exactly one role sets it). */
   entry?: boolean;
   /** Extra context the role's runs get. Omitted = none. */

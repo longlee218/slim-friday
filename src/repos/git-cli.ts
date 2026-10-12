@@ -1,4 +1,4 @@
-/* Plain git CLI helper for the app's few git calls (repo refresh, legacy clone cleanup). Argv only, no shell, so a
+/* Plain git CLI helper for the app's few git calls (repo refresh). Argv only, no shell, so a
    branch or path never becomes shell syntax. Not hardened on purpose (owner decision, Rev 7). */
 
 /** Hard stop of one git call. */

@@ -44,7 +44,6 @@ test("workspace layout: workspaces/<ws>/repos/<repo>/{repo.yaml,MEMORY.md,repo,w
     config: "/h/workspaces/shop/repos/api/repo.yaml",
     memory: "/h/workspaces/shop/repos/api/MEMORY.md",
     clone: "/h/workspaces/shop/repos/api/repo",
-    worktrees: "/h/workspaces/shop/repos/api/worktrees",
   });
   expect(workspacePaths("/h").workspace("api").legacyConfig).toBe("/h/workspaces/api/config.yaml");
 });

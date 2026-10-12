@@ -33,7 +33,7 @@ export interface Route {
   offerEscalation?: boolean;
   /** Owner raised the budget (`go +<usd>`, parsed in P1.4): added to the stage budget. */
   extraBudgetUsd?: number;
-  /** USD the task's OTHER stages already cost (stage rows); the task ceiling `TASK_BUDGET_USD` is shared with them. */
+  /** USD the task's OTHER stages already cost (stage rows); the per-run ceiling `TASK_BUDGET_USD` is shared with them. */
   spentUsd?: number;
   /** Owner explicitly confirmed `max` / Opus for this run; without it an escalation- or effort-driven opus is capped at high. */
   ownerConfirmedMax?: boolean;
@@ -110,7 +110,7 @@ export function resolveBudget(
   const base =
     pin ?? (route.escalated ? (stage.escalatedBudgetUsd ?? stage.budgetUsd) : stage.budgetUsd);
   // Task ceiling: the stage gets at most what the task's other stages left of TASK_BUDGET_USD. An owner raise
-  // (`go +usd`) widens the stage budget only, never the ceiling (a hard per-task cost cap by design).
+  // (`go +usd`) widens the stage budget only, never the ceiling (a hard per-run cost cap by design).
   const left = Math.max(0, TASK_BUDGET_USD - (route.spentUsd ?? 0));
   const total = Math.min(base + (route.extraBudgetUsd ?? 0), left);
   return cap === undefined ? total : Math.min(total, cap);

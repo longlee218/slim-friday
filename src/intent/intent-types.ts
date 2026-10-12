@@ -23,7 +23,7 @@ export interface IntentInput {
     /** Role / stage of the task in flight (or waiting on a gate), when there is one. */
     activeRole?: string;
     activeStage?: string;
-    gate?: "plan-approval" | "delivery";
+    gate?: "plan-approval";
     /** The thread's latest finished or running turn: its role and last stage (e.g. assistant / qa). Absent in a new thread. */
     lastTurn?: { role: string; kind: string };
   };
@@ -40,7 +40,7 @@ export interface IntentInput {
 /** The classifier's answer (checked by code before anything uses it, see `validateIntent`). */
 export interface IntentResult {
   role: string;
-  /** `active` = about the task in flight / the thread's clone; `new` = a separate request. */
+  /** `active` = about the task in flight; `new` = a separate request. */
   scope: "active" | "new";
   class?: TaskClass;
   confidence: "high" | "medium" | "low";

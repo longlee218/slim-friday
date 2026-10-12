@@ -20,7 +20,7 @@ import type { StageCtx } from "./stage-runner";
 /** Where an exec run works: the repo, the dir it runs in and the task whose scratch dir holds the plan. */
 export interface ExecTarget {
   repo: Repo;
-  /** The repo's own path; for a thread that still has a legacy task clone, that clone's path. */
+  /** The repo's own path. */
   cwd: string;
   /** Task whose scratch dir (`workspaces/<ws>/tasks/<id>`) holds the approved plan. */
   scratchId: string;
@@ -43,7 +43,7 @@ export const taskTitle = (text: string): string =>
  */
 export async function runExecRun(
   c: StageCtx,
-  a: { target: ExecTarget; prompt: string; resume?: string },
+  a: { target: ExecTarget; prompt: string },
 ): Promise<FlowResult> {
   const { deps, i, stage, askLimit } = c;
   const { db, config, approvals } = deps;
@@ -79,7 +79,6 @@ export async function runExecRun(
     cwd,
     additionalDirectories: [scratchReal, worktreesReal],
     worktreesDir: join(worktreesReal, repo.name), // the one prompt line about worktrees
-    resume: a.resume,
     config,
     db,
     abortController: ctl.ac,
@@ -112,14 +111,8 @@ export async function runExecRun(
       onAskTimeout: ctl.onAskTimeout,
     },
   }).finally(() => active.set(cwd, (active.get(cwd) ?? 1) - 1));
-  // In the repo itself the session is the turn row's only (`/go` starts fresh): saved as the thread's, the assistant would resume it.
-  const inRepo = cwd === realOrSame(repo.path);
-  const base: FlowResult = {
-    ...res,
-    cwd,
-    repo: repo.name,
-    ...(inRepo && { skipThreadSession: true as const }),
-  };
+  // The session is the turn row's only (`/go` starts fresh): saved as the thread's, the assistant would resume it.
+  const base: FlowResult = { ...res, cwd, repo: repo.name, skipThreadSession: true };
   if (awaiting) return awaitingResult(base, awaiting);
   if (res.outcome !== "success") return base;
   const memory = extractMemory(res.text);

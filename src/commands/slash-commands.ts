@@ -5,7 +5,6 @@
  *
  *   /stop                    -> stop
  *   /go [+usd]               -> go [+usd]
- *   /cleanup [taskId]        -> cleanup: [taskId]
  *   /remember <text>         -> remember: <text>      (scope words as before: global, ws, repo:<name>)
  *   /forget <text>           -> forget: <text>
  *   /compact [dry-run]       -> compact memory [dry-run]
@@ -15,7 +14,6 @@
 export const SLASH_NAMES = [
   "stop",
   "go",
-  "cleanup",
   "remember",
   "forget",
   "compact",
@@ -38,8 +36,6 @@ export function slashToLegacy(input: string): string {
       return arg ? input : "stop";
     case "go":
       return !arg || /^\+\d+(\.\d+)?$/.test(arg) ? `go${arg ? ` ${arg}` : ""}` : input;
-    case "cleanup":
-      return `cleanup: ${arg}`;
     case "remember":
       return `remember: ${arg}`;
     case "forget":

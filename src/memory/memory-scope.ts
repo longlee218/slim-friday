@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import { liveWorktree } from "../storage/worktree-store";
 import type { Workspace } from "../workspaces/workspace-registry";
 import {
   lengthReply,
@@ -63,7 +62,7 @@ export function refineWriteCommand(
 
 /**
  * Turn a scope into one memory file. Names come from the registry only (user text is compared, never joined
- * into a path). Default scope: the repo of the thread's live worktree, else of its latest task, else the
+ * into a path). Default scope: the repo of the thread's latest task, else the
  * workspace's only repo; otherwise the owner is asked to name one.
  */
 export function resolveMemoryTarget(
@@ -89,9 +88,7 @@ export function resolveMemoryTarget(
       ? repoTarget(i.home, ws.name, hit.name)
       : { reply: `Unknown repo \`${scope.name}\` in workspace ${ws.name}. Repos: ${names(ws)}.` };
   }
-  const fromThread = i.threadId
-    ? (inWs(liveWorktree(i.db, i.threadId)?.repo) ?? inWs(latestTurnRepo(i.db, i.threadId)))
-    : undefined;
+  const fromThread = i.threadId ? inWs(latestTurnRepo(i.db, i.threadId)) : undefined;
   const only = ws.repos.length === 1 ? ws.repos[0]?.name : undefined;
   const repo = fromThread ?? only;
   return repo

@@ -8,7 +8,6 @@ import { isGated } from "../../roles/role-registry";
 import { threadLedger } from "../../storage/ledger-store";
 import { setProposalStatus, supersedePending } from "../../storage/proposal-store";
 import { getSession } from "../../storage/session-store";
-import { liveWorktree } from "../../storage/worktree-store";
 import { runStages, type StageRunnerDeps } from "../engine/stage-runner";
 import { runRoute } from "../message-routing";
 import { closeTurn } from "../turns/turn-result";
@@ -85,7 +84,6 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
       db,
       config,
       repos: i.repos,
-      workspace: i.workspace,
       pinned: i.pinned,
     },
     request,
@@ -160,7 +158,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     text: request.brief,
     role: role.name,
     workspace: i.workspace,
-    // `repoScope: "all"` roles see every repo of the workspace; the others pick among the managed clones.
+    // `repoScope: "all"` roles see every repo of the workspace; the others pick among the repos.
     repos: role.repoScope === "all" ? i.repos : v.candidates,
     ac: i.ac,
     route,
@@ -173,13 +171,10 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     failTurn(db, log, turnId);
     throw err;
   });
-  // An answer in a thread that has a clone must not replace the thread's session (the clone's fix rounds resume it).
-  const keepClone = role.output === "answer" && !!liveWorktree(db, i.message.threadId);
-  const reply = closeTurn(
-    db,
-    { turnId, threadId: i.message.threadId },
-    keepClone ? { ...res, sessionId: undefined } : res,
-    { stopping: deps.stopping(), t0, repo },
-  );
+  const reply = closeTurn(db, { turnId, threadId: i.message.threadId }, res, {
+    stopping: deps.stopping(),
+    t0,
+    repo,
+  });
   return posted ? reply : `${head}\n\n${reply}`;
 }

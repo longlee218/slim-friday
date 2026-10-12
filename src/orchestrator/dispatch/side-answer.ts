@@ -12,7 +12,7 @@ import type { DispatchDeps } from "./dispatch-role";
 import { taskBrief } from "./queued-tasks";
 import { validateRequest } from "./validate-request";
 
-/* The side lane: an independent question for an ANSWERING role (no gate, no clone) sent while the thread's task runs
+/* The side lane: an independent question for an ANSWERING role (no gate, no writes) sent while the thread's task runs
    is answered at once, in a second read-only run next to the task. It shares NOTHING that a second run would break:
    - not the thread lock (the handler never takes it for a side run);
    - not the thread's session row (it starts fresh, never resumes, and saves no session: `sessionId` is dropped);
@@ -57,7 +57,6 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
       db,
       config,
       repos: i.repos,
-      workspace: i.workspace,
       pinned: i.pinned,
     },
     { role: i.role, brief, repo: i.repo, cls: i.cls },

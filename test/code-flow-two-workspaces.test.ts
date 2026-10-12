@@ -4,9 +4,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { makeLegacyClone } from "./clone-fixture";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
@@ -62,10 +60,7 @@ const msg = (text: string) => ({
   text,
 });
 
-/**
- * Env with workspace `w-b` (repo `real`) that ran the thread's task (exec in the repo, no clone) and then holds a LEGACY
- * clone row for the thread, as a thread of an older build would (the follow-up routing is deleted in phase 4).
- */
+/** Env with workspace `w-b` (repo `real`) that ran the thread's first task (plan, then exec in the repo). */
 async function started() {
   const env = makeEnv();
   clearWorkspaces(env.home);
@@ -83,106 +78,17 @@ async function started() {
     intent: devIntent(env.home),
   });
   await handle(msg("[dev] add b"));
-  const taskId = (env.db.query("SELECT id FROM turns").get() as { id: string }).id;
-  const repoPath = workspacePaths(env.home).workspace("w-b").repo("real").clone;
-  await makeLegacyClone(env, {
-    repo: "real",
-    repoPath,
-    taskId,
-    threadId: "th1",
-    workspace: "w-b",
-  });
   return { env, seen, handle };
 }
 
-test("two workspaces with repo `real`: the task's exec runs in the channel's workspace repo, and a legacy-clone follow-up stays in the clone's workspace", async () => {
+test("two workspaces with repo `real`: every task runs in the channel's workspace repo, even after another workspace gains the same repo name", async () => {
   const { env, seen, handle } = await started();
   expect(seen[1].options.cwd).toContain("/w-b/"); // exec of the first task: the repo of the channel's workspace
-  // An alphabetically earlier workspace gains the same repo name after the worktree exists.
+  // An alphabetically earlier workspace gains the same repo name after the first task.
   await addCloneRepo(env.home, "w-a", "Aye <aye@example.com>");
   const n = seen.length;
-  await handle(msg("[dev] also c"));
-  expect(seen).toHaveLength(n + 1);
-  const wt = getWorktreeByThread(env.db, "th1")!;
+  await handle(msg("[dev] also c")); // a new task (no follow-up in a finished task): plan, then exec
+  expect(seen.length).toBeGreaterThan(n);
   expect(seen[n].options.cwd).toContain("/w-b/");
   expect(seen[n].options.mcpServers).toEqual({}); // no git MCP, no identity from the app
-  expect(wt.path).toContain("/w-b/");
-});
-
-test("channel remapped to a workspace with another clone of `real`: follow-up refused, no run", async () => {
-  const { env, seen, handle } = await started();
-  await addCloneRepo(env.home, "w-a", "Aye <aye@example.com>");
-  // The channel now routes to w-a (w-b unmapped): w-a's `real` is not the worktree's clone.
-  addRepo(
-    env.home,
-    "real",
-    { gitAuthor: "Aye <aye@example.com>" },
-    {
-      workspace: "w-a",
-      channels: [TEST_CHANNEL],
-      path: workspacePaths(env.home).workspace("w-a").repo("real").clone,
-    },
-  );
-  addRepo(
-    env.home,
-    "real",
-    { gitAuthor: "Bee <bee@example.com>" },
-    {
-      workspace: "w-b",
-      channels: [],
-      path: workspacePaths(env.home).workspace("w-b").repo("real").clone,
-    },
-  );
-  const n = seen.length;
-  const rows = () => env.db.query("SELECT count(*) AS n FROM turns").get();
-  const before = rows();
-  const reply = await handle(msg("[dev] also c"));
-  expect(reply).toContain("not in this channel's workspace");
-  expect(seen).toHaveLength(n); // the agent never ran in the other workspace's repo
-  expect(rows()).toEqual(before); // refusal made no task row
-});
-
-test("channel remapped to a workspace without that repo: follow-up refused, worktree untouched", async () => {
-  const { env, seen, handle } = await started();
-  addRepo(env.home, "other", {}, { workspace: "w-c", channels: [TEST_CHANNEL] });
-  addRepo(
-    env.home,
-    "real",
-    {},
-    {
-      workspace: "w-b",
-      channels: [],
-      path: workspacePaths(env.home).workspace("w-b").repo("real").clone,
-    },
-  );
-  const n = seen.length;
-  const reply = await handle(msg("[dev] also c"));
-  expect(reply).toContain("not in this channel's workspace");
-  expect(seen).toHaveLength(n);
-  expect(getWorktreeByThread(env.db, "th1")).not.toBeNull();
-});
-
-test("cleanup: still works from an unmapped channel (recovery path) and runs no agent", async () => {
-  const { env, seen, handle } = await started();
-  const wt = getWorktreeByThread(env.db, "th1")!;
-  // The channel was unmapped after the task ran: normal messages are refused, `cleanup:` is not.
-  addRepo(
-    env.home,
-    "real",
-    {},
-    {
-      workspace: "w-b",
-      channels: [],
-      path: workspacePaths(env.home).workspace("w-b").repo("real").clone,
-    },
-  );
-  expect(await handle({ ...msg("[dev] also c"), channelId: "100000000000000099" })).toContain(
-    "not linked to a workspace",
-  );
-  const n = seen.length;
-  const reply = await handle({ ...msg("cleanup:"), channelId: "100000000000000099" });
-  expect(reply).toContain("Removed");
-  expect(existsSync(wt.path)).toBe(false);
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
-  expect(seen).toHaveLength(n);
 });

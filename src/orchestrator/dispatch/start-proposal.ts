@@ -28,7 +28,6 @@ export function startPendingProposal(
       role: p.role,
       brief: p.brief,
       repo: p.repo ?? undefined,
-      base: p.base ?? undefined,
       cls: p.class ?? undefined,
       confidence: p.confidence ?? undefined,
       proposalId: p.id,

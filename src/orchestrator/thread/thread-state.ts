@@ -9,17 +9,10 @@ import { type GateState, stateOfApprovalTool, stateOfGate } from "../engine/gate
  * - `awaiting_plan_approval`: the task waits on the plan gate
  * - `running`: a task runs (also while it waits for an answer)
  * - `awaiting_tool_approval`: the task waits on the owner's approval of a tool call (not a gate); steers still apply
- * - `awaiting_result`: no gate sets it since Rev 15 phase 3 (the agent delivers); the intent layer still knows it until phase 5
  * - `awaiting_confirmation`: the task waits on an owner-confirm gate (no stage has one yet)
  * - `done`: the last task finished; folds to `idle` (see `isIdleLike`) and the thread ledger describes it
  */
-export type ThreadState =
-  | "idle"
-  | "running"
-  | "awaiting_tool_approval"
-  | "awaiting_result"
-  | "done"
-  | GateState;
+export type ThreadState = "idle" | "running" | "awaiting_tool_approval" | "done" | GateState;
 
 /** Logger of this module. */
 const log = logger.child({ module: "thread-state" });
@@ -94,7 +87,7 @@ export function deriveThreadState(db: Database, threadId: string): ThreadState {
 /** `done` folds to `idle`: both route to the assistant, which then sees the thread ledger. */
 export const isIdleLike = (s: ThreadState): boolean => s === "idle" || s === "done";
 
-/** The thread waits on an owner gate (approval buttons): plan, result or confirmation. */
+/** The thread waits on an owner gate (approval buttons): plan or confirmation. */
 export const isGateState = (s: ThreadState): boolean =>
   s !== "idle" && s !== "running" && s !== "awaiting_tool_approval" && s !== "done";
 

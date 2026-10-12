@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { checkWorktrees, cleanupTaskLogs } from "../src/lifecycle/startup";
+import { cleanupTaskLogs } from "../src/lifecycle/startup";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { RESUME_PROMPT } from "../src/orchestrator/message-commands";
 import { resolveCommand } from "../src/orchestrator/message-routing";
@@ -17,7 +17,6 @@ import {
   setTurnStatus,
 } from "../src/storage/run-store";
 import { getSession, setSession } from "../src/storage/session-store";
-import { insertWorktree, listWorktrees } from "../src/storage/worktree-store";
 import {
   addRepo,
   clearWorkspaces,
@@ -175,7 +174,7 @@ test("Resume of a plan stage whose session cannot be resumed: tells the owner to
   ).toHaveProperty("reply");
 });
 
-test("resolveCommand: plan stage / worktree / Q&A cwd ok; unusable cwd, stale, none refused", () => {
+test("resolveCommand: plan stage / Q&A cwd ok; unusable cwd, stale, none refused", () => {
   const env = makeEnv();
   const repos = [{ name: "repo", path: env.repo, description: "" }] as never;
   const deps = { db: env.db, agentHome: env.home, workspace: "main", repos };
@@ -198,31 +197,6 @@ test("resolveCommand: plan stage / worktree / Q&A cwd ok; unusable cwd, stale, n
   // cwd outside the home cwd dir / registered repos: a fresh session would have no context.
   interrupted(env, "x", "/elsewhere", "C");
   expect(resume("x")).toHaveProperty("reply");
-
-  const wtPath = join(env.home, "wt");
-  mkdirSync(wtPath);
-  insertWorktree(env.db, {
-    taskId: "T2",
-    threadId: "w",
-    repo: "repo",
-    repoPath: env.repo,
-    path: wtPath,
-    branch: "b",
-    base: "main",
-  });
-  interrupted(env, "w", realpathSync(wtPath), "D");
-  expect(resume("w")).toMatchObject({ cmd: { kind: "message" } });
-  interrupted(env, "w2", "/elsewhere", "E");
-  insertWorktree(env.db, {
-    taskId: "T3",
-    threadId: "w2",
-    repo: "repo",
-    repoPath: env.repo,
-    path: wtPath,
-    branch: "b2",
-    base: "main",
-  });
-  expect(resume("w2")).toHaveProperty("reply");
 
   // A newer finished task makes the Resume stale.
   insertTurn(env.db, { id: "N", threadId: "q", source: "d", repo: "*", role: "assistant" });
@@ -328,22 +302,6 @@ test("cleanupTaskLogs deletes *.jsonl older than 30 days (single logs dir), keep
   expect(exists(join(dirs[0]!, "old.txt"))).toBe(true);
 });
 
-test("checkWorktrees: dir without row is reported; row without dir is deleted", () => {
-  const env = makeEnv();
-  const root = env.paths.workspace("main").repo("repo").worktrees;
-  const kept = join(root, "KEEP");
-  const orphan = join(root, "ORPHAN");
-  mkdirSync(kept, { recursive: true });
-  mkdirSync(orphan, { recursive: true });
-  const base = { threadId: "t", repo: "repo", repoPath: env.repo, branch: "b", base: "main" };
-  insertWorktree(env.db, { ...base, taskId: "KEEP", path: kept });
-  insertWorktree(env.db, { ...base, taskId: "GONE", path: join(root, "GONE") });
-  const r = checkWorktrees(env.db, env.home);
-  expect(r.noRow).toEqual([orphan]);
-  expect(r.missingDir).toEqual(["GONE"]);
-  expect(listWorktrees(env.db).map((w) => w.taskId)).toEqual(["KEEP"]);
-});
-
 test("cleanupTaskLogs skips a directory named *.jsonl and still cleans the rest", () => {
   const env = makeEnv();
   const now = Date.now();
@@ -356,20 +314,4 @@ test("cleanupTaskLogs skips a directory named *.jsonl and still cleans the rest"
   utimesSync(old, t, t);
   expect(cleanupTaskLogs(env.home, now)).toBe(1);
   expect(Bun.file(old).size).toBe(0);
-});
-
-test("checkWorktrees keeps rows when the worktrees root itself is missing (transient)", () => {
-  const env = makeEnv();
-  const path = join(env.paths.workspace("main").repo("repo").worktrees, "T");
-  insertWorktree(env.db, {
-    taskId: "T",
-    threadId: "t",
-    repo: "repo",
-    repoPath: env.repo,
-    path,
-    branch: "b",
-    base: "main",
-  });
-  expect(checkWorktrees(env.db, env.home).missingDir).toEqual(["T"]);
-  expect(listWorktrees(env.db)).toHaveLength(1);
 });

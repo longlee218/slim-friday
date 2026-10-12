@@ -17,11 +17,11 @@ import { refused } from "./turns/turn-tracker";
 /** What the handler hands over once it holds the lock and knows the workspace. */
 export interface RouteAndRunInput {
   rc: RoleRunCtx;
-  parsed: Exclude<MessageCommand, { kind: "stop" | "cleanup" | "memory" }>;
+  parsed: Exclude<MessageCommand, { kind: "stop" | "memory" }>;
   /** The thread's stored session. */
   stored: SessionRow | null;
   floors: EffortFloors;
-  /** Undefined = the intent layer is off (tests): every message goes to the legacy pick (worktree owner / entry role). */
+  /** Undefined = the intent layer is off (tests): every message goes to the entry role. */
   intent?: IntentDeps;
   hasApprovals: boolean;
   /** A fresh abort controller registered as the thread's active one (the queue after a user `/stop`). */
@@ -86,13 +86,13 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
   }
   let extraBudgetUsd = "extraBudgetUsd" in parsed ? parsed.extraBudgetUsd : undefined;
   const input = parsed.kind === "go" ? { kind: "resume" as const, extraBudgetUsd } : parsed;
-  // Resume button becomes a follow-up / plan run / Q&A from the interrupted task's session (or a refusal).
+  // Resume button becomes a plan run / exec re-run / Q&A from the interrupted task's session (or a refusal).
   const rdeps = { db, agentHome: config.agentHome, workspace: ws, repos };
   let resolved = resolveCommand(rdeps, input, message.threadId);
   // Only an ordinary message goes through the intent layer: a bare `go` that falls back to plain text is still L0
-  // (legacy pick: follow-up in the clone, else the entry role), and a Resume keeps its own role.
+  // (the entry role), and a Resume keeps its own role.
   const plain = parsed.kind === "message";
-  // `go` with nothing to start or resume is an ordinary message (e.g. "go" as a follow-up in a worktree).
+  // `go` with nothing to start or resume is an ordinary message (e.g. "go" in a thread with nothing pending).
   if (parsed.kind === "go" && "reply" in resolved && PLAIN_GO.has(resolved.reason)) {
     resolved = resolveCommand(
       rdeps,

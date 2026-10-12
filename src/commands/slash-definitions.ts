@@ -31,10 +31,6 @@ export const SLASH_DEFINITIONS: Record<SlashName, SlashDefinition> = {
       plus: true,
     },
   },
-  cleanup: {
-    description: "Clean up a finished task's worktree and branch",
-    arg: { name: "task", description: "Task id", required: false, kind: "string" },
-  },
   remember: {
     description: "Save a memory note",
     arg: { name: "text", description: "What to remember", required: true, kind: "string" },

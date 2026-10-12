@@ -8,7 +8,6 @@ import { execActiveIn } from "../src/orchestrator/engine/exec-run";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { insertTurn } from "../src/storage/run-store";
 import { getSession } from "../src/storage/session-store";
-import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
 import {
@@ -123,7 +122,6 @@ test("dev task: plan approved -> exec in the repo's own checkout -> final text r
   expect(seen[1].options.mcpServers).toEqual({}); // git and gh run in the agent's shell
   expect(seen[0].options.mcpServers).toEqual({});
   expect(seen[1].options.resume).toBeUndefined();
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
   const taskId = (env.db.query("SELECT id FROM turns").get() as { id: string }).id;
   // The approved plan is saved for the executor and the repo is on the turn row.
   expect(readFileSync(env.paths.workspace("main").task(taskId).plan, "utf8")).toContain(
@@ -176,7 +174,6 @@ test("plan rejected -> exec never runs", async () => {
     intent: devIntent(env.home),
   });
   expect(await handle(msg_("[dev] please change x"))).toContain("plan rejected");
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
   expect(seen).toHaveLength(1);
 });
 
@@ -294,7 +291,6 @@ test("injection: a dev request alone creates no worktree and writes nothing befo
   expect(asked).toBe(1); // the plan went to the owner
   expect(seen).toHaveLength(1); // plan stage only, never an exec stage
   expect(seen[0].options.permissionMode).toBe("plan");
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
   expect(existsSync(join(env.home, "workspaces", "main", "repos", "real", "worktrees"))).toBe(
     false,
   );

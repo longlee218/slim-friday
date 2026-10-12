@@ -57,12 +57,11 @@ reduced to one plain line (no markup, no role prefixes, secrets masked, 200 char
 Owner commands (type them in a workspace channel; no agent, no quota except where noted):
 - /stop: abort the running task.
 - /go [+usd]: start the pending proposal, or resume an interrupted or budget-stopped task with usd more budget.
-- /cleanup [taskId]: remove this thread's task clone (or the task's).
 - /remember [global|workspace|repo:<name>] <text>: add a memory bullet.
 - /forget [scope] <text>: remove the one bullet containing the text.
 - /compact [dry-run]: compact memory files over 80% of their cap (keeps a .bak of the old file).
 - /init-workspace <name>: create a workspace (#ops-control only).
-Legacy forms still work: stop, go, cleanup:, remember:/nhớ:, forget:/quên:, compact memory/gom nén, init:workspace:.
+Legacy forms still work: stop, go, remember:/nhớ:, forget:/quên:, compact memory/gom nén, init:workspace:.
 The memory reply names the file and chars/cap.
 `;
 

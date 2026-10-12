@@ -1,22 +1,19 @@
 import type { Database } from "bun:sqlite";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../../config/workspace-paths";
 import { ROLES } from "../../roles/role-registry";
 import { pendingProposal } from "../../storage/proposal-store";
 import { dropResumable } from "../../storage/run-store";
-import type { SessionRow } from "../../storage/session-store";
 import { listStages } from "../../storage/stage-store";
-import { getWorktreeByTask, type WorktreeRow } from "../../storage/worktree-store";
 import { planFileOf } from "../engine/resume-exec";
 import type { ResumePlan } from "../message-routing";
 import { RESUMABLE, type ResumeReason, resumeQuestion } from "../turns/turn-result";
 import { type Refusal, refuse } from "./task-repo";
 
-/* `failed_resumable` (Rev 12): a task that failed after the owner approved its plan (config refusal, budget, transient
-   error), or an exec cut short by a restart, keeps its saved plan (and, for a legacy task, its clone and session). `/go`, or
-   a yes to the question below, runs the exec stage again from the approved plan. Only the thread's LAST task can be
-   resumed; a newer task of the thread leaves a legacy clone held until retention or `/cleanup` removes it. */
+/* `failed_resumable` (Rev 12): a task that failed after the owner approved its plan (budget, transient error), or an
+   exec cut short by a restart, keeps its saved plan. `/go`, or a yes to the question below, runs the exec stage again
+   from the approved plan in the repo, on a fresh session. Only the thread's LAST task can be resumed. */
 
 /** The thread's last task, when it is a resumable failure. */
 export interface FailedResumable {
@@ -26,10 +23,6 @@ export interface FailedResumable {
   brief: string;
   /** Repo of the task row: "*" until a plan picked one (`switchToExec` sets it when the plan is approved). */
   repo: string;
-  /** Task this run continued (its clone and plan file belong to that one), when it was a resume. */
-  parent: string | null;
-  sessionId: string | null;
-  cwd: string | null;
   /** Why it stopped (the failed stage's verdict), when known. */
   reason?: ResumeReason;
 }
@@ -48,13 +41,10 @@ export function failedResumable(
         status: string;
         brief: string | null;
         repo: string;
-        parent_turn_id: string | null;
-        session_id: string | null;
-        session_cwd: string | null;
       },
       [string]
     >(
-      "SELECT id, role, status, brief, repo, parent_turn_id, session_id, session_cwd FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+      "SELECT id, role, status, brief, repo FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
     )
     .get(threadId);
   // `interrupted` (a restart mid-exec) counts when the caller asks and the plan was approved (the stage switch set the repo).
@@ -72,9 +62,6 @@ export function failedResumable(
     role: t.role,
     brief: t.brief ?? "",
     repo: t.repo,
-    parent: t.parent_turn_id,
-    sessionId: t.session_id,
-    cwd: t.session_cwd,
     reason: verdict,
   };
 }
@@ -86,8 +73,7 @@ export function resumeQuestionOf(db: Database, threadId: string): string | undef
 }
 
 /** Reply of a "no" to the question: nothing is dropped, the owner decides later. */
-export const RESUME_KEPT =
-  "Kept. Send `/go` to continue that task later, or `/cleanup` to drop it.";
+export const RESUME_KEPT = "Kept. Send `/go` to continue that task later.";
 
 /**
  * The owner answered the failed task's question. Yes -> the handler resumes it (a `run` outcome with `resume`); no -> a
@@ -107,18 +93,10 @@ export function resumeAnswer(
     : { kind: "reply", text: RESUME_KEPT };
 }
 
-/** The clone the failed task works in: its own, or its parent's (a resumed run that failed again), when it still exists. */
-function cloneOf(db: Database, f: FailedResumable): WorktreeRow | "gone" | undefined {
-  const row = getWorktreeByTask(db, f.id) ?? (f.parent ? getWorktreeByTask(db, f.parent) : null);
-  if (!row) return undefined; // the stage switch never made one (no commit identity)
-  return existsSync(row.path) ? row : "gone";
-}
-
 /**
- * What the exec stage needs to run again: the original request, the approved plan read from the saved plan file, the
- * repo, and (when the clone exists) the task's own session (the runner uses it only when its cwd is still the clone).
- * Without a clone the stage switch runs again and creates it. A refusal when the clone or the plan file is gone: the
- * task then becomes `failed` (nothing is left to continue).
+ * What the exec stage needs to run again: the original request, the approved plan read from the plan file the stage
+ * switch saved in the task's scratch dir, and the repo. The session is never resumed (fresh session, the handoff
+ * carries the plan). A refusal when the plan file is gone: the task then becomes `failed` (nothing is left to continue).
  */
 export function resumeFailedPlan(
   d: { db: Database; agentHome: string; workspace: string },
@@ -126,48 +104,26 @@ export function resumeFailedPlan(
   allowInterrupted = false,
 ): ResumePlan | Refusal {
   const f = failedResumable(d.db, threadId, allowInterrupted);
-  const gone = (what: string) => {
+  const gone = () => {
     dropResumable(d.db, threadId);
     return refuse(
       "resume_gone",
-      `Cannot continue: ${what} is gone. The task is marked failed. Start it again.`,
+      "Cannot continue: the approved plan is gone. The task is marked failed. Start it again.",
     );
   };
   if (!f) return refuse("stale_resume", "This Resume is out of date: the thread has moved on.");
-  const wt = cloneOf(d.db, f);
-  if (wt === "gone") return gone("the task clone");
   const role = ROLES[f.role];
-  const repo = wt?.repo ?? f.repo;
-  if (!role || repo === "*") return gone("the approved plan");
+  if (!role || f.repo === "*") return gone();
   let plan: string;
   try {
-    // The plan file belongs to the task that made the clone (a resumed run that failed again is a later row).
-    const dir = workspacePaths(d.agentHome)
-      .workspace(d.workspace)
-      .task(wt?.taskId ?? f.id).root;
+    const dir = workspacePaths(d.agentHome).workspace(d.workspace).task(f.id).root;
     plan = readFileSync(join(dir, planFileOf(role)), "utf8");
   } catch {
-    return gone("the approved plan");
+    return gone();
   }
-  const existing: SessionRow | undefined =
-    wt && f.sessionId && f.cwd
-      ? {
-          thread_id: threadId,
-          session_id: f.sessionId,
-          repo,
-          cwd: f.cwd,
-          status: "active",
-          updated_at: Date.now(),
-        }
-      : undefined;
   return {
-    // No clone: the role is named (the thread's latest clone, if any, is another task's).
-    cmd: {
-      kind: "message",
-      text: f.brief || "Continue the approved plan.",
-      ...(!wt && { role: f.role }),
-    },
-    existing,
-    approved: { plan, repo },
+    // The role is named: the thread's entry role would run it otherwise.
+    cmd: { kind: "message", text: f.brief || "Continue the approved plan.", role: f.role },
+    approved: { plan, repo: f.repo },
   };
 }

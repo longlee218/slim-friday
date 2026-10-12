@@ -59,7 +59,6 @@ const envSchema = z.object({
   MODEL_INTENT: z.string().trim().min(1).optional(),
   INTENT_BUDGET_USD: z.coerce.number().positive().default(0.02),
   INTENT_TIMEOUT_MS: z.coerce.number().int().min(8000).default(8000),
-  CLONE_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
 });
 
 /** Names of the env variables the app itself reads: each must be classified in `data/child-env-deny.yaml`. */
@@ -101,8 +100,6 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   memoryModel: string;
   /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the stage budget; OpenRouter: only this). */
   limits: { maxBudgetUsd: number | undefined; timeoutMs: number };
-  /** Days a delivered/kept task clone is retained before startup removes it (CLONE_RETENTION_DAYS). */
-  cloneRetentionDays: number;
   /** Intent layer L3: engine, model id (MODEL_INTENT, tier-resolvable), per-call budget and timeout. */
   intent: { engine: IntentEngine; model: string; budgetUsd: number; timeoutMs: number };
 }
@@ -154,7 +151,6 @@ export function loadConfig(
       maxBudgetUsd: e.MAX_BUDGET_USD,
       timeoutMs: e.TIMEOUT_MS,
     },
-    cloneRetentionDays: e.CLONE_RETENTION_DAYS,
     intent: {
       engine: e.INTENT_ENGINE,
       // A tier name (haiku|sonnet|opus) resolves to its id on Anthropic; OpenRouter takes the id as is.

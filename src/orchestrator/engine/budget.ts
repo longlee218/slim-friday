@@ -10,7 +10,8 @@ import { spentByOtherStages } from "../../storage/stage-store";
 const log = logger.child({ module: "budget" });
 
 /**
- * Task ceiling (`TASK_BUDGET_USD`): the run input with `route.spentUsd` = what the task's OTHER stages already cost, so
+ * Run ceiling (`TASK_BUDGET_USD`, per run: a `/go` re-run is a new turn row, so its spend starts again at 0): the run input
+ * with `route.spentUsd` = what the turn's OTHER stages already cost, so
  * `resolveBudget` limits this stage to what is left. Unchanged when nothing was spent yet.
  */
 export function withSpent<T extends { turnId: string; route?: Route }>(
@@ -22,10 +23,10 @@ export function withSpent<T extends { turnId: string; route?: Route }>(
   return spentUsd > 0 ? { ...i, route: { ...i.route, spentUsd } } : i;
 }
 
-/** Owner text when the task ceiling is already used up by the other stages: the stage is refused up front (no 0 budget). */
+/** Owner text when the run ceiling is already used up by the other stages of this run: the stage is refused up front (no 0 budget). */
 export const ceilingRefusal = (route?: Route): string | undefined =>
   (route?.spentUsd ?? 0) >= TASK_BUDGET_USD
-    ? `Task ceiling reached: ${usd(TASK_BUDGET_USD)} already spent by the task's earlier stages. Nothing was started; \`/go +<usd>\` cannot lift this ceiling.`
+    ? `Run ceiling reached: ${usd(TASK_BUDGET_USD)} already spent by this run's earlier stages. Nothing was started; \`/go +<usd>\` cannot lift this ceiling.`
     : undefined;
 
 /** Facts of a stage that stopped on its budget. */
@@ -55,8 +56,8 @@ const usd = (n: number | undefined): string => (n === undefined ? "?" : `$${n.to
 export function budgetHitMessage(h: BudgetHit): string {
   const lines = [
     h.ceilingBound
-      ? `Stopped: task ceiling ${usd(TASK_BUDGET_USD)} reached (this stage spent ${usd(h.spentUsd)} of the ${usd(h.limitUsd)} left; checked between turns, so a small overshoot is possible). \`/go +<usd>\` cannot lift the task ceiling. The session is kept.`
-      : `Stopped: budget reached (${usd(h.spentUsd)} of ${usd(h.limitUsd)}; the limit is checked between turns, so a small overshoot is possible). The session is kept.`,
+      ? `Stopped: run ceiling ${usd(TASK_BUDGET_USD)} reached (this stage spent ${usd(h.spentUsd)} of the ${usd(h.limitUsd)} left; checked between turns, so a small overshoot is possible). \`/go +<usd>\` cannot lift the run ceiling.`
+      : `Stopped: budget reached (${usd(h.spentUsd)} of ${usd(h.limitUsd)}; the limit is checked between turns, so a small overshoot is possible).`,
   ];
   if (h.summary?.trim()) lines.push(`Last summary:\n${clip(h.summary.trim(), BUDGET_SUMMARY_MAX)}`);
   if (h.goPlusUsd !== undefined) {
@@ -68,7 +69,7 @@ export function budgetHitMessage(h: BudgetHit): string {
 /**
  * Reply of a stage run that stopped on its budget: logs `budget.exceeded` and words the stop (redacted):
  * spent/limit and the agent's last words. Offers the same amount
- * again: `go +<usd>` resumes the kept session with that much more.
+ * again: `go +<usd>` continues with that much more.
  */
 export function budgetHitReply(res: {
   usage?: { costUsd?: number };

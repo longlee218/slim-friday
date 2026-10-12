@@ -68,7 +68,7 @@ export function listStages(db: Database, turnId: string): StageRow[] {
 
 /**
  * USD the task's stages OTHER than `idx` have cost so far (their `cost_usd`). The current stage is left out on purpose:
- * a resumed stage's session total already carries its own earlier cost. Feeds the task ceiling (`TASK_BUDGET_USD`).
+ * a resumed stage's session total already carries its own earlier cost. Feeds the per-run ceiling (`TASK_BUDGET_USD`; a `/go` re-run is a new turn row, so it starts at 0).
  */
 export function spentByOtherStages(db: Database, taskId: string, idx: number): number {
   const row = db

@@ -14,7 +14,7 @@ export type TurnStatus =
   /** Cut short by a restart/shutdown; the thread gets a Resume offer, then the row becomes cancelled. */
   | "interrupted"
   | "timeout"
-  /** Failed after the approved plan (config refusal, budget, transient error) with the clone kept: `/go` continues it (Rev 12). */
+  /** Failed after the approved plan (budget, transient error): `/go` continues it (Rev 12). */
   | "failed_resumable";
 
 /** Change a turn's status without ending it (no-op when the row is missing). */
@@ -27,7 +27,7 @@ export function setTurnRepo(db: Database, id: string, repo: string): void {
   db.query("UPDATE turns SET repo = ? WHERE id = ?").run(repo, id);
 }
 
-/** Nothing is left to resume in this thread (clone removed or expired): its `failed_resumable` task becomes `failed`. */
+/** Nothing is left to resume in this thread (plan file gone): its `failed_resumable` task becomes `failed`. */
 export function dropResumable(db: Database, threadId: string): boolean {
   // An `interrupted` exec task that was resumed from its approved plan is taken over too (no second restart notice).
   db.query(
@@ -187,15 +187,4 @@ export function countActiveCappedTasks(db: Database): number {
       "SELECT COUNT(*) AS n FROM turns WHERE counts_toward_cap = 1 AND status IN ('running', 'waiting_approval')",
     )
     .get()!.n;
-}
-
-/** Follow-up tasks (fix rounds) run in the clone of task `taskId`: rows whose parent is that task (a resume is not one). */
-export function countFollowUps(db: Database, taskId: string): number {
-  return (
-    db
-      .query<{ n: number }, [string]>(
-        "SELECT COUNT(*) AS n FROM turns WHERE parent_turn_id = ? AND kind <> 'resume'",
-      )
-      .get(taskId)?.n ?? 0
-  );
 }

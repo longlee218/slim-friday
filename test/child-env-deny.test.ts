@@ -26,7 +26,7 @@ describe("child env deny list (config/data/child-env-deny.yaml)", () => {
       ],
       ...["DISCORD_TOKEN", "OWNER_DISCORD_ID", "DISCORD_GUILD_ID", "MODEL", "MEMORY_MODEL"],
       ...["GIT_AUTHOR", "MAX_TURNS", "MAX_BUDGET_USD", "TIMEOUT_MS", "MAX_CONCURRENT_RUNS"],
-      ...["INTENT_ENGINE", "INTENT_BUDGET_USD", "MODEL_INTENT", "CLONE_RETENTION_DAYS"],
+      ...["INTENT_ENGINE", "INTENT_BUDGET_USD", "MODEL_INTENT"],
       ...["MODEL_HAIKU", "MODEL_DEV_EXEC", "BUDGET_DEV_EXEC_USD", "COMPACT_WINDOW_ASSISTANT_QA"],
       ...[
         "GITHUB_PERSONAL_ACCESS_TOKEN",

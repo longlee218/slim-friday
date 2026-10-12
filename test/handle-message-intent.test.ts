@@ -13,9 +13,7 @@ import { ROLES } from "../src/roles/role-registry";
 import { getProposal, insertProposal, listPendingProposals } from "../src/storage/proposal-store";
 import { listRunMessages } from "../src/storage/run-message-store";
 import { getSession, setSession } from "../src/storage/session-store";
-import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { makeLegacyClone } from "./clone-fixture";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
@@ -64,7 +62,7 @@ const intentDeps = (home: string, classifier?: IntentClassifier): IntentDeps => 
   classifier,
 });
 
-/** Plan stage submits a plan; exec stage (the run that can Write, in the repo or a legacy clone) commits a file; anything else is a Q&A answer. */
+/** Plan stage submits a plan; exec stage (the run that can Write, in the repo) commits a file; anything else is a Q&A answer. */
 function fakeSdk(seen: any[]) {
   return (a: any) => {
     seen.push(a);
@@ -165,8 +163,7 @@ test("no L3 call for L0 commands (legacy and slash forms), a leading tag, or whe
   await handle(msg("stop"));
   await handle(msg("go"));
   await handle(msg("remember: tabs not spaces"));
-  await handle(msg("cleanup:"));
-  for (const t of ["/stop", "/go", "/remember tabs not spaces", "/cleanup", "/forget tabs"])
+  for (const t of ["/stop", "/go", "/remember tabs not spaces", "/forget tabs"])
     await handle(msg(t));
   await handle(msg("[ask] what is retry"));
   expect(e.seen).toHaveLength(0);
@@ -208,7 +205,6 @@ test("L3 -> dev opens the task by the dispatcher: plan stage runs, no assistant 
     class: "mechanical",
     proposal_id: p.id,
   });
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull(); // exec ran in the repo, no clone
 });
 
 test("idle low confidence routes to the assistant (no ask, never dev), even when the model wrote an ask", async () => {
@@ -381,7 +377,7 @@ test("stop keeps the queued tasks: the reply counts them, they run after the sto
   ).toEqual(["add a feature please", "add another feature please"]);
 });
 
-test("legacy clone (a row from before Rev 15): [dev] follow-ups continue in that clone/session, max 2 rounds; an assistant answer keeps the clone's session", async () => {
+test("after a task ended a [dev] message is a NEW task (plan first, fresh session, no fix round); an assistant answer in between resumes nothing of the exec", async () => {
   const env = await setup();
   const seen: any[] = [];
   const handle = createTurnHandler({
@@ -391,44 +387,23 @@ test("legacy clone (a row from before Rev 15): [dev] follow-ups continue in that
     queryFn: fakeSdk(seen) as never,
     intent: intentDeps(env.home, engine(verdict()).classifier),
   });
-  await handle(msg("please add b.txt with two")); // L3 -> dev: plan -> exec in the repo (no clone any more)
+  await handle(msg("please add b.txt with two")); // L3 -> dev: plan -> exec in the repo
   expect(seen).toHaveLength(2);
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
-  // The thread holds a clone made by an older build: its task is the one the clone row names.
-  const first = rows(env, "SELECT id FROM turns")[0].id;
-  const repoPath = workspacePaths(env.home).workspace("main").repo("real").clone;
-  const wt = await makeLegacyClone(env, { repo: "real", repoPath, taskId: first, threadId: "th1" });
-  setSession(env.db, {
-    threadId: "th1",
-    sessionId: "sess-exec",
-    repo: "real",
-    cwd: realpathSync(wt.path),
-  });
-  // an assistant question in the thread: answered, clone session untouched
+  // an assistant question in the thread: answered, no exec session continued
   expect(await handle(msg("[ask] what did you change"))).toBe("assistant answer");
-  expect(getSession(env.db, "th1")).toMatchObject({
-    cwd: realpathSync(wt.path),
-    session_id: "sess-exec",
-  });
-  // round 1 and 2: same clone, resumed session, parent = the clone's task
-  for (const n of [1, 2]) {
-    await handle(msg(`[dev] fix it again ${n}`));
-    const o = seen.at(-1).options;
-    expect(o.cwd).toBe(realpathSync(wt.path));
-    expect(o.resume).toBe("sess-exec");
+  expect(seen.at(-1).options.resume).toBeUndefined();
+  // any number of follow-ups: each one starts a new proposal at the plan stage
+  for (const n of [1, 2, 3]) {
+    const before = seen.length;
+    const reply = await handle(msg(`[dev] fix it again ${n}`));
+    expect(reply).toContain("Starting plan");
+    expect(seen.length).toBeGreaterThan(before);
+    expect(seen[before].options.permissionMode).toBe("plan");
+    expect(seen[before].options.resume).toBeUndefined();
   }
-  expect(
-    rows(env, "SELECT parent_turn_id FROM turns WHERE parent_turn_id IS NOT NULL").map(
-      (r) => r.parent_turn_id,
-    ),
-  ).toEqual([wt.taskId, wt.taskId]);
-  // round 3: the limit is reached, so the request is a NEW task (plan stage), not a fix round or a dead end
-  const n = seen.length;
-  const third = await handle(msg("[dev] fix it once more"));
-  expect(third).not.toContain("2 fix rounds");
-  expect(third).toContain("Starting plan");
-  expect(seen.length).toBeGreaterThan(n);
-  expect(seen[n].options.resume).toBeUndefined();
+  expect(rows(env, "SELECT parent_turn_id FROM turns WHERE parent_turn_id IS NOT NULL")).toEqual(
+    [],
+  );
 });
 
 test("effort: a signal raises this turn's effort; a complaint raises the thread floor; the default message keeps the stage model", async () => {

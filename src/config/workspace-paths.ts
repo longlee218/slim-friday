@@ -70,8 +70,6 @@ export function workspacePaths(agentHome: string) {
             memory: join(rroot, "MEMORY.md"),
             /** Managed clone: the default repo path (the exec stage works in the repo's own checkout). */
             clone: join(rroot, "repo"),
-            /** Task clones of tasks from before Rev 15 (the app makes no new ones; removed in phase 4). */
-            worktrees: join(rroot, "worktrees"),
           };
         },
       };

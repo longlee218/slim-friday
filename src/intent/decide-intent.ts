@@ -21,7 +21,6 @@ const isIdleState = (state: string): boolean => state === "idle" || state === "d
 /** Thread states that are an owner gate (approval buttons). */
 const GATE_STATES: ReadonlySet<ThreadState> = new Set([
   "awaiting_plan_approval",
-  "awaiting_result",
   "awaiting_confirmation",
 ]);
 
@@ -55,8 +54,8 @@ export interface DecideInput extends IntentPipelineInput {
   /** Derived thread state (idle / done decide the fallback; a gate state lets L3 read a yes / no as its answer). */
   state: ThreadState;
   /**
-   * The thread has a task (in flight, on a gate, or a live clone) that can still take the message: decides `scope`
-   * of an L3 route. False when the clone used up its fix rounds: the next request is a NEW task.
+   * The thread has a task (in flight or on a gate) that can still take the message: decides `scope`
+   * of an L3 route. False: the next request is a NEW task.
    */
   hasTask: boolean;
   /** A running task takes steers: the scope of every message (tagged or not) is L3's; unclear = supplement (steer-scope.ts). */

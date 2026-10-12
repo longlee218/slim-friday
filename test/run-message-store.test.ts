@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { DAY_MS } from "../src/lifecycle/clone-retention";
 import { runStartupHygiene } from "../src/lifecycle/startup";
 import {
   insertRunMessage,
@@ -10,6 +9,8 @@ import {
   setRunMessageStatus,
 } from "../src/storage/run-message-store";
 import { makeEnv } from "./helpers";
+
+const DAY_MS = 86_400_000;
 
 test("rows keep arrival order per thread (seq), ids and the kind / status given", () => {
   const { db } = makeEnv();

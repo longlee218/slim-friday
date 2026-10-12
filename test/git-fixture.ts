@@ -39,16 +39,5 @@ export async function makeRepo(branch = "main", withOrigin = false) {
     await g(repo, "remote", "add", "origin", origin);
     await g(repo, "push", "-q", "-u", "origin", branch);
   }
-  return { root, repo, origin, wts: join(root, "wts") };
+  return { root, repo, origin };
 }
-
-/** Test-only: the P2 clone fields of a `WorktreeRow` literal that predates them (an old git-worktree row). */
-export const LEGACY_WT_FIELDS = {
-  workspace: null,
-  baseSha: null,
-  originUrl: null,
-  delivery: null,
-  status: "active",
-  patchPath: null,
-  deliveredAt: null,
-} as const;

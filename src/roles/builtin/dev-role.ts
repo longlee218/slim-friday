@@ -48,7 +48,6 @@ export const DEV_ROLE: RoleDefinition = {
   maxAsk: MAX_ASK,
   countsTowardCap: true,
   tag: "[dev]",
-  followUp: { startAtStage: "exec" },
   stages: [
     {
       ...CODE_STAGE_BASE,

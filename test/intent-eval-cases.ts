@@ -14,7 +14,7 @@ export interface ThreadFacts {
   state: ThreadState;
   activeRole?: string;
   activeStage?: string;
-  gate?: "plan-approval" | "delivery";
+  gate?: "plan-approval";
   /** One line per earlier task (the classifier sees the last 3). */
   ledger?: string[];
   /** The thread has a task or a live clone (scope `active` is possible). Default: state is not idle/done. */
@@ -68,14 +68,13 @@ const RUNNING: ThreadFacts = {
   activeStage: "exec",
   ledger: ["dev: round formatPrice to 2 decimals (running)"],
 };
+// A finished task: the agent delivered it itself, so the thread is idle and every request is a new turn.
 const RESULT: ThreadFacts = {
-  state: "awaiting_result",
+  state: "done",
   activeRole: "dev",
   activeStage: "exec",
-  gate: "delivery",
-  ledger: ["dev: round formatPrice to 2 decimals (result waits for the owner)"],
+  ledger: ["dev: round formatPrice to 2 decimals (done)"],
 };
-const DONE_CLONE: ThreadFacts = { state: "done", ledger: LEDGER, hasTask: true };
 
 export const GOLDEN: GoldenCase[] = [
   ...IDLE_CASES,
@@ -121,12 +120,7 @@ export const GOLDEN: GoldenCase[] = [
     thread: RUNNING,
     expect: { role: "dev", scope: "new" },
   },
-  // Result waiting: fix loop (dev/active), questions (assistant), next task (dev/new).
-  {
-    text: "It still rounds 0.005 the wrong way, fix it.",
-    thread: RESULT,
-    expect: { role: "dev", scope: "active", cls: "standard" },
-  },
+  // Task finished: questions (assistant), next task (dev/new).
   {
     text: "Thanks. Explain what you changed in two lines.",
     thread: RESULT,
@@ -138,11 +132,5 @@ export const GOLDEN: GoldenCase[] = [
     text: "Next task: add pagination to listOrders in src/orders.ts.",
     thread: RESULT,
     expect: { role: "dev", scope: "new" },
-  },
-  // Done with a live clone: a follow-up on the same work is active.
-  {
-    text: "Also handle the empty string there.",
-    thread: DONE_CLONE,
-    expect: { role: "dev", scope: "active" },
   },
 ];

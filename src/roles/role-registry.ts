@@ -82,13 +82,6 @@ export function entryRole(): RoleDefinition {
   return role;
 }
 
-/** The role whose follow-up messages continue in an existing (legacy) clone (`followUp` data). */
-export function followUpRole(): RoleDefinition {
-  const role = Object.values(ROLES).find((r) => r.followUp);
-  if (!role) throw new Error("No role has followUp data");
-  return role;
-}
-
 /** The intent `class` picks a model tier for this role: some stage has `classTiers` (data, no flag). */
 export const hasClassTiers = (role: RoleDefinition): boolean =>
   role.stages.some((s) => s.classTiers !== undefined);

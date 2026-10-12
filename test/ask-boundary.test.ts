@@ -6,7 +6,6 @@ import { getRole } from "../src/roles/role-registry";
 import { newAskLimit } from "../src/runtime/ask-limit";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import { getSession } from "../src/storage/session-store";
-import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
 import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
@@ -130,7 +129,6 @@ test("exec: no answer in time -> 'Awaiting clarification', session kept, task ca
   expect(reply.startsWith("Awaiting clarification:")).toBe(true);
   expect(reply).toContain("Drop the column? (default: keep)");
   expect(reply).toContain("Reply in this thread to continue.");
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull(); // exec ran in the repo, no clone
   expect(getSession(env.db, "th1")).toBeNull(); // an exec session in the repo is not the thread's (the assistant would resume it)
   expect(env.db.query("SELECT status FROM turns WHERE type = 'code'").all()).toEqual([
     { status: "cancelled" },
@@ -164,7 +162,6 @@ test("plan stage: no answer in time -> 'Awaiting clarification', no plan approva
   });
   expect(reply.startsWith("Awaiting clarification:")).toBe(true);
   expect(planCalls).toBe(1); // the exec stage never started
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
 });
 
 /** Handler whose stage fakes run `stage(options, runIndex)`; the owner answers via `askChoice`. */
@@ -346,7 +343,6 @@ test("after 'Awaiting clarification' at exec (no clone): the session is kept in 
   });
   expect((await handle(msg("[dev] please start"))).startsWith("Awaiting clarification")).toBe(true);
   expect(getSession(env.db, "th1")).toBeNull(); // the exec session ran in the repo's own checkout: not the thread's
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
   // No clone to continue in (the fix loop goes in phase 4): the reply is a new task, plan first, no resume.
   await handle(msg("[dev] keep the column"));
   expect(runs.slice(2).map((r) => [r.plan, r.resume])).toEqual([

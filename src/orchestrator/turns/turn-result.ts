@@ -27,7 +27,7 @@ export interface FlowResult
   skipThreadSession?: true;
   /** Model of an escalated re-run (the stage row then records it instead of the first run's model). */
   model?: string;
-  /** Set by the stage runner: the failure qualifies for `failed_resumable` (the plan is kept; so are a legacy clone and session). */
+  /** Set by the stage runner: the failure qualifies for `failed_resumable` (the plan is kept). */
   resumable?: ResumeReason;
 }
 
@@ -124,7 +124,7 @@ export function finishRun(
       ? ` Resets at ${new Date(res.resetsAt).toISOString()}.`
       : "";
   const text = redactText(res.text || `${OUTCOME_REPLY[res.outcome] ?? "No answer."}${reset}`);
-  // A resumable failure ends with the question (reply yes or `/go`): the plan is kept (and a legacy clone and session).
+  // A resumable failure ends with the question (reply yes or `/go`): the plan is kept.
   return res.resumable
     ? `${text}\n${resumeQuestion(ids.turnId, RESUMABLE[res.resumable])} Reply yes or send \`/go\`.`
     : text;

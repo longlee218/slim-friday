@@ -20,7 +20,7 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
   writeFileSync(join(b, "secret.txt"), "W2_SECRET");
   writeFileSync(join(a, "own.txt"), "mine");
   symlinkSync(join(b, "secret.txt"), join(a, "link.txt")); // symlink inside w1's repo into w2
-  const w2wt = join(workspacePaths(env.home).workspace("w2").repo("api").worktrees, "t1");
+  const w2wt = join(workspacePaths(env.home).workspace("w2").worktrees, "api", "t1");
   mkdirSync(w2wt, { recursive: true });
   type Can = (t: string, i: Record<string, unknown>, o: unknown) => Promise<{ behavior: string }>;
   let can: Can | undefined;
@@ -39,7 +39,7 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
   });
   const qa = can!;
   // Exec-stage guard of a w1 task: it may write only its own worktree.
-  const w1wt = join(workspacePaths(env.home).workspace("w1").repo("api").worktrees, "t0");
+  const w1wt = join(workspacePaths(env.home).workspace("w1").worktrees, "api", "t0");
   mkdirSync(w1wt, { recursive: true });
   const exec = buildToolPermissions({
     turnId: "t",

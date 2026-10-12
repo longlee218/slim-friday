@@ -1,13 +1,9 @@
 import type { Database } from "bun:sqlite";
 import type { Repo } from "../../repos/repo-registry";
 import { countActiveCappedTasks } from "../../storage/run-store";
-import { listKeptClones } from "../../storage/worktree-store";
 
 /** Max capped tasks (roles with `countsTowardCap`) running or waiting for approval at once (RAM/quota; spike Q12). */
 export const MAX_CAPPED_TASKS = 10;
-
-/** Max clones per workspace the owner still holds (kept, or delivered locally); the next task waits for a `/cleanup`. */
-export const MAX_KEPT_CLONES = 10;
 
 /** A task that cannot start: `reason` is logged (`event` names it), `reply` goes to the owner. */
 export interface Refusal {
@@ -47,7 +43,7 @@ export function capRefusal(db: Database): Refusal | undefined {
 /**
  * THE single repo resolver (B2): routing and the dispatcher's validation both
  * go through it. `repoName` picks one repo of the workspace (unknown name -> refusal); else every registered
- * repo is a candidate. Any registered repo works: the task gets its own local clone, the repo itself is only read.
+ * repo is a candidate. Any registered repo works.
  */
 export function resolveTaskRepo(
   repos: Repo[],
@@ -66,16 +62,4 @@ export function cappedTaskBlocker(
 ): Refusal | { candidates: Repo[] } {
   const r = resolveTaskRepo(repos, repoName);
   return "reply" in r ? r : (capRefusal(db) ?? r);
-}
-
-/** Refusal when the workspace already holds `MAX_KEPT_CLONES` clones: lists them with the `/cleanup` hint, else undefined. */
-export function keptClonesRefusal(db: Database, workspace: string): Refusal | undefined {
-  const kept = listKeptClones(db, workspace);
-  if (kept.length < MAX_KEPT_CLONES) return undefined;
-  const list = kept.map((w) => `- ${w.taskId.slice(0, 8)} ${w.repo} ${w.branch}`).join("\n");
-  return refuse(
-    "kept_clones_limit",
-    `${kept.length} task clones are kept in this workspace (max ${MAX_KEPT_CLONES}). Remove one with \`/cleanup <taskId8>\`:\n${list}`,
-    "task.busy",
-  );
 }

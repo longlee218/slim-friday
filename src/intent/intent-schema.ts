@@ -62,7 +62,7 @@ export function parseIntentText(text: string): IntentResult {
 
 /** What code knows that the model does not. */
 export interface IntentValidation {
-  /** The thread has a task (running, waiting on a gate, or a live clone). */
+  /** The thread has a task (running or waiting on a gate). */
   hasTask: boolean;
   /** Owner prefix `[design]` etc.: overrides the model's class. */
   ownerClass?: TaskClass;

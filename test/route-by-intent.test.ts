@@ -15,9 +15,7 @@ import {
 } from "../src/orchestrator/thread/intent-replies";
 import {
   actionFor,
-  FIX_LIMIT_REPLY,
   type IntentAction,
-  MAX_FIX_ROUNDS,
   type RouteCtx,
   routeByIntent,
 } from "../src/orchestrator/thread/route-by-intent";
@@ -38,20 +36,16 @@ const role = (r: string, scope: "active" | "new"): IntentDecision => ({
   role: r,
   scope,
 });
-const act = (decision: IntentDecision, state: ThreadState, hasClone = false, fixRounds = 0) =>
-  actionFor({ decision, state, hasClone, fixRounds });
+const act = (decision: IntentDecision, state: ThreadState) => actionFor({ decision, state });
 
 /* Every row of the behavior table (phase 09), state x role x scope. */
 
-test("idle / done: assistant runs; dev new opens a task; dev active with a clone fixes", () => {
+test("idle / done: assistant runs; dev opens a task whatever the scope (no fix round, every request is a new turn)", () => {
   for (const s of ["idle", "done"] as const) {
     expect(act(role("assistant", "new"), s)).toEqual({ kind: "run", role: "assistant" });
-    expect(act(role("assistant", "active"), s, true)).toEqual({ kind: "run", role: "assistant" });
+    expect(act(role("assistant", "active"), s)).toEqual({ kind: "run", role: "assistant" });
     expect(act(role("dev", "new"), s)).toEqual({ kind: "open", role: "dev" });
-    expect(act(role("dev", "new"), s, true)).toEqual({ kind: "open", role: "dev" });
-    expect(act(role("dev", "active"), s, true)).toEqual({ kind: "fix", role: "dev" });
-    // "active" without a clone cannot continue anything: a new task
-    expect(act(role("dev", "active"), s, false)).toEqual({ kind: "open", role: "dev" });
+    expect(act(role("dev", "active"), s)).toEqual({ kind: "open", role: "dev" });
   }
 });
 
@@ -90,30 +84,6 @@ test("awaiting_tool_approval behaves as running in the table", () => {
   expect(act(role("dev", "new"), "awaiting_tool_approval")).toEqual({ kind: "queue", role: "dev" });
 });
 
-test("awaiting_result: dev active = bounded fix loop; assistant answers, gate stays; dev new queues", () => {
-  expect(act(role("dev", "active"), "awaiting_result", true, 0)).toEqual({
-    kind: "fix",
-    role: "dev",
-  });
-  expect(act(role("dev", "active"), "awaiting_result", true, MAX_FIX_ROUNDS - 1)).toEqual({
-    kind: "fix",
-    role: "dev",
-  });
-  expect(act(role("dev", "active"), "awaiting_result", true, MAX_FIX_ROUNDS)).toEqual({
-    kind: "fix-limit",
-  });
-  expect(act(role("assistant", "active"), "awaiting_result", true)).toEqual({
-    kind: "side",
-    role: "assistant",
-  });
-  expect(act(role("dev", "new"), "awaiting_result", true)).toEqual({ kind: "queue", role: "dev" });
-});
-
-test("the fix loop is capped after a clone is idle too (max 2 rounds per task)", () => {
-  expect(act(role("dev", "active"), "idle", true, 1)).toEqual({ kind: "fix", role: "dev" });
-  expect(act(role("dev", "active"), "idle", true, 2)).toEqual({ kind: "fix-limit" });
-});
-
 test("awaiting_confirmation (no stage uses it yet): active staged waits, new queues", () => {
   expect(act(role("dev", "active"), "awaiting_confirmation")).toEqual({
     kind: "steer",
@@ -123,13 +93,7 @@ test("awaiting_confirmation (no stage uses it yet): active staged waits, new que
 });
 
 test("any state: ask decisions (low confidence, unknown role, failure) and unknown roles ask the owner", () => {
-  const states: ThreadState[] = [
-    "idle",
-    "done",
-    "running",
-    "awaiting_plan_approval",
-    "awaiting_result",
-  ];
+  const states: ThreadState[] = ["idle", "done", "running", "awaiting_plan_approval"];
   for (const s of states) {
     for (const reason of [
       "low_confidence",
@@ -186,7 +150,7 @@ test("executor: without the approval flow a staged task is refused by text (queu
   }
 });
 
-test("executor: asks, hints, fix limit and the P1.4b rows are replies; none runs anything", async () => {
+test("executor: asks, hints and the P1.4b rows are replies; none runs anything", async () => {
   const { c } = ctx();
   const idle = { ...c, busy: false };
   const generic = text(await routeByIntent(idle, { kind: "ask", reason: "low_confidence" }));
@@ -203,7 +167,6 @@ test("executor: asks, hints, fix limit and the P1.4b rows are replies; none runs
     text(await routeByIntent({ ...c, busy: true }, { kind: "ask", reason: "low_confidence" })),
   ).toBe(STILL_WORKING);
   expect(text(await routeByIntent(c, { kind: "gate-hint" }))).toContain("Approve / Reject");
-  expect(text(await routeByIntent(c, { kind: "fix-limit" }))).toBe(FIX_LIMIT_REPLY);
   // no steerable run registered: the message cannot be delivered (steer rows with a run: test/steer-route.test.ts)
   expect(text(await routeByIntent(c, { kind: "steer", role: "dev" }))).toBe(STEER_ENDED);
   // side: a free lock (a gate state) simply runs the answering role; busy hands the question to the side lane
@@ -226,7 +189,6 @@ test("executor: rows that need the thread free give 'still working...' while a r
   const busy = ctx().c;
   for (const a of [
     { kind: "run", role: "assistant" },
-    { kind: "fix", role: "dev" },
     { kind: "open", role: "dev" },
   ] as IntentAction[])
     expect(text(await routeByIntent(busy, a))).toBe(STILL_WORKING);
@@ -236,10 +198,6 @@ test("executor: rows that need the thread free give 'still working...' while a r
     role: "assistant",
     cls: "design",
     effort: "high",
-  });
-  expect(await routeByIntent(free, { kind: "fix", role: "dev" })).toMatchObject({
-    kind: "run",
-    role: "dev",
   });
 });
 
@@ -345,7 +303,7 @@ test("'no' to 'Open a task for this?' (also a row written by the older wording):
   expect(getProposal(env.db, id)?.status).toBe("refused");
 });
 
-test("table reads role DATA, not names: a gated role without a repo stage (no stage that writes without a gate) never gets a fix round", () => {
+test("table reads role DATA, not names: a gated role opens a task, and independent work queues whatever the role", () => {
   const fake = {
     ...ROLES.dev,
     name: "design",
@@ -353,15 +311,7 @@ test("table reads role DATA, not names: a gated role without a repo stage (no st
   } as never;
   (ROLES as Record<string, unknown>).design = fake;
   try {
-    // idle thread with a clone, active scope: dev fixes in its clone, the clone-less role opens a new task
-    expect(act(role("dev", "active"), "idle", true)).toEqual({ kind: "fix", role: "dev" });
-    expect(act(role("design", "active"), "idle", true)).toEqual({ kind: "open", role: "design" });
-    // result gate: no clone to fix in -> the answer stays a side reply
-    expect(act(role("design", "active"), "awaiting_result", true)).toEqual({
-      kind: "side",
-      role: "design",
-    });
-    // independent work queues whatever the role
+    expect(act(role("design", "active"), "idle")).toEqual({ kind: "open", role: "design" });
     expect(act(role("design", "new"), "running")).toEqual({ kind: "queue", role: "design" });
   } finally {
     delete (ROLES as Record<string, unknown>).design;

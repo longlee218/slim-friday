@@ -65,7 +65,7 @@ export function stageControl(parent: AbortSignal, onAwaiting: (text: string) => 
 /**
  * Stage switch after an approved plan: save the plan in the task scratch dir (the agent reads it, `/go` reads it back),
  * keep the repo on the turn row and word the exec prompt from the handoff data. The exec stage then runs in the
- * repo's own checkout: no clone, no git run by the app. A failure is the task's result.
+ * repo's own checkout: no git run by the app. A failure is the task's result.
  */
 export function switchToExec(
   c: StageCtx,

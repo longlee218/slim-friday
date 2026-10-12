@@ -32,7 +32,7 @@ export const stateOfGate = (gate: Gate | undefined): GateState | undefined =>
  */
 export type StageKind = "plan" | "repo" | "plain" | "unsupported";
 
-/** Some stage of the role runs in the repo (`stageKind` = `repo`): only then a follow-up "fix round" makes sense. */
+/** Some stage of the role runs in the repo (`stageKind` = `repo`): the side lane must not run it. */
 export const runsInRepo = (role: RoleDefinition): boolean =>
   role.stages.some((s) => stageKind(s) === "repo");
 

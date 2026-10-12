@@ -16,8 +16,6 @@ export type MessageCommand =
    * resume its interrupted or budget-stopped task, with `extraBudgetUsd` more budget when given.
    */
   | { kind: "go"; extraBudgetUsd?: number }
-  /** `cleanup:` removes this thread's worktree; `cleanup:<task-id>` a specific one. */
-  | { kind: "cleanup"; taskId?: string }
   /** `remember:` / `forget:` / `compact memory` (see memory-commands.ts): answered by app code, never by the agent. */
   | { kind: "memory" }
   /**
@@ -36,9 +34,9 @@ export const MAX_GO_EXTRA_USD = 1000;
 /** `go` or `go +<usd>` (a positive amount, e.g. `go +1.5`); anything else is a normal message. */
 const GO_COMMAND = /^go(?:\s+\+(\d+(?:\.\d+)?))?$/i;
 
-/** Parse a message into one command. The only place that knows the `stop` / `cleanup:` / `repo:` syntax (canonical `/stop`, `/cleanup`: legacy forms still work). */
+/** Parse a message into one command. The only place that knows the `stop` / `repo:` syntax (canonical `/stop`: legacy forms still work). */
 export function parseMessageCommand(input: string): MessageCommand {
-  const text = slashToLegacy(input).trim(); // L0: `/stop`, `/go`, `/cleanup` ... map onto the legacy forms below
+  const text = slashToLegacy(input).trim(); // L0: `/stop`, `/go` ... map onto the legacy forms below
   if (text.toLowerCase() === "stop") return { kind: "stop" };
   if (text === RESUME_PROMPT) return { kind: "resume" };
   const go = GO_COMMAND.exec(text);
@@ -46,8 +44,6 @@ export function parseMessageCommand(input: string): MessageCommand {
   if (go && (go[1] === undefined || (Number(go[1]) > 0 && Number(go[1]) <= MAX_GO_EXTRA_USD)))
     return { kind: "go", ...(go[1] !== undefined && { extraBudgetUsd: Number(go[1]) }) };
   if (parseMemoryCommand(text)) return { kind: "memory" };
-  const cleanup = /^cleanup:\s*(\S*)/i.exec(text);
-  if (cleanup) return { kind: "cleanup", taskId: cleanup[1] || undefined };
   // Prefixes come in either order: `[design] repo:x ...` or `repo:x [design] ...`; both are stripped from the brief.
   let rest = text;
   let cls: TaskClass | undefined;

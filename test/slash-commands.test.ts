@@ -9,8 +9,7 @@ import { parseMessageCommand } from "../src/orchestrator/message-commands";
 test("slashToLegacy maps each canonical form and leaves everything else alone", () => {
   expect(slashToLegacy("/stop")).toBe("stop");
   expect(slashToLegacy("  /GO +1.5 ")).toBe("go +1.5");
-  expect(slashToLegacy("/cleanup abc123")).toBe("cleanup: abc123");
-  expect(slashToLegacy("/cleanup")).toBe("cleanup: ");
+  expect(slashToLegacy("/cleanup abc123")).toBe("/cleanup abc123"); // removed in Rev 15: plain text now
   expect(slashToLegacy("/remember global tabs not spaces")).toBe(
     "remember: global tabs not spaces",
   );
@@ -34,14 +33,12 @@ test("task commands: slash and legacy forms parse the same", () => {
     ["/stop", "stop"],
     ["/go", "go"],
     ["/go +2", "go +2"],
-    ["/cleanup", "cleanup:"],
-    ["/cleanup t-1", "cleanup: t-1"],
   ];
   for (const [slash, legacy] of same)
     expect(parseMessageCommand(slash)).toEqual(parseMessageCommand(legacy));
   expect(parseMessageCommand("/stop")).toEqual({ kind: "stop" });
   expect(parseMessageCommand("/go +2")).toEqual({ kind: "go", extraBudgetUsd: 2 });
-  expect(parseMessageCommand("/cleanup t-1")).toEqual({ kind: "cleanup", taskId: "t-1" });
+  expect(parseMessageCommand("/cleanup t-1")).toMatchObject({ kind: "message" }); // no such command any more
   expect(parseMessageCommand("/remember global x y z")).toEqual({ kind: "memory" });
   expect(parseMessageCommand("/compact")).toEqual({ kind: "memory" });
   // legacy forms keep working

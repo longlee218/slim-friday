@@ -1,9 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../observability/redact";
-import { filesChangedText } from "./files-changed";
 import { steeredAfterPlan } from "./run-message-store";
 import { listStages } from "./stage-store";
-import { getWorktreeByTask } from "./worktree-store";
 
 /** Tasks listed in the ledger (the newest). */
 export const LEDGER_MAX_TASKS = 5;
@@ -11,9 +9,8 @@ export const LEDGER_MAX_TASKS = 5;
 export const LEDGER_TASK_CHARS = 1500;
 /** Cap of a brief inside an entry. */
 const BRIEF_CHARS = 200;
-/** Caps of a repo / branch / base name and of a PR url inside an entry. */
+/** Cap of a repo name inside an entry. */
 const FIELD_CHARS = 100;
-const URL_CHARS = 200;
 
 /** Ledger line of a task the owner changed after approving its plan (the plan was not approved again). */
 export const PLAN_NOT_REAPPROVED = "plan not re-approved for this change";
@@ -26,8 +23,8 @@ const oneLine = (s: string, max: number): string =>
   clip(redactText(s).replace(/\s+/g, " ").trim(), max);
 
 /**
- * The thread's task ledger: a VIEW over `turns` + `stages` + `worktrees` (no table). One entry per capped (staged)
- * task (the last LEDGER_MAX_TASKS, oldest first): role, status, brief, repo/branch, PR url, and its stages with
+ * The thread's task ledger: a VIEW over `turns` + `stages` (no table). One entry per capped (staged)
+ * task (the last LEDGER_MAX_TASKS, oldest first): role, status, brief, repo, and its stages with
  * model, cost and verdict. Empty string when the thread has no such task. Injected into the assistant context
  * when the thread is idle, instead of exec transcripts.
  */
@@ -46,17 +43,13 @@ export function threadLedger(db: Database, threadId: string): string {
     .reverse();
   if (staged.length === 0) return "";
   const entries = staged.map((t) => {
-    const wt = getWorktreeByTask(db, t.id);
     const stages = listStages(db, t.id).map((s) => {
       const bits = [s.model, s.costUsd == null ? null : `$${s.costUsd.toFixed(2)}`, s.verdict];
       return `${s.name} ${s.status}${bits.some(Boolean) ? ` (${bits.filter(Boolean).join(", ")})` : ""}`;
     });
     const lines = [
       `- ${t.id.slice(0, 8)} ${t.role}, ${t.status}: "${oneLine(t.brief ?? "", BRIEF_CHARS)}"`,
-      wt
-        ? `  repo ${oneLine(wt.repo, FIELD_CHARS)}, branch ${oneLine(wt.branch, FIELD_CHARS)} (base ${oneLine(wt.base, FIELD_CHARS)}), ${wt.prUrl ? `PR ${oneLine(wt.prUrl, URL_CHARS)}` : "no PR yet"}`
-        : `  repo ${oneLine(t.repo, FIELD_CHARS)}, no worktree`,
-      filesChangedText(db, t.id) ? `  files changed: ${filesChangedText(db, t.id)}` : "",
+      `  repo ${oneLine(t.repo, FIELD_CHARS)}`,
       stages.length ? `  stages: ${stages.join(" -> ")}` : "",
       steeredAfterPlan(db, t.id) ? `  ${PLAN_NOT_REAPPROVED}` : "",
     ];

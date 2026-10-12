@@ -16,7 +16,6 @@ import {
 import { errText } from "../observability/redact";
 import type { QueryFn } from "../runtime/run-agent";
 import { getSession } from "../storage/session-store";
-import { cleanupWorktree } from "../workspaces/clone-cleanup";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import { createBusyLane } from "./busy-lane";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
@@ -45,9 +44,9 @@ export interface TurnHandlerDeps {
   queryFn?: QueryFn;
   /** Optional global concurrency cap; when full the message is rejected with a busy reply. */
   limiter?: RunLimiter;
-  /** Owner approval gateway; required for staged (gated) roles such as dev, and their worktree follow-ups. */
+  /** Owner approval gateway; required for staged (gated) roles such as dev. */
   approvals?: ApprovalGateway;
-  /** Intent layer (pipeline + L3 engine), built at startup. Missing = off: every message takes the legacy pick (entry role / clone owner). */
+  /** Intent layer (pipeline + L3 engine), built at startup. Missing = off: every message takes the entry role. */
   intent?: IntentDeps;
 }
 
@@ -67,7 +66,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     approvals: deps.approvals!,
     queryFn: deps.queryFn,
     stopping: tracker.isStopping,
-    threadBusy: (id) => active.has(id),
     steer: createSteerRegistry(db), // streaming stages take the owner's messages while they run
   };
   const busyLane = createBusyLane({
@@ -98,8 +96,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     }
     // The run holds the thread: `still working...`, or (intent layer on) steer / side answer / queue / yes-no.
     if (running) return busyLane(message, parsed, running);
-    if (parsed.kind === "cleanup")
-      return cleanupWorktree({ db, agentHome: config.agentHome, active }, message, parsed.taskId);
     // Drain (deploy): no new turn starts; the commands above still answer; the global cap is checked after them too.
     if (isDraining(config.agentHome)) {
       logEvent(log, "task.refused", { reason: "drain", reply: DRAIN_REPLY });
@@ -121,19 +117,12 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     const turnRepo = () => getLogContext().repo ?? "*";
     /** The one place the turn row is created (after the refusals, before the flow runs). */
     let single: string | undefined;
-    const begin = (
-      repo: string,
-      role: string,
-      mode: string,
-      cls?: TaskClass,
-      parentTurnId?: string,
-      resume?: boolean,
-    ) => {
+    const begin = (repo: string, role: string, mode: string, cls?: TaskClass, resume?: boolean) => {
       beginTurn(
         db,
         log,
         { turnId, threadId, source: message.source, single },
-        { repo, role, mode, cls, parentTurnId, resume },
+        { repo, role, mode, cls, resume },
       );
       turnInserted = true;
     };

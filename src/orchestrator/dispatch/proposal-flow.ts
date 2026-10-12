@@ -36,7 +36,6 @@ export function persistProposal(
       role: i.request.role,
       brief: i.request.brief,
       repo: i.request.repo,
-      base: i.request.base,
       class: i.request.cls,
       confidence: i.request.confidence,
       reason: i.request.reason,

@@ -5,10 +5,9 @@ import { stageKind } from "./gates";
    (a refusal then has no side effect: no row, no model call). */
 
 /**
- * Refusal text when the engine cannot run `role` as data says, else undefined. `hasClone`: the run is a
- * follow-up in the thread's existing (legacy) clone.
+ * Refusal text when the engine cannot run `role` as data says, else undefined.
  */
-export function validateRole(role: RoleDefinition, hasClone: boolean): string | undefined {
+export function validateRole(role: RoleDefinition): string | undefined {
   for (const [idx, stage] of role.stages.entries()) {
     const kind = stageKind(stage);
     if (kind === "unsupported") return `Stage ${stage.name} has a gate this engine cannot run.`;
@@ -18,8 +17,5 @@ export function validateRole(role: RoleDefinition, hasClone: boolean): string | 
     if (kind === "plan" && stageKind(role.stages[idx + 1] ?? stage) !== "repo")
       return "The stage after the plan gate must run in the repo.";
   }
-  // Without `followUp` a message in an existing clone would restart at stage 0 and plan again.
-  if (hasClone && !role.followUp && role.stages.some((s) => stageKind(s) === "repo"))
-    return `Role ${role.name} has no follow-up in an existing clone.`;
   return undefined;
 }

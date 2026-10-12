@@ -79,13 +79,6 @@ test("low confidence asks once; `confirmed` (owner said go) skips the question",
   });
 });
 
-test("base is stored with the proposal but no longer validated or used (the agent picks its branch)", async () => {
-  const { deps } = await setup();
-  const v = await validateRequest(deps, req({ base: "release/9" }));
-  expect(v).toMatchObject({ ok: true });
-  expect("base" in v).toBe(false);
-});
-
 test("cap: refused when the role counts toward it and the cap is full", async () => {
   const { deps } = await setup();
   for (const id of Array.from({ length: MAX_CAPPED_TASKS }, (_, n) => `cap${n}`))

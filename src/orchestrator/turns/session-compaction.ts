@@ -3,7 +3,6 @@ import { logEvent, logger } from "../../observability/logger";
 import type { RunUsage } from "../../observability/record-run";
 import { ROLES } from "../../roles/role-registry";
 import { deleteSession } from "../../storage/session-store";
-import { liveWorktree } from "../../storage/worktree-store";
 
 /* App-driven compaction of a finished task's session. CHOICE: a FRESH session seeded with the thread task
    ledger, not `/compact` through the SDK. Why: (1) P3.0 Q12 (SDK auto-compact setting) is UNKNOWN and the
@@ -31,8 +30,7 @@ export function avgContextTokens(u: RunUsage): number {
 }
 
 /**
- * Task done -> thread idle: when the task's role re-seeds from the ledger (`context.ledger`), the thread has no
- * live clone (a clone's follow-ups resume the session) and the run's context was over the threshold, forget the
+ * Task done -> thread idle: when the task's role re-seeds from the ledger (`context.ledger`), the run's context was over the threshold, forget the
  * stored session so the next message starts fresh with the ledger. Returns true when it did. Logs
  * `session.compacted` (sizes only, never text). Never throws (best effort).
  */
@@ -47,7 +45,6 @@ export function compactIdleSession(
       .query<{ role: string }, [string]>("SELECT role FROM turns WHERE id = ?")
       .get(ids.turnId);
     if (!row || !ROLES[row.role]?.context?.ledger) return false;
-    if (liveWorktree(db, ids.threadId)) return false;
     const ctx = avgContextTokens(usage);
     if (ctx < FRESH_SESSION_CONTEXT_TOKENS) return false;
     deleteSession(db, ids.threadId);

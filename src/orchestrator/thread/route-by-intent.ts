@@ -23,10 +23,10 @@ import {
   QUEUE_FULL,
   STILL_WORKING,
 } from "./intent-replies";
-import { FIX_LIMIT_REPLY, type IntentAction, isSideRole } from "./intent-table";
+import { type IntentAction, isSideRole } from "./intent-table";
 import { steerReply } from "./steer-reply";
 
-export { actionFor, FIX_LIMIT_REPLY, type IntentAction, MAX_FIX_ROUNDS } from "./intent-table";
+export { actionFor, type IntentAction } from "./intent-table";
 
 /* Executor of the behavior table (intent-table.ts, decisions Rev 4/5/8/11): it calls only `dispatch/` and the steer
    registry, and returns what the handler should run: it never calls the SDK. */
@@ -85,7 +85,7 @@ const queued = (c: RouteCtx, role: string) => ({
 const STORES_ITSELF: ReadonlySet<IntentAction["kind"]> = new Set(["steer", "queue", "feedback"]);
 
 /**
- * Carry out one table action. A row that needs the thread free (run, open, fix) while a run holds the lock cannot
+ * Carry out one table action. A row that needs the thread free (run, open) while a run holds the lock cannot
  * run: the reply is `still working...`. `steer` pushes the text into the run's input channel (or holds it for the
  * next streaming stage), `feedback` hands it to the plan gate, `side` returns the question for the parallel
  * read-only run the handler starts. Every message of a busy thread leaves a `run_messages` row. Logs
@@ -107,8 +107,6 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       return reply(c.busy && !c.gated ? STILL_WORKING : (a.text ?? ASK_TEXT[a.reason]()));
     case "gate-hint":
       return reply(GATE_HINT);
-    case "fix-limit":
-      return reply(FIX_LIMIT_REPLY);
     case "answer-ask": {
       // "no" to "open a task?": the assistant answers the original message (busy: it must wait).
       const declined = a.answer === "no" ? declineConfirmedTask(c, c.busy) : undefined;
@@ -154,7 +152,6 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       return reply(applied ? FEEDBACK_SENT : FEEDBACK_MISSED);
     }
     case "run":
-    case "fix":
       return c.busy
         ? reply(STILL_WORKING)
         : { kind: "run", role: a.role, cls: c.cls, effort: c.effort };

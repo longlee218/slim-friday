@@ -1,6 +1,5 @@
 import type { Logger } from "pino";
 import type { Effort, TaskClass } from "../config/model-routing";
-import { realOrSame } from "../guardrails/paths";
 import type { InboundMessage } from "../ingress/discord-message-handler";
 import { logEvent } from "../observability/logger";
 import type { Repo } from "../repos/repo-registry";
@@ -9,9 +8,8 @@ import { RESUME_FAILED } from "../runtime/run-errors";
 import { threadLedger } from "../storage/ledger-store";
 import { dropResumable } from "../storage/run-store";
 import { deleteSession, type SessionRow } from "../storage/session-store";
-import { liveWorktree } from "../storage/worktree-store";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
-import { runStages, startStage } from "./engine/stage-runner";
+import { runStages } from "./engine/stage-runner";
 import { type ResumePlan, type Route, runRoute } from "./message-routing";
 import { deriveThreadState, isIdleLike } from "./thread/thread-state";
 import type { FlowResult } from "./turns/turn-result";
@@ -34,8 +32,6 @@ export interface RoleRunCtx {
     role: string,
     mode: string,
     cls?: TaskClass,
-    /** Task whose clone a follow-up (fix round) continues. */
-    parentTurnId?: string,
     /** The task runs a `failed_resumable` one again (not a fix round). */
     resume?: boolean,
   ) => void;
@@ -63,7 +59,7 @@ export async function runTurn(
   const { deps, message, turnId, workspace: ws } = c;
   const { db } = deps;
   const { cmd, planResume } = a.plan;
-  const { pinned, worktree } = a.route;
+  const { pinned } = a.route;
   const role = getRole(a.route.role);
   const existing = a.plan.existing ?? a.existing;
   const cls = ("cls" in cmd ? cmd.cls : undefined) ?? a.intent?.cls; // owner `[design]` prefix, else the intent class
@@ -73,14 +69,7 @@ export async function runTurn(
   logEvent(c.log, "thread.state", { state });
   const ledger =
     role.context?.ledger && isIdleLike(state) ? threadLedger(db, message.threadId) : "";
-  c.begin(
-    a.route.repo,
-    role.name,
-    startStage(role, !!worktree).name,
-    cls,
-    worktree?.taskId,
-    !!a.plan.approved,
-  );
+  c.begin(a.route.repo, role.name, role.stages[0]?.name ?? "", cls, !!a.plan.approved);
   // The held task is taken over only now that the resumed run has its own row (a start failure keeps the hold).
   if (a.plan.approved) dropResumable(db, message.threadId);
   const res: FlowResult = await runStages(deps, {
@@ -89,28 +78,18 @@ export async function runTurn(
     text: cmd.text,
     role: role.name,
     workspace: ws,
-    // `repoScope: "all"` roles see every repo of the workspace; the others pick among the managed clones.
+    // `repoScope: "all"` roles see every repo of the workspace; the others pick among the repos.
     repos: role.repoScope === "all" ? c.repos : a.route.candidates,
     ac: c.ac,
-    worktree,
     planResume,
     approved: a.plan.approved,
     route: runRt,
-    resume:
-      worktree && existing?.cwd === realOrSame(worktree.path) ? existing.session_id : undefined,
     pinned,
     existing,
     ledger,
   });
   const o = { stopping: deps.stopping(), t0: c.t0, repo: c.turnRepo() };
-  // An answer in a thread that has a clone must not replace the thread's session (the clone's fix rounds resume it).
-  const keepClone = role.output === "answer" && !!liveWorktree(db, message.threadId);
-  const reply = closeTurn(
-    db,
-    { turnId, threadId: message.threadId },
-    keepClone ? { ...res, sessionId: undefined } : res,
-    o,
-  );
+  const reply = closeTurn(db, { turnId, threadId: message.threadId }, res, o);
   // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
   if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {
     // The plan session lives on the turn row (the failed task now has none, so Resume stops offering it).

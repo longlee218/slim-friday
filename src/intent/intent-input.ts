@@ -9,9 +9,8 @@ import { cleanRecent } from "./recent-messages";
 const LEDGER_TASKS = 3;
 
 /** Gate of a waiting state, for the classifier's one-line state. */
-const GATE_OF: Partial<Record<ThreadState, "plan-approval" | "delivery">> = {
+const GATE_OF: Partial<Record<ThreadState, "plan-approval">> = {
   awaiting_plan_approval: "plan-approval",
-  awaiting_result: "delivery",
 };
 
 /**

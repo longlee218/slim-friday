@@ -4,7 +4,7 @@ import { type Effort, resolveBudget, type TaskClass } from "../../config/model-r
 import type { Repo } from "../../repos/repo-registry";
 import { dispatchableRoleNames, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
-import { capRefusal, keptClonesRefusal, type Refusal, refuse, resolveTaskRepo } from "./task-repo";
+import { capRefusal, type Refusal, refuse, resolveTaskRepo } from "./task-repo";
 
 /* Checks of a proposed hand-over BEFORE any task row exists. Pure app code: no LLM, no side effect. */
 
@@ -15,10 +15,8 @@ export const LOW_CONFIDENCE = 0.4;
 export interface DispatchRequest {
   role: string;
   brief: string;
-  /** Repo name; missing = the thread's pinned repo, else the plan picks among the workspace clones. */
+  /** Repo name; missing = the thread's pinned repo, else the plan picks among the workspace repos. */
   repo?: string;
-  /** Stored with the proposal but not used: the agent picks its own branch (Rev 15). */
-  base?: string;
   /** Task class; missing = standard. */
   cls?: TaskClass;
   /** Effort resolved when the request was queued; kept so queue -> start runs at it. Missing = the stage defaults. */
@@ -40,8 +38,6 @@ export interface ValidationDeps {
   config: AgentConfig;
   /** Repos of the workspace the task would run in. */
   repos: Repo[];
-  /** Workspace the task would run in (the kept-clones cap counts its clones). */
-  workspace?: string;
   /** Repo the thread is pinned to, when any. */
   pinned?: Repo;
 }
@@ -52,7 +48,7 @@ export interface ValidRequest {
   role: RoleDefinition;
   /** First stage of the role (its model and budget are what the start costs). */
   firstStage: StageDefinition;
-  /** Managed clones the plan may pick from (one when the repo is known). */
+  /** Repos the plan may pick from (one when the repo is known). */
   candidates: Repo[];
   /** Row repo: the picked one's name, or `*` (the plan chooses). */
   repoName: string;
@@ -79,7 +75,7 @@ const ask = (reason: string, question: string): InvalidRequest => ({
  * Validate a request: role in the registry (and dispatchable), confidence, repo in the workspace
  * (`resolveTaskRepo`), cap (when the role counts), budget.
  * What the owner can fix (unknown role/repo, low confidence) -> `ask`; what only waiting fixes (cap, no
- * clone, no budget) -> `refuse`.
+ * budget) -> `refuse`.
  */
 export async function validateRequest(
   d: ValidationDeps,
@@ -109,9 +105,7 @@ export async function validateRequest(
   }
   const { candidates } = resolved;
   const repoName = hint ? (candidates[0]?.name ?? "*") : "*";
-  const capped = role.countsTowardCap
-    ? (capRefusal(d.db) ?? (d.workspace ? keptClonesRefusal(d.db, d.workspace) : undefined))
-    : undefined;
+  const capped = role.countsTowardCap ? capRefusal(d.db) : undefined;
   if (capped) return { ok: false, action: "refuse", refusal: capped };
   const cls = req.cls ?? "standard";
   const budget = resolveBudget(firstStage, role, { cls }, d.config);

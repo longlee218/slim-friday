@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { runStages } from "../src/orchestrator/engine/stage-runner";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { DEV_ROLE } from "../src/roles/builtin/dev-role";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../src/roles/role-types";
 import { insertTurn } from "../src/storage/run-store";
@@ -27,7 +26,7 @@ const probe = (o: Partial<RoleDefinition>): RoleDefinition => ({
 });
 
 /** Run `role` (registered for the call) with a query that counts its calls. */
-async function runProbe(role: RoleDefinition, extra: { worktree?: never } = {}) {
+async function runProbe(role: RoleDefinition) {
   const env = makeEnv();
   const roles = ROLES as Record<string, RoleDefinition>;
   roles[role.name] = role;
@@ -54,7 +53,6 @@ async function runProbe(role: RoleDefinition, extra: { worktree?: never } = {}) 
         workspace: "main",
         repos: [{ name: "repo", path: env.repo } as never],
         ac: new AbortController(),
-        ...extra,
       },
     );
     return { res, calls, rows: listStages(env.db, "t1") };
@@ -81,20 +79,6 @@ test("all stages are validated before the first one runs (no side effect)", asyn
   const r2 = await runProbe(probe({ stages: [plan, S] }));
   expect(r2.res.text).toContain("must run in the repo");
   expect([r2.calls, r2.rows.length]).toEqual([0, 0]);
-});
-
-test("a role with a repo stage and no followUp refuses a follow-up in a legacy clone", async () => {
-  const clone = {
-    ...S,
-    name: "c",
-    capabilities: ["read", "write"] as StageDefinition["capabilities"],
-  };
-  const wt = { path: "/nowhere", repo: "repo" } as never;
-  const noFollow = await runProbe(probe({ stages: [clone] }), { worktree: wt });
-  expect(noFollow.res.text).toContain("no follow-up");
-  expect([noFollow.calls, noFollow.rows.length]).toEqual([0, 0]);
-  // dev declares its follow-up start stage: not refused by the rule
-  expect(DEV_ROLE.followUp?.startAtStage).toBeTruthy();
 });
 
 test("a thrown stage run marks the row failed, not running", async () => {

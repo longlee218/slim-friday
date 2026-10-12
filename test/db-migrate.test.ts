@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { addUsage, emptyUsage } from "../src/observability/record-run";
 import { openDb } from "../src/storage/db";
 import { countActiveCappedTasks, insertTurn } from "../src/storage/run-store";
-import { getWorktreeByTask } from "../src/storage/worktree-store";
 
 /** The v1 schema as the bot shipped it before the migration (no meta table, no stages / proposals). */
 const V1 = `
@@ -167,7 +166,7 @@ test("cap query counts code tasks only (counts_toward_cap), not Q&A", () => {
   });
 });
 
-test("worktrees: clone columns are added; an old row reads back as a legacy row (no base sha, active)", () => {
+test("worktrees: clone columns are added; an old row gets the defaults (no base sha, active)", () => {
   const dir = mkdtempSync(join(tmpdir(), "mig-wt-"));
   const file = join(dir, "data", "agent.db");
   mkdirSync(join(dir, "data"));
@@ -195,12 +194,14 @@ test("worktrees: clone columns are added; an old row reads back as a legacy row 
     "delivered_at",
   ])
     expect(cols).toContain(c);
-  expect(getWorktreeByTask(db, "t1")).toMatchObject({
-    baseSha: null,
-    workspace: null,
-    delivery: null,
-    status: "active",
-  });
+  // The table is unused since Rev 15 (phase 6 drops it); the migration still has to leave it readable.
+  expect(
+    db
+      .query(
+        "SELECT base_sha AS baseSha, workspace, delivery, status FROM worktrees WHERE task_id = 't1'",
+      )
+      .get(),
+  ).toMatchObject({ baseSha: null, workspace: null, delivery: null, status: "active" });
   openDb(file).close(); // idempotent
 });
 
