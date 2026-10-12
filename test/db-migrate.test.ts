@@ -56,7 +56,7 @@ test("v1 db survives: rows kept, new tables + columns, version marker, defaults 
     count(db, "approvals"),
   ]).toEqual([2, 2, 1, 1]);
   expect(db.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({
-    value: "4",
+    value: "5",
   });
   expect(hasTable(db, "stages")).toBe(false); // dropped by v4
   expect(count(db, "proposals")).toBe(0);
@@ -124,7 +124,7 @@ test("fresh db: version marker written, no snapshot", () => {
   const home = mkdtempSync(join(tmpdir(), "friday-migrate-"));
   const db = openDb(join(home, "data", "agent.db"));
   expect(db.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({
-    value: "4",
+    value: "5",
   });
   expect(existsSync(join(home, "db-backups"))).toBe(false);
 });

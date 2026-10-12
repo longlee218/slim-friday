@@ -5,13 +5,28 @@ import { restrictFile } from "../config/workspace-paths";
 import { logEvent, logger } from "../observability/logger";
 
 /** Current schema version (`meta.schema_version` is the only version marker). */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const log = logger.child({ module: "db-migrate" });
 
 /** True when the table exists. */
 export const hasTable = (db: Database, name: string): boolean =>
   !!db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name);
+
+/** Data tables that survive every migration step: their row counts must be unchanged by additive/drop steps. */
+export const KEPT_TABLES = [
+  "turns",
+  "runs",
+  "approvals",
+  "tool_calls",
+  "proposals",
+  "run_messages",
+  "sessions",
+] as const;
+
+/** Row count of a table (table name is app-built, never owner text). */
+export const countOf = (db: Database, table: string): number =>
+  db.query<{ n: number }, []>(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n ?? 0;
 
 /** True when the db is a v1 one: it has data tables but no `meta` marker yet (a fresh db has neither). */
 export function isV1Db(db: Database): boolean {

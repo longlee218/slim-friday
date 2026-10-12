@@ -64,7 +64,7 @@ test("v3 db: stages/worktrees and the 3 columns are gone, kept counts equal, v4,
   expect(hasTable(raw, "stages") && hasTable(raw, "worktrees")).toBe(true);
   raw.close();
   const db = openDb(file);
-  expect(version(db)).toBe("4");
+  expect(version(db)).toBe("5");
   expect(hasTable(db, "stages")).toBe(false);
   expect(hasTable(db, "worktrees")).toBe(false);
   expect(cols(db, "runs")).not.toContain("stage_idx");
@@ -77,10 +77,10 @@ test("v3 db: stages/worktrees and the 3 columns are gone, kept counts equal, v4,
   expect(snaps(backups)).toEqual([]);
 });
 
-test("v2 db: one open reaches v4 with exactly ONE friday-v2 snapshot and no friday-v3", () => {
+test("v2 db: one open reaches v5 with exactly ONE friday-v2 snapshot and no friday-v3", () => {
   const { file, backups } = home(2);
   const db = openDb(file);
-  expect(version(db)).toBe("4");
+  expect(version(db)).toBe("5");
   expect(counts(db)).toMatchObject({ turns: 2, runs: 2, approvals: 1, proposals: 1 });
   expect(hasTable(db, "stages")).toBe(false);
   const files = snaps(backups);
@@ -106,13 +106,13 @@ test("second open is a no-op: same schema, same counts, no new snapshot", () => 
   expect(snaps(backups)).toHaveLength(1);
 });
 
-test("fresh db lands on v4 without stages/worktrees and without a snapshot", () => {
+test("fresh db lands on v5 without stages/worktrees and without a snapshot", () => {
   const dir = mkdtempSync(join(tmpdir(), "friday-v4-"));
   const db = openDb(join(dir, "data", "agent.db"));
-  expect(version(db)).toBe("4");
+  expect(version(db)).toBe("5");
   expect(hasTable(db, "stages") || hasTable(db, "worktrees")).toBe(false);
   expect(snaps(join(dir, "db-backups"))).toEqual([]);
-  expect(version(openDb(":memory:"))).toBe("4");
+  expect(version(openDb(":memory:"))).toBe("5");
 });
 
 /** Rollback case: the db must be exactly the v3 fixture after the failed open. */
