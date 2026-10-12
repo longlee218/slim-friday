@@ -18,7 +18,7 @@ import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import { createPermissionWatch } from "./permission-watch";
 import type { SteerHook } from "./run-input-channel";
 import { consumeStream, type QueryFn, type StreamResult } from "./run-stream";
-import { buildSdkOptions, stageConfig, stageTimeoutMs } from "./sdk-options";
+import { buildSdkOptions, stageConfig } from "./sdk-options";
 import { NO_SKILLS, type RunSkills } from "./skills-plugin/plugin-builder";
 import { buildStageSkills } from "./skills-plugin/stage-skills";
 import { consumeSteered } from "./steered-stream";
@@ -125,15 +125,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   );
   const run = input.queryFn ?? (sdkQuery as QueryFn);
 
-  // Timeout is mandatory: an invalid auth token otherwise retries forever.
-  let timedOut = false;
-  const timer = setTimeout(
-    () => {
-      timedOut = true;
-      ac.abort();
-    },
-    stageTimeoutMs(stage, config),
-  );
+  // No run timeout (owner): a run ends by its result, the budget, the turn ceiling or an abort (/stop, shutdown).
 
   let res: StreamResult = { text: "", sessionId: undefined, outcome: "error", usage: emptyUsage() };
   // Workspace skills plugin (fail closed, never throws); built inside the try so `finally` always removes it.
@@ -167,7 +159,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       options,
       recorder,
       ac,
-      timedOut: () => timedOut,
       db: input.db,
       turnId: input.turnId,
       cwd: input.cwd,
@@ -178,7 +169,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       ? await consumeSteered({ ...common, first: input.prompt, hook: input.steer, runId })
       : await consumeStream({ ...common, prompt: input.prompt });
   } finally {
-    clearTimeout(timer);
     sk.cleanup();
     recorder.finish(res.outcome, res.usage);
     recorder.close();

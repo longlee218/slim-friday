@@ -1,6 +1,12 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { RoleSkill } from "../../roles/role-types";
-import type { PluginCaps } from "./plugin-copy";
+import {
+  isPluginName,
+  pluginNameOf,
+  readSkillsLock,
+  SKILLS_LOCK_FILE,
+} from "../../config/skills-lock";
+import { log, type PluginCaps } from "./plugin-copy";
 
 /**
  * Where the publisher's skills live: `<app root>/.agents/skills/<name>/` (a flat dir of skill folders, pinned by the
@@ -14,16 +20,33 @@ export const PUBLISHER_CAPS: PluginCaps = {
   total: { files: 300, bytes: 5 * 1024 * 1024 },
 };
 
+/** The installed skills of one publisher: they load as one plugin `<plugin>:<skill>`. */
+export interface PublisherPlugin {
+  plugin: string;
+  skills: string[];
+}
+
 /**
- * Dir names of the skills a stage may LOAD: every skill of the role whose `needs` are all in the stage's subagent
- * list (`StageDefinition.subagents`). One list controls agents AND skills, so a skill that dispatches a subagent the
- * stage cannot start never shows up.
+ * Installed publisher skills, from data only: the lock entries whose dir exists in `srcDir`, grouped by `source` (one
+ * plugin per source, named by the source's last segment). An entry without a dir is warned about and left out; a dir
+ * the lock does not list is never loaded. A new install (lock + dir) shows up with no code change.
  */
-export function allowedSkills(
-  skills: readonly RoleSkill[],
-  stageSubagents: readonly string[],
-): string[] {
-  return skills
-    .filter((s) => (s.needs ?? []).every((agent) => stageSubagents.includes(agent)))
-    .map((s) => s.name);
+export function installedPublisherPlugins(
+  srcDir: string = PUBLISHER_SKILLS_DIR,
+  lockFile: string = SKILLS_LOCK_FILE,
+): PublisherPlugin[] {
+  const groups = new Map<string, string[]>();
+  for (const [name, { source }] of Object.entries(readSkillsLock(lockFile))) {
+    const plugin = pluginNameOf(source);
+    if (!isPluginName(plugin)) {
+      log.warn({ skill: name, source }, "lock entry has no usable plugin name: skipped");
+      continue;
+    }
+    if (!existsSync(join(srcDir, name))) {
+      log.warn({ skill: `${plugin}:${name}` }, "skill is in the lock but not on disk");
+      continue;
+    }
+    groups.set(plugin, [...(groups.get(plugin) ?? []), name]);
+  }
+  return [...groups].map(([plugin, skills]) => ({ plugin, skills }));
 }

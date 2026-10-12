@@ -1,6 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { readSkillsLock } from "../src/config/skills-lock";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
@@ -12,25 +13,11 @@ import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./help
 const git = createGitMcp();
 afterAll(() => git.close());
 
-/** Skills the dev role gets from its Superpowers set (plan stage; exec adds the three subagent skills). */
-const SP = [
-  "brainstorming",
-  "executing-plans",
-  "systematic-debugging",
-  "test-driven-development",
-  "verification-before-completion",
-  "writing-plans",
-].map((k) => `superpowers:${k}`);
-/** The exec stage also loads the subagent skills (its subagent list has implementer and task-reviewer). */
-const SDD_SKILLS = [
-  "subagent-driven-development",
-  "requesting-code-review",
-  "receiving-code-review",
-].map((k) => `superpowers:${k}`);
-/** The skills of a plan run as sorted names: the set's plus the given workspace ones. */
+/** Skills the dev role gets: every installed publisher skill, as the lock lists them (no names here). */
+const SP = Object.entries(readSkillsLock()).map(([k, e]) => `${e.source.split("/").pop()}:${k}`);
+/** The skills of a plan or exec run as sorted names: the installed ones plus the given workspace ones. */
 const withSet = (...ws: string[]) => [...SP, ...ws].sort();
-/** Same for the exec run (set + subagent skills + workspace ones). */
-const withExec = (...ws: string[]) => [...SP, ...SDD_SKILLS, ...ws].sort();
+const withExec = withSet;
 
 /** Run a dev task to the end of the exec stage; return the options of the plan and exec runs. */
 async function runTask(
@@ -92,7 +79,7 @@ test("lean (default): no full rules; workspace skills load in plan and exec", as
   expect(plan.settingSources).toEqual([]);
   for (const o of [plan, exec]) {
     expect(o.systemPrompt.append).not.toContain("workflow: full");
-    expect(o.systemPrompt.append).toContain("At most 3"); // the ask boundary applies to every code task
+    expect(o.systemPrompt.append).toContain("At most 6"); // the ask boundary applies to every code task
   }
 });
 

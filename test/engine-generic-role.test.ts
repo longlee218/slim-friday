@@ -16,6 +16,7 @@ const PROBE: RoleDefinition = {
   name: "probe-reviewer",
   whenToUse: "test only",
   output: "answer",
+  maxAsk: 3,
   countsTowardCap: false,
   stages: [
     {

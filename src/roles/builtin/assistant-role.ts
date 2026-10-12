@@ -1,5 +1,11 @@
 import type { RoleDefinition } from "../role-types";
 
+/** Owner questions per task: the assistant has no ask tool today, so this only fills the role contract. */
+const MAX_ASK = 6;
+/** Budget (USD) of a Q&A run on the cheap tier, and of its escalated re-run. Wired into the stage below. */
+const BUDGET_USD = 0.5;
+const ESCALATED_BUDGET_USD = 1.5;
+
 /**
  * Auto-compact window of the assistant `qa` stage: the top of the range P3.0 saw accepted (100k-1M), so the
  * SDK threshold stays at its own default (min(window, model window) - reserve): effectively OFF until the
@@ -28,6 +34,8 @@ export const ASSISTANT_ROLE: RoleDefinition = {
   escalation: true,
   countsTowardCap: false,
   entry: true,
+  skills: "none", // the generalist: no publisher skills (widening is a one-word edit)
+  maxAsk: MAX_ASK,
   context: { ledger: true },
   repoScope: "all",
   stages: [
@@ -38,10 +46,9 @@ export const ASSISTANT_ROLE: RoleDefinition = {
       permissionMode: "auto",
       isolation: "none",
       model: "haiku",
-      budgetUsd: 0.5,
+      budgetUsd: BUDGET_USD,
       autoCompactWindow: QA_AUTO_COMPACT_WINDOW,
-      escalatedBudgetUsd: 1.5,
-      subagents: ["explorer"],
+      escalatedBudgetUsd: ESCALATED_BUDGET_USD,
       promptSections: (ctx) => [QA, ctx.escalation ? ESCALATE : ""],
     },
   ],

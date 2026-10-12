@@ -2,11 +2,10 @@ import { expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { readSkillsLock } from "../src/config/skills-lock";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { initWorkflowSkill } from "../src/discord-setup/discord-cli";
 import { createWorkspaceDir, writeWorkflowSkill } from "../src/discord-setup/workspace-template";
-import { ROLES } from "../src/roles/role-registry";
-import { allowedSkills } from "../src/runtime/skills-plugin/publisher-skills";
 import { assertTempHome } from "./helpers";
 
 const tmpHome = () => {
@@ -32,16 +31,14 @@ test("template: frontmatter name, <= 120 lines, report format and steps", () => 
   expect(TEMPLATE).toContain("path:line");
 });
 
-test("template: the which-skill table lists exactly the loaded dev skills, no deferred one", () => {
+test("template: every skill the which-skill table names is installed (in the skills lock)", () => {
   const rows = TEMPLATE.split("\n").filter(
     (l) => l.startsWith("| ") && l.includes("`superpowers:"),
   );
   const named = rows.map((l) => /`superpowers:([a-z-]+)`/.exec(l)?.[1]).sort();
-  const devStage = ROLES.dev?.stages[0];
-  expect(named).toEqual(
-    [...allowedSkills(ROLES.dev?.skills ?? [], devStage?.subagents ?? [])].sort(),
-  );
   expect(named).toHaveLength(6);
+  const installed = Object.keys(readSkillsLock());
+  for (const n of named) expect(installed).toContain(n as string);
   // The subagent skills are named only in prose (execute stage, plans of 3+ tasks), never as a plan-stage table row.
   expect(rows.join("\n")).not.toMatch(
     /subagent-driven|requesting-code-review|receiving-code-review/,

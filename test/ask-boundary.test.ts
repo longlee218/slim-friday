@@ -3,13 +3,17 @@ import { realpathSync } from "node:fs";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { createGitMcp } from "../src/mcp/git-mcp";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { MAX_ASK_CALLS_PER_TASK } from "../src/runtime/ask-limit";
+import { getRole } from "../src/roles/role-registry";
+import { newAskLimit } from "../src/runtime/ask-limit";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
 import { devIntent, initMsg, promptText, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+
+/** Ask cap of the dev role (the engine passes it to the guard; direct permission layers below get it explicitly). */
+const MAX_ASK = getRole("dev").maxAsk;
 
 /** The real git MCP server (pinned package), shared by the tests of this file. */
 const git = createGitMcp();
@@ -32,6 +36,7 @@ const askAndMaybeStop = async (o: any) => {
 test("guard: AskUserQuestion calls beyond the cap are denied and never reach the owner", async () => {
   const asked: string[] = [];
   const perms = buildToolPermissions({
+    askLimit: newAskLimit(MAX_ASK),
     turnId: "t",
     threadId: "th",
     guard: guardFor("exec", { writePaths: [], readPaths: [], allowedCommands: [] }),
@@ -42,7 +47,7 @@ test("guard: AskUserQuestion calls beyond the cap are denied and never reach the
       },
     }),
   });
-  for (let n = 0; n < MAX_ASK_CALLS_PER_TASK; n++) {
+  for (let n = 0; n < MAX_ASK; n++) {
     const r = await perms.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {} as never);
     expect(r).toMatchObject({ behavior: "allow" });
   }
@@ -50,7 +55,7 @@ test("guard: AskUserQuestion calls beyond the cap are denied and never reach the
   expect(over).toMatchObject({ behavior: "deny" });
   expect((over as { message: string }).message).toContain("Already asked");
   expect((over as { message: string }).message).toContain("use the defaults");
-  expect(asked).toHaveLength(MAX_ASK_CALLS_PER_TASK);
+  expect(asked).toHaveLength(MAX_ASK);
 });
 
 test("the ask budget is shared across stages: spent in plan, denied in exec", async () => {
@@ -62,7 +67,7 @@ test("the ask budget is shared across stages: spent in plan, denied in exec", as
       const o = a.options;
       yield initMsg;
       if (o.permissionMode === "plan") {
-        for (let n = 0; n < MAX_ASK_CALLS_PER_TASK; n++)
+        for (let n = 0; n < MAX_ASK; n++)
           exec.push(await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {}));
         const p = await o.canUseTool(EXIT_PLAN_MODE_TOOL_NAME, { plan: "repo: real\nx" }, {});
         if (p.behavior === "allow") throw new Error("process aborted");
@@ -93,10 +98,10 @@ test("the ask budget is shared across stages: spent in plan, denied in exec", as
     text: "[dev] change the schema",
   });
   const last = exec.length - 1;
-  expect(exec).toHaveLength(MAX_ASK_CALLS_PER_TASK + 1);
+  expect(exec).toHaveLength(MAX_ASK + 1);
   for (const r of exec.slice(0, last)) expect(r).toMatchObject({ behavior: "allow" }); // plan stage: the budget
   expect(exec[last]).toMatchObject({ behavior: "deny" }); // exec stage: refused
-  expect(asked).toHaveLength(MAX_ASK_CALLS_PER_TASK);
+  expect(asked).toHaveLength(MAX_ASK);
 });
 
 test("exec: no answer in time -> 'Awaiting clarification', session kept, task cancelled", async () => {
@@ -254,6 +259,7 @@ test("stop while a question is pending (exec): not 'Awaiting clarification', ses
 test("one AskUserQuestion call with 2 questions: both reach the owner, all answered, one call of the budget used", async () => {
   const asked: string[] = [];
   const perms = buildToolPermissions({
+    askLimit: newAskLimit(MAX_ASK),
     turnId: "t",
     threadId: "th",
     guard: guardFor("exec", { writePaths: [], readPaths: [], allowedCommands: [] }),
@@ -276,7 +282,7 @@ test("one AskUserQuestion call with 2 questions: both reach the owner, all answe
     updatedInput: { answers: { "Q1?": "b", "Q2?": "d" } },
   });
   expect(asked).toEqual(["Q1?", "Q2?"]);
-  for (let n = 1; n < MAX_ASK_CALLS_PER_TASK; n++)
+  for (let n = 1; n < MAX_ASK; n++)
     expect(await perms.canUseTool(ASK_USER_QUESTION_TOOL_NAME, two, {} as never)).toMatchObject({
       behavior: "allow",
     });

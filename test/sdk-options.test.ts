@@ -1,5 +1,6 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import { MAX_TURNS } from "../src/config/effort-mapping";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { getStage } from "../src/roles/role-registry";
@@ -21,7 +22,6 @@ const ENV = {
   MODEL_DEV_PLAN: "model-code",
   MODEL_DEV_EXEC: "model-code",
   CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test", // real Anthropic login: exec may use auto mode
-  MAX_TURNS: "7",
   MAX_BUDGET_USD: "3",
 };
 
@@ -120,7 +120,8 @@ test("options lock: tools, mcp servers, permission mode per stage", async () => 
   const exec = await capture("exec");
   // Built-in tools: Q&A is read + web; both code stages share the code set.
   expect(qa.o.tools).toContain("WebFetch");
-  expect(exec.o.tools).toEqual([...(plan.o.tools as string[]), SEND_MESSAGE_TOOL_NAME]); // exec resumes subagents
+  expect(exec.o.tools).toEqual(plan.o.tools);
+  expect(qa.o.tools).toContain(SEND_MESSAGE_TOOL_NAME); // the subagents capability brings Agent + SendMessage
   expect(plan.o.tools).toContain("Write");
   expect(qa.o.tools).not.toContain("Write");
   // MCP: git always; no in-process app server in any stage (no handoff tool).
@@ -140,28 +141,24 @@ test("options lock: tools, mcp servers, permission mode per stage", async () => 
     expect(r.o.strictMcpConfig).toBe(true);
     expect(typeof r.o.canUseTool).toBe("function");
   }
-  // Subagents: only the exec stage gets the implementer and the task reviewer; plan and qa stay explorer-only.
-  expect(Object.keys(qa.o.agents ?? {})).toEqual(["explorer"]);
-  expect(Object.keys(plan.o.agents ?? {})).toEqual(["explorer"]);
-  expect(Object.keys(exec.o.agents ?? {})).toEqual(["explorer", "implementer", "task-reviewer"]);
+  // No app-defined subagents: the SDK's built-in one is what the Agent tool starts.
+  for (const r of [qa, plan, exec]) expect("agents" in r.o).toBe(false);
 });
 
-test("options lock: model, limits and timeout per stage", async () => {
+test("options lock: model and limits per stage, no run timeout", async () => {
   const qa = await capture("qa");
   const plan = await capture("plan");
   const exec = await capture("exec");
   expect(qa.o.model).toBe("model-qa");
   expect(plan.o.model).toBe("model-code");
   expect(exec.o.model).toBe("model-code");
-  for (const r of [qa, plan, exec]) expect(r.o.maxTurns).toBe(7);
+  for (const r of [qa, plan, exec]) expect(r.o.maxTurns).toBe(MAX_TURNS);
   // Per-stage budget (qa 0.5, plan 1.5, exec 3) capped by MAX_BUDGET_USD=3.
   expect(qa.o.maxBudgetUsd).toBe(0.5);
   expect(plan.o.maxBudgetUsd).toBe(1.5);
   expect(exec.o.maxBudgetUsd).toBe(3);
-  // Q&A uses the configured timeout; code tasks at least 30 minutes (owner approval waits).
-  expect(qa.delays).toContain(5000);
-  expect(plan.delays).toContain(30 * 60 * 1000);
-  expect(exec.delays).toContain(30 * 60 * 1000);
+  // No run timeout: no timer is armed for the run (owner decision).
+  for (const r of [qa, plan, exec]) expect(r.delays).toEqual([]);
 });
 
 test("options lock: per-run values", async () => {

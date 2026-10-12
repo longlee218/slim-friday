@@ -24,6 +24,7 @@ const probe = (o: Partial<RoleDefinition>): RoleDefinition => ({
   name: "probe-x",
   whenToUse: "test only",
   output: "answer",
+  maxAsk: 3,
   countsTowardCap: false,
   stages: [S],
   ...o,

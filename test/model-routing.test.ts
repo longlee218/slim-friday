@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { loadConfig } from "../src/config/agent-config";
-import { effortKnobs } from "../src/config/effort-mapping";
+import { effortKnobs, MAX_TURNS } from "../src/config/effort-mapping";
 import {
   DEFAULT_TIER_MODELS,
   effortTier,
@@ -149,15 +149,16 @@ describe("opus guard (defense in depth)", () => {
 });
 
 describe("effort knobs", () => {
-  test("thinking and maxTurns per level (base 20)", () => {
-    expect(effortKnobs("low", 20)).toEqual({ thinking: { type: "disabled" }, maxTurns: 10 });
-    expect(effortKnobs("medium", 20)).toEqual({ thinking: { type: "adaptive" }, maxTurns: 20 });
-    expect(effortKnobs("high", 20)).toEqual({
+  test("thinking and maxTurns per level: MAX_TURNS is an absolute ceiling", () => {
+    expect(effortKnobs("low")).toEqual({ thinking: { type: "disabled" }, maxTurns: 10 });
+    expect(effortKnobs("medium")).toEqual({ thinking: { type: "adaptive" }, maxTurns: 20 });
+    expect(effortKnobs("high")).toEqual({
       thinking: { type: "enabled", budgetTokens: 16000 },
-      maxTurns: 30,
+      maxTurns: 20,
     });
-    expect(effortKnobs("max", 20).maxTurns).toBe(40);
-    expect(effortKnobs("low", 1).maxTurns).toBe(1);
+    for (const e of ["low", "medium", "high", "max"] as const)
+      expect(effortKnobs(e).maxTurns).toBeLessThanOrEqual(MAX_TURNS);
+    expect(MAX_TURNS).toBe(20);
   });
   test("stageConfig carries model and budget; runAgent options carry effort knobs only when asked", async () => {
     const sc = stageConfig(exec, cfg(), { cls: "design" });
@@ -186,7 +187,7 @@ describe("effort knobs", () => {
     expect("thinking" in seen[0]!).toBe(false);
     expect(seen[0]!.model).toBe(H);
     expect(seen[1]!.thinking).toEqual({ type: "enabled", budgetTokens: 16000 });
-    expect(seen[1]!.maxTurns).toBe(30);
+    expect(seen[1]!.maxTurns).toBe(MAX_TURNS); // ceiling, even for effort high
     expect(seen[1]!.model).toBe(S);
   });
 });

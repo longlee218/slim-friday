@@ -9,7 +9,7 @@ export type Capability =
   | "shell" // Bash and Monitor (policy + owner approval)
   | "web" // search / fetch
   | "skills"
-  | "subagents" // Agent: only the subagents named by the stage (guard)
+  | "subagents" // Agent + SendMessage: the SDK's own built-in subagent (no app-defined ones)
   | "tasks" // progress tracking; TaskStop (stops a background task) needs the owner
   | "mcp" // MCP resource reads (+ refresh of the app's own MCP servers)
   | "feedback" // SendFeedback: sends a report to Anthropic, always owner-approved
@@ -89,24 +89,19 @@ export interface StageDefinition {
   openrouterModel?: string;
   /** Budget of an escalated re-run of this stage (`answer` output only). Omitted = `budgetUsd`. */
   escalatedBudgetUsd?: number;
-  /** Minimum run timeout (stages with owner gates wait for approvals). Omitted = config timeout. */
-  timeoutMs?: number;
   /**
    * Auto-compact window (tokens) the app hands the SDK child for this stage (CLAUDE_CODE_AUTO_COMPACT_WINDOW).
    * Omitted = the SDK default. P3.0 Q12 is UNKNOWN (the setting was not observed to fire), so defaults stay
    * conservative (effectively off); the app-driven fresh session after a task is the reliable path.
    */
   autoCompactWindow?: number;
-  /** Subagent names (from the subagent registry) the Agent tool may start. Omitted = none (fail closed). */
-  subagents?: string[];
 }
 
-/** One publisher skill of a role: its dir name under `.agents/skills/` and the subagents it cannot work without. */
-export interface RoleSkill {
-  name: string;
-  /** Subagent names (subagent registry) the stage must list; omitted = none needed. */
-  needs?: string[];
-}
+/**
+ * Publisher skills of a role: `all` = every installed publisher skill (the skills lock + dirs on disk decide, no names in
+ * code), `none` = the workspace's own curated skills only. Widening or narrowing a role is a one-word edit.
+ */
+export type RoleSkills = "all" | "none";
 
 /** A named job the agent can do: a short chain of stages. */
 export interface RoleDefinition {
@@ -120,12 +115,10 @@ export interface RoleDefinition {
   tag?: string;
   /** What the role hands back: picks the output module (`answer` escalation, `pr` delivery). */
   output: OutputContract;
-  /**
-   * Publisher skills (dirs of `.agents/skills/`) every stage of this role gets: the single switch for what is loaded.
-   * Omitted/empty = none (the workspace's own skills dir still loads). A skill with `needs` is loaded only by a stage
-   * whose `subagents` list has every named subagent.
-   */
-  skills?: RoleSkill[];
+  /** Publisher skills every stage of this role gets (see `RoleSkills`). Omitted = `none`. */
+  skills?: RoleSkills;
+  /** AskUserQuestion calls the whole run of this role may make (shared by its stages, enforced in the permission guard). */
+  maxAsk: number;
   /** Runs of this role count toward the concurrent task cap (checked by the dispatcher). */
   countsTowardCap: boolean;
   /** The cheap-tier answer may end in `ESCALATE: sonnet|opus` and be re-run on that tier (`answer` output). */

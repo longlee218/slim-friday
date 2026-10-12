@@ -36,8 +36,8 @@ export function isSkillScript(
 ): boolean {
   const { words } = seg;
   const skillDirs = ctx.skillDirs;
-  // Main agent only (a subagent has no owner path: ask -> deny), never piped, never after a cd into a read-only dir.
-  if (ctx.agent || readOnly || seg.piped || !skillDirs?.length || !words.length) return false;
+  // Never piped, never after a cd into a read-only dir.
+  if (readOnly || seg.piped || !skillDirs?.length || !words.length) return false;
   const [first, second] = words as [string, string | undefined];
   if (SCRIPT_SHELLS.has(basename(first))) return !!second && isSkillFile(second, cwd, skillDirs);
   return isSkillFile(first, cwd, skillDirs);
@@ -134,7 +134,7 @@ function badArg(args: readonly string[], cwd: string | undefined, ctx: Guardrail
 
 /**
  * Decision for a segment `isSkillScript` matched. The script is allowed only when its arguments pass `badArg`
- * (otherwise a HARD deny: under bypass an ask would run). A command it is GIVEN after `--` (executing-plans'
+ * (otherwise a HARD deny: under bypass an ask would run). A command it is GIVEN after `--` (a skill script's
  * `task-done PLAN N BASE -- <test command>`) runs inside it where the guard cannot see it: the words after EVERY `--`
  * are judged by `judge` like a line of their own, so the hard denies and the allowlist (`allowed`: command keys)
  * still decide them. The strictest decision wins.

@@ -7,7 +7,10 @@ import { captureLogs } from "../src/observability/logger";
 import { ROLES } from "../src/roles/role-registry";
 import type { StageDefinition } from "../src/roles/role-types";
 import { removeTree } from "../src/runtime/skills-plugin/plugin-copy";
-import { PUBLISHER_CAPS } from "../src/runtime/skills-plugin/publisher-skills";
+import {
+  PUBLISHER_CAPS,
+  PUBLISHER_SKILLS_DIR,
+} from "../src/runtime/skills-plugin/publisher-skills";
 import { buildRunSkills } from "../src/runtime/skills-plugin/run-skills";
 import { buildStageSkills } from "../src/runtime/skills-plugin/stage-skills";
 import { readSkillsLock, skillDirHash } from "./skills-lock-hash";
@@ -22,20 +25,12 @@ afterAll(() => {
   for (const d of dirs) removeTree(d);
 });
 
-const SDD = "subagent-driven-development";
-const DEV = ROLES.dev?.skills ?? [];
 const DEV_STAGES = ROLES.dev?.stages ?? [];
-/** The subagents of a dev stage today: only the explorer. */
-const EXPLORER = ["explorer"];
-const DEV_NOW = [
-  "brainstorming",
-  "executing-plans",
-  "systematic-debugging",
-  "test-driven-development",
-  "verification-before-completion",
-  "writing-plans",
-];
-const GATED = [SDD, "requesting-code-review", "receiving-code-review"];
+/** Installed publisher skills as the lock lists them (names and plugin come from data, never from this test). */
+const LOCK = readSkillsLock();
+const INSTALLED = Object.entries(LOCK.skills).map(
+  ([name, e]) => `${e.source.split("/").pop()}:${name}`,
+);
 
 /** A home whose workspace `main` has the given extra yaml and an empty own skills dir. */
 function homeWith(yaml = ""): string {
@@ -53,9 +48,8 @@ function files(dir: string, rel = ""): string[] {
   );
 }
 
-/** Build the run's skills for the dev role with the given subagents (cleanup is the caller's). */
-const dev = (home: string, subagents: string[] = EXPLORER) =>
-  buildRunSkills({ agentHome: home, workspace: "main", skills: DEV, subagents });
+/** Build the run's skills for the dev role (cleanup is the caller's). */
+const dev = (home: string) => buildRunSkills({ agentHome: home, workspace: "main", skills: "all" });
 
 /** A fixture publisher dir: one skill with the given extra files. */
 function _fixture(extra: (skillDir: string) => void, name = "alpha"): string {
@@ -73,39 +67,93 @@ const _spec = (srcDir: string, allow?: string[]) => ({
   caps: PUBLISHER_CAPS,
 });
 
-test("the real publisher plugin lists the six dev skills as superpowers:<name> and copies each skill whole and unmodified", () => {
+test("the real publisher plugin lists every locked skill as <plugin>:<name> and copies each skill whole and unmodified", () => {
+  expect(INSTALLED.length).toBeGreaterThan(10);
   const r = dev(homeWith());
-  expect([...r.skills].sort()).toEqual(DEV_NOW.map((k) => `superpowers:${k}`));
+  expect([...r.skills].sort()).toEqual([...INSTALLED].sort());
   const root = r.dirs[0] as string;
   expect(r.scriptDirs).toEqual([root]);
-  // Whole: the copy of every role skill (gated ones included) hashes to what skills-lock.json pins.
-  const lock = readSkillsLock();
-  for (const s of DEV)
-    expect([s.name, skillDirHash(join(root, "skills", s.name))]).toEqual([
-      s.name,
-      lock.skills[s.name]?.computedHash,
+  // Whole: the copy of every skill hashes to what skills-lock.json pins.
+  for (const [name, e] of Object.entries(LOCK.skills))
+    expect([name, skillDirHash(join(root, "skills", name))]).toEqual([name, e.computedHash]);
+  // Exec bits kept: every file of the copy has the exec bits of its source, and some scripts are executable.
+  const copied = files(root).filter((f) => f.startsWith("skills/"));
+  let executable = 0;
+  for (const rel of copied) {
+    const bits = lstatSync(join(root, rel)).mode & 0o111;
+    expect([rel, bits]).toEqual([
+      rel,
+      lstatSync(join(PUBLISHER_SKILLS_DIR, rel.slice(7))).mode & 0o111,
     ]);
-  // Exec bits kept (task-start/done, the SDD scripts the executing-plans scripts call by relative path).
-  for (const rel of [
-    "executing-plans/scripts/task-start",
-    "executing-plans/scripts/task-done",
-    `${SDD}/scripts/task-brief`,
-    `${SDD}/scripts/sdd-workspace`,
-  ])
-    expect(lstatSync(join(root, "skills", rel)).mode & 0o111).not.toBe(0);
+    if (bits) executable++;
+  }
+  expect(executable).toBeGreaterThan(0);
   r.cleanup();
   expect(existsSync(root)).toBe(false);
 });
 
-test("a gated skill (SDD) is copied for the scripts others call, but not listed until its subagents exist", () => {
-  const off = dev(homeWith());
-  expect(off.skills).not.toContain(`superpowers:${SDD}`);
-  expect(files(off.dirs[0] as string)).toContain(`skills/${SDD}/scripts/task-brief`);
-  off.cleanup();
-  const on = dev(homeWith(), ["explorer", "implementer", "task-reviewer"]);
-  expect(on.skills).toContain(`superpowers:${SDD}`);
-  expect(on.skills).toHaveLength(9);
-  on.cleanup();
+test("a new skill in a publisher dir (dir + lock entry) is listed for dev with no code change", () => {
+  const src = join(tmp(), "skills");
+  const newSkill = "brand-new-skill";
+  mkdirSync(join(src, newSkill), { recursive: true });
+  writeFileSync(
+    join(src, newSkill, "SKILL.md"),
+    `---\nname: ${newSkill}\ndescription: d\n---\nb\n`,
+  );
+  // A second publisher: its own plugin, named by the last segment of its source.
+  const other = "other-skill";
+  mkdirSync(join(src, other), { recursive: true });
+  writeFileSync(join(src, other, "SKILL.md"), `---\nname: ${other}\ndescription: d\n---\nb\n`);
+  const lockFile = join(tmp(), "skills-lock.json");
+  writeFileSync(
+    lockFile,
+    JSON.stringify({
+      version: 1,
+      skills: {
+        [newSkill]: { source: "acme/toolkit" },
+        [other]: { source: "someone/else-pack" },
+        "locked-but-missing": { source: "acme/toolkit" }, // no dir: warned, left out
+      },
+    }),
+  );
+  const logs = captureLogs();
+  const r = buildRunSkills({
+    agentHome: homeWith(),
+    workspace: "main",
+    skills: "all",
+    publisherDir: src,
+    lockFile,
+  });
+  logs.stop();
+  expect([...r.skills].sort()).toEqual(["else-pack:other-skill", "toolkit:brand-new-skill"]);
+  expect(r.plugins).toHaveLength(2); // one plugin per source; the workspace dir has no skills
+  expect(logs.lines.some((l) => l.msg === "skill is in the lock but not on disk")).toBe(true);
+  r.cleanup();
+  // The same dir for a role with `none`: nothing loads.
+  const none = buildRunSkills({
+    agentHome: homeWith(),
+    workspace: "main",
+    skills: "none",
+    publisherDir: src,
+    lockFile,
+  });
+  expect(none.skills).toEqual([]);
+});
+
+test("a dir the lock does not list is never loaded", () => {
+  const src = join(tmp(), "skills");
+  mkdirSync(join(src, "unlisted"), { recursive: true });
+  writeFileSync(join(src, "unlisted", "SKILL.md"), "---\nname: unlisted\ndescription: d\n---\n");
+  const lockFile = join(tmp(), "skills-lock.json");
+  writeFileSync(lockFile, JSON.stringify({ version: 1, skills: {} }));
+  const r = buildRunSkills({
+    agentHome: homeWith(),
+    workspace: "main",
+    skills: "all",
+    publisherDir: src,
+    lockFile,
+  });
+  expect(r.skills).toEqual([]);
 });
 
 test("publisher plugin: only the manifest dir and skills/ at its root (no hooks, .mcp.json, agents, commands, settings)", () => {
@@ -116,26 +164,13 @@ test("publisher plugin: only the manifest dir and skills/ at its root (no hooks,
   r.cleanup();
 });
 
-test("a role with no publisher skills, or a stage without a workspace, gets none", () => {
+test("a role with `none`, or a stage without a workspace, gets no publisher skills", () => {
   const home = homeWith();
-  const none = buildRunSkills({ agentHome: home, workspace: "main", skills: [], subagents: [] });
+  const none = buildRunSkills({ agentHome: home, workspace: "main", skills: "none" });
   expect(none.skills).toEqual([]);
   expect(none.plugins).toBeUndefined();
-  const noWs = buildRunSkills({
-    agentHome: home,
-    workspace: undefined,
-    skills: DEV,
-    subagents: [],
-  });
+  const noWs = buildRunSkills({ agentHome: home, workspace: undefined, skills: "all" });
   expect(noWs.skills).toEqual([]);
-  // Only gated skills in the role: nothing to list, no plugin built.
-  const gatedOnly = buildRunSkills({
-    agentHome: home,
-    workspace: "main",
-    skills: DEV.filter((s) => s.needs),
-    subagents: EXPLORER,
-  });
-  expect(gatedOnly.skills).toEqual([]);
   expect(existsSync(join(home, "tmp")) ? readdirSync(join(home, "tmp")) : []).toEqual([]);
 });
 
@@ -146,29 +181,27 @@ test("the workspace dir (extra) gets its own plugin next to the publisher one; s
   writeFileSync(join(wsSkills, "mine", "SKILL.md"), "---\nname: mine\ndescription: d\n---\n");
   const r = dev(home);
   expect(r.skills).toContain("main:mine");
-  expect(r.skills).toHaveLength(7);
+  expect(r.skills).toHaveLength(INSTALLED.length + 1);
   expect(r.dirs).toHaveLength(2);
   expect(r.plugins).toHaveLength(2);
   expect(r.scriptDirs).toEqual([r.dirs[0] as string]); // a workspace skill's scripts are readable, not auto-run
   r.cleanup();
   expect(readdirSync(join(home, "tmp"))).toEqual([]);
-  expect(dev(homeWith("skills:\n  extra: false\n")).skills).toHaveLength(6);
-  const only = buildRunSkills({ agentHome: home, workspace: "main", skills: [], subagents: [] });
+  expect(dev(homeWith("skills:\n  extra: false\n")).skills).toHaveLength(INSTALLED.length);
+  const only = buildRunSkills({ agentHome: home, workspace: "main", skills: "none" });
   expect(only.skills).toEqual(["main:mine"]);
   only.cleanup();
 });
 
-test("dev stages: plan loads the six skills, exec also the three subagent skills; a stage outside the registry loads none and warns", () => {
+test("dev stages load every installed skill, assistant none; a stage outside the registry loads none and warns", () => {
   const names = (st: StageDefinition) => {
     const r = buildStageSkills(st, "main", homeWith());
     r.cleanup();
     return [...r.skills].sort();
   };
   expect(DEV_STAGES.length).toBeGreaterThan(1);
-  const plan = DEV_STAGES.find((s) => s.name === "plan") as StageDefinition;
-  const exec = DEV_STAGES.find((s) => s.name === "exec") as StageDefinition;
-  expect(names(plan)).toEqual(DEV_NOW.map((k) => `superpowers:${k}`));
-  expect(names(exec)).toEqual([...DEV_NOW, ...GATED].sort().map((k) => `superpowers:${k}`));
+  for (const st of DEV_STAGES) expect(names(st)).toEqual([...INSTALLED].sort());
+  expect(names(ROLES.assistant?.stages[0] as StageDefinition)).toEqual([]);
   const logs = captureLogs();
   expect(names({ ...(DEV_STAGES[0] as StageDefinition) })).toEqual([]);
   logs.stop();

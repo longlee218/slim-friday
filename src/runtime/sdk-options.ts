@@ -1,6 +1,6 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
-import { effortKnobs } from "../config/effort-mapping";
+import { effortKnobs, MAX_TURNS } from "../config/effort-mapping";
 import {
   type Route,
   resolveBudget,
@@ -13,7 +13,6 @@ import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
 import { roleOfStage } from "../roles/role-registry";
 import type { StageDefinition } from "../roles/role-types";
-import { agentsOf } from "../roles/subagents/subagent-registry";
 import { toolOptions } from "../tools/tool-catalog";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import type { RunAgentInput } from "./run-agent";
@@ -39,13 +38,9 @@ export function stageConfig(
   };
 }
 
-/** Run timeout of the stage: never below the config's; stages with owner gates include approval waits. */
-export const stageTimeoutMs = (stage: StageDefinition, config: AgentConfig): number =>
-  Math.max(config.limits.timeoutMs, stage.timeoutMs ?? 0);
-
 /**
- * Put the guardrail PreToolUse matchers before the recording hooks (deny must win early); the guard's Post hooks (subagent
- * state) go after the recording ones.
+ * Put the guardrail PreToolUse matchers before the recording hooks (deny must win early); the guard's Post hooks (free
+ * a subagent slot) go after the recording ones.
  */
 function mergeHooks(
   rec: ReturnType<typeof buildToolHooks>,
@@ -61,11 +56,15 @@ function mergeHooks(
     PreToolUse: [...perms.hooks, ...(rec.PreToolUse ?? [])],
     PostToolUse: post("PostToolUse"),
     PostToolUseFailure: post("PostToolUseFailure"),
+    PermissionDenied: [
+      ...(rec.PermissionDenied ?? []),
+      ...(perms.postHooks.PermissionDenied ?? []),
+    ],
   };
 }
 
 /**
- * The SDK `Options` of one run, derived from the stage (tools, git groups, permission mode, subagents,
+ * The SDK `Options` of one run, derived from the stage (tools, git groups, permission mode,
  * prompt) and the run input (paths, context, resume). `config` is already the stage's
  * (see `stageConfig`). Only the MCP server start is async; no I/O else happens here.
  */
@@ -119,14 +118,14 @@ export async function buildSdkOptions(
     // The SDK refuses bypassPermissions without this explicit opt-in (the guard hook stays the gate).
     ...(permissionMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),
     ...(perms && { canUseTool: perms.canUseTool }),
-    // Only the subagents this stage names (each with its own explicit tools). Skills: only the workspace's curated ones,
-    // through the plugin; the list hides the SDK's bundled ones (a model once reached for `update-config`).
-    agents: agentsOf(stage.subagents),
+    // No `agents` option: the app defines no subagent types, the SDK's built-in one is what the Agent tool starts.
+    // Skills: only the plugins' (publisher + workspace); the list hides the SDK's bundled ones (a model once reached
+    // for `update-config`).
     skills: sk.skills,
     ...(sk.plugins && { plugins: sk.plugins }),
-    maxTurns: config.limits.maxTurns,
+    maxTurns: MAX_TURNS,
     // Effort (when the orchestrator passes one) sets thinking and scales maxTurns; otherwise SDK defaults.
-    ...(effort && effortKnobs(effort, config.limits.maxTurns)),
+    ...(effort && effortKnobs(effort)),
     // Stage budget (already capped by MAX_BUDGET_USD in `stageConfig`); omitted on openrouter without the cap.
     ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
     abortController: input.abortController,

@@ -19,6 +19,7 @@ import {
   READ_MCP_RESOURCE_TOOL_NAME,
   READ_TOOL_NAME,
   REFRESH_MCP_TOOLS_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   SKILL_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
@@ -99,21 +100,6 @@ describe("run-agent stream handling", () => {
     );
   });
 
-  test("timeout aborts a hanging query and reports timeout", async () => {
-    const env = makeEnv({ TIMEOUT_MS: "100" });
-    const hang = (a: { options?: { abortController?: AbortController } }) =>
-      (async function* () {
-        await new Promise((_, rej) =>
-          a.options!.abortController!.signal.addEventListener("abort", () =>
-            rej(new Error("aborted")),
-          ),
-        );
-        yield initMsg;
-      })();
-    const r = await go(env, hang as never);
-    expect(r.outcome).toBe("timeout");
-  });
-
   test("sdk options: read-only tools, project settings, abort controller", async () => {
     const env = makeEnv();
     let seen: any;
@@ -129,12 +115,13 @@ describe("run-agent stream handling", () => {
       WEB_FETCH_TOOL_NAME,
       SKILL_TOOL_NAME,
       AGENT_TOOL_NAME,
+      SEND_MESSAGE_TOOL_NAME,
       LIST_MCP_RESOURCES_TOOL_NAME,
       READ_MCP_RESOURCE_TOOL_NAME,
       READ_MCP_RESOURCE_DIR_TOOL_NAME,
       REFRESH_MCP_TOOLS_TOOL_NAME,
     ]);
-    expect(Object.keys(seen.agents)).toEqual(["explorer"]); // subagents have explicit tools
+    expect("agents" in seen).toBe(false); // no app-defined subagents
     expect(seen.mcpServers.git.args[0]).toContain("git-mcp-server"); // pinned package, no npx
     expect(seen.mcpServers.git.env.GIT_AUTHOR_EMAIL).toBeUndefined(); // Q&A never commits
     expect(seen.mcpServers.github).toBeUndefined(); // GitHub MCP only in code tasks

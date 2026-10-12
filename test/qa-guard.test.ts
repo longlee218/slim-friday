@@ -6,7 +6,6 @@ import { checkToolCall } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { repoMemoryFile } from "../src/memory/repo-memory";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { SUBAGENTS } from "../src/roles/subagents/subagent-registry";
 import {
   AGENT_TOOL_NAME,
   BASH_TOOL_NAME,
@@ -83,14 +82,13 @@ test("Q&A git MCP: reads on registered repos only, never writes", async () => {
   ).toBe("deny");
 });
 
-test("Agent tool: only configured subagents; general-purpose (Bash/Write capable) is denied", () => {
-  const ctx = { writePaths: [], allowedSubagents: Object.keys(SUBAGENTS) };
-  const d = (input: Record<string, unknown>, tool = AGENT_TOOL_NAME) =>
-    checkToolCall(tool, input, ctx).decision;
-  expect(d({ subagent_type: "explorer", prompt: "p" })).toBe("allow");
-  expect(d({ subagent_type: "explorer", prompt: "p" }, LEGACY_AGENT_TOOL_NAME)).toBe("allow");
-  expect(d({ subagent_type: "general-purpose", prompt: "p" })).toBe("deny");
-  expect(d({ prompt: "p" })).toBe("deny");
+test("Agent tool: allowed when the stage lists it (legacy Task name too), else the owner decides; no per-type rule", () => {
+  const ctx = { writePaths: [], allowTools: [AGENT_TOOL_NAME] };
+  const d = (input: Record<string, unknown>, tool = AGENT_TOOL_NAME, c = ctx) =>
+    checkToolCall(tool, input, c).decision;
+  expect(d({ prompt: "p" })).toBe("allow");
+  expect(d({ prompt: "p" }, LEGACY_AGENT_TOOL_NAME)).toBe("allow");
+  expect(d({ prompt: "p" }, AGENT_TOOL_NAME, { writePaths: [], allowTools: [] })).toBe("ask");
 });
 
 test("Q&A with several repos uses the neutral cwd and lists no CLAUDE.md hint, lists memory", async () => {

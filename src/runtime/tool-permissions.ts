@@ -5,11 +5,11 @@ import {
   type GuardrailContext,
   type LoggedDecision,
 } from "../guardrails/check-tool-call";
-import { newSubagentRun } from "../guardrails/subagent-run";
+import { newSubagentLimit } from "../guardrails/subagent-limit";
 import { logger } from "../observability/logger";
 import { clip, errText } from "../observability/redact";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
-import { ASK_LIMIT_DENIAL, type AskLimit, MAX_ASK_CALLS_PER_TASK, newAskLimit } from "./ask-limit";
+import { type AskLimit, askLimitDenial, newAskLimit } from "./ask-limit";
 import { guardHook, subagentPostHooks } from "./guard-hook";
 import type { ModeActive } from "./permission-mode";
 
@@ -34,7 +34,7 @@ export interface ToolPermissionInput {
    * after the owner approves, `onApproved` fires (the caller then stops the run and starts stage 2).
    */
   plan?: { repos: string[]; onApproved: (plan: string, repo: string) => void };
-  /** Shared across the task's runs: the AskUserQuestion budget of the task. Omitted = budget per permission layer. */
+  /** Shared across the task's runs: the AskUserQuestion budget of the task. Omitted = no questions (cap 0). */
   askLimit?: AskLimit;
   /**
    * Stage runs in SDK `auto` mode: a SOFT guard `ask` is left to the SDK classifier (canUseTool only if it cannot
@@ -72,19 +72,18 @@ function summarize(tool: string, input: Record<string, unknown>): string {
 export function buildToolPermissions(p: ToolPermissionInput): {
   canUseTool: CanUseTool;
   hooks: HookCallbackMatcher[];
-  /** Post(Failure) hooks of the Agent tool: they feed the run's subagent state (in flight, agent ids). */
+  /** Post(Failure) hooks of the Agent tool: they free a slot of the parallel subagent cap. */
   postHooks: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
   /** Guard decision per tool_use_id (allow/ask/auto/bypass), read by the tool hooks to complete the `tool.done` line. */
   decisions: Map<string, LoggedDecision>;
 } {
   const log = logger.child({ module: "tool-permissions" });
   const decisions = new Map<string, LoggedDecision>();
-  const askLimit = p.askLimit ?? newAskLimit();
+  const askLimit = p.askLimit ?? newAskLimit(0);
 
-  // Subagent state of THIS run (spawn/resume counts, names, agent ids): one per permission layer, so it resets per run.
-  const run = newSubagentRun();
-  const hooks: HookCallbackMatcher[] = [{ hooks: [guardHook(p, decisions, log, run)] }];
-  const postHooks = subagentPostHooks(run, log);
+  // Subagents in flight of THIS run: one per permission layer, so it resets per run.
+  const limit = newSubagentLimit();
+  const hooks: HookCallbackMatcher[] = [{ hooks: [guardHook(p, decisions, log, limit)] }];
 
   const canUseTool: CanUseTool = async (tool, rawInput, opts) => {
     // Run stopped/timed out/shut down while waiting: drop the open request (buttons + timer).
@@ -126,9 +125,9 @@ export function buildToolPermissions(p: ToolPermissionInput): {
             };
       }
       if (tool === ASK_USER_QUESTION_TOOL_NAME) {
-        // At most MAX_ASK_CALLS_PER_TASK calls per task, enforced here (not only in the prompt): later ones never reach the owner.
-        if (askLimit.calls >= MAX_ASK_CALLS_PER_TASK)
-          return { behavior: "deny", message: ASK_LIMIT_DENIAL };
+        // At most the role's `maxAsk` calls per task, enforced here (not only in the prompt): later ones never reach the owner.
+        if (askLimit.calls >= askLimit.max)
+          return { behavior: "deny", message: askLimitDenial(askLimit.max) };
         askLimit.calls++;
         const questions = (input.questions ?? []) as AskQuestion[];
         const answers: Record<string, string> = {};
@@ -169,5 +168,5 @@ export function buildToolPermissions(p: ToolPermissionInput): {
     }
   };
 
-  return { canUseTool, hooks, postHooks, decisions };
+  return { canUseTool, hooks, postHooks: subagentPostHooks(limit), decisions };
 }

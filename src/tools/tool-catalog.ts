@@ -1,7 +1,6 @@
 import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../mcp/mcp-tool-names";
 import { type StageRef, stageOf } from "../roles/role-registry";
 import type { Capability } from "../roles/role-types";
-import { SUBAGENTS } from "../roles/subagents/subagent-registry";
 import { GIT_GROUPS } from "./git-tool-groups";
 import {
   AGENT_TOOL_NAME,
@@ -39,7 +38,7 @@ export { GIT_GROUPS };
 
 /**
  * The single place that says WHICH tools exist. WHICH stage gets what is data in `src/roles` (capabilities,
- * gitGroups, subagents); everything here (SDK options, the guard's auto-allowed list, hidden git tools) is
+ * gitGroups); everything here (SDK options, the guard's auto-allowed list, hidden git tools) is
  * derived from a stage by the functions below. Functions take a StageDefinition (or its name).
  */
 
@@ -60,7 +59,8 @@ export const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
   shell: [BASH_TOOL_NAME, MONITOR_TOOL_NAME],
   web: [WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME],
   skills: [SKILL_TOOL_NAME],
-  subagents: [AGENT_TOOL_NAME],
+  // Agent starts the SDK's built-in subagent; SendMessage resumes one (the app defines no subagent types).
+  subagents: [AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME],
   tasks: [
     TODO_WRITE_TOOL_NAME,
     TASK_CREATE_TOOL_NAME,
@@ -85,6 +85,7 @@ export const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
 const AUTO_ALLOWED = new Set<string>([
   ...CAPABILITY_TOOLS.web,
   ...CAPABILITY_TOOLS.skills,
+  ...CAPABILITY_TOOLS.subagents,
   // TaskStop is NOT auto-allowed: it takes any task/agent id and the guard cannot tell "own" from foreign ones -> owner asks.
   ...CAPABILITY_TOOLS.tasks.filter((t) => t !== TASK_STOP_TOOL_NAME),
   // MCP reads, and a refresh of the app's own (strict-config) servers: no outward or persistent effect.
@@ -92,20 +93,9 @@ const AUTO_ALLOWED = new Set<string>([
   ENTER_PLAN_MODE_TOOL_NAME,
 ]);
 
-/**
- * Built-in tools of a stage (the SDK `tools` option). A stage that starts a resumable subagent (registry data) also
- * gets SendMessage, the only way to resume one; the guard allows it only for subagents the run started.
- */
-export function toolsFor(stage: StageRef): string[] {
-  const s = stageOf(stage);
-  const resumes =
-    s.capabilities.includes("subagents") &&
-    (s.subagents ?? []).some((n) => SUBAGENTS[n]?.resumable);
-  return [
-    ...s.capabilities.flatMap((c) => CAPABILITY_TOOLS[c]),
-    ...(resumes ? [SEND_MESSAGE_TOOL_NAME] : []),
-  ];
-}
+/** Built-in tools of a stage (the SDK `tools` option): the tools of its capabilities. */
+export const toolsFor = (stage: StageRef): string[] =>
+  stageOf(stage).capabilities.flatMap((c) => CAPABILITY_TOOLS[c]);
 
 /** Tools of a stage that need no approval (the guard's `allowTools`). */
 export const autoAllowedTools = (stage: StageRef): string[] =>
@@ -136,7 +126,7 @@ export const hiddenGitTools = (stage: StageRef): string[] => {
   return ALL_GIT_TOOLS.filter((t) => !allowed.has(t)).map((t) => mcpToolName(GIT_MCP_SERVER, t));
 };
 
-/* ---------------- SDK options (subagent definitions: roles/subagents) ---------------- */
+/* ---------------- SDK options ---------------- */
 
 /**
  * Scoped deny rules for secret files (documented: disallowedTools accepts `Tool(pattern)` rules

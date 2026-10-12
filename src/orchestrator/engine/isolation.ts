@@ -93,17 +93,13 @@ export async function runCloneRun(
       workspace: i.workspace,
       memoryRepos: [wt.repo],
     }),
-    guard: guardFor(
-      stage,
-      {
-        cwd,
-        writePaths: [cwd, plans],
-        readPaths: [cwd, scratchReal, plans, ...flow.readPaths],
-        gitWriteRepo: cwd,
-        allowedCommands: repo.testCommand ? [repo.testCommand] : [],
-      },
-      i.route?.cls,
-    ),
+    guard: guardFor(stage, {
+      cwd,
+      writePaths: [cwd, plans],
+      readPaths: [cwd, scratchReal, plans, ...flow.readPaths],
+      gitWriteRepo: cwd,
+      allowedCommands: repo.testCommand ? [repo.testCommand] : [],
+    }),
     code: {
       threadId: i.threadId,
       gateway: approvals,

@@ -5,7 +5,7 @@ import { log } from "./plugin-copy";
 import { buildRunSkills } from "./run-skills";
 
 /**
- * Skills of one stage run: the publisher skills of the stage's role (`RoleDefinition.skills`) plus the workspace dir. A stage
+ * Skills of one stage run: the installed publisher skills when the stage's role says `all`, plus the workspace dir. A stage
  * that resolves to no role (an object that is not the registry's) gets none, with a warn: never silently.
  */
 export function buildStageSkills(
@@ -18,7 +18,6 @@ export function buildStageSkills(
   return buildRunSkills({
     agentHome,
     workspace,
-    skills: role?.skills ?? [],
-    subagents: stage.subagents ?? [],
+    skills: role?.skills ?? "none",
   });
 }

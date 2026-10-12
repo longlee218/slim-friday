@@ -79,7 +79,7 @@ test("preset shape is unchanged", () => {
 test("ask boundary in plan and exec only; vague exception in plan only; full rules only for full", () => {
   for (const mode of ["plan", "exec"] as const) {
     expect(rules(mode)).toContain(ASK_USER_QUESTION_TOOL_NAME);
-    expect(rules(mode)).toContain("At most 3");
+    expect(rules(mode)).toContain("At most 6");
     expect(rules(mode)).not.toContain("[workflow: full]");
     expect(buildSystemPrompt("", mode, { workflow: "full" }).append).toContain("[workflow: full]");
     expect(buildSystemPrompt("", mode, { workflow: "lean" }).append).toBe(rules(mode));

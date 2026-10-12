@@ -52,10 +52,8 @@ const envSchema = z.object({
   MODEL: z.string().trim().min(1).optional(),
   MEMORY_MODEL: z.string().trim().min(1).optional(),
   GIT_AUTHOR: z.string().trim().min(1).optional(),
-  MAX_TURNS: z.coerce.number().int().positive().default(20),
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
-  MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(3),
   // Intent layer L3 (src/intent). `jev` is the owner's later engine: accepted here, refused by the factory until it exists.
   INTENT_ENGINE: z.enum(["haiku", "jev", "none"]).default("haiku"),
   MODEL_INTENT: z.string().trim().min(1).optional(),
@@ -101,9 +99,7 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   /** Default commit identity `Name <email>` for repos without their own `gitAuthor`. */
   gitAuthor: string | undefined;
   /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the stage budget; OpenRouter: only this). */
-  limits: { maxTurns: number; maxBudgetUsd: number | undefined; timeoutMs: number };
-  /** Global cap on simultaneous agent runs. */
-  maxConcurrentRuns: number;
+  limits: { maxBudgetUsd: number | undefined; timeoutMs: number };
   /** Days a delivered/kept task clone is retained before startup removes it (CLONE_RETENTION_DAYS). */
   cloneRetentionDays: number;
   /** Intent layer L3: engine, model id (MODEL_INTENT, tier-resolvable), per-call budget and timeout. */
@@ -155,11 +151,9 @@ export function loadConfig(
     memoryModel:
       e.MEMORY_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MEMORY_MODEL : routing.models.haiku),
     limits: {
-      maxTurns: e.MAX_TURNS,
       maxBudgetUsd: e.MAX_BUDGET_USD,
       timeoutMs: e.TIMEOUT_MS,
     },
-    maxConcurrentRuns: e.MAX_CONCURRENT_RUNS,
     cloneRetentionDays: e.CLONE_RETENTION_DAYS,
     intent: {
       engine: e.INTENT_ENGINE,

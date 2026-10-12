@@ -148,7 +148,7 @@ export function checkBash(command: string, ctx: GuardrailContext): Decision {
     } else if (isReadCommand(seg.words, cwd, roots)) {
       d = allow("read-only command");
     } else if (isSkillScript(seg, cwd, ctx, readOnly)) {
-      // Skill script of this run, main agent only (a subagent has no owner path: ask -> deny).
+      // Skill script of this run.
       d = checkSkillScript(seg, allowed, checkSegment, cwd, ctx);
     } else {
       d = checkSegment(seg);

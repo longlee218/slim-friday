@@ -114,7 +114,7 @@ async function main(): Promise<void> {
     db,
     config,
     approvals,
-    limiter: createRunLimiter(config.maxConcurrentRuns),
+    limiter: createRunLimiter(),
     intent,
   });
   const handleResume = createResumeHandler({

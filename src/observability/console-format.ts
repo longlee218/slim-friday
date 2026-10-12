@@ -38,7 +38,7 @@ const s = (v: unknown) => (typeof v === "string" ? v : v === undefined ? "" : St
 
 /** Compact body of a tool.* line: `Read src/a.ts:1-9 ok 1ms 90 lines 3.7KB`. */
 function toolBody(l: Log): string {
-  // A subagent's call shows its type (`Read src/a.ts @explorer`); the main agent's has none.
+  // A subagent's call shows its type (`Read src/a.ts @<type>`); the main agent's has none.
   const head = [s(l.tool), s(l.target), l.agentType && `@${s(l.agentType)}`].filter(Boolean);
   if (l.event === "tool.start") return head.join(" ");
   if (l.event === "tool.denied") return [...head, "DENIED", s(l.reason)].filter(Boolean).join(" ");

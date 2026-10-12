@@ -69,12 +69,9 @@ describe("git dir, secrets and flag values (a script must not plant a hook or re
   });
 });
 
-describe("writes into a skill dir are a HARD deny for every agent and mode", () => {
+describe("writes into a skill dir are a HARD deny in every mode", () => {
   const target = script;
-  const agents = [undefined, { id: "a", type: "rw" }];
-  const scopes = { rw: { tools: ["Bash"], readOnly: false, canCommit: true } };
-  const run = (cmd: string) =>
-    agents.map((agent) => bash(cmd, { ...ctx, subagentScopes: scopes, agent }));
+  const run = (cmd: string) => [bash(cmd, ctx)];
   test("chmod, chown, mv, rm, tee, touch, cp, ln, install and redirects", () => {
     for (const cmd of [
       `chmod -R u+w ${plugin}`,
@@ -91,7 +88,7 @@ describe("writes into a skill dir are a HARD deny for every agent and mode", () 
       `echo x >> ${target}`,
       `env cp x ${target}`,
     ])
-      expect([cmd, ...run(cmd)]).toEqual([cmd, "deny", "deny"]);
+      expect([cmd, ...run(cmd)]).toEqual([cmd, "deny"]);
   });
   test("a redirect into the plugin is denied wherever the target sits: not last, glued, appended, N>", () => {
     const t = join(plugin, "skills", "s", "x");
@@ -103,7 +100,7 @@ describe("writes into a skill dir are a HARD deny for every agent and mode", () 
       `echo x &>${t} more`,
       `cat > ${t} -n`,
     ])
-      expect([cmd, ...run(cmd)]).toEqual([cmd, "deny", "deny"]);
+      expect([cmd, ...run(cmd)]).toEqual([cmd, "deny"]);
   });
   test("a redirect elsewhere is unchanged: asks outside the write paths, runs inside", () => {
     expect(bash("echo x >/tmp/ok.txt")).toBe("ask");

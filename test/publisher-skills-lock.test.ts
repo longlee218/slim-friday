@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
-import { existsSync, lstatSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { readSkillsLock as readSkillsLock2 } from "../src/config/skills-lock";
+import { reservedWorkspaces } from "../src/config/workspace-paths";
+import { captureLogs } from "../src/observability/logger";
 import { ROLES } from "../src/roles/role-registry";
 import { PUBLISHER_SKILLS_DIR } from "../src/runtime/skills-plugin/publisher-skills";
 import { readSkillsLock, skillDirHash } from "./skills-lock-hash";
@@ -27,9 +31,18 @@ test("every skill dir hashes to the computedHash the lock pins (paths and bytes)
     ]);
 });
 
-test("every skill a role lists is pinned in the lock", () => {
+test("roles pick publisher skills by `all`/`none`, never by name", () => {
   for (const role of Object.values(ROLES))
-    for (const s of role?.skills ?? []) expect(Object.keys(lock.skills)).toContain(s.name);
+    expect(["all", "none", undefined]).toContain(role.skills);
+  expect(ROLES.dev?.skills).toBe("all");
+  expect(ROLES.assistant?.skills).toBe("none");
+});
+
+test("every plugin name of the lock is a reserved workspace name (it would clash with <ws>:<skill>)", () => {
+  const plugins = new Set(Object.values(lock.skills).map((e) => e.source.split("/").pop()));
+  expect(plugins.size).toBeGreaterThan(0);
+  for (const p of plugins) expect(reservedWorkspaces()).toContain(p as string);
+  expect(reservedWorkspaces()).toContain("ops");
 });
 
 test("the publisher dir holds no symlinks, and the scripts keep their exec bit", () => {
@@ -48,4 +61,29 @@ test("the publisher dir holds no symlinks, and the scripts keep their exec bit",
 test("the app's own .agents/skills dir is the source", () => {
   expect(PUBLISHER_SKILLS_DIR.endsWith("/.agents/skills")).toBe(true);
   expect(existsSync(join(PUBLISHER_SKILLS_DIR, "brainstorming", "SKILL.md"))).toBe(true);
+});
+
+test("readSkillsLock warns (shared logger) on an unreadable lock, a broken lock and two sources with one plugin name", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lockwarn-"));
+  const msgs = (file: string) => {
+    const logs = captureLogs();
+    const out = readSkillsLock2(file);
+    logs.stop();
+    return { out, msgs: logs.lines.map((l) => l.msg) };
+  };
+  const missing = msgs(join(dir, "none.json"));
+  expect(missing.out).toEqual({});
+  expect(missing.msgs).toContain("skills lock not read: no publisher skills");
+  writeFileSync(join(dir, "bad.json"), "{ nope");
+  expect(msgs(join(dir, "bad.json")).msgs).toContain(
+    "skills lock is not valid JSON: no publisher skills",
+  );
+  writeFileSync(
+    join(dir, "dup.json"),
+    JSON.stringify({ skills: { a: { source: "x/pack" }, b: { source: "y/pack" } } }),
+  );
+  const dup = msgs(join(dir, "dup.json"));
+  expect(Object.keys(dup.out)).toEqual(["a", "b"]);
+  expect(dup.msgs).toContain("two skills sources give the same plugin name");
+  rmSync(dir, { recursive: true });
 });

@@ -115,7 +115,7 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
   // Every stage is checked before the first one runs: a refusal has no side effect.
   const refusal = validateRole(role, !!i.worktree);
   if (refusal) return failResult(refusal);
-  const askLimit = newAskLimit();
+  const askLimit = newAskLimit(role.maxAsk);
   let wt = i.worktree;
   let prompt = i.text;
   let plan = "";

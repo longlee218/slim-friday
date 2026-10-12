@@ -120,19 +120,4 @@ describe("path arguments of a skill script (it writes to them)", () => {
       expect(b(`${PLAN} 1 ${a}`)).toBe("deny");
     expect(b(`${PLAN} HEAD~1 brief.md`)).toBe("allow");
   });
-  test("a subagent never runs skill scripts in A1 (read-only: Bash denied; otherwise ask -> deny)", () => {
-    const scopes = {
-      ro: { tools: ["Bash"], readOnly: true, canCommit: false },
-      rw: { tools: ["Bash"], readOnly: false, canCommit: true },
-    };
-    for (const type of ["ro", "rw"]) {
-      const c: GuardrailContext = {
-        ...ctx,
-        subagentScopes: scopes,
-        agent: { id: "a1", type },
-      };
-      expect(bash(`${script} ${PLAN} 1`, c)).toBe("deny");
-      expect(bash(`bash ${script} ${PLAN} 1`, c)).toBe("deny");
-    }
-  });
 });

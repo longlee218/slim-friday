@@ -1,5 +1,5 @@
 import { slashToLegacy } from "../commands/slash-commands";
-import { isWorkspaceName, RESERVED_WORKSPACES, WORKSPACE_NAME } from "../config/workspace-paths";
+import { isWorkspaceName, reservedWorkspaces, WORKSPACE_NAME } from "../config/workspace-paths";
 
 /** Prefix of the one admin command. */
 const INIT_PREFIX = /^init:workspace:/i;
@@ -29,7 +29,7 @@ export function parseAdminCommand(text: string): AdminCommand {
   if (!INIT_PREFIX.test(t)) return { kind: "help", reply: ADMIN_HELP };
   const name = t.replace(INIT_PREFIX, "");
   if (isWorkspaceName(name)) return { kind: "init_workspace", name };
-  const reserved = WORKSPACE_NAME.test(name) && RESERVED_WORKSPACES.includes(name);
+  const reserved = WORKSPACE_NAME.test(name) && reservedWorkspaces().includes(name);
   return {
     kind: "invalid_name",
     reply: reserved

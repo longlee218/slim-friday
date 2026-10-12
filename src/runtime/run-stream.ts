@@ -55,9 +55,6 @@ function assistantText(m: SDKMessage): string {
     .trim();
 }
 
-/** Outcome for a run that ended by abort: timeout if our timer fired, else user stop. */
-const abortOutcome = (timedOut: boolean): RunOutcome => (timedOut ? "timeout" : "aborted");
-
 /**
  * Consume the SDK message stream of one run: record every message, remember the session id at init, collect
  * the quota evidence, fail fast when a required git MCP server did not start, and turn the final `result`
@@ -69,8 +66,6 @@ export async function consumeStream(p: {
   options: Options;
   recorder: RunRecorder;
   ac: AbortController;
-  /** True when our own run timer fired (relabels an abort as `timeout`). */
-  timedOut: () => boolean;
   db: Database;
   turnId: string;
   cwd: string;
@@ -178,8 +173,8 @@ export async function consumeStream(p: {
       }
     }
   }
-  // No result message + abort (user stop or our timeout): relabel once, for throw or clean end.
-  if (outcome === "error" && ac.signal.aborted) outcome = abortOutcome(p.timedOut());
+  // No result message + abort (user stop or shutdown): relabel once, for throw or clean end.
+  if (outcome === "error" && ac.signal.aborted) outcome = "aborted";
   if (startupError) {
     outcome = "error";
     text = startupError;

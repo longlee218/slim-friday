@@ -13,10 +13,14 @@ import {
   stageOf,
 } from "../src/roles/role-registry";
 import type { StageDefinition } from "../src/roles/role-types";
-import { AGENT_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import {
+  AGENT_TOOL_NAME,
+  LEGACY_AGENT_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
+} from "../src/tools/sdk-tool-names";
 import { toolsFor } from "../src/tools/tool-catalog";
 
-/** A stage with no `subagents`: the default that must fail closed. */
+/** A minimal stage with the `subagents` capability (the stage-level data a role would give). */
 const BARE: StageDefinition = {
   name: "bare",
   capabilities: ["read", "subagents"],
@@ -65,14 +69,14 @@ test("dispatchableRoleNames: every role with whenToUse (a queued follow-up may b
   expect(dispatchableRoleNames()).toEqual(["assistant", "dev"]);
 });
 
-test("guard: subagent allowlist comes from the stage; a stage without subagents allows none", () => {
+test("guard: the Agent tool is auto-allowed only in a stage with the subagents capability", () => {
   const scope = { readPaths: ["/r"] };
   const qa = guardFor("qa", scope);
-  expect(qa.allowedSubagents).toEqual(["explorer"]);
-  expect(checkToolCall(AGENT_TOOL_NAME, { subagent_type: "explorer" }, qa).decision).toBe("allow");
-  const bare = guardFor(BARE, scope);
-  expect(bare.allowedSubagents).toEqual([]);
-  expect(checkToolCall(AGENT_TOOL_NAME, { subagent_type: "explorer" }, bare).decision).toBe("deny");
+  expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, qa).decision).toBe("allow");
+  expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, qa).decision).toBe("allow");
+  const bare = guardFor({ ...BARE, capabilities: ["read"] }, scope); // no capability: not listed, owner decides
+  expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("ask");
+  expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("ask");
 });
 
 test("mcp servers follow capabilities: git by groups, github by write", async () => {
@@ -88,7 +92,7 @@ test("mcp servers follow capabilities: git by groups, github by write", async ()
 });
 
 test("tools derive from capabilities", () => {
-  expect(toolsFor(BARE)).toEqual(["Read", "Glob", "Grep", AGENT_TOOL_NAME]);
+  expect(toolsFor(BARE)).toEqual(["Read", "Glob", "Grep", AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME]);
 });
 
 test("findStage: a stage name in two roles is ambiguous and throws", () => {

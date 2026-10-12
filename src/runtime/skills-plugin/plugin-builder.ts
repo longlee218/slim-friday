@@ -44,8 +44,7 @@ export interface PluginSpec {
   allow?: string[];
   /**
    * Skill dir names that are LISTED (loadable through the Skill tool); omitted = every copied one. A copied but unlisted
-   * skill stays on disk only because another skill's scripts reach into its dir (executing-plans calls the scripts of
-   * subagent-driven-development by relative path).
+   * skill stays on disk only because another skill's scripts may reach into its dir by relative path.
    */
   expose?: string[];
   caps: PluginCaps;

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { ASSISTANT_ROLE } from "../src/roles/builtin/assistant-role";
 import {
-  ASK_RULES,
+  askRules,
   EXEC,
   EXEC_MEMORY,
   EXEC_RUN_FACTS,
@@ -10,7 +10,7 @@ import {
   SKILL_RUN_FACTS,
   VAGUE_PLAN_RULE,
 } from "../src/roles/builtin/dev-prompts";
-import { MAX_ASK_CALLS_PER_TASK } from "../src/runtime/ask-limit";
+import { DEV_ROLE } from "../src/roles/builtin/dev-role";
 import { buildSystemPrompt } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
@@ -42,9 +42,10 @@ test("the skills bootstrap block is gone; skills are not described in the prompt
   }
 });
 
-test("the ask cap is one constant, stated once in the ask rules of plan and exec", () => {
-  expect(ASK_RULES).toContain(
-    `At most ${MAX_ASK_CALLS_PER_TASK} ${ASK_USER_QUESTION_TOOL_NAME} calls`,
+test("the ask cap is the role's maxAsk, stated once in the ask rules of plan and exec", () => {
+  expect(askRules(7)).toContain(`At most 7 ${ASK_USER_QUESTION_TOOL_NAME} calls`);
+  expect(rules("plan")).toContain(
+    `At most ${DEV_ROLE.maxAsk} ${ASK_USER_QUESTION_TOOL_NAME} calls`,
   );
   for (const stage of ["plan", "exec"]) {
     expect(rules(stage).split(`${ASK_USER_QUESTION_TOOL_NAME} calls per task`).length - 1).toBe(1);
@@ -52,15 +53,15 @@ test("the ask cap is one constant, stated once in the ask rules of plan and exec
   }
 });
 
-test("plan: design request goes through brainstorming, design section first, repo line kept, no subagent text", () => {
+test("plan: design request invokes the matching skill, design section first, repo line kept, no subagent text", () => {
   const text = rules("plan");
-  expect(text).toContain("brainstorming skill first");
+  expect(text).toContain("invoke the listed skill whose description matches first");
   expect(text).toContain("first section is the design");
   expect(text).toContain('"repo: <name>"');
   expect(text).toContain("no code change; deliverable =");
   expect(text).toContain("Do NOT implement here and commit nothing");
   expect(text).toContain(EXIT_PLAN_MODE_TOOL_NAME);
-  expect(text).not.toMatch(/subagent-run-facts|implementer|task-reviewer/);
+  expect(text).not.toMatch(/subagent-run-facts|implementer|task-reviewer|brainstorming/);
   expect(text).not.toContain("Memory:");
 });
 

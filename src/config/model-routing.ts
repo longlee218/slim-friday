@@ -50,17 +50,6 @@ export function effortTier(effort: Effort, cls: TaskClass = "standard"): ModelTi
 /** Per-task spend ceiling (USD) over all stages: a stage run gets at most what is left of it (owner, Rev 14 addendum 2). */
 export const TASK_BUDGET_USD = 6.0;
 
-/** Model tiers by cost, cheapest first. */
-const TIER_ORDER: readonly ModelTier[] = ["haiku", "sonnet", "opus"];
-
-/**
- * Tiers a subagent dispatch may ask for (`model` of an Agent call): every tier up to the one `high` effort gives this
- * class, so sonnet at most, and opus only for a `design` task. Same table as the main model routing, no new one.
- */
-export function subagentTiers(cls: TaskClass = "standard"): ModelTier[] {
-  return TIER_ORDER.slice(0, TIER_ORDER.indexOf(effortTier("high", cls)) + 1);
-}
-
 /** Tier name -> configured id; anything else is an explicit model id and passes through. */
 export function specToId(spec: string, config: Pick<AgentConfig, "models">): string {
   return Object.hasOwn(config.models, spec) ? config.models[spec as ModelTier] : spec;

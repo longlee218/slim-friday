@@ -23,8 +23,7 @@ const workspaceSkills = (workspace: string | undefined, agentHome: string) =>
   buildRunSkills({
     agentHome,
     workspace,
-    skills: [],
-    subagents: [],
+    skills: "none",
   });
 
 const dirs: string[] = [];

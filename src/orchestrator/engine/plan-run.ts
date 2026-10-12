@@ -53,16 +53,12 @@ export async function runPlanRun(c: StageCtx): Promise<PlanStageResult> {
       registry: buildRegistryContext(i.workspace, i.repos, true),
       memoryRepos: i.repos.map((r) => r.name),
     }),
-    guard: guardFor(
-      stage,
-      {
-        cwd: scratchReal,
-        writePaths: [scratchReal, plans],
-        readPaths: [scratchReal, plans, ...repoPaths],
-        gitReadRepos: repoPaths,
-      },
-      i.route?.cls,
-    ),
+    guard: guardFor(stage, {
+      cwd: scratchReal,
+      writePaths: [scratchReal, plans],
+      readPaths: [scratchReal, plans, ...repoPaths],
+      gitReadRepos: repoPaths,
+    }),
     config,
     db,
     abortController: ctl.ac,

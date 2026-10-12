@@ -177,19 +177,3 @@ test("a dropped Claude config name logs a warn naming it", () => {
   ).toBe(true);
   p.cleanup();
 });
-
-test("a role that lists a skill missing on disk warns and loads the rest", () => {
-  const src = fixture(() => {});
-  const logs = captureLogs();
-  const r = buildRunSkills({
-    agentHome: tmp(),
-    workspace: "main",
-    skills: [{ name: "alpha" }, { name: "ghost" }],
-    subagents: [],
-    publisherDir: src,
-  });
-  logs.stop();
-  expect(r.skills).toEqual(["superpowers:alpha"]);
-  expect(logs.lines.some((l) => l.msg === "role lists a skill that is not on disk")).toBe(true);
-  r.cleanup();
-});

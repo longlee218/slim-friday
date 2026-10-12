@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { publisherPluginNames } from "./skills-lock";
 
 /** All filesystem locations used by the agent, derived from AGENT_HOME. */
 export function workspacePaths(agentHome: string) {
@@ -77,19 +78,18 @@ export function workspacePaths(agentHome: string) {
 
 /** Workspace dir name = Discord category + `#<ws>-agent`: lowercase letters, digits, hyphens only. */
 export const WORKSPACE_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
+let reserved: string[] | undefined;
 /**
- * Name of the plugin that carries the publisher's skills (`<plugin>:<skill>`). It is the name the skill texts use for
- * each other (`superpowers:writing-plans`), so those references resolve without editing a skill.
+ * Workspace names that cannot be used: `ops` is the ops category; every publisher plugin name (from the skills lock,
+ * read once on first use: lazy, so this module never needs the logger while it loads) would clash with `<ws>:<skill>`.
  */
-export const PUBLISHER_PLUGIN = "superpowers";
-/** Workspace names that cannot be used (`ops` is the ops category; the plugin name would clash with `<ws>:<skill>`). */
-export const RESERVED_WORKSPACES = ["ops", PUBLISHER_PLUGIN];
+export const reservedWorkspaces = (): string[] => (reserved ??= ["ops", ...publisherPluginNames()]);
 /** Repo dir name; also the `repo:` pin and a request's `repo` value. */
 export const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
 /** True when `name` may become a workspace dir. */
 export const isWorkspaceName = (name: string): boolean =>
-  WORKSPACE_NAME.test(name) && !RESERVED_WORKSPACES.includes(name);
+  WORKSPACE_NAME.test(name) && !reservedWorkspaces().includes(name);
 
 export type WorkspacePaths = ReturnType<typeof workspacePaths>;
 
