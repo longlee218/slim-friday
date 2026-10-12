@@ -5,7 +5,7 @@ import { createGitMcp } from "../src/mcp/git-mcp";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { decideApproval, insertApproval } from "../src/storage/approval-store";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -161,7 +161,7 @@ test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; 
 test("busy when the code-task cap is reached", async () => {
   const { env } = await setup();
   for (const id of ["a", "b"]) {
-    insertTask(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
+    insertTurn(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   }
   const { gw } = gateway(false);
   const seen: any[] = [];

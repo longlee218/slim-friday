@@ -60,10 +60,10 @@ const COLS = `task_id AS taskId, idx, name, status, session_id AS sessionId, cwd
   cost_usd AS costUsd, started_at AS startedAt, ended_at AS endedAt`;
 
 /** The stages of a task in order. */
-export function listStages(db: Database, taskId: string): StageRow[] {
+export function listStages(db: Database, turnId: string): StageRow[] {
   return db
     .query<StageRow, [string]>(`SELECT ${COLS} FROM stages WHERE task_id = ? ORDER BY idx`)
-    .all(taskId);
+    .all(turnId);
 }
 
 /**

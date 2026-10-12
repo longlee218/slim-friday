@@ -7,7 +7,7 @@ import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { actionFor } from "../src/orchestrator/thread/route-by-intent";
 import { intentRoles, ROLES } from "../src/roles/role-registry";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { upsertStage } from "../src/storage/stage-store";
 import { makeEnv } from "./helpers";
 import { scoreClass } from "./intent-eval-score";
@@ -91,7 +91,7 @@ test("buildIntentInput: lastTurn = role and last stage of the thread's latest ta
   expect(
     buildIntentInput(env.db, { threadId: "th", text: "x", state: "idle" }).thread.lastTurn,
   ).toBeUndefined();
-  insertTask(env.db, { id: "t1", threadId: "th", source: "t", repo: "r", role: "assistant" });
+  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "r", role: "assistant" });
   upsertStage(env.db, { taskId: "t1", idx: 0, name: "qa", status: "done" });
   const t = buildIntentInput(env.db, { threadId: "th", text: "x", state: "idle" }).thread;
   expect(t.lastTurn).toEqual({ role: "assistant", kind: "qa" });

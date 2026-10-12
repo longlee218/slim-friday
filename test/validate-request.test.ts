@@ -6,7 +6,7 @@ import {
   LOW_CONFIDENCE,
   validateRequest,
 } from "../src/orchestrator/dispatch/validate-request";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { g, makeRepo } from "./git-fixture";
 import { addRepo, clearWorkspaces, makeEnv } from "./helpers";
@@ -98,7 +98,7 @@ test("base must be an existing local branch of the repo", async () => {
 test("cap: refused when the role counts toward it and the cap is full", async () => {
   const { deps } = await setup();
   for (const id of ["a", "b"])
-    insertTask(deps.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
+    insertTurn(deps.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   expect(await validateRequest(deps, req())).toMatchObject({
     ok: false,
     action: "refuse",

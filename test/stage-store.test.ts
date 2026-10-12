@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { interruptRunningTasks } from "../src/storage/run-store";
+import { interruptRunningTurns } from "../src/storage/run-store";
 import { listStages, upsertStage } from "../src/storage/stage-store";
 import { makeEnv } from "./helpers";
 
@@ -38,10 +38,10 @@ test("upsert inserts, then updates in place; undefined fields keep their value; 
   expect(listStages(db, "other")).toEqual([]);
 });
 
-test("interruptRunningTasks also interrupts running stages", () => {
+test("interruptRunningTurns also interrupts running stages", () => {
   const { db } = makeEnv();
   upsertStage(db, { taskId: "t1", idx: 0, name: "plan", status: "done" });
   upsertStage(db, { taskId: "t1", idx: 1, name: "exec", status: "running" });
-  interruptRunningTasks(db);
+  interruptRunningTurns(db);
   expect(listStages(db, "t1").map((s) => s.status)).toEqual(["done", "interrupted"]);
 });

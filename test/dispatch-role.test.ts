@@ -4,7 +4,7 @@ import { createGitMcp } from "../src/mcp/git-mcp";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { listPendingProposals } from "../src/storage/proposal-store";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { g, makeRepo } from "./git-fixture";
 import {
@@ -94,7 +94,7 @@ test("ask rule: unknown repo -> ONE question, proposal stays pending, no task ro
 test("refusal (cap full): proposal refused, reply says busy, nothing starts", async () => {
   const { env, repos } = await setup();
   for (const id of ["a", "b"])
-    insertTask(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
+    insertTurn(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   const runs: unknown[] = [];
   const reply = await dispatchRole(deps(env, runs), {
     request: { role: "dev", brief: BRIEF },

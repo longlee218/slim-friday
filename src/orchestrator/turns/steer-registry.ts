@@ -15,7 +15,7 @@ import {
   setRunMessageStatus,
   setRunMessageTarget,
 } from "../../storage/run-message-store";
-import { taskSessionId } from "../../storage/run-store";
+import { turnSessionId } from "../../storage/run-store";
 import { gatePassed } from "../../storage/stage-store";
 import { NOT_DELIVERED } from "../thread/intent-replies";
 
@@ -107,7 +107,7 @@ export function createSteerRegistry(db: Database): SteerRegistry {
         messageId: m.messageId,
         threadId: m.threadId,
         runId: run?.runId,
-        sessionId: run && taskSessionId(db, run.turnId),
+        sessionId: run && turnSessionId(db, run.turnId),
         kind,
         status,
         content: text,

@@ -5,7 +5,7 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { DEV_ROLE } from "../src/roles/builtin/dev-role";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../src/roles/role-types";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { listStages } from "../src/storage/stage-store";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
@@ -36,7 +36,7 @@ async function runProbe(role: RoleDefinition, extra: { worktree?: never } = {}) 
   roles[role.name] = role;
   let calls = 0;
   try {
-    insertTask(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
+    insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
     const res = await runStages(
       {
         git,
@@ -99,7 +99,7 @@ test("a role with an isolated stage and no followUp refuses a follow-up in a clo
 
 test("a thrown stage run marks the row failed, not running", async () => {
   const env = makeEnv();
-  insertTask(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
+  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
   const run = runStages(
     {
       git,

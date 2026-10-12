@@ -7,13 +7,13 @@ import {
   LEDGER_TASK_CHARS,
   threadLedger,
 } from "../src/storage/ledger-store";
-import { finishTask, insertTask } from "../src/storage/run-store";
+import { finishTurn, insertTurn } from "../src/storage/run-store";
 import { upsertStage } from "../src/storage/stage-store";
 import { insertWorktree, setPrUrl } from "../src/storage/worktree-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 const mk = (db: any, id: string, o: { brief?: string; thread?: string; role?: string } = {}) =>
-  insertTask(db, {
+  insertTurn(db, {
     id,
     threadId: o.thread ?? "th",
     source: "t",
@@ -32,7 +32,7 @@ test("empty when the thread has no code task (Q&A rows and other threads do not 
 test("entry per task: role, status, brief, branch, PR url, stages with model, cost, verdict", () => {
   const { db } = makeEnv();
   mk(db, "abcdef123456", { brief: "Add b.txt\nwith   two" });
-  finishTask(db, "abcdef123456", "done");
+  finishTurn(db, "abcdef123456", "done");
   upsertStage(db, {
     taskId: "abcdef123456",
     idx: 0,
@@ -88,7 +88,7 @@ test("an idle thread's assistant sees the ledger in its system prompt; a Q&A-onl
   const env = makeEnv();
   mkdirSync(env.repo, { recursive: true });
   mk(env.db, "c1", { thread: "th1", brief: "Earlier change to the parser" });
-  finishTask(env.db, "c1", "done");
+  finishTurn(env.db, "c1", "done");
   const prompts: Record<string, string> = {};
   const handle = createTurnHandler({
     db: env.db,

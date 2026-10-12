@@ -8,7 +8,7 @@ import {
   FRESH_SESSION_CONTEXT_TOKENS,
 } from "../src/orchestrator/turns/session-compaction";
 import { LEDGER_HEADING } from "../src/storage/ledger-store";
-import { finishTask, insertTask } from "../src/storage/run-store";
+import { finishTurn, insertTurn } from "../src/storage/run-store";
 import { getSession, setSession } from "../src/storage/session-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
@@ -18,7 +18,7 @@ const small = { ...emptyUsage(), turns: 2, cacheReadTokens: 1000 };
 /** A task of `role` in thread th with a stored session. */
 function setup(role: string) {
   const env = makeEnv();
-  insertTask(env.db, { id: "t1", threadId: "th", source: "t", repo: "r", role });
+  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "r", role });
   setSession(env.db, { threadId: "th", sessionId: "s1", repo: "r", cwd: "/x" });
   return env;
 }
@@ -55,7 +55,7 @@ describe("app-driven session compaction (fresh session + ledger)", () => {
   test("end to end: a big finished turn -> the next turn is a FRESH session seeded with the task ledger", async () => {
     const env = makeEnv();
     // An earlier delivered dev task is what the ledger lists.
-    insertTask(env.db, {
+    insertTurn(env.db, {
       id: "d1",
       threadId: "th1",
       source: "t",
@@ -63,7 +63,7 @@ describe("app-driven session compaction (fresh session + ledger)", () => {
       role: "dev",
       brief: "earlier job",
     });
-    finishTask(env.db, "d1", "done");
+    finishTurn(env.db, "d1", "done");
     const seen: any[] = [];
     const queryFn = (a: any) => {
       seen.push(a.options);

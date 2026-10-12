@@ -10,11 +10,11 @@ import { getStage } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import {
   ackInterrupted,
-  insertTask,
-  interruptRunningTasks,
+  insertTurn,
+  interruptRunningTurns,
   listInterruptedThreads,
-  setTaskSession,
-  setTaskStatus,
+  setTurnSession,
+  setTurnStatus,
 } from "../src/storage/run-store";
 import { getSession, setSession } from "../src/storage/session-store";
 import { insertWorktree, listWorktrees } from "../src/storage/worktree-store";
@@ -60,9 +60,9 @@ function interrupted(
   id = "T0",
   role = "assistant",
 ) {
-  insertTask(env.db, { id, threadId, source: "d", repo: "*", role });
-  setTaskSession(env.db, id, "OLD", cwd);
-  interruptRunningTasks(env.db);
+  insertTurn(env.db, { id, threadId, source: "d", repo: "*", role });
+  setTurnSession(env.db, id, "OLD", cwd);
+  interruptRunningTurns(env.db);
 }
 
 test("session id is recorded on the task row at init; `sessions` keeps the previous good session", async () => {
@@ -96,12 +96,12 @@ test("quota/error runs never replace the stored session either", async () => {
 
 test("restart marks running tasks interrupted; ack makes them cancelled (one notice)", () => {
   const { db } = makeEnv();
-  insertTask(db, { id: "a", threadId: "th", source: "d", repo: "r", role: "assistant" });
-  insertTask(db, { id: "b", threadId: "th", source: "d", repo: "r", role: "dev" });
-  setTaskStatus(db, "b", "waiting_approval");
-  insertTask(db, { id: "c", threadId: "other", source: "d", repo: "r", role: "assistant" });
-  setTaskStatus(db, "c", "done");
-  interruptRunningTasks(db);
+  insertTurn(db, { id: "a", threadId: "th", source: "d", repo: "r", role: "assistant" });
+  insertTurn(db, { id: "b", threadId: "th", source: "d", repo: "r", role: "dev" });
+  setTurnStatus(db, "b", "waiting_approval");
+  insertTurn(db, { id: "c", threadId: "other", source: "d", repo: "r", role: "assistant" });
+  setTurnStatus(db, "c", "done");
+  interruptRunningTurns(db);
   expect(listInterruptedThreads(db)).toEqual(["th"]);
   ackInterrupted(db, "th");
   expect(listInterruptedThreads(db)).toEqual([]);
@@ -221,7 +221,7 @@ test("resolveCommand: plan stage / worktree / Q&A cwd ok; unusable cwd, stale, n
   expect(resume("w2")).toHaveProperty("reply");
 
   // A newer finished task makes the Resume stale.
-  insertTask(env.db, { id: "N", threadId: "q", source: "d", repo: "*", role: "assistant" });
+  insertTurn(env.db, { id: "N", threadId: "q", source: "d", repo: "*", role: "assistant" });
   expect(resume("q")).toMatchObject({ reason: "stale_resume" });
 });
 

@@ -74,15 +74,15 @@ export function insertToolCall(db: Database, c: ToolCallRecord): void {
   );
 }
 
-/** Latest tool call of a task (any run, subagent calls included): name and whether a subagent made it. */
+/** Latest tool call of a turn (any run, subagent calls included): name and whether a subagent made it. */
 export function latestToolCall(
   db: Database,
-  taskId: string,
+  turnId: string,
 ): { tool: string; subagent: boolean } | undefined {
   const row = db
     .query<{ tool: string; agent_id: string | null }, [string]>(
       "SELECT tool, agent_id FROM tool_calls WHERE task_id = ? ORDER BY rowid DESC LIMIT 1",
     )
-    .get(taskId);
+    .get(turnId);
   return row ? { tool: row.tool, subagent: row.agent_id !== null } : undefined;
 }

@@ -8,21 +8,21 @@ import {
 } from "../src/orchestrator/thread/thread-state";
 import { insertApproval } from "../src/storage/approval-store";
 import {
-  finishTask,
-  insertTask,
-  interruptRunningTasks,
+  finishTurn,
+  insertTurn,
+  interruptRunningTurns,
   listInterruptedThreads,
-  setTaskStatus,
+  setTurnStatus,
 } from "../src/storage/run-store";
 import { upsertStage } from "../src/storage/stage-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv } from "./helpers";
 
 /** One thread, one code task in `status`. */
-function task(status: Parameters<typeof setTaskStatus>[2], role = "dev") {
+function task(status: Parameters<typeof setTurnStatus>[2], role = "dev") {
   const { db } = makeEnv();
-  insertTask(db, { id: "t1", threadId: "th", source: "t", repo: "r", role });
-  setTaskStatus(db, "t1", status);
+  insertTurn(db, { id: "t1", threadId: "th", source: "t", repo: "r", role });
+  setTurnStatus(db, "t1", status);
   return db;
 }
 
@@ -90,7 +90,7 @@ test("gate recognized by the running stage when no approval row is pending", () 
 
 test("done folds to idle", () => {
   const db = task("running");
-  finishTask(db, "t1", "done");
+  finishTurn(db, "t1", "done");
   expect(deriveThreadState(db, "th")).toBe("done");
   expect(isIdleLike("done")).toBe(true);
   expect(isIdleLike("idle")).toBe(true);
@@ -101,7 +101,7 @@ test("done folds to idle", () => {
 
 test("the newest task decides; other threads are ignored", () => {
   const db = task("done");
-  insertTask(db, { id: "t2", threadId: "th", source: "t", repo: "r", role: "dev" });
+  insertTurn(db, { id: "t2", threadId: "th", source: "t", repo: "r", role: "dev" });
   expect(deriveThreadState(db, "th")).toBe("running");
   expect(deriveThreadState(db, "other")).toBe("idle");
 });
@@ -117,7 +117,7 @@ test("restart while awaiting a tool approval (owner decision 6): interrupted + R
   const db = task("waiting_approval");
   pending(db, "Bash");
   expect(deriveThreadState(db, "th")).toBe("awaiting_tool_approval");
-  interruptRunningTasks(db); // what startup / shutdown does to a crashed or drained run
+  interruptRunningTurns(db); // what startup / shutdown does to a crashed or drained run
   expect(db.query("SELECT status FROM tasks WHERE id = 't1'").get()).toEqual({
     status: "interrupted",
   });

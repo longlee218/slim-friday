@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Client, Interaction } from "discord.js";
 import { createDiscordApprovalGateway } from "../src/approvals/discord-approval";
 import { openDb } from "../src/storage/db";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 const OWNER = "owner1";
@@ -21,7 +21,7 @@ function setup(timeoutMs = 5000, sendable = true) {
   };
   const client = { channels: { fetch: async () => channel } } as unknown as Client;
   const db = openDb(":memory:");
-  insertTask(db, { id: "t1", threadId: "th", source: "discord", repo: "r", role: "assistant" });
+  insertTurn(db, { id: "t1", threadId: "th", source: "discord", repo: "r", role: "assistant" });
   const gw = createDiscordApprovalGateway({
     getClient: () => client,
     ownerId: OWNER,

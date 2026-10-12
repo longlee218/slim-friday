@@ -169,7 +169,7 @@ $AGENT_HOME/ (e.g. ~/.friday, real directory outside every repo)
 
 ### Storage & Observability
 - **db.ts:** SQLite (WAL); sessions, tasks, runs, tool_calls, approvals, worktrees tables; idempotent ALTER TABLE tasks ADD COLUMN brief TEXT (Phase 1c+)
-- **run-store.ts:** runs table ops; insertTask stores brief redacted (Phase 1c+); calls repo-memory.ts to append on exec success; approval functions moved to approval-store.ts
+- **run-store.ts:** runs table ops; insertTurn stores brief redacted (Phase 1c+); calls repo-memory.ts to append on exec success; approval functions moved to approval-store.ts
 - **approval-store.ts (Phase 1c+):** insertApproval, decideApproval
 - **worktree-store.ts:** worktrees table ops
 - **session-store.ts:** sessions table ops

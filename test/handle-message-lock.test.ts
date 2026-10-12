@@ -137,13 +137,13 @@ test("M1: transient error (auth/rate limit) keeps the session", async () => {
   expect(getSession(env.db, "th8")?.session_id).toBe("good");
 });
 
-test("M2: finishTask failure in the catch path does not throw", async () => {
+test("M2: finishTurn failure in the catch path does not throw", async () => {
   const env = makeEnv();
   const q = (() => {
     throw new Error("boom");
   }) as never;
   const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: q });
-  // Close db after insertTask succeeds: first query throw happens in runAgent, then finishTask hits a closed db.
+  // Close db after insertTurn succeeds: first query throw happens in runAgent, then finishTurn hits a closed db.
   const p = handle(task("hi", "th7"));
   env.db.close();
   expect(typeof (await p)).toBe("string");

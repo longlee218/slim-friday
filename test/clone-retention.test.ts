@@ -8,10 +8,10 @@ import { keptClonesRefusal, MAX_KEPT_CLONES } from "../src/orchestrator/dispatch
 import { RESUME_PROMPT } from "../src/orchestrator/message-commands";
 import { resolveCommand } from "../src/orchestrator/message-routing";
 import {
-  insertTask,
-  latestTaskSession,
-  setTaskSession,
-  setTaskStatus,
+  insertTurn,
+  latestTurnSession,
+  setTurnSession,
+  setTurnStatus,
 } from "../src/storage/run-store";
 import {
   getWorktreeByTask,
@@ -146,9 +146,9 @@ test("kept-clones cap: the 11th is refused with the list and a /cleanup hint", (
 test("resume with the clone dir gone: the task is failed and the reply says why", async () => {
   const e = await cloneEnv();
   const wt = await e.start(tid("00000007"));
-  insertTask(e.env.db, { id: "task-1", threadId: "th", source: "t", repo: "ext", role: "dev" });
-  setTaskSession(e.env.db, "task-1", "sess", realpathSync(wt.path)); // the run stores a real cwd
-  setTaskStatus(e.env.db, "task-1", "interrupted");
+  insertTurn(e.env.db, { id: "task-1", threadId: "th", source: "t", repo: "ext", role: "dev" });
+  setTurnSession(e.env.db, "task-1", "sess", realpathSync(wt.path)); // the run stores a real cwd
+  setTurnStatus(e.env.db, "task-1", "interrupted");
   const deps = { db: e.env.db, agentHome: e.env.home, workspace: "main", repos: [e.repo] };
   const resume = { kind: "resume" } as const;
   expect(resolveCommand(deps as never, resume, "th")).toMatchObject({
@@ -158,5 +158,5 @@ test("resume with the clone dir gone: the task is failed and the reply says why"
   const out = resolveCommand(deps as never, resume, "th");
   expect(out).toMatchObject({ reason: "clone_missing" });
   expect((out as { reply: string }).reply).toContain("clone is gone");
-  expect(latestTaskSession(e.env.db, "th")?.status).toBe("failed");
+  expect(latestTurnSession(e.env.db, "th")?.status).toBe("failed");
 });

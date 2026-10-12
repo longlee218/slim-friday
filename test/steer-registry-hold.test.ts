@@ -3,7 +3,7 @@ import { createSteerRegistry } from "../src/orchestrator/turns/steer-registry";
 import type { SteerSink } from "../src/runtime/run-input-channel";
 import { PLAN_NOT_REAPPROVED, threadLedger } from "../src/storage/ledger-store";
 import { listRunMessages } from "../src/storage/run-message-store";
-import { finishTask, insertTask } from "../src/storage/run-store";
+import { finishTurn, insertTurn } from "../src/storage/run-store";
 import { upsertStage } from "../src/storage/stage-store";
 import { makeEnv } from "./helpers";
 
@@ -11,7 +11,7 @@ import { makeEnv } from "./helpers";
 
 const TH = { threadId: "th" };
 const dev = (db: ReturnType<typeof makeEnv>["db"], id = "t1") =>
-  insertTask(db, { id, threadId: "th", source: "t", repo: "r", role: "dev", brief: "add b" });
+  insertTurn(db, { id, threadId: "th", source: "t", repo: "r", role: "dev", brief: "add b" });
 
 /** A sink that records what is pushed. */
 const sink = (pushed: string[]): SteerSink => ({
@@ -58,11 +58,11 @@ test("no running task, or one without a streaming stage: nothing is held (none)"
   const reg = createSteerRegistry(env.db);
   expect(reg.canTake("th")).toBe(false);
   expect(reg.steer(TH, "x").result).toBe("none");
-  insertTask(env.db, { id: "a1", threadId: "th", source: "t", repo: "r", role: "assistant" });
+  insertTurn(env.db, { id: "a1", threadId: "th", source: "t", repo: "r", role: "assistant" });
   expect(reg.canTake("th")).toBe(false); // the assistant's qa stage reads no steers
   expect(reg.steer(TH, "y").result).toBe("none");
   expect(listRunMessages(env.db, "th").map((r) => r.status)).toEqual(["skipped", "skipped"]);
-  finishTask(env.db, "a1", "done");
+  finishTurn(env.db, "a1", "done");
 });
 
 test("M-a: a steer into work after the approved plan says so, and the task ledger carries the line", () => {

@@ -184,7 +184,7 @@ Text rules for L2: `intent/normalize-text.ts` (NFC, lowercase, accent-insensitiv
 | **Repo Memory** | src/memory/repo-memory.ts, memory-writer.ts, sanitize-bullet.ts | 3 read layers (root 5000, workspace 5000 owner-edited, repo 8000 each / 16000 total); agent writes `repos/<r>/MEMORY.md` only; `[global]` bullets go to root `MEMORY.pending.md` (never injected); every bullet sanitized |
 | **GitHub MCP** | src/mcp/github-mcp.ts | github-mcp-config (read-only for agent, write for app PR creation), github-token (`gh auth token` per githubAccount), create-pr (Docker image: ghcr.io/github/github-mcp-server, phase 4+) |
 | **Observability** | src/observability/ | pino logger, hooks, record-run, redact (added errText, clip, tryLog) |
-| **Storage** | src/storage/ | db.ts (sessions, tasks, runs, tool_calls, approvals, worktrees), run-store.ts (insertTask stores brief redacted, phase 1c+), approval-store.ts (insertApproval, decideApproval), memory append on exec success via repo-memory.ts |
+| **Storage** | src/storage/ | db.ts (sessions, tasks, runs, tool_calls, approvals, worktrees), run-store.ts (insertTurn stores brief redacted, phase 1c+), approval-store.ts (insertApproval, decideApproval), memory append on exec success via repo-memory.ts |
 | **Workspace** | src/config/workspace-paths.ts | AGENT_HOME layout: db, logs, repos, tasks (plan scratch + task context), worktrees (phase 4+), memory (phase 4+) |
 | **Lifecycle** | src/lifecycle/shutdown.ts | graceful shutdown, drain, cleanup; restart cancels pending approvals; startup cancels stale running tasks (phase 4+) |
 

@@ -4,8 +4,8 @@ import { redactText } from "../observability/redact";
 import { getRole, turnKindOf, turnTypeOf } from "../roles/role-registry";
 import { interruptRunningStages } from "./stage-store";
 
-/** Final status of a task row. */
-export type TaskStatus =
+/** Final status of a turn row. */
+export type TurnStatus =
   | "running"
   | "waiting_approval"
   | "done"
@@ -17,13 +17,13 @@ export type TaskStatus =
   /** Failed after the approved plan (config refusal, budget, transient error) with the clone kept: `/go` continues it (Rev 12). */
   | "failed_resumable";
 
-/** Change a task's status without ending it (no-op when the row is missing). */
-export function setTaskStatus(db: Database, id: string, status: TaskStatus): void {
+/** Change a turn's status without ending it (no-op when the row is missing). */
+export function setTurnStatus(db: Database, id: string, status: TurnStatus): void {
   db.query("UPDATE tasks SET status = ? WHERE id = ?").run(status, id);
 }
 
-/** Record the repo a task works in once it is known (a staged task starts with "*" until its plan picks one). */
-export function setTaskRepo(db: Database, id: string, repo: string): void {
+/** Record the repo a turn works in once it is known (a staged task starts with "*" until its plan picks one). */
+export function setTurnRepo(db: Database, id: string, repo: string): void {
   db.query("UPDATE tasks SET repo = ? WHERE id = ?").run(repo, id);
 }
 
@@ -38,13 +38,13 @@ export function dropResumable(db: Database, threadId: string): boolean {
   );
 }
 
-/** Record the Claude session of a task (reported at `system/init`) and the cwd it runs in. */
-export function setTaskSession(db: Database, id: string, sessionId: string, cwd: string): void {
+/** Record the Claude session of a turn (reported at `system/init`) and the cwd it runs in. */
+export function setTurnSession(db: Database, id: string, sessionId: string, cwd: string): void {
   db.query("UPDATE tasks SET session_id = ?, session_cwd = ? WHERE id = ?").run(sessionId, cwd, id);
 }
 
-/** Claude session a task recorded at `system/init`, or undefined (not started yet / no row). */
-export function taskSessionId(db: Database, id: string): string | undefined {
+/** Claude session a turn recorded at `system/init`, or undefined (not started yet / no row). */
+export function turnSessionId(db: Database, id: string): string | undefined {
   return (
     db
       .query<{ session_id: string | null }, [string]>("SELECT session_id FROM tasks WHERE id = ?")
@@ -52,8 +52,8 @@ export function taskSessionId(db: Database, id: string): string | undefined {
   );
 }
 
-/** Latest task of a thread with the session it recorded (what Resume continues), or null. */
-export function latestTaskSession(
+/** Latest turn of a thread with the session it recorded (what Resume continues), or null. */
+export function latestTurnSession(
   db: Database,
   threadId: string,
 ): {
@@ -90,13 +90,13 @@ export function latestTaskSession(
   return { ...rest, budgetStopped: outcome === "max_budget" };
 }
 
-/** Role that owns a task row, or undefined when the row is missing. */
-export function taskRole(db: Database, id: string): string | undefined {
+/** Role that owns a turn row, or undefined when the row is missing. */
+export function turnRole(db: Database, id: string): string | undefined {
   return db.query<{ role: string }, [string]>("SELECT role FROM tasks WHERE id = ?").get(id)?.role;
 }
 
-/** Insert a task row in `running` state. */
-export function insertTask(
+/** Insert a turn row in `running` state. */
+export function insertTurn(
   db: Database,
   t: {
     id: string;
@@ -111,7 +111,7 @@ export function insertTask(
     cls?: TaskClass;
     /** Proposal this task was started from. */
     proposalId?: string;
-    /** Task whose turn proposed this one, and how many hand-overs deep it is (0 = owner-started). */
+    /** Turn that proposed this one, and how many hand-overs deep it is (0 = owner-started). */
     parentTaskId?: string;
     hop?: number;
     /** The task runs a `failed_resumable` one again (kind `resume`): it does not count as a fix round. */
@@ -141,13 +141,13 @@ export function insertTask(
   );
 }
 
-/** Set final status and end time of a task. */
-export function finishTask(db: Database, id: string, status: TaskStatus): void {
+/** Set final status and end time of a turn. */
+export function finishTurn(db: Database, id: string, status: TurnStatus): void {
   db.query("UPDATE tasks SET status = ?, ended_at = ? WHERE id = ?").run(status, Date.now(), id);
 }
 
-/** Mark every still-`running` task `interrupted` (restart/shutdown) and cancel their pending approvals. */
-export function interruptRunningTasks(db: Database): void {
+/** Mark every still-`running` turn `interrupted` (restart/shutdown) and cancel their pending approvals. */
+export function interruptRunningTurns(db: Database): void {
   const now = Date.now();
   db.query(
     "UPDATE tasks SET status = 'interrupted', ended_at = ? WHERE status IN ('running', 'waiting_approval')",

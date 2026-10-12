@@ -32,7 +32,7 @@ const oneLine = (s: string, max: number): string =>
  * when the thread is idle, instead of exec transcripts.
  */
 export function threadLedger(db: Database, threadId: string): string {
-  const tasks = db
+  const staged = db
     .query<
       { id: string; role: string; status: string; repo: string; brief: string | null },
       [string, number]
@@ -44,8 +44,8 @@ export function threadLedger(db: Database, threadId: string): string {
     )
     .all(threadId, LEDGER_MAX_TASKS)
     .reverse();
-  if (tasks.length === 0) return "";
-  const entries = tasks.map((t) => {
+  if (staged.length === 0) return "";
+  const entries = staged.map((t) => {
     const wt = getWorktreeByTask(db, t.id);
     const stages = listStages(db, t.id).map((s) => {
       const bits = [s.model, s.costUsd == null ? null : `$${s.costUsd.toFixed(2)}`, s.verdict];

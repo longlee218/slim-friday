@@ -13,7 +13,7 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
 import { type FlowResult, RESUMABLE, resumeReasonOf } from "../src/orchestrator/turns/turn-result";
 import { ROLES } from "../src/roles/role-registry";
-import { countFollowUps, insertTask } from "../src/storage/run-store";
+import { countFollowUps, insertTurn } from "../src/storage/run-store";
 import { listStages } from "../src/storage/stage-store";
 import { getWorktreeByThread, listKeptClones } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -399,7 +399,7 @@ test("a resume that cannot start keeps the hold (task cap reached)", async () =>
   const { env, seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
   for (const id of ["x1", "x2"])
-    insertTask(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
+    insertTurn(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   expect(await handle(msg("/go"))).toContain("busy");
   expect(execRuns(seen)).toHaveLength(1);
   expect(resumeQuestionOf(env.db, "th1")).toBeDefined();

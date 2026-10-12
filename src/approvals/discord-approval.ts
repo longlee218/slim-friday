@@ -10,7 +10,7 @@ import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
 import { logEvent, logger, runWithLogContext, tryLog } from "../observability/logger";
 import { clip, errText, redactText } from "../observability/redact";
 import { type ApprovalDecision, decideApproval, insertApproval } from "../storage/approval-store";
-import { setTaskStatus } from "../storage/run-store";
+import { setTurnStatus } from "../storage/run-store";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../tools/sdk-tool-names";
 import {
   type ButtonSpec,
@@ -69,7 +69,7 @@ export function createDiscordApprovalGateway(
     const t0 = Date.now();
     logEvent(alog, "approval.requested", { summary: clip(summary, 300) });
     safeDb(() => insertApproval(db, { id, taskId: o.turnId, tool: o.tool, summary }));
-    safeDb(() => setTaskStatus(db, o.turnId, "waiting_approval"));
+    safeDb(() => setTurnStatus(db, o.turnId, "waiting_approval"));
 
     const finish = (decision: ApprovalDecision) => {
       // A button click runs in discord.js's event context, not the task's: re-enter the task's context.
@@ -79,7 +79,7 @@ export function createDiscordApprovalGateway(
       );
       safeDb(() => decideApproval(db, id, decision));
       // A cancelled request belongs to an ended run: never flip its task back to running.
-      if (decision !== "cancelled") safeDb(() => setTaskStatus(db, o.turnId, "running"));
+      if (decision !== "cancelled") safeDb(() => setTurnStatus(db, o.turnId, "running"));
     };
 
     try {

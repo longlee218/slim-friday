@@ -104,7 +104,7 @@ src/
 │   └── workspace-paths.ts      # AGENT_HOME layout: workspaces/<ws>/{workspace.yaml, skills/, cwd/, tasks/, repos/<repo>/{repo.yaml, repo/, worktrees/}}, data, logs
 ├── storage/                    # Database & persistence
 │   ├── db.ts                   # SQLite setup; worktrees table (phase 4+); tasks.brief column (phase 1c+, idempotent ALTER)
-│   ├── run-store.ts            # runs table ops; insertTask stores brief redacted (phase 1c+); memory append on exec success
+│   ├── run-store.ts            # runs table ops; insertTurn stores brief redacted (phase 1c+); memory append on exec success
 │   ├── approval-store.ts       # insertApproval/decideApproval (moved from run-store)
 │   ├── worktree-store.ts       # worktrees table ops (phase 4+)
 │   ├── session-store.ts        # session table ops

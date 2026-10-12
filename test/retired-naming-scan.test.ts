@@ -46,6 +46,17 @@ const RETIRED: Record<string, RegExp> = {
   "turns dir path": j("orchestrator", "/tasks", "/"),
   "tracker file path": j("/task", "-tracker"),
   "result file path": j("/task", "-result"),
+  // phase 05: storage functions and status type
+  "storage insert fn": new RegExp(`\\b${["insert", "Task"].join("")}\\b`),
+  "storage finish fn": new RegExp(`\\b${["finish", "Task"].join("")}\\b`),
+  "storage status fn": new RegExp(`\\b${["setTask", "Status"].join("")}\\b`),
+  "storage repo fn": new RegExp(`\\b${["setTask", "Repo"].join("")}\\b`),
+  "storage session setter": new RegExp(`\\b${["setTask", "Session"].join("")}\\b`),
+  "storage session getter": new RegExp(`\\b${["task", "SessionId"].join("")}\\b`),
+  "storage latest session fn": new RegExp(`\\b${["latestTask", "Session"].join("")}\\b`),
+  "storage role fn": new RegExp(`\\b${["task", "Role"].join("")}\\b`),
+  "storage interrupt fn": new RegExp(`\\b${["interruptRunning", "Tasks"].join("")}\\b`),
+  "storage status type": new RegExp(`\\b${["Task", "Status"].join("")}\\b`),
 };
 
 /** File-name patterns also retired in the docs (docs/project-changelog.md keeps history and is not scanned). */

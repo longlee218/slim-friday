@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addUsage, emptyUsage } from "../src/observability/record-run";
 import { openDb } from "../src/storage/db";
-import { countActiveCappedTasks, insertTask } from "../src/storage/run-store";
+import { countActiveCappedTasks, insertTurn } from "../src/storage/run-store";
 import { getWorktreeByTask } from "../src/storage/worktree-store";
 
 /** The v1 schema as the bot shipped it before the migration (no meta table, no stages / proposals). */
@@ -166,8 +166,8 @@ test("cap query counts code tasks only (counts_toward_cap), not Q&A", () => {
   const { file } = v1Home();
   const db = openDb(file);
   expect(countActiveCappedTasks(db)).toBe(1); // the v1 code task; the v1 Q&A row was backfilled to 0
-  insertTask(db, { id: "q2", threadId: "x", source: "s", repo: "r", role: "assistant" });
-  insertTask(db, {
+  insertTurn(db, { id: "q2", threadId: "x", source: "s", repo: "r", role: "assistant" });
+  insertTurn(db, {
     id: "c2",
     threadId: "x",
     source: "s",

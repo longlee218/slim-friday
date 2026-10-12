@@ -3,7 +3,7 @@ import { excerpt, logEvent, logger } from "../../observability/logger";
 import type { RunOutcome, RunUsage } from "../../observability/record-run";
 import { redactText } from "../../observability/redact";
 import type { RunAgentResult } from "../../runtime/run-agent";
-import { finishTask, setTaskStatus, type TaskStatus } from "../../storage/run-store";
+import { finishTurn, setTurnStatus, type TurnStatus } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
 import { budgetHitReply } from "../engine/budget";
 import { compactIdleSession } from "./session-compaction";
@@ -74,7 +74,7 @@ export const resumeQuestion = (turnId: string, reason: string): string =>
   `Task ${turnId.slice(0, 8)} stopped at exec: ${reason}. Continue with the approved plan?`;
 
 /** Map run outcome to the task status stored in db. */
-const TURN_STATUS: Record<string, TaskStatus> = {
+const TURN_STATUS: Record<string, TurnStatus> = {
   success: "done",
   aborted: "cancelled",
   timeout: "timeout",
@@ -110,7 +110,7 @@ export function finishRun(
     // A finished task over the size threshold: forget the session, the next turn starts fresh with the ledger.
     if (res.outcome === "success") compactIdleSession(db, ids, res.usage);
   }
-  finishTask(
+  finishTurn(
     db,
     ids.turnId,
     res.resumable ? "failed_resumable" : (TURN_STATUS[res.outcome] ?? "failed"),
@@ -140,7 +140,7 @@ export function closeTurn(
   o: { stopping: boolean; t0: number; repo: string },
 ): string {
   const reply = finishRun(db, ids, res);
-  if (o.stopping && res.outcome === "aborted") setTaskStatus(db, ids.turnId, "interrupted");
+  if (o.stopping && res.outcome === "aborted") setTurnStatus(db, ids.turnId, "interrupted");
   logEvent(log, "task.finished", {
     repo: res.repo && res.repo !== "*" ? res.repo : o.repo,
     outcome: res.outcome,

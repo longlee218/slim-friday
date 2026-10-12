@@ -16,7 +16,7 @@ import {
 } from "../src/observability/logger";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { openDb } from "../src/storage/db";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import {
   BASH_TOOL_NAME,
   EXIT_PLAN_MODE_TOOL_NAME,
@@ -144,7 +144,7 @@ test("two concurrent tasks do not mix contexts", async () => {
 
 test("approval decided by a click outside the task context still logs the task's ids", async () => {
   const db = openDb(":memory:");
-  insertTask(db, { id: "t1", threadId: "th", source: "discord", repo: "r", role: "assistant" });
+  insertTurn(db, { id: "t1", threadId: "th", source: "discord", repo: "r", role: "assistant" });
   const sent: any[] = [];
   const channel = {
     isSendable: () => true,

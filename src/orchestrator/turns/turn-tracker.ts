@@ -5,7 +5,7 @@ import type { TaskClass } from "../../config/model-routing";
 import { logEvent, setLogContext, tryLog } from "../../observability/logger";
 import { getRole, turnTypeOf } from "../../roles/role-registry";
 import { countQueuedProposals } from "../../storage/proposal-store";
-import { finishTask, insertTask, interruptRunningTasks } from "../../storage/run-store";
+import { finishTurn, insertTurn, interruptRunningTurns } from "../../storage/run-store";
 
 /** Log-context fields every line of a call carries: its thread and its routing channel. */
 export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
@@ -69,7 +69,7 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
       });
       await Promise.race([Promise.allSettled([...inflight]), timeout]);
       clearTimeout(timer);
-      tryLog(log, "interruptRunningTasks failed", () => interruptRunningTasks(db));
+      tryLog(log, "interruptRunningTurns failed", () => interruptRunningTurns(db));
     },
   };
 }
@@ -96,7 +96,7 @@ export function beginTurn(
     resume?: boolean;
   },
 ): void {
-  insertTask(db, {
+  insertTurn(db, {
     id: ids.turnId,
     threadId: ids.threadId,
     source: ids.source,
@@ -122,5 +122,5 @@ export function refused(log: Logger, r: { reason: string; reply: string }): stri
 
 /** Mark a turn row `failed` on a crash path. Never throws (the db may be closed during shutdown). */
 export function failTurn(db: Database, log: Logger, turnId: string): void {
-  tryLog(log, "finishTask failed", () => finishTask(db, turnId, "failed"));
+  tryLog(log, "finishTurn failed", () => finishTurn(db, turnId, "failed"));
 }

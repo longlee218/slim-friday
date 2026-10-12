@@ -8,7 +8,7 @@ import {
 import { openDb } from "../src/storage/db";
 import { filesChangedText, parseDiffstat, recordFilesChanged } from "../src/storage/files-changed";
 import { threadLedger } from "../src/storage/ledger-store";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { insertWorktree } from "../src/storage/worktree-store";
 
 // Budget-hit message parts and the ledger's files-changed line (P2.2 part B).
@@ -57,7 +57,7 @@ test("parseDiffstat: count, top paths by size; binary and empty input", () => {
 
 test("ledger shows files changed (count + top paths, capped) once a diffstat is recorded", () => {
   const db = openDb(":memory:");
-  insertTask(db, { id: "t-1", threadId: "th", source: "d", repo: "r", role: "dev" });
+  insertTurn(db, { id: "t-1", threadId: "th", source: "d", repo: "r", role: "dev" });
   db.query("UPDATE tasks SET counts_toward_cap = 1 WHERE id = 't-1'").run();
   insertWorktree(db, {
     taskId: "t-1",

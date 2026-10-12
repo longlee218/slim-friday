@@ -4,7 +4,7 @@ import { runStages } from "../src/orchestrator/engine/stage-runner";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { listStages } from "../src/storage/stage-store";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
@@ -34,7 +34,7 @@ test("a role that is only data runs through the stage runner and gets its stage 
   const roles = ROLES as Record<string, RoleDefinition>;
   roles[PROBE.name] = PROBE;
   try {
-    insertTask(env.db, {
+    insertTurn(env.db, {
       id: "t1",
       threadId: "th",
       source: "test",

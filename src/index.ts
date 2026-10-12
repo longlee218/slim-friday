@@ -29,7 +29,7 @@ import { errText } from "./observability/redact";
 import { createTurnHandler } from "./orchestrator/handle-message";
 import { createRunLimiter } from "./orchestrator/turns/run-limiter";
 import { openDb } from "./storage/db";
-import { interruptRunningTasks } from "./storage/run-store";
+import { interruptRunningTurns } from "./storage/run-store";
 import { loadWorkspaces } from "./workspaces/workspace-registry";
 
 const log = logger.child({ module: "index" });
@@ -91,7 +91,7 @@ async function main(): Promise<void> {
     return fail(errText(err));
   }
   // A crash leaves tasks "running"/"waiting_approval": they become "interrupted" (Resume button once ready).
-  interruptRunningTasks(db);
+  interruptRunningTurns(db);
   expireStaleProposals(db); // open proposals older than 24h; the rest get a `go` notice once ready
   const queuedThreads = releaseQueuedProposals(db); // queued tasks lost their run: back to `go`
   await runStartupHygiene(db, config.agentHome, config.cloneRetentionDays);

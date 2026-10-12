@@ -22,7 +22,7 @@ import {
   setProposalStatus,
 } from "../src/storage/proposal-store";
 import { insertRun } from "../src/storage/run-metrics-store";
-import { insertTask, setTaskSession } from "../src/storage/run-store";
+import { insertTurn, setTurnSession } from "../src/storage/run-store";
 import {
   addRepo,
   BRIEF,
@@ -146,8 +146,8 @@ test("startup: stale proposals expire, the notice goes once per thread with a pe
 
 /** A thread whose last task ended on its budget (status failed, last run max_budget) with a saved session. */
 function budgetStopped(env: ReturnType<typeof makeEnv>) {
-  insertTask(env.db, { id: "tb", threadId: "t1", source: "s", repo: "repo", role: "assistant" });
-  setTaskSession(env.db, "tb", "sess-b", env.repo);
+  insertTurn(env.db, { id: "tb", threadId: "t1", source: "s", repo: "repo", role: "assistant" });
+  setTurnSession(env.db, "tb", "sess-b", env.repo);
   insertRun(env.db, {
     id: "rb",
     taskId: "tb",
@@ -183,7 +183,7 @@ test("go +<usd> resumes a budget-stopped task; plain resume is refused with the 
 
 test("a budget stop offers `go +<usd>`; the message helper keeps the hint", () => {
   const env = makeEnv();
-  insertTask(env.db, { id: "t", threadId: "t1", source: "s", repo: "r", role: "assistant" });
+  insertTurn(env.db, { id: "t", threadId: "t1", source: "s", repo: "r", role: "assistant" });
   const text = finishRun(
     env.db,
     { turnId: "t", threadId: "t1" },

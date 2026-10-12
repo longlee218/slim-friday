@@ -3,7 +3,7 @@ import { existsSync, lstatSync, readdirSync, rmSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { REPO_NAME, WORKSPACE_NAME, workspacePaths } from "../config/workspace-paths";
 import { logEvent, logger } from "../observability/logger";
-import { dropResumable, setTaskStatus } from "../storage/run-store";
+import { dropResumable, setTurnStatus } from "../storage/run-store";
 import { deleteSession } from "../storage/session-store";
 import { deleteWorktree, listWorktrees, type WorktreeRow } from "../storage/worktree-store";
 import { removeCloneDir, removeLegacyWorktree } from "../workspaces/clone-cleanup";
@@ -63,7 +63,7 @@ function expireClonelessHolds(db: Database, agentHome: string, cutoff: number): 
     if (UUID_RE.test(id))
       for (const name of names.filter((n) => WORKSPACE_NAME.test(n)))
         rmSync(ws.workspace(name).task(id).root, { recursive: true, force: true });
-    setTaskStatus(db, id, "failed");
+    setTurnStatus(db, id, "failed");
     logEvent(log, "hold.expired", { taskId: id });
   }
   return rows.map((r) => r.id);

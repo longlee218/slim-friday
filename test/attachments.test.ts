@@ -24,7 +24,7 @@ import { stripMarkers } from "../src/intent/strip-markers";
 import { sdkCompactLlm } from "../src/memory/memory-compaction-llm";
 import { captureLogs } from "../src/observability/logger";
 import { ledgerLines } from "../src/storage/ledger-store";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { createIntentUserPrompt } from "./attachments-helpers";
 import { makeEnv, resultMsg } from "./helpers";
 
@@ -232,7 +232,7 @@ test("L4 input stays capped at 2000 chars of message; the ledger line stays shor
   const msg = prompt.split("<<<MESSAGE\n")[1]!.split("\nMESSAGE>>>")[0]!;
   expect(msg.length).toBeLessThanOrEqual(2000);
   const env = makeEnv();
-  insertTask(env.db, {
+  insertTurn(env.db, {
     id: "t1",
     threadId: "th",
     source: "t",

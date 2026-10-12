@@ -5,7 +5,7 @@ import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import type { Repo } from "../repos/repo-registry";
 import { entryRole, followUpRole, getRole, isGated } from "../roles/role-registry";
-import { latestTaskSession, setTaskStatus, taskRole } from "../storage/run-store";
+import { latestTurnSession, setTurnStatus, turnRole } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
 import { getWorktreeByThread, liveWorktree, type WorktreeRow } from "../storage/worktree-store";
 import { resumeFailedPlan } from "./dispatch/resume-failed-task";
@@ -59,7 +59,7 @@ export function routeMessage(
   // A staged role runs only as a follow-up in a thread with a worktree (its owner role continues) or as the
   // Resume of an interrupted plan stage (`cmd.role`, starts fresh); every other message goes to the entry role.
   const live = cmd.role ? undefined : (liveWorktree(deps.db, p.threadId) ?? undefined);
-  const owner = live ? (taskRole(deps.db, live.taskId) ?? followUpRole().name) : undefined;
+  const owner = live ? (turnRole(deps.db, live.taskId) ?? followUpRole().name) : undefined;
   const role = getRole(cmd.role ?? p.role ?? owner ?? entryRole().name);
   const worktree = live && owner === role.name ? live : undefined;
   if (!isGated(role)) return { pinned, role: role.name, candidates: [], repo: pinned?.name ?? "*" };
@@ -124,7 +124,7 @@ export function resolveCommand(
     "cannot_resume",
     "Cannot resume: no saved session for this thread. Start the task again.",
   );
-  const last = latestTaskSession(deps.db, threadId);
+  const last = latestTurnSession(deps.db, threadId);
   if (!last) return cannot;
   // Only a task that was cut short (or stopped, or ended on its budget, or failed resumable) can be resumed; a newer finished/failed one means stale.
   if (
@@ -157,7 +157,7 @@ export function resolveCommand(
     gone?.baseSha != null &&
     existing.cwd === join(realOrSame(dirname(gone.path)), basename(gone.path))
   ) {
-    setTaskStatus(deps.db, last.id, "failed");
+    setTurnStatus(deps.db, last.id, "failed");
     return refuse(
       "clone_missing",
       "Cannot resume: the task clone is gone (removed or cleaned up). The task is marked failed. Start it again.",

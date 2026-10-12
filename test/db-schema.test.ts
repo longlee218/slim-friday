@@ -6,10 +6,10 @@ import { join } from "node:path";
 import { openDb } from "../src/storage/db";
 import { insertRun, insertToolCall } from "../src/storage/run-metrics-store";
 import {
-  finishTask,
-  insertTask,
-  interruptRunningTasks,
-  setTaskStatus,
+  finishTurn,
+  insertTurn,
+  interruptRunningTurns,
+  setTurnStatus,
 } from "../src/storage/run-store";
 import { BASH_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv } from "./helpers";
@@ -28,8 +28,8 @@ test("schema has 4 tables and WAL mode", () => {
 
 test("task/run/tool_call helpers insert rows", () => {
   const { db } = makeEnv();
-  insertTask(db, { id: "t", threadId: "th", source: "test", repo: "/r", role: "assistant" });
-  finishTask(db, "t", "done");
+  insertTurn(db, { id: "t", threadId: "th", source: "test", repo: "/r", role: "assistant" });
+  finishTurn(db, "t", "done");
   insertRun(db, {
     id: "r",
     taskId: "t",
@@ -60,13 +60,13 @@ test("task/run/tool_call helpers insert rows", () => {
 
 test("restart cleanup: waiting_approval tasks become interrupted, pending approvals cancelled", () => {
   const { db } = makeEnv();
-  insertTask(db, { id: "t1", threadId: "th", source: "d", repo: "r", role: "dev" });
-  setTaskStatus(db, "t1", "waiting_approval");
+  insertTurn(db, { id: "t1", threadId: "th", source: "d", repo: "r", role: "dev" });
+  setTurnStatus(db, "t1", "waiting_approval");
   db.run(
     "INSERT INTO approvals (id, task_id, tool, summary, decision, requested_at) VALUES ('a','t1',?,'s','pending',1)",
     [BASH_TOOL_NAME],
   );
-  interruptRunningTasks(db);
+  interruptRunningTurns(db);
   expect(db.query<{ status: string }, []>("SELECT status FROM tasks").get()?.status).toBe(
     "interrupted",
   );
@@ -174,7 +174,7 @@ test("migration: old db without brief column gets brief added via ALTER TABLE", 
     expect(row?.brief).toBeNull();
 
     // Verify we can insert a task with brief
-    insertTask(newDb, {
+    insertTurn(newDb, {
       id: "t2",
       threadId: "th1",
       source: "test",

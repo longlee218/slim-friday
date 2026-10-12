@@ -8,7 +8,7 @@ import {
 } from "../src/orchestrator/outputs/local-result-output";
 import { finishCodeTask } from "../src/orchestrator/outputs/pr-output";
 import { insertApproval } from "../src/storage/approval-store";
-import { insertTask } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { getWorktreeByTask, insertWorktree, listKeptClones } from "../src/storage/worktree-store";
 import { hasCredentials, safeOriginUrl } from "../src/workspaces/origin-url";
 import { deliveryFor } from "../src/workspaces/task-clone";
@@ -140,7 +140,7 @@ test("retention ages from last activity: a kept clone with a recent follow-up ta
       .query("UPDATE worktrees SET status='kept', created_at=? WHERE task_id=?")
       .run(OLD, w.taskId);
   }
-  insertTask(e.env.db, {
+  insertTurn(e.env.db, {
     id: "t-follow",
     threadId: "th-busy",
     source: "t",

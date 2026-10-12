@@ -14,7 +14,7 @@ import {
 } from "../observability/record-run";
 import { errText, redactText } from "../observability/redact";
 import { createTurnUsage } from "../observability/turn-usage";
-import { setTaskSession } from "../storage/run-store";
+import { setTurnSession } from "../storage/run-store";
 import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
 
 /** Logger of this module (task fields come from the log context). */
@@ -112,7 +112,7 @@ export async function consumeStream(p: {
       // successful finish, so a failed run never replaces the thread's good session). Resume reads it.
       if (m.type === "system" && m.subtype === "init" && m.session_id) {
         const sid = m.session_id;
-        tryLog(log, "early session save failed", () => setTaskSession(p.db, p.turnId, sid, p.cwd));
+        tryLog(log, "early session save failed", () => setTurnSession(p.db, p.turnId, sid, p.cwd));
       }
       const ext = m as unknown as { error?: string; rate_limit_info?: { status?: string } };
       // A later assistant message without `error` means the SDK retry worked: forget the old error.

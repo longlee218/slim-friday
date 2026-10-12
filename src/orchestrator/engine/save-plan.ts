@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../../config/workspace-paths";
 import { logger, tryLog } from "../../observability/logger";
-import { setTaskRepo } from "../../storage/run-store";
+import { setTurnRepo } from "../../storage/run-store";
 import type { StageRunInput, StageRunnerDeps } from "./stage-runner";
 
 /** Logger of this module (task fields come from the log context). */
@@ -23,6 +23,6 @@ export function savePlanForResume(
     const dir = workspacePaths(deps.config.agentHome).workspace(i.workspace).task(i.turnId).root;
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     writeFileSync(join(dir, planFile), plan);
-    setTaskRepo(deps.db, i.turnId, repo);
+    setTurnRepo(deps.db, i.turnId, repo);
   });
 }
