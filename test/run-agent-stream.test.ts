@@ -12,11 +12,13 @@ const SUBAGENT_ENV = {
 
 import {
   AGENT_TOOL_NAME,
+  BASH_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
   LIST_AGENTS_TOOL_NAME,
   LIST_MCP_RESOURCES_TOOL_NAME,
   LSP_TOOL_NAME,
+  MONITOR_TOOL_NAME,
   READ_MCP_RESOURCE_DIR_TOOL_NAME,
   READ_MCP_RESOURCE_TOOL_NAME,
   READ_TOOL_NAME,
@@ -103,7 +105,7 @@ describe("run-agent stream handling", () => {
     );
   });
 
-  test("sdk options: read-only tools, project settings, abort controller", async () => {
+  test("sdk options: assistant tools (read, web, shell, no write), project settings, abort controller", async () => {
     const env = makeEnv();
     let seen: any;
     await go(env, ((a: any) => {
@@ -123,6 +125,8 @@ describe("run-agent stream handling", () => {
       READ_MCP_RESOURCE_DIR_TOOL_NAME,
       REFRESH_MCP_TOOLS_TOOL_NAME,
       WAIT_FOR_MCP_SERVERS_TOOL_NAME,
+      BASH_TOOL_NAME,
+      MONITOR_TOOL_NAME,
       AGENT_TOOL_NAME,
       SEND_MESSAGE_TOOL_NAME,
       LIST_AGENTS_TOOL_NAME,
@@ -250,13 +254,4 @@ test("run.finished keeps usage, adds modelUsage per model and the total cost", a
     costUsd: 0.001,
   });
   expect(fin.modelUsage["claude-haiku-5-5"].inputTokens).toBe(1);
-});
-
-test("runs.stage_idx is never written any more (the column stays NULL until schema v4)", async () => {
-  const env = makeEnv();
-  await go(env, fakeQuery([initMsg, resultMsg()]));
-  const rows = env.db
-    .query<{ stage_idx: number | null }, []>("SELECT stage_idx FROM runs ORDER BY rowid")
-    .all();
-  expect(rows.map((r) => r.stage_idx)).toEqual([null]);
 });

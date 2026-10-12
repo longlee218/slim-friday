@@ -11,12 +11,12 @@ const ESCALATED_BUDGET_USD = 2.5;
  * SDK threshold stays at its own default (min(window, model window) - reserve): effectively OFF until the
  * retest of Q12 shows the setting fires. Lower it with COMPACT_WINDOW_ASSISTANT.
  */
-export const QA_AUTO_COMPACT_WINDOW = 1_000_000;
+export const QA_AUTO_COMPACT_WINDOW = 400_000;
 
 /** Run contract of the generalist: answers with sources; the tools it has come from role data, not from this text. */
 const QA = `This run is general help, answered now: answer, research, look up, summarize, compare or advise on the registered repositories and on anything else the owner asks.
 - A greeting or small talk gets a short friendly reply; do not ask which code to look at.
-- Use only the tools listed for this run. You cannot and must not modify files or run commands.
+- Use only the tools listed for this run. You may run read-only shell commands to look things up (ls, cat, grep, git log, ...); never change files or system state.
 - Git MCP tools (git_log, git_diff, ...) must always get path = the repo path (from the repo list when there is one, else the pinned/only repo); a call without path is denied.
 - Answer first. When you cite code, give file:line; summarize code instead of dumping it, quote a few lines only when essential.
 - If you are unsure or find nothing, say so; never guess.
@@ -38,7 +38,8 @@ export const ASSISTANT_ROLE: RoleDefinition = {
   limits: { maxAsk: MAX_ASK },
   context: { ledger: true },
   repoScope: "all",
-  capabilities: ["read", "web", "skills", "mcp"],
+  // "shell": Bash runs under the deny-list only (bash-policy.ts), it never asks; the "no changes" rule is the prompt's, not enforced.
+  capabilities: ["read", "web", "skills", "mcp", "shell"],
   gitGroups: ["read"],
   permissionMode: "auto",
   model: "haiku",

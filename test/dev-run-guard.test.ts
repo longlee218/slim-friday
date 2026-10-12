@@ -54,7 +54,6 @@ test("the dev run works in the repo's own checkout: cwd = repo path, scratch + w
     realpathSync(ws.task(taskId).root),
     realpathSync(ws.worktrees),
   ]);
-  expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 0 });
   // No plan file: the repo is on the turn row, named by the run's final `repo:` line.
   expect(env.db.query("SELECT repo FROM turns").get()).toEqual({ repo: "real" });
 });

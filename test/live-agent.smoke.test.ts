@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { BASH_TOOL_NAME, EDIT_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { EDIT_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
 
 // Live test: needs a real OAuth token (a dummy gives 401 and retries forever).
@@ -15,7 +15,7 @@ if (!live) {
 }
 
 describe.skipIf(!live)("live agent smoke (Haiku)", () => {
-  test("answers on a temp repo; only Read/Glob/Grep exposed; rows recorded", async () => {
+  test("answers on a temp repo; no write tools exposed; rows recorded", async () => {
     const env = makeEnv({
       CLAUDE_CODE_OAUTH_TOKEN: token!,
       MAX_TURNS: "6",
@@ -46,9 +46,7 @@ describe.skipIf(!live)("live agent smoke (Haiku)", () => {
       text: "What is the secret word in a.txt? Answer in one word.",
     });
     expect(reply.toLowerCase()).toContain("alpha");
-    expect(
-      tools[0]!.some((t) => [BASH_TOOL_NAME, WRITE_TOOL_NAME, EDIT_TOOL_NAME].includes(t)),
-    ).toBe(false); // strictMcpConfig leak check
+    expect(tools[0]!.some((t) => [WRITE_TOOL_NAME, EDIT_TOOL_NAME].includes(t))).toBe(false); // strictMcpConfig leak check
     expect(env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM runs").get()!.n).toBe(1);
     expect(
       env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM tool_calls").get()!.n,

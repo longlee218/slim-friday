@@ -28,10 +28,9 @@ test("dev is a background role: one run, bypass from the first token, no plan co
   expect(hasClassTiers(DEV_ROLE)).toBe(true);
 });
 
-test("the assistant is a plain foreground role: read-only tools, no ask, no write, no shell", () => {
+test("the assistant is a plain foreground role: shell but no ask, no write", () => {
   expect(ASSISTANT_ROLE.background).toBe(false);
-  for (const c of ["write", "shell", "ask"])
-    expect(ASSISTANT_ROLE.capabilities).not.toContain(c as never);
+  for (const c of ["write", "ask"]) expect(ASSISTANT_ROLE.capabilities).not.toContain(c as never);
   expect(ASSISTANT_ROLE.gitGroups).toEqual(["read"]);
   expect(ASSISTANT_ROLE.permissionMode).toBe("auto");
   expect(turnTypeOf(ASSISTANT_ROLE)).toBe("qa");

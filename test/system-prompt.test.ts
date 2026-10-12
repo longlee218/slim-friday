@@ -34,7 +34,7 @@ test("no identity or tone words in any mode", () => {
 test("the assistant prompt has no handoff section: it never proposes a change", () => {
   const text = rules(qa);
   expect(text).not.toMatch(/hand ?over|hand ?off|propose|\bbrief\b|Delegate/i);
-  expect(text).toContain("You cannot and must not modify files");
+  expect(text).toContain("never change files or system state");
 });
 
 test("dev: one run contract: approval before changes by ask, no plan mode, the final repo line", () => {

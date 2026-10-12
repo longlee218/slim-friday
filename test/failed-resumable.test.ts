@@ -169,7 +169,6 @@ test("/go continues the SAME session in the repo with the continue prompt; the n
   expect(second.promptText).toBe(CONTINUE_PROMPT);
   expect(first.options.cwd).toBe(second.options.cwd);
   expect(first.promptText).not.toBe(CONTINUE_PROMPT); // the first run is a normal one
-  expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 0 });
   expect(status(env)).toEqual([
     { status: "failed", kind: "single", parent_turn_id: null },
     { status: "done", kind: "resume", parent_turn_id: firstId },

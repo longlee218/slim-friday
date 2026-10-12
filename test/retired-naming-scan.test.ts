@@ -106,6 +106,7 @@ const EXEMPT: string[] = [
   "legacy-migrate-v2.ts",
   "migrate-v3-turns.ts",
   "db-migrate-v3.test.ts",
+  "db-migrate-v4.test.ts",
   "db-migrate.test.ts",
   "db-schema.test.ts",
   "live-subagents.spike.test.ts",

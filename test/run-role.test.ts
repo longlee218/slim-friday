@@ -122,10 +122,8 @@ test("one dev run: the plan approval is a normal ask, then it edits; ONE runs ro
   expect(runs).toHaveLength(1);
   expect(runs[0].model).toBe(env.config.models.sonnet);
   expect(runs[0].cost_usd).toBeCloseTo(0.25);
-  expect(runs[0].stage_idx).toBeNull(); // the column stays until schema v4, never written
   expect(reply).toContain("done: b.txt added");
   expect(reply).not.toContain("repo: real"); // the marker is the app's, not the owner's reply
-  expect(env.db.query("SELECT COUNT(*) AS n FROM stages").get()).toEqual({ n: 0 });
   // The dev session is the turn row's, never the thread's.
   expect(env.db.query("SELECT session_id FROM sessions").get()).toBeNull();
   expect(t.session_id).toBe("sess-dev");

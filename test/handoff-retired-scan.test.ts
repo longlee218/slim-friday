@@ -44,8 +44,8 @@ test("src and test hold no name of the retired handoff tool (this file excepted)
   expect(hits).toEqual([]);
 });
 
-test("the assistant is a plain read-only role: no write, shell or ask capability", () => {
-  for (const c of ["write", "shell", "ask"])
-    expect(ASSISTANT_ROLE.capabilities).not.toContain(c as never);
+test("the assistant is a plain role: shell but no write or ask capability", () => {
+  for (const c of ["write", "ask"]) expect(ASSISTANT_ROLE.capabilities).not.toContain(c as never);
+  expect(ASSISTANT_ROLE.capabilities).toContain("shell");
   expect(ASSISTANT_ROLE.gitGroups.join()).toBe("read");
 });

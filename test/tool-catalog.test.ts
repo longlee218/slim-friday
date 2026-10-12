@@ -64,8 +64,9 @@ test("Q&A: read + web + skills + subagents; nothing that writes or runs commands
     AGENT_TOOL_NAME,
   ])
     expect(t).toContain(x);
-  for (const x of [WRITE_TOOL_NAME, EDIT_TOOL_NAME, BASH_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME])
+  for (const x of [WRITE_TOOL_NAME, EDIT_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME])
     expect(t).not.toContain(x);
+  for (const x of [BASH_TOOL_NAME, MONITOR_TOOL_NAME]) expect(t).toContain(x); // the shell capability
 });
 
 test("dev gets the full toolset (no plan-mode tools); every role gets Agent and SendMessage", () => {
@@ -214,6 +215,8 @@ test("options: tools from the catalog, no allowedTools, strict MCP", () => {
     READ_MCP_RESOURCE_DIR_TOOL_NAME,
     REFRESH_MCP_TOOLS_TOOL_NAME,
     WAIT_FOR_MCP_SERVERS_TOOL_NAME,
+    BASH_TOOL_NAME,
+    MONITOR_TOOL_NAME,
     AGENT_TOOL_NAME,
     SEND_MESSAGE_TOOL_NAME,
     LIST_AGENTS_TOOL_NAME,
@@ -262,17 +265,17 @@ test("every declared SDK tool name belongs to exactly one capability (a new cons
   for (const t of owners.keys()) expect(Object.values<string>(sdkNames)).toContain(t);
 });
 
-test("the assistant stays read-only: no write, shell, feedback or task tools; dev gets the full set", () => {
+test("the assistant has no write, feedback or task tools (it has Bash/Monitor); dev gets the full set", () => {
   const qa = toolsFor(qaRole);
   for (const t of [
     MULTI_EDIT_TOOL_NAME,
     NOTEBOOK_EDIT_TOOL_NAME,
-    MONITOR_TOOL_NAME,
     TASK_GET_TOOL_NAME,
     TASK_STOP_TOOL_NAME,
     SEND_FEEDBACK_TOOL_NAME,
   ])
     expect(qa).not.toContain(t);
+  expect(qa).toContain(MONITOR_TOOL_NAME);
   for (const t of [
     MULTI_EDIT_TOOL_NAME,
     NOTEBOOK_EDIT_TOOL_NAME,

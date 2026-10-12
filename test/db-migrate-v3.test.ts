@@ -8,6 +8,7 @@ import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
 import { openDb } from "../src/storage/db";
 import { threadLedger } from "../src/storage/ledger-store";
 import { applyLegacySchema } from "../src/storage/legacy-schema";
+import { migrateV3 } from "../src/storage/migrate-v3-turns";
 import { insertTurn, latestTurnSession } from "../src/storage/run-store";
 
 // OLD NAMES ON PURPOSE: this file builds the v2 (pre-turns) database and checks the v2 -> v3 migration.
@@ -62,6 +63,16 @@ function v2Home(extraSql = "") {
   return { home, file, backups: join(home, "db-backups") };
 }
 
+/** Open the fixture and run ONLY the v2 -> v3 step (no snapshot, no v4): the v3 shape is what these tests probe. */
+function openV3(file: string): Database {
+  const db = new Database(file);
+  migrateV3(db);
+  return db;
+}
+
+/** TABLES minus the ones v4 drops: their counts must survive the whole chain. */
+const KEPT_TABLES = TABLES.filter(([b]) => b !== "stages" && b !== "worktrees");
+
 /** All rows of a table as arrays of column values (column position, rowid order). */
 const rowsOf = (db: Database, table: string) =>
   db.query(`SELECT * FROM ${table} ORDER BY rowid`).values();
@@ -103,9 +114,9 @@ test("a. migrate: no throw, v2 backup exists and still holds the old names with 
   snap.close();
 });
 
-test("b. shape: new names, indexes, stages PK, no FKs, integrity ok, version 3", () => {
+test("b. shape: new names, indexes, stages PK, no FKs, integrity ok, version 3 (v3 step alone)", () => {
   const { file } = v2Home();
-  const db = openDb(file);
+  const db = openV3(file);
   const tables = names(db, "table");
   expect(tables).toContain("turns");
   expect(tables).not.toContain("tasks");
@@ -150,7 +161,7 @@ test("b. shape: new names, indexes, stages PK, no FKs, integrity ok, version 3",
 test("c. data: every row equal by column position, sums and joins equal, in-flight row intact", () => {
   const { file } = v2Home();
   const before = capture(file);
-  const db = openDb(file);
+  const db = openV3(file);
   for (const [b, a] of TABLES) expect(rowsOf(db, a)).toEqual(before[b]!);
   expect(db.query("SELECT SUM(cost_usd) AS s FROM runs").get()).toEqual({ s: 1.875 });
   expect(
@@ -168,7 +179,7 @@ test("c. data: every row equal by column position, sums and joins equal, in-flig
 
 test("d. readers work on the migrated db", () => {
   const { file } = v2Home();
-  const db = openDb(file);
+  const db = openV3(file);
   insertTurn(db, { id: "t5", threadId: "th3", source: "s", repo: "r", role: "assistant" });
   expect(db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 5 });
   // The migrated `stages` rows stay on disk (dropped by v4) but nothing reads them any more.
@@ -191,11 +202,11 @@ test("e. second and third open: no new backup, same schema, same counts (no-op)"
   const sql = (d: Database) =>
     d.query<{ sql: string | null }, []>("SELECT sql FROM sqlite_master ORDER BY name").all();
   const schema = sql(second);
-  const counts = TABLES.map(([, a]) => rowsOf(second, a).length);
+  const counts = KEPT_TABLES.map(([, a]) => rowsOf(second, a).length);
   second.close();
   const third = openDb(file);
   expect(sql(third)).toEqual(schema);
-  expect(TABLES.map(([, a]) => rowsOf(third, a).length)).toEqual(counts);
+  expect(KEPT_TABLES.map(([, a]) => rowsOf(third, a).length)).toEqual(counts);
   expect(names(third, "table")).not.toContain("tasks"); // legacy DDL did not re-create it
   expect(readdirSync(backups)).toHaveLength(1);
 });
@@ -211,7 +222,7 @@ test("f. failure: a pre-existing `turns` table aborts, rolls back, keeps tasks r
   expect(readdirSync(backups)).toHaveLength(1);
 });
 
-test("g. v1 db chains to v3: version 3, exactly one backup and it is the v1 one", () => {
+test("g. v1 db chains to v4: version 4, exactly one backup and it is the v1 one", () => {
   const home = mkdtempSync(join(tmpdir(), "friday-v3-"));
   mkdirSync(join(home, "data"));
   const file = join(home, "data", "agent.db");
@@ -227,24 +238,24 @@ test("g. v1 db chains to v3: version 3, exactly one backup and it is the v1 one"
   `);
   raw.close();
   const db = openDb(file);
-  expect(version(db)).toBe("3");
+  expect(version(db)).toBe("4");
   expect(db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 1 });
   const snaps = readdirSync(join(home, "db-backups"));
   expect(snaps).toHaveLength(1);
   expect(snaps[0]).toMatch(/^friday-v1-/);
 });
 
-test("h. fresh file db and :memory: land on v3 with the new names and no backup", () => {
+test("h. fresh file db and :memory: land on v4 with the new names and no backup", () => {
   const home = mkdtempSync(join(tmpdir(), "friday-v3-"));
   const file = join(home, "data", "agent.db");
   const db = openDb(file);
-  expect(version(db)).toBe("3");
+  expect(version(db)).toBe("4");
   expect(names(db, "table")).toContain("turns");
   expect(names(db, "table")).not.toContain("tasks");
   expect(cols(db, "runs")).toContain("turn_id");
   expect(() => readdirSync(join(home, "db-backups"))).toThrow(); // no backup dir at all
   const mem = openDb(":memory:");
-  expect(version(mem)).toBe("3");
+  expect(version(mem)).toBe("4");
   expect(names(mem, "table")).toContain("turns");
 });
 

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addUsage, emptyUsage } from "../src/observability/record-run";
 import { openDb } from "../src/storage/db";
+import { hasTable } from "../src/storage/migrate";
 import { countActiveCappedTasks, insertTurn } from "../src/storage/run-store";
 
 /** The v1 schema as the bot shipped it before the migration (no meta table, no stages / proposals). */
@@ -55,9 +56,9 @@ test("v1 db survives: rows kept, new tables + columns, version marker, defaults 
     count(db, "approvals"),
   ]).toEqual([2, 2, 1, 1]);
   expect(db.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({
-    value: "3",
+    value: "4",
   });
-  expect(count(db, "stages")).toBe(0);
+  expect(hasTable(db, "stages")).toBe(false); // dropped by v4
   expect(count(db, "proposals")).toBe(0);
   const old = db
     .query(
@@ -84,7 +85,7 @@ test("v1 db survives: rows kept, new tables + columns, version marker, defaults 
       proposal_id: null,
     },
   ]);
-  expect(db.query("SELECT stage_idx FROM runs").get()).toEqual({ stage_idx: null });
+  expect(() => db.query("SELECT stage_idx FROM runs").get()).toThrow(/no such column/); // dropped by v4
   expect(db.query("SELECT session_id FROM sessions WHERE thread_id = 'th2'").get()).toEqual({
     session_id: "sess-2",
   });
@@ -123,7 +124,7 @@ test("fresh db: version marker written, no snapshot", () => {
   const home = mkdtempSync(join(tmpdir(), "friday-migrate-"));
   const db = openDb(join(home, "data", "agent.db"));
   expect(db.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({
-    value: "3",
+    value: "4",
   });
   expect(existsSync(join(home, "db-backups"))).toBe(false);
 });
@@ -166,7 +167,7 @@ test("cap query counts code tasks only (counts_toward_cap), not Q&A", () => {
   });
 });
 
-test("worktrees: clone columns are added; an old row gets the defaults (no base sha, active)", () => {
+test("worktrees: an old worktrees table (legacy clone columns added) is dropped by v4, idempotent", () => {
   const dir = mkdtempSync(join(tmpdir(), "mig-wt-"));
   const file = join(dir, "data", "agent.db");
   mkdirSync(join(dir, "data"));
@@ -180,28 +181,9 @@ test("worktrees: clone columns are added; an old row gets the defaults (no base 
   );
   old.close();
   const db = openDb(file);
-  const cols = db
-    .query<{ name: string }, []>("PRAGMA table_info(worktrees)")
-    .all()
-    .map((c) => c.name);
-  for (const c of [
-    "workspace",
-    "base_sha",
-    "origin_url",
-    "delivery",
-    "status",
-    "patch_path",
-    "delivered_at",
-  ])
-    expect(cols).toContain(c);
-  // The table is unused since Rev 15 (phase 6 drops it); the migration still has to leave it readable.
-  expect(
-    db
-      .query(
-        "SELECT base_sha AS baseSha, workspace, delivery, status FROM worktrees WHERE task_id = 't1'",
-      )
-      .get(),
-  ).toMatchObject({ baseSha: null, workspace: null, delivery: null, status: "active" });
+  expect(hasTable(db, "worktrees")).toBe(false);
+  expect(count(db, "turns")).toBe(2); // kept data untouched
+  db.close();
   openDb(file).close(); // idempotent
 });
 
@@ -247,8 +229,7 @@ test("run_messages (Rev 11): created on a v1 db, second open is a no-op, rows su
     "content",
     "created_at",
     "task_id",
-    "after_plan",
-  ]);
+  ]); // `after_plan` dropped by v4
   db.query(
     "INSERT INTO run_messages (id, thread_id, seq, kind, status, content, created_at) VALUES ('m1', 'th1', 1, 'steer', 'pending', 'hi', 1)",
   ).run();

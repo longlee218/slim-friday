@@ -13,7 +13,7 @@ const SRC = join(import.meta.dir, "..", "src");
 const ALLOWED = [
   /(^|\/)legacy-[^/]*$/,
   /(^|\/)migrate-v3-turns\.ts$/,
-  /(^|\/)migrate-v4-drop-stages\.ts$/,
+  /(^|\/)migrate-v4-drop-legacy-tables\.ts$/,
 ];
 
 /** Every .ts / .md file under a directory (relative paths with "/"). */
@@ -36,6 +36,22 @@ test("the word stage/stages appears nowhere in src except the frozen legacy file
       .split("\n")
       .forEach((line, i) => {
         if (/\bstages?\b/i.test(line)) hits.push(`${f}:${i + 1}: ${line.trim().slice(0, 100)}`);
+      });
+  }
+  expect(hits).toEqual([]);
+});
+
+/** Old table/column names that only the frozen legacy files and the v4 drop migration may spell out. */
+const OLD_NAMES =
+  /\b(stage_idx|after_plan|files_changed|files_top)\b|\b(FROM|INTO|TABLE|UPDATE|JOIN)\s+(IF\s+(NOT\s+)?EXISTS\s+)?(stages|worktrees)\b/i;
+
+test("the old stage/clone table and column names appear in src only in the frozen legacy files and the v4 file", () => {
+  const hits: string[] = [];
+  for (const f of sourceFiles(SRC).filter((f) => !ALLOWED.some((re) => re.test(f)))) {
+    readFileSync(join(SRC, f), "utf8")
+      .split("\n")
+      .forEach((line, i) => {
+        if (OLD_NAMES.test(line)) hits.push(`${f}:${i + 1}: ${line.trim().slice(0, 100)}`);
       });
   }
   expect(hits).toEqual([]);
