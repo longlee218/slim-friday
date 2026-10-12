@@ -58,8 +58,8 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 
 **Config as data (rule for future work):**
 - Today roles are TypeScript objects in `src/roles/builtin/`.
-- Phase 9 (planned, not built) moves roles to files plus a resolver. Until then, a new role or a change of role data is a TypeScript edit in its role file.
-- Do not add a new config mechanism for roles, skills or subagents ahead of phase 9.
+- Roles as files plus a resolver (old phase 9) is CLOSED for now (owner, 2026-10-12): a new role or a change of role data is a TypeScript edit in its role file. Keep role data flat so the move stays possible.
+- Do not add a new config mechanism for roles, skills or subagents unless the owner reopens the config-as-agent work.
 
 ## Logging (owner rule)
 - Use only `logger` (or `logger.child({...})`) from `src/observability/logger.ts`.

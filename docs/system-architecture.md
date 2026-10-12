@@ -103,7 +103,7 @@ Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-type
 - `subagents` (SDK `Agent`, `SendMessage`, `ListAgents`) are added to EVERY role by `toolsFor`. No app-defined subagent types exist.
 - A role's prompt is its `promptSections` + COMMON safety rules + context. The assistant has an `ESCALATE: sonnet|opus` line only on the cheap tier.
 - Dev `whenToUse`: a job that changes files or needs an owner-approved plan. Assistant: greetings, questions, read-only work.
-- Adding a role or skill is a data change (see code standards). Roles as separate config files are PLANNED (phase 9), not built.
+- Adding a role or skill is a data change (see code standards). Roles as separate config files: closed for now (owner, 2026-10-12), not built.
 
 ## Thread States and Routing
 State is DERIVED from `turns` and `approvals` (never stored): `src/orchestrator/thread/thread-state.ts`.
@@ -400,7 +400,7 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 | Owner question wait | 10 min | `src/approvals/discord-approval.ts` |
 
 ## Planned, Not Built
-- **Config as agent (phase 9):** roles as files plus a resolver; the engine reads role files, not code. Not built: roles stay TypeScript objects in `src/roles/builtin/`.
+- **Config as agent (old phase 9):** roles as files plus a resolver. Closed for now (owner, 2026-10-12), not built: roles stay flat TypeScript objects in `src/roles/builtin/`, so the move stays cheap if reopened.
 - **Live verification (phase 8, paid):** AskUserQuestion under bypass, the PermissionDenied hook for owner denies, `DISABLE_BACKGROUND_TASKS` vs `run_in_background`, SDK general-purpose subagent tools, `ListAgents`, resumed-session cost accounting, golden set for the rewritten prompts.
 - **Known gaps (owner decisions):** two dev tasks in one repo share one working tree; `repo.defaultBranch` is not protected (only `main` and `master` are); the thread does not pin the last task's repo.
 - **Backlog:** orphan legacy clone cleanup by hand; approval persistence across restarts; PreCompact hook; HTTP webhook ingress.

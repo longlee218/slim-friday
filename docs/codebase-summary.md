@@ -55,7 +55,7 @@ Discord message (owner, in a workspace channel or its thread)
 - Defined in `src/roles/builtin/*.ts` as `RoleDefinition` objects; the engine reads only the data (test-checked: no role-name literals in the engine).
 - Fields and values: see [system-architecture.md, Role Model](system-architecture.md#role-model).
 - Dev prompt pieces are in `dev-prompts.ts`: role text, run facts (ask for approval, git and gh rules, commit message rules), the `repo:` report line and memory bullets, the skills rule.
-- Config files for roles are planned (phase 9), not built.
+- Config files for roles: closed for now (owner, 2026-10-12); roles stay TypeScript objects.
 
 ## Guardrails and Permissions
 - **`check-tool-call.ts`**: one entry point. Routes by tool name to file checks (`deny-dangerous.ts`), Bash (`bash-policy.ts`), git MCP (`git-mcp-guard.ts`), or the auto-allow list. Bash never asks.
