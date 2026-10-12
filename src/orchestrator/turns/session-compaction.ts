@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { logEvent, logger } from "../../observability/logger";
-import type { RunUsage } from "../../observability/record-run";
+import { avgContextTokens, type RunUsage } from "../../observability/record-run";
 import { ROLES } from "../../roles/role-registry";
 import { deleteSession } from "../../storage/session-store";
 
@@ -22,12 +22,6 @@ const log = logger.child({ module: "session-compaction" });
  * `session.compacted` log lines; it is a code constant on purpose (YAGNI: no env until measured).
  */
 export const FRESH_SESSION_CONTEXT_TOKENS = 60_000;
-
-/** Average per-turn context size of a run, from its usage totals (0 when no turn ran). */
-export function avgContextTokens(u: RunUsage): number {
-  const turns = Math.max(u.turns, 1);
-  return Math.round((u.inputTokens + u.cacheReadTokens + u.cacheCreationTokens) / turns);
-}
 
 /**
  * Task done -> thread idle: when the task's role re-seeds from the ledger (`context.ledger`), the run's context was over the threshold, forget the

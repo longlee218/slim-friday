@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { captureLogs } from "../src/observability/logger";
-import { emptyUsage } from "../src/observability/record-run";
+import { avgContextTokens, emptyUsage } from "../src/observability/record-run";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import {
-  avgContextTokens,
   compactIdleSession,
   FRESH_SESSION_CONTEXT_TOKENS,
 } from "../src/orchestrator/turns/session-compaction";

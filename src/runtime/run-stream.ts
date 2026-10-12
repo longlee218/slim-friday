@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { Options, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { logEvent, logger, tryLog } from "../observability/logger";
+import { contextWindowFor } from "../observability/model-usage";
 import {
   addUsage,
   emptyUsage,
@@ -12,6 +13,7 @@ import {
   usageFromResult,
 } from "../observability/record-run";
 import { errText, redactText } from "../observability/redact";
+import { createRunGauges } from "../observability/run-gauges";
 import { createTurnUsage } from "../observability/turn-usage";
 import { setTurnSession } from "../storage/run-store";
 import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
@@ -91,6 +93,7 @@ export async function consumeStream(p: {
   let resetsAt: number | undefined;
   let lastText: string | undefined;
   const turns = createTurnUsage(); // one `llm.turn` line per distinct model call
+  const gauges = createRunGauges(recorder.denied); // context peak/last, tool errors vs guard denials
   try {
     for await (const msg of p.run({ prompt: p.prompt, options: p.options })) {
       recorder.logMessage(msg);
@@ -98,7 +101,20 @@ export async function consumeStream(p: {
       p.onMessage?.(msg);
       const m = msg as SDKMessage & { subtype?: string; session_id?: string };
       sessionId = m.session_id ?? sessionId;
-      if (m.type === "system" && m.subtype === "compact_boundary") compactions++;
+      if (m.type === "system" && m.subtype === "compact_boundary") {
+        compactions++;
+        tryLog(log, "compact.boundary log failed", () => {
+          const meta = (m as { compact_metadata?: Record<string, unknown> }).compact_metadata;
+          gauges.onBoundary(Number(meta?.post_tokens));
+          logEvent(log, "compact.boundary", {
+            preTokens: meta?.pre_tokens,
+            postTokens: meta?.post_tokens,
+            trigger: meta?.trigger,
+          });
+        });
+      }
+      // Tool results the SDK flagged as errors arrive as user messages; counted, content never logged.
+      if (m.type === "user") gauges.onUser(m);
       // Record the session on the turn row at once (not in `sessions`: that table is only updated by a
       // successful finish, so a failed run never replaces the thread's good session). Resume reads it.
       if (m.type === "system" && m.subtype === "init" && m.session_id) {
@@ -110,7 +126,9 @@ export async function consumeStream(p: {
       if (m.type === "assistant") {
         tryLog(log, "turn usage failed", () => {
           const t = turns.onMessage(m);
-          if (t) logEvent(log, "llm.turn", t);
+          if (!t) return;
+          logEvent(log, "llm.turn", t);
+          gauges.onTurn(t);
         });
         assistantError = ext.error;
         const said = assistantText(m);
@@ -160,5 +178,21 @@ export async function consumeStream(p: {
   }
   // No result message + abort (user stop or shutdown): relabel once, for throw or clean end.
   if (outcome === "error" && ac.signal.aborted) outcome = "aborted";
-  return { text, sessionId, outcome, usage: { ...usage, compactions }, resetsAt, lastText };
+  const { mainModel, ...g } = gauges.snapshot();
+  const contextWindow = contextWindowFor(usage.modelUsage, mainModel);
+  if (contextWindow === undefined && usage.modelUsage)
+    log.debug({ mainModel, keys: Object.keys(usage.modelUsage) }, "no context window for model");
+  return {
+    text,
+    sessionId,
+    outcome,
+    usage: {
+      ...usage,
+      compactions,
+      ...g,
+      ...(contextWindow !== undefined && { contextWindow }),
+    },
+    resetsAt,
+    lastText,
+  };
 }

@@ -5,6 +5,8 @@ export interface ModelUsageEntry {
   cacheReadTokens: number;
   cacheCreationTokens: number;
   costUsd: number;
+  /** Context window of the model in tokens (SDK `contextWindow`); absent when the SDK gave none. */
+  contextWindow?: number;
 }
 
 /** Per-model usage of a run, keyed by model name (a tier split: Opus / Sonnet / Haiku). */
@@ -19,6 +21,7 @@ export type ResultModelUsage = Record<
     cacheReadInputTokens?: number;
     cacheCreationInputTokens?: number;
     costUSD?: number;
+    contextWindow?: number;
   }
 >;
 
@@ -34,6 +37,7 @@ export function modelUsageFromResult(m: ResultModelUsage | undefined): ModelUsag
         cacheReadTokens: e.cacheReadInputTokens ?? 0,
         cacheCreationTokens: e.cacheCreationInputTokens ?? 0,
         costUsd: e.costUSD ?? 0,
+        ...(e.contextWindow !== undefined && { contextWindow: e.contextWindow }),
       },
     ]),
   );
@@ -50,6 +54,7 @@ export function mergeModelUsage(a?: ModelUsage, b?: ModelUsage): ModelUsage | un
   const out: ModelUsage = { ...a };
   for (const [model, e] of Object.entries(b)) {
     const o = out[model];
+    const window = e.contextWindow ?? o?.contextWindow;
     out[model] = o
       ? {
           inputTokens: Math.max(o.inputTokens, e.inputTokens),
@@ -57,8 +62,24 @@ export function mergeModelUsage(a?: ModelUsage, b?: ModelUsage): ModelUsage | un
           cacheReadTokens: Math.max(o.cacheReadTokens, e.cacheReadTokens),
           cacheCreationTokens: Math.max(o.cacheCreationTokens, e.cacheCreationTokens),
           costUsd: Math.max(o.costUsd, e.costUsd),
+          ...(window !== undefined && { contextWindow: window }),
         }
       : e;
   }
   return out;
+}
+
+/**
+ * Context window of `model` in a run's `modelUsage`: exact key first, then a prefix match either way (the answering
+ * model id can carry a suffix like `[1m]` or a date that the usage key lacks, or the reverse). Undefined when nothing
+ * matches or the match has no window; the caller logs that at debug.
+ */
+export function contextWindowFor(
+  mu: ModelUsage | undefined,
+  model: string | undefined,
+): number | undefined {
+  if (!mu || !model) return undefined;
+  const key =
+    model in mu ? model : Object.keys(mu).find((k) => k.startsWith(model) || model.startsWith(k));
+  return key ? mu[key]?.contextWindow : undefined;
 }

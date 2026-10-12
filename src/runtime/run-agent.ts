@@ -6,6 +6,7 @@ import { workspacePaths } from "../config/workspace-paths";
 import type { GuardrailContext } from "../guardrails/check-tool-call";
 import { logEvent, logger } from "../observability/logger";
 import {
+  avgContextTokens,
   emptyUsage,
   type RunOutcome,
   RunRecorder,
@@ -168,7 +169,14 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   }
   const { text, sessionId, outcome, usage, resetsAt, lastText } = res;
   // `usage` is the main agent's tokens; `costUsd` is the total cost (all agents); `modelUsage` splits both per model.
-  logEvent(log, "run.finished", { outcome, ...usage, durationMs: Date.now() - startedAt });
+  // Context metrics (sizes only): peak/last context, tool errors, compactions come from `usage`; `maxTurnsHit` = turn ceiling.
+  logEvent(log, "run.finished", {
+    outcome,
+    ...usage,
+    avgContextTokens: avgContextTokens(usage),
+    maxTurnsHit: outcome === "max_turns",
+    durationMs: Date.now() - startedAt,
+  });
   return {
     text,
     sessionId,

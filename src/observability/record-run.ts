@@ -29,6 +29,16 @@ export interface RunUsage {
   turns: number;
   durationMs: number;
   compactions: number;
+  /** Largest main-agent context (input + cache read + cache create of one model call) seen in the run; log only. */
+  peakContextTokens: number;
+  /** Context of the LAST main-agent model call: what a rollover rule compares to the model window. Log/memory only. */
+  lastContextTokens: number;
+  /** Tool results flagged `is_error` in the run (main + subagents). */
+  toolErrors: number;
+  /** Tool calls our guard / the owner denied (not counted in `toolErrors`). */
+  toolDenied: number;
+  /** Window (tokens) of the main model, from the SDK result `modelUsage[model].contextWindow`; undefined = unknown. */
+  contextWindow?: number;
   /** Per-model split of the run (all agents), from the result message; absent when the SDK gave none. */
   modelUsage?: ModelUsage;
 }
@@ -43,10 +53,22 @@ export const emptyUsage = (): RunUsage => ({
   turns: 0,
   durationMs: 0,
   compactions: 0,
+  peakContextTokens: 0,
+  lastContextTokens: 0,
+  toolErrors: 0,
+  toolDenied: 0,
 });
+
+/** Average context (input + cache read + cache creation tokens per turn) of a run, from its usage totals (0 when no turn ran). */
+export function avgContextTokens(u: RunUsage): number {
+  const turns = Math.max(u.turns, 1);
+  return Math.round((u.inputTokens + u.cacheReadTokens + u.cacheCreationTokens) / turns);
+}
 
 /** Records one run: raw JSONL stream per task, tool_calls rows, final runs row. */
 export class RunRecorder {
+  /** tool_use_ids our permission layer denied in this run; the stream tells them apart from tool failures. */
+  readonly denied = new Set<string>();
   /** Pino destination for logs/tasks/<id>.jsonl (sync file stream). */
   private readonly dest: ReturnType<typeof fileDestination>;
   /** Pino logger writing the raw per-task event stream to `dest`. */
@@ -169,6 +191,10 @@ export function usageFromResult(r: ResultShape, compactions: number): RunUsage {
     turns: r.num_turns ?? 0,
     durationMs: r.duration_ms ?? 0,
     compactions,
+    peakContextTokens: 0,
+    lastContextTokens: 0,
+    toolErrors: 0,
+    toolDenied: 0,
     modelUsage: modelUsageFromResult(r.modelUsage),
   };
 }
@@ -190,6 +216,12 @@ export function addUsage(a: RunUsage, b: RunUsage): RunUsage {
     turns: a.turns + b.turns,
     durationMs: a.durationMs + b.durationMs,
     compactions: a.compactions + b.compactions,
+    // Context gauges are not summed: peak = larger, last = the later round's (kept when it had no model call).
+    peakContextTokens: Math.max(a.peakContextTokens, b.peakContextTokens),
+    lastContextTokens: b.lastContextTokens || a.lastContextTokens,
+    toolErrors: a.toolErrors + b.toolErrors,
+    toolDenied: a.toolDenied + b.toolDenied,
+    contextWindow: b.contextWindow ?? a.contextWindow,
     // modelUsage follows the cost semantics (cumulative, per-field max), NOT the summed top-level tokens above:
     // an unverified assumption until a live multi-result run (see mergeModelUsage).
     modelUsage: mergeModelUsage(a.modelUsage, b.modelUsage),

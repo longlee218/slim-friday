@@ -44,6 +44,7 @@ export function guardHook(
         bypassed ? { ...d, decision: "bypass" } : deferred ? { ...d, decision: "auto" } : d,
       );
     if (d.decision === "allow" || deferred || bypassed) return { continue: true };
+    if (d.decision === "deny") p.onDeny?.(i.tool_use_id);
     if (d.decision === "deny")
       logEvent(
         log,

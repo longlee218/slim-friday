@@ -96,6 +96,7 @@ export function buildSdkOptions(
         guard,
         autoMode: deps.autoState,
         bypassMode: deps.bypassState,
+        onDeny: (id) => deps.recorder.denied.add(id),
       })
     : undefined;
   return {

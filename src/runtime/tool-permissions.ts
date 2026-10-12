@@ -44,6 +44,8 @@ export interface ToolPermissionInput {
   bypassMode?: ModeActive;
   /** The owner did not answer the questions in time: the caller stops the run and replies "Awaiting clarification". */
   onAskTimeout?: (questions: AskQuestion[]) => void;
+  /** A tool call was denied by the guard hook or by canUseTool (owner / ask limit): its tool_use_id. For run metrics. */
+  onDeny?: (toolUseId: string) => void;
 }
 
 /** Short one-line description of a tool call for the approval message. */
@@ -75,7 +77,7 @@ export function buildToolPermissions(p: ToolPermissionInput): {
   const limit = newSubagentLimit();
   const hooks: HookCallbackMatcher[] = [{ hooks: [guardHook(p, decisions, log, limit)] }];
 
-  const canUseTool: CanUseTool = async (tool, rawInput, opts) => {
+  const decide: CanUseTool = async (tool, rawInput, opts) => {
     // Run stopped/timed out/shut down while waiting: drop the open request (buttons + timer).
     opts?.signal?.addEventListener("abort", () => p.gateway?.cancelTurn(p.turnId), {
       once: true,
@@ -128,6 +130,13 @@ export function buildToolPermissions(p: ToolPermissionInput): {
       log.error({ tool, err: errText(err) }, "permission check failed");
       return { behavior: "deny", message: "Permission check failed." };
     }
+  };
+
+  // Every canUseTool deny is reported by tool_use_id (metrics tell our denials from tool failures).
+  const canUseTool: CanUseTool = async (tool, rawInput, opts) => {
+    const r = await decide(tool, rawInput, opts);
+    if (r?.behavior === "deny" && opts?.toolUseID) p.onDeny?.(opts.toolUseID);
+    return r;
   };
 
   return { canUseTool, hooks, postHooks: subagentPostHooks(limit), decisions };
