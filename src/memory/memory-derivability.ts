@@ -68,19 +68,32 @@ export function nonDerivable(input: string[], output: string[]): string[] {
   const src = input.map(tokens);
   return output.filter((b) => {
     const out = tokens(b);
-    if (out.words.size === 0) return true;
-    const scores = src.map((s) => share(out.words, s.words));
-    const bestAt = scores.indexOf(Math.max(...scores));
-    if (bestAt < 0 || (scores[bestAt] ?? 0) < MIN_OVERLAP) return true;
-    const best = src[bestAt] as Tokens;
-    // A merge also draws on other bullets: those whose words NOT already in the best match show up in the
-    // output. Near-duplicates (same words, other value) add no novel words the output uses, so they never count.
-    const sources = src.filter((x, i) => {
-      if (i === bestAt) return true;
-      const novel = new Set([...x.words].filter((w) => !best.words.has(w)));
-      return novel.size > 0 && share(novel, out.words) >= SOURCE_COVER;
-    });
-    const union = (key: "numbers" | "signals") => new Set(sources.flatMap((x) => [...x[key]]));
+    const used = sourceIndexes(src, out);
+    if (!used) return true;
+    const union = (key: "numbers" | "signals") =>
+      new Set(used.flatMap((i) => [...(src[i] as Tokens)[key]]));
     return !(sameSet(out.numbers, union("numbers")) && sameSet(out.signals, union("signals")));
   });
 }
+
+/**
+ * Indexes of the input bullets an output bullet draws on (best match + merge sources), or null when it has no
+ * content word or no input shares >= 50% of its words. A merge also draws on other bullets: those whose words NOT
+ * already in the best match show up in the output. Near-duplicates add no novel words the output uses.
+ */
+function sourceIndexes(src: Tokens[], out: Tokens): number[] | null {
+  if (out.words.size === 0) return null;
+  const scores = src.map((s) => share(out.words, s.words));
+  const bestAt = scores.indexOf(Math.max(...scores));
+  if (bestAt < 0 || (scores[bestAt] ?? 0) < MIN_OVERLAP) return null;
+  const best = src[bestAt] as Tokens;
+  return src.flatMap((x, i) => {
+    if (i === bestAt) return [i];
+    const novel = new Set([...x.words].filter((w) => !best.words.has(w)));
+    return novel.size > 0 && share(novel, out.words) >= SOURCE_COVER ? [i] : [];
+  });
+}
+
+/** Input bullets (indexes into `input`) an output bullet is derived from; [] when it cannot be derived. */
+export const sourcesOf = (input: string[], output: string): number[] =>
+  sourceIndexes(input.map(tokens), tokens(output)) ?? [];

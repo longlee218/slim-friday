@@ -30,7 +30,7 @@ export const DEFAULT_AGENTS = `# Agents
 /** Root memory template: header only, so it counts as empty until the first `## ` entry. Owner-written only. */
 export const ROOT_MEMORY = `# global memory
 
-Facts true for every workspace. Written by the owner only (the agent never edits this file; its [global] notes wait in MEMORY.pending.md until you promote them). Add entries as "## <topic>" sections with bullets. Newest last; the last 5000 chars are used.
+Facts true for every workspace. Written by the owner only (the agent never edits this file; its [global] notes wait in MEMORY.pending.md until you promote them). Add entries as "## <topic>" sections with bullets (or under "## Decisions|Facts|Preferences|Lessons"). Up to 5000 chars are used: the end of a plain file, or the newest bullets of each kind section.
 `;
 
 /** Owner guide: never injected into a prompt, never read by code. */
@@ -48,7 +48,7 @@ Files in this folder (root) and their optional per-workspace copy in workspaces/
 Layering: a non-empty workspace AGENTS/IDENTITY/SOUL/USER file REPLACES the root file (per file); an empty,
 heading-only or comment-only file falls back to the root one. <!-- comments --> are stripped from the prompt.
 
-Caps (chars): each persona file 6000 (cut with a truncated marker); memory: root 5000, workspace 5000, each repo 8000 (all repos of the workspace 16000), newest kept.
+Caps (chars): each persona file 6000 (cut with a truncated marker); memory: root 5000, workspace 5000, each repo 8000 (all repos of the workspace 16000), newest kept (in a file with kind sections: the newest bullets of each section).
 
 Memory writes: after a code task the agent adds bullets to workspaces/<ws>/repos/<repo>/MEMORY.md only; a bullet
 prefixed [global] (max 2 per task) goes to MEMORY.pending.md, stamped with date and workspace/repo. Bullets are
@@ -67,8 +67,8 @@ The memory reply names the file and chars/cap.
 
 /** Workspace memory template (owner-written; a header only: it counts as empty until the first "## " entry). */
 export const workspaceMemoryTemplate = (ws: string) =>
-  `# ${ws} workspace memory\n\nFacts true for every repo of this workspace. Written by the owner only (the agent never edits this file). Add entries as "## <topic>" sections with bullets. The last 5000 chars are used.\n`;
+  `# ${ws} workspace memory\n\nFacts true for every repo of this workspace. Written by the owner only (the agent never edits this file). Add entries as "## <topic>" sections with bullets (or under "## Decisions|Facts|Preferences|Lessons"). Up to 5000 chars are used: the end of a plain file, or the newest bullets of each kind section.\n`;
 
 /** Per-repo memory template (a header only: it counts as empty until the first entry). */
 export const memoryTemplate = (name: string) =>
-  `# ${name} memory\n\nLessons the Friday agent keeps about this repo. Newest last. Kept under 300 lines (oldest sections are dropped).\n`;
+  `# ${name} memory\n\nLessons the Friday agent keeps about this repo, in sections by kind (Decisions, Facts, Preferences, Lessons). Kind sections are never dropped; size is kept down by compact memory, and a full file refuses new notes. Dated legacy sections are trimmed at 300 lines.\n`;

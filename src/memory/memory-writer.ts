@@ -8,6 +8,7 @@ import {
   withMemoryLock,
   writeAtomic,
 } from "./memory-file-lock";
+import { MEMORY_SECTION_HEADINGS } from "./memory-sections";
 import { repoMemoryFile } from "./repo-memory";
 import { sanitizeBullet } from "./sanitize-bullet";
 
@@ -21,11 +22,20 @@ const TRIM_AT_LINES = Math.ceil(MAX_LINES * 1.05);
 /** Number of `## ` sections in a memory text. */
 const sectionCount = (text: string): number => text.split(/\n(?=## )/).length - 1;
 
-/** Drop the oldest `## ` sections until the text has at most MAX_LINES lines (header always kept). */
+/** A kind section (`## Decisions`...) holds long-lived notes: trimming never drops it (only dated legacy sections go). */
+const isKindSection = (sec: string): boolean =>
+  MEMORY_SECTION_HEADINGS.includes((sec.split("\n")[0] ?? "").trim().replace(/^## /, ""));
+
+/** Drop the oldest dated `## ` sections until the text has at most MAX_LINES lines (header and kind sections kept). */
 function trimToLines(text: string): string {
   const [head = "", ...secs] = text.split(/\n(?=## )/);
   const count = () => `${head}\n${secs.join("\n")}`.split("\n").length;
-  while (secs.length > 1 && count() > MAX_LINES) secs.shift();
+  while (secs.length > 1 && count() > MAX_LINES) {
+    const at = secs.findIndex((sec) => !isKindSection(sec));
+    // Only kind sections left: stop (compaction shrinks those, trimming must not eat them).
+    if (at < 0) break;
+    secs.splice(at, 1);
+  }
   return `${head}\n${secs.join("\n")}`;
 }
 

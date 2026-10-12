@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { compactionOffenders, inputGroups } from "./memory-compaction-check";
 import { CallTimeoutError, type CompactLlm } from "./memory-compaction-llm";
 import {
   buildCompacted,
@@ -11,7 +12,6 @@ import {
   compactionSystem,
   parseCompacted,
 } from "./memory-compaction-prompt";
-import { nonDerivable } from "./memory-derivability";
 import {
   isSymlink,
   MemoryBusyError,
@@ -98,14 +98,24 @@ export async function compactFile(
   const parsed = parseCompacted(call.text);
   if (!parsed.ok) return abort(parsed.reason);
   const diff = bulletDiff(inBullets, parsed.bullets);
-  const invented = nonDerivable(inBullets, parsed.bullets);
+  // Kind sections in the old file must come back as kind sections (never flattened or dropped).
+  if (inputGroups(raw).hasKind && !parsed.groups)
+    return abort("output dropped the section headings of the old memory", { diff });
+  // Text and date of every bullet must come from the old file (per section when sectioned).
+  const invented = compactionOffenders(raw, parsed.bullets, parsed.groups, inBullets);
   if (invented.length)
     return abort("output has bullets not derivable from the old memory", {
       diff,
       offending: invented,
     });
   const today = opts.date ?? new Date().toISOString().slice(0, 10);
-  const { text: proposed, droppedProse } = buildCompacted(raw, t.template, parsed.bullets, today);
+  const { text: proposed, droppedProse } = buildCompacted(
+    raw,
+    t.template,
+    parsed.bullets,
+    today,
+    parsed.groups,
+  );
   if (bodyChars(proposed) > t.cap)
     return abort(`output is ${bodyChars(proposed)} chars, over the ${t.cap} cap`, { diff });
   const result: CompactResult = {

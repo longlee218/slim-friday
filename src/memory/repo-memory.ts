@@ -1,12 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { workspacePaths } from "../config/workspace-paths";
+import { capMemory } from "./memory-cap";
 import { sanitizeBullet } from "./sanitize-bullet";
 
-/** Max chars of the root (global, owner-edited) memory injected into a prompt (the newest part is kept). */
+/** Max chars of the root (global, owner-edited) memory injected into a prompt (see `capMemory`: kind sections keep their newest bullets, legacy files their tail). */
 export const ROOT_CHARS = 5000;
 /** Max chars of the workspace memory (owner-edited, never written by the agent). */
 export const WORKSPACE_CHARS = 5000;
-/** Max chars of one repo's memory injected into a prompt (the newest part is kept). */
+/** Max chars of one repo's memory injected into a prompt (see `capMemory`: kind sections keep their newest bullets, legacy files their tail). */
 export const PER_REPO_CHARS = 8000;
 /** Max chars of all repo memories of the workspace together (root and workspace layers are counted apart). */
 const REPOS_TOTAL_CHARS = 16000;
@@ -28,21 +29,19 @@ interface Capped {
   cut: boolean;
 }
 
-/** Newest `max` chars of a memory file, or "" when missing / still only the template. */
+/** Memory file capped to `max` chars (`capMemory`), or "" when missing / still only the template. */
 function readCapped(file: string, max: number): Capped {
   if (!existsSync(file)) return { text: "", cut: false };
   const body = readFileSync(file, "utf8").trim();
   // Template = header + intro line only (no "##" entries yet).
   if (!body.includes("\n## ")) return { text: "", cut: false };
-  return body.length > max
-    ? { text: `...${body.slice(-max)}`, cut: true }
-    : { text: body, cut: false };
+  return body.length > max ? { text: capMemory(body, max), cut: true } : { text: body, cut: false };
 }
 
-/** Newest `max` chars of a memory file, or "" when missing / still only the template. */
+/** Memory file capped to `max` chars (`capMemory`), or "" when missing / still only the template. */
 const readMemoryFile = (file: string, max: number): string => readCapped(file, max).text;
 
-/** Newest part of one repo's memory, or "" when missing / still only the template. */
+/** Capped part of one repo's memory, or "" when missing / still only the template. */
 export function readRepoMemory(
   agentHome: string,
   ws: string,
@@ -52,12 +51,12 @@ export function readRepoMemory(
   return readMemoryFile(repoMemoryFile(agentHome, ws, repo), max);
 }
 
-/** Newest part of the root (global, owner-edited) memory, or "". */
+/** Capped part of the root (global, owner-edited) memory, or "". */
 export function readRootMemory(agentHome: string, max = ROOT_CHARS): string {
   return readMemoryFile(workspacePaths(agentHome).memory, max);
 }
 
-/** Newest part of the workspace memory (owner-edited), or "". */
+/** Capped part of the workspace memory (owner-edited), or "". */
 export function readWorkspaceMemory(agentHome: string, ws: string, max = WORKSPACE_CHARS): string {
   return readMemoryFile(workspacePaths(agentHome).workspace(ws).memory, max);
 }

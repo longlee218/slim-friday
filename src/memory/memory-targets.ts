@@ -9,7 +9,7 @@ export interface MemoryTarget {
   file: string;
   /** Path relative to AGENT_HOME (what replies and logs name). */
   label: string;
-  /** Chars of this file that reach a prompt (the newest part). */
+  /** Chars of this file that reach a prompt (`capMemory`: kind sections keep their newest bullets, a legacy file its tail). */
   cap: number;
   /** Header used when the file does not exist yet. */
   template: string;
