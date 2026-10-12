@@ -1,4 +1,4 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
@@ -6,16 +6,16 @@ import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentInput, IntentResult } from "../src/intent/intent-types";
 import { lexiconOverrideFile, loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { captureLogs } from "../src/observability/logger";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { QUEUE_RECEIVED } from "../src/orchestrator/thread/intent-replies";
 import { ROLES } from "../src/roles/role-registry";
 import { getProposal, insertProposal, listPendingProposals } from "../src/storage/proposal-store";
 import { listRunMessages } from "../src/storage/run-message-store";
-import { getSession } from "../src/storage/session-store";
+import { getSession, setSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { makeLegacyClone } from "./clone-fixture";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
@@ -26,9 +26,6 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-
-const git = createGitMcp();
-afterAll(() => git.close());
 
 /** Env with one managed clone `real` (dev tasks need it). */
 async function setup() {
@@ -67,7 +64,7 @@ const intentDeps = (home: string, classifier?: IntentClassifier): IntentDeps => 
   classifier,
 });
 
-/** Plan stage submits a plan; exec stage (in a worktree) commits a file; anything else is a Q&A answer. */
+/** Plan stage submits a plan; exec stage (the run that can Write, in the repo or a legacy clone) commits a file; anything else is a Q&A answer. */
 function fakeSdk(seen: any[]) {
   return (a: any) => {
     seen.push(a);
@@ -83,7 +80,7 @@ function fakeSdk(seen: any[]) {
         yield resultMsg({ result: "plan rejected" });
         return;
       }
-      if (o.cwd.includes(`${"/"}worktrees${"/"}`)) {
+      if (o.tools.includes("Write")) {
         const f = `f${seen.length}.txt`;
         writeFileSync(join(o.cwd, f), "x\n");
         await g(o.cwd, "add", f);
@@ -125,7 +122,6 @@ test("L3 picks the role of an undecided message, once; assistant answers a quest
   const e = engine(verdict({ role: "assistant", confidence: "medium" }));
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -144,7 +140,6 @@ test("dev request with an unknown repo is refused with the repo name, no plan st
   const env = await setup();
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -161,7 +156,6 @@ test("no L3 call for L0 commands (legacy and slash forms), a leading tag, or whe
   const e = engine(verdict());
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -177,7 +171,6 @@ test("no L3 call for L0 commands (legacy and slash forms), a leading tag, or whe
   await handle(msg("[ask] what is retry"));
   expect(e.seen).toHaveLength(0);
   const none = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -192,7 +185,6 @@ test("L3 -> dev opens the task by the dispatcher: plan stage runs, no assistant 
   const e = engine(verdict({ class: "mechanical" }));
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -216,7 +208,7 @@ test("L3 -> dev opens the task by the dispatcher: plan stage runs, no assistant 
     class: "mechanical",
     proposal_id: p.id,
   });
-  expect(getWorktreeByThread(env.db, "th1")).not.toBeNull();
+  expect(getWorktreeByThread(env.db, "th1")).toBeNull(); // exec ran in the repo, no clone
 });
 
 test("idle low confidence routes to the assistant (no ask, never dev), even when the model wrote an ask", async () => {
@@ -224,7 +216,6 @@ test("idle low confidence routes to the assistant (no ask, never dev), even when
   const seen: any[] = [];
   const mk = (v: any) =>
     createTurnHandler({
-      git,
       db: env.db,
       config: env.config,
       approvals: declinePr(),
@@ -249,7 +240,6 @@ test("engine failure or unknown role never dispatches a task", async () => {
   const env = await setup();
   const seen: any[] = [];
   const unknown = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -263,7 +253,6 @@ test("engine failure or unknown role never dispatches a task", async () => {
   // an engine failure on an idle thread -> the assistant (read-only), never dev
   const cap = captureLogs();
   const boom = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -280,7 +269,6 @@ test("L3 failure while a question is pending re-asks naturally (no role, no tag 
   const env = await setup();
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -318,7 +306,6 @@ test('a second dev task while one runs: auto-queued with "received" (no question
       : inner(a);
   const e = engine(answering(verdict()));
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -358,7 +345,6 @@ test("stop keeps the queued tasks: the reply counts them, they run after the sto
       yield resultMsg({ result: "slow answer" });
     })();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -395,21 +381,29 @@ test("stop keeps the queued tasks: the reply counts them, they run after the sto
   ).toEqual(["add a feature please", "add another feature please"]);
 });
 
-test("fix loop: [dev] follow-ups continue in the same clone/session, max 2 rounds; an assistant answer keeps the clone's session", async () => {
+test("legacy clone (a row from before Rev 15): [dev] follow-ups continue in that clone/session, max 2 rounds; an assistant answer keeps the clone's session", async () => {
   const env = await setup();
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
     queryFn: fakeSdk(seen) as never,
     intent: intentDeps(env.home, engine(verdict()).classifier),
   });
-  await handle(msg("please add b.txt with two")); // L3 -> dev: plan -> exec -> PR declined
-  const wt = getWorktreeByThread(env.db, "th1")!;
+  await handle(msg("please add b.txt with two")); // L3 -> dev: plan -> exec in the repo (no clone any more)
   expect(seen).toHaveLength(2);
-  expect(getSession(env.db, "th1")).toMatchObject({ cwd: realpathSync(wt.path) });
+  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
+  // The thread holds a clone made by an older build: its task is the one the clone row names.
+  const first = rows(env, "SELECT id FROM turns")[0].id;
+  const repoPath = workspacePaths(env.home).workspace("main").repo("real").clone;
+  const wt = await makeLegacyClone(env, { repo: "real", repoPath, taskId: first, threadId: "th1" });
+  setSession(env.db, {
+    threadId: "th1",
+    sessionId: "sess-exec",
+    repo: "real",
+    cwd: realpathSync(wt.path),
+  });
   // an assistant question in the thread: answered, clone session untouched
   expect(await handle(msg("[ask] what did you change"))).toBe("assistant answer");
   expect(getSession(env.db, "th1")).toMatchObject({
@@ -442,7 +436,6 @@ test("effort: a signal raises this turn's effort; a complaint raises the thread 
   const seen: any[] = [];
   const cap = captureLogs();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -475,7 +468,6 @@ async function askAtMax(answer: { approved: boolean; reason?: string } | "none")
   const seen: any[] = [];
   const asked: string[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals:
@@ -519,7 +511,6 @@ test("intent layer off (no deps): the legacy pick is unchanged (entry role, no c
   const env = await setup();
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -532,7 +523,6 @@ test("a staged task without the approval flow is refused by text, never dispatch
   const env = await setup();
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     queryFn: fakeSdk(seen) as never,
@@ -548,7 +538,6 @@ test("yes / no on an idle thread (read by L3) answers the pending proposal (yes 
   const seen: any[] = [];
   const e = engine(answering(verdict()));
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),
@@ -585,7 +574,6 @@ test("a crash of the active run still starts the queued task (no L3 call while a
       : inner(a);
   const e = engine(answering(verdict()));
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: declinePr(),

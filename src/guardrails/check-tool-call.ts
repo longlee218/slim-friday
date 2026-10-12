@@ -6,12 +6,7 @@
  * NOTE: Bash parsing is best effort and can be bypassed (variable tricks, scripts, etc).
  */
 
-import {
-  GIT_MCP_SERVER,
-  GITHUB_MCP_SERVER,
-  MCP_PREFIX,
-  mcpServerPrefix,
-} from "../mcp/mcp-tool-names";
+import { GIT_MCP_SERVER, MCP_PREFIX, mcpServerPrefix } from "../mcp/mcp-tool-names";
 import type { StageRef } from "../roles/role-registry";
 import {
   AGENT_TOOL_NAME,
@@ -31,9 +26,7 @@ import {
 import { autoAllowedTools, PLAN_FLOW_TOOLS, toolsFor } from "../tools/tool-catalog";
 import { checkBash, checkWorktreePath } from "./bash-policy";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
-import { checkGitMcp, hasAttribution } from "./git-mcp-guard";
-
-export { hasAttribution };
+import { checkGitMcp } from "./git-mcp-guard";
 
 /** Outcome of a guardrail check. `deny` is never approvable; `ask` needs the owner. */
 export type Decision = {
@@ -51,15 +44,13 @@ export type LoggedDecision = { decision: Decision["decision"] | "auto" | "bypass
 export interface GuardrailContext {
   /** Real path of the run's working dir: relative paths of a Bash line resolve against it. Omitted = relative `rm -r` / worktree paths are denied. */
   cwd?: string;
-  /** Real dirs where writes are allowed (plan stage: scratch + plans dir; execute stage: the worktree). */
+  /** Real dirs where writes are allowed (plan stage: scratch + plans dir; execute stage: the workspace's repos, worktrees dir, scratch, plans dir). */
   writePaths?: string[];
   /** Real dirs Read/Glob/Grep may touch (scratch, plans dir, registered repos). Omitted = no limit. */
   readPaths?: string[];
   /** Real dirs where `git worktree add` / EnterWorktree may put a worktree (`workspace(ws).worktrees`). Omitted = none allowed. */
   worktreeDirs?: string[];
-  /** Real path of the worktree: the only repo git MCP tools may WRITE to (add/commit/...). */
-  gitWriteRepo?: string;
-  /** Real paths of registered repos: git MCP tools may READ (log/diff/show/...) these. */
+  /** Real paths of registered repos: git MCP tools (the assistant's read tools) may READ these. */
   gitReadRepos?: string[];
   /** False = the stage has no shell capability: Bash and Monitor are denied. Omitted (no stage known) = allowed. */
   shell?: boolean;
@@ -120,9 +111,6 @@ export function checkToolCall(
   if (toolName.startsWith(mcpServerPrefix(GIT_MCP_SERVER))) {
     return checkGitMcp(toolName.slice(mcpServerPrefix(GIT_MCP_SERVER).length), input, ctx);
   }
-  // GitHub MCP is started read-only for agents (the app creates PRs itself): every tool it has is a read.
-  if (toolName.startsWith(mcpServerPrefix(GITHUB_MCP_SERVER)))
-    return { decision: "allow", reason: "github read tool" };
   if (toolName.startsWith(MCP_PREFIX)) return { decision: "deny", reason: "unknown MCP tool" };
   // `Task` is the legacy name of the Agent tool: same decision.
   if (ctx.allowTools?.includes(toolName === LEGACY_AGENT_TOOL_NAME ? AGENT_TOOL_NAME : toolName))

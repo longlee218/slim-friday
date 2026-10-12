@@ -1,17 +1,11 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readSkillsLock } from "../src/config/skills-lock";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
 import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-
-/** The real git MCP server (pinned package), shared by the tests of this file. */
-const git = createGitMcp();
-afterAll(() => git.close());
 
 /** Skills the dev role gets: every installed publisher skill, as the lock lists them (no names here). */
 const SP = Object.entries(readSkillsLock()).map(([k, e]) => `${e.source.split("/").pop()}:${k}`);
@@ -53,7 +47,6 @@ async function runTask(
     })();
   };
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({ confirm: async () => ({ approved: false, reason: "no" }) }),
@@ -68,7 +61,7 @@ async function runTask(
     text: "[dev] change it",
   });
   const [plan, exec] = seen;
-  return { env, clone, plan, exec, pluginFiles, wt: getWorktreeByThread(env.db, "th1")! };
+  return { env, clone, plan, exec, pluginFiles };
 }
 
 test("lean (default): no full rules; workspace skills load in plan and exec", async () => {
@@ -114,16 +107,15 @@ test("repo .claude/skills (clone and worktree) plus hooks never contribute to pl
 });
 
 test("full: exec lists the workspace skills through an app-owned plugin copy, not the repo", async () => {
-  const { clone, plan, exec, wt, pluginFiles } = await runTask({ workflow: "full" }, [
+  const { clone, plan, exec, pluginFiles } = await runTask({ workflow: "full" }, [
     "deploy",
     "review",
   ]);
   const pdir: string = exec.plugins.at(-1).path; // set plugin first, workspace plugin last
   expect(exec.plugins).toHaveLength(2);
   expect(exec.skills.sort()).toEqual(withExec("main:deploy", "main:review")); // workspace name = plugin name
-  // Neither the clone's .claude nor the worktree: the plugin dir is the app's own copy.
+  // Not the repo's .claude: the plugin dir is the app's own copy.
   expect(pdir.startsWith(realpathSync(clone))).toBe(false);
-  expect(pdir.startsWith(realpathSync(wt.path))).toBe(false);
   expect(pluginFiles).toEqual(
     [
       ".claude-plugin",
@@ -136,8 +128,8 @@ test("full: exec lists the workspace skills through an app-owned plugin copy, no
     ].sort(),
   );
   expect(existsSync(pdir)).toBe(false); // removed with the run
-  expect(exec.settingSources).toEqual([]); // the worktree's own .claude is still never loaded
-  expect(exec.cwd).toBe(realpathSync(wt.path));
+  expect(exec.settingSources).toEqual([]); // the repo's own .claude is still never loaded
+  expect(exec.cwd).toBe(realpathSync(clone)); // exec runs in the repo's own checkout, no clone
   expect(plan.systemPrompt.append).toContain("[workflow: full]");
   expect(exec.systemPrompt.append).toContain("This repo is [workflow: full]");
   expect(exec.systemPrompt.append).toContain("Assumptions");
@@ -150,7 +142,7 @@ test("full without workspace skills: only the role's set plugin", async () => {
   expect(exec.settingSources).toEqual([]);
 });
 
-test("dev reads are not path-limited (secret names still are): the clone is readable in both workflows, never writable", async () => {
+test("dev reads are not path-limited (secret names still are): the repo is readable and writable in both workflows, a path outside the work dirs is not", async () => {
   const { clone, exec } = await runTask({ workflow: "full" }, ["deploy"]);
   const skillFile = join(realpathSync(clone), "a.txt");
   const lean = await runTask({}, ["deploy"]);
@@ -159,7 +151,9 @@ test("dev reads are not path-limited (secret names still are): the clone is read
   expect((await read(lean.exec, join(realpathSync(lean.clone), "a.txt"))).behavior).toBe("allow");
   expect((await read(exec, join(realpathSync(clone), ".env"))).behavior).toBe("deny");
   const write = await exec.canUseTool("Write", { file_path: skillFile, content: "x" }, {});
-  expect(write.behavior).toBe("deny");
+  expect(write.behavior).toBe("allow"); // the exec stage works in the repo itself
+  const outside = await exec.canUseTool("Write", { file_path: "/etc/friday-x", content: "x" }, {});
+  expect(outside.behavior).toBe("deny");
 });
 
 test("skills of the run: the plugin dir is readable and its publisher scripts run without approval, in plan and exec; nothing else opens up", async () => {

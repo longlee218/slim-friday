@@ -14,9 +14,9 @@ import { RESUMABLE, type ResumeReason, resumeQuestion } from "../turns/turn-resu
 import { type Refusal, refuse } from "./task-repo";
 
 /* `failed_resumable` (Rev 12): a task that failed after the owner approved its plan (config refusal, budget, transient
-   error) keeps its clone, saved plan and session. `/go`, or a yes to the question below, runs the exec stage again
-   from the approved plan in the same clone. Only the thread's LAST task can be resumed; a newer task of the thread
-   leaves the old clone held until retention or `/cleanup` removes it. */
+   error), or an exec cut short by a restart, keeps its saved plan (and, for a legacy task, its clone and session). `/go`, or
+   a yes to the question below, runs the exec stage again from the approved plan. Only the thread's LAST task can be
+   resumed; a newer task of the thread leaves a legacy clone held until retention or `/cleanup` removes it. */
 
 /** The thread's last task, when it is a resumable failure. */
 export interface FailedResumable {
@@ -24,7 +24,7 @@ export interface FailedResumable {
   role: string;
   /** Owner request of the task (stored redacted). */
   brief: string;
-  /** Repo of the task row: "*" until a plan picked one (a clone-less failure saved it, see engine/save-plan.ts). */
+  /** Repo of the task row: "*" until a plan picked one (`switchToExec` sets it when the plan is approved). */
   repo: string;
   /** Task this run continued (its clone and plan file belong to that one), when it was a resume. */
   parent: string | null;
@@ -35,7 +35,11 @@ export interface FailedResumable {
 }
 
 /** The thread's last task if its status is `failed_resumable`, else undefined. */
-export function failedResumable(db: Database, threadId: string): FailedResumable | undefined {
+export function failedResumable(
+  db: Database,
+  threadId: string,
+  allowInterrupted = false,
+): FailedResumable | undefined {
   const t = db
     .query<
       {
@@ -53,7 +57,12 @@ export function failedResumable(db: Database, threadId: string): FailedResumable
       "SELECT id, role, status, brief, repo, parent_turn_id, session_id, session_cwd FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
     )
     .get(threadId);
-  if (t?.status !== "failed_resumable") return undefined;
+  // `interrupted` (a restart mid-exec) counts when the caller asks and the plan was approved (the stage switch set the repo).
+  if (
+    t?.status !== "failed_resumable" &&
+    !(allowInterrupted && t?.status === "interrupted" && t.repo !== "*")
+  )
+    return undefined;
   const verdict = listStages(db, t.id)
     .map((s) => s.verdict)
     .reverse()
@@ -78,7 +87,7 @@ export function resumeQuestionOf(db: Database, threadId: string): string | undef
 
 /** Reply of a "no" to the question: nothing is dropped, the owner decides later. */
 export const RESUME_KEPT =
-  "Kept. Send `/go` to continue that task later, or `/cleanup` to drop its clone.";
+  "Kept. Send `/go` to continue that task later, or `/cleanup` to drop it.";
 
 /**
  * The owner answered the failed task's question. Yes -> the handler resumes it (a `run` outcome with `resume`); no -> a
@@ -114,8 +123,9 @@ function cloneOf(db: Database, f: FailedResumable): WorktreeRow | "gone" | undef
 export function resumeFailedPlan(
   d: { db: Database; agentHome: string; workspace: string },
   threadId: string,
+  allowInterrupted = false,
 ): ResumePlan | Refusal {
-  const f = failedResumable(d.db, threadId);
+  const f = failedResumable(d.db, threadId, allowInterrupted);
   const gone = (what: string) => {
     dropResumable(d.db, threadId);
     return refuse(

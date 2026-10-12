@@ -4,7 +4,7 @@ import { basename, dirname, join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import type { Repo } from "../repos/repo-registry";
-import { entryRole, followUpRole, getRole, isGated } from "../roles/role-registry";
+import { entryRole, followUpRole, getRole, isGated, ROLES } from "../roles/role-registry";
 import { latestTurnSession, setTurnStatus, turnRole } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
 import { getWorktreeByThread, liveWorktree, type WorktreeRow } from "../storage/worktree-store";
@@ -176,6 +176,18 @@ export function resolveCommand(
       existing,
       planResume: { sessionId: existing.session_id, cwd: existing.cwd },
     };
+  }
+  // A staged role's exec session runs in the repo itself (no clone since Rev 15): resumed as a plain message it would run
+  // the entry role on it. An interrupted exec with an approved plan runs again from that plan (fresh session, like a
+  // failed one); without a plan the owner sends the request again.
+  const owner = ROLES[last.role];
+  if (owner && isGated(owner)) {
+    if (last.status === "interrupted" && last.repo !== "*")
+      return resumeFailedPlan(deps, threadId, true);
+    return refuse(
+      "cannot_resume",
+      "Cannot resume: that task ran in the repo and its session cannot be continued here. Send the request again.",
+    );
   }
   // A plain message only resumes in the workspace cwd dir or one of its repos; else the context would be lost.
   const plainCwd = existing.cwd === ws.cwd || deps.repos.some((r) => r.path === existing.cwd);

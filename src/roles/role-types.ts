@@ -16,23 +16,18 @@ export type Capability =
   | "ask" // AskUserQuestion: answered by the owner through Discord buttons
   | "planControl"; // enter / leave plan mode (leaving needs the owner's approval)
 
-/** What the role hands back to the owner (the engine picks the output module from it). */
-export type OutputContract = "answer" | "plan" | "pr" | "verdict";
+/**
+ * What the role hands back to the owner (the engine picks the output module from it). `result` = the run's final
+ * text is relayed as it is (the agent delivered its work itself: commit, push, PR).
+ */
+export type OutputContract = "answer" | "plan" | "result" | "verdict";
 
 /**
  * Owner gate that follows a stage (closed set, each implemented once in `orchestrator/engine/gates.ts`):
- * `none` runs straight on, `plan-approval` waits for the owner to approve the plan, `delivery` offers the
- * result (the PR) to the owner, `owner-confirm` asks a yes/no before a costlier step (vocabulary only: no
- * stage uses it yet, the engine fails closed on it).
+ * `none` runs straight on, `plan-approval` waits for the owner to approve the plan, `owner-confirm` asks a yes/no
+ * before a costlier step (vocabulary only: no stage uses it yet, the engine fails closed on it).
  */
-export type Gate = "none" | "plan-approval" | "delivery" | "owner-confirm";
-
-/**
- * Where a stage runs: `none` = no isolation (registered repos read-only, or the task scratch dir); `clone` =
- * an isolated checkout on its own branch. Today `clone` is the git worktree path; Part 2 swaps the
- * implementation without touching roles.
- */
-export type Isolation = "none" | "clone";
+export type Gate = "none" | "plan-approval" | "owner-confirm";
 
 /**
  * What a stage hands on to the next one, as data. `template` words the next stage's prompt; `{plan}`,
@@ -48,6 +43,8 @@ export interface StageHandoff {
 export interface PromptCtx {
   /** Plan/exec: `full` adds the repo-workflow rules. */
   workflow?: Workflow;
+  /** Exec: where the agent puts a git worktree it creates (`<workspace worktrees dir>/<repo>`); omitted = no line. */
+  worktreesDir?: string;
   /** Answer output on the cheap tier: adds the `ESCALATE: sonnet|opus` rule (never on an already escalated run). */
   escalation?: boolean;
 }
@@ -66,8 +63,6 @@ export interface StageDefinition {
    * `bypassPermissions` for the dev exec stage (the SDK asks nothing; only the guard's hard denies stop a call).
    */
   permissionMode?: "plan" | "auto" | "bypassPermissions";
-  /** Where the stage runs. Omitted = `none`. */
-  isolation?: Isolation;
   /** Owner gate that follows the stage. Omitted = `none`. */
   gate?: Gate;
   /** What this stage hands on to the next one (the plan stage of a role whose next stage starts from it). */
@@ -113,7 +108,7 @@ export interface RoleDefinition {
    * stripped from the brief. Case-insensitive, unique across roles (startup error otherwise); omitted = no tag.
    */
   tag?: string;
-  /** What the role hands back: picks the output module (`answer` escalation, `pr` delivery). */
+  /** What the role hands back: picks the output module (`answer` escalation). */
   output: OutputContract;
   /** Publisher skills every stage of this role gets (see `RoleSkills`). Omitted = `none`. */
   skills?: RoleSkills;
@@ -123,7 +118,7 @@ export interface RoleDefinition {
   countsTowardCap: boolean;
   /** The cheap-tier answer may end in `ESCALATE: sonnet|opus` and be re-run on that tier (`answer` output). */
   escalation?: boolean;
-  /** A follow-up message in a thread that already has this role's clone starts at this stage (name), not at the first. */
+  /** A follow-up message in a thread that still has this role's (legacy) clone starts at this stage (name), not at the first. */
   followUp?: { startAtStage: string };
   /** The role a plain message starts, until the intent layer picks one (exactly one role sets it). */
   entry?: boolean;
@@ -132,7 +127,7 @@ export interface RoleDefinition {
     /** On an idle thread the run sees the thread's task ledger (earlier staged tasks). */
     ledger?: boolean;
   };
-  /** Repos the run sees: `all` = every repo of the workspace (read-only roles); `candidates` = the managed clones the plan may pick from. Omitted = `candidates`. */
+  /** Repos the run sees: `all` = every repo of the workspace (read-only roles); `candidates` = the workspace repos the plan may pick from. Omitted = `candidates`. */
   repoScope?: "all" | "candidates";
   stages: StageDefinition[];
 }

@@ -1,21 +1,15 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createGitMcp } from "../src/mcp/git-mcp";
+import { workspacePaths } from "../src/config/workspace-paths";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
+import { execActiveIn } from "../src/orchestrator/engine/exec-run";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { decideApproval, insertApproval } from "../src/storage/approval-store";
 import { insertTurn } from "../src/storage/run-store";
 import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
-
-/** The real git MCP server (pinned package), shared by the tests of this file. */
-const git = createGitMcp();
-afterAll(() => git.close());
-
-import { workspacePaths } from "../src/config/workspace-paths";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
@@ -45,18 +39,16 @@ async function setup() {
   await g(env.home, "clone", "-q", src.repo, clone);
   await g(clone, "config", "user.email", "test@example.com");
   await g(clone, "config", "user.name", "t");
-  // A GitHub-looking origin: the task clone is delivered through the PR gate (nothing is pushed in these tests).
-  await g(clone, "remote", "set-url", "origin", "git@github.com:Acme/widgets");
   return { env, clone };
 }
 
-/** Gateway that approves plans/tools and answers the PR offer with `pr`. */
-function gateway(pr: boolean) {
+/** Gateway that approves plans/tools; `confirms` records every yes/no it was asked (nothing should be: no PR offer). */
+function gateway() {
   const confirms: string[] = [];
   const gw = stubGateway({
     confirm: async (req) => {
       confirms.push(req.summary);
-      return pr ? { approved: true } : { approved: false, reason: "owner declined" };
+      return { approved: false, reason: "owner declined" };
     },
     askChoice: async (a) => a.options[0],
   });
@@ -91,7 +83,10 @@ function fakeSdk(
       writeFileSync(join(o.cwd, "b.txt"), "two\n");
       await g(o.cwd, "add", "b.txt");
       await g(o.cwd, ...commit, "commit", "-qm", msg);
-      yield resultMsg({ result: "Xong, đã thêm b.txt", session_id: "sess-exec" });
+      yield resultMsg({
+        result: "Xong, đã thêm b.txt\n\nMemory:\n- run bun test before pushing",
+        session_id: "sess-exec",
+      });
     })();
   };
 }
@@ -104,12 +99,11 @@ const msg_ = (text: string, threadId = "th1") => ({
   text,
 });
 
-test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; follow-up resumes there; cleanup", async () => {
+test("dev task: plan approved -> exec in the repo's own checkout -> final text relayed, Memory appended; no clone, no PR gate, no git or GitHub MCP", async () => {
   const { env, clone } = await setup();
   const seen: any[] = [];
-  const { gw, confirms } = gateway(false);
+  const { gw, confirms } = gateway();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: gw,
@@ -121,42 +115,32 @@ test("dev task: plan approved -> worktree -> execute in worktree -> PR offered; 
   // Stage 1: plan mode in scratch, repo read-only via additionalDirectories.
   expect(seen[0].options.permissionMode).toBe("plan");
   expect(seen[0].options.additionalDirectories).toEqual([realpathSync(clone)]);
-  // Stage 2: runs in the worktree, fail-closed default mode, commits allowed by guard.
-  const wt = getWorktreeByThread(env.db, "th1")!;
-  expect(wt.repo).toBe("real");
-  expect(wt.branch).toMatch(/^friday\/[0-9a-f]{8}-/);
+  // Stage 2: runs in the repo itself (no clone), in bypassPermissions (the guard hook is the gate).
   expect(seen).toHaveLength(2);
-  expect(seen[1].options.cwd).toBe(realpathSync(wt.path));
-  // The exec stage runs in bypassPermissions (no auth check; the guard hook is the gate).
+  expect(seen[1].options.cwd).toBe(realpathSync(clone));
   expect(seen[1].options.permissionMode).toBe("bypassPermissions");
   expect(seen[1].options.allowDangerouslySkipPermissions).toBe(true);
-  const gitEnv = seen[1].options.mcpServers.git.env;
-  expect(gitEnv.GIT_AUTHOR_EMAIL).toBe("test@example.com");
-  expect(gitEnv.GIT_COMMITTER_EMAIL).toBe("test@example.com");
-  expect(gitEnv.GIT_BASE_DIR).toBe(realpathSync(wt.path)); // sandboxed to the worktree
-  expect(seen[1].options.mcpServers.git.args.length).toBe(1); // official git MCP
-  expect(seen[0].options.mcpServers.git).toBeDefined(); // plan stage: git read tools (guarded)
+  expect(seen[1].options.mcpServers).toEqual({}); // git and gh run in the agent's shell
+  expect(seen[0].options.mcpServers).toEqual({});
   expect(seen[1].options.resume).toBeUndefined();
-  // Plan saved for the executor; PR offered with the commit; declined -> branch ready.
-  expect(readFileSync(env.paths.workspace("main").task(wt.taskId).plan, "utf8")).toContain(
+  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
+  const taskId = (env.db.query("SELECT id FROM turns").get() as { id: string }).id;
+  // The approved plan is saved for the executor and the repo is on the turn row.
+  expect(readFileSync(env.paths.workspace("main").task(taskId).plan, "utf8")).toContain(
     "add b.txt",
   );
-  expect(confirms[0]).toContain("1 commit");
+  expect(env.db.query("SELECT repo FROM turns").get()).toEqual({ repo: "real" });
+  // No delivery gate: the agent delivers itself, the app offers nothing and runs no git.
+  expect(confirms).toEqual([]);
   expect(reply).toContain("Xong");
-  expect(reply).toContain("not pushed");
-  expect(getSession(env.db, "th1")).toMatchObject({ cwd: realpathSync(wt.path), repo: "real" });
-  // The clone itself is untouched.
-  expect(await g(clone, "status", "--short")).toBe("");
-
-  // Follow-up (plain message) in the same thread: same worktree, resumed session.
-  await handle(msg_("[dev] also add c"));
-  expect(seen[2].options.cwd).toBe(realpathSync(wt.path));
-  expect(seen[2].options.resume).toBe("sess-exec");
-
-  // cleanup: removes worktree dir, branch row and session.
-  expect(await handle(msg_("cleanup:"))).toContain("Removed");
-  expect(existsSync(wt.path)).toBe(false);
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
+  expect(reply).not.toContain("Memory:"); // the section goes to the repo memory, not into the chat reply
+  expect(reply).not.toContain("PR");
+  expect(readFileSync(env.paths.workspace("main").repo("real").memory, "utf8")).toContain(
+    "- run bun test before pushing",
+  );
+  expect(getSession(env.db, "th1")).toBeNull(); // the exec session is not the thread's: an assistant message must not resume it
+  // The agent's commit is in the owner's checkout (the fake agent made it there).
+  expect(await g(clone, "log", "-1", "--format=%s")).toBe("add b");
 });
 
 test("busy when the code-task cap is reached", async () => {
@@ -164,10 +148,9 @@ test("busy when the code-task cap is reached", async () => {
   for (const id of Array.from({ length: MAX_CAPPED_TASKS }, (_, n) => `cap${n}`)) {
     insertTurn(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
   }
-  const { gw } = gateway(false);
+  const { gw } = gateway();
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: gw,
@@ -178,7 +161,7 @@ test("busy when the code-task cap is reached", async () => {
   expect(seen).toHaveLength(0);
 });
 
-test("plan rejected -> no worktree is created", async () => {
+test("plan rejected -> exec never runs", async () => {
   const { env } = await setup();
   const seen: any[] = [];
   const gw = stubGateway({
@@ -186,7 +169,6 @@ test("plan rejected -> no worktree is created", async () => {
     requestPlan: async () => ({ approved: false, reason: "owner rejected plan" }),
   });
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: gw,
@@ -198,52 +180,28 @@ test("plan rejected -> no worktree is created", async () => {
   expect(seen).toHaveLength(1);
 });
 
-test("commits must carry the owner's identity: wrong author or attribution blocks the PR offer", async () => {
-  for (const [commit, msg] of [
-    [["-c", "user.email=claude@anthropic.com", "-c", "user.name=Claude"], "add b"],
-    [
-      ["-c", "user.email=test@example.com", "-c", "user.name=t"],
-      "add b\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>",
-    ],
-  ] as const) {
-    const { env } = await setup();
-    const { gw, confirms } = gateway(true);
-    const handle = createTurnHandler({
-      git,
-      db: env.db,
-      config: env.config,
-      approvals: gw,
-      queryFn: fakeSdk([], [...commit], msg) as never,
-      intent: devIntent(env.home),
-    });
-    const reply = await handle(msg_(DEV_REQUEST));
-    expect(reply).toContain("PR not offered");
-    expect(confirms).toHaveLength(0);
-  }
-});
-
-test("no commit identity configured -> refused before any worktree exists", async () => {
+test("repo.yaml gitAuthor / githubAccount are accepted and ignored: a repo without a commit identity still runs exec", async () => {
   const { env, clone } = await setup();
-  addRepo(env.home, "real", {}, { path: clone }); // same clone, but no gitAuthor
-  const { gw } = gateway(false);
+  addRepo(env.home, "real", { githubAccount: "someone-else" }, { path: clone }); // no gitAuthor, an unused account
+  const seen: any[] = [];
+  const { gw } = gateway();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: gw,
-    queryFn: fakeSdk([]) as never,
+    queryFn: fakeSdk(seen) as never,
     intent: devIntent(env.home),
   });
-  expect(await handle(msg_("[dev] please change x"))).toContain("No commit identity");
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
+  expect(await handle(msg_("[dev] please change x"))).toContain("Xong");
+  expect(seen).toHaveLength(2);
+  expect(seen[1].options.cwd).toBe(realpathSync(clone));
 });
 
 test("pure question: the agent answers, no plan stage, no code task row", async () => {
   const { env } = await setup();
   const seen: any[] = [];
-  const { gw } = gateway(false);
+  const { gw } = gateway();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: gw,
@@ -264,9 +222,8 @@ test("dev task: plan stage prompt is the owner message; notice posted before the
   const { env } = await setup();
   const seen: any[] = [];
   const posted: string[] = [];
-  const { gw } = gateway(false);
+  const { gw } = gateway();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: gw,
@@ -293,9 +250,8 @@ test("stop during the plan stage cancels the dev task", async () => {
   const planStarted = new Promise<void>((r) => {
     release = r;
   });
-  const { gw } = gateway(false);
+  const { gw } = gateway();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: gw,
@@ -328,7 +284,6 @@ test("injection: a dev request alone creates no worktree and writes nothing befo
   });
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: gw,
@@ -348,13 +303,12 @@ test("injection: a dev request alone creates no worktree and writes nothing befo
 
 test("a dispatch whose thread was already stopped starts nothing and leaves no code row", async () => {
   const { env } = await setup();
-  const { gw } = gateway(false);
+  const { gw } = gateway();
   const seen: any[] = [];
   const ac = new AbortController();
   ac.abort(); // `stop` / shutdown arrived before the plan stage
   const reply = await dispatchRole(
     {
-      git,
       db: env.db,
       config: env.config,
       approvals: gw,
@@ -373,4 +327,33 @@ test("a dispatch whose thread was already stopped starts nothing and leaves no c
   expect(reply).toBe("Q&A answer");
   expect(seen).toHaveLength(0); // no plan stage, so no approval prompt either
   expect(env.db.query("SELECT type FROM turns WHERE type = 'code'").all()).toEqual([]);
+});
+
+test("after exec in the repo, an assistant message in the same thread starts its own session (does not resume the exec one); the side lane sees the repo as busy during exec", async () => {
+  const { env, clone } = await setup();
+  const seen: any[] = [];
+  const busy: boolean[] = [];
+  const qaResume: string[] = [];
+  const sdk = fakeSdk(seen);
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: gateway().gw,
+    queryFn: ((a: any) => {
+      if (a.options.permissionMode !== "plan") busy.push(execActiveIn(clone)); // inside the exec run
+      if (!a.options.tools.includes("Write")) {
+        qaResume.push(a.options.resume ?? "none");
+        return (async function* () {
+          yield resultMsg({ result: "assistant answer", session_id: "sess-qa" });
+        })();
+      }
+      return sdk(a);
+    }) as never,
+    intent: devIntent(env.home),
+  });
+  await handle(msg_(DEV_REQUEST));
+  expect(busy).toEqual([true]);
+  expect(execActiveIn(clone)).toBe(false); // released when the run ends
+  expect(await handle(msg_("[ask] what changed?"))).toBe("assistant answer");
+  expect(qaResume).toEqual(["none"]); // the exec session (sess-exec) was not offered to the assistant
 });

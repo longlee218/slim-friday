@@ -49,7 +49,6 @@ function setup(
       db: env.db,
       turnId: "t1",
       cwd: env.home,
-      requireGit: false,
       hook: reg.hook("th"),
       runId: "run-1",
       graceMs,
@@ -293,7 +292,6 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
       db: env.db,
       turnId: "t1",
       cwd: env.home,
-      requireGit: false,
       hook: reg.hook("th"),
       runId: "run-1",
     });

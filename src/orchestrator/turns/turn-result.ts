@@ -23,13 +23,11 @@ export interface FlowResult
   repo?: string;
   /** Save the session although the outcome is not success/limit (a stage stopped to await the owner's reply). */
   keepSession?: boolean;
-  /** `git diff --stat` of the task clone at a budget stop (the stage runner fills it; budget-hit message). */
-  diffStat?: string;
+  /** Do not save this run's session as the thread's (an exec run in the repo itself: a later assistant message in the thread must not resume it). */
+  skipThreadSession?: true;
   /** Model of an escalated re-run (the stage row then records it instead of the first run's model). */
   model?: string;
-  /** The run refused to start for a config reason (no commit identity, wrong workspace): a fix of the config lets it go on. */
-  configRefusal?: true;
-  /** Set by the stage runner: the failure qualifies for `failed_resumable` (the clone, plan and session are kept). */
+  /** Set by the stage runner: the failure qualifies for `failed_resumable` (the plan is kept; so are a legacy clone and session). */
   resumable?: ResumeReason;
 }
 
@@ -52,7 +50,6 @@ export const OUTCOME_REPLY: Record<string, string> = {
 
 /** Why a run after the approved plan stopped but can be continued: label shown to the owner (the key is the stage verdict). */
 export const RESUMABLE = {
-  config: "missing commit identity or workspace config",
   budget: "budget limit reached",
   error: "agent error",
 } as const;
@@ -60,7 +57,6 @@ export type ResumeReason = keyof typeof RESUMABLE;
 
 /** Which failures qualify for `failed_resumable`, first match wins: one row per reason. Anything else stays `failed`. */
 const RESUMABLE_WHEN: ReadonlyArray<readonly [ResumeReason, (r: FlowResult) => boolean]> = [
-  ["config", (r) => r.configRefusal === true],
   ["budget", (r) => r.outcome === "max_budget"],
   ["error", (r) => r.outcome === "error"],
 ];
@@ -99,7 +95,12 @@ export function finishRun(
   ids: { turnId: string; threadId: string },
   res: FlowResult,
 ): string {
-  if (res.sessionId && res.cwd && (res.keepSession || RESUMABLE_OUTCOMES.has(res.outcome))) {
+  if (
+    !res.skipThreadSession &&
+    res.sessionId &&
+    res.cwd &&
+    (res.keepSession || RESUMABLE_OUTCOMES.has(res.outcome))
+  ) {
     setSession(db, {
       threadId: ids.threadId,
       sessionId: res.sessionId,
@@ -123,7 +124,7 @@ export function finishRun(
       ? ` Resets at ${new Date(res.resetsAt).toISOString()}.`
       : "";
   const text = redactText(res.text || `${OUTCOME_REPLY[res.outcome] ?? "No answer."}${reset}`);
-  // A resumable failure ends with the question (reply yes or `/go`): the clone, plan and session are kept.
+  // A resumable failure ends with the question (reply yes or `/go`): the plan is kept (and a legacy clone and session).
   return res.resumable
     ? `${text}\n${resumeQuestion(ids.turnId, RESUMABLE[res.resumable])} Reply yes or send \`/go\`.`
     : text;

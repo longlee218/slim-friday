@@ -2,12 +2,12 @@ import { expect, test } from "bun:test";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { GIT_TOOL } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { isManagedClone, refreshRepo } from "../src/repos/refresh-repo";
 import { buildRegistryContext } from "../src/repos/repo-registry";
 import { getSession } from "../src/storage/session-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
+import { g, makeRepo } from "./git-fixture";
 import { addRepo, clearWorkspaces, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 /** Create a fake git repo dir (a `.git` dir is all the validator checks). */
@@ -165,20 +165,26 @@ test("isManagedClone: only workspaces/<ws>/repos/<repo>/repo; rejects other path
   expect(isManagedClone("/nonexistent", env.home)).toBe(false);
 });
 
-test("refreshRepo: fetch + fast-forward through the MCP tools, throttled per repo, failures swallowed", async () => {
-  const calls: string[] = [];
-  const fake = { call: async (tool: string) => (calls.push(tool), {}), close: async () => {} };
-  await refreshRepo(fake, "/p", 1000);
-  await refreshRepo(fake, "/p", 1000 + 60_000); // inside the 10 min window
-  await refreshRepo(fake, "/p", 1000 + 11 * 60_000);
-  expect(calls).toEqual([GIT_TOOL.FETCH, GIT_TOOL.PULL, GIT_TOOL.FETCH, GIT_TOOL.PULL]);
-  const failing = {
-    call: async () => {
-      throw new Error("no remote");
-    },
-    close: async () => {},
+test("refreshRepo: fetch + fast-forward with the git CLI, throttled per repo, failures swallowed", async () => {
+  const up = await makeRepo("main", true); // repo with a bare origin
+  const copy = join(up.root, "copy");
+  await g(up.root, "clone", "-q", up.origin, copy);
+  const push = async (name: string) => {
+    writeFileSync(join(up.repo, name), "x\n");
+    await g(up.repo, "add", "-A");
+    await g(up.repo, "commit", "-qm", name);
+    await g(up.repo, "push", "-q", "origin", "main");
   };
-  await expect(refreshRepo(failing, "/q")).resolves.toBeUndefined();
+  const head = () => g(copy, "log", "-1", "--format=%s");
+  await push("b.txt");
+  await refreshRepo(copy, 1000);
+  expect(await head()).toBe("b.txt"); // fast-forwarded
+  await push("c.txt");
+  await refreshRepo(copy, 1000 + 60_000); // inside the 10 min window: skipped
+  expect(await head()).toBe("b.txt");
+  await refreshRepo(copy, 1000 + 11 * 60_000);
+  expect(await head()).toBe("c.txt");
+  await expect(refreshRepo(join(up.root, "not-a-repo"))).resolves.toBeUndefined(); // failure swallowed
 });
 
 test("workflow: defaults to lean, full is parsed, a bad value skips the repo, marker only for full", () => {

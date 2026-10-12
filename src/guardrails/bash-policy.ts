@@ -3,9 +3,9 @@
  * checked; the first deny wins, everything else runs without asking (bypass mode: the owner's agent works freely).
  *
  * Denied: privilege escalation, secret files as arguments, `rm -r` outside the work dirs, force push / push to
- * main, GitHub CLIs (until the agent owns PRs), `.git` writes, a pipe into a shell, and a git worktree created
- * outside the workspace's worktrees dir. Network, package managers, scripts, `sh -c`, `$(..)`, `~`, redirects, cd
- * and the rest are NOT checked.
+ * main/master, `push --mirror/--all`, `gh repo delete` / `gh api` DELETE / printing the gh token, a pipe into a
+ * shell, and a git worktree created outside the workspace's worktrees dir. Everything else runs: `git` (commit, branch, push of a non-default branch), `gh`/`hub`, network, package managers,
+ * scripts, `sh -c`, `$(..)`, `~`, redirects, cd.
  *
  * NOTE: parsing is BEST EFFORT and bypassable (variable expansion, `sh -c`, scripts, aliases ...). Reasons are
  * short and never echo command text, so secrets are not leaked to the agent.
@@ -14,7 +14,7 @@ import { basename, isAbsolute, resolve } from "node:path";
 import { parseCommand, type Segment } from "./bash-parser";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { isSecretPath } from "./deny-dangerous";
-import { writesGitDir } from "./git-dir-guard";
+import { ghDenial, RAW_GH_DENY } from "./gh-policy";
 import { isInside, realOrSame } from "./paths";
 
 const allow = (reason: string): Decision => ({ decision: "allow", reason });
@@ -107,7 +107,7 @@ function checkRm(args: string[], ctx: GuardrailContext, viaXargs: boolean): Deci
   return allow("rm inside the work directories");
 }
 
-/** git: deny force push, push to main/master (any other push too until the agent owns PRs), worktree outside the dir. */
+/** git: deny force push, push to main/master and a worktree outside the dir; every other git command (a push included) runs. */
 function checkGit(args: string[], ctx: GuardrailContext): Decision {
   let i = 0;
   let base = ctx.cwd; // `git -C <dir>` moves the base of relative paths
@@ -125,12 +125,12 @@ function checkGit(args: string[], ctx: GuardrailContext): Decision {
       (a) => a.startsWith("--force") || /^-[^-]*f/.test(a) || a.startsWith("+"),
     );
     if (forced) return deny("force push is blocked");
+    if (rest.some((a) => a === "--mirror" || a === "--all"))
+      return deny("push --mirror/--all is blocked");
     const toProtected = rest
       .filter((a) => !a.startsWith("-"))
       .some((a) => PROTECTED.has((a.split(":").pop() ?? "").replace(/^refs\/heads\//, "")));
-    return toProtected
-      ? deny("push to main/master is blocked")
-      : deny("pushing is done by the app after the owner approves");
+    return toProtected ? deny("push to main/master is blocked") : allow("git push");
   }
   if (sub === "worktree" && rest[0] === "move") {
     // `move <worktree> <new-path>`: the destination is the second positional.
@@ -170,16 +170,13 @@ function checkSegment(seg: Segment, ctx: GuardrailContext): Decision {
   const cmd = basename(words[0]);
   const args = words.slice(1);
 
-  // The clone's git dir (hooks, config) may be read, never written: it would run code in later app git calls.
-  if (writesGitDir(cmd, args, seg.redirect))
-    return deny("writing to the .git directory is blocked");
   if (["sudo", "su", "doas"].includes(cmd)) return deny("privilege escalation is blocked");
-  // The app opens PRs (like `git push`, which is denied): the GitHub CLIs never run from the agent.
-  if (cmd === "gh" || cmd === "hub") return deny("use the app for GitHub actions (it opens PRs)");
   if ((SHELLS.has(cmd) || INTERPRETER.test(cmd)) && seg.piped)
     return deny("piping into a shell or interpreter is blocked");
   if ((READERS.has(cmd) || NETWORK.has(cmd) || cmd === "git") && args.some(isSecretArg))
     return deny("access to secret files is blocked");
+  const gh = cmd === "gh" ? ghDenial(args) : undefined;
+  if (gh) return deny(gh);
   if (cmd === "rm") return checkRm(args, ctx, viaXargs);
   if (cmd === "git") return checkGit(args, ctx);
   return allow("no deny rule matched");
@@ -189,7 +186,12 @@ function checkSegment(seg: Segment, ctx: GuardrailContext): Decision {
 const RAW_DENY: RegExp[] = [
   /(^|[\s;&|(`])(sudo|su|doas)(\s|$)/,
   /(^|[\s;&|(`])rm\s+(-\S*[rR]|--recursive)/,
-  /\bgit\b[^\n]*\bpush\b/,
+  // A forced push (`--force*`, `-f`, `+ref`) or a push naming main/master (`main`, `HEAD:main`, `refs/heads/main`):
+  // only these are denied here, any other push runs.
+  /\bgit\b[^\n]*\bpush\b[^\n]*(\s--force|\s-[a-zA-Z]*f|\s\+\S)/,
+  /\bgit\b[^\n]*\bpush\b[^\n]*(\s|:|refs\/heads\/)(main|master)(\s|$|["';&|)])/,
+  /\bgit\b[^\n]*\bpush\b[^\n]*\s--(mirror|all)\b/,
+  ...RAW_GH_DENY,
   /\|\s*(sudo\s+)?(sh|bash|zsh|dash|ksh|fish|python[\d.]*|node|perl|ruby)\b/,
 ];
 

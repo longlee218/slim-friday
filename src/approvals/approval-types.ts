@@ -16,22 +16,8 @@ export interface ApprovalResult {
   reason?: string;
 }
 
-/** A result message with Keep/Discard buttons that does not block the task (no answer = kept). */
-export interface DecisionPost {
-  turnId: string;
-  threadId: string;
-  /** Message text (the poster redacts and caps it). */
-  content: string;
-  /** File attached to the message (the patch), when small enough. */
-  filePath?: string;
-  /** Runs once on the owner's click (`keep` | `discard`); returns the line shown in place of the buttons. */
-  onClick: (choice: "keep" | "discard") => Promise<string>;
-}
-
 /** Asks the owner for decisions. */
 export interface ApprovalGateway {
-  /** Post a Keep/Discard result message and return at once; false when it could not be sent. Absent in test fakes. */
-  postDecision?(req: DecisionPost): Promise<boolean>;
   /** Show Approve/Deny buttons in the thread; resolve on owner click; timeout => denied "timeout". */
   request(req: ApprovalRequest): Promise<ApprovalResult>;
   /** Plan approval variant: Approve / Reject (reason "owner rejected plan" on reject). */

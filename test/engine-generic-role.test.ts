@@ -1,5 +1,4 @@
-import { afterAll, expect, test } from "bun:test";
-import { createGitMcp } from "../src/mcp/git-mcp";
+import { expect, test } from "bun:test";
 import { runStages } from "../src/orchestrator/engine/stage-runner";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
@@ -7,9 +6,6 @@ import type { RoleDefinition } from "../src/roles/role-types";
 import { insertTurn } from "../src/storage/run-store";
 import { listStages } from "../src/storage/stage-store";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-
-const git = createGitMcp();
-afterAll(() => git.close());
 
 /** A role invented in the test: data only, no engine code behind it (read-only, one stage, no gate). */
 const PROBE: RoleDefinition = {
@@ -44,7 +40,6 @@ test("a role that is only data runs through the stage runner and gets its stage 
     });
     const res = await runStages(
       {
-        git,
         db: env.db,
         config: env.config,
         approvals: stubGateway(),
@@ -82,7 +77,6 @@ test("a stage with a gate the engine cannot run fails closed, nothing is run", a
   try {
     const res = await runStages(
       {
-        git,
         db: env.db,
         config: env.config,
         approvals: stubGateway(),

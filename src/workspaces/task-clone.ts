@@ -1,30 +1,10 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { workspacePaths } from "../config/workspace-paths";
-import type { GitIdentity } from "../mcp/git-mcp";
-import { parseRemote } from "../mcp/github-mcp";
+import { existsSync, mkdirSync } from "node:fs";
 import { logEvent, logger } from "../observability/logger";
-import { errText } from "../observability/redact";
-import type { StageRunInput, StageRunnerDeps } from "../orchestrator/engine/stage-runner";
-import { type FlowResult, failResult } from "../orchestrator/turns/turn-result";
 import { gitOut, runGit } from "../repos/git-cli";
-import { type Repo, resolveAuthor } from "../repos/repo-registry";
-import {
-  deleteWorktree,
-  getWorktreeByTask,
-  insertWorktree,
-  type WorktreeRow,
-} from "../storage/worktree-store";
-import {
-  CloneRefusal,
-  preflight,
-  safeRemoveClone,
-  TASK_BRANCH_RE,
-  taskBranch,
-} from "./clone-safety";
+import { CloneRefusal, preflight, safeRemoveClone, TASK_BRANCH_RE } from "./clone-safety";
 import { safeOriginUrl } from "./origin-url";
 
-/* Independent local clone per code task (`isolation: "clone"`): a plain `git clone --local` of the owner's
+/* LEGACY (Rev 15 phase 3: the app no longer creates task clones; phase 4 deletes this file): a plain `git clone --local` of the owner's
    repo into `workspaces/<ws>/repos/<name>/worktrees/<taskId>`. The owner repo's `.git` is only read:
    no worktree entry, no branch, no config change. Local base, no fetch, no `origin` in the clone. */
 
@@ -45,7 +25,7 @@ export async function createTaskClone(o: {
   cloneRoot: string;
   base: string;
   branch: string;
-  author: GitIdentity;
+  author: { name: string; email: string };
   minFreeBytes?: number;
 }): Promise<CreatedClone> {
   if (!TASK_BRANCH_RE.test(o.branch)) throw new CloneRefusal("The task branch name is not valid.");
@@ -75,88 +55,4 @@ export async function createTaskClone(o: {
   const safe = safeOriginUrl(origin.code === 0 ? origin.stdout.trim() || null : null);
   if (safe.refusedCredentials) logEvent(log, "clone.origin_credentials", {}, "warn");
   return { baseSha, originUrl: safe.url };
-}
-
-/** Origin url on the github.com host (scp-like or scheme form); a `github.com` elsewhere in the url does not count. */
-const GITHUB_HOST =
-  /^(?:git@github\.com:|(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/)/i;
-
-/** `pr` when the owner repo's origin is a GitHub repo (the PR gate applies), else `local`. */
-export const deliveryFor = (originUrl: string | null): "pr" | "local" =>
-  originUrl && GITHUB_HOST.test(originUrl.trim()) && parseRemote(originUrl) ? "pr" : "local";
-
-/**
- * Stage switch of a staged task: create the clone (new branch from the local base), record it and save the
- * approved plan next to it. Returns the clone row + execute scratch dir, or a failure result (nothing is
- * left behind: a failed or stopped switch removes the clone and its row again).
- */
-export async function startWorktree(
-  deps: StageRunnerDeps,
-  i: StageRunInput,
-  repo: Repo,
-  plan: string,
-  planFile = "plan.md",
-): Promise<{ wt: WorktreeRow; execScratch: string } | FlowResult> {
-  const ws = workspacePaths(deps.config.agentHome).workspace(i.workspace);
-  const author = resolveAuthor(repo, deps.config);
-  if (!author) return failResult(`No commit identity for ${repo.name}.`);
-  // A task id with a row already has a clone: never create (or later delete) over it.
-  if (getWorktreeByTask(deps.db, i.turnId)) return failResult("This task already has a clone.");
-  const base = i.base ?? repo.defaultBranch ?? "main";
-  const branch = taskBranch(i.turnId, i.text);
-  const cloneRoot = ws.repo(repo.name).worktrees;
-  const clonePath = join(cloneRoot, i.turnId);
-  let made: CreatedClone;
-  try {
-    made = await createTaskClone({
-      repoPath: repo.path,
-      clonePath,
-      cloneRoot,
-      base,
-      branch,
-      author,
-    });
-  } catch (err) {
-    const msg = errText(err, 300);
-    logEvent(log, "clone.refused", { repo: repo.name, base, reason: msg }, "warn");
-    return failResult(
-      err instanceof CloneRefusal ? msg : `Could not create the task clone: ${msg}`,
-    );
-  }
-  const wt: WorktreeRow = {
-    taskId: i.turnId,
-    threadId: i.threadId,
-    repo: repo.name,
-    repoPath: repo.path,
-    path: clonePath,
-    branch,
-    base,
-    prUrl: null,
-    createdAt: Date.now(),
-    workspace: i.workspace,
-    baseSha: made.baseSha,
-    originUrl: made.originUrl,
-    delivery: deliveryFor(made.originUrl),
-    status: "active",
-    patchPath: null,
-    deliveredAt: null,
-  };
-  const execScratch = ws.task(i.turnId).root;
-  let inserted = false;
-  try {
-    if (i.ac.signal.aborted) throw new Error("stopped");
-    insertWorktree(deps.db, wt);
-    inserted = true;
-    mkdirSync(execScratch, { recursive: true, mode: 0o700 });
-    writeFileSync(join(execScratch, planFile), plan);
-  } catch (err) {
-    // Undo only what this call made: the clone (checked absent above) and the row if it was inserted.
-    safeRemoveClone(clonePath, cloneRoot);
-    if (inserted) deleteWorktree(deps.db, i.turnId);
-    return i.ac.signal.aborted
-      ? failResult("Stopped.", "aborted")
-      : failResult(`Could not start the task: ${errText(err, 200)}`);
-  }
-  logEvent(log, "clone.created", { repo: repo.name, branch, base, baseSha: made.baseSha });
-  return { wt, execScratch };
 }

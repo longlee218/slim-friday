@@ -1,4 +1,4 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { IntentDeps } from "../src/intent/decide-intent";
@@ -6,7 +6,6 @@ import type { IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { DAY_MS, expireClones } from "../src/lifecycle/clone-retention";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { resumeQuestionOf } from "../src/orchestrator/dispatch/resume-failed-task";
 import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
 import { RESUME_NOTE } from "../src/orchestrator/engine/resume-exec";
@@ -14,10 +13,11 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
 import { type FlowResult, RESUMABLE, resumeReasonOf } from "../src/orchestrator/turns/turn-result";
 import { ROLES } from "../src/roles/role-registry";
-import { countFollowUps, insertTurn } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 import { listStages } from "../src/storage/stage-store";
 import { getWorktreeByThread, listKeptClones } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { makeLegacyClone } from "./clone-fixture";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
@@ -31,11 +31,9 @@ import {
   TEST_CHANNEL,
 } from "./helpers";
 
-/* Rev 12 D: `failed_resumable`. A task that fails after the approved plan keeps its clone, plan and session; `/go` or a
-   yes to the resume question runs exec again from the approved plan in the same clone (old session first, else fresh). */
-
-const git = createGitMcp();
-afterAll(() => git.close());
+/* Rev 12 D: `failed_resumable`. A task that fails after the approved plan keeps its plan on disk; `/go` or a yes to the
+   resume question runs exec again from the approved plan (Rev 15 phase 3: in the repo, a fresh session and a note that
+   the checkout may hold part of the work). A thread that still holds a legacy task clone resumes in that clone. */
 
 async function setup() {
   const env = makeEnv();
@@ -127,12 +125,11 @@ const intent = (home: string): IntentDeps => ({
   },
 });
 
-/** A handler whose exec runs follow `steps`; the plan is approved, the PR offer declined. */
+/** A handler whose exec runs follow `steps`; the plan is approved. */
 async function run(steps: ExecStep[]) {
   const { env, clone } = await setup();
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({ confirm: async () => ({ approved: false, reason: "declined" }) }),
@@ -145,73 +142,77 @@ async function run(steps: ExecStep[]) {
 const status = (env: { db: ReturnType<typeof makeEnv>["db"] }) =>
   env.db.query("SELECT status, parent_turn_id FROM turns ORDER BY started_at, rowid").all();
 const execRuns = (seen: any[]) => seen.filter((a) => a.options.permissionMode !== "plan");
+const taskIds = (env: { db: ReturnType<typeof makeEnv>["db"] }) =>
+  env.db.query<{ id: string }, []>("SELECT id FROM turns ORDER BY started_at, rowid").all();
 
-test("a transient error at exec -> failed_resumable: clone, plan and reason kept; the reply asks to continue; thread is idle", async () => {
-  const { env, handle } = await run(["error"]);
+/** A thread that holds a LEGACY clone of its failed task (a row from before Rev 15): the clone + a session in it. */
+async function holdLegacyClone(env: ReturnType<typeof makeEnv>, clone: string) {
+  const id = taskIds(env)[0]!.id;
+  const wt = await makeLegacyClone(env, {
+    repo: "real",
+    repoPath: clone,
+    taskId: id,
+    threadId: "th1",
+  });
+  env.db.query("UPDATE turns SET session_cwd = ? WHERE id = ?").run(realpathSync(wt.path), id);
+  // the plan file belongs to the task that made the clone: it is already there (written by the stage switch)
+  return wt;
+}
+
+test("a transient error at exec -> failed_resumable: plan and reason kept; the reply asks to continue; thread is idle", async () => {
+  const { env, clone, handle } = await run(["error"]);
   const reply = await handle(msg(DEV_REQUEST));
   expect(reply).toContain("stopped at exec: agent error");
   expect(reply).toContain("Continue with the approved plan?");
-  const wt = getWorktreeByThread(env.db, "th1")!;
-  expect(wt.status).toBe("active");
-  expect(existsSync(wt.path)).toBe(true);
-  expect(existsSync(env.paths.workspace("main").task(wt.taskId).plan)).toBe(true);
+  const id = taskIds(env)[0]!.id;
+  expect(getWorktreeByThread(env.db, "th1")).toBeNull(); // exec ran in the repo: no clone to keep
+  expect(existsSync(env.paths.workspace("main").task(id).plan)).toBe(true);
+  expect(env.db.query("SELECT repo FROM turns").get()).toEqual({ repo: "real" }); // `/go` needs the repo
   expect(status(env)).toEqual([{ status: "failed_resumable", parent_turn_id: null }]);
-  const exec = listStages(env.db, wt.taskId).find((s) => s.name !== "plan")!;
+  const exec = listStages(env.db, id).find((s) => s.name !== "plan")!;
   expect(exec.verdict).toBe("error");
   expect(deriveThreadState(env.db, "th1")).toBe("idle");
   expect(resumeQuestionOf(env.db, "th1")).toBe(
-    `Task ${wt.taskId.slice(0, 8)} stopped at exec: ${RESUMABLE.error}. Continue with the approved plan?`,
+    `Task ${id.slice(0, 8)} stopped at exec: ${RESUMABLE.error}. Continue with the approved plan?`,
   );
+  expect(existsSync(clone)).toBe(true);
 });
 
-test("/go resumes in the same clone with the approved plan and the old session; no new clone; the held row is closed", async () => {
-  const { env, seen, handle } = await run(["error", "ok"]);
+test("/go runs exec again in the repo from the approved plan: fresh session, resume note, no new plan; the held row is closed", async () => {
+  const { env, clone, seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
-  const wt = getWorktreeByThread(env.db, "th1")!;
   const reply = await handle(msg("/go"));
   expect(reply).toContain("Xong");
   const [first, second] = execRuns(seen);
-  expect(second.options.cwd).toBe(realpathSync(wt.path));
-  expect(second.options.resume).toBe("sess-exec"); // the old session is tried first
+  expect(second.options.cwd).toBe(realpathSync(clone));
+  expect(second.options.resume).toBeUndefined(); // no clone, no stored session to continue: a fresh one
   expect(second.promptText).toContain("add b.txt"); // the approved plan
   expect(second.promptText).toContain(RESUME_NOTE);
   expect(first.options.cwd).toBe(second.options.cwd);
-  expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 1 });
+  expect(first.promptText).not.toContain(RESUME_NOTE); // the first run is a normal exec
+  expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 0 });
   expect(seen.filter((a) => a.options.permissionMode === "plan")).toHaveLength(1); // no new plan
   expect(status(env)).toEqual([
     { status: "failed", parent_turn_id: null },
-    { status: "done", parent_turn_id: wt.taskId },
+    { status: "done", parent_turn_id: null },
   ]);
-  expect(readFileSync(join(wt.path, "b.txt"), "utf8")).toBe("two\n");
+  expect(readFileSync(join(clone, "b.txt"), "utf8")).toBe("two\n");
 });
 
 test('a yes read by L3 ("continue") resumes the same way', async () => {
-  const { env, seen, handle } = await run(["error", "ok"]);
+  const { seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
   expect(await handle(msg("continue"))).toContain("Xong");
   expect(execRuns(seen)).toHaveLength(2);
-  expect(execRuns(seen)[1].options.resume).toBe("sess-exec");
-  expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 1 });
+  expect(execRuns(seen)[1].promptText).toContain(RESUME_NOTE);
 });
 
-test("the old session is gone -> a fresh session seeded with the approved plan", async () => {
-  const { seen, handle } = await run(["error", "resume-gone", "ok"]);
-  await handle(msg(DEV_REQUEST));
-  expect(await handle(msg("/go"))).toContain("Xong");
-  const execs = execRuns(seen);
-  expect(execs.map((a) => a.options.resume)).toEqual([undefined, "sess-exec", undefined]);
-  expect(execs[2].promptText).toContain("add b.txt");
-});
-
-test("an unrelated NEW request starts a new task; the held clone is not resumed", async () => {
+test("an unrelated NEW request starts a new task with its own plan; the held task is not resumed", async () => {
   const { env, seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
-  const held = getWorktreeByThread(env.db, "th1")!;
   await handle(msg("other thing entirely: add c.txt with three please"));
-  // a second plan ran (not a resume); the first row stays held, the second clone is its own
-  expect(seen.filter((a) => a.options.permissionMode === "plan")).toHaveLength(2);
-  expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 2 });
-  expect(existsSync(held.path)).toBe(true);
+  expect(seen.filter((a) => a.options.permissionMode === "plan")).toHaveLength(2); // a second plan ran
+  expect(execRuns(seen)[1].promptText).not.toContain(RESUME_NOTE);
   expect(status(env)[0]).toEqual({ status: "failed_resumable", parent_turn_id: null });
 });
 
@@ -229,7 +230,6 @@ test("budget stop at exec is resumable, but only with a raise (`/go +<usd>`)", a
 test("a failure before the plan is approved stays failed (nothing to resume)", async () => {
   const { env } = await setup();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({ requestPlan: async () => ({ approved: false, reason: "no" }) }),
@@ -244,47 +244,24 @@ test("a failure before the plan is approved stays failed (nothing to resume)", a
   expect(resumeQuestionOf(env.db, "th1")).toBeUndefined();
 });
 
-test("no commit identity at the stage switch (no clone yet) is resumable: after the config fix `/go` makes the clone and runs exec from the approved plan, no new plan", async () => {
+test("a repo.yaml without any commit identity is no reason to refuse: the task runs and a failure is resumable like any other", async () => {
   const { env, clone } = await setup();
-  addRepo(env.home, "real", {}, { path: clone }); // same clone, no gitAuthor
+  addRepo(env.home, "real", {}, { path: clone }); // no gitAuthor: ignored since Rev 15
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
-    db: env.db,
-    config: env.config,
-    approvals: stubGateway({ confirm: async () => ({ approved: false, reason: "declined" }) }),
-    queryFn: sdk(["ok"], seen) as never,
-    intent: intent(env.home),
-  });
-  const reply = await handle(msg(DEV_REQUEST));
-  expect(reply).toContain("No commit identity");
-  expect(reply).toContain("Continue with the approved plan?");
-  expect(status(env)).toEqual([{ status: "failed_resumable", parent_turn_id: null }]);
-  expect(getWorktreeByThread(env.db, "th1")).toBeNull(); // nothing to keep but the plan
-  // the owner fixes the config and says "continue"
-  addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
-  expect(await handle(msg("/go"))).toContain("Xong");
-  expect(seen.filter((a) => a.options.permissionMode === "plan")).toHaveLength(1); // no new plan
-  const wt = getWorktreeByThread(env.db, "th1")!;
-  expect(readFileSync(join(wt.path, "b.txt"), "utf8")).toBe("two\n");
-  expect(execRuns(seen)[0].promptText).toContain("add b.txt");
-  expect(status(env)).toEqual([
-    { status: "failed", parent_turn_id: null },
-    { status: "done", parent_turn_id: null },
-  ]);
-});
-
-test("/cleanup of a held task that never got a clone drops the hold", async () => {
-  const { env, clone } = await setup();
-  addRepo(env.home, "real", {}, { path: clone }); // no gitAuthor
-  const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway(),
-    queryFn: sdk([], []) as never,
+    queryFn: sdk(["error", "ok"], seen) as never,
     intent: intent(env.home),
   });
+  expect(await handle(msg(DEV_REQUEST))).toContain("Continue with the approved plan?");
+  expect(await handle(msg("/go"))).toContain("Xong");
+  expect(seen.filter((a) => a.options.permissionMode === "plan")).toHaveLength(1);
+});
+
+test("/cleanup of a held task that has no clone drops the hold", async () => {
+  const { env, handle } = await run(["error"]);
   await handle(msg(DEV_REQUEST));
   expect(await handle(msg("/cleanup"))).toContain("Dropped the held task");
   expect(status(env)).toEqual([{ status: "failed", parent_turn_id: null }]);
@@ -298,81 +275,21 @@ test("which failures qualify: the reasons table, and nothing else", () => {
     sessionId: undefined,
     ...over,
   });
+  expect(Object.keys(RESUMABLE)).toEqual(["budget", "error"]); // no config reason any more
   expect(resumeReasonOf(r({ outcome: "error" }))).toBe("error");
-  expect(resumeReasonOf(r({ outcome: "error", configRefusal: true }))).toBe("config");
   expect(resumeReasonOf(r({ outcome: "max_budget" }))).toBe("budget");
   // owner stop, restart (also `aborted`), timeout, quota, turn limit, success: never
   for (const outcome of ["aborted", "timeout", "quota", "max_turns", "success"] as const)
     expect(resumeReasonOf(r({ outcome }))).toBeUndefined();
 });
 
-test("/cleanup of a held clone removes it and turns the row to failed", async () => {
-  const { env, handle } = await run(["error"]);
+test("the hold expires by task age (plan file removed) and a stale yes gets no resume", async () => {
+  const { env, seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
-  const wt = getWorktreeByThread(env.db, "th1")!;
-  expect(listKeptClones(env.db, "main")).toHaveLength(0); // MAX_KEPT_CLONES does not count it
-  expect(await handle(msg("/cleanup"))).toContain("Removed");
-  expect(existsSync(wt.path)).toBe(false);
-  expect(status(env)).toEqual([{ status: "failed", parent_turn_id: null }]);
-  expect(resumeQuestionOf(env.db, "th1")).toBeUndefined(); // nothing left to continue
-});
-
-test("retention: a held clone expires after CLONE_RETENTION_DAYS idle and its task becomes failed; recent ones stay", async () => {
-  const { env, handle } = await run(["error"]);
-  await handle(msg(DEV_REQUEST));
-  const wt = getWorktreeByThread(env.db, "th1")!;
-  const home = env.config.agentHome;
-  // 13 days idle: kept
-  const t13 = Date.now() + 13 * DAY_MS;
-  expect(expireClones(env.db, home, 14, t13)).toEqual([]);
-  expect(existsSync(wt.path)).toBe(true);
-  expect(status(env)).toEqual([{ status: "failed_resumable", parent_turn_id: null }]);
-  // 15 days idle: removed
-  const t15 = Date.now() + 15 * DAY_MS;
-  expect(expireClones(env.db, home, 14, t15)).toEqual([wt.taskId]);
-  expect(existsSync(wt.path)).toBe(false);
-  expect(status(env)).toEqual([{ status: "failed", parent_turn_id: null }]);
-});
-
-/** A handler whose repo has no commit identity: the failure is at the stage switch, before any clone. */
-async function noIdentity(steps: ExecStep[] = []) {
-  const { env, clone } = await setup();
-  addRepo(env.home, "real", {}, { path: clone });
-  const seen: any[] = [];
-  const handle = createTurnHandler({
-    git,
-    db: env.db,
-    config: env.config,
-    approvals: stubGateway({ confirm: async () => ({ approved: false, reason: "declined" }) }),
-    queryFn: sdk(steps, seen) as never,
-    intent: intent(env.home),
-  });
-  return { env, clone, seen, handle };
-}
-
-test("a resume is not a fix round: after a resume both real fix rounds still run", async () => {
-  const { env, seen, handle } = await run(["error", "ok", "ok", "ok"]);
-  await handle(msg(DEV_REQUEST));
-  const wt = getWorktreeByThread(env.db, "th1")!;
-  await handle(msg("/go"));
-  expect(env.db.query("SELECT kind FROM turns WHERE parent_turn_id IS NOT NULL").all()).toEqual([
-    { kind: "resume" },
-  ]);
-  expect(countFollowUps(env.db, wt.taskId)).toBe(0);
-  const before = execRuns(seen).length;
-  await handle(msg("[dev] also add c"));
-  await handle(msg("[dev] also add d"));
-  expect(execRuns(seen)).toHaveLength(before + 2);
-  expect(countFollowUps(env.db, wt.taskId)).toBe(2);
-});
-
-test("clone-less hold: the question names the real reason; it expires by task age (plan file removed) and a stale yes gets no resume", async () => {
-  const { env, seen, handle } = await noIdentity(["ok"]);
-  await handle(msg(DEV_REQUEST));
-  const id = env.db.query<{ id: string }, []>("SELECT id FROM turns").get()!.id;
+  const id = taskIds(env)[0]!.id;
   const planFile = env.paths.workspace("main").task(id).plan;
   expect(existsSync(planFile)).toBe(true);
-  expect(resumeQuestionOf(env.db, "th1")).toContain(RESUMABLE.config);
+  expect(resumeQuestionOf(env.db, "th1")).toContain(RESUMABLE.error);
   const home = env.config.agentHome;
   expect(expireClones(env.db, home, 14, Date.now() + 13 * DAY_MS)).toEqual([]);
   expect(existsSync(planFile)).toBe(true);
@@ -382,18 +299,6 @@ test("clone-less hold: the question names the real reason; it expires by task ag
   expect(resumeQuestionOf(env.db, "th1")).toBeUndefined();
   await handle(msg("continue")); // a stale yes: nothing is resumed (it is read as a new request)
   expect(seen.some((a) => String(a.promptText).includes(RESUME_NOTE))).toBe(false);
-});
-
-test("a newer task releases the held clone to the normal retention path", async () => {
-  const { env, handle } = await run(["error", "ok"]);
-  await handle(msg(DEV_REQUEST));
-  const held = getWorktreeByThread(env.db, "th1")!;
-  await handle(msg("other thing entirely: add c.txt with three please"));
-  const newer = getWorktreeByThread(env.db, "th1")!;
-  expect(newer.taskId).not.toBe(held.taskId);
-  const removed = expireClones(env.db, env.config.agentHome, 14, Date.now() + 15 * DAY_MS);
-  expect(removed).toContain(held.taskId); // no longer held forever (the newer clone follows the kept path)
-  expect(existsSync(held.path)).toBe(false);
 });
 
 test("a resume that cannot start keeps the hold (task cap reached)", async () => {
@@ -415,4 +320,66 @@ test("`/go` racing a yes resumes once: the second message meets the running task
   const replies = await Promise.all([handle(msg("/go")), handle(msg("continue"))]);
   expect(replies.filter((r) => r.includes("Xong"))).toHaveLength(1);
   expect(execRuns(seen)).toHaveLength(2);
+});
+
+// ---- legacy: a held task whose clone was made by an older build ----
+
+test("legacy clone: /go resumes in the same clone with the approved plan and the old session; no new clone", async () => {
+  const { env, clone, seen, handle } = await run(["error", "ok"]);
+  await handle(msg(DEV_REQUEST));
+  const wt = await holdLegacyClone(env, clone);
+  const reply = await handle(msg("/go"));
+  expect(reply).toContain("Xong");
+  const [, second] = execRuns(seen);
+  expect(second.options.cwd).toBe(realpathSync(wt.path));
+  expect(second.options.resume).toBe("sess-exec"); // the old session is tried first
+  expect(second.promptText).toContain("add b.txt");
+  expect(second.promptText).toContain(RESUME_NOTE);
+  expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 1 });
+  expect(status(env)).toEqual([
+    { status: "failed", parent_turn_id: null },
+    { status: "done", parent_turn_id: wt.taskId },
+  ]);
+});
+
+test("legacy clone: the old session is gone -> a fresh session seeded with the approved plan", async () => {
+  const { env, clone, seen, handle } = await run(["error", "resume-gone", "ok"]);
+  await handle(msg(DEV_REQUEST));
+  await holdLegacyClone(env, clone);
+  expect(await handle(msg("/go"))).toContain("Xong");
+  const execs = execRuns(seen);
+  expect(execs.map((a) => a.options.resume)).toEqual([undefined, "sess-exec", undefined]);
+  expect(execs[2].promptText).toContain("add b.txt");
+});
+
+test("legacy clone: /cleanup of a held clone removes it and turns the row to failed; retention expires an idle one", async () => {
+  const { env, clone, handle } = await run(["error"]);
+  await handle(msg(DEV_REQUEST));
+  const wt = await holdLegacyClone(env, clone);
+  expect(listKeptClones(env.db, "main")).toHaveLength(0); // MAX_KEPT_CLONES does not count it
+  const t13 = Date.now() + 13 * DAY_MS;
+  expect(expireClones(env.db, env.config.agentHome, 14, t13)).toEqual([]); // 13 days idle: kept
+  expect(existsSync(wt.path)).toBe(true);
+  expect(await handle(msg("/cleanup"))).toContain("Removed");
+  expect(existsSync(wt.path)).toBe(false);
+  expect(status(env)).toEqual([{ status: "failed", parent_turn_id: null }]);
+  expect(resumeQuestionOf(env.db, "th1")).toBeUndefined(); // nothing left to continue
+});
+
+test("an exec cut short by a restart (interrupted) with an approved plan resumes like a failed one: `/go` runs it from the plan, fresh session, resume note", async () => {
+  const { env, clone, seen, handle } = await run(["error", "ok"]);
+  await handle(msg(DEV_REQUEST));
+  // What a restart does to a running exec: the task is `interrupted` (the plan and the repo were saved at the switch).
+  env.db.query("UPDATE turns SET status = 'interrupted'").run();
+  expect(await handle(msg("/go"))).toContain("Xong");
+  const [, second] = execRuns(seen);
+  expect(second.options.cwd).toBe(realpathSync(clone));
+  expect(second.options.resume).toBeUndefined();
+  expect(second.promptText).toContain("add b.txt");
+  expect(second.promptText).toContain(RESUME_NOTE);
+  expect(seen.filter((a) => a.options.permissionMode === "plan")).toHaveLength(1); // no new plan
+  expect(status(env)).toEqual([
+    { status: "cancelled", parent_turn_id: null }, // taken over: no second restart notice
+    { status: "done", parent_turn_id: null },
+  ]);
 });

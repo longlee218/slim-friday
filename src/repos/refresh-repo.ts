@@ -1,10 +1,9 @@
 import { realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 import { isInside } from "../guardrails/paths";
-import type { GitMcp } from "../mcp/git-mcp";
-import { GIT_TOOL } from "../mcp/mcp-tool-names";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { gitOut } from "./git-cli";
 
 /** Minimum gap between refreshes of the same repo. */
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
@@ -24,16 +23,16 @@ export function isManagedClone(path: string, agentHome: string): boolean {
 }
 
 /**
- * Fetch + fast-forward (via the git MCP server) so answers use fresh code. Throttled per repo.
+ * Fetch + fast-forward (git CLI, argv only) so answers use fresh code. Throttled per repo.
  * Fast-forward only: a dirty or diverged clone is left untouched. Failures are non-fatal.
  */
-export async function refreshRepo(git: GitMcp, path: string, now = Date.now()): Promise<void> {
+export async function refreshRepo(path: string, now = Date.now()): Promise<void> {
   const last = lastRefresh.get(path);
   if (last !== undefined && now - last < REFRESH_INTERVAL_MS) return;
   lastRefresh.set(path, now);
   try {
-    await git.call(GIT_TOOL.FETCH, { path, remote: "origin" });
-    await git.call(GIT_TOOL.PULL, { path, remote: "origin", fastForwardOnly: true });
+    await gitOut(["fetch", "origin"], path);
+    await gitOut(["pull", "--ff-only", "origin"], path);
   } catch (err) {
     logger
       .child({ module: "refresh-repo" })

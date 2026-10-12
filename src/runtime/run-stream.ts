@@ -1,6 +1,5 @@
 import type { Database } from "bun:sqlite";
 import type { Options, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { GIT_MCP_SERVER } from "../mcp/mcp-tool-names";
 import { logEvent, logger, tryLog } from "../observability/logger";
 import {
   addUsage,
@@ -57,7 +56,7 @@ function assistantText(m: SDKMessage): string {
 
 /**
  * Consume the SDK message stream of one run: record every message, remember the session id at init, collect
- * the quota evidence, fail fast when a required git MCP server did not start, and turn the final `result`
+ * the quota evidence and turn the final `result`
  * message (or a throw, or an abort) into one outcome. Never throws.
  */
 export async function consumeStream(p: {
@@ -69,8 +68,6 @@ export async function consumeStream(p: {
   db: Database;
   turnId: string;
   cwd: string;
-  /** The stage is useless without its git tools (it commits): abort when that server is not connected. */
-  requireGit: boolean;
   resume?: string;
   /** Sees every stream message: logs the actual permission mode and classifier denials (permission-watch.ts). */
   permissionWatch?: (msg: SDKMessage) => void;
@@ -88,7 +85,6 @@ export async function consumeStream(p: {
   let outcome: RunOutcome = "error";
   let usage = emptyUsage();
   let compactions = 0;
-  let startupError = "";
   /** Quota evidence: last assistant `error`, a rejected rate_limit_event (with its reset time). */
   let assistantError: string | undefined;
   let rejected = false;
@@ -128,17 +124,6 @@ export async function consumeStream(p: {
           resetsAt = resetFromInfo(ext.rate_limit_info);
         }
       }
-      // A committing stage is useless without its git tools: fail fast instead of letting the model flail.
-      if (m.type === "system" && m.subtype === "init" && p.requireGit) {
-        const servers = (m as unknown as { mcp_servers?: { name: string; status: string }[] })
-          .mcp_servers;
-        const git = servers?.find((x) => x.name === GIT_MCP_SERVER);
-        if (git && git.status !== "connected") {
-          startupError =
-            "The git MCP server failed to start (check gitAuthor in the workspace config.yaml).";
-          ac.abort();
-        }
-      }
       if (m.type === "result") {
         const r = m as unknown as ResultShape;
         p.onResult?.(r.subtype);
@@ -175,9 +160,5 @@ export async function consumeStream(p: {
   }
   // No result message + abort (user stop or shutdown): relabel once, for throw or clean end.
   if (outcome === "error" && ac.signal.aborted) outcome = "aborted";
-  if (startupError) {
-    outcome = "error";
-    text = startupError;
-  }
   return { text, sessionId, outcome, usage: { ...usage, compactions }, resetsAt, lastText };
 }

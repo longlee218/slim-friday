@@ -44,7 +44,7 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
   const exec = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor("exec", { writePaths: [w1wt], readPaths: [w1wt], gitWriteRepo: w1wt }),
+    guard: guardFor("exec", { writePaths: [w1wt], readPaths: [w1wt] }),
   }).canUseTool as unknown as Can;
   const db = workspacePaths(env.home).dbFile;
   const cases: [string, () => Promise<{ behavior: string }>][] = [

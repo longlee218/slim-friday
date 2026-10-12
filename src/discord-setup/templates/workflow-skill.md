@@ -5,7 +5,7 @@ description: Master workflow of a code task: triage, understand, plan, TDD imple
 
 # Workflow of a code task
 
-Owner-editable. The app gates the plan (owner approval), the PR and the result; this skill only sets how you work between those gates.
+Owner-editable. The app gates the plan (owner approval); you deliver (commit, push, PR) yourself once the owner chose it. This skill sets how you work.
 
 ## Steps
 
@@ -21,12 +21,12 @@ Owner-editable. The app gates the plan (owner approval), the PR and the result; 
 4. Implement (execute stage)
    - Test first: write a failing test, see it fail for the right reason, make it pass, refactor. Smallest change that works.
    - Plan with 3 or more tasks: run it with `superpowers:subagent-driven-development` (it brings `superpowers:requesting-code-review` and `superpowers:receiving-code-review`). Fewer than 3 tasks: `superpowers:executing-plans`, inline. These skills are in the execute stage's skill list only; the run rules say which subagent type each dispatch uses.
-   - One short conventional commit per task through the git tools. No scope beyond the plan: if the plan no longer fits, stop and explain.
+   - One short conventional commit per task with `git`. No scope beyond the plan: if the plan no longer fits, stop and explain.
 5. Verify
    - Run the repo's `testCommand` (and typecheck/lint when the repo has them) yourself. Read the output.
    - Paste the evidence: the command and the pass/fail line. No "should work", no claim without a fresh run.
 6. Deliver
-   - Stop after the report. You do not push, open the PR or merge: the app gates the PR and the result.
+   - After the report, offer the options (merge, push and open a PR, keep the branch) with the ask tool and act on the owner's choice. Merge, push or PR only after the owner chose it.
 
 ## Which skill when
 
@@ -39,7 +39,7 @@ Owner-editable. The app gates the plan (owner approval), the PR and the result; 
 | About to say "done", "fixed" or "passes" | `superpowers:verification-before-completion` |
 | A bug, a failing test or unexpected behavior | `superpowers:systematic-debugging` |
 
-Only the skills in the skill list are loaded. A skill that points at one that is not listed, or at a worktree, branch or merge step the app does itself, cannot be followed to the letter: apply its intent to this run as the run rules say, or skip the step.
+Only the skills in the skill list are loaded. A skill that points at one that is not listed cannot be followed to the letter: apply its intent to this run as the run rules say, or skip the step.
 
 ## Definition of done
 

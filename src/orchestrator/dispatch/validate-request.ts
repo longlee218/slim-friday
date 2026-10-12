@@ -1,8 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
 import { type Effort, resolveBudget, type TaskClass } from "../../config/model-routing";
-import type { GitData, GitMcp } from "../../mcp/git-mcp";
-import { GIT_TOOL } from "../../mcp/mcp-tool-names";
 import type { Repo } from "../../repos/repo-registry";
 import { dispatchableRoleNames, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition, StageDefinition } from "../../roles/role-types";
@@ -19,7 +17,7 @@ export interface DispatchRequest {
   brief: string;
   /** Repo name; missing = the thread's pinned repo, else the plan picks among the workspace clones. */
   repo?: string;
-  /** Local branch the task branches from; missing = the repo's default branch. */
+  /** Stored with the proposal but not used: the agent picks its own branch (Rev 15). */
   base?: string;
   /** Task class; missing = standard. */
   cls?: TaskClass;
@@ -40,7 +38,6 @@ export interface DispatchRequest {
 export interface ValidationDeps {
   db: Database;
   config: AgentConfig;
-  git: GitMcp;
   /** Repos of the workspace the task would run in. */
   repos: Repo[];
   /** Workspace the task would run in (the kept-clones cap counts its clones). */
@@ -59,7 +56,6 @@ export interface ValidRequest {
   candidates: Repo[];
   /** Row repo: the picked one's name, or `*` (the plan chooses). */
   repoName: string;
-  base?: string;
   cls: TaskClass;
 }
 
@@ -81,8 +77,8 @@ const ask = (reason: string, question: string): InvalidRequest => ({
 
 /**
  * Validate a request: role in the registry (and dispatchable), confidence, repo in the workspace
- * (`resolveTaskRepo`), `base` an existing local branch, cap (when the role counts), budget.
- * What the owner can fix (unknown role/repo/base, low confidence) -> `ask`; what only waiting fixes (cap, no
+ * (`resolveTaskRepo`), cap (when the role counts), budget.
+ * What the owner can fix (unknown role/repo, low confidence) -> `ask`; what only waiting fixes (cap, no
  * clone, no budget) -> `refuse`.
  */
 export async function validateRequest(
@@ -113,11 +109,6 @@ export async function validateRequest(
   }
   const { candidates } = resolved;
   const repoName = hint ? (candidates[0]?.name ?? "*") : "*";
-  if (req.base) {
-    const missing = await baseMissing(d.git, candidates, req.base);
-    if (missing)
-      return ask("unknown_base", `Branch "${req.base}" does not exist locally in ${missing}.`);
-  }
   const capped = role.countsTowardCap
     ? (capRefusal(d.db) ?? (d.workspace ? keptClonesRefusal(d.db, d.workspace) : undefined))
     : undefined;
@@ -136,19 +127,6 @@ export async function validateRequest(
     firstStage,
     candidates,
     repoName,
-    base: req.base,
     cls,
   };
-}
-
-/** Name of the first candidate repo without a local branch `base`, else undefined (all have it). */
-async function baseMissing(git: GitMcp, repos: Repo[], base: string): Promise<string | undefined> {
-  for (const r of repos) {
-    const out = await git
-      .call(GIT_TOOL.BRANCH, { path: r.path, mode: "list" })
-      .catch((): GitData => ({}));
-    const names = ((out.branches ?? []) as { name: string }[]).map((b) => b.name);
-    if (!names.includes(base)) return r.name;
-  }
-  return undefined;
 }

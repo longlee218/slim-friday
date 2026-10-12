@@ -1,11 +1,10 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { ATTACHMENT_PATH_PREFIX } from "../src/ingress/attachment-text";
 import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { CONFIRM_TASK_QUESTION } from "../src/orchestrator/dispatch/queued-tasks";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
@@ -23,9 +22,6 @@ import {
 
 // Discussion guard: L3 alone picks a NEW dev task right after an assistant turn -> ONE yes/no question first.
 // yes -> the task opens; no -> the assistant answers the original message.
-
-const git = createGitMcp();
-afterAll(() => git.close());
 
 /** Env with a workspace clone of a repo. */
 async function setup() {
@@ -75,7 +71,6 @@ async function build() {
   const e = engine();
   const seen: any[] = [];
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({

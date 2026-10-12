@@ -209,17 +209,15 @@ describe("class prefix", () => {
 });
 
 describe("budget hit message", () => {
-  test("states spent/limit, overshoot note, summary, diff stat; go +usd only when offered", () => {
+  test("states spent/limit, overshoot note, summary; go +usd only when offered", () => {
     const m = budgetHitMessage({
       spentUsd: 1.52,
       limitUsd: 1.5,
       summary: "did A",
-      diffStat: " a.ts | 2 +-",
     });
     expect(m).toContain("$1.52 of $1.50");
     expect(m).toContain("overshoot");
     expect(m).toContain("did A");
-    expect(m).toContain("a.ts | 2 +-");
     expect(m).not.toContain("go +");
     expect(budgetHitMessage({ goPlusUsd: 1.5 })).toContain("`/go +1.5`");
     expect(budgetHitMessage({})).toContain("? of ?");

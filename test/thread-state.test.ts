@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { CREATE_PR_APPROVAL } from "../src/orchestrator/engine/gates";
 import {
   deriveThreadState,
   isGateState,
@@ -49,10 +48,10 @@ test("awaiting_plan_approval: waiting on the plan gate", () => {
   expect(deriveThreadState(db, "th")).toBe("awaiting_plan_approval");
 });
 
-test("awaiting_result: waiting on the delivery gate", () => {
+test("no delivery gate any more: a pending approval labelled CreatePR (old row) is a plain tool approval", () => {
   const db = task("waiting_approval");
-  pending(db, CREATE_PR_APPROVAL);
-  expect(deriveThreadState(db, "th")).toBe("awaiting_result");
+  pending(db, "CreatePR");
+  expect(deriveThreadState(db, "th")).toBe("awaiting_tool_approval");
 });
 
 test("awaiting_tool_approval: a pending tool approval is not a gate; the decision lands -> running again", () => {
@@ -84,7 +83,7 @@ test("gate recognized by the running stage when no approval row is pending", () 
   expect(deriveThreadState(plan, "th")).toBe("awaiting_plan_approval");
   const exec = task("waiting_approval");
   upsertStage(exec, { turnId: "t1", idx: 1, name: "exec", status: "running" });
-  expect(deriveThreadState(exec, "th")).toBe("awaiting_result");
+  expect(deriveThreadState(exec, "th")).toBe("running"); // the exec stage has no gate since Rev 15
   expect(deriveThreadState(task("waiting_approval"), "th")).toBe("running"); // no hint at all
 });
 

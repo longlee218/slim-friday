@@ -21,7 +21,7 @@ export interface WorktreeRow {
   workspace: string | null;
   /** Commit of the base branch the clone was cut from; null = old git-worktree row (legacy cleanup). */
   baseSha: string | null;
-  /** `origin` url of the owner repo at create time (the app pushes to it in P2.2); null = none. */
+  /** `origin` url of the owner repo at create time (legacy: the app pushed to it before Rev 15); null = none. */
   originUrl: string | null;
   /** How the result is delivered: `pr` (GitHub origin) or `local`; null on old rows. */
   delivery: "pr" | "local" | null;

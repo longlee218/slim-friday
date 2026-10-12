@@ -74,9 +74,7 @@ async function capture(kind: Kind) {
     await runAgent({
       ...base,
       stage: getStage("dev", "exec"),
-      guard: guardFor("exec", { ...scope, writePaths: [env.home], gitWriteRepo: env.home }),
-      gitAuthor: { name: "Test Owner", email: "owner@example.com" },
-      gitBaseDir: env.home,
+      guard: guardFor("exec", { ...scope, writePaths: [env.home] }),
       code: { threadId: "th", gateway: undefined },
     });
   }
@@ -96,10 +94,10 @@ function normalize(o: Options, home: string) {
     ...JSON.parse(json),
     cwd: cwd === home ? "<home>" : cwd,
     mcpServers: Object.fromEntries(
-      // The github server depends on the local `gh` login: only its presence rule is pinned elsewhere.
-      Object.entries(mcpServers ?? {})
-        .filter(([k]) => k !== "github")
-        .map(([k, v]) => [k, (v as { type?: string }).type ?? "stdio"]),
+      Object.entries(mcpServers ?? {}).map(([k, v]) => [
+        k,
+        (v as { type?: string }).type ?? "stdio",
+      ]),
     ),
   };
 }
@@ -123,11 +121,10 @@ test("options lock: tools, mcp servers, permission mode per stage", async () => 
   expect(qa.o.tools).toContain(SEND_MESSAGE_TOOL_NAME); // every stage gets Agent + SendMessage
   expect(plan.o.tools).toContain("Write");
   expect(qa.o.tools).not.toContain("Write");
-  // MCP: git always; no in-process app server in any stage (no handoff tool).
-  for (const r of [qa, plan, exec]) {
-    expect(Object.keys(r.o.mcpServers ?? {})).toContain(GIT_MCP_SERVER);
-    expect(Object.keys(r.o.mcpServers ?? {})).not.toContain("tasks");
-  }
+  // MCP: the git server (reads) only for the assistant; the dev stages get none (git and gh run in the shell); no
+  // GitHub server and no in-process app server anywhere.
+  expect(Object.keys(qa.o.mcpServers ?? {})).toEqual([GIT_MCP_SERVER]);
+  for (const r of [plan, exec]) expect(r.o.mcpServers).toEqual({});
   // plan mode in the plan stage, auto mode (classifier) in exec.
   expect(plan.o.permissionMode).toBe("plan");
   expect(exec.o.permissionMode).toBe("bypassPermissions");

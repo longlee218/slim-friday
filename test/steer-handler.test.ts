@@ -1,4 +1,4 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
@@ -6,7 +6,6 @@ import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { captureLogs } from "../src/observability/logger";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import {
@@ -30,8 +29,6 @@ import {
   TEST_CHANNEL,
 } from "./helpers";
 
-const git = createGitMcp();
-
 /** The steer reply of a run past its approved plan: "received" plus the one-line warning (Rev 11, M-a). */
 const RECEIVED_AFTER_PLAN = `${STEER_RECEIVED}\n${PLAN_NOT_REAPPROVED}`;
 
@@ -47,7 +44,6 @@ const queuedRoles = (db: ReturnType<typeof makeEnv>["db"]) =>
 /** Pending proposals (the open questions). */
 const listPendingProposals = (db: ReturnType<typeof makeEnv>["db"]) =>
   db.query("SELECT id FROM proposals WHERE status = 'pending'").all();
-afterAll(() => git.close());
 
 /** Env with one managed clone `real` (dev tasks need it). */
 async function setup() {
@@ -104,7 +100,7 @@ test("running exec: supplement -> steered (task.steer {len}, no body, reply says
         yield resultMsg({ result: "plan rejected" });
         return;
       }
-      if (!o.cwd.includes(`${"/"}worktrees${"/"}`)) {
+      if (!o.tools.includes("Write")) {
         yield resultMsg({ result: "assistant answer" });
         return;
       }
@@ -138,7 +134,6 @@ test("running exec: supplement -> steered (task.steer {len}, no body, reply says
       yield resultMsg({ result: "Xong", session_id: "sess-exec" });
     })();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({
@@ -256,7 +251,6 @@ test("[dev] tag while a steerable run works: the tag only picks the role, L3 dec
   const l3: string[] = [];
   const deps = intent(env.home);
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({

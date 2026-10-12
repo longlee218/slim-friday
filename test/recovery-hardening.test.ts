@@ -191,6 +191,10 @@ test("resolveCommand: plan stage / worktree / Q&A cwd ok; unusable cwd, stale, n
   interrupted(env, "q", env.repo, "B");
   expect(resume("q")).toMatchObject({ cmd: { kind: "message", text: RESUME_PROMPT } });
 
+  // A staged role's exec session ran in the repo itself (no clone since Rev 15): it is not resumed as a plain message.
+  interrupted(env, "g", env.repo, "G", "dev");
+  expect(resume("g")).toMatchObject({ reason: "cannot_resume" });
+
   // cwd outside the home cwd dir / registered repos: a fresh session would have no context.
   interrupted(env, "x", "/elsewhere", "C");
   expect(resume("x")).toHaveProperty("reply");

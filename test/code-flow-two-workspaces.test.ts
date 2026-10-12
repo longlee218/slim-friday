@@ -1,26 +1,22 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 /** Same fake SDK as the main code-flow tests, copied small: plan approves, exec commits b.txt. */
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { makeLegacyClone } from "./clone-fixture";
 import { g, makeRepo } from "./git-fixture";
 import {
   addRepo,
   clearWorkspaces,
-  DEV_REQUEST,
   devIntent,
   makeEnv,
   resultMsg,
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-
-const git = createGitMcp();
-afterAll(() => git.close());
 
 /** Adds a managed clone `real` to workspace `ws` with the given commit author. */
 async function addCloneRepo(home: string, ws: string, author: string, channels: string[] = []) {
@@ -66,7 +62,10 @@ const msg = (text: string) => ({
   text,
 });
 
-/** Env with workspace `w-b` (repo `real`, author Bee) already holding the thread's worktree. */
+/**
+ * Env with workspace `w-b` (repo `real`) that ran the thread's task (exec in the repo, no clone) and then holds a LEGACY
+ * clone row for the thread, as a thread of an older build would (the follow-up routing is deleted in phase 4).
+ */
 async function started() {
   const env = makeEnv();
   clearWorkspaces(env.home);
@@ -77,7 +76,6 @@ async function started() {
     askChoice: async (a) => a.options[0],
   });
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: gw,
@@ -85,11 +83,21 @@ async function started() {
     intent: devIntent(env.home),
   });
   await handle(msg("[dev] add b"));
+  const taskId = (env.db.query("SELECT id FROM turns").get() as { id: string }).id;
+  const repoPath = workspacePaths(env.home).workspace("w-b").repo("real").clone;
+  await makeLegacyClone(env, {
+    repo: "real",
+    repoPath,
+    taskId,
+    threadId: "th1",
+    workspace: "w-b",
+  });
   return { env, seen, handle };
 }
 
-test("two workspaces with repo `real`: a follow-up stays in the worktree's workspace", async () => {
+test("two workspaces with repo `real`: the task's exec runs in the channel's workspace repo, and a legacy-clone follow-up stays in the clone's workspace", async () => {
   const { env, seen, handle } = await started();
+  expect(seen[1].options.cwd).toContain("/w-b/"); // exec of the first task: the repo of the channel's workspace
   // An alphabetically earlier workspace gains the same repo name after the worktree exists.
   await addCloneRepo(env.home, "w-a", "Aye <aye@example.com>");
   const n = seen.length;
@@ -97,11 +105,11 @@ test("two workspaces with repo `real`: a follow-up stays in the worktree's works
   expect(seen).toHaveLength(n + 1);
   const wt = getWorktreeByThread(env.db, "th1")!;
   expect(seen[n].options.cwd).toContain("/w-b/");
-  expect(seen[n].options.mcpServers.git.env.GIT_AUTHOR_EMAIL).toBe("bee@example.com");
+  expect(seen[n].options.mcpServers).toEqual({}); // no git MCP, no identity from the app
   expect(wt.path).toContain("/w-b/");
 });
 
-test("channel remapped to a workspace with another clone of `real`: follow-up refused, no run, no wrong author", async () => {
+test("channel remapped to a workspace with another clone of `real`: follow-up refused, no run", async () => {
   const { env, seen, handle } = await started();
   await addCloneRepo(env.home, "w-a", "Aye <aye@example.com>");
   // The channel now routes to w-a (w-b unmapped): w-a's `real` is not the worktree's clone.
@@ -130,7 +138,7 @@ test("channel remapped to a workspace with another clone of `real`: follow-up re
   const before = rows();
   const reply = await handle(msg("[dev] also c"));
   expect(reply).toContain("not in this channel's workspace");
-  expect(seen).toHaveLength(n); // the agent never ran with w-a's identity
+  expect(seen).toHaveLength(n); // the agent never ran in the other workspace's repo
   expect(rows()).toEqual(before); // refusal made no task row
 });
 

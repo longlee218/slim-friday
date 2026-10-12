@@ -15,9 +15,6 @@ export const mcpToolName = (server: string, tool: string): string =>
 
 /** Git MCP server (@cyanheads/git-mcp-server 2.15.3), started by the app. */
 export const GIT_MCP_SERVER = "git";
-/** GitHub MCP server (read-only for agents; the app opens PRs through a write-enabled one). */
-export const GITHUB_MCP_SERVER = "github";
-
 /** Every tool of the git MCP server (names fixed by that server). */
 export const GIT_TOOL = {
   STATUS: "git_status",
@@ -48,10 +45,4 @@ export const GIT_TOOL = {
   TAG: "git_tag",
   WORKTREE: "git_worktree",
   WRAPUP_INSTRUCTIONS: "git_wrapup_instructions",
-} as const;
-
-/** GitHub MCP tools the app itself calls to open a PR. */
-export const GITHUB_TOOL = {
-  CREATE_PULL_REQUEST: "create_pull_request",
-  LIST_PULL_REQUESTS: "list_pull_requests",
 } as const;

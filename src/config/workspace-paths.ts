@@ -54,7 +54,7 @@ export function workspacePaths(agentHome: string) {
         tasks,
         /** Where worktrees may be created: the guard only lets `git worktree add` / EnterWorktree name a path inside it. */
         worktrees: join(root, "worktrees"),
-        /** One task's dir: scratch for the plan stage, plan.md for the execute stage. */
+        /** One task's dir: scratch for the plan stage, the approved plan (plan.md) the execute stage reads. */
         task: (id: string) => {
           const troot = join(tasks, id);
           return { root: troot, scratch: join(troot, "scratch"), plan: join(troot, "plan.md") };
@@ -68,8 +68,9 @@ export function workspacePaths(agentHome: string) {
             config: join(rroot, "repo.yaml"),
             /** Agent-written repo memory. */
             memory: join(rroot, "MEMORY.md"),
-            /** Managed clone (staged tasks branch from it). */
+            /** Managed clone: the default repo path (the exec stage works in the repo's own checkout). */
             clone: join(rroot, "repo"),
+            /** Task clones of tasks from before Rev 15 (the app makes no new ones; removed in phase 4). */
             worktrees: join(rroot, "worktrees"),
           };
         },

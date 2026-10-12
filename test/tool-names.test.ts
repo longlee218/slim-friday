@@ -1,14 +1,7 @@
 import { expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  GIT_MCP_SERVER,
-  GIT_TOOL,
-  GITHUB_MCP_SERVER,
-  GITHUB_TOOL,
-  mcpServerPrefix,
-  mcpToolName,
-} from "../src/mcp/mcp-tool-names";
+import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
 import * as sdk from "../src/tools/sdk-tool-names";
 
 // The ONLY test with tool-name literals: it pins the wire contract (SDK / MCP server names) that every
@@ -55,13 +48,8 @@ test("SDK built-in tool names are the real wire names", () => {
 
 test("MCP server and tool names are the real wire names", () => {
   expect(GIT_MCP_SERVER).toBe("git");
-  expect(GITHUB_MCP_SERVER).toBe("github");
   expect(Object.keys(GIT_TOOL)).toHaveLength(28);
   for (const [k, v] of Object.entries<string>(GIT_TOOL)) expect(v).toBe(`git_${k.toLowerCase()}`);
-  expect(GITHUB_TOOL).toEqual({
-    CREATE_PULL_REQUEST: "create_pull_request",
-    LIST_PULL_REQUESTS: "list_pull_requests",
-  });
 });
 
 test("full MCP names: mcp__<server>__<tool>, valid characters", () => {

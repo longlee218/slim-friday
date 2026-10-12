@@ -19,7 +19,7 @@ export interface PlanStageResult {
 }
 
 /**
- * Stage with `isolation: none` + `gate: plan-approval`: plan mode in the task scratch dir, repos read-only.
+ * Stage with `gate: plan-approval`: plan mode in the task scratch dir, repos read-only.
  * Ends (run aborted) when the plan is approved, or when the questions time out; `stop` aborts it through
  * the task's controller.
  */

@@ -152,7 +152,6 @@ async function main(): Promise<void> {
     drain: handleMessage.drain,
     destroyClient: async () => {
       await opsLog.post("shutdown", closeReason);
-      await handleMessage.close().catch(() => undefined); // stop the git MCP server process
       await client.destroy();
     },
     closeDb: () => db.close(),

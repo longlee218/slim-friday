@@ -22,9 +22,10 @@ import {
   safeRemoveClone,
   taskBranch,
 } from "../src/workspaces/clone-safety";
-import { createTaskClone, deliveryFor, startWorktree } from "../src/workspaces/task-clone";
+import { createTaskClone } from "../src/workspaces/task-clone";
+import { cloneEnv } from "./clone-fixture";
 import { g, LEGACY_WT_FIELDS, makeRepo } from "./git-fixture";
-import { addRepo, clearWorkspaces, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+import { resultMsg, TEST_CHANNEL } from "./helpers";
 
 // Independent local clone per code task (P2.1), real git in temp dirs, no network.
 
@@ -176,13 +177,10 @@ test("clone + work in the clone never change the owner repo's objects or refs", 
   expect(await g(src.repo, "fsck")).not.toContain("error");
 });
 
-test("branch naming and delivery mode", () => {
+test("branch naming", () => {
   expect(branchSlug("Add the /login page, please!!")).toBe("add-the-login-page-please");
   expect(branchSlug("!!!")).toBe("task");
   expect(taskBranch("abcdef12-0000", "x".repeat(80))).toMatch(/^friday\/abcdef12-x{30}$/);
-  expect(deliveryFor("git@github.com:Acme/widgets.git")).toBe("pr");
-  expect(deliveryFor("https://gitlab.com/a/b")).toBe("local");
-  expect(deliveryFor(null)).toBe("local");
 });
 
 test("safeRemoveClone: only inside its root; symlinks and the root itself are refused", () => {
@@ -205,63 +203,18 @@ test("safeRemoveClone: only inside its root; symlinks and the root itself are re
   expect(safeRemoveClone(join(root, "gone"), root)).toBe(true); // missing = already clean
 });
 
-/** Env + a real owner repo registered as an EXTERNAL working copy (outside the workspace dirs). */
+/** Env + a real owner repo registered as an EXTERNAL working copy; `start` makes a LEGACY clone of it (see clone-fixture.ts). */
 async function external() {
-  const env = makeEnv();
-  clearWorkspaces(env.home);
-  const src = await makeRepo("main");
-  addRepo(env.home, "ext", { gitAuthor: "Test User <test@example.com>" }, { path: src.repo });
-  const repo = { name: "ext", path: src.repo, gitAuthor: "Test User <test@example.com>" } as never;
-  const deps = { db: env.db, config: env.config } as never;
-  const input = (taskId: string, over: Record<string, unknown> = {}) =>
-    ({
-      turnId: taskId,
-      threadId: "th",
-      workspace: "main",
-      text: "add b",
-      ac: new AbortController(),
-      ...over,
-    }) as never;
-  return { env, src, repo, deps, input };
+  const { env, src, repo, deps, start } = await cloneEnv();
+  return { env, src, repo, deps, start };
 }
 
 const WHERE = { threadId: "th", channelId: "c" };
 const TID = "abcdef12-1111-2222-3333-444455556666";
 
-test("startWorktree: clones an external owner repo, records the row + plan; a stop leaves nothing", async () => {
-  const { env, src, repo, deps, input } = await external();
-  const dir = env.paths.workspace("main").repo("ext").worktrees;
-  const ok = await startWorktree(deps, input(TID), repo, "the plan");
-  if (!("wt" in ok)) throw new Error(ok.text);
-  expect(ok.wt.path).toBe(join(dir, TID));
-  expect(ok.wt).toMatchObject({
-    branch: "friday/abcdef12-add-b",
-    status: "active",
-    delivery: "local",
-  });
-  expect(getWorktreeByTask(env.db, TID)).toMatchObject({
-    baseSha: ok.wt.baseSha,
-    workspace: "main",
-  });
-  expect(readFileSync(join(ok.execScratch, "plan.md"), "utf8")).toBe("the plan");
-  expect(await g(src.repo, "worktree", "list")).not.toContain(TID);
-
-  const ac = new AbortController();
-  ac.abort();
-  const tid2 = "12345678-1111-2222-3333-444455556666";
-  const stopped = await startWorktree(deps, input(tid2, { ac }), repo, "p");
-  expect(stopped).toMatchObject({ outcome: "aborted" });
-  expect(existsSync(join(dir, tid2))).toBe(false);
-  expect(getWorktreeByTask(env.db, tid2)).toBeNull();
-  // A refusal reads as one line for the owner.
-  const noBase = await startWorktree(deps, input("99999999-0", { base: "zzz" }), repo, "p");
-  expect("text" in noBase ? noBase.text : "").toContain('Base branch "zzz" not found locally');
-});
-
 test("cleanup: removes the clone + row; a tampered row is refused; legacy rows go through git", async () => {
-  const { env, src, repo, deps, input } = await external();
-  const ok = await startWorktree(deps, input(TID), repo, "p");
-  if (!("wt" in ok)) throw new Error(ok.text);
+  const { env, src, start } = await external();
+  const ok = { wt: await start(TID) };
   const cdeps = { db: env.db, agentHome: env.home, active: new Map<string, unknown>() };
   expect(await cleanupWorktree({ ...cdeps, active: new Map([["th", 1]]) }, WHERE)).toContain(
     "in use",
@@ -302,16 +255,6 @@ test("cleanup: removes the clone + row; a tampered row is refused; legacy rows g
   expect(await cleanupWorktree(cdeps, { threadId: "th8", channelId: "c" })).toContain("Removed");
   expect(await g(src.repo, "worktree", "list")).not.toContain("legacy-");
   expect(await g(src.repo, "branch", "--list", "agent/old")).toBe("");
-});
-
-test("startWorktree: a task id that already has a row is refused and its clone and row survive", async () => {
-  const { env, repo, deps, input } = await external();
-  const first = await startWorktree(deps, input(TID), repo, "p");
-  if (!("wt" in first)) throw new Error(first.text);
-  const again = await startWorktree(deps, input(TID), repo, "p");
-  expect("text" in again ? again.text : "").toContain("already has a clone");
-  expect(existsSync(first.wt.path)).toBe(true);
-  expect(getWorktreeByTask(env.db, TID)).not.toBeNull();
 });
 
 test("cleanup: a tampered workspace or repo name is refused and nothing outside is deleted", async () => {
@@ -364,18 +307,9 @@ test("cleanup: a legacy row with a non-agent branch never deletes an owner branc
   expect(await g(src.repo, "branch", "--list", "main")).toContain("main");
 });
 
-test("Q&A refresh (git pull) never runs on an owner checkout outside the workspace clones", async () => {
+test("Q&A refresh never runs on an owner checkout outside the workspace clones", async () => {
   const { env, src } = await external();
-  const calls: string[] = [];
-  const git = {
-    call: async (t: string) => {
-      calls.push(t);
-      return {};
-    },
-    close: async () => {},
-  } as never;
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     queryFn: ((_a: unknown) =>
@@ -390,6 +324,5 @@ test("Q&A refresh (git pull) never runs on an owner checkout outside the workspa
     threadId: "q1",
     text: "[ask] what is here?",
   });
-  expect(calls).toEqual([]);
   expect(await runGit(["status", "--short"], src.repo)).toMatchObject({ stdout: "" });
 });

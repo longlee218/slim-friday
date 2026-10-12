@@ -51,7 +51,7 @@ const envSchema = z.object({
   // Legacy alias, KEPT on purpose (the owner's .env still sets it): pins assistant qa, warns once at startup (stage-env.ts).
   MODEL: z.string().trim().min(1).optional(),
   MEMORY_MODEL: z.string().trim().min(1).optional(),
-  GIT_AUTHOR: z.string().trim().min(1).optional(),
+  GIT_AUTHOR: z.string().trim().min(1).optional(), // accepted and IGNORED since Rev 15 (the agent uses the owner's git config)
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
   // Intent layer L3 (src/intent). `jev` is the owner's later engine: accepted here, refused by the factory until it exists.
@@ -99,8 +99,6 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   deprecated: string[];
   /** Model of the manual memory compaction call (one cheap call per over-threshold file). */
   memoryModel: string;
-  /** Default commit identity `Name <email>` for repos without their own `gitAuthor`. */
-  gitAuthor: string | undefined;
   /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the stage budget; OpenRouter: only this). */
   limits: { maxBudgetUsd: number | undefined; timeoutMs: number };
   /** Days a delivered/kept task clone is retained before startup removes it (CLONE_RETENTION_DAYS). */
@@ -150,7 +148,6 @@ export function loadConfig(
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
     model: e.MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL),
-    gitAuthor: e.GIT_AUTHOR,
     memoryModel:
       e.MEMORY_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MEMORY_MODEL : routing.models.haiku),
     limits: {

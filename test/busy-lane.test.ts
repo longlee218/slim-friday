@@ -1,11 +1,10 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import type { ApprovalResult } from "../src/approvals/approval-types";
 import { workspacePaths } from "../src/config/workspace-paths";
 import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import {
   FEEDBACK_SENT,
@@ -38,9 +37,6 @@ import {
 /* The busy lane (Rev 11 review fixes): per-thread order of busy messages (H-a), the side lane for an answering
    role (H-b), the plan gate and typed feedback (H-c), the immediate ack (M-d). A fake CLI keeps a plan stage
    (streaming, steerable) running until the test releases it. */
-
-const git = createGitMcp();
-afterAll(() => git.close());
 
 /** Env with one managed clone `real` (dev tasks need it). */
 async function setup() {
@@ -183,7 +179,6 @@ async function harness(o: { steersToRead?: number; gate?: boolean; limit?: numbe
   };
   const limiter = createRunLimiter(o.limit ?? 5);
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals,

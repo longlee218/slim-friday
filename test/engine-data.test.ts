@@ -36,15 +36,14 @@ test("the dev plan stage hands on with the exact prompt the callback used to bui
 });
 
 test("gate table: every gate but none has an approval label and a state", () => {
-  expect(Object.keys(GATES).sort()).toEqual(["delivery", "owner-confirm", "plan-approval"]);
+  expect(Object.keys(GATES).sort()).toEqual(["owner-confirm", "plan-approval"]); // no delivery gate since Rev 15
   expect(stateOfGate("plan-approval")).toBe("awaiting_plan_approval");
-  expect(stateOfGate("delivery")).toBe("awaiting_result");
   expect(stateOfGate("none")).toBeUndefined();
-  expect(stateOfApprovalTool(GATES.delivery.tool)).toBe("awaiting_result");
+  expect(stateOfApprovalTool("CreatePR")).toBeUndefined(); // the PR button is gone
   expect(stateOfApprovalTool("Bash")).toBeUndefined();
 });
 
-test("stageKind comes from gate + isolation data; owner-confirm is not runnable yet", () => {
+test("stageKind comes from gate + capability data (a stage that writes runs in the repo); owner-confirm is not runnable yet", () => {
   const base: StageDefinition = {
     name: "x",
     capabilities: [],
@@ -54,9 +53,10 @@ test("stageKind comes from gate + isolation data; owner-confirm is not runnable 
     budgetUsd: 1,
   };
   expect(stageKind({ ...base, gate: "plan-approval" })).toBe("plan");
-  expect(stageKind({ ...base, isolation: "clone", gate: "delivery" })).toBe("clone");
-  expect(stageKind({ ...base, isolation: "clone" })).toBe("clone");
+  expect(stageKind({ ...base, capabilities: ["read", "write"] })).toBe("repo");
+  expect(stageKind({ ...base, capabilities: ["write"], gate: "none" })).toBe("repo");
+  expect(stageKind({ ...base, capabilities: ["read"] })).toBe("plain");
   expect(stageKind({ ...base })).toBe("plain");
   expect(stageKind({ ...base, gate: "owner-confirm" })).toBe("unsupported");
-  expect(stageKind({ ...base, isolation: "clone", gate: "plan-approval" })).toBe("unsupported");
+  expect(stageKind({ ...base, capabilities: ["write"], gate: "plan-approval" })).toBe("plan");
 });

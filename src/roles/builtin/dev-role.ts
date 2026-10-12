@@ -9,6 +9,7 @@ import {
   SKILL_RUN_FACTS,
   VAGUE_PLAN_RULE,
   workflowRules,
+  worktreeRule,
 } from "./dev-prompts";
 
 /** Owner questions (AskUserQuestion) the whole task may make, plan and exec together. Wired: ask guard + prompt text. */
@@ -37,12 +38,12 @@ const CODE_STAGE_BASE = {
   openrouterModel: "anthropic/claude-haiku-4.5",
 } satisfies Partial<StageDefinition>;
 
-/** Code changes: a plan the owner approves, then an execute run in an isolated clone on its own branch. */
+/** Code changes: a plan the owner approves, then an execute run in the repo's own checkout; the agent delivers (commit, push, PR). */
 export const DEV_ROLE: RoleDefinition = {
   name: "dev",
   whenToUse:
     "Outcome is a change to the code: implement, fix, refactor, add tests; also research, design or plan a FUTURE change of the project. Plans, owner approves, then a PR. Not for: learning how existing code works.",
-  output: "pr",
+  output: "result",
   skills: "all", // every installed publisher skill (installing one needs no code change)
   maxAsk: MAX_ASK,
   countsTowardCap: true,
@@ -55,9 +56,8 @@ export const DEV_ROLE: RoleDefinition = {
       model: "sonnet",
       classTiers: { mechanical: "sonnet", standard: "sonnet", design: "opus" },
       budgetUsd: 1.5,
-      gitGroups: ["read"],
+      gitGroups: [], // no git MCP: the agent uses `git` in the shell
       permissionMode: "plan",
-      isolation: "none",
       gate: "plan-approval",
       handoff: {
         planFile: "plan.md",
@@ -80,12 +80,11 @@ export const DEV_ROLE: RoleDefinition = {
       model: "sonnet",
       classTiers: { mechanical: "haiku", standard: "sonnet", design: "opus" },
       budgetUsd: 3.0,
-      gitGroups: ["read", "commit", "change"],
-      isolation: "clone",
-      gate: "delivery",
+      gitGroups: [],
       promptSections: (ctx) => [
         EXEC,
         EXEC_RUN_FACTS,
+        ctx.worktreesDir ? worktreeRule(ctx.worktreesDir) : "",
         SKILL_RUN_FACTS,
         EXEC_MEMORY,
         askRules(MAX_ASK),

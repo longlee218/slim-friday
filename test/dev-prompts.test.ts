@@ -74,16 +74,17 @@ test("vague rule: only 'nothing to plan', a design request is not vague, Need: f
 
 test("exec: run facts, no-code-change path, workflow-skill report, memory and git rules kept", () => {
   const text = rules("exec");
-  expect(text).toContain("No worktree or branch to create");
+  expect(text).toContain("the repo's own checkout");
   expect(text).toContain("plan.md");
-  expect(text).toContain("Never use the shell for git");
+  expect(text).toContain("`git` and `gh` in the shell");
+  expect(text).toContain("Merge, push or PR only after the owner chose it.");
   expect(text).toContain("by absolute path from the skill's base directory");
   expect(text).toContain('Only when the approved plan itself says "no code change"');
   expect(text).toContain("workflow skill's report format");
   expect(text).toContain('titled exactly "Memory:"');
   expect(text).toContain("NEVER add Co-Authored-By");
-  expect(text).toContain("never push");
-  expect(text.indexOf("Outcome:")).toBeLessThan(text.indexOf("Use the git MCP tools"));
+  expect(text).not.toContain("git MCP");
+  expect(text.indexOf("Outcome:")).toBeLessThan(text.indexOf("`git` and `gh` in the shell"));
 });
 
 test("assistant QA: short, answer first, unsure rule, change requests need a task, ESCALATE verbatim", () => {

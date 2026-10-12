@@ -84,7 +84,6 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     {
       db,
       config,
-      git: deps.git,
       repos: i.repos,
       workspace: i.workspace,
       pinned: i.pinned,
@@ -164,7 +163,6 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     // `repoScope: "all"` roles see every repo of the workspace; the others pick among the managed clones.
     repos: role.repoScope === "all" ? i.repos : v.candidates,
     ac: i.ac,
-    base: v.base,
     route,
     pinned: i.pinned,
     // An answering role continues the thread's conversation and sees its task ledger (same as a fresh message).

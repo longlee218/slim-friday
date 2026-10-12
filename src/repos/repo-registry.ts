@@ -1,10 +1,8 @@
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { z } from "zod";
-import type { AgentConfig } from "../config/agent-config";
 import { REPO_NAME, type WorkspacePaths } from "../config/workspace-paths";
 import { isInside } from "../guardrails/paths";
-import type { GitIdentity } from "../mcp/git-mcp";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 
@@ -20,19 +18,15 @@ export interface Repo {
   path: string;
   /** One-line hint the agent uses to pick the repo. */
   description: string;
-  /** Branch worktrees are cut from (default "main"). */
+  /** Default branch of the repo (default "main"); the agent decides what to branch from. */
   defaultBranch?: string;
   /** Shell command the agent runs to test changes in this repo. */
   testCommand?: string;
-  /** `gh` login whose token opens PRs for this repo; active gh account when absent. */
-  githubAccount?: string;
-  /** Commit identity `Name <email>`; agent commits are made as this user, never the global git user. */
-  gitAuthor?: string;
-  /** How clone-isolated stages run here: `lean` (default, app plan -> exec) or `full` (the repo's own workflow and skills, autonomous). */
+  /** How exec stages run here: `lean` (default, app plan -> exec) or `full` (the repo's own workflow and skills, autonomous). */
   workflow?: Workflow;
 }
 
-/** Per-repo workflow of clone-isolated stages. */
+/** Per-repo workflow of exec stages. */
 export type Workflow = "lean" | "full";
 
 /** Paths of one workspace (`workspacePaths(home).workspace(name)`). */
@@ -45,6 +39,7 @@ const configSchema = z.object({
   description: z.string().trim().default(""),
   defaultBranch: z.string().trim().min(1).optional(),
   testCommand: z.string().trim().min(1).optional(),
+  // Accepted and IGNORED since Rev 15 (the agent commits and opens PRs with the owner's own git config and `gh` login).
   githubAccount: z.string().trim().min(1).optional(),
   gitAuthor: z.string().trim().min(1).optional(),
   workflow: z.enum(["lean", "full"]).default("lean"),
@@ -135,18 +130,4 @@ export function buildRegistryContext(ws: string, repos: Repo[], force = false): 
     return `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}${flow}`;
   });
   return `Available repos in workspace ${ws} (pick the one that fits the question; search only these paths):\n${lines.join("\n")}`;
-}
-
-/**
- * Parse `Name <email>`; null when malformed. Deliberately strict: the git MCP server refuses to start
- * with a name under 2 chars or an email without a 2+ letter domain suffix, and then the agent has no git tools.
- */
-export function parseAuthor(text: string | undefined): GitIdentity | null {
-  const m = /^\s*(.{2,}?)\s*<([^<>\s@]+@[^<>\s@]+\.[A-Za-z]{2,})>\s*$/.exec(text ?? "");
-  return m ? { name: m[1]!, email: m[2]! } : null;
-}
-
-/** Commit identity for a repo: its own `gitAuthor` (repo.yaml), else the global GIT_AUTHOR env. Null = not configured. */
-export function resolveAuthor(repo: Repo, config: AgentConfig): GitIdentity | null {
-  return parseAuthor(repo.gitAuthor) ?? parseAuthor(config.gitAuthor);
 }

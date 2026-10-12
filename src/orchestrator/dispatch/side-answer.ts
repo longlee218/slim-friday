@@ -56,7 +56,6 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
     {
       db,
       config,
-      git: deps.git,
       repos: i.repos,
       workspace: i.workspace,
       pinned: i.pinned,

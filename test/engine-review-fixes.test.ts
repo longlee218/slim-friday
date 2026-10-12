@@ -1,5 +1,4 @@
-import { afterAll, expect, test } from "bun:test";
-import { createGitMcp } from "../src/mcp/git-mcp";
+import { expect, test } from "bun:test";
 import { runStages } from "../src/orchestrator/engine/stage-runner";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { DEV_ROLE } from "../src/roles/builtin/dev-role";
@@ -8,9 +7,6 @@ import type { RoleDefinition, StageDefinition } from "../src/roles/role-types";
 import { insertTurn } from "../src/storage/run-store";
 import { listStages } from "../src/storage/stage-store";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-
-const git = createGitMcp();
-afterAll(() => git.close());
 
 const S: StageDefinition = {
   name: "s",
@@ -40,7 +36,6 @@ async function runProbe(role: RoleDefinition, extra: { worktree?: never } = {}) 
     insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
     const res = await runStages(
       {
-        git,
         db: env.db,
         config: env.config,
         approvals: stubGateway(),
@@ -69,7 +64,7 @@ async function runProbe(role: RoleDefinition, extra: { worktree?: never } = {}) 
 }
 
 test("a plain stage with an output that has no handler fails closed before any run", async () => {
-  for (const output of ["verdict", "plan", "pr"] as const) {
+  for (const output of ["verdict", "plan", "result"] as const) {
     const r = await runProbe(probe({ output }));
     expect(r.res.outcome).toBe("error");
     expect(r.res.text).toContain("no handler");
@@ -84,12 +79,16 @@ test("all stages are validated before the first one runs (no side effect)", asyn
   expect([r.calls, r.rows.length]).toEqual([0, 0]);
   const plan = { ...S, name: "p", gate: "plan-approval" as const };
   const r2 = await runProbe(probe({ stages: [plan, S] }));
-  expect(r2.res.text).toContain("must run in a clone");
+  expect(r2.res.text).toContain("must run in the repo");
   expect([r2.calls, r2.rows.length]).toEqual([0, 0]);
 });
 
-test("a role with an isolated stage and no followUp refuses a follow-up in a clone", async () => {
-  const clone = { ...S, name: "c", isolation: "clone" as const };
+test("a role with a repo stage and no followUp refuses a follow-up in a legacy clone", async () => {
+  const clone = {
+    ...S,
+    name: "c",
+    capabilities: ["read", "write"] as StageDefinition["capabilities"],
+  };
   const wt = { path: "/nowhere", repo: "repo" } as never;
   const noFollow = await runProbe(probe({ stages: [clone] }), { worktree: wt });
   expect(noFollow.res.text).toContain("no follow-up");
@@ -103,7 +102,6 @@ test("a thrown stage run marks the row failed, not running", async () => {
   insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
   const run = runStages(
     {
-      git,
       db: env.db,
       config: env.config,
       approvals: stubGateway(),

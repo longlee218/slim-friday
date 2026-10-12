@@ -1,6 +1,5 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
 import {
   type DispatchRequest,
@@ -12,9 +11,6 @@ import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { g, makeRepo } from "./git-fixture";
 import { addRepo, clearWorkspaces, makeEnv } from "./helpers";
 
-const git = createGitMcp();
-afterAll(() => git.close());
-
 /** Workspace `main` with a managed clone `real` (a real git repo, branch main) and an unmanaged `wc`. */
 async function setup() {
   const env = makeEnv();
@@ -24,7 +20,7 @@ async function setup() {
   addRepo(env.home, "real", {}, { path: clone });
   await g(env.home, "clone", "-q", src.repo, clone);
   const repos = loadWorkspaces(env.home).workspaces[0]!.repos;
-  return { env, repos, deps: { db: env.db, config: env.config, git, repos } };
+  return { env, repos, deps: { db: env.db, config: env.config, repos } };
 }
 
 const req = (over: Partial<DispatchRequest> = {}): DispatchRequest => ({
@@ -83,17 +79,11 @@ test("low confidence asks once; `confirmed` (owner said go) skips the question",
   });
 });
 
-test("base must be an existing local branch of the repo", async () => {
+test("base is stored with the proposal but no longer validated or used (the agent picks its branch)", async () => {
   const { deps } = await setup();
-  expect(await validateRequest(deps, req({ base: "main" }))).toMatchObject({
-    ok: true,
-    base: "main",
-  });
-  expect(await validateRequest(deps, req({ base: "release/9" }))).toMatchObject({
-    ok: false,
-    action: "ask",
-    refusal: { reason: "unknown_base" },
-  });
+  const v = await validateRequest(deps, req({ base: "release/9" }));
+  expect(v).toMatchObject({ ok: true });
+  expect("base" in v).toBe(false);
 });
 
 test("cap: refused when the role counts toward it and the cap is full", async () => {

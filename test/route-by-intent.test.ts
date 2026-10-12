@@ -345,11 +345,11 @@ test("'no' to 'Open a task for this?' (also a row written by the older wording):
   expect(getProposal(env.db, id)?.status).toBe("refused");
 });
 
-test("table reads role DATA, not names: a gated role without a clone stage never gets a fix round", () => {
+test("table reads role DATA, not names: a gated role without a repo stage (no stage that writes without a gate) never gets a fix round", () => {
   const fake = {
     ...ROLES.dev,
     name: "design",
-    stages: [{ ...ROLES.dev!.stages[0]!, name: "design-plan", isolation: "none" as const }],
+    stages: [{ ...ROLES.dev!.stages[0]!, name: "design-plan" }],
   } as never;
   (ROLES as Record<string, unknown>).design = fake;
   try {

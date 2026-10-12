@@ -55,9 +55,9 @@ test("persona: workspace files replace root per file; templates and comments inj
   expect(shared.text).toContain("Name: Friday");
   expect(shared.text).toContain("Vietnamese"); // from USER
   expect(shared.text).not.toContain("<!--"); // comments stripped
-  // The default AGENTS.md carries the commit rule for task clones (A2): injected in a new home.
-  expect(shared.text).toContain("## Commits in task clones");
-  expect(shared.text).toContain("No AI attribution");
+  // The default AGENTS.md carries the one-line commit rule (Rev 15 phase 3): injected in a new home.
+  expect(shared.text).toContain("## Commits");
+  expect(shared.text).toContain("no AI attribution");
   // The workspace has no persona files yet: everything falls back to root.
   const forMain = buildPersonaContext(env.home, "main");
   expect(forMain.text).toContain("Name: Friday");

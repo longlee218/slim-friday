@@ -4,7 +4,6 @@ import type { AgentConfig } from "../config/agent-config";
 import { ceilingBinds, type Route } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import type { GuardrailContext } from "../guardrails/check-tool-call";
-import type { GitIdentity } from "../mcp/git-mcp";
 import { logEvent, logger } from "../observability/logger";
 import {
   emptyUsage,
@@ -40,18 +39,14 @@ export interface RunAgentInput {
   extraContext?: string[];
   /** Guardrails of the run (paths, git repos, allowed tools). Every mode has one; omitted only in unit tests. */
   guard?: GuardrailContext;
-  /** Commit identity of the agent's git MCP server (execute stage): every commit is made as this user. */
-  gitAuthor?: GitIdentity;
-  /** Directory tree the agent's git MCP server is sandboxed to (execute stage: the worktree). */
-  gitBaseDir?: string;
-  /** GitHub login whose token the read-only GitHub MCP server uses (code tasks); default = active gh account. */
-  githubAccount?: string;
   /** The stage to run: its tools, model slot, permission mode, timeout and prompt. */
   stage: StageDefinition;
   /** Permission layer of a gated stage (gateway, plan, ask limits). Omitted = a stage without a gateway (ask = deny). */
   code?: Omit<ToolPermissionInput, "turnId" | "guard">;
   /** `full` repo workflow (plan: some candidate repo is full; exec: the repo is): adds its rules to the prompt. */
   workflow?: Workflow;
+  /** Exec stage: where the agent may put a git worktree (`<workspace worktrees dir>/<repo>`), told in one prompt line. */
+  worktreesDir?: string;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never repo content). */
   skillsWorkspace?: string;
   /** Routing facts (class, effort, forced tier, escalation); omitted = the stage defaults. */
@@ -137,7 +132,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     const requestedMode = resolvePermissionMode(stage, config);
     const autoState: ModeActive = { active: requestedMode === "auto" };
     const bypassState: ModeActive = { active: requestedMode === "bypassPermissions" };
-    const options = await buildSdkOptions(stage, input, {
+    const options = buildSdkOptions(stage, input, {
       config,
       recorder,
       skills: sk,
@@ -162,7 +157,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       db: input.db,
       turnId: input.turnId,
       cwd: input.cwd,
-      requireGit: stage.gitGroups.includes("commit"),
       permissionWatch: createPermissionWatch(requestedMode, autoState, bypassState),
     };
     res = input.steer

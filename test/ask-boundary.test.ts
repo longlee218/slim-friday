@@ -1,7 +1,6 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { realpathSync } from "node:fs";
 import { guardFor } from "../src/guardrails/check-tool-call";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { getRole } from "../src/roles/role-registry";
 import { newAskLimit } from "../src/runtime/ask-limit";
@@ -10,14 +9,10 @@ import { getSession } from "../src/storage/session-store";
 import { getWorktreeByThread } from "../src/storage/worktree-store";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { setupWorkflow } from "./code-flow-fixture";
-import { devIntent, initMsg, promptText, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
 /** Ask cap of the dev role (the engine passes it to the guard; direct permission layers below get it explicitly). */
 const MAX_ASK = getRole("dev").maxAsk;
-
-/** The real git MCP server (pinned package), shared by the tests of this file. */
-const git = createGitMcp();
-afterAll(() => git.close());
 
 /** One batched AskUserQuestion input. */
 const QUESTIONS = {
@@ -77,7 +72,6 @@ test("the ask budget is shared across stages: spent in plan, denied in exec", as
       yield resultMsg({ result: "done" });
     })();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({
@@ -105,7 +99,7 @@ test("the ask budget is shared across stages: spent in plan, denied in exec", as
 });
 
 test("exec: no answer in time -> 'Awaiting clarification', session kept, task cancelled", async () => {
-  const { env } = await setupWorkflow();
+  const { env, clone } = await setupWorkflow();
   const next = (a: any) =>
     (async function* () {
       const o = a.options;
@@ -119,7 +113,6 @@ test("exec: no answer in time -> 'Awaiting clarification', session kept, task ca
       yield resultMsg({ result: "must not be reached" });
     })();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({ askChoice: async () => undefined }), // owner never answers
@@ -137,9 +130,8 @@ test("exec: no answer in time -> 'Awaiting clarification', session kept, task ca
   expect(reply.startsWith("Awaiting clarification:")).toBe(true);
   expect(reply).toContain("Drop the column? (default: keep)");
   expect(reply).toContain("Reply in this thread to continue.");
-  const wt = getWorktreeByThread(env.db, "th1")!;
-  expect(getSession(env.db, "th1")).toMatchObject({ session_id: "sess-exec", repo: "real" });
-  expect(getSession(env.db, "th1")!.cwd).toBe(realpathSync(wt.path));
+  expect(getWorktreeByThread(env.db, "th1")).toBeNull(); // exec ran in the repo, no clone
+  expect(getSession(env.db, "th1")).toBeNull(); // an exec session in the repo is not the thread's (the assistant would resume it)
   expect(env.db.query("SELECT status FROM turns WHERE type = 'code'").all()).toEqual([
     { status: "cancelled" },
   ]);
@@ -156,7 +148,6 @@ test("plan stage: no answer in time -> 'Awaiting clarification', no plan approva
       yield resultMsg({ result: "must not be reached" });
     })();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({ askChoice: async () => undefined }),
@@ -184,7 +175,6 @@ function handlerWith(
 ) {
   let call = 0;
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({ askChoice }),
@@ -330,63 +320,37 @@ test("two concurrent tasks have independent ask limits", async () => {
   expect(results).toEqual(["allow", "allow"]); // a shared limit would deny the second
 });
 
-test("resume after 'Awaiting clarification': the owner's reply resumes the exec session in the worktree", async () => {
-  const { env } = await setupWorkflow();
-  const execRuns: { resume?: string; cwd: string; prompt: string; second?: string }[] = [];
+test("after 'Awaiting clarification' at exec (no clone): the session is kept in the repo and a typed reply is a NEW task with a fresh plan", async () => {
+  const { env, clone } = await setupWorkflow();
+  const runs: { plan: boolean; resume?: string; cwd: string }[] = [];
   let ask = 0;
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     // First ask: owner silent (timeout). After the reply: the owner answers the next ask.
     approvals: stubGateway({ askChoice: async (a) => (++ask === 1 ? undefined : a.options[0]) }),
     queryFn: ((a: any) => {
       const o = a.options;
-      if (o.permissionMode === "plan" || !execRuns.length) {
-        return planThen(o, async () => {
-          execRuns.push({ cwd: o.cwd, prompt: await promptText(a.prompt) });
-          await askAndMaybeStop(o);
-        });
-      }
-      return (async function* () {
-        yield { ...initMsg, session_id: "sess-exec" };
-        // Current behavior (kept): a resumed reply is a fresh flow with a fresh limit, so the owner
-        // can be asked a second round after having answered.
-        const r = await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {});
-        execRuns.push({
-          resume: o.resume,
-          cwd: o.cwd,
-          prompt: await promptText(a.prompt),
-          second: r.behavior,
-        });
-        yield resultMsg({ result: "continued", session_id: "sess-exec" });
-      })();
+      runs.push({ plan: o.permissionMode === "plan", resume: o.resume, cwd: o.cwd });
+      return planThen(o, () => askAndMaybeStop(o));
     }) as never,
     intent: devIntent(env.home),
   });
-  const first = await handle({
+  const msg = (text: string) => ({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "[dev] please start",
+    text,
     notify: async () => {},
   });
-  expect(first.startsWith("Awaiting clarification")).toBe(true);
-  const wt = getWorktreeByThread(env.db, "th1")!;
-  await handle({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th1",
-    text: "[dev] keep the column",
-    notify: async () => {},
-  });
-  const resumed = execRuns[1]!;
-  expect(resumed).toMatchObject({
-    resume: "sess-exec",
-    cwd: realpathSync(wt.path),
-    prompt: "[dev] keep the column",
-    second: "allow",
-  });
+  expect((await handle(msg("[dev] please start"))).startsWith("Awaiting clarification")).toBe(true);
+  expect(getSession(env.db, "th1")).toBeNull(); // the exec session ran in the repo's own checkout: not the thread's
+  expect(getWorktreeByThread(env.db, "th1")).toBeNull();
+  // No clone to continue in (the fix loop goes in phase 4): the reply is a new task, plan first, no resume.
+  await handle(msg("[dev] keep the column"));
+  expect(runs.slice(2).map((r) => [r.plan, r.resume])).toEqual([
+    [true, undefined],
+    [false, undefined],
+  ]);
 });

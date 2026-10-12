@@ -164,14 +164,12 @@ test("auto-allowed tools are a subset of the mode's tools and never include writ
     expect(autoAllowedTools("exec")).not.toContain(t);
 });
 
-test("git tools: reads everywhere, commit/change only in exec, hidden = the complement", () => {
-  expect(gitToolsFor("qa")).toEqual(gitToolsFor("plan"));
+test("git tools: only reads (group read + by-mode reads), hidden = the complement; no stage gets add/commit", () => {
+  expect(Object.keys(GIT_GROUPS)).toEqual(["read"]);
   for (const t of [...GIT_GROUPS.read, ...Object.keys(GIT_READ_BY_MODE)])
     expect(gitToolsFor("qa")).toContain(t);
-  for (const t of [...GIT_GROUPS.commit, ...GIT_GROUPS.change]) {
-    expect(gitToolsFor("qa")).not.toContain(t);
-    expect(gitToolsFor("exec")).toContain(t);
-  }
+  expect(gitToolsFor("exec")).toEqual(Object.keys(GIT_READ_BY_MODE)); // dev stages list no git groups
+  expect(gitToolsFor("plan")).toEqual(Object.keys(GIT_READ_BY_MODE));
   for (const m of MODES) {
     const hidden = hiddenGitTools(m);
     for (const t of gitToolsFor(m)) expect(hidden).not.toContain(mcpToolName(GIT_MCP_SERVER, t));
@@ -188,24 +186,23 @@ test("git tools: reads everywhere, commit/change only in exec, hidden = the comp
       expect(hidden).toContain(mcpToolName(GIT_MCP_SERVER, t)); // the app's tools: never offered to agents
     }
   }
-  expect(hiddenGitTools("qa")).toContain(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.COMMIT));
-  expect(hiddenGitTools("exec")).not.toContain(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.COMMIT));
+  for (const m of MODES) {
+    expect(hiddenGitTools(m)).toContain(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.COMMIT));
+    expect(hiddenGitTools(m)).toContain(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.ADD));
+  }
 });
 
 test("guardFor: one builder per mode, auto-allowed tools from the catalog", () => {
   const qa = guardFor("qa", { readPaths: ["/r"], gitReadRepos: ["/r"] });
   expect(qa.allowTools).toEqual(autoAllowedTools("qa"));
   expect(qa.writePaths).toBeUndefined(); // Q&A writes nothing
-  expect(qa.gitWriteRepo).toBeUndefined();
   const exec = guardFor("exec", {
-    writePaths: ["/wt"],
-    readPaths: ["/wt"],
-    gitWriteRepo: "/wt",
+    writePaths: ["/repo", "/ws/worktrees"],
+    readPaths: ["/repo"],
     worktreeDirs: ["/ws/worktrees"],
   });
   expect(exec).toMatchObject({
-    writePaths: ["/wt"],
-    gitWriteRepo: "/wt",
+    writePaths: ["/repo", "/ws/worktrees"],
     worktreeDirs: ["/ws/worktrees"],
   });
   expect(exec.allowTools).toEqual(autoAllowedTools("exec"));

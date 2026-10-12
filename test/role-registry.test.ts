@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { mcpServersFor } from "../src/mcp/mcp-servers";
-import { GIT_MCP_SERVER, GITHUB_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import {
   dispatchableRoleNames,
   findStage,
@@ -39,11 +39,11 @@ test("registry: assistant and dev, unknown role fails", () => {
   expect(getRole("assistant").stages.map((s) => s.name)).toEqual(["qa"]);
 });
 
-test("stages: plan-mode only in plan, worktree only in exec, default tier and budget per stage", () => {
+test("stages: plan-mode only in plan, only exec writes without a gate, default tier and budget per stage", () => {
   expect(getStage("dev", "plan").permissionMode).toBe("plan");
   expect(getStage("dev", "exec").permissionMode).toBe("bypassPermissions");
   expect(getStage("assistant", "qa").permissionMode).toBe("auto");
-  expect(getStage("dev", "exec").isolation).toBe("clone");
+  expect(getStage("dev", "exec").gate).toBeUndefined(); // no delivery gate: the agent delivers
   expect(getStage("assistant", "qa")).toMatchObject({
     model: "haiku",
     budgetUsd: 1,
@@ -80,16 +80,11 @@ test("guard: every stage gets the subagent tools, auto-allowed, even one that li
   expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("allow");
 });
 
-test("mcp servers follow capabilities: git by groups, github by write", async () => {
-  expect(Object.keys(await mcpServersFor(getStage("assistant", "qa"), {}))).toEqual([
-    GIT_MCP_SERVER,
-  ]);
-  // A stage without git groups gets no server, and no github (no write).
-  expect(await mcpServersFor(BARE, {})).toEqual({});
-  // Code stages: github is added when a token is available.
-  const exec = Object.keys(await mcpServersFor("exec", {}));
-  expect(exec).toContain(GIT_MCP_SERVER);
-  expect(exec.filter((k) => k !== GIT_MCP_SERVER && k !== GITHUB_MCP_SERVER)).toEqual([]);
+test("mcp servers come from the stage's gitGroups data only: the assistant's git reads; dev stages and a bare stage get none", () => {
+  expect(Object.keys(mcpServersFor(getStage("assistant", "qa")))).toEqual([GIT_MCP_SERVER]);
+  expect(mcpServersFor(BARE)).toEqual({});
+  expect(mcpServersFor("plan")).toEqual({});
+  expect(mcpServersFor("exec")).toEqual({}); // the agent uses git and gh in the shell
 });
 
 test("tools derive from capabilities", () => {

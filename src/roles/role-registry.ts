@@ -82,7 +82,7 @@ export function entryRole(): RoleDefinition {
   return role;
 }
 
-/** The role whose follow-up messages continue in an existing clone (`followUp` data). */
+/** The role whose follow-up messages continue in an existing (legacy) clone (`followUp` data). */
 export function followUpRole(): RoleDefinition {
   const role = Object.values(ROLES).find((r) => r.followUp);
   if (!role) throw new Error("No role has followUp data");
@@ -96,7 +96,3 @@ export const hasClassTiers = (role: RoleDefinition): boolean =>
 /** A role with an owner gate after some stage: it needs the Discord approval flow. */
 export const isGated = (role: RoleDefinition): boolean =>
   role.stages.some((s) => (s.gate ?? "none") !== "none");
-
-/** Some stage of the role works in an isolated clone: only then a follow-up "fix round" in that clone makes sense. */
-export const usesClone = (role: RoleDefinition): boolean =>
-  role.stages.some((s) => s.isolation === "clone");

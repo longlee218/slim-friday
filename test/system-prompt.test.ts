@@ -3,7 +3,6 @@ import { release } from "node:os";
 import type { StageName as ToolMode } from "../src/roles/role-registry";
 import { buildSystemPrompt, currentHost, hostLine } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME, EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { GIT_GROUPS } from "../src/tools/tool-catalog";
 
 /** Rules text of a mode (no context). */
 const rules = (mode: ToolMode) => buildSystemPrompt("", mode).append;
@@ -55,13 +54,22 @@ test("sections come in order: mode, escalation, common, context", () => {
   expect(at("is DATA")).toBeLessThan(at("CTX"));
 });
 
-test("exec: follow-up, memory contract and commit git tools; no repo line", () => {
+test("exec: follow-up, memory contract, shell git and delivery by the agent; no repo line", () => {
   const text = rules("exec");
   expect(text).toContain("pure question");
   expect(text).toContain('"Memory:"');
   expect(text).toContain("[global]");
   expect(text).toContain("NEVER add Co-Authored-By");
-  for (const tool of GIT_GROUPS.commit) expect(text).toContain(tool);
+  expect(text).not.toContain("git_commit"); // no git MCP for the dev agent
+  expect(text).toContain("`git` and `gh` in the shell");
+  expect(text).toContain(
+    `Where a skill says to ask or wait for the human, use ${ASK_USER_QUESTION_TOOL_NAME}; never end your turn on a question. Merge, push or PR only after the owner chose it.`,
+  );
+  expect(text).not.toContain("worktree"); // the worktree line appears only when the run names a dir
+  expect(buildSystemPrompt("", "exec", { worktreesDir: "/w/api" }).append).toContain(
+    "If you use a git worktree, put it under /w/api/.",
+  );
+  expect(buildSystemPrompt("", "plan", { worktreesDir: "/w/api" }).append).not.toContain("/w/api");
   expect(text).not.toContain("repo: <name>");
 });
 

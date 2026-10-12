@@ -23,13 +23,10 @@ const CONSTANTS_FILES = [
 const NAMES = new Set<string>([
   ...Object.values(sdkNames),
   ...Object.values(mcpNames.GIT_TOOL),
-  ...Object.values(mcpNames.GITHUB_TOOL),
   mcpNames.GIT_MCP_SERVER,
-  mcpNames.GITHUB_MCP_SERVER,
 ]);
 /** Server names are generic words ("git" is also a shell command); only tool names + mcp__ are scanned. */
 NAMES.delete(mcpNames.GIT_MCP_SERVER);
-NAMES.delete(mcpNames.GITHUB_MCP_SERVER);
 
 /** Names of custom tools: every string export of `src/tools/*Tool/constants.ts` (self-maintaining). */
 for (const rel of new Bun.Glob("tools/*Tool/constants.ts").scanSync(SRC)) {

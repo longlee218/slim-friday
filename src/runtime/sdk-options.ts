@@ -66,9 +66,9 @@ function mergeHooks(
 /**
  * The SDK `Options` of one run, derived from the stage (tools, git groups, permission mode,
  * prompt) and the run input (paths, context, resume). `config` is already the stage's
- * (see `stageConfig`). Only the MCP server start is async; no I/O else happens here.
+ * (see `stageConfig`). No I/O happens here.
  */
-export async function buildSdkOptions(
+export function buildSdkOptions(
   stage: StageDefinition,
   input: RunAgentInput,
   deps: {
@@ -80,7 +80,7 @@ export async function buildSdkOptions(
     /** Same for bypassPermissions (the exec stage). */
     bypassState: ModeActive;
   },
-): Promise<Options> {
+): Options {
   const { config, skills: sk } = deps;
   const effort = input.route && safeEffort(input.route);
   // Every stage goes through the permission layer when it has a guard (a stage without a gateway: ask = deny).
@@ -108,7 +108,7 @@ export async function buildSdkOptions(
     model: config.model,
     resume: input.resume,
     ...toolOptions(stage),
-    mcpServers: await mcpServersFor(stage, input),
+    mcpServers: mcpServersFor(stage),
     ...(permissionMode && { permissionMode }),
     // The SDK refuses bypassPermissions without this explicit opt-in (the guard hook stays the gate).
     ...(permissionMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),
@@ -127,13 +127,14 @@ export async function buildSdkOptions(
     // Streaming input: the CLI echoes each consumed user message (isReplay): the proof a steer was read (steered-stream.ts).
     ...(input.steer && { extraArgs: { "replay-user-messages": null } }),
     // No filesystem settings in any stage: no repo (or ancestor) CLAUDE.md, no repo hooks/settings. Friday's
-    // persona, AGENTS.md and memory are the only instructions; the exec worktree is agent-writable anyway.
+    // persona, AGENTS.md and memory are the only instructions.
     settingSources: [],
     systemPrompt: buildSystemPrompt(
       (input.extraContext ?? []).filter(Boolean).join("\n\n"),
       stage,
       {
         workflow: input.workflow,
+        worktreesDir: input.worktreesDir,
         escalation: !!input.route?.offerEscalation,
       },
     ),

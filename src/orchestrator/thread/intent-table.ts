@@ -1,6 +1,7 @@
 import type { IntentDecision } from "../../intent/decide-intent";
-import { isGated, ROLES, usesClone } from "../../roles/role-registry";
+import { isGated, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
+import { runsInRepo } from "../engine/gates";
 import type { AskKind } from "./intent-replies";
 import { isIdleLike, isWorking, type ThreadState } from "./thread-state";
 
@@ -10,10 +11,10 @@ import { isIdleLike, isWorking, type ThreadState } from "./thread-state";
 export const MAX_FIX_ROUNDS = 2;
 
 /** Reply when a task's clone used up its fix rounds. */
-export const FIX_LIMIT_REPLY = `This task already had ${MAX_FIX_ROUNDS} fix rounds. Send \`/cleanup\` to drop its clone, then ask again.`;
+export const FIX_LIMIT_REPLY = `This task already had ${MAX_FIX_ROUNDS} fix rounds. Ask again as a new request (a legacy clone can be dropped with \`/cleanup\`).`;
 
-/** A role the side lane can run next to a busy task: it answers (no gate) and needs no clone of the thread. */
-export const isSideRole = (role: RoleDefinition): boolean => !isGated(role) && !usesClone(role);
+/** A role the side lane can run next to a busy task: it answers (no gate) and changes no files. */
+export const isSideRole = (role: RoleDefinition): boolean => !isGated(role) && !runsInRepo(role);
 
 /** What the table says to do with one message. */
 export type IntentAction =
@@ -42,7 +43,7 @@ export interface TableInput {
 
 /**
  * THE table. Rows (state x scope x role data). `answering` = a role without a gate, `staged` = gated, `clone` = a
- * role with an `isolation: clone` stage (the only one a fix round applies to). No role name appears here.
+ * role with a stage that writes files (the only one a fix round applies to; the clone is a legacy thread row). No role name appears here.
  * idle: answering -> run; staged new -> open (confirm-task when the discussion guard flagged it); staged active
  * with a clone and a clone role -> fix (max rounds) | fix-limit.
  * running or awaiting a tool approval: a side role (answering, no clone) -> side whatever the scope (answered at once,
@@ -63,7 +64,7 @@ export function actionFor(i: TableInput): IntentAction {
     i.fixRounds >= MAX_FIX_ROUNDS ? { kind: "fix-limit" } : { kind: "fix", role: d.role };
   if (isIdleLike(i.state)) {
     if (!isGated(role)) return { kind: "run", role: d.role };
-    if (d.scope === "active" && i.hasClone && usesClone(role)) return fix();
+    if (d.scope === "active" && i.hasClone && runsInRepo(role)) return fix();
     return { kind: d.confirmDev ? "confirm-task" : "open", role: d.role };
   }
   // A run works: the scope (L3's call, see decide-intent) says supplement or independent, whatever the role.
@@ -76,6 +77,6 @@ export function actionFor(i: TableInput): IntentAction {
   if (d.scope === "new") return { kind: "queue", role: d.role };
   if (i.state === "awaiting_plan_approval") return { kind: "feedback", role: d.role };
   if (i.state === "awaiting_result")
-    return usesClone(role) ? fix() : { kind: "side", role: d.role };
+    return runsInRepo(role) ? fix() : { kind: "side", role: d.role };
   return { kind: "steer", role: d.role };
 }

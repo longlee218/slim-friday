@@ -5,7 +5,6 @@ import type { TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
 import type { IntentDeps } from "../intent/decide-intent";
 import { DRAIN_REPLY, isDraining } from "../lifecycle/drain";
-import { createGitMcp, type GitMcp } from "../mcp/git-mcp";
 import { createMemoryRunner } from "../memory/memory-command-handler";
 import {
   getLogContext,
@@ -46,8 +45,6 @@ export interface TurnHandlerDeps {
   queryFn?: QueryFn;
   /** Optional global concurrency cap; when full the message is rejected with a busy reply. */
   limiter?: RunLimiter;
-  /** The git MCP server the app uses (worktrees, fetch, push, inspection); started on first use. */
-  git?: GitMcp;
   /** Owner approval gateway; required for staged (gated) roles such as dev, and their worktree follow-ups. */
   approvals?: ApprovalGateway;
   /** Intent layer (pipeline + L3 engine), built at startup. Missing = off: every message takes the legacy pick (entry role / clone owner). */
@@ -61,7 +58,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   const active = new Map<string, AbortController>();
   const log = logger.child({ module: "handle-message" });
   const tracker = createRunTracker(db, log, active);
-  const git = deps.git ?? createGitMcp();
   /** Per-thread effort floors; `quietTurn` runs every turn so entries decay (a complaint signal raises one). */
   const floors = new EffortFloors();
   /** What a role run and the dispatcher need; nothing in it changes per message. */
@@ -70,7 +66,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     config,
     approvals: deps.approvals!,
     queryFn: deps.queryFn,
-    git,
     stopping: tracker.isStopping,
     threadBusy: (id) => active.has(id),
     steer: createSteerRegistry(db), // streaming stages take the owner's messages while they run
@@ -191,8 +186,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   const handleMessage = (message: InboundMessage): Promise<string> =>
     // Every line logged while this call runs (any module, any await) carries the thread id and channel id.
     tracker.track(runWithLogContext(turnLogContext(message), () => run(message)));
-  /** Stop the git MCP server process (shutdown). */
-  handleMessage.close = () => git.close();
   handleMessage.memory = memory; // same runner for ingress (inline channel replies, #ops-control)
   handleMessage.abortAll = tracker.abortAll;
   handleMessage.drain = tracker.drain;

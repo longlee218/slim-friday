@@ -1,8 +1,7 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
 import { getProposal, insertProposal } from "../src/storage/proposal-store";
@@ -16,9 +15,6 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-
-const git = createGitMcp();
-afterAll(() => git.close());
 
 /** Env with one managed clone `real` (dev tasks need it). */
 async function setup() {
@@ -57,7 +53,6 @@ async function queueThenStart(devText: string) {
       yield resultMsg({ result: "ok" });
     })();
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway(),

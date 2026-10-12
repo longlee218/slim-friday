@@ -1,8 +1,7 @@
-import { afterAll, expect, test } from "bun:test";
-import { existsSync, writeFileSync } from "node:fs";
+import { expect, test } from "bun:test";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { listStages } from "../src/storage/stage-store";
 import { EXIT_PLAN_MODE_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -16,9 +15,6 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-
-const git = createGitMcp();
-afterAll(() => git.close());
 
 /** Env with one workspace whose repo `real` is a real git clone (a managed clone). */
 async function setup() {
@@ -71,7 +67,6 @@ const msg = (text: string) => ({
 
 const handler = (env: Awaited<ReturnType<typeof setup>>, exec?: Record<string, unknown>) =>
   createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({
@@ -157,7 +152,7 @@ test("exec on its budget: stage row interrupted + verdict budget, reply offers `
   expect(reply).toContain("`/go +");
 });
 
-test("budget hit in a clone: spent/limit, last summary, diff stat of the clone, offer, clone + session kept", async () => {
+test("budget hit in the repo: spent/limit, last summary, offer, session kept; no diff stat (the app runs no git on the repo)", async () => {
   const env = await setup();
   // Exec edits a tracked file, says something, then runs out of budget.
   const sdk = (a: any) => {
@@ -181,7 +176,6 @@ test("budget hit in a clone: spent/limit, last summary, diff stat of the clone, 
     })();
   };
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway({
@@ -194,27 +188,28 @@ test("budget hit in a clone: spent/limit, last summary, diff stat of the clone, 
   expect(reply).toContain("$3.20 of $");
   expect(reply).toContain("small overshoot");
   expect(reply).toContain("Last summary:\nHalf done: a.txt updated, tests still missing.");
-  expect(reply).toMatch(/Changes so far:\na\.txt \| 2 \+-/);
+  expect(reply).not.toContain("Changes so far");
   expect(reply).toContain("`/go +");
-  const wt = env.db.query<any, []>("SELECT path, status FROM worktrees").get()!;
-  expect(existsSync(wt.path)).toBe(true); // the clone is kept
-  expect(wt.status).toBe("active");
+  expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 0 }); // no clone
   const t = codeTask(env)[0];
   expect(listStages(env.db, t.id).map((s) => [s.name, s.status, s.verdict])).toEqual([
     ["plan", "done", "approved"],
     ["exec", "interrupted", "budget"],
   ]);
-  expect(env.db.query<any, []>("SELECT session_id FROM sessions").get()?.session_id).toBe(
-    "sess-exec",
-  );
+  // The exec session is not the thread's (`/go +<usd>` starts fresh from the plan).
+  expect(env.db.query("SELECT session_id FROM sessions").get()).toBeNull();
 });
 
-test("follow-up in a worktree thread runs only the exec stage (row idx 1) on its own task", async () => {
+test("no clone any more: a second dev message in the thread is a new task with its own plan and exec", async () => {
   const env = await setup();
   const handle = handler(env);
   await handle(msg("[dev] please add b.txt"));
   await handle(msg("[dev] also add c"));
   const tasks = codeTask(env);
   expect(tasks).toHaveLength(2);
-  expect(listStages(env.db, tasks[1].id).map((s) => [s.idx, s.name])).toEqual([[1, "exec"]]);
+  expect(listStages(env.db, tasks[1].id).map((s) => [s.idx, s.name])).toEqual([
+    [0, "plan"],
+    [1, "exec"],
+  ]);
+  expect(env.db.query("SELECT COUNT(*) AS n FROM worktrees").get()).toEqual({ n: 0 });
 });

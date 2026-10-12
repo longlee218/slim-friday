@@ -45,8 +45,8 @@ test("bypass: guard deny stays a hard deny and is logged tool.denied", async () 
   expect(cap.lines.some((l) => l.event === "tool.denied")).toBe(true);
 });
 
-test("bypass: hard denies stay (git push, gh)", async () => {
-  for (const command of ["git push origin main", "gh pr create"]) {
+test("bypass: hard denies stay (push to main, force push, sudo)", async () => {
+  for (const command of ["git push origin main", "git push --force origin feat", "sudo ls"]) {
     const { out } = await pre(true, "Bash", { command });
     expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
   }

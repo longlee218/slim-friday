@@ -2,7 +2,6 @@ import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../../approvals/approval-types";
 import type { AgentConfig } from "../../config/agent-config";
 import { type Route, resolveModel } from "../../config/model-routing";
-import type { GitMcp } from "../../mcp/git-mcp";
 import { logEvent, logger, setLogContext, tryLog } from "../../observability/logger";
 import type { Repo } from "../../repos/repo-registry";
 import { getRole } from "../../roles/role-registry";
@@ -14,13 +13,13 @@ import { type StageStatus, upsertStage } from "../../storage/stage-store";
 import type { WorktreeRow } from "../../storage/worktree-store";
 import type { SteerRegistry } from "../turns/steer-registry";
 import { type FlowResult, failResult } from "../turns/turn-result";
-import { budgetDiffStat, ceilingRefusal, withSpent } from "./budget";
+import { ceilingRefusal, withSpent } from "./budget";
+import type { ExecTarget } from "./exec-run";
 import { stageKind } from "./gates";
-import { switchToClone } from "./isolation";
 import { runPlain } from "./plain-run";
 import { runPlanRun } from "./plan-run";
-import { cloneRun, markResumable, resumePrompt, switchFailure } from "./resume-exec";
-import { awaitingResult } from "./stage-control";
+import { execRun, markResumable, RESUME_NOTE, resumePrompt } from "./resume-exec";
+import { awaitingResult, switchToExec } from "./stage-control";
 import { stageOutcome } from "./stage-outcome";
 import { validateRole } from "./validate-role";
 
@@ -29,21 +28,19 @@ const log = logger.child({ module: "stage-runner" });
 
 /** Dependencies of the stage runner. */
 export interface StageRunnerDeps {
-  /** The git MCP server (worktrees, inspection, push): the only git backend. */
-  git: GitMcp;
   db: Database;
   config: AgentConfig;
   approvals: ApprovalGateway;
   queryFn?: QueryFn;
   /** True once shutdown aborted the runs: an aborted stage is then `interrupted`, not `cancelled`. */
   stopping?: () => boolean;
-  /** A run of this thread holds the thread lock (a Discard click must not remove a clone a follow-up is using). */
+  /** A run of this thread holds the thread lock (a Discard click must not remove a legacy clone a follow-up is using). */
   threadBusy?: (threadId: string) => boolean;
   /** Where plan / exec runs register their streaming input so the owner can steer them. Omitted = string prompts, no steer. */
   steer?: SteerRegistry;
 }
 
-/** One task run through a role's stages: a fresh message, a dispatched task or a follow-up in a clone. */
+/** One task run through a role's stages: a fresh message, a dispatched task or a follow-up in a legacy clone. */
 export interface StageRunInput {
   turnId: string;
   threadId: string;
@@ -56,13 +53,11 @@ export interface StageRunInput {
   repos: Repo[];
   /** The task's abort controller (`stop`, shutdown). */
   ac: AbortController;
-  /** Local branch the clone is cut from; missing = the repo's default branch. */
-  base?: string;
-  /** Existing clone (git worktree) of this thread (follow-up): skips the stages before `followUp.startAtStage`. */
+  /** Legacy task clone of this thread (a row from before Rev 15, follow-up): its exec stage runs there and skips the stages before `followUp.startAtStage`. */
   worktree?: WorktreeRow;
   /** Session to resume for a follow-up (same cwd as the clone). */
   resume?: string;
-  /** The approved plan of a `failed_resumable` task (`/go`): with `worktree` the exec stage runs again from it; without one (the clone was never made) the stage switch runs again. */
+  /** The approved plan of a `failed_resumable` task (`/go`): the exec stage runs again from it (in `worktree` for a legacy clone, else in the repo after the stage switch). */
   approved?: { plan: string; repo: string };
   /** Interrupted plan stage (Resume button): rerun the plan in this scratch dir and session. */
   planResume?: { sessionId: string; cwd: string };
@@ -99,30 +94,35 @@ export const startStage = (role: RoleDefinition, hasClone: boolean): StageDefini
   role.stages[hasClone ? followUpStart(role) : 0] ?? (role.stages[0] as StageDefinition);
 
 /**
- * Run a role's stages in order. The engine reads only role DATA (stage `gate`, `isolation`, `handoff`, the
+ * Run a role's stages in order. The engine reads only role DATA (stage `gate`, `capabilities`, `handoff`, the
  * role's `output` and flags), never a role name. Per stage: a run of the kind the data says (`stageKind`), its
  * owner gate, one shared question round, and a `stages` row with model, cost and verdict. After a
- * plan-approval gate the next stage starts in a new clone (workspace switch) with the handoff prompt. A
- * follow-up in a thread that has a clone starts at `followUp.startAtStage`. Returns the last stage's result,
- * or the first one that did not pass.
+ * plan-approval gate the next stage starts in the approved repo's checkout (`switchToExec`) with the handoff
+ * prompt; the agent commits, pushes and opens the PR itself. A follow-up in a thread that has a legacy clone
+ * starts at `followUp.startAtStage`. Returns the last stage's result, or the first one that did not pass.
  */
 export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promise<FlowResult> {
   const { db, config, approvals } = deps;
   const role = getRole(i.role);
-  // `stop` / shutdown while the owner is being asked (PR offer included): drop the open buttons.
+  // `stop` / shutdown while the owner is being asked (a yes/no question included): drop the open buttons.
   // (A handler built without the approval flow has no gateway: nothing to cancel.)
   i.ac.signal.addEventListener("abort", () => approvals?.cancelTurn(i.turnId), { once: true });
   // Every stage is checked before the first one runs: a refusal has no side effect.
   const refusal = validateRole(role, !!i.worktree);
   if (refusal) return failResult(refusal);
   const askLimit = newAskLimit(role.maxAsk);
-  let wt = i.worktree;
+  const wt = i.worktree;
   let prompt = i.text;
-  let plan = "";
   let res = failResult("No stage ran.");
   const first = wt ? followUpStart(role) : 0;
-  if (i.approved && wt)
-    ({ prompt, plan } = resumePrompt(deps.config, role, i, wt, i.approved.plan));
+  // Where the exec stage runs: a legacy clone of the thread (follow-up, old resume), else set by the stage switch below.
+  let target: ExecTarget | undefined;
+  if (wt) {
+    const repo = i.repos.find((r) => r.name === wt.repo);
+    if (!repo) return failResult(`The task's repo ${wt.repo} is not in this workspace any more.`);
+    target = { repo, cwd: wt.path, scratchId: wt.taskId };
+  }
+  if (i.approved && wt) prompt = resumePrompt(deps.config, role, i, wt, i.approved.plan);
   for (const [idx, stage] of role.stages.entries()) {
     if (idx < first) continue; // a follow-up skips the stages before its start stage
     const ctx: StageCtx = { deps, i: withSpent(db, i, idx), stage, idx, role, askLimit };
@@ -151,20 +151,17 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
         endedAt: Date.now(),
       });
     if (kind !== "plan") {
-      if (kind === "clone" && !wt) return failResult("No worktree to run the stage in.");
+      if (kind === "repo" && !target) return failResult("No repo to run the stage in.");
       try {
         res =
-          kind === "clone" && wt
-            ? await cloneRun(ctx, { wt, prompt, plan, resume: i.resume })
+          kind === "repo" && target
+            ? await execRun(ctx, { target, prompt, resume: i.resume })
             : await runPlain(ctx);
       } catch (err) {
         end("failed", failResult("The stage run threw.")); // never left `running`
         throw err;
       }
-      // A budget stop in a clone shows what the agent changed so far (the clone stays for `/go +<usd>`).
-      if (res.outcome === "max_budget" && kind === "clone" && wt)
-        res = { ...res, diffStat: await budgetDiffStat(wt) };
-      if (kind === "clone") res = markResumable(res, i);
+      if (kind === "repo") res = markResumable(res, i);
       const w = stageOutcome(res, { stopping: !!deps.stopping?.() });
       end(w.status, res, w.verdict);
       if (res.outcome !== "success") return res;
@@ -187,13 +184,13 @@ export async function runStages(deps: StageRunnerDeps, i: StageRunInput): Promis
     end(o.status, planned.res, o.verdict);
     if (planned.awaiting) return awaitingResult(planned.res, planned.awaiting); // questions timed out
     if (!planned.approved) return planned.res; // rejected, stopped, timed out or no plan
-    setLogContext({ repo: planned.approved.repo }); // stage switch: clone of the managed repo
+    setLogContext({ repo: planned.approved.repo }); // stage switch: the approved repo
     logEvent(log, "plan.approved");
-    const sw = await switchToClone(ctx, stage.handoff, planned.approved);
-    if ("outcome" in sw)
-      return switchFailure(db, i, { idx: idx + 1, name: role.stages[idx + 1]?.name ?? "exec" }, sw);
-    ({ wt, prompt } = sw);
-    plan = planned.approved.plan;
+    const sw = switchToExec(ctx, stage.handoff, planned.approved);
+    if ("outcome" in sw) return sw;
+    target = { repo: sw.repo, cwd: sw.repo.path, scratchId: i.turnId };
+    // A resumed task ran before: its checkout may already hold part of the work.
+    prompt = i.approved ? `${sw.prompt}\n\n${RESUME_NOTE}` : sw.prompt;
   }
   return res;
 }

@@ -1,8 +1,16 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { workspacePaths } from "../../config/workspace-paths";
+import { errText } from "../../observability/redact";
 import type { Repo, Workflow } from "../../repos/repo-registry";
+import type { StageHandoff } from "../../roles/role-types";
 import type { AskQuestion } from "../../runtime/tool-permissions";
-import type { FlowResult } from "../turns/turn-result";
+import { setTurnRepo } from "../../storage/run-store";
+import { type FlowResult, failResult } from "../turns/turn-result";
+import { DEFAULT_PLAN_FILE, renderHandoff } from "./handoff";
+import type { StageCtx } from "./stage-runner";
 
-/* Per-repo workflow and ask-timeout helpers of the code-task flow. */
+/* Per-repo workflow, stage switch and ask-timeout helpers of the code-task flow. */
 
 /** Plan stage picks the repo itself: the `full` rules go in when any candidate repo is full (registry marks which). */
 export const planWorkflow = (repos: Repo[]): Workflow =>
@@ -52,4 +60,37 @@ export function stageControl(parent: AbortSignal, onAwaiting: (text: string) => 
     ac.abort();
   };
   return { ac, onAskTimeout };
+}
+
+/**
+ * Stage switch after an approved plan: save the plan in the task scratch dir (the agent reads it, `/go` reads it back),
+ * keep the repo on the turn row and word the exec prompt from the handoff data. The exec stage then runs in the
+ * repo's own checkout: no clone, no git run by the app. A failure is the task's result.
+ */
+export function switchToExec(
+  c: StageCtx,
+  handoff: StageHandoff | undefined,
+  approved: { plan: string; repo: string },
+): { repo: Repo; prompt: string } | FlowResult {
+  const { deps, i } = c;
+  const repo = i.repos.find((r) => r.name === approved.repo);
+  if (!repo) return failResult(`The plan named a repo that is not available: ${approved.repo}.`);
+  const planFile = handoff?.planFile ?? DEFAULT_PLAN_FILE;
+  const dir = workspacePaths(deps.config.agentHome).workspace(i.workspace).task(i.turnId).root;
+  try {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    writeFileSync(join(dir, planFile), approved.plan);
+    setTurnRepo(deps.db, i.turnId, repo.name);
+  } catch (err) {
+    return failResult(`Could not save the approved plan: ${errText(err, 200)}`);
+  }
+  const prompt = handoff
+    ? renderHandoff(handoff, {
+        plan: approved.plan,
+        planPath: join(dir, planFile),
+        task: i.text,
+        testCommand: repo.testCommand ?? undefined,
+      })
+    : approved.plan;
+  return { repo, prompt };
 }

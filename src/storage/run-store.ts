@@ -29,6 +29,10 @@ export function setTurnRepo(db: Database, id: string, repo: string): void {
 
 /** Nothing is left to resume in this thread (clone removed or expired): its `failed_resumable` task becomes `failed`. */
 export function dropResumable(db: Database, threadId: string): boolean {
+  // An `interrupted` exec task that was resumed from its approved plan is taken over too (no second restart notice).
+  db.query(
+    "UPDATE turns SET status = 'cancelled' WHERE thread_id = ? AND status = 'interrupted'",
+  ).run(threadId);
   return (
     db
       .query(

@@ -44,7 +44,6 @@ export const ASSISTANT_ROLE: RoleDefinition = {
       capabilities: ["read", "web", "skills", "mcp"],
       gitGroups: ["read"],
       permissionMode: "auto",
-      isolation: "none",
       model: "haiku",
       budgetUsd: BUDGET_USD,
       autoCompactWindow: QA_AUTO_COMPACT_WINDOW,

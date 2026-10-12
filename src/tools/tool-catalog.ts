@@ -124,7 +124,7 @@ export const GIT_READ_BY_MODE: Record<string, readonly string[]> = {
   [GIT_TOOL.BRANCH]: ["list", "show-current"],
 };
 
-/** Every tool of the server. Agents never get push/pull/fetch/clone/worktree/...: the app calls those. */
+/** Every tool of the server. Agents only get the `read` group (+ by-mode reads): the rest is hidden. */
 const ALL_GIT_TOOLS: readonly string[] = Object.values(GIT_TOOL);
 
 /** Git MCP tools a stage may see (its groups, plus the by-mode reads, always). */

@@ -1,5 +1,4 @@
 import type { Workflow } from "../../repos/repo-registry";
-import { GIT_GROUPS } from "../../tools/git-tool-groups";
 import {
   ASK_USER_QUESTION_TOOL_NAME,
   EXIT_PLAN_MODE_TOOL_NAME,
@@ -49,7 +48,7 @@ export const PLAN = `This run is the plan stage of a code task, in plan mode: th
 - Outcome: a plan file, submitted with ${EXIT_PLAN_MODE_TOOL_NAME}. Never end your turn without calling it (only exception: no identifiable target, see below).
 - The plan has one line exactly like "repo: <name>" naming the repo to change (names are listed below).
 - A request to research, design or improve with no explicit change and no defect or target named: invoke the listed skill whose description matches first, then submit a plan whose first section is the design (options, chosen approach, why), followed by the steps. If no code change is needed, the plan says "no code change; deliverable = <what>".
-- Do NOT implement here and commit nothing: after approval the app creates a clone and starts the execute run.`;
+- Do NOT implement here and commit nothing: after approval the app starts the execute run in the repo.`;
 
 /** Plan stage run facts that a skill text cannot know (scratch dir, docs/ paths, who the owner is, precedence). */
 export const PLAN_RUN_FACTS = `- Repos are read-only references; you can write only the plan file and the task scratch dir. A spec, design or plan a skill says to save under docs/ goes in the plan file instead.
@@ -58,19 +57,23 @@ export const PLAN_RUN_FACTS = `- Repos are read-only references; you can write o
 - Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.`;
 
 /** Execute stage contract: outcome first, then the no-code-change path, follow-ups, tests and the report shape. */
-export const EXEC = `This run is the execute stage of a code task, in an isolated clone of the repo (your current directory) on its own branch.
+export const EXEC = `This run is the execute stage of a code task, in the repo's own checkout (your current directory).
 - Outcome: the approved plan implemented, committed and reported. The approved plan is plan.md in the task scratch dir (read-only for you). If the plan no longer fits, stop and explain instead of improvising.
 - Only when the approved plan itself says "no code change" (a design or research deliverable): do not edit or commit; put the result in your reply and say no code change was needed. Otherwise implement the plan.
 - A follow-up message may be a pure question: answer it without editing when no change is asked.
 - Run the repo's tests with Bash when a test command is given.
 - When done, reply with the outcome first: what changed and whether it is verified. Use the workflow skill's report format when it is listed, else a short summary.`;
 
-/** Execute stage run facts: clone, delivery, git rules, skill scripts, precedence. The git and commit bullets are the original wording. */
-export const EXEC_RUN_FACTS = `- No worktree or branch to create: you are already in the clone. The app pushes and opens the PR; there is no merge, PR or cleanup step for you. Give plan.md's path to a skill script that asks for a plan file.
-- Use the git MCP tools for git (${[...GIT_GROUPS.read, ...GIT_GROUPS.commit].join(", ")}; always pass path = your current directory). Never use the shell for git, never push, never switch branches, never edit outside this directory.
+/** Execute stage run facts: checkout, delivery by the agent, commit rule, skill scripts, precedence. */
+export const EXEC_RUN_FACTS = `- You work in the owner's checkout with \`git\` and \`gh\` in the shell; their git config and GitHub login apply. The shell refuses force pushes and direct pushes to main/master; merge only after the owner chose it. Give plan.md's path to a skill script that asks for a plan file.
+- The owner sees only Discord. Where a skill says to ask or wait for the human, use ${ASK_USER_QUESTION_TOOL_NAME}; never end your turn on a question. Merge, push or PR only after the owner chose it.
 - Commit messages: one short conventional line (optional body). NEVER add Co-Authored-By, "Generated with" or any AI/Claude attribution; commits are made as the owner.
-- Every write and shell command may need owner approval or be denied: if denied, adapt, do not retry the same call. The owner sees only Discord: reach them only as the ask rules below allow; subagents never ask.
+- Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow; subagents never ask.
 - Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.`;
+
+/** Execute stage, one line: where a git worktree goes (the guard only lets `git worktree add` name a path under it). */
+export const worktreeRule = (dir: string): string =>
+  `- If you use a git worktree, put it under ${dir}/.`;
 
 /** Execute stage repo memory section (the app parses the "Memory:" title). Original wording, unchanged. */
 export const EXEC_MEMORY = `- Last, add a section titled exactly "Memory:" with at most 3 bullets ("- ...") of durable facts about this repo (commands, conventions, pitfalls); no task-specific facts (branch, clone, task ids). Prefix a bullet with "[global]" only for a fact true in every workspace (e.g. an owner preference); at most 2; [global] bullets are reviewed by the owner before they apply. Omit the section if there is nothing.`;

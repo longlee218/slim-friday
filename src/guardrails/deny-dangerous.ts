@@ -3,17 +3,12 @@
  *
  * Writes must land inside an allowed directory; reads must not touch secret files.
  * Paths are resolved with realpath of the nearest existing ancestor, so `..` segments
- * and symlinks cannot escape. Bash parsing is best effort (see bash-policy.ts);
- * the git worktree is the real boundary.
+ * and symlinks cannot escape. Bash parsing is best effort (see bash-policy.ts).
  */
-import { basename, isAbsolute, relative } from "node:path";
+import { basename, isAbsolute } from "node:path";
 import { NOTEBOOK_EDIT_TOOL_NAME } from "../tools/sdk-tool-names";
 import type { Decision } from "./check-tool-call";
 import { isInside, resolveReal } from "./paths";
-
-/** Repo files that execute code or grant permissions when loaded (hooks, MCP, CI, git internals). */
-const PROTECTED_WRITE =
-  /(^|[\\/])(\.claude|\.husky|\.githooks|\.git|\.github|\.mcp\.json|\.vscode|\.devcontainer)([\\/]|$)/;
 
 /** Basename patterns of files that may hold secrets (.env*, keys, credentials). */
 const SECRET_PATTERNS = [
@@ -59,10 +54,6 @@ export function checkFileWrite(
   for (const root of allowedPaths) {
     try {
       if (isInside(resolveReal(root), target)) {
-        // Files the agent must not plant: they would run code or change permissions later.
-        if (PROTECTED_WRITE.test(relative(resolveReal(root), target))) {
-          return { decision: "deny", reason: "writing tool/CI config files is blocked" };
-        }
         return { decision: "allow", reason: "write inside allowed path" };
       }
     } catch {

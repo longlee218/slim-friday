@@ -1,43 +1,15 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import { logger } from "../observability/logger";
-import { errText } from "../observability/redact";
 import { type StageRef, stageOf } from "../roles/role-registry";
-import { type GitIdentity, gitMcpServerConfig } from "./git-mcp";
-import { ghToken, githubMcpServer } from "./github-mcp";
-import { GIT_MCP_SERVER, GITHUB_MCP_SERVER } from "./mcp-tool-names";
-
-/** Logger of this module (task fields come from the log context). */
-const log = logger.child({ module: "mcp-servers" });
+import { gitMcpServerConfig } from "./git-mcp";
+import { GIT_MCP_SERVER } from "./mcp-tool-names";
 
 /**
- * MCP servers of a stage: the git server when it has git groups (the guard limits `path` and tools by stage);
- * the READ-ONLY GitHub server for stages that write (issues, PRs, code search). PRs are created by the app.
+ * MCP servers of a stage, from its role DATA only: the git server (read tools) when the stage lists `gitGroups`
+ * (the assistant). A stage that writes has none: its agent uses `git` and `gh` in the shell. The guard limits
+ * `path` and the tools of the server.
  */
-export async function mcpServersFor(
-  stage: StageRef,
-  input: {
-    githubAccount?: string;
-    gitAuthor?: GitIdentity;
-    gitBaseDir?: string;
-  },
-): Promise<NonNullable<Options["mcpServers"]>> {
-  const s = stageOf(stage);
+export function mcpServersFor(stage: StageRef): NonNullable<Options["mcpServers"]> {
   const servers: NonNullable<Options["mcpServers"]> = {};
-  if (s.gitGroups.length) {
-    servers[GIT_MCP_SERVER] = gitMcpServerConfig({
-      author: input.gitAuthor,
-      baseDir: input.gitBaseDir,
-    });
-  }
-  if (s.capabilities.includes("write")) {
-    try {
-      servers[GITHUB_MCP_SERVER] = githubMcpServer({
-        token: await ghToken(input.githubAccount),
-        readOnly: true,
-      });
-    } catch (err) {
-      log.warn({ err: errText(err) }, "github mcp unavailable; continuing without it");
-    }
-  }
+  if (stageOf(stage).gitGroups.length) servers[GIT_MCP_SERVER] = gitMcpServerConfig();
   return servers;
 }

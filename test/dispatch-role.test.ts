@@ -1,6 +1,5 @@
-import { afterAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { createGitMcp } from "../src/mcp/git-mcp";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
@@ -19,9 +18,6 @@ import {
   TEST_CHANNEL,
 } from "./helpers";
 
-const git = createGitMcp();
-afterAll(() => git.close());
-
 async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
@@ -37,7 +33,6 @@ const rows = (env: { db: any }, sql: string) => env.db.query(sql).all() as any[]
 
 /** Dispatcher deps whose stage runs would be captured (none must start in the refusal tests). */
 const deps = (env: Awaited<ReturnType<typeof setup>>["env"], runs: unknown[]) => ({
-  git,
   db: env.db,
   config: env.config,
   approvals: stubGateway(),
@@ -61,7 +56,6 @@ test("ordering: the proposal is persisted and validated before the plan stage ru
     })();
   };
   const handle = createTurnHandler({
-    git,
     db: env.db,
     config: env.config,
     approvals: stubGateway(),

@@ -9,10 +9,11 @@ import { buildRegistryContext } from "../../repos/repo-registry";
 import { runAgent } from "../../runtime/run-agent";
 import { answerOutput } from "../outputs/answer-output";
 import type { FlowResult } from "../turns/turn-result";
+import { execActiveIn } from "./exec-run";
 import { ownerConfirm } from "./owner-confirm";
 import type { StageCtx } from "./stage-runner";
 
-/* A stage with no isolation and no gate: a read-only run over the registered repos (the pinned one, or the
+/* A stage with no gate and no `write` capability: a read-only run over the registered repos (the pinned one, or the
    whole workspace) whose reply goes to the owner through the role's output. Only `answer` has a handler here;
    the stage runner refuses any other output before running (validate-role.ts). */
 
@@ -27,7 +28,7 @@ const ESCALATE_OPUS_QUESTION =
  */
 export async function runPlain(c: StageCtx): Promise<FlowResult> {
   const { deps, i, stage, role } = c;
-  const { config, git } = deps;
+  const { config } = deps;
   const { repos, pinned, existing } = i;
   // Unpinned with several repos: the neutral workspace cwd dir (the registry block lists each repo).
   // One repo: that repo.
@@ -47,11 +48,11 @@ export async function runPlain(c: StageCtx): Promise<FlowResult> {
     ...attachedDirs,
   ];
   const scope = pinned ? [pinned] : repos;
-  // Only workspace clones are refreshed; never touch a developer's working copy.
+  // Only workspace clones are refreshed; never touch a developer's working copy, nor a repo an exec agent is working in.
   await Promise.all(
     scope
-      .filter((r) => isManagedClone(r.path, config.agentHome))
-      .map((r) => refreshRepo(git, r.path)),
+      .filter((r) => isManagedClone(r.path, config.agentHome) && !execActiveIn(r.path))
+      .map((r) => refreshRepo(r.path)),
   );
   let rerunModel: string | undefined; // model of the escalated re-run, when one ran
   const runOnce = (r?: Route, resumeId?: string) => {
