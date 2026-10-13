@@ -21,8 +21,8 @@ export interface PromptCtx {
   workflow?: Workflow;
   /** Where the agent puts a git worktree it creates (`<workspace worktrees dir>/<repo>`); omitted = no line. */
   worktreesDir?: string;
-  /** Answer run on the cheap tier: adds the `ESCALATE: sonnet|opus` rule (never on an already escalated run). */
-  escalation?: boolean;
+  /** Answer run on a cheaper tier: the tiers the `ESCALATE: <tier>` rule offers (empty/omitted = no rule; never on an escalated run). */
+  escalationTiers?: ("sonnet" | "opus")[];
 }
 
 /**

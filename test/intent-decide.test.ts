@@ -139,10 +139,10 @@ test("owner prefix class beats the model class; L3 scope is forced new without a
   expect(withTask.decision).toMatchObject({ scope: "active" });
 });
 
-test("class is dropped for a role without class tiers", async () => {
+test("class is kept for the assistant (it has class tiers since P11)", async () => {
   const e = engine(answer({ role: "assistant", class: "design" }));
   const r = await run({ pipeline, classifier: e.classifier }, input(VAGUE));
-  expect(r.decision).toEqual({ kind: "role", role: "assistant", scope: "new" });
+  expect(r.decision).toEqual({ kind: "role", role: "assistant", scope: "new", cls: "design" });
 });
 
 test("low confidence: idle -> entry role (never the model's pick); pending / busy -> owner question; medium proceeds", async () => {

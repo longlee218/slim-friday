@@ -80,10 +80,10 @@ test("validate: class only for a role with class tiers; owner prefix > model > L
     "design",
   );
   expect(cls(raw({ class: undefined }), { hasTask: false, classHint: "design" })).toBe("design");
-  // assistant has no class tiers: dropped whatever the source
+  // the assistant has class tiers too (P11): the same precedence applies
   expect(
-    cls(raw({ role: "assistant", class: "design" }), { hasTask: false, ownerClass: "design" }),
-  ).toBeUndefined();
+    cls(raw({ role: "assistant", class: "design" }), { hasTask: false, ownerClass: "standard" }),
+  ).toBe("standard");
 });
 
 test("validate: `mechanical` is kept only with high confidence, else standard; never upgraded", () => {

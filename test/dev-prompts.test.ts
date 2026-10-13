@@ -59,7 +59,7 @@ test("dev: one contract, approval before changes by ask, design request invokes 
 });
 
 test("assistant QA: short, answer first, unsure rule, change requests need a task, ESCALATE verbatim", () => {
-  const qa = ASSISTANT_ROLE.promptSections({ escalation: true });
+  const qa = ASSISTANT_ROLE.promptSections({ escalationTiers: ["sonnet", "opus"] });
   expect(qa[0]?.length).toBeLessThanOrEqual(1200);
   expect(qa[0]).toContain("Answer first");
   expect(qa[0]).toContain("never guess");

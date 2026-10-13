@@ -15,8 +15,15 @@ const QA = `This run is general help, answered now: answer, research, look up, s
 - If you are unsure or find nothing, say so; never guess.
 - A multi-step job that changes files or needs an approved plan is a [dev] task: say so in one line.`;
 
-/** Escalation offer (answer run on the cheap tier only; the app parses the line, see orchestrator/outputs/answer-output.ts). */
-const ESCALATE = `- If you cannot answer well (deep design, many files, subtle reasoning), end the reply with ONE last line exactly \`ESCALATE: sonnet\` (or \`ESCALATE: opus\` for architecture-level questions); the app then escalates to that model (Opus needs the owner's OK). Otherwise never write that line.`;
+/** Escalation offer (the app parses the line, see orchestrator/outputs/answer-output.ts); it lists only the tiers the app can really run. */
+const ESCALATE_LEAD =
+  "- If you cannot answer well (deep design, many files, subtle reasoning), end the reply with ONE last line exactly";
+const ESCALATE_RULES = {
+  sonnet: "`ESCALATE: sonnet`; the app then re-runs it on that model",
+  opus: "`ESCALATE: opus` for architecture-level questions; the app then escalates to that model (Opus needs the owner's OK)",
+} as const;
+const escalateRule = (tiers: ("sonnet" | "opus")[]): string =>
+  `${ESCALATE_LEAD} ${tiers.map((t) => ESCALATE_RULES[t]).join(", or ")}. Otherwise never write that line.`;
 
 /** The generalist: short foreground answers, escalation to a stronger model when the cheap one cannot answer. A long job is the specialist's. */
 export const ASSISTANT_ROLE: RoleDefinition = {
@@ -36,7 +43,12 @@ export const ASSISTANT_ROLE: RoleDefinition = {
   gitGroups: ["read"],
   permissionMode: "auto",
   model: "haiku",
+  // Owner decision (P11): the intent class picks the tier up front; no class = the role model. Unsure/failed Haiku runs fall back to Sonnet once (answer-output.ts).
+  classTiers: { mechanical: "haiku", standard: "haiku", design: "sonnet" },
   budgetUsd: BUDGET_USD,
   escalatedBudgetUsd: ESCALATED_BUDGET_USD,
-  promptSections: (ctx) => [QA, ctx.escalation ? ESCALATE : ""],
+  promptSections: (ctx) => [
+    QA,
+    ctx.escalationTiers?.length ? escalateRule(ctx.escalationTiers) : "",
+  ],
 };

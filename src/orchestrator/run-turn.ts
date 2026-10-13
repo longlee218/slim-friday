@@ -62,7 +62,9 @@ export async function runTurn(
   const role = getRole(a.route.role);
   const existing = a.plan.existing ?? a.existing;
   const cls = ("cls" in cmd ? cmd.cls : undefined) ?? a.intent?.cls; // owner `[design]` prefix, else the intent class
-  const runRt = runRoute({ cls, effort: a.intent?.effort, extraBudgetUsd: a.extraBudgetUsd });
+  // Owner `[sonnet]` prefix: only a role with escalation (data flag) takes a forced tier; for others the tag is just stripped.
+  const tier = role.escalation && "tier" in cmd ? cmd.tier : undefined;
+  const runRt = runRoute({ cls, tier, effort: a.intent?.effort, extraBudgetUsd: a.extraBudgetUsd });
   // State BEFORE the new row exists (it would read as `running`): a role with `context.ledger` sees its task ledger on an idle thread.
   const state = deriveThreadState(db, message.threadId);
   logEvent(c.log, "thread.state", { state });

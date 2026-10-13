@@ -84,8 +84,15 @@ describe("resolveModel", () => {
     expect(resolveModel(dev, {}, c)).toBe(S); // missing class = standard
     expect(resolveModel(dev, { cls: "design" }, c)).toBe(O);
   });
-  test("class never moves the assistant (no class tiers)", () => {
-    expect(resolveModel(assistant, { cls: "design" }, c)).toBe(H);
+  test("assistant class tiers: mechanical / standard haiku, design sonnet, no class = role model", () => {
+    expect(resolveModel(assistant, { cls: "mechanical" }, c)).toBe(H);
+    expect(resolveModel(assistant, { cls: "standard" }, c)).toBe(H);
+    expect(resolveModel(assistant, { cls: "design" }, c)).toBe(S);
+    expect(resolveModel(assistant, {}, c)).toBe(H);
+    // env pin still wins over the class; a forced tier and effort beat the class
+    expect(resolveModel(assistant, { cls: "design" }, cfg({ MODEL_ASSISTANT: "haiku" }))).toBe(H);
+    expect(resolveModel(assistant, { cls: "design", tier: "haiku" }, c)).toBe(H);
+    expect(resolveModel(assistant, { cls: "standard", effort: "medium" }, c)).toBe(S);
   });
   test("effort: low haiku, medium sonnet, high by class, max opus", () => {
     expect(effortTier("low")).toBe("haiku");

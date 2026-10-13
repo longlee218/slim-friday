@@ -59,12 +59,13 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   const release = role.capabilities.includes("write") ? markWorking(s.cwd) : undefined;
   if (!role.background) await refreshManaged(s.scope, config.agentHome);
   let rerunModel: string | undefined; // model of the escalated re-run, when one ran
+  let rerunUsage: unknown; // usage of that re-run: identifies whether its result is the answer that was kept
   const runOnce = (r?: Route, resumeId?: string) => {
     const route = i.route || r ? { ...i.route, ...r } : undefined;
     if (r?.escalated) rerunModel = resolveModel(role, route ?? {}, config);
-    return runAgent({
+    const done = runAgent({
       role,
-      prompt: i.text,
+      prompt: route?.promptHint ? `${i.text}\n\n${route.promptHint}` : i.text,
       steer: role.streaming ? deps.steer?.hook(i.threadId) : undefined,
       turnId: i.turnId,
       cwd: s.cwd,
@@ -110,6 +111,8 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
           }
         : undefined,
     });
+    if (r?.escalated) void done.then((x) => (rerunUsage = x.usage)).catch(() => undefined);
+    return done;
   };
   // An Opus escalation asks the owner first (buttons; fails closed).
   const confirmOpus = () =>
@@ -125,14 +128,17 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     config,
     run: runOnce,
     resume: s.sessionId,
+    route: i.route,
     confirmOpus,
+    awaitingOwner: () => !!awaiting,
   }).finally(release);
   // A background run's session is the turn row's only: saved as the thread's, the assistant would resume it.
   const base: FlowResult = {
     ...res,
     cwd: s.cwd,
     repo: known?.name ?? "*",
-    model: rerunModel,
+    // The re-run model only when the re-run produced the kept answer (a failed re-run keeps the first one).
+    model: res.usage === rerunUsage ? rerunModel : undefined,
     ...(role.background && { skipThreadSession: true as const }),
   };
   if (awaiting) return awaitingResult(base, awaiting);

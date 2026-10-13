@@ -153,7 +153,7 @@ export function buildSdkOptions(
     systemPrompt: buildSystemPrompt((input.extraContext ?? []).filter(Boolean).join("\n\n"), role, {
       workflow: input.workflow,
       worktreesDir: input.worktreesDir,
-      escalation: !!input.route?.offerEscalation,
+      escalationTiers: input.route?.offerEscalation,
     }),
     hooks: {
       ...mergeHooks(buildToolHooks(deps.recorder, hookOptions(perms, config, input)), perms),

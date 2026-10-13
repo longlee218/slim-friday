@@ -1,5 +1,5 @@
 import { slashToLegacy } from "../commands/slash-commands";
-import type { TaskClass } from "../config/model-routing";
+import type { ModelTier, TaskClass } from "../config/model-routing";
 import { parseMemoryCommand } from "../memory/memory-commands";
 
 /** Fixed prompt of the Resume button after a restart (a message with exactly this text is a resume). */
@@ -23,10 +23,23 @@ export type MessageCommand =
    * `role` is never parsed: only a Resume of an interrupted or failed task sets it (that task's role starts again).
    * `repo:<name>` is an optional hint.
    */
-  | { kind: "message"; role?: string; repo?: string; text: string; cls?: TaskClass };
+  | {
+      kind: "message";
+      role?: string;
+      repo?: string;
+      text: string;
+      cls?: TaskClass;
+      tier?: ModelTier;
+    };
 
 /** Owner class prefix: `[mechanical]`, `[standard]`, `[design]` (wins over the intent layer's class). Unknown tags are not prefixes. */
 const CLASS_PREFIX = /^\[(mechanical|standard|design)\]\s*/i;
+
+/** Owner model prefix: `[sonnet]` forces Sonnet for a role that offers escalation (no confirm, no automatic fallback). Haiku/Opus are not prefixes (Opus needs the confirm gate). */
+const TIER_PREFIX = /^\[(sonnet)\]\s*/i;
+
+/** A role tag followed by `[sonnet]`: `[ask] [sonnet] q`. The tier is read and removed, the role tag stays for the router. */
+const TAG_THEN_TIER = /^(\[[a-z0-9_-]+\])\s*\[sonnet\]\s*/i;
 
 /** Largest `go +<usd>` raise accepted; a bigger (or non-finite) amount is a plain message. */
 export const MAX_GO_EXTRA_USD = 1000;
@@ -44,15 +57,28 @@ export function parseMessageCommand(input: string): MessageCommand {
   if (go && (go[1] === undefined || (Number(go[1]) > 0 && Number(go[1]) <= MAX_GO_EXTRA_USD)))
     return { kind: "go", ...(go[1] !== undefined && { extraBudgetUsd: Number(go[1]) }) };
   if (parseMemoryCommand(text)) return { kind: "memory" };
-  // Prefixes come in either order: `[design] repo:x ...` or `repo:x [design] ...`; both are stripped from the brief.
+  // Prefixes come in any order: `[design] repo:x ...` or `repo:x [design] ...`; all are stripped from the brief.
   let rest = text;
   let cls: TaskClass | undefined;
+  let tier: ModelTier | undefined;
   let repo: string | undefined;
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     const c = !cls && CLASS_PREFIX.exec(rest);
     if (c) {
       cls = c[1]?.toLowerCase() as TaskClass;
       rest = rest.slice(c[0].length);
+      continue;
+    }
+    const t = !tier && TIER_PREFIX.exec(rest);
+    if (t) {
+      tier = t[1]?.toLowerCase() as ModelTier;
+      rest = rest.slice(t[0].length);
+      continue;
+    }
+    const tt = !tier && TAG_THEN_TIER.exec(rest);
+    if (tt) {
+      tier = "sonnet";
+      rest = `${tt[1]} ${rest.slice(tt[0].length)}`;
       continue;
     }
     const pin = !repo && /^repo:(\S+)\s*/i.exec(rest);
@@ -61,5 +87,5 @@ export function parseMessageCommand(input: string): MessageCommand {
       rest = rest.slice(pin[0].length);
     }
   }
-  return { kind: "message", repo, text: rest, ...(cls && { cls }) };
+  return { kind: "message", repo, text: rest, ...(cls && { cls }), ...(tier && { tier }) };
 }

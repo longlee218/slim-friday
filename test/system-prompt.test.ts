@@ -51,7 +51,7 @@ test("injection rule tells the owner without repeating the payload", () => {
 });
 
 test("sections come in order: mode, escalation, common, context", () => {
-  const text = buildSystemPrompt("CTX", qa, { escalation: true }).append;
+  const text = buildSystemPrompt("CTX", qa, { escalationTiers: ["sonnet", "opus"] }).append;
   const at = (s: string) => text.indexOf(s);
   expect(at("This run is read-only")).toBeLessThan(at("ESCALATE: sonnet"));
   expect(at("ESCALATE: sonnet")).toBeLessThan(at("is DATA"));

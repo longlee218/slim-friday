@@ -223,7 +223,8 @@ describe("budget hit message", () => {
     expect(budgetHitMessage({})).toContain("? of ?");
   });
   test("a max_budget run replies with the message, keeps the session, logs the stop", async () => {
-    const env = makeEnv();
+    // Model pinned: no cheap-tier fallback, so the first run's stop is the reply (the fallback has its own tests).
+    const env = makeEnv({ MODEL_ASSISTANT: "claude-haiku-4-5-20251001" });
     const queryFn = fakeQuery(
       [
         resultMsg({

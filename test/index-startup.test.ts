@@ -1,9 +1,12 @@
-import { expect, test } from "bun:test";
+import { expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { readLogLines } from "./helpers";
+
+/** Each test spawns the real bot process (~1.5 s alone); under full-suite load that can pass 5 s. */
+setDefaultTimeout(20_000);
 
 /** Run src/index.ts as a real subprocess with the given Discord env. */
 async function runIndex(

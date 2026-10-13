@@ -18,6 +18,18 @@ const mk = (
   ...(group && { group }),
 });
 
+/** An answering request (assistant): the class picks its model tier (P11: mechanical/standard haiku, design sonnet). */
+const ask = (
+  text: string,
+  cls: "mechanical" | "standard" | "design",
+  group?: "holdout",
+): GoldenCase => ({
+  text,
+  thread: IDLE,
+  expect: { role: "assistant", scope: "new", cls },
+  ...(group && { group }),
+});
+
 export const CLASS_CASES: GoldenCase[] = [
   // Tuning
   mk("Change the default page size constant from 20 to 25.", "mechanical"),
@@ -50,4 +62,29 @@ export const CLASS_CASES: GoldenCase[] = [
   ),
   mk("Thiết kế hệ thống phân quyền theo vai trò cho toàn bộ ứng dụng.", "design", "holdout"),
   mk("Redesign the checkout flow UI and UX.", "design", "holdout"),
+  // Answering requests (assistant): tuning
+  ask("Xin chào!", "mechanical"),
+  ask("What port does the dev server listen on?", "mechanical"),
+  ask("Explain how the retry queue works in this repo.", "standard"),
+  ask("Tóm tắt giúp tôi file README của dự án.", "standard"),
+  ask(
+    "Compare how billing, orders and inventory share state and where the module boundaries leak.",
+    "design",
+  ),
+  ask("Phân tích kiến trúc thông báo hiện tại và so sánh các hướng mở rộng nhiều kênh.", "design"),
+  // Answering requests (assistant): holdout
+  ask("Thanks, good morning!", "mechanical", "holdout"),
+  ask("Where is the default page size defined?", "mechanical", "holdout"),
+  ask("Giải thích hàm parseDate làm gì.", "standard", "holdout"),
+  ask("Summarize what changed in the last three commits.", "standard", "holdout"),
+  ask(
+    "Walk through how a request flows across the API, queue and worker, and compare it with an event-driven design.",
+    "design",
+    "holdout",
+  ),
+  ask(
+    "Đánh giá toàn bộ cách các module auth, session và permission phụ thuộc nhau.",
+    "design",
+    "holdout",
+  ),
 ];

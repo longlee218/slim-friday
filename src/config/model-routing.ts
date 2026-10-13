@@ -30,8 +30,10 @@ export interface Route {
   tier?: ModelTier;
   /** This run is an escalated answer re-run: uses the role's larger `escalatedBudgetUsd`. */
   escalated?: boolean;
-  /** First answer run: tell the model it may end with `ESCALATE: sonnet|opus` (see qa-escalation.ts). */
-  offerEscalation?: boolean;
+  /** First answer run: the tiers the model may ask for with `ESCALATE: <tier>`; the prompt lists only these (answer-output.ts). */
+  offerEscalation?: ("sonnet" | "opus")[];
+  /** Hint line appended to the run's prompt (never shown to the owner): the fallback re-run's "previous attempt failed" note. */
+  promptHint?: string;
   /** Owner raised the budget (`go +<usd>`, parsed in P1.4): added to the role budget. */
   extraBudgetUsd?: number;
   /** USD the task's earlier runs (itself and the runs it resumes) already cost; the task ceiling `TASK_BUDGET_USD` is shared with them. */

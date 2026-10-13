@@ -48,13 +48,13 @@ test("roles: bypass only for dev, auto for the assistant, default tier and budge
   expect(getRole("dev")).toMatchObject({ model: "sonnet", budgetUsd: 4.5, background: true });
 });
 
-test("whenToUse: every role has one, all different; class tiers only for dev", () => {
+test("whenToUse: every role has one, all different; both roles have class tiers", () => {
   const roles = intentRoles();
   expect(roles.map((r) => r.name).sort()).toEqual(["assistant", "dev"]);
   for (const r of roles) expect(r.whenToUse.length).toBeGreaterThan(20);
   expect(new Set(roles.map((r) => r.whenToUse)).size).toBe(roles.length);
   expect(hasClassTiers(getRole("dev"))).toBe(true);
-  expect(hasClassTiers(getRole("assistant"))).toBe(false);
+  expect(hasClassTiers(getRole("assistant"))).toBe(true); // P11: haiku / haiku / sonnet
 });
 
 test("whenToUse stays within the 220-char budget of prompt-standard.md", () => {
