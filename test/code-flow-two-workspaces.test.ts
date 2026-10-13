@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
+import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeRepo } from "./git-fixture";
@@ -89,5 +90,5 @@ test("two workspaces with repo `real`: every task runs in the channel's workspac
   await handle(msg("[dev] also c")); // a new task (no follow-up in a finished task)
   expect(seen.length).toBeGreaterThan(n);
   expect(seen[n].options.cwd).toContain("/w-b/");
-  expect(seen[n].options.mcpServers).toEqual({}); // no git MCP, no identity from the app
+  expect(Object.keys(seen[n].options.mcpServers)).toEqual([MEMORY_MCP_SERVER]); // no git MCP, no identity from the app
 });

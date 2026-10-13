@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import { logEvent, logger } from "../observability/logger";
+import { localDay } from "./memory-clock";
 import {
   MemoryBusyError,
   MemorySymlinkError,
@@ -87,7 +88,7 @@ function appendLocked(
     .map((b) => `- ${b}`)
     .filter((l) => !known.has(l));
   if (fresh.length === 0) return;
-  const date = new Date().toISOString().slice(0, 10);
+  const date = localDay();
   const section = `\n## ${date} ${sanitizeBullet(title, 80)}\n${fresh.join("\n")}\n`;
   let next = `${old.trimEnd()}\n${section}`;
   if (next.split("\n").length > TRIM_AT_LINES) {
@@ -106,7 +107,7 @@ function appendLocked(
 }
 
 /** Header of the quarantine file for `[global]` bullets. */
-const PENDING_HEADER =
+export const PENDING_HEADER =
   "# pending global memory (agent notes, never injected; the owner promotes by hand to MEMORY.md)";
 
 /**

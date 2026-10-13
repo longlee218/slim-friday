@@ -6,6 +6,7 @@ import { buildRegistryContext, type Repo } from "../../repos/repo-registry";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
+import { loadWorkspaces } from "../../workspaces/workspace-registry";
 import { answerOutput } from "../outputs/answer-output";
 import { type FlowResult, failResult } from "../turns/turn-result";
 import { askTimeoutControl, awaitingResult } from "./ask-timeout-control";
@@ -66,6 +67,18 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       additionalDirectories: s.additionalDirectories,
       worktreesDir: s.worktreesDir,
       workflow: s.workflow,
+      // In-process memory tools (Remember...): repo names are read from the registry only when a tool needs them.
+      memory: {
+        home: config.agentHome,
+        workspace: i.workspace,
+        repoNames: () =>
+          (
+            loadWorkspaces(config.agentHome).workspaces.find((w) => w.name === i.workspace)
+              ?.repos ?? []
+          ).map((r) => r.name),
+        repo: i.repos.length === 1 ? i.repos[0]?.name : undefined,
+        threadLabel: `thread ${i.threadId.slice(-6)}`,
+      },
       skillsWorkspace: i.workspace, // curated skills of this workspace (never repo content)
       guard: guardFor(role, s.guard),
       extraContext: buildPromptContext({

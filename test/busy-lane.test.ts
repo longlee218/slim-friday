@@ -400,7 +400,7 @@ test("C: a foreground role on a busy thread goes to the side lane even when L3 s
   setTurnStatus(h.env.db, taskId, "waiting_approval");
   expect(await h.handle(msg("status? what is the agent doing"))).toBe("assistant answer");
   expect(h.p.sideOptions).toHaveLength(1);
-  const seen = JSON.stringify(h.p.sideOptions[0]);
+  const seen = JSON.stringify({ ...h.p.sideOptions[0], mcpServers: undefined }); // the in-process server instance is cyclic
   expect(seen).toContain(STATUS_HEADING);
   expect(seen).toContain("state: awaiting_owner");
   expect(seen).toContain("last tool: Grep");

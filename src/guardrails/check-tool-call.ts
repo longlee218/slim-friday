@@ -6,7 +6,13 @@
  * NOTE: Bash parsing is best effort and can be bypassed (variable tricks, scripts, etc).
  */
 
-import { GIT_MCP_SERVER, MCP_PREFIX, mcpServerPrefix } from "../mcp/mcp-tool-names";
+import {
+  GIT_MCP_SERVER,
+  MCP_PREFIX,
+  MEMORY_MCP_SERVER,
+  MEMORY_TOOLS,
+  mcpServerPrefix,
+} from "../mcp/mcp-tool-names";
 import type { RoleDefinition } from "../roles/role-types";
 import {
   AGENT_TOOL_NAME,
@@ -112,6 +118,12 @@ export function checkToolCall(
   if (toolName.startsWith(mcpServerPrefix(GIT_MCP_SERVER))) {
     return checkGitMcp(toolName.slice(mcpServerPrefix(GIT_MCP_SERVER).length), input, ctx);
   }
+  // The app's own memory server: exactly its listed tools (they only write the memory files, by their own rules).
+  const memoryPrefix = mcpServerPrefix(MEMORY_MCP_SERVER);
+  if (toolName.startsWith(memoryPrefix))
+    return MEMORY_TOOLS.includes(toolName.slice(memoryPrefix.length))
+      ? { decision: "allow", reason: "memory tool" }
+      : { decision: "deny", reason: "unknown memory tool" };
   if (toolName.startsWith(MCP_PREFIX)) return { decision: "deny", reason: "unknown MCP tool" };
   // `Task` is the legacy name of the Agent tool: same decision.
   if (ctx.allowTools?.includes(toolName === LEGACY_AGENT_TOOL_NAME ? AGENT_TOOL_NAME : toolName))

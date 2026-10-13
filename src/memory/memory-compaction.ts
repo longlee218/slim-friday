@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { localDay } from "./memory-clock";
 import { compactionOffenders, inputGroups } from "./memory-compaction-check";
 import { CallTimeoutError, type CompactLlm } from "./memory-compaction-llm";
 import {
@@ -108,7 +109,7 @@ export async function compactFile(
       diff,
       offending: invented,
     });
-  const today = opts.date ?? new Date().toISOString().slice(0, 10);
+  const today = opts.date ?? localDay();
   const { text: proposed, droppedProse } = buildCompacted(
     raw,
     t.template,

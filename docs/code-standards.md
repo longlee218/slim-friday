@@ -52,7 +52,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 
 **Organize by domain** (`src/<domain>/...`), not by technical layer: `orchestrator/`, `intent/`, `guardrails/`, `runtime/`, `roles/`, `storage/`, `memory/`, `workspaces/`, `repos/`, `lifecycle/`, `discord-setup/`, `ingress/`, `approvals/`, `config/`, `tools/`, `mcp/`, `observability/`.
 
-**Custom tools** (none exist today): folder `src/tools/<Name>Tool/` (PascalCase folder, kebab-case files: `constants.ts`, `prompt.ts`, `<name>-tool.ts`). Tool names are PascalCase constants in `sdk-tool-names.ts` or `mcp-tool-names.ts`.
+**Custom tools** (first: `Remember`, `src/tools/RememberTool/`; in-process SDK MCP server `memory` built by `src/mcp/memory-server.ts`, run context `src/tools/memory-tool-context.ts`): folder `src/tools/<Name>Tool/` (PascalCase folder, kebab-case files: `constants.ts`, `prompt.ts`, `<name>-tool.ts`). Tool names are PascalCase constants in `sdk-tool-names.ts` or `mcp-tool-names.ts`.
 
 **Role files:** `src/roles/builtin/<name>-role.ts` exports one `RoleDefinition` object. Prompt text lives in `<name>-prompts.ts` next to it.
 

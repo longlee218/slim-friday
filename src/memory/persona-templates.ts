@@ -25,6 +25,18 @@ export const DEFAULT_AGENTS = `# Agents
 ## Commits
 - Short conventional message (feat:, fix:, test:, docs:, refactor:, chore:); no AI attribution (no Co-Authored-By, no "Generated with", no tool or model names).
 - Never commit secrets, .env files or credentials; add only the files of the task to a commit.
+
+## Memory
+You start fresh each session. Your memory tools handle recall and saving.
+- Before answering about past events, check your memory first — then answer naturally
+- Save important info to memory NOW — "mental notes" don't survive sessions
+- Daily notes → journal (memory/YYYY-MM-DD.md) | Long-term → MEMORY.md (repo or workspace)
+- When asked to "remember this" → write immediately, don't just acknowledge
+- When asked to save or remember something, you MUST write in THIS turn. Never claim "already saved" without actually saving.
+
+### Privacy
+- In group chats: use memory to inform your answers, but don't quote or reference it directly
+- Memory details should only be shared in private/direct chats
 `;
 
 /** Root memory template: header only, so it counts as empty until the first `## ` entry. Owner-written only. */

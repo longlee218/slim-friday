@@ -5,6 +5,7 @@ import type { RunLimiter } from "../orchestrator/turns/run-limiter";
 import type { QueryFn } from "../runtime/run-agent";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import { loadWorkspaces, type Workspace } from "../workspaces/workspace-registry";
+import { localDay } from "./memory-clock";
 import { type MemoryCommand, parseMemoryCommand } from "./memory-commands";
 import {
   COMPACT_THRESHOLD,
@@ -121,7 +122,7 @@ export function createMemoryRunner(deps: MemoryRunnerDeps): MemoryRunner {
     if ("reply" in t) return t.reply;
     const result =
       cmd.kind === "remember"
-        ? ownerRemember(t, refined.text, new Date().toISOString().slice(0, 10))
+        ? ownerRemember(t, refined.text, localDay())
         : ownerForget(t, refined.text);
     logEvent(log, "memory.owner_edit", { kind: cmd.kind, file: t.label, ok: result.ok });
     return editReply(result, t);

@@ -46,3 +46,10 @@ export const GIT_TOOL = {
   WORKTREE: "git_worktree",
   WRAPUP_INSTRUCTIONS: "git_wrapup_instructions",
 } as const;
+
+/** In-process memory server (SDK MCP server of the app, every role). Its tools are listed in `MEMORY_TOOLS`. */
+export const MEMORY_MCP_SERVER = "memory";
+/** Save a durable note (phase 5). */
+export const REMEMBER_TOOL = "Remember";
+/** Every tool of the memory server: the guard allows exactly these and denies any other `mcp__memory__*`. */
+export const MEMORY_TOOLS: readonly string[] = [REMEMBER_TOOL];

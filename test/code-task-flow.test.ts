@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
+import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
 import { workActiveIn } from "../src/orchestrator/engine/repo-activity";
@@ -120,7 +121,7 @@ test("dev task: ONE run in the repo's own checkout, the plan approval is an ask,
   expect(seen[0].options.cwd).toBe(realpathSync(clone));
   expect(seen[0].options.permissionMode).toBe("bypassPermissions");
   expect(seen[0].options.allowDangerouslySkipPermissions).toBe(true);
-  expect(seen[0].options.mcpServers).toEqual({}); // git and gh run in the agent's shell
+  expect(Object.keys(seen[0].options.mcpServers)).toEqual([MEMORY_MCP_SERVER]); // memory tools only; git and gh run in the agent's shell
   expect(seen[0].options.resume).toBeUndefined();
   expect(seen[0].options.additionalDirectories).toEqual([
     realpathSync(ws.task(taskIdOf(env)).root),

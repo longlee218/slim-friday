@@ -1,8 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdirSync, realpathSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { claudePlansDir, workspacePaths } from "../src/config/workspace-paths";
-import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { GIT_MCP_SERVER, MEMORY_MCP_SERVER, REMEMBER_TOOL } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { setupWorkflow } from "./code-flow-fixture";
 import { devIntent, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
@@ -60,7 +60,8 @@ test("the dev run works in the repo's own checkout: cwd = repo path, scratch + w
 
 test("dev: no git or GitHub MCP server; the owner's env passes through", async () => {
   const { exec } = await runExec();
-  expect(exec.mcpServers).toEqual({});
+  // Only the app's in-process memory server (every role); no git server (git and gh run in the shell).
+  expect(Object.keys(exec.mcpServers)).toEqual([MEMORY_MCP_SERVER]);
   expect(Object.keys(exec.mcpServers)).not.toContain(GIT_MCP_SERVER);
   expect(exec.env.GH_TOKEN).toBe(FAKE_TOKEN); // `gh` in the agent's shell uses the owner's login
 });
@@ -99,4 +100,29 @@ test("dev prompt: the one worktree line names <workspace worktrees dir>/<repo>/"
   const line = `If you use a git worktree, put it under ${join(realpathSync(ws.worktrees), "real")}/.`;
   expect(exec.systemPrompt.append).toContain(line);
   expect(exec.systemPrompt.append).toContain("Merge, push or PR only after the owner chose it.");
+});
+
+test("wiring: Remember through the run's real memory server lands in the run's workspace/repo", async () => {
+  const { env, exec } = await runExec();
+  // Test-only: `_registeredTools` is an undocumented MCP SDK internal (no public call API on the instance); may break on SDK upgrades.
+  // The registered tool of the in-process server the role runner built (context closure of run-role.ts).
+  const tool = exec.mcpServers[MEMORY_MCP_SERVER].instance._registeredTools[REMEMBER_TOOL];
+  const ok = await tool.handler(
+    { text: "uses bun test", scope: "repo", repo: "real", kind: "fact" },
+    {},
+  );
+  expect(ok.isError).toBeUndefined();
+  expect(ok.content[0].text).toBe("saved to repo/real (Facts)");
+  const file = workspacePaths(env.home).workspace("main").repo("real").memory;
+  expect(readFileSync(file, "utf8")).toContain("- uses bun test (");
+  // A repo outside this workspace's registry is refused (repoNames comes from the registry).
+  const bad = await tool.handler({ text: "x note", scope: "repo", repo: "other" }, {});
+  expect(bad.isError).toBe(true);
+  expect(bad.content[0].text).toContain("real");
+  const j = await tool.handler({ text: "journal note", scope: "journal" }, {});
+  expect(j.isError).toBeUndefined();
+  const jf = readdirSync(join(workspacePaths(env.home).workspace("main").root, "memory"))[0]!;
+  expect(
+    readFileSync(join(workspacePaths(env.home).workspace("main").root, "memory", jf), "utf8"),
+  ).toMatch(/## \d\d:\d\d thread /);
 });

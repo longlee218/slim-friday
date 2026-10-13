@@ -24,6 +24,7 @@ const NAMES = new Set<string>([
   ...Object.values(sdkNames),
   ...Object.values(mcpNames.GIT_TOOL),
   mcpNames.GIT_MCP_SERVER,
+  ...mcpNames.MEMORY_TOOLS,
 ]);
 /** Server names are generic words ("git" is also a shell command); only tool names + mcp__ are scanned. */
 NAMES.delete(mcpNames.GIT_MCP_SERVER);

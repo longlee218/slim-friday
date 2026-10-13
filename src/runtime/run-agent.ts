@@ -14,6 +14,7 @@ import {
 } from "../observability/record-run";
 import type { Workflow } from "../repos/repo-registry";
 import type { RoleDefinition } from "../roles/role-types";
+import type { MemoryToolContext } from "../tools/memory-tool-context";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import { createPermissionWatch } from "./permission-watch";
 import type { SteerHook } from "./run-input-channel";
@@ -50,6 +51,8 @@ export interface RunAgentInput {
   worktreesDir?: string;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never repo content). */
   skillsWorkspace?: string;
+  /** Context of the in-process `memory` server (Remember...): omitted = the run has no memory tools. */
+  memory?: MemoryToolContext;
   /** Routing facts (class, effort, forced tier, escalation); omitted = the role defaults. */
   route?: Route;
   /** Existing Claude session id to resume. */
