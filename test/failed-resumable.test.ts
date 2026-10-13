@@ -7,13 +7,16 @@ import type { IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { expireHeldTasks, HELD_TASK_DAYS } from "../src/lifecycle/startup";
+import { captureLogs } from "../src/observability/logger";
 import { resumeQuestionOf } from "../src/orchestrator/dispatch/resume-failed-task";
 import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { CONTINUE_PROMPT } from "../src/orchestrator/message-routing";
+import { NO_DELIVERY_NOTE } from "../src/orchestrator/outputs/outcome-validator";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
 import { type FlowResult, RESUMABLE, resumeReasonOf } from "../src/orchestrator/turns/turn-result";
 import { ROLES } from "../src/roles/role-registry";
+import { activeOwnedTask, getOwnedTask } from "../src/storage/owned-task-store";
 import { insertTurn } from "../src/storage/run-store";
 import { g, makeRepo } from "./git-fixture";
 import {
@@ -53,7 +56,7 @@ const msg = (text: string) => ({
 });
 
 /** What one dev run does: fail (`error` / `budget`), fail on its resume, or write + commit b.txt. */
-type RunStep = "error" | "budget" | "resume-gone" | "no-session" | "ok";
+type RunStep = "error" | "budget" | "resume-gone" | "no-session" | "answer" | "ok";
 
 /** Fake SDK: each dev run follows the next step; its session id is `sess-<n>`. */
 function sdk(steps: RunStep[], seen: any[]) {
@@ -83,6 +86,11 @@ function sdk(steps: RunStep[], seen: any[]) {
       }
       if (step === "resume-gone") {
         yield fail(["No conversation found with session ID: sess-1"]);
+        return;
+      }
+      if (step === "answer") {
+        // Ends well but changes nothing: no commit, push or PR.
+        yield resultMsg({ result: "Only an answer\n\nrepo: real", session_id: `sess-${n}` });
         return;
       }
       writeFileSync(join(o.cwd, "b.txt"), "two\n");
@@ -341,4 +349,30 @@ test("hold expiry: a non-uuid id is skipped for rm but still failed; a throwing 
   expect(st.every((r) => r.status === "failed")).toBe(true);
   expect(removed.length).toBeGreaterThan(0);
   expect(removed.every((d) => d.includes(ids[2]!))).toBe(true); // the uuid after the failing one was still processed
+});
+
+test("a dev run that delivers nothing: its own reply + one neutral line, turn done, task waits; `/go` continues it, no auto re-run", async () => {
+  const { env, seen, handle } = await run(["answer", "ok"]);
+  const cap = captureLogs();
+  const reply = await handle(msg(DEV_REQUEST));
+  cap.stop();
+  expect(reply).toContain("Only an answer");
+  expect(reply).toContain(NO_DELIVERY_NOTE);
+  expect(seen).toHaveLength(1); // no auto re-run
+  expect(status(env)).toEqual([{ status: "done", kind: "single", parent_turn_id: null }]);
+  const task = activeOwnedTask(env.db, "th1")!;
+  expect(task).toMatchObject({ status: "waiting_user", ownerAgentId: "dev" });
+  const out = cap.lines.filter((l) => l.event === "execution.outcome");
+  expect(out).toHaveLength(1);
+  expect(out[0]).toMatchObject({ status: "partial", recoveryHint: "continue" });
+  expect(JSON.stringify(out[0])).not.toContain("Only an answer");
+  // `/go` continues the same task in its own session with the generic continue prompt.
+  const again = await handle(msg("/go"));
+  expect(seen).toHaveLength(2);
+  expect(seen[1].options.resume).toBe("sess-1");
+  expect(seen[1].promptText).toBe(CONTINUE_PROMPT);
+  expect(again).toContain("Xong");
+  // Same task (the fake agent commits outside any recorded Bash call, so it still shows no evidence).
+  expect(activeOwnedTask(env.db, "th1")?.taskId).toBe(task.taskId);
+  expect(getOwnedTask(env.db, task.taskId)?.version).toBeGreaterThan(task.version);
 });

@@ -133,7 +133,7 @@ export function attachTurnToTask(
   return fresh.taskId;
 }
 
-/** Task status for a final turn status (only background turns are linked). TODO phase 8: `done` -> completed until the delivery check (no delivery -> waiting_user) exists. */
+/** Task status for a final turn status (only background turns are linked). */
 const STATUS_OF_TURN: Readonly<Record<string, TaskState["status"]>> = {
   done: "completed",
   failed_resumable: "waiting_user",
@@ -143,9 +143,17 @@ const STATUS_OF_TURN: Readonly<Record<string, TaskState["status"]>> = {
   cancelled: "cancelled",
 };
 
-/** Turn ended with `turnStatus`: settle its task. No-op for an unlinked turn or a status that keeps it running. */
-export function settleTaskAfterTurn(db: Database, turnId: string, turnStatus: string): void {
+/**
+ * Turn ended with `turnStatus`: settle its task. No-op for an unlinked turn or a status that keeps it running.
+ * `undelivered` = the run ended `done` but left no delivery evidence: the task waits for the owner (not completed).
+ */
+export function settleTaskAfterTurn(
+  db: Database,
+  turnId: string,
+  turnStatus: string,
+  undelivered = false,
+): void {
   const taskId = ownedTaskOfTurn(db, turnId);
-  const next = STATUS_OF_TURN[turnStatus];
+  const next = undelivered && turnStatus === "done" ? "waiting_user" : STATUS_OF_TURN[turnStatus];
   if (taskId && next) moveTaskTo(db, taskId, next);
 }

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { captureLogs, logger } from "../src/observability/logger";
+import { NO_DELIVERY_NOTE } from "../src/orchestrator/outputs/outcome-validator";
 import { closeTurn, type FlowResult } from "../src/orchestrator/turns/turn-result";
 import { beginTurn, failTurn } from "../src/orchestrator/turns/turn-tracker";
 import { ROLES } from "../src/roles/role-registry";
@@ -124,16 +125,21 @@ test("turn end settles the task: done / waiting / failed / cancelled; unlinked t
   expect(() => settleTaskAfterTurn(db, "a", "done")).not.toThrow();
 });
 
-test("closeTurn settles through the real path (success -> completed; shutdown abort -> waiting_user)", () => {
+test("closeTurn settles through the real path (delivered success -> completed; shutdown abort -> waiting_user)", () => {
   const { db } = makeEnv();
-  const res = (outcome: FlowResult["outcome"]): FlowResult => ({
-    text: "x",
+  const res = (outcome: FlowResult["outcome"], text = "x"): FlowResult => ({
+    text,
     outcome,
     sessionId: undefined,
   });
   const o = { stopping: false, t0: Date.now(), repo: "*" };
   begin(db, "t1", background);
-  closeTurn(db, { turnId: "t1", threadId: "th" }, res("success"), o);
+  closeTurn(
+    db,
+    { turnId: "t1", threadId: "th" },
+    res("success", "opened https://github.com/o/r/pull/7"),
+    o,
+  );
   expect(getOwnedTask(db, ownedTaskOfTurn(db, "t1")!)?.status).toBe("completed");
   begin(db, "t2", background);
   closeTurn(db, { turnId: "t2", threadId: "th" }, res("aborted"), { ...o, stopping: true });
@@ -257,4 +263,27 @@ test("beginTurn is atomic: a failing task link leaves no turn row", () => {
   db.exec("DROP TABLE owned_tasks");
   expect(() => begin(db, "t1", background)).toThrow();
   expect(db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 0 });
+});
+
+test("closeTurn: a failed or aborted run gets no no-delivery note and its task is not parked as undelivered", () => {
+  const { db } = makeEnv();
+  const o = { stopping: false, t0: Date.now(), repo: "*" };
+  begin(db, "f1", background);
+  const failed = closeTurn(
+    db,
+    { turnId: "f1", threadId: "th" },
+    { text: "boom", outcome: "error", sessionId: undefined },
+    o,
+  );
+  expect(failed).not.toContain(NO_DELIVERY_NOTE);
+  expect(getOwnedTask(db, ownedTaskOfTurn(db, "f1")!)?.status).toBe("failed");
+  begin(db, "a1", background);
+  const aborted = closeTurn(
+    db,
+    { turnId: "a1", threadId: "th" },
+    { text: "", outcome: "aborted", sessionId: undefined },
+    o,
+  );
+  expect(aborted).not.toContain(NO_DELIVERY_NOTE);
+  expect(getOwnedTask(db, ownedTaskOfTurn(db, "a1")!)?.status).toBe("cancelled");
 });

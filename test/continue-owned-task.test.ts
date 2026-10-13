@@ -153,7 +153,7 @@ test("a plain follow-up the proposer marks `continue` resumes the waiting task's
     ownedTaskId: task.taskId,
     candidateAgentId: BG,
   });
-  expect(getOwnedTask(h.env.db, task.taskId)?.status).toBe("completed");
+  expect(getOwnedTask(h.env.db, task.taskId)?.status).toBe("waiting_user");
 });
 
 test("session gone: the owner role starts a fresh run through the normal path, linked to the same task", async () => {

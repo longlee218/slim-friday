@@ -136,7 +136,7 @@ test("dev task: ONE run in the repo's own checkout, the plan approval is an ask,
   expect(reply).toContain("Xong");
   expect(reply).toContain("Memory:"); // a Memory: block is no longer parsed: plain report text
   expect(reply).not.toContain("repo: real"); // the marker is the app's
-  expect(reply).not.toContain("PR");
+  expect(reply).not.toContain("github.com"); // no PR gate; a run with nothing delivered ends with the neutral note
   // The removed Memory: path wrote nothing: the repo MEMORY.md has no lesson from the report.
   const memFile = env.paths.workspace("main").repo("real").memory;
   expect(existsSync(memFile) ? readFileSync(memFile, "utf8") : "").not.toContain(

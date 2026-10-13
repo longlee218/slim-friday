@@ -5,6 +5,7 @@ import { realOrSame } from "../guardrails/paths";
 import type { Repo } from "../repos/repo-registry";
 import { entryRole, getRole, ROLES } from "../roles/role-registry";
 import { deterministicPreflight } from "../routing/preflight/deterministic-preflight";
+import { getOwnedTask, ownedTaskOfTurn } from "../storage/owned-task-store";
 import { latestTurnSession } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
 import { resumeGone } from "./dispatch/resume-failed-task";
@@ -74,9 +75,9 @@ export const inRegisteredRepo = (repos: Repo[], cwd: string | null | undefined):
 /** Refusal reasons after which a `go` message is treated as plain text (nothing to start or resume). */
 export const PLAIN_GO: ReadonlySet<string> = new Set(["cannot_resume", "stale_resume"]);
 
-/** Prompt of a continued task that did not end by a restart (budget, error): its session goes on from where it stopped. */
+/** Prompt of a continued task that did not end by a restart (budget, error, or a run that left nothing delivered): its session goes on from where it stopped. */
 export const CONTINUE_PROMPT =
-  "Your previous run stopped before it finished (budget or error). The checkout may already hold part of the work: check `git status` and the diff first, then continue the task from where you stopped.";
+  "Your previous run ended before the task was finished (budget, error, or nothing delivered yet). The checkout may already hold part of the work: check `git status` and the diff first, then continue the task from where you stopped.";
 
 /** A runnable command plus what a Resume adds. */
 export interface ResumePlan {
@@ -105,10 +106,15 @@ export function resolveCommand(
   );
   const last = latestTurnSession(deps.db, threadId);
   if (!last) return cannot;
+  // A `done` turn whose owned task still waits for the owner (the run delivered nothing) can be continued too.
+  const undelivered =
+    last.status === "done" &&
+    getOwnedTask(deps.db, ownedTaskOfTurn(deps.db, last.id) ?? "")?.status === "waiting_user";
   // Only a task that was cut short (or stopped, or ended on its budget, or failed resumable) can be resumed; a newer finished/failed one means stale.
   if (
     !["interrupted", "cancelled", "failed_resumable"].includes(last.status) &&
-    !last.budgetStopped
+    !last.budgetStopped &&
+    !undelivered
   )
     return refuse("stale_resume", "This Resume is out of date: the thread has moved on.");
   // A budget stop with the same budget would stop again: the owner must raise it.
@@ -137,7 +143,11 @@ export function resolveCommand(
   if (role?.background) {
     return {
       // The role is named: the thread's entry role would run it otherwise.
-      cmd: { kind: "message", role: last.role, text: failed ? CONTINUE_PROMPT : RESUME_PROMPT },
+      cmd: {
+        kind: "message",
+        role: last.role,
+        text: failed || undelivered ? CONTINUE_PROMPT : RESUME_PROMPT,
+      },
       existing,
       resume: { sessionId: existing.session_id, cwd: existing.cwd, of: last.id },
     };

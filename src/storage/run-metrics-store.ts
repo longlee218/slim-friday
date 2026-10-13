@@ -111,3 +111,13 @@ export function lastRunOutcome(db: Database, turnId: string): string | undefined
     )
     .get(turnId)?.outcome;
 }
+
+/** Raw `input_json` of every call of tool `tool` in a turn (main agent and subagents), oldest first. */
+export function toolInputsOfTurn(db: Database, turnId: string, tool: string): string[] {
+  return db
+    .query<{ input: string }, [string, string]>(
+      "SELECT input_json AS input FROM tool_calls WHERE turn_id = ? AND tool = ? ORDER BY rowid",
+    )
+    .all(turnId, tool)
+    .map((r) => r.input);
+}
