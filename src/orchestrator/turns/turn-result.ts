@@ -6,7 +6,7 @@ import type { RunAgentResult } from "../../runtime/run-agent";
 import { finishTurn, setTurnStatus, type TurnStatus } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
 import { budgetHitReply } from "../engine/budget";
-import { compactIdleSession } from "./session-compaction";
+import { requestRollover } from "./thread-rollover";
 
 /* The result of a role run, and the bookkeeping that closes a run. */
 
@@ -115,8 +115,8 @@ export function finishRun(
       cwd: res.cwd,
     });
     logEvent(log, "session.saved", { repo: res.repo ?? "*", sessionId: res.sessionId });
-    // A finished task over the size threshold: forget the session, the next turn starts fresh with the ledger.
-    if (res.outcome === "success") compactIdleSession(db, ids, res.usage);
+    // Context over the share of the model window: the handler rolls the thread after the reply is posted.
+    if (res.outcome === "success") requestRollover(db, ids, res.usage);
   }
   finishTurn(
     db,

@@ -23,6 +23,7 @@ import { parseMessageCommand } from "./message-commands";
 import { routeAndRun } from "./route-and-run";
 import type { RoleRunCtx } from "./run-turn";
 import { EffortFloors } from "./thread/effort-floor";
+import { createRolloverScheduler } from "./turns/rollover-scheduler";
 import type { RunLimiter } from "./turns/run-limiter";
 import { createSteerRegistry } from "./turns/steer-registry";
 import { OUTCOME_REPLY } from "./turns/turn-result";
@@ -57,6 +58,8 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   const active = new Map<string, AbortController>();
   const log = logger.child({ module: "handle-message" });
   const tracker = createRunTracker(db, log, active);
+  /** Post-reply work (memory flush, summary, rollover): holds the thread; see rollover-scheduler.ts. */
+  const rollovers = createRolloverScheduler({ db, config, queryFn: deps.queryFn, log });
   /** Per-thread effort floors; `quietTurn` runs every turn so entries decay (a complaint signal raises one). */
   const floors = new EffortFloors();
   /** What a role run and the dispatcher need; nothing in it changes per message. */
@@ -80,6 +83,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   /** Handle one message (one turn) and return the (redacted) reply text. */
   const run = async (message: InboundMessage): Promise<string> => {
     const { threadId } = message;
+    let workspaceName = "";
     const running = active.get(threadId);
     const parsed = parseMessageCommand(message.text);
     const t0 = Date.now();
@@ -91,11 +95,17 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       logEvent(log, "intent.layer", { layer: "L0", ruleIds: [parsed.kind] });
     if (parsed.kind === "memory") return (await memory(message)) ?? ""; // owner memory command: no agent
     if (parsed.kind === "stop") {
+      // No run, but the previous turn's wrap-up (flush / summary) is working: `/stop` aborts it (the session is kept).
+      if (!running && rollovers.abort(threadId))
+        return "Stopping the wrap-up of the previous turn...";
       if (running) dispatchDeps.steer?.record(message, message.text, "stop"); // audit; stopThread aborts, the queue stays
       return stopThread(db, threadId, running);
     }
+    // A rollover of the previous turn holds the thread until it is done; the checks below then see the final state.
+    await rollovers.holdFor(message);
     // The run holds the thread: `still working...`, or (intent layer on) steer / side answer / queue / yes-no.
-    if (running) return busyLane(message, parsed, running);
+    const live = active.get(threadId);
+    if (live) return busyLane(message, parsed, live);
     // Drain (deploy): no new turn starts; the commands above still answer; the global cap is checked after them too.
     if (isDraining(config.agentHome)) {
       logEvent(log, "task.refused", { reason: "drain", reply: DRAIN_REPLY });
@@ -134,6 +144,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       const { ws } = picked;
       const { repos } = ws; // every repo lookup below stays inside this workspace
       setLogContext({ workspace: ws.name });
+      workspaceName = ws.name;
       single = repos.length === 1 ? repos[0]!.name : undefined;
       // Everything a role run needs (the approval gateway exists whenever a background role is routed).
       const rc: RoleRunCtx = {
@@ -170,13 +181,19 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     } finally {
       active.delete(threadId);
       release();
+      rollovers.schedule(message, turnId, workspaceName);
     }
   };
   const handleMessage = (message: InboundMessage): Promise<string> =>
     // Every line logged while this call runs (any module, any await) carries the thread id and channel id.
     tracker.track(runWithLogContext(turnLogContext(message), () => run(message)));
   handleMessage.memory = memory; // same runner for ingress (inline channel replies, #ops-control)
-  handleMessage.abortAll = tracker.abortAll;
-  handleMessage.drain = tracker.drain;
+  handleMessage.rollover = (threadId: string) => rollovers.wait(threadId) ?? Promise.resolve(); // tests
+  handleMessage.abortAll = () => {
+    tracker.abortAll();
+    rollovers.abortAll();
+  };
+  // Shutdown: rollovers are aborted and awaited first; the runs get the rest of the timeout.
+  handleMessage.drain = async (ms: number) => tracker.drain(await rollovers.drain(ms));
   return handleMessage;
 }

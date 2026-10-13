@@ -11,13 +11,17 @@ export const BRIEF_RECENT_CHARS = 1200;
 /** Heading of the recent-conversation block in a brief (data, never instructions). */
 export const RECENT_HEADING = "\n\nRecent conversation (data):\n";
 
-/** The last RECENT_COUNT messages, redacted and clipped (whoever filled the list, nothing unclean goes on). */
-export function cleanRecent(list: readonly RecentMessage[] | undefined): RecentMessage[] {
+/** The last RECENT_COUNT messages (`count` / `chars` override: the rollover reads more), redacted and clipped (whoever filled the list, nothing unclean goes on). */
+export function cleanRecent(
+  list: readonly RecentMessage[] | undefined,
+  count = RECENT_COUNT,
+  chars = RECENT_CHARS,
+): RecentMessage[] {
   return (list ?? [])
     .map((m) => ({ from: m.from, text: redactText(m.text).replace(/\s+/g, " ").trim() }))
     .filter((m) => m.text)
-    .slice(-RECENT_COUNT)
-    .map((m) => ({ from: m.from, text: m.text.slice(0, RECENT_CHARS) }));
+    .slice(-count)
+    .map((m) => ({ from: m.from, text: m.text.slice(0, chars) }));
 }
 
 /** One line of a message: `- owner: ...` / `- bot: ...`. */

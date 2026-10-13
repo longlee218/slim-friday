@@ -190,6 +190,7 @@ export async function consumeStream(p: {
       ...usage,
       compactions,
       ...g,
+      ...(mainModel && { mainModel }),
       ...(contextWindow !== undefined && { contextWindow }),
     },
     resetsAt,

@@ -41,30 +41,37 @@ function itemsOf(e: ExtractedContext): JournalItem[] {
   ];
 }
 
-const label = (ctx: CompactHookCtx, title: string): string =>
+const label = (ctx: MemoryToolContext, title: string): string =>
   `${title} - ${ctx.threadLabel.slice(0, LABEL_THREAD_CHARS)}`;
+
+/**
+ * Append an extract to today's journal as one `## HH:MM Extracted Context - <thread>` block and re-index the file.
+ * Returns the notes written (0 = nothing new). Shared with the rollover's no-LLM flush fallback.
+ */
+export function journalExtract(ctx: MemoryToolContext, extract: ExtractedContext): number {
+  if (extractSize(extract) === 0) return 0;
+  const res = appendJournalBlock({
+    home: ctx.home,
+    workspace: ctx.workspace,
+    label: label(ctx, EXTRACT_LABEL),
+    items: itemsOf(extract),
+    now: ctx.now?.() ?? new Date(),
+  });
+  if (res.saved) safely("reindex", () => reindexFile(ctx.db, ctx.home, res.file));
+  return res.saved;
+}
 
 /**
  * PreCompact (main agent only): NO model call (the hook blocks compaction; a model call here would be slow and
  * start a second session). Read the newest chat text of the transcript, pick decisions / facts / owner
- * preferences by keyword, append them to today's journal as `## HH:MM Extracted Context - <thread>`, mark the
- * (the cycle is NOT marked flushed: the keyword extract is a safety net, the real flush is the rollover's). An unreadable transcript writes nothing.
+ * preferences by keyword and append them to today's journal (`journalExtract`). The cycle is NOT marked flushed: the keyword
+ * extract is a safety net, the real flush is the rollover's. Skipped during the app's own rollover. An unreadable transcript writes nothing.
  */
 function onPreCompact(ctx: CompactHookCtx, i: PreCompactHookInput): void {
+  // The app's own rollover compaction: the LLM flush (or its extract) already ran, nothing to extract here.
+  if (ctx.rollover) return;
   const extract = extractContext(readTranscriptTail(i.transcript_path, EXTRACT_SOURCE_CHARS));
-  const now = ctx.now?.() ?? new Date();
-  let saved = 0;
-  if (extractSize(extract) > 0) {
-    const res = appendJournalBlock({
-      home: ctx.home,
-      workspace: ctx.workspace,
-      label: label(ctx, EXTRACT_LABEL),
-      items: itemsOf(extract),
-      now,
-    });
-    saved = res.saved;
-    if (saved) safely("reindex", () => reindexFile(ctx.db, ctx.home, res.file));
-  }
+  const saved = journalExtract(ctx, extract);
   logEvent(log, "compact.pre", {
     trigger: i.trigger,
     decisions: extract.decisions.length,
@@ -74,6 +81,18 @@ function onPreCompact(ctx: CompactHookCtx, i: PreCompactHookInput): void {
   });
 }
 
+/** Save a thread summary as is (redacted, clipped by the store) and index it. Shared with the rollover's Haiku fallback. */
+export function storeSummaryAsIs(
+  db: MemoryToolContext["db"],
+  threadId: string,
+  workspace: string,
+  summary: string,
+): void {
+  saveSummary(db, threadId, workspace, summary);
+  const row = getThreadSummary(db, threadId);
+  if (row) safely("index summary", () => indexSummary(db, row));
+}
+
 /**
  * PostCompact (main agent, foreground runs only): count the cycle FIRST (even without a summary), then store
  * the SDK summary merged with the previous one (`mergeSummary`) in the same transaction and index it.
@@ -81,6 +100,17 @@ function onPreCompact(ctx: CompactHookCtx, i: PreCompactHookInput): void {
  */
 function onPostCompact(ctx: CompactHookCtx, i: PostCompactHookInput): void {
   const latest = typeof i.compact_summary === "string" ? i.compact_summary.trim() : "";
+  // The app's own rollover `/compact` already carries the previous summary in its instructions: store it as is.
+  // UNVERIFIED: that PostCompact's `compact_summary` holds the `/compact <instructions>` result; the caller falls back to Haiku when none arrives.
+  if (ctx.rollover) {
+    if (latest) {
+      storeSummaryAsIs(ctx.db, ctx.threadId, ctx.workspace, latest);
+      ctx.rollover.onSummary(latest);
+    } else {
+      logEvent(log, "compact.summary_missing", { trigger: i.trigger }, "warn");
+    }
+    return;
+  }
   if (!latest) {
     bumpCycle(ctx.db, ctx.threadId, ctx.workspace);
     logEvent(log, "compact.summary_missing", { trigger: i.trigger }, "warn");

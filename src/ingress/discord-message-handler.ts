@@ -10,7 +10,7 @@ import { routeMessage, SAFE_MENTIONS, stripMention, threadName } from "./discord
 import { BUSY_ACK_EMOJI, sendReply, startTyping } from "./discord-send";
 import type { InboundMessage } from "./inbound-message";
 import { replyToMemoryCommand } from "./memory-ingress";
-import { fetchRecent } from "./thread-history";
+import { fetchRecent, HISTORY_CHARS, type HistoryChannel } from "./thread-history";
 import { createThreadTurns } from "./thread-turns";
 
 export type { InboundMessage } from "./inbound-message";
@@ -57,6 +57,11 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     started?: () => void,
   ): Promise<void> {
     const stopTyping = startTyping(channel);
+    // Resolved once the reply is out: the thread's rollover work (flush, summary) starts only then.
+    let posted!: () => void;
+    const replied = new Promise<void>((r) => {
+      posted = r;
+    });
     try {
       const call = deps.handleMessage({
         source: "discord",
@@ -64,14 +69,25 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         ...ids,
         text,
         ...(recent?.length && { recent }),
+        replied,
+        history: (limit) => historyOf(channel as unknown as HistoryChannel, limit),
         notify: (m) => sendReply(channel, m),
       });
       started?.();
       await sendReply(channel, await call);
     } finally {
+      posted();
       stopTyping();
     }
   }
+
+  /** The thread's last `limit` messages, whoever is current (nothing excluded); the bot's own reply included. */
+  const historyOf = (ch: HistoryChannel, limit: number) => {
+    const botId = deps.botId();
+    return botId
+      ? fetchRecent(ch, { currentId: "", ownerId: deps.ownerId, botId }, limit, HISTORY_CHARS)
+      : Promise.resolve([]);
+  };
 
   /**
    * The thread history for the intent layer. Skipped for commands (slash or legacy: `/stop` must be instant) and

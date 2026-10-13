@@ -17,6 +17,10 @@ export interface InboundMessage {
   recent?: RecentMessage[];
   /** Shows at once that the message was received (a reaction on it); used for a message that reaches a busy thread. Never throws. */
   ack?: () => Promise<void>;
+  /** Resolves once the ingress posted this turn's reply (or gave up): the rollover work waits for it. Absent = no wait. */
+  replied?: Promise<void>;
+  /** The thread's last `limit` messages (owner and bot, oldest first), for the rollover's summary / extract. Absent = none. */
+  history?: (limit: number) => Promise<RecentMessage[]>;
   /** Posts a message into the thread while the turn still runs (a dispatched plan waits for approval). */
   notify?: (text: string) => Promise<void>;
 }

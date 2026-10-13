@@ -18,6 +18,11 @@ export interface MemoryToolContext {
   threadId?: string;
   /** Foreground run: the PostCompact hook may store the thread summary and count cycles. Background runs (dev) leave the thread summary alone. */
   trackSummary?: boolean;
+  /**
+   * The app's own rollover `/compact` (phase 9): PostCompact saves the SDK summary AS IS (no merge, no cycle bump:
+   * `markRolled` counts it), hands it to `onSummary`, and PreCompact skips its extract (the LLM flush already ran).
+   */
+  rollover?: { onSummary: (summary: string) => void };
   /** Short label of the thread: the journal block title (`## HH:MM <label>`). */
   threadLabel: string;
   /** Clock (tests pass a fixed one). One call per tool call: file date and bullet date come from the same instant. */

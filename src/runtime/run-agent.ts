@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
+import { type SDKMessage, query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
 import { ceilingBinds, type Route } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
@@ -26,6 +26,17 @@ import { consumeSteered } from "./steered-stream";
 import type { ToolPermissionInput } from "./tool-permissions";
 
 export type { QueryFn };
+
+/**
+ * A lean run (the rollover's flush and `/compact`): no built-in tool, thinking off, only the listed `memory` tools,
+ * its own turn and budget caps (they replace the role's). Omitted = a normal role run.
+ */
+export interface LeanRun {
+  /** Memory-server tool names (bare, `Remember`...) the run may call; the other memory tools are hidden. */
+  memoryTools: string[];
+  maxTurns: number;
+  budgetUsd: number;
+}
 
 /** Inputs for one agent run. */
 export interface RunAgentInput {
@@ -57,6 +68,10 @@ export interface RunAgentInput {
   route?: Route;
   /** Existing Claude session id to resume. */
   resume?: string;
+  /** Lean run (see `LeanRun`). */
+  lean?: LeanRun;
+  /** Sees every stream message of a plain (non-steered) run: the rollover flush counts its `Remember` results. */
+  onMessage?: (msg: SDKMessage) => void;
   /**
    * Streaming-input mode (background roles): the prompt goes in as the first item of an input channel whose
    * sink is registered here, so the owner's later messages reach the model. Omitted = a plain string prompt.
@@ -101,7 +116,10 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const { abortController: ac } = input;
   // The role definition decides tools, model slot, permission mode and prompt.
   const { role } = input;
-  const config = roleConfig(role, input.config, input.route);
+  const base = roleConfig(role, input.config, input.route);
+  const config = input.lean
+    ? { ...base, limits: { ...base.limits, maxBudgetUsd: input.lean.budgetUsd } }
+    : base;
   // OpenRouter without a real key would only retry on 401 until timeout: fail fast instead.
   if (config.provider === "openrouter" && !config.hasRealAuth) {
     log.error("OPENROUTER_API_KEY missing or placeholder");
@@ -164,7 +182,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     };
     res = input.steer
       ? await consumeSteered({ ...common, first: input.prompt, hook: input.steer, runId })
-      : await consumeStream({ ...common, prompt: input.prompt });
+      : await consumeStream({ ...common, prompt: input.prompt, onMessage: input.onMessage });
   } finally {
     sk.cleanup();
     recorder.finish(res.outcome, res.usage);

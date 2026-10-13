@@ -340,3 +340,44 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
   expect(seen[0].hooks.PreCompact).toHaveLength(1);
   expect(seen[0].hooks.PostCompact).toHaveLength(1);
 });
+
+test("rollover context: PostCompact stores the SDK summary as is (no merge, no bump), PreCompact skips", async () => {
+  const s = setup();
+  saveSummary(s.db, "th1", "a", "old summary about parsers and caches");
+  const got: string[] = [];
+  const hooks = buildCompactHooks({
+    db: s.db,
+    home: s.home,
+    workspace: "a",
+    repoNames: () => [],
+    threadId: "th1",
+    trackSummary: true,
+    threadLabel: "thread t1",
+    now: () => NOW,
+    rollover: { onSummary: (x) => got.push(x) },
+  });
+  const sig = { signal: new AbortController().signal };
+  const file = s.transcript([user("We decided to use Postgres for the store.")]);
+  await hooks.PreCompact?.[0]?.hooks[0]?.(
+    {
+      hook_event_name: "PreCompact",
+      trigger: "manual",
+      custom_instructions: null,
+      transcript_path: file,
+    } as never,
+    undefined,
+    sig,
+  );
+  expect(existsSync(s.journal())).toBe(false);
+  await hooks.PostCompact?.[0]?.hooks[0]?.(
+    {
+      hook_event_name: "PostCompact",
+      trigger: "manual",
+      compact_summary: "fresh summary",
+    } as never,
+    undefined,
+    sig,
+  );
+  expect(got).toEqual(["fresh summary"]);
+  expect(getThreadSummary(s.db, "th1")).toMatchObject({ summary: "fresh summary", cycle: 0 });
+});

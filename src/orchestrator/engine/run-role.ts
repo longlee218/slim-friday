@@ -1,13 +1,14 @@
 import { type Route, resolveModel } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
+import { buildMemoryToolContext } from "../../memory/memory-context";
 import { buildPromptContext } from "../../memory/prompt-context";
 import { setLogContext } from "../../observability/logger";
 import { buildRegistryContext } from "../../repos/repo-registry";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
-import { loadWorkspaces } from "../../workspaces/workspace-registry";
 import { answerOutput } from "../outputs/answer-output";
+import { rolloverSeed } from "../turns/rollover-seed";
 import { type FlowResult, failResult } from "../turns/turn-result";
 import { askTimeoutControl, awaitingResult } from "./ask-timeout-control";
 import { ceilingRefusal, withSpent } from "./budget";
@@ -52,6 +53,9 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   if (known) setLogContext({ repo: known.name });
   let awaiting: string | undefined;
   const ctl = askTimeoutControl(i.ac.signal, (t) => (awaiting = t));
+  // A rolled thread starts a fresh session: seed it with the thread summary + the last messages (never while a session lives).
+  const seed =
+    !role.background && !s.sessionId ? rolloverSeed(db, i.threadId, i.turnId, i.recent) : {};
   const release = role.capabilities.includes("write") ? markWorking(s.cwd) : undefined;
   if (!role.background) await refreshManaged(s.scope, config.agentHome);
   let rerunModel: string | undefined; // model of the escalated re-run, when one ran
@@ -68,20 +72,14 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       worktreesDir: s.worktreesDir,
       workflow: s.workflow,
       // In-process memory tools (Remember...): repo names are read from the registry only when a tool needs them.
-      memory: {
+      memory: buildMemoryToolContext({
         db,
         home: config.agentHome,
         workspace: i.workspace,
-        repoNames: () =>
-          (
-            loadWorkspaces(config.agentHome).workspaces.find((w) => w.name === i.workspace)
-              ?.repos ?? []
-          ).map((r) => r.name),
         repo: i.repos.length === 1 ? i.repos[0]?.name : undefined,
         threadId: i.threadId,
         trackSummary: !role.background,
-        threadLabel: `thread ${i.threadId.slice(-6)}`,
-      },
+      }),
       skillsWorkspace: i.workspace, // curated skills of this workspace (never repo content)
       guard: guardFor(role, s.guard),
       extraContext: buildPromptContext({
@@ -94,6 +92,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
             : buildRegistryContext(i.workspace, s.scope, role.background),
         memoryRepos: s.scope.map((r) => r.name),
         ledger: i.ledger,
+        ...seed,
       }),
       resume: resumeId,
       route,

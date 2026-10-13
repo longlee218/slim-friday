@@ -37,6 +37,8 @@ export interface RunUsage {
   toolErrors: number;
   /** Tool calls our guard / the owner denied (not counted in `toolErrors`). */
   toolDenied: number;
+  /** Model of the last main-agent model call (the rollover reads its window / price tier); undefined = unknown. */
+  mainModel?: string;
   /** Window (tokens) of the main model, from the SDK result `modelUsage[model].contextWindow`; undefined = unknown. */
   contextWindow?: number;
   /** Per-model split of the run (all agents), from the result message; absent when the SDK gave none. */

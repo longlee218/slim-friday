@@ -9,13 +9,14 @@ import {
   safeEffort,
 } from "../config/model-routing";
 import { mcpServersFor } from "../mcp/mcp-servers";
+import { MEMORY_MCP_SERVER, MEMORY_TOOLS, mcpToolName } from "../mcp/mcp-tool-names";
 import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
 import type { RoleDefinition } from "../roles/role-types";
-import { toolOptions } from "../tools/tool-catalog";
+import { SECRET_FILE_RULES, toolOptions } from "../tools/tool-catalog";
 import { buildCompactHooks } from "./compact-hooks";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
-import type { RunAgentInput } from "./run-agent";
+import type { LeanRun, RunAgentInput } from "./run-agent";
 import { sdkEnv } from "./sdk-env";
 import type { RunSkills } from "./skills-plugin/plugin-builder";
 import { buildSystemPrompt } from "./system-prompt";
@@ -58,6 +59,26 @@ function mergeHooks(
     PermissionDenied: [
       ...(rec.PermissionDenied ?? []),
       ...(perms.postHooks.PermissionDenied ?? []),
+    ],
+  };
+}
+
+/**
+ * Option overrides of a lean run: no built-in tool, thinking off, the listed memory tools auto-approved and the other
+ * memory tools hidden, own turn cap. (The role's `disallowedTools` stay: they are only secrets and git rules.)
+ */
+function leanOptions(lean: LeanRun): Partial<Options> {
+  const allowed = lean.memoryTools.map((t) => mcpToolName(MEMORY_MCP_SERVER, t));
+  return {
+    tools: [],
+    thinking: { type: "disabled" },
+    maxTurns: lean.maxTurns,
+    allowedTools: allowed,
+    disallowedTools: [
+      ...SECRET_FILE_RULES,
+      ...MEMORY_TOOLS.filter((t) => !lean.memoryTools.includes(t)).map((t) =>
+        mcpToolName(MEMORY_MCP_SERVER, t),
+      ),
     ],
   };
 }
@@ -141,5 +162,6 @@ export function buildSdkOptions(
         buildCompactHooks({ ...input.memory, threadId: input.memory.threadId })),
     },
     env: sdkEnv(config, process.env, resolveCompactWindow(role, config)),
+    ...(input.lean && leanOptions(input.lean)),
   };
 }

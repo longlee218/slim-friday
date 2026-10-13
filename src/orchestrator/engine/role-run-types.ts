@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../../approvals/approval-types";
 import type { AgentConfig } from "../../config/agent-config";
 import type { Route } from "../../config/model-routing";
+import type { RecentMessage } from "../../intent/intent-types";
 import type { Repo } from "../../repos/repo-registry";
 import type { QueryFn } from "../../runtime/run-agent";
 import type { SessionRow } from "../../storage/session-store";
@@ -42,6 +43,8 @@ export interface RoleRunInput {
   pinned?: Repo;
   /** Foreground roles: stored session of the thread, resumed when its cwd still matches. */
   existing?: SessionRow | null;
+  /** The thread's last messages before this one (Discord history): seed of a fresh session after a rollover. */
+  recent?: RecentMessage[];
   /** Task ledger of the thread (idle thread only); empty = none. */
   ledger?: string;
   /** Continue this saved session in its cwd (interrupt Resume, `/go`): the task's own, never the thread's. */

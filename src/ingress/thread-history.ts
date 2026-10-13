@@ -2,7 +2,9 @@ import type { RecentMessage } from "../intent/intent-types";
 import { cleanRecent, RECENT_COUNT } from "../intent/recent-messages";
 
 /** Messages fetched: a little more than shown, because the current message and foreign authors are skipped. */
-const FETCH_LIMIT = RECENT_COUNT + 2;
+const FETCH_EXTRA = 2;
+/** Longest text of one message of the rollover history (summary / extract input; the intent layer's own is shorter). */
+export const HISTORY_CHARS = 1000;
 
 /** The part of a Discord message the history needs (a real `Message` fits; tests pass plain objects). */
 export interface HistoryMessage {
@@ -29,6 +31,8 @@ const FILE_MARKER = "[file]";
 export function toRecent(
   messages: Iterable<HistoryMessage>,
   p: { currentId: string; ownerId: string; botId: string },
+  count = RECENT_COUNT,
+  chars?: number,
 ): RecentMessage[] {
   const rows: RecentMessage[] = [];
   const sorted = [...messages]
@@ -40,17 +44,19 @@ export function toRecent(
     const file = (m.attachments?.size ?? 0) > 0 ? FILE_MARKER : "";
     rows.push({ from, text: `${m.content} ${file}`.trim() });
   }
-  return cleanRecent(rows);
+  return cleanRecent(rows, count, chars);
 }
 
 /** Read the thread history from Discord. Never throws: a failed fetch is no history (the intent layer still works). */
 export async function fetchRecent(
   channel: HistoryChannel,
   p: { currentId: string; ownerId: string; botId: string },
+  count = RECENT_COUNT,
+  chars?: number,
 ): Promise<RecentMessage[]> {
   try {
-    const got = await channel.messages.fetch({ limit: FETCH_LIMIT });
-    return toRecent(got.values(), p);
+    const got = await channel.messages.fetch({ limit: count + FETCH_EXTRA });
+    return toRecent(got.values(), p, count, chars);
   } catch {
     return [];
   }

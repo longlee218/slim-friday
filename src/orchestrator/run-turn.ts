@@ -95,6 +95,7 @@ export async function runTurn(
     pinned,
     existing,
     ledger,
+    recent: message.recent,
   });
   const o = { stopping: deps.stopping(), t0: c.t0, repo: c.turnRepo() };
   const reply = closeTurn(db, { turnId, threadId: message.threadId }, res, o);
