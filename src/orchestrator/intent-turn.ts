@@ -3,8 +3,10 @@ import type { TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
 import type { IntentDeps } from "../intent/decide-intent";
 import { buildIntentInput } from "../intent/intent-input";
+import { logEvent } from "../observability/logger";
 import { logRouteDecision, withSpan } from "../observability/trace-spans";
 import type { Repo } from "../repos/repo-registry";
+import { runPreflight } from "../routing/preflight/run-preflight";
 import { settleRouting } from "../routing/route-decision-of";
 import { decideRoute } from "../routing/routing-policy";
 import type { SessionRow } from "../storage/session-store";
@@ -118,16 +120,34 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
     }
   }
   const text = stripRoleTag(c.cmd.text);
+  // A run that starts now passes the deterministic preflight first (no write, no model call); a failure is the
+  // owner's reply, the same one `routeMessage` would give (phase 6 turns reroutable failures into a reroute).
+  const refusal =
+    !c.busy && decision.kind === "role" && ["run", "open"].includes(action.kind)
+      ? (
+          await runPreflight(c.log, {
+            role: decision.role,
+            text,
+            repoHint: c.cmd.repo,
+            repos: c.repos,
+            hasApprovals: !!c.deps.approvals,
+            ranking: plan.ranking,
+            db,
+          })
+        ).refusal
+      : undefined;
+  if (refusal) logEvent(c.log, refusal.event, { reason: refusal.reason, reply: refusal.reply });
   // A message about the waiting background task continues it in its own session; without a usable session the
   // owner role starts through the normal open path, linked to the same task.
   const continued =
-    plan.continueTask && !c.busy && action.kind === "open" && decision.kind === "role"
+    !refusal && plan.continueTask && !c.busy && action.kind === "open" && decision.kind === "role"
       ? continueOwnedTask({ db, repos: c.repos, threadId }, plan.continueTask, text)
       : undefined;
   let out: IntentOutcome;
   try {
-    out =
-      continued && plan.continueTask && decision.kind === "role"
+    out = refusal
+      ? { kind: "reply", text: refusal.reply }
+      : continued && plan.continueTask && decision.kind === "role"
         ? {
             kind: "run",
             role: decision.role,

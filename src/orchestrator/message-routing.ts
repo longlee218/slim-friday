@@ -4,16 +4,11 @@ import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
 import type { Repo } from "../repos/repo-registry";
 import { entryRole, getRole, ROLES } from "../roles/role-registry";
+import { deterministicPreflight } from "../routing/preflight/deterministic-preflight";
 import { latestTurnSession } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
 import { resumeGone } from "./dispatch/resume-failed-task";
-import {
-  cappedTaskBlocker,
-  findRepo,
-  type Refusal,
-  refuse,
-  unknownRepo,
-} from "./dispatch/task-repo";
+import { findRepo, type Refusal, refuse, resolveTaskRepo } from "./dispatch/task-repo";
 import { type MessageCommand, RESUME_PROMPT } from "./message-commands";
 
 /** Which role runs a message and where, decided before anything is created. */
@@ -47,17 +42,22 @@ export function routeMessage(
   const { cmd, repos, existing } = p;
   const hint = cmd.repo?.toLowerCase();
   const pinned = hint ? findRepo(repos, hint) : repos.find((r) => r.name === existing?.repo); // thread stays on its pinned repo
-  if (cmd.repo && !pinned) return unknownRepo(repos, cmd.repo);
-  if (cmd.repo && !cmd.text)
-    return refuse("empty_text", `Send your question after "repo:${pinned!.name}".`);
   // A background role runs when the intent layer picks it, or as the Resume of a task (`cmd.role`).
-  const role = getRole(cmd.role ?? p.role ?? entryRole().name);
+  const roleName = cmd.role ?? p.role ?? entryRole().name;
+  // The shared deterministic checks (repo, approvals, empty text, task cap); the first failure is the refusal.
+  const { refusal } = deterministicPreflight({
+    role: roleName,
+    text: cmd.text,
+    repoHint: cmd.repo,
+    repos,
+    hasApprovals: deps.hasApprovals,
+    db: deps.db,
+  });
+  if (refusal) return refusal;
+  const role = getRole(roleName);
   if (!role.background)
     return { pinned, role: role.name, candidates: [], repo: pinned?.name ?? "*" };
-  if (!deps.hasApprovals)
-    return refuse("no_approvals", "This task needs the Discord approval flow.");
-  if (!cmd.text) return refuse("empty_text", "Send a message with the task.");
-  const blocked = cappedTaskBlocker(deps.db, repos, cmd.repo);
+  const blocked = resolveTaskRepo(repos, cmd.repo);
   if ("reply" in blocked) return blocked;
   return {
     pinned,
