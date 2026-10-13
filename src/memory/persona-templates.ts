@@ -62,18 +62,18 @@ heading-only or comment-only file falls back to the root one. <!-- comments --> 
 
 Caps (chars): each persona file 6000 (cut with a truncated marker); memory: root 5000, workspace 5000, each repo 8000 (all repos of the workspace 16000), newest kept (in a file with kind sections: the newest bullets of each section).
 
-Memory writes: after a code task the agent adds bullets to workspaces/<ws>/repos/<repo>/MEMORY.md only; a bullet
-prefixed [global] (max 2 per task) goes to MEMORY.pending.md, stamped with date and workspace/repo. Bullets are
-reduced to one plain line (no markup, no role prefixes, secrets masked, 200 chars). Prune wrong entries by hand.
+Memory writes: the agent saves notes during a run with its memory tool (a message like "remember: ..." or "nhớ: ..." goes to the
+agent like any message; it picks the scope and repo). Repo notes go to workspaces/<ws>/repos/<repo>/MEMORY.md; global proposals go
+to MEMORY.pending.md. Bullets are reduced to one plain line (no markup, no role prefixes, secrets masked). Prune wrong entries by hand.
 
 Owner commands (type them in a workspace channel; no agent, no quota except where noted):
 - /stop: abort the running task.
 - /go [+usd]: start the pending proposal, or resume an interrupted or budget-stopped task with usd more budget.
-- /remember [global|workspace|repo:<name>] <text>: add a memory bullet.
+- /remember <text>: sent to the agent as a normal message (same as "remember: <text>"); it saves the note itself.
 - /forget [scope] <text>: remove the one bullet containing the text.
 - /compact [dry-run]: compact memory files over 80% of their cap (keeps a .bak of the old file).
 - /init-workspace <name>: create a workspace (#ops-control only).
-Legacy forms still work: stop, go, remember:/nhớ:, forget:/quên:, compact memory/gom nén, init:workspace:.
+Legacy forms still work: stop, go, forget:/quên:, compact memory/gom nén, init:workspace:.
 The memory reply names the file and chars/cap.
 `;
 

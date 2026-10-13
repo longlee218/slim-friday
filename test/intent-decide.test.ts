@@ -9,7 +9,9 @@ import {
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { captureLogs } from "../src/observability/logger";
-import { ROLES } from "../src/roles/role-registry";
+import { actionFor } from "../src/orchestrator/thread/intent-table";
+import type { ThreadState } from "../src/orchestrator/thread/thread-state";
+import { entryRole, ROLES } from "../src/roles/role-registry";
 
 const pipeline = { lexicon: loadLexicon(), tagRouter: createRoleTagRouter(Object.values(ROLES)) };
 const answer = (o: Partial<IntentResult> = {}): IntentResult => ({
@@ -337,4 +339,35 @@ test("without scopeFromModel a tag still sets scope from hasTask and L3 is not c
   const noTask = await run(d, input("[dev] x", { state: "running", hasTask: false }));
   expect(noTask.decision).toMatchObject({ role: "dev", scope: "new" });
   expect(e.inputs).toHaveLength(0);
+});
+
+test("remember:/nhớ: notes always go to the entry role without L3, in every thread state; never a pending answer", async () => {
+  const e = engine(answer({ pendingAnswer: "yes" })); // an L3 call would answer the pending question: it must not run
+  const d = { pipeline, classifier: e.classifier };
+  const entry = entryRole().name;
+  const states: [ThreadState, string | undefined][] = [
+    ["idle", undefined],
+    ["done", undefined],
+    ["running", undefined],
+    ["running", "Open a task for this?"], // a pending AskUserQuestion / proposal
+    ["awaiting_confirmation", undefined],
+    ["awaiting_owner", "Which repo?"],
+  ];
+  for (const text of ["remember: use pnpm in repo x", "Nhớ: dùng bun", "  REMEMBER :x y"])
+    for (const [state, pendingQuestion] of states) {
+      const r = await run(
+        d,
+        input(text, { state, pendingQuestion, scopeFromModel: state === "running" }),
+      );
+      expect(r.decision).toEqual({ kind: "role", role: entry, scope: "new" });
+      const action = actionFor({ decision: r.decision, state }).kind;
+      // idle: a foreground run; any busy state: the side lane (never "still working", never a steer / answer)
+      expect(action).toBe(state === "idle" || state === "done" ? "run" : "side");
+    }
+  expect(e.inputs).toHaveLength(0);
+  // not a note: no colon, or the word is not first
+  const e2 = engine(answer({ role: "dev" }));
+  for (const t of ["remember to run tests", "please remember: x"])
+    await run({ pipeline, classifier: e2.classifier }, input(t));
+  expect(e2.inputs).toHaveLength(2);
 });

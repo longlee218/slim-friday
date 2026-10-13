@@ -7,7 +7,6 @@ import { type CompactLlm, compactTargets, sdkCompactLlm } from "../src/memory/me
 import { buildCompacted } from "../src/memory/memory-compaction-prompt";
 import { formatCompactResult } from "../src/memory/memory-compaction-report";
 import { repoTarget } from "../src/memory/memory-targets";
-import { appendTaskMemory } from "../src/memory/memory-writer";
 import { repoMemoryFile } from "../src/memory/repo-memory";
 import { captureLogs } from "../src/observability/logger";
 import { emptyUsage } from "../src/observability/record-run";
@@ -176,55 +175,18 @@ test("sdk call: a timeout then a success is retried; a non-timeout error is not"
   expect(m).toBe(1);
 });
 
-test("symlinked memory file: owner remember refused, agent append logs write_failed, compaction aborts", async () => {
+test("symlinked memory file: owner forget refused, compaction aborts", async () => {
   const env = makeEnv();
   const t = repoTarget(env.home, "main", "repo");
   rmSync(t.file, { force: true });
   writeFileSync(`${t.file}.real`, "# repo memory\n");
   symlinkSync(`${t.file}.real`, t.file);
   const run = createMemoryRunner({ db: env.db, config: env.config });
-  expect(await run({ channelId: TEST_CHANNEL, text: "remember: should not land" })).toContain(
+  expect(await run({ channelId: TEST_CHANNEL, text: "forget: should not land" })).toContain(
     "symlink",
   );
-  const logs = captureLogs();
-  appendTaskMemory(env.home, "main", "repo", "t", { bullets: ["x y"], globalBullets: [] });
-  logs.stop();
-  expect(logs.lines.find((l) => l.event === "memory.write_failed")).toMatchObject({
-    reason: "symlink",
-  });
   expect(readFileSync(`${t.file}.real`, "utf8")).toBe("# repo memory\n");
   writeFileSync(`${t.file}.real`, `# repo memory\n\n## d\n${"- ".padEnd(9000, "y")}\n`);
   const res = await compactTargets([t], stub("- a b c"), { dryRun: false });
   expect(res[0]).toMatchObject({ status: "aborted" });
-});
-
-test("300-line limit: an owner write may not push the file past 300 lines", async () => {
-  const env = makeEnv();
-  const f = repoMemoryFile(env.home, "main", "repo");
-  // 298 lines + trailing newline: adding a new section (blank + heading + bullet = 3 lines) would make 301
-  writeFileSync(
-    f,
-    `# repo memory\n\n## old\n${Array.from({ length: 295 }, (_, i) => `- n${i}`).join("\n")}\n`,
-  );
-  const run = createMemoryRunner({ db: env.db, config: env.config });
-  expect(await run({ channelId: TEST_CHANNEL, text: "remember: one more" })).toContain("file full");
-  expect(readFileSync(f, "utf8").split("\n").length).toBeLessThanOrEqual(300);
-});
-
-test("forget matches NFD-stored bullets with an NFC needle", async () => {
-  const env = makeEnv();
-  const f = repoMemoryFile(env.home, "main", "repo");
-  writeFileSync(f, `# repo memory\n\n## d\n- ${"không được xóa".normalize("NFD")} file\n`);
-  const run = createMemoryRunner({ db: env.db, config: env.config });
-  expect(await run({ channelId: TEST_CHANNEL, text: "forget: không được xóa" })).toContain(
-    "Forgot",
-  );
-});
-
-test("agent append is atomic: no .tmp left behind", () => {
-  const env = makeEnv();
-  appendTaskMemory(env.home, "main", "repo", "t", { bullets: ["one two"], globalBullets: [] });
-  const f = repoMemoryFile(env.home, "main", "repo");
-  expect(readFileSync(f, "utf8")).toContain("- one two");
-  expect(Bun.file(`${f}.tmp`).size).toBe(0);
 });

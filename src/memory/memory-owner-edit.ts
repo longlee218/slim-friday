@@ -7,12 +7,9 @@ import {
   writeAtomic,
 } from "./memory-file-lock";
 import type { MemoryTarget } from "./memory-targets";
-import { sanitizeBullet } from "./sanitize-bullet";
 
 /** Storage hard limit (lines): an owner write is refused at this size, never trimmed. */
 export const OWNER_MAX_LINES = 300;
-/** Max bullet length of an owner note. */
-const OWNER_BULLET_CHARS = 300;
 /** Matches listed in a `forget:` reply. */
 const LISTED_MATCHES = 5;
 /** Clip of a listed match. */
@@ -49,36 +46,6 @@ function locked(t: MemoryTarget, fn: (old: string) => EditResult): EditResult {
 
 /** NFC + lowercase, so decomposed and composed accents compare equal. */
 const fold = (s: string): string => s.normalize("NFC").toLowerCase();
-
-/**
- * Owner `remember:`: sanitize the text (secrets redacted, markup stripped), refuse an empty result, a
- * duplicate, or a file already at 300 lines; else append `- <text>` under `## <date> owner` (reused when it is
- * the last section). Returns the new body size so the caller can show `chars/cap`.
- */
-export function ownerRemember(t: MemoryTarget, text: string, date: string): EditResult {
-  const bullet = sanitizeBullet(text, OWNER_BULLET_CHARS);
-  if (!bullet)
-    return { ok: false, reply: "Nothing left to remember after removing secrets and markup." };
-  const line = `- ${bullet}`;
-  return locked(t, (old) => {
-    if (old.split("\n").some((l) => fold(l.trim()) === fold(line)))
-      return { ok: false, reply: `already remembered in ${t.label}.` };
-    const heading = `## ${date} owner`;
-    const lastHeading = old
-      .split("\n")
-      .filter((l) => l.startsWith("## "))
-      .pop();
-    const next =
-      lastHeading === heading
-        ? `${old.trimEnd()}\n${line}\n`
-        : `${old.trimEnd()}\n\n${heading}\n${line}\n`;
-    // The result itself may not pass 300 lines (never trim owner data).
-    if (next.trimEnd().split("\n").length > OWNER_MAX_LINES)
-      return { ok: false, reply: `file full (${t.label}): run \`/compact\`.` };
-    writeAtomic(t.file, next);
-    return { ok: true, reply: `Remembered in ${t.label}: ${line}`, chars: bodyChars(next) };
-  });
-}
 
 /** Drop `## ` sections that no longer hold any bullet (after a removal); the header block is kept. */
 function dropEmptySections(text: string): string {

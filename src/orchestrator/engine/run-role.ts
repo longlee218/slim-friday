@@ -2,7 +2,7 @@ import { type Route, resolveModel } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
 import { buildPromptContext } from "../../memory/prompt-context";
 import { setLogContext } from "../../observability/logger";
-import { buildRegistryContext, type Repo } from "../../repos/repo-registry";
+import { buildRegistryContext } from "../../repos/repo-registry";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";

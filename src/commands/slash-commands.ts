@@ -5,7 +5,7 @@
  *
  *   /stop                    -> stop
  *   /go [+usd]               -> go [+usd]
- *   /remember <text>         -> remember: <text>      (scope words as before: global, ws, repo:<name>)
+ *   /remember <text>         -> remember: <text>      (NOT an app command: a plain message for the agent, which saves the note)
  *   /forget <text>           -> forget: <text>
  *   /compact [dry-run]       -> compact memory [dry-run]
  *   /init-workspace <name>   -> init:workspace:<name>  (ops control channel only)
@@ -37,6 +37,7 @@ export function slashToLegacy(input: string): string {
     case "go":
       return !arg || /^\+\d+(\.\d+)?$/.test(arg) ? `go${arg ? ` ${arg}` : ""}` : input;
     case "remember":
+      // No parser takes it: the message goes to the agent as ordinary text (see memory-commands.ts).
       return `remember: ${arg}`;
     case "forget":
       return `forget: ${arg}`;

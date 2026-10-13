@@ -36,17 +36,17 @@ function latestTurnRepo(db: Database, threadId: string): string | undefined {
 const names = (ws: Workspace): string => ws.repos.map((r) => `\`${r.name}\``).join(", ");
 
 /**
- * Final scope and text of a remember/forget command in a workspace channel. With the default scope, a first word
+ * Final scope and text of a forget command in a workspace channel. With the default scope, a first word
  * equal to a repo name of the workspace (case-insensitive, NFC) selects that repo and is stripped; otherwise it
  * stays plain text. `global`/`chung`/`workspace`/`ws` and `repo:<n>` were already taken by the parser, so those
  * words win over a repo that happens to share the name. The length rules apply to the text after the strip.
  */
 export function refineWriteCommand(
   ws: Workspace | undefined,
-  cmd: Extract<MemoryCommand, { kind: "remember" | "forget" }>,
+  cmd: Extract<MemoryCommand, { kind: "forget" }>,
 ): { scope: MemoryScope; text: string } | { reply: string } {
   let scope = cmd.scope;
-  let text = cmd.kind === "remember" ? cmd.text : cmd.needle;
+  let text = cmd.needle;
   if (scope.kind === "default" && ws) {
     const { word, tail } = splitFirstWord(text);
     const key = word.normalize("NFC").toLowerCase();
@@ -56,7 +56,7 @@ export function refineWriteCommand(
       text = tail;
     }
   }
-  const reply = lengthReply(cmd.kind === "remember", text);
+  const reply = lengthReply(text);
   return reply ? { reply } : { scope, text };
 }
 
@@ -73,8 +73,7 @@ export function resolveMemoryTarget(
     return scope.kind === "global"
       ? rootTarget(i.home)
       : {
-          reply:
-            "In #ops-control only the global memory can be changed: `/remember global <text>`.",
+          reply: "In #ops-control only the global memory can be changed: `/forget global <text>`.",
         };
   }
   const { ws } = i;
@@ -94,6 +93,6 @@ export function resolveMemoryTarget(
   return repo
     ? repoTarget(i.home, ws.name, repo)
     : {
-        reply: `Which repo? Repos: ${names(ws)}. Write \`/remember <repo-name> <text>\` or \`/remember repo:<name> <text>\`; \`ws\` = this workspace, \`chung\` = global.`,
+        reply: `Which repo? Repos: ${names(ws)}. Write \`/forget <repo-name> <text>\` or \`/forget repo:<name> <text>\`; \`ws\` = this workspace, \`chung\` = global.`,
       };
 }

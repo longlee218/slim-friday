@@ -32,7 +32,7 @@ export const SLASH_DEFINITIONS: Record<SlashName, SlashDefinition> = {
     },
   },
   remember: {
-    description: "Save a memory note",
+    description: "Ask the agent to save a memory note",
     arg: { name: "text", description: "What to remember", required: true, kind: "string" },
   },
   forget: {

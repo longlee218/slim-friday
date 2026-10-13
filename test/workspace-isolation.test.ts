@@ -2,9 +2,8 @@ import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { appendTaskMemory } from "../src/memory/memory-writer";
 import { buildPromptContext } from "../src/memory/prompt-context";
-import { extractMemory, repoMemoryFile } from "../src/memory/repo-memory";
+import { repoMemoryFile } from "../src/memory/repo-memory";
 import { repoOfTool } from "../src/observability/tool-hooks";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { routeMessage } from "../src/orchestrator/message-routing";
@@ -18,6 +17,7 @@ import {
   TEST_CHANNEL,
   twoWorkspaces,
 } from "./helpers";
+import { writeRepoNotes } from "./memory-fixture";
 
 /** Full prompt context text of a run in `ws` over repo `api`. */
 const promptOf = (home: string, ws: string) =>
@@ -50,25 +50,17 @@ test("same repo name in two workspaces: lookups stay inside the workspace", () =
 
 test("same repo name: memory writes and reads are per workspace", () => {
   const { env } = twoWorkspaces();
-  appendTaskMemory(env.home, "w1", "api", "T", { bullets: ["W1_ONLY"], globalBullets: [] });
+  writeRepoNotes(env.home, "w1", "api", ["W1_ONLY"]);
   expect(readFileSync(repoMemoryFile(env.home, "w1", "api"), "utf8")).toContain("W1_ONLY");
   expect(readFileSync(repoMemoryFile(env.home, "w2", "api"), "utf8")).not.toContain("W1_ONLY");
   expect(promptOf(env.home, "w1")).toContain("W1_ONLY");
   expect(promptOf(env.home, "w2")).not.toContain("W1_ONLY");
 });
 
-test("[global] bullets: ws1 write never reaches a prompt of ws2 (or ws1); pending file is never read", () => {
+test("pending file: never reaches a prompt of any workspace until the owner promotes it by hand", () => {
   const { env } = twoWorkspaces();
-  const out = extractMemory("done\n\nMemory:\n- plain fact\n- [global] GLOBAL_MARK\n");
-  appendTaskMemory(env.home, "w1", "api", "Add thing", out);
   const p = workspacePaths(env.home);
-  // Quarantine: stamped pending file only; root MEMORY.md is untouched (still the owner template).
-  const pending = readFileSync(p.memoryPending, "utf8");
-  expect(pending).toContain("GLOBAL_MARK");
-  expect(pending).toMatch(/## \d{4}-\d{2}-\d{2} w1\/api: Add thing/);
-  expect(readFileSync(p.memory, "utf8")).not.toContain("GLOBAL_MARK");
-  expect(readFileSync(repoMemoryFile(env.home, "w1", "api"), "utf8")).not.toContain("GLOBAL_MARK");
-  expect(readFileSync(p.workspace("w1").memory, "utf8")).not.toContain("plain fact");
+  writeFileSync(p.memoryPending, "# pending\n\n## d\n- GLOBAL_MARK\n");
   for (const ws of ["w1", "w2"]) expect(promptOf(env.home, ws)).not.toContain("GLOBAL_MARK");
   // Owner promotion (by hand) is what makes it apply, and then to every workspace.
   writeFileSync(p.memory, "# global memory\n\n## promoted\n- GLOBAL_MARK\n");
@@ -79,7 +71,7 @@ test("a real Q&A prompt contains no pending-file text and no other workspace's m
   const { env } = twoWorkspaces();
   const p = workspacePaths(env.home);
   writeFileSync(p.memoryPending, "# pending\n\n## d\n- PENDING_MARK\n");
-  appendTaskMemory(env.home, "w2", "api", "T", { bullets: ["W2_MARK"], globalBullets: [] });
+  writeRepoNotes(env.home, "w2", "api", ["W2_MARK"]);
   let prompt = "";
   const queryFn = (a: any) => {
     prompt = a.options.systemPrompt.append as string;
@@ -101,8 +93,8 @@ test("a real Q&A prompt contains no pending-file text and no other workspace's m
 
 test("a message from w2's channel gets w2's memory and not w1's", async () => {
   const { env } = twoWorkspaces();
-  appendTaskMemory(env.home, "w1", "api", "T", { bullets: ["W1_MARK"], globalBullets: [] });
-  appendTaskMemory(env.home, "w2", "api", "T", { bullets: ["W2_MARK"], globalBullets: [] });
+  writeRepoNotes(env.home, "w1", "api", ["W1_MARK"]);
+  writeRepoNotes(env.home, "w2", "api", ["W2_MARK"]);
   let prompt = "";
   const queryFn = (a: any) => {
     prompt = a.options.systemPrompt.append as string;

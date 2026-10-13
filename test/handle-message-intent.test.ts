@@ -150,9 +150,8 @@ test("no L3 call for L0 commands (legacy and slash forms), a leading tag, or whe
   });
   await handle(msg("stop"));
   await handle(msg("go"));
-  await handle(msg("remember: tabs not spaces"));
-  for (const t of ["/stop", "/go", "/remember tabs not spaces", "/forget tabs"])
-    await handle(msg(t));
+  await handle(msg("forget: tabs not spaces"));
+  for (const t of ["/stop", "/go", "/forget tabs"]) await handle(msg(t));
   await handle(msg("[ask] what is retry"));
   expect(e.seen).toHaveLength(0);
   const none = createTurnHandler({

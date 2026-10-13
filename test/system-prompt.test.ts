@@ -61,8 +61,9 @@ test("sections come in order: mode, escalation, common, context", () => {
 test("dev: follow-up, memory contract, shell git and delivery by the agent", () => {
   const text = rules(dev);
   expect(text).toContain("pure question");
-  expect(text).toContain('"Memory:"');
-  expect(text).toContain("[global]");
+  expect(text).not.toContain("Memory:"); // no report section is parsed any more
+  expect(text).not.toContain("[global]");
+  expect(text).toContain("with Remember (scope repo;");
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).not.toContain("git_commit"); // no git MCP for the dev agent
   expect(text).toContain("`git` and `gh` in the shell");

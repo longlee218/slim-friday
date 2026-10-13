@@ -102,7 +102,7 @@ const msg_ = (text: string, threadId = "th1") => ({
   text,
 });
 
-test("dev task: ONE run in the repo's own checkout, the plan approval is an ask, final text relayed, Memory appended; no clone, no PR gate, no git or GitHub MCP", async () => {
+test("dev task: ONE run in the repo's own checkout, the plan approval is an ask, final text relayed, no Memory parsing; no clone, no PR gate, no git or GitHub MCP", async () => {
   const { env, clone } = await setup();
   const seen: any[] = [];
   const { gw, confirms } = gateway();
@@ -134,11 +134,13 @@ test("dev task: ONE run in the repo's own checkout, the plan approval is an ask,
   // No delivery gate: the agent delivers itself, the app offers nothing and runs no git.
   expect(confirms).toEqual([]);
   expect(reply).toContain("Xong");
-  expect(reply).not.toContain("Memory:"); // the section goes to the repo memory, not into the chat reply
+  expect(reply).toContain("Memory:"); // a Memory: block is no longer parsed: plain report text
   expect(reply).not.toContain("repo: real"); // the marker is the app's
   expect(reply).not.toContain("PR");
-  expect(readFileSync(env.paths.workspace("main").repo("real").memory, "utf8")).toContain(
-    "- run bun test before pushing",
+  // The removed Memory: path wrote nothing: the repo MEMORY.md has no lesson from the report.
+  const memFile = env.paths.workspace("main").repo("real").memory;
+  expect(existsSync(memFile) ? readFileSync(memFile, "utf8") : "").not.toContain(
+    "run bun test before pushing",
   );
   expect(getSession(env.db, "th1")).toBeNull(); // the dev session is not the thread's: an assistant message must not resume it
   // The agent's commit is in the owner's checkout (the fake agent made it there).

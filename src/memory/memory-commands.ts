@@ -9,20 +9,17 @@ export type MemoryScope =
 
 /** An owner memory command (parsed by app code before any agent run). */
 export type MemoryCommand =
-  | { kind: "remember"; scope: MemoryScope; text: string }
   | { kind: "forget"; scope: MemoryScope; needle: string }
   | { kind: "compact"; dryRun: boolean }
   /** Looks like a command but breaks a rule (length, nothing after the scope): `reply` explains. Never reaches the agent. */
   | { kind: "invalid"; reply: string };
 
-/** Length rules (chars after trim). */
-export const REMEMBER_MIN = 3;
-export const REMEMBER_MAX = 300;
+/** Length rules for `forget:` (chars after trim). `remember:` is not parsed here: it goes to the agent. */
 export const FORGET_MIN = 3;
 export const FORGET_MAX = 100;
 
-/** `remember:` / `nhớ:` / `forget:` / `quên:` + the rest of the message (case-insensitive, unicode-aware). */
-const WRITE_CMD = /^(remember|nhớ|forget|quên)\s*:\s*([\s\S]*)$/iu;
+/** `forget:` / `quên:` + the rest of the message (case-insensitive, unicode-aware). */
+const WRITE_CMD = /^(forget|quên)\s*:\s*([\s\S]*)$/iu;
 /** `compact memory` / `gom nén`, optional `dry-run`. */
 const COMPACT_CMD = /^(?:compact memory|gom nén)(\s+dry-run)?\s*$/iu;
 /** Scope word: only the FIRST word of the text counts (anything later is plain text). */
@@ -51,15 +48,14 @@ function splitScope(rest: string): { scope: MemoryScope; text: string } {
 }
 
 /** Reply for a text outside the length rules, or undefined when it is fine. */
-export function lengthReply(isRemember: boolean, body: string): string | undefined {
-  const [min, max] = isRemember ? [REMEMBER_MIN, REMEMBER_MAX] : [FORGET_MIN, FORGET_MAX];
-  if (body.length >= min && body.length <= max) return undefined;
-  return `${isRemember ? "Text" : "Needle"} must be ${min}-${max} chars (got ${body.length}). ${USAGE}`;
+export function lengthReply(body: string): string | undefined {
+  if (body.length >= FORGET_MIN && body.length <= FORGET_MAX) return undefined;
+  return `Needle must be ${FORGET_MIN}-${FORGET_MAX} chars (got ${body.length}). ${USAGE}`;
 }
 
 /** Usage line shown for an invalid command. */
 const USAGE =
-  "Usage: `/remember [global|workspace|repo:<name>|<repo-name>] <text>` (3-300 chars), `/forget [scope] <text>` (3-100 chars), `/compact [dry-run]`. Legacy forms still work: `remember:`, `forget:`, `compact memory`; Vietnamese: `nhớ:`, `quên:`, `chung`, `ws`, `gom nén`.";
+  "Usage: `/forget [global|workspace|repo:<name>|<repo-name>] <text>` (3-100 chars), `/compact [dry-run]`. Legacy forms still work: `forget:`, `compact memory`; Vietnamese: `quên:`, `chung`, `ws`, `gom nén`. To save a note, just ask (`remember: ...`): the agent picks where.";
 
 /**
  * Parse a message as an owner memory command, or null when it is anything else (then it is a normal task).
@@ -67,19 +63,16 @@ const USAGE =
  * can send decomposed accents).
  */
 export function parseMemoryCommand(input: string): MemoryCommand | null {
-  const text = slashToLegacy(input).normalize("NFC").trim(); // `/remember`, `/forget`, `/compact` are the canonical forms
+  const text = slashToLegacy(input).normalize("NFC").trim(); // `/forget`, `/compact` are the canonical forms
   const compact = COMPACT_CMD.exec(text);
   if (compact) return { kind: "compact", dryRun: !!compact[1] };
   const w = WRITE_CMD.exec(text);
   if (!w) return null;
-  const isRemember = ["remember", "nhớ"].includes((w[1] ?? "").toLowerCase());
   const { scope, text: body } = splitScope((w[2] ?? "").trim());
   // Default scope: the first word may be a bare repo name stripped later (memory-scope.ts), which only
   // shortens the text. So the max is checked after that step (the handler re-checks); min is safe now.
-  const reply = lengthReply(isRemember, body);
-  if (reply && (scope.kind !== "default" || body.length < (isRemember ? REMEMBER_MIN : FORGET_MIN)))
+  const reply = lengthReply(body);
+  if (reply && (scope.kind !== "default" || body.length < FORGET_MIN))
     return { kind: "invalid", reply };
-  return isRemember
-    ? { kind: "remember", scope, text: body }
-    : { kind: "forget", scope, needle: body };
+  return { kind: "forget", scope, needle: body };
 }

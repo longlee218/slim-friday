@@ -5,7 +5,6 @@ import type { RunLimiter } from "../orchestrator/turns/run-limiter";
 import type { QueryFn } from "../runtime/run-agent";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import { loadWorkspaces, type Workspace } from "../workspaces/workspace-registry";
-import { localDay } from "./memory-clock";
 import { type MemoryCommand, parseMemoryCommand } from "./memory-commands";
 import {
   COMPACT_THRESHOLD,
@@ -14,7 +13,7 @@ import {
   sdkCompactLlm,
 } from "./memory-compaction";
 import { formatCompactResult } from "./memory-compaction-report";
-import { type EditResult, ownerForget, ownerRemember } from "./memory-owner-edit";
+import { type EditResult, ownerForget } from "./memory-owner-edit";
 import { type MemoryPlace, refineWriteCommand, resolveMemoryTarget } from "./memory-scope";
 import { type MemoryTarget, rootTarget, workspaceTargets } from "./memory-targets";
 import { ensureHome } from "./persona";
@@ -45,7 +44,7 @@ export interface MemoryRunnerDeps {
   /** Override the SDK query (tests) or the whole compaction model call. */
   queryFn?: QueryFn;
   llm?: CompactLlm;
-  /** `compact memory` takes one slot like a run; remember/forget never do. */
+  /** `compact memory` takes one slot like a run; forget never does. */
   limiter?: RunLimiter;
 }
 
@@ -56,7 +55,7 @@ function capNote(label: string, chars: number, cap: number): string {
   return `${label}: ${chars}/${cap}.${over}${advice}`;
 }
 
-/** Reply of a finished remember/forget: the action line plus the cap line. */
+/** Reply of a finished forget: the action line plus the cap line. */
 function editReply(r: EditResult, t: MemoryTarget): string {
   return r.ok && r.chars !== undefined
     ? `${r.reply}\n${capNote(t.label, r.chars, t.cap)}`
@@ -64,7 +63,7 @@ function editReply(r: EditResult, t: MemoryTarget): string {
 }
 
 /**
- * Build the owner memory command runner: parses before any agent run (no LLM for remember/forget, no task row,
+ * Build the owner memory command runner: parses before any agent run (no LLM for forget, no task row,
  * no quota). Scope rules: a workspace channel/thread may use every scope, #ops-control only `global`, other ops
  * channels nothing. Compaction covers the workspace's files (or everything from #ops-control).
  */
@@ -120,10 +119,7 @@ export function createMemoryRunner(deps: MemoryRunnerDeps): MemoryRunner {
       refined.scope,
     );
     if ("reply" in t) return t.reply;
-    const result =
-      cmd.kind === "remember"
-        ? ownerRemember(t, refined.text, localDay())
-        : ownerForget(t, refined.text);
+    const result = ownerForget(t, refined.text);
     logEvent(log, "memory.owner_edit", { kind: cmd.kind, file: t.label, ok: result.ok });
     return editReply(result, t);
   };

@@ -31,6 +31,17 @@ export const IDLE_CASES: GoldenCase[] = [
     thread: IDLE,
     expect: { role: "assistant", scope: "new" },
   },
+  // Idle: a note to save is a small request for the assistant (it has the memory tool), never a dev task (P7).
+  {
+    text: "remember: use pnpm in repo x",
+    thread: IDLE,
+    expect: { role: "assistant", scope: "new" },
+  },
+  {
+    text: "nhớ: repo api chạy test bằng bun test",
+    thread: IDLE,
+    expect: { role: "assistant", scope: "new" },
+  },
   // Idle: change requests go to dev, with a class where the wording makes it clear.
   {
     text: "Fix formatPrice so it rounds to 2 decimals.",

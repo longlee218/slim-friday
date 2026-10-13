@@ -14,6 +14,8 @@ import {
 } from "../src/mcp/mcp-tool-names";
 import { createMemoryServer } from "../src/mcp/memory-server";
 import { NOT_FOUND } from "../src/memory/index/memory-resolve";
+import { ownerForget } from "../src/memory/memory-owner-edit";
+import { repoTarget } from "../src/memory/memory-targets";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { getRole } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
@@ -271,4 +273,17 @@ test("hits: original spelling, redacted label, registry repos only; stale note o
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "kwux" })).text).toContain(
     "(note: memory index may be stale)",
   );
+});
+
+test("forget (owner command) removes the bullet from search on the next call (mtime sync)", async () => {
+  const s = setup();
+  s.put(
+    "workspaces/a/repos/api/MEMORY.md",
+    "# api\n\n## Facts\n- zebra stripes are black and white\n- giraffe necks are long\n",
+  );
+  expect((await s.call(MEMORY_SEARCH_TOOL, { query: "zebra" })).text).toContain("zebra");
+  expect(ownerForget(repoTarget(s.home, "a", "api"), "zebra stripes").ok).toBe(true);
+  const after = await s.call(MEMORY_SEARCH_TOOL, { query: "zebra" });
+  expect(after.text).not.toContain("zebra stripes");
+  expect((await s.call(MEMORY_SEARCH_TOOL, { query: "giraffe" })).text).toContain("giraffe");
 });

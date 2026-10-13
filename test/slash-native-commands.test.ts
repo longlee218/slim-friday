@@ -125,9 +125,9 @@ test("non-owner gets an ephemeral refusal and nothing runs", async () => {
 
 test("memory command is answered inline, not run as a task", async () => {
   const { messages, handle } = setup(async (r: any) =>
-    r.text.startsWith("/remember") ? "saved" : null,
+    r.text.startsWith("/forget") ? "saved" : null,
   );
-  const { i, sent } = fakeInteraction("remember", OWNER, { text: "tabs" });
+  const { i, sent } = fakeInteraction("forget", OWNER, { text: "tabs" });
   await handle(i);
   expect(messages).toEqual([]);
   expect(sent[0].content).toBe("saved");

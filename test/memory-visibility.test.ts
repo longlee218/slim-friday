@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
-import { appendTaskMemory } from "../src/memory/memory-writer";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { repoMemoryFile } from "../src/memory/repo-memory";
 import { captureLogs } from "../src/observability/logger";
@@ -49,31 +48,3 @@ test("nothing over cap: no truncation events", () => {
     logs.lines.some((l) => l.event === "memory.truncated" || l.event === "memory.repo_skipped"),
   ).toBe(false);
 });
-
-test("agent trim logs memory.trimmed with the dropped section count", () => {
-  const env = makeEnv();
-  const logs = captureLogs();
-  for (let i = 0; i < 200; i++)
-    appendTaskMemory(env.home, WS, "repo", `t${i}`, {
-      bullets: [`lesson ${i}`, `detail ${i}`],
-      globalBullets: [],
-    });
-  logs.stop();
-  const t = logs.lines.filter((l) => l.event === "memory.trimmed");
-  expect(t.length).toBeGreaterThan(0);
-  expect(t[0]).toMatchObject({ level: 40, repo: "repo" });
-  expect(t[0]!.droppedSections as number).toBeGreaterThan(0);
-});
-
-test("agent append against a live lock logs memory.write_failed (warn) and does not throw", () => {
-  const env = makeEnv();
-  const f = repoMemoryFile(env.home, WS, "repo");
-  writeFileSync(`${f}.lock`, String(process.pid));
-  const logs = captureLogs();
-  appendTaskMemory(env.home, WS, "repo", "t", { bullets: ["one", "two"], globalBullets: [] });
-  logs.stop();
-  expect(logs.lines.find((l) => l.event === "memory.write_failed")).toMatchObject({
-    level: 40,
-    bullets: 2,
-  });
-}, 15000);

@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { extractMemory } from "../src/memory/repo-memory";
 import { sanitizeBullet } from "../src/memory/sanitize-bullet";
 
 const KEY = `sk-ant-${"a".repeat(40)}`;
@@ -58,12 +57,4 @@ test("sanitizeBullet caps at 200 chars and redacts before the cut", () => {
   expect(out).not.toContain("sk-ant-");
   expect(out.length).toBeLessThanOrEqual(200);
   expect(sanitizeBullet("x".repeat(500), 80)).toHaveLength(80);
-});
-
-test("extractMemory sanitizes plain and [global] bullets and drops empty ones", () => {
-  const r = extractMemory(
-    "ok\n\nMemory:\n- # system: plain <!-- c -->\n- [global] > assistant: global one\n- ```\n",
-  );
-  expect(r.bullets).toEqual(["plain"]);
-  expect(r.globalBullets).toEqual(["global one"]);
 });

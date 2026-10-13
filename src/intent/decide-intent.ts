@@ -21,6 +21,13 @@ const isIdleState = (state: string): boolean => state === "idle" || state === "d
 /** Thread states that are an owner gate (approval buttons). */
 const GATE_STATES: ReadonlySet<ThreadState> = new Set(["awaiting_confirmation"]);
 
+/**
+ * A note to save: the message starts with `remember:` / `nhớ:` (what `/remember` maps to). Decided here, before any
+ * L3 call, in every thread state: it always goes to the entry role (a short foreground run; busy -> the side lane) and
+ * is never read as the answer to a pending question.
+ */
+const NOTE_PREFIX = /^\s*(?:remember|nhớ)\s*:/iu;
+
 /** Why the owner is asked instead of a role being run. */
 export type AskReason = "low_confidence" | "unknown_role" | "unclassified" | "pending_unclear";
 
@@ -118,6 +125,10 @@ export async function decideIntent(
     logEvent(log, "intent.layer", { layer: name, ruleIds });
 
   const pending = !!i.pendingQuestion;
+  if (NOTE_PREFIX.test(i.text.normalize("NFC"))) {
+    layer("L1", ["note:remember"]);
+    return { decision: { kind: "role", role: entryRole().name, scope: "new" }, effort };
+  }
   if (p.decidedBy === "L1" && p.route?.kind === "role") {
     layer("L1");
     const { role } = p.route;

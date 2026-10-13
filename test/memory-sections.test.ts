@@ -18,7 +18,6 @@ import {
   normalizeBullet,
 } from "../src/memory/memory-sections";
 import type { MemoryTarget } from "../src/memory/memory-targets";
-import { appendTaskMemory } from "../src/memory/memory-writer";
 import { repoMemoryFile } from "../src/memory/repo-memory";
 import { emptyUsage } from "../src/observability/record-run";
 import { makeEnv } from "./helpers";
@@ -157,20 +156,6 @@ test("writer: new file uses the header; secrets redacted; journal merges in one 
   const jt = readFileSync(j, "utf8");
   expect(jt.match(/^## 10:00 /gm)).toHaveLength(1);
   expect(jt).toContain("### Open\n- todo x (2026-10-13)\n- todo y (2026-10-13)\n");
-});
-
-test("legacy trim never drops kind sections", () => {
-  const env = makeEnv();
-  const f = repoMemoryFile(env.home, "main", "repo");
-  const filler = (n: number) => Array.from({ length: 40 }, (_, i) => `- n${n} ${i}`).join("\n");
-  const secs = Array.from({ length: 9 }, (_, i) => `## 2026-01-0${i + 1} t\n${filler(i)}`);
-  mkdirSync(dirname(f), { recursive: true });
-  writeFileSync(f, `# h\n\n## Decisions\n- keep me (2026-01-01)\n\n${secs.join("\n\n")}\n`);
-  appendTaskMemory(env.home, "main", "repo", "t", { bullets: ["fresh"], globalBullets: [] });
-  const txt = readFileSync(f, "utf8");
-  expect(txt).toContain("## Decisions\n- keep me");
-  expect(txt).not.toContain("## 2026-01-01 t");
-  expect(txt).toContain("- fresh");
 });
 
 test("compaction parse: known headings kept, others rejected; build keeps sections", () => {

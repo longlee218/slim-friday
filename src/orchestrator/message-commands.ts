@@ -16,7 +16,7 @@ export type MessageCommand =
    * resume its interrupted or budget-stopped task, with `extraBudgetUsd` more budget when given.
    */
   | { kind: "go"; extraBudgetUsd?: number }
-  /** `remember:` / `forget:` / `compact memory` (see memory-commands.ts): answered by app code, never by the agent. */
+  /** `forget:` / `compact memory` (see memory-commands.ts): answered by app code, never by the agent. `remember:` is NOT one: it is a plain message. */
   | { kind: "memory" }
   /**
    * A plain message (not a control command); the intent layer picks its role (no intent layer: the entry role).

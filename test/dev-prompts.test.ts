@@ -49,7 +49,8 @@ test("dev: one contract, approval before changes by ask, design request invokes 
   expect(text).toContain("Merge, push or PR only after the owner chose it.");
   expect(text).toContain("by absolute path from the skill's base directory");
   expect(text).toContain("workflow skill's report format");
-  expect(text).toContain('titled exactly "Memory:"');
+  expect(text).not.toContain("Memory:");
+  expect(text).toContain("with Remember (scope repo;");
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).not.toMatch(/subagent-run-facts|implementer|task-reviewer|brainstorming/);
   expect(text).not.toContain("git MCP");

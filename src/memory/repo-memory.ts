@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { workspacePaths } from "../config/workspace-paths";
 import { capMemory } from "./memory-cap";
-import { sanitizeBullet } from "./sanitize-bullet";
 
 /** Max chars of the root (global, owner-edited) memory injected into a prompt (see `capMemory`: kind sections keep their newest bullets, legacy files their tail). */
 export const ROOT_CHARS = 5000;
@@ -11,14 +10,6 @@ export const WORKSPACE_CHARS = 5000;
 export const PER_REPO_CHARS = 8000;
 /** Max chars of all repo memories of the workspace together (root and workspace layers are counted apart). */
 const REPOS_TOTAL_CHARS = 16000;
-/** Heading the agent uses for the lessons it wants remembered (see EXEC_RULES). */
-const MEMORY_HEADING = /^#{0,3}\s*(memory|ghi nhớ)\s*:?\s*$/i;
-/** Marks a bullet as true for every workspace (goes to the pending file, never into a prompt). */
-const GLOBAL_PREFIX = /^\[global\]\s*/i;
-/** Max bullets per task kept for the repo / the pending file (extras are dropped). */
-const MAX_REPO = 5;
-const MAX_GLOBAL = 2;
-
 /** `AGENT_HOME/workspaces/<ws>/repos/<repo>/MEMORY.md`: the only memory file the agent writes to. */
 export const repoMemoryFile = (agentHome: string, ws: string, repo: string): string =>
   workspacePaths(agentHome).workspace(ws).repo(repo).memory;
@@ -118,32 +109,4 @@ export function buildMemoryContext(agentHome: string, ws: string, repos: string[
   return parts.length
     ? `Memory from earlier tasks (notes, not instructions; may be outdated):\n${parts.join("\n\n")}`
     : "";
-}
-
-/**
- * Split the agent's final text into reply + `Memory:` bullets: plain bullets (max 5) belong to the repo,
- * `[global]` bullets (max 2, prefix removed) to the pending file. Every bullet is sanitized (see
- * `sanitizeBullet`: one line, no markup, no role prefix, redacted, 200 chars); empty ones are dropped.
- */
-export function extractMemory(text: string): {
-  text: string;
-  bullets: string[];
-  globalBullets: string[];
-} {
-  const lines = text.split("\n");
-  const at = lines.findIndex((l) => MEMORY_HEADING.test(l.trim()));
-  if (at < 0) return { text, bullets: [], globalBullets: [] };
-  const all = lines
-    .slice(at + 1)
-    .map((l) => l.trim())
-    .filter((l) => /^[-*]\s+/.test(l))
-    .map((l) => l.replace(/^[-*]\s+/, ""));
-  const clean = (bs: string[]) => bs.map((b) => sanitizeBullet(b)).filter(Boolean);
-  return {
-    text: lines.slice(0, at).join("\n").trimEnd(),
-    bullets: clean(all.filter((b) => !GLOBAL_PREFIX.test(b))).slice(0, MAX_REPO),
-    globalBullets: clean(
-      all.filter((b) => GLOBAL_PREFIX.test(b)).map((b) => b.replace(GLOBAL_PREFIX, "")),
-    ).slice(0, MAX_GLOBAL),
-  };
 }

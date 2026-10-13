@@ -65,7 +65,7 @@ export function createAdminHandler(deps: AdminDeps) {
       logEvent(log, "admin.refused", { channelId: ch.id, reply: gate.reply }, "warn");
       return void (await reply(gate.reply));
     }
-    // `remember: global ...`, `forget: global ...`, `compact memory`: after the same gate as admin commands.
+    // `forget: global ...`, `compact memory`: after the same gate as admin commands.
     const memo = await deps.memory?.({ where: "control", channelId: ch.id, text: prompt });
     if (memo != null) return void (await reply(memo));
     const cmd = parseAdminCommand(prompt);

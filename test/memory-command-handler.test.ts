@@ -5,6 +5,7 @@ import { createMemoryRunner, type MemoryRequest } from "../src/memory/memory-com
 import { repoMemoryFile } from "../src/memory/repo-memory";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { addRepo, makeEnv, TEST_CHANNEL } from "./helpers";
+import { writeRepoNotes } from "./memory-fixture";
 
 /** Env with workspace main (channel TEST_CHANNEL) and a runner on it. */
 function setup(extraRepos: string[] = []) {
@@ -22,54 +23,77 @@ test("not a command -> null (normal task)", async () => {
   expect(await ask("what does the repo do?")).toBeNull();
 });
 
-test("remember with a single repo: written under '## <date> owner', reply names file and chars/cap", async () => {
-  const { ask, file } = setup();
-  const r = await ask("remember: tests run with bun test");
+test("remember: / nhớ: / /remember are not app commands: null, nothing written (the message goes to the agent)", async () => {
+  const { env, ask, run, file } = setup(["web"]);
+  writeRepoNotes(env.home, "main", "repo", ["existing note"]);
+  const before = file("repo");
+  for (const t of [
+    "remember: tests run with bun test",
+    "nhớ: chung global fact",
+    "remember: repo:web a fact",
+    "/remember use pnpm in repo web",
+    "remember:",
+  ])
+    expect(await ask(t)).toBeNull();
+  expect(
+    await run({ where: "control", channelId: "c", text: "remember: global abc def" }),
+  ).toBeNull();
+  expect(file("repo")).toBe(before);
+  expect(await Bun.file(workspacePaths(env.home).memory).exists()).toBe(false);
+});
+
+test("forget: one match removed (empty section dropped), none, several", async () => {
+  const { env, ask, file } = setup();
+  writeRepoNotes(env.home, "main", "repo", ["alpha one note", "alpha two note", "beta lone note"]);
+  const several = await ask("forget: alpha");
+  expect(several).toContain("2 lines match");
+  expect(file("repo")).toContain("alpha one note");
+  expect(await ask("forget: gamma")).toContain("not found");
+  const one = await ask("forget: BETA lone");
+  expect(one).toContain("Forgot");
+  expect(file("repo")).not.toContain("beta lone");
+  await ask("forget: alpha one");
+  await ask("forget: alpha two");
+  expect(file("repo")).not.toContain("## "); // the empty section was dropped
+});
+
+test("forget reply names the file and chars/cap; secrets are never needed to find a note", async () => {
+  const { env, ask } = setup();
+  writeRepoNotes(env.home, "main", "repo", ["tests run with bun test"]);
+  const r = await ask("forget: bun test");
   expect(r).toContain("workspaces/main/repos/repo/MEMORY.md");
   expect(r).toMatch(/\d+\/8000/);
-  const date = new Date().toISOString().slice(0, 10);
-  expect(file("repo")).toContain(`## ${date} owner\n- tests run with bun test`);
-  // second note reuses the last owner section
-  await ask("remember: second note here");
-  expect(file("repo").split(`## ${date} owner`).length).toBe(2);
-  // duplicate
-  expect(await ask("remember: second note here")).toContain("already remembered");
 });
 
-test("secrets are redacted in the stored note", async () => {
-  const { ask, file } = setup();
-  await ask("remember: key is sk-ant-abcdefghijklmnop1234 ok");
-  expect(file("repo")).not.toContain("sk-ant-abcdefghijklmnop1234");
-});
-
-test("scopes: workspace/ws, global/chung, repo:<n> (case-insensitive), unknown repo", async () => {
+test("forget scopes: workspace/ws, global/chung, repo:<n> (case-insensitive), unknown repo", async () => {
   const { env, ask, file } = setup(["web"]);
-  await ask("remember: ws fact for everyone here");
-  expect(readFileSync(workspacePaths(env.home).workspace("main").memory, "utf8")).toContain(
-    "- fact for everyone here",
-  );
-  await ask("nhớ: chung global fact");
-  const root = readFileSync(workspacePaths(env.home).memory, "utf8");
-  expect(root).toContain("- global fact");
-  await ask("remember: repo:WEB web fact");
-  expect(file("web")).toContain("- web fact");
-  const bad = await ask("remember: repo:nope x y z");
+  const p = workspacePaths(env.home);
+  writeFileSync(p.workspace("main").memory, "# w\n\n## d\n- fact for everyone here\n");
+  writeFileSync(p.memory, "# g\n\n## d\n- global fact\n");
+  writeRepoNotes(env.home, "main", "web", ["web fact"]);
+  expect(await ask("forget: ws fact for everyone")).toContain("Forgot");
+  expect(readFileSync(p.workspace("main").memory, "utf8")).not.toContain("fact for everyone");
+  expect(await ask("quên: chung global fact")).toContain("Forgot");
+  expect(readFileSync(p.memory, "utf8")).not.toContain("global fact");
+  expect(await ask("forget: repo:WEB web fact")).toContain("Forgot");
+  expect(file("web")).not.toContain("web fact");
+  const bad = await ask("forget: repo:nope x y z");
   expect(bad).toContain("Unknown repo");
   expect(bad).toContain("`repo`");
-  // pending file is never a target
-  expect(await Bun.file(workspacePaths(env.home).memoryPending).exists()).toBe(false);
 });
 
-test("several repos and no thread context: asks which repo, writes nothing", async () => {
-  const { ask, file } = setup(["web"]);
-  const r = await ask("remember: something useful");
+test("forget with several repos and no thread context: asks which repo, removes nothing", async () => {
+  const { env, ask, file } = setup(["web"]);
+  writeRepoNotes(env.home, "main", "repo", ["something useful"]);
+  const r = (await ask("forget: something useful")) ?? "";
   expect(r).toContain("Which repo?");
-  expect(file("repo")).not.toContain("something useful");
-  expect(file("web")).not.toContain("something useful");
+  expect(file("repo")).toContain("something useful");
 });
 
 test("in a thread the default repo is the latest task's repo", async () => {
   const { env, ask, file } = setup(["web"]);
+  writeRepoNotes(env.home, "main", "web", ["thread default"]);
+  writeRepoNotes(env.home, "main", "repo", ["thread default"]);
   env.db
     .query(
       "INSERT INTO turns (id, thread_id, source, repo, type, status, started_at) VALUES ('t1','th1','discord','web','qa','done',1)",
@@ -80,146 +104,95 @@ test("in a thread the default repo is the latest task's repo", async () => {
       "INSERT INTO turns (id, thread_id, source, repo, type, status, started_at) VALUES ('t2','th1','discord','*','qa','done',2)",
     )
     .run();
-  await ask("remember: thread default", { threadId: "th1" });
-  expect(file("web")).toContain("- thread default");
-  expect(file("repo")).not.toContain("thread default");
-});
-
-test("forget: one match removed (empty section dropped), none, several", async () => {
-  const { ask, file } = setup();
-  await ask("remember: alpha one note");
-  await ask("remember: alpha two note");
-  await ask("remember: beta lone note");
-  const several = await ask("forget: alpha");
-  expect(several).toContain("2 lines match");
-  expect(file("repo")).toContain("alpha one note");
-  expect(await ask("forget: gamma")).toContain("not found");
-  const one = await ask("forget: BETA lone");
-  expect(one).toContain("Forgot");
-  expect(file("repo")).not.toContain("beta lone");
-  await ask("forget: alpha one");
-  await ask("forget: alpha two");
-  expect(file("repo")).not.toContain("## "); // the empty owner section was dropped
-});
-
-test("storage limit: owner write refused at 300 lines, never trimmed", async () => {
-  const { env, ask, file } = setup();
-  const f = repoMemoryFile(env.home, "main", "repo");
-  writeFileSync(
-    f,
-    `# repo memory\n\n## old\n${Array.from({ length: 300 }, (_, i) => `- n${i}`).join("\n")}\n`,
-  );
-  const r = await ask("remember: one more");
-  expect(r).toContain("file full");
-  expect(r).toContain("/compact");
-  expect(file("repo")).toContain("- n0");
-});
-
-test("cap feedback: >80% suggests compaction, >100% says how many chars are out of prompts", async () => {
-  const { env, ask } = setup();
-  const f = repoMemoryFile(env.home, "main", "repo");
-  writeFileSync(f, `# repo memory\n\n## old\n${"- x\n".repeat(1)}${"- ".padEnd(6600, "y")}\n`);
-  expect(await ask("remember: tip note")).toContain("Run `/compact`");
-  writeFileSync(f, `# repo memory\n\n## old\n${"- ".padEnd(9000, "y")}\n`);
-  expect(await ask("remember: tip two")).toMatch(/\d+ oldest chars are not in prompts/);
+  await ask("forget: thread default", { threadId: "th1" });
+  expect(file("web")).not.toContain("thread default");
+  expect(file("repo")).toContain("thread default");
 });
 
 test("places: control = global only, other ops channel and unmapped channel refuse", async () => {
-  const { env, run, file } = setup();
+  const { env, run } = setup();
+  const p = workspacePaths(env.home);
+  writeFileSync(p.memory, "# g\n\n## d\n- from control\n");
   const ctl = (text: string) => run({ where: "control", channelId: "c", text });
-  expect(await ctl("remember: global from control")).toContain("MEMORY.md");
-  expect(readFileSync(workspacePaths(env.home).memory, "utf8")).toContain("- from control");
-  expect(await ctl("remember: ws nope nope")).toContain("only the global memory");
-  expect(await ctl("remember: some default text")).toContain("only the global memory");
-  expect(await run({ where: "ops", channelId: "x", text: "remember: global abc" })).toContain(
+  expect(await ctl("forget: global from control")).toContain("MEMORY.md");
+  expect(await ctl("forget: ws nope nope")).toContain("only the global memory");
+  expect(await ctl("forget: some default text")).toContain("only the global memory");
+  expect(await run({ where: "ops", channelId: "x", text: "forget: global abc" })).toContain(
     "workspace channel",
   );
   expect(
-    await run({ where: "workspace", channelId: "300000000000000009", text: "remember: abc def" }),
+    await run({ where: "workspace", channelId: "300000000000000009", text: "forget: abc def" }),
   ).toContain("not linked");
-  expect(file("repo")).not.toContain("abc def");
 });
 
-test("invalid command replies with usage and writes nothing", async () => {
+test("invalid command replies with usage (no remember form) and removes nothing", async () => {
   const { ask } = setup();
-  expect(await ask("remember: ab")).toContain("3-300");
+  const r = (await ask("forget: ab")) ?? "";
+  expect(r).toContain("3-100");
+  expect(r).not.toContain("/remember [");
 });
 
-test("via handleMessage: answered without any task row, quota slot or agent call", async () => {
+test("via handleMessage: forget is answered without any task row or agent call; remember reaches the agent", async () => {
   const env = makeEnv();
-  let called = false;
+  writeRepoNotes(env.home, "main", "repo", ["via handler note"]);
+  let called = 0;
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
     queryFn: () => {
-      called = true;
+      called++;
       throw new Error("agent must not run");
     },
   });
-  const reply = await handle({
-    source: "discord",
+  const msg = (text: string) => ({
+    source: "discord" as const,
     userId: "1",
     threadId: "th",
     channelId: TEST_CHANNEL,
-    text: "remember: via handler",
+    text,
   });
-  expect(reply).toContain("Remembered");
-  expect(called).toBe(false);
+  const reply = await handle(msg("forget: via handler"));
+  expect(reply).toContain("Forgot");
+  expect(called).toBe(0);
   expect(env.db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 0 });
+  // remember: is no command: the agent run is attempted (the fake throws, proving the message was not answered by app code).
+  await handle(msg("remember: via handler again")).catch(() => undefined);
+  expect(called).toBeGreaterThan(0);
 });
 
-test("bare repo name as first word selects that repo (owner's live message)", async () => {
-  const { ask, file } = setup(["friday-slim-agent"]);
-  const r = await ask("remember:friday-slim-agent Trả lời lại cho tôi dưới 100 kí tự");
+test("forget: bare repo name as first word selects that repo; case-insensitive", async () => {
+  const { env, ask, file } = setup(["friday-slim-agent"]);
+  writeRepoNotes(env.home, "main", "friday-slim-agent", ["Trả lời lại cho tôi", "another note"]);
+  const r = await ask("forget:friday-slim-agent Trả lời lại cho tôi");
   expect(r).toContain("workspaces/main/repos/friday-slim-agent/MEMORY.md");
-  expect(file("friday-slim-agent")).toContain("- Trả lời lại cho tôi dưới 100 kí tự");
-  expect(file("friday-slim-agent")).not.toContain("- friday-slim-agent");
-  // case-insensitive
-  await ask("remember: FRIDAY-Slim-Agent another note");
-  expect(file("friday-slim-agent")).toContain("- another note");
-});
-
-test("first word not a repo of this workspace stays plain text", async () => {
-  const { ask, file } = setup(); // single repo "repo": default scope
-  await ask("remember: other-ws-repo keep this word");
-  expect(file("repo")).toContain("- other-ws-repo keep this word");
+  expect(file("friday-slim-agent")).not.toContain("Trả lời lại");
+  await ask("forget: FRIDAY-Slim-Agent another note");
+  expect(file("friday-slim-agent")).not.toContain("another note");
 });
 
 test("length rules apply after the repo word is stripped", async () => {
-  const { ask, file } = setup(["web"]);
-  expect(await ask("remember: web ab")).toContain("must be 3-300 chars (got 2)");
-  expect(await ask("remember: web")).toContain("got 0");
-  expect(await ask(`remember: web ${"x".repeat(300)}`)).toContain("web/MEMORY.md");
-  expect(file("web")).toContain("x".repeat(300));
-  expect(await ask(`remember: ${"x".repeat(301)}`)).toContain("got 301");
+  const { ask } = setup(["web"]);
   expect(await ask("forget: web ab")).toContain("must be 3-100 chars (got 2)");
-});
-
-test("forget with a bare repo name", async () => {
-  const { ask, file } = setup(["web"]);
-  await ask("remember: repo:web alpha note");
-  expect(await ask("forget: web alpha")).toContain("web/MEMORY.md");
-  expect(file("web")).not.toContain("alpha note");
+  expect(await ask("forget: web")).toContain("got 0");
+  expect(await ask(`forget: ${"x".repeat(101)}`)).toContain("got 101");
 });
 
 test("workspace/global words win over a repo with the same name", async () => {
   const { env, ask, file } = setup(["ws", "chung"]);
-  await ask("remember: ws scoped to workspace");
-  expect(readFileSync(workspacePaths(env.home).workspace("main").memory, "utf8")).toContain(
-    "- scoped to workspace",
-  );
-  await ask("remember: chung scoped to global");
-  expect(readFileSync(workspacePaths(env.home).memory, "utf8")).toContain("- scoped to global");
-  expect(file("ws")).not.toContain("scoped");
-  expect(file("chung")).not.toContain("scoped");
+  const p = workspacePaths(env.home);
+  writeFileSync(p.workspace("main").memory, "# w\n\n## d\n- scoped to workspace\n");
+  writeRepoNotes(env.home, "main", "ws", ["scoped to workspace"]);
+  expect(await ask("forget: ws scoped to workspace")).toContain("Forgot");
+  expect(readFileSync(p.workspace("main").memory, "utf8")).not.toContain("scoped");
+  expect(file("ws")).toContain("scoped to workspace");
 });
 
-test("'Which repo?' lists repos and both forms", async () => {
+test("'Which repo?' lists repos and the forget forms", async () => {
   const { ask } = setup(["web"]);
-  const r = (await ask("remember: something useful")) ?? "";
+  const r = (await ask("forget: something useful")) ?? "";
   expect(r).toContain("`repo`, `web`");
-  expect(r).toContain("/remember <repo-name> <text>");
-  expect(r).toContain("/remember repo:<name> <text>");
+  expect(r).toContain("/forget <repo-name> <text>");
+  expect(r).toContain("/forget repo:<name> <text>");
   expect(r).toContain("`ws`");
   expect(r).toContain("`chung`");
 });

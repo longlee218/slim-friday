@@ -63,5 +63,3 @@ End every run with:
 - `Changes`: bullets per file or area, with `path:line` for the key spots.
 - `Verification`: each command run and its result (pasted line).
 - `Open questions`: what the owner should decide or check; "none" if empty.
-
-Then the `Memory:` section as the run rules say.

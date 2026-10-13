@@ -1,16 +1,13 @@
 import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
-import { appendTaskMemory } from "../../memory/memory-writer";
-import { extractMemory } from "../../memory/repo-memory";
 import { logger, setLogContext, tryLog } from "../../observability/logger";
-import { clip } from "../../observability/redact";
 import type { Repo } from "../../repos/repo-registry";
 import { RESUME_FAILED } from "../../runtime/run-errors";
 import { setTurnRepo } from "../../storage/run-store";
 import { type FlowResult, resumeReasonOf } from "../turns/turn-result";
 import type { RoleRunInput } from "./role-run-types";
 
-/* What the app reads from the END of a background run's report (`repo: <name>`, `Memory:`) and how a failure is tagged. */
+/* What the app reads from the END of a background run's report (`repo: <name>`) and how a failure is tagged. */
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "run-report" });
@@ -21,7 +18,7 @@ const REPO_LINE = /^\s*[-*]?\s*\**repo\**\s*:\s*`?([\w.-]+)`?\s*$/i;
 /**
  * Split the final report into text + the repo the agent named on its last non-empty line `repo: <name>`. The line is removed from the
  * text; the name counts only when it is one of `repos` (case-insensitive, returned as registered). No valid marker =
- * no repo (memory is then skipped, the ledger shows `*`).
+ * no repo (the ledger shows `*`).
  */
 export function extractRepoMarker(text: string, repos: Repo[]): { text: string; repo?: Repo } {
   const lines = text.split("\n");
@@ -33,15 +30,11 @@ export function extractRepoMarker(text: string, repos: Repo[]): { text: string; 
   return { text: rest, repo: repos.find((r) => r.name.toLowerCase() === name) };
 }
 
-/** Short title of a task for the repo memory (first line of the owner's text, capped). */
-export const taskTitle = (text: string): string =>
-  clip(text.trim().split("\n")[0] ?? "", 70) || "Agent change";
-
 /**
  * Close a background run. A failure that kept its session (budget, error) is tagged resumable: `/go` continues that
  * session. A success names its repo on the last `repo:` line (validated against the workspace repos): the turn row, the
- * log context and the repo MEMORY.md (lessons of the `Memory:` section) follow it. No valid marker = no repo: the memory
- * is skipped and the ledger shows `*`.
+ * log context follow it. No valid marker = no repo: the ledger shows `*`. A `Memory:` block in the report is plain text
+ * (lessons are saved by the agent during the run with its memory tool).
  */
 export function closeBackgroundRun(
   d: { db: Database; config: AgentConfig },
@@ -55,12 +48,10 @@ export function closeBackgroundRun(
     return reason ? { ...res, resumable: reason } : res;
   }
   const marked = extractRepoMarker(res.text, i.repos);
-  const memory = extractMemory(marked.text);
   const repo = marked.repo ?? i.repos.find((r) => r.name === res.repo);
   if (repo) {
     setLogContext({ repo: repo.name });
     tryLog(log, "set turn repo failed", () => setTurnRepo(d.db, i.turnId, repo.name));
-    appendTaskMemory(d.config.agentHome, i.workspace, repo.name, taskTitle(i.text), memory);
   }
-  return { ...res, text: memory.text, repo: repo?.name ?? "*" };
+  return { ...res, text: marked.text, repo: repo?.name ?? "*" };
 }

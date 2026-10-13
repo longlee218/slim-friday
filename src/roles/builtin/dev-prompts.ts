@@ -1,10 +1,11 @@
+import { REMEMBER_TOOL } from "../../mcp/mcp-tool-names";
 import type { Workflow } from "../../repos/repo-registry";
 import { ASK_USER_QUESTION_TOOL_NAME, SKILL_TOOL_NAME } from "../../tools/sdk-tool-names";
 
 /**
  * Prompt text of the dev role (prompt module only, no role data). Skills are declared in the role data and listed by
  * the SDK, so these texts state only the facts of the run; they never restate or reword a skill step. Parsed markers
- * stay verbatim: `repo:` (last line of the report) and `Memory:`.
+ * stay verbatim: `repo:` (last line of the report).
  */
 
 /**
@@ -51,8 +52,8 @@ export const DEV_RUN_FACTS = `- Do not change files before the owner approved yo
 export const worktreeRule = (dir: string): string =>
   `- If you use a git worktree, put it under ${dir}/.`;
 
-/** Repo memory section (the app parses the "Memory:" title, before the final "repo:" line). */
-export const DEV_MEMORY = `- Before the final "repo:" line, add a section titled exactly "Memory:" with at most 3 bullets ("- ...") of durable facts about this repo (commands, conventions, pitfalls); no task-specific facts (branch, task ids). Prefix a bullet with "[global]" only for a fact true in every workspace (e.g. an owner preference); at most 2; [global] bullets are reviewed by the owner before they apply. Omit the section if there is nothing.`;
+/** Repo memory: lessons are saved during the run with the memory tool (no report section is parsed any more). */
+export const DEV_MEMORY = `- Save durable facts about this repo (commands, conventions, pitfalls) with ${REMEMBER_TOOL} (scope repo; pass repo when the run spans several repos) as you learn them; no task-specific facts. Nothing to save: skip it.`;
 
 /** How to treat skills in this run (no skill names, no workflow mode). Its own section keeps the others in budget. */
 export const SKILL_RUN_FACTS = `- When a listed skill's description matches the step you are about to do, invoke it and follow it.
