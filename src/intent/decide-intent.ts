@@ -31,6 +31,9 @@ const NOTE_PREFIX = /^\s*(?:remember|nhớ)\s*:/iu;
 /** Why the owner is asked instead of a role being run. */
 export type AskReason = "low_confidence" | "unknown_role" | "unclassified" | "pending_unclear";
 
+/** Layer that decided a message (logged as `intent.layer`). */
+export type IntentLayer = "L1" | "L3" | "none" | "fallback";
+
 /** What the intent layer decided for one message. */
 export type IntentDecision =
   /** L3 read the message as a yes / no to a waiting question: `gate` = the thread's own gate, `ask` = a pending proposal. */
@@ -72,6 +75,8 @@ export interface DecideInput extends IntentPipelineInput {
   pendingQuestion?: string;
   /** Builds the L3 input; called only when L3 runs (so the DB is not read for a decided message). */
   l3Input: () => IntentInput;
+  /** Called with the layer that decided ("L1" | "L3" | "none" | "fallback"); lets the caller trace the route. */
+  onLayer?: (layer: IntentLayer) => void;
 }
 
 /** Class of a role's task: owner prefix > the L3 class > the L2 hint; only for a role with class tiers. */
@@ -121,8 +126,10 @@ export async function decideIntent(
       ruleIds,
     });
   }
-  const layer = (name: string, ruleIds = p.ruleIds) =>
+  const layer = (name: IntentLayer, ruleIds = p.ruleIds) => {
     logEvent(log, "intent.layer", { layer: name, ruleIds });
+    i.onLayer?.(name);
+  };
 
   const pending = !!i.pendingQuestion;
   if (NOTE_PREFIX.test(i.text.normalize("NFC"))) {

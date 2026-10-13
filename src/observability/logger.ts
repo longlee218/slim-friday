@@ -34,6 +34,8 @@ export function fileDestination(file: string) {
 
 /** Correlation fields of the task the current code runs in; merged into every log line. */
 export interface LogContext {
+  /** One id per handled message (minted in `turnLogContext`); ties every line of the message together. */
+  traceId?: string;
   taskId?: string;
   threadId?: string;
   /** Routing key of the task: parent channel of the thread (or the channel of a new conversation). */

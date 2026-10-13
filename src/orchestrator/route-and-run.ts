@@ -1,5 +1,7 @@
 import type { IntentDeps } from "../intent/decide-intent";
 import { logEvent } from "../observability/logger";
+import { logRouteDecision, withSpan } from "../observability/trace-spans";
+import { directRoutingDecision } from "../routing/route-decision-of";
 import type { SessionRow } from "../storage/session-store";
 import { PROPOSAL_EXPIRED_REPLY, pendingProposalFor } from "./dispatch/proposal-flow";
 import { drainQueued } from "./dispatch/queued-tasks";
@@ -82,9 +84,19 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
   if (pending === "expired") return PROPOSAL_EXPIRED_REPLY;
   if (parsed.kind === "go" && pending) {
     const pinned = repos.find((r) => r.name === stored?.repo);
+    logRouteDecision(
+      rc.log,
+      directRoutingDecision({
+        messageId: message.messageId,
+        threadId: message.threadId,
+        resume: true,
+      }),
+    );
     return startPendingProposal({ ...rc, pinned }, pending, parsed.extraBudgetUsd);
   }
   let extraBudgetUsd = "extraBudgetUsd" in parsed ? parsed.extraBudgetUsd : undefined;
+  // A Resume (`/go` or the button) is a resume unless it falls back to plain text below.
+  let resumed = parsed.kind === "go" || parsed.kind === "resume";
   const input = parsed.kind === "go" ? { kind: "resume" as const, extraBudgetUsd } : parsed;
   // Resume button becomes a run of the interrupted task's role in that task's own session (or a refusal).
   const rdeps = { db, agentHome: config.agentHome, workspace: ws, repos };
@@ -100,13 +112,17 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
       message.threadId,
     );
     extraBudgetUsd = undefined; // the raise belongs to a resume, not a plain message
+    resumed = false;
   }
+  // Refused messages are not routed: no route.decision.
   if ("reply" in resolved) return refused(rc.log, resolved);
   // The intent layer picks the role of a plain message (a Resume keeps its own role).
   let picked: (IntentOutcome & { kind: "run" }) | undefined;
   // (empty text / unknown `repo:` fall through: `routeMessage` refuses them with its own reply)
   const answerable =
     !!resolved.cmd.text && !(resolved.cmd.repo && !findRepo(repos, resolved.cmd.repo));
+  // Exactly one `route.decision` per message: the intent layer emits its own; every other path emits below.
+  const routedByIntent = !!c.intent && plain && answerable;
   if (c.intent && plain && answerable) {
     const out = await intentTurn({
       ...rc,
@@ -141,12 +157,24 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
     logEvent(rc.log, route.event, { reason: route.reason, reply: route.reply });
     return route.reply;
   }
-  const reply = await runTurn(rc, {
-    route,
-    plan: resolved,
-    existing: stored,
-    extraBudgetUsd,
-    intent: picked,
-  });
+  if (!routedByIntent)
+    logRouteDecision(
+      rc.log,
+      directRoutingDecision({
+        messageId: message.messageId,
+        threadId: message.threadId,
+        resume: resumed,
+        role: route.role,
+      }),
+    );
+  const reply = await withSpan(rc.log, "execute", () =>
+    runTurn(rc, {
+      route,
+      plan: resolved,
+      existing: stored,
+      extraBudgetUsd,
+      intent: picked,
+    }),
+  );
   return picked?.notice ? `${picked.notice}\n\n${reply}` : reply;
 }

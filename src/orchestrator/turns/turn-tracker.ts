@@ -6,8 +6,9 @@ import { logEvent, setLogContext, tryLog } from "../../observability/logger";
 import { countQueuedProposals } from "../../storage/proposal-store";
 import { finishTurn, insertTurn, interruptRunningTurns } from "../../storage/run-store";
 
-/** Log-context fields every line of a call carries: its thread and its routing channel. */
+/** Log-context fields every line of a call carries: a fresh trace id, its thread and its routing channel. */
 export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
+  traceId: crypto.randomUUID(),
   threadId: t.threadId,
   channelId: t.channelId,
 });

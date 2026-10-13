@@ -1,10 +1,12 @@
 import type { Logger } from "pino";
 import type { TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
-import { decideIntent, type IntentDeps } from "../intent/decide-intent";
+import { decideIntent, type IntentDeps, type IntentLayer } from "../intent/decide-intent";
 import { buildIntentInput } from "../intent/intent-input";
 import { logEvent } from "../observability/logger";
+import { logRouteDecision, withSpan } from "../observability/trace-spans";
 import type { Repo } from "../repos/repo-registry";
+import { routingDecisionOf } from "../routing/route-decision-of";
 import { getSession, type SessionRow } from "../storage/session-store";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
@@ -47,39 +49,56 @@ export const pinnedRepo = (repos: Repo[], hint: string | undefined, stored: Sess
 export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   const { db } = c.deps;
   const threadId = c.message.threadId;
-  const state = deriveThreadState(db, threadId);
-  const pendingQuestion = pendingQuestionOf(db, threadId);
+  const { state, pendingQuestion } = await withSpan(c.log, "resolve_context", () => ({
+    state: deriveThreadState(db, threadId),
+    pendingQuestion: pendingQuestionOf(db, threadId),
+  }));
   // A running task that takes steers (its run reads its input now, or is about to): L3 decides the SCOPE of every
   // message, tagged or not (supplement -> steer, independent -> side / queue; a `[tag]` only picks the role). Typed
   // feedback on a plan waiting for approval is a supplement: it reaches the agent after the owner's decision.
   // Any other busy state keeps the old path (a tagged message queues; L3 only reads a pending answer or a gate state).
   const steerable = c.busy && isWorking(state) && !!c.deps.steer?.canTake(threadId);
   const gated = c.busy && isGateState(state);
-  const { decision, effort } = await decideIntent(
-    {
-      text: c.cmd.text,
-      state,
-      pendingQuestion,
-      // A busy thread continues its task only through a steer; else a request is a NEW task (queued). After a task
-      // ended the next request is NEW.
-      hasTask: steerable || (!c.busy && !isIdleLike(state)),
-      scopeFromModel: steerable,
-      ownerClass: c.cmd.cls,
-      signal: c.ac.signal,
-      l3Input: () =>
-        buildIntentInput(db, {
-          threadId,
-          text: c.cmd.text,
-          state,
-          recent: c.message.recent,
-          pendingQuestion,
-        }),
-    },
-    // A busy thread pays for L3 only to read the answer to a pending question, to scope a steerable run's message or
-    // to read a message on an owner gate; else only a role tag (L1) acts on it.
-    c.busy && !pendingQuestion && !steerable && !gated
-      ? { ...c.intent, classifier: undefined }
-      : c.intent,
+  let layer: IntentLayer | undefined;
+  const { decision, effort } = await withSpan(c.log, "classify", () =>
+    decideIntent(
+      {
+        onLayer: (l) => {
+          layer = l;
+        },
+        text: c.cmd.text,
+        state,
+        pendingQuestion,
+        // A busy thread continues its task only through a steer; else a request is a NEW task (queued). After a task
+        // ended the next request is NEW.
+        hasTask: steerable || (!c.busy && !isIdleLike(state)),
+        scopeFromModel: steerable,
+        ownerClass: c.cmd.cls,
+        signal: c.ac.signal,
+        l3Input: () =>
+          buildIntentInput(db, {
+            threadId,
+            text: c.cmd.text,
+            state,
+            recent: c.message.recent,
+            pendingQuestion,
+          }),
+      },
+      // A busy thread pays for L3 only to read the answer to a pending question, to scope a steerable run's message or
+      // to read a message on an owner gate; else only a role tag (L1) acts on it.
+      c.busy && !pendingQuestion && !steerable && !gated
+        ? { ...c.intent, classifier: undefined }
+        : c.intent,
+    ),
+  );
+  logRouteDecision(
+    c.log,
+    routingDecisionOf({
+      messageId: c.message.messageId,
+      threadId,
+      decision,
+      layer,
+    }),
   );
   const action = actionFor({ decision, state });
   // Effort only matters for a run that starts now; `max` runs only after the owner-confirm gate says yes
