@@ -83,6 +83,15 @@ export interface RoleDefinition {
    * `resolvePermissionMode`); `bypassPermissions` (the SDK asks nothing; only the guard's hard denies stop a call).
    */
   permissionMode?: "auto" | "bypassPermissions";
+  /**
+   * What the role may change: `none` (answers only), `repo` (files / git of a checkout), `external` (outside systems).
+   * Routing data: scales how sure the router must be before it picks the role. Authorization stays in the guards.
+   */
+  sideEffects: "none" | "repo" | "external";
+  /** The role needs the Discord approval flow to run; routing and reroute skip it when approvals are unavailable. */
+  approvalRequired: boolean;
+  /** Bump when the role's routing / capability data changes; logged with the routing decision. */
+  capabilityVersion: string;
   /** Built-in tools (and the guard's auto-allow list) derive from these. */
   capabilities: Capability[];
   /** Git MCP tool groups the role may use (read-only by-mode tools are always visible). */

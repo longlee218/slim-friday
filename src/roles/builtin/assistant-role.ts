@@ -39,6 +39,9 @@ export const ASSISTANT_ROLE: RoleDefinition = {
   context: { ledger: true },
   repoScope: "all",
   // "shell": Bash runs under the deny-list only (bash-policy.ts), it never asks; the "no changes" rule is the prompt's, not enforced.
+  sideEffects: "none",
+  approvalRequired: false,
+  capabilityVersion: "1",
   capabilities: ["read", "web", "skills", "mcp", "shell"],
   gitGroups: ["read"],
   permissionMode: "auto",

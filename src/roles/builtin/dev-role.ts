@@ -30,6 +30,9 @@ export const DEV_ROLE: RoleDefinition = {
   background: true,
   skills: "all", // every installed publisher skill (installing one needs no code change)
   limits: { maxAsk: MAX_ASK },
+  sideEffects: "repo",
+  approvalRequired: true,
+  capabilityVersion: "1",
   capabilities: CODE_CAPABILITIES,
   gitGroups: [], // no git MCP: the agent uses `git` in the shell
   // The SDK asks nothing; only the guard's hard denies stop a call. Approval of the plan is an ask, not a gate.
