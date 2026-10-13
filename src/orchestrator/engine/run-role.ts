@@ -78,6 +78,8 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
               ?.repos ?? []
           ).map((r) => r.name),
         repo: i.repos.length === 1 ? i.repos[0]?.name : undefined,
+        threadId: i.threadId,
+        trackSummary: !role.background,
         threadLabel: `thread ${i.threadId.slice(-6)}`,
       },
       skillsWorkspace: i.workspace, // curated skills of this workspace (never repo content)

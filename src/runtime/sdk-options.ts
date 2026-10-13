@@ -13,6 +13,7 @@ import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
 import type { RoleDefinition } from "../roles/role-types";
 import { toolOptions } from "../tools/tool-catalog";
+import { buildCompactHooks } from "./compact-hooks";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import type { RunAgentInput } from "./run-agent";
 import { sdkEnv } from "./sdk-env";
@@ -133,7 +134,12 @@ export function buildSdkOptions(
       worktreesDir: input.worktreesDir,
       escalation: !!input.route?.offerEscalation,
     }),
-    hooks: mergeHooks(buildToolHooks(deps.recorder, hookOptions(perms, config, input)), perms),
+    hooks: {
+      ...mergeHooks(buildToolHooks(deps.recorder, hookOptions(perms, config, input)), perms),
+      // Compaction hooks (journal extract + thread summary) need the thread: runs without a memory context have none.
+      ...(input.memory?.threadId &&
+        buildCompactHooks({ ...input.memory, threadId: input.memory.threadId })),
+    },
     env: sdkEnv(config, process.env, resolveCompactWindow(role, config)),
   };
 }

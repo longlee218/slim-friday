@@ -14,6 +14,10 @@ export interface MemoryToolContext {
   repoNames: () => string[];
   /** The run's single repo, when it has exactly one: stamps `global` notes with their origin (`[ws/repo]`). */
   repo?: string;
+  /** Thread of the run: the compaction hooks store its summary and cycle counters under it. */
+  threadId?: string;
+  /** Foreground run: the PostCompact hook may store the thread summary and count cycles. Background runs (dev) leave the thread summary alone. */
+  trackSummary?: boolean;
   /** Short label of the thread: the journal block title (`## HH:MM <label>`). */
   threadLabel: string;
   /** Clock (tests pass a fixed one). One call per tool call: file date and bullet date come from the same instant. */
