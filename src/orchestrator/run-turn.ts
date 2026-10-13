@@ -33,6 +33,8 @@ export interface RoleRunCtx {
     cls?: TaskClass,
     /** Task this run continues (interrupt Resume, `/go`): its row is a `resume` child, its spend counts against the same ceiling. */
     resumeOf?: string,
+    /** Owned task this run continues (background roles only; the turn links to it). */
+    ownedTaskId?: string,
   ) => void;
   /** Repo of the log context, to report when the flow named none. */
   turnRepo: () => string;
@@ -52,7 +54,7 @@ export async function runTurn(
     existing: SessionRow | null;
     extraBudgetUsd?: number;
     /** What the intent layer decided for this run: class (owner prefix wins) and effort (signals / floor). */
-    intent?: { cls?: TaskClass; effort?: Effort };
+    intent?: { cls?: TaskClass; effort?: Effort; ownedTaskId?: string };
   },
 ): Promise<string> {
   const { deps, message, turnId, workspace: ws } = c;
@@ -80,6 +82,7 @@ export async function runTurn(
     role.name,
     cls,
     resume?.of,
+    a.intent?.ownedTaskId,
   );
   const res: FlowResult = await runRole(deps, {
     turnId,

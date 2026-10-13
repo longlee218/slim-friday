@@ -1,25 +1,21 @@
+import type { IntentEngine } from "../config/agent-config";
 import type { TaskClass } from "../config/model-routing";
 import { logEvent, logger } from "../observability/logger";
 import type { ThreadState } from "../orchestrator/thread/thread-state";
 import { entryRole, hasClassTiers, ROLES } from "../roles/role-registry";
+import type { RouteProposer } from "../routing/route-proposer";
+import { decideWithModel, undecided, type Verdict } from "./decide-with-model";
 import type { EffortSignals } from "./effort-signals";
-import { guardMechanical, validateIntent } from "./intent-schema";
-import { type IntentClassifier, IntentEngineError, type IntentInput } from "./intent-types";
+import type { IntentClassifier, IntentInput } from "./intent-types";
 import {
   type IntentPipelineDeps,
   type IntentPipelineInput,
   runIntentPipeline,
 } from "./run-intent-pipeline";
-import { modelScope, supplement } from "./steer-scope";
+import { modelScope } from "./steer-scope";
 
 /** Logger of this module. */
 const log = logger.child({ module: "decide-intent" });
-
-/** Thread states with no task in flight (same meaning as `isIdleLike` in thread-state; kept local so intent stays import-light). */
-const isIdleState = (state: string): boolean => state === "idle" || state === "done";
-
-/** Thread states that are an owner gate (approval buttons). */
-const GATE_STATES: ReadonlySet<ThreadState> = new Set(["awaiting_confirmation"]);
 
 /**
  * A note to save: the message starts with `remember:` / `nhớ:` (what `/remember` maps to). Decided here, before any
@@ -32,7 +28,8 @@ const NOTE_PREFIX = /^\s*(?:remember|nhớ)\s*:/iu;
 export type AskReason = "low_confidence" | "unknown_role" | "unclassified" | "pending_unclear";
 
 /** Layer that decided a message (logged as `intent.layer`). */
-export type IntentLayer = "L1" | "L3" | "none" | "fallback";
+/** `jev` = the injected proposer (routing policy) decided before L3. */
+export type IntentLayer = "L1" | "L3" | "none" | "fallback" | "jev";
 
 /** What the intent layer decided for one message. */
 export type IntentDecision =
@@ -52,8 +49,12 @@ export type IntentDecision =
 /** Pipeline + optional L3 engine: built once at startup. */
 export interface IntentDeps {
   pipeline: IntentPipelineDeps;
-  /** Undefined for `INTENT_ENGINE=none` (L0-L2 only). */
+  /** Undefined for `INTENT_ENGINE=none` (L0-L2 only). Under `jev` it is the Haiku fallback. */
   classifier?: IntentClassifier;
+  /** `INTENT_ENGINE`; undefined = `haiku` (the policy adds the owner / Jev steps only for `jev`). */
+  engine?: IntentEngine;
+  /** Async route proposer (Jev, phase 7); undefined = every proposal is `undecided`. */
+  proposer?: RouteProposer;
 }
 
 /** Everything one decision reads. */
@@ -75,44 +76,34 @@ export interface DecideInput extends IntentPipelineInput {
   pendingQuestion?: string;
   /** Builds the L3 input; called only when L3 runs (so the DB is not read for a decided message). */
   l3Input: () => IntentInput;
-  /** Called with the layer that decided ("L1" | "L3" | "none" | "fallback"); lets the caller trace the route. */
+  /** Called with the layer that decided; lets the caller trace the route. */
   onLayer?: (layer: IntentLayer) => void;
+  /**
+   * Step between L1 and L3 (idle thread, engine `jev`): the routing policy's owner / Jev decision, or undefined =
+   * undecided (L3 follows). Absent = no such step.
+   */
+  propose?: () => Promise<IntentDecision | undefined>;
 }
 
 /** Class of a role's task: owner prefix > the L3 class > the L2 hint; only for a role with class tiers. */
 const classFor = (role: string, ...sources: (TaskClass | undefined)[]): TaskClass | undefined =>
   ROLES[role] && hasClassTiers(ROLES[role]) ? sources.find(Boolean) : undefined;
 
-/** The role is a registry role that answers (not background): its turn was a conversation. */
-const isAnswering = (role?: string): boolean => !!role && !!ROLES[role] && !ROLES[role].background;
-
-/**
- * Failure / no-engine fallback: a pending question is asked again (the owner's reply could not be read); an idle
- * thread goes to the entry role (assistant: changes nothing, cheapest, the worst case is that the owner re-asks a
- * change); any other state asks the owner.
- */
-function fallback(state: DecideInput["state"], pending: boolean): IntentDecision {
-  if (pending) return { kind: "ask", reason: "pending_unclear" };
-  return isIdleState(state)
-    ? { kind: "role", role: entryRole().name, scope: "new" }
-    : { kind: "ask", reason: "unclassified" };
+/** Result of one decision: the decision, the L2 signals, the layer that decided and whether nothing decided the route. */
+export interface Decided extends Verdict {
+  effort: EffortSignals;
+  layer?: IntentLayer;
 }
 
-/** No engine / the engine failed: a steerable run takes the message as a supplement, else the plain fallback. */
-const undecided = (i: DecideInput, pending: boolean): IntentDecision =>
-  i.scopeFromModel && !pending ? supplement() : fallback(i.state, pending);
-
 /**
- * One message through the layers: L1 explicit role tag, then L3 (the LLM, which reads the conversation and any
- * pending question) ONLY when no tag decided (at most one call). Failures and low confidence never dispatch a
- * task (an idle low-confidence message is answered by the entry role). Logs `effort.signals`, `intent.layer {layer: L1|L3|none|fallback, ruleIds}` (L2 only adds `effort.signals`),
- * `intent.classified` (no text) and `intent.fallback`.
- * Returns the decision and the L2 effort signals.
+ * One message through the layers: note prefix and L1 explicit role tag, then the optional `propose` step (owner /
+ * Jev), then L3 (the LLM, which reads the conversation and any pending question) ONLY when none decided (at most
+ * one call). Failures and low confidence never dispatch a task (an idle low-confidence message is answered by the
+ * entry role). Logs `effort.signals`, `intent.layer {layer: L1|L3|jev|none|fallback, ruleIds}` (L2 only adds
+ * `effort.signals`), `intent.classified` (no text) and `intent.fallback`.
+ * Returns the decision, the L2 effort signals, the deciding layer and `unresolved` (see `Verdict`).
  */
-export async function decideIntent(
-  i: DecideInput,
-  deps: IntentDeps,
-): Promise<{ decision: IntentDecision; effort: EffortSignals }> {
+export async function decideIntent(i: DecideInput, deps: IntentDeps): Promise<Decided> {
   const p = runIntentPipeline(i, deps.pipeline);
   const { effort } = p;
   if (effort.ruleIds.length) {
@@ -126,15 +117,18 @@ export async function decideIntent(
       ruleIds,
     });
   }
+  let decidedLayer: IntentLayer | undefined;
   const layer = (name: IntentLayer, ruleIds = p.ruleIds) => {
+    decidedLayer = name;
     logEvent(log, "intent.layer", { layer: name, ruleIds });
     i.onLayer?.(name);
   };
+  const done = (v: Verdict): Decided => ({ ...v, effort, layer: decidedLayer });
 
   const pending = !!i.pendingQuestion;
   if (NOTE_PREFIX.test(i.text.normalize("NFC"))) {
     layer("L1", ["note:remember"]);
-    return { decision: { kind: "role", role: entryRole().name, scope: "new" }, effort };
+    return done({ decision: { kind: "role", role: entryRole().name, scope: "new" } });
   }
   if (p.decidedBy === "L1" && p.route?.kind === "role") {
     layer("L1");
@@ -146,68 +140,28 @@ export async function decideIntent(
         ? "active"
         : "new";
     const cls = classFor(role, i.ownerClass, effort.classHint);
-    return { decision: { kind: "role", role, scope, ...(cls && { cls }) }, effort };
+    return done({ decision: { kind: "role", role, scope, ...(cls && { cls }) } });
+  }
+  // Owner / Jev step of the routing policy: it decides only with a usable answer; undecided falls through to L3.
+  const proposed = await i.propose?.();
+  if (proposed) {
+    layer("jev", []);
+    const cls =
+      proposed.kind === "role"
+        ? classFor(proposed.role, i.ownerClass, effort.classHint)
+        : undefined;
+    return done({ decision: cls && proposed.kind === "role" ? { ...proposed, cls } : proposed });
   }
   if (!deps.classifier) {
     layer("none"); // INTENT_ENGINE=none: L0-L2 only
-    return { decision: undecided(i, pending), effort };
+    return done(undecided(i, pending));
   }
-  try {
-    const input = i.l3Input();
-    const raw = await deps.classifier.classify(input, i.signal);
-    const v = validateIntent(raw, {
-      hasTask: i.hasTask,
-      ownerClass: i.ownerClass,
-      classHint: effort.classHint,
-    });
-    layer("L3");
-    if (!v.ok) {
-      logEvent(log, "intent.fallback", { reason: v.reason, role: raw.role.slice(0, 64) }, "warn");
-      if (i.scopeFromModel && !pending) return { decision: supplement(), effort };
-      return { decision: { kind: "ask", reason: v.reason }, effort };
-    }
-    const { role, scope, class: cls, confidence, reason, ask, pendingAnswer } = v.result;
-    logEvent(log, "intent.classified", { role, scope, class: cls ?? null, confidence, reason });
-    if (raw.class !== guardMechanical(raw))
-      logEvent(log, "intent.class_downgraded", { from: raw.class, to: "standard", confidence });
-    // Low confidence never runs the model's pick. An idle thread with no pending question goes to the entry role
-    // (the assistant changes nothing: the answer itself clarifies); a pending question / gate / busy thread keeps the owner question.
-    if (confidence === "low") {
-      if (i.scopeFromModel && !pending) return { decision: supplement(role), effort }; // ambiguous -> supplement
-      if (isIdleState(i.state) && !pending)
-        return { decision: { kind: "role", role: entryRole().name, scope: "new" }, effort };
-      return {
-        decision: { kind: "ask", reason: "low_confidence", ...(ask && { text: ask }) },
-        effort,
-      };
-    }
-    // A yes / no to the waiting question (a pending proposal wins over the thread's button gate).
-    if (pendingAnswer && (pending || GATE_STATES.has(i.state)))
-      return {
-        decision: { kind: "gate-answer", answer: pendingAnswer, target: pending ? "ask" : "gate" },
-        effort,
-      };
-    // Discussion guard: a model-only "new background task" straight after an answering turn may be a proposal, not an
-    // order (no [dev] tag backs it): ask once before opening a task.
-    const confirmDev =
-      scope === "new" &&
-      isIdleState(i.state) &&
-      ROLES[role].background &&
-      isAnswering(input.thread.lastTurn?.role);
-    return {
-      decision: {
-        kind: "role",
-        role,
-        scope,
-        ...(cls && { cls }),
-        ...(confirmDev && { confirmDev }),
-      },
-      effort,
-    };
-  } catch (err) {
-    const reason = err instanceof IntentEngineError ? err.reason : "sdk";
-    logEvent(log, "intent.fallback", { reason }, "warn");
-    layer("fallback");
-    return { decision: undecided(i, pending), effort };
-  }
+  const v = await decideWithModel(
+    i,
+    { ...deps, classifier: deps.classifier },
+    effort,
+    layer,
+    deps.engine === "jev",
+  );
+  return done(v);
 }

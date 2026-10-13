@@ -13,6 +13,7 @@ import {
   taskBrief,
 } from "../dispatch/queued-tasks";
 import { resumeAnswer } from "../dispatch/resume-failed-task";
+import type { ResumePlan } from "../message-routing";
 import {
   ASK_TEXT,
   GATE_HINT,
@@ -48,6 +49,8 @@ export type IntentOutcome =
       resume?: true;
       /** One line put before the reply (why the message was answered rather than run as a task). */
       notice?: string;
+      /** The message continues an open background task: its session plan (owner text as the prompt) and its id. */
+      continueTask?: { ownedTaskId: string; plan: ResumePlan };
     };
 
 /** What the executor needs from the handler (a slice of its run context). */
@@ -68,6 +71,8 @@ export interface RouteCtx {
   /** Class and effort decided for this message. */
   cls?: TaskClass;
   effort?: Effort;
+  /** Open background task this message continues (its next turn links to it; the session may be gone). */
+  ownedTaskId?: string;
 }
 
 /** What a queued request stores: the owner text plus the class and effort decided for it (kept until it starts). */
@@ -164,6 +169,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
           pinned: c.pinned,
           ac: c.ac,
           effort: c.effort,
+          ownedTaskId: c.ownedTaskId,
         }),
       );
     }

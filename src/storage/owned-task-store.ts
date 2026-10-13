@@ -112,14 +112,22 @@ export function ownedTaskOfTurn(db: Database, turnId: string): string | undefine
 export function lastTurnOfTask(
   db: Database,
   taskId: string,
-): { id: string; status: string; sessionId: string | null; cwd: string | null } | undefined {
+):
+  | {
+      id: string;
+      status: string;
+      repo: string;
+      sessionId: string | null;
+      cwd: string | null;
+    }
+  | undefined {
   return (
     db
       .query<
-        { id: string; status: string; sessionId: string | null; cwd: string | null },
+        { id: string; status: string; repo: string; sessionId: string | null; cwd: string | null },
         [string]
       >(
-        `SELECT id, status, session_id AS sessionId, session_cwd AS cwd FROM turns
+        `SELECT id, status, repo, session_id AS sessionId, session_cwd AS cwd FROM turns
          WHERE owned_task_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
       )
       .get(taskId) ?? undefined

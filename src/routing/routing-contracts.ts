@@ -22,6 +22,7 @@ export const REASON_CODES = [
   "JEV_MATCH", // Jev picked the role
   "MODEL_FALLBACK", // the Haiku (L3) classifier picked the role
   "ENTRY_DEFAULT", // nothing decided: the entry role
+  "HISTORY_DEFAULT", // nothing decided: the role that answered the thread's last turn
   "RESUME", // resume of an interrupted/failed task (button, `/go`, yes)
   "PENDING_ANSWER", // the message answers a waiting question or gate
 ] as const;

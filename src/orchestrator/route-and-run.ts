@@ -140,6 +140,8 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
       resolved = resolveCommand(rdeps, { kind: "resume" }, message.threadId);
       if ("reply" in resolved) return refused(rc.log, resolved);
     }
+    // The message continues an open background task: its own session plan (owner text as the prompt).
+    else if (out.continueTask) resolved = out.continueTask.plan;
     // An outcome may swap the text to run (declined dev task); its `notice` is put before the reply below.
     else if (out.text) resolved = { ...resolved, cmd: { ...resolved.cmd, text: out.text } };
   }
@@ -173,7 +175,7 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
       plan: resolved,
       existing: stored,
       extraBudgetUsd,
-      intent: picked,
+      intent: picked && { ...picked, ownedTaskId: picked.continueTask?.ownedTaskId },
     }),
   );
   return picked?.notice ? `${picked.notice}\n\n${reply}` : reply;

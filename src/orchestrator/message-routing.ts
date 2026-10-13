@@ -67,6 +67,10 @@ export function routeMessage(
   };
 }
 
+/** `cwd` is a registered repo of the workspace (a background session must run in one; an old scratch-dir session has none). */
+export const inRegisteredRepo = (repos: Repo[], cwd: string | null | undefined): boolean =>
+  !!cwd && repos.some((r) => realOrSame(r.path) === realOrSame(cwd));
+
 /** Refusal reasons after which a `go` message is treated as plain text (nothing to start or resume). */
 export const PLAIN_GO: ReadonlySet<string> = new Set(["cannot_resume", "stale_resume"]);
 
@@ -119,7 +123,7 @@ export function resolveCommand(
   // A background session runs in the repo: the dir must still be there. Nothing to continue = the task is dropped.
   const { sessionId, cwd } = last;
   // A background session must run in a registered repo (an old scratch-dir session has none): nothing to continue.
-  const inRepo = !!cwd && deps.repos.some((r) => realOrSame(r.path) === realOrSame(cwd));
+  const inRepo = inRegisteredRepo(deps.repos, cwd);
   if (!sessionId || !cwd || (role?.background && (!existsSync(cwd) || !inRepo)))
     return failed ? resumeGone(deps.db, threadId) : cannot;
   const existing: SessionRow = {

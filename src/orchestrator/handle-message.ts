@@ -1,11 +1,8 @@
 import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
-import type { TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
 import type { IntentDeps } from "../intent/decide-intent";
-import { DRAIN_REPLY, isDraining } from "../lifecycle/drain";
-import { createMemoryRunner } from "../memory/memory-command-handler";
 import {
   getLogContext,
   logEvent,
@@ -13,29 +10,16 @@ import {
   runWithLogContext,
   setLogContext,
 } from "../observability/logger";
-import { errText } from "../observability/redact";
 import type { QueryFn } from "../runtime/run-agent";
 import { getSession } from "../storage/session-store";
 import { selectWorkspace } from "../workspaces/task-workspace";
-import { createBusyLane } from "./busy-lane";
-import type { DispatchDeps } from "./dispatch/dispatch-role";
+import { createHandlerServices } from "./handler-services";
 import { parseMessageCommand } from "./message-commands";
 import { routeAndRun } from "./route-and-run";
 import type { RoleRunCtx } from "./run-turn";
-import { EffortFloors } from "./thread/effort-floor";
-import { createRolloverScheduler } from "./turns/rollover-scheduler";
 import type { RunLimiter } from "./turns/run-limiter";
-import { createSteerRegistry } from "./turns/steer-registry";
-import { OUTCOME_REPLY } from "./turns/turn-result";
-import {
-  beginTurn,
-  createRunTracker,
-  failTurn,
-  refused,
-  renewActive,
-  stopThread,
-  turnLogContext,
-} from "./turns/turn-tracker";
+import { admitTurn, reportCrash, stopCommand } from "./turns/turn-admission";
+import { beginTurn, failTurn, refused, renewActive, turnLogContext } from "./turns/turn-tracker";
 
 /** Dependencies of the turn handler. */
 export interface TurnHandlerDeps {
@@ -54,32 +38,9 @@ export interface TurnHandlerDeps {
 /** Build `handleMessage`: Discord-free entry that owns the per-thread lock and `stop`. */
 export function createTurnHandler(deps: TurnHandlerDeps) {
   const { db, config } = deps;
-  /** threadId -> controller of the active run (one run per thread). */
-  const active = new Map<string, AbortController>();
   const log = logger.child({ module: "handle-message" });
-  const tracker = createRunTracker(db, log, active);
-  /** Post-reply work (memory flush, summary, rollover): holds the thread; see rollover-scheduler.ts. */
-  const rollovers = createRolloverScheduler({ db, config, queryFn: deps.queryFn, log });
-  /** Per-thread effort floors; `quietTurn` runs every turn so entries decay (a complaint signal raises one). */
-  const floors = new EffortFloors();
-  /** What a role run and the dispatcher need; nothing in it changes per message. */
-  const dispatchDeps: DispatchDeps = {
-    db,
-    config,
-    approvals: deps.approvals!,
-    queryFn: deps.queryFn,
-    stopping: tracker.isStopping,
-    steer: createSteerRegistry(db), // streaming roles take the owner's messages while they run
-  };
-  const busyLane = createBusyLane({
-    deps: dispatchDeps,
-    log,
-    intent: deps.intent,
-    floors,
-    limiter: deps.limiter,
-    active,
-  });
-  const memory = createMemoryRunner({ db, config, queryFn: deps.queryFn, limiter: deps.limiter });
+  const { active, tracker, rollovers, floors, dispatchDeps, busyLane, memory } =
+    createHandlerServices(deps, log);
   /** Handle one message (one turn) and return the (redacted) reply text. */
   const run = async (message: InboundMessage): Promise<string> => {
     const { threadId } = message;
@@ -94,28 +55,17 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     if (parsed.kind !== "message")
       logEvent(log, "intent.layer", { layer: "L0", ruleIds: [parsed.kind] });
     if (parsed.kind === "memory") return (await memory(message)) ?? ""; // owner memory command: no agent
-    if (parsed.kind === "stop") {
-      // No run, but the previous turn's wrap-up (flush / summary) is working: `/stop` aborts it (the session is kept).
-      if (!running && rollovers.abort(threadId))
-        return "Stopping the wrap-up of the previous turn...";
-      if (running) dispatchDeps.steer?.record(message, message.text, "stop"); // audit; stopThread aborts, the queue stays
-      return stopThread(db, threadId, running);
-    }
+    if (parsed.kind === "stop")
+      return stopCommand({ db, message, running, rollovers, steer: dispatchDeps.steer });
     // A rollover of the previous turn holds the thread until it is done; the checks below then see the final state.
     await rollovers.holdFor(message);
     // The run holds the thread: `still working...`, or (intent layer on) steer / side answer / queue / yes-no.
     const live = active.get(threadId);
     if (live) return busyLane(message, parsed, live);
-    // Drain (deploy): no new turn starts; the commands above still answer; the global cap is checked after them too.
-    if (isDraining(config.agentHome)) {
-      logEvent(log, "task.refused", { reason: "drain", reply: DRAIN_REPLY });
-      return DRAIN_REPLY;
-    }
-    const release = deps.limiter ? deps.limiter.tryAcquire() : () => {};
-    if (!release) {
-      logEvent(log, "task.busy", { reason: "run_limit", active: deps.limiter!.active() });
-      return `busy, ${deps.limiter!.active()} runs active, try again in a minute`;
-    }
+    // Drain (deploy) and the global run cap refuse a new turn (the commands above still answer).
+    const admitted = admitTurn(deps.limiter, config.agentHome, log);
+    if ("reply" in admitted) return admitted.reply;
+    const { release } = admitted;
     floors.quietTurn(threadId);
     const ac = new AbortController();
     active.set(threadId, ac);
@@ -127,12 +77,12 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     const turnRepo = () => getLogContext().repo ?? "*";
     /** The one place the turn row is created (after the refusals, before the flow runs). */
     let single: string | undefined;
-    const begin = (repo: string, role: string, cls?: TaskClass, resumeOf?: string) => {
+    const begin: RoleRunCtx["begin"] = (repo, role, cls, resumeOf, ownedTaskId) => {
       beginTurn(
         db,
         log,
         { turnId, threadId, source: message.source, single },
-        { repo, role, cls, resume: !!resumeOf, parentTurnId: resumeOf },
+        { repo, role, cls, resume: !!resumeOf, parentTurnId: resumeOf, ownedTaskId },
       );
       turnInserted = true;
     };
@@ -171,13 +121,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     } catch (err) {
       // Never throw from the error path (db may be closed during shutdown).
       if (turnInserted) failTurn(db, log, turnId);
-      logEvent(
-        log,
-        "task.finished",
-        { repo: turnRepo(), outcome: "crashed", durationMs: Date.now() - t0, err: errText(err) },
-        "error",
-      );
-      return OUTCOME_REPLY.error!;
+      return reportCrash(log, err, { repo: turnRepo(), t0 });
     } finally {
       active.delete(threadId);
       release();

@@ -1,20 +1,20 @@
 import type { Logger } from "pino";
 import type { TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
-import { decideIntent, type IntentDeps, type IntentLayer } from "../intent/decide-intent";
+import type { IntentDeps } from "../intent/decide-intent";
 import { buildIntentInput } from "../intent/intent-input";
-import { logEvent } from "../observability/logger";
 import { logRouteDecision, withSpan } from "../observability/trace-spans";
 import type { Repo } from "../repos/repo-registry";
-import { routingDecisionOf } from "../routing/route-decision-of";
-import { getSession, type SessionRow } from "../storage/session-store";
-import { selectWorkspace } from "../workspaces/task-workspace";
+import { settleRouting } from "../routing/route-decision-of";
+import { decideRoute } from "../routing/routing-policy";
+import type { SessionRow } from "../storage/session-store";
+import { resolveTaskContext } from "../tasks/task-resolver";
+import { continueOwnedTask } from "./dispatch/continue-owned-task";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { pendingQuestionOf } from "./dispatch/queued-tasks";
 import { findRepo } from "./dispatch/task-repo";
-import type { MessageCommand } from "./message-commands";
 import type { EffortFloors } from "./thread/effort-floor";
-import { STILL_WORKING, stripRoleTag } from "./thread/intent-replies";
+import { stripRoleTag } from "./thread/intent-replies";
 import { MAX_DECLINED_NOTICE, settleMaxEffort } from "./thread/max-effort-gate";
 import { actionFor, type IntentOutcome, routeByIntent } from "./thread/route-by-intent";
 import { deriveThreadState, isGateState, isIdleLike, isWorking } from "./thread/thread-state";
@@ -49,9 +49,10 @@ export const pinnedRepo = (repos: Repo[], hint: string | undefined, stored: Sess
 export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   const { db } = c.deps;
   const threadId = c.message.threadId;
-  const { state, pendingQuestion } = await withSpan(c.log, "resolve_context", () => ({
+  const { state, pendingQuestion, active } = await withSpan(c.log, "resolve_context", () => ({
     state: deriveThreadState(db, threadId),
     pendingQuestion: pendingQuestionOf(db, threadId),
+    active: resolveTaskContext(db, threadId).active,
   }));
   // A running task that takes steers (its run reads its input now, or is about to): L3 decides the SCOPE of every
   // message, tagged or not (supplement -> steer, independent -> side / queue; a `[tag]` only picks the role). Typed
@@ -59,13 +60,16 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   // Any other busy state keeps the old path (a tagged message queues; L3 only reads a pending answer or a gate state).
   const steerable = c.busy && isWorking(state) && !!c.deps.steer?.canTake(threadId);
   const gated = c.busy && isGateState(state);
-  let layer: IntentLayer | undefined;
-  const { decision, effort } = await withSpan(c.log, "classify", () =>
-    decideIntent(
+  const plan = await withSpan(c.log, "classify", () =>
+    decideRoute(
       {
-        onLayer: (l) => {
-          layer = l;
-        },
+        db,
+        log: c.log,
+        threadId,
+        messageId: c.message.messageId,
+        busy: c.busy,
+        recent: c.message.recent,
+        active,
         text: c.cmd.text,
         state,
         pendingQuestion,
@@ -91,15 +95,7 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
         : c.intent,
     ),
   );
-  logRouteDecision(
-    c.log,
-    routingDecisionOf({
-      messageId: c.message.messageId,
-      threadId,
-      decision,
-      layer,
-    }),
-  );
+  const { decision, effort } = plan;
   const action = actionFor({ decision, state });
   // Effort only matters for a run that starts now; `max` runs only after the owner-confirm gate says yes
   // (a busy thread cannot start a run, so it does not ask).
@@ -121,63 +117,50 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
       }));
     }
   }
-  const out = await routeByIntent(
-    {
-      ...c,
-      gated,
-      pinned: pinnedRepo(c.repos, c.cmd.repo, c.stored),
-      text: stripRoleTag(c.cmd.text),
-      repo: c.cmd.repo,
-      cls: decision.kind === "role" ? decision.cls : undefined,
-      effort: turn.effort,
-    },
-    action,
-  );
+  const text = stripRoleTag(c.cmd.text);
+  // A message about the waiting background task continues it in its own session; without a usable session the
+  // owner role starts through the normal open path, linked to the same task.
+  const continued =
+    plan.continueTask && !c.busy && action.kind === "open" && decision.kind === "role"
+      ? continueOwnedTask({ db, repos: c.repos, threadId }, plan.continueTask, text)
+      : undefined;
+  let out: IntentOutcome;
+  try {
+    out =
+      continued && plan.continueTask && decision.kind === "role"
+        ? {
+            kind: "run",
+            role: decision.role,
+            cls: decision.cls,
+            effort: turn.effort,
+            continueTask: { ownedTaskId: plan.continueTask.taskId, plan: continued },
+          }
+        : await routeByIntent(
+            {
+              ...c,
+              gated,
+              pinned: pinnedRepo(c.repos, c.cmd.repo, c.stored),
+              text,
+              repo: c.cmd.repo,
+              cls: decision.kind === "role" ? decision.cls : undefined,
+              effort: turn.effort,
+              ownedTaskId: plan.continueTask?.taskId,
+            },
+            action,
+          );
+  } catch (err) {
+    // The executor crashed: the message still gets its one `route.decision` (source fallback), then the crash goes on.
+    logRouteDecision(
+      c.log,
+      { ...plan.routing, source: "fallback" },
+      { ...plan.extra, failed: true },
+    );
+    throw err;
+  }
+  // One `route.decision` per message, once the outcome is known (a yes to a failed task is a RESUME).
+  logRouteDecision(c.log, settleRouting(plan.routing, action, out, c.busy), plan.extra);
   // The declined notice goes before the reply of a run that started at the capped effort.
   if (maxDeclined && out.kind === "run")
     return { ...out, notice: [MAX_DECLINED_NOTICE, out.notice].filter(Boolean).join("\n") };
-  return out;
-}
-
-/**
- * The thread's run holds the lock. A plain message may steer the running run (or wait until it has started), be answered
- * at once by the side lane (an independent question for a foreground role), be queued as independent work, or answer a
- * pending question (read by L3, intent layer on); everything else is
- * `still working...`. Returns the outcome: a reply text, or `side` for the handler to run next to the task.
- */
-export async function replyWhileBusy(c: {
-  deps: DispatchDeps;
-  log: Logger;
-  message: InboundMessage;
-  parsed: MessageCommand;
-  ac: AbortController;
-  intent?: IntentDeps;
-  floors: EffortFloors;
-}): Promise<Exclude<IntentOutcome, { kind: "run" }>> {
-  const picked =
-    c.intent && c.parsed.kind === "message"
-      ? selectWorkspace(c.deps.config.agentHome, c.message.channelId)
-      : undefined;
-  const still = (): { kind: "reply"; text: string } => {
-    logEvent(c.log, "task.still_working");
-    // Never lost: the message is stored even when nothing acts on it.
-    if (c.parsed.kind === "message")
-      c.deps.steer?.record(c.message, c.message.text, "other", "skipped");
-    return { kind: "reply", text: STILL_WORKING };
-  };
-  if (!c.intent || c.parsed.kind !== "message" || !picked || "reply" in picked) return still();
-  const { ws } = picked;
-  const out = await intentTurn({
-    ...c,
-    intent: c.intent,
-    workspace: ws.name,
-    repos: ws.repos,
-    stored: getSession(c.deps.db, c.message.threadId),
-    busy: true,
-    cmd: c.parsed,
-  });
-  // A busy thread never starts a run (the table rows that would give `still working...`); its row is stored already.
-  if (out.kind === "run") return { kind: "reply", text: STILL_WORKING };
-  if (out.kind === "reply" && out.text === STILL_WORKING) logEvent(c.log, "task.still_working");
   return out;
 }
