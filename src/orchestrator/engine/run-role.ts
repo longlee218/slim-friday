@@ -69,6 +69,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       workflow: s.workflow,
       // In-process memory tools (Remember...): repo names are read from the registry only when a tool needs them.
       memory: {
+        db,
         home: config.agentHome,
         workspace: i.workspace,
         repoNames: () =>

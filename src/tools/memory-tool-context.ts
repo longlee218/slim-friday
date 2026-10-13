@@ -1,8 +1,11 @@
+import type { Database } from "bun:sqlite";
 /**
  * What the tools of the in-process `memory` server need to know about the run they belong to. Built per run by
- * the role runner; phase 6 tools (search/get/expand) read the same object (they add `db` here).
+ * the role runner; the read tools (search/get/expand) read the same object.
  */
 export interface MemoryToolContext {
+  /** The app database: the read tools search the FTS index and the thread summaries in it. */
+  db: Database;
   /** AGENT_HOME: where every memory file lives. */
   home: string;
   /** Workspace of the run: scope `workspace`, `repo` and `journal` resolve inside it. */
@@ -15,6 +18,6 @@ export interface MemoryToolContext {
   threadLabel: string;
   /** Clock (tests pass a fixed one). One call per tool call: file date and bullet date come from the same instant. */
   now?: () => Date;
-  /** Hook point: called with the path of a file a tool just changed (phase 6 wires the FTS index here). */
+  /** Extra hook called with the path of a file a tool just changed (the memory server always re-indexes that file first). */
   onSaved?: (path: string) => void;
 }

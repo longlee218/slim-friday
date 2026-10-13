@@ -51,5 +51,16 @@ export const GIT_TOOL = {
 export const MEMORY_MCP_SERVER = "memory";
 /** Save a durable note (phase 5). */
 export const REMEMBER_TOOL = "Remember";
+/** Keyword search over saved memory (phase 6, read-only). */
+export const MEMORY_SEARCH_TOOL = "MemorySearch";
+/** One memory entry by id (phase 6, read-only). */
+export const MEMORY_GET_TOOL = "MemoryGet";
+/** The section / block / summary around an entry id (phase 6, read-only). */
+export const MEMORY_EXPAND_TOOL = "MemoryExpand";
 /** Every tool of the memory server: the guard allows exactly these and denies any other `mcp__memory__*`. */
-export const MEMORY_TOOLS: readonly string[] = [REMEMBER_TOOL];
+export const MEMORY_TOOLS: readonly string[] = [
+  REMEMBER_TOOL,
+  MEMORY_SEARCH_TOOL,
+  MEMORY_GET_TOOL,
+  MEMORY_EXPAND_TOOL,
+];

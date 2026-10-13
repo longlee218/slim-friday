@@ -14,11 +14,11 @@ export const THREAD_SUMMARIES_DDL = `CREATE TABLE thread_summaries (
 
 /**
  * Memory search index (derived data, rebuildable from the files + `thread_summaries`).
- * Only `text` is searchable; the other columns ride along. `workspace` is '' for root rows.
+ * Only `text` (folded: accents/đ) is searchable; `orig` is the same text in its original spelling (snippets); the other columns ride along. `workspace` is '' for root rows.
  */
 export const MEMORY_FTS_DDL = `CREATE VIRTUAL TABLE memory_fts USING fts5(
   text, id UNINDEXED, source UNINDEXED, section UNINDEXED, kind UNINDEXED,
-  date UNINDEXED, workspace UNINDEXED, path UNINDEXED,
+  date UNINDEXED, workspace UNINDEXED, path UNINDEXED, orig UNINDEXED,
   tokenize = '${FTS_TOKENIZER}'
 )`;
 

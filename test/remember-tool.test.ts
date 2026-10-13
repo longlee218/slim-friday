@@ -17,6 +17,7 @@ import { DEFAULT_AGENTS } from "../src/memory/persona-templates";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { buildSystemPrompt } from "../src/runtime/system-prompt";
+import { openDb } from "../src/storage/db";
 import type { MemoryToolContext } from "../src/tools/memory-tool-context";
 import { REMEMBER_MAX_CALLS_PER_RUN } from "../src/tools/RememberTool/constants";
 import { createRememberTool } from "../src/tools/RememberTool/remember-tool";
@@ -30,6 +31,7 @@ function setup() {
   const home = mkdtempSync(join(tmpdir(), "remember-"));
   const saved: string[] = [];
   const ctx: MemoryToolContext = {
+    db: openDb(":memory:"),
     home,
     workspace: "main",
     repoNames: () => ["api", "web"],
