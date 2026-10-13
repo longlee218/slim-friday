@@ -1,6 +1,6 @@
 import type { CompactedGroup } from "./memory-compaction-prompt";
 import { nonDerivable, sourcesOf } from "./memory-derivability";
-import { MEMORY_SECTION_HEADINGS, stripDateSuffix } from "./memory-sections";
+import { MEMORY_SECTION_HEADINGS, normalizeBullet, stripDateSuffix } from "./memory-sections";
 
 /** Trailing `(YYYY-MM-DD)` of a bullet, or "". */
 const dateOf = (bullet: string): string => /\((\d{4}-\d{2}-\d{2})\)$/.exec(bullet)?.[1] ?? "";
@@ -50,20 +50,54 @@ export function poolOffenders(input: string[], output: string[]): string[] {
 /**
  * Check a parsed model output against the old file. Flat output: one pool. Grouped output: a bullet under
  * heading H must derive from the input bullets of H plus the loose ones; loose output bullets from loose only.
- * Returns the offending bullets (empty = fine).
+ * `journal` (workspace target only) adds promoted-note bullets `- text (day)` to the pool of their kind heading;
+ * flat output never draws on it (promoted bullets need kind headings). Returns the offending bullets (empty = fine).
  */
 export function compactionOffenders(
   raw: string,
   bullets: string[],
   groups: CompactedGroup[] | undefined,
   allInput: string[],
+  journal: Map<string, string[]> = new Map(),
 ): string[] {
   if (!groups) return poolOffenders(allInput, bullets);
   const inp = inputGroups(raw);
   return groups.flatMap((g) =>
     poolOffenders(
-      g.heading ? [...(inp.byHeading.get(g.heading) ?? []), ...inp.loose] : inp.loose,
+      g.heading
+        ? [...(inp.byHeading.get(g.heading) ?? []), ...(journal.get(g.heading) ?? []), ...inp.loose]
+        : inp.loose,
       g.bullets,
     ),
   );
+}
+
+/**
+ * Output bullets that exist only because of the journal: not derivable from the old file alone. Call it on
+ * an output that already passed `compactionOffenders`; flat output has none.
+ */
+export function journalOnlyCount(
+  raw: string,
+  groups: CompactedGroup[] | undefined,
+  journal: Map<string, string[]>,
+): number {
+  if (!groups || journal.size === 0) return 0;
+  return compactionOffenders(
+    raw,
+    groups.flatMap((g) => g.bullets),
+    groups,
+    [],
+    new Map(),
+  ).length;
+}
+
+/** Output bullets whose note (normalized, date ignored) already appeared earlier in the output. */
+export function duplicateBullets(bullets: string[]): string[] {
+  const seen = new Set<string>();
+  return bullets.filter((b) => {
+    const key = normalizeBullet(b);
+    if (seen.has(key)) return true;
+    seen.add(key);
+    return false;
+  });
 }

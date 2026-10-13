@@ -29,7 +29,10 @@ async function main(argv: string[]): Promise<number> {
       ? []
       : chosen.flatMap((w) => workspaceTargets(config.agentHome, w))),
   ];
-  const results = await compactTargets(targets, sdkCompactLlm(config), { dryRun: args.dryRun });
+  const results = await compactTargets(targets, sdkCompactLlm(config), {
+    dryRun: args.dryRun,
+    home: config.agentHome,
+  });
   process.stdout.write(
     `${results.map((r) => formatCompactResult(r, { full: true })).join("\n")}\n`,
   );

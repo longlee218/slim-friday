@@ -2,8 +2,20 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import {
+  type JournalDay,
+  journalBullets,
+  promotableJournal,
+  renderJournal,
+  safeRecentJournal,
+} from "./journal-reader";
 import { localDay } from "./memory-clock";
-import { compactionOffenders, inputGroups } from "./memory-compaction-check";
+import {
+  compactionOffenders,
+  duplicateBullets,
+  inputGroups,
+  journalOnlyCount,
+} from "./memory-compaction-check";
 import { CallTimeoutError, type CompactLlm } from "./memory-compaction-llm";
 import {
   buildCompacted,
@@ -49,9 +61,11 @@ export type CompactResult =
       proposed: string;
       /** Non-bullet prose lines not carried over (kept only in `.bak`). */
       droppedProse: number;
+      /** Output bullets that exist only because of a journal note (workspace file; 0 otherwise). */
+      fromJournal: number;
     }
   | { status: "aborted"; label: string; reason: string; diff?: string; offending?: string[] }
-  | { status: "busy" | "changed"; label: string };
+  | { status: "busy" | "changed" | "unchanged"; label: string }; // unchanged: proposal = old file, nothing written
 
 const sha = (s: string): string => createHash("sha256").update(s).digest("hex");
 
@@ -70,11 +84,14 @@ function abortEarly(t: MemoryTarget, reason: string): CompactResult {
 export async function compactFile(
   t: MemoryTarget,
   llm: CompactLlm,
-  opts: { dryRun: boolean; date?: string; lockWaitMs?: number },
+  opts: { dryRun: boolean; date?: string; lockWaitMs?: number; journal?: readonly JournalDay[] },
 ): Promise<CompactResult> {
   const raw = existsSync(t.file) ? readFileSync(t.file, "utf8") : "";
   const chars = bodyChars(raw);
-  if (chars <= t.cap * COMPACT_THRESHOLD)
+  // Journal notes count only for a workspace file; capped once, here.
+  const journal = t.journalWorkspace ? promotableJournal(opts.journal ?? []) : [];
+  // Promotable journal notes make a file run even under the threshold.
+  if (chars <= t.cap * COMPACT_THRESHOLD && journal.length === 0)
     return { status: "skipped", label: t.label, chars, cap: t.cap };
   if (isSymlink(t.file)) return abortEarly(t, "memory file is a symlink: refusing to write");
   const hash = sha(raw);
@@ -88,7 +105,10 @@ export async function compactFile(
   };
   let call: Awaited<ReturnType<CompactLlm>>;
   try {
-    call = await llm(compactionSystem(t.cap), compactionPrompt(raw.trim()));
+    call = await llm(
+      compactionSystem(t.cap, journal.length > 0),
+      compactionPrompt(raw.trim(), renderJournal(journal)),
+    );
   } catch (err) {
     // A deadline abort reads "model call timed out after N s", not the SDK's "aborted by user".
     return abort(
@@ -103,7 +123,12 @@ export async function compactFile(
   if (inputGroups(raw).hasKind && !parsed.groups)
     return abort("output dropped the section headings of the old memory", { diff });
   // Text and date of every bullet must come from the old file (per section when sectioned).
-  const invented = compactionOffenders(raw, parsed.bullets, parsed.groups, inBullets);
+  const pool = journalBullets(journal);
+  const invented = [
+    ...compactionOffenders(raw, parsed.bullets, parsed.groups, inBullets, pool),
+    // A promoted bullet repeating a kept note (other date) aborts the run.
+    ...(journal.length ? duplicateBullets(parsed.bullets) : []),
+  ];
   if (invented.length)
     return abort("output has bullets not derivable from the old memory", {
       diff,
@@ -119,11 +144,14 @@ export async function compactFile(
   );
   if (bodyChars(proposed) > t.cap)
     return abort(`output is ${bodyChars(proposed)} chars, over the ${t.cap} cap`, { diff });
+  // No-op: write nothing, keep the existing `.bak`.
+  if (proposed.trim() === raw.trim()) return { status: "unchanged", label: t.label };
   const result: CompactResult = {
     status: opts.dryRun ? "dry-run" : "compacted",
     label: t.label,
     cap: t.cap,
     droppedProse,
+    fromJournal: journalOnlyCount(raw, parsed.groups, pool),
     before: { chars, bullets: inBullets.length },
     after: { chars: bodyChars(proposed), bullets: parsed.bullets.length },
     diff,
@@ -150,16 +178,18 @@ export async function compactFile(
   }
 }
 
-/** Compact the files one after another (one model call per file over the threshold). */
+/** Compact the files one after another. With `home`, a workspace file also gets its recent journal. */
 export async function compactTargets(
   targets: MemoryTarget[],
   llm: CompactLlm,
-  opts: { dryRun: boolean },
+  opts: { dryRun: boolean; home?: string },
 ): Promise<CompactResult[]> {
   const out: CompactResult[] = [];
   for (const t of targets) {
     try {
-      out.push(await compactFile(t, llm, opts));
+      const journal =
+        opts.home && t.journalWorkspace ? safeRecentJournal(opts.home, t.journalWorkspace) : [];
+      out.push(await compactFile(t, llm, { dryRun: opts.dryRun, journal }));
     } catch (err) {
       // One broken file (deleted meanwhile, .bak not writable...) must not stop the rest of the batch.
       out.push(abortEarly(t, `unexpected error: ${errText(err)}`));

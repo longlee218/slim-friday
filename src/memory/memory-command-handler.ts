@@ -81,7 +81,7 @@ export function createMemoryRunner(deps: MemoryRunnerDeps): MemoryRunner {
     const release = deps.limiter ? deps.limiter.tryAcquire() : () => {};
     if (!release) return "busy, runs active, try compacting again in a minute.";
     try {
-      const results = await compactTargets(targets, llm, { dryRun: cmd.dryRun });
+      const results = await compactTargets(targets, llm, { dryRun: cmd.dryRun, home });
       return results.map((r) => formatCompactResult(r)).join("\n");
     } finally {
       release();

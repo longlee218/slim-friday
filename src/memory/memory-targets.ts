@@ -13,6 +13,8 @@ export interface MemoryTarget {
   cap: number;
   /** Header used when the file does not exist yet. */
   template: string;
+  /** Set only on a workspace `MEMORY.md`: its journal feeds the compaction. Repo and root files have none. */
+  journalWorkspace?: string;
 }
 
 const make = (home: string, file: string, cap: number, template: string): MemoryTarget => ({
@@ -27,13 +29,15 @@ export const rootTarget = (home: string): MemoryTarget =>
   make(home, workspacePaths(home).memory, ROOT_CHARS, ROOT_MEMORY);
 
 /** `workspaces/<ws>/MEMORY.md`. */
-export const workspaceTarget = (home: string, ws: string): MemoryTarget =>
-  make(
+export const workspaceTarget = (home: string, ws: string): MemoryTarget => ({
+  ...make(
     home,
     workspacePaths(home).workspace(ws).memory,
     WORKSPACE_CHARS,
     workspaceMemoryTemplate(ws),
-  );
+  ),
+  journalWorkspace: ws,
+});
 
 /** `workspaces/<ws>/repos/<repo>/MEMORY.md`. */
 export const repoTarget = (home: string, ws: string, repo: string): MemoryTarget =>

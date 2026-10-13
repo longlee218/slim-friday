@@ -26,6 +26,8 @@ export function formatCompactResult(r: CompactResult, opts: { full?: boolean } =
   switch (r.status) {
     case "skipped":
       return `${r.label}: no compaction needed (${r.chars}/${r.cap})`;
+    case "unchanged":
+      return `${r.label}: already compact, no change proposed, nothing written.`;
     case "busy":
       return `${r.label}: memory busy, retry.`;
     case "changed":
@@ -40,7 +42,8 @@ export function formatCompactResult(r: CompactResult, opts: { full?: boolean } =
     default: {
       const removed = Math.max(0, r.before.bullets - r.after.bullets);
       const dry = r.status === "dry-run";
-      const head = `${r.label}: ${dry ? "DRY RUN, nothing written. " : ""}${r.before.chars} -> ${r.after.chars} chars, ${r.before.bullets} -> ${r.after.bullets} bullets (${removed} removed)`;
+      const journal = r.fromJournal ? `, from journal: ${r.fromJournal}` : "";
+      const head = `${r.label}: ${dry ? "DRY RUN, nothing written. " : ""}${r.before.chars} -> ${r.after.chars} chars, ${r.before.bullets} -> ${r.after.bullets} bullets (${removed} removed${journal})`;
       const list =
         dry && opts.full
           ? `\nProposed bullets:\n${proposedBullets(r.proposed)}`
