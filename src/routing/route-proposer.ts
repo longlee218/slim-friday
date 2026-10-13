@@ -16,6 +16,13 @@ export interface RouteScores {
   fitsLastP?: number;
   /** Probability that the message continues the open task. */
   continueP?: number;
+  /** Numbers behind a Jev pick, logged in `route.decision.jev` (never text): top probability, top / second ratio, Choice confidence, multi-intent probability, request ms, band label. */
+  top?: number;
+  ratio?: number;
+  confidence?: number;
+  multiP?: number;
+  ms?: number;
+  band?: string;
 }
 
 /** What the proposer says about one message. `undecided` covers low confidence, close top two, `unclear`, error, timeout, no key. */
@@ -30,8 +37,10 @@ export type RouteProposal = (
 export interface ProposeInput {
   text: string;
   threadId: string;
+  /** Derived thread state (idle / done ...). */
+  state?: string;
   /** The live background task the message may continue; absent = none. */
-  task?: { taskId: string; ownerRole: string; status: string };
+  task?: { taskId: string; ownerRole: string; status: string; scope?: string };
   /** Role of the thread's last turn, when there is one. */
   lastRole?: string;
   recent: RecentMessage[];

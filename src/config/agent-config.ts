@@ -52,11 +52,13 @@ const envSchema = z.object({
   GIT_AUTHOR: z.string().trim().min(1).optional(), // accepted and IGNORED since Rev 15 (the agent uses the owner's git config)
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
-  // Intent layer L3 (src/intent). `jev` is the owner's later engine: accepted here, refused by the factory until it exists.
+  // Intent layer (src/intent). `jev` = TypeSafe System One proposer first, Haiku L3 as the fallback.
   INTENT_ENGINE: z.enum(["haiku", "jev", "none"]).default("haiku"),
   MODEL_INTENT: z.string().trim().min(1).optional(),
   INTENT_BUDGET_USD: z.coerce.number().positive().default(0.02),
   INTENT_TIMEOUT_MS: z.coerce.number().int().min(8000).default(20000),
+  // TypeSafe System One (Jev) key, passed explicitly to its client. Placeholder / `sk_` stub = no key (Haiku only).
+  JEV_API_KEY: secret,
 });
 
 /** Names of the env variables the app itself reads: each must be classified in `data/child-env-deny.yaml`. */
@@ -99,8 +101,18 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the role budget; OpenRouter: only this). */
   limits: { maxBudgetUsd: number | undefined; timeoutMs: number };
   /** Intent layer L3: engine, model id (MODEL_INTENT, tier-resolvable), per-call budget and timeout. */
-  intent: { engine: IntentEngine; model: string; budgetUsd: number; timeoutMs: number };
+  intent: {
+    engine: IntentEngine;
+    model: string;
+    budgetUsd: number;
+    timeoutMs: number;
+    /** Real JEV_API_KEY or undefined (missing / placeholder / `sk_` stub). Never log. */
+    jevApiKey?: string | undefined;
+  };
 }
+
+/** The unfilled value of JEV_API_KEY in the owner's `.env.example`: counts as no key. */
+const JEV_KEY_STUB = "sk_";
 
 /** True when a value is missing or the placeholder. */
 const isPlaceholder = (v: string | undefined): boolean => !v || v === PLACEHOLDER;
@@ -157,6 +169,8 @@ export function loadConfig(
         : specToId(e.MODEL_INTENT ?? "haiku", routing),
       budgetUsd: e.INTENT_BUDGET_USD,
       timeoutMs: e.INTENT_TIMEOUT_MS,
+      jevApiKey:
+        isPlaceholder(e.JEV_API_KEY) || e.JEV_API_KEY === JEV_KEY_STUB ? undefined : e.JEV_API_KEY,
     },
   };
 }

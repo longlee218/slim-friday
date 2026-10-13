@@ -44,14 +44,14 @@ test("openrouter: MODEL_INTENT is an id as is; the default is a Haiku id", () =>
   expect(loadConfig({ ...or, MODEL_INTENT: "haiku" }).intent.model).toBe("haiku");
 });
 
-test("factory: haiku -> classifier, none -> undefined (L0-L3 only), jev -> throws (no stub)", () => {
+test("factory: haiku -> classifier, none -> undefined (L0-L3 only), jev -> the Haiku fallback", () => {
   const mk = (INTENT_ENGINE: string) => loadConfig({ ...base, INTENT_ENGINE });
   expect(typeof createIntentClassifier(mk("haiku"))?.classify).toBe("function");
   expect(createIntentClassifier(mk("none"))).toBeUndefined();
-  expect(() => createIntentClassifier(mk("jev"))).toThrow("INTENT_ENGINE=jev");
+  expect(typeof createIntentClassifier(mk("jev"))?.classify).toBe("function");
 });
 
-test("startup wiring: builds pipeline + engine; an invalid lexicon override or jev refuses", () => {
+test("startup wiring: builds pipeline + engine; an invalid lexicon override refuses", () => {
   const env = makeEnv();
   const deps = buildIntentDeps(env.config);
   expect(deps.pipeline.lexicon.groups.length).toBeGreaterThan(3);
@@ -59,9 +59,6 @@ test("startup wiring: builds pipeline + engine; an invalid lexicon override or j
   expect(
     buildIntentDeps({ ...env.config, intent: { ...env.config.intent, engine: "none" } }).classifier,
   ).toBeUndefined();
-  expect(() =>
-    buildIntentDeps({ ...env.config, intent: { ...env.config.intent, engine: "jev" } }),
-  ).toThrow("jev");
   writeFileSync(lexiconOverrideFile(env.home), "groups: [not, a, map]\n");
   expect(() => buildIntentDeps(env.config)).toThrow(lexiconOverrideFile(env.home));
 });

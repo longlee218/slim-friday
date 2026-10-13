@@ -81,14 +81,26 @@ export async function decideRoute(i: RouteInput, deps: IntentDeps): Promise<Rout
           const input: ProposeInput = {
             text: i.text,
             threadId: i.threadId,
+            state: i.state,
             ...(owner &&
-              ownerRole && { task: { taskId: owner.taskId, ownerRole, status: owner.status } }),
+              ownerRole && {
+                task: {
+                  taskId: owner.taskId,
+                  ownerRole,
+                  status: owner.status,
+                  scope: owner.scope,
+                },
+              }),
             lastRole,
             recent: i.recent ?? [],
           };
           got.proposal = await withSpan(i.log, "select_candidate", () =>
             (async () => px.propose(input, i.signal))().catch(
-              (): RouteProposal => ({ kind: "undecided", reason: "error" }),
+              (): RouteProposal => ({
+                kind: "undecided",
+                reason: "error",
+                scores: { band: "error" },
+              }),
             ),
           );
           return decisionOfProposal(got.proposal, owner, { state: i.state, lastRole });

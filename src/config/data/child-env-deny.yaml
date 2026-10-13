@@ -9,6 +9,7 @@ exact:
   # agent-config.ts env schema
   - CLAUDE_CODE_OAUTH_TOKEN
   - OPENROUTER_API_KEY
+  - JEV_API_KEY
   - LLM_PROVIDER
   - AGENT_HOME
   - LOG_LEVEL

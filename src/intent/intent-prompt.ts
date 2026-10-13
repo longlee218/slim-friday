@@ -1,3 +1,4 @@
+import { redactText } from "../observability/redact";
 import type { IntentInput } from "./intent-types";
 import { recentLines } from "./recent-messages";
 import { stripMarkers } from "./strip-markers";
@@ -25,6 +26,12 @@ export function l3MessageText(text: string): string {
   const files = text.slice(at).trimStart().slice(0, ATTACHMENT_HEAD_CHARS);
   return typed ? `${typed}\n\n${files}` : files;
 }
+
+/**
+ * The message as every routing engine sees it (Haiku L3 and Jev): clipped (`l3MessageText`) AND redacted, so no
+ * secret in the owner's text reaches a model or a third party. The one place both engines take the text from.
+ */
+export const routingMessageText = (text: string): string => redactText(l3MessageText(text));
 
 const MARK_START = "<<<MESSAGE";
 const MARK_END = "MESSAGE>>>";
@@ -72,7 +79,7 @@ export function buildIntentUserPrompt(i: IntentInput): string {
   ].filter(Boolean);
   // The markers cannot be forged from inside the data.
   const clean = (t: string, a: string, b: string) => stripMarkers(t, a, b);
-  const text = l3MessageText(clean(i.text, MARK_START, MARK_END));
+  const text = routingMessageText(clean(i.text, MARK_START, MARK_END));
   const recent = recentLines(i.recent ?? []).map((l) => clean(l, RECENT_START, RECENT_END));
   return [
     `Thread state: ${state}${facts.length ? ` (${facts.join(", ")})` : ""}`,
