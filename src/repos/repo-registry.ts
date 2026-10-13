@@ -22,12 +22,7 @@ export interface Repo {
   defaultBranch?: string;
   /** Shell command the agent runs to test changes in this repo. */
   testCommand?: string;
-  /** How dev runs work here: `lean` (default) or `full` (the repo's own workflow and skills, autonomous). */
-  workflow?: Workflow;
 }
-
-/** Per-repo workflow of dev runs. */
-export type Workflow = "lean" | "full";
 
 /** Paths of one workspace (`workspacePaths(home).workspace(name)`). */
 export type WorkspaceDirs = ReturnType<WorkspacePaths["workspace"]>;
@@ -42,7 +37,8 @@ const configSchema = z.object({
   // Accepted and IGNORED since Rev 15 (the agent commits and opens PRs with the owner's own git config and `gh` login).
   githubAccount: z.string().trim().min(1).optional(),
   gitAuthor: z.string().trim().min(1).optional(),
-  workflow: z.enum(["lean", "full"]).default("lean"),
+  // Accepted and IGNORED since the lean/full split was removed (every dev run follows the loaded workflow skill).
+  workflow: z.string().optional(),
 });
 
 /** True when `p` is a directory containing `.git` (dir or worktree file). */
@@ -126,10 +122,9 @@ export function loadRepos(ws: WorkspaceDirs, forbidden: string[] = []): Repo[] {
 export function buildRegistryContext(ws: string, repos: Repo[], force = false): string {
   if (repos.length < 2 && !force) return "";
   const lines = repos.map((r) => {
-    const flow = r.workflow === "full" ? " [workflow: full]" : "";
     // The repo's test command, shown to a dev run (it runs the tests).
     const test = r.testCommand ? ` [test: ${r.testCommand}]` : "";
-    return `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}${flow}${test}`;
+    return `- ${r.name}: ${r.path}${r.description ? ` — ${r.description}` : ""}${test}`;
   });
   return `Available repos in workspace ${ws} (pick the one that fits the question; search only these paths):\n${lines.join("\n")}`;
 }

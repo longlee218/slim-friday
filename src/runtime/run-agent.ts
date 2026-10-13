@@ -12,7 +12,6 @@ import {
   RunRecorder,
   type RunUsage,
 } from "../observability/record-run";
-import type { Workflow } from "../repos/repo-registry";
 import type { RoleDefinition } from "../roles/role-types";
 import type { MemoryToolContext } from "../tools/memory-tool-context";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
@@ -56,8 +55,6 @@ export interface RunAgentInput {
   role: RoleDefinition;
   /** Permission layer of the run (gateway, ask limit). Omitted = a run without a gateway (ask = deny). */
   code?: Omit<ToolPermissionInput, "turnId" | "guard">;
-  /** `full` repo workflow (the repo, or some repo in scope, is full): adds its rules to the prompt. */
-  workflow?: Workflow;
   /** Where the agent may put a git worktree (`<workspace worktrees dir>/<repo>`), told in one prompt line. */
   worktreesDir?: string;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never repo content). */

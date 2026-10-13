@@ -53,7 +53,7 @@ async function runTask(
   return { env, clone, exec: seen[0], pluginFiles };
 }
 
-test("lean (default): no full rules; workspace skills load in the dev run", async () => {
+test("workspace skills load in the dev run; no workflow mode rules", async () => {
   const { exec } = await runTask({}, ["deploy"]);
   expect([...exec.skills].sort()).toEqual(withSet("main:deploy"));
   expect(exec.settingSources).toEqual([]);
@@ -88,8 +88,8 @@ test("repo .claude/skills (clone and worktree) plus hooks never contribute to th
   expect(pluginFiles.some((f) => /clone-only|tracked|hooks/.test(f))).toBe(false);
 });
 
-test("full: the dev run lists the workspace skills through an app-owned plugin copy, not the repo", async () => {
-  const { clone, exec, pluginFiles } = await runTask({ workflow: "full" }, ["deploy", "review"]);
+test("the dev run lists the workspace skills through an app-owned plugin copy, not the repo", async () => {
+  const { clone, exec, pluginFiles } = await runTask({}, ["deploy", "review"]);
   const pdir: string = exec.plugins.at(-1).path; // set plugin first, workspace plugin last
   expect(exec.plugins).toHaveLength(2);
   expect(exec.skills.sort()).toEqual(withSet("main:deploy", "main:review")); // workspace name = plugin name
@@ -109,24 +109,20 @@ test("full: the dev run lists the workspace skills through an app-owned plugin c
   expect(existsSync(pdir)).toBe(false); // removed with the run
   expect(exec.settingSources).toEqual([]); // the repo's own .claude is still never loaded
   expect(exec.cwd).toBe(realpathSync(clone)); // the dev run works in the repo's own checkout, no clone
-  expect(exec.systemPrompt.append).toContain("[workflow: full]");
-  expect(exec.systemPrompt.append).toContain("Assumptions");
 });
 
-test("full without workspace skills: only the role's set plugin", async () => {
-  const { exec } = await runTask({ workflow: "full" }, [], undefined, ["tracked"]);
+test("no workspace skills: only the role's set plugin", async () => {
+  const { exec } = await runTask({}, [], undefined, ["tracked"]);
   expect(exec.plugins).toHaveLength(1);
   expect([...exec.skills].sort()).toEqual(withSet());
   expect(exec.settingSources).toEqual([]);
 });
 
-test("dev reads are not path-limited (secret names still are): the repo is readable and writable in both workflows, a path outside the work dirs is not", async () => {
-  const { clone, exec } = await runTask({ workflow: "full" }, ["deploy"]);
+test("dev reads are not path-limited (secret names still are): the repo is readable and writable, a path outside the work dirs is not", async () => {
+  const { clone, exec } = await runTask({}, ["deploy"]);
   const skillFile = join(realpathSync(clone), "a.txt");
-  const lean = await runTask({}, ["deploy"]);
   const read = (o: any, p: string) => o.canUseTool("Read", { file_path: p }, {});
   expect((await read(exec, skillFile)).behavior).toBe("allow");
-  expect((await read(lean.exec, join(realpathSync(lean.clone), "a.txt"))).behavior).toBe("allow");
   expect((await read(exec, join(realpathSync(clone), ".env"))).behavior).toBe("deny");
   const write = await exec.canUseTool("Write", { file_path: skillFile, content: "x" }, {});
   expect(write.behavior).toBe("allow"); // the dev run works in the repo itself

@@ -308,7 +308,7 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
     ├── tasks/<taskId>/scratch/    per-task scratch dir
     ├── worktrees/                 optional git worktrees a dev run creates (prompt-only rule)
     └── repos/<repo>/
-        ├── repo.yaml              path? description, defaultBranch?, testCommand?, githubAccount?, workflow (lean|full)
+        ├── repo.yaml              path? description, defaultBranch?, testCommand?, githubAccount? (a legacy `workflow:` key is accepted and ignored)
         ├── MEMORY.md              repo memory (agent-written)
         └── repo/                  managed checkout (only when repo.yaml has no `path`)
 ```

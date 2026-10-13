@@ -151,7 +151,6 @@ export function buildSdkOptions(
     // persona, AGENTS.md and memory are the only instructions.
     settingSources: [],
     systemPrompt: buildSystemPrompt((input.extraContext ?? []).filter(Boolean).join("\n\n"), role, {
-      workflow: input.workflow,
       worktreesDir: input.worktreesDir,
       escalationTiers: input.route?.offerEscalation,
     }),

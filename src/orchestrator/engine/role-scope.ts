@@ -4,7 +4,7 @@ import type { AgentConfig } from "../../config/agent-config";
 import { claudePlansDir, workspacePaths } from "../../config/workspace-paths";
 import type { GuardScope } from "../../guardrails/check-tool-call";
 import { realOrSame } from "../../guardrails/paths";
-import type { Repo, Workflow } from "../../repos/repo-registry";
+import type { Repo } from "../../repos/repo-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import type { RoleRunInput } from "./role-run-types";
 
@@ -24,8 +24,6 @@ export interface RoleScope {
   guard: GuardScope;
   /** Writing role: where the agent may put a git worktree for the repo it runs in. */
   worktreesDir?: string;
-  /** `full` when any repo in scope is: adds the repo-workflow rules to the prompt. */
-  workflow: Workflow;
 }
 
 /**
@@ -62,7 +60,6 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
       (storedOk ? stored.cwd : repos.length > 1 ? dirs.cwd : (repos[0]?.path ?? dirs.cwd));
     if (stored && stored.cwd === cwd) sessionId = stored.session_id;
   }
-  const workflow = scope.some((r) => r.workflow === "full") ? "full" : "lean";
   const others = pinned ? [] : repos.map((r) => r.path).filter((p) => p !== cwd);
   if (!role.capabilities.includes("write")) {
     // Full text of a long owner attachment (saved by ingress, read-only): readable only when this thread has one.
@@ -73,7 +70,6 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
       additionalDirectories,
       scope,
       sessionId,
-      workflow,
       guard: {
         readPaths: [cwd, ...additionalDirectories].map(realOrSame),
         gitReadRepos: scope.map((r) => realOrSame(r.path)),
@@ -94,7 +90,6 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
     additionalDirectories: [...others, real.scratch, real.worktrees],
     scope,
     sessionId,
-    workflow,
     worktreesDir: repoName ? join(real.worktrees, repoName) : undefined,
     guard: {
       cwd: real.cwd,

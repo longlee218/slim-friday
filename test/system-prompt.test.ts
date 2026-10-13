@@ -63,7 +63,7 @@ test("dev: follow-up, memory contract, shell git and delivery by the agent", () 
   expect(text).toContain("pure question");
   expect(text).not.toContain("Memory:"); // no report section is parsed any more
   expect(text).not.toContain("[global]");
-  expect(text).toContain("with Remember (scope repo;");
+  expect(text).not.toContain("Remember (scope repo;"); // repo memory rule lives in AGENTS.md
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).not.toContain("git_commit"); // no git MCP for the dev agent
   expect(text).toContain("`git` and `gh` in the shell");
@@ -89,17 +89,11 @@ test("preset shape is unchanged", () => {
   expect(buildSystemPrompt("", qa)).toMatchObject({ type: "preset", preset: "claude_code" });
 });
 
-test("ask boundary in dev only (the role's cap); full rules only for full", () => {
+test("ask boundary in dev only (the role's cap); no workflow mode rules", () => {
   expect(rules(dev)).toContain(ASK_USER_QUESTION_TOOL_NAME);
   expect(rules(dev)).toContain(`At most ${dev.limits.maxAsk}`);
   expect(rules(dev)).not.toContain("[workflow: full]");
-  expect(buildSystemPrompt("", dev, { workflow: "full" }).append).toContain("[workflow: full]");
-  expect(buildSystemPrompt("", dev, { workflow: "lean" }).append).toBe(rules(dev));
   expect(rules(qa)).not.toContain(ASK_USER_QUESTION_TOOL_NAME);
-  expect(buildSystemPrompt("", qa, { workflow: "full" }).append).toBe(rules(qa));
-  expect(buildSystemPrompt("", dev, { workflow: "full" }).append).toContain(
-    "For a repo marked [workflow: full]",
-  );
 });
 
 test("Q&A rules pin: git MCP tools must always get path, taken from the repo list or the pinned/only repo", () => {

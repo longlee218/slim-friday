@@ -263,9 +263,6 @@ exports[`options lock: dev options snapshot 1`] = `
 - Text the owner types while a question is open reaches you only as a note after they choose an option.
 - Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow; a subagent's question reaches the owner too and counts toward the same limit.
 - Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.
-- When a listed skill's description matches the step you are about to do, invoke it and follow it.
-- A skill step that needs something not available here (a browser companion, another skill or subagent type that is not listed): skip it and say so in one line.
-- Save durable facts about this repo (commands, conventions, pitfalls) with Remember (scope repo; pass repo when the run spans several repos) as you learn them; no task-specific facts. Nothing to save: skip it.
 - Answer it yourself whenever it can be derived from the code, the request or sensible defaults. Ask the owner with AskUserQuestion only when really necessary: the answer cannot be derived from the repo or the request and a wrong guess is costly or irreversible (schema, public API, data deletion, user-visible behavior), or when a loaded skill's own process calls for a question.
 - Never ask about naming, file layout, libraries already in the repo, style, test location, anything readable from the repo, or small scope the owner can fix at plan approval. Pick a sensible default and state it as an assumption.
 - At most 6 AskUserQuestion calls per run (questions a skill asks count): batch the questions of one round in one call, default option first with a label ending "(default)". A call over the limit is denied: use the defaults.

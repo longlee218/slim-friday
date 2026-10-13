@@ -1,5 +1,4 @@
 import type { ModelTier, TaskClass } from "../config/model-routing";
-import type { Workflow } from "../repos/repo-registry";
 import type { GIT_GROUPS } from "../tools/git-tool-groups";
 
 /** A group of tools that belong together; a role lists the groups it may use. */
@@ -17,8 +16,6 @@ export type Capability =
 
 /** Run-time facts a role needs to word its prompt. */
 export interface PromptCtx {
-  /** `full` adds the repo-workflow rules. */
-  workflow?: Workflow;
   /** Where the agent puts a git worktree it creates (`<workspace worktrees dir>/<repo>`); omitted = no line. */
   worktreesDir?: string;
   /** Answer run on a cheaper tier: the tiers the `ESCALATE: <tier>` rule offers (empty/omitted = no rule; never on an escalated run). */

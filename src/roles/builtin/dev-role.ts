@@ -1,13 +1,5 @@
 import type { Capability, RoleDefinition } from "../role-types";
-import {
-  askRules,
-  DEV,
-  DEV_MEMORY,
-  DEV_RUN_FACTS,
-  SKILL_RUN_FACTS,
-  workflowRules,
-  worktreeRule,
-} from "./dev-prompts";
+import { askRules, DEV, DEV_RUN_FACTS, worktreeRule } from "./dev-prompts";
 
 /** Owner questions (AskUserQuestion) one run may make. Wired: ask guard + prompt text. */
 const MAX_ASK = 6;
@@ -52,9 +44,6 @@ export const DEV_ROLE: RoleDefinition = {
     DEV,
     DEV_RUN_FACTS,
     ctx.worktreesDir ? worktreeRule(ctx.worktreesDir) : "",
-    SKILL_RUN_FACTS,
-    DEV_MEMORY,
     askRules(MAX_ASK),
-    workflowRules(ctx.workflow),
   ],
 };

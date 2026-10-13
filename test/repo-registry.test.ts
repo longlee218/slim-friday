@@ -187,33 +187,13 @@ test("refreshRepo: fetch + fast-forward with the git CLI, throttled per repo, fa
   await expect(refreshRepo(join(up.root, "not-a-repo"))).resolves.toBeUndefined(); // failure swallowed
 });
 
-test("workflow: defaults to lean, full is parsed, a bad value skips the repo, marker only for full", () => {
+test("workflow: accepted and ignored (any value keeps the repo, no marker in the registry block)", () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
   addRepo(env.home, "a");
   addRepo(env.home, "b", { workflow: "full" });
   addRepo(env.home, "c", { workflow: "heavy" });
   const repos = reposOf(env.home);
-  expect(repos.map((r) => [r.name, r.workflow])).toEqual([
-    ["a", "lean"],
-    ["b", "full"],
-  ]);
-  const block = buildRegistryContext("main", repos, true);
-  expect(block).toContain("- b: ");
-  expect(block.split("\n").filter((l) => l.includes("[workflow: full]"))).toHaveLength(1);
-  expect(block.split("\n").find((l) => l.startsWith("- a:"))).not.toContain("workflow");
-});
-
-test("workflow: any value other than lean/full ('heavy', 'FULL', '') skips the repo", () => {
-  const env = makeEnv();
-  clearWorkspaces(env.home);
-  addRepo(env.home, "ok", { workflow: "lean" });
-  for (const [n, v] of [
-    ["heavy", "heavy"],
-    ["upper", "FULL"],
-    ["empty", ""],
-  ] as const) {
-    addRepo(env.home, n, { workflow: v });
-  }
-  expect(reposOf(env.home).map((r) => r.name)).toEqual(["ok"]);
+  expect(repos.map((r) => r.name)).toEqual(["a", "b", "c"]);
+  expect(buildRegistryContext("main", repos, true)).not.toContain("workflow");
 });

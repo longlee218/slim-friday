@@ -221,7 +221,6 @@ description: "Main application"
 # optional:
 defaultBranch: main                  # schema field; not used to protect branches
 testCommand: "bun test"              # schema field; shown to the agent as `[test: cmd]` in the repo list, nothing runs it
-workflow: lean                       # lean (default) | full: changes the rules text only
 # accepted and IGNORED since Rev 15 (the agent uses the owner's git config and gh login):
 # gitAuthor: "Name <email>"
 # githubAccount: "<login>"

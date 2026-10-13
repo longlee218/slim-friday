@@ -228,8 +228,8 @@ test("DEFAULT_AGENTS has the Memory + Privacy text within the persona cap; no ro
   expect(DEFAULT_AGENTS.length).toBeLessThan(PERSONA_MAX);
   for (const name of ["assistant", "dev"] as const) {
     const p = JSON.stringify(buildSystemPrompt("", getRole(name)));
-    // Only the dev role names the tool (one short line, DEV_MEMORY); the assistant relies on the AGENTS.md rule.
-    expect(p.includes(REMEMBER_TOOL)).toBe(name === "dev");
+    // No role prompt names the tool: every role relies on the AGENTS.md rule.
+    expect(p.includes(REMEMBER_TOOL)).toBe(false);
     expect(p).not.toContain("THIS turn");
   }
 });

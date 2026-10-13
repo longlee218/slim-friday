@@ -1,6 +1,4 @@
-import { REMEMBER_TOOL } from "../../mcp/mcp-tool-names";
-import type { Workflow } from "../../repos/repo-registry";
-import { ASK_USER_QUESTION_TOOL_NAME, SKILL_TOOL_NAME } from "../../tools/sdk-tool-names";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 
 /**
  * Prompt text of the dev role (prompt module only, no role data). Skills are declared in the role data and listed by
@@ -18,17 +16,6 @@ export const askRules = (
 - Never ask about naming, file layout, libraries already in the repo, style, test location, anything readable from the repo, or small scope the owner can fix at plan approval. Pick a sensible default and state it as an assumption.
 - At most ${maxAsk} ${ASK_USER_QUESTION_TOOL_NAME} calls per run (questions a skill asks count): batch the questions of one round in one call, default option first with a label ending "(default)". A call over the limit is denied: use the defaults.
 - If the owner does not answer in time the run stops. Do not guess and do not continue.`;
-
-/**
- * `workflow: full` repos: run the workspace's curated skills autonomously. With several repos the run only sees the
- * registry marker, so the wording says "a repo marked ..."; the engine passes `full` when any repo in scope is. Empty for `lean`.
- */
-export function workflowRules(workflow: Workflow | undefined): string {
-  if (workflow !== "full") return "";
-  return `- For a repo marked [workflow: full] (the repo list, or the repo you work in): follow the workspace's curated skills end to end (use the ${SKILL_TOOL_NAME} tool; none listed means none exist) instead of a minimal plan-then-implement run.
-- Skill steps that ask the owner follow the ask rules above. Where you take a default instead of asking (a question not worth a call, or the limit is reached), record it as "- <decision> (confidence: high|med|low)" under "Assumptions" in your final reply.
-- Owner approvals for the plan, writes and commands still apply.`;
-}
 
 /** Run contract of a code task: outcome first, then the no-code-change path, follow-ups, tests and the report shape. */
 export const DEV = `This run is a code task in the repo's own checkout (your current directory): from the owner's request to a reported outcome.
@@ -51,10 +38,3 @@ export const DEV_RUN_FACTS = `- Do not change files before the owner approved yo
 /** One line: where a git worktree goes (the guard only lets `git worktree add` name a path under it). */
 export const worktreeRule = (dir: string): string =>
   `- If you use a git worktree, put it under ${dir}/.`;
-
-/** Repo memory: lessons are saved during the run with the memory tool (no report section is parsed any more). */
-export const DEV_MEMORY = `- Save durable facts about this repo (commands, conventions, pitfalls) with ${REMEMBER_TOOL} (scope repo; pass repo when the run spans several repos) as you learn them; no task-specific facts. Nothing to save: skip it.`;
-
-/** How to treat skills in this run (no skill names, no workflow mode). Its own section keeps the others in budget. */
-export const SKILL_RUN_FACTS = `- When a listed skill's description matches the step you are about to do, invoke it and follow it.
-- A skill step that needs something not available here (a browser companion, another skill or subagent type that is not listed): skip it and say so in one line.`;

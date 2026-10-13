@@ -71,7 +71,6 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       cwd: s.cwd,
       additionalDirectories: s.additionalDirectories,
       worktreesDir: s.worktreesDir,
-      workflow: s.workflow,
       // In-process memory tools (Remember...): repo names are read from the registry only when a tool needs them.
       memory: buildMemoryToolContext({
         db,
@@ -86,7 +85,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       extraContext: buildPromptContext({
         agentHome: config.agentHome,
         workspace: i.workspace,
-        // A background role always sees its repo(s) with workflow and test command; a pinned foreground role needs no list.
+        // A background role always sees its repo(s) with their test command; a pinned foreground role needs no list.
         registry:
           i.pinned && !role.background
             ? ""

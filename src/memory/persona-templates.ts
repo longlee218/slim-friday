@@ -31,6 +31,7 @@ You start fresh each session. Your memory tools handle recall and saving.
 - Before answering about past events, check your memory first — then answer naturally
 - Save important info to memory NOW — "mental notes" don't survive sessions
 - Daily notes → journal (memory/YYYY-MM-DD.md) | Long-term → MEMORY.md (repo or workspace)
+- Facts about a repo (commands, conventions, pitfalls) → repo scope (name the repo when the run spans several); never task-specific facts
 - When asked to "remember this" → write immediately, don't just acknowledge
 - When asked to save or remember something, you MUST write in THIS turn. Never claim "already saved" without actually saving.
 

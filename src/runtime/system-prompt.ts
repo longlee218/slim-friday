@@ -34,7 +34,7 @@ export const hostLine = (h: HostInfo): string =>
   `- Host: ${h.platform} ${h.release}, default shell ${h.shell ?? "unknown"}.`;
 
 /**
- * Build the SDK systemPrompt: the role's own sections (run contract, then ask boundary / workflow rules as
+ * Build the SDK systemPrompt: the role's own sections (run contract, then ask boundary rules as
  * the role defines), then COMMON safety, one host (OS) line, then the extra context (registry, memory, persona)
  * last. Skills are declared in role data and listed by the SDK; no skills text is added here.
  */

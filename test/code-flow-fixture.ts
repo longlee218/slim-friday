@@ -6,7 +6,7 @@ import { addRepo, clearWorkspaces, makeEnv } from "./helpers";
 
 /**
  * Env with one workspace `main` whose repo `real` is a real git clone (a managed clone), with the given extra
- * repo.yaml keys (e.g. workflow: "full"). `skills` are curated workspace skills (`workspaces/main/skills/<name>`);
+ * repo.yaml keys (e.g. testCommand). `skills` are curated workspace skills (`workspaces/main/skills/<name>`);
  * `repoSkills` are decoys committed as the repo's own `.claude/skills/<name>`, which must never load.
  */
 export async function setupWorkflow(

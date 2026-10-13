@@ -1,12 +1,6 @@
 import { expect, test } from "bun:test";
 import { ASSISTANT_ROLE } from "../src/roles/builtin/assistant-role";
-import {
-  askRules,
-  DEV,
-  DEV_MEMORY,
-  DEV_RUN_FACTS,
-  SKILL_RUN_FACTS,
-} from "../src/roles/builtin/dev-prompts";
+import { askRules, DEV, DEV_RUN_FACTS } from "../src/roles/builtin/dev-prompts";
 import { DEV_ROLE } from "../src/roles/builtin/dev-role";
 import { buildSystemPrompt } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -16,8 +10,7 @@ const rules = (role: typeof DEV_ROLE) => buildSystemPrompt("", role).append;
 const SECTION_BUDGET = 1200;
 
 test("every dev section and the QA section fit the 1200 char budget", () => {
-  for (const t of [DEV, DEV_RUN_FACTS, SKILL_RUN_FACTS, DEV_MEMORY])
-    expect(t.length).toBeLessThanOrEqual(SECTION_BUDGET);
+  for (const t of [DEV, DEV_RUN_FACTS]) expect(t.length).toBeLessThanOrEqual(SECTION_BUDGET);
   const qa = ASSISTANT_ROLE.promptSections({}) ?? [];
   expect(qa[0]?.length).toBeLessThanOrEqual(SECTION_BUDGET);
 });
@@ -50,7 +43,7 @@ test("dev: one contract, approval before changes by ask, design request invokes 
   expect(text).toContain("by absolute path from the skill's base directory");
   expect(text).toContain("workflow skill's report format");
   expect(text).not.toContain("Memory:");
-  expect(text).toContain("with Remember (scope repo;");
+  expect(text).not.toContain("Remember (scope repo;"); // repo memory rule lives in AGENTS.md
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).not.toMatch(/subagent-run-facts|implementer|task-reviewer|brainstorming/);
   expect(text).not.toContain("git MCP");
@@ -73,11 +66,8 @@ test("no tool-name literal in the dev prompt module source", async () => {
   expect(src).not.toMatch(/AskUserQuestion|ExitPlanMode/);
 });
 
-test("skill run facts: invoke a matching skill, skip an unavailable step; in dev only", () => {
-  expect(SKILL_RUN_FACTS).toContain("description matches the step you are about to do");
-  expect(SKILL_RUN_FACTS).toContain("skip it and say so in one line");
-  expect(SKILL_RUN_FACTS).not.toMatch(/lean|full|superpowers/);
-  expect(rules(DEV_ROLE)).toContain(SKILL_RUN_FACTS);
-  expect(rules(ASSISTANT_ROLE)).not.toContain(SKILL_RUN_FACTS);
+test("dev contract: research path; skill use and repo memory are left to the SDK and AGENTS.md", () => {
+  expect(rules(DEV_ROLE)).not.toContain("description matches the step you are about to do");
+  expect(rules(DEV_ROLE)).not.toMatch(/\[workflow: (full|lean)\]/);
   expect(DEV).toContain("no defect or target named");
 });

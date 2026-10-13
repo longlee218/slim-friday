@@ -182,6 +182,5 @@ test("loaded repos carry workspace name, repo dir and absolute path", () => {
     dir: p.root,
     path: p.clone,
     description: "billing",
-    workflow: "lean",
   });
 });
