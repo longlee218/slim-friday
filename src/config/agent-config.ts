@@ -6,6 +6,13 @@ import { type RoutingEnv, readRoutingEnv } from "./role-env";
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
 
+/**
+ * Default `INTENT_ENGINE`. OWNER STEP (reliable handoff phase 9): flip to "jev" ONLY after the paid golden gate passed
+ * (live Jev run >= Haiku run on role accuracy, no code request routed to a non-dev role, no act-band misroute) and the
+ * owner approved. This is the single place to change; then update the tests that pin the legacy order to `haiku`.
+ */
+export const DEFAULT_INTENT_ENGINE: "haiku" | "jev" | "none" = "haiku";
+
 /** Default `model` on the Anthropic path (Haiku tier). Roles resolve their own model (model-routing.ts); this one is the default model slot of the SDK env. */
 const DEFAULT_MODEL = DEFAULT_TIER_MODELS.haiku;
 
@@ -53,7 +60,7 @@ const envSchema = z.object({
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
   // Intent layer (src/intent). `jev` = TypeSafe System One proposer first, Haiku L3 as the fallback.
-  INTENT_ENGINE: z.enum(["haiku", "jev", "none"]).default("haiku"),
+  INTENT_ENGINE: z.enum(["haiku", "jev", "none"]).default(DEFAULT_INTENT_ENGINE),
   MODEL_INTENT: z.string().trim().min(1).optional(),
   INTENT_BUDGET_USD: z.coerce.number().positive().default(0.02),
   INTENT_TIMEOUT_MS: z.coerce.number().int().min(8000).default(20000),
