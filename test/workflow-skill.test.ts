@@ -89,3 +89,14 @@ test("initWorkflowSkill: writes into an existing workspace once, refuses bad or 
   expect(initWorkflowSkill(home, "../x")).toBe(1);
   expect(existsSync(join(home, "workspaces", "missing"))).toBe(false);
 });
+
+test("template: coding principles (think first, simplicity, surgical, goal-driven)", () => {
+  for (const s of [
+    "## Coding principles",
+    "Think before coding",
+    "Simplicity first",
+    "Surgical changes",
+    "Goal-driven execution",
+  ])
+    expect(TEMPLATE).toContain(s);
+});

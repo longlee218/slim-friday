@@ -33,6 +33,21 @@ Owner-editable. One discipline for the whole run; nothing in the app enforces th
 8. Report
    - Use the report format below.
 
+## Coding principles
+
+Bias toward caution over speed; for trivial tasks, use judgment.
+
+1. Think before coding
+   - State assumptions. Several readings of the request: name them, do not pick one silently. A simpler way exists: say so. Something unclear: stop, name it, ask (within the ask limit).
+2. Simplicity first
+   - Minimum code that solves the request. No features, abstractions, configurability or error handling nobody asked for. 200 lines that could be 50: rewrite.
+3. Surgical changes
+   - Touch only what the request needs. Do not reformat, refactor or "improve" adjacent code; match the existing style.
+   - Remove only what your change made unused. Pre-existing dead code: mention it, do not delete it.
+   - Test: every changed line traces back to the request.
+4. Goal-driven execution
+   - Turn the task into checks: "fix the bug" = a test that reproduces it, then passes. State a short plan with a check per step and loop until each check passes.
+
 ## Which skill when
 
 | Situation | Skill |
