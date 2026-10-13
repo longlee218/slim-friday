@@ -119,6 +119,11 @@ test("route.decision and span lines carry metadata only (field whitelist, no tex
     "ambiguityFlags",
     "routingVersion",
     "timestamp",
+    // Recovery metadata (role names / flags only)
+    "initialCandidate",
+    "rerouted",
+    "visited",
+    "preflight",
   ]);
   for (const l of decisions) expect(Object.keys(l).filter((k) => !allowed.has(k))).toEqual([]);
   for (const l of all.filter((l) => l.event === "span"))
