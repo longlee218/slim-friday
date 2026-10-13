@@ -3,8 +3,9 @@ import { excerpt, logEvent, logger } from "../../observability/logger";
 import type { RunOutcome, RunUsage } from "../../observability/record-run";
 import { redactText } from "../../observability/redact";
 import type { RunAgentResult } from "../../runtime/run-agent";
-import { finishTurn, setTurnStatus, type TurnStatus } from "../../storage/run-store";
+import { finishTurn, setTurnStatus, type TurnStatus, turnStatusOf } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
+import { settleTaskAfterTurn } from "../../tasks/task-resolver";
 import { budgetHitReply } from "../engine/budget";
 import { requestRollover } from "./thread-rollover";
 
@@ -149,6 +150,8 @@ export function closeTurn(
 ): string {
   const reply = finishRun(db, ids, res);
   if (o.stopping && res.outcome === "aborted") setTurnStatus(db, ids.turnId, "interrupted");
+  // The owned task follows the turn's final status (no-op for a turn that owns none).
+  settleTaskAfterTurn(db, ids.turnId, turnStatusOf(db, ids.turnId));
   logEvent(log, "task.finished", {
     repo: res.repo && res.repo !== "*" ? res.repo : o.repo,
     outcome: res.outcome,

@@ -2,9 +2,11 @@
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
 import type { TaskClass } from "../../config/model-routing";
-import { logEvent, setLogContext, tryLog } from "../../observability/logger";
+import { getLogContext, logEvent, setLogContext, tryLog } from "../../observability/logger";
+import { getRole } from "../../roles/role-registry";
 import { countQueuedProposals } from "../../storage/proposal-store";
 import { finishTurn, insertTurn, interruptRunningTurns } from "../../storage/run-store";
+import { attachTurnToTask, settleTaskAfterTurn } from "../../tasks/task-resolver";
 
 /** Log-context fields every line of a call carries: a fresh trace id, its thread and its routing channel. */
 export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
@@ -93,21 +95,37 @@ export function beginTurn(
     parentTurnId?: string;
     hop?: number;
     resume?: boolean;
+    /** Owned task this turn continues (background roles only; a foreground role never links). */
+    ownedTaskId?: string;
   },
 ): void {
-  insertTurn(db, {
-    id: ids.turnId,
-    threadId: ids.threadId,
-    source: ids.source,
-    repo: t.repo,
-    brief: t.brief,
-    cls: t.cls,
-    proposalId: t.proposalId,
-    role: t.role,
-    parentTurnId: t.parentTurnId,
-    hop: t.hop,
-    resume: t.resume,
-  });
+  // Turn row and its task link commit together (no turn without its task, no task without a turn).
+  db.transaction(() => {
+    insertTurn(db, {
+      id: ids.turnId,
+      threadId: ids.threadId,
+      source: ids.source,
+      repo: t.repo,
+      brief: t.brief,
+      cls: t.cls,
+      proposalId: t.proposalId,
+      role: t.role,
+      parentTurnId: t.parentTurnId,
+      hop: t.hop,
+      resume: t.resume,
+    });
+    // Only a background role works on an owned task: foreground answers (and the side lane) never link.
+    if (getRole(t.role).background)
+      attachTurnToTask(db, {
+        turnId: ids.turnId,
+        threadId: ids.threadId,
+        owner: t.role,
+        scope: t.brief ?? "",
+        traceId: getLogContext().traceId ?? crypto.randomUUID(),
+        ownedTaskId: t.ownedTaskId,
+        resumeOf: t.resume ? t.parentTurnId : undefined,
+      });
+  })();
   const logRepo = t.repo === "*" && ids.single ? ids.single : t.repo;
   setLogContext({ repo: logRepo, mode: t.role });
   logEvent(log, "task.started", { repo: logRepo, type: t.role });
@@ -121,5 +139,8 @@ export function refused(log: Logger, r: { reason: string; reply: string }): stri
 
 /** Mark a turn row `failed` on a crash path. Never throws (the db may be closed during shutdown). */
 export function failTurn(db: Database, log: Logger, turnId: string): void {
-  tryLog(log, "finishTurn failed", () => finishTurn(db, turnId, "failed"));
+  tryLog(log, "finishTurn failed", () => {
+    finishTurn(db, turnId, "failed");
+    settleTaskAfterTurn(db, turnId, "failed");
+  });
 }

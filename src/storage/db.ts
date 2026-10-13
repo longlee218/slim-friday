@@ -7,10 +7,11 @@ import { isV1Db, schemaVersion, snapshotDb } from "./migrate";
 import { migrateV3 } from "./migrate-v3-turns";
 import { migrateV4 } from "./migrate-v4-drop-legacy-tables";
 import { migrateV5 } from "./migrate-v5-thread-summaries";
+import { migrateV6 } from "./migrate-v6-owned-tasks";
 
 /**
- * Open (creating if needed) the SQLite db in WAL mode and migrate it to schema v5. A v1 db (no `meta` table)
- * or a v2 db is snapshotted to `backupDir` (default `<home>/db-backups`, home = parent of the db's `data/`
+ * Open (creating if needed) the SQLite db in WAL mode and migrate it to schema v6. A v1, v2 or v5 db (no `meta`
+ * table / marker 2 / marker 5) is snapshotted to `backupDir` (default `<home>/db-backups`, home = parent of the db's `data/`
  * dir) before the first change; a failed snapshot throws, so startup aborts with the db untouched.
  */
 export function openDb(
@@ -23,8 +24,8 @@ export function openDb(
   db.run("PRAGMA busy_timeout = 5000");
   const version = schemaVersion(db);
   // Back up a db that already holds data (v1 = no marker + sessions table; v2 = marker 2) before any change.
-  // A v3 db goes to v4 and a v4 db to v5 without a snapshot (owner decisions).
-  const label = isV1Db(db) ? "v1" : version === 2 ? "v2" : undefined;
+  // A v3 db goes to v4 and a v4 db to v5 without a snapshot (owner decisions); a v5 db is saved before v6.
+  const label = isV1Db(db) ? "v1" : version === 2 ? "v2" : version === 5 ? "v5" : undefined;
   if (file !== ":memory:" && label) {
     try {
       snapshotDb(db, backupDir, label);
@@ -39,8 +40,9 @@ export function openDb(
     migrateV3(db);
     migrateV4(db);
     migrateV5(db);
+    migrateV6(db);
   } catch (err) {
-    // v3, v4 and v5 are each one transaction (rolled back on error: the db stays at its last version);
+    // v3 to v6 are each one transaction (rolled back on error: the db stays at its last version);
     // legacy steps are additive.
     db.close();
     throw err;

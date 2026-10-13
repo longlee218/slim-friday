@@ -44,6 +44,8 @@ export interface DispatchInput {
   ac: AbortController;
   /** Task whose turn produced the request (parent of the new task); absent for an intent-layer request. */
   fromTurnId?: string;
+  /** Owned task the new turn continues (background roles only); absent = a new task opens. */
+  ownedTaskId?: string;
   /** Owner raise of the budget (`go +<usd>`). */
   extraBudgetUsd?: number;
   /** Effort of this run (intent signals / thread floor); missing = the role defaults. */
@@ -118,6 +120,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
       role: role.name,
       parentTurnId: i.fromTurnId,
       hop: i.fromTurnId ? 1 : 0,
+      ownedTaskId: i.ownedTaskId,
     },
   );
   // A failed transition (already dispatched / expired) means another path owns the proposal: never run twice.

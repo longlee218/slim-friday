@@ -94,6 +94,10 @@ const TASK_ID_OK = [
   "legacy-worktree-expiry.test.ts",
   "p22-review-fixes.test.ts",
   "guard-sdk-tool-catalog.test.ts",
+  // owned_task_id: the link column of schema v6 (owned tasks)
+  "owned-task-store.ts",
+  "migrate-v6-owned-tasks.ts",
+  "db-migrate-v6.test.ts",
 ];
 
 /**
