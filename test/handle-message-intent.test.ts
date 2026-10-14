@@ -725,3 +725,31 @@ test("replace: the same control message delivered twice aborts and replaces once
   expect([a, b].filter((x) => x?.includes("replacement answer"))).toHaveLength(1);
   expect(listRunMessages(env.db, "th1").filter((r) => r.kind === "replace")).toHaveLength(1);
 });
+
+test("conversation: search -> explicit replacement -> one result, no stale output, no task jargon", async () => {
+  const env = await setup();
+  const seen: any[] = [];
+  const sdk = abortableSdk(seen, 30);
+  const notes: string[] = [];
+  const e = engine((i) =>
+    i.text.includes("REPLACENOW")
+      ? verdict({ role: "assistant", scope: "new", control: "replace" })
+      : verdict({ role: "assistant", scope: "new" }),
+  );
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: declinePr(),
+    queryFn: sdk.query as never,
+    intent: intentDeps(env.home, e.classifier),
+  });
+  const search = handle(msg("[ask] search the web for bun releases"));
+  await Bun.sleep(50);
+  const replaced = await handle(withNotify("REPLACENOW give me a PDF instead", notes));
+  expect(await search).toBeUndefined();
+  expect(replaced).toContain("replacement answer");
+  expect(replaced).not.toContain("stale answer");
+  expect(seen).toHaveLength(2); // the search and ONE replacement
+  for (const text of [replaced ?? "", ...notes])
+    expect(text).not.toMatch(/\b(task|turn|proposal|queue|steer)\b/i);
+});

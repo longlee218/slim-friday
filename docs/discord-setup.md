@@ -177,6 +177,7 @@ Expected:
 - A question for the assistant is answered at once, next to the task. It does not join the thread conversation later.
 - A typed message while the agent waits for your answer to a question: it is saved as a note and delivered after you choose an option. A typed "yes" does not answer the question; use the buttons.
 - `/stop` keeps the queue; the queued tasks run after the stop. The reply says how many are queued.
+- Plain words can stop or replace the work, but only when they are explicit and clear: "dừng lại" / "stop that" stops it (like `/stop`, the queue is kept); "bỏ việc này, làm PDF thay vào đó" / "drop this and make a PDF instead" replaces it. A replacement answers at once that it is stopping, waits for the old run to end, then handles your message once as a new request; the old run's result is never posted and the older queued work starts after the new request. Unclear wording never stops anything (the bot asks, or treats it as a supplement). Work already done (files written, commits) is not undone; a tool that was not yet started when you stopped is denied.
 - If the run ends before the agent read a supplement, the bot posts `Not delivered to the agent ... send again:` with your text.
 - Your messages are stored (secrets masked, 2000 chars) for 14 days.
 
