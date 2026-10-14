@@ -252,3 +252,11 @@ test("safeLinks: structured links drop unsafe urls, blank labels fall back to th
     { label: "host.example", url: "https://host.example/q" },
   ]);
 });
+
+test("links: urls over 512 chars and image syntax never become buttons", () => {
+  const long = `https://a.example/${"x".repeat(520)}`;
+  expect(
+    markdownLinks(`[long](${long}) ![img](https://i.example/p.png) [ok](https://ok.example)`),
+  ).toEqual([{ label: "ok", url: "https://ok.example/" }]);
+  expect(safeLinks([{ label: "long", url: long }])).toEqual([]);
+});

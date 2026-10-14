@@ -177,11 +177,15 @@ export const LINKS_MAX = 3;
 /** Discord caps a button label at 80 chars. */
 const LINK_LABEL_MAX = 80;
 
-/** Normalized absolute http(s) URL, or undefined (local paths, `file:`, relative, `javascript:`, ...). */
+/** Discord rejects the whole message when a link button URL is over 512 chars. */
+const LINK_URL_MAX = 512;
+
+/** Normalized absolute http(s) URL of at most 512 chars, or undefined (local paths, `file:`, relative, `javascript:`, ...). */
 function safeUrl(raw: string): string | undefined {
   try {
     const u = new URL(raw);
-    return u.protocol === "http:" || u.protocol === "https:" ? u.href : undefined;
+    const ok = u.protocol === "http:" || u.protocol === "https:";
+    return ok && u.href.length <= LINK_URL_MAX ? u.href : undefined;
   } catch {
     return undefined; // relative paths and bare text do not parse as absolute URLs
   }
@@ -202,9 +206,8 @@ export function safeLinks(links: ReportLink[]): ReportLink[] {
 
 /** Safe `[label](url)` links found in Markdown text; code is not special-cased (a link in a fence is still a link). */
 export function markdownLinks(markdown: string): ReportLink[] {
-  const found = [...markdown.matchAll(/\[([^\]\n]+)\]\((\S+?)\)/g)].map((m) => ({
-    label: m[1]!,
-    url: m[2]!,
-  }));
+  const found = [...markdown.matchAll(/(!?)\[([^\]\n]+)\]\((\S+?)\)/g)]
+    .filter((m) => !m[1]) // `![alt](url)` is an image, not a link
+    .map((m) => ({ label: m[2]!, url: m[3]! }));
   return safeLinks(found);
 }

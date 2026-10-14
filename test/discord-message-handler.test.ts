@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { CLIENT_OPTIONS } from "../src/ingress/discord-bot";
 import type { InboundMessage } from "../src/ingress/discord-message-handler";
 import { createMessageHandler } from "../src/ingress/discord-message-handler";
-import { BUSY_ACK_EMOJI } from "../src/ingress/discord-send";
+import { BUSY_ACK_EMOJI, sendReport } from "../src/ingress/discord-send";
 import { createMessageReceipt } from "../src/ingress/message-receipt";
 import { captureLogs } from "../src/observability/logger";
 
@@ -555,4 +555,22 @@ test("a failed report send leaves the receipt present (visible never fires)", as
   gate.resolve("long line\n".repeat(700));
   await pending;
   expect(m.calls.removed).toEqual([]);
+});
+
+test("sendReport: structured links, over-long url dropped, report still sent; summary-only has no file", async () => {
+  const ch = fakeChannel("c");
+  await sendReport(ch, {
+    summary: "done",
+    links: [
+      { label: "PR", url: "https://pr.example/1" },
+      { label: "big", url: `https://big.example/${"y".repeat(600)}` },
+      { label: "local", url: "/tmp/x.md" },
+    ],
+  });
+  const sent = ch.sent[0];
+  expect(sent.files).toEqual([]);
+  expect(sent.content).toBeUndefined();
+  const json = sent.components.map((c: any) => c.toJSON());
+  expect(json.map((c: any) => c.type)).toEqual([10, 1]);
+  expect(json[1].components.map((b: any) => b.url)).toEqual(["https://pr.example/1"]);
 });
