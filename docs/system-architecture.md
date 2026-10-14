@@ -52,14 +52,14 @@ Discord
 - An engine failure never starts a background task.
 - Logs `intent.layer {layer, ruleIds}` per message (`L0|L1|L3|none|fallback`). The share reaching L3 is the main cost metric.
 - Attachments: text files up to 64 KB are read (https Discord CDN only), redacted and added as a DATA block. Files over 2000 chars are summarized by a cheap model; the full redacted copy is saved for the assistant only.
-- Discussion guard: when L3 chose a background role on an idle thread right after a discussion turn, the table asks ONE yes/no question first ("Open a task for this?"). `yes` starts the task; `no` answers the original message as the assistant.
+- No discussion guard (removed 2026-10-14): a background role chosen on an idle thread opens the task at once, even right after an answering turn. Old `confirm_task` proposals still resolve (`yes` / `no`).
 
 ### Route by intent (`actionFor`, table-driven)
 
 | Thread state | Role / scope | Action |
 |---|---|---|
 | idle / done | foreground role (assistant) | `run` |
-| idle / done | background role (dev) | `open` (proposal → run). After a discussion turn: `confirm-task` (yes/no first) |
+| idle / done | background role (dev) | `open` (proposal → run) |
 | running / awaiting owner | foreground role | `side`: answered at once in a parallel read-only run (see below) |
 | running / awaiting owner | background role, scope active | `steer`: pushed into the running run |
 | running / awaiting owner | background role, scope new | `queue`: runs after the current task (max 3 per thread) |

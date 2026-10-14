@@ -5,7 +5,6 @@ import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
-import { CONFIRM_TASK_QUESTION } from "../src/orchestrator/dispatch/queued-tasks";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -104,30 +103,15 @@ async function build() {
 
 const PROPOSAL = "Tôi đề xuất xây dựng một lớp cache cho bảng giá, bạn thấy sao?";
 
-test("dev/new from L3 alone after an assistant turn asks first; yes opens the task", async () => {
+test("dev/new from L3 alone after an assistant turn starts the task at once (no confirmation)", async () => {
   const { e, seen, handle, msg, q } = await build();
   await handle(msg("[ask] explain the location")); // assistant turn (L1 tag)
-  expect(await handle(msg(PROPOSAL))).toBe(CONFIRM_TASK_QUESTION);
+  expect(await handle(msg(PROPOSAL))).toContain("Starting dev");
   expect(e.inputs).toHaveLength(1);
   expect(e.inputs[0]?.thread.lastTurn).toEqual({ role: "assistant" });
-  expect(q("SELECT role FROM turns")).toEqual([{ role: "assistant" }]); // nothing opened yet
-  expect(q("SELECT status, reason FROM proposals")).toEqual([
-    { status: "pending", reason: "confirm_task" },
-  ]);
-  const reply = await handle(msg("yes"));
-  expect(reply).toContain("Starting dev");
+  expect(q("SELECT role FROM turns")).toEqual([{ role: "assistant" }, { role: "dev" }]);
   expect(seen.some((s) => s.options.permissionMode === "bypassPermissions")).toBe(true);
   expect(q("SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
-});
-
-test("no -> the assistant answers the original message (no dev task)", async () => {
-  const { seen, handle, msg, q } = await build();
-  await handle(msg("[ask] explain the location"));
-  await handle(msg(PROPOSAL));
-  expect(await handle(msg("no"))).toBe("assistant answer");
-  expect(seen.at(-1).prompt).toContain(PROPOSAL);
-  expect(q("SELECT role FROM turns")).toEqual([{ role: "assistant" }, { role: "assistant" }]);
-  expect(q("SELECT status FROM proposals")).toEqual([{ status: "refused" }]);
 });
 
 test("no guard: a first message, a [dev] tag or a role other than a staged one is unaffected", async () => {
@@ -144,13 +128,11 @@ test("the saved-copy path of a long attachment reaches the assistant, never the 
   const withPath = `${PROPOSAL}\n\n${ATTACHMENT_PATH_PREFIX}/home/x/tmp/attachments/th1/1-r.md`;
   await handle(msg("[ask] explain the location"));
   await handle(msg(withPath));
-  await handle(msg("yes"));
   expect(q("SELECT brief FROM turns WHERE role = 'dev'")[0].brief).not.toContain("/home/x/tmp");
-  expect(q("SELECT brief FROM proposals")[0].brief).toContain("/home/x/tmp"); // kept for a later 'no'
   expect(seen.length).toBeGreaterThan(1);
 });
 
-test("a dev brief carries the recent conversation (capped, data); a declined task answers the original message only", async () => {
+test("a dev brief carries the recent conversation (capped, data)", async () => {
   const { seen, handle, msg, q } = await build();
   await handle(msg("[ask] explain the location"));
   const recent = [
@@ -167,7 +149,4 @@ test("a dev brief carries the recent conversation (capped, data); a declined tas
   expect(brief).toContain("- bot: Option B: cache prices for 5 minutes.");
   expect(brief).not.toContain("sk-ant-abcdefghijklmnop123456"); // redacted
   expect(brief.length).toBeLessThan(1500);
-  expect(await handle(msg("no"))).toBe("assistant answer");
-  expect(seen.at(-1).prompt).toContain("làm cái đó đi");
-  expect(seen.at(-1).prompt).not.toContain("Recent conversation");
 });

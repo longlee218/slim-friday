@@ -200,7 +200,7 @@ Canonical forms are slash commands. Legacy text forms keep working this release.
 | `location:<name>` prefix | `repo:<name>` (alias) | pins the thread to a location of the workspace |
 
 - Without a tag, one small Haiku call reads your message with the last 4 messages of the thread and picks the role. There are no word lists.
-- A natural reply to the bot's yes/no question ("Open a task for this?") is read by the same call: `yes` starts the task, `no` makes the assistant answer your message.
+- A natural reply to a pending yes/no question is read by the same call: `yes` starts the task, `no` makes the assistant answer your message.
 - Buttons of a dead process answer "This action expired." The Resume button keeps working after a restart.
 
 ### Attachments

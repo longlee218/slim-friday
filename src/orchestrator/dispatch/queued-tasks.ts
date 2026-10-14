@@ -92,11 +92,10 @@ export function queueTask(
     location?: string;
     cls?: TaskClass;
     effort?: Effort;
-    confirm?: true;
   },
 ): string {
   const { db } = c.deps;
-  if (!r.confirm && countQueuedProposals(db, c.message.threadId) >= MAX_QUEUED) return QUEUE_FULL;
+  if (countQueuedProposals(db, c.message.threadId) >= MAX_QUEUED) return QUEUE_FULL;
   const id = persistProposal(db, log, {
     request: {
       role: r.role,
@@ -104,14 +103,12 @@ export function queueTask(
       location: r.location,
       cls: r.cls,
       effort: r.effort,
-      ...(r.confirm && { reason: CONFIRM_TASK_REASON }),
     },
     threadId: c.message.threadId,
     workspace: c.workspace,
   });
   if (!id) return "Could not queue it; send it again after the current task.";
   supersedePending(db, c.message.threadId, id);
-  if (r.confirm) return CONFIRM_TASK_QUESTION;
   setProposalStatus(db, id, "queued");
   return QUEUE_RECEIVED;
 }

@@ -103,7 +103,7 @@ export async function decideRoute(i: RouteInput, deps: IntentDeps): Promise<Rout
               }),
             ),
           );
-          return decisionOfProposal(got.proposal, owner, { state: i.state, lastRole });
+          return decisionOfProposal(got.proposal, owner);
         }
       : undefined;
 

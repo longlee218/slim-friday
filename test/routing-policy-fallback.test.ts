@@ -110,7 +110,7 @@ test("settleRouting: a yes to a failed task is RESUME; a steer into the running 
   );
 });
 
-test("jev pick of a background role right after an answering turn needs the owner's confirmation (same guard as L3)", async () => {
+test("jev pick of a background role right after an answering turn opens the task (no discussion guard)", async () => {
   const pick = proposer({ kind: "pick", role: BG, alternatives: [] }).impl;
   const deps: IntentDeps = {
     pipeline,
@@ -119,7 +119,7 @@ test("jev pick of a background role right after an answering turn needs the owne
     proposer: pick,
   };
   const after = await decideRoute(input(afterTurn(FG), VAGUE, { state: "done" }), deps);
-  expect(after.decision).toMatchObject({ kind: "role", role: BG, confirmDev: true });
+  expect(after.decision).toEqual({ kind: "role", role: BG, scope: "new" });
   // A new thread (no answering turn before) has nothing to confirm.
   const fresh = await decideRoute(input(makeEnv(), VAGUE), deps);
   expect(fresh.decision).toEqual({ kind: "role", role: BG, scope: "new" });

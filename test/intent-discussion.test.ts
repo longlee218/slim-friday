@@ -118,27 +118,14 @@ async function decide(text: string, res: Partial<IntentResult>, lastRole?: strin
   return decision;
 }
 
-test("guard: L3 alone, dev/new, previous turn answered -> confirmDev; otherwise a plain role decision", async () => {
+test("no discussion guard: dev/new after an answering turn is a plain role decision", async () => {
   const q = "Tôi đề xuất xây dựng một lớp cache, bạn thấy sao?";
-  expect(await decide(q, {}, "assistant")).toMatchObject({
-    role: "dev",
-    scope: "new",
-    confirmDev: true,
-  });
-  expect(await decide(q, {}, undefined)).not.toHaveProperty("confirmDev"); // first turn of the thread
-  expect(await decide(q, {}, "dev")).not.toHaveProperty("confirmDev"); // previous turn was a task
-  expect(await decide(q, { role: "assistant" }, "assistant")).not.toHaveProperty("confirmDev");
-  // L1 decides (explicit tag): no L3, no guard
-  expect(await decide("[dev] thêm cache", {}, "assistant")).not.toHaveProperty("confirmDev");
+  expect(await decide(q, {}, "assistant")).toEqual({ kind: "role", role: "dev", scope: "new" });
 });
 
-test("table: confirmDev on an idle thread -> confirm-task action; without it -> open", () => {
+test("table: an idle thread opens a background task", () => {
   const base = { state: "idle" as const, hasClone: false, fixRounds: 0 };
   const d = { kind: "role" as const, role: "dev", scope: "new" as const };
-  expect(actionFor({ ...base, decision: { ...d, confirmDev: true } })).toEqual({
-    kind: "confirm-task",
-    role: "dev",
-  });
   expect(actionFor({ ...base, decision: d })).toEqual({ kind: "open", role: "dev" });
 });
 

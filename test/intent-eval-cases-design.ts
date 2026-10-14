@@ -79,7 +79,6 @@ export const DESIGN_CASES: GoldenCase[] = [
       "kiến trúc role hiện tại của Friday như thế nào?",
       "Role là dữ liệu trong src/roles/builtin, một stage engine chung chạy chúng (src/orchestrator/engine).",
     ),
-    // `confirmDev` may add a yes/no step; only the role is scored.
     expect: { role: "dev" },
   }),
   // Holdout: fresh wishes (VI + EN, one short "research X")

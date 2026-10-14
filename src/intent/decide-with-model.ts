@@ -22,24 +22,6 @@ export interface Verdict {
   unresolved?: true;
 }
 
-/** The role is a registry role that answers (not background): its turn was a conversation. */
-const isAnswering = (role?: string): boolean => !!role && !!ROLES[role] && !ROLES[role].background;
-
-/**
- * Discussion guard, shared by every model-only pick: a NEW background task right after an answering turn may be a
- * proposal, not an order (no tag backs it), so the owner is asked once before a task opens.
- */
-export const needsTaskConfirm = (p: {
-  scope: string;
-  state: string;
-  role: string;
-  lastRole?: string;
-}): boolean =>
-  p.scope === "new" &&
-  isIdleState(p.state) &&
-  !!ROLES[p.role]?.background &&
-  isAnswering(p.lastRole);
-
 /** The idle entry-role fallback, flagged unresolved (an idle thread with no pending question: nothing else decided it). */
 export const entryFallback = (): Verdict => ({
   decision: { kind: "role", role: entryRole().name, scope: "new" },
@@ -107,19 +89,12 @@ export async function decideWithModel(
       return {
         decision: { kind: "gate-answer", answer: pendingAnswer, target: pending ? "ask" : "gate" },
       };
-    const confirmDev = needsTaskConfirm({
-      scope,
-      state: i.state,
-      role,
-      lastRole: input.thread.lastTurn?.role,
-    });
     return {
       decision: {
         kind: "role",
         role,
         scope,
         ...(cls && { cls }),
-        ...(confirmDev && { confirmDev }),
       },
     };
   } catch (err) {

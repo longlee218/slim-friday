@@ -118,6 +118,7 @@ export function createDiscordApprovalGateway(
           settle: resolve,
           timer,
           content,
+          labels: o.buttons.map((b) => b.label),
           finish,
           edit: (c) => msg.edit({ content: c, components: [] }).catch(() => undefined),
         });

@@ -1,5 +1,4 @@
 import type { IntentDecision } from "../intent/decide-intent";
-import { needsTaskConfirm } from "../intent/decide-with-model";
 import { ROLES } from "../roles/role-registry";
 import type { RouteProposal } from "./route-proposer";
 import type { TaskState } from "./routing-contracts";
@@ -12,7 +11,6 @@ const multiText = (roles: string[]) =>
 export function decisionOfProposal(
   p: RouteProposal,
   owner: TaskState | undefined,
-  ctx: { state: string; lastRole?: string },
 ): IntentDecision | undefined {
   switch (p.kind) {
     case "multi": {
@@ -26,15 +24,7 @@ export function decisionOfProposal(
         ? { kind: "role", role: owner.ownerAgentId, scope: "active" }
         : undefined;
     case "pick":
-      // Same discussion guard as an L3 pick: a task right after an answering turn is confirmed first.
-      return ROLES[p.role]
-        ? {
-            kind: "role",
-            role: p.role,
-            scope: "new",
-            ...(needsTaskConfirm({ scope: "new", role: p.role, ...ctx }) && { confirmDev: true }),
-          }
-        : undefined;
+      return ROLES[p.role] ? { kind: "role", role: p.role, scope: "new" } : undefined;
     default:
       return undefined;
   }

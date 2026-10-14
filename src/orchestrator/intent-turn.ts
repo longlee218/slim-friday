@@ -109,7 +109,7 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   let turn: ReturnType<typeof turnEffort> = { pendingMax: false };
   let maxDeclined = false;
   // A queued request resolves its effort now (stored with the proposal) but never asks the max gate: it stays capped.
-  const queuing = action.kind === "queue" || action.kind === "confirm-task";
+  const queuing = action.kind === "queue";
   if (
     reply === undefined &&
     decision.kind === "role" &&

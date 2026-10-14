@@ -24,7 +24,7 @@ type Dim = "role" | "scope" | "cls" | "clsRaw";
 /** Short text of a decision for the table. */
 const show = (d: IntentDecision) =>
   d.kind === "role"
-    ? `${d.role}/${d.scope}${d.cls ? `/${d.cls}` : ""}${d.confirmDev ? "?confirm" : ""}`
+    ? `${d.role}/${d.scope}${d.cls ? `/${d.cls}` : ""}`
     : d.kind === "ask"
       ? `ask(${d.reason})`
       : `gate-answer(${d.answer})`;

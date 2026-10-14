@@ -13,7 +13,6 @@ export const isSideRole = (role: RoleDefinition): boolean => !role.background;
 export type IntentAction =
   | { kind: "run"; role: string } // idle: run the role (foreground)
   | { kind: "open"; role: string } // idle: open a new background task (proposal -> run)
-  | { kind: "confirm-task"; role: string } // idle, L3 alone chose a task right after a discussion turn: ask yes/no first
   | { kind: "side"; role: string } // busy: the answering role answers at once in a parallel read-only run (side lane), the task is not touched
   | { kind: "steer"; role: string } // running: supplement of the running work, pushed into its input (P1.4b)
   | { kind: "queue"; role: string } // independent work while a task is active: queued for after it, ANY role
@@ -29,7 +28,7 @@ export interface TableInput {
 
 /**
  * THE table. Rows (state x scope x role data). `foreground` = not `background`. No role name appears here.
- * idle: foreground -> run; background -> open (confirm-task when the discussion guard flagged it). A message after a task
+ * idle: foreground -> run; background -> open. A message after a task
  * ended is always a new turn: there is no fix round.
  * running or awaiting the owner (a tool approval or question; the plan approval is one): a side role (foreground, no
  * writes) -> side whatever the scope (answered at once, next to the task, with a status snapshot); any other role:
@@ -47,7 +46,7 @@ export function actionFor(i: TableInput): IntentAction {
   if (!role) return { kind: "ask", reason: "unknown_role" };
   if (isIdleLike(i.state)) {
     if (!role.background) return { kind: "run", role: d.role };
-    return { kind: d.confirmDev ? "confirm-task" : "open", role: d.role };
+    return { kind: "open", role: d.role };
   }
   // A run works: the scope (L3's call, see decide-intent) says supplement or independent, whatever the role.
   // A foreground role never steers the run (a question to it is not a change of the work): the side lane answers it.

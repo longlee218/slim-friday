@@ -12,6 +12,7 @@ import { runRoute } from "../message-routing";
 import { closeTurn } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
 import { persistProposal } from "./proposal-flow";
+import { briefText } from "./queued-tasks";
 import { type DispatchRequest, validateRequest } from "./validate-request";
 
 /** Logger of this module (task fields come from the log context). */
@@ -140,7 +141,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   // A background role may work (and wait for the owner) for minutes: say that it started. A role that just answers
   // has no notice: its reply is the answer.
   const notice = role.background
-    ? `Starting ${role.name}: ${excerpt(request.brief, NOTICE_BRIEF_MAX)}`
+    ? `Starting ${role.name}: ${excerpt(briefText(request.brief), NOTICE_BRIEF_MAX)}`
     : "";
   const head = [i.reply, notice].filter(Boolean).join("\n\n");
   // Post the source answer + notice now (the run can take minutes); on failure they join the reply.

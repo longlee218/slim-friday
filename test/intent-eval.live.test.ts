@@ -54,7 +54,7 @@ function score(
   const out: Pick<Row, "role" | "scope" | "cls" | "clsRaw" | "codeLeak"> = {
     codeLeak: !!c.codeRequest && c.thread.state === "idle" && role !== undefined && role !== "dev",
   };
-  if (e.role) out.role = roleMatches(d, { role: e.role, orDevConfirm: e.orDevConfirm });
+  if (e.role) out.role = roleMatches(d, { role: e.role });
   if (e.ask) out.role = d.kind === "ask";
   if (e.pendingAnswer) out.role = d.kind === "gate-answer" && d.answer === e.pendingAnswer;
   if (e.anyRegistryRoleOrAsk) out.role = d.kind === "ask" || role === "assistant" || role === "dev";

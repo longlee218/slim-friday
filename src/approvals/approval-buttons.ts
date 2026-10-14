@@ -50,6 +50,8 @@ export interface Pending {
   /** Edit the posted message (drops the buttons). */
   edit: (content: string) => Promise<unknown>;
   content: string;
+  /** Button labels in order (a choice click shows its option, not its number). */
+  labels: string[];
 }
 
 /** Drop every open request of a task (run aborted): timers cleared, decision "cancelled", buttons removed. */
@@ -64,13 +66,17 @@ export function cancelPending(pending: Map<string, Pending>, taskId: string): vo
   }
 }
 
-/** Apply a button click to its open request (timer cleared, decision stored, waiter resolved); returns the label shown. */
-export function settleClick(p: Pending, prefix: string, value: string): string {
+/** Apply a button click to its open request (timer cleared, decision stored, waiter resolved); returns the line shown (a choice shows the clicked option, else its number). */
+export function settleClick(
+  p: Pending,
+  prefix: string,
+  value: string,
+): string {
   clearTimeout(p.timer);
   const approved = prefix === "choice" || value === "allow";
   p.finish(approved ? "approved" : "denied");
   p.settle(value);
-  return prefix === "choice" ? `chose #${Number(value) + 1}` : approved ? "approved" : "denied";
+  return prefix === "choice" ? `chose ${p.labels[Number(value)] ?? `#${Number(value) + 1}`}` : approved ? "approved" : "denied";
 }
 
 /** Map the clicked value of an approve/deny prompt to a result. */

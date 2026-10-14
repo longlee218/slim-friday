@@ -159,12 +159,9 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       return c.busy
         ? reply(STILL_WORKING)
         : { kind: "run", role: a.role, cls: c.cls, effort: c.effort };
-    case "confirm-task":
     case "open": {
       if (c.busy) return reply(STILL_WORKING);
       if (!c.deps.approvals) return reply(NO_APPROVALS);
-      if (a.kind === "confirm-task")
-        return reply(queueTask(c, { ...queued(c, a.role), confirm: true }));
       // No source turn: the dispatcher persists the proposal, validates, asks or starts the role.
       return reply(
         await dispatchRole(c.deps, {

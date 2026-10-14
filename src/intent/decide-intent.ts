@@ -40,8 +40,6 @@ export type IntentDecision =
       role: string;
       scope: "active" | "new";
       cls?: TaskClass;
-      /** L3 alone chose a new background task right after an answering (discussion) turn: the owner confirms first. */
-      confirmDev?: true;
     }
   /** `text` = the model's own question (owner's language); missing = the neutral generic one. */
   | { kind: "ask"; reason: AskReason; text?: string };
