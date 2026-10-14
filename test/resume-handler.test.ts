@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import type { InboundMessage } from "../src/ingress/discord-message-handler";
+import { pinThreadLanguage } from "../src/ingress/user-copy";
 import { createResumeHandler } from "../src/lifecycle/resume-interrupted";
 import { captureLogs } from "../src/observability/logger";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
@@ -54,6 +55,15 @@ test("thread button: InboundMessage.channelId is the thread's parent channel", a
   const { handle, messages } = setup();
   await handle(click(fakeChannel("thr1", "parent5")).i);
   expect(messages).toMatchObject([{ threadId: "thr1", channelId: "parent5" }]);
+});
+
+test("Resume button runs in the thread's pinned language (the English prompt must not decide it)", async () => {
+  const { handle, messages } = setup();
+  pinThreadLanguage("thr-resume-vi", "vi");
+  pinThreadLanguage("thr-resume-en", "en");
+  await handle(click(fakeChannel("thr-resume-vi", "p")).i);
+  await handle(click(fakeChannel("thr-resume-en", "p")).i);
+  expect(messages.map((m) => m.language)).toEqual(["vi", "en"]);
 });
 
 test("button outside a thread (no parent): nothing runs, no 'Resuming...' update", async () => {

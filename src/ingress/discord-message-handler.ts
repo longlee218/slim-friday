@@ -13,7 +13,13 @@ import { replyToMemoryCommand } from "./memory-ingress";
 import { createMessageReceipt } from "./message-receipt";
 import { fetchRecent, HISTORY_CHARS, type HistoryChannel } from "./thread-history";
 import { createThreadTurns } from "./thread-turns";
-import { detectLanguage, languageOf, type OwnerLanguage, renderUserNotice } from "./user-copy";
+import {
+  detectLanguage,
+  languageOf,
+  pinnedThreadLanguage,
+  pinThreadLanguage,
+  renderUserNotice,
+} from "./user-copy";
 
 export type { InboundMessage } from "./inbound-message";
 
@@ -41,6 +47,8 @@ export interface MessageHandlerDeps {
   memory?: MemoryRunner;
   /** Ports of the attachment reader (summary, saved copy, fetch); tests inject fakes. */
   attachments?: AttachmentDeps;
+  /** Delay (ms) before a still-unanswered message gets the receipt reaction; default 2000 (tests shorten it). */
+  receiptDelayMs?: number;
 }
 
 /** Build the `messageCreate` handler: route, run the turn, reply. Never throws. */
@@ -51,7 +59,6 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
   const takeTurn = createThreadTurns(); // per-thread arrival order up to the `handleMessage` call
 
   /** Run the turn with typing shown, then post the reply into `channel`. `started` runs right after the `handleMessage` call began. */
-  const conversationLanguages = new Map<string, OwnerLanguage>();
   async function answer(
     channel: SendableChannels,
     ids: { threadId: string; channelId: string; messageId: string },
@@ -62,8 +69,8 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
   ): Promise<void> {
     // The text decides; neutral text ("3", "yes") keeps the thread's language, else the recent owner messages.
     const language =
-      detectLanguage(text) ?? conversationLanguages.get(ids.threadId) ?? languageOf(text, recent);
-    conversationLanguages.set(ids.threadId, language);
+      detectLanguage(text) ?? pinnedThreadLanguage(ids.threadId) ?? languageOf(text, recent);
+    pinThreadLanguage(ids.threadId, language);
     let stopTyping = startTyping(channel);
     let shown = false;
     const visible = async () => {
@@ -83,7 +90,8 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         ...ids,
         text,
         ...(recent?.length && { recent }),
-        language: conversationLanguages.get(ids.threadId),
+        language,
+        visible,
         replied,
         history: (limit) => historyOf(channel as unknown as HistoryChannel, limit),
         notify: (m) => {
@@ -180,6 +188,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       async () => {
         await msg.reactions.cache.get(BUSY_ACK_EMOJI)?.users.remove(botId);
       },
+      deps.receiptDelayMs,
     );
     // Only the owner's text is logged (redacted, capped).
     logEvent(log, "message.received", {
@@ -232,7 +241,10 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       // `stop` only makes sense inside a thread that has a run.
       if (parseMessageCommand(route.prompt).kind === "stop") {
         await msg.reply({
-          content: "Send `/stop` inside the thread of the run.",
+          content: renderUserNotice(
+            { kind: "note", state: "stop-in-thread" },
+            languageOf(route.prompt),
+          ),
           allowedMentions: SAFE_MENTIONS,
         });
         await receipt.visible();
@@ -251,7 +263,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       log.error({ err: errText(err) }, "message handling failed");
       try {
         if (errorTarget) {
-          const language = conversationLanguages.get(errorTarget.id) ?? languageOf(route.prompt);
+          const language = pinnedThreadLanguage(errorTarget.id) ?? languageOf(route.prompt);
           await sendReply(
             errorTarget,
             renderUserNotice({ kind: "failure" }, language),

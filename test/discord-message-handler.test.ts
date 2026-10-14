@@ -7,6 +7,8 @@ import { createMessageReceipt } from "../src/ingress/message-receipt";
 import { captureLogs } from "../src/observability/logger";
 
 const OWNER = "111";
+/** Receipt delay injected into the handler (the production default is 2 s). */
+const RECEIPT_MS = 100;
 const BOT = "999";
 
 /** Fake sendable channel recording sends. */
@@ -91,6 +93,7 @@ function setup(reply: string | Error = "answer", guildId?: string) {
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     guildId,
     handleMessage: async (message) => {
       messages.push(message);
@@ -209,6 +212,7 @@ function setupOps() {
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     guildId: "G1",
     setup: setupWithOps,
     handleMessage: async (message) => {
@@ -256,6 +260,7 @@ test("an admin hook that throws is contained", async () => {
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     setup: setupWithOps,
     handleMessage: async () => "x",
     admin: async () => {
@@ -271,6 +276,7 @@ test("messages of one thread reach the task layer in arrival order, even when th
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     handleMessage: async (message) => {
       order.push(message.text.split("\n")[0]!);
       messages.push(message);
@@ -314,7 +320,7 @@ function deferred<T>() {
 test("fast visible reply cancels the per-message receipt", async () => {
   const m = fakeMsg({});
   await setup().onMessage(m.msg);
-  await Bun.sleep(2100);
+  await Bun.sleep(RECEIPT_MS + 80);
   expect(m.calls.reactions).toEqual([]);
 });
 
@@ -333,10 +339,11 @@ test("delayed replies get one receipt removed after sending, even when reaction 
     const handler = createMessageHandler({
       ownerId: OWNER,
       botId: () => BOT,
+      receiptDelayMs: RECEIPT_MS,
       handleMessage: () => gate.promise,
     });
     const pending = handler(m.msg);
-    await Bun.sleep(2100);
+    await Bun.sleep(RECEIPT_MS + 80);
     if (failure !== "react") expect(m.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
     gate.resolve("finished");
     await pending;
@@ -356,6 +363,7 @@ test("notify stops receipt and typing refresh while the background turn continue
   const handler = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     handleMessage: async (message) => {
       await message.notify!("working");
       notified.resolve();
@@ -376,7 +384,7 @@ test("ignored and control messages never get a receipt", async () => {
   const control = fakeMsg({ channel: fakeChannel(CTRL), mention: false, content: "help" });
   const h = setupOps();
   await Promise.all([h.onMessage(ignored.msg), h.onMessage(control.msg)]);
-  await Bun.sleep(2100);
+  await Bun.sleep(RECEIPT_MS + 80);
   expect(ignored.calls.reactions).toEqual([]);
   expect(control.calls.reactions).toEqual([]);
 });
@@ -401,6 +409,7 @@ test("both ordered messages get timely receipts while the first attachment is do
   const handler = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     attachments: { fetchFn: () => gate.promise },
     handleMessage: async (message) => {
       order.push(message.text.split("\n")[0]!);
@@ -408,7 +417,7 @@ test("both ordered messages get timely receipts while the first attachment is do
     },
   });
   const pending = Promise.all([handler(first.msg), handler(second.msg)]);
-  await Bun.sleep(2100);
+  await Bun.sleep(RECEIPT_MS + 80);
   expect(first.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
   expect(second.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
   gate.resolve(new Response("body"));
@@ -451,10 +460,11 @@ test("failed visible sends leave the receipt present", async () => {
   const handler = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     handleMessage: () => gate.promise,
   });
   const pending = handler(m.msg);
-  await Bun.sleep(2100);
+  await Bun.sleep(RECEIPT_MS + 80);
   gate.resolve("answer");
   await pending;
   expect(m.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
@@ -477,6 +487,7 @@ test("a caught failed later notification stops typing during deferred background
   const handler = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     handleMessage: async (message) => {
       await message.notify!("accepted");
       try {
@@ -548,10 +559,11 @@ test("a failed report send leaves the receipt present (visible never fires)", as
   const handler = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     handleMessage: () => gate.promise,
   });
   const pending = handler(m.msg);
-  await Bun.sleep(2100);
+  await Bun.sleep(RECEIPT_MS + 80);
   gate.resolve("long line\n".repeat(700));
   await pending;
   expect(m.calls.removed).toEqual([]);

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { renderUserNotice } from "../src/ingress/user-copy";
 import {
   expireStaleProposals,
   PROPOSAL_NOTICE,
@@ -141,7 +142,10 @@ test("startup: stale proposals expire, the notice goes once per thread with a pe
     },
   };
   expect(await postProposalNotices({ db: env.db, getClient: () => client })).toBe(1);
-  expect(sent).toEqual([["b", PROPOSAL_NOTICE]]);
+  // No pinned language or brief for the thread: the default (Vietnamese) notice.
+  expect(sent).toEqual([
+    ["b", renderUserNotice({ kind: "note", state: "proposal-pending" }, "vi")],
+  ]);
   expect(PROPOSAL_NOTICE).toContain("reply `/go`");
 });
 
@@ -273,6 +277,6 @@ test("startup: a queued proposal goes back to pending and gets its own notice", 
     },
   };
   await postProposalNotices({ db: env.db, getClient: () => client, queuedThreads });
-  expect(sent).toEqual([["q", QUEUED_NOTICE]]);
-  expect(QUEUED_NOTICE).toContain("Queued task not started");
+  expect(sent).toEqual([["q", renderUserNotice({ kind: "note", state: "proposal-queued" }, "vi")]]);
+  expect(QUEUED_NOTICE).toContain("Queued request not started");
 });

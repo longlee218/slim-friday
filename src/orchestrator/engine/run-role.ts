@@ -37,15 +37,17 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   const refusal = validateRole(role);
   if (refusal) return failResult(refusal);
   const i = withSpent(db, run);
+  // One language for every owner-facing line of this run (pinned by ingress; never a silent "en").
+  const language = i.language ?? threadLanguage(db, i.threadId);
   let s: ReturnType<typeof roleScope>;
   try {
     s = roleScope(config, i, role);
   } catch {
-    return failResult(renderUserNotice({ kind: "failure", cause: "location" }, "en"));
+    return failResult(renderUserNotice({ kind: "failure", cause: "location" }, language));
   }
   // The start checks passed: a held task this run continues is taken over now (a failure above keeps the hold).
   i.onStarted?.();
-  const stop = ceilingRefusal(i.route); // task ceiling already used up: refuse, never start with budget 0
+  const stop = ceilingRefusal(i.route, language); // task ceiling already used up: refuse, never start with budget 0
   if (stop) return failResult(stop);
   const known =
     i.pinned ?? (role.background && i.locations.length === 1 ? i.locations[0] : undefined);
@@ -112,7 +114,6 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     return done;
   };
   // An Opus escalation asks the owner first (buttons; fails closed).
-  const language = threadLanguage(db, i.threadId);
   const confirmOpus = () =>
     ownerConfirm(approvals, {
       kind: "escalate_opus",
@@ -121,6 +122,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       summary: renderUserNotice({ kind: "label", state: "escalate-opus" }, language),
       language,
       signal: i.ac.signal,
+      onPosted: i.onVisible,
     });
   const res = await answerOutput({
     role,

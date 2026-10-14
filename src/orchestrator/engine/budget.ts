@@ -21,9 +21,12 @@ export function withSpent<T extends { turnId: string; route?: Route }>(db: Datab
 }
 
 /** Owner text when the task ceiling is already used up by the task's earlier runs: the run is refused up front (no 0 budget). */
-export const ceilingRefusal = (route?: Route): string | undefined =>
+export const ceilingRefusal = (
+  route: Route | undefined,
+  language: OwnerLanguage,
+): string | undefined =>
   (route?.spentUsd ?? 0) >= TASK_BUDGET_USD
-    ? renderUserNotice({ kind: "failure", cause: "ceiling" }, "en")
+    ? renderUserNotice({ kind: "failure", cause: "ceiling" }, language)
     : undefined;
 
 /** Facts of a run that stopped on its budget. */
@@ -58,6 +61,13 @@ export function budgetHitMessage(h: BudgetHit, language: OwnerLanguage): string 
       language === "vi"
         ? `Bạn có thể gửi \`/go +${h.goPlusUsd}\` để tiếp tục với phần chi phí bổ sung này.`
         : `Send \`/go +${h.goPlusUsd}\` to continue with this additional budget.`,
+    );
+  // A ceiling-bound stop cannot be raised: say what to do instead.
+  else if (h.ceilingBound)
+    lines.push(
+      language === "vi"
+        ? "Giới hạn này không thể tăng thêm; bạn hãy gửi một yêu cầu mới để làm tiếp."
+        : "This limit cannot be raised; send a new request to carry on.",
     );
   return lines.join("\n");
 }

@@ -36,6 +36,8 @@ export interface OwnerConfirmRequest {
   language: OwnerLanguage;
   /** Stop / shutdown: ends the wait with "no". */
   signal?: AbortSignal;
+  /** Called once the question is posted: it is then the first visible response of the message. */
+  onPosted?: () => void | Promise<void>;
 }
 
 /**
@@ -61,6 +63,7 @@ export async function ownerConfirm(
         threadId: req.threadId,
         tool: OWNER_CONFIRM_APPROVAL,
         summary: req.summary,
+        onPosted: req.onPosted,
       },
       ownerConfirmLabels(req.language),
     );

@@ -23,6 +23,8 @@ export async function settleMaxEffort(a: {
   signals: EffortSignals;
   turn: TurnEffort;
   signal: AbortSignal;
+  /** The question posted is the message's first visible response. */
+  onPosted?: () => void | Promise<void>;
 }): Promise<{ turn: TurnEffort; declined: boolean }> {
   const yes = await ownerConfirm(a.approvals, {
     kind: "max_effort",
@@ -31,6 +33,7 @@ export async function settleMaxEffort(a: {
     summary: renderUserNotice({ kind: "label", state: "max-effort" }, a.language),
     language: a.language,
     signal: a.signal,
+    onPosted: a.onPosted,
   });
   if (!yes) return { turn: a.turn, declined: true };
   const turn = turnEffort(a.floors, a.threadId, a.cls, { ...a.signals, floorDelta: 0 }, true);

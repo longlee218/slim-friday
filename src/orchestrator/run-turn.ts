@@ -1,7 +1,7 @@
 import type { Logger } from "pino";
 import type { Effort, TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
-import { messageLanguage } from "../ingress/user-copy";
+import { messageLanguage, renderUserNotice } from "../ingress/user-copy";
 import type { Location } from "../locations/location-registry";
 import { logEvent } from "../observability/logger";
 import { getRole } from "../roles/role-registry";
@@ -96,6 +96,8 @@ export async function runTurn(
     locations: role.locationScope === "all" ? c.locations : a.route.candidates,
     ac: c.ac,
     resume,
+    language: messageLanguage(message),
+    onVisible: message.visible,
     route: runRt,
     // The held task is taken over only when the run really starts (location gone, a failed role check keep the hold).
     onStarted: resume ? () => dropResumable(db, message.threadId) : undefined,
@@ -115,11 +117,11 @@ export async function runTurn(
   // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
   if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {
     // A background task's session lives on its turn row: the owner starts the task again.
-    if (resume) return "Could not resume the task's session; start the task again.";
+    if (resume) return renderUserNotice({ kind: "note", state: "resume-task-lost" }, o.language);
     // Only a foreground role keeps a thread session to clear.
     if (role.background || !existing) return reply;
     deleteSession(db, message.threadId);
-    return "Could not resume the previous session; it was cleared. Please send your message again.";
+    return renderUserNotice({ kind: "note", state: "resume-cleared" }, o.language);
   }
   return reply;
 }

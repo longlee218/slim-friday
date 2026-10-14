@@ -183,10 +183,19 @@ test("language detection handles unaccented Vietnamese and short English", () =>
 
 test("English notices rendered by leaves are localized at the boundary without a hand-kept table", () => {
   const en = renderUserNotice({ kind: "failure", cause: "ceiling" }, "en");
-  expect(localizeUserCopy(`x ${en}`, "vi")).toBe(
-    `x ${renderUserNotice({ kind: "failure", cause: "ceiling" }, "vi")}`,
+  expect(localizeUserCopy(`x\n${en}`, "vi")).toBe(
+    `x\n${renderUserNotice({ kind: "failure", cause: "ceiling" }, "vi")}`,
   );
   expect(localizeUserCopy("model text untouched", "vi")).toBe("model text untouched");
+});
+
+test("localization rewrites only whole notice lines, never a model sentence that contains the same words", () => {
+  const model = "Container status: Stopped. Nothing is running. Done.";
+  expect(localizeUserCopy(model, "vi")).toBe(model);
+  const stopped = renderUserNotice({ kind: "stop", active: false }, "en");
+  expect(localizeUserCopy(`Container status: ${stopped}`, "vi")).toBe(
+    `Container status: ${stopped}`,
+  );
 });
 
 test("the busy notice stays recognizable after localization (task.still_working is logged)", () => {

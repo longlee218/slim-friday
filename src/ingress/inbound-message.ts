@@ -22,6 +22,8 @@ export interface InboundMessage {
   replied?: Promise<void>;
   /** The thread's last `limit` messages (owner and bot, oldest first), for the rollover's summary / extract. Absent = none. */
   history?: (limit: number) => Promise<RecentMessage[]>;
+  /** Marks the first visible response as posted (settles the 👀 receipt, stops typing): called after a successful question post. */
+  visible?: () => Promise<void>;
   /** Posts a message into the thread while the turn still runs (a dispatched plan waits for approval). */
   notify?: (text: string) => Promise<void>;
 }

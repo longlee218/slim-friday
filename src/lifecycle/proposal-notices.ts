@@ -1,15 +1,17 @@
 import type { Database } from "bun:sqlite";
 import type { Client } from "discord.js";
+import { threadLanguage } from "../ingress/discord-components";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
+import { renderUserNotice } from "../ingress/user-copy";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { expireOldProposals, listPendingProposals, releaseQueued } from "../storage/proposal-store";
 
-/** Text of the notice: a pending proposal survived a restart without being started. */
-export const PROPOSAL_NOTICE = "Proposal not started; reply `/go` to start";
+/** English text of the notice: a pending request survived a restart without being started. */
+export const PROPOSAL_NOTICE = renderUserNotice({ kind: "note", state: "proposal-pending" }, "en");
 
-/** Text of the notice: a queued task lost the run it waited for (restart). */
-export const QUEUED_NOTICE = "Queued task not started; reply `/go` to start";
+/** English text of the notice: a queued request lost the run it waited for (restart). */
+export const QUEUED_NOTICE = renderUserNotice({ kind: "note", state: "proposal-queued" }, "en");
 
 const log = logger.child({ module: "proposal-notices" });
 
@@ -44,7 +46,13 @@ export async function postProposalNotices(deps: {
       const channel = await deps.getClient()?.channels.fetch(threadId);
       if (!channel?.isSendable()) throw new Error("no channel");
       await channel.send({
-        content: deps.queuedThreads?.has(threadId) ? QUEUED_NOTICE : PROPOSAL_NOTICE,
+        content: renderUserNotice(
+          {
+            kind: "note",
+            state: deps.queuedThreads?.has(threadId) ? "proposal-queued" : "proposal-pending",
+          },
+          threadLanguage(deps.db, threadId),
+        ),
         allowedMentions: SAFE_MENTIONS,
       });
       posted++;

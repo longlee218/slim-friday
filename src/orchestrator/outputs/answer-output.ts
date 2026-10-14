@@ -5,6 +5,7 @@ import {
   resolveModel,
   TASK_BUDGET_USD,
 } from "../../config/model-routing";
+import { renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import type { RoleDefinition } from "../../roles/role-types";
 import type { RunAgentResult } from "../../runtime/run-agent";
@@ -50,15 +51,16 @@ export function escalationAction(
 }
 
 /** Owner-facing lines of the Opus escalation that did not run. */
-const OPUS_DECLINED = "Not run on Opus (not confirmed); this is the cheaper answer.";
-const OPUS_UNAVAILABLE = "A stronger model is not available here (model is fixed by config).";
+/* Rendered in English here (no language at this depth); the reply boundary localizes each line (localizeUserCopy). */
+const OPUS_DECLINED = renderUserNotice({ kind: "note", state: "opus-declined" }, "en");
+const OPUS_UNAVAILABLE = renderUserNotice({ kind: "note", state: "opus-unavailable" }, "en");
 /** Appended to the prompt of an unsure / error-ridden fallback re-run (the session is resumed, so thread history stays). Not shown to the owner. */
 export const FALLBACK_RETRY_HINT =
   "(The previous attempt in this session could not answer this. Investigate again from scratch with your own tools; do not repeat that conclusion.)";
 
 /** A re-run needs at least this much of the task ceiling left (USD); less would stop at once. */
 const MIN_RERUN_BUDGET_USD = 0.1;
-const CEILING_NOTE = "Not re-run: the task budget ceiling is used up; this is the first answer.";
+const CEILING_NOTE = renderUserNotice({ kind: "note", state: "ceiling-rerun" }, "en");
 
 /** Every tier an answer may be escalated to, cheapest first. */
 const ESCALATION_TIERS: readonly EscalationTier[] = ["sonnet", "opus"];
@@ -92,7 +94,7 @@ export async function withEscalation(
   if (second.outcome !== "success") return { ...second, text: secondText };
   return {
     ...second,
-    text: `Escalated to ${tier === "opus" ? "Opus" : "Sonnet"}.\n\n${secondText}`,
+    text: `${renderUserNotice({ kind: "note", state: tier === "opus" ? "escalated-opus" : "escalated-sonnet" }, "en")}\n\n${secondText}`,
   };
 }
 

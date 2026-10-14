@@ -120,7 +120,8 @@ test("non-owner gets an ephemeral refusal and nothing runs", async () => {
   const { i, log } = fakeInteraction("stop", "222");
   await handle(i);
   expect(messages).toEqual([]);
-  expect(log[0]).toStartWith("reply:Not allowed.");
+  // "stop" is neutral: the default conversation language (Vietnamese) applies.
+  expect(log[0]).toStartWith("reply:Bạn không có quyền dùng lệnh này.");
 });
 
 test("memory command is answered inline, not run as a task", async () => {

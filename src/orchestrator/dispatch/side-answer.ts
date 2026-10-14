@@ -81,6 +81,8 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
       turnId,
       threadId: i.message.threadId, // approvals and the attachment copy belong to the real thread
       text: brief,
+      language: messageLanguage(i.message),
+      onVisible: i.message.visible,
       role: role.name,
       workspace: i.workspace,
       locations: role.locationScope === "all" ? i.locations : v.candidates,

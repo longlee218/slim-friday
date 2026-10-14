@@ -166,8 +166,8 @@ describe("Q&A escalation through the handler", () => {
       {},
       gw,
     );
-    // No brief to detect a language from: the thread defaults to Vietnamese.
-    expect(asked).toEqual(["OwnerConfirm|Có, chạy đi/Không"]);
+    // The question follows the message's language ("hard question" is English), not a guess from stored briefs.
+    expect(asked).toEqual(["OwnerConfirm|Yes, run it/No"]);
     expect(calls.length).toBe(2);
     expect(calls[1]).toMatchObject({
       model: "claude-opus-5-5",

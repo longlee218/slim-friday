@@ -55,7 +55,9 @@ export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
     reasonCode: "MISSING_INFORMATION",
     reroutable: false,
     run: (c) =>
-      c.locationHint && !findLocation(c.locations, c.locationHint) ? unknownLocation() : undefined,
+      c.locationHint && !findLocation(c.locations, c.locationHint)
+        ? unknownLocation(c.locations)
+        : undefined,
   },
   {
     id: "empty_text_location",
@@ -66,7 +68,10 @@ export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
       c.locationHint && !c.text
         ? refuse(
             "empty_text",
-            `Send your question after "location:${findLocation(c.locations, c.locationHint)?.name}".`,
+            renderUserNotice(
+              { kind: "ask-after-location", name: findLocation(c.locations, c.locationHint)?.name },
+              "en",
+            ),
           )
         : undefined,
   },
@@ -97,7 +102,7 @@ export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
     reroutable: false,
     run: (c) =>
       isBackground(c) && !c.text
-        ? refuse("empty_text", "Send a message with the task.")
+        ? refuse("empty_text", renderUserNotice({ kind: "note", state: "empty-text" }, "en"))
         : undefined,
   },
   {

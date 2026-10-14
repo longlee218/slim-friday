@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../../approvals/approval-types";
 import type { AgentConfig } from "../../config/agent-config";
 import type { Route } from "../../config/model-routing";
+import type { OwnerLanguage } from "../../ingress/user-copy";
 import type { RecentMessage } from "../../intent/intent-types";
 import type { Location } from "../../locations/location-registry";
 import type { QueryFn } from "../../runtime/run-agent";
@@ -26,6 +27,10 @@ export interface RoleRunnerDeps {
 export interface RoleRunInput {
   /** Called once the run's start checks passed (role valid, location reachable): the caller drops what this run continues. */
   onStarted?: () => void;
+  /** Owner's conversation language (pinned by ingress); absent = the thread's pinned language. */
+  language?: OwnerLanguage;
+  /** Marks the first visible response posted (an Opus-escalation question is one). */
+  onVisible?: () => void | Promise<void>;
   turnId: string;
   threadId: string;
   text: string;

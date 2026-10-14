@@ -83,13 +83,19 @@ export function createSlashHandler(deps: {
       // Same owner rule as a message; strangers get a private refusal (a message is silently ignored).
       if (cmd.user.id !== deps.ownerId) {
         logEvent(log, "slash.refused", { reason: "not_owner" }, "debug");
-        await cmd.reply({ content: "Not allowed.", flags: MessageFlags.Ephemeral });
+        await cmd.reply({
+          content: renderUserNotice({ kind: "note", state: "not-allowed" }, language),
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
       // The channel is not cached (rare): the message path cannot run without it.
       const channel = cmd.channel;
       if (!channel) {
-        await cmd.reply({ content: "Channel unavailable.", flags: MessageFlags.Ephemeral });
+        await cmd.reply({
+          content: renderUserNotice({ kind: "note", state: "channel-unavailable" }, language),
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
       await cmd.deferReply();

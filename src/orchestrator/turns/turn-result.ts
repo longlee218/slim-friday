@@ -192,7 +192,8 @@ export function closeTurn(
       const outcome = validateOutcome(role, res, ev, getLogContext().traceId ?? "", git);
       // `partial` after a successful run only happens for a role that must deliver (see `validateOutcome`).
       undelivered = res.outcome === "success" && status === "done" && outcome.status === "partial";
-      if (undelivered) reply = `${reply}\n\n${NO_DELIVERY_NOTE}`;
+      if (undelivered)
+        reply = `${reply}\n\n${renderUserNotice({ kind: "note", state: "no-delivery" }, o.language)}`;
       logEvent(log, "execution.outcome", {
         status: outcome.status,
         artifacts: outcome.artifacts.length,

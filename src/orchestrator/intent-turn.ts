@@ -127,6 +127,7 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
         signals: effort,
         turn,
         signal: c.ac.signal,
+        onPosted: c.message.visible,
       }));
     }
   }

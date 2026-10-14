@@ -156,6 +156,8 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     turnId,
     threadId: i.message.threadId,
     text: request.brief,
+    language: messageLanguage(i.message),
+    onVisible: i.message.visible,
     role: role.name,
     workspace: i.workspace,
     // `locationScope: "all"` roles see every location of the workspace; the others pick among the locations.

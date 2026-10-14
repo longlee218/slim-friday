@@ -98,6 +98,7 @@ export function createResumeHandler(deps: ResumeDeps) {
       });
       logEvent(log, "resume.clicked", { threadId });
       const stopTyping = startTyping(channel);
+      const language = threadLanguage(deps.db, threadId);
       try {
         const reply = await deps.handleMessage({
           source: "discord",
@@ -105,8 +106,10 @@ export function createResumeHandler(deps: ResumeDeps) {
           threadId,
           channelId,
           text: RESUME_PROMPT,
+          // The prompt is English; the owner's pinned language decides the notices and the result.
+          language,
         });
-        await sendReply(channel, reply, threadLanguage(deps.db, threadId));
+        await sendReply(channel, reply, language);
       } finally {
         stopTyping();
       }

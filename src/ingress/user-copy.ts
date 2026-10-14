@@ -25,7 +25,31 @@ export type UserNotice =
         | "drain"
         | "ceiling"
         | "owner";
+      /** Valid location names, listed back to the owner for `cause: "location"` (names are not secrets). */
+      names?: string[];
     }
+  | {
+      kind: "note";
+      state:
+        | "no-delivery"
+        | "opus-declined"
+        | "opus-unavailable"
+        | "ceiling-rerun"
+        | "escalated-opus"
+        | "escalated-sonnet"
+        | "resume-task-lost"
+        | "resume-cleared"
+        | "cannot-resume"
+        | "stale-resume"
+        | "budget-stop"
+        | "empty-text"
+        | "stop-in-thread"
+        | "not-allowed"
+        | "channel-unavailable"
+        | "proposal-pending"
+        | "proposal-queued";
+    }
+  | { kind: "ask-after-location"; name?: string }
   | {
       kind: "approval";
       state:
@@ -103,6 +127,24 @@ export function messageLanguage(message: {
 }): OwnerLanguage {
   return message.language ?? languageOf(message.text, message.recent);
 }
+
+/** Threads whose language ingress pinned; bounded (oldest dropped) so a long-lived bot does not grow it forever. */
+const PINNED_MAX = 500;
+const pinned = new Map<string, OwnerLanguage>();
+
+/** Record the language ingress decided for a thread: the one source buttons, selects and notices read. */
+export function pinThreadLanguage(threadId: string, language: OwnerLanguage): void {
+  pinned.delete(threadId); // re-insert so the most recently used threads survive the cap
+  pinned.set(threadId, language);
+  if (pinned.size > PINNED_MAX) {
+    const oldest = pinned.keys().next();
+    if (!oldest.done) pinned.delete(oldest.value);
+  }
+}
+
+/** The language pinned for a thread, undefined before ingress saw any message there (e.g. after a restart). */
+export const pinnedThreadLanguage = (threadId: string): OwnerLanguage | undefined =>
+  pinned.get(threadId);
 
 /** Render only what the application knows happened, with no claim that a model applied an unread message. */
 function render(event: UserNotice, language: OwnerLanguage): string {
@@ -246,9 +288,77 @@ function render(event: UserNotice, language: OwnerLanguage): string {
           "I’m updating. Please try again shortly.",
         ],
       } as const;
+      const names = event.cause === "location" && event.names?.length ? event.names.join(", ") : "";
+      const known = names ? say(` Các nơi hợp lệ: ${names}.`, ` Valid locations: ${names}.`) : "";
       return event.cause
-        ? say(copy[event.cause][0], copy[event.cause][1])
+        ? say(copy[event.cause][0], copy[event.cause][1]) + known
         : renderUserNotice({ kind: "outcome", outcome: "error" }, language);
+    }
+    case "ask-after-location":
+      return say(
+        `Bạn gửi câu hỏi sau "location:${event.name}" nhé.`,
+        `Send your question after "location:${event.name}".`,
+      );
+    case "note": {
+      const copy = {
+        "no-delivery": [
+          "Lưu ý: lần chạy này chưa có commit, push hay PR nào.",
+          "Note: nothing was committed, pushed or opened as a PR in this run.",
+        ],
+        "opus-declined": [
+          "Chưa chạy lại bằng Opus (chưa được xác nhận); đây là câu trả lời từ mô hình rẻ hơn.",
+          "Not run on Opus (not confirmed); this is the cheaper answer.",
+        ],
+        "opus-unavailable": [
+          "Mô hình mạnh hơn không khả dụng ở đây (mô hình đã được cố định trong cấu hình).",
+          "A stronger model is not available here (model is fixed by config).",
+        ],
+        "ceiling-rerun": [
+          "Chưa chạy lại vì đã dùng hết giới hạn chi phí của việc này; đây là câu trả lời đầu tiên. Bạn có thể gửi một yêu cầu mới.",
+          "Not re-run: the spending limit for this work is used up; this is the first answer. You can send a new request.",
+        ],
+        "escalated-opus": ["Đã chạy lại bằng Opus.", "Escalated to Opus."],
+        "escalated-sonnet": ["Đã chạy lại bằng Sonnet.", "Escalated to Sonnet."],
+        "resume-task-lost": [
+          "Không tiếp tục được phiên làm việc trước. Bạn hãy gửi lại yêu cầu để bắt đầu lại.",
+          "Could not resume the task's session; start the task again.",
+        ],
+        "resume-cleared": [
+          "Không tiếp tục được phiên trước nên đã xóa nó. Bạn hãy gửi lại tin nhắn.",
+          "Could not resume the previous session; it was cleared. Please send your message again.",
+        ],
+        "cannot-resume": [
+          "Không thể tiếp tục: chưa có phiên nào được lưu cho cuộc trò chuyện này. Bạn hãy gửi lại yêu cầu.",
+          "Cannot resume: no saved session for this thread. Start the task again.",
+        ],
+        "stale-resume": [
+          "Lệnh tiếp tục này đã cũ: cuộc trò chuyện đã đi tiếp.",
+          "This Resume is out of date: the thread has moved on.",
+        ],
+        "budget-stop": [
+          "Việc này đã dừng vì chạm giới hạn chi phí. Bạn gửi `/go +<usd>` để tiếp tục với thêm chi phí.",
+          "That task stopped on its budget. Reply `/go +<usd>` to continue with more budget.",
+        ],
+        "empty-text": ["Bạn hãy gửi kèm nội dung yêu cầu.", "Send a message with the task."],
+        "stop-in-thread": [
+          "Bạn gửi `/stop` trong thread của lần chạy nhé.",
+          "Send `/stop` inside the thread of the run.",
+        ],
+        "not-allowed": ["Bạn không có quyền dùng lệnh này.", "Not allowed."],
+        "channel-unavailable": [
+          "Hiện chưa dùng được kênh này. Bạn hãy thử lại.",
+          "Channel unavailable.",
+        ],
+        "proposal-pending": [
+          "Yêu cầu chưa được bắt đầu; trả lời `/go` để bắt đầu.",
+          "Request not started; reply `/go` to start",
+        ],
+        "proposal-queued": [
+          "Yêu cầu đang chờ chưa được bắt đầu; trả lời `/go` để bắt đầu.",
+          "Queued request not started; reply `/go` to start",
+        ],
+      } as const;
+      return say(copy[event.state][0], copy[event.state][1]);
     }
     case "approval": {
       const copy = {
@@ -354,11 +464,18 @@ export function renderUserNotice(event: UserNotice, language: OwnerLanguage): st
   return text;
 }
 
-/** Localize default notices that leaves rendered in English; arbitrary model/diagnostic text is untouched. */
+/**
+ * Localize app-generated notices that deeper code rendered in English. Only a LINE that equals a registered notice
+ * is replaced, so a model's sentence that merely contains the same words (or an answer in the middle of a line)
+ * is never rewritten.
+ */
 export function localizeUserCopy(text: string, language: OwnerLanguage): string {
   if (language === "en") return text;
-  // Longest first, so a notice that contains a shorter one is replaced whole.
-  const known = [...ENGLISH_NOTICES].sort((a, b) => b[0].length - a[0].length);
-  for (const [english, event] of known) text = text.replaceAll(english, render(event, language));
-  return text;
+  return text
+    .split("\n")
+    .map((line) => {
+      const event = ENGLISH_NOTICES.get(line);
+      return event ? render(event, language) : line;
+    })
+    .join("\n");
 }

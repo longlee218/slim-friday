@@ -12,7 +12,12 @@ import {
 } from "discord.js";
 import { clip } from "../observability/redact";
 import type { ReportLink } from "./discord-message-rules";
-import { languageOf, type OwnerLanguage, renderUserNotice } from "./user-copy";
+import {
+  languageOf,
+  type OwnerLanguage,
+  pinnedThreadLanguage,
+  renderUserNotice,
+} from "./user-copy";
 
 /** customId prefix of a question; format `choice:<requestId>:<value>` (no private text, ever). */
 export const CHOICE_PREFIX = "choice";
@@ -110,8 +115,13 @@ export function buildAnswerModal(id: string, language: OwnerLanguage): ModalBuil
     );
 }
 
-/** Language of a thread: its latest task brief (what the owner last wrote there); Vietnamese when unknown. */
+/**
+ * Language of a thread: the one ingress pinned for its messages. Only when none is pinned yet (e.g. a notice right
+ * after a restart) it falls back to the latest task brief; Vietnamese when unknown.
+ */
 export function threadLanguage(db: Database, threadId: string): OwnerLanguage {
+  const pinned = pinnedThreadLanguage(threadId);
+  if (pinned) return pinned;
   const last = db
     .query<{ brief: string | null }, [string]>(
       "SELECT brief FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",

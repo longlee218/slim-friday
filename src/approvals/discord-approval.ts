@@ -83,6 +83,8 @@ export function createDiscordApprovalGateway(
     labels: string[];
     rows: (id: string) => ActionRowBuilder<MessageActionRowComponentBuilder>[];
     language: OwnerLanguage;
+    /** Runs after a successful send; a failure there never affects the question. */
+    onPosted?: () => void | Promise<void>;
   }): Promise<string | undefined> {
     const id = crypto.randomUUID().slice(0, 8);
     const summary = redactText(o.text);
@@ -122,6 +124,10 @@ export function createDiscordApprovalGateway(
         files,
         allowedMentions: SAFE_MENTIONS,
       });
+      // The question is now the first thing the owner sees: settle the message receipt (only after a successful send).
+      await Promise.resolve(o.onPosted?.()).catch((err: unknown) =>
+        log.warn({ err: errText(err) }, "approval onPosted failed"),
+      );
       return await new Promise<string | undefined>((resolve) => {
         const timer = setTimeout(() => {
           const p = pending.get(id);
@@ -174,6 +180,7 @@ export function createDiscordApprovalGateway(
       labels: [yes, no],
       rows: (id) => buildButtonRows("appr", id, buttons),
       language,
+      onPosted: req.onPosted,
     });
     return toResult(value, denyReason);
   }

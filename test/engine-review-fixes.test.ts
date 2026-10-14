@@ -50,6 +50,7 @@ async function runDev(env: ReturnType<typeof makeEnv>, turnId: string) {
     {
       turnId,
       threadId: "th",
+      language: "en",
       text: "continue",
       role: "dev",
       workspace: "main",
@@ -215,6 +216,7 @@ async function runResumed(env: ReturnType<typeof makeEnv>, cwd: string, onStarte
     {
       turnId: "t1",
       threadId: "th",
+      language: "en",
       text: "continue",
       role: "dev",
       workspace: "main",
