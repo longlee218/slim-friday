@@ -27,6 +27,22 @@ export type UserNotice =
         | "owner";
     }
   | {
+      kind: "approval";
+      state:
+        | "approve"
+        | "deny"
+        | "owner-only"
+        | "expired"
+        | "timeout"
+        | "cancelled"
+        | "enter"
+        | "modal-title"
+        | "placeholder"
+        | "full-text"
+        | "options-in-file";
+    }
+  | { kind: "choice"; state: "chose" | "answered"; text: string }
+  | {
       kind: "decision";
       state:
         | "confirm"
@@ -229,6 +245,29 @@ function render(event: UserNotice, language: OwnerLanguage): string {
         ? say(copy[event.cause][0], copy[event.cause][1])
         : renderUserNotice({ kind: "outcome", outcome: "error" }, language);
     }
+    case "approval": {
+      const copy = {
+        approve: ["Duyệt", "Approve"],
+        deny: ["Từ chối", "Deny"],
+        "owner-only": ["Chỉ chủ sở hữu mới có thể phê duyệt.", "Only the owner can approve."],
+        expired: ["Yêu cầu này đã hết hạn.", "This action expired."],
+        timeout: ["Đã hết thời gian chờ.", "Timed out."],
+        cancelled: ["Đã hủy.", "Cancelled."],
+        enter: ["Nhập câu trả lời", "Enter answer"],
+        "modal-title": ["Câu trả lời của bạn", "Your answer"],
+        placeholder: ["Chọn một đáp án", "Choose an option"],
+        "full-text": ["(nội dung đầy đủ trong tệp đính kèm)", "(full text in the attached file)"],
+        "options-in-file": [
+          "Danh sách đáp án nằm trong tệp đính kèm; bấm nút để nhập câu trả lời.",
+          "The options are in the attached file; use the button to type your answer.",
+        ],
+      } as const;
+      return say(copy[event.state][0], copy[event.state][1]);
+    }
+    case "choice":
+      return event.state === "chose"
+        ? say(`Đã chọn: ${event.text}`, `Chose: ${event.text}`)
+        : say(`Đã trả lời: ${event.text}`, `Answered: ${event.text}`);
     case "decision": {
       const copy = {
         confirm: [
@@ -280,7 +319,11 @@ const ENGLISH_NOTICES = new Map<string, UserNotice>();
 /** Render a notice in the owner's language (English renders are remembered for `localizeUserCopy`). */
 export function renderUserNotice(event: UserNotice, language: OwnerLanguage): string {
   const text = render(event, language);
-  const dynamic = event.kind === "outcome" && (event.resetsAt || event.resumable);
+  // Outcomes with times and approval/choice texts (labels, owner words) are never matched back by text.
+  const dynamic =
+    event.kind === "approval" ||
+    event.kind === "choice" ||
+    (event.kind === "outcome" && (event.resetsAt || event.resumable));
   if (language === "en" && !dynamic) ENGLISH_NOTICES.set(text, event);
   return text;
 }

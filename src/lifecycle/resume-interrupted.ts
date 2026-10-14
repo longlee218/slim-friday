@@ -1,10 +1,11 @@
 import type { Database } from "bun:sqlite";
 import { ButtonStyle, type Client, type Interaction, MessageFlags } from "discord.js";
 import { buildButtonRows } from "../approvals/approval-buttons";
+import { threadLanguage } from "../ingress/discord-components";
 import type { HandleMessage } from "../ingress/discord-message-handler";
 import { sendReply, startTyping } from "../ingress/discord-message-handler";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
-import { languageOf, type OwnerLanguage, renderUserNotice } from "../ingress/user-copy";
+import { renderUserNotice } from "../ingress/user-copy";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { RESUME_PROMPT } from "../orchestrator/message-commands";
@@ -61,16 +62,6 @@ export async function postResumeNotices(
 }
 
 /** Interaction handler of the Resume button (owner only): run the thread with the fixed resume prompt. */
-/** Language of a thread's latest task brief (what the owner last wrote there); Vietnamese when unknown. */
-function threadLanguage(db: Database, threadId: string): OwnerLanguage {
-  const last = db
-    .query<{ brief: string | null }, [string]>(
-      "SELECT brief FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
-    )
-    .get(threadId);
-  return languageOf(last?.brief ?? "");
-}
-
 export function createResumeHandler(deps: ResumeDeps) {
   return async function handleResume(i: Interaction): Promise<void> {
     try {
