@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
 import { type Effort, resolveBudget, type TaskClass } from "../../config/model-routing";
+import { renderUserNotice } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import { dispatchableRoleNames, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
@@ -83,22 +84,16 @@ export async function validateRequest(
   const dispatchable: string[] = dispatchableRoleNames();
   const role = Object.hasOwn(ROLES, req.role) ? ROLES[req.role] : undefined;
   if (!role || !dispatchable.includes(req.role)) {
-    return ask(
-      "unknown_role",
-      `Unknown role "${req.role}". Available: ${dispatchable.join(", ")}.`,
-    );
+    return ask("unknown_role", renderUserNotice({ kind: "clarification" }, "en"));
   }
   if (!req.confirmed && req.confidence !== undefined && req.confidence < LOW_CONFIDENCE) {
-    return ask(
-      "low_confidence",
-      `Not sure I understood: start a ${role.name} task for "${req.brief.slice(0, 120)}"? Reply \`/go\` to start it.`,
-    );
+    return ask("low_confidence", renderUserNotice({ kind: "decision", state: "confirm" }, "en"));
   }
   const hint = locationHint(d.pinned, req.location);
   const resolved = resolveTaskLocation(d.locations, hint);
   if ("reply" in resolved) {
     return resolved.reason === "unknown_location"
-      ? ask(resolved.reason, `${resolved.reply}. Send the task again with location:<name>.`)
+      ? ask(resolved.reason, resolved.reply)
       : { ok: false, action: "refuse", refusal: resolved };
   }
   const { candidates } = resolved;
@@ -111,7 +106,7 @@ export async function validateRequest(
     return {
       ok: false,
       action: "refuse",
-      refusal: refuse("no_budget", "No budget available for this task."),
+      refusal: refuse("no_budget", renderUserNotice({ kind: "failure", cause: "budget" }, "en")),
     };
   return {
     ok: true,

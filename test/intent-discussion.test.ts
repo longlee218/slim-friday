@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { languageOf, renderUserNotice } from "../src/ingress/user-copy";
 import { decideIntent } from "../src/intent/decide-intent";
 import { buildIntentInput } from "../src/intent/intent-input";
 import { buildIntentSystemPrompt, buildIntentUserPrompt } from "../src/intent/intent-prompt";
@@ -139,4 +140,24 @@ test("eval scoring: a missing class counts as standard for dev (effective), raw 
     effective: false,
   });
   expect(scoreClass(role({ role: "assistant" }), "standard").effective).toBe(false);
+});
+
+test("neutral choices inherit the latest conversation language rather than becoming work titles", () => {
+  expect(languageOf("3", [{ from: "owner", text: "Please convert the file" }])).toBe("en");
+  expect(languageOf("yes", [{ from: "owner", text: "giúp tôi chuyển file" }])).toBe("vi");
+  expect(languageOf("3")).toBe("vi");
+  expect(languageOf("Please read this file", [{ from: "bot", text: "Bạn chọn nhé" }])).toBe("en");
+  for (const language of ["vi", "en"] as const) {
+    for (const state of ["queued", "held", "waiting", "full", "ended"] as const) {
+      const notice = renderUserNotice({ kind: "steer", state }, language);
+      expect(notice).toMatch(language === "vi" ? /chưa|Chưa/ : /not/);
+      expect(notice).not.toMatch(/agent|model|dev|task|applied successfully|đã áp dụng/i);
+    }
+    expect(renderUserNotice({ kind: "start" }, language)).not.toMatch(
+      /3|Starting dev|Recent conversation/,
+    );
+    expect(renderUserNotice({ kind: "replacement" }, language)).toMatch(
+      language === "vi" ? /đang dừng/ : /stopping/,
+    );
+  }
 });

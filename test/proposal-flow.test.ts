@@ -36,6 +36,7 @@ import {
 
 const msg = (text: string) => ({
   source: "t",
+  language: "en" as const,
   channelId: TEST_CHANNEL,
   userId: "u",
   threadId: "t1",
@@ -93,7 +94,7 @@ test("`go` starts a pending proposal that survived a restart; a second `go` is p
     class: "mechanical",
   });
   const reply = await handle(msg("go"));
-  expect(reply).toContain("Starting dev");
+  expect(reply).toContain("starting on your request");
   expect(getProposal(env.db, id)?.status).toBe("dispatched");
   expect(stageRuns).toHaveLength(1);
   expect(stageRuns[0].permissionMode).toBe("bypassPermissions");

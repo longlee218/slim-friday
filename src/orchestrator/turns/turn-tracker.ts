@@ -2,6 +2,7 @@
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
 import type { TaskClass } from "../../config/model-routing";
+import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { getLogContext, logEvent, setLogContext, tryLog } from "../../observability/logger";
 import { getRole } from "../../roles/role-registry";
 import { countQueuedProposals } from "../../storage/proposal-store";
@@ -20,11 +21,16 @@ export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
  * are KEPT: they start, in order, once the stopped run has ended (a stop cancels the running work, not the
  * owner's other requests). The run's input channel closes on that abort (nothing more is yielded).
  */
-export function stopThread(db: Database, threadId: string, running?: AbortController): string {
-  if (!running) return "Nothing is running.";
+export function stopThread(
+  db: Database,
+  threadId: string,
+  running?: AbortController,
+  language: OwnerLanguage = "en",
+): string {
+  if (!running) return renderUserNotice({ kind: "stop", active: false }, language);
   running.abort();
   const queued = countQueuedProposals(db, threadId);
-  return queued > 0 ? `Stopping... ${queued} queued, they run after it.` : "Stopping...";
+  return renderUserNotice({ kind: "stop", active: true, queued }, language);
 }
 
 /** Register a fresh controller as the thread's active one (the queue that runs after a user `/stop`) and return it. */

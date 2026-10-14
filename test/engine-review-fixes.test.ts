@@ -117,8 +117,8 @@ test("task ceiling used up: the run is refused before it starts, `/go +usd` cann
   spend(env.db, "t1", TASK_BUDGET_USD);
   const { res, seen } = await runDev(env, "t2");
   expect(res.outcome).toBe("error");
-  expect(res.text).toContain("Task ceiling reached");
-  expect(res.text).toContain("cannot lift");
+  expect(res.text).toContain("allowed spending limit was reached");
+  expect(res.text).not.toContain("/go +");
   expect(seen).toHaveLength(0);
 });
 

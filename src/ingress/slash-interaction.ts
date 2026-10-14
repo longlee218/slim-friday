@@ -9,6 +9,7 @@ import { slashPayload, slashText } from "../commands/slash-definitions";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { SAFE_MENTIONS } from "./discord-message-rules";
+import { renderUserNotice } from "./user-copy";
 
 const log = logger.child({ module: "slash-interaction" });
 
@@ -96,7 +97,7 @@ export function createSlashHandler(deps: {
       if (!replied) await cmd.deleteReply();
     } catch (err) {
       log.error({ err: errText(err) }, "slash handling failed");
-      await cmd.editReply("Something went wrong. Check the logs.").catch(() => undefined);
+      await cmd.editReply(renderUserNotice({ kind: "failure" }, "vi")).catch(() => undefined);
     }
   };
 }

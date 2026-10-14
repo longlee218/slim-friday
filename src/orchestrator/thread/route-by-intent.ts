@@ -1,5 +1,6 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
+import { localizeUserCopy, messageLanguage } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import { logEvent, logger } from "../../observability/logger";
 import { entryRole, ROLES } from "../../roles/role-registry";
@@ -102,7 +103,10 @@ const STORES_ITSELF: ReadonlySet<IntentAction["kind"]> = new Set(["steer", "queu
  * `intent.routed {action}` (no text).
  */
 export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<IntentOutcome> {
-  const reply = (text: string): IntentOutcome => ({ kind: "reply", text });
+  const reply = (text: string): IntentOutcome => ({
+    kind: "reply",
+    text: localizeUserCopy(text, messageLanguage(c.message)),
+  });
   logEvent(log, "intent.routed", { action: a.kind, busy: c.busy });
   if (c.busy && !STORES_ITSELF.has(a.kind))
     c.deps.steer?.record(

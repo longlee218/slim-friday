@@ -1,5 +1,6 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
+import { renderUserNotice } from "../../ingress/user-copy";
 import { RECENT_HEADING, recentBlock } from "../../intent/recent-messages";
 import type { Location } from "../../locations/location-registry";
 import { excerpt, logEvent, logger } from "../../observability/logger";
@@ -62,7 +63,7 @@ export const CONFIRM_TASK_REASON = "confirm_task";
 /** Value the same reason had before the wording became role-agnostic (rows written by an older build). */
 const LEGACY_CONFIRM_REASON = "confirm_dev";
 /** The ONE question of that confirmation. */
-export const CONFIRM_TASK_QUESTION = "Open a task for this? (yes/no)";
+export const CONFIRM_TASK_QUESTION = renderUserNotice({ kind: "decision", state: "confirm" }, "en");
 
 /** The proposal only asks the confirm question. */
 const isConfirm = (reason: string | null): boolean =>
@@ -76,7 +77,9 @@ export function pendingQuestionOf(db: DispatchDeps["db"], threadId: string): str
   const p = pendingProposal(db, threadId);
   if (!p) return resumeQuestionOf(db, threadId); // else the failed task's "continue it from where it stopped?"
   const what = `"${excerpt(briefText(p.brief), 200)}"`;
-  return isConfirm(p.reason) ? `${CONFIRM_TASK_QUESTION} ${what}` : `Start this task now? ${what}`;
+  return isConfirm(p.reason)
+    ? `${CONFIRM_TASK_QUESTION} ${what}`
+    : renderUserNotice({ kind: "decision", state: "confirm" }, "en");
 }
 
 /**
@@ -107,15 +110,17 @@ export function queueTask(
     threadId: c.message.threadId,
     workspace: c.workspace,
   });
-  if (!id) return "Could not queue it; send it again after the current task.";
+  if (!id) return renderUserNotice({ kind: "failure" }, "en");
   supersedePending(db, c.message.threadId, id);
   setProposalStatus(db, id, "queued");
   return QUEUE_RECEIVED;
 }
 
 /** `no` while a run holds the thread: the original message cannot be answered yet, the question stays open. */
-export const DECLINE_BUSY_REPLY =
-  "still working... send `no` again when the current task ends and I will answer your message.";
+export const DECLINE_BUSY_REPLY = renderUserNotice(
+  { kind: "decision", state: "decline-busy" },
+  "en",
+);
 
 /**
  * "no" to an "open a task?" confirmation. Free thread: the proposal is dropped and the owner message comes
@@ -148,11 +153,11 @@ export async function answerPending(
   if (!p) return nothing;
   if (answer === "no") {
     setProposalStatus(db, p.id, "refused");
-    return "Dropped.";
+    return renderUserNotice({ kind: "decision", state: "dropped" }, "en");
   }
   if (c.busy) {
     setProposalStatus(db, p.id, "queued");
-    return "Queued: it runs after the current task.";
+    return QUEUE_RECEIVED;
   }
   return startPendingProposal(c, p);
 }

@@ -13,6 +13,7 @@ import { replyToMemoryCommand } from "./memory-ingress";
 import { createMessageReceipt } from "./message-receipt";
 import { fetchRecent, HISTORY_CHARS, type HistoryChannel } from "./thread-history";
 import { createThreadTurns } from "./thread-turns";
+import { languageOf, type OwnerLanguage, renderUserNotice } from "./user-copy";
 
 export type { InboundMessage } from "./inbound-message";
 
@@ -50,6 +51,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
   const takeTurn = createThreadTurns(); // per-thread arrival order up to the `handleMessage` call
 
   /** Run the turn with typing shown, then post the reply into `channel`. `started` runs right after the `handleMessage` call began. */
+  const conversationLanguages = new Map<string, OwnerLanguage>();
   async function answer(
     channel: SendableChannels,
     ids: { threadId: string; channelId: string; messageId: string },
@@ -58,6 +60,23 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     recent?: RecentMessage[],
     started?: () => void,
   ): Promise<void> {
+    const language = languageOf(
+      text,
+      recent?.length
+        ? recent
+        : conversationLanguages.has(ids.threadId)
+          ? [
+              {
+                from: "bot",
+                text:
+                  conversationLanguages.get(ids.threadId) === "en"
+                    ? "Please continue"
+                    : "Bạn hãy tiếp tục",
+              },
+            ]
+          : [],
+    );
+    conversationLanguages.set(ids.threadId, language);
     let stopTyping = startTyping(channel);
     let shown = false;
     const visible = async () => {
@@ -77,6 +96,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         ...ids,
         text,
         ...(recent?.length && { recent }),
+        language: conversationLanguages.get(ids.threadId),
         replied,
         history: (limit) => historyOf(channel as unknown as HistoryChannel, limit),
         notify: (m) => {
@@ -244,7 +264,11 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       log.error({ err: errText(err) }, "message handling failed");
       try {
         if (errorTarget)
-          await sendReply(errorTarget, "Something went wrong. Check the logs.", receipt.visible);
+          await sendReply(
+            errorTarget,
+            renderUserNotice({ kind: "failure" }, languageOf(route.prompt)),
+            receipt.visible,
+          );
       } catch {
         /* channel unusable; already logged */
       }

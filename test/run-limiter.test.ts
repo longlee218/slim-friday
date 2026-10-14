@@ -45,6 +45,7 @@ test("handleMessage replies busy when cap reached, stop still works, slot releas
   });
   const t = (text: string, threadId: string) => ({
     source: "test",
+    language: "en" as const,
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId,
@@ -52,8 +53,10 @@ test("handleMessage replies busy when cap reached, stop still works, slot releas
   });
   const first = handle(t("a", "th1"));
   await ready; // Wait for query setup, not timing
-  expect(await handle(t("b", "th2"))).toBe("busy, 1 runs active, try again in a minute");
-  expect(await handle(t("again", "th1"))).toBe("still working...");
+  expect(await handle(t("b", "th2"))).toBe("I’m handling other work. Please try again shortly.");
+  expect(await handle(t("again", "th1"))).toBe(
+    "I’m handling other work. Please try again shortly.",
+  );
   gate.open!();
   await first;
   expect(limiter.active()).toBe(0);
@@ -91,6 +94,7 @@ test("abortAll aborts active runs", async () => {
   const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: q as never });
   const p = handle({
     source: "test",
+    language: "en" as const,
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "t",

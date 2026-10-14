@@ -4,6 +4,7 @@ import { buildButtonRows } from "../approvals/approval-buttons";
 import type { HandleMessage } from "../ingress/discord-message-handler";
 import { sendReply, startTyping } from "../ingress/discord-message-handler";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
+import { languageOf, renderUserNotice } from "../ingress/user-copy";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { RESUME_PROMPT } from "../orchestrator/message-commands";
@@ -36,10 +37,20 @@ export async function postResumeNotices(
     try {
       const channel = await deps.getClient()?.channels.fetch(threadId);
       if (!channel?.isSendable()) throw new Error("no channel");
+      const last = deps.db
+        .query<{ brief: string | null }, [string]>(
+          "SELECT brief FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+        )
+        .get(threadId);
+      const language = languageOf(last?.brief ?? "");
       await channel.send({
-        content: "The bot restarted while a task was running. Press Resume to continue it.",
+        content: renderUserNotice({ kind: "decision", state: "restart" }, language),
         components: buildButtonRows(PREFIX, threadId, [
-          { label: "Resume", value: "go", style: ButtonStyle.Primary },
+          {
+            label: language === "vi" ? "Tiếp tục" : "Continue",
+            value: "go",
+            style: ButtonStyle.Primary,
+          },
         ]),
         allowedMentions: SAFE_MENTIONS,
       });
@@ -76,7 +87,10 @@ export function createResumeHandler(deps: ResumeDeps) {
       // Routing key: the thread's parent channel (a button outside a thread is not ours).
       const channelId = channel.isThread() ? channel.parentId : null;
       if (!channelId) return;
-      await i.update({ content: "Resuming...", components: [] });
+      await i.update({
+        content: renderUserNotice({ kind: "decision", state: "resuming" }, "vi"),
+        components: [],
+      });
       logEvent(log, "resume.clicked", { threadId });
       const stopTyping = startTyping(channel);
       try {

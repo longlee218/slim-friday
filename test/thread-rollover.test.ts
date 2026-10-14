@@ -403,7 +403,7 @@ describe("abort", () => {
 
   test("/stop mid-rollover aborts it and says so", async () => {
     const { h, stopped } = await abortedRollover((x) => x.send("/stop"));
-    expect(stopped).toContain("wrap-up");
+    expect(stopped).toMatch(/stopping|đang dừng/);
     expect(getSession(h.env.db, "th1")?.session_id).toBe("sess-main");
     expect(getThreadSummary(h.env.db, "th1")).toMatchObject({ rolled_at: 0, cycle: 0 });
   });

@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { renderUserNotice } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import {
   capRefusal,
@@ -88,7 +89,7 @@ export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
     reroutable: true,
     run: (c) =>
       ROLES[c.role]?.approvalRequired && !c.hasApprovals
-        ? refuse("no_approvals", "This task needs the Discord approval flow.")
+        ? refuse("no_approvals", renderUserNotice({ kind: "failure", cause: "approval" }, "en"))
         : undefined,
   },
   {

@@ -215,12 +215,11 @@ describe("budget hit message", () => {
       limitUsd: 1.5,
       summary: "did A",
     });
-    expect(m).toContain("$1.52 of $1.50");
-    expect(m).toContain("overshoot");
+    expect(m).toContain("allowed spending limit was reached");
     expect(m).toContain("did A");
     expect(m).not.toContain("go +");
     expect(budgetHitMessage({ goPlusUsd: 1.5 })).toContain("`/go +1.5`");
-    expect(budgetHitMessage({})).toContain("? of ?");
+    expect(budgetHitMessage({})).toContain("did not finish");
   });
   test("a max_budget run replies with the message, keeps the session, logs the stop", async () => {
     // Model pinned: no cheap-tier fallback, so the first run's stop is the reply (the fallback has its own tests).
@@ -248,7 +247,7 @@ describe("budget hit message", () => {
       threadId: "t1",
       text: "q",
     });
-    expect(reply).toContain("$0.52 of $1.00");
+    expect(reply).toContain("Việc chưa hoàn tất vì đã chạm giới hạn chi phí");
     const row = env.db.query("SELECT session_id FROM sessions WHERE thread_id = 't1'").get() as {
       session_id: string;
     };

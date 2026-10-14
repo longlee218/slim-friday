@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { renderUserNotice } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import { countActiveCappedTasks } from "../../storage/run-store";
 
@@ -20,9 +21,9 @@ export const refuse = (
 ): Refusal => ({ event, reason, reply });
 
 /** Refusal for a location name that is not in the workspace (lists the available ones). */
-export const unknownLocation = (locations: Location[], name: string): Refusal => {
-  const names = locations.map((r) => r.name).join(", ");
-  return refuse("unknown_location", `Unknown location "${name}". Available: ${names}`);
+export const unknownLocation = (locations: Location[], _name: string): Refusal => {
+  const _names = locations.map((r) => r.name).join(", ");
+  return refuse("unknown_location", renderUserNotice({ kind: "failure", cause: "location" }, "en"));
 };
 
 /** The location of `locations` called `name` (case-insensitive), or undefined. */
@@ -34,7 +35,7 @@ export function capRefusal(db: Database): Refusal | undefined {
   return countActiveCappedTasks(db) >= MAX_CAPPED_TASKS
     ? refuse(
         "code_task_limit",
-        `busy, ${MAX_CAPPED_TASKS} tasks running, try again later`,
+        renderUserNotice({ kind: "failure", cause: "busy" }, "en"),
         "task.busy",
       )
     : undefined;

@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
 import type { InboundMessage } from "../ingress/discord-message-handler";
+import { localizeUserCopy, messageLanguage } from "../ingress/user-copy";
 import type { IntentDeps } from "../intent/decide-intent";
 import {
   getLogContext,
@@ -63,7 +64,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     const live = active.get(threadId);
     if (live) return busyLane(message, parsed, live);
     // Drain (deploy) and the global run cap refuse a new turn (the commands above still answer).
-    const admitted = admitTurn(deps.limiter, config.agentHome, log);
+    const admitted = admitTurn(deps.limiter, config.agentHome, log, messageLanguage(message));
     if ("reply" in admitted) return admitted.reply;
     const { release } = admitted;
     floors.quietTurn(threadId);
@@ -95,7 +96,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       const { locations } = ws; // every location lookup below stays inside this workspace
       setLogContext({ workspace: ws.name });
       workspaceName = ws.name;
-      single = locations.length === 1 ? locations[0]!.name : undefined;
+      single = locations.length === 1 ? locations[0]?.name : undefined;
       // Everything a role run needs (the approval gateway exists whenever a background role is routed).
       const rc: RoleRunCtx = {
         deps: dispatchDeps,
@@ -121,7 +122,11 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     } catch (err) {
       // Never throw from the error path (db may be closed during shutdown).
       if (turnInserted) failTurn(db, log, turnId);
-      return reportCrash(log, err, { location: turnLocation(), t0 });
+      return reportCrash(log, err, {
+        location: turnLocation(),
+        t0,
+        language: messageLanguage(message),
+      });
     } finally {
       active.delete(threadId);
       release();
@@ -130,7 +135,9 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   };
   const handleMessage = (message: InboundMessage): Promise<string> =>
     // Every line logged while this call runs (any module, any await) carries the thread id and channel id.
-    tracker.track(runWithLogContext(turnLogContext(message), () => run(message)));
+    tracker
+      .track(runWithLogContext(turnLogContext(message), () => run(message)))
+      .then((text) => localizeUserCopy(text, messageLanguage(message)));
   handleMessage.memory = memory; // same runner for ingress (inline channel replies, #ops-control)
   handleMessage.rollover = (threadId: string) => rollovers.wait(threadId) ?? Promise.resolve(); // tests
   handleMessage.abortAll = () => {

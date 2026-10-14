@@ -1,3 +1,4 @@
+import { localizeUserCopy, messageLanguage } from "../ingress/user-copy";
 import type { IntentDeps } from "../intent/decide-intent";
 import { logEvent } from "../observability/logger";
 import { logRouteDecision, withSpan } from "../observability/trace-spans";
@@ -44,7 +45,7 @@ export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
   const notes: string[] = [];
   const unread = () => {
     const n = steer?.undeliveredNotice(thread);
-    if (n) notes.push(n);
+    if (n) notes.push(localizeUserCopy(n, messageLanguage(rc.message)));
   };
   const next = () => {
     if (rc.ac.signal.aborted && !stopping()) q.ac = c.renewAc();

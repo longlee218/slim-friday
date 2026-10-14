@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { localizeUserCopy, type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { isGitLocation, type Location } from "../../locations/location-registry";
 import { excerpt, getLogContext, logEvent, logger } from "../../observability/logger";
 import type { RunOutcome, RunUsage } from "../../observability/record-run";
@@ -57,14 +58,12 @@ export const failResult = (text: string, outcome: "error" | "aborted" = "error")
 });
 
 /** Map run outcome to the user-facing reply when there is no answer text. */
-export const OUTCOME_REPLY: Record<string, string> = {
-  max_turns: "Stopped: reached the turn limit.",
-  max_budget: "Stopped: reached the budget limit.",
-  timeout: "Stopped: timed out.",
-  aborted: "Stopped.",
-  quota: "Quota exhausted / rate limited. Not retrying automatically.",
-  error: "Agent failed. Check the logs.",
-};
+export const OUTCOME_REPLY: Record<string, string> = Object.fromEntries(
+  ["max_turns", "max_budget", "timeout", "aborted", "quota", "error"].map((outcome) => [
+    outcome,
+    renderUserNotice({ kind: "outcome", outcome }, "en"),
+  ]),
+);
 
 /** Why a background run stopped but can be continued: label shown to the owner (the key is the reason). */
 export const RESUMABLE = {
@@ -84,8 +83,8 @@ export const resumeReasonOf = (r: FlowResult): ResumeReason | undefined =>
   RESUMABLE_WHEN.find(([, when]) => when(r))?.[0];
 
 /** The question L3 reads the owner's next message against (same words as the notice of the failure). */
-export const resumeQuestion = (turnId: string, reason: string): string =>
-  `Task ${turnId.slice(0, 8)} stopped: ${reason}. Continue it from where it stopped?`;
+export const resumeQuestion = (_turnId: string, _reason: string): string =>
+  renderUserNotice({ kind: "decision", state: "resume" }, "en");
 
 /** Map run outcome to the task status stored in db. */
 const TURN_STATUS: Record<string, TurnStatus> = {
@@ -111,6 +110,7 @@ export function finishRun(
   db: Database,
   ids: { turnId: string; threadId: string },
   res: FlowResult,
+  language: OwnerLanguage = "en",
 ): string {
   if (
     !res.skipThreadSession &&
@@ -133,17 +133,25 @@ export function finishRun(
     ids.turnId,
     res.resumable ? "failed_resumable" : (TURN_STATUS[res.outcome] ?? "failed"),
   );
-  // Budget hit is never silent: spent / limit, the overshoot note; event `budget.exceeded`.
-  if (res.outcome === "max_budget") return budgetHitReply(res);
-  // Quota: say when it resets, when the SDK told us.
-  const reset =
-    res.outcome === "quota" && res.resetsAt
-      ? ` Resets at ${new Date(res.resetsAt).toISOString()}.`
-      : "";
-  const text = redactText(res.text || `${OUTCOME_REPLY[res.outcome] ?? "No answer."}${reset}`);
-  // A resumable failure ends with the question (reply yes or `/go`): the session is kept.
+  if (res.outcome === "max_budget") return budgetHitReply(res, language);
+  // Unknown failure text may be an SDK exception. Keep it in the audit/log path, never guess a cause from it.
+  if (res.outcome === "error")
+    logEvent(log, "run.failed", { reason: "error", detail: redactText(res.text) });
+  const text =
+    res.outcome === "error"
+      ? renderUserNotice({ kind: "failure" }, language)
+      : redactText(
+          localizeUserCopy(
+            res.text ||
+              renderUserNotice(
+                { kind: "outcome", outcome: res.outcome, resetsAt: res.resetsAt },
+                language,
+              ),
+            language,
+          ),
+        );
   return res.resumable
-    ? `${text}\n${resumeQuestion(ids.turnId, RESUMABLE[res.resumable])} Reply yes or send \`/go\`.`
+    ? `${text}\n${renderUserNotice({ kind: "decision", state: "resume" }, language)}`
     : text;
 }
 
@@ -155,9 +163,15 @@ export function closeTurn(
   db: Database,
   ids: { turnId: string; threadId: string },
   res: FlowResult,
-  o: { stopping: boolean; t0: number; location: string; locations?: Location[] },
+  o: {
+    stopping: boolean;
+    t0: number;
+    location: string;
+    locations?: Location[];
+    language?: OwnerLanguage;
+  },
 ): string {
-  let reply = finishRun(db, ids, res);
+  let reply = finishRun(db, ids, res, o.language);
   if (o.stopping && res.outcome === "aborted") setTurnStatus(db, ids.turnId, "interrupted");
   const status = turnStatusOf(db, ids.turnId);
   // Rule-based result of the run (logged `execution.outcome`); a role that must deliver but left no trace of it

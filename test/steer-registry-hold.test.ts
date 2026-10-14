@@ -43,7 +43,7 @@ test("held steers that no run ever took are never silent: dropped, and the notic
   dev(env.db);
   reg.steer(TH, "orphan");
   const notice = reg.undeliveredNotice("th");
-  expect(notice).toContain("Not delivered");
+  expect(notice).toContain("not delivered");
   expect(notice).toContain("orphan");
   expect(listRunMessages(env.db, "th")[0]?.status).toBe("dropped");
   const pushed: string[] = [];

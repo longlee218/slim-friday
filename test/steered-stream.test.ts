@@ -122,7 +122,7 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
     expect(res.text).toBe("r3");
     expect(listRunMessages(s.env.db, "th")[0]).toMatchObject({ status: "dropped" });
     const notice = s.reg.undeliveredNotice("th");
-    expect(notice).toContain("Not delivered");
+    expect(notice).toContain("not delivered");
     expect(notice).toContain("never echoed");
     expect(s.reg.undeliveredNotice("th")).toBe(""); // told once
   });

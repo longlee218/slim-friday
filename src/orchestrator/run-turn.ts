@@ -1,6 +1,7 @@
 import type { Logger } from "pino";
 import type { Effort, TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
+import { messageLanguage } from "../ingress/user-copy";
 import type { Location } from "../locations/location-registry";
 import { logEvent } from "../observability/logger";
 import { getRole } from "../roles/role-registry";
@@ -104,6 +105,7 @@ export async function runTurn(
     recent: message.recent,
   });
   const o = {
+    language: messageLanguage(message),
     stopping: deps.stopping(),
     t0: c.t0,
     location: c.turnLocation(),

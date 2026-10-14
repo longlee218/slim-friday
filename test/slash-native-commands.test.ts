@@ -140,5 +140,5 @@ test("a handler failure edits the placeholder and does not throw", async () => {
   });
   const { i, log } = fakeInteraction("stop", OWNER);
   await handle(i);
-  expect(log.at(-1)).toStartWith("edit:Something went wrong");
+  expect(log.at(-1)).toStartWith("edit:Mình chưa hoàn tất");
 });

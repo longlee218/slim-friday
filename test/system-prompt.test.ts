@@ -123,3 +123,12 @@ test("one host line in every role: OS and release from Node, shell from $SHELL; 
     "- Host: linux 6.8.0, default shell /bin/bash.",
   );
 });
+
+test("direct replies describe actions and results in the owner's conversation language", () => {
+  for (const role of MODES) {
+    const prompt = rules(role);
+    expect(prompt).toContain("owner's conversation language");
+    expect(prompt).toContain("actions and results");
+    expect(prompt).toContain("orchestration");
+  }
+});

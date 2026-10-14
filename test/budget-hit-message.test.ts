@@ -14,16 +14,15 @@ test("budget message: caps the summary, keeps the overshoot note and the go offe
     summary: "x".repeat(5000),
     goPlusUsd: 3,
   });
-  expect(text).toContain("$3.21 of $3.00");
-  expect(text).toContain("small overshoot");
+  expect(text).toContain("allowed spending limit was reached");
   expect(text).toContain("`/go +3`");
   expect(text).not.toContain("Changes so far");
-  expect(text.length).toBeLessThan(BUDGET_SUMMARY_MAX + 600);
+  expect(text.length).toBeLessThan(BUDGET_SUMMARY_MAX + 300);
 });
 
 test("budget message without summary / limit: only the facts that are known", () => {
   const text = budgetHitMessage({});
-  expect(text).toContain("? of ?");
+  expect(text).toContain("did not finish");
   expect(text).not.toContain("Last summary");
   expect(text).not.toContain("Changes so far");
   expect(text).not.toContain("/go +");
@@ -31,9 +30,8 @@ test("budget message without summary / limit: only the facts that are known", ()
 
 test("ceiling-bound stop says the ceiling is the task's (its resumes share it) and offers no raise", () => {
   const text = budgetHitMessage({ spentUsd: 1, limitUsd: 2, ceilingBound: true });
-  expect(text).toContain("task ceiling");
-  expect(text).not.toContain("run ceiling");
-  expect(text).toContain("cannot lift the task ceiling");
+  expect(text).toContain("spending limit");
+  expect(text).not.toContain("/go +");
 });
 
 test("budgetHitReply: the offered raise is capped by what the task ceiling leaves, and says so", () => {
@@ -44,7 +42,6 @@ test("budgetHitReply: the offered raise is capped by what the task ceiling leave
     spentBeforeUsd: 4,
   });
   expect(text).toContain("`/go +0.5`");
-  expect(text).toContain("task ceiling ($6.00) leaves only $0.50");
   // Plenty left: the role budget is offered, no ceiling line.
   const free = budgetHitReply({ usage: { costUsd: 1.5 } as never, budgetUsd: 1.5 });
   expect(free).toContain("`/go +1.5`");

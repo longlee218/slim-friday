@@ -1,6 +1,7 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
 import { stripAttachmentPaths } from "../../ingress/attachment-text";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
+import { messageLanguage } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
 import { threadLedger } from "../../storage/ledger-store";
@@ -102,6 +103,7 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
     { turnId, threadId: sideThread },
     { ...res, sessionId: undefined },
     {
+      language: messageLanguage(i.message),
       stopping: deps.stopping(),
       t0,
       location: v.locationName,

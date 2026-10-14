@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { renderUserNotice } from "../../ingress/user-copy";
 import { pendingProposal } from "../../storage/proposal-store";
 import { lastRunOutcome } from "../../storage/run-metrics-store";
 import { dropResumable } from "../../storage/run-store";
@@ -54,7 +55,7 @@ export function resumeQuestionOf(db: Database, threadId: string): string | undef
 }
 
 /** Reply of a "no" to the question: nothing is dropped, the owner decides later. */
-export const RESUME_KEPT = "Kept. Send `/go` to continue that task later.";
+export const RESUME_KEPT = renderUserNotice({ kind: "decision", state: "kept" }, "en");
 
 /**
  * The owner answered the failed task's question. Yes -> the handler resumes it (a `run` outcome with `resume`); no -> a
@@ -80,8 +81,5 @@ export function resumeAnswer(
  */
 export function resumeGone(db: Database, threadId: string): Refusal {
   dropResumable(db, threadId);
-  return refuse(
-    "resume_gone",
-    "Cannot continue: the task has no saved session any more. The task is marked failed. Start it again.",
-  );
+  return refuse("resume_gone", renderUserNotice({ kind: "failure", cause: "resume" }, "en"));
 }

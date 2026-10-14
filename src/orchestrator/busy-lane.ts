@@ -1,5 +1,6 @@
 import type { Logger } from "pino";
 import type { InboundMessage } from "../ingress/discord-message-handler";
+import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/user-copy";
 import type { IntentDeps } from "../intent/decide-intent";
 import { logEvent } from "../observability/logger";
 import { errText } from "../observability/redact";
@@ -11,16 +12,14 @@ import { pinnedLocation } from "./intent-turn";
 import type { MessageCommand } from "./message-commands";
 import { replyWhileBusy } from "./reply-while-busy";
 import type { EffortFloors } from "./thread/effort-floor";
-import { SIDE_BUSY } from "./thread/intent-replies";
 import type { RunLimiter } from "./turns/run-limiter";
 import { statusSnapshot } from "./turns/status-snapshot";
-import { OUTCOME_REPLY } from "./turns/turn-result";
 
 /* Busy decisions run in arrival order per thread; a side answer never holds up later decisions.
    Ingress owns the per-message receipt. */
 
 /** Reply when a side run crashed (the task's own run is untouched). */
-const CRASH_REPLY = OUTCOME_REPLY.error ?? "Agent failed. Check the logs.";
+const CRASH_REPLY = renderUserNotice({ kind: "failure" }, "en");
 
 /** Ref that numbers side runs, so each one has its own entry in the active map (shutdown aborts them all). */
 let sideSeq = 0;
@@ -69,11 +68,11 @@ export function createBusyLane(d: BusyLaneDeps) {
     });
     return step.then(async (out) => {
       if (out.kind === "reply") return out.text;
-      if (out.kind !== "side") return CRASH_REPLY;
+      if (out.kind !== "side") return localizeUserCopy(CRASH_REPLY, messageLanguage(message));
       // A crashing side run is reported, never thrown: the task's own run is untouched.
       return runSide(d, message, out, running).catch((err: unknown) => {
         logEvent(d.log, "side.crashed", { err: errText(err) }, "error");
-        return CRASH_REPLY;
+        return localizeUserCopy(CRASH_REPLY, messageLanguage(message));
       });
     });
   };
@@ -95,7 +94,7 @@ async function runSide(
       side: true,
       active: d.limiter?.active() ?? 0,
     });
-    return SIDE_BUSY(d.limiter?.active() ?? 0);
+    return renderUserNotice({ kind: "failure", cause: "busy" }, messageLanguage(message));
   }
   const ac = new AbortController();
   const stop = () => ac.abort(); // the thread's `/stop` stops its side answers too
