@@ -1,6 +1,6 @@
 # Code Standards
 
-Last updated: 2026-10-14 (reliable handoff phase 10). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
+Last updated: 2026-10-14 (schema v7 location vocabulary, phase 1a; reliable handoff phase 10). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
 
 ## Stack
 - **Runtime:** Bun (package manager, test runner, `bun:sqlite`)
@@ -30,6 +30,16 @@ bun run start           # start the bot (reads .env)
 7. **Layering.** `thread/` and `dispatch/` never import `runtime/`. `roles/` never imports `orchestrator/`. Tested in `test/engine-layering.test.ts`.
 8. **Routing is data (reliable handoff).** Routing reads role fields (`whenToUse`, `sideEffects`, `approvalRequired`, `capabilityVersion`, `background`). No role name in `src/routing/`, `src/intent/jev/` or `src/tasks/` (review rule; no scan test yet). Thresholds are named constants in `src/intent/jev/jev-constants.ts`. Only background roles own tasks.
 
+## Vocabulary (schema v7)
+| Word | Means | Code |
+|---|---|---|
+| **location** | a directory registered in `workspace.yaml` `locations:` (git or not) | `Location` (`src/locations/location-registry.ts`), `locationScope`, `location` columns, the `location:` pin and report line |
+| **workspace** | a group of locations behind one set of Discord channels. Code word; Discord-facing words are space, channel, thread | `Workspace`, `src/workspaces/` |
+
+- Banned by `test/retired-naming-scan.test.ts` in `src/` and `test/`: the `Repo` type, `loadRepos`, the `repo-registry` path. Exempt: the migration module and the frozen legacy storage files.
+- Retired, not scanned (keep out of new code): `repos/`, `repo.yaml`, `refresh-repo`, `isManagedClone`, `REPO_NAME`, `no_repos`, `repoScope`, `sideEffects: "repo"`, `testCommand`, `defaultBranch`, `githubAccount`, `gitAuthor`. Only the migration module reads the legacy file.
+- Kept aliases: `repo:<name>` (thread pin, dev report line, `/forget` parser only). No `repo:` scope in the Remember tool (`REMEMBER_SCOPES`: `location` only).
+
 ## Scan Rules (test-enforced)
 These rules are checked by tests that scan `src/` on every run. A violation fails `bun test`.
 
@@ -40,7 +50,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 | Tool names come from constants in `src/tools/sdk-tool-names.ts` or `src/mcp/mcp-tool-names.ts`; no tool-name string literal elsewhere | `test/tool-name-literals.test.ts`, `test/tool-names.test.ts`, `test/tool-catalog.test.ts` |
 | Role limits only in role files; `TASK_BUDGET_USD` only in `model-routing.ts` | `test/role-limits-declared-in-role-files.test.ts` |
 | Engine reads no role names; layering holds | `test/engine-layering.test.ts`, `test/role-leftover-scan.test.ts` |
-| Retired names stay out: P3.7 renames (`Task` symbols and tables that are now `Turn`), old handoff and delegate names | `test/retired-naming-scan.test.ts`, `test/handoff-retired-scan.test.ts` |
+| Retired names stay out: P3.7 renames (`Task` symbols and tables that are now `Turn`), old handoff and delegate names, and the Repo -> Location names (`Repo` type, `loadRepos`, `repo-registry` path) | `test/retired-naming-scan.test.ts`, `test/handoff-retired-scan.test.ts` |
 | No `console.*` in `src/` | `test/no-console.test.ts` |
 | Every env schema key is classified in `child-env-deny.yaml` | `test/child-env-deny.test.ts` |
 
@@ -51,7 +61,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 
 **Naming:** kebab-case `.ts` files; the name states the purpose (`discord-message-handler.ts`, not `message.ts`). Files stay under about 200 lines; split by domain.
 
-**Organize by domain** (`src/<domain>/...`), not by technical layer: `orchestrator/`, `intent/`, `guardrails/`, `runtime/`, `roles/`, `storage/`, `memory/`, `workspaces/`, `repos/`, `lifecycle/`, `discord-setup/`, `ingress/`, `approvals/`, `config/`, `tools/`, `mcp/`, `observability/`.
+**Organize by domain** (`src/<domain>/...`), not by technical layer: `orchestrator/`, `intent/`, `guardrails/`, `runtime/`, `roles/`, `storage/`, `memory/`, `workspaces/`, `locations/`, `lifecycle/`, `discord-setup/`, `ingress/`, `approvals/`, `config/`, `tools/`, `mcp/`, `observability/`.
 
 **Custom tools** (first: `Remember`, `src/tools/RememberTool/`; in-process SDK MCP server `memory` built by `src/mcp/memory-server.ts`, run context `src/tools/memory-tool-context.ts`): folder `src/tools/<Name>Tool/` (PascalCase folder, kebab-case files: `constants.ts`, `prompt.ts`, `<name>-tool.ts`). Tool names are PascalCase constants in `sdk-tool-names.ts` or `mcp-tool-names.ts`.
 
@@ -65,7 +75,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 ## Logging (owner rule)
 - Use only `logger` (or `logger.child({...})`) from `src/observability/logger.ts`.
 - Never `console.log`, `console.error`, `console.warn` or `console.info` in `src/`.
-- Context keys: `taskId` (turn id), `threadId`, `workspace`, `repo`, `mode` (= role name), `module`. The owned task is `ownedTaskId` (in `route.decision`, `task.owner_changed`).
+- Context keys: `taskId` (turn id), `threadId`, `workspace`, `location`, `mode` (= role name), `module`. The owned task is `ownedTaskId` (in `route.decision`, `task.owner_changed`).
 - Routing events (`route.decision`, `span`, `preflight.result`, `task.owner_changed`, `execution.outcome`, `llm.turn {kind: "jev"}`) carry metadata only: ids, role names, reason codes, numbers. Never message text, scope text or Jev state.
 - `task.started` carries `type` = role name. `escalation {escalatedTo, action}` only when a run escalated.
 - Output: JSON lines in `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days); terminal line from `console-format.ts`.
@@ -82,7 +92,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 6. **Owner-visible questions use AskUserQuestion.** Do not add a new Discord approval type for a plan, a finish step or a merge.
 7. **Owner-confirm buttons are the only costly-step gate.** Used for effort `max` and the Opus escalation; no answer or timeout means "do not run".
 8. **Credentials and env:** read config only through the zod schema in `src/config/agent-config.ts` (and `role-env.ts`). Direct `process.env` reads outside the schema are limited to `HOME`, `CLAUDE_CONFIG_DIR`, `SHELL` and `NODE_ENV`; add none.
-9. **Git for the app:** managed checkouts only, through `src/repos/git-cli.ts` (argv, never a shell).
+9. **Git for the app:** `src/locations/git-cli.ts` (argv, never a shell). The app never clones, fetches or pulls a location; the agent runs git in the owner's checkout.
 10. **Ownership:** each change touches one domain. Do not edit the same files as a parallel task.
 
 ## Testing

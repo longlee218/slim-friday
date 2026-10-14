@@ -1,11 +1,11 @@
 # Friday Agent System Architecture
 
-Last updated: 2026-10-12 (Rev 15 phases 1-6 in code; live checks of phase 8 pending).
+Last updated: 2026-10-14 (schema v7 location model, phase 1a in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 pending).
 
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite).
 - The owner posts in a thread → the intent layer picks a role → the role runs as ONE agent run.
-- `assistant` (generalist, Haiku, foreground answers). `dev` (background task in the owner's repo checkout: the agent plans, asks the owner for approval, implements, commits, pushes and opens the PR itself).
+- `assistant` (generalist, Haiku, foreground answers). `dev` (background task in one of the workspace's locations, the owner's checkout: the agent plans, asks the owner for approval, implements, commits, pushes and opens the PR itself).
 - Code decides routing, limits and guards. The agent and its skills decide HOW the work is done (no code enforces an order).
 
 ## Contents
@@ -13,7 +13,7 @@ Last updated: 2026-10-12 (Rev 15 phases 1-6 in code; live checks of phase 8 pend
 - [Role Model](#role-model) · [Thread States and Routing](#thread-states-and-routing) · [Component Overview](#component-overview)
 - [Approval by ask tool](#approval-by-ask-tool) · [Approval & Guardrails](#approval--guardrails) · [Budget and Resume](#budget-and-resume)
 - [Skills and Subagents](#skills-and-subagents) · [Tool Restriction Strategy](#tool-restriction-strategy) · [Storage Schema](#storage-schema)
-- [Persona & Memory Layering](#persona--memory-layering) · [Workspace Layout](#workspace-layout) · [Discord Setup](#discord-setup)
+- [Persona & Memory Layering](#persona--memory-layering) · [Workspace Layout](#workspace-layout) · [Location Model](#location-model) · [Discord Setup](#discord-setup)
 - [Security Layers](#security-layers) · [Environment Variables and Limits](#environment-variables-and-limits) · [Planned, Not Built](#planned-not-built)
 
 ## Message Flow
@@ -30,7 +30,7 @@ Discord
         ├─ intent layer: L1 leading tag [dev]/[ask], L2 effort signals, L3 Haiku classifier (only when L0/L1 cannot decide)
         ├─ route by intent (thread state x role x scope → action, src/orchestrator/thread/intent-table.ts)
         └─ run the role (src/orchestrator/engine/run-role.ts → src/runtime/run-agent.ts)
-           ├─ scope: cwd = pinned repo / sole repo / first repo; additional dirs = other repos
+           ├─ scope: cwd = pinned location / sole location (dev: first) / workspace `cwd/`; additional dirs = the other locations
            ├─ system prompt: role sections + COMMON safety rules + context (persona, registry, memory, ledger)
            ├─ permission layer: PreToolUse guard (hard deny) + canUseTool (owner questions via AskUserQuestion)
            └─ SDK query loop → outcome → turn row closed → reply (redacted, chunked; long replies as attachments)
@@ -97,15 +97,15 @@ The default flips to `jev` only as an owner step after the paid golden gate ([ow
 - Model `jev-latest`, SDK `@typesafe-ai/sdk`, key `JEV_API_KEY` passed explicitly. Placeholder or `sk_` = no key = Haiku only. Timeout 5 s, 1 SDK retry (`jev-constants.ts`).
 - Questions in one request: `role` (Choice; option criteria = each role's `whenToUse`, plus `unclear`), `multi_intent`, `continues_task` (only with an open owned task), `fits_last_role` (only when the last role has side effects).
 - Sent to TypeSafe: the message (redacted and clipped, same function as the Haiku L3 input), thread state, owned task owner role and scope (redacted, 160 chars), last responding role, last 4 messages (redacted, clipped). Nothing else.
-- Bands (`jev-constants.ts`, conservative until calibrated): `MULTI_MIN` 0.8, `CONTINUE_MIN` 0.8, `STOP_MAX` 0.2, `RATIO_MIN` 2.0 (top / runner-up), `ACT_MIN` by `sideEffects`: none 0.6, repo 0.85, external 0.9. Order: multi -> continue -> unclear -> pick; otherwise undecided -> Haiku.
+- Bands (`jev-constants.ts`, conservative until calibrated): `MULTI_MIN` 0.8, `CONTINUE_MIN` 0.8, `STOP_MAX` 0.2, `RATIO_MIN` 2.0 (top / runner-up), `ACT_MIN` by `sideEffects`: none 0.6, location 0.85, external 0.9. Order: multi -> continue -> unclear -> pick; otherwise undecided -> Haiku.
 - Timeout, error, invalid answer or no key = undecided (reason in `route.decision.jev.band`). Latency and price are not documented by TypeSafe: measured in paid runs (`llm.turn {kind: "jev"}`).
 
 **Preflight** (`src/routing/preflight/deterministic-preflight.ts`): deterministic, no model call, no write. Checks run in this order; the first refusal wins.
 
 | Check | Decision | Reason code | Reroutable |
 |---|---|---|---|
-| `unknown_repo` | need_clarification | MISSING_INFORMATION | no |
-| `empty_text_repo` | need_clarification | MISSING_INFORMATION | no |
+| `unknown_location` | need_clarification | MISSING_INFORMATION | no |
+| `empty_text_location` | need_clarification | MISSING_INFORMATION | no |
 | `unknown_role` | reject | CAPABILITY_UNAVAILABLE | yes |
 | `no_approvals` (role needs approvals, none available) | reject | AUTHORIZATION_REQUIRED | yes |
 | `empty_text` | need_clarification | MISSING_INFORMATION | no |
@@ -124,9 +124,9 @@ The default flips to `jev` only as an owner step after the paid golden gate ([ow
 
 - Focus of a thread = its newest live task (`open`, `waiting_user`, `running`). Old waiting tasks are kept (no TTL).
 - Owner change = compare-and-set on `version` (one retry), logged as `task.owner_changed`.
-- No-delivery: a dev run that leaves no delivery evidence (commit, push, branch create, PR create, merge, cherry-pick; `bash -c` included) gets one neutral note line and its owned task waits (`waiting_user`). No auto re-run.
+- No-delivery: a dev run that leaves no delivery evidence (commit, push, branch create, PR create, merge, cherry-pick; `bash -c` included) gets one neutral note line and its owned task waits (`waiting_user`). No auto re-run. Only a git location expects delivery: the reported `location:` line decides; the run's start cwd is the fallback when no location is reported.
 
-**Outcome** (`src/orchestrator/outputs/outcome-validator.ts`): `success` = ran to its end (and delivered when the role is background with `sideEffects: repo`); `partial` = text but no delivery, or turn limit; `failed` = error or quota.
+**Outcome** (`src/orchestrator/outputs/outcome-validator.ts`): `success` = ran to its end (and delivered when the role is background with `sideEffects: location`); `partial` = text but no delivery, or turn limit; `failed` = error or quota.
 
 **Routing events** (metadata only, never message text or state):
 
@@ -165,7 +165,7 @@ Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-type
 | `tag` | explicit leading tag | `[ask]` | `[dev]` |
 | `entry` / `escalation` | default role for untagged messages / may re-run on a stronger model | yes / yes | - / - |
 | `context.ledger` | sees the thread's earlier tasks when idle | yes | no |
-| `repoScope` | repos the run sees (`all` or `candidates`) | all | candidates |
+| `locationScope` | locations the run sees (`all` or `candidates`) | all | candidates |
 | `skills` | publisher skills: `all` or `none` (workspace skills always by `workspace.yaml`) | none | all |
 | `limits.maxAsk` | owner questions (AskUserQuestion) per run | 6 | 6 |
 | `model` / `classTiers` | default tier; per-class tier | haiku | sonnet; design → opus |
@@ -179,7 +179,7 @@ Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-type
 - `subagents` (SDK `Agent`, `SendMessage`, `ListAgents`) are added to EVERY role by `toolsFor`. No app-defined subagent types exist.
 - A role's prompt is its `promptSections` + COMMON safety rules + context. The assistant has an `ESCALATE: sonnet|opus` line only on the cheap tier.
 - Dev `whenToUse`: a job that changes files or needs an owner-approved plan. Assistant: greetings, questions, read-only work.
-- Routing fields (data): `whenToUse` (Jev criteria), `sideEffects` (`none` / `repo` / `external`: the pick threshold), `approvalRequired`, `capabilityVersion` (logged with the decision). Delivery expectation = `background` and `sideEffects: repo`.
+- Routing fields (data): `whenToUse` (Jev criteria), `sideEffects` (`none` / `location` / `external`: the pick threshold), `approvalRequired`, `capabilityVersion` (logged with the decision). Delivery expectation = `background` and `sideEffects: location`.
 - Adding a role or skill is a data change (see code standards). Roles as separate config files: closed for now (owner, 2026-10-12), not built.
 
 ## Thread States and Routing
@@ -198,7 +198,7 @@ State is DERIVED from `turns` and `approvals` (never stored): `src/orchestrator/
 | Component | File(s) | Purpose |
 |---|---|---|
 | Discord ingress | `src/ingress/discord-bot.ts`, `discord-message-handler.ts`, `thread-turns.ts` | client, owner gate, thread history, attachments, busy-thread ack |
-| Command parsing | `src/orchestrator/message-commands.ts`, `src/commands/` | L0 commands, `repo:` pin, slash definitions |
+| Command parsing | `src/orchestrator/message-commands.ts`, `src/commands/` | L0 commands, `location:` pin (`repo:` alias), slash definitions |
 | Intent layer | `src/intent/` | L1 tag, L2 effort, L3 classifier, lexicon |
 | Route and dispatch | `src/orchestrator/thread/`, `src/orchestrator/dispatch/` | action table, proposals, queue, `/go` resume, side lane |
 | Role engine | `src/orchestrator/engine/run-role.ts`, `role-scope.ts`, `budget.ts`, `owner-confirm.ts`, `validate-role.ts` | one run per role: scope, ask gate, budget, outcome |
@@ -210,10 +210,10 @@ State is DERIVED from `turns` and `approvals` (never stored): `src/orchestrator/
 | Skills | `src/runtime/skills-plugin/`, `src/config/skills-lock.ts` | publisher skills from the lock, workspace skills, per-run plugins |
 | Tool catalog | `src/tools/tool-catalog.ts`, `sdk-tool-names.ts`, `mcp-tool-names.ts` | capability → tool names, auto-allow list, secret-file rules |
 | Roles | `src/roles/` | role type, registry, `assistant-role.ts`, `dev-role.ts` (each role file holds its own prompt text) |
-| Repos and workspaces | `src/repos/`, `src/workspaces/` | registries (fail closed), `git` CLI for managed checkouts, refresh (ff-only, throttled) |
-| Memory | `src/memory/` | persona layers, repo memory writer, owner commands, manual compaction |
+| Locations and workspaces | `src/locations/`, `src/workspaces/` | location and workspace registries (fail closed), git detection, `git-cli.ts`, migration CLI `migrate:locations` (`migrate-locations*.ts`) |
+| Memory | `src/memory/` | persona layers, location memory writer, owner commands, manual compaction |
 | Routing | `src/routing/`, `src/intent/jev/`, `src/tasks/` | routing policy, Jev proposer, preflight, recovery, owned tasks |
-| Storage | `src/storage/` | `db.ts`, stores, schema migrations v2 → v3 → v4 → v5 → v6 |
+| Storage | `src/storage/` | `db.ts`, stores, schema migrations v2 → v3 → v4 → v5 → v6 → v7 |
 | Approvals | `src/approvals/` | Discord buttons and questions (`discord-approval.ts`, 10 min wait) |
 | Git MCP | `src/mcp/git-mcp.ts` | read-only git MCP client for the assistant |
 | Lifecycle | `src/lifecycle/` | startup hygiene, drain, shutdown, interrupted-run recovery, home placement check |
@@ -251,8 +251,8 @@ The guard is a DENY LIST. It runs in the PreToolUse hook of each run and returns
 - If the SDK init reports another mode than requested, the run warns and treats asks as owner asks (fail closed).
 
 ### Write and read scopes (per run, `src/orchestrator/engine/role-scope.ts`)
-- Write-capable (dev): the run's cwd repo, all workspace repos, the workspace worktrees dir, the task scratch dir, `~/.claude/plans`.
-- Read-only (assistant): cwd and additional dirs (registered repos, ingress attachment dir).
+- Write-capable (dev): the run's cwd location, all workspace locations, the workspace worktrees dir, the task scratch dir, `~/.claude/plans`.
+- Read-only (assistant): cwd and additional dirs (registered locations, ingress attachment dir).
 
 ### Child environment (`src/runtime/sdk-env.ts`, `src/config/data/child-env-deny.yaml`)
 - The SDK child gets the owner's environment (so `git`, `gh`, SSH and proxies work) MINUS the bot's own variables.
@@ -280,7 +280,7 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 
 ### Resume
 - A background run that fails after work (budget, transient error) with its session saved ends `failed_resumable`. Its reason text is shown and `/go` continues.
-- `/go` or a `yes` read by L3 resumes the thread's LAST task: a new turn row with `kind = resume` and `parent_turn_id`, same session and cwd (the cwd must still be a workspace repo).
+- `/go` or a `yes` read by L3 resumes the thread's LAST task: a new turn row with `kind = resume` and `parent_turn_id`, same session and cwd. The cwd must still be a location of the workspace, or the workspace's neutral `cwd/` dir (zero-location workspaces can `/go`).
 - If the SDK says the session is gone (`RESUME_FAILED`): the owner is told to start the task again.
 - A restart while a run is active: its turns become `interrupted`, their pending questions are cancelled, the thread gets a Resume button.
 - A held `failed_resumable` task older than `HELD_TASK_DAYS` (14) expires at startup: its scratch dir is removed and the task becomes `failed`.
@@ -293,12 +293,12 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 - A role picks them with `skills: "all" | "none"`. `all` = every installed publisher skill (lock entries whose dir exists). No skill name appears in code (test-checked).
 - Each publisher is one plugin (the lock `source` name, e.g. `superpowers`), built per run in `<AGENT_HOME>/tmp/` and removed after the run (startup sweep for crash leftovers).
 - Caps per skill and per plugin; over-cap skills are skipped alone with a warn.
-- A repo's `.claude/skills`, hooks and `.mcp.json` are never read.
-- Dev run facts are prompt text (`src/roles/builtin/dev-role.ts`): ask via AskUserQuestion when a skill says to, commit rules, the code standards (simplicity, surgical changes, goal-driven), the `repo:` report line.
+- A location's `.claude/skills`, hooks and `.mcp.json` are never read.
+- Dev run facts are prompt text (`src/roles/builtin/dev-role.ts`): ask via AskUserQuestion when a skill says to, commit rules, the code standards (simplicity, surgical changes, goal-driven), the `location:` report line (`repo:` still accepted).
 
 ### Workspace skills (owner-curated)
 - `workspaces/<ws>/skills/<name>/SKILL.md` (+ bundled files). Built per run as a plugin named after the workspace, only when `skills.extra` is true (default true in `workspace.yaml`).
-- Read-only copy; a repo's content never adds skills.
+- Read-only copy; a location's content never adds skills.
 
 ### Subagents (SDK built-in only)
 - Every role may call the SDK's built-in `Agent` tool. `SendMessage` resumes a subagent and `ListAgents` lists them.
@@ -331,23 +331,25 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 
 ## Storage Schema
 
-**DB:** `$AGENT_HOME/data/agent.db` (SQLite, WAL). Current schema version: 6 (`meta.schema_version`).
+**DB:** `$AGENT_HOME/data/agent.db` (SQLite, WAL). Current schema version: 7 (`meta.schema_version`).
 
 | Table | Key columns | Purpose |
 |---|---|---|
 | `meta` | key, value | schema version (the only version marker) |
-| `sessions` | thread_id (PK), session_id, repo, cwd, status, updated_at | the thread's stored session (written after a successful run) |
-| `turns` | id, thread_id, source, repo, type (`qa`/`code`), status, started_at, ended_at, session_id, session_cwd, brief, role, kind (`single`/`resume`), parent_turn_id, proposal_id, hop, counts_toward_cap, class, owned_task_id (v6; NULL for foreground and side-lane turns) | one role run; a task is its first row plus `resume` rows. Status: `running`, `waiting_approval`, `done`, `failed`, `failed_resumable`, `cancelled`, `interrupted`, `timeout` |
+| `sessions` | thread_id (PK), session_id, location, cwd, status, updated_at | the thread's stored session (written after a successful run) |
+| `turns` | id, thread_id, source, location, type (`qa`/`code`), status, started_at, ended_at, session_id, session_cwd, brief, role, kind (`single`/`resume`), parent_turn_id, proposal_id, hop, counts_toward_cap, class, owned_task_id (v6; NULL for foreground and side-lane turns) | one role run; a task is its first row plus `resume` rows. Status: `running`, `waiting_approval`, `done`, `failed`, `failed_resumable`, `cancelled`, `interrupted`, `timeout` |
 | `runs` | id, turn_id, cost_usd, model | one SDK result summary per run |
 | `tool_calls` | id, run_id, turn_id, tool_name, input_redacted, output_redacted, duration_ms, agent_id | one row per tool call (NULL `agent_id` = main agent) |
 | `approvals` | id, turn_id, tool, decision (`pending` until answered), requested_at | owner questions and owner-confirm buttons |
 | `run_messages` | id, message_id, thread_id, session_id, run_id, seq, kind (`steer`/`followup`/`stop`/`other`), status (`pending`/`delivered`/`skipped`/`dropped`), content (redacted, ≤ 2000), created_at, task_id | every message that arrived while a run worked; purged after 14 days |
-| `proposals` | id, thread_id, workspace, from_turn_id, role, brief, repo, class, scope, confidence, reason, effort, status, created_at, decided_at | queued or pending background requests (`pending` → `queued` / `dispatched` / `refused` / `expired`) |
+| `proposals` | id, thread_id, workspace, from_turn_id, role, brief, location, class, scope, confidence, reason, effort, status, created_at, decided_at | queued or pending background requests (`pending` → `queued` / `dispatched` / `refused` / `expired`) |
 | `owned_tasks` | id, thread_id, owner_role, status (`open`, `running`, `waiting_user`, `completed`, `failed`, `cancelled`), scope, version, correlation_id, created_at, last_progress_at | background work with one owner role (v6); index `owned_tasks_thread_progress` |
+| `threads` | thread_id (PK), channel_id, workspace, origin (`bot` / `adopted`), placeholder, title, digest, created_at, updated_at | one row per Discord thread the agent knows (v7; written from phase 1c, read by the channel digest and `/find` in 1d) |
 
 ### Schema history
 
-Owner steps for the current upgrade (v5 -> v6): [owner-checklist-schema-v6.md](owner-checklist-schema-v6.md). Rev 15 (v3 -> v4): [owner-checklist-schema-v4.md](owner-checklist-schema-v4.md).
+Owner steps for the current upgrade (v6 -> v7): [owner-checklist-schema-v7.md](owner-checklist-schema-v7.md). v5 -> v6: [owner-checklist-schema-v6.md](owner-checklist-schema-v6.md). Rev 15 (v3 -> v4): [owner-checklist-schema-v4.md](owner-checklist-schema-v4.md).
+- **v6 -> v7 (rename + additive, `src/storage/migrate-v7-locations-threads.ts`):** `turns`, `sessions`, `proposals` column `repo` renamed to `location`; creates `threads` and index `threads_channel_updated` (written from phase 1c). Snapshot `friday-v6-<ts>.db` first. One transaction, kept-table counts compared, `schema_version` written last; a failure keeps the db at v6. The filesystem move is not in the DB step (see Location Model). Rollback: restore the v6 snapshot and check out `bd6ece5`.
 - **v5 -> v6 (additive, `src/storage/migrate-v6-owned-tasks.ts`):** creates `owned_tasks` + index, adds `turns.owned_task_id`. Snapshot `friday-v5-<ts>.db` first (taken when the db is v5 at open). Kept-table counts compared; a failure keeps the db at v5. Rollback: restore the snapshot and check out `616cbb0`.
 - **v1 → v2 (additive):** `meta`, `stages`, `proposals`, `run_messages`, guarded column additions.
 - **v2 → v3 (rename):** `tasks` → `turns`; `task_id` → `turn_id`. Snapshot first: `VACUUM INTO <AGENT_HOME>/db-backups/friday-v2-<ts>.db`. One transaction with row-count checks.
@@ -357,7 +359,7 @@ Owner steps for the current upgrade (v5 -> v6): [owner-checklist-schema-v6.md](o
 - Legacy DDL (`legacy-schema.ts`, `legacy-migrate-v2.ts`, `migrate-v3-turns.ts`) is frozen and runs only below v3.
 
 **Logs:**
-- `$AGENT_HOME/logs/app.<date>.<n>.jsonl`: all app events (pino-roll, 14 days). Task lines carry `workspace`, `repo`, `taskId`, `threadId`, `mode`.
+- `$AGENT_HOME/logs/app.<date>.<n>.jsonl`: all app events (pino-roll, 14 days). Task lines carry `workspace`, `location`, `taskId`, `threadId`, `mode`.
 - `$AGENT_HOME/logs/tasks/<taskId>.jsonl`: SDK messages of one task (deleted after 30 days at startup).
 - Tool events: `tool.start`, `tool.done`, `tool.denied`. Result text is never logged, only sizes. Correlate by `toolUseId`.
 - `escalation {escalatedTo, action}` only when a run escalated.
@@ -367,13 +369,13 @@ Owner steps for the current upgrade (v5 -> v6): [owner-checklist-schema-v6.md](o
 - `ensureHome` creates the root files and per-workspace templates if missing; it never overwrites. New defaults (`DEFAULT_IDENTITY`, `DEFAULT_AGENTS`) apply to NEW homes only: a live home is edited by hand.
 - A non-empty workspace file replaces the root file of the same name.
 - Prompt order: role sections + COMMON → `# Project Context` (AGENTS, IDENTITY, SOUL, USER) → registry → MEMORY layers → task ledger (idle, `context.ledger` roles).
-- Memory caps: root 5000 chars, workspace 5000, each repo 8000, all repos of a workspace 16000. Each persona file 6000.
-- Agent writes: `Memory:` bullets (max 5) → `workspaces/<ws>/repos/<repo>/MEMORY.md`; `[global]` bullets → `MEMORY.pending.md` (never injected). Every bullet is sanitized.
-- The app never reads or creates `CLAUDE.md` or `CLAUDE.local.md`. No repo `CLAUDE.md` is loaded or injected.
+- Memory caps: root 5000 chars, workspace 5000, each location 8000, all locations of a workspace 16000. Each persona file 6000.
+- Agent writes: `Memory:` bullets (max 5) → `workspaces/<ws>/locations/<name>/MEMORY.md` (source `location`, id `location/<name>#...`); `[global]` bullets → `MEMORY.pending.md` (never injected). Every bullet is sanitized.
+- The app never reads or creates `CLAUDE.md` or `CLAUDE.local.md`. No location `CLAUDE.md` is loaded or injected.
 
 ## Workspace Layout
 ```
-$AGENT_HOME/                       (real directory outside every repo; startup refuses one inside a repo)
+$AGENT_HOME/                       (real directory outside every location and git working tree; startup refuses one inside a location)
 ├── AGENTS.md IDENTITY.md SOUL.md USER.md MEMORY.md BOOTSTRAP.md MEMORY.pending.md
 ├── discord.yaml                   ops channel ids and controlChannels
 ├── data/agent.db                  SQLite (WAL)
@@ -381,20 +383,44 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 ├── db-backups/                    friday-v2-<ts>.db snapshot (v2 → v3)
 ├── tmp/                           per-run skill plugins, attachment copies, intent scratch (swept at startup)
 └── workspaces/<ws>/
-    ├── workspace.yaml             description?, channels: [parent channel ids], skills.extra
+    ├── workspace.yaml             description?, channels: [ids or {id,name,mode,locations?}], locations: [{name,path,description}], skills.extra
     ├── skills/                    owner-curated skills (<name>/SKILL.md)
     ├── MEMORY.md AGENTS.md IDENTITY.md SOUL.md USER.md   (optional overrides)
-    ├── cwd/                       neutral cwd of runs not bound to a repo
+    ├── cwd/                       neutral cwd of runs not bound to a location (the only dir of a workspace with no location)
     ├── tasks/<taskId>/scratch/    per-task scratch dir
     ├── worktrees/                 optional git worktrees a dev run creates (prompt-only rule)
-    └── repos/<repo>/
-        ├── repo.yaml              path? description, defaultBranch?, testCommand?, githubAccount? (a legacy `workflow:` key is accepted and ignored)
-        ├── MEMORY.md              repo memory (agent-written)
-        └── repo/                  managed checkout (only when repo.yaml has no `path`)
+    └── locations/<name>/          location dir (v7): MEMORY.md only; the checkout is at the location's `path`
+        └── MEMORY.md              location memory (agent-written)
 ```
-- Repo `path:` may point at any git checkout (the owner's own working copy). Dev runs there directly.
-- `gitAuthor` and `githubAccount` in `repo.yaml` and env `GIT_AUTHOR` are accepted and IGNORED: the agent uses the owner's git config and gh login.
-- Registries fail closed: invalid names, symlinked dirs and non-git paths are skipped with a warn. A channel listed by two workspaces is dropped from both.
+- Location rules: [Location Model](#location-model).
+- Env `GIT_AUTHOR` is accepted and IGNORED: the agent uses the owner's git config and gh login.
+- Registries fail closed: invalid names, missing or non-directory location paths, paths that are or contain `$HOME` / AGENT_HOME, paths inside AGENT_HOME (except that workspace's own `locations/`), and duplicate names are skipped with a warn. A channel listed by two workspaces is dropped from both.
+
+## Location Model
+A **location** is a directory the owner registers in a workspace. It replaces the code-only "repo" concept (schema v7).
+
+| Field | Source | Rule |
+|---|---|---|
+| `name` | `locations[].name` | `LOCATION_NAME`: letters, digits, `_ . -`; 1-64 chars; unique in the workspace; the `location:` pin and the memory dir name |
+| `path` | `locations[].path` | a directory; absolute, or relative to the workspace dir. Missing or not a directory, a path that is or contains `$HOME` / AGENT_HOME, or a path inside AGENT_HOME outside `workspaces/<ws>/locations/`: skipped with a warn |
+| `description` | `locations[].description` | one line the agent uses to pick a location |
+| `git` | computed | `.git` present at `path`; never configured. A dev run delivers through git only in a git location |
+
+- No `access` field. Write permission is the dev role's `capabilities: write`.
+- Dropped legacy fields (`defaultBranch`, `testCommand`, `githubAccount`, `gitAuthor`, `workflow`) are not read. `migrate:locations` prints them; nothing stores them.
+- No managed clone, no fetch, no pull: the app never refreshes a location (removed in v7).
+- A workspace with zero locations is valid: its runs work in `workspaces/<ws>/cwd/`.
+- A workspace that still has `repos/<n>/repo.yaml` is not loaded. `selectWorkspace` replies `needs_migration` ("run `bun run migrate:locations`"). The bot still starts and logs one warn listing those workspaces.
+- **Migration** (`bun run migrate:locations`; bot stopped; dry run unless `--apply`; AGENT_HOME is resolved to an absolute path):
+  - Backup first to `$AGENT_HOME/backups/locations-<ts>/` (0700).
+  - Per workspace, in order: write `workspace.yaml` (`locations:` with final paths, object channels; temp file + rename, 0600, comments lost), then rename `repos/<n>/` to `locations/<n>/` (one rename, never a copy), then remove `repo.yaml` and an empty `repos/`.
+  - A workspace whose apply throws is listed as `FAILED` and the others still run. An interrupted workspace is finished on re-run.
+  - A managed clone at `repos/<n>/repo` moves to `locations/<n>/repo` and its path is rewritten.
+  - Skipped (exit 1): symlinked or non-directory entries, invalid `repo.yaml`, existing `locations/<n>`, unquoted numeric channel ids (that workspace is not migrated), failed workspaces.
+  - Notes (exit unaffected): a `repos/<n>` without `repo.yaml` is left in place.
+  - Exit 0 ok or nothing to do, 1 skipped or failed, 2 bad arguments. A second run on a finished home is a no-op. Steps: [owner-checklist-schema-v7.md](owner-checklist-schema-v7.md).
+- **Channels:** an entry is a plain id (legacy; migrated to `{id, name: "<ws>-agent", mode: task}`) or `{id, name, mode: task|chat, locations?}`. Objects are parsed in phase 1a. `/init-channel`, the `chat` behavior and the `locations` filter arrive in phases 1b and 2.
+- **Memory layer:** `workspaces/<ws>/locations/<name>/MEMORY.md`, memory source `location`, id prefix `location/<name>#`.
 
 ## Discord Setup
 - `src/discord-setup/`: `discord.yaml` schema, private control channels, `/init-workspace` (admin handler, `#ops-control` only), `bootstrap:discord` CLI, ops log, ready checks.
@@ -407,7 +433,7 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 4. **Child env deny list:** the bot's own secrets never reach the agent process (`child-env-deny.yaml`).
 5. **Redaction:** replies, logs, attachments and stored text pass `redact.ts` (API keys, tokens, `KEY=value`, auth headers, cookies).
 6. **Provider isolation:** Anthropic mode passes only the OAuth token; OpenRouter mode passes only its base URL, key and aliases.
-7. **Home placement:** startup refuses an `AGENT_HOME` inside a registered repo or git working tree.
+7. **Home placement:** startup refuses an `AGENT_HOME` inside a registered location or git working tree.
 8. **Known limits (accepted by the owner):** the bypass-mode dev run can run network and package commands; Bash parsing is best effort; the owner's git and gh credentials are visible to the agent.
 
 ## Output Handling & Quota
@@ -440,7 +466,7 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 | `DISCORD_TOKEN` | yes | bot token |
 | `OWNER_DISCORD_ID` | yes | the only user the bot obeys |
 | `DISCORD_GUILD_ID` | yes once a workspace lists `channels` | guild snowflake; read at startup |
-| `AGENT_HOME` | yes | absolute path outside every repo, e.g. `/Users/<you>/.friday` |
+| `AGENT_HOME` | yes | absolute path outside every location, e.g. `/Users/<you>/.friday` |
 | `CLAUDE_CODE_OAUTH_TOKEN` | yes (Anthropic path) | from `claude setup-token`; placeholder = unset |
 | `OPENROUTER_API_KEY` | no | real value selects OpenRouter (wins over OAuth unless `LLM_PROVIDER` is set) |
 | `LLM_PROVIDER` | no | `anthropic` \| `openrouter` |
@@ -475,7 +501,7 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 | `MAX_TURNS` (ceiling; low effort uses half) | 20 | `src/config/effort-mapping.ts` |
 | `MAX_CONCURRENT_RUNS` | 30 | `src/orchestrator/turns/run-limiter.ts` |
 | `MAX_PARALLEL_SUBAGENTS` | 50 | `src/guardrails/subagent-limit.ts` |
-| `MAX_CAPPED_TASKS` | 10 | `src/orchestrator/dispatch/task-repo.ts` (active background tasks) |
+| `MAX_CAPPED_TASKS` | 10 | `src/orchestrator/dispatch/task-location.ts` (active background tasks) |
 | `MAX_DRAIN` (queue per thread) | 3 | `src/orchestrator/dispatch/queued-tasks.ts` |
 | `HELD_TASK_DAYS` | 14 | `src/lifecycle/startup.ts` |
 | Owner question wait | 10 min | `src/approvals/discord-approval.ts` |
@@ -484,5 +510,5 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 - **Reliable handoff non-goals (phase 1):** supervisor, task TTL, dynamic DAG, multi-intent execution (a multi-intent message asks which part goes first). Jev bands stay conservative until calibrated.
 - **Config as agent (old phase 9):** roles as files plus a resolver. Closed for now (owner, 2026-10-12), not built: roles stay flat TypeScript objects in `src/roles/builtin/`, so the move stays cheap if reopened.
 - **Live verification (phase 8, paid):** AskUserQuestion under bypass, the PermissionDenied hook for owner denies, `DISABLE_BACKGROUND_TASKS` vs `run_in_background`, SDK general-purpose subagent tools, `ListAgents`, resumed-session cost accounting, golden set for the rewritten prompts.
-- **Known gaps (owner decisions):** two dev tasks in one repo share one working tree; `repo.defaultBranch` is not protected (only `main` and `master` are); the thread does not pin the last task's repo.
+- **Known gaps (owner decisions):** two dev tasks in one location share one working tree; only `main` and `master` are protected (no branch setting; `defaultBranch` is dropped in v7); the thread does not pin the last task's location. Open from 1a review: migration moves a `repos/<n>` whose name fails `LOCATION_NAME` (the loader then drops it with a warn); generated channel names `<ws>-agent` are not validated.
 - **Backlog:** orphan legacy clone cleanup by hand; approval persistence across restarts; PreCompact hook; HTTP webhook ingress.

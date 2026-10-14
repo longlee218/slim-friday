@@ -1,13 +1,13 @@
 # Codebase Summary
 
-Last updated: 2026-10-14 (reliable handoff phases 1-10; Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
+Last updated: 2026-10-14 (schema v7 location model, phase 1a; reliable handoff phases 1-10; Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
 
 ## Overview
 - **Friday**: Discord-driven personal agent on the Claude Agent SDK. Owner posts in a thread → the intent layer picks a role → the role runs as ONE agent run.
 - **assistant**: generalist, foreground, Haiku. Reads, searches the web, uses skills and MCP resources, runs read-only shell commands. Escalates to a stronger model when needed.
-- **dev**: background task in the owner's repo checkout. Plans and asks for approval through AskUserQuestion, implements, commits, pushes and opens the PR itself with the owner's git and gh login.
+- **dev**: background task in one of the workspace's locations (the owner's checkout). Plans and asks for approval through AskUserQuestion, implements, commits, pushes and opens the PR itself with the owner's git and gh login.
 - **Stack:** Bun, TypeScript, discord.js, Claude Agent SDK, SQLite (`bun:sqlite`), zod, pino.
-- **Size:** about 266 non-test `.ts` files, about 22,650 lines under `src/` (2026-10-14). Tests under `test/`.
+- **Size:** about 271 non-test `.ts` files, about 23,060 lines under `src/` (2026-10-14, phase 1a working tree). Tests under `test/`.
 
 ## Source Layout (`src/`)
 
@@ -20,8 +20,8 @@ Last updated: 2026-10-14 (reliable handoff phases 1-10; Rev 15 phases 1-6). Sour
 | `intent/jev/` | Jev (TypeSafe System One) proposer: questions, state, decision bands, client | `jev-proposer.ts`, `jev-client.ts`, `jev-questions.ts`, `jev-state.ts`, `jev-bands.ts`, `jev-constants.ts` |
 | `orchestrator/` | handle a message: commands, intent turn, busy lane, routing | `handle-message.ts`, `intent-turn.ts`, `message-commands.ts`, `message-routing.ts`, `route-and-run.ts`, `run-turn.ts`, `busy-lane.ts` |
 | `orchestrator/thread/` | thread state, action table, effort floor, steer reply | `thread-state.ts`, `intent-table.ts`, `route-by-intent.ts`, `max-effort-gate.ts`, `effort-floor.ts`, `steer-reply.ts` |
-| `orchestrator/dispatch/` | proposals, validation, queue, `/go` resume, side lane | `dispatch-role.ts`, `validate-request.ts`, `queued-tasks.ts`, `resume-failed-task.ts`, `side-answer.ts`, `task-repo.ts` |
-| `orchestrator/engine/` | the role engine: one run per role | `run-role.ts`, `role-scope.ts`, `budget.ts`, `ask-timeout-control.ts`, `owner-confirm.ts`, `run-report.ts`, `validate-role.ts`, `repo-activity.ts` |
+| `orchestrator/dispatch/` | proposals, validation, queue, `/go` resume, side lane | `dispatch-role.ts`, `validate-request.ts`, `queued-tasks.ts`, `resume-failed-task.ts`, `side-answer.ts`, `task-location.ts` |
+| `orchestrator/engine/` | the role engine: one run per role | `run-role.ts`, `role-scope.ts`, `budget.ts`, `ask-timeout-control.ts`, `owner-confirm.ts`, `run-report.ts`, `validate-role.ts`, `location-activity.ts` |
 | `orchestrator/outputs/` | answer reply, `ESCALATE` re-run, outcome validation and no-delivery note | `answer-output.ts`, `outcome-validator.ts`, `delivery-evidence.ts` |
 | `routing/` | routing policy (tag -> Jev -> Haiku -> history), contracts, preflight, recovery, capability registry | `routing-policy.ts`, `routing-contracts.ts`, `route-proposer.ts`, `route-with-recovery.ts`, `recovery-controller.ts`, `preflight/deterministic-preflight.ts` |
 | `tasks/` | owned tasks: resolver (focus, owner change) and state machine | `task-resolver.ts`, `task-state-machine.ts` |
@@ -34,10 +34,10 @@ Last updated: 2026-10-14 (reliable handoff phases 1-10; Rev 15 phases 1-6). Sour
 | `tools/` | tool names and catalog (no custom tools exist) | `sdk-tool-names.ts`, `tool-catalog.ts`, `git-tool-groups.ts` |
 | `mcp/` | the read-only git MCP client for the assistant | `git-mcp.ts`, `mcp-servers.ts`, `mcp-tool-names.ts` |
 | `config/` | env schema, model routing, role env pins, paths, skills lock | `agent-config.ts`, `model-routing.ts`, `role-env.ts`, `effort-mapping.ts`, `skills-lock.ts`, `workspace-paths.ts`, `child-env-deny.ts`, `data/child-env-deny.yaml` |
-| `repos/` | repo registry, managed checkout refresh, git CLI | `repo-registry.ts`, `refresh-repo.ts`, `git-cli.ts` |
+| `locations/` | location registry (`locations:` in workspace.yaml), git detection, git CLI, filesystem migration CLI (`migrate:locations`) | `location-registry.ts`, `git-cli.ts`, `migrate-locations.ts`, `migrate-locations-cli.ts` |
 | `workspaces/` | workspace registry and task workspace | `workspace-registry.ts`, `task-workspace.ts` |
-| `memory/` | persona layers, memory reads and writes, owner commands, manual compaction | `persona.ts`, `persona-templates.ts`, `prompt-context.ts`, `repo-memory.ts`, `memory-writer.ts`, `memory-commands.ts`, `memory-compaction*.ts` |
-| `storage/` | SQLite stores and migrations (v2 → v3 → v4) | `db.ts`, `migrate.ts`, `run-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `migrate-v3-turns.ts`, `migrate-v4-drop-legacy-tables.ts`, `legacy-*.ts` (frozen) |
+| `memory/` | persona layers, memory reads and writes, owner commands, manual compaction | `persona.ts`, `persona-templates.ts`, `prompt-context.ts`, `location-memory.ts`, `memory-writer.ts`, `memory-commands.ts`, `memory-compaction*.ts` |
+| `storage/` | SQLite stores and migrations (v2 → v7) | `db.ts`, `migrate.ts`, `run-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `migrate-v3-turns.ts`, `migrate-v4-drop-legacy-tables.ts`, `legacy-*.ts` (frozen) |
 | `lifecycle/` | startup hygiene, drain, shutdown, interrupted-run recovery, home placement | `startup.ts`, `drain.ts`, `shutdown.ts`, `resume-interrupted.ts`, `home-placement-check.ts`, `proposal-notices.ts` |
 | `discord-setup/` | `discord.yaml`, private channels, `/init-workspace`, bootstrap CLI, ops log | `discord-setup-config.ts`, `private-channels.ts`, `admin-handler.ts`, `init-workspace.ts`, `bootstrap-discord-cli.ts`, `ops-log.ts`, `ready-checks.ts` |
 | `observability/` | pino logger, tool and subagent hooks, redaction, usage lines, log files | `logger.ts`, `tool-hooks.ts`, `subagent-hooks.ts`, `redact.ts`, `record-run.ts`, `turn-usage.ts`, `console-format.ts`, `log-files.ts` |
@@ -57,7 +57,7 @@ Discord message (owner, in a workspace channel or its thread)
 ## Roles (data)
 - Defined in `src/roles/builtin/*.ts` as `RoleDefinition` objects; the engine reads only the data (test-checked: no role-name literals in the engine).
 - Fields and values: see [system-architecture.md, Role Model](system-architecture.md#role-model).
-- Dev prompt pieces are in `dev-role.ts`: role text, run facts (ask for approval, git and gh rules), commit rules, code standards, the `repo:` report line, the skills rule. The assistant's (answer rules, care, escalation) are in `assistant-role.ts`.
+- Dev prompt pieces are in `dev-role.ts`: role text, run facts (ask for approval, git and gh rules), commit rules, code standards, the `location:` report line, the skills rule. The assistant's (answer rules, care, escalation) are in `assistant-role.ts`.
 - Config files for roles: closed for now (owner, 2026-10-12); roles stay TypeScript objects.
 
 ## Guardrails and Permissions
@@ -71,7 +71,7 @@ Discord message (owner, in a workspace channel or its thread)
 ## Skills
 - **Publisher skills** (`.agents/skills/`, pinned by `skills-lock.json`): loaded whole and unmodified. A role takes them with `skills: "all"` (dev) or `"none"` (assistant). Built per run by `runtime/skills-plugin/`.
 - **Workspace skills** (`workspaces/<ws>/skills/`): owner-curated, one plugin per run when `skills.extra` is true (`skills-config.ts`).
-- A repo's `.claude/skills`, hooks and `.mcp.json` are never read.
+- A location's `.claude/skills`, hooks and `.mcp.json` are never read.
 - Adding or removing a publisher skill is a lock and directory change; no code change (test-checked).
 
 ## Tools
@@ -81,15 +81,15 @@ Discord message (owner, in a workspace channel or its thread)
 
 ## Storage
 - `src/storage/db.ts`: opens `$AGENT_HOME/data/agent.db` (WAL), runs migrations, owner-only file mode.
-- Schema v6: `meta`, `sessions`, `turns` (+ `owned_task_id`), `runs`, `tool_calls`, `approvals`, `run_messages`, `proposals`, `owned_tasks`. Details: [system-architecture.md, Storage Schema](system-architecture.md#storage-schema).
-- Migrations: `legacy-schema.ts` and `legacy-migrate-v2.ts` (frozen v1/v2 DDL), `migrate-v3-turns.ts` (rename, snapshot first), `migrate-v4-drop-legacy-tables.ts` (drops `stages`, `worktrees` and three columns; no snapshot), `migrate-v6-owned-tasks.ts` (additive; v5 snapshot first).
+- Schema v7: `meta`, `sessions` (`location` column), `turns` (+ `owned_task_id`, `location`), `runs`, `tool_calls`, `approvals`, `run_messages`, `proposals`, `owned_tasks`, `threads`. Details: [system-architecture.md, Storage Schema](system-architecture.md#storage-schema).
+- Migrations: `legacy-schema.ts` and `legacy-migrate-v2.ts` (frozen v1/v2 DDL), `migrate-v3-turns.ts` (rename, snapshot first), `migrate-v4-drop-legacy-tables.ts` (drops `stages`, `worktrees` and three columns; no snapshot), `migrate-v6-owned-tasks.ts` (additive; v5 snapshot first), `migrate-v7-locations-threads.ts` (renames `repo` columns, adds `threads`; v6 snapshot first).
 - Stores: `run-store.ts` (turns, finish, interrupt), `run-metrics-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `owned-task-store.ts`.
 - Read-only row-count check for the owner (v3 and v4 copies): `plans/261012-1130-orchestrate-not-micromanage/owner-verify-counts-v4.ts`.
 
 ## Memory and Persona
-- Root files in `$AGENT_HOME` (AGENTS, IDENTITY, SOUL, USER, MEMORY, BOOTSTRAP, MEMORY.pending.md) and per-workspace and per-repo overrides. `ensureHome` creates them if missing and never overwrites.
+- Root files in `$AGENT_HOME` (AGENTS, IDENTITY, SOUL, USER, MEMORY, BOOTSTRAP, MEMORY.pending.md) and per-workspace and per-location overrides. `ensureHome` creates them if missing and never overwrites.
 - `memory/prompt-context.ts` builds the context order and logs `prompt.context` counts.
-- `memory/memory-writer.ts` and `sanitize-bullet.ts`: agent writes repo memory only (`Memory:` bullets); `[global]` bullets go to `MEMORY.pending.md` (never injected).
+- `memory/memory-writer.ts` and `sanitize-bullet.ts`: agent writes location memory only (`Memory:` bullets); `[global]` bullets go to `MEMORY.pending.md` (never injected).
 - `memory/memory-file-lock.ts`: one lock per memory file (`<file>.lock`).
 - `memory/memory-commands.ts`, `memory-command-handler.ts`, `memory-owner-edit.ts`: `/remember`, `/forget`, `/compact`.
 - `memory/memory-compaction*.ts`: manual compaction with `MEMORY_MODEL`, a derivability check, `.bak` backup, dry-run (`bun run memory:compact`).
@@ -112,7 +112,7 @@ Discord message (owner, in a workspace channel or its thread)
 - `lifecycle/resume-interrupted.ts`: interrupted runs get a Resume button at start.
 - `lifecycle/drain.ts`: `FRIDAY_DRAIN=1` or a `DRAIN` file refuses new tasks.
 - `lifecycle/shutdown.ts`: graceful shutdown; pending questions cancelled.
-- `lifecycle/home-placement-check.ts`: startup refuses an `AGENT_HOME` inside a repo or git working tree.
+- `lifecycle/home-placement-check.ts`: startup refuses an `AGENT_HOME` inside a location or git working tree.
 
 ## Tests
 - `test/`: about 160 files, `bun test`. Live smokes and the golden set skip without credentials (`INTENT_EVAL=1` for the intent golden set).
@@ -123,6 +123,6 @@ Discord message (owner, in a workspace channel or its thread)
 ## Known Limits
 - No run timeout exists. Only memory compaction has a time limit. A hung run holds its slot until `/stop`.
 - Bash and guard parsing are best effort; the dev run is in bypass mode, so only hard denies stop a call.
-- Two dev tasks in one repo share one working tree.
+- Two dev tasks in one location share one working tree.
 - Routing default is `INTENT_ENGINE=haiku`; Jev (`jev`) is opt-in until the paid golden gate passes. Jev bands are conservative until calibrated.
 - Live behavior not yet verified (phase 8): AskUserQuestion under bypass, PermissionDenied hook, background-task env, SDK subagent tools, `ListAgents`, resumed-session cost, golden set.

@@ -34,7 +34,7 @@ DISCORD_TOKEN=<bot_token_from_step_1>
 OWNER_DISCORD_ID=<your_user_id_from_step_4>
 DISCORD_GUILD_ID=<server_id>        # Copy Server ID; required once any workspace lists channels
 CLAUDE_CODE_OAUTH_TOKEN=<from_claude_setup_token>
-AGENT_HOME=/absolute/path/to/agent-home   # real dir outside every repo, e.g. /Users/<you>/.friday
+AGENT_HOME=/absolute/path/to/agent-home   # real dir outside every location, e.g. /Users/<you>/.friday
 LOG_LEVEL=info
 # Optional:
 # OPENROUTER_API_KEY=<key>            # use OpenRouter instead of Anthropic
@@ -52,12 +52,17 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
 2. Add it to `$AGENT_HOME/workspaces/<ws>/workspace.yaml`:
    ```yaml
    channels:
-     - "123456789012345678"
+     - "123456789012345678"           # plain id: channel <ws>-agent, mode task
+     - id: "234567890123456789"       # object form: parsed in phase 1a
+       name: "<ws>-notes"
+       mode: task                     # task | chat
+       locations: [app]               # optional
    ```
+   Object channels: `mode` and `locations` have no effect until phases 1b (`/init-channel`, location filter) and 2 (`chat`).
 3. Set `DISCORD_GUILD_ID` in `.env` and restart (startup refuses without it once a workspace has `channels`).
 - A channel id listed by two workspaces is dropped from both (warning `channel.duplicate`).
 - The guild pin is read at startup only: adding the first `channels:` or changing `DISCORD_GUILD_ID` needs a restart.
-- Remapping a channel moves its threads. A thread whose repo is not in the new workspace is refused (`wrong_workspace`).
+- Remapping a channel moves its threads. A thread whose location is not in the new workspace is refused (`wrong_workspace`).
 
 ## Server organization (one guild)
 ```
@@ -108,7 +113,7 @@ controlChannels:   # default: [ops.control]
 Type in `#ops-control` (no mention needed). Legacy form: `init:workspace:<name>`.
 - Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops` or a publisher skill name (reserved).
 - Gate: you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else: not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
-- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `repos/`, `cwd/`, `skills/`, `MEMORY.md`, persona stubs). (2) private category `<name>` and `#<name>-agent`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
+- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `locations/`, `cwd/`, `skills/`, `MEMORY.md`, persona stubs). (2) private category `<name>` and `#<name>-agent`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
 - Rerun on a finished workspace: "already set up". If creation fails midway, the reply names what exists.
 - No turn row, no agent. Logs `admin.init_workspace`.
 
@@ -144,7 +149,7 @@ Reply in the thread without mentioning the bot. Expected: the same session answe
 Another Discord user posts in the channel or thread. Expected: no reply.
 
 ### Test 4: Secret masking
-Ask for a secret in a repo file. Expected: the reply masks the value.
+Ask for a secret in a location file. Expected: the reply masks the value.
 
 ### Test 5: Stop
 While a long answer runs: `/stop` (or `stop`). Expected: the run stops and the reply confirms. Queued tasks of the thread are kept.
@@ -155,8 +160,8 @@ While a long answer runs: `/stop` (or `stop`). Expected: the run stops and the r
 ```
 Expected:
 - The intent layer routes it to the dev role. The notice `Starting dev: <brief>` appears.
-- The agent reads the repo, then asks you to approve its plan with buttons (AskUserQuestion). The long plan arrives as `AskUserQuestion-detail.txt` with a short question.
-- After approval it edits the repo checkout, runs the tests it chooses, commits, and asks how to finish (merge, PR or keep).
+- The agent reads the location, then asks you to approve its plan with buttons (AskUserQuestion). The long plan arrives as `AskUserQuestion-detail.txt` with a short question.
+- After approval it edits the location checkout, runs the tests it chooses, commits, and asks how to finish (merge, PR or keep).
 - A question with no tag and a clear change request also routes to dev. A message on an idle thread with low confidence is answered by the assistant instead.
 
 **While a task runs**
@@ -191,8 +196,8 @@ Canonical forms are slash commands. Legacy text forms keep working this release.
 | `/go +<usd>` | `go +<usd>` | resume with `<usd>` more budget, e.g. `/go +1.5` (must be > 0). Budget stops offer this; the task ceiling (6.0 USD over all resumes) still applies |
 | `/remember [scope] <text>`, `/forget [scope] <text>`, `/compact [dry-run]` | `remember:` / `nhớ:`, `forget:` / `quên:`, `compact memory` / `gom nén` | owner memory (see Memory) |
 | `/init-workspace <name>` (ops control channel only) | `init:workspace:<name>` | create the workspace, private category and `#<name>-agent` |
-| `[dev]` / `[ask]` at the very start of the message | - | force the role (dev: works in the repo; ask: read-only answer). Case-insensitive; the tag is removed from the request. A tag anywhere else, or a plain word like "dev", does nothing |
-| `repo:<name>` prefix | `repo:<name>` | pins the thread to a repo of the workspace |
+| `[dev]` / `[ask]` at the very start of the message | - | force the role (dev: works in its location; ask: read-only answer). Case-insensitive; the tag is removed from the request. A tag anywhere else, or a plain word like "dev", does nothing |
+| `location:<name>` prefix | `repo:<name>` (alias) | pins the thread to a location of the workspace |
 
 - Without a tag, one small Haiku call reads your message with the last 4 messages of the thread and picks the role. There are no word lists.
 - A natural reply to the bot's yes/no question ("Open a task for this?") is read by the same call: `yes` starts the task, `no` makes the assistant answer your message.
@@ -206,27 +211,26 @@ Set `FRIDAY_DRAIN=1` or `touch $AGENT_HOME/DRAIN` before a deploy. New tasks get
 
 ## Dev task setup
 
-### Register a repo
-Repos live inside a workspace: `$AGENT_HOME/workspaces/<ws>/repos/<name>/repo.yaml`. Create the workspace with `/init-workspace <ws>`, then add each repo by hand:
+### Register a location
+Locations live inside a workspace, listed in `workspace.yaml`. Create the workspace with `/init-workspace <ws>`, then add each location by hand:
 
 ```yaml
-# workspaces/<ws>/repos/<name>/repo.yaml
-path: /absolute/path/to/checkout     # your own git checkout (a git root). Default: repos/<name>/repo (managed checkout)
-description: "Main application"
-# optional:
-defaultBranch: main                  # schema field; not used to protect branches
-testCommand: "bun test"              # schema field; shown to the agent as `[test: cmd]` in the repo list, nothing runs it
-# accepted and IGNORED since Rev 15 (the agent uses the owner's git config and gh login):
-# gitAuthor: "Name <email>"
-# githubAccount: "<login>"
+# workspaces/<ws>/workspace.yaml
+channels:
+  - "123456789012345678"
+locations:
+  - name: app                          # letters, digits, _ . -; 1-64 chars; unique in the workspace
+    path: /absolute/path/to/checkout   # any directory, git or not; relative paths resolve from workspaces/<ws>/
+    description: "Main application"    # one line; the agent uses it to pick a location
 ```
-- Repo name = directory name under `repos/`.
-- A repo can be ANY git checkout (`path:`). A dev run works in it directly: no clone is made.
-- A managed checkout (no `path:`) is refreshed for the assistant (fetch, fast-forward only, throttled 10 min). An owner checkout (`path:`) is never fetched or pulled by the app.
-- `full` is for repos you control. It only changes the prompt text; it adds no permissions.
+- `git` is detected (a `.git` is present), not configured. A dev run delivers through git only in a git location.
+- A path that is missing, not a directory, or is or contains `$HOME` / `AGENT_HOME`, or is inside `AGENT_HOME` (outside that workspace's `locations/`), is skipped with a warning. The other locations still load.
+- No `access`, `testCommand`, `defaultBranch`, `githubAccount` or `gitAuthor`. Writes follow the dev role's capability; the agent uses your git config and gh login.
+- A workspace with no location works in `workspaces/<ws>/cwd/`.
+- Upgrading from `repos/<name>/repo.yaml`: run `bun run migrate:locations` ([owner checklist v7](owner-checklist-schema-v7.md)). Until then the bot refuses that workspace and says so.
 
 ### Workspace skills
-- Friday never loads a repo's `.claude/skills`. Put skills in the workspace dir; every run of that workspace gets them:
+- Friday never loads a location's `.claude/skills`. Put skills in the workspace dir; every run of that workspace gets them:
   ```
   ~/.friday/workspaces/<ws>/skills/
     deploy/SKILL.md
@@ -243,11 +247,11 @@ testCommand: "bun test"              # schema field; shown to the agent as `[tes
 
 ### Publisher skills
 - The publisher's skills (Superpowers, pinned by `skills-lock.json`) live in the app's `.agents/skills/`.
-- The dev role gets every installed publisher skill (`skills: "all"`). The assistant gets none. There is no per-workspace or per-repo switch.
+- The dev role gets every installed publisher skill (`skills: "all"`). The assistant gets none. There is no per-workspace or per-location switch.
 - Skills run whole and unmodified. Their ask steps go through AskUserQuestion (limit 6 per run).
 
 ### What the dev run does
-- Works in the repo checkout (its cwd). Writes are limited to the repo, the workspace worktrees dir, the task scratch dir and the plans dir.
+- Works in its location (its cwd; the workspace `cwd/` when the workspace has none). Writes are limited to the location(s), the workspace worktrees dir, the task scratch dir and the plans dir.
 - Commits and pushes feature branches as the owner. `git push --force`, direct pushes to `main` or `master`, `gh repo delete` and `gh api` DELETE are refused by the shell guard.
 - Opens the PR and merges only after the owner chose it (AskUserQuestion).
 - A reply or a new `[dev]` message after a run is a NEW task.
@@ -256,9 +260,9 @@ testCommand: "bun test"              # schema field; shown to the agent as `[tes
 - No run timeout exists. Stop a run with `/stop`.
 
 ### Known limits
-- Two dev tasks in one repo share one working tree.
-- Old pre-Rev 15 clone directories under `workspaces/<ws>/repos/<name>/worktrees/` are never removed by the app. Delete them by hand when sure.
-- A task that was waiting at the old "Create PR" or result button before Rev 15 is not resumed by the app: its saved session ran in an old clone directory, which is not a registered repo, so Resume and `/go` are refused (`cannot_resume`). Check the work in the old clone by hand, then start a new request.
+- Two dev tasks in one location share one working tree.
+- Old pre-Rev 15 clone directories under `workspaces/<ws>/repos/<name>/worktrees/` (or `locations/<name>/worktrees/` after the v7 move) are never removed by the app. Delete them by hand when sure.
+- A task that was waiting at the old "Create PR" or result button before Rev 15 is not resumed by the app: its saved session ran in an old clone directory, which is not a registered location, so Resume and `/go` are refused (`cannot_resume`). Check the work in the old clone by hand, then start a new request.
 
 ## Troubleshooting
 
@@ -267,10 +271,10 @@ After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v
 | Symptom | Cause | Fix |
 |---|---|---|
 | "This channel is not linked to a workspace" (`unmapped_channel`) | The channel id is in no `channels:` list | Paste the id into `workspaces/<ws>/workspace.yaml` under `channels:` |
-| Messages refused in a thread (`wrong_workspace`) | The thread's repo is not in the channel's workspace | Re-link the channel, or start a new thread |
+| Messages refused in a thread (`wrong_workspace`) | The thread's location is not in the channel's workspace | Re-link the channel, or start a new thread |
 | Bot ignores every message (`other_guild`) | `DISCORD_GUILD_ID` is not this server | Fix `DISCORD_GUILD_ID` in `.env`, restart |
 | Bot exits at start: "DISCORD_GUILD_ID required" | A workspace lists `channels` but no guild is pinned | Set `DISCORD_GUILD_ID` |
-| "Workspace <ws> has no repos" | No `repos/<name>/repo.yaml` in the workspace | Add a repo |
+| "Workspace <ws> still uses repos/. Stop the bot and run `bun run migrate:locations`." (`needs_migration`) | The workspace still has `repos/<name>/repo.yaml` (pre-v7 layout) | Stop the bot, run the migration: [owner checklist v7](owner-checklist-schema-v7.md) |
 | Bot exits at start naming `discord.yaml` | Invalid YAML or a bad id | Fix or delete `$AGENT_HOME/discord.yaml` (fail closed) |
 | "Admin commands run only in #ops-control." | `/init-workspace` typed elsewhere | Type it in `#ops-control` |
 | "This control channel is not private" | Extra overwrites on the control channel | Leave only @everyone (denied), the owner and the bot |
@@ -285,7 +289,7 @@ After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v
 | "This action expired." on a button | The bot restarted after the message (clicks are in memory) | Nothing ran. Send the request again |
 | Hard deny message on a legit command | The deny list matched (best-effort parser) | Rewrite as simple commands, or run it yourself |
 | `gh` not authenticated | No `gh auth login` | Run `gh auth login` |
-| Startup: "AGENT_HOME is inside a registered repo" or "inside a git working tree" | `AGENT_HOME` sits in a repo | Point `AGENT_HOME` at a real dir outside every repo |
+| Startup: "AGENT_HOME is inside a registered location" or "inside a git working tree" | `AGENT_HOME` sits in a location or a git working tree | Point `AGENT_HOME` at a real dir outside every location and git working tree |
 | Startup: "db snapshot failed" | `db-backups/` not writable or disk full; nothing migrated | Fix the dir or space, start again |
 | Old DB after an upgrade | Schema v2 → v3 writes `db-backups/friday-v2-<ts>.db`; v3 → v4 writes no backup. An older binary cannot open v3 or v4 | Stop the bot, restore the backup over `data/agent.db`, delete `-wal` and `-shm`. Steps: [owner-checklist-schema-v3.md](owner-checklist-schema-v3.md) |
 | Log level too high | Missing detail | Set `LOG_LEVEL=debug` in `.env` |
@@ -305,10 +309,10 @@ After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v
 |---|---|---|---|
 | Global | `$AGENT_HOME/MEMORY.md` | you only | newest 5000 chars |
 | Workspace | `$AGENT_HOME/workspaces/<ws>/MEMORY.md` | you only | newest 5000 chars |
-| Repo | `$AGENT_HOME/workspaces/<ws>/repos/<repo>/MEMORY.md` | the agent and you | newest 8000 chars per repo, 16000 for all repos of the workspace |
+| Location | `$AGENT_HOME/workspaces/<ws>/locations/<name>/MEMORY.md` | the agent and you | newest 8000 chars per location, 16000 for all locations of the workspace |
 
 - An entry needs a `## <topic>` heading to count. A template-only file injects nothing.
-- **Agent writes:** after a dev run, the agent's `Memory:` bullets go to the repo file (dated, redacted, 200 chars each; the prompt asks for at most 3, the writer keeps at most 5).
+- **Agent writes:** after a dev run, the agent's `Memory:` bullets go to the location's file (dated, redacted, 200 chars each; the prompt asks for at most 3, the writer keeps at most 5).
 - `[global]` bullets (max 2) go to `$AGENT_HOME/MEMORY.pending.md`. **Never injected.** Copy trusted facts into `MEMORY.md` by hand.
 - The agent never writes the global or workspace `MEMORY.md`.
 
@@ -316,19 +320,15 @@ After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v
 
 | Command | Effect |
 |---|---|
-| `remember: <text>` / `nhớ: <text>` | append `- <text>` under `## <date> owner` in the default repo's file |
-| `remember: global <text>` / `nhớ: chung <text>` | root `MEMORY.md` |
-| `remember: workspace <text>` / `nhớ: ws <text>` | `workspaces/<ws>/MEMORY.md` |
-| `remember: repo:<name> <text>` | that repo's file (name from the registry, case-insensitive) |
+| `remember: <text>` / `nhớ: <text>` | a plain message to the agent, which saves the note and picks the scope (location, workspace or global) |
 | `forget: [scope] <text>` / `quên: ...` | removes the one bullet containing `<text>`; none = not found; several = nothing changes |
 | `compact memory [dry-run]` / `gom nén [dry-run]` | compacts files above 80% of their cap |
 
-- Default repo: the repo of the thread's latest task, else the workspace's only repo, else the bot asks `Which repo?`.
 - At 300 lines the write is refused (`file full`). Run `compact memory` first.
 
 **Compaction:** `compact memory` in chat, or `bun run memory:compact [--dry-run] [--workspace <ws>] [--global]`. One cheap model call per file above 80% of its cap (`MEMORY_MODEL`). Run `--dry-run` first. The previous version is kept as `MEMORY.md.bak`. Output is checked: bullets only, within the cap, same numbers and negations as the input, else the file is left untouched. `MEMORY.pending.md` is never touched. A `dry-run` still calls the model (only for files over 80%).
 
-**Files the bot never creates:** `CLAUDE.md` and `CLAUDE.local.md`. The SDK loads no CLAUDE.md. Put the facts an agent needs in `repo.yaml` and the repo `MEMORY.md`.
+**Files the bot never creates:** `CLAUDE.md` and `CLAUDE.local.md`. The SDK loads no CLAUDE.md. Put the facts an agent needs in the location's `description` and its `MEMORY.md`.
 
 ## Run in the background (launchd)
 `deploy/com.friday.agent.plist` starts the bot at login and restarts it after a failure (paths are for this Mac; edit them if the repo or bun moves).
