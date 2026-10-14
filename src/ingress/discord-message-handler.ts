@@ -6,17 +6,23 @@ import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { parseMessageCommand } from "../orchestrator/message-commands";
 import { type AttachmentDeps, withAttachments } from "./attachment-text";
-import { routeMessage, SAFE_MENTIONS, stripMention, threadName } from "./discord-message-rules";
+import { routeMessage, SAFE_MENTIONS, stripMention } from "./discord-message-rules";
 import { BUSY_ACK_EMOJI, sendReply, startTyping } from "./discord-send";
 import type { InboundMessage } from "./inbound-message";
 import { replyToMemoryCommand } from "./memory-ingress";
-import { fetchRecent, HISTORY_CHARS, type HistoryChannel } from "./thread-history";
+import { type HistoryChannel, historyOf, recentFor } from "./thread-history";
+import {
+  adoptRoute,
+  mayAdopt,
+  openThread,
+  type ThreadsPort,
+  threadFacts,
+} from "./thread-placement";
 import { createThreadTurns } from "./thread-turns";
 
 export type { InboundMessage } from "./inbound-message";
 
-/** Longest wait (ms) for the thread history; the message then goes on without it. */
-export const FETCH_RECENT_TIMEOUT_MS = 1500;
+export { FETCH_RECENT_TIMEOUT_MS } from "./thread-history";
 /** What the handler needs from the orchestrator. */
 export type HandleMessage = (message: InboundMessage) => Promise<string>;
 
@@ -39,6 +45,8 @@ export interface MessageHandlerDeps {
   memory?: MemoryRunner;
   /** Ports of the attachment reader (summary, saved copy, fetch); tests inject fakes. */
   attachments?: AttachmentDeps;
+  /** Thread persistence and channel lookup (placeholder rows, adoption). Absent: no rows, no adoption. */
+  threads?: ThreadsPort;
 }
 
 /** Build the `messageCreate` handler: route, run the turn, reply. Never throws. */
@@ -70,7 +78,8 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         text,
         ...(recent?.length && { recent }),
         replied,
-        history: (limit) => historyOf(channel as unknown as HistoryChannel, limit),
+        history: (limit) =>
+          historyOf(channel as unknown as HistoryChannel, deps.ownerId, deps.botId(), limit),
         notify: (m) => sendReply(channel, m),
       });
       started?.();
@@ -81,42 +90,17 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     }
   }
 
-  /** The thread's last `limit` messages, whoever is current (nothing excluded); the bot's own reply included. */
-  const historyOf = (ch: HistoryChannel, limit: number) => {
-    const botId = deps.botId();
-    return botId
-      ? fetchRecent(ch, { currentId: "", ownerId: deps.ownerId, botId }, limit, HISTORY_CHARS)
-      : Promise.resolve([]);
-  };
-
-  /**
-   * The thread history for the intent layer. Skipped for commands (slash or legacy: `/stop` must be instant) and
-   * raced against FETCH_RECENT_TIMEOUT_MS: a hang or an error is no history, the message still proceeds.
-   */
-  const recentFor = (
-    ch: Parameters<typeof fetchRecent>[0],
-    id: string,
-    botId: string,
-    text: string,
-  ) =>
-    parseMessageCommand(text).kind !== "message"
-      ? []
-      : Promise.race([
-          fetchRecent(ch, { currentId: id, ownerId: deps.ownerId, botId }),
-          new Promise<never[]>((r) => setTimeout(() => r([]), FETCH_RECENT_TIMEOUT_MS).unref()),
-        ]);
-
   return async function onMessage(msg: Message): Promise<void> {
     const botId = deps.botId();
     if (!botId) return;
     const ch = msg.channel;
-    const route = routeMessage(
+    const decided = routeMessage(
       {
         authorId: msg.author.id,
         authorIsBot: msg.author.bot,
         inGuild: msg.inGuild(),
         otherGuild: !!deps.guildId && msg.guildId !== deps.guildId,
-        inBotThread: ch.isThread() && ch.ownerId === botId,
+        ...threadFacts(ch, botId, ops, deps.threads, mayAdopt(msg, deps.ownerId, botId)),
         mentionsBot: msg.mentions.has(botId, { ignoreEveryone: true, ignoreRoles: true }),
         content: msg.content,
         hasAttachments: (msg.attachments?.size ?? 0) > 0,
@@ -126,6 +110,11 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       deps.ownerId,
       botId,
     );
+    // An adoptable thread persists its adoption here and continues as a normal `thread` turn.
+    const route =
+      decided.kind === "adopt" && ch.isThread() && ch.parentId
+        ? adoptRoute(decided, ch.id, ch.parentId, deps.threads)
+        : decided;
     if (route.kind === "ignore") {
       // Strangers' and bots' messages are noise (debug); the owner's ignored ones are worth seeing.
       const stranger = route.reason === "bot" || route.reason === "not_owner";
@@ -138,11 +127,9 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       return;
     }
     if (route.kind === "control") {
-      try {
-        await deps.admin?.(msg, route.prompt);
-      } catch (err) {
-        log.error({ err: errText(err) }, "admin handling failed");
-      }
+      await Promise.resolve() // .then keeps a sync throw from `admin` inside the catch
+        .then(() => deps.admin?.(msg, route.prompt))
+        .catch((err) => log.error({ err: errText(err) }, "admin handling failed"));
       return;
     }
     // Only the owner's text is logged (redacted, capped).
@@ -178,7 +165,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
               ack: async () => void (await msg.react(BUSY_ACK_EMOJI)),
             },
             text,
-            await recentFor(ch, msg.id, botId, text),
+            await recentFor(ch, msg.id, { ownerId: deps.ownerId, botId }, text),
             turn?.done,
           );
         else
@@ -198,17 +185,14 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         });
         return;
       }
-      const thread = await msg.startThread({ name: threadName(route.prompt) });
+      const thread = await openThread(msg, ch.id, deps.threads);
       errorTarget = thread;
       await answer(thread, { threadId: thread.id, channelId: ch.id, messageId: msg.id }, text);
     } catch (err) {
       // Full error to the log (redacted), short generic text to the user.
       log.error({ err: errText(err) }, "message handling failed");
-      try {
-        if (errorTarget) await sendReply(errorTarget, "Something went wrong. Check the logs.");
-      } catch {
-        /* channel unusable; already logged */
-      }
+      if (errorTarget)
+        await sendReply(errorTarget, "Something went wrong. Check the logs.").catch(() => {}); // channel unusable; already logged
     } finally {
       turn?.done(); // never leave the next message waiting
     }

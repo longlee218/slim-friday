@@ -10,7 +10,6 @@ import {
   SAFE_MENTIONS,
   splitChunks,
   stripMention,
-  threadName,
 } from "../src/ingress/discord-message-rules";
 
 const OWNER = "111";
@@ -75,11 +74,6 @@ test("mention stripping", () => {
   expect(stripMention(`<@${BOT}> a <@${BOT}>`, BOT)).toBe("a");
 });
 
-test("threadName is single-line and <=90 chars", () => {
-  expect(threadName("what does\nfoo do?")).toBe("what does foo do?");
-  expect(threadName("x".repeat(300)).length).toBeLessThanOrEqual(90);
-});
-
 test("chunking: short, exactly 1900, boundaries", () => {
   expect(splitChunks("hi")).toEqual(["hi"]);
   expect(splitChunks("a".repeat(CHUNK_MAX))).toEqual(["a".repeat(CHUNK_MAX)]);
@@ -122,13 +116,6 @@ test("role mention stripping (role mentions filtered just like user mentions)", 
   expect(stripMention(`<@${BOT}>`, BOT)).toBe("");
 });
 
-test("threadName with emoji and unicode handling", () => {
-  expect(threadName("emoji: 🚀 test")).toContain("🚀");
-  expect(threadName("中文 test")).toContain("中文");
-  const long = "長い" + "x".repeat(100);
-  expect(threadName(long).length).toBeLessThanOrEqual(90);
-});
-
 test("message chunking with multibyte and emoji boundaries", () => {
   const emoji = "🚀".repeat(500); // 500 emojis, each 4 bytes
   const chunks = splitChunks(emoji, CHUNK_MAX);
@@ -146,11 +133,6 @@ test("exactly 1900 char chunk boundary", () => {
   const chunks = splitChunks(over);
   expect(chunks.length).toBeGreaterThan(1);
   expect(chunks.join("")).toBe(over);
-});
-
-test("M4: thread title is redacted before truncation", () => {
-  const key = "ghp_" + "a".repeat(36);
-  expect(threadName(`why is ${key} here`)).not.toContain("ghp_");
 });
 
 test("M5: empty / whitespace replies become a notice, no blank chunks", () => {
@@ -222,4 +204,47 @@ test("admin text outside ops channels is control (gate refuses it), never a thre
     kind: "ignore",
     reason: "not_mentioned",
   });
+});
+
+// Adoption: every combination of the thread facts.
+test("adopt route: owner + mention + adoptable thread", () => {
+  expect(route({ adoptableThread: true })).toEqual({ kind: "adopt", prompt: "hello" });
+  // Not adoptable (unmapped parent, bot-owned, already adopted): the old routes stay.
+  expect(route({ adoptableThread: false }).kind).toBe("channel");
+  expect(route({ adoptableThread: true, mentionsBot: false })).toEqual({
+    kind: "ignore",
+    reason: "not_mentioned",
+  });
+});
+
+test("adopted thread acts like a bot thread: no mention needed", () => {
+  expect(route({ adoptedThread: true, mentionsBot: false, content: "follow up" })).toEqual({
+    kind: "thread",
+    prompt: "follow up",
+  });
+  // Adoption never applies once adopted (the handler computes adoptable=false then).
+  expect(route({ adoptedThread: true, adoptableThread: false })).toEqual({
+    kind: "thread",
+    prompt: "hello",
+  });
+  // A bot-owned thread wins over adoptable.
+  expect(route({ inBotThread: true, adoptableThread: true }).kind).toBe("thread");
+});
+
+test("adoption: non-owner, bot, DM and other guild are still ignored", () => {
+  for (const o of [
+    { authorId: "222" },
+    { authorIsBot: true },
+    { inGuild: false },
+    { otherGuild: true },
+  ])
+    expect(route({ adoptableThread: true, adoptedThread: true, ...o }).kind).toBe("ignore");
+});
+
+test("adoption: ops parent never adopts (ops check first)", () => {
+  expect(route({ adoptableThread: true, opsChannel: true }).kind).toBe("ignore");
+  expect(
+    route({ adoptableThread: true, opsChannel: true, content: `<@${BOT}> init:workspace:x` }).kind,
+  ).toBe("control");
+  expect(route({ adoptedThread: true, opsChannel: true, mentionsBot: false }).kind).toBe("ignore");
 });

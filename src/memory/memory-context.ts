@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import type { ThreadTitlePort } from "../ingress/thread-rename";
 import type { MemoryToolContext } from "../tools/memory-tool-context";
 import { loadWorkspaces } from "../workspaces/workspace-registry";
 
@@ -16,8 +17,12 @@ export function buildMemoryToolContext(p: {
   location?: string;
   /** Channel (yaml name) of the run. */
   channel?: string;
+  /** Discord channel id of the run (the thread's parent); stamped on a thread row created by `SetThreadTitle`. */
+  channelId?: string;
   /** Location names the run may use (the channel's subset); absent = every location of the space (rollover runs). */
   locationNames?: string[];
+  /** Rename port (every role with a port; not rollover runs): registers `SetThreadTitle`. */
+  threadTitle?: ThreadTitlePort;
 }): MemoryToolContext {
   return {
     db: p.db,
@@ -30,8 +35,10 @@ export function buildMemoryToolContext(p: {
       ),
     location: p.location,
     channel: p.channel,
+    channelId: p.channelId,
     threadId: p.threadId,
     trackSummary: p.trackSummary,
+    threadTitle: p.threadTitle,
     threadLabel: `thread ${p.threadId.slice(-6)}`,
   };
 }

@@ -163,6 +163,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     role: role.name,
     workspace: i.workspace,
     channel: i.channel,
+    channelId: i.message.channelId,
     // `locationScope: "all"` roles see every location of the workspace; the others pick among the locations.
     locations: role.locationScope === "all" ? i.locations : v.candidates,
     ac: i.ac,

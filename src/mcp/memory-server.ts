@@ -7,6 +7,7 @@ import { createMemorySearchTool } from "../tools/MemorySearchTool/memory-search-
 import { createReadBudget } from "../tools/memory-read-shared";
 import type { MemoryToolContext } from "../tools/memory-tool-context";
 import { createRememberTool } from "../tools/RememberTool/remember-tool";
+import { createSetThreadTitleTool } from "../tools/SetThreadTitleTool/set-thread-title-tool";
 import { MEMORY_MCP_SERVER } from "./mcp-tool-names";
 
 /**
@@ -30,6 +31,8 @@ export function createMemoryServer(ctx: MemoryToolContext) {
       createMemorySearchTool(ctx, budget),
       createMemoryGetTool(ctx, budget),
       createMemoryExpandTool(ctx, budget),
+      // Every role run with a rename port (lean/rollover runs build no port, so they never see it).
+      ...(ctx.threadTitle ? [createSetThreadTitleTool(ctx)] : []),
     ],
   });
 }

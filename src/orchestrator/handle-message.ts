@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
 import type { InboundMessage } from "../ingress/discord-message-handler";
+import type { ThreadTitlePort } from "../ingress/thread-rename";
 import type { IntentDeps } from "../intent/decide-intent";
 import {
   getLogContext,
@@ -33,6 +34,8 @@ export interface TurnHandlerDeps {
   approvals?: ApprovalGateway;
   /** Intent layer (pipeline + L3 engine), built at startup. Missing = off: every message takes the entry role. */
   intent?: IntentDeps;
+  /** Renames threads for `SetThreadTitle` (offered to every role run; not rollover runs); omitted = the tool is not offered. */
+  threadTitle?: ThreadTitlePort;
 }
 
 /** Build `handleMessage`: Discord-free entry that owns the per-thread lock and `stop`. */

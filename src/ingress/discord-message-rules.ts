@@ -1,5 +1,5 @@
 import { isAdminText } from "../discord-setup/admin-command";
-import { clip, redactText } from "../observability/redact";
+import { redactText } from "../observability/redact";
 
 /** Mention policy for every outgoing message: nothing can ping (@everyone, @here, roles, users). */
 export const SAFE_MENTIONS = { parse: [] as never[], repliedUser: false };
@@ -12,8 +12,6 @@ export const REPLY_CAP = 6000;
 export const ATTACH_MIN = 6000;
 /** Size of the inline head sent before the attachment. */
 export const HEAD_MAX = 1500;
-/** Max Discord thread name length is 100; keep it shorter. */
-const THREAD_NAME_MAX = 90;
 
 /** Minimal message facts the routing rules need (decoupled from discord.js types). */
 export interface MessageFacts {
@@ -25,6 +23,10 @@ export interface MessageFacts {
   otherGuild: boolean;
   /** True when the channel is a thread created by this bot. */
   inBotThread: boolean;
+  /** True when the channel is an owner-made thread already adopted (acts like `inBotThread`). */
+  adoptedThread?: boolean;
+  /** True for a thread under a channel mapped to a space that is not bot-owned, not adopted, not in an ops channel. */
+  adoptableThread?: boolean;
   /** True when the message mentions this bot. */
   mentionsBot: boolean;
   content: string;
@@ -53,6 +55,8 @@ export type Route =
   | { kind: "control"; prompt: string }
   /** Continue the session of the thread the message is in. */
   | { kind: "thread"; prompt: string }
+  /** Owner @mention in an adoptable owner-made thread: the handler persists the adoption, then answers as `thread`. */
+  | { kind: "adopt"; prompt: string }
   /** New conversation: create a thread from the message. */
   | { kind: "channel"; prompt: string };
 
@@ -75,18 +79,14 @@ export function routeMessage(f: MessageFacts, ownerId: string, botId: string): R
       ? { kind: "control", prompt }
       : { kind: "ignore", reason: "ops_channel" };
   // Admin text anywhere else is refused by the gate, never sent to the agent.
-  if (isAdminText(prompt) && (f.inBotThread || f.mentionsBot)) return { kind: "control", prompt };
-  if (f.inBotThread) return { kind: "thread", prompt };
+  const inThread = f.inBotThread || !!f.adoptedThread; // bot-owned or adopted: no mention needed
+  if (isAdminText(prompt) && (inThread || f.mentionsBot)) return { kind: "control", prompt };
+  if (inThread) return { kind: "thread", prompt };
+  // An owner-made thread under a mapped channel: the first mention adopts it (never a thread inside a thread).
+  if (f.adoptableThread && f.mentionsBot) return { kind: "adopt", prompt };
   // Outside a bot thread the owner must mention the bot explicitly.
   if (f.mentionsBot) return { kind: "channel", prompt };
   return { kind: "ignore", reason: "not_mentioned" };
-}
-
-/** Thread title from the first words of the prompt, single line, <=90 chars. */
-export function threadName(prompt: string): string {
-  // Redact first so a pasted secret never becomes a channel-visible title.
-  const flat = redactText(prompt).replace(/\s+/g, " ").trim();
-  return clip(flat, THREAD_NAME_MAX) || "chat";
 }
 
 /** Break text into lines, cutting any line too long to ever fit in one chunk. */

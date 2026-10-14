@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../../approvals/approval-types";
 import type { AgentConfig } from "../../config/agent-config";
 import type { Route } from "../../config/model-routing";
+import type { ThreadTitlePort } from "../../ingress/thread-rename";
 import type { RecentMessage } from "../../intent/intent-types";
 import type { Location } from "../../locations/location-registry";
 import type { QueryFn } from "../../runtime/run-agent";
@@ -20,6 +21,8 @@ export interface RoleRunnerDeps {
   stopping?: () => boolean;
   /** Where streaming runs register their input so the owner can steer them. Omitted = string prompts, no steer. */
   steer?: SteerRegistry;
+  /** Renames the thread for `SetThreadTitle` (every role; rollover/lean runs never get it). Omitted = the tool is not offered. */
+  threadTitle?: ThreadTitlePort;
 }
 
 /** One role run: a fresh message, a dispatched task, or the continuation of one (`resume`). */
@@ -35,6 +38,8 @@ export interface RoleRunInput {
   workspace: string;
   /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
   channel?: string;
+  /** Discord channel id the run started in (the thread's parent): stamped on thread rows `SetThreadTitle` creates. */
+  channelId?: string;
   /** Locations the run may use (the role's `locationScope` decided which). */
   locations: Location[];
   /** The task's abort controller (`stop`, shutdown). */

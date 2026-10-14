@@ -77,10 +77,12 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         home: config.agentHome,
         workspace: i.workspace,
         channel: i.channel,
+        channelId: i.channelId,
         locationNames: i.locations.map((r) => r.name), // channel subset: memory tools cannot reach other locations
         location: i.locations.length === 1 ? i.locations[0]?.name : undefined,
         threadId: i.threadId,
         trackSummary: !role.background,
+        threadTitle: deps.threadTitle,
       }),
       skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
       guard: guardFor(role, s.guard),

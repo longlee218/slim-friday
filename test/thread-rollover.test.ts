@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
-import { MEMORY_MCP_SERVER, mcpToolName, REMEMBER_TOOL } from "../src/mcp/mcp-tool-names";
+import {
+  MEMORY_MCP_SERVER,
+  mcpToolName,
+  REMEMBER_TOOL,
+  SET_THREAD_TITLE_TOOL,
+} from "../src/mcp/mcp-tool-names";
 import { journalFile } from "../src/memory/daily-journal";
 import { searchIndex } from "../src/memory/index/memory-search";
 import { localDay } from "../src/memory/memory-clock";
@@ -223,6 +228,7 @@ describe("rollover sequence", () => {
     expect(flush.tools).toEqual([]); // no built-in tool
     expect(flush.allowedTools).toEqual([REMEMBER]); // the only tool
     expect(flush.disallowedTools).toContain(mcpToolName(MEMORY_MCP_SERVER, "MemorySearch"));
+    expect(flush.disallowedTools).toContain(mcpToolName(MEMORY_MCP_SERVER, SET_THREAD_TITLE_TOOL)); // lean runs never see it
     expect(flush.hooks.PreCompact).toBeUndefined(); // the flush registers no compact hooks
     expect(flush.hooks.PostCompact).toBeUndefined();
     expect(flush.maxTurns).toBe(4);

@@ -13,6 +13,8 @@ import { createOpsLog } from "./discord-setup/ops-log";
 import { warnIfBotAdministrator } from "./discord-setup/ready-checks";
 import { warnOpsChannelsInWorkspaces } from "./discord-setup/warn-ops-channels";
 import { createDiscordBot } from "./ingress/discord-bot";
+import { createThreadTitlePort } from "./ingress/thread-rename";
+import { createThreadsPort } from "./ingress/threads-port";
 import { buildIntentDeps } from "./intent/intent-deps";
 import { homePlacementError } from "./lifecycle/home-placement-check";
 import {
@@ -122,6 +124,7 @@ async function main(): Promise<void> {
     approvals,
     limiter: createRunLimiter(),
     intent,
+    threadTitle: createThreadTitlePort(() => botClient),
   });
   const handleResume = createResumeHandler({
     db,
@@ -140,6 +143,7 @@ async function main(): Promise<void> {
     },
     setup,
     handleMessage.memory,
+    createThreadsPort(db, config.agentHome),
   );
   botClient = client;
   // One #ops-log line per start / shutdown / uncaught error; no-op without ops.log in discord.yaml.

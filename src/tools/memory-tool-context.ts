@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import type { ThreadTitlePort } from "../ingress/thread-rename";
 /**
  * What the tools of the in-process `memory` server need to know about the run they belong to. Built per run by
  * the role runner; the read tools (search/get/expand) read the same object.
@@ -12,6 +13,8 @@ export interface MemoryToolContext {
   workspace: string;
   /** Channel (yaml name) the run started in: scope `channel` writes its MEMORY.md; absent = no channel. */
   channel?: string;
+  /** Discord channel id the run started in (the thread's parent): `SetThreadTitle` stamps it on a thread row it must create. */
+  channelId?: string;
   /** Valid location names of the workspace (the registry), read when a tool needs them. */
   locationNames: () => string[];
   /** The run's single location, when it has exactly one: stamps `global` notes with their origin (`[ws/location]`). */
@@ -25,6 +28,8 @@ export interface MemoryToolContext {
    * `markRolled` counts it), hands it to `onSummary`, and PreCompact skips its extract (the LLM flush already ran).
    */
   rollover?: { onSummary: (summary: string) => void };
+  /** Rename port of the run's thread: its presence registers `SetThreadTitle` (every role; not rollover/lean runs). Absent = no such tool. */
+  threadTitle?: ThreadTitlePort;
   /** Short label of the thread: the journal block title (`## HH:MM <label>`). */
   threadLabel: string;
   /** Clock (tests pass a fixed one). One call per tool call: file date and bullet date come from the same instant. */

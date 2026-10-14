@@ -1,6 +1,9 @@
 import type { RecentMessage } from "../intent/intent-types";
 import { cleanRecent, RECENT_COUNT } from "../intent/recent-messages";
+import { parseMessageCommand } from "../orchestrator/message-commands";
 
+/** Longest wait (ms) for the thread history; the message then goes on without it. */
+export const FETCH_RECENT_TIMEOUT_MS = 1500;
 /** Messages fetched: a little more than shown, because the current message and foreign authors are skipped. */
 const FETCH_EXTRA = 2;
 /** Longest text of one message of the rollover history (summary / extract input; the intent layer's own is shorter). */
@@ -61,3 +64,31 @@ export async function fetchRecent(
     return [];
   }
 }
+
+/**
+ * The thread history for the intent layer. Skipped for commands (slash or legacy: `/stop` must be instant) and
+ * raced against FETCH_RECENT_TIMEOUT_MS: a hang or an error is no history, the message still proceeds.
+ */
+export const recentFor = (
+  ch: Parameters<typeof fetchRecent>[0],
+  id: string,
+  ids: { ownerId: string; botId: string },
+  text: string,
+) =>
+  parseMessageCommand(text).kind !== "message"
+    ? []
+    : Promise.race([
+        fetchRecent(ch, { currentId: id, ...ids }),
+        new Promise<never[]>((r) => setTimeout(() => r([]), FETCH_RECENT_TIMEOUT_MS).unref()),
+      ]);
+
+/** The thread's last `limit` messages, whoever is current (nothing excluded); the bot's own reply included. */
+export const historyOf = (
+  ch: HistoryChannel,
+  ownerId: string,
+  botId: string | undefined,
+  limit: number,
+) =>
+  botId
+    ? fetchRecent(ch, { currentId: "", ownerId, botId }, limit, HISTORY_CHARS)
+    : Promise.resolve([]);

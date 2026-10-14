@@ -85,6 +85,7 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
       role: role.name,
       workspace: i.workspace,
       channel: i.channel,
+      channelId: i.message.channelId,
       locations: role.locationScope === "all" ? i.locations : v.candidates,
       ac: i.ac,
       route: runRoute({ cls: i.cls, effort: i.effort }),

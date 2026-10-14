@@ -9,6 +9,7 @@ import { createAttachmentDeps } from "./attachment-summary";
 import { createMessageHandler, type HandleMessage } from "./discord-message-handler";
 import { SAFE_MENTIONS } from "./discord-message-rules";
 import { createSlashHandler, registerSlashCommands } from "./slash-interaction";
+import type { ThreadsPort } from "./thread-placement";
 
 /** Client options: needed intents and a mention policy that never pings anyone. */
 export const CLIENT_OPTIONS = {
@@ -27,6 +28,7 @@ export function createDiscordBot(
   handleInteraction?: (i: Interaction) => Promise<void>,
   setup: DiscordSetup = EMPTY_SETUP,
   memory?: MemoryRunner,
+  threads?: ThreadsPort,
 ) {
   const log = logger.child({ module: "discord-bot" });
   const client = new Client(CLIENT_OPTIONS);
@@ -37,6 +39,7 @@ export function createDiscordBot(
     handleMessage,
     setup,
     memory,
+    threads,
     attachments: createAttachmentDeps(config),
     // Admin commands (init:workspace) run outside the turn handler, behind their own gate.
     admin: createAdminHandler({

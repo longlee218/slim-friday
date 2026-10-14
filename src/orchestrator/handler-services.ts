@@ -25,6 +25,7 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     approvals: deps.approvals!,
     queryFn: deps.queryFn,
     stopping: tracker.isStopping,
+    threadTitle: deps.threadTitle,
     steer: createSteerRegistry(db), // streaming roles take the owner's messages while they run
   };
   const busyLane = createBusyLane({

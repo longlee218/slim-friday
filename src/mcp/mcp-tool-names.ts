@@ -57,10 +57,13 @@ export const MEMORY_SEARCH_TOOL = "MemorySearch";
 export const MEMORY_GET_TOOL = "MemoryGet";
 /** The section / block / summary around an entry id (phase 6, read-only). */
 export const MEMORY_EXPAND_TOOL = "MemoryExpand";
+/** Name a thread and store its digest (phase 1c; registered in every role run that has a rename port; rollover/lean runs never see it). */
+export const SET_THREAD_TITLE_TOOL = "SetThreadTitle";
 /** Every tool of the memory server: the guard allows exactly these and denies any other `mcp__memory__*`. */
 export const MEMORY_TOOLS: readonly string[] = [
   REMEMBER_TOOL,
   MEMORY_SEARCH_TOOL,
   MEMORY_GET_TOOL,
   MEMORY_EXPAND_TOOL,
+  SET_THREAD_TITLE_TOOL,
 ];

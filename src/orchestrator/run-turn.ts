@@ -94,6 +94,7 @@ export async function runTurn(
     role: role.name,
     workspace: ws,
     channel: c.channel,
+    channelId: message.channelId,
     // `locationScope: "all"` roles see every location of the workspace; the others the candidates.
     locations: role.locationScope === "all" ? c.locations : a.route.candidates,
     ac: c.ac,

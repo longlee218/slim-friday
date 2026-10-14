@@ -82,7 +82,7 @@ test("owner mention in channel -> thread created, task run, reply sent in thread
   const { onMessage, messages } = setup("hi @everyone");
   const m = fakeMsg({});
   await onMessage(m.msg);
-  expect(m.calls.threads).toEqual([{ name: "hello" }]);
+  expect(m.calls.threads).toEqual([{ name: expect.stringMatching(/^⏳ \d\d-\d\d \d\d:\d\d$/) }]); // never the first message
   expect(messages).toMatchObject([
     { source: "discord", userId: OWNER, threadId: "thr1", channelId: "chan", text: "hello" },
   ]);
