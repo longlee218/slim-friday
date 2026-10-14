@@ -3,6 +3,7 @@ import { CLIENT_OPTIONS } from "../src/ingress/discord-bot";
 import type { InboundMessage } from "../src/ingress/discord-message-handler";
 import { createMessageHandler } from "../src/ingress/discord-message-handler";
 import { BUSY_ACK_EMOJI } from "../src/ingress/discord-send";
+import { createMessageReceipt } from "../src/ingress/message-receipt";
 import { captureLogs } from "../src/observability/logger";
 
 const OWNER = "111";
@@ -40,9 +41,31 @@ function fakeMsg(over: {
   startThread?: any;
 }) {
   const channel = over.channel ?? fakeChannel("chan");
-  const calls: { reply: any[]; threads: any[] } = { reply: [], threads: [] };
+  const calls = {
+    reply: [] as any[],
+    threads: [] as any[],
+    reactions: [] as string[],
+    removed: [] as string[],
+  };
   const thread = fakeChannel("thr1", { thread: true, ownerId: BOT });
   const msg: any = {
+    react: async (emoji: string) => {
+      calls.reactions.push(emoji);
+    },
+    reactions: {
+      cache: new Map([
+        [
+          BUSY_ACK_EMOJI,
+          {
+            users: {
+              remove: async (id: string) => {
+                calls.removed.push(id);
+              },
+            },
+          },
+        ],
+      ]),
+    },
     author: { id: over.authorId ?? OWNER, bot: over.bot ?? false },
     content: over.content ?? `<@${BOT}> hello`,
     channel,
@@ -242,21 +265,6 @@ test("an admin hook that throws is contained", async () => {
   await onMessage(fakeMsg({ channel: fakeChannel(CTRL), mention: false, content: "help" }).msg);
 });
 
-test("a thread message carries an ack that reacts on the owner's message (M-d); a failing reaction is the caller's to catch", async () => {
-  const { onMessage, messages } = setup();
-  const th = fakeChannel("thr7", { thread: true, ownerId: BOT, parentId: "parent9" });
-  const m = fakeMsg({ channel: th, mention: false, content: "follow up" });
-  const reacted: string[] = [];
-  m.msg.react = async (e: string) => void reacted.push(e);
-  await onMessage(m.msg);
-  await messages[0]!.ack?.();
-  expect(reacted).toEqual([BUSY_ACK_EMOJI]);
-  m.msg.react = async () => {
-    throw new Error("Missing Permissions");
-  };
-  await expect(messages[0]!.ack?.()).rejects.toThrow("Missing Permissions");
-});
-
 test("messages of one thread reach the task layer in arrival order, even when the first one is slow to prepare (attachment download)", async () => {
   const { messages } = setup();
   const order: string[] = [];
@@ -292,4 +300,163 @@ test("messages of one thread reach the task layer in arrival order, even when th
   const second = fakeMsg({ channel: th, mention: false, content: "second message" });
   await Promise.all([onMessage(first.msg), onMessage(second.msg)]);
   expect(order).toEqual(["first message", "second message"]);
+});
+
+/** Hold a turn without relying on model timing. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+test("fast visible reply cancels the per-message receipt", async () => {
+  const m = fakeMsg({});
+  await setup().onMessage(m.msg);
+  await Bun.sleep(2100);
+  expect(m.calls.reactions).toEqual([]);
+});
+
+test("delayed replies get one receipt removed after sending, even when reaction operations fail", async () => {
+  for (const failure of ["none", "react", "remove"]) {
+    const gate = deferred<string>();
+    const m = fakeMsg({});
+    if (failure === "react")
+      m.msg.react = async () => {
+        throw new Error("reaction failed");
+      };
+    if (failure === "remove")
+      m.msg.reactions.cache.get(BUSY_ACK_EMOJI).users.remove = async () => {
+        throw new Error("removal failed");
+      };
+    const handler = createMessageHandler({
+      ownerId: OWNER,
+      botId: () => BOT,
+      handleMessage: () => gate.promise,
+    });
+    const pending = handler(m.msg);
+    await Bun.sleep(2100);
+    if (failure !== "react") expect(m.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
+    gate.resolve("finished");
+    await pending;
+    expect(m.thread.sent.at(-1).content).toBe("finished");
+    if (failure === "none") expect(m.calls.removed).toEqual([BOT]);
+  }
+}, 10000);
+
+test("notify stops receipt and typing refresh while the background turn continues", async () => {
+  const gate = deferred<string>();
+  const notified = deferred<void>();
+  const m = fakeMsg({});
+  let typing = 0;
+  m.thread.sendTyping = async () => {
+    typing++;
+  };
+  const handler = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    handleMessage: async (message) => {
+      await message.notify!("working");
+      notified.resolve();
+      return gate.promise;
+    },
+  });
+  const pending = handler(m.msg);
+  await notified.promise;
+  await Bun.sleep(8100);
+  expect(typing).toBe(1);
+  expect(m.calls.reactions).toEqual([]);
+  gate.resolve("done");
+  await pending;
+}, 12000);
+
+test("ignored and control messages never get a receipt", async () => {
+  const ignored = fakeMsg({ authorId: "other" });
+  const control = fakeMsg({ channel: fakeChannel(CTRL), mention: false, content: "help" });
+  const h = setupOps();
+  await Promise.all([h.onMessage(ignored.msg), h.onMessage(control.msg)]);
+  await Bun.sleep(2100);
+  expect(ignored.calls.reactions).toEqual([]);
+  expect(control.calls.reactions).toEqual([]);
+});
+
+test("both ordered messages get timely receipts while the first attachment is downloading", async () => {
+  const gate = deferred<Response>();
+  const order: string[] = [];
+  const th = fakeChannel("ordered", { thread: true, ownerId: BOT, parentId: "parent" });
+  const first = fakeMsg({ channel: th, mention: false, content: "first" });
+  first.msg.attachments = new Map([
+    [
+      "a",
+      {
+        name: "n.txt",
+        url: "https://cdn.discordapp.com/a/n.txt",
+        size: 9,
+        contentType: "text/plain",
+      },
+    ],
+  ]);
+  const second = fakeMsg({ channel: th, mention: false, content: "second" });
+  const handler = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    attachments: { fetchFn: () => gate.promise },
+    handleMessage: async (message) => {
+      order.push(message.text.split("\n")[0]!);
+      return "ok";
+    },
+  });
+  const pending = Promise.all([handler(first.msg), handler(second.msg)]);
+  await Bun.sleep(2100);
+  expect(first.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
+  expect(second.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
+  gate.resolve(new Response("body"));
+  await pending;
+  expect(order).toEqual(["first", "second"]);
+  expect(first.calls.removed).toEqual([BOT]);
+  expect(second.calls.removed).toEqual([BOT]);
+});
+
+test("receipt visibility waits for an in-flight reaction and removes it only once", async () => {
+  const gate = deferred<void>();
+  const events: string[] = [];
+  const receipt = createMessageReceipt(
+    async () => {
+      events.push("react");
+      await gate.promise;
+    },
+    async () => {
+      events.push("remove");
+    },
+    1,
+  );
+  await Bun.sleep(10);
+  const first = receipt.visible();
+  const second = receipt.visible();
+  expect(first).toBe(second);
+  expect(events).toEqual(["react"]);
+  gate.resolve();
+  await first;
+  expect(events).toEqual(["react", "remove"]);
+  receipt.dispose();
+});
+
+test("failed visible sends leave the receipt present", async () => {
+  const gate = deferred<string>();
+  const m = fakeMsg({});
+  m.thread.send = async () => {
+    throw new Error("send failed");
+  };
+  const handler = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    handleMessage: () => gate.promise,
+  });
+  const pending = handler(m.msg);
+  await Bun.sleep(2100);
+  gate.resolve("answer");
+  await pending;
+  expect(m.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
+  expect(m.calls.removed).toEqual([]);
 });

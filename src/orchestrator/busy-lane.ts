@@ -16,11 +16,8 @@ import type { RunLimiter } from "./turns/run-limiter";
 import { statusSnapshot } from "./turns/status-snapshot";
 import { OUTCOME_REPLY } from "./turns/turn-result";
 
-/* Messages that arrive while the thread's run holds the lock. Two rules live here:
-   1. ORDER. The decision of each message (L3, then steer / queue / feedback) runs one after the other per thread, in
-      arrival order, so uneven L3 latency cannot reorder them (steers and queued tasks follow the owner's order; the
-      `run_messages` seq follows it too). Only the decision is chained: a side answer (minutes) never holds it up.
-   2. ACK. The owner sees a reaction on the message at once, before L3 (seconds) and the textual reply. */
+/* Busy decisions run in arrival order per thread; a side answer never holds up later decisions.
+   Ingress owns the per-message receipt. */
 
 /** Reply when a side run crashed (the task's own run is untouched). */
 const CRASH_REPLY = OUTCOME_REPLY.error ?? "Agent failed. Check the logs.";
@@ -50,10 +47,6 @@ export function createBusyLane(d: BusyLaneDeps) {
     running: AbortController,
   ) {
     const threadId = message.threadId;
-    if (parsed.kind === "message")
-      void Promise.resolve(message.ack?.()).catch((err: unknown) =>
-        logEvent(d.log, "task.ack_failed", { err: errText(err) }, "warn"),
-      );
     const prev = tails.get(threadId) ?? Promise.resolve();
     const step = prev.then(() =>
       replyWhileBusy({

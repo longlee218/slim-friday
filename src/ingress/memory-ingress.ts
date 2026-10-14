@@ -12,6 +12,7 @@ export async function replyToMemoryCommand(
   msg: Message,
   where: MemoryWhere,
   text: string,
+  visible?: () => Promise<void>,
 ): Promise<boolean> {
   const ch = msg.channel;
   const reply = await runner({
@@ -22,6 +23,6 @@ export async function replyToMemoryCommand(
     text,
   });
   if (reply === null) return false;
-  if (ch.isSendable()) await sendReply(ch, reply);
+  if (ch.isSendable()) await sendReply(ch, reply, visible);
   return true;
 }

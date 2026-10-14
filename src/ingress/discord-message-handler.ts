@@ -10,6 +10,7 @@ import { routeMessage, SAFE_MENTIONS, stripMention, threadName } from "./discord
 import { BUSY_ACK_EMOJI, sendReply, startTyping } from "./discord-send";
 import type { InboundMessage } from "./inbound-message";
 import { replyToMemoryCommand } from "./memory-ingress";
+import { createMessageReceipt } from "./message-receipt";
 import { fetchRecent, HISTORY_CHARS, type HistoryChannel } from "./thread-history";
 import { createThreadTurns } from "./thread-turns";
 
@@ -51,12 +52,19 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
   /** Run the turn with typing shown, then post the reply into `channel`. `started` runs right after the `handleMessage` call began. */
   async function answer(
     channel: SendableChannels,
-    ids: { threadId: string; channelId: string; messageId: string; ack?: () => Promise<void> },
+    ids: { threadId: string; channelId: string; messageId: string },
+    receipt: ReturnType<typeof createMessageReceipt>,
     text: string,
     recent?: RecentMessage[],
     started?: () => void,
   ): Promise<void> {
-    const stopTyping = startTyping(channel);
+    let stopTyping = startTyping(channel);
+    let shown = false;
+    const visible = async () => {
+      shown = true;
+      stopTyping();
+      await receipt.visible();
+    };
     // Resolved once the reply is out: the thread's rollover work (flush, summary) starts only then.
     let posted!: () => void;
     const replied = new Promise<void>((r) => {
@@ -71,10 +79,21 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         ...(recent?.length && { recent }),
         replied,
         history: (limit) => historyOf(channel as unknown as HistoryChannel, limit),
-        notify: (m) => sendReply(channel, m),
+        notify: (m) => {
+          if (shown) {
+            stopTyping();
+            stopTyping = startTyping(channel);
+          }
+          return sendReply(channel, m, visible);
+        },
       });
       started?.();
-      await sendReply(channel, await call);
+      const reply = await call;
+      if (shown) {
+        stopTyping();
+        stopTyping = startTyping(channel);
+      }
+      await sendReply(channel, reply, visible);
     } finally {
       posted();
       stopTyping();
@@ -145,6 +164,14 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       }
       return;
     }
+    const receipt = createMessageReceipt(
+      async () => {
+        await msg.react(BUSY_ACK_EMOJI);
+      },
+      async () => {
+        await msg.reactions.cache.get(BUSY_ACK_EMOJI)?.users.remove(botId);
+      },
+    );
     // Only the owner's text is logged (redacted, capped).
     logEvent(log, "message.received", {
       owner: true,
@@ -161,7 +188,10 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     try {
       await turn?.wait;
       // Memory commands never reach the agent: answered in place (thread or channel), no thread, no task row.
-      if (deps.memory && (await replyToMemoryCommand(deps.memory, msg, "workspace", route.prompt)))
+      if (
+        deps.memory &&
+        (await replyToMemoryCommand(deps.memory, msg, "workspace", route.prompt, receipt.visible))
+      )
         return;
       // Text attachments (a message > 2000 chars arrives as message.txt) join the agent's text as a DATA block.
       const key = route.kind === "thread" ? ch.id : msg.id; // a thread started from a message has its id
@@ -175,8 +205,8 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
               threadId: ch.id,
               channelId,
               messageId: msg.id,
-              ack: async () => void (await msg.react(BUSY_ACK_EMOJI)),
             },
+            receipt,
             text,
             await recentFor(ch, msg.id, botId, text),
             turn?.done,
@@ -196,20 +226,28 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
           content: "Send `/stop` inside the thread of the run.",
           allowedMentions: SAFE_MENTIONS,
         });
+        await receipt.visible();
         return;
       }
       const thread = await msg.startThread({ name: threadName(route.prompt) });
       errorTarget = thread;
-      await answer(thread, { threadId: thread.id, channelId: ch.id, messageId: msg.id }, text);
+      await answer(
+        thread,
+        { threadId: thread.id, channelId: ch.id, messageId: msg.id },
+        receipt,
+        text,
+      );
     } catch (err) {
       // Full error to the log (redacted), short generic text to the user.
       log.error({ err: errText(err) }, "message handling failed");
       try {
-        if (errorTarget) await sendReply(errorTarget, "Something went wrong. Check the logs.");
+        if (errorTarget)
+          await sendReply(errorTarget, "Something went wrong. Check the logs.", receipt.visible);
       } catch {
         /* channel unusable; already logged */
       }
     } finally {
+      receipt.dispose();
       turn?.done(); // never leave the next message waiting
     }
   };

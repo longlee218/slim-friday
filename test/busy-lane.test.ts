@@ -253,16 +253,19 @@ test("H-a: independent messages queue in arrival order too (uneven L3 latency)",
   await first;
 });
 
-test("M-d: the ack comes at once, before L3 reads the message (and a failing ack changes nothing)", async () => {
+test("busy lane leaves receipt ownership to ingress", async () => {
   const h = await harness({ steersToRead: 1 });
   const { first } = await h.start();
-  const ack = async () => void h.p.events.push("ack");
-  expect(await h.handle(msg("slow also A", { ack }))).toBe(STEER_RECEIVED);
-  expect(h.p.events.slice(-2)).toEqual(["ack", "l3:slow also A"]);
-  const broken = async () => {
-    throw new Error("missing permission");
-  };
-  expect(await h.handle(msg("also B", { ack: broken }))).toBe(STEER_RECEIVED);
+  expect(
+    await h.handle(
+      msg("slow also A", {
+        ack: async () => {
+          h.p.events.push("ack");
+        },
+      }),
+    ),
+  ).toBe(STEER_RECEIVED);
+  expect(h.p.events).not.toContain("ack");
   h.release();
   await first;
 });

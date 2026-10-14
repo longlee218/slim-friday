@@ -15,8 +15,6 @@ export interface InboundMessage {
   messageId?: string;
   /** The last messages of the thread before this one (owner and bot, redacted, clipped), oldest first; for the intent layer. Absent = none. */
   recent?: RecentMessage[];
-  /** Shows at once that the message was received (a reaction on it); used for a message that reaches a busy thread. Never throws. */
-  ack?: () => Promise<void>;
   /** Resolves once the ingress posted this turn's reply (or gave up): the rollover work waits for it. Absent = no wait. */
   replied?: Promise<void>;
   /** The thread's last `limit` messages (owner and bot, oldest first), for the rollover's summary / extract. Absent = none. */
