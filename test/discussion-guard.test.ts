@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { workspacePaths } from "../src/config/workspace-paths";
 import { ATTACHMENT_PATH_PREFIX } from "../src/ingress/attachment-text";
 import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
@@ -92,6 +91,7 @@ async function build() {
   });
   const msg = (text: string) => ({
     source: "t",
+    language: "en" as const,
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
@@ -106,7 +106,7 @@ const PROPOSAL = "Tôi đề xuất xây dựng một lớp cache cho bảng gi�
 test("dev/new from L3 alone after an assistant turn starts the task at once (no confirmation)", async () => {
   const { e, seen, handle, msg, q } = await build();
   await handle(msg("[ask] explain the location")); // assistant turn (L1 tag)
-  expect(await handle(msg(PROPOSAL))).toContain("Starting dev");
+  expect(await handle(msg(PROPOSAL))).toContain("starting on your request");
   expect(e.inputs).toHaveLength(1);
   expect(e.inputs[0]?.thread.lastTurn).toEqual({ role: "assistant" });
   expect(q("SELECT role FROM turns")).toEqual([{ role: "assistant" }, { role: "dev" }]);
@@ -116,10 +116,10 @@ test("dev/new from L3 alone after an assistant turn starts the task at once (no 
 
 test("no guard: a first message, a [dev] tag or a role other than a staged one is unaffected", async () => {
   const { handle, msg, q } = await build();
-  expect(await handle(msg("please add b.txt"))).toContain("Starting dev"); // idle thread, no earlier turn
+  expect(await handle(msg("please add b.txt"))).toContain("starting on your request"); // idle thread, no earlier turn
   const second = await build();
   await second.handle(second.msg("[ask] explain the location"));
-  expect(await second.handle(second.msg("[dev] add b.txt"))).toContain("Starting dev");
+  expect(await second.handle(second.msg("[dev] add b.txt"))).toContain("starting on your request");
   expect(q("SELECT role FROM turns")).toEqual([{ role: "dev" }]);
 });
 

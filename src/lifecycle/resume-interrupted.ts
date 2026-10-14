@@ -1,9 +1,11 @@
 import type { Database } from "bun:sqlite";
 import { ButtonStyle, type Client, type Interaction, MessageFlags } from "discord.js";
 import { buildButtonRows } from "../approvals/approval-buttons";
+import { threadLanguage } from "../ingress/discord-components";
 import type { HandleMessage } from "../ingress/discord-message-handler";
 import { sendReply, startTyping } from "../ingress/discord-message-handler";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
+import { renderUserNotice } from "../ingress/user-copy";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { RESUME_PROMPT } from "../orchestrator/message-commands";
@@ -36,10 +38,15 @@ export async function postResumeNotices(
     try {
       const channel = await deps.getClient()?.channels.fetch(threadId);
       if (!channel?.isSendable()) throw new Error("no channel");
+      const language = threadLanguage(deps.db, threadId);
       await channel.send({
-        content: "The bot restarted while a task was running. Press Resume to continue it.",
+        content: renderUserNotice({ kind: "decision", state: "restart" }, language),
         components: buildButtonRows(PREFIX, threadId, [
-          { label: "Resume", value: "go", style: ButtonStyle.Primary },
+          {
+            label: language === "vi" ? "Tiếp tục" : "Continue",
+            value: "go",
+            style: ButtonStyle.Primary,
+          },
         ]),
         allowedMentions: SAFE_MENTIONS,
       });
@@ -67,7 +74,13 @@ export function createResumeHandler(deps: ResumeDeps) {
         return;
       }
       if (i.user.id !== deps.ownerId) {
-        await i.reply({ content: "Only the owner can resume.", flags: MessageFlags.Ephemeral });
+        await i.reply({
+          content: renderUserNotice(
+            { kind: "failure", cause: "owner" },
+            threadLanguage(deps.db, threadId),
+          ),
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
       const channel = i.channel;
@@ -76,9 +89,16 @@ export function createResumeHandler(deps: ResumeDeps) {
       // Routing key: the thread's parent channel (a button outside a thread is not ours).
       const channelId = channel.isThread() ? channel.parentId : null;
       if (!channelId) return;
-      await i.update({ content: "Resuming...", components: [] });
+      await i.update({
+        content: renderUserNotice(
+          { kind: "decision", state: "resuming" },
+          threadLanguage(deps.db, threadId),
+        ),
+        components: [],
+      });
       logEvent(log, "resume.clicked", { threadId });
       const stopTyping = startTyping(channel);
+      const language = threadLanguage(deps.db, threadId);
       try {
         const reply = await deps.handleMessage({
           source: "discord",
@@ -86,8 +106,10 @@ export function createResumeHandler(deps: ResumeDeps) {
           threadId,
           channelId,
           text: RESUME_PROMPT,
+          // The prompt is English; the owner's pinned language decides the notices and the result.
+          language,
         });
-        await sendReply(channel, reply);
+        if (reply !== undefined) await sendReply(channel, reply, language);
       } finally {
         stopTyping();
       }

@@ -17,7 +17,7 @@ async function turn(text: string, approvals?: unknown) {
   const out = await intentTurn({
     deps: { db: env.db, approvals } as unknown as DispatchDeps,
     log,
-    message: { threadId: "th", messageId: "m1", recent: [] } as never,
+    message: { text, language: "en", threadId: "th", messageId: "m1", recent: [] } as never,
     workspace: "ws",
     locations: loadWorkspaces(env.home).workspaces[0]!.locations,
     ac: new AbortController(),
@@ -32,7 +32,10 @@ async function turn(text: string, approvals?: unknown) {
 
 test("a refused background role replies with the legacy text and logs preflight.result", async () => {
   const { out, lines } = await turn(`${tagOf(BG)} fix the bug`, undefined);
-  expect(out).toEqual({ kind: "reply", text: "This task needs the Discord approval flow." });
+  expect(out).toEqual({
+    kind: "reply",
+    text: "Nothing started because Discord approvals need to be enabled.",
+  });
   expect(lines.find((l) => l.event === "preflight.result")).toMatchObject({
     candidate: BG,
     decision: "reject",

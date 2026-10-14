@@ -225,8 +225,8 @@ test("quota: rejected rate_limit_event + assistant error gives reset time in the
   const r = await go(env, fakeQuery(msgs as never));
   expect(r.outcome).toBe("quota");
   expect(r.resetsAt).toBe(reset * 1000);
-  const reply = finishRun(env.db, { turnId: "T", threadId: "th" }, r);
-  expect(reply).toContain("Quota exhausted / rate limited");
+  const reply = finishRun(env.db, { turnId: "T", threadId: "th" }, r, "en");
+  expect(reply).toContain("service is limiting requests");
   expect(reply).toContain(new Date(reset * 1000).toISOString());
 });
 
@@ -266,8 +266,8 @@ test("unknown error: generic reply, raw error not shown to the user", async () =
   });
   const r = await go(env, fakeQuery([initMsg, m]));
   expect(r.outcome).toBe("error");
-  const reply = finishRun(env.db, { turnId: "T", threadId: "th" }, r);
-  expect(reply).toBe("Agent failed. Check the logs.");
+  const reply = finishRun(env.db, { turnId: "T", threadId: "th" }, r, "en");
+  expect(reply).toBe("I did not finish your request. You can try again.");
 });
 
 // ---- Startup hygiene ----

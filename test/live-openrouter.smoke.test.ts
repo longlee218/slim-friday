@@ -50,7 +50,7 @@ describe.skipIf(!live)("live agent smoke (OpenRouter)", () => {
       )
       .get();
     expect(row?.outcome).toBe("success");
-    expect(reply.length).toBeGreaterThan(0);
+    expect(reply?.length).toBeGreaterThan(0);
     expect(inits.length).toBeGreaterThan(0);
     expect(
       inits[0]!.tools.some((t) => [BASH_TOOL_NAME, WRITE_TOOL_NAME, EDIT_TOOL_NAME].includes(t)),
@@ -64,7 +64,7 @@ describe.skipIf(!live)("live agent smoke (OpenRouter)", () => {
     // init.model is recorded, not asserted: OpenRouter may echo a different id string.
     const run = row;
     process.stderr.write(
-      `OPENROUTER NOTES: model=${cfg.model} init_model=${inits[0]?.model} reply_has_alpha=${reply.toLowerCase().includes("alpha")} ` +
+      `OPENROUTER NOTES: model=${cfg.model} init_model=${inits[0]?.model} reply_has_alpha=${reply?.toLowerCase().includes("alpha")} ` +
         `cost_usd=${run?.cost_usd} (SDK prices from Anthropic tables, unreliable) turns=${run?.turns}\n`,
     );
   }, 120_000);

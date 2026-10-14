@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { renderUserNotice } from "../src/ingress/user-copy";
 import {
   expireStaleProposals,
   PROPOSAL_NOTICE,
@@ -36,6 +37,7 @@ import {
 
 const msg = (text: string) => ({
   source: "t",
+  language: "en" as const,
   channelId: TEST_CHANNEL,
   userId: "u",
   threadId: "t1",
@@ -93,7 +95,7 @@ test("`go` starts a pending proposal that survived a restart; a second `go` is p
     class: "mechanical",
   });
   const reply = await handle(msg("go"));
-  expect(reply).toContain("Starting dev");
+  expect(reply).toContain("starting on your request");
   expect(getProposal(env.db, id)?.status).toBe("dispatched");
   expect(stageRuns).toHaveLength(1);
   expect(stageRuns[0].permissionMode).toBe("bypassPermissions");
@@ -140,7 +142,10 @@ test("startup: stale proposals expire, the notice goes once per thread with a pe
     },
   };
   expect(await postProposalNotices({ db: env.db, getClient: () => client })).toBe(1);
-  expect(sent).toEqual([["b", PROPOSAL_NOTICE]]);
+  // No pinned language or brief for the thread: the default (Vietnamese) notice.
+  expect(sent).toEqual([
+    ["b", renderUserNotice({ kind: "note", state: "proposal-pending" }, "vi")],
+  ]);
   expect(PROPOSAL_NOTICE).toContain("reply `/go`");
 });
 
@@ -200,9 +205,10 @@ test("a budget stop offers `go +<usd>`; the message helper keeps the hint", () =
       budgetUsd: 1.5,
       usage: { costUsd: 1.6 } as any,
     },
+    "en",
   );
   expect(text).toContain("`/go +1.5`");
-  expect(budgetHitMessage({ spentUsd: 1, limitUsd: 1 })).not.toContain("go +");
+  expect(budgetHitMessage({ spentUsd: 1, limitUsd: 1 }, "en")).not.toContain("go +");
 });
 
 test("go +<usd> reaches the run: the resumed Q&A run carries extraBudgetUsd in its budget", async () => {
@@ -271,6 +277,6 @@ test("startup: a queued proposal goes back to pending and gets its own notice", 
     },
   };
   await postProposalNotices({ db: env.db, getClient: () => client, queuedThreads });
-  expect(sent).toEqual([["q", QUEUED_NOTICE]]);
-  expect(QUEUED_NOTICE).toContain("Queued task not started");
+  expect(sent).toEqual([["q", renderUserNotice({ kind: "note", state: "proposal-queued" }, "vi")]]);
+  expect(QUEUED_NOTICE).toContain("Queued request not started");
 });

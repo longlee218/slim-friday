@@ -11,8 +11,8 @@ export const RUN_MESSAGE_MAX_CHARS = 2000;
 /** Rows older than this are purged at startup (code constant: no env knob). */
 export const RUN_MESSAGES_RETENTION_DAYS = 14;
 
-/** What the owner meant: `steer` = supplement of the running work, `followup` = independent work, `stop` = interrupt. */
-export type RunMessageKind = "steer" | "followup" | "stop" | "other";
+/** What the owner meant: `steer` = supplement of the running work, `followup` = independent work, `stop` = interrupt, `replace` = stop AND start the message's own request instead. */
+export type RunMessageKind = "steer" | "followup" | "stop" | "replace" | "other";
 
 /** `pending` = acted on, not confirmed yet (a steer waiting for the model to read it); the rest are final. */
 export type RunMessageStatus = "pending" | "delivered" | "skipped" | "dropped";

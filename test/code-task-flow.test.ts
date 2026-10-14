@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { workspacePaths } from "../src/config/workspace-paths";
 import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-location";
@@ -97,6 +96,7 @@ const taskIdOf = (env: { db: any }): string =>
 
 const msg_ = (text: string, threadId = "th1") => ({
   source: "t",
+  language: "en" as const,
   channelId: TEST_CHANNEL,
   userId: "u",
   threadId,
@@ -162,7 +162,9 @@ test("busy when the code-task cap is reached", async () => {
     queryFn: fakeSdk(seen) as never,
     intent: devIntent(env.home),
   });
-  expect(await handle(msg_("[dev] please change x"))).toContain("busy");
+  expect(await handle(msg_("[dev] please change x"))).toMatch(
+    /handling other work|đang xử lý việc khác/,
+  );
   expect(seen).toHaveLength(0);
 });
 
@@ -243,9 +245,9 @@ test("dev task: the run prompt is the owner message; notice posted before the ru
   // the dev run streams its input: its prompt is the first item of the input channel
   expect(seen[0].promptText).toContain(BRIEF);
   expect(posted).toHaveLength(1);
-  expect(posted[0]).toContain("Starting dev: ");
-  expect(posted[0]).toContain("Add b.txt containing two");
-  expect(reply).not.toContain("Starting dev"); // already posted, not repeated
+  expect(posted[0]).toContain("starting on your request");
+  expect(posted[0]).not.toContain("Add b.txt containing two"); // start notice never echoes the brief
+  expect(reply).not.toContain("starting on your request"); // already posted, not repeated
   expect(reply).toContain("Xong");
 });
 
@@ -274,7 +276,7 @@ test("stop during the dev run cancels the dev task", async () => {
   });
   const running = handle(msg_(DEV_REQUEST));
   await started;
-  expect(await handle(msg_("stop"))).toBe("Stopping...");
+  expect(await handle(msg_("stop"))).toBe("I’m stopping the current work.");
   expect(await running).toContain("Stopped");
   const rows = env.db.query("SELECT type, status FROM turns ORDER BY type").all();
   expect(rows).toEqual([{ type: "code", status: "cancelled" }]);

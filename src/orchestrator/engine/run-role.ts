@@ -1,12 +1,16 @@
+import { MAX_TURNS } from "../../config/effort-mapping";
 import { type Route, resolveModel } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
+import { threadLanguage } from "../../ingress/discord-components";
+import { renderUserNotice } from "../../ingress/user-copy";
 import { buildLocationsContext } from "../../locations/location-registry";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { buildPromptContext } from "../../memory/prompt-context";
-import { setLogContext } from "../../observability/logger";
+import { logEvent, logger, setLogContext } from "../../observability/logger";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
+import { createRunSupervisor, recoverOnce } from "../../runtime/run-supervisor";
 import { answerOutput } from "../outputs/answer-output";
 import { rolloverSeed } from "../turns/rollover-seed";
 import { type FlowResult, failResult } from "../turns/turn-result";
@@ -21,9 +25,8 @@ import { validateRole } from "./validate-role";
 
 export type { RoleRunInput, RoleRunnerDeps };
 
-/** Question of the Opus escalation gate. */
-const ESCALATE_OPUS_QUESTION =
-  "The cheaper model could not answer this well. Re-run it on Opus (about 5x the cost)?";
+/** Logger of this module (task fields come from the log context). */
+const log = logger.child({ module: "run-role" });
 
 /**
  * Run a role: ONE agent run, whatever the role. The engine reads only role DATA (capabilities, `background`, `streaming`,
@@ -39,21 +42,55 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   const refusal = validateRole(role);
   if (refusal) return failResult(refusal);
   const i = withSpent(db, run);
+  // One language for every owner-facing line of this run (pinned by ingress; never a silent "en").
+  const language = i.language ?? threadLanguage(db, i.threadId);
   let s: ReturnType<typeof roleScope>;
   try {
     s = roleScope(config, i, role);
   } catch {
-    return failResult("The location is not available.");
+    return failResult(renderUserNotice({ kind: "failure", cause: "location" }, language));
   }
   // The start checks passed: a held task this run continues is taken over now (a failure above keeps the hold).
   i.onStarted?.();
-  const stop = ceilingRefusal(i.route); // task ceiling already used up: refuse, never start with budget 0
+  const stop = ceilingRefusal(i.route, language); // task ceiling already used up: refuse, never start with budget 0
   if (stop) return failResult(stop);
   const known =
     i.pinned ?? (role.background && i.locations.length === 1 ? i.locations[0] : undefined);
   if (known) setLogContext({ location: known.name });
   let awaiting: string | undefined;
   const ctl = askTimeoutControl(i.ac.signal, (t) => (awaiting = t));
+  // ONE supervisor per owner message: it counts turns, trusted tool issues and guard denials, follows the owner steers
+  // of THIS run (SDK-confirmed states only) and an owner stop. It only decides; the retry itself is answerOutput's.
+  const supervisor = createRunSupervisor({ maxTurns: MAX_TURNS, alreadyRecovered: false });
+  /** Audit line of a supervisor action: the technical reason, state words and numbers only (no owner text, no hint). */
+  const audit = (action: string, reason: string) => {
+    const s = supervisor.snapshot();
+    logEvent(log, "run.control", {
+      action,
+      reason,
+      turnId: i.turnId,
+      turns: s.turns,
+      issues: Object.values(s.issues).reduce((a, b) => a + (b ?? 0), 0),
+      guardDenied: s.guardDenied,
+      ...(s.steer && { steer: s.steer }),
+    });
+  };
+  /** The last result the supervisor saw (a retry produces a second one). */
+  let observed: unknown;
+  const observeResult = (result: { outcome: string; sessionId?: string }) => {
+    observed = result;
+    return supervisor.observe({
+      kind: "run_result",
+      outcome: result.outcome,
+      resumable: !!result.sessionId,
+    });
+  };
+  const unwatchSteer = deps.steer?.subscribe(i.threadId, i.turnId, (e) =>
+    supervisor.observe({ kind: "owner_steer_state", state: e.state }),
+  );
+  i.ac.signal.addEventListener("abort", () => supervisor.observe({ kind: "owner_stop" }), {
+    once: true,
+  });
   // A rolled thread starts a fresh session: seed it with the thread summary + the last messages (never while a session lives).
   const seed =
     !role.background && !s.sessionId ? rolloverSeed(db, i.threadId, i.turnId, i.recent) : {};
@@ -65,7 +102,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     if (r?.escalated) rerunModel = resolveModel(role, route ?? {}, config);
     const done = runAgent({
       role,
-      prompt: route?.promptHint ? `${i.text}\n\n${route.promptHint}` : i.text,
+      prompt: i.text, // the owner's text only: internal notes go to the system context (extraContext below)
       steer: role.streaming ? deps.steer?.hook(i.threadId) : undefined,
       turnId: i.turnId,
       cwd: s.cwd,
@@ -83,7 +120,9 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         threadId: i.threadId,
         trackSummary: !role.background,
         threadTitle: deps.threadTitle,
+        onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),
       }),
+      onControlEvent: (e) => supervisor.observe(e),
       skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
       guard: guardFor(role, s.guard),
       extraContext: buildPromptContext({
@@ -98,7 +137,9 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         memoryLocations: s.scope.map((r) => r.name),
         ledger: i.ledger,
         ...seed,
-      }),
+      }).concat(
+        route?.internalHint ? [`Internal note (not from the owner):\n${route.internalHint}`] : [],
+      ),
       resume: resumeId,
       route,
       config,
@@ -124,8 +165,10 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       kind: "escalate_opus",
       turnId: i.turnId,
       threadId: i.threadId,
-      summary: ESCALATE_OPUS_QUESTION,
+      summary: renderUserNotice({ kind: "label", state: "escalate-opus" }, language),
+      language,
       signal: i.ac.signal,
+      onPosted: i.onVisible,
     });
   const res = await answerOutput({
     role,
@@ -135,7 +178,45 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     route: i.route,
     confirmOpus,
     awaitingOwner: () => !!awaiting,
-  }).finally(release);
+    // Post-result boundary: a write-capable role may have partly written, so it is never re-run automatically.
+    recover: (result, c) => {
+      const decision = observeResult(result);
+      const d = recoverOnce({
+        result,
+        snapshot: supervisor.snapshot(),
+        alreadyReran: c.alreadyReran,
+        remainingBudgetUsd: c.remainingBudgetUsd,
+        uncertainPartialWrite: role.capabilities.includes("write"),
+        approvalWaiting: !!awaiting,
+      });
+      if (d.kind === "resume") {
+        audit("recover", decision.kind === "recover_after_result" ? decision.reason : "turn_limit");
+        return d.hint;
+      }
+      if (decision.kind === "recover_after_result") {
+        // The supervisor wanted a recovery but a guard of the selector said no: say which one.
+        audit(
+          "recover_suppressed",
+          role.capabilities.includes("write")
+            ? "uncertain_partial_write"
+            : awaiting
+              ? "approval_waiting"
+              : !result.sessionId
+                ? "no_session"
+                : "no_budget",
+        );
+      } else if (decision.kind === "report_incomplete") audit("report_incomplete", decision.reason);
+      return undefined;
+    },
+  }).finally(() => {
+    release?.();
+    unwatchSteer?.();
+  });
+  // A retry produced a second result: the supervisor sees it too (a failed retry is reported as exhausted).
+  if (res.outcome !== "success" && observed !== undefined && observed !== res) {
+    const d = observeResult(res);
+    if (d.kind === "report_incomplete") audit("report_incomplete", d.reason);
+  }
   // A background run's session is the turn row's only: saved as the thread's, the assistant would resume it.
   const base: FlowResult = {
     ...res,

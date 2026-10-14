@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { workspacePaths } from "../src/config/workspace-paths";
 import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
@@ -56,6 +55,7 @@ async function setup() {
 
 const msg = (text: string) => ({
   source: "t",
+  language: "en" as const,
   channelId: TEST_CHANNEL,
   userId: "u",
   threadId: "th1",

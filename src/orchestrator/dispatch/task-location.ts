@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { renderUserNotice } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import { countActiveCappedTasks } from "../../storage/run-store";
 
@@ -19,11 +20,15 @@ export const refuse = (
   event: Refusal["event"] = "task.refused",
 ): Refusal => ({ event, reason, reply });
 
-/** Refusal for a location name that is not in the workspace (lists the available ones). */
-export const unknownLocation = (locations: Location[], name: string): Refusal => {
-  const names = locations.map((r) => r.name).join(", ");
-  return refuse("unknown_location", `Unknown location "${name}". Available: ${names}`);
-};
+/** Refusal for a location name that is not in the workspace; lists the valid names (rendered in English, localized at the reply boundary). */
+export const unknownLocation = (locations: Location[]): Refusal =>
+  refuse(
+    "unknown_location",
+    renderUserNotice(
+      { kind: "failure", cause: "location", names: locations.map((l) => l.name) },
+      "en",
+    ),
+  );
 
 /** The location of `locations` called `name` (case-insensitive), or undefined. */
 export const findLocation = (locations: Location[], name: string): Location | undefined =>
@@ -34,7 +39,7 @@ export function capRefusal(db: Database): Refusal | undefined {
   return countActiveCappedTasks(db) >= MAX_CAPPED_TASKS
     ? refuse(
         "code_task_limit",
-        `busy, ${MAX_CAPPED_TASKS} tasks running, try again later`,
+        renderUserNotice({ kind: "failure", cause: "busy" }, "en"),
         "task.busy",
       )
     : undefined;
@@ -50,7 +55,7 @@ export function resolveTaskLocation(
   locationName?: string,
 ): Refusal | { candidates: Location[] } {
   const picked = locationName ? findLocation(locations, locationName) : undefined;
-  if (locationName && !picked) return unknownLocation(locations, locationName);
+  if (locationName && !picked) return unknownLocation(locations);
   return { candidates: picked ? [picked] : locations };
 }
 

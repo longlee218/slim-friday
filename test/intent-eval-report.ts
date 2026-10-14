@@ -27,7 +27,9 @@ const show = (d: IntentDecision) =>
     ? `${d.role}/${d.scope}${d.cls ? `/${d.cls}` : ""}`
     : d.kind === "ask"
       ? `ask(${d.reason})`
-      : `gate-answer(${d.answer})`;
+      : d.kind === "control"
+        ? `control(${d.action})`
+        : `gate-answer(${d.answer})`;
 
 /** Pass count of one dimension over some rows (rows where it is not scored are skipped). */
 export function rate(k: Dim, of: Row[]) {

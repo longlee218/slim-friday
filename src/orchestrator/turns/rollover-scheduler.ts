@@ -44,11 +44,10 @@ export function createRolloverScheduler(deps: {
     },
     /** The thread's pending rollover, if any (tests await it). */
     wait: (threadId: string): Promise<void> | undefined => pending.get(threadId)?.done,
-    /** A new message while the thread wraps up: show the busy ack first, then wait for the rollover to end. */
+    /** A new message waits for the rollover to end; ingress owns its receipt. */
     async holdFor(message: InboundMessage): Promise<void> {
       const p = pending.get(message.threadId);
       if (!p) return;
-      await Promise.resolve(message.ack?.()).catch(() => undefined);
       await p.done;
     },
     /** `/stop`: abort the thread's rollover. True when there was one. */

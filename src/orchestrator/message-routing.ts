@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
+import { renderUserNotice } from "../ingress/user-copy";
 import type { Location } from "../locations/location-registry";
 import { entryRole, getRole, ROLES } from "../roles/role-registry";
 import { deterministicPreflight } from "../routing/preflight/deterministic-preflight";
@@ -106,7 +107,7 @@ export function resolveCommand(
   if (cmd.kind !== "resume") return { cmd };
   const cannot = refuse(
     "cannot_resume",
-    "Cannot resume: no saved session for this thread. Start the task again.",
+    renderUserNotice({ kind: "note", state: "cannot-resume" }, "en"),
   );
   const last = latestTurnSession(deps.db, threadId);
   if (!last) return cannot;
@@ -120,13 +121,10 @@ export function resolveCommand(
     !last.budgetStopped &&
     !undelivered
   )
-    return refuse("stale_resume", "This Resume is out of date: the thread has moved on.");
+    return refuse("stale_resume", renderUserNotice({ kind: "note", state: "stale-resume" }, "en"));
   // A budget stop with the same budget would stop again: the owner must raise it.
   if (last.budgetStopped && last.status !== "interrupted" && cmd.extraBudgetUsd === undefined)
-    return refuse(
-      "budget_stop",
-      "That task stopped on its budget. Reply `/go +<usd>` to continue with more budget.",
-    );
+    return refuse("budget_stop", renderUserNotice({ kind: "note", state: "budget-stop" }, "en"));
   const failed = last.status === "failed_resumable";
   const role = ROLES[last.role];
   const ws = workspacePaths(deps.agentHome).workspace(deps.workspace);

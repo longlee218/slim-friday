@@ -9,6 +9,7 @@ import { slashPayload, slashText } from "../commands/slash-definitions";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { SAFE_MENTIONS } from "./discord-message-rules";
+import { languageOf, type OwnerLanguage, renderUserNotice } from "./user-copy";
 
 const log = logger.child({ module: "slash-interaction" });
 
@@ -71,22 +72,30 @@ export function createSlashHandler(deps: {
   return async function handleSlash(i: { isChatInputCommand(): boolean }): Promise<void> {
     if (!i.isChatInputCommand()) return;
     const cmd = i as ChatInputCommandInteraction;
+    let language: OwnerLanguage = "vi"; // refined from the command text once it is known
     try {
       const text = slashText(cmd.commandName, (n) => {
         const o = cmd.options.get(n, false);
         return o?.value ?? null;
       });
       if (text === null) return;
+      language = languageOf(text);
       // Same owner rule as a message; strangers get a private refusal (a message is silently ignored).
       if (cmd.user.id !== deps.ownerId) {
         logEvent(log, "slash.refused", { reason: "not_owner" }, "debug");
-        await cmd.reply({ content: "Not allowed.", flags: MessageFlags.Ephemeral });
+        await cmd.reply({
+          content: renderUserNotice({ kind: "note", state: "not-allowed" }, language),
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
       // The channel is not cached (rare): the message path cannot run without it.
       const channel = cmd.channel;
       if (!channel) {
-        await cmd.reply({ content: "Channel unavailable.", flags: MessageFlags.Ephemeral });
+        await cmd.reply({
+          content: renderUserNotice({ kind: "note", state: "channel-unavailable" }, language),
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
       await cmd.deferReply();
@@ -96,7 +105,7 @@ export function createSlashHandler(deps: {
       if (!replied) await cmd.deleteReply();
     } catch (err) {
       log.error({ err: errText(err) }, "slash handling failed");
-      await cmd.editReply("Something went wrong. Check the logs.").catch(() => undefined);
+      await cmd.editReply(renderUserNotice({ kind: "failure" }, language)).catch(() => undefined);
     }
   };
 }

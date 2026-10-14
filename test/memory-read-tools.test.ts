@@ -184,10 +184,9 @@ test("caps: limit, result size, since/query errors, 31st read call", async () =>
   );
   expect(r.text.length).toBeLessThanOrEqual(SEARCH_RESULT_MAX_CHARS);
   expect(r.text).toContain("(more hits cut");
-  expect(await s.call(MEMORY_SEARCH_TOOL, { query: "!!!" })).toEqual({
-    text: "query has no searchable words",
-    isError: true,
-  });
+  const noWords = await s.call(MEMORY_SEARCH_TOOL, { query: "!!!" });
+  expect(noWords.isError).toBe(true);
+  expect(noWords.text).toStartWith("invalid_input: query has no searchable words");
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "x", since: "yesterday" })).isError).toBe(true);
   for (let i = 4; i < MEMORY_READ_MAX_CALLS_PER_RUN; i++)
     await s.call(MEMORY_GET_TOOL, { id: "nope" });

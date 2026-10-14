@@ -269,3 +269,45 @@ test("run.finished keeps usage, adds modelUsage per model and the total cost", a
   });
   expect(fin.modelUsage["claude-haiku-5-5"].inputTokens).toBe(1);
 });
+
+describe("run supervisor observation (onControlEvent)", () => {
+  const asst = (id: string, extra: Record<string, unknown> = {}) =>
+    ({
+      type: "assistant",
+      session_id: "sess-1",
+      message: {
+        id,
+        model: "m",
+        content: [{ type: "text", text: "x" }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+      ...extra,
+    }) as never;
+
+  test("one model_turn per distinct main-agent model call; parallel tool_use messages of one call and subagent turns do not count", async () => {
+    const env = makeEnv();
+    const events: unknown[] = [];
+    await runAgent({
+      prompt: "q",
+      turnId: "T",
+      role: getRole("assistant"),
+      cwd: env.home,
+      config: env.config,
+      db: env.db,
+      abortController: new AbortController(),
+      onControlEvent: (e) => events.push(e),
+      queryFn: fakeQuery([
+        initMsg,
+        asst("m1"),
+        asst("m1"), // same call, second tool_use block
+        asst("sub1", { parent_tool_use_id: "tool-1" }), // a subagent turn
+        asst("m2"),
+        resultMsg(),
+      ]),
+    });
+    expect(events).toEqual([
+      { kind: "model_turn", turn: 1 },
+      { kind: "model_turn", turn: 3 }, // turn numbers count every distinct call; subagent calls just do not notify
+    ]);
+  });
+});

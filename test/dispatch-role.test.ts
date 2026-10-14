@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { workspacePaths } from "../src/config/workspace-paths";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
 import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-location";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
@@ -29,7 +28,14 @@ async function setup() {
   return { env, locations: loadWorkspaces(env.home).workspaces[0]!.locations };
 }
 
-const task = { source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th1", text: "x" };
+const task = {
+  source: "t",
+  language: "en" as const,
+  channelId: TEST_CHANNEL,
+  userId: "u",
+  threadId: "th1",
+  text: "x",
+};
 const rows = (env: { db: any }, sql: string) => env.db.query(sql).all() as any[];
 
 /** Dispatcher deps whose runs would be captured (none must start in the refusal tests). */
@@ -80,8 +86,7 @@ test("ask rule: unknown location -> ONE question, proposal stays pending, no tas
     ac: new AbortController(),
   });
   expect(reply).toContain("Q&A answer");
-  expect(reply).toContain('Unknown location "nope"');
-  expect(reply).toContain("Send the task again with location:<name>");
+  expect(reply).toContain("I could not find the location");
   expect(listPendingProposals(env.db)).toHaveLength(1);
   expect(rows(env, "SELECT 1 FROM turns")).toEqual([]);
   expect(runs).toEqual([]);
@@ -100,7 +105,7 @@ test("refusal (cap full): proposal refused, reply says busy, nothing starts", as
     locations,
     ac: new AbortController(),
   });
-  expect(reply).toContain("busy");
+  expect(reply).toMatch(/handling other work|đang xử lý việc khác/);
   expect(rows(env, "SELECT status, role FROM proposals")).toEqual([
     { status: "refused", role: "dev" },
   ]);
@@ -120,7 +125,7 @@ test("owner `go` on a pending proposal: confirmed, re-validated, dispatched with
     locations,
     ac: new AbortController(),
   });
-  expect(first).toContain("Reply `/go`");
+  expect(first).toContain("Would you like me to carry out");
   const [p] = listPendingProposals(env.db);
   expect(p!.confidence).toBeCloseTo(0.1);
   // ... then `go` (confirmed) starts it and marks it dispatched.
@@ -177,8 +182,7 @@ test("new ask supersedes the thread's older pending proposals; go on an invalid 
     proposalId: p.id,
     confirmed: true,
   });
-  expect(reply).toContain('Unknown location "nope2"');
-  expect(reply).toContain("Send a new request");
+  expect(reply).toContain("I could not find the location");
   expect(listPendingProposals(env.db)).toEqual([]);
   expect(rows(env, "SELECT status FROM proposals WHERE id = ?".replace("?", `'${p.id}'`))).toEqual([
     { status: "refused" },
@@ -208,6 +212,6 @@ test("a proposal that is no longer pending is never started twice", async () => 
     locations,
     ac: new AbortController(),
   });
-  expect(reply).toContain("no longer pending");
+  expect(reply).toContain("no longer waiting");
   expect(runs).toEqual([]);
 });

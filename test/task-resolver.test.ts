@@ -134,7 +134,7 @@ test("closeTurn settles through the real path (delivered success -> completed; s
     outcome,
     sessionId: undefined,
   });
-  const o = { stopping: false, t0: Date.now(), location: "*" };
+  const o = { language: "en" as const, stopping: false, t0: Date.now(), location: "*" };
   begin(db, "t1", background);
   closeTurn(
     db,
@@ -269,7 +269,7 @@ test("beginTurn is atomic: a failing task link leaves no turn row", () => {
 
 test("closeTurn: a failed or aborted run gets no no-delivery note and its task is not parked as undelivered", () => {
   const { db } = makeEnv();
-  const o = { stopping: false, t0: Date.now(), location: "*" };
+  const o = { language: "en" as const, stopping: false, t0: Date.now(), location: "*" };
   begin(db, "f1", background);
   const failed = closeTurn(
     db,
@@ -302,7 +302,13 @@ test("closeTurn: the no-delivery note follows the REPORTED location's git flag, 
   const locations = [loc("notes", false), loc("app", true)];
   const run = (id: string, over: Partial<FlowResult>): string => {
     begin(db, id, background);
-    const o = { stopping: false, t0: Date.now(), location: "*", locations };
+    const o = {
+      language: "en" as const,
+      stopping: false,
+      t0: Date.now(),
+      location: "*",
+      locations,
+    };
     return closeTurn(
       db,
       { turnId: id, threadId: "th" },

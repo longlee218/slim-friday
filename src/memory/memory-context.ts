@@ -23,6 +23,8 @@ export function buildMemoryToolContext(p: {
   locationNames?: string[];
   /** Rename port (every role with a port; not rollover runs): registers `SetThreadTitle`. */
   threadTitle?: ThreadTitlePort;
+  /** A Friday-owned tool reported a known outcome (the run supervisor counts these). */
+  onIssue?: MemoryToolContext["onIssue"];
 }): MemoryToolContext {
   return {
     db: p.db,
@@ -40,5 +42,6 @@ export function buildMemoryToolContext(p: {
     trackSummary: p.trackSummary,
     threadTitle: p.threadTitle,
     threadLabel: `thread ${p.threadId.slice(-6)}`,
+    ...(p.onIssue && { onIssue: p.onIssue }),
   };
 }

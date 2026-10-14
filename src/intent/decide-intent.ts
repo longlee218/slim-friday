@@ -6,7 +6,7 @@ import { entryRole, hasClassTiers, ROLES } from "../roles/role-registry";
 import type { RouteProposer } from "../routing/route-proposer";
 import { decideWithModel, undecided, type Verdict } from "./decide-with-model";
 import type { EffortSignals } from "./effort-signals";
-import type { IntentClassifier, IntentInput } from "./intent-types";
+import type { IntentClassifier, IntentInput, IntentResult } from "./intent-types";
 import {
   type IntentPipelineDeps,
   type IntentPipelineInput,
@@ -41,6 +41,8 @@ export type IntentDecision =
       scope: "active" | "new";
       cls?: TaskClass;
     }
+  /** Busy thread: the owner explicitly orders the running work stopped, or replaced by this message's request. */
+  | { kind: "control"; action: "stop" | "replace" }
   /** `text` = the model's own question (owner's language); missing = the neutral generic one. */
   | { kind: "ask"; reason: AskReason; text?: string };
 
@@ -66,6 +68,10 @@ export interface DecideInput extends IntentPipelineInput {
   hasTask: boolean;
   /** A running task takes steers: the scope of every message (tagged or not) is L3's; unclear = supplement (steer-scope.ts). */
   scopeFromModel?: boolean;
+  /** The thread is busy: one L3 call may also read an explicit stop / replace (before a role tag can short-circuit it). */
+  controlFromModel?: boolean;
+  /** With `controlFromModel`: L3 only reads the control; the later steps keep their no-engine behavior (a tag, a still-working reply). */
+  controlOnly?: boolean;
   /** Owner prefix class (`[design]`): overrides any other class. */
   ownerClass?: TaskClass;
   /** The thread's stop signal: cancels the L3 call. */
@@ -81,6 +87,28 @@ export interface DecideInput extends IntentPipelineInput {
    * undecided (L3 follows). Absent = no such step.
    */
   propose?: () => Promise<IntentDecision | undefined>;
+}
+
+/**
+ * The busy thread's single L3 call. Returns its raw answer plus a classifier that replays that answer (or its
+ * failure), so the later steps of `decideIntent` never pay for a second call.
+ */
+async function readControl(
+  classifier: IntentClassifier,
+  i: DecideInput,
+): Promise<{ raw?: IntentResult; classifier: IntentClassifier }> {
+  try {
+    const raw = await classifier.classify(i.l3Input(), i.signal);
+    return { raw, classifier: { classify: async () => raw } };
+  } catch (err) {
+    return {
+      classifier: {
+        classify: async () => {
+          throw err;
+        },
+      },
+    };
+  }
 }
 
 /** Class of a role's task: owner prefix > the L3 class > the L2 hint; only for a role with class tiers. */
@@ -128,6 +156,18 @@ export async function decideIntent(i: DecideInput, deps: IntentDeps): Promise<De
     layer("L1", ["note:remember"]);
     return done({ decision: { kind: "role", role: entryRole().name, scope: "new" } });
   }
+  // Busy thread: ONE L3 call reads an explicit stop / replace first; the same verdict then serves the tag / scope /
+  // role steps below. No engine, a failure or a timeout never controls the run (`/stop` is the literal L0 route).
+  const ctl =
+    i.controlFromModel && deps.classifier ? await readControl(deps.classifier, i) : undefined;
+  // Only a HIGH-confidence control acts. A weaker one is dropped: the message keeps its normal route (a steer, a queue)
+  // instead of being swallowed by a busy thread's "still working" reply.
+  if (ctl?.raw?.control && ctl.raw.confidence === "high") {
+    layer("L3", []);
+    logEvent(log, "intent.control", { action: ctl.raw.control, confidence: ctl.raw.confidence });
+    return done({ decision: { kind: "control", action: ctl.raw.control } });
+  }
+  if (ctl) deps = { ...deps, classifier: i.controlOnly ? undefined : ctl.classifier };
   if (p.decidedBy === "L1" && p.route?.kind === "role") {
     layer("L1");
     const { role } = p.route;

@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import type { Client, Interaction } from "discord.js";
 import { createDiscordApprovalGateway } from "../src/approvals/discord-approval";
-import { OWNER_CONFIRM_APPROVAL, ownerConfirm } from "../src/orchestrator/engine/owner-confirm";
+import { renderUserNotice } from "../src/ingress/user-copy";
+import {
+  OWNER_CONFIRM_APPROVAL,
+  ownerConfirm,
+  ownerConfirmLabels,
+} from "../src/orchestrator/engine/owner-confirm";
 import { runRoute } from "../src/orchestrator/message-routing";
 import { EffortFloors } from "../src/orchestrator/thread/effort-floor";
-import { MAX_DECLINED_NOTICE, settleMaxEffort } from "../src/orchestrator/thread/max-effort-gate";
+import { settleMaxEffort } from "../src/orchestrator/thread/max-effort-gate";
 import { turnEffort } from "../src/orchestrator/thread/turn-effort";
 import { openDb } from "../src/storage/db";
 
@@ -51,7 +56,15 @@ const req = (signal?: AbortSignal) => ({
   turnId: "t-1",
   threadId: "th",
   summary: "Run at max?",
+  language: "en" as const,
   signal,
+});
+
+describe("owner-confirm labels", () => {
+  test("follow the owner's language", () => {
+    expect(ownerConfirmLabels("vi")).toEqual(["Có, chạy đi", "Không"]);
+    expect(ownerConfirmLabels("en")).toEqual(["Yes, run it", "No"]);
+  });
 });
 
 describe("owner-confirm gate", () => {
@@ -95,7 +108,8 @@ describe("owner-confirm gate", () => {
     const yes = s.ids().find((id: string) => id.endsWith(":allow"));
     const restarted = s.make(); // new process: no pending clicks
     const out = await s.click(restarted, yes);
-    expect(out.reply.content).toBe("This action expired.");
+    // Thread has no brief: the default language (Vietnamese) answers.
+    expect(out.reply.content).toBe(renderUserNotice({ kind: "approval", state: "expired" }, "vi"));
     expect(out.update).toBeUndefined();
     expect(await p).toBe(false); // the original wait never got a yes
   });
@@ -143,6 +157,7 @@ describe("max effort through the gate", () => {
       approvals: fake(approved),
       floors,
       threadId: "th",
+      language: "en" as const,
       cls: undefined,
       signals,
       turn,
@@ -163,6 +178,7 @@ describe("max effort through the gate", () => {
     expect(r.declined).toBe(true);
     expect(r.turn.effort).toBe("high");
     expect(runRoute({ effort: r.turn.effort })?.ownerConfirmedMax).toBeUndefined();
-    expect(MAX_DECLINED_NOTICE).toContain("high");
+    expect(renderUserNotice({ kind: "label", state: "max-declined" }, "en")).toContain("high");
+    expect(renderUserNotice({ kind: "label", state: "max-declined" }, "vi")).toContain("mức cao");
   });
 });

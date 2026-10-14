@@ -116,6 +116,11 @@ export function buildSdkOptions(
         turnId: input.turnId,
         threadId: input.code?.threadId ?? "",
         guard,
+        runSignal: input.abortController.signal,
+        onGuardDecision: (e) => {
+          if (e.decision === "deny")
+            input.onControlEvent?.({ kind: "guard_denied", tool: e.tool, reasonCode: "guard" });
+        },
         autoMode: deps.autoState,
         bypassMode: deps.bypassState,
         onDeny: (id) => deps.recorder.denied.add(id),

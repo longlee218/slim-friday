@@ -5,6 +5,7 @@ import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 const task = (text: string, threadId = "th1") => ({
   source: "test",
+  language: "en" as const,
   channelId: TEST_CHANNEL,
   userId: "u",
   threadId,
@@ -22,7 +23,7 @@ function slowQuery(release: { fn?: () => void; ready?: () => void }) {
         );
         release.ready?.(); // Signal ready once listener is set up
       });
-      yield resultMsg({ result: "done secret ghp_" + "a".repeat(36) });
+      yield resultMsg({ result: `done secret ghp_${"a".repeat(36)}` });
     })();
 }
 
@@ -41,7 +42,7 @@ test("second message during run -> still working; reply is redacted; session sav
   });
   const first = handle(task("hi"));
   await ready; // Wait for slow query to be ready, not timing
-  expect(await handle(task("again"))).toBe("still working...");
+  expect(await handle(task("again"))).toBe("I’m handling other work. Please try again shortly.");
   release.fn!();
   const reply = await first;
   expect(reply).toContain("done secret");
@@ -64,7 +65,7 @@ test("stop aborts run and marks task cancelled", async () => {
   });
   const first = handle(task("hi"));
   await ready; // Wait for slow query to be ready
-  expect(await handle(task("stop"))).toBe("Stopping...");
+  expect(await handle(task("stop"))).toBe("I’m stopping the current work.");
   expect(await first).toBe("Stopped.");
   expect(env.db.query<{ status: string }, []>("SELECT status FROM turns").get()?.status).toBe(
     "cancelled",
@@ -83,16 +84,18 @@ test("H1: DB failure before the run does not leave the thread locked", async () 
     }) as never,
   });
   env.db.close(); // every DB call now throws
-  expect(await handle(task("hi"))).toBe("Agent failed. Check the logs.");
-  // A leaked lock would answer "still working..." here.
-  expect(await handle(task("again"))).not.toBe("still working...");
+  expect(await handle(task("hi"))).toBe("I did not finish your request. You can try again.");
+  // A leaked lock would answer "I’m handling other work. Please try again shortly." here.
+  expect(await handle(task("again"))).not.toBe(
+    "I’m handling other work. Please try again shortly.",
+  );
 });
 
-const okQuery = (a: any) =>
+const okQuery = (_a: any) =>
   (async function* () {
     yield resultMsg();
   })();
-const failQuery = (a: any) =>
+const failQuery = (_a: any) =>
   (async function* () {
     yield resultMsg({ subtype: "error_during_execution", is_error: true, errors: ["boom"] });
   })();

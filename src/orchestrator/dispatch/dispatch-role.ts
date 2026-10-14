@@ -1,6 +1,7 @@
 import { type Effort, resolveModel } from "../../config/model-routing";
 import { stripAttachmentPaths } from "../../ingress/attachment-text";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
+import { localizeUserCopy, messageLanguage, renderUserNotice } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import { excerpt, logEvent, logger, setLogContext } from "../../observability/logger";
 import { errText } from "../../observability/redact";
@@ -12,14 +13,10 @@ import { runRoute } from "../message-routing";
 import { closeTurn } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
 import { persistProposal } from "./proposal-flow";
-import { briefText } from "./queued-tasks";
 import { type DispatchRequest, validateRequest } from "./validate-request";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "dispatch-role" });
-
-/** Max chars of the brief shown in the "Starting ..." notice. */
-const NOTICE_BRIEF_MAX = 200;
 
 export type { DispatchRequest };
 
@@ -103,8 +100,9 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     if (v.action === "refuse" || request.proposalId) refuseProposal();
     // A fresh `ask` keeps its proposal pending (the owner may answer `go`) and supersedes the thread's older ones.
     else supersedePending(db, i.message.threadId, proposalId);
-    const fix = request.proposalId && v.action === "ask" ? " Send a new request to fix it." : "";
-    return [i.reply, `${refusal.reply}${fix}`].filter(Boolean).join("\n\n");
+    return [i.reply, `${localizeUserCopy(refusal.reply, messageLanguage(i.message))}`]
+      .filter(Boolean)
+      .join("\n\n");
   }
   const { role, locationName: location } = v;
   const route = runRoute({ cls: request.cls, effort: i.effort, extraBudgetUsd: i.extraBudgetUsd });
@@ -130,7 +128,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   if (proposalId && !setProposalStatus(db, proposalId, "dispatched")) {
     logEvent(log, "dispatch.dropped", { reason: "proposal_not_pending" });
     failTurn(db, log, turnId);
-    return `${i.reply ? `${i.reply}\n\n` : ""}That proposal is no longer pending; nothing was started.`;
+    return `${i.reply ? `${i.reply}\n\n` : ""}${renderUserNotice({ kind: "failure", cause: "expired" }, messageLanguage(i.message))}`;
   }
   logEvent(log, "dispatch.started", {
     role: role.name,
@@ -143,7 +141,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   // A background role may work (and wait for the owner) for minutes: say that it started. A role that just answers
   // has no notice: its reply is the answer.
   const notice = role.background
-    ? `Starting ${role.name}: ${excerpt(briefText(request.brief), NOTICE_BRIEF_MAX)}`
+    ? renderUserNotice({ kind: "start" }, messageLanguage(i.message))
     : "";
   const head = [i.reply, notice].filter(Boolean).join("\n\n");
   // Post the source answer + notice now (the run can take minutes); on failure they join the reply.
@@ -160,6 +158,8 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     turnId,
     threadId: i.message.threadId,
     text: request.brief,
+    language: messageLanguage(i.message),
+    onVisible: i.message.visible,
     role: role.name,
     workspace: i.workspace,
     channel: i.channel,
@@ -178,6 +178,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     throw err;
   });
   const reply = closeTurn(db, { turnId, threadId: i.message.threadId }, res, {
+    language: messageLanguage(i.message),
     stopping: deps.stopping(),
     t0,
     location,

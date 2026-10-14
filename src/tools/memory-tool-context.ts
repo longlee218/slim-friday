@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { ThreadTitlePort } from "../ingress/thread-rename";
+import type { TrustedToolIssueCode } from "./trusted-tool-issue";
 /**
  * What the tools of the in-process `memory` server need to know about the run they belong to. Built per run by
  * the role runner; the read tools (search/get/expand) read the same object.
@@ -34,6 +35,8 @@ export interface MemoryToolContext {
   threadLabel: string;
   /** Clock (tests pass a fixed one). One call per tool call: file date and bullet date come from the same instant. */
   now?: () => Date;
+  /** A Friday-owned tool reported a known outcome (trusted code only, no text): the run supervisor counts these. */
+  onIssue?: (event: { tool: string; code: TrustedToolIssueCode }) => void;
   /** Extra hook called with the path of a file a tool just changed (the memory server always re-indexes that file first). */
   onSaved?: (path: string) => void;
 }

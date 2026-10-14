@@ -48,6 +48,8 @@ export interface IntentResult {
   ask?: string;
   /** The message answers the pending question: yes or no; absent = it does not. */
   pendingAnswer?: "yes" | "no";
+  /** Busy thread only: the owner explicitly orders the running work stopped or replaced; absent = a normal message. */
+  control?: "stop" | "replace";
 }
 
 /** Pluggable L3 engine: Haiku today, the owner's own engine later. */

@@ -313,7 +313,7 @@ describe("rollover sequence", () => {
 });
 
 describe("next run", () => {
-  test("fresh session seeded with the summary + last messages; a message during the rollover is acked, then waits", async () => {
+  test("fresh session seeded with the summary + last messages; a message during the rollover waits and leaves receipt ownership to ingress", async () => {
     let open!: () => void;
     const gate = new Promise<void>((r) => {
       open = r;
@@ -334,7 +334,7 @@ describe("next run", () => {
     expect(h.kinds().filter((k) => k === "main")).toHaveLength(1);
     open();
     await second;
-    expect(acked).toBe(1);
+    expect(acked).toBe(0);
     // (the second run is big too: it starts its own rollover, which is not what this test is about)
     expect(h.kinds().slice(0, 4)).toEqual(["main", "flush", "compact", "main"]);
     await h.handle.rollover("th1");
@@ -409,7 +409,7 @@ describe("abort", () => {
 
   test("/stop mid-rollover aborts it and says so", async () => {
     const { h, stopped } = await abortedRollover((x) => x.send("/stop"));
-    expect(stopped).toContain("wrap-up");
+    expect(stopped).toMatch(/stopping|đang dừng/);
     expect(getSession(h.env.db, "th1")?.session_id).toBe("sess-main");
     expect(getThreadSummary(h.env.db, "th1")).toMatchObject({ rolled_at: 0, cycle: 0 });
   });

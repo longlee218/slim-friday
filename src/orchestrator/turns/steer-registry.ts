@@ -59,6 +59,16 @@ export interface SteerRegistry {
   steer(m: MessageRef, text: string): SteerOutcome;
   /** Store a message that arrived while a run works and was handled elsewhere (queue, stop). Never throws. */
   record(m: MessageRef, text: string, kind: RunMessageKind, status?: RunMessageStatus): void;
+  /**
+   * Observe the delivery state of the owner steers aimed at ONE run (`turnId`): `queued` / `held` when accepted,
+   * `delivered` / `dropped` only when the SDK replay (or its absence) settled them. Events of other turns are never
+   * delivered to this subscriber. Returns the unsubscribe function. A throwing subscriber is ignored.
+   */
+  subscribe(
+    threadId: string,
+    turnId: string,
+    onState: (event: { state: "queued" | "held" | "delivered" | "dropped" }) => void,
+  ): () => void;
   /** The notice for steers the run never read, held ones included (`""` when none), and forget them. */
   undeliveredNotice(threadId: string): string;
 }
@@ -83,6 +93,24 @@ export function createSteerRegistry(db: Database): SteerRegistry {
     const t = liveTask(threadId);
     const role = t && ROLES[t.role];
     return !!role?.streaming;
+  };
+  /** threadId -> observers of the run supervisor, each bound to one target turn. */
+  const watchers = new Map<
+    string,
+    Set<{
+      turnId: string;
+      onState: (e: { state: "queued" | "held" | "delivered" | "dropped" }) => void;
+    }>
+  >();
+  /** Tell the observers of `turnId` about a steer state (never throws, never blocks the steer). */
+  const publish = (
+    threadId: string,
+    turnId: string | undefined,
+    state: "queued" | "held" | "delivered" | "dropped",
+  ) => {
+    if (!turnId) return;
+    for (const w of watchers.get(threadId) ?? [])
+      if (w.turnId === turnId) tryLog(log, "steer observer failed", () => w.onState({ state }));
   };
   /** Mark a row final without raising. */
   const finalize = (ref: string | undefined, status: RunMessageStatus) => {
@@ -116,35 +144,47 @@ export function createSteerRegistry(db: Database): SteerRegistry {
     return id;
   };
   return {
-    hook: (threadId) => ({
-      register(sink, run) {
-        const entry = { sink, run };
-        sinks.set(threadId, entry);
-        // Steers held while the run was starting go into its input, in arrival order.
-        const waiting = held.get(threadId) ?? [];
-        held.delete(threadId);
-        for (const w of waiting) {
-          const res = sink.push(w.text, w.ref);
-          if (res === "queued" || res === "late") {
-            if (w.ref)
-              tryLog(log, "run message update failed", () =>
-                setRunMessageTarget(db, w.ref as string, run.turnId),
-              );
-          } else {
-            finalize(w.ref, "dropped");
-            drop(threadId, w.text);
+    subscribe(threadId, turnId, onState) {
+      const w = { turnId, onState };
+      watchers.set(threadId, (watchers.get(threadId) ?? new Set()).add(w));
+      return () => void watchers.get(threadId)?.delete(w);
+    },
+    hook: (threadId) => {
+      /** Turn of this hook's run (settle comes after the sink was unregistered). */
+      let runTurn: string | undefined;
+      return {
+        register(sink, run) {
+          runTurn = run.turnId;
+          const entry = { sink, run };
+          sinks.set(threadId, entry);
+          // Steers held while the run was starting go into its input, in arrival order.
+          const waiting = held.get(threadId) ?? [];
+          held.delete(threadId);
+          for (const w of waiting) {
+            const res = sink.push(w.text, w.ref);
+            if (res === "queued" || res === "late") {
+              publish(threadId, run.turnId, "queued");
+              if (w.ref)
+                tryLog(log, "run message update failed", () =>
+                  setRunMessageTarget(db, w.ref as string, run.turnId),
+                );
+            } else {
+              finalize(w.ref, "dropped");
+              drop(threadId, w.text);
+            }
           }
-        }
-        // Only remove our own entry: a later run may already have registered its sink.
-        return () => {
-          if (sinks.get(threadId)?.sink === sink) sinks.delete(threadId);
-        };
-      },
-      settle(steer, fate) {
-        finalize(steer.ref, fate);
-        if (fate === "dropped") drop(threadId, steer.text);
-      },
-    }),
+          // Only remove our own entry: a later run may already have registered its sink.
+          return () => {
+            if (sinks.get(threadId)?.sink === sink) sinks.delete(threadId);
+          };
+        },
+        settle(steer, fate) {
+          finalize(steer.ref, fate);
+          if (fate === "dropped") drop(threadId, steer.text);
+          publish(threadId, runTurn, fate); // `delivered` only here: the SDK replay (or a verified resume) settled it
+        },
+      };
+    },
     canSteer: (threadId) => sinks.has(threadId),
     canTake: (threadId) => sinks.has(threadId) || canHold(threadId),
     steer(m, text) {
@@ -154,6 +194,7 @@ export function createSteerRegistry(db: Database): SteerRegistry {
         const res = sink.sink.push(text, ref);
         if (res === "queued" || res === "late") {
           logEvent(log, "task.steer", { len: text.length });
+          publish(m.threadId, sink.run.turnId, "queued"); // pushed, NOT delivered
           return { result: "queued" };
         }
         finalize(ref, "skipped"); // never given to the run: its row is final
@@ -172,6 +213,7 @@ export function createSteerRegistry(db: Database): SteerRegistry {
       }
       held.set(m.threadId, [...waiting, { ref, text }]);
       logEvent(log, "task.steer", { len: text.length, held: true });
+      publish(m.threadId, liveTask(m.threadId)?.id, "held");
       return { result: "held" };
     },
     record: (m, text, kind, status = "delivered") => void store(m, text, kind, status),

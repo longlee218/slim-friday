@@ -123,7 +123,7 @@ test("driver: explicit tag (allowReroute false) keeps the legacy refusal, one pr
     { allowReroute: false },
   );
   expect(out).toMatchObject({ kind: "safe_fail", rerouted: false });
-  expect(out.reply).toBe("This task needs the Discord approval flow.");
+  expect(out.reply).toBe("Nothing started because Discord approvals need to be enabled.");
   expect(lines.filter((l) => l.event === "preflight.result")).toHaveLength(1);
 });
 
@@ -171,7 +171,13 @@ async function pickTurn(env: ReturnType<typeof makeEnv>, lines: unknown[], text:
   return intentTurn({
     deps: { db: env.db } as unknown as DispatchDeps,
     log,
-    message: { threadId: "th", messageId: "m1", recent: [] } as never,
+    message: {
+      text: "Please help",
+      language: "en",
+      threadId: "th",
+      messageId: "m1",
+      recent: [],
+    } as never,
     workspace: "ws",
     locations: loadWorkspaces(env.home).workspaces[0]!.locations,
     ac: new AbortController(),
@@ -204,7 +210,10 @@ test("intentTurn: a tagged background role is never rerouted (legacy reply, task
   const env = makeEnv();
   const lines: Record<string, unknown>[] = [];
   const out = await pickTurn(env, lines, `${tagOf(BG)} fix it`);
-  expect(out).toEqual({ kind: "reply", text: "This task needs the Discord approval flow." });
+  expect(out).toEqual({
+    kind: "reply",
+    text: "Nothing started because Discord approvals need to be enabled.",
+  });
   expect(lines.filter((l) => l.event === "task.refused")).toHaveLength(1);
 });
 
@@ -219,7 +228,13 @@ test("intentTurn: reroute from a waiting task's owner to a foreground role leave
   const out = await intentTurn({
     deps: { db: env.db } as unknown as DispatchDeps,
     log,
-    message: { threadId: "th", messageId: "m2", recent: [] } as never,
+    message: {
+      text: "Please help",
+      language: "en",
+      threadId: "th",
+      messageId: "m2",
+      recent: [],
+    } as never,
     workspace: "ws",
     locations: loadWorkspaces(env.home).workspaces[0]!.locations,
     ac: new AbortController(),

@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { workspacePaths } from "../src/config/workspace-paths";
 import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
@@ -50,6 +49,7 @@ async function setup() {
 
 const msg = (text: string) => ({
   source: "t",
+  language: "en" as const,
   channelId: TEST_CHANNEL,
   userId: "u",
   threadId: "th1",
@@ -147,8 +147,8 @@ const taskIds = (env: { db: ReturnType<typeof makeEnv>["db"] }) =>
 test("a transient error -> failed_resumable: session and reason kept; the reply asks to continue; thread is idle", async () => {
   const { env, clone, handle } = await run(["error"]);
   const reply = await handle(msg(DEV_REQUEST));
-  expect(reply).toContain("stopped: agent error");
-  expect(reply).toContain("Continue it from where it stopped?");
+  expect(reply).toContain("did not finish your request");
+  expect(reply).toContain("continue from where it stopped?");
   const id = taskIds(env)[0]!.id;
   expect(status(env)).toEqual([
     { status: "failed_resumable", kind: "single", parent_turn_id: null },
@@ -160,7 +160,7 @@ test("a transient error -> failed_resumable: session and reason kept; the reply 
   });
   expect(deriveThreadState(env.db, "th1")).toBe("idle");
   expect(resumeQuestionOf(env.db, "th1")).toBe(
-    `Task ${id.slice(0, 8)} stopped: ${RESUMABLE.error}. Continue it from where it stopped?`,
+    "Would you like to continue from where it stopped? Reply yes or send `/go`.",
   );
   expect(existsSync(clone)).toBe(true);
 });
@@ -211,7 +211,7 @@ test("an unrelated NEW request starts a new task with a fresh session; the held 
 test("budget stop is resumable, but only with a raise (`/go +<usd>`): same session, raised budget, one task ceiling", async () => {
   const { env, seen, handle } = await run(["budget", "ok"]);
   const reply = await handle(msg(DEV_REQUEST));
-  expect(reply).toContain("budget reached");
+  expect(reply).toContain("spending limit was reached");
   expect(status(env)).toEqual([
     { status: "failed_resumable", kind: "single", parent_turn_id: null },
   ]);
@@ -254,7 +254,7 @@ test("a location.yaml without any commit identity is no reason to refuse: the ta
     queryFn: sdk(["error", "ok"], seen) as never,
     intent: intent(env.home),
   });
-  expect(await handle(msg(DEV_REQUEST))).toContain("Continue it from where it stopped?");
+  expect(await handle(msg(DEV_REQUEST))).toContain("continue from where it stopped?");
   expect(await handle(msg("/go"))).toContain("Xong");
   expect(seen[1].options.resume).toBe("sess-1");
 });
@@ -280,7 +280,7 @@ test("the hold expires by task age (scratch dir removed) and a stale yes gets no
   const id = taskIds(env)[0]!.id;
   const taskDir = env.paths.workspace("main").task(id).root;
   expect(existsSync(taskDir)).toBe(true);
-  expect(resumeQuestionOf(env.db, "th1")).toContain(RESUMABLE.error);
+  expect(resumeQuestionOf(env.db, "th1")).toContain("continue from where it stopped");
   const home = env.config.agentHome;
   const day = 86_400_000;
   expect(expireHeldTasks(env.db, home, Date.now() + (HELD_TASK_DAYS - 1) * day)).toEqual([]);
@@ -298,7 +298,7 @@ test("a resume that cannot start keeps the hold (task cap reached)", async () =>
   await handle(msg(DEV_REQUEST));
   for (const id of Array.from({ length: MAX_CAPPED_TASKS }, (_, n) => `cap${n}`))
     insertTurn(env.db, { id, threadId: id, source: "t", location: "real", role: "dev" });
-  expect(await handle(msg("/go"))).toContain("busy");
+  expect(await handle(msg("/go"))).toContain("handling other work");
   expect(seen).toHaveLength(1);
   expect(resumeQuestionOf(env.db, "th1")).toBeDefined();
   expect(env.db.query("SELECT status FROM turns WHERE thread_id = 'th1'").all()).toEqual([
@@ -310,7 +310,7 @@ test("`/go` racing a yes resumes once: the second message meets the running task
   const { seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
   const replies = await Promise.all([handle(msg("/go")), handle(msg("continue"))]);
-  expect(replies.filter((r) => r.includes("Xong"))).toHaveLength(1);
+  expect(replies.filter((r) => r?.includes("Xong"))).toHaveLength(1);
   expect(seen).toHaveLength(2);
 });
 

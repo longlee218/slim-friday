@@ -45,7 +45,7 @@ describe.skipIf(!live)("live agent smoke (Haiku)", () => {
       threadId: "live1",
       text: "What is the secret word in a.txt? Answer in one word.",
     });
-    expect(reply.toLowerCase()).toContain("alpha");
+    expect(reply?.toLowerCase()).toContain("alpha");
     expect(tools[0]!.some((t) => [WRITE_TOOL_NAME, EDIT_TOOL_NAME].includes(t))).toBe(false); // strictMcpConfig leak check
     expect(env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM runs").get()!.n).toBe(1);
     expect(

@@ -151,6 +151,12 @@ Type in `#ops-control`. Legacy form: `init:channel:<space>/<name>`. One string a
 5. `/init-workspace <ws>` typed in `#<ws>-agent` is refused; same text in a thread too.
 6. A question in `#<ws>-agent` is answered. A mention in `#ops-log` is ignored.
 7. Ctrl-C: `#ops-log` shows `[shutdown] SIGINT`.
+8. Conversation check (pending: needs a Discord test guild + owner; not yet run live). In a thread, send a greeting, a request that takes more than ~2 s, a message while work runs, a question with options, and a request for a long Markdown report. Expected:
+   - A quick reply needs no reaction. A slow one gets a temporary 👀 on your message that is removed once Friday replies; typing stops after the reply.
+   - Replies use your language (Vietnamese or English) and show no internal ids or task wording.
+   - A message sent while work runs is acknowledged as received, never as already read or applied.
+   - A question with options shows buttons (a select menu for 6 to 25 options, an Enter answer button for typed text). After you answer, the message shows `Đã chọn: <label>` / `Chose: <label>` with the controls removed.
+   - A long report arrives as a summary plus an attached `reply.md` (Mermaid code stays as source) and link buttons for public `http(s)` links only.
 
 **Important:** never commit `.env` with real values. `.env.example` has placeholders only.
 
@@ -197,6 +203,7 @@ Expected:
 - A question for the assistant is answered at once, next to the task. It does not join the thread conversation later.
 - A typed message while the agent waits for your answer to a question: it is saved as a note and delivered after you choose an option. A typed "yes" does not answer the question; use the buttons.
 - `/stop` keeps the queue; the queued tasks run after the stop. The reply says how many are queued.
+- Plain words can stop or replace the work, but only when they are explicit and clear: "dừng lại" / "stop that" stops it (like `/stop`, the queue is kept); "bỏ việc này, làm PDF thay vào đó" / "drop this and make a PDF instead" replaces it. A replacement answers at once that it is stopping, waits for the old run to end, then handles your message once as a new request; the old run's result is never posted and the older queued work starts after the new request. Unclear wording never stops anything (the bot asks, or treats it as a supplement). Work already done (files written, commits) is not undone; a tool that was not yet started when you stopped is denied.
 - If the run ends before the agent read a supplement, the bot posts `Not delivered to the agent ... send again:` with your text.
 - Your messages are stored (secrets masked, 2000 chars) for 14 days.
 

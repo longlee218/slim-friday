@@ -1,5 +1,6 @@
 import type { Logger } from "pino";
 import type { InboundMessage } from "../ingress/discord-message-handler";
+import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/user-copy";
 import type { IntentDeps } from "../intent/decide-intent";
 import { logEvent } from "../observability/logger";
 import { errText } from "../observability/redact";
@@ -11,19 +12,14 @@ import { pinnedLocation } from "./intent-turn";
 import type { MessageCommand } from "./message-commands";
 import { replyWhileBusy } from "./reply-while-busy";
 import type { EffortFloors } from "./thread/effort-floor";
-import { SIDE_BUSY } from "./thread/intent-replies";
 import type { RunLimiter } from "./turns/run-limiter";
 import { statusSnapshot } from "./turns/status-snapshot";
-import { OUTCOME_REPLY } from "./turns/turn-result";
 
-/* Messages that arrive while the thread's run holds the lock. Two rules live here:
-   1. ORDER. The decision of each message (L3, then steer / queue / feedback) runs one after the other per thread, in
-      arrival order, so uneven L3 latency cannot reorder them (steers and queued tasks follow the owner's order; the
-      `run_messages` seq follows it too). Only the decision is chained: a side answer (minutes) never holds it up.
-   2. ACK. The owner sees a reaction on the message at once, before L3 (seconds) and the textual reply. */
+/* Busy decisions run in arrival order per thread; a side answer never holds up later decisions.
+   Ingress owns the per-message receipt. */
 
 /** Reply when a side run crashed (the task's own run is untouched). */
-const CRASH_REPLY = OUTCOME_REPLY.error ?? "Agent failed. Check the logs.";
+const CRASH_REPLY = renderUserNotice({ kind: "failure" }, "en");
 
 /** Ref that numbers side runs, so each one has its own entry in the active map (shutdown aborts them all). */
 let sideSeq = 0;
@@ -39,6 +35,9 @@ export interface BusyLaneDeps {
   active: Map<string, AbortController>;
 }
 
+/** What the lane returns: the reply text, or the owner's explicit order to stop / replace the running work (the handler executes it). */
+export type BusyReply = string | { control: "stop" | "replace" };
+
 /** Build the lane: `(message, parsed, running) => reply` for a message of a thread whose run holds the lock. */
 export function createBusyLane(d: BusyLaneDeps) {
   /** threadId -> end of the last decision queued for it. */
@@ -50,10 +49,6 @@ export function createBusyLane(d: BusyLaneDeps) {
     running: AbortController,
   ) {
     const threadId = message.threadId;
-    if (parsed.kind === "message")
-      void Promise.resolve(message.ack?.()).catch((err: unknown) =>
-        logEvent(d.log, "task.ack_failed", { err: errText(err) }, "warn"),
-      );
     const prev = tails.get(threadId) ?? Promise.resolve();
     const step = prev.then(() =>
       replyWhileBusy({
@@ -74,13 +69,14 @@ export function createBusyLane(d: BusyLaneDeps) {
     void tail.then(() => {
       if (tails.get(threadId) === tail) tails.delete(threadId);
     });
-    return step.then(async (out) => {
+    return step.then(async (out): Promise<BusyReply> => {
       if (out.kind === "reply") return out.text;
-      if (out.kind !== "side") return CRASH_REPLY;
+      if (out.kind === "control") return { control: out.action };
+      if (out.kind !== "side") return localizeUserCopy(CRASH_REPLY, messageLanguage(message));
       // A crashing side run is reported, never thrown: the task's own run is untouched.
       return runSide(d, message, out, running).catch((err: unknown) => {
         logEvent(d.log, "side.crashed", { err: errText(err) }, "error");
-        return CRASH_REPLY;
+        return localizeUserCopy(CRASH_REPLY, messageLanguage(message));
       });
     });
   };
@@ -102,7 +98,7 @@ async function runSide(
       side: true,
       active: d.limiter?.active() ?? 0,
     });
-    return SIDE_BUSY(d.limiter?.active() ?? 0);
+    return renderUserNotice({ kind: "failure", cause: "busy" }, messageLanguage(message));
   }
   const ac = new AbortController();
   const stop = () => ac.abort(); // the thread's `/stop` stops its side answers too

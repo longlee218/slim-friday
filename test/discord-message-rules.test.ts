@@ -3,11 +3,13 @@ import {
   CHUNK_MAX,
   HEAD_MAX,
   type MessageFacts,
+  markdownLinks,
   prepareOutput,
   prepareReply,
   REPLY_CAP,
   routeMessage,
   SAFE_MENTIONS,
+  safeLinks,
   splitChunks,
   stripMention,
 } from "../src/ingress/discord-message-rules";
@@ -146,25 +148,28 @@ test("H1: mention policy disables all pings", () => {
 });
 
 test("prepareOutput: short reply stays inline, long reply = head + redacted reply.md", () => {
-  expect(prepareOutput("short answer").file).toBeUndefined();
+  expect(prepareOutput("short answer", "en").file).toBeUndefined();
   const key = `ghp_${"a".repeat(36)}`;
   const long = `${"line of text\n".repeat(600)}${key}`;
-  const out = prepareOutput(long);
+  const out = prepareOutput(long, "en");
   expect(out.file?.name).toBe("reply.md");
   expect(out.file?.content).not.toContain(key); // attachment is redacted too
   expect(out.chunks).toHaveLength(1);
   expect(out.chunks[0]!.length).toBeLessThan(HEAD_MAX + 60);
   expect(out.chunks[0]).toContain("[full reply attached]");
+  expect(prepareOutput(long, "vi").chunks[0]).toContain("[đã đính kèm toàn bộ câu trả lời]");
 });
 
 test("prepareOutput: mainly-diff reply goes to changes.diff, head closes the open fence", () => {
   const diff = `\`\`\`diff\n${"+added line\n".repeat(200)}\`\`\``;
-  const out = prepareOutput(`Here is the change:\n${diff}`);
+  const out = prepareOutput(`Here is the change:\n${diff}`, "en");
   expect(out.file?.name).toBe("changes.diff");
   const head = out.chunks[0]!;
   expect((head.match(/```/g) ?? []).length % 2).toBe(0);
   // A small diff next to lots of prose stays inline.
-  expect(prepareOutput(`${"prose ".repeat(100)}\n\`\`\`diff\n+x\n\`\`\``).file).toBeUndefined();
+  expect(
+    prepareOutput(`${"prose ".repeat(100)}\n\`\`\`diff\n+x\n\`\`\``, "en").file,
+  ).toBeUndefined();
 });
 
 test("ops channels and their threads never reach the agent; control channel and admin text become control", () => {
@@ -247,4 +252,39 @@ test("adoption: ops parent never adopts (ops check first)", () => {
     route({ adoptableThread: true, opsChannel: true, content: `<@${BOT}> init:workspace:x` }).kind,
   ).toBe("control");
   expect(route({ adoptedThread: true, opsChannel: true, mentionsBot: false }).kind).toBe("ignore");
+});
+
+test("markdownLinks: only absolute http(s) Markdown links, max three, deduped", () => {
+  const md = [
+    "[a](https://a.example/x) [b](http://b.example) [file](file:///etc/passwd) [rel](./notes.md)",
+    "[abs](/Users/me/x.md) [dup](https://a.example/x) [c](https://c.example) [d](https://d.example)",
+  ].join("\n");
+  expect(markdownLinks(md)).toEqual([
+    { label: "a", url: "https://a.example/x" },
+    { label: "b", url: "http://b.example/" },
+    { label: "c", url: "https://c.example/" },
+  ]);
+  expect(markdownLinks("[x](javascript:alert(1)) [y](mailto:a@b.c)")).toEqual([]);
+});
+
+test("safeLinks: structured links drop unsafe urls, blank labels fall back to the host", () => {
+  expect(
+    safeLinks([
+      { label: "ok", url: "https://ok.example/p" },
+      { label: "bad", url: "file:///tmp/x" },
+      { label: "rel", url: "docs/x.md" },
+      { label: "  ", url: "https://host.example/q" },
+    ]),
+  ).toEqual([
+    { label: "ok", url: "https://ok.example/p" },
+    { label: "host.example", url: "https://host.example/q" },
+  ]);
+});
+
+test("links: urls over 512 chars and image syntax never become buttons", () => {
+  const long = `https://a.example/${"x".repeat(520)}`;
+  expect(
+    markdownLinks(`[long](${long}) ![img](https://i.example/p.png) [ok](https://ok.example)`),
+  ).toEqual([{ label: "ok", url: "https://ok.example/" }]);
+  expect(safeLinks([{ label: "long", url: long }])).toEqual([]);
 });

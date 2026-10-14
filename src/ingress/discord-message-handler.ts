@@ -10,6 +10,7 @@ import { routeMessage, SAFE_MENTIONS, stripMention } from "./discord-message-rul
 import { BUSY_ACK_EMOJI, sendReply, startTyping } from "./discord-send";
 import type { InboundMessage } from "./inbound-message";
 import { replyToMemoryCommand } from "./memory-ingress";
+import { createMessageReceipt } from "./message-receipt";
 import { type HistoryChannel, historyOf, recentFor } from "./thread-history";
 import {
   adoptRoute,
@@ -19,12 +20,19 @@ import {
   threadFacts,
 } from "./thread-placement";
 import { createThreadTurns } from "./thread-turns";
+import {
+  detectLanguage,
+  languageOf,
+  pinnedThreadLanguage,
+  pinThreadLanguage,
+  renderUserNotice,
+} from "./user-copy";
 
 export type { InboundMessage } from "./inbound-message";
 
 export { FETCH_RECENT_TIMEOUT_MS } from "./thread-history";
 /** What the handler needs from the orchestrator. */
-export type HandleMessage = (message: InboundMessage) => Promise<string>;
+export type HandleMessage = (message: InboundMessage) => Promise<string | undefined>;
 
 export { sendReply, startTyping } from "./discord-send";
 
@@ -47,6 +55,8 @@ export interface MessageHandlerDeps {
   attachments?: AttachmentDeps;
   /** Thread persistence and channel lookup (placeholder rows, adoption). Absent: no rows, no adoption. */
   threads?: ThreadsPort;
+  /** Delay (ms) before a still-unanswered message gets the receipt reaction; default 2000 (tests shorten it). */
+  receiptDelayMs?: number;
 }
 
 /** Build the `messageCreate` handler: route, run the turn, reply. Never throws. */
@@ -59,12 +69,23 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
   /** Run the turn with typing shown, then post the reply into `channel`. `started` runs right after the `handleMessage` call began. */
   async function answer(
     channel: SendableChannels,
-    ids: { threadId: string; channelId: string; messageId: string; ack?: () => Promise<void> },
+    ids: { threadId: string; channelId: string; messageId: string },
+    receipt: ReturnType<typeof createMessageReceipt>,
     text: string,
     recent?: RecentMessage[],
     started?: () => void,
   ): Promise<void> {
-    const stopTyping = startTyping(channel);
+    // The text decides; neutral text ("3", "yes") keeps the thread's language, else the recent owner messages.
+    const language =
+      detectLanguage(text) ?? pinnedThreadLanguage(ids.threadId) ?? languageOf(text, recent);
+    pinThreadLanguage(ids.threadId, language);
+    let stopTyping = startTyping(channel);
+    let shown = false;
+    const visible = async () => {
+      shown = true;
+      stopTyping();
+      await receipt.visible();
+    };
     // Resolved once the reply is out: the thread's rollover work (flush, summary) starts only then.
     let posted!: () => void;
     const replied = new Promise<void>((r) => {
@@ -77,13 +98,29 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         ...ids,
         text,
         ...(recent?.length && { recent }),
+        language,
+        visible,
         replied,
         history: (limit) =>
           historyOf(channel as unknown as HistoryChannel, deps.ownerId, deps.botId(), limit),
-        notify: (m) => sendReply(channel, m),
+        notify: (m) => {
+          if (shown) {
+            stopTyping();
+            stopTyping = startTyping(channel);
+          }
+          // A caught send failure ends this composing phase too; background work must not refresh typing.
+          const stopNotificationTyping = stopTyping;
+          return sendReply(channel, m, language, visible).finally(stopNotificationTyping);
+        },
       });
       started?.();
-      await sendReply(channel, await call);
+      const reply = await call;
+      if (reply === undefined) return; // nothing to send (a replaced run's result is dropped)
+      if (shown) {
+        stopTyping();
+        stopTyping = startTyping(channel);
+      }
+      await sendReply(channel, reply, language, visible);
     } finally {
       posted();
       stopTyping();
@@ -132,6 +169,15 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         .catch((err) => log.error({ err: errText(err) }, "admin handling failed"));
       return;
     }
+    const receipt = createMessageReceipt(
+      async () => {
+        await msg.react(BUSY_ACK_EMOJI);
+      },
+      async () => {
+        await msg.reactions.cache.get(BUSY_ACK_EMOJI)?.users.remove(botId);
+      },
+      deps.receiptDelayMs,
+    );
     // Only the owner's text is logged (redacted, capped).
     logEvent(log, "message.received", {
       owner: true,
@@ -148,7 +194,10 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     try {
       await turn?.wait;
       // Memory commands never reach the agent: answered in place (thread or channel), no thread, no task row.
-      if (deps.memory && (await replyToMemoryCommand(deps.memory, msg, "workspace", route.prompt)))
+      if (
+        deps.memory &&
+        (await replyToMemoryCommand(deps.memory, msg, "workspace", route.prompt, receipt.visible))
+      )
         return;
       // Text attachments (a message > 2000 chars arrives as message.txt) join the agent's text as a DATA block.
       const key = route.kind === "thread" ? ch.id : msg.id; // a thread started from a message has its id
@@ -162,8 +211,8 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
               threadId: ch.id,
               channelId,
               messageId: msg.id,
-              ack: async () => void (await msg.react(BUSY_ACK_EMOJI)),
             },
+            receipt,
             text,
             await recentFor(ch, msg.id, { ownerId: deps.ownerId, botId }, text),
             turn?.done,
@@ -180,20 +229,41 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       // `stop` only makes sense inside a thread that has a run.
       if (parseMessageCommand(route.prompt).kind === "stop") {
         await msg.reply({
-          content: "Send `/stop` inside the thread of the run.",
+          content: renderUserNotice(
+            { kind: "note", state: "stop-in-thread" },
+            languageOf(route.prompt),
+          ),
           allowedMentions: SAFE_MENTIONS,
         });
+        await receipt.visible();
         return;
       }
       const thread = await openThread(msg, ch.id, deps.threads);
       errorTarget = thread;
-      await answer(thread, { threadId: thread.id, channelId: ch.id, messageId: msg.id }, text);
+      await answer(
+        thread,
+        { threadId: thread.id, channelId: ch.id, messageId: msg.id },
+        receipt,
+        text,
+      );
     } catch (err) {
       // Full error to the log (redacted), short generic text to the user.
       log.error({ err: errText(err) }, "message handling failed");
-      if (errorTarget)
-        await sendReply(errorTarget, "Something went wrong. Check the logs.").catch(() => {}); // channel unusable; already logged
+      try {
+        if (errorTarget) {
+          const language = pinnedThreadLanguage(errorTarget.id) ?? languageOf(route.prompt);
+          await sendReply(
+            errorTarget,
+            renderUserNotice({ kind: "failure" }, language),
+            language,
+            receipt.visible,
+          );
+        }
+      } catch {
+        /* channel unusable; already logged */
+      }
     } finally {
+      receipt.dispose();
       turn?.done(); // never leave the next message waiting
     }
   };

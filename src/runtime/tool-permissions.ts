@@ -44,9 +44,25 @@ export interface ToolPermissionInput {
   bypassMode?: ModeActive;
   /** The owner did not answer the questions in time: the caller stops the run and replies "Awaiting clarification". */
   onAskTimeout?: (questions: AskQuestion[]) => void;
+  /**
+   * The run's abort signal. Once it fires (STOP / REPLACE / shutdown) no NEW tool may start: the hook and canUseTool
+   * deny, also a call whose approval was granted while the run was being stopped. It can only deny (never overrides a
+   * guard denial or the owner's decision) and never undoes a tool that already ran. Required for real runs.
+   */
+  runSignal?: AbortSignal;
+  /** Observation only: every guard decision of a PreToolUse call. It cannot change the decision; a throwing observer is ignored. */
+  onGuardDecision?: (event: {
+    toolUseId: string;
+    tool: string;
+    decision: "allow" | "ask" | "deny";
+    reason: string;
+  }) => void;
   /** A tool call was denied by the guard hook or by canUseTool (owner / ask limit): its tool_use_id. For run metrics. */
   onDeny?: (toolUseId: string) => void;
 }
+
+/** Reason of a denial by the abort fence. */
+export const RUN_STOPPED_REASON = "The owner stopped this run; no new tool may start.";
 
 /** Short one-line description of a tool call for the approval message. */
 function summarize(tool: string, input: Record<string, unknown>): string {
@@ -83,6 +99,8 @@ export function buildToolPermissions(p: ToolPermissionInput): {
       once: true,
     });
     const input = rawInput as Record<string, unknown>;
+    // Abort fence: a stopped run starts nothing new (before any approval is requested).
+    if (p.runSignal?.aborted) return { behavior: "deny", message: RUN_STOPPED_REASON };
     try {
       if (tool === ASK_USER_QUESTION_TOOL_NAME && !p.gateway) {
         return { behavior: "deny", message: "Not available in this mode." };
@@ -134,7 +152,10 @@ export function buildToolPermissions(p: ToolPermissionInput): {
 
   // Every canUseTool deny is reported by tool_use_id (metrics tell our denials from tool failures).
   const canUseTool: CanUseTool = async (tool, rawInput, opts) => {
-    const r = await decide(tool, rawInput, opts);
+    let r = await decide(tool, rawInput, opts);
+    // Abort fence, after the awaited approval: a "yes" that arrives while the run is being stopped must not start the tool.
+    if (r?.behavior === "allow" && p.runSignal?.aborted)
+      r = { behavior: "deny", message: RUN_STOPPED_REASON };
     if (r?.behavior === "deny" && opts?.toolUseID) p.onDeny?.(opts.toolUseID);
     return r;
   };

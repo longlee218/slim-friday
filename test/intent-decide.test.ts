@@ -371,3 +371,78 @@ test("remember:/nhớ: notes always go to the entry role without L3, in every th
     await run({ pipeline, classifier: e2.classifier }, input(t));
   expect(e2.inputs).toHaveLength(2);
 });
+
+/* Busy-thread control (interrupt-steer plan, Task 1): explicit, high-confidence stop / replace only. */
+const busy = (over: Partial<DecideInput> = {}) =>
+  input("dừng lại, làm việc khác", {
+    state: "running",
+    hasTask: true,
+    scopeFromModel: true,
+    controlFromModel: true,
+    ...over,
+  });
+
+test("control: a clear stop or replace (high) on a busy thread is a control decision, Vietnamese or English", async () => {
+  for (const control of ["stop", "replace"] as const) {
+    const e = engine(answer({ role: "assistant", scope: "active", control }));
+    const r = await run({ pipeline, classifier: e.classifier }, busy());
+    expect(r.decision).toEqual({ kind: "control", action: control });
+    expect(actionFor({ decision: r.decision, state: "running" })).toEqual({
+      kind: "control",
+      action: control,
+    });
+  }
+});
+
+test("control: a wrong role label or a role tag cannot bypass an explicit high-confidence stop", async () => {
+  const e = engine(answer({ role: "nonexistent-role", control: "stop" }));
+  const d = { pipeline, classifier: e.classifier };
+  expect((await run(d, busy())).decision).toEqual({ kind: "control", action: "stop" });
+  const tagged = await run(d, busy({ text: "[dev] stop please, dừng hẳn" }));
+  expect(tagged.decision).toEqual({ kind: "control", action: "stop" });
+  expect(e.inputs).toHaveLength(2); // one L3 call per message, tag or not
+});
+
+test("control: supplement / independent question / independent job keep their steer, side, queue routes", async () => {
+  const d = (r: Partial<IntentResult>) => ({
+    pipeline,
+    classifier: engine(answer(r)).classifier,
+  });
+  const steer = await run(
+    d({ role: "dev", scope: "active" }),
+    busy({ text: "add a Mermaid diagram" }),
+  );
+  expect(actionFor({ decision: steer.decision, state: "running" }).kind).toBe("steer");
+  const side = await run(d({ role: "assistant", scope: "new" }), busy({ text: "what is bun?" }));
+  expect(actionFor({ decision: side.decision, state: "running" }).kind).toBe("side");
+  const queued = await run(d({ role: "dev", scope: "new" }), busy({ text: "also fix the lint" }));
+  expect(actionFor({ decision: queued.decision, state: "running" }).kind).toBe("queue");
+});
+
+test("control: medium or low confidence stop never aborts and never swallows the message: it keeps its normal route", async () => {
+  for (const confidence of ["medium", "low"] as const) {
+    const e = engine(answer({ role: "dev", scope: "active", control: "stop", confidence }));
+    const r = await run({ pipeline, classifier: e.classifier }, busy());
+    expect(r.decision.kind).not.toBe("control");
+    expect(r.decision.kind).not.toBe("ask"); // a busy thread's ask would become "still working" and lose the message
+  }
+});
+
+test("control: no classifier, a timeout or a failure preserves the run (supplement), never a guessed abort", async () => {
+  const none = await run({ pipeline }, busy());
+  expect(none.decision.kind).not.toBe("control");
+  for (const reason of ["timeout", "sdk", "schema"] as const) {
+    const e = engine(new IntentEngineError(reason, "x"));
+    const r = await run({ pipeline, classifier: e.classifier }, busy());
+    expect(r.decision.kind).toBe("role");
+  }
+});
+
+test("control is ignored on a thread that is not busy", async () => {
+  const e = engine(answer({ role: "dev", control: "stop" }));
+  const r = await run(
+    { pipeline, classifier: e.classifier },
+    input(VAGUE, { controlFromModel: false }),
+  );
+  expect(r.decision.kind).toBe("role");
+});

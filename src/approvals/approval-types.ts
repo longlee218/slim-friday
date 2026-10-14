@@ -7,6 +7,8 @@ export interface ApprovalRequest {
   summary: string;
   /** Optional long text (full input/diff); sent as redacted .txt attachment, not inline. */
   detail?: string;
+  /** Called after the request message was posted: it is then the first visible response (settles the receipt, stops typing). */
+  onPosted?: () => void | Promise<void>;
 }
 
 /** Owner's decision. */

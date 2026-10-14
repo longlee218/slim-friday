@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { workspacePaths } from "../src/config/workspace-paths";
 import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
@@ -49,6 +48,7 @@ async function setup() {
 
 const msg = (text: string, extra: object = {}) => ({
   source: "t",
+  language: "en" as const,
   channelId: TEST_CHANNEL,
   userId: "u",
   threadId: "th1",
@@ -253,16 +253,19 @@ test("H-a: independent messages queue in arrival order too (uneven L3 latency)",
   await first;
 });
 
-test("M-d: the ack comes at once, before L3 reads the message (and a failing ack changes nothing)", async () => {
+test("busy lane leaves receipt ownership to ingress", async () => {
   const h = await harness({ steersToRead: 1 });
   const { first } = await h.start();
-  const ack = async () => void h.p.events.push("ack");
-  expect(await h.handle(msg("slow also A", { ack }))).toBe(STEER_RECEIVED);
-  expect(h.p.events.slice(-2)).toEqual(["ack", "l3:slow also A"]);
-  const broken = async () => {
-    throw new Error("missing permission");
-  };
-  expect(await h.handle(msg("also B", { ack: broken }))).toBe(STEER_RECEIVED);
+  expect(
+    await h.handle(
+      msg("slow also A", {
+        ack: async () => {
+          h.p.events.push("ack");
+        },
+      }),
+    ),
+  ).toBe(STEER_RECEIVED);
+  expect(h.p.events).not.toContain("ack");
   h.release();
   await first;
 });
@@ -424,4 +427,56 @@ test("C: a dev supplement on the same busy thread still steers", async () => {
   h.release();
   await first;
   expect(h.p.pulled.slice(1)).toEqual(["also add a comment"]);
+});
+
+/* Interrupt controller and replacement reservation (interrupt-steer plan, Task 2). */
+test("interrupt controller aborts the active controller once; a replace marks it, a repeat is a duplicate", async () => {
+  const { createInterruptController, isReplaced, REPLACE_ABORT_REASON } = await import(
+    "../src/orchestrator/turns/interrupt-control"
+  );
+  const c = createInterruptController();
+  const run = new AbortController();
+  const req = { threadId: "t", controller: run, action: "replace" as const };
+  expect(c.requestInterrupt(req)).toBe("accepted");
+  expect(run.signal.reason).toBe(REPLACE_ABORT_REASON);
+  expect(isReplaced(run.signal)).toBe(true);
+  // a different message finding it already interrupted is `stale` (the caller still handles it)
+  expect(c.requestInterrupt(req)).toBe("stale");
+  expect(c.requestInterrupt({ ...req, action: "stop" })).toBe("stale");
+  // the SAME message id delivered twice is a duplicate
+  const other = new AbortController();
+  const m = { threadId: "t", controller: other, action: "replace" as const, messageId: "m1" };
+  expect(c.requestInterrupt(m)).toBe("accepted");
+  expect(c.requestInterrupt(m)).toBe("duplicate");
+  const stopped = new AbortController();
+  expect(c.requestInterrupt({ threadId: "t", controller: stopped, action: "stop" })).toBe(
+    "accepted",
+  );
+  expect(isReplaced(stopped.signal)).toBe(false);
+});
+
+test("tracker: activeSettled waits for the exact run's settle; a reservation holds ordinary messages until released", async () => {
+  const { createRunTracker } = await import("../src/orchestrator/turns/turn-tracker");
+  const { logger } = await import("../src/observability/logger");
+  const active = new Map<string, AbortController>();
+  const t = createRunTracker(makeEnv().db, logger, active);
+  const ac = new AbortController();
+  const settle = t.registerActive("t", ac);
+  const renewed = new AbortController();
+  t.registerActive("t", renewed, ac); // the queue after /stop shares the run's settlement
+  let done = false;
+  const waiting = t.activeSettled("t", renewed).then(() => (done = true));
+  await Bun.sleep(5);
+  expect(done).toBe(false);
+  settle();
+  await waiting;
+  expect(done).toBe(true);
+  const r = t.reserveReplacement("t");
+  let passed = false;
+  const w = t.waitReplacement("t").then(() => (passed = true));
+  await Bun.sleep(5);
+  expect(passed).toBe(false);
+  r.release();
+  await w;
+  expect(passed).toBe(true);
 });

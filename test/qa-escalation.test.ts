@@ -166,6 +166,7 @@ describe("Q&A escalation through the handler", () => {
       {},
       gw,
     );
+    // The question follows the message's language ("hard question" is English), not a guess from stored briefs.
     expect(asked).toEqual(["OwnerConfirm|Yes, run it/No"]);
     expect(calls.length).toBe(2);
     expect(calls[1]).toMatchObject({
@@ -210,17 +211,19 @@ describe("class prefix", () => {
 
 describe("budget hit message", () => {
   test("states spent/limit, overshoot note, summary; go +usd only when offered", () => {
-    const m = budgetHitMessage({
-      spentUsd: 1.52,
-      limitUsd: 1.5,
-      summary: "did A",
-    });
-    expect(m).toContain("$1.52 of $1.50");
-    expect(m).toContain("overshoot");
+    const m = budgetHitMessage(
+      {
+        spentUsd: 1.52,
+        limitUsd: 1.5,
+        summary: "did A",
+      },
+      "en",
+    );
+    expect(m).toContain("allowed spending limit was reached");
     expect(m).toContain("did A");
     expect(m).not.toContain("go +");
-    expect(budgetHitMessage({ goPlusUsd: 1.5 })).toContain("`/go +1.5`");
-    expect(budgetHitMessage({})).toContain("? of ?");
+    expect(budgetHitMessage({ goPlusUsd: 1.5 }, "en")).toContain("`/go +1.5`");
+    expect(budgetHitMessage({}, "en")).toContain("did not finish");
   });
   test("a max_budget run replies with the message, keeps the session, logs the stop", async () => {
     // Model pinned: no cheap-tier fallback, so the first run's stop is the reply (the fallback has its own tests).
@@ -248,7 +251,7 @@ describe("budget hit message", () => {
       threadId: "t1",
       text: "q",
     });
-    expect(reply).toContain("$0.52 of $1.00");
+    expect(reply).toContain("Việc chưa hoàn tất vì đã chạm giới hạn chi phí");
     const row = env.db.query("SELECT session_id FROM sessions WHERE thread_id = 't1'").get() as {
       session_id: string;
     };

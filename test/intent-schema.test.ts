@@ -118,3 +118,16 @@ test("parse: `ask` is redacted and cut to 200, `pendingAnswer` only yes / no; nu
   expect(parseIntentText(json({ ...ok, ask: "  " }))).not.toHaveProperty("ask");
   expect(() => parseIntentText(json({ ...ok, pendingAnswer: "maybe" }))).toThrow(IntentEngineError);
 });
+
+test("parse: control is kept only as stop / replace; none, null and absent are dropped; junk is a schema error", () => {
+  expect(parseIntentText(json({ ...ok, control: "stop" })).control).toBe("stop");
+  expect(parseIntentText(json({ ...ok, control: "replace" })).control).toBe("replace");
+  for (const c of ["none", null, undefined])
+    expect(parseIntentText(json({ ...ok, control: c })).control).toBeUndefined();
+  expect(() => parseIntentText(json({ ...ok, control: "pause" }))).toThrow(IntentEngineError);
+});
+
+test("validate: control survives validation and does not need a known role", () => {
+  const v = validateIntent(raw({ control: "stop" }), { hasTask: true });
+  expect(v.ok && v.result.control).toBe("stop");
+});

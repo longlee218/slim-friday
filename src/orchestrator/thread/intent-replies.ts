@@ -1,8 +1,7 @@
+import { renderUserNotice } from "../../ingress/user-copy";
 import type { AskReason } from "../../intent/decide-intent";
 import { leadingRoleTag } from "../../intent/role-tag";
-import { redactText } from "../../observability/redact";
 import { ROLES } from "../../roles/role-registry";
-import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 
 /** Why the owner is asked (the intent reasons; a `max` effort is confirmed with buttons, see max-effort-gate.ts). */
 export type AskKind = AskReason;
@@ -18,39 +17,22 @@ export function stripRoleTag(text: string): string {
  * owner just says it again, more clearly). A model-written `ask` (owner's language) takes its place.
  */
 export const ASK_TEXT: Record<AskKind, () => string> = {
-  low_confidence: () => "I am not sure what you want. Could you say it a bit more specifically?",
-  unknown_role: () => "I could not tell what you want. Could you rephrase it?",
-  unclassified: () => "I could not tell what you want. Could you send it again?",
-  pending_unclear: () =>
-    "I could not tell if that answers my question above. Answer it again, or send `/go` to start it, or `/stop` to drop it.",
+  low_confidence: () => renderUserNotice({ kind: "clarification" }, "en"),
+  unknown_role: () => renderUserNotice({ kind: "clarification" }, "en"),
+  unclassified: () => renderUserNotice({ kind: "clarification" }, "en"),
+  pending_unclear: () => renderUserNotice({ kind: "clarification", pending: true }, "en"),
 };
-
-/** Reply while the thread's run holds the lock. */
-export const STILL_WORKING = "still working...";
-/** A text yes/no while a button question waits. */
-export const GATE_HINT = "Use the buttons on the message above.";
-export const NOTHING_PENDING = "Nothing is waiting for an answer.";
-/** A background task cannot start without the approval flow (same text as the legacy refusal). */
-export const NO_APPROVALS = "This task needs the Discord approval flow.";
-/** A steer reached the run's input. It says "received", never that the agent read it: the model takes it at its next turn boundary, after the current tools. */
-export const STEER_RECEIVED = "received, the agent takes it at its next step";
-/** A steer arrived while a tool approval waits: the message is stored and reaches the agent after the owner decides. Never says "read". */
-export const STEER_WAITING = (tool: string) =>
-  tool === ASK_USER_QUESTION_TOOL_NAME
-    ? "agent is waiting for your answer above: click one of the options; typed text is only sent as a note after you choose"
-    : `agent is waiting for your approval of ${redactText(tool)} above (Approve/Deny); your message is saved and is delivered after the decision`;
-/** A steer arrived while the run is still starting: it goes into the run's input once it opens. */
-export const STEER_HELD = "received, the agent takes it when its run has started";
-/** The global run limit is full: a side question cannot get its own run right now. */
-export const SIDE_BUSY = (active: number) => `busy, ${active} runs active, try again in a minute`;
-/** The run already has the max pending steers (`MAX_PENDING_STEERS`). */
-export const STEER_FULL = "too many pending, wait or send `/stop`";
-/** The run ended between the decision and the push (nothing can take the message any more). */
-export const STEER_ENDED = "That run just ended, so the message was not delivered. Send it again.";
-/** An independent message of any role was queued: it runs when the current task ends (no question asked). */
-export const QUEUE_RECEIVED = "received, it runs after the current task";
-/** The thread already holds the max queued follow-ups (`MAX_QUEUED`): nothing is accepted silently. */
-export const QUEUE_FULL = "too many queued after the current task, wait for it or send `/stop`";
-/** Head of the notice listing steers the run ended without reading (the messages follow, one per line). */
-export const NOT_DELIVERED =
-  "Not delivered to the agent (it ended or timed out first), send again:";
+export const STILL_WORKING = renderUserNotice({ kind: "failure", cause: "busy" }, "en");
+export const GATE_HINT = renderUserNotice({ kind: "decision", state: "gate" }, "en");
+export const NOTHING_PENDING = renderUserNotice({ kind: "decision", state: "none" }, "en");
+export const NO_APPROVALS = renderUserNotice({ kind: "failure", cause: "approval" }, "en");
+export const STEER_RECEIVED = renderUserNotice({ kind: "steer", state: "queued" }, "en");
+export const STEER_WAITING = (_tool: string) =>
+  renderUserNotice({ kind: "steer", state: "waiting" }, "en");
+export const STEER_HELD = renderUserNotice({ kind: "steer", state: "held" }, "en");
+export const SIDE_BUSY = (_active: number) => STILL_WORKING;
+export const STEER_FULL = renderUserNotice({ kind: "steer", state: "full" }, "en");
+export const STEER_ENDED = renderUserNotice({ kind: "steer", state: "ended" }, "en");
+export const QUEUE_RECEIVED = renderUserNotice({ kind: "queue" }, "en");
+export const QUEUE_FULL = renderUserNotice({ kind: "queue", full: true }, "en");
+export const NOT_DELIVERED = renderUserNotice({ kind: "decision", state: "undelivered" }, "en");

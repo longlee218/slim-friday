@@ -2,6 +2,7 @@
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
 import type { TaskClass } from "../../config/model-routing";
+import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { getLogContext, logEvent, setLogContext, tryLog } from "../../observability/logger";
 import { getRole } from "../../roles/role-registry";
 import { countQueuedProposals } from "../../storage/proposal-store";
@@ -20,11 +21,16 @@ export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
  * are KEPT: they start, in order, once the stopped run has ended (a stop cancels the running work, not the
  * owner's other requests). The run's input channel closes on that abort (nothing more is yielded).
  */
-export function stopThread(db: Database, threadId: string, running?: AbortController): string {
-  if (!running) return "Nothing is running.";
+export function stopThread(
+  db: Database,
+  threadId: string,
+  language: OwnerLanguage,
+  running?: AbortController,
+): string {
+  if (!running) return renderUserNotice({ kind: "stop", active: false }, language);
   running.abort();
   const queued = countQueuedProposals(db, threadId);
-  return queued > 0 ? `Stopping... ${queued} queued, they run after it.` : "Stopping...";
+  return renderUserNotice({ kind: "stop", active: true, queued }, language);
 }
 
 /** Register a fresh controller as the thread's active one (the queue that runs after a user `/stop`) and return it. */
@@ -40,7 +46,11 @@ export function renewActive(
 /** Tracks calls in flight and the active runs, so shutdown can abort and await them. */
 export function createRunTracker(db: Database, log: Logger, active: Map<string, AbortController>) {
   /** Promises of calls in flight. */
-  const inflight = new Set<Promise<string>>();
+  const inflight = new Set<Promise<string | undefined>>();
+  /** controller -> promise that resolves when the run that owned it has fully ended (cleanup included). */
+  const settled = new WeakMap<AbortController, Promise<void>>();
+  /** threadId -> promise of a replacement in progress: ordinary messages wait for it before looking at `active`. */
+  const reservations = new Map<string, { promise: Promise<void>; cancelled: boolean }>();
   /** Set once shutdown aborts the runs: those tasks are `interrupted` (resumable), not user-cancelled. */
   let stopping = false;
 
@@ -52,9 +62,59 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
 
   return {
     isStopping: () => stopping,
+    /**
+     * Make `controller` the thread's active one and return the function the run calls in `finally` when it has
+     * ended. `sameRunAs` = a fresh controller of the SAME run (the queue after `/stop`): it settles with that run.
+     */
+    registerActive(
+      threadId: string,
+      controller: AbortController,
+      sameRunAs?: AbortController,
+    ): () => void {
+      active.set(threadId, controller);
+      const shared = sameRunAs && settled.get(sameRunAs);
+      if (shared) {
+        settled.set(controller, shared);
+        return () => {};
+      }
+      let settle!: () => void;
+      settled.set(
+        controller,
+        new Promise<void>((r) => {
+          settle = r;
+        }),
+      );
+      return settle;
+    },
+    /** Resolves when the run that owned this exact controller has ended (already ended / unknown = now). */
+    activeSettled: (_threadId: string, controller: AbortController): Promise<void> =>
+      settled.get(controller) ?? Promise.resolve(),
+    /** Hold the thread for a replacement: later ordinary messages wait on `waitReplacement` until `release`. */
+    reserveReplacement(threadId: string): { release: () => void; isCancelled: () => boolean } {
+      let release!: () => void;
+      const entry = { promise: undefined as unknown as Promise<void>, cancelled: false };
+      entry.promise = new Promise<void>((r) => {
+        release = () => {
+          if (reservations.get(threadId) === entry) reservations.delete(threadId);
+          r();
+        };
+      });
+      reservations.set(threadId, entry);
+      return { release, isCancelled: () => entry.cancelled };
+    },
+    /** `/stop` while a replacement is pending: that replacement must not start. True when one was pending. */
+    cancelReplacement(threadId: string): boolean {
+      const entry = reservations.get(threadId);
+      if (entry) entry.cancelled = true;
+      return !!entry;
+    },
+    /** Wait until no replacement holds the thread (the replacement itself never calls this). */
+    async waitReplacement(threadId: string): Promise<void> {
+      for (let e = reservations.get(threadId); e; e = reservations.get(threadId)) await e.promise;
+    },
     abortAll,
     /** Keep the call in the in-flight set until it settles (`run` never rejects). */
-    track(p: Promise<string>): Promise<string> {
+    track(p: Promise<string | undefined>): Promise<string | undefined> {
       inflight.add(p);
       const done = () => {
         inflight.delete(p);

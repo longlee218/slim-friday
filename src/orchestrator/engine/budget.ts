@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { type Route, TASK_BUDGET_USD } from "../../config/model-routing";
+import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { clip, redactText } from "../../observability/redact";
 import { spentByTask } from "../../storage/run-metrics-store";
@@ -20,9 +21,12 @@ export function withSpent<T extends { turnId: string; route?: Route }>(db: Datab
 }
 
 /** Owner text when the task ceiling is already used up by the task's earlier runs: the run is refused up front (no 0 budget). */
-export const ceilingRefusal = (route?: Route): string | undefined =>
+export const ceilingRefusal = (
+  route: Route | undefined,
+  language: OwnerLanguage,
+): string | undefined =>
   (route?.spentUsd ?? 0) >= TASK_BUDGET_USD
-    ? `Task ceiling reached: ${usd(TASK_BUDGET_USD)} already spent by this task's earlier runs. Nothing was started; \`/go +<usd>\` cannot lift this ceiling.`
+    ? renderUserNotice({ kind: "failure", cause: "ceiling" }, language)
     : undefined;
 
 /** Facts of a run that stopped on its budget. */
@@ -44,27 +48,27 @@ export interface BudgetHit {
 /** Cap of the quoted last summary (the owner reads a Discord reply, not a log). */
 export const BUDGET_SUMMARY_MAX = 500;
 
-const usd = (n: number | undefined): string => (n === undefined ? "?" : `$${n.toFixed(2)}`);
-
 /**
  * The reply of a budget stop. States spent/limit, that the SDK checks between turns (a small overshoot is
  * possible) and the last summary; the `go +<usd>` line only when `goPlusUsd` is set
  * (resuming with the same budget would loop, so the hint carries a raise).
  */
-export function budgetHitMessage(h: BudgetHit): string {
-  const lines = [
-    h.ceilingBound
-      ? `Stopped: task ceiling ${usd(TASK_BUDGET_USD)} reached (this run spent ${usd(h.spentUsd)} of the ${usd(h.limitUsd)} left; checked between turns, so a small overshoot is possible). \`/go +<usd>\` cannot lift the task ceiling.`
-      : `Stopped: budget reached (${usd(h.spentUsd)} of ${usd(h.limitUsd)}; the limit is checked between turns, so a small overshoot is possible).`,
-  ];
-  if (h.summary?.trim()) lines.push(`Last summary:\n${clip(h.summary.trim(), BUDGET_SUMMARY_MAX)}`);
-  if (h.goPlusUsd !== undefined) {
-    lines.push(`Reply \`/go +${h.goPlusUsd}\` to continue with that much more budget.`);
-    if (h.ceilingLeftUsd !== undefined)
-      lines.push(
-        `The task ceiling (${usd(TASK_BUDGET_USD)}) leaves only ${usd(h.ceilingLeftUsd)}.`,
-      );
-  }
+export function budgetHitMessage(h: BudgetHit, language: OwnerLanguage): string {
+  const lines = [renderUserNotice({ kind: "outcome", outcome: "max_budget" }, language)];
+  if (h.summary?.trim()) lines.push(clip(h.summary.trim(), BUDGET_SUMMARY_MAX));
+  if (h.goPlusUsd !== undefined)
+    lines.push(
+      language === "vi"
+        ? `Bạn có thể gửi \`/go +${h.goPlusUsd}\` để tiếp tục với phần chi phí bổ sung này.`
+        : `Send \`/go +${h.goPlusUsd}\` to continue with this additional budget.`,
+    );
+  // A ceiling-bound stop cannot be raised: say what to do instead.
+  else if (h.ceilingBound)
+    lines.push(
+      language === "vi"
+        ? "Giới hạn này không thể tăng thêm; bạn hãy gửi một yêu cầu mới để làm tiếp."
+        : "This limit cannot be raised; send a new request to carry on.",
+    );
   return lines.join("\n");
 }
 
@@ -73,13 +77,16 @@ export function budgetHitMessage(h: BudgetHit): string {
  * spent/limit and the agent's last words. Offers the same amount
  * again: `go +<usd>` continues with that much more.
  */
-export function budgetHitReply(res: {
-  usage?: { costUsd?: number };
-  budgetUsd?: number;
-  ceilingBound?: boolean;
-  spentBeforeUsd?: number;
-  lastText?: string;
-}): string {
+export function budgetHitReply(
+  res: {
+    usage?: { costUsd?: number };
+    budgetUsd?: number;
+    ceilingBound?: boolean;
+    spentBeforeUsd?: number;
+    lastText?: string;
+  },
+  language: OwnerLanguage,
+): string {
   logEvent(log, "budget.exceeded", {
     spentUsd: res.usage?.costUsd,
     limitUsd: res.budgetUsd ?? null,
@@ -91,14 +98,17 @@ export function budgetHitReply(res: {
       ? undefined
       : Number(Math.min(res.budgetUsd, left).toFixed(2));
   return redactText(
-    budgetHitMessage({
-      spentUsd: res.usage?.costUsd,
-      limitUsd: res.budgetUsd,
-      summary: res.lastText,
-      ceilingBound: res.ceilingBound,
-      goPlusUsd: offer,
-      ceilingLeftUsd:
-        offer !== undefined && offer < res.budgetUsd! ? Number(left.toFixed(2)) : undefined,
-    }),
+    budgetHitMessage(
+      {
+        spentUsd: res.usage?.costUsd,
+        limitUsd: res.budgetUsd,
+        summary: res.lastText,
+        ceilingBound: res.ceilingBound,
+        goPlusUsd: offer,
+        ceilingLeftUsd:
+          offer !== undefined && offer < res.budgetUsd! ? Number(left.toFixed(2)) : undefined,
+      },
+      language,
+    ),
   );
 }

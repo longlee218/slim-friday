@@ -1,5 +1,6 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
+import { localizeUserCopy, messageLanguage } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import { logEvent, logger } from "../../observability/logger";
 import { entryRole, ROLES } from "../../roles/role-registry";
@@ -36,6 +37,8 @@ const log = logger.child({ module: "route-by-intent" });
 /** What the handler does next. */
 export type IntentOutcome =
   | { kind: "reply"; text: string }
+  /** The owner explicitly stops or replaces the running work (executed by the handler, see interrupt-control). */
+  | { kind: "control"; action: "stop" | "replace" }
   /** A busy thread's independent question for a foreground role: answered at once in a parallel read-only run (side lane). */
   | {
       kind: "side";
@@ -93,8 +96,8 @@ const queued = (c: RouteCtx, role: string) => ({
   effort: c.effort,
 });
 
-/** Actions that store their own `run_messages` row (the others are stored here as `other`). */
-const STORES_ITSELF: ReadonlySet<IntentAction["kind"]> = new Set(["steer", "queue"]);
+/** Actions that store their own `run_messages` row (the others are stored here as `other`); a control message is stored by the handler's transition (`stop` / `replace`). */
+const STORES_ITSELF: ReadonlySet<IntentAction["kind"]> = new Set(["steer", "queue", "control"]);
 
 /**
  * Carry out one table action. A row that needs the thread free (run, open) while a run holds the lock cannot
@@ -104,7 +107,10 @@ const STORES_ITSELF: ReadonlySet<IntentAction["kind"]> = new Set(["steer", "queu
  * `intent.routed {action}` (no text).
  */
 export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<IntentOutcome> {
-  const reply = (text: string): IntentOutcome => ({ kind: "reply", text });
+  const reply = (text: string): IntentOutcome => ({
+    kind: "reply",
+    text: localizeUserCopy(text, messageLanguage(c.message)),
+  });
   logEvent(log, "intent.routed", { action: a.kind, busy: c.busy });
   if (c.busy && !STORES_ITSELF.has(a.kind))
     c.deps.steer?.record(
@@ -117,6 +123,8 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
     case "ask":
       // A busy thread never asks (the run is still going) unless it waits on an owner gate: there the owner is asked.
       return reply(c.busy && !c.gated ? STILL_WORKING : (a.text ?? ASK_TEXT[a.reason]()));
+    case "control":
+      return { kind: "control", action: a.action };
     case "gate-hint":
       return reply(GATE_HINT);
     case "answer-ask": {

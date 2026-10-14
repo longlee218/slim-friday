@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { workspacePaths } from "../src/config/workspace-paths";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeLocation } from "./git-fixture";
@@ -158,7 +157,7 @@ test("dev on its budget: failed_resumable, reply offers `go +usd`, run row keeps
   expect(t.status).toBe("failed_resumable");
   expect(runsOf(env, t.id)[0]).toMatchObject({ outcome: "max_budget" });
   expect(runsOf(env, t.id)[0].cost_usd).toBeCloseTo(3.2);
-  expect(reply).toContain("budget reached");
+  expect(reply).toContain("spending limit was reached");
   expect(reply).toContain("`/go +");
   expect(env.db.query("SELECT session_id FROM sessions").get()).toBeNull();
 });
@@ -171,4 +170,25 @@ test("a second dev message in the thread is a new task with its own run", async 
   const tasks = codeTask(env);
   expect(tasks).toHaveLength(2);
   expect(runsOf(env, tasks[1].id)).toHaveLength(1);
+});
+
+test("partial background result: a dev run that hits its turn limit is NOT re-run automatically (it may have written); audit says why, the reply stays plain", async () => {
+  const { captureLogs } = await import("../src/observability/logger");
+  const env = await setup();
+  const cap = captureLogs();
+  const reply = await handler(env, {
+    subtype: "error_max_turns",
+    is_error: true,
+    result: undefined,
+    errors: [],
+    session_id: "sess-dev",
+  })(msg("[dev] please add b.txt"));
+  cap.stop();
+  expect(codeTask(env)).toHaveLength(1);
+  expect(runsOf(env, codeTask(env)[0].id)).toHaveLength(1); // no second run
+  const ctl = cap.lines.filter((l) => l.event === "run.control");
+  expect(ctl).toContainEqual(
+    expect.objectContaining({ action: "recover_suppressed", reason: "uncertain_partial_write" }),
+  );
+  expect(reply).not.toMatch(/Internal note|uncertain_partial_write|recover/i);
 });

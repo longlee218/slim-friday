@@ -9,6 +9,7 @@ import { logEvent, logger } from "../../observability/logger";
 import { errText, redactText } from "../../observability/redact";
 import { READ_LIMIT_TEXT, type ReadBudget, textResult } from "../memory-read-shared";
 import type { MemoryToolContext } from "../memory-tool-context";
+import { formatTrustedToolIssue, type TrustedToolIssueCode } from "../trusted-tool-issue";
 import {
   SEARCH_DEFAULT_LIMIT,
   SEARCH_MAX_LIMIT,
@@ -64,9 +65,14 @@ export function formatHits(hits: Hit[]): string {
  */
 export function createMemorySearchTool(ctx: MemoryToolContext, budget: ReadBudget) {
   return tool(MEMORY_SEARCH_TOOL, MEMORY_SEARCH_DESCRIPTION, SHAPE, async (args) => {
-    if (!budget.take()) return textResult(READ_LIMIT_TEXT, true);
+    /** A known refusal: trusted code + guidance for the model, reported to the supervisor. */
+    const issue = (code: TrustedToolIssueCode, detail?: string) => {
+      ctx.onIssue?.({ tool: MEMORY_SEARCH_TOOL, code });
+      return textResult(formatTrustedToolIssue(code, detail), true);
+    };
+    if (!budget.take()) return issue("limit", READ_LIMIT_TEXT);
     if (args.since !== undefined && !DAY.test(args.since))
-      return textResult("since must be YYYY-MM-DD", true);
+      return issue("invalid_input", "since must be YYYY-MM-DD");
     const t0 = Date.now();
     try {
       // A failed sync (whole or per file) means the index may be stale: say so, log the count only.
@@ -88,13 +94,15 @@ export function createMemorySearchTool(ctx: MemoryToolContext, budget: ReadBudge
         hits: hits.length,
         ms: Date.now() - t0,
       });
-      if (terms === 0) return textResult("query has no searchable words", true);
+      if (terms === 0) return issue("invalid_input", "query has no searchable words");
       if (hits.length === 0)
         return textResult("no matches. Try other words (synonyms, fewer terms).");
       return textResult(formatHits(hits) + (syncErrors > 0 ? STALE_NOTE : ""));
     } catch (err) {
       logEvent(log, "memory.search.error", { err: errText(err, 120) }, "warn");
-      return textResult("index unavailable: memory search failed", true);
+      // The cause stays in the log, never in the model text; an unknown failure is NOT reported as a trusted issue
+      // (the run supervisor would count it toward a recovery).
+      return textResult(formatTrustedToolIssue("unavailable"), true);
     }
   });
 }

@@ -60,6 +60,7 @@ async function runCodeTask(gw?: ApprovalGateway) {
   });
   const reply = await handle({
     source: "t",
+    language: "en" as const,
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "t1",
@@ -117,7 +118,7 @@ test("parseMessageCommand: go, go +<usd>; invalid raises are plain messages; Res
 test("without approvals no run starts: the owner is told code tasks need the approval flow", async () => {
   const { qa, reply } = await runCodeTask();
   expect(qa).toHaveLength(0);
-  expect(reply).toContain("approval flow");
+  expect(reply).toContain("Discord approvals");
 });
 
 test("code task runs in bypass mode in the location with write tools and no allowedTools", async () => {

@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { renderUserNotice } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import {
   capRefusal,
@@ -55,7 +56,7 @@ export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
     reroutable: false,
     run: (c) =>
       c.locationHint && !findLocation(c.locations, c.locationHint)
-        ? unknownLocation(c.locations, c.locationHint)
+        ? unknownLocation(c.locations)
         : undefined,
   },
   {
@@ -67,7 +68,10 @@ export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
       c.locationHint && !c.text
         ? refuse(
             "empty_text",
-            `Send your question after "location:${findLocation(c.locations, c.locationHint)?.name}".`,
+            renderUserNotice(
+              { kind: "ask-after-location", name: findLocation(c.locations, c.locationHint)?.name },
+              "en",
+            ),
           )
         : undefined,
   },
@@ -88,7 +92,7 @@ export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
     reroutable: true,
     run: (c) =>
       ROLES[c.role]?.approvalRequired && !c.hasApprovals
-        ? refuse("no_approvals", "This task needs the Discord approval flow.")
+        ? refuse("no_approvals", renderUserNotice({ kind: "failure", cause: "approval" }, "en"))
         : undefined,
   },
   {
@@ -98,7 +102,7 @@ export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
     reroutable: false,
     run: (c) =>
       isBackground(c) && !c.text
-        ? refuse("empty_text", "Send a message with the task.")
+        ? refuse("empty_text", renderUserNotice({ kind: "note", state: "empty-text" }, "en"))
         : undefined,
   },
   {

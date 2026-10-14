@@ -1,5 +1,6 @@
 import type { Logger } from "pino";
 import type { InboundMessage } from "../ingress/discord-message-handler";
+import { localizeUserCopy, messageLanguage } from "../ingress/user-copy";
 import type { IntentDeps } from "../intent/decide-intent";
 import { logEvent } from "../observability/logger";
 import { getSession } from "../storage/session-store";
@@ -10,6 +11,10 @@ import type { MessageCommand } from "./message-commands";
 import type { EffortFloors } from "./thread/effort-floor";
 import { STILL_WORKING } from "./thread/intent-replies";
 import type { IntentOutcome } from "./thread/route-by-intent";
+
+/** Whether a reply is the (localized) "busy" notice: route-by-intent localizes its replies before they reach us. */
+export const isStillWorking = (text: string, message: InboundMessage): boolean =>
+  text === localizeUserCopy(STILL_WORKING, messageLanguage(message));
 
 /**
  * The thread's run holds the lock. A plain message may steer the running run (or wait until it has started), be answered
@@ -51,6 +56,7 @@ export async function replyWhileBusy(c: {
   });
   // A busy thread never starts a run (the table rows that would give `still working...`); its row is stored already.
   if (out.kind === "run") return { kind: "reply", text: STILL_WORKING };
-  if (out.kind === "reply" && out.text === STILL_WORKING) logEvent(c.log, "task.still_working");
+  if (out.kind === "reply" && isStillWorking(out.text, c.message))
+    logEvent(c.log, "task.still_working");
   return out;
 }

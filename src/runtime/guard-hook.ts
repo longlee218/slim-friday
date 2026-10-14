@@ -11,7 +11,7 @@ import { logEvent } from "../observability/logger";
 import { agentIdentity } from "../observability/subagent-hooks";
 import { describeTool } from "../observability/tool-target";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../tools/sdk-tool-names";
-import type { ToolPermissionInput } from "./tool-permissions";
+import { RUN_STOPPED_REASON, type ToolPermissionInput } from "./tool-permissions";
 
 /**
  * PreToolUse hook of a guarded run: runs the guard. deny = hard deny (logged here: a denied call has no Post hook);
@@ -29,11 +29,38 @@ export function guardHook(
 ): HookCallback {
   return async (i) => {
     if (i.hook_event_name !== "PreToolUse") return { continue: true };
+    // Abort fence: once the run is stopped / replaced no new tool starts (a completed one is never undone).
+    if (p.runSignal?.aborted) {
+      p.onDeny?.(i.tool_use_id);
+      logEvent(
+        log,
+        "tool.denied",
+        { ...agentIdentity(i), tool: i.tool_name, toolUseId: i.tool_use_id, reason: "run_stopped" },
+        "warn",
+      );
+      return {
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse" as const,
+          permissionDecision: "deny" as const,
+          permissionDecisionReason: RUN_STOPPED_REASON,
+        },
+      };
+    }
     // The question tool is handled by canUseTool (the owner's buttons), for any caller.
     if (i.tool_name === ASK_USER_QUESTION_TOOL_NAME) return { continue: true };
     const input = (i.tool_input ?? {}) as Record<string, unknown>;
     const checked = checkToolCall(i.tool_name, input, p.guard);
     const d = isSpawnCall(i.tool_name) ? gateSpawn(checked, i.tool_use_id, limit) : checked;
+    try {
+      p.onGuardDecision?.({
+        toolUseId: i.tool_use_id,
+        tool: i.tool_name,
+        decision: d.decision,
+        reason: d.reason,
+      });
+    } catch {
+      /* observation only: an observer bug never touches the decision */
+    }
     // Auto mode: an `ask` is deferred to the classifier; logged as decision "auto" (reason only, no content).
     const deferred = d.decision === "ask" && p.autoMode?.active;
     // Bypass mode: the owner chose "let them run"; an ask never reaches canUseTool (the SDK asks nothing).

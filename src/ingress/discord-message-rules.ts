@@ -1,5 +1,6 @@
 import { isAdminText } from "../discord-setup/admin-command";
-import { redactText } from "../observability/redact";
+import { clip, redactText } from "../observability/redact";
+import { type OwnerLanguage, renderUserNotice } from "./user-copy";
 
 /** Mention policy for every outgoing message: nothing can ping (@everyone, @here, roles, users). */
 export const SAFE_MENTIONS = { parse: [] as never[], repliedUser: false };
@@ -145,23 +146,72 @@ function isMainlyDiff(text: string): boolean {
 }
 
 /** First ~HEAD_MAX chars, cut on a line boundary, with an open ``` fence closed. */
-function headOf(text: string): string {
+function headOf(text: string, language: OwnerLanguage): string {
   const cut = text.slice(0, HEAD_MAX);
   const head = cut.length < text.length ? cut.slice(0, Math.max(cut.lastIndexOf("\n"), 1)) : cut;
   const open = (head.match(/^\s*```/gm) ?? []).length % 2 === 1;
-  return `${head}${open ? "\n```" : ""}\n\n[full reply attached]`;
+  return `${head}${open ? "\n```" : ""}\n\n${renderUserNotice({ kind: "label", state: "reply-attached" }, language)}`;
 }
 
 /**
  * What to send for a reply: chunks, plus a file when the reply is long (> ATTACH_MIN) or mainly a diff
  * (head + `changes.diff` / `reply.md`). Everything is redacted, including the file content.
  */
-export function prepareOutput(text: string): { chunks: string[]; file?: OutputFile } {
+export function prepareOutput(
+  text: string,
+  language: OwnerLanguage,
+): { chunks: string[]; file?: OutputFile } {
   const safe = redactText(text);
   const diff = isMainlyDiff(safe);
   if (safe.length <= ATTACH_MIN && !diff) return { chunks: prepareReply(safe) };
   return {
-    chunks: [headOf(safe)],
+    chunks: [headOf(safe, language)],
     file: { name: diff ? "changes.diff" : "reply.md", content: safe },
   };
+}
+
+/** A link offered as a Discord link button. */
+export interface ReportLink {
+  label: string;
+  url: string;
+}
+
+/** Discord allows 5 buttons per row; reports offer at most three links. */
+export const LINKS_MAX = 3;
+/** Discord caps a button label at 80 chars. */
+const LINK_LABEL_MAX = 80;
+
+/** Discord rejects the whole message when a link button URL is over 512 chars. */
+const LINK_URL_MAX = 512;
+
+/** Normalized absolute http(s) URL of at most 512 chars, or undefined (local paths, `file:`, relative, `javascript:`, ...). */
+function safeUrl(raw: string): string | undefined {
+  try {
+    const u = new URL(raw);
+    const ok = u.protocol === "http:" || u.protocol === "https:";
+    return ok && u.href.length <= LINK_URL_MAX ? u.href : undefined;
+  } catch {
+    return undefined; // relative paths and bare text do not parse as absolute URLs
+  }
+}
+
+/** Keep only safe absolute links (deduped by URL, max three); a blank label falls back to the host. */
+export function safeLinks(links: ReportLink[]): ReportLink[] {
+  const out: ReportLink[] = [];
+  for (const link of links) {
+    const url = safeUrl(link.url.trim());
+    if (!url || out.some((l) => l.url === url)) continue;
+    const label = clip(link.label.trim() || new URL(url).host, LINK_LABEL_MAX);
+    out.push({ label, url });
+    if (out.length === LINKS_MAX) break;
+  }
+  return out;
+}
+
+/** Safe `[label](url)` links found in Markdown text; code is not special-cased (a link in a fence is still a link). */
+export function markdownLinks(markdown: string): ReportLink[] {
+  const found = [...markdown.matchAll(/(!?)\[([^\]\n]+)\]\((\S+?)\)/g)]
+    .filter((m) => !m[1]) // `![alt](url)` is an image, not a link
+    .map((m) => ({ label: m[2]!, url: m[3]! }));
+  return safeLinks(found);
 }

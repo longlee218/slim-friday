@@ -112,7 +112,13 @@ function ctx(over: Partial<RouteCtx> = {}) {
   const env = makeEnv();
   const c = {
     deps: { db: env.db, config: env.config, approvals: stubGateway() } as never,
-    message: { source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th", text: "x" },
+    message: {
+      source: "t",
+      channelId: TEST_CHANNEL,
+      userId: "u",
+      threadId: "th",
+      text: "please help",
+    },
     workspace: "main",
     locations: [],
     ac: new AbortController(),
@@ -130,7 +136,7 @@ test("executor: without the approval flow a staged task is refused by text (queu
   const bare = { ...c, deps: { db: env.db, config: env.config } as never };
   for (const kind of ["queue", "open"] as const) {
     const r = await routeByIntent({ ...bare, busy: kind === "queue" }, { kind, role: "dev" });
-    expect(text(r)).toBe("This task needs the Discord approval flow.");
+    expect(text(r)).toBe("Nothing started because Discord approvals need to be enabled.");
   }
 });
 
@@ -138,7 +144,7 @@ test("executor: asks, hints and the P1.4b rows are replies; none runs anything",
   const { c } = ctx();
   const idle = { ...c, busy: false };
   const generic = text(await routeByIntent(idle, { kind: "ask", reason: "low_confidence" }));
-  expect(generic).toContain("not sure what you want");
+  expect(generic).toContain("clarify what you want");
   expect(generic).not.toMatch(/\[ask\]|\[dev\]|Start your message/); // no tag instructions
   // the model's own question wins over the generic text
   expect(
@@ -219,7 +225,7 @@ test("a staged role cannot queue without the approval flow", async () => {
 test("yes/no to a PENDING proposal (confirm question, restart release): yes while running -> queued; no -> refused; nothing pending -> told", async () => {
   const { env, c } = ctx();
   expect(text(await routeByIntent(c, { kind: "answer-ask", answer: "yes" }))).toBe(
-    "Nothing is waiting for an answer.",
+    "There is no question waiting for your answer.",
   );
   const pend = () =>
     insertProposal(env.db, {
@@ -229,11 +235,15 @@ test("yes/no to a PENDING proposal (confirm question, restart release): yes whil
       brief: "pending one",
     });
   pend();
-  expect(text(await routeByIntent(c, { kind: "answer-ask", answer: "yes" }))).toContain("Queued");
+  expect(text(await routeByIntent(c, { kind: "answer-ask", answer: "yes" }))).toContain(
+    "after the current work",
+  );
   expect(oldestQueuedProposal(env.db, "th")).toMatchObject({ status: "queued", role: "dev" });
   expect(pendingProposal(env.db, "th")).toBeNull();
   pend();
-  expect(text(await routeByIntent(c, { kind: "answer-ask", answer: "no" }))).toBe("Dropped.");
+  expect(text(await routeByIntent(c, { kind: "answer-ask", answer: "no" }))).toBe(
+    "Dropped this request.",
+  );
   expect(pendingProposal(env.db, "th")).toBeNull();
 });
 
@@ -298,4 +308,23 @@ test("table reads role DATA, not names: a background role opens a task, and inde
   } finally {
     delete (ROLES as Record<string, unknown>).design;
   }
+});
+
+test("Vietnamese clarification and busy replies hide orchestration", async () => {
+  const { env, c } = ctx({ busy: false });
+  c.message.text = "giúp tôi xử lý file này";
+  const ask = text(await routeByIntent(c, { kind: "ask", reason: "low_confidence" }));
+  expect(ask).toMatch(/Bạn|bạn/);
+  expect(ask).not.toMatch(/task|role|dev|still working/i);
+  c.busy = true;
+  const busy = text(await routeByIntent(c, { kind: "run", role: "dev" }));
+  expect(busy).toMatch(/đang/);
+  expect(busy).not.toContain("still working");
+  env.db.close();
+});
+
+test("table: a control decision maps to a control action in any busy state (never to steer / queue)", () => {
+  for (const s of ["running", "awaiting_owner", "awaiting_confirmation"] as const)
+    for (const action of ["stop", "replace"] as const)
+      expect(act({ kind: "control", action }, s)).toEqual({ kind: "control", action });
 });

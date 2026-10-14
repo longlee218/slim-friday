@@ -5,6 +5,7 @@ import {
   resolveModel,
   TASK_BUDGET_USD,
 } from "../../config/model-routing";
+import { renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import type { RoleDefinition } from "../../roles/role-types";
 import type { RunAgentResult } from "../../runtime/run-agent";
@@ -50,15 +51,16 @@ export function escalationAction(
 }
 
 /** Owner-facing lines of the Opus escalation that did not run. */
-const OPUS_DECLINED = "Not run on Opus (not confirmed); this is the cheaper answer.";
-const OPUS_UNAVAILABLE = "A stronger model is not available here (model is fixed by config).";
-/** Appended to the prompt of an unsure / error-ridden fallback re-run (the session is resumed, so thread history stays). Not shown to the owner. */
+/* Rendered in English here (no language at this depth); the reply boundary localizes each line (localizeUserCopy). */
+const OPUS_DECLINED = renderUserNotice({ kind: "note", state: "opus-declined" }, "en");
+const OPUS_UNAVAILABLE = renderUserNotice({ kind: "note", state: "opus-unavailable" }, "en");
+/** Internal note of an unsure / error-ridden fallback re-run (system context of the new query; the session is resumed, so thread history stays). Not shown to the owner. */
 export const FALLBACK_RETRY_HINT =
   "(The previous attempt in this session could not answer this. Investigate again from scratch with your own tools; do not repeat that conclusion.)";
 
 /** A re-run needs at least this much of the task ceiling left (USD); less would stop at once. */
 const MIN_RERUN_BUDGET_USD = 0.1;
-const CEILING_NOTE = "Not re-run: the task budget ceiling is used up; this is the first answer.";
+const CEILING_NOTE = renderUserNotice({ kind: "note", state: "ceiling-rerun" }, "en");
 
 /** Every tier an answer may be escalated to, cheapest first. */
 const ESCALATION_TIERS: readonly EscalationTier[] = ["sonnet", "opus"];
@@ -92,7 +94,7 @@ export async function withEscalation(
   if (second.outcome !== "success") return { ...second, text: secondText };
   return {
     ...second,
-    text: `Escalated to ${tier === "opus" ? "Opus" : "Sonnet"}.\n\n${secondText}`,
+    text: `${renderUserNotice({ kind: "note", state: tier === "opus" ? "escalated-opus" : "escalated-sonnet" }, "en")}\n\n${secondText}`,
   };
 }
 
@@ -138,9 +140,30 @@ export async function answerOutput(a: {
   confirmOpus?: () => Promise<boolean>;
   /** True when the first run ended waiting for an owner answer: no automatic fallback then. */
   awaitingOwner?: () => boolean;
+  /**
+   * Run supervisor recovery. Asked after a NON-success first run when no Sonnet fallback took the single retry slot:
+   * returns a trusted internal hint to resume the first run's session with, or undefined. `remainingBudgetUsd` is what
+   * the task ceiling still leaves.
+   */
+  recover?: (
+    res: RunAgentResult,
+    ctx: { alreadyReran: boolean; remainingBudgetUsd: number },
+  ) => string | undefined;
 }): Promise<RunAgentResult> {
   const { role, config } = a;
-  if (!role.escalation) return a.run(undefined, a.resume);
+  /** The ONE supervisor recovery of this message: resume the session with the hint, within the task ceiling. */
+  const recovered = async (first: RunAgentResult): Promise<RunAgentResult> => {
+    if (first.outcome === "success" || !a.recover) return first;
+    const spentUsd = (a.route?.spentUsd ?? 0) + first.usage.costUsd;
+    const hint = a.recover(first, {
+      alreadyReran: false,
+      remainingBudgetUsd: TASK_BUDGET_USD - spentUsd,
+    });
+    if (!hint) return first;
+    logEvent(log, "escalation", { trigger: "supervisor", reason: first.outcome });
+    return a.run({ spentUsd, internalHint: hint }, first.sessionId);
+  };
+  if (!role.escalation) return recovered(await a.run(undefined, a.resume));
   const base = resolveModel(role, { ...a.route }, config);
   // A tier is reachable when the escalated re-run would use another model (Opus counts as owner-confirmed here).
   const reachable = (tier: EscalationTier): boolean =>
@@ -160,7 +183,7 @@ export async function answerOutput(a: {
         tier,
         escalated: true,
         spentUsd,
-        ...(hint && { promptHint: hint }),
+        ...(hint && { internalHint: hint }),
         ...(tier === "opus" && { ownerConfirmedMax: true }),
       },
       sessionId,
@@ -173,7 +196,9 @@ export async function answerOutput(a: {
   }
   const reason = a.awaitingOwner?.() ? undefined : fallbackReason(first);
   // Fallback: only from a tier below Sonnet, never when the owner forced a tier, never to Opus.
-  if (!reason || a.route?.tier || base === config.models.opus || !reachable("sonnet")) return first;
+  // The fallback did not apply: the supervisor may use the free retry slot (one retry per message, in total).
+  if (!reason || a.route?.tier || base === config.models.opus || !reachable("sonnet"))
+    return recovered(first);
   if (ceilingUsed) return { ...first, text: `${first.text}\n\n${CEILING_NOTE}` };
   return fallbackRerun(first, reason, (sid, hint) => rerunOn("sonnet", sid, hint));
 }

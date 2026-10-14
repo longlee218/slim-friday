@@ -80,6 +80,8 @@ export async function consumeStream(p: {
    * input ends) or keeps it open to wait for a steer that was not echoed yet (the CLI answers it with its own `result`).
    */
   onResult?: (subtype: string) => void;
+  /** Called once per distinct model call of the MAIN agent (1-based): the run supervisor counts turns. */
+  onTurn?: (turn: number) => void;
 }): Promise<StreamResult> {
   const { ac, recorder } = p;
   let text = "";
@@ -129,6 +131,7 @@ export async function consumeStream(p: {
           if (!t) return;
           logEvent(log, "llm.turn", t);
           gauges.onTurn(t);
+          if (!t.sub) p.onTurn?.(t.turn);
         });
         assistantError = ext.error;
         const said = assistantText(m);

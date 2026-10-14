@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { workspacePaths } from "../src/config/workspace-paths";
 import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-location";
 import {
   type DispatchRequest,
@@ -46,7 +45,7 @@ test("location given: resolved through the single resolver; unknown location ask
   const bad = await validateRequest(deps, req({ location: "nope" }));
   expect(bad).toMatchObject({ ok: false, action: "ask", refusal: { reason: "unknown_location" } });
   expect(bad).toMatchObject({
-    refusal: { reply: expect.stringContaining('Unknown location "nope"') },
+    refusal: { reply: expect.stringContaining("I could not find the location") },
   });
   // Any registered location works (the task clones it): no managed-clone requirement any more.
   const external = await validateRequest(

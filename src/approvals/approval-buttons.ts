@@ -1,5 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, type ButtonStyle } from "discord.js";
-import { clip } from "../observability/redact";
+import { TYPED_PREFIX } from "../ingress/discord-components";
+import { type OwnerLanguage, renderUserNotice } from "../ingress/user-copy";
+import { clip, redactText } from "../observability/redact";
 import type { ApprovalDecision } from "../storage/approval-store";
 import type { ApprovalResult } from "./approval-types";
 
@@ -50,9 +52,14 @@ export interface Pending {
   /** Edit the posted message (drops the buttons). */
   edit: (content: string) => Promise<unknown>;
   content: string;
-  /** Button labels in order (a choice click shows its option, not its number). */
+  /** Option labels in order (a choice shows its label, never its number). */
   labels: string[];
+  /** Conversation language of the thread, fixed when the question was posted. */
+  language: OwnerLanguage;
 }
+
+/** Longest typed answer echoed back in the settled message. */
+const ECHO_MAX = 300;
 
 /** Drop every open request of a task (run aborted): timers cleared, decision "cancelled", buttons removed. */
 export function cancelPending(pending: Map<string, Pending>, taskId: string): void {
@@ -61,22 +68,30 @@ export function cancelPending(pending: Map<string, Pending>, taskId: string): vo
     pending.delete(id);
     clearTimeout(p.timer);
     p.finish("cancelled");
-    void p.edit(`${p.content}\n\nCancelled`);
+    void p.edit(
+      `${p.content}\n\n${renderUserNotice({ kind: "approval", state: "cancelled" }, p.language)}`,
+    );
     p.settle("cancelled");
   }
 }
 
-/** Apply a button click to its open request (timer cleared, decision stored, waiter resolved); returns the line shown (a choice shows the clicked option, else its number). */
-export function settleClick(
-  p: Pending,
-  prefix: string,
-  value: string,
-): string {
+/** The line shown once the owner answered: the chosen label or the typed words (redacted), never an index. */
+export function settledLine(p: Pending, prefix: string, value: string): string {
+  const say = (state: "chose" | "answered", text: string) =>
+    renderUserNotice({ kind: "choice", state, text }, p.language);
+  if (value.startsWith(TYPED_PREFIX))
+    return say("answered", clip(redactText(value.slice(TYPED_PREFIX.length)), ECHO_MAX));
+  // An approval prompt maps its two values to its two labels; a question's value is the option index.
+  const index = prefix === "appr" ? (value === "allow" ? 0 : 1) : Number(value);
+  return say("chose", p.labels[index] ?? "");
+}
+
+/** Apply an answer to its open request (timer cleared, decision stored, waiter resolved). */
+export function settleClick(p: Pending, prefix: string, value: string): void {
   clearTimeout(p.timer);
   const approved = prefix === "choice" || value === "allow";
   p.finish(approved ? "approved" : "denied");
   p.settle(value);
-  return prefix === "choice" ? `chose ${p.labels[Number(value)] ?? `#${Number(value) + 1}`}` : approved ? "approved" : "denied";
 }
 
 /** Map the clicked value of an approve/deny prompt to a result. */

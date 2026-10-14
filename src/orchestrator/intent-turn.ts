@@ -1,6 +1,7 @@
 import type { Logger } from "pino";
 import type { TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
+import { messageLanguage, renderUserNotice } from "../ingress/user-copy";
 import type { IntentDeps } from "../intent/decide-intent";
 import { buildIntentInput } from "../intent/intent-input";
 import type { Location } from "../locations/location-registry";
@@ -17,7 +18,7 @@ import { findLocation } from "./dispatch/task-location";
 import { recoverRoute } from "./recover-route";
 import type { EffortFloors } from "./thread/effort-floor";
 import { stripRoleTag } from "./thread/intent-replies";
-import { MAX_DECLINED_NOTICE, settleMaxEffort } from "./thread/max-effort-gate";
+import { settleMaxEffort } from "./thread/max-effort-gate";
 import { type IntentOutcome, routeByIntent } from "./thread/route-by-intent";
 import { deriveThreadState, isGateState, isIdleLike, isWorking } from "./thread/thread-state";
 import { turnEffort } from "./thread/turn-effort";
@@ -84,6 +85,8 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
         // ended the next request is NEW.
         hasTask: steerable || (!c.busy && !isIdleLike(state)),
         scopeFromModel: steerable,
+        controlFromModel: c.busy,
+        controlOnly: c.busy && !pendingQuestion && !steerable && !gated,
         ownerClass: c.cmd.cls,
         signal: c.ac.signal,
         l3Input: () =>
@@ -95,11 +98,9 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
             pendingQuestion,
           }),
       },
-      // A busy thread pays for L3 only to read the answer to a pending question, to scope a steerable run's message or
-      // to read a message on an owner gate; else only a role tag (L1) acts on it.
-      c.busy && !pendingQuestion && !steerable && !gated
-        ? { ...c.intent, classifier: undefined }
-        : c.intent,
+      // A busy thread always pays one L3 call: it reads an explicit stop / replace first (a role tag cannot bypass it).
+      // The same verdict then serves the pending answer, the steer scope or the owner gate; otherwise it is control-only.
+      c.intent,
     ),
   );
   const { effort } = plan;
@@ -123,10 +124,12 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
         approvals: c.deps.approvals,
         floors: c.floors,
         threadId,
+        language: messageLanguage(c.message),
         cls: decision.cls,
         signals: effort,
         turn,
         signal: c.ac.signal,
+        onPosted: c.message.visible,
       }));
     }
   }
@@ -176,7 +179,12 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   // One `route.decision` per message, once the outcome is known (a yes to a failed task is a RESUME).
   logRouteDecision(c.log, settleRouting(routing, action, out, c.busy), extra);
   // The declined notice goes before the reply of a run that started at the capped effort.
-  if (maxDeclined && out.kind === "run")
-    return { ...out, notice: [MAX_DECLINED_NOTICE, out.notice].filter(Boolean).join("\n") };
+  if (maxDeclined && out.kind === "run") {
+    const declined = renderUserNotice(
+      { kind: "label", state: "max-declined" },
+      messageLanguage(c.message),
+    );
+    return { ...out, notice: [declined, out.notice].filter(Boolean).join("\n") };
+  }
   return out;
 }

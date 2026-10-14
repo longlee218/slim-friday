@@ -2,10 +2,13 @@ import { expect, test } from "bun:test";
 import { CLIENT_OPTIONS } from "../src/ingress/discord-bot";
 import type { InboundMessage } from "../src/ingress/discord-message-handler";
 import { createMessageHandler } from "../src/ingress/discord-message-handler";
-import { BUSY_ACK_EMOJI } from "../src/ingress/discord-send";
+import { BUSY_ACK_EMOJI, sendReport } from "../src/ingress/discord-send";
+import { createMessageReceipt } from "../src/ingress/message-receipt";
 import { captureLogs } from "../src/observability/logger";
 
 const OWNER = "111";
+/** Receipt delay injected into the handler (the production default is 2 s). */
+const RECEIPT_MS = 100;
 const BOT = "999";
 
 /** Fake sendable channel recording sends. */
@@ -40,9 +43,31 @@ function fakeMsg(over: {
   startThread?: any;
 }) {
   const channel = over.channel ?? fakeChannel("chan");
-  const calls: { reply: any[]; threads: any[] } = { reply: [], threads: [] };
+  const calls = {
+    reply: [] as any[],
+    threads: [] as any[],
+    reactions: [] as string[],
+    removed: [] as string[],
+  };
   const thread = fakeChannel("thr1", { thread: true, ownerId: BOT });
   const msg: any = {
+    react: async (emoji: string) => {
+      calls.reactions.push(emoji);
+    },
+    reactions: {
+      cache: new Map([
+        [
+          BUSY_ACK_EMOJI,
+          {
+            users: {
+              remove: async (id: string) => {
+                calls.removed.push(id);
+              },
+            },
+          },
+        ],
+      ]),
+    },
     author: { id: over.authorId ?? OWNER, bot: over.bot ?? false },
     content: over.content ?? `<@${BOT}> hello`,
     channel,
@@ -68,6 +93,7 @@ function setup(reply: string | Error = "answer", guildId?: string) {
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     guildId,
     handleMessage: async (message) => {
       messages.push(message);
@@ -89,6 +115,23 @@ test("owner mention in channel -> thread created, task run, reply sent in thread
   expect(messages[0]!.notify).toBeFunction(); // lets a dispatched plan post into the thread mid-run
   expect(m.thread.sent[0].content).toBe("hi @everyone");
   expect(m.thread.sent[0].allowedMentions).toEqual({ parse: [], repliedUser: false });
+});
+
+test("a run that returns nothing (its result was replaced) sends no reply", async () => {
+  const messages: InboundMessage[] = [];
+  const onMessage = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
+    handleMessage: async (message) => {
+      messages.push(message);
+      return undefined;
+    },
+  });
+  const th = fakeChannel("thr5", { thread: true, ownerId: BOT, parentId: "parent5" });
+  await onMessage(fakeMsg({ channel: th, mention: false, content: "old request" }).msg);
+  expect(messages).toHaveLength(1);
+  expect(th.sent).toEqual([]);
 });
 
 test("non-owner and bot messages never reach the agent", async () => {
@@ -117,10 +160,10 @@ test("thread owned by someone else is not a bot thread (needs mention)", async (
 });
 
 test("error after thread creation is reported inside the thread", async () => {
-  const { onMessage } = setup(new Error("boom ghp_" + "a".repeat(36)));
+  const { onMessage } = setup(new Error(`boom ghp_${"a".repeat(36)}`));
   const m = fakeMsg({});
   await onMessage(m.msg);
-  expect(m.thread.sent.at(-1).content).toContain("Something went wrong");
+  expect(m.thread.sent.at(-1).content).toContain("did not finish");
   expect(m.channel.sent).toEqual([]);
 });
 
@@ -132,7 +175,7 @@ test("error before thread creation is reported in the channel", async () => {
     },
   });
   await onMessage(m.msg);
-  expect(m.channel.sent.at(-1).content).toContain("Something went wrong");
+  expect(m.channel.sent.at(-1).content).toContain("did not finish");
 });
 
 test("`@bot stop` in a channel gives a hint and starts no thread", async () => {
@@ -186,6 +229,7 @@ function setupOps() {
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     guildId: "G1",
     setup: setupWithOps,
     handleMessage: async (message) => {
@@ -233,6 +277,7 @@ test("an admin hook that throws is contained", async () => {
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     setup: setupWithOps,
     handleMessage: async () => "x",
     admin: async () => {
@@ -242,27 +287,13 @@ test("an admin hook that throws is contained", async () => {
   await onMessage(fakeMsg({ channel: fakeChannel(CTRL), mention: false, content: "help" }).msg);
 });
 
-test("a thread message carries an ack that reacts on the owner's message (M-d); a failing reaction is the caller's to catch", async () => {
-  const { onMessage, messages } = setup();
-  const th = fakeChannel("thr7", { thread: true, ownerId: BOT, parentId: "parent9" });
-  const m = fakeMsg({ channel: th, mention: false, content: "follow up" });
-  const reacted: string[] = [];
-  m.msg.react = async (e: string) => void reacted.push(e);
-  await onMessage(m.msg);
-  await messages[0]!.ack?.();
-  expect(reacted).toEqual([BUSY_ACK_EMOJI]);
-  m.msg.react = async () => {
-    throw new Error("Missing Permissions");
-  };
-  await expect(messages[0]!.ack?.()).rejects.toThrow("Missing Permissions");
-});
-
 test("messages of one thread reach the task layer in arrival order, even when the first one is slow to prepare (attachment download)", async () => {
   const { messages } = setup();
   const order: string[] = [];
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
     handleMessage: async (message) => {
       order.push(message.text.split("\n")[0]!);
       messages.push(message);
@@ -292,4 +323,283 @@ test("messages of one thread reach the task layer in arrival order, even when th
   const second = fakeMsg({ channel: th, mention: false, content: "second message" });
   await Promise.all([onMessage(first.msg), onMessage(second.msg)]);
   expect(order).toEqual(["first message", "second message"]);
+});
+
+/** Hold a turn without relying on model timing. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+test("fast visible reply cancels the per-message receipt", async () => {
+  const m = fakeMsg({});
+  await setup().onMessage(m.msg);
+  await Bun.sleep(RECEIPT_MS + 80);
+  expect(m.calls.reactions).toEqual([]);
+});
+
+test("delayed replies get one receipt removed after sending, even when reaction operations fail", async () => {
+  for (const failure of ["none", "react", "remove"]) {
+    const gate = deferred<string>();
+    const m = fakeMsg({});
+    if (failure === "react")
+      m.msg.react = async () => {
+        throw new Error("reaction failed");
+      };
+    if (failure === "remove")
+      m.msg.reactions.cache.get(BUSY_ACK_EMOJI).users.remove = async () => {
+        throw new Error("removal failed");
+      };
+    const handler = createMessageHandler({
+      ownerId: OWNER,
+      botId: () => BOT,
+      receiptDelayMs: RECEIPT_MS,
+      handleMessage: () => gate.promise,
+    });
+    const pending = handler(m.msg);
+    await Bun.sleep(RECEIPT_MS + 80);
+    if (failure !== "react") expect(m.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
+    gate.resolve("finished");
+    await pending;
+    expect(m.thread.sent.at(-1).content).toBe("finished");
+    if (failure === "none") expect(m.calls.removed).toEqual([BOT]);
+  }
+}, 10000);
+
+test("notify stops receipt and typing refresh while the background turn continues", async () => {
+  const gate = deferred<string>();
+  const notified = deferred<void>();
+  const m = fakeMsg({});
+  let typing = 0;
+  m.thread.sendTyping = async () => {
+    typing++;
+  };
+  const handler = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
+    handleMessage: async (message) => {
+      await message.notify!("working");
+      notified.resolve();
+      return gate.promise;
+    },
+  });
+  const pending = handler(m.msg);
+  await notified.promise;
+  await Bun.sleep(8100);
+  expect(typing).toBe(1);
+  expect(m.calls.reactions).toEqual([]);
+  gate.resolve("done");
+  await pending;
+}, 12000);
+
+test("ignored and control messages never get a receipt", async () => {
+  const ignored = fakeMsg({ authorId: "other" });
+  const control = fakeMsg({ channel: fakeChannel(CTRL), mention: false, content: "help" });
+  const h = setupOps();
+  await Promise.all([h.onMessage(ignored.msg), h.onMessage(control.msg)]);
+  await Bun.sleep(RECEIPT_MS + 80);
+  expect(ignored.calls.reactions).toEqual([]);
+  expect(control.calls.reactions).toEqual([]);
+});
+
+test("both ordered messages get timely receipts while the first attachment is downloading", async () => {
+  const gate = deferred<Response>();
+  const order: string[] = [];
+  const th = fakeChannel("ordered", { thread: true, ownerId: BOT, parentId: "parent" });
+  const first = fakeMsg({ channel: th, mention: false, content: "first" });
+  first.msg.attachments = new Map([
+    [
+      "a",
+      {
+        name: "n.txt",
+        url: "https://cdn.discordapp.com/a/n.txt",
+        size: 9,
+        contentType: "text/plain",
+      },
+    ],
+  ]);
+  const second = fakeMsg({ channel: th, mention: false, content: "second" });
+  const handler = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
+    attachments: { fetchFn: () => gate.promise },
+    handleMessage: async (message) => {
+      order.push(message.text.split("\n")[0]!);
+      return "ok";
+    },
+  });
+  const pending = Promise.all([handler(first.msg), handler(second.msg)]);
+  await Bun.sleep(RECEIPT_MS + 80);
+  expect(first.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
+  expect(second.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
+  gate.resolve(new Response("body"));
+  await pending;
+  expect(order).toEqual(["first", "second"]);
+  expect(first.calls.removed).toEqual([BOT]);
+  expect(second.calls.removed).toEqual([BOT]);
+});
+
+test("receipt visibility waits for an in-flight reaction and removes it only once", async () => {
+  const gate = deferred<void>();
+  const events: string[] = [];
+  const receipt = createMessageReceipt(
+    async () => {
+      events.push("react");
+      await gate.promise;
+    },
+    async () => {
+      events.push("remove");
+    },
+    1,
+  );
+  await Bun.sleep(10);
+  const first = receipt.visible();
+  const second = receipt.visible();
+  expect(first).toBe(second);
+  expect(events).toEqual(["react"]);
+  gate.resolve();
+  await first;
+  expect(events).toEqual(["react", "remove"]);
+  receipt.dispose();
+});
+
+test("failed visible sends leave the receipt present", async () => {
+  const gate = deferred<string>();
+  const m = fakeMsg({});
+  m.thread.send = async () => {
+    throw new Error("send failed");
+  };
+  const handler = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
+    handleMessage: () => gate.promise,
+  });
+  const pending = handler(m.msg);
+  await Bun.sleep(RECEIPT_MS + 80);
+  gate.resolve("answer");
+  await pending;
+  expect(m.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
+  expect(m.calls.removed).toEqual([]);
+});
+
+test("a caught failed later notification stops typing during deferred background work", async () => {
+  const gate = deferred<string>();
+  const caught = deferred<void>();
+  const m = fakeMsg({});
+  let typing = 0;
+  m.thread.sendTyping = async () => {
+    typing++;
+  };
+  const send = m.thread.send;
+  m.thread.send = async (output: any) => {
+    if (output.content === "later") throw new Error("notification send failed");
+    await send(output);
+  };
+  const handler = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
+    handleMessage: async (message) => {
+      await message.notify!("accepted");
+      try {
+        await message.notify!("later");
+      } catch {
+        caught.resolve();
+      }
+      return gate.promise;
+    },
+  });
+  const pending = handler(m.msg);
+  await caught.promise;
+  const before = typing;
+  await Bun.sleep(8100);
+  const after = typing;
+  gate.resolve("done");
+  await pending;
+  expect(before).toBe(2);
+  expect(after).toBe(before);
+  expect(m.thread.sent.map((output: any) => output.content)).toEqual(["accepted", "done"]);
+}, 12000);
+
+test("unknown ingress failure uses owner language and never leaks exception or guessed cause", async () => {
+  const { onMessage } = setup(new Error("SECRET raw SDK exception"));
+  const { msg, thread } = fakeMsg({ content: `<@${BOT}> giúp tôi đọc file này` });
+  await onMessage(msg);
+  const content = thread.sent.map((s: any) => s.content).join("\n");
+  expect(content).toContain("chưa hoàn tất");
+  expect(content).not.toMatch(/SECRET|SDK|logs|permission|quota/i);
+});
+
+const V2_FLAG = 1 << 15;
+
+test("a long Markdown reply is a components-v2 message: summary, file component, attachment, no content/embeds", async () => {
+  const mermaid = "```mermaid\ngraph TD; A-->B\n```";
+  const key = `ghp_${"a".repeat(36)}`;
+  const long = `${"line of text\n".repeat(600)}${mermaid}\n[Docs](https://d.example/x) [local](file:///tmp/x.md) ${key}`;
+  const { onMessage } = setup(long);
+  const m = fakeMsg({});
+  await onMessage(m.msg);
+  const sent = m.thread.sent[0];
+  expect(sent.content).toBeUndefined();
+  expect(sent.embeds).toBeUndefined();
+  expect(sent.flags & V2_FLAG).toBe(V2_FLAG);
+  expect(sent.allowedMentions).toEqual({ parse: [], repliedUser: false });
+  const json = sent.components.map((c: any) => c.toJSON());
+  expect(json.map((c: any) => c.type)).toEqual([10, 13, 1]);
+  expect(json[1].file.url).toBe("attachment://reply.md");
+  expect(json[2].components.map((b: any) => b.url)).toEqual(["https://d.example/x"]);
+  const file = sent.files[0].attachment.toString();
+  expect(file).toContain("graph TD; A-->B"); // Mermaid source kept verbatim
+  expect(file).not.toContain(key);
+});
+
+test("a short Markdown reply stays one plain inline message", async () => {
+  const { onMessage } = setup("**bold** [Docs](https://d.example)");
+  const m = fakeMsg({});
+  await onMessage(m.msg);
+  expect(m.thread.sent[0].content).toBe("**bold** [Docs](https://d.example)");
+  expect(m.thread.sent[0].flags).toBeUndefined();
+});
+
+test("a failed report send leaves the receipt present (visible never fires)", async () => {
+  const gate = deferred<string>();
+  const m = fakeMsg({});
+  m.thread.send = async () => {
+    throw new Error("send failed");
+  };
+  const handler = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
+    handleMessage: () => gate.promise,
+  });
+  const pending = handler(m.msg);
+  await Bun.sleep(RECEIPT_MS + 80);
+  gate.resolve("long line\n".repeat(700));
+  await pending;
+  expect(m.calls.removed).toEqual([]);
+});
+
+test("sendReport: structured links, over-long url dropped, report still sent; summary-only has no file", async () => {
+  const ch = fakeChannel("c");
+  await sendReport(ch, {
+    summary: "done",
+    links: [
+      { label: "PR", url: "https://pr.example/1" },
+      { label: "big", url: `https://big.example/${"y".repeat(600)}` },
+      { label: "local", url: "/tmp/x.md" },
+    ],
+  });
+  const sent = ch.sent[0];
+  expect(sent.files).toEqual([]);
+  expect(sent.content).toBeUndefined();
+  const json = sent.components.map((c: any) => c.toJSON());
+  expect(json.map((c: any) => c.type)).toEqual([10, 1]);
+  expect(json[1].components.map((b: any) => b.url)).toEqual(["https://pr.example/1"]);
 });
