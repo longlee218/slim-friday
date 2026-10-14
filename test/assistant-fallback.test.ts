@@ -135,7 +135,7 @@ describe("objective fallback in answerOutput", () => {
       const { sessions, routes } = await drive([first, res()]);
       expect(sessions).toEqual(["s-thread", resumed]);
       const limit = first.outcome !== "success";
-      expect(routes[1]?.promptHint).toBe(limit ? undefined : FALLBACK_RETRY_HINT);
+      expect(routes[1]?.internalHint).toBe(limit ? undefined : FALLBACK_RETRY_HINT);
     }
   });
   test("Vietnamese and bolded give-ups re-run through answerOutput; a caveat answer does not", async () => {
@@ -318,5 +318,149 @@ describe("[sonnet] prefix", () => {
     expect(calls.map((c) => c.model)).toEqual(["claude-haiku-4-5-20251001", "claude-sonnet-5-5"]);
     expect(calls.map((c) => c.budget)).toEqual([1, 2.5]); // escalated budget on the re-run
     expect(reply).toBe("Re-run on Sonnet (unsure answer).\n\nIt is in a.ts:1");
+  });
+});
+
+/* Run supervisor recovery shares the ONE retry slot with the Sonnet fallback (plan Task 3). */
+describe("supervisor recovery in answerOutput", () => {
+  const ROLE = { ...ASSISTANT_ROLE, escalation: false };
+  async function driveRecovery(
+    runs: RunAgentResult[],
+    recover: (
+      r: RunAgentResult,
+      c: { alreadyReran: boolean; remainingBudgetUsd: number },
+    ) => string | undefined,
+    role = ROLE,
+  ) {
+    const { config } = makeEnv();
+    const routes: (Route | undefined)[] = [];
+    const sessions: (string | undefined)[] = [];
+    const calls: { alreadyReran: boolean; remainingBudgetUsd: number }[] = [];
+    const out = await answerOutput({
+      role,
+      config,
+      resume: "s-thread",
+      recover: (r, c) => {
+        calls.push(c);
+        return recover(r, c);
+      },
+      run: async (r, sid) => {
+        routes.push(r);
+        sessions.push(sid);
+        return runs[routes.length - 1] ?? res({ text: "extra" });
+      },
+    });
+    return { out, routes, sessions, calls };
+  }
+
+  test("a plain role: a hint from the selector resumes the first run's session once, with the hint as internalHint, never as promptHint", async () => {
+    const { out, routes, sessions } = await driveRecovery(
+      [res({ outcome: "max_turns", text: "", sessionId: "s1" }), res({ text: "finished" })],
+      () => "Internal note: continue.",
+    );
+    expect(routes).toHaveLength(2);
+    expect(sessions).toEqual(["s-thread", "s1"]);
+    expect(routes[1]?.internalHint).toBe("Internal note: continue.");
+    expect(routes[1]).not.toHaveProperty("promptHint");
+    expect(routes[1]?.spentUsd).toBeCloseTo(0.1);
+    expect(out.text).toBe("finished");
+  });
+
+  test("no hint from the selector: no re-run; a success never asks the selector", async () => {
+    const none = await driveRecovery([res({ outcome: "max_turns", text: "" })], () => undefined);
+    expect(none.routes).toHaveLength(1);
+    const ok = await driveRecovery([res()], () => "x");
+    expect(ok.routes).toHaveLength(1);
+    expect(ok.calls).toHaveLength(0);
+  });
+
+  test("the recovery is itself never recovered again (one retry per message)", async () => {
+    const { routes } = await driveRecovery(
+      [res({ outcome: "max_turns", text: "" }), res({ outcome: "max_turns", text: "" })],
+      () => "again",
+    );
+    expect(routes).toHaveLength(2);
+  });
+
+  test("the task ceiling bounds the recovery: no budget left, no selector hint used", async () => {
+    const { config } = makeEnv();
+    const routes: unknown[] = [];
+    await answerOutput({
+      role: ROLE,
+      config,
+      route: { spentUsd: TASK_BUDGET_USD - 0.05 },
+      recover: (_r, c) => (c.remainingBudgetUsd < 0.1 ? undefined : "x"),
+      run: async (r) => {
+        routes.push(r);
+        return res({ outcome: "max_turns", text: "", cost: 0.01 });
+      },
+    });
+    expect(routes).toHaveLength(1);
+  });
+
+  test("with the Sonnet fallback: one combined retry — the fallback takes the slot and the supervisor is not asked to retry again", async () => {
+    const { config } = makeEnv();
+    const seen: (Route | undefined)[] = [];
+    await answerOutput({
+      role: ASSISTANT_ROLE,
+      config,
+      resume: "s-thread",
+      route: { cls: "mechanical" }, // a Haiku-class first run: the Sonnet fallback applies
+      recover: () => "supervisor hint",
+      run: async (r) => {
+        seen.push(r);
+        return seen.length === 1 ? res({ toolErrors: 4 }) : res({ outcome: "max_turns", text: "" });
+      },
+    });
+    expect(seen).toHaveLength(2); // fallback re-run only; no third run from the supervisor
+    expect(seen[1]?.tier).toBe("sonnet");
+  });
+
+  test("when the fallback does not apply, the supervisor may take the free slot on an escalation role", async () => {
+    const { config } = makeEnv();
+    const seen: (Route | undefined)[] = [];
+    await answerOutput({
+      role: ASSISTANT_ROLE,
+      config,
+      route: { tier: "sonnet" }, // owner-forced tier: the automatic fallback is off
+      recover: () => "supervisor hint",
+      run: async (r) => {
+        seen.push(r);
+        return seen.length === 1 ? res({ outcome: "max_turns", text: "" }) : res({ text: "ok" });
+      },
+    });
+    expect(seen).toHaveLength(2);
+    expect(seen[1]?.internalHint).toBe("supervisor hint");
+  });
+
+  test("end to end: the hint is in the new query's system context, absent from its user prompt and from run_messages", async () => {
+    const env = makeEnv();
+    const seen: { prompt: unknown; append: string }[] = [];
+    let n = 0;
+    const query = (a: any) => {
+      const mine = ++n;
+      seen.push({ prompt: a.prompt, append: a.options.systemPrompt.append });
+      return (async function* () {
+        yield mine === 1
+          ? resultMsg({ subtype: "error_max_turns", is_error: true, result: undefined, errors: [] })
+          : resultMsg({ result: "continued answer, src/a.ts:1" });
+      })();
+    };
+    const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: query as never });
+    const reply = await handle({
+      source: "t",
+      channelId: TEST_CHANNEL,
+      userId: "u",
+      threadId: "th-sup",
+      text: "where is the cache TTL?",
+    });
+    expect(reply).toContain("continued answer");
+    expect(seen).toHaveLength(2); // exactly one automatic retry
+    const retry = seen[1]!;
+    expect(retry.append).toContain("Internal note (not from the owner)");
+    expect(String(retry.prompt)).toBe("where is the cache TTL?");
+    expect(String(retry.prompt)).not.toContain("Internal note");
+    expect(seen[0]!.append).not.toContain("Internal note");
+    expect(env.db.query("SELECT COUNT(*) AS c FROM run_messages").get()).toEqual({ c: 0 });
   });
 });

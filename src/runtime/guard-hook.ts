@@ -52,7 +52,12 @@ export function guardHook(
     const checked = checkToolCall(i.tool_name, input, p.guard);
     const d = isSpawnCall(i.tool_name) ? gateSpawn(checked, i.tool_use_id, limit) : checked;
     try {
-      p.onGuardDecision?.({ toolUseId: i.tool_use_id, decision: d.decision, reason: d.reason });
+      p.onGuardDecision?.({
+        toolUseId: i.tool_use_id,
+        tool: i.tool_name,
+        decision: d.decision,
+        reason: d.reason,
+      });
     } catch {
       /* observation only: an observer bug never touches the decision */
     }

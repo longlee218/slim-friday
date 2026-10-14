@@ -1,3 +1,4 @@
+import { MAX_TURNS } from "../../config/effort-mapping";
 import { type Route, resolveModel } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
 import { threadLanguage } from "../../ingress/discord-components";
@@ -9,6 +10,7 @@ import { setLogContext } from "../../observability/logger";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
+import { createRunSupervisor, recoverOnce } from "../../runtime/run-supervisor";
 import { answerOutput } from "../outputs/answer-output";
 import { rolloverSeed } from "../turns/rollover-seed";
 import { type FlowResult, failResult } from "../turns/turn-result";
@@ -54,6 +56,15 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   if (known) setLogContext({ location: known.name });
   let awaiting: string | undefined;
   const ctl = askTimeoutControl(i.ac.signal, (t) => (awaiting = t));
+  // ONE supervisor per owner message: it counts turns, trusted tool issues and guard denials, follows the owner steers
+  // of THIS run (SDK-confirmed states only) and an owner stop. It only decides; the retry itself is answerOutput's.
+  const supervisor = createRunSupervisor({ maxTurns: MAX_TURNS, alreadyRecovered: false });
+  const unwatchSteer = deps.steer?.subscribe(i.threadId, i.turnId, (e) =>
+    supervisor.observe({ kind: "owner_steer_state", state: e.state }),
+  );
+  i.ac.signal.addEventListener("abort", () => supervisor.observe({ kind: "owner_stop" }), {
+    once: true,
+  });
   // A rolled thread starts a fresh session: seed it with the thread summary + the last messages (never while a session lives).
   const seed =
     !role.background && !s.sessionId ? rolloverSeed(db, i.threadId, i.turnId, i.recent) : {};
@@ -65,7 +76,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     if (r?.escalated) rerunModel = resolveModel(role, route ?? {}, config);
     const done = runAgent({
       role,
-      prompt: route?.promptHint ? `${i.text}\n\n${route.promptHint}` : i.text,
+      prompt: i.text, // the owner's text only: internal notes go to the system context (extraContext below)
       steer: role.streaming ? deps.steer?.hook(i.threadId) : undefined,
       turnId: i.turnId,
       cwd: s.cwd,
@@ -79,7 +90,9 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         location: i.locations.length === 1 ? i.locations[0]?.name : undefined,
         threadId: i.threadId,
         trackSummary: !role.background,
+        onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),
       }),
+      onControlEvent: (e) => supervisor.observe(e),
       skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
       guard: guardFor(role, s.guard),
       extraContext: buildPromptContext({
@@ -93,7 +106,9 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         memoryLocations: s.scope.map((r) => r.name),
         ledger: i.ledger,
         ...seed,
-      }),
+      }).concat(
+        route?.internalHint ? [`Internal note (not from the owner):\n${route.internalHint}`] : [],
+      ),
       resume: resumeId,
       route,
       config,
@@ -132,7 +147,22 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     route: i.route,
     confirmOpus,
     awaitingOwner: () => !!awaiting,
-  }).finally(release);
+    // Post-result boundary: a write-capable role may have partly written, so it is never re-run automatically.
+    recover: (result, c) => {
+      const d = recoverOnce({
+        result,
+        snapshot: supervisor.snapshot(),
+        alreadyReran: c.alreadyReran,
+        remainingBudgetUsd: c.remainingBudgetUsd,
+        uncertainPartialWrite: role.capabilities.includes("write"),
+        approvalWaiting: !!awaiting,
+      });
+      return d.kind === "resume" ? d.hint : undefined;
+    },
+  }).finally(() => {
+    release?.();
+    unwatchSteer?.();
+  });
   // A background run's session is the turn row's only: saved as the thread's, the assistant would resume it.
   const base: FlowResult = {
     ...res,

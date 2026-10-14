@@ -14,6 +14,8 @@ export function buildMemoryToolContext(p: {
   /** Foreground run: the PostCompact hook may store the thread summary. */
   trackSummary: boolean;
   location?: string;
+  /** A Friday-owned tool reported a known outcome (the run supervisor counts these). */
+  onIssue?: MemoryToolContext["onIssue"];
 }): MemoryToolContext {
   return {
     db: p.db,
@@ -27,5 +29,6 @@ export function buildMemoryToolContext(p: {
     threadId: p.threadId,
     trackSummary: p.trackSummary,
     threadLabel: `thread ${p.threadId.slice(-6)}`,
+    ...(p.onIssue && { onIssue: p.onIssue }),
   };
 }

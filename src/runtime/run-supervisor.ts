@@ -2,7 +2,11 @@
    never sees owner text or raw tool output, and has no way to allow what the guard denied. Recovery is requested at most
    once, and only after a result (the in-flight query is never touched). */
 
-import { TRUSTED_TOOL_ISSUE_CODES, type TrustedToolIssueCode } from "../tools/trusted-tool-issue";
+import {
+  formatTrustedToolIssue,
+  TRUSTED_TOOL_ISSUE_CODES,
+  type TrustedToolIssueCode,
+} from "../tools/trusted-tool-issue";
 
 /** The closed set of trusted issue codes (defined with the tools that report them). */
 export const TRUSTED_ISSUE_CODES = TRUSTED_TOOL_ISSUE_CODES;
@@ -47,6 +51,8 @@ export function createRunSupervisor(o: { maxTurns: number; alreadyRecovered: boo
   let steer: RunControlSnapshot["steer"];
   let stopped = false;
   let guardDenied = false;
+  /** A result said the turn ceiling was hit (the effort-scaled ceiling is only known to the SDK). */
+  let turnLimitHit = false;
   /** A recovery was requested (or the slot was already spent): never ask again. */
   let spent = o.alreadyRecovered;
 
@@ -55,7 +61,7 @@ export function createRunSupervisor(o: { maxTurns: number; alreadyRecovered: boo
     TRUSTED_ISSUE_CODES.filter((c) => (issues[c] ?? 0) >= REPEAT_THRESHOLD).sort(
       (a, b) => (issues[b] ?? 0) - (issues[a] ?? 0),
     )[0];
-  const wantsRecovery = () => !stopped && (!!repeated() || turns >= o.maxTurns);
+  const wantsRecovery = () => !stopped && (!!repeated() || turns >= o.maxTurns || turnLimitHit);
 
   return {
     observe(e: RunControlEvent): RunControlDecision {
@@ -77,6 +83,7 @@ export function createRunSupervisor(o: { maxTurns: number; alreadyRecovered: boo
           stopped = true;
           return { kind: "continue" };
         case "run_result": {
+          if (e.outcome === "max_turns") turnLimitHit = true;
           if (e.outcome === "success") return { kind: "continue" };
           if (stopped) return { kind: "report_incomplete", reason: "owner_stop" };
           if (NEVER_RECOVERED.has(e.outcome))
@@ -105,4 +112,45 @@ export function createRunSupervisor(o: { maxTurns: number; alreadyRecovered: boo
       };
     },
   };
+}
+
+/** A recovery needs at least this much of the task ceiling left (USD): less would stop at once. */
+export const MIN_RECOVERY_BUDGET_USD = 0.1;
+
+/** Outcomes after which nothing is recovered: the work is done, or the owner / the service ended it. */
+const FINAL_OUTCOMES: ReadonlySet<string> = new Set(["success", "aborted", "quota"]);
+
+/** What the orchestration does after a result: nothing, or resume the saved session with a trusted internal hint. */
+export type RecoverySelection = { kind: "none" } | { kind: "resume"; hint: string };
+
+/**
+ * Pure selector at the post-result boundary. A recovery needs a repeated TRUSTED issue or the turn ceiling, a saved
+ * session, task budget left, no uncertain partial write, no open approval, no earlier retry and no owner stop. The
+ * hint is a fixed text built from the code only (never tool output).
+ */
+export function recoverOnce(i: {
+  result: { outcome: string; sessionId?: string };
+  snapshot: RunControlSnapshot;
+  alreadyReran: boolean;
+  remainingBudgetUsd: number;
+  uncertainPartialWrite: boolean;
+  approvalWaiting: boolean;
+}): RecoverySelection {
+  const { result, snapshot } = i;
+  if (i.alreadyReran || i.approvalWaiting || i.uncertainPartialWrite || snapshot.stopped)
+    return { kind: "none" };
+  if (FINAL_OUTCOMES.has(result.outcome) || !result.sessionId) return { kind: "none" };
+  if (i.remainingBudgetUsd < MIN_RECOVERY_BUDGET_USD) return { kind: "none" };
+  const code = TRUSTED_ISSUE_CODES.find((c) => (snapshot.issues[c] ?? 0) >= REPEAT_THRESHOLD);
+  if (code)
+    return {
+      kind: "resume",
+      hint: `Internal note (not from the owner): a tool reported "${code}" more than once in the previous attempt. ${formatTrustedToolIssue(code)} Continue the owner's request without repeating that call.`,
+    };
+  if (result.outcome === "max_turns")
+    return {
+      kind: "resume",
+      hint: "Internal note (not from the owner): the previous attempt reached its turn limit. Continue from where it stopped and finish the owner's request concisely.",
+    };
+  return { kind: "none" };
 }

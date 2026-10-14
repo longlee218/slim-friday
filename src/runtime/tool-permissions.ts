@@ -53,6 +53,7 @@ export interface ToolPermissionInput {
   /** Observation only: every guard decision of a PreToolUse call. It cannot change the decision; a throwing observer is ignored. */
   onGuardDecision?: (event: {
     toolUseId: string;
+    tool: string;
     decision: "allow" | "ask" | "deny";
     reason: string;
   }) => void;

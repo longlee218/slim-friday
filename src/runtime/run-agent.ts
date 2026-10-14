@@ -18,6 +18,7 @@ import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import { createPermissionWatch } from "./permission-watch";
 import type { SteerHook } from "./run-input-channel";
 import { consumeStream, type QueryFn, type StreamResult } from "./run-stream";
+import type { RunControlEvent } from "./run-supervisor";
 import { buildSdkOptions, roleConfig } from "./sdk-options";
 import { NO_SKILLS, type RunSkills } from "./skills-plugin/plugin-builder";
 import { buildRoleSkills } from "./skills-plugin/role-skills";
@@ -67,6 +68,11 @@ export interface RunAgentInput {
   resume?: string;
   /** Lean run (see `LeanRun`). */
   lean?: LeanRun;
+  /**
+   * Structured events for the run supervisor: `model_turn` per main-agent model call and `guard_denied` per guard
+   * denial. Observation only; it never changes the run.
+   */
+  onControlEvent?: (event: RunControlEvent) => void;
   /** Sees every stream message of a plain (non-steered) run: the rollover flush counts its `Remember` results. */
   onMessage?: (msg: SDKMessage) => void;
   /**
@@ -176,6 +182,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       turnId: input.turnId,
       cwd: input.cwd,
       permissionWatch: createPermissionWatch(requestedMode, autoState, bypassState),
+      onTurn:
+        input.onControlEvent &&
+        ((turn: number) => input.onControlEvent?.({ kind: "model_turn", turn })),
     };
     res = input.steer
       ? await consumeSteered({ ...common, first: input.prompt, hook: input.steer, runId })

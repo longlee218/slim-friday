@@ -110,3 +110,55 @@ test("quota and aborted results are never recovered", () => {
     expect(s.observe(result(outcome)).kind).toBe("report_incomplete");
   }
 });
+
+/* recoverOnce: the pure selector called at the post-result boundary (plan Task 3). */
+import { recoverOnce } from "../src/runtime/run-supervisor";
+
+const snap = (issues: Record<string, number> = {}, stopped = false) => ({
+  turns: 5,
+  issues,
+  stopped,
+  guardDenied: false,
+  recommendation: "none" as const,
+});
+const base = {
+  result: { outcome: "max_turns", sessionId: "s1" },
+  snapshot: snap(),
+  alreadyReran: false,
+  remainingBudgetUsd: 2,
+  uncertainPartialWrite: false,
+  approvalWaiting: false,
+};
+
+test("recoverOnce: max_turns or a repeated trusted issue resumes once with a fixed internal hint", () => {
+  const a = recoverOnce(base);
+  expect(a.kind).toBe("resume");
+  const b = recoverOnce({
+    ...base,
+    result: { outcome: "error", sessionId: "s1" },
+    snapshot: snap({ limit: 2 }),
+  });
+  expect(b.kind).toBe("resume");
+  if (b.kind === "resume") expect(b.hint).toContain("limit");
+});
+
+test("recoverOnce is suppressed without a session, without budget, after a partial write, while waiting for approval, after a prior retry, after a stop", () => {
+  const none = (o: object) => expect(recoverOnce({ ...base, ...o })).toEqual({ kind: "none" });
+  none({ result: { outcome: "max_turns", sessionId: undefined } });
+  none({ remainingBudgetUsd: 0.05 });
+  none({ uncertainPartialWrite: true });
+  none({ approvalWaiting: true });
+  none({ alreadyReran: true });
+  none({ snapshot: snap({}, true) });
+});
+
+test("recoverOnce never follows a success, an abort, a quota stop or an unknown failure", () => {
+  for (const outcome of ["success", "aborted", "quota"])
+    expect(
+      recoverOnce({ ...base, result: { outcome, sessionId: "s1" }, snapshot: snap({ limit: 3 }) }),
+    ).toEqual({ kind: "none" });
+  // an unknown tool failure: no repeated trusted issue and not max_turns
+  expect(recoverOnce({ ...base, result: { outcome: "error", sessionId: "s1" } })).toEqual({
+    kind: "none",
+  });
+});
