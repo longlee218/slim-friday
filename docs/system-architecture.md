@@ -1,6 +1,6 @@
 # Friday Agent System Architecture
 
-Last updated: 2026-10-14 (schema v7 location model, phase 1a in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 pending).
+Last updated: 2026-10-14 (schema v7 location model, phase 1a and phase 1b (spaces with N channels) in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 pending).
 
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite).
@@ -13,7 +13,7 @@ Last updated: 2026-10-14 (schema v7 location model, phase 1a in the working tree
 - [Role Model](#role-model) · [Thread States and Routing](#thread-states-and-routing) · [Component Overview](#component-overview)
 - [Approval by ask tool](#approval-by-ask-tool) · [Approval & Guardrails](#approval--guardrails) · [Budget and Resume](#budget-and-resume)
 - [Skills and Subagents](#skills-and-subagents) · [Tool Restriction Strategy](#tool-restriction-strategy) · [Storage Schema](#storage-schema)
-- [Persona & Memory Layering](#persona--memory-layering) · [Workspace Layout](#workspace-layout) · [Location Model](#location-model) · [Discord Setup](#discord-setup)
+- [Persona & Memory Layering](#persona--memory-layering) · [Workspace Layout](#workspace-layout) · [Space, Channel and Location](#space-channel-and-location) · [Location Model](#location-model) · [Discord Setup](#discord-setup)
 - [Security Layers](#security-layers) · [Environment Variables and Limits](#environment-variables-and-limits) · [Planned, Not Built](#planned-not-built)
 
 ## Message Flow
@@ -21,11 +21,11 @@ Last updated: 2026-10-14 (schema v7 location model, phase 1a in the working tree
 Discord
   └─ message in a channel (mention) or a thread
      ├─ ingress gate: bot / non-owner / DM ignored; other guild than DISCORD_GUILD_ID ignored
-     ├─ control channel or admin text (/init-workspace): admin handler (src/discord-setup), never a run
+     ├─ control channel or admin text (/init-workspace, /init-channel): admin handler (src/discord-setup), never a run
      ├─ ops channels: ignored
      ├─ routing key = parent channel id (thread → parentId)
      └─ handle message (src/orchestrator/handle-message.ts)
-        ├─ workspace = the one workspace whose `channels:` lists the parent channel (else refused, no turn row)
+        ├─ workspace = the one space whose `channels:` lists the parent channel (else refused, no turn row); channel entry = its name, mode, locations
         ├─ L0 commands (no LLM): /stop, /go [+usd], /remember, /forget, /compact, Resume
         ├─ intent layer: L1 leading tag [dev]/[ask], L2 effort signals, L3 Haiku classifier (only when L0/L1 cannot decide)
         ├─ route by intent (thread state x role x scope → action, src/orchestrator/thread/intent-table.ts)
@@ -368,9 +368,13 @@ Owner steps for the current upgrade (v6 -> v7): [owner-checklist-schema-v7.md](o
 - Root files in `$AGENT_HOME`: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md` (owner-written), `BOOTSTRAP.md` (never read by code), `MEMORY.pending.md` (agent `[global]` notes; never injected).
 - `ensureHome` creates the root files and per-workspace templates if missing; it never overwrites. New defaults (`DEFAULT_IDENTITY`, `DEFAULT_AGENTS`) apply to NEW homes only: a live home is edited by hand.
 - A non-empty workspace file replaces the root file of the same name.
-- Prompt order: role sections + COMMON → `# Project Context` (AGENTS, IDENTITY, SOUL, USER) → registry → MEMORY layers → task ledger (idle, `context.ledger` roles).
-- Memory caps: root 5000 chars, workspace 5000, each location 8000, all locations of a workspace 16000. Each persona file 6000.
-- Agent writes: `Memory:` bullets (max 5) → `workspaces/<ws>/locations/<name>/MEMORY.md` (source `location`, id `location/<name>#...`); `[global]` bullets → `MEMORY.pending.md` (never injected). Every bullet is sanitized.
+- Prompt order: role sections + COMMON → `# Project Context` (AGENTS, IDENTITY, SOUL, USER) → registry → MEMORY layers (root → space → channel → location) → task ledger (idle, `context.ledger` roles).
+- Persona files (AGENTS, IDENTITY, SOUL, USER): per file the first non-empty of channel, space, root wins (`buildPersonaContext`).
+- Memory caps: root 5000 chars, workspace 5000, channel 3000 (`CHANNEL_CHARS`), each location 8000, all locations of a workspace 16000. Each persona file 6000. `prompt.context` logs `memoryChannelChars`.
+- Agent writes: `Memory:` bullets (max 5) → `workspaces/<ws>/locations/<name>/MEMORY.md` (source `location`, id `location/<name>#...`); Remember tool scopes `location | channel | workspace | global | journal` (`REMEMBER_SCOPES`): `global` → `MEMORY.pending.md` (never injected), `journal` → `memory/<date>.md`. Every bullet is sanitized.
+- Channel memory (`channels/<name>/MEMORY.md`, source `channel`, id `channel/<name>#...`) is indexed and searched only for runs in that channel. Rollover runs carry no channel.
+- Memory tools (`MemorySearch`, Remember `location` scope) see only the run's location names (the channel's `locations` subset). Rollover runs (no channel) see all locations of the space. Remember `channel` scope exists only in runs with a channel.
+- Owner: `/forget channel <text>` (`kenh`, `kênh`) edits this channel's file.
 - The app never reads or creates `CLAUDE.md` or `CLAUDE.local.md`. No location `CLAUDE.md` is loaded or injected.
 
 ## Workspace Layout
@@ -384,6 +388,8 @@ $AGENT_HOME/                       (real directory outside every location and gi
 ├── tmp/                           per-run skill plugins, attachment copies, intent scratch (swept at startup)
 └── workspaces/<ws>/
     ├── workspace.yaml             description?, channels: [ids or {id,name,mode,locations?}], locations: [{name,path,description}], skills.extra
+    ├── channels/<name>/           channel dir (v7 phase 1b): MEMORY.md; optional AGENTS/IDENTITY/SOUL/USER.md persona overrides
+    │   └── MEMORY.md              channel memory (agent- and owner-written)
     ├── skills/                    owner-curated skills (<name>/SKILL.md)
     ├── MEMORY.md AGENTS.md IDENTITY.md SOUL.md USER.md   (optional overrides)
     ├── cwd/                       neutral cwd of runs not bound to a location (the only dir of a workspace with no location)
@@ -394,7 +400,20 @@ $AGENT_HOME/                       (real directory outside every location and gi
 ```
 - Location rules: [Location Model](#location-model).
 - Env `GIT_AUTHOR` is accepted and IGNORED: the agent uses the owner's git config and gh login.
-- Registries fail closed: invalid names, missing or non-directory location paths, paths that are or contain `$HOME` / AGENT_HOME, paths inside AGENT_HOME (except that workspace's own `locations/`), and duplicate names are skipped with a warn. A channel listed by two workspaces is dropped from both.
+- Registries fail closed: invalid names, missing or non-directory location paths, paths that are or contain `$HOME` / AGENT_HOME, paths inside AGENT_HOME (except that workspace's own `locations/`), and duplicate names are skipped with a warn. A channel listed by two workspaces is dropped from both. A duplicate channel `name` inside one space keeps the first entry (channel checks: `src/workspaces/channel-checks.ts`).
+
+## Space, Channel and Location
+Discord-facing words: **space** (a private category), **channel** (a channel of the space), **thread**. Code word for a space: `workspace`.
+
+| Concept | Where it lives | Behavior |
+|---|---|---|
+| Space | `workspaces/<ws>/` + its category | owns its `locations:`, its `MEMORY.md`, persona overrides, and N channels |
+| Channel | `channels:` entry in `workspace.yaml` (`name` = memory dir `channels/<name>/`) | `mode` task (now) or chat (phase 2); `locations` optional subset of the space's locations; own MEMORY.md and persona overrides |
+| Location | `locations:` entry | a directory a run may work in; see [Location Model](#location-model) |
+
+- A message is routed by its parent channel id to exactly one space and one channel entry; the run's location candidates are the channel's `locations` subset (present = exactly the known names, `[]` = none, run in `cwd/`), else all of the space's (key absent).
+- Prompt memory order: root → space → channel → location. Persona per file: channel > space > root.
+- `/init-channel <space>/<name>` (admin, `#ops-control`, create-only) adds a channel; see [discord-setup.md](discord-setup.md#add-a-channel-init-channel-spacename).
 
 ## Location Model
 A **location** is a directory the owner registers in a workspace. It replaces the code-only "repo" concept (schema v7).
@@ -419,11 +438,11 @@ A **location** is a directory the owner registers in a workspace. It replaces th
   - Skipped (exit 1): symlinked or non-directory entries, invalid `repo.yaml`, existing `locations/<n>`, unquoted numeric channel ids (that workspace is not migrated), failed workspaces.
   - Notes (exit unaffected): a `repos/<n>` without `repo.yaml` is left in place.
   - Exit 0 ok or nothing to do, 1 skipped or failed, 2 bad arguments. A second run on a finished home is a no-op. Steps: [owner-checklist-schema-v7.md](owner-checklist-schema-v7.md).
-- **Channels:** an entry is a plain id (legacy; migrated to `{id, name: "<ws>-agent", mode: task}`) or `{id, name, mode: task|chat, locations?}`. Objects are parsed in phase 1a. `/init-channel`, the `chat` behavior and the `locations` filter arrive in phases 1b and 2.
+- **Channels:** an entry is a plain id (legacy; named `<ws>-agent`, `-2`, ... by position) or `{id, name, mode: task|chat, locations?}`. `/init-channel` (phase 1b) appends `task` channels; `chat` behavior arrives in phase 2. `/init-channel` reads names from the registry (legacy `<ws>-agent`, `-2`... included) and `addWorkspaceChannel` refuses a name already used.
 - **Memory layer:** `workspaces/<ws>/locations/<name>/MEMORY.md`, memory source `location`, id prefix `location/<name>#`.
 
 ## Discord Setup
-- `src/discord-setup/`: `discord.yaml` schema, private control channels, `/init-workspace` (admin handler, `#ops-control` only), `bootstrap:discord` CLI, ops log, ready checks.
+- `src/discord-setup/`: `discord.yaml` schema, private control channels, `/init-workspace` and `/init-channel` (admin handler, `#ops-control` only), channel topic, `bootstrap:discord` CLI, ops log, ready checks.
 - Everything is create-only and never deletes. Setup steps and the slash command list: [discord-setup.md](discord-setup.md).
 
 ## Security Layers
@@ -510,5 +529,5 @@ A **location** is a directory the owner registers in a workspace. It replaces th
 - **Reliable handoff non-goals (phase 1):** supervisor, task TTL, dynamic DAG, multi-intent execution (a multi-intent message asks which part goes first). Jev bands stay conservative until calibrated.
 - **Config as agent (old phase 9):** roles as files plus a resolver. Closed for now (owner, 2026-10-12), not built: roles stay flat TypeScript objects in `src/roles/builtin/`, so the move stays cheap if reopened.
 - **Live verification (phase 8, paid):** AskUserQuestion under bypass, the PermissionDenied hook for owner denies, `DISABLE_BACKGROUND_TASKS` vs `run_in_background`, SDK general-purpose subagent tools, `ListAgents`, resumed-session cost accounting, golden set for the rewritten prompts.
-- **Known gaps (owner decisions):** two dev tasks in one location share one working tree; only `main` and `master` are protected (no branch setting; `defaultBranch` is dropped in v7); the thread does not pin the last task's location. Open from 1a review: migration moves a `repos/<n>` whose name fails `LOCATION_NAME` (the loader then drops it with a warn); generated channel names `<ws>-agent` are not validated.
+- **Known gaps (owner decisions):** two dev tasks in one location share one working tree; only `main` and `master` are protected (no branch setting; `defaultBranch` is dropped in v7); the thread does not pin the last task's location. Open from 1a review: migration moves a `repos/<n>` whose name fails `LOCATION_NAME` (the loader then drops it with a warn). Channel names (also the generated `<ws>-agent`) are checked by `CHANNEL_NAME` in the registry (1b).
 - **Backlog:** orphan legacy clone cleanup by hand; approval persistence across restarts; PreCompact hook; HTTP webhook ingress.

@@ -7,7 +7,7 @@ Last updated: 2026-10-14 (schema v7 location model, phase 1a; reliable handoff p
 - **assistant**: generalist, foreground, Haiku. Reads, searches the web, uses skills and MCP resources, runs read-only shell commands. Escalates to a stronger model when needed.
 - **dev**: background task in one of the workspace's locations (the owner's checkout). Plans and asks for approval through AskUserQuestion, implements, commits, pushes and opens the PR itself with the owner's git and gh login.
 - **Stack:** Bun, TypeScript, discord.js, Claude Agent SDK, SQLite (`bun:sqlite`), zod, pino.
-- **Size:** about 271 non-test `.ts` files, about 23,060 lines under `src/` (2026-10-14, phase 1a working tree). Tests under `test/`.
+- **Size:** 276 `.ts` files, 23,564 lines under `src/` (2026-10-14, phase 1b final working tree; `find src -name '*.ts'`). Tests under `test/`.
 
 ## Source Layout (`src/`)
 
@@ -35,11 +35,11 @@ Last updated: 2026-10-14 (schema v7 location model, phase 1a; reliable handoff p
 | `mcp/` | the read-only git MCP client for the assistant | `git-mcp.ts`, `mcp-servers.ts`, `mcp-tool-names.ts` |
 | `config/` | env schema, model routing, role env pins, paths, skills lock | `agent-config.ts`, `model-routing.ts`, `role-env.ts`, `effort-mapping.ts`, `skills-lock.ts`, `workspace-paths.ts`, `child-env-deny.ts`, `data/child-env-deny.yaml` |
 | `locations/` | location registry (`locations:` in workspace.yaml), git detection, git CLI, filesystem migration CLI (`migrate:locations`) | `location-registry.ts`, `git-cli.ts`, `migrate-locations.ts`, `migrate-locations-cli.ts` |
-| `workspaces/` | workspace registry and task workspace | `workspace-registry.ts`, `task-workspace.ts` |
+| `workspaces/` | workspace (space) registry with its channels and locations, task workspace (`selectWorkspace` returns the channel entry) | `workspace-registry.ts`, `channel-checks.ts` (channel names, locations subset, duplicates), `task-workspace.ts` |
 | `memory/` | persona layers, memory reads and writes, owner commands, manual compaction | `persona.ts`, `persona-templates.ts`, `prompt-context.ts`, `location-memory.ts`, `memory-writer.ts`, `memory-commands.ts`, `memory-compaction*.ts` |
 | `storage/` | SQLite stores and migrations (v2 → v7) | `db.ts`, `migrate.ts`, `run-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `migrate-v3-turns.ts`, `migrate-v4-drop-legacy-tables.ts`, `legacy-*.ts` (frozen) |
 | `lifecycle/` | startup hygiene, drain, shutdown, interrupted-run recovery, home placement | `startup.ts`, `drain.ts`, `shutdown.ts`, `resume-interrupted.ts`, `home-placement-check.ts`, `proposal-notices.ts` |
-| `discord-setup/` | `discord.yaml`, private channels, `/init-workspace`, bootstrap CLI, ops log | `discord-setup-config.ts`, `private-channels.ts`, `admin-handler.ts`, `init-workspace.ts`, `bootstrap-discord-cli.ts`, `ops-log.ts`, `ready-checks.ts` |
+| `discord-setup/` | `discord.yaml`, private channels, `/init-workspace`, `/init-channel`, channel topic, bootstrap CLI, ops log | `discord-setup-config.ts`, `private-channels.ts`, `admin-handler.ts`, `init-workspace.ts`, `init-channel.ts`, `channel-topic.ts`, `workspace-template.ts`, `bootstrap-discord-cli.ts`, `ops-log.ts`, `ready-checks.ts` |
 | `observability/` | pino logger, tool and subagent hooks, redaction, usage lines, log files | `logger.ts`, `tool-hooks.ts`, `subagent-hooks.ts`, `redact.ts`, `record-run.ts`, `turn-usage.ts`, `console-format.ts`, `log-files.ts` |
 
 ## Request Flow (short)
@@ -89,7 +89,9 @@ Discord message (owner, in a workspace channel or its thread)
 ## Memory and Persona
 - Root files in `$AGENT_HOME` (AGENTS, IDENTITY, SOUL, USER, MEMORY, BOOTSTRAP, MEMORY.pending.md) and per-workspace and per-location overrides. `ensureHome` creates them if missing and never overwrites.
 - `memory/prompt-context.ts` builds the context order and logs `prompt.context` counts.
-- `memory/memory-writer.ts` and `sanitize-bullet.ts`: agent writes location memory only (`Memory:` bullets); `[global]` bullets go to `MEMORY.pending.md` (never injected).
+- `memory/persona.ts`: persona per file (channel > space > root); `ensureChannelDir` creates `channels/<name>/MEMORY.md`.
+- `memory/location-memory.ts`: memory layers root → space → channel → location (`CHANNEL_CHARS` = 3000).
+- `memory/memory-writer.ts` and `sanitize-bullet.ts`: `Memory:` bullets go to the location's memory; Remember tool scopes (`location | channel | workspace | global | journal`); `[global]` bullets go to `MEMORY.pending.md` (never injected).
 - `memory/memory-file-lock.ts`: one lock per memory file (`<file>.lock`).
 - `memory/memory-commands.ts`, `memory-command-handler.ts`, `memory-owner-edit.ts`: `/remember`, `/forget`, `/compact`.
 - `memory/memory-compaction*.ts`: manual compaction with `MEMORY_MODEL`, a derivability check, `.bak` backup, dry-run (`bun run memory:compact`).
@@ -115,7 +117,7 @@ Discord message (owner, in a workspace channel or its thread)
 - `lifecycle/home-placement-check.ts`: startup refuses an `AGENT_HOME` inside a location or git working tree.
 
 ## Tests
-- `test/`: about 160 files, `bun test`. Live smokes and the golden set skip without credentials (`INTENT_EVAL=1` for the intent golden set).
+- `test/`: 204 `.ts` files, `bun test`. Channel tests: `init-channel.test.ts` (refusals, create, partial failure, rerun) use `fake-guild.ts` (in-memory Discord guild); `channel-memory-layer.test.ts`. Live smokes and the golden set skip without credentials (`INTENT_EVAL=1` for the intent golden set).
 - Scan tests enforce: no skill or subagent names in `src/` (`no-hardcoded-skills-or-subagents`), no `stage` concept (`no-stage-concept`), tool names from constants (`tool-name-literals`), role limits only in role files (`role-limits-declared-in-role-files`), engine layering (`engine-layering`), retired names absent (`retired-naming-scan`, `role-leftover-scan`), child env classified (`child-env-deny`).
 - Commands: `bun test`, `bunx tsc --noEmit`, `bun run lint`, `bun run format`, `bun run start`.
 - Current counts: [CLAUDE.md](../CLAUDE.md) and [project-changelog.md](project-changelog.md).

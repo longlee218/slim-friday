@@ -20,7 +20,7 @@ Last updated: 2026-10-12 (Rev 15). Architecture: [system-architecture.md](system
 1. "OAuth2" → "URL Generator" → scope `bot`
 2. Permissions (least privilege):
    - View Channels, Send Messages, Send Messages in Threads, Create Public Threads, Read Message History, Attach Files, Embed Links
-   - Manage Channels and Manage Roles: only for `bootstrap:discord` and `/init-workspace` (private channels with overwrites); revoke afterwards if you create channels by hand
+   - Manage Channels and Manage Roles: only for `bootstrap:discord`, `/init-workspace` and `/init-channel` (private channels with overwrites; Manage Channels also sets the topic); revoke afterwards if you create channels by hand
    - **Never Administrator**: it bypasses every overwrite
 3. Permission integer `309506198544`. URL: `https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=309506198544`
 4. Open the URL and add the bot to your test server
@@ -52,13 +52,16 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
 2. Add it to `$AGENT_HOME/workspaces/<ws>/workspace.yaml`:
    ```yaml
    channels:
-     - "123456789012345678"           # plain id: channel <ws>-agent, mode task
-     - id: "234567890123456789"       # object form: parsed in phase 1a
-       name: "<ws>-notes"
-       mode: task                     # task | chat
-       locations: [app]               # optional
+     - "123456789012345678"           # plain id (legacy): channel <ws>-agent, then <ws>-agent-2, -3... for further plain ids
+     - id: "234567890123456789"       # object form
+       name: "<ws>-notes"             # lowercase letters, digits, hyphens; unique in the space; names the memory dir
+       mode: task                     # task | chat (chat has no effect until phase 2)
+       locations: [app]               # optional subset of the space's locations
    ```
-   Object channels: `mode` and `locations` have no effect until phases 1b (`/init-channel`, location filter) and 2 (`chat`).
+   - `locations`: absent = every location of the space; present = exactly the listed known names. Unknown names warn (`channel.unknown_location`) and are ignored. `locations: []` or all-unknown = no location: the run works in the workspace `cwd/`.
+   - An invalid `name` drops that entry. A `name` used again in the same space: the first entry is kept, later ones are dropped (warn `channel.bad_name`).
+   - Prefer `/init-channel` for new channels: it creates the Discord channel and writes this entry for you.
+   - Risk: renaming the channel in Discord is safe. The yaml `name` is the key and memory stays under `channels/<name>/`; only the display changes. Rewriting `workspace.yaml` (by `/init-channel` or `migrate:locations`) drops its comments; unrelated keys are kept.
 3. Set `DISCORD_GUILD_ID` in `.env` and restart (startup refuses without it once a workspace has `channels`).
 - A channel id listed by two workspaces is dropped from both (warning `channel.duplicate`).
 - The guild pin is read at startup only: adding the first `channels:` or changing `DISCORD_GUILD_ID` needs a restart.
@@ -68,14 +71,17 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
 ```
 guild (DISCORD_GUILD_ID)
 ├─ ops            (private category)
-│   ├─ #ops-control     admin commands only (/init-workspace <name>); never reaches the agent
+│   ├─ #ops-control     admin commands only (/init-workspace, /init-channel); never reaches the agent
 │   ├─ #ops-log         one line on start / shutdown / uncaught error
 │   ├─ #ops-health      reserved (no producer yet)
 │   └─ #ops-analytics   reserved (no producer yet)
-├─ <ws>           (private category, one per workspace)
-│   └─ #<ws>-agent      the channel listed in workspaces/<ws>/workspace.yaml `channels:`
+├─ <space>        (private category = one space = one workspace; N channels)
+│   ├─ #<space>-agent   the first channel, created by /init-workspace (mode task)
+│   ├─ #<name>          more channels, created by /init-channel <space>/<name> (mode task)
+│   └─ ...each id listed in workspaces/<space>/workspace.yaml `channels:`
 └─ ...your other channels (untouched)
 ```
+- `/init-channel` puts the new channel under the category of the space's first channel (the category id is not stored). Its name is checked within that category only; `/init-workspace` checks its category and `#<name>-agent` guild-wide. Refused (nothing changed) unless the category is named like the space (case-insensitive) and the space is not `ops`. A same-named channel in another category is never adopted: a new channel is created.
 - "Private" = exactly three overwrites: `@everyone` denied View Channel; the owner allowed View Channel, Send Messages, Send Messages in Threads, Read Message History, Attach Files; the bot allowed the same plus Create Public Threads and Embed Links. Any extra overwrite makes the channel not private: the bot refuses admin commands there.
 - The guild owner and anyone with Administrator still see private channels.
 - The bot warns on every start (`discord.bot_administrator`) when it holds Administrator.
@@ -103,7 +109,7 @@ controlChannels:   # default: [ops.control]
 
 ## Native slash commands
 - On every start the bot overwrites its application commands (`src/commands/slash-definitions.ts`): guild commands when `DISCORD_GUILD_ID` is set (instant), else global (can take up to an hour).
-- The picker lists: `/stop`, `/go [usd]`, `/remember <text>`, `/forget <text>`, `/compact [dry-run]`, `/init-workspace <name>`.
+- The picker lists: `/stop`, `/go [usd]`, `/remember <text>`, `/forget <text>`, `/compact [dry-run]`, `/init-workspace <name>`, `/init-channel <space>/<name>`.
 - `/cleanup` is removed. The picker is replaced at the next start; old entries may linger until then.
 - A pick runs as the owner's `/name arg` message through the same gates. A non-owner gets "Not allowed."
 - A failed registration is logged (`slash command registration failed`) and does not block startup.
@@ -116,6 +122,16 @@ Type in `#ops-control` (no mention needed). Legacy form: `init:workspace:<name>`
 - Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `locations/`, `cwd/`, `skills/`, `MEMORY.md`, persona stubs). (2) private category `<name>` and `#<name>-agent`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
 - Rerun on a finished workspace: "already set up". If creation fails midway, the reply names what exists.
 - No turn row, no agent. Logs `admin.init_workspace`.
+
+## Add a channel: `/init-channel <space>/<name>`
+Type in `#ops-control`. Legacy form: `init:channel:<space>/<name>`. One string argument (`path`).
+- Names: `<name>` lowercase letters, digits, hyphens; 1-64 chars; not an ops channel name (reserved). `<space>` must be a set-up workspace.
+- Gate: same as `/init-workspace` (owner, pinned guild, control channel, private now). Typed elsewhere: refused, not sent to the agent.
+- Refused with no side effect: space missing or not set up; `<name>` already in the space's `channels:`; `#<name>` already in the space's category ("rename or delete it by hand").
+- Steps: (1) private `#<name>` under the space category. (2) `{id, name, mode: task}` appended to `workspace.yaml` (temp file + rename; comments in the file are lost). (3) `workspaces/<space>/channels/<name>/MEMORY.md` from the template. (4) topic: `🧵 task: @Friday để mở thread` (a failure is a warn log `admin.topic_failed`; the channel stays).
+- A failure after step 1 names the created channel and the `workspace.yaml` line to add by hand. Never renames, edits or deletes a channel.
+- Logs `admin.init_channel`. Rerun with the same path while in progress: "already in progress".
+- The topic states the mode (`task`: mention `@Friday` to open a thread). A channel's memory and persona files are read only by runs in that channel.
 
 ## Manual live check (owner)
 1. `bun run bootstrap:discord --dry-run`, then without `--dry-run`: items appear; `discord.yaml` written.
@@ -196,6 +212,7 @@ Canonical forms are slash commands. Legacy text forms keep working this release.
 | `/go +<usd>` | `go +<usd>` | resume with `<usd>` more budget, e.g. `/go +1.5` (must be > 0). Budget stops offer this; the task ceiling (6.0 USD over all resumes) still applies |
 | `/remember [scope] <text>`, `/forget [scope] <text>`, `/compact [dry-run]` | `remember:` / `nhớ:`, `forget:` / `quên:`, `compact memory` / `gom nén` | owner memory (see Memory) |
 | `/init-workspace <name>` (ops control channel only) | `init:workspace:<name>` | create the workspace, private category and `#<name>-agent` |
+| `/init-channel <space>/<name>` (ops control channel only) | `init:channel:<space>/<name>` | add a private `#<name>` to the space's category (see Add a channel) |
 | `[dev]` / `[ask]` at the very start of the message | - | force the role (dev: works in its location; ask: read-only answer). Case-insensitive; the tag is removed from the request. A tag anywhere else, or a plain word like "dev", does nothing |
 | `location:<name>` prefix | `repo:<name>` (alias) | pins the thread to a location of the workspace |
 
@@ -303,25 +320,28 @@ After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v
 - Each Discord thread maps to one stored session (`sessions` table in `$AGENT_HOME/data/agent.db`).
 - A restart keeps sessions; a new run in the same thread resumes the stored session when its cwd matches.
 
-## Memory (three layers)
+## Memory (layers)
 
 | Layer | File | Written by | Injected |
 |---|---|---|---|
 | Global | `$AGENT_HOME/MEMORY.md` | you only | newest 5000 chars |
-| Workspace | `$AGENT_HOME/workspaces/<ws>/MEMORY.md` | you only | newest 5000 chars |
+| Workspace (space) | `$AGENT_HOME/workspaces/<ws>/MEMORY.md` | you, and the agent (`workspace` scope) | newest 5000 chars |
+| Channel | `$AGENT_HOME/workspaces/<ws>/channels/<name>/MEMORY.md` | you, and the agent (`channel` scope) | newest 3000 chars, only in that channel |
 | Location | `$AGENT_HOME/workspaces/<ws>/locations/<name>/MEMORY.md` | the agent and you | newest 8000 chars per location, 16000 for all locations of the workspace |
 
+- Order in the prompt: root, space, channel, location.
 - An entry needs a `## <topic>` heading to count. A template-only file injects nothing.
-- **Agent writes:** after a dev run, the agent's `Memory:` bullets go to the location's file (dated, redacted, 200 chars each; the prompt asks for at most 3, the writer keeps at most 5).
+- **Agent writes** (Remember tool, scope picked by the agent): `location`, `channel`, `workspace`, `global` (queued in `MEMORY.pending.md`), `journal` (`memory/<date>.md`). A run with no channel (e.g. a rollover) gets `no_channel` for scope `channel`.
+- After a dev run, the agent's `Memory:` bullets go to the location's file (dated, redacted, 200 chars each; the prompt asks for at most 3, the writer keeps at most 5).
 - `[global]` bullets (max 2) go to `$AGENT_HOME/MEMORY.pending.md`. **Never injected.** Copy trusted facts into `MEMORY.md` by hand.
-- The agent never writes the global or workspace `MEMORY.md`.
+- The agent never writes the root `MEMORY.md`.
 
 **Owner commands** (type in `#<ws>-agent` or its threads; in `#ops-control` global only; you only, pinned guild):
 
 | Command | Effect |
 |---|---|
-| `remember: <text>` / `nhớ: <text>` | a plain message to the agent, which saves the note and picks the scope (location, workspace or global) |
-| `forget: [scope] <text>` / `quên: ...` | removes the one bullet containing `<text>`; none = not found; several = nothing changes |
+| `remember: <text>` / `nhớ: <text>` | a plain message to the agent, which saves the note and picks the scope (location, channel, workspace or global) |
+| `forget: [scope] <text>` / `quên: ...` | removes the one bullet containing `<text>`; scope `channel` (Vietnamese `kenh`, `kênh`) = this channel's file; none = not found; several = nothing changes |
 | `compact memory [dry-run]` / `gom nén [dry-run]` | compacts files above 80% of their cap |
 
 - At 300 lines the write is refused (`file full`). Run `compact memory` first.

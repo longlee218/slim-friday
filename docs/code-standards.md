@@ -1,6 +1,6 @@
 # Code Standards
 
-Last updated: 2026-10-14 (schema v7 location vocabulary, phase 1a; reliable handoff phase 10). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
+Last updated: 2026-10-14 (schema v7 location vocabulary, phase 1a; space and channel vocabulary, phase 1b; reliable handoff phase 10). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
 
 ## Stack
 - **Runtime:** Bun (package manager, test runner, `bun:sqlite`)
@@ -30,15 +30,17 @@ bun run start           # start the bot (reads .env)
 7. **Layering.** `thread/` and `dispatch/` never import `runtime/`. `roles/` never imports `orchestrator/`. Tested in `test/engine-layering.test.ts`.
 8. **Routing is data (reliable handoff).** Routing reads role fields (`whenToUse`, `sideEffects`, `approvalRequired`, `capabilityVersion`, `background`). No role name in `src/routing/`, `src/intent/jev/` or `src/tasks/` (review rule; no scan test yet). Thresholds are named constants in `src/intent/jev/jev-constants.ts`. Only background roles own tasks.
 
-## Vocabulary (schema v7)
+## Vocabulary (schema v7, phase 1b)
 | Word | Means | Code |
 |---|---|---|
 | **location** | a directory registered in `workspace.yaml` `locations:` (git or not) | `Location` (`src/locations/location-registry.ts`), `locationScope`, `location` columns, the `location:` pin and report line |
-| **workspace** | a group of locations behind one set of Discord channels. Code word; Discord-facing words are space, channel, thread | `Workspace`, `src/workspaces/` |
+| **space** | the Discord-facing name of a workspace: a private category holding its channels | `Workspace`, `src/workspaces/` |
+| **channel** | a Discord channel of a space, listed in `workspace.yaml` `channels:` (`name` = memory dir `channels/<name>/`, `mode` task or chat, optional `locations` subset) | `WorkspaceChannel`, `channelOf`, `channelLocations` (`src/workspaces/task-workspace.ts`), `init-channel.ts`, `channel-topic.ts` |
+| **workspace** | code word for a space (a group of locations behind one set of channels); the Discord-facing words are space, channel, thread | `Workspace`, `src/workspaces/` |
 
 - Banned by `test/retired-naming-scan.test.ts` in `src/` and `test/`: the `Repo` type, `loadRepos`, the `repo-registry` path. Exempt: the migration module and the frozen legacy storage files.
 - Retired, not scanned (keep out of new code): `repos/`, `repo.yaml`, `refresh-repo`, `isManagedClone`, `REPO_NAME`, `no_repos`, `repoScope`, `sideEffects: "repo"`, `testCommand`, `defaultBranch`, `githubAccount`, `gitAuthor`. Only the migration module reads the legacy file.
-- Kept aliases: `repo:<name>` (thread pin, dev report line, `/forget` parser only). No `repo:` scope in the Remember tool (`REMEMBER_SCOPES`: `location` only).
+- Kept aliases: `repo:<name>` (thread pin, dev report line, `/forget` parser only). Remember tool scopes (`REMEMBER_SCOPES`): `location | channel | workspace | global | journal`; no `repo:` scope.
 
 ## Scan Rules (test-enforced)
 These rules are checked by tests that scan `src/` on every run. A violation fails `bun test`.

@@ -56,3 +56,45 @@ sqlite3 "$DB" "SELECT value FROM meta WHERE key='schema_version'"   # expect 6
 - The 4-workspace check, the `my-computer` no-repo answer and a dev task after the move.
 - Rollback steps (written from the code, never executed).
 - Whether `rename` across mounts works: `repos/` and `locations/` share the workspace dir, so it is expected to be a same-filesystem rename.
+
+## Phase 1b: second channel in a space (`/init-channel`)
+
+**What changes:** `/init-channel <space>/<name>` in `#ops-control` creates a private `#<name>` under the space's category, appends `{id, name, mode: task}` to `workspace.yaml`, creates `workspaces/<space>/channels/<name>/MEMORY.md` and sets the topic (`🧵 task: @Friday để mở thread`). Channel memory is read only in that channel. No db change (schema stays v7). Plan: `plans/261014-1043-space-channel-location-redesign/phase-01b-multi-channel-spaces.md`.
+
+**Needs:** the bot role keeps Manage Channels (and Manage Roles) in the server. Without it `/init-channel` replies "Setup failed (see logs)" and nothing is created; a topic failure alone only logs `admin.topic_failed`.
+
+### Before
+
+1. Back up the home (the 1b step writes `workspace.yaml` and creates a dir): `cp -R "$AGENT_HOME" ~/friday-home-before-1b`.
+2. Note the current `personal` channels: `grep -n -A4 '^channels:' "$AGENT_HOME/workspaces/personal/workspace.yaml"`.
+
+### Deploy
+
+3. Restart the bot (the code change needs it). It re-registers the slash commands at start; with `DISCORD_GUILD_ID` set they apply at once.
+
+### Verify
+
+4. In `#ops-control`: `/init-channel personal/<name>` (pick a free name, for example `finance-test`). Reply: "Created private <#id> in category `personal`, mapped in workspace.yaml (mode: task)."
+5. In Discord: `#<name>` sits under the `personal` category, is private (only you and the bot), and its topic reads `🧵 task: @Friday để mở thread`.
+6. `workspace.yaml` has the new entry with the same id as the channel, `mode: task`, and the earlier entries are unchanged.
+7. `ls "$AGENT_HOME/workspaces/personal/channels/<name>/"` shows `MEMORY.md`.
+8. Same command again: refused "already a channel of `personal`". Nothing changes.
+9. Refusals: a name already used in the `personal` category gives "already exists in category" (test with a channel you create by hand first). A same-named channel in another category (for example a `#<name>` under another space) is NOT adopted: the new channel is created, and its id (not the other one) is in `workspace.yaml`. If the first channel of `personal` is not in a category named `personal`: "is not in a category named `personal`" (nothing changed). `/init-channel` typed in `#<name>` or in a thread: "Admin commands run only in #ops-control."
+10. Add a `## <topic>` entry by hand to `channels/<name>/MEMORY.md` (a template-only file injects nothing). Mention `@Friday` in `#<name>`. In the app log, the `prompt.context` line for that run shows `workspace: personal` and `memoryChannelChars` greater than 0.
+11. Restart the bot a second time: `channels/<name>/MEMORY.md` keeps its content; `ensureHome` never overwrites it.
+
+### Rollback
+
+1. Stop the bot. Restore `workspaces/personal/workspace.yaml` from `~/friday-home-before-1b` (or delete the added entry by hand).
+2. Delete the Discord channel `#<name>` by hand (the bot never deletes).
+3. Remove `workspaces/personal/channels/<name>/` if you do not need its memory.
+4. Check out the commit before this change and start the bot.
+
+### Not verified live
+
+- `/init-channel` against the real guild (create, topic, reply text, permission errors).
+- The routing of a message in the new channel to space `personal`, and `memoryChannelChars` in the live log.
+- Second restart with existing `channels/<name>/` files.
+- Rollback steps (written from the code, never executed).
+- The `/forget channel` and Remember `channel` scope in Discord (covered by tests only).
+- The cross-category same-name case (step 9) and the `bad_category` refusal, against the real guild. Discord permission for Manage Roles on a second channel.
