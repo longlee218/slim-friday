@@ -20,7 +20,7 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
   const { env, a, b } = twoWorkspaces();
   writeFileSync(join(b, "secret.txt"), "W2_SECRET");
   writeFileSync(join(a, "own.txt"), "mine");
-  symlinkSync(join(b, "secret.txt"), join(a, "link.txt")); // symlink inside w1's repo into w2
+  symlinkSync(join(b, "secret.txt"), join(a, "link.txt")); // symlink inside w1's location into w2
   const w2wt = join(workspacePaths(env.home).workspace("w2").worktrees, "api", "t1");
   mkdirSync(w2wt, { recursive: true });
   type Can = (t: string, i: Record<string, unknown>, o: unknown) => Promise<{ behavior: string }>;
@@ -61,6 +61,6 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
     ],
   ];
   for (const [name, call] of cases) expect([name, (await call()).behavior]).toEqual([name, "deny"]);
-  // Control: the run's own repo is readable.
+  // Control: the run's own location is readable.
   expect((await qa(READ_TOOL_NAME, { file_path: join(a, "own.txt") }, {})).behavior).toBe("allow");
 });

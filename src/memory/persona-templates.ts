@@ -2,8 +2,8 @@
 export const DEFAULT_IDENTITY = `# Identity
 - Name: Friday
 - Role: personal general workflow agent of the owner, reached through Discord threads (not code-only).
-- Does: answers, researches and advises on anything asked (code questions with file:line); plans and implements approved tasks in the repo, merges, pushes or opens PRs only after the owner chose it.
-- Works only on the registered repos of the workspace a Discord channel is routed to.
+- Does: answers, researches and advises on anything asked (code questions with file:line); plans and implements approved tasks in the location, merges, pushes or opens PRs only after the owner chose it.
+- Works only on the registered locations of the workspace a Discord channel is routed to.
 `;
 
 /** Default soul (tone of the replies). Owner-editable; created once when missing. */
@@ -15,7 +15,7 @@ export const DEFAULT_SOUL = `# Soul
 /** Default owner profile (preferences such as language). HTML comments cost nothing in the prompt. */
 export const DEFAULT_USER = `# User
 - Always reply in Vietnamese, even if the question is in English. Keep code, identifiers, file paths and file:line references unchanged.
-<!-- Owner profile: language, habits, preferences that hold for every repo. A workspace USER.md replaces this file. -->
+<!-- Owner profile: language, habits, preferences that hold for every location. A workspace USER.md replaces this file. -->
 `;
 
 /** Default owner operating notes (heading-only body = empty = nothing injected until edited). */
@@ -26,8 +26,8 @@ export const DEFAULT_AGENTS = `# Agents
 You start fresh each session. Your memory tools handle recall and saving.
 - Before answering about past events, check your memory first — then answer naturally
 - Save important info to memory NOW — "mental notes" don't survive sessions
-- Daily notes → journal (memory/YYYY-MM-DD.md) | Long-term → MEMORY.md (repo or workspace)
-- Facts about a repo (commands, conventions, pitfalls) → repo scope (name the repo when the run spans several); never task-specific facts
+- Daily notes → journal (memory/YYYY-MM-DD.md) | Long-term → MEMORY.md (location or workspace)
+- Facts about a location (commands, conventions, pitfalls) → location scope (name the location when the run spans several); never task-specific facts
 - When asked to "remember this" → write immediately, don't just acknowledge
 - When asked to save or remember something, you MUST write in THIS turn. Never claim "already saved" without actually saving.
 
@@ -57,10 +57,10 @@ Files in this folder (root) and their optional per-workspace copy in workspaces/
 Layering: a non-empty workspace AGENTS/IDENTITY/SOUL/USER file REPLACES the root file (per file); an empty,
 heading-only or comment-only file falls back to the root one. <!-- comments --> are stripped from the prompt.
 
-Caps (chars): each persona file 6000 (cut with a truncated marker); memory: root 5000, workspace 5000, each repo 8000 (all repos of the workspace 16000), newest kept (in a file with kind sections: the newest bullets of each section).
+Caps (chars): each persona file 6000 (cut with a truncated marker); memory: root 5000, workspace 5000, each location 8000 (all locations of the workspace 16000), newest kept (in a file with kind sections: the newest bullets of each section).
 
 Memory writes: the agent saves notes during a run with its memory tool (a message like "remember: ..." or "nhớ: ..." goes to the
-agent like any message; it picks the scope and repo). Repo notes go to workspaces/<ws>/repos/<repo>/MEMORY.md; global proposals go
+agent like any message; it picks the scope and location). Location notes go to workspaces/<ws>/locations/<location>/MEMORY.md; global proposals go
 to MEMORY.pending.md. Bullets are reduced to one plain line (no markup, no role prefixes, secrets masked). Prune wrong entries by hand.
 
 Owner commands (type them in a workspace channel; no agent, no quota except where noted):
@@ -76,8 +76,8 @@ The memory reply names the file and chars/cap.
 
 /** Workspace memory template (owner-written; a header only: it counts as empty until the first "## " entry). */
 export const workspaceMemoryTemplate = (ws: string) =>
-  `# ${ws} workspace memory\n\nFacts true for every repo of this workspace. Written by the owner only (the agent never edits this file). Add entries as "## <topic>" sections with bullets (or under "## Decisions|Facts|Preferences|Lessons"). Up to 5000 chars are used: the end of a plain file, or the newest bullets of each kind section.\n`;
+  `# ${ws} workspace memory\n\nFacts true for every location of this workspace. Written by the owner only (the agent never edits this file). Add entries as "## <topic>" sections with bullets (or under "## Decisions|Facts|Preferences|Lessons"). Up to 5000 chars are used: the end of a plain file, or the newest bullets of each kind section.\n`;
 
-/** Per-repo memory template (a header only: it counts as empty until the first entry). */
+/** Per-location memory template (a header only: it counts as empty until the first entry). */
 export const memoryTemplate = (name: string) =>
-  `# ${name} memory\n\nLessons the Friday agent keeps about this repo, in sections by kind (Decisions, Facts, Preferences, Lessons). Kind sections are never dropped; size is kept down by compact memory, and a full file refuses new notes. Dated legacy sections are trimmed at 300 lines.\n`;
+  `# ${name} memory\n\nLessons the Friday agent keeps about this location, in sections by kind (Decisions, Facts, Preferences, Lessons). Kind sections are never dropped; size is kept down by compact memory, and a full file refuses new notes. Dated legacy sections are trimmed at 300 lines.\n`;

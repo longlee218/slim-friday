@@ -1,9 +1,9 @@
 import { type Route, resolveModel } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
+import { buildLocationsContext } from "../../locations/location-registry";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { buildPromptContext } from "../../memory/prompt-context";
 import { setLogContext } from "../../observability/logger";
-import { buildRegistryContext } from "../../repos/repo-registry";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
@@ -12,8 +12,8 @@ import { rolloverSeed } from "../turns/rollover-seed";
 import { type FlowResult, failResult } from "../turns/turn-result";
 import { askTimeoutControl, awaitingResult } from "./ask-timeout-control";
 import { ceilingRefusal, withSpent } from "./budget";
+import { markWorking } from "./location-activity";
 import { ownerConfirm } from "./owner-confirm";
-import { markWorking, refreshManaged } from "./repo-activity";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 import { roleScope } from "./role-scope";
 import { closeBackgroundRun } from "./run-report";
@@ -29,7 +29,7 @@ const ESCALATE_OPUS_QUESTION =
  * Run a role: ONE agent run, whatever the role. The engine reads only role DATA (capabilities, `background`, `streaming`,
  * limits), never a role name: cwd and paths come from `roleScope`, the budget from the task ceiling, the questions from
  * the role's ask limit. How the agent works (plan, approval by AskUserQuestion, delivery) is its skills and context.
- * A background role's report ends with `repo: <name>`: that names the task's repo (and its memory).
+ * A background role's report ends with `location: <name>`: that names the task's location (and its memory).
  */
 export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<FlowResult> {
   const { db, config, approvals } = deps;
@@ -43,21 +43,21 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   try {
     s = roleScope(config, i, role);
   } catch {
-    return failResult("The repo is not available.");
+    return failResult("The location is not available.");
   }
   // The start checks passed: a held task this run continues is taken over now (a failure above keeps the hold).
   i.onStarted?.();
   const stop = ceilingRefusal(i.route); // task ceiling already used up: refuse, never start with budget 0
   if (stop) return failResult(stop);
-  const known = i.pinned ?? (role.background && i.repos.length === 1 ? i.repos[0] : undefined);
-  if (known) setLogContext({ repo: known.name });
+  const known =
+    i.pinned ?? (role.background && i.locations.length === 1 ? i.locations[0] : undefined);
+  if (known) setLogContext({ location: known.name });
   let awaiting: string | undefined;
   const ctl = askTimeoutControl(i.ac.signal, (t) => (awaiting = t));
   // A rolled thread starts a fresh session: seed it with the thread summary + the last messages (never while a session lives).
   const seed =
     !role.background && !s.sessionId ? rolloverSeed(db, i.threadId, i.turnId, i.recent) : {};
   const release = role.capabilities.includes("write") ? markWorking(s.cwd) : undefined;
-  if (!role.background) await refreshManaged(s.scope, config.agentHome);
   let rerunModel: string | undefined; // model of the escalated re-run, when one ran
   let rerunUsage: unknown; // usage of that re-run: identifies whether its result is the answer that was kept
   const runOnce = (r?: Route, resumeId?: string) => {
@@ -71,26 +71,26 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       cwd: s.cwd,
       additionalDirectories: s.additionalDirectories,
       worktreesDir: s.worktreesDir,
-      // In-process memory tools (Remember...): repo names are read from the registry only when a tool needs them.
+      // In-process memory tools (Remember...): location names are read from the registry only when a tool needs them.
       memory: buildMemoryToolContext({
         db,
         home: config.agentHome,
         workspace: i.workspace,
-        repo: i.repos.length === 1 ? i.repos[0]?.name : undefined,
+        location: i.locations.length === 1 ? i.locations[0]?.name : undefined,
         threadId: i.threadId,
         trackSummary: !role.background,
       }),
-      skillsWorkspace: i.workspace, // curated skills of this workspace (never repo content)
+      skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
       guard: guardFor(role, s.guard),
       extraContext: buildPromptContext({
         agentHome: config.agentHome,
         workspace: i.workspace,
-        // A background role always sees its repo(s) with their test command; a pinned foreground role needs no list.
+        // A background role always sees its location(s) with their test command; a pinned foreground role needs no list.
         registry:
           i.pinned && !role.background
             ? ""
-            : buildRegistryContext(i.workspace, s.scope, role.background),
-        memoryRepos: s.scope.map((r) => r.name),
+            : buildLocationsContext(i.workspace, s.scope, role.background),
+        memoryLocations: s.scope.map((r) => r.name),
         ledger: i.ledger,
         ...seed,
       }),
@@ -135,7 +135,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   const base: FlowResult = {
     ...res,
     cwd: s.cwd,
-    repo: known?.name ?? "*",
+    location: known?.name ?? "*",
     // The re-run model only when the re-run produced the kept answer (a failed re-run keeps the first one).
     model: res.usage === rerunUsage ? rerunModel : undefined,
     ...(role.background && { skipThreadSession: true as const }),

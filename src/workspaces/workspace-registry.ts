@@ -1,13 +1,22 @@
-import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
 import { isWorkspaceName, workspacePaths } from "../config/workspace-paths";
 import { isInside } from "../guardrails/paths";
+import { isRealDir, type Location, loadLocations, real } from "../locations/location-registry";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { isRealDir, loadRepos, type Repo, real } from "../repos/repo-registry";
 
-/** One workspace: a group of repos behind one set of Discord channels. */
+/** One channel of a workspace: `mode` task (default) or chat; `locations` limits the location names it may use. */
+export interface ChannelDef {
+  id: string;
+  name: string;
+  mode: "task" | "chat";
+  locations?: string[];
+}
+
+/** One workspace: a group of locations behind one set of Discord channels. */
 export interface Workspace {
   /** Directory name under `workspaces/` (lowercase-hyphen). */
   name: string;
@@ -17,22 +26,53 @@ export interface Workspace {
   description: string;
   /** Discord parent-channel ids routed to this workspace (each id belongs to exactly one workspace). */
   channels: string[];
-  /** Valid repos of the workspace. */
-  repos: Repo[];
+  /** The same channels with their name, mode and allowed locations (a legacy plain id gets the defaults). */
+  channelDefs: ChannelDef[];
+  /** Valid locations of the workspace. */
+  locations: Location[];
 }
 
-/** Result of a scan: loaded workspaces plus pre-Step-B per-repo dirs that were found but never loaded. */
+/** Result of a scan: loaded workspaces plus pre-Step-B per-location dirs that were found but never loaded. */
 export interface WorkspaceScan {
   workspaces: Workspace[];
   /** Names of legacy dirs (`config.yaml` and no `workspace.yaml`): a migration is needed. */
   legacy: string[];
+  /** Workspaces with a pre-v7 `repos/<n>/repo.yaml` (not yet migrated to `locations:`): never loaded silently. */
+  needsMigration: string[];
 }
 
-/** Schema of `workspace.yaml`: no `default` key, channels are Discord snowflakes. */
+/** Discord snowflake. */
+const SNOWFLAKE = /^\d{17,20}$/;
+
+/** A channel entry: a plain id (legacy) or `{id, name, mode, locations?}`. */
+const channelSchema = z.union([
+  z.string().regex(SNOWFLAKE),
+  z.object({
+    id: z.string().regex(SNOWFLAKE),
+    name: z.string().trim().min(1),
+    mode: z.enum(["task", "chat"]).default("task"),
+    locations: z.array(z.string()).optional(),
+  }),
+]);
+
+/** Schema of `workspace.yaml`: no `default` key; `locations` entries are validated one by one by the location registry. */
 const workspaceSchema = z.object({
   description: z.string().trim().optional(),
-  channels: z.array(z.string().regex(/^\d{17,20}$/)).default([]),
+  channels: z.array(channelSchema).default([]),
+  locations: z.array(z.unknown()).default([]),
+  /** Read by src/runtime/skills-config.ts: kept here so the key stays valid. */
+  skills: z.object({ extra: z.unknown().optional() }).passthrough().optional(),
 });
+
+/** True when `ws` still has a pre-v7 `repos/<n>/repo.yaml` (the owner must run the migration). */
+function hasLegacyRepos(wsRoot: string): boolean {
+  const dir = join(wsRoot, "repos");
+  try {
+    return readdirSync(dir).some((n) => existsSync(join(dir, n, "repo.yaml")));
+  } catch {
+    return false; // no repos dir
+  }
+}
 
 /** Drop channel ids that two workspaces both list (from both: routing must never be ambiguous). */
 function dropDuplicateChannels(workspaces: Workspace[]): void {
@@ -47,17 +87,20 @@ function dropDuplicateChannels(workspaces: Workspace[]): void {
     { channels: dup },
     "warn",
   );
-  for (const w of workspaces) w.channels = w.channels.filter((c) => !dup.includes(c));
+  for (const w of workspaces) {
+    w.channels = w.channels.filter((c) => !dup.includes(c));
+    w.channelDefs = w.channelDefs.filter((c) => !dup.includes(c.id));
+  }
 }
 
-/** Warn (not skip) when repo paths of different workspaces are equal or nested. */
+/** Warn (not skip) when location paths of different workspaces are equal or nested. */
 function warnOverlap(workspaces: Workspace[]): void {
-  const all = workspaces.flatMap((w) => w.repos.map((r) => ({ r, p: real(r.path) })));
+  const all = workspaces.flatMap((w) => w.locations.map((r) => ({ r, p: real(r.path) })));
   for (const [i, a] of all.entries()) {
     for (const b of all.slice(i + 1)) {
       if (a.r.workspace === b.r.workspace || !(isInside(a.p, b.p) || isInside(b.p, a.p))) continue;
       const fields = { a: `${a.r.workspace}/${a.r.name}`, b: `${b.r.workspace}/${b.r.name}` };
-      logEvent(logger.child({ module: "workspace-registry" }), "repo.overlap", fields, "warn");
+      logEvent(logger.child({ module: "workspace-registry" }), "location.overlap", fields, "warn");
     }
   }
 }
@@ -65,12 +108,12 @@ function warnOverlap(workspaces: Workspace[]): void {
 /**
  * Scan `AGENT_HOME/workspaces/*`. A dir counts as a workspace when it is a real dir (not a symlink) with a
  * valid name and a valid `workspace.yaml`; anything else is warned about and skipped (fail closed).
- * Repos must be git roots that do not cover `userHome` (the owner's $HOME) or AGENT_HOME.
+ * Locations must be real directories that do not cover `userHome` (the owner's $HOME) or AGENT_HOME.
  */
 export function loadWorkspaces(agentHome: string, userHome = homedir()): WorkspaceScan {
   const log = logger.child({ module: "workspace-registry" });
   const paths = workspacePaths(agentHome);
-  const out: WorkspaceScan = { workspaces: [], legacy: [] };
+  const out: WorkspaceScan = { workspaces: [], legacy: [], needsMigration: [] };
   let names: string[] = [];
   try {
     names = readdirSync(paths.workspaces).sort();
@@ -98,13 +141,18 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
         log.warn({ name }, "skipped workspace: invalid workspace.yaml");
         continue;
       }
-      const { description = "", channels } = parsed.data;
+      const { description = "", channels, locations } = parsed.data;
+      if (hasLegacyRepos(ws.root)) out.needsMigration.push(name);
+      const channelDefs: ChannelDef[] = channels.map((c) =>
+        typeof c === "string" ? { id: c, name: `${name}-agent`, mode: "task" } : c,
+      );
       out.workspaces.push({
         name,
         root: ws.root,
         description,
-        channels,
-        repos: loadRepos(ws, forbidden),
+        channels: channelDefs.map((c) => c.id),
+        channelDefs,
+        locations: loadLocations(locations, ws, forbidden),
       });
     } catch (err) {
       log.warn({ name, err: errText(err) }, "skipped workspace: workspace.yaml unreadable");

@@ -43,21 +43,21 @@ export interface RunAgentInput {
   prompt: string;
   /** Task id; names the per-task JSONL and tags logs. */
   turnId: string;
-  /** Repo directory the agent runs in. */
+  /** Location directory the agent runs in. */
   cwd: string;
-  /** Extra repo directories the agent may read (multi-repo registry). */
+  /** Extra location directories the agent may read (multi-location registry). */
   additionalDirectories?: string[];
   /** Extra prompt context blocks (persona, registry, memory...); empty ones are dropped, the rest joined once. */
   extraContext?: string[];
-  /** Guardrails of the run (paths, git repos, allowed tools). Every mode has one; omitted only in unit tests. */
+  /** Guardrails of the run (paths, git locations, allowed tools). Every mode has one; omitted only in unit tests. */
   guard?: GuardrailContext;
   /** The role to run: its tools, model slot, permission mode and prompt. */
   role: RoleDefinition;
   /** Permission layer of the run (gateway, ask limit). Omitted = a run without a gateway (ask = deny). */
   code?: Omit<ToolPermissionInput, "turnId" | "guard">;
-  /** Where the agent may put a git worktree (`<workspace worktrees dir>/<repo>`), told in one prompt line. */
+  /** Where the agent may put a git worktree (`<workspace worktrees dir>/<location>`), told in one prompt line. */
   worktreesDir?: string;
-  /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never repo content). */
+  /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never location content). */
   skillsWorkspace?: string;
   /** Context of the in-process `memory` server (Remember...): omitted = the run has no memory tools. */
   memory?: MemoryToolContext;

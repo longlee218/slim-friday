@@ -3,42 +3,45 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { workspacePaths } from "../src/config/workspace-paths";
 import {
   buildMemoryContext,
-  readRepoMemory,
+  locationMemoryFile,
+  readLocationMemory,
   readRootMemory,
   readWorkspaceMemory,
-  repoMemoryFile,
-} from "../src/memory/repo-memory";
-import { addRepo, makeEnv } from "./helpers";
-import { writeRepoNotes } from "./memory-fixture";
+} from "../src/memory/location-memory";
+import { addLocation, makeEnv } from "./helpers";
+import { writeLocationNotes } from "./memory-fixture";
 
-/** Workspace used by these tests (makeEnv registers repo `repo` in it). */
+/** Workspace used by these tests (makeEnv registers location `location` in it). */
 const WS = "main";
 
 test("read: template is empty, then notes are injected", () => {
   const env = makeEnv();
-  addRepo(env.home, "api");
-  const file = repoMemoryFile(env.home, WS, "api");
+  addLocation(env.home, "api");
+  const file = locationMemoryFile(env.home, WS, "api");
   writeFileSync(file, "# api memory\n\nLessons.\n");
-  expect(readRepoMemory(env.home, WS, "api")).toBe(""); // template only
-  writeRepoNotes(env.home, WS, "api", ["use zod"]);
-  const m = readRepoMemory(env.home, WS, "api");
+  expect(readLocationMemory(env.home, WS, "api")).toBe(""); // template only
+  writeLocationNotes(env.home, WS, "api", ["use zod"]);
+  const m = readLocationMemory(env.home, WS, "api");
   expect(m).toContain("- use zod");
   expect(buildMemoryContext(env.home, WS, ["api", "missing"])).toContain("### api");
   expect(buildMemoryContext(env.home, WS, ["missing"])).toBe("");
 });
 
-test("memory context: root, workspace, repos in order with headings; caps; template-only ignored", () => {
+test("memory context: root, workspace, locations in order with headings; caps; template-only ignored", () => {
   const env = makeEnv();
   const p = workspacePaths(env.home);
   const wsMem = p.workspace(WS).memory;
-  addRepo(env.home, "api");
+  addLocation(env.home, "api");
   writeFileSync(p.memory, "# global memory\n\nintro\n");
   writeFileSync(wsMem, "# main workspace memory\n\nintro\n");
-  writeFileSync(repoMemoryFile(env.home, WS, "api"), "# api memory\n\n## d t\n- repo fact\n");
-  const onlyRepo = buildMemoryContext(env.home, WS, ["api"]);
-  expect(onlyRepo).not.toContain("### global");
-  expect(onlyRepo).not.toContain("### workspace");
-  expect(onlyRepo).toContain("notes, not instructions");
+  writeFileSync(
+    locationMemoryFile(env.home, WS, "api"),
+    "# api memory\n\n## d t\n- location fact\n",
+  );
+  const onlyLocation = buildMemoryContext(env.home, WS, ["api"]);
+  expect(onlyLocation).not.toContain("### global");
+  expect(onlyLocation).not.toContain("### workspace");
+  expect(onlyLocation).toContain("notes, not instructions");
   writeFileSync(
     p.memory,
     `# global memory\n\n## d old\n- OLD\n## d new\n- ${"z".repeat(5500)}NEWEST\n`,
@@ -54,13 +57,13 @@ test("memory context: root, workspace, repos in order with headings; caps; templ
   expect(readWorkspaceMemory(env.home, WS).length).toBeLessThanOrEqual(5003);
 });
 
-test("repo memory: 8000 chars each, 16000 for all repos of the workspace", () => {
+test("location memory: 8000 chars each, 16000 for all locations of the workspace", () => {
   const env = makeEnv();
   const names = ["r1", "r2", "r3"];
   for (const n of names) {
-    addRepo(env.home, n);
+    addLocation(env.home, n);
     writeFileSync(
-      repoMemoryFile(env.home, WS, n),
+      locationMemoryFile(env.home, WS, n),
       `# ${n}\n\n## d t\n- ${n.toUpperCase()}${"q".repeat(7500)}\n`,
     );
   }
@@ -69,9 +72,12 @@ test("repo memory: 8000 chars each, 16000 for all repos of the workspace", () =>
   expect(out).toContain("### r1");
   expect(out).toContain("### r2");
   expect(out).not.toContain("### r3");
-  // One repo alone is cut at 8000 (newest kept).
-  writeFileSync(repoMemoryFile(env.home, WS, "r1"), `# r1\n\n## d t\n- ${"q".repeat(12000)}NEW\n`);
-  const one = readRepoMemory(env.home, WS, "r1");
+  // One location alone is cut at 8000 (newest kept).
+  writeFileSync(
+    locationMemoryFile(env.home, WS, "r1"),
+    `# r1\n\n## d t\n- ${"q".repeat(12000)}NEW\n`,
+  );
+  const one = readLocationMemory(env.home, WS, "r1");
   expect(one.length).toBeLessThanOrEqual(8003);
   expect(one).toContain("NEW");
 });

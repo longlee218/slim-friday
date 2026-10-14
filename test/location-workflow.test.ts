@@ -16,11 +16,11 @@ async function runTask(
   config: Record<string, string>,
   skills: string[],
   prep?: (clone: string) => void,
-  repoSkills: string[] = [],
+  locationSkills: string[] = [],
   /** Called with the options of the run while it is alive (plugin dirs exist), e.g. to probe canUseTool. */
   probe?: (o: any) => Promise<void>,
 ) {
-  const { env, clone } = await setupWorkflow(config, skills, repoSkills);
+  const { env, clone } = await setupWorkflow(config, skills, locationSkills);
   prep?.(clone);
   const seen: any[] = [];
   /** Plugin dir listing at run start (the app removes the dir when the run ends). */
@@ -32,7 +32,7 @@ async function runTask(
     return (async function* () {
       yield initMsg;
       await probe?.(a.options);
-      yield resultMsg({ result: "done\n\nrepo: real" });
+      yield resultMsg({ result: "done\n\nlocation: real" });
     })();
   };
   const handle = createTurnHandler({
@@ -61,7 +61,7 @@ test("workspace skills load in the dev run; no workflow mode rules", async () =>
   expect(exec.systemPrompt.append).toContain("At most 6"); // the ask boundary applies to every code task
 });
 
-test("no repo CLAUDE.md reaches the dev prompt, and the registry has no read hint", async () => {
+test("no location CLAUDE.md reaches the dev prompt, and the registry has no read hint", async () => {
   const { exec } = await runTask({}, [], (clone) =>
     writeFileSync(join(clone, "CLAUDE.md"), "CLAUDE_BODY_MARK"),
   );
@@ -70,7 +70,7 @@ test("no repo CLAUDE.md reaches the dev prompt, and the registry has no read hin
   expect(exec.settingSources).toEqual([]);
 });
 
-test("repo .claude/skills (clone and worktree) plus hooks never contribute to the dev run", async () => {
+test("location .claude/skills (clone and worktree) plus hooks never contribute to the dev run", async () => {
   const { exec, pluginFiles } = await runTask(
     {},
     ["deploy"],
@@ -88,12 +88,12 @@ test("repo .claude/skills (clone and worktree) plus hooks never contribute to th
   expect(pluginFiles.some((f) => /clone-only|tracked|hooks/.test(f))).toBe(false);
 });
 
-test("the dev run lists the workspace skills through an app-owned plugin copy, not the repo", async () => {
+test("the dev run lists the workspace skills through an app-owned plugin copy, not the location", async () => {
   const { clone, exec, pluginFiles } = await runTask({}, ["deploy", "review"]);
   const pdir: string = exec.plugins.at(-1).path; // set plugin first, workspace plugin last
   expect(exec.plugins).toHaveLength(2);
   expect(exec.skills.sort()).toEqual(withSet("main:deploy", "main:review")); // workspace name = plugin name
-  // Not the repo's .claude: the plugin dir is the app's own copy.
+  // Not the location's .claude: the plugin dir is the app's own copy.
   expect(pdir.startsWith(realpathSync(clone))).toBe(false);
   expect(pluginFiles).toEqual(
     [
@@ -107,8 +107,8 @@ test("the dev run lists the workspace skills through an app-owned plugin copy, n
     ].sort(),
   );
   expect(existsSync(pdir)).toBe(false); // removed with the run
-  expect(exec.settingSources).toEqual([]); // the repo's own .claude is still never loaded
-  expect(exec.cwd).toBe(realpathSync(clone)); // the dev run works in the repo's own checkout, no clone
+  expect(exec.settingSources).toEqual([]); // the location's own .claude is still never loaded
+  expect(exec.cwd).toBe(realpathSync(clone)); // the dev run works in the location's own checkout, no clone
 });
 
 test("no workspace skills: only the role's set plugin", async () => {
@@ -118,14 +118,14 @@ test("no workspace skills: only the role's set plugin", async () => {
   expect(exec.settingSources).toEqual([]);
 });
 
-test("dev reads are not path-limited (secret names still are): the repo is readable and writable, a path outside the work dirs is not", async () => {
+test("dev reads are not path-limited (secret names still are): the location is readable and writable, a path outside the work dirs is not", async () => {
   const { clone, exec } = await runTask({}, ["deploy"]);
   const skillFile = join(realpathSync(clone), "a.txt");
   const read = (o: any, p: string) => o.canUseTool("Read", { file_path: p }, {});
   expect((await read(exec, skillFile)).behavior).toBe("allow");
   expect((await read(exec, join(realpathSync(clone), ".env"))).behavior).toBe("deny");
   const write = await exec.canUseTool("Write", { file_path: skillFile, content: "x" }, {});
-  expect(write.behavior).toBe("allow"); // the dev run works in the repo itself
+  expect(write.behavior).toBe("allow"); // the dev run works in the location itself
   const outside = await exec.canUseTool("Write", { file_path: "/etc/friday-x", content: "x" }, {});
   expect(outside.behavior).toBe("deny");
 });

@@ -15,7 +15,7 @@ import { type RolloverDeps, type RolloverRequest, runLean } from "./rollover-run
 /** Prompt of the flush run (a resumed run of the thread's session: it already holds the whole conversation). */
 export const FLUSH_PROMPT =
   "Before this conversation is reset: capture durable memories with the Remember tool " +
-  "(scope journal for decisions, facts, preferences and open items of this thread; scope repo or workspace only when " +
+  "(scope journal for decisions, facts, preferences and open items of this thread; scope location or workspace only when " +
   "clearly durable). If there is nothing to store, reply NO_REPLY.";
 /** The flush reply that means "nothing worth storing". */
 export const FLUSH_NO_REPLY = "NO_REPLY";

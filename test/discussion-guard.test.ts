@@ -9,11 +9,12 @@ import { CONFIRM_TASK_QUESTION } from "../src/orchestrator/dispatch/queued-tasks
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { g, makeRepo } from "./git-fixture";
+import { g, makeLocation } from "./git-fixture";
 import {
-  addRepo,
+  addLocation,
   answering,
   clearWorkspaces,
+  defaultLocationPath,
   makeEnv,
   resultMsg,
   stubGateway,
@@ -23,14 +24,14 @@ import {
 // Discussion guard: L3 alone picks a NEW dev task right after an assistant turn -> ONE yes/no question first.
 // yes -> the task opens; no -> the assistant answers the original message.
 
-/** Env with a workspace clone of a repo. */
+/** Env with a workspace clone of a location. */
 async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const src = await makeRepo("main");
-  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
-  addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
-  await g(env.home, "clone", "-q", src.repo, clone);
+  const src = await makeLocation("main");
+  const clone = defaultLocationPath(env.home, "real", "main");
+  addLocation(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
+  await g(env.home, "clone", "-q", src.location, clone);
   return env;
 }
 
@@ -105,7 +106,7 @@ const PROPOSAL = "Tôi đề xuất xây dựng một lớp cache cho bảng gi�
 
 test("dev/new from L3 alone after an assistant turn asks first; yes opens the task", async () => {
   const { e, seen, handle, msg, q } = await build();
-  await handle(msg("[ask] explain the repo")); // assistant turn (L1 tag)
+  await handle(msg("[ask] explain the location")); // assistant turn (L1 tag)
   expect(await handle(msg(PROPOSAL))).toBe(CONFIRM_TASK_QUESTION);
   expect(e.inputs).toHaveLength(1);
   expect(e.inputs[0]?.thread.lastTurn).toEqual({ role: "assistant" });
@@ -121,7 +122,7 @@ test("dev/new from L3 alone after an assistant turn asks first; yes opens the ta
 
 test("no -> the assistant answers the original message (no dev task)", async () => {
   const { seen, handle, msg, q } = await build();
-  await handle(msg("[ask] explain the repo"));
+  await handle(msg("[ask] explain the location"));
   await handle(msg(PROPOSAL));
   expect(await handle(msg("no"))).toBe("assistant answer");
   expect(seen.at(-1).prompt).toContain(PROPOSAL);
@@ -133,7 +134,7 @@ test("no guard: a first message, a [dev] tag or a role other than a staged one i
   const { handle, msg, q } = await build();
   expect(await handle(msg("please add b.txt"))).toContain("Starting dev"); // idle thread, no earlier turn
   const second = await build();
-  await second.handle(second.msg("[ask] explain the repo"));
+  await second.handle(second.msg("[ask] explain the location"));
   expect(await second.handle(second.msg("[dev] add b.txt"))).toContain("Starting dev");
   expect(q("SELECT role FROM turns")).toEqual([{ role: "dev" }]);
 });
@@ -141,7 +142,7 @@ test("no guard: a first message, a [dev] tag or a role other than a staged one i
 test("the saved-copy path of a long attachment reaches the assistant, never the dev task brief", async () => {
   const { seen, handle, msg, q } = await build();
   const withPath = `${PROPOSAL}\n\n${ATTACHMENT_PATH_PREFIX}/home/x/tmp/attachments/th1/1-r.md`;
-  await handle(msg("[ask] explain the repo"));
+  await handle(msg("[ask] explain the location"));
   await handle(msg(withPath));
   await handle(msg("yes"));
   expect(q("SELECT brief FROM turns WHERE role = 'dev'")[0].brief).not.toContain("/home/x/tmp");
@@ -151,7 +152,7 @@ test("the saved-copy path of a long attachment reaches the assistant, never the 
 
 test("a dev brief carries the recent conversation (capped, data); a declined task answers the original message only", async () => {
   const { seen, handle, msg, q } = await build();
-  await handle(msg("[ask] explain the repo"));
+  await handle(msg("[ask] explain the location"));
   const recent = [
     { from: "owner" as const, text: "what about caching?" },
     {

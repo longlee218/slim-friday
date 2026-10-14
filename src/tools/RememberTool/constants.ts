@@ -17,6 +17,6 @@ export const REMEMBER_PENDING_CAP_CHARS = Number.POSITIVE_INFINITY;
  */
 export const REMEMBER_MAX_CALLS_PER_RUN = 20;
 
-/** Where a note goes: one repo's MEMORY.md, the workspace MEMORY.md, the root review queue, or today's journal. */
-export const REMEMBER_SCOPES = ["repo", "workspace", "global", "journal"] as const;
+/** Where a note goes: one location's MEMORY.md, the workspace MEMORY.md, the root review queue, or today's journal. */
+export const REMEMBER_SCOPES = ["location", "workspace", "global", "journal"] as const;
 export type RememberScope = (typeof REMEMBER_SCOPES)[number];

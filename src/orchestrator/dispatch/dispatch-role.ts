@@ -1,9 +1,9 @@
 import { type Effort, resolveModel } from "../../config/model-routing";
 import { stripAttachmentPaths } from "../../ingress/attachment-text";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
+import type { Location } from "../../locations/location-registry";
 import { excerpt, logEvent, logger, setLogContext } from "../../observability/logger";
 import { errText } from "../../observability/redact";
-import type { Repo } from "../../repos/repo-registry";
 import { threadLedger } from "../../storage/ledger-store";
 import { setProposalStatus, supersedePending } from "../../storage/proposal-store";
 import { getSession } from "../../storage/session-store";
@@ -35,11 +35,11 @@ export interface DispatchInput {
   message: InboundMessage;
   /** Reply of the finished source turn (shown before the notice). */
   reply: string;
-  /** Workspace the task runs in and its repos. */
+  /** Workspace the task runs in and its locations. */
   workspace: string;
-  repos: Repo[];
-  /** Repo the thread is pinned to, when any. */
-  pinned?: Repo;
+  locations: Location[];
+  /** Location the thread is pinned to, when any. */
+  pinned?: Location;
   /** The thread's abort controller (`stop` aborts the run too). */
   ac: AbortController;
   /** Task whose turn produced the request (parent of the new task); absent for an intent-layer request. */
@@ -84,7 +84,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     {
       db,
       config,
-      repos: i.repos,
+      locations: i.locations,
       pinned: i.pinned,
     },
     request,
@@ -103,7 +103,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     const fix = request.proposalId && v.action === "ask" ? " Send a new request to fix it." : "";
     return [i.reply, `${refusal.reply}${fix}`].filter(Boolean).join("\n\n");
   }
-  const { role, repoName: repo } = v;
+  const { role, locationName: location } = v;
   const route = runRoute({ cls: request.cls, effort: i.effort, extraBudgetUsd: i.extraBudgetUsd });
   const turnId = crypto.randomUUID();
   // From here every log line of the new task carries its own taskId (not the source row's).
@@ -113,7 +113,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     log,
     { turnId, threadId: i.message.threadId, source: i.message.source },
     {
-      repo,
+      location,
       brief: request.brief,
       cls: request.cls,
       proposalId,
@@ -131,7 +131,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   }
   logEvent(log, "dispatch.started", {
     role: role.name,
-    repo,
+    location,
     brief: excerpt(request.brief),
     model: resolveModel(role, route ?? {}, config),
   });
@@ -159,8 +159,8 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     text: request.brief,
     role: role.name,
     workspace: i.workspace,
-    // `repoScope: "all"` roles see every repo of the workspace; the others pick among the repos.
-    repos: role.repoScope === "all" ? i.repos : v.candidates,
+    // `locationScope: "all"` roles see every location of the workspace; the others pick among the locations.
+    locations: role.locationScope === "all" ? i.locations : v.candidates,
     ac: i.ac,
     route,
     pinned: i.pinned,
@@ -175,7 +175,8 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   const reply = closeTurn(db, { turnId, threadId: i.message.threadId }, res, {
     stopping: deps.stopping(),
     t0,
-    repo,
+    location,
+    locations: i.locations,
   });
   return posted ? reply : `${head}\n\n${reply}`;
 }

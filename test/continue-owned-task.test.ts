@@ -8,16 +8,17 @@ import { captureLogs, logger } from "../src/observability/logger";
 import { continueOwnedTask } from "../src/orchestrator/dispatch/continue-owned-task";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { beginTurn } from "../src/orchestrator/turns/turn-tracker";
-import { loadRepos } from "../src/repos/repo-registry";
 import { ROLES } from "../src/roles/role-registry";
 import type { RouteProposer } from "../src/routing/route-proposer";
 import { activeOwnedTask, getOwnedTask, ownedTaskOfTurn } from "../src/storage/owned-task-store";
 import { interruptRunningTurns, setTurnSession } from "../src/storage/run-store";
-import { g, makeRepo } from "./git-fixture";
+import { loadWorkspaces } from "../src/workspaces/workspace-registry";
+import { g, makeLocation } from "./git-fixture";
 import {
-  addRepo,
+  addLocation,
   clearWorkspaces,
   DEV_REQUEST,
+  defaultLocationPath,
   initMsg,
   makeEnv,
   promptText,
@@ -32,11 +33,15 @@ const BG = Object.values(ROLES).find((r) => r.background)!.name;
 async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const src = await makeRepo("main");
-  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
-  addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
-  await g(env.home, "clone", "-q", src.repo, clone);
-  return { env, clone, repos: loadRepos(workspacePaths(env.home).workspace("main")) };
+  const src = await makeLocation("main");
+  const clone = defaultLocationPath(env.home, "real", "main");
+  addLocation(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
+  await g(env.home, "clone", "-q", src.location, clone);
+  return {
+    env,
+    clone,
+    locations: loadWorkspaces(env.home).workspaces.find((w) => w.name === "main")?.locations ?? [],
+  };
 }
 
 const msg = (text: string) => ({
@@ -48,24 +53,24 @@ const msg = (text: string) => ({
 });
 
 test("continueOwnedTask: session plan in the task's own cwd with the owner text; undefined without a usable session", async () => {
-  const { env, clone, repos } = await setup();
+  const { env, clone, locations } = await setup();
   beginTurn(
     env.db,
     logger,
     { turnId: "t1", threadId: "th1", source: "t" },
-    { repo: "real", role: BG },
+    { location: "real", role: BG },
   );
   interruptRunningTurns(env.db);
   const task = activeOwnedTask(env.db, "th1")!;
-  const deps = { db: env.db, repos, threadId: "th1" };
+  const deps = { db: env.db, locations, threadId: "th1" };
   // No session recorded yet.
   expect(continueOwnedTask(deps, task, "go on")).toBeUndefined();
   setTurnSession(env.db, "t1", "sess-1", realpathSync(clone));
   const plan = continueOwnedTask(deps, task, "go on")!;
   expect(plan.cmd).toEqual({ kind: "message", role: BG, text: "go on" });
   expect(plan.resume).toEqual({ sessionId: "sess-1", cwd: realpathSync(clone), of: "t1" });
-  expect(plan.existing).toMatchObject({ session_id: "sess-1", repo: "real", thread_id: "th1" });
-  // Empty text and a cwd that is not a registered repo are refused.
+  expect(plan.existing).toMatchObject({ session_id: "sess-1", location: "real", thread_id: "th1" });
+  // Empty text and a cwd that is not a registered location are refused.
   expect(continueOwnedTask(deps, task, "")).toBeUndefined();
   setTurnSession(env.db, "t1", "sess-1", env.home);
   expect(continueOwnedTask(deps, task, "go on")).toBeUndefined();
@@ -105,7 +110,7 @@ async function handler(steps: ("error" | "ok")[]) {
         yield { ...initMsg, session_id: `sess-${n}` } as never;
         yield step === "error"
           ? resultMsg({ subtype: "error_during_execution", is_error: true, errors: ["boom"] })
-          : resultMsg({ result: "Xong\n\nrepo: real", session_id: `sess-${n}` });
+          : resultMsg({ result: "Xong\n\nlocation: real", session_id: `sess-${n}` });
       })()) as never,
   });
   return { env, clone, seen, handle, l3: () => l3 };

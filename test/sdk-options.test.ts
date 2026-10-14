@@ -54,7 +54,7 @@ async function capture(kind: Kind) {
     abortController: new AbortController(),
     queryFn: queryFn as never,
   };
-  const scope = { readPaths: [env.repo], gitReadRepos: [env.repo], writePaths: [] };
+  const scope = { readPaths: [env.location], gitReadPaths: [env.location], writePaths: [] };
   if (kind === "qa") {
     await runAgent({
       ...base,

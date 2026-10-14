@@ -1,5 +1,5 @@
 import type { InboundMessage } from "../../ingress/discord-message-handler";
-import type { Repo } from "../../repos/repo-registry";
+import type { Location } from "../../locations/location-registry";
 import type { Proposal } from "../../storage/proposal-store";
 import { type DispatchDeps, dispatchRole } from "./dispatch-role";
 
@@ -15,9 +15,9 @@ export function startPendingProposal(
     deps: DispatchDeps;
     message: InboundMessage;
     workspace: string;
-    repos: Repo[];
+    locations: Location[];
     ac: AbortController;
-    pinned?: Repo;
+    pinned?: Location;
   },
   p: Proposal,
   /** Owner raise of the budget (`go +<usd>`). */
@@ -27,7 +27,7 @@ export function startPendingProposal(
     request: {
       role: p.role,
       brief: p.brief,
-      repo: p.repo ?? undefined,
+      location: p.location ?? undefined,
       cls: p.class ?? undefined,
       confidence: p.confidence ?? undefined,
       proposalId: p.id,
@@ -36,7 +36,7 @@ export function startPendingProposal(
     message: c.message,
     reply: "",
     workspace: c.workspace,
-    repos: c.repos,
+    locations: c.locations,
     pinned: c.pinned,
     ac: c.ac,
     fromTurnId: p.fromTurnId ?? undefined,

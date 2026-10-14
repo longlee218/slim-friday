@@ -1,12 +1,12 @@
 import type { Database } from "bun:sqlite";
+import type { Location } from "../../locations/location-registry";
 import {
   capRefusal,
-  findRepo,
+  findLocation,
   type Refusal,
   refuse,
-  unknownRepo,
-} from "../../orchestrator/dispatch/task-repo";
-import type { Repo } from "../../repos/repo-registry";
+  unknownLocation,
+} from "../../orchestrator/dispatch/task-location";
 import { rerouteCandidates } from "../../roles/capability-registry";
 import { ROLES } from "../../roles/role-registry";
 import type { AgentPreflightResult, ReasonCode } from "../routing-contracts";
@@ -22,9 +22,9 @@ export interface PreflightCtx {
   role: string;
   /** Owner text without prefixes. */
   text: string;
-  /** The `repo:` hint, when the owner typed one. */
-  repoHint?: string;
-  repos: Repo[];
+  /** The `location:` hint, when the owner typed one. */
+  locationHint?: string;
+  locations: Location[];
   /** The Discord approval flow is available. */
   hasApprovals: boolean;
   /** Router probability per role (orders the suggested agents). */
@@ -43,29 +43,31 @@ export interface PreflightCheck {
   run(ctx: PreflightCtx): Refusal | undefined;
 }
 
-/** A background role works in a repo and needs the owner's approval flow. */
+/** A background role works in a location and needs the owner's approval flow. */
 const isBackground = (ctx: PreflightCtx): boolean => !!ROLES[ctx.role]?.background;
 
-/** First hit wins. Order keeps the replies the owner already gets (a repo problem before an approval problem). */
+/** First hit wins. Order keeps the replies the owner already gets (a location problem before an approval problem). */
 export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
   {
-    id: "unknown_repo",
+    id: "unknown_location",
     decision: "need_clarification",
     reasonCode: "MISSING_INFORMATION",
     reroutable: false,
     run: (c) =>
-      c.repoHint && !findRepo(c.repos, c.repoHint) ? unknownRepo(c.repos, c.repoHint) : undefined,
+      c.locationHint && !findLocation(c.locations, c.locationHint)
+        ? unknownLocation(c.locations, c.locationHint)
+        : undefined,
   },
   {
-    id: "empty_text_repo",
+    id: "empty_text_location",
     decision: "need_clarification",
     reasonCode: "MISSING_INFORMATION",
     reroutable: false,
     run: (c) =>
-      c.repoHint && !c.text
+      c.locationHint && !c.text
         ? refuse(
             "empty_text",
-            `Send your question after "repo:${findRepo(c.repos, c.repoHint)?.name}".`,
+            `Send your question after "location:${findLocation(c.locations, c.locationHint)?.name}".`,
           )
         : undefined,
   },

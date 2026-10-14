@@ -1,10 +1,10 @@
 import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
 import { type Effort, resolveBudget, type TaskClass } from "../../config/model-routing";
-import type { Repo } from "../../repos/repo-registry";
+import type { Location } from "../../locations/location-registry";
 import { dispatchableRoleNames, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
-import { capRefusal, type Refusal, refuse, resolveTaskRepo } from "./task-repo";
+import { capRefusal, type Refusal, refuse, resolveTaskLocation } from "./task-location";
 
 /* Checks of a proposed hand-over BEFORE any task row exists. Pure app code: no LLM, no side effect. */
 
@@ -15,8 +15,8 @@ export const LOW_CONFIDENCE = 0.4;
 export interface DispatchRequest {
   role: string;
   brief: string;
-  /** Repo name; missing = the thread's pinned repo, else the run works among the workspace repos. */
-  repo?: string;
+  /** Location name; missing = the thread's pinned location, else the run works among the workspace locations. */
+  location?: string;
   /** Task class; missing = standard. */
   cls?: TaskClass;
   /** Effort resolved when the request was queued; kept so queue -> start runs at it. Missing = the role defaults. */
@@ -36,20 +36,20 @@ export interface DispatchRequest {
 export interface ValidationDeps {
   db: Database;
   config: AgentConfig;
-  /** Repos of the workspace the task would run in. */
-  repos: Repo[];
-  /** Repo the thread is pinned to, when any. */
-  pinned?: Repo;
+  /** Locations of the workspace the task would run in. */
+  locations: Location[];
+  /** Location the thread is pinned to, when any. */
+  pinned?: Location;
 }
 
 /** A request that may start, with what validation resolved. */
 export interface ValidRequest {
   ok: true;
   role: RoleDefinition;
-  /** Repos the run may work in (one when the repo is known). */
-  candidates: Repo[];
-  /** Row repo: the picked one's name, or `*` (the run's final `repo:` marker names it). */
-  repoName: string;
+  /** Locations the run may work in (one when the location is known). */
+  candidates: Location[];
+  /** Row location: the picked one's name, or `*` (the run's final `location:` marker names it). */
+  locationName: string;
   cls: TaskClass;
 }
 
@@ -60,8 +60,9 @@ export interface InvalidRequest {
   refusal: Refusal;
 }
 
-/** Repo name the resolver starts from: the request's, else the pinned repo's name as is. */
-export const repoHint = (pinned: Repo | undefined, repo?: string) => repo ?? pinned?.name;
+/** Location name the resolver starts from: the request's, else the pinned location's name as is. */
+export const locationHint = (pinned: Location | undefined, location?: string) =>
+  location ?? pinned?.name;
 
 const ask = (reason: string, question: string): InvalidRequest => ({
   ok: false,
@@ -70,9 +71,9 @@ const ask = (reason: string, question: string): InvalidRequest => ({
 });
 
 /**
- * Validate a request: role in the registry (and dispatchable), confidence, repo in the workspace
- * (`resolveTaskRepo`), cap (when the role counts), budget.
- * What the owner can fix (unknown role/repo, low confidence) -> `ask`; what only waiting fixes (cap, no
+ * Validate a request: role in the registry (and dispatchable), confidence, location in the workspace
+ * (`resolveTaskLocation`), cap (when the role counts), budget.
+ * What the owner can fix (unknown role/location, low confidence) -> `ask`; what only waiting fixes (cap, no
  * budget) -> `refuse`.
  */
 export async function validateRequest(
@@ -93,15 +94,15 @@ export async function validateRequest(
       `Not sure I understood: start a ${role.name} task for "${req.brief.slice(0, 120)}"? Reply \`/go\` to start it.`,
     );
   }
-  const hint = repoHint(d.pinned, req.repo);
-  const resolved = resolveTaskRepo(d.repos, hint);
+  const hint = locationHint(d.pinned, req.location);
+  const resolved = resolveTaskLocation(d.locations, hint);
   if ("reply" in resolved) {
-    return resolved.reason === "unknown_repo"
-      ? ask(resolved.reason, `${resolved.reply}. Send the task again with repo:<name>.`)
+    return resolved.reason === "unknown_location"
+      ? ask(resolved.reason, `${resolved.reply}. Send the task again with location:<name>.`)
       : { ok: false, action: "refuse", refusal: resolved };
   }
   const { candidates } = resolved;
-  const repoName = hint ? (candidates[0]?.name ?? "*") : "*";
+  const locationName = hint ? (candidates[0]?.name ?? "*") : "*";
   const capped = role.background ? capRefusal(d.db) : undefined;
   if (capped) return { ok: false, action: "refuse", refusal: capped };
   const cls = req.cls ?? "standard";
@@ -116,7 +117,7 @@ export async function validateRequest(
     ok: true,
     role,
     candidates,
-    repoName,
+    locationName,
     cls,
   };
 }

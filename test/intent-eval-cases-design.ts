@@ -66,7 +66,7 @@ export const DESIGN_CASES: GoldenCase[] = [
   // Tuning: questions, opinions, research of EXISTING code (assistant)
   toAssistant("how does the intent layer pick a role?"),
   toAssistant("cơ chế stage engine hoạt động thế nào?"),
-  toAssistant("what are the pros and cons of config-as-agent for this repo?"),
+  toAssistant("what are the pros and cons of config-as-agent for this location?"),
   toAssistant("so sánh cách Friday định nghĩa role với cách khác"),
   toAssistant("kiến trúc Friday thế nào?"),
   toAssistant("nghiên cứu xem retry của billing chạy thế nào"),

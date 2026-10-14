@@ -15,16 +15,16 @@ if (!live) {
 }
 
 describe.skipIf(!live)("live agent smoke (Haiku)", () => {
-  test("answers on a temp repo; no write tools exposed; rows recorded", async () => {
+  test("answers on a temp location; no write tools exposed; rows recorded", async () => {
     const env = makeEnv({
       CLAUDE_CODE_OAUTH_TOKEN: token!,
       MAX_TURNS: "6",
       MAX_BUDGET_USD: "0.2",
       TIMEOUT_MS: "90000",
     });
-    const repo = env.repo;
-    mkdirSync(repo, { recursive: true });
-    writeFileSync(join(repo, "a.txt"), "the secret word is alpha\n");
+    const location = env.location;
+    mkdirSync(location, { recursive: true });
+    writeFileSync(join(location, "a.txt"), "the secret word is alpha\n");
     const cfg = env.config;
 
     const tools: string[][] = [];

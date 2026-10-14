@@ -23,7 +23,7 @@ import {
   GLOB_TOOL_NAME,
   READ_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
-import { addRepo, initMsg, makeEnv, readLogLines, resultMsg, TEST_CHANNEL } from "./helpers";
+import { addLocation, initMsg, makeEnv, readLogLines, resultMsg, TEST_CHANNEL } from "./helpers";
 
 const task = (text: string, threadId: string) => ({
   source: "test",
@@ -34,7 +34,7 @@ const task = (text: string, threadId: string) => ({
 });
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 
-test("a line from a module logger deep in a task carries taskId/threadId/repo/mode", async () => {
+test("a line from a module logger deep in a task carries taskId/threadId/location/mode", async () => {
   const env = makeEnv();
   const cap = captureLogs();
   const handle = createTurnHandler({
@@ -46,10 +46,10 @@ test("a line from a module logger deep in a task carries taskId/threadId/repo/mo
         yield resultMsg();
       })()) as never,
   });
-  await handle(task("repo:repo what is alpha", "th1"));
+  await handle(task("location:location what is alpha", "th1"));
   cap.stop();
   const started = cap.lines.find((l) => l.event === "run.started")!;
-  expect(started).toMatchObject({ threadId: "th1", repo: "repo", mode: "assistant" });
+  expect(started).toMatchObject({ threadId: "th1", location: "location", mode: "assistant" });
   expect(typeof started.taskId).toBe("string");
   // Every task line has the same ids, none passed by hand.
   for (const l of cap.lines.filter((l) => String(l.event).startsWith("run."))) {
@@ -59,15 +59,15 @@ test("a line from a module logger deep in a task carries taskId/threadId/repo/mo
 
 test("explicit fields on a call win over the context, and the context is not polluted", () => {
   const cap = captureLogs();
-  runWithLogContext({ taskId: "T", repo: "a" }, () => {
-    logEvent(logger, "x", { repo: "b" });
-    expect(getLogContext()).toEqual({ taskId: "T", repo: "a" });
+  runWithLogContext({ taskId: "T", location: "a" }, () => {
+    logEvent(logger, "x", { location: "b" });
+    expect(getLogContext()).toEqual({ taskId: "T", location: "a" });
     setLogContext({ mode: "plan" });
     logEvent(logger, "y");
   });
   cap.stop();
-  expect(cap.lines[0]).toMatchObject({ taskId: "T", repo: "b" });
-  expect(cap.lines[1]).toMatchObject({ taskId: "T", repo: "a", mode: "plan" });
+  expect(cap.lines[0]).toMatchObject({ taskId: "T", location: "b" });
+  expect(cap.lines[1]).toMatchObject({ taskId: "T", location: "a", mode: "plan" });
   expect(getLogContext()).toEqual({});
 });
 
@@ -146,7 +146,7 @@ test("two concurrent tasks do not mix contexts", async () => {
 
 test("approval decided by a click outside the task context still logs the task's ids", async () => {
   const db = openDb(":memory:");
-  insertTurn(db, { id: "t1", threadId: "th", source: "discord", repo: "r", role: "assistant" });
+  insertTurn(db, { id: "t1", threadId: "th", source: "discord", location: "r", role: "assistant" });
   const sent: any[] = [];
   const channel = {
     isSendable: () => true,
@@ -184,20 +184,20 @@ test("approval decided by a click outside the task context still logs the task's
   });
 });
 
-test("context fields (workspace, repo) land on every line of the single app log; no per-repo copy", async () => {
+test("context fields (workspace, location) land on every line of the single app log; no per-location copy", async () => {
   const env = makeEnv();
-  addRepo(env.home, "api");
+  addLocation(env.home, "api");
   const paths = workspacePaths(env.home);
   const stream = rollingFile(paths.appLog());
   const log = createLogger(stream);
-  runWithLogContext({ taskId: "T", workspace: "main", repo: "api" }, () =>
-    logEvent(log, "ctx.repo"),
+  runWithLogContext({ taskId: "T", workspace: "main", location: "api" }, () =>
+    logEvent(log, "ctx.location"),
   );
   logEvent(log, "no.ctx");
   await stream.ready();
   const lines = readLogLines(paths.appLog());
-  expect(lines.map((l) => l.event)).toEqual(["ctx.repo", "no.ctx"]);
-  expect(lines[0]).toMatchObject({ taskId: "T", workspace: "main", repo: "api" });
+  expect(lines.map((l) => l.event)).toEqual(["ctx.location", "no.ctx"]);
+  expect(lines[0]).toMatchObject({ taskId: "T", workspace: "main", location: "api" });
   expect(existsSync(join(paths.workspace("main").root, "logs"))).toBe(false);
   stream.end();
 });
@@ -232,34 +232,37 @@ async function runUnpinned(env: ReturnType<typeof makeEnv>, file?: string) {
   return cap.lines;
 }
 
-test("one workspace with one repo: unpinned Q&A lines carry workspace and repo", async () => {
-  const env = makeEnv(); // single workspace "main", repo "repo"
+test("one workspace with one location: unpinned Q&A lines carry workspace and location", async () => {
+  const env = makeEnv(); // single workspace "main", location "location"
   const lines = await runUnpinned(env);
   for (const e of ["task.started", "run.started", "task.finished"])
-    expect(lines.find((l) => l.event === e)).toMatchObject({ workspace: "main", repo: "repo" });
+    expect(lines.find((l) => l.event === e)).toMatchObject({
+      workspace: "main",
+      location: "location",
+    });
 });
 
-test("two repos, unpinned: a Read inside bbb moves tool.done and later lines to repo bbb", async () => {
+test("two locations, unpinned: a Read inside bbb moves tool.done and later lines to location bbb", async () => {
   const env = makeEnv();
-  addRepo(env.home, "aaa");
-  const b = addRepo(env.home, "bbb");
+  addLocation(env.home, "aaa");
+  const b = addLocation(env.home, "bbb");
   writeFileSync(join(b, "f.txt"), "x");
   const lines = await runUnpinned(env, join(b, "f.txt"));
   expect(lines.find((l) => l.event === "run.started")).toMatchObject({
     workspace: "main",
-    repo: "*",
+    location: "*",
   });
-  expect(lines.find((l) => l.event === "tool.done")).toMatchObject({ repo: "bbb" });
+  expect(lines.find((l) => l.event === "tool.done")).toMatchObject({ location: "bbb" });
   expect(lines.find((l) => l.event === "task.finished")).toMatchObject({
     workspace: "main",
-    repo: "bbb",
+    location: "bbb",
   });
 });
 
-test("a tool call outside every repo keeps repo *", async () => {
+test("a tool call outside every location keeps location *", async () => {
   const env = makeEnv();
-  addRepo(env.home, "aaa");
+  addLocation(env.home, "aaa");
   const lines = await runUnpinned(env, "/etc/hosts");
-  expect(lines.find((l) => l.event === "tool.done")).toMatchObject({ repo: "*" });
-  expect(lines.find((l) => l.event === "task.finished")).toMatchObject({ repo: "*" });
+  expect(lines.find((l) => l.event === "tool.done")).toMatchObject({ location: "*" });
+  expect(lines.find((l) => l.event === "task.finished")).toMatchObject({ location: "*" });
 });

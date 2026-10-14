@@ -3,7 +3,7 @@ import { pendingProposal } from "../../storage/proposal-store";
 import { lastRunOutcome } from "../../storage/run-metrics-store";
 import { dropResumable } from "../../storage/run-store";
 import { RESUMABLE, type ResumeReason, resumeQuestion } from "../turns/turn-result";
-import { type Refusal, refuse } from "./task-repo";
+import { type Refusal, refuse } from "./task-location";
 
 /* `failed_resumable` (Rev 12): a background run that failed with its session saved (budget, transient error) keeps it.
    `/go`, or a yes to the question below, continues that session (same cwd) with a "continue" prompt; `/go +usd` also
@@ -15,8 +15,8 @@ export interface FailedResumable {
   role: string;
   /** Owner request of the task (stored redacted). */
   brief: string;
-  /** Repo of the task row: "*" until the run's final `repo:` marker named one. */
-  repo: string;
+  /** Location of the task row: "*" until the run's final `location:` marker named one. */
+  location: string;
   /** Why it stopped (the last run's outcome), when known. */
   reason?: ResumeReason;
 }
@@ -30,11 +30,11 @@ export function failedResumable(db: Database, threadId: string): FailedResumable
         role: string;
         status: string;
         brief: string | null;
-        repo: string;
+        location: string;
       },
       [string]
     >(
-      "SELECT id, role, status, brief, repo FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+      "SELECT id, role, status, brief, location FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
     )
     .get(threadId);
   if (t?.status !== "failed_resumable") return undefined;
@@ -42,7 +42,7 @@ export function failedResumable(db: Database, threadId: string): FailedResumable
     id: t.id,
     role: t.role,
     brief: t.brief ?? "",
-    repo: t.repo,
+    location: t.location,
     reason: lastRunOutcome(db, t.id) === "max_budget" ? "budget" : "error",
   };
 }

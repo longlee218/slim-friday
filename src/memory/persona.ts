@@ -24,7 +24,7 @@ function ensureFile(file: string, text: string): void {
 
 /**
  * Create the missing pieces of the home and of every workspace (never overwrites): root
- * AGENTS/IDENTITY/SOUL/USER/MEMORY/BOOTSTRAP; per workspace `cwd/` + empty `skills/` + MEMORY.md; per repo MEMORY.md.
+ * AGENTS/IDENTITY/SOUL/USER/MEMORY/BOOTSTRAP; per workspace `cwd/` + empty `skills/` + MEMORY.md; per location MEMORY.md.
  * Writes no CLAUDE.md; the SDK loads none (settingSources []), so these files are the only instructions.
  */
 export function ensureHome(agentHome: string, workspaces: Workspace[]): void {
@@ -41,7 +41,7 @@ export function ensureHome(agentHome: string, workspaces: Workspace[]): void {
     mkdirSync(ws.cwd, { recursive: true });
     mkdirSync(ws.skills, { recursive: true, mode: 0o700 }); // owner-curated skills, empty by default
     ensureFile(ws.memory, workspaceMemoryTemplate(w.name));
-    for (const r of w.repos) ensureFile(ws.repo(r.name).memory, memoryTemplate(r.name));
+    for (const r of w.locations) ensureFile(ws.location(r.name).memory, memoryTemplate(r.name));
   }
 }
 

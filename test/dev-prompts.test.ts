@@ -42,14 +42,14 @@ test("the ask cap is the role's limit, stated once in the ask rules", () => {
 test("dev: one contract, approval before changes by ask, design request invokes the matching skill, no subagent text", () => {
   const text = rules(DEV_ROLE);
   expect(text).toContain("invoke the listed skill whose description matches first");
-  expect(text).toContain("the repo's own checkout");
+  expect(text).toContain("the location's own checkout");
   expect(text).toContain("Do not change files before the owner approved your plan");
-  expect(text).toContain('"repo: <name>"');
+  expect(text).toContain('"location: <name>"');
   expect(text).toContain("`git` and `gh` in the shell");
   expect(text).toContain("Merge, push or PR only after the owner chose it.");
   expect(text).toContain("by absolute path from the skill's base directory");
   expect(text).not.toContain("Memory:");
-  expect(text).not.toContain("Remember (scope repo;"); // repo memory rule lives in AGENTS.md
+  expect(text).not.toContain("Remember (scope location;"); // location memory rule lives in AGENTS.md
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).toContain("add only the files of the task to a commit");
   expect(text).toContain("Surgical changes");
@@ -78,7 +78,7 @@ test("no tool-name literal in the dev role source", async () => {
   expect(src).not.toMatch(/AskUserQuestion|ExitPlanMode/);
 });
 
-test("dev contract: research path; skill use and repo memory are left to the SDK and AGENTS.md", () => {
+test("dev contract: research path; skill use and location memory are left to the SDK and AGENTS.md", () => {
   expect(rules(DEV_ROLE)).not.toContain("description matches the step you are about to do");
   expect(rules(DEV_ROLE)).not.toMatch(/\[workflow: (full|lean)\]/);
   expect(DEV).toContain("no defect or target named");

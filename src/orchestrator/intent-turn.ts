@@ -3,9 +3,9 @@ import type { TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
 import type { IntentDeps } from "../intent/decide-intent";
 import { buildIntentInput } from "../intent/intent-input";
+import type { Location } from "../locations/location-registry";
 import { logEvent } from "../observability/logger";
 import { logRouteDecision, withSpan } from "../observability/trace-spans";
-import type { Repo } from "../repos/repo-registry";
 import { settleRouting } from "../routing/route-decision-of";
 import { decideRoute } from "../routing/routing-policy";
 import type { SessionRow } from "../storage/session-store";
@@ -13,7 +13,7 @@ import { resolveTaskContext } from "../tasks/task-resolver";
 import { continueOwnedTask } from "./dispatch/continue-owned-task";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { pendingQuestionOf } from "./dispatch/queued-tasks";
-import { findRepo } from "./dispatch/task-repo";
+import { findLocation } from "./dispatch/task-location";
 import { recoverRoute } from "./recover-route";
 import type { EffortFloors } from "./thread/effort-floor";
 import { stripRoleTag } from "./thread/intent-replies";
@@ -28,21 +28,24 @@ export interface IntentTurnCtx {
   log: Logger;
   message: InboundMessage;
   workspace: string;
-  repos: Repo[];
+  locations: Location[];
   ac: AbortController;
   intent: IntentDeps;
   floors: EffortFloors;
-  /** The thread's stored session (its repo pins the thread). */
+  /** The thread's stored session (its location pins the thread). */
   stored: SessionRow | null;
   /** A run of this thread holds the lock. */
   busy: boolean;
-  /** The parsed plain message: text without prefixes, `repo:` hint, owner class. */
-  cmd: { text: string; repo?: string; cls?: TaskClass };
+  /** The parsed plain message: text without prefixes, `location:` hint, owner class. */
+  cmd: { text: string; location?: string; cls?: TaskClass };
 }
 
-/** Repo the thread is pinned to: the `repo:` hint, else the stored session's repo. */
-export const pinnedRepo = (repos: Repo[], hint: string | undefined, stored: SessionRow | null) =>
-  hint ? findRepo(repos, hint) : repos.find((r) => r.name === stored?.repo);
+/** Location the thread is pinned to: the `location:` hint, else the stored session's location. */
+export const pinnedLocation = (
+  locations: Location[],
+  hint: string | undefined,
+  stored: SessionRow | null,
+) => (hint ? findLocation(locations, hint) : locations.find((r) => r.name === stored?.location));
 
 /**
  * One plain message through the intent layer: thread facts -> L1 / L3 decision -> effort -> table action ->
@@ -135,7 +138,7 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
     !c.busy &&
     action.kind === "open" &&
     decision.kind === "role"
-      ? continueOwnedTask({ db, repos: c.repos, threadId }, continueTask, text)
+      ? continueOwnedTask({ db, locations: c.locations, threadId }, continueTask, text)
       : undefined;
   let out: IntentOutcome;
   try {
@@ -154,9 +157,9 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
               {
                 ...c,
                 gated,
-                pinned: pinnedRepo(c.repos, c.cmd.repo, c.stored),
+                pinned: pinnedLocation(c.locations, c.cmd.location, c.stored),
                 text,
-                repo: c.cmd.repo,
+                location: c.cmd.location,
                 cls: decision.kind === "role" ? decision.cls : undefined,
                 effort: turn.effort,
                 ownedTaskId,

@@ -14,7 +14,7 @@ const MODEL = "claude-haiku-4-5";
 /** Per-test timeout: a live run takes tens of seconds (the 5 s default aborted the first spike). */
 const T = 120_000;
 
-/** Temp repos of the cases; removed in afterAll. */
+/** Temp locations of the cases; removed in afterAll. */
 const tmpDirs: string[] = [];
 
 interface Seen {
@@ -25,7 +25,7 @@ interface Seen {
   error?: string;
 }
 
-/** Hook that hard-denies a write into the repo's git dir (what our guard does) and lets everything else continue. */
+/** Hook that hard-denies a write into the location's git dir (what our guard does) and lets everything else continue. */
 const denyGitDir = (_tool: string, input: any) =>
   String(input?.file_path ?? "").includes("/.git/")
     ? {

@@ -16,10 +16,11 @@ import {
 } from "../src/orchestrator/thread/intent-replies";
 import { ROLES } from "../src/roles/role-registry";
 import { listRunMessages } from "../src/storage/run-message-store";
-import { g, makeRepo } from "./git-fixture";
+import { g, makeLocation } from "./git-fixture";
 import {
-  addRepo,
+  addLocation,
   clearWorkspaces,
+  defaultLocationPath,
   initMsg,
   makeEnv,
   resultMsg,
@@ -44,10 +45,10 @@ const listPendingProposals = (db: ReturnType<typeof makeEnv>["db"]) =>
 async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const src = await makeRepo("main");
-  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
-  addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
-  await g(env.home, "clone", "-q", src.repo, clone);
+  const src = await makeLocation("main");
+  const clone = defaultLocationPath(env.home, "real", "main");
+  addLocation(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
+  await g(env.home, "clone", "-q", src.location, clone);
   await g(clone, "config", "user.email", "test@example.com");
   await g(clone, "config", "user.name", "t");
   return env;

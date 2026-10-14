@@ -14,7 +14,7 @@ async function runIndex(
   home = mkdtempSync(join(tmpdir(), "friday-idx-")),
 ): Promise<{ code: number; log: string }> {
   const proc = Bun.spawn(["bun", "run", join(import.meta.dir, "..", "src", "index.ts")], {
-    // cwd outside the repo so Bun does not auto-load the real .env
+    // cwd outside the location so Bun does not auto-load the real .env
     cwd: home,
     env: {
       PATH: process.env.PATH!,

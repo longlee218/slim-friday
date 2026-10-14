@@ -11,7 +11,7 @@ import {
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import {
-  addRepo,
+  addLocation,
   clearWorkspaces,
   DEV_REQUEST,
   devIntent,
@@ -41,7 +41,7 @@ function fakeGateway(approved = true) {
 async function runCodeTask(gw?: ApprovalGateway) {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const repo = addRepo(env.home, "repo"); // managed clone (code tasks need one)
+  const location = addLocation(env.home, "location"); // managed clone (code tasks need one)
   let opts: any;
   const qa: any[] = []; // every run
   const query = (a: any) => {
@@ -65,32 +65,32 @@ async function runCodeTask(gw?: ApprovalGateway) {
     threadId: "t1",
     text: DEV_REQUEST,
   });
-  return { env, opts, reply, repo, qa };
+  return { env, opts, reply, location, qa };
 }
 
-test("parseMessageCommand: stop and repo: hint; cleanup: is plain text; task: is plain Q&A text", () => {
+test("parseMessageCommand: stop and location: hint; cleanup: is plain text; task: is plain Q&A text", () => {
   expect(parseMessageCommand(" Stop ")).toEqual({ kind: "stop" });
   expect(parseMessageCommand("stop it")).toMatchObject({ kind: "message" });
   expect(parseMessageCommand("cleanup:")).toMatchObject({ kind: "message" });
   expect(parseMessageCommand("task: add a file")).toEqual({
     kind: "message",
-    repo: undefined,
+    location: undefined,
     text: "task: add a file",
   });
   expect(parseMessageCommand("what is x?")).toEqual({
     kind: "message",
-    repo: undefined,
+    location: undefined,
     text: "what is x?",
   });
-  expect(parseMessageCommand("repo:api how does auth work?")).toEqual({
+  expect(parseMessageCommand("location:api how does auth work?")).toEqual({
     kind: "message",
-    repo: "api",
+    location: "api",
     text: "how does auth work?",
   });
-  expect(parseMessageCommand("task: repo:api fix it")).toEqual({
+  expect(parseMessageCommand("task: location:api fix it")).toEqual({
     kind: "message",
-    repo: undefined,
-    text: "task: repo:api fix it",
+    location: undefined,
+    text: "task: location:api fix it",
   });
 });
 
@@ -120,14 +120,14 @@ test("without approvals no run starts: the owner is told code tasks need the app
   expect(reply).toContain("approval flow");
 });
 
-test("code task runs in bypass mode in the repo with write tools and no allowedTools", async () => {
+test("code task runs in bypass mode in the location with write tools and no allowedTools", async () => {
   const { gw } = fakeGateway();
-  const { env, opts, repo, qa } = await runCodeTask(gw);
+  const { env, opts, location, qa } = await runCodeTask(gw);
   expect(qa).toHaveLength(1); // one run: no assistant turn before it
   expect(opts.permissionMode).toBe("bypassPermissions");
   expect(opts.tools).toContain(WRITE_TOOL_NAME);
   expect(opts.allowedTools).toBeUndefined(); // would bypass canUseTool
-  expect(opts.cwd).toBe(realpathSync(repo));
+  expect(opts.cwd).toBe(realpathSync(location));
   const ws = join(realpathSync(env.home), "workspaces", "main");
   expect(opts.additionalDirectories[0]).toContain(join(ws, "tasks"));
   expect(opts.additionalDirectories[1]).toBe(join(ws, "worktrees"));
@@ -200,4 +200,9 @@ test("PreToolUse hook denies dangerous Bash and lets other Bash run; in bypass a
   });
   expect(feedback).toEqual({ continue: true });
   expect(await call("git status")).toEqual({ continue: true });
+});
+
+test("parseMessageCommand: the old `repo:` pin still works as an alias of `location:`", () => {
+  expect(parseMessageCommand("repo:api fix it")).toMatchObject({ location: "api", text: "fix it" });
+  expect(parseMessageCommand("location:api fix it")).toMatchObject({ location: "api" });
 });

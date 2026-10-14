@@ -1,7 +1,7 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
+import type { Location } from "../../locations/location-registry";
 import { logEvent, logger } from "../../observability/logger";
-import type { Repo } from "../../repos/repo-registry";
 import { entryRole, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import { type DispatchDeps, dispatchRole } from "../dispatch/dispatch-role";
@@ -37,7 +37,14 @@ const log = logger.child({ module: "route-by-intent" });
 export type IntentOutcome =
   | { kind: "reply"; text: string }
   /** A busy thread's independent question for a foreground role: answered at once in a parallel read-only run (side lane). */
-  | { kind: "side"; role: string; text: string; repo?: string; cls?: TaskClass; effort?: Effort }
+  | {
+      kind: "side";
+      role: string;
+      text: string;
+      location?: string;
+      cls?: TaskClass;
+      effort?: Effort;
+    }
   | {
       kind: "run";
       role: string;
@@ -58,16 +65,16 @@ export interface RouteCtx {
   deps: DispatchDeps;
   message: InboundMessage;
   workspace: string;
-  repos: Repo[];
+  locations: Location[];
   ac: AbortController;
-  pinned?: Repo;
+  pinned?: Location;
   /** A run of this thread holds the lock (the handler answered `still working...` before the intent layer). */
   busy: boolean;
   /** The thread waits on an owner-confirm (a low-confidence message is then asked about, not dropped). */
   gated?: boolean;
-  /** Owner text without `[design]` / `repo:` prefixes, and the `repo:` hint. */
+  /** Owner text without `[design]` / `location:` prefixes, and the `location:` hint. */
   text: string;
-  repo?: string;
+  location?: string;
   /** Class and effort decided for this message. */
   cls?: TaskClass;
   effort?: Effort;
@@ -79,7 +86,7 @@ export interface RouteCtx {
 const queued = (c: RouteCtx, role: string) => ({
   role,
   text: c.text,
-  repo: c.repo,
+  location: c.location,
   cls: c.cls,
   effort: c.effort,
 });
@@ -143,7 +150,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
         kind: "side",
         role: a.role,
         text: c.text,
-        repo: c.repo,
+        location: c.location,
         cls: c.cls,
         effort: c.effort,
       };
@@ -161,11 +168,11 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       // No source turn: the dispatcher persists the proposal, validates, asks or starts the role.
       return reply(
         await dispatchRole(c.deps, {
-          request: { role: a.role, brief: taskBrief(c, c.text), repo: c.repo, cls: c.cls },
+          request: { role: a.role, brief: taskBrief(c, c.text), location: c.location, cls: c.cls },
           message: c.message,
           reply: "",
           workspace: c.workspace,
-          repos: c.repos,
+          locations: c.locations,
           pinned: c.pinned,
           ac: c.ac,
           effort: c.effort,

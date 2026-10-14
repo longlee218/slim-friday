@@ -19,7 +19,7 @@ test("insert -> pending row with every field; secrets in the brief are redacted"
     {
       ...base,
       brief: `use ghp_${"a".repeat(36)}`,
-      repo: "api",
+      location: "api",
       class: "design",
       fromTurnId: "t1",
       confidence: 0.8,
@@ -29,7 +29,7 @@ test("insert -> pending row with every field; secrets in the brief are redacted"
   const p = getProposal(db, id)!;
   expect(p).toMatchObject({
     status: "pending",
-    repo: "api",
+    location: "api",
     class: "design",
     fromTurnId: "t1",
     confidence: 0.8,

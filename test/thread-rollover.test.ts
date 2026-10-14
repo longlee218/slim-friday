@@ -177,8 +177,8 @@ describe("trigger", () => {
 
   test("a background role never asks for a rollover", () => {
     const env = makeEnv();
-    insertTurn(env.db, { id: "t1", threadId: "th1", source: "t", repo: "r", role: "dev" });
-    setSession(env.db, { threadId: "th1", sessionId: "s", repo: "r", cwd: "/x" });
+    insertTurn(env.db, { id: "t1", threadId: "th1", source: "t", location: "r", role: "dev" });
+    setSession(env.db, { threadId: "th1", sessionId: "s", location: "r", cwd: "/x" });
     requestRollover(
       env.db,
       { turnId: "t1", threadId: "th1" },
@@ -193,8 +193,14 @@ describe("trigger", () => {
 
   test("the request is keyed by turn: another turn of the thread never takes it", () => {
     const env = makeEnv();
-    insertTurn(env.db, { id: "t1", threadId: "th1", source: "t", repo: "r", role: "assistant" });
-    setSession(env.db, { threadId: "th1", sessionId: "s", repo: "r", cwd: "/x" });
+    insertTurn(env.db, {
+      id: "t1",
+      threadId: "th1",
+      source: "t",
+      location: "r",
+      role: "assistant",
+    });
+    setSession(env.db, { threadId: "th1", sessionId: "s", location: "r", cwd: "/x" });
     const usage = { ...emptyUsage(), lastContextTokens: 900_000, contextWindow: WINDOW };
     requestRollover(env.db, { turnId: "t1", threadId: "th1" }, usage);
     expect(takeRollover("t2", "main")).toBeUndefined();
@@ -269,7 +275,7 @@ describe("rollover sequence", () => {
     expect(haiku.options.hooks).toBeUndefined(); // the fallback call registers no hooks
     expect(getThreadSummary(h.env.db, "th1")?.summary).toBe("S-haiku");
     expect(getSession(h.env.db, "th1")).toBeNull();
-    const hits = searchIndex(h.env.db, "main", { query: "haiku", limit: 5, repos: [] }).hits;
+    const hits = searchIndex(h.env.db, "main", { query: "haiku", limit: 5, locations: [] }).hits;
     expect(hits.length).toBe(1);
   });
 
@@ -410,8 +416,14 @@ describe("abort", () => {
 
   test("the total time cap aborts a rollover that is still waiting or running", async () => {
     const env = makeEnv();
-    insertTurn(env.db, { id: "t1", threadId: "th1", source: "t", repo: "r", role: "assistant" });
-    setSession(env.db, { threadId: "th1", sessionId: "s", repo: "r", cwd: "/x" });
+    insertTurn(env.db, {
+      id: "t1",
+      threadId: "th1",
+      source: "t",
+      location: "r",
+      role: "assistant",
+    });
+    setSession(env.db, { threadId: "th1", sessionId: "s", location: "r", cwd: "/x" });
     requestRollover(
       env.db,
       { turnId: "t1", threadId: "th1" },

@@ -239,8 +239,8 @@ test("a skill dir without SKILL.md is skipped with a debug log", () => {
 test("a skills dir that is a symlink, even to a path inside the workspace, loads nothing and warns", () => {
   const home = tmp();
   const ws = workspacePaths(home).workspace("main");
-  const target = join(ws.repos, "r", "repo", ".claude", "skills");
-  skill(target, "repo-skill");
+  const target = join(ws.locations, "r", "location", ".claude", "skills");
+  skill(target, "location-skill");
   symlinkSync(target, ws.skills);
   const logs = captureLogs();
   const p = workspaceSkills("main", home);

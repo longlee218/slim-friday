@@ -6,7 +6,11 @@ import type { RoleDefinition } from "../src/roles/role-types";
 // Synthetic roles: one per risk class (the bands read `sideEffects` only, never names).
 const role = (name: string, sideEffects: RoleDefinition["sideEffects"]) =>
   [name, { name, sideEffects, whenToUse: name } as RoleDefinition] as const;
-const roles = new Map([role("reader", "none"), role("coder", "repo"), role("sender", "external")]);
+const roles = new Map([
+  role("reader", "none"),
+  role("coder", "location"),
+  role("sender", "external"),
+]);
 
 /** Answers with `role` probabilities and optional Noul values. */
 const ans = (
@@ -23,7 +27,7 @@ const ans = (
 };
 const band = (a: JevAnswers) => decideBands(a, roles);
 
-test("pick: act threshold scales with side effects (none 0.6 / repo 0.85 / external 0.9)", () => {
+test("pick: act threshold scales with side effects (none 0.6 / location 0.85 / external 0.9)", () => {
   // Same shape of answer (top vs a far runner-up), only the risk class differs.
   expect(band(ans({ reader: 0.65, coder: 0.1, unclear: 0.25 })).kind).toBe("pick");
   expect(band(ans({ coder: 0.65, reader: 0.1, unclear: 0.25 }))).toMatchObject({

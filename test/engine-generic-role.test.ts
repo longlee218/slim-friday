@@ -33,7 +33,7 @@ async function runProbe(role: RoleDefinition) {
       id: "t1",
       threadId: "th",
       source: "test",
-      repo: "repo",
+      location: "location",
       role: "assistant",
     });
     const res = await runRole(
@@ -54,7 +54,7 @@ async function runProbe(role: RoleDefinition) {
         text: "review it",
         role: role.name,
         workspace: "main",
-        repos: [{ name: "repo", path: env.repo } as never],
+        locations: [{ name: "location", path: env.location } as never],
         ac: new AbortController(),
       },
     );

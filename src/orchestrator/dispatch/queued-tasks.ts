@@ -1,8 +1,8 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { RECENT_HEADING, recentBlock } from "../../intent/recent-messages";
+import type { Location } from "../../locations/location-registry";
 import { excerpt, logEvent, logger } from "../../observability/logger";
-import type { Repo } from "../../repos/repo-registry";
 import { ledgerLines } from "../../storage/ledger-store";
 import {
   countQueuedProposals,
@@ -35,9 +35,9 @@ export interface QueueCtx {
   deps: DispatchDeps;
   message: InboundMessage;
   workspace: string;
-  repos: Repo[];
+  locations: Location[];
   ac: AbortController;
-  pinned?: Repo;
+  pinned?: Location;
 }
 
 /** Heading of the thread reference appended to a brief. */
@@ -89,7 +89,7 @@ export function queueTask(
   r: {
     role: string;
     text: string;
-    repo?: string;
+    location?: string;
     cls?: TaskClass;
     effort?: Effort;
     confirm?: true;
@@ -101,7 +101,7 @@ export function queueTask(
     request: {
       role: r.role,
       brief: taskBrief(c, r.text),
-      repo: r.repo,
+      location: r.location,
       cls: r.cls,
       effort: r.effort,
       ...(r.confirm && { reason: CONFIRM_TASK_REASON }),

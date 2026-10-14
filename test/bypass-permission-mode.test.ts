@@ -11,9 +11,9 @@ import { initMsg, makeEnv, resultMsg } from "./helpers";
 
 const SIG = { signal: new AbortController().signal };
 const guard = guardFor(getRole("dev"), {
-  cwd: "/ws/repo",
-  writePaths: ["/ws/repo"],
-  readPaths: ["/ws/repo"],
+  cwd: "/ws/location",
+  writePaths: ["/ws/location"],
+  readPaths: ["/ws/location"],
 });
 
 /** Run the PreToolUse guard hook of an exec-like stage in (in)active bypass mode. */
@@ -157,7 +157,7 @@ async function execRun(actual: string) {
     role: getRole("dev"),
     guard: guardFor(getRole("dev"), {
       cwd: env.home,
-      readPaths: [env.repo],
+      readPaths: [env.location],
       writePaths: [env.home],
     }),
     code: { threadId: "th" },
@@ -192,7 +192,7 @@ test("an auto role's options carry no allowDangerouslySkipPermissions", async ()
           yield resultMsg({ result: "ok" });
         })()) as never,
       role: getRole(role),
-      guard: guardFor(getRole("assistant"), { readPaths: [env.repo] }),
+      guard: guardFor(getRole("assistant"), { readPaths: [env.location] }),
       code: { threadId: "th" },
     });
     expect(opts!.allowDangerouslySkipPermissions).toBeUndefined();

@@ -114,16 +114,16 @@ describe("preflight and recovery golden cases", () => {
     const log = pino({ level: "debug" }, {
       write: (s: string) => void lines.push(JSON.parse(s)),
     } as never);
-    return { env, lines, log, repos: loadWorkspaces(env.home).workspaces[0]!.repos };
+    return { env, lines, log, locations: loadWorkspaces(env.home).workspaces[0]!.locations };
   };
   const count = (lines: Record<string, unknown>[], event: string) =>
     lines.filter((l) => l.event === event).length;
 
   test("background role without approvals -> rerouted once, 2 preflights", async () => {
-    const { env, lines, log, repos } = setup();
+    const { env, lines, log, locations } = setup();
     const out = await routeWithRecovery(
       log,
-      { role: BG, text: "do it", repos, hasApprovals: false, db: env.db },
+      { role: BG, text: "do it", locations, hasApprovals: false, db: env.db },
       { allowReroute: true },
     );
     expect(out).toMatchObject({ kind: "execute", rerouted: true, initial: BG });
@@ -131,31 +131,31 @@ describe("preflight and recovery golden cases", () => {
   });
 
   test("explicit tag is never rerouted: safe fail, 1 preflight", async () => {
-    const { env, lines, log, repos } = setup();
+    const { env, lines, log, locations } = setup();
     const out = await routeWithRecovery(
       log,
-      { role: BG, text: "do it", repos, hasApprovals: false, db: env.db },
+      { role: BG, text: "do it", locations, hasApprovals: false, db: env.db },
       { allowReroute: false },
     );
     expect(out).toMatchObject({ kind: "safe_fail", rerouted: false });
     expect(count(lines, "preflight.result")).toBe(1);
   });
 
-  test("unknown repo -> clarification, no reroute", async () => {
-    const { env, log, repos } = setup();
+  test("unknown location -> clarification, no reroute", async () => {
+    const { env, log, locations } = setup();
     const out = await routeWithRecovery(
       log,
-      { role: BG, text: "x", repoHint: "nope", repos, hasApprovals: true, db: env.db },
+      { role: BG, text: "x", locationHint: "nope", locations, hasApprovals: true, db: env.db },
       { allowReroute: true },
     );
     expect(out).toMatchObject({ kind: "clarify", rerouted: false });
   });
 
   test("a foreground candidate passes preflight untouched", async () => {
-    const { env, log, repos } = setup();
+    const { env, log, locations } = setup();
     const out = await routeWithRecovery(
       log,
-      { role: FG, text: "what is alpha", repos, hasApprovals: false, db: env.db },
+      { role: FG, text: "what is alpha", locations, hasApprovals: false, db: env.db },
       { allowReroute: true },
     );
     expect(out).toMatchObject({ kind: "execute", rerouted: false, preflight: "accept" });

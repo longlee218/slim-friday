@@ -7,7 +7,7 @@ import {
 
 // Budget-hit message parts.
 
-test("budget message: caps the summary, keeps the overshoot note and the go offer; no diff stat (the app runs no git on the repo)", () => {
+test("budget message: caps the summary, keeps the overshoot note and the go offer; no diff stat (the app runs no git on the location)", () => {
   const text = budgetHitMessage({
     spentUsd: 3.21,
     limitUsd: 3,

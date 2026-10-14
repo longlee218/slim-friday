@@ -29,10 +29,10 @@ test("a crash posts the undelivered notice into the thread, then is re-thrown", 
     taskId: "t1",
     t0: Date.now(),
     workspace: "main",
-    repos: [],
+    locations: [],
     ac,
     begin: () => {},
-    turnRepo: () => "*",
+    turnLocation: () => "*",
   };
   await expect(
     routeAndRun({

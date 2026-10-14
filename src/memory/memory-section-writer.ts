@@ -19,7 +19,7 @@ import {
 } from "./memory-sections";
 import { sanitizeBullet } from "./sanitize-bullet";
 
-/** Max chars of a journal block label (thread title or repo name). */
+/** Max chars of a journal block label (thread title or location name). */
 const JOURNAL_LABEL_CHARS = 60;
 
 /** Logger of this module. */
@@ -68,7 +68,7 @@ function writeSectioned(
  * Save one note into a MEMORY.md under the section of `kind` (created at the end when missing; existing text
  * untouched). Text is sanitized (one line, redacted, markup stripped, SAVE_MAX_CHARS), stamped ` (date)`, and
  * skipped when the section already has the same note. `header` is the content of a file that does not exist yet.
- * `date` is `YYYY-MM-DD`; `capChars` is the target's prompt cap (`MemoryTarget.cap`), refused past it or 300 lines. The caller picks the file (repo, workspace or pending).
+ * `date` is `YYYY-MM-DD`; `capChars` is the target's prompt cap (`MemoryTarget.cap`), refused past it or 300 lines. The caller picks the file (location, workspace or pending).
  */
 export function saveMemoryBullet(
   file: string,
@@ -99,7 +99,7 @@ export function saveMemoryBullet(
 
 /**
  * Save one note into the daily journal file under `## HH:MM <label>` / `### <Kind>`. The same time+label in
- * the same file reuses its block. `label` (thread or repo) is sanitized to one short line.
+ * the same file reuses its block. `label` (thread or location) is sanitized to one short line.
  */
 export function saveJournalBullet(
   file: string,

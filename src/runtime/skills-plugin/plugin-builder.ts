@@ -82,7 +82,7 @@ export function buildSkillsPlugin(spec: PluginSpec, agentHome: string): RunSkill
   const started = Date.now();
   let root: string | undefined;
   try {
-    // A symlinked skills dir is refused outright: it could point at a repo's skills dir.
+    // A symlinked skills dir is refused outright: it could point at a location's skills dir.
     if (lstatSync(srcDir).isSymbolicLink()) {
       log.warn({ [kind]: name }, `${kind} skills dir is a symlink: no skills loaded`);
       return NO_SKILLS;

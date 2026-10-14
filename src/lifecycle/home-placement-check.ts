@@ -16,14 +16,14 @@ function realOrRaw(p: string): string {
 
 /**
  * Startup refusal for a badly placed AGENT_HOME. Returns the reason, or undefined when the placement is fine.
- * The home must sit OUTSIDE every registered repo and outside any git working tree (itself or an ancestor
- * holds a git marker): files under a repo checkout could be committed, swept by repo-wide tools, or reached
- * through the repo's read scope. Filesystem check only, no git calls.
+ * The home must sit OUTSIDE every registered location and outside any git working tree (itself or an ancestor
+ * holds a git marker): files under a location checkout could be committed, swept by location-wide tools, or reached
+ * through the location's read scope. Filesystem check only, no git calls.
  */
-export function homePlacementError(agentHome: string, repoPaths: string[]): string | undefined {
+export function homePlacementError(agentHome: string, locationPaths: string[]): string | undefined {
   const home = realOrRaw(agentHome);
-  if (repoPaths.some((r) => isInside(realOrRaw(r), home))) {
-    return "AGENT_HOME is inside a registered repo";
+  if (locationPaths.some((r) => isInside(realOrRaw(r), home))) {
+    return "AGENT_HOME is inside a registered location";
   }
   for (let dir = home; ; dir = dirname(dir)) {
     if (existsSync(join(dir, GIT_MARKER))) return "AGENT_HOME is inside a git working tree";

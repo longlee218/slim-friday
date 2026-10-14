@@ -28,7 +28,7 @@ export interface RunSkillsInput {
 }
 
 /**
- * Skills option of a run, the ONLY source of skills (settingSources is always [] and repo `.claude/skills` is never
+ * Skills option of a run, the ONLY source of skills (settingSources is always [] and location `.claude/skills` is never
  * read): for a role with `skills: "all"`, one plugin per installed publisher (`<plugin>:<name>`, from the skills lock
  * and the dirs on disk: no skill name lives in code), plus the workspace's own dir (when workspace.yaml `skills.extra`,
  * default true; `<ws>:<name>`). `skills` lists exactly the loadable qualified names, so the SDK's bundled skills stay

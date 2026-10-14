@@ -6,7 +6,7 @@ import { resolveReal } from "./paths";
 /** Read tools of the git server; every other tool of it is denied. */
 const GIT_READ = new Set<string>(GIT_GROUPS.read);
 
-/** Decide a call of the git MCP server: a registered repo as `path`, and a read tool (or a read-only `mode`). */
+/** Decide a call of the git MCP server: a registered location as `path`, and a read tool (or a read-only `mode`). */
 export function checkGitMcp(
   name: string,
   input: Record<string, unknown>,
@@ -18,8 +18,8 @@ export function checkGitMcp(
   } catch {
     /* unresolvable: denied below */
   }
-  if (!real || !ctx.gitReadRepos?.includes(real))
-    return { decision: "deny", reason: "git tools need an explicit path of a registered repo" };
+  if (!real || !ctx.gitReadPaths?.includes(real))
+    return { decision: "deny", reason: "git tools need an explicit path of a registered location" };
   const mode = typeof input.mode === "string" ? input.mode : undefined;
   const readModes = GIT_READ_BY_MODE[name];
   return GIT_READ.has(name) || (readModes && (mode === undefined || readModes.includes(mode)))

@@ -99,7 +99,7 @@ export async function runLean(
       db: d.db,
       home: d.config.agentHome,
       workspace: req.workspace,
-      repo: session.repo === "*" ? undefined : session.repo,
+      location: session.location === "*" ? undefined : session.location,
       threadId: req.threadId,
       trackSummary: true,
     });

@@ -4,7 +4,7 @@ import { loadWorkspaces } from "../workspaces/workspace-registry";
 
 /**
  * The memory context of one run (tools + compaction hooks): one builder for the role runner and the rollover runs.
- * Repo names are read from the workspace registry only when a tool needs them. `repo` = the run's single repo.
+ * Location names are read from the workspace registry only when a tool needs them. `location` = the run's single location.
  */
 export function buildMemoryToolContext(p: {
   db: Database;
@@ -13,17 +13,17 @@ export function buildMemoryToolContext(p: {
   threadId: string;
   /** Foreground run: the PostCompact hook may store the thread summary. */
   trackSummary: boolean;
-  repo?: string;
+  location?: string;
 }): MemoryToolContext {
   return {
     db: p.db,
     home: p.home,
     workspace: p.workspace,
-    repoNames: () =>
-      (loadWorkspaces(p.home).workspaces.find((w) => w.name === p.workspace)?.repos ?? []).map(
+    locationNames: () =>
+      (loadWorkspaces(p.home).workspaces.find((w) => w.name === p.workspace)?.locations ?? []).map(
         (r) => r.name,
       ),
-    repo: p.repo,
+    location: p.location,
     threadId: p.threadId,
     trackSummary: p.trackSummary,
     threadLabel: `thread ${p.threadId.slice(-6)}`,

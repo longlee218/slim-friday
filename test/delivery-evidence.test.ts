@@ -22,7 +22,7 @@ const cmd = (c: string) => JSON.stringify({ command: c });
 test("compound commands, global git options and subagent calls count; reads and listings do not", () => {
   const { db } = makeEnv();
   bash(db, "1", cmd("git add . && git commit -m 'x' && git push origin feat"));
-  bash(db, "2", cmd("git -C /repo checkout -b feat/y"), "sub1");
+  bash(db, "2", cmd("git -C /location checkout -b feat/y"), "sub1");
   bash(db, "3", cmd("gh pr create --title t"));
   bash(db, "4", cmd("git status && git diff && git branch --list && git log"));
   const ev = deliveryEvidence(db, "t", "");

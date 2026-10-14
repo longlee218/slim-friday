@@ -50,7 +50,7 @@ export const CLASS_CASES: GoldenCase[] = [
   // Holdout
   mk("Remove the trailing whitespace in docs/setup.md.", "mechanical", "holdout"),
   mk("Đổi timeout mặc định từ 5 giây thành 10 giây trong config.", "mechanical", "holdout"),
-  mk("Rename the helper getUsr to getUser across the repo.", "mechanical", "holdout"),
+  mk("Rename the helper getUsr to getUser across the location.", "mechanical", "holdout"),
   mk("Add input validation to the signup form handler.", "standard", "holdout"),
   mk("Hàm tính thuế trả về sai khi giá bằng 0, sửa lại đi.", "standard", "holdout"),
   mk("Please write a test for the retry logic in src/http.ts.", "standard", "holdout"),
@@ -65,7 +65,7 @@ export const CLASS_CASES: GoldenCase[] = [
   // Answering requests (assistant): tuning
   ask("Xin chào!", "mechanical"),
   ask("What port does the dev server listen on?", "mechanical"),
-  ask("Explain how the retry queue works in this repo.", "standard"),
+  ask("Explain how the retry queue works in this location.", "standard"),
   ask("Tóm tắt giúp tôi file README của dự án.", "standard"),
   ask(
     "Compare how billing, orders and inventory share state and where the module boundaries leak.",

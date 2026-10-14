@@ -51,21 +51,21 @@ export type LoggedDecision = { decision: Decision["decision"] | "auto" | "bypass
 export interface GuardrailContext {
   /** Real path of the run's working dir: relative paths of a Bash line resolve against it. Omitted = relative `rm -r` / worktree paths are denied. */
   cwd?: string;
-  /** Real dirs where writes are allowed (the workspace's repos, worktrees dir, scratch, plans dir). */
+  /** Real dirs where writes are allowed (the workspace's locations, worktrees dir, scratch, plans dir). */
   writePaths?: string[];
-  /** Real dirs Read/Glob/Grep may touch (scratch, plans dir, registered repos). Omitted = no limit. */
+  /** Real dirs Read/Glob/Grep may touch (scratch, plans dir, registered locations). Omitted = no limit. */
   readPaths?: string[];
   /** Real dirs where `git worktree add` / EnterWorktree may put a worktree (`workspace(ws).worktrees`). Omitted = none allowed. */
   worktreeDirs?: string[];
-  /** Real paths of registered repos: git MCP tools (the assistant's read tools) may READ these. */
-  gitReadRepos?: string[];
+  /** Real paths of registered locations: git MCP tools (the assistant's read tools) may READ these. */
+  gitReadPaths?: string[];
   /** False = the role has no shell capability: Bash and Monitor are denied. Omitted (no role known) = allowed. */
   shell?: boolean;
   /** Orchestration tools of the current mode that need no approval (Skill, TodoWrite, WebFetch...). */
   allowTools?: string[];
 }
 
-/** What differs between runs of one mode: where it may read/write and which repos git may touch. */
+/** What differs between runs of one mode: where it may read/write and which locations git may touch. */
 export type GuardScope = Omit<GuardrailContext, "allowTools">;
 
 /**
@@ -96,7 +96,7 @@ export function checkToolCall(
 ): Decision {
   if (WRITE_TOOLS.has(toolName)) return checkFileWrite(toolName, input, ctx.writePaths ?? []);
   if (READ_TOOLS.has(toolName)) return checkFileRead(toolName, input, ctx.readPaths);
-  // EnterWorktree: only an existing worktree under the worktrees dir (`name` would create one in the repo's .claude dir).
+  // EnterWorktree: only an existing worktree under the worktrees dir (`name` would create one in the location's .claude dir).
   if (toolName === ENTER_WORKTREE_TOOL_NAME)
     return checkWorktreePath(typeof input.path === "string" ? input.path : undefined, ctx.cwd, ctx);
   // A role without the shell capability never runs a shell, whatever the SDK offers (second lock behind `tools`).

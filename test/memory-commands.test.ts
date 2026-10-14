@@ -8,11 +8,11 @@ test("remember / nhớ / /remember are NOT memory commands (the agent gets them 
     "REMEMBER:global use bun",
     "nhớ: chung dùng bun",
     "Nhớ: ws dùng bun",
-    "remember: repo:Api run make",
+    "remember: location:Api run make",
     "nh\u1edb: x y z".normalize("NFD"),
     "remember: ab",
     "remember:",
-    "/remember use pnpm in repo x",
+    "/remember use pnpm in location x",
   ])
     expect(parseMemoryCommand(t)).toBeNull();
 });
@@ -25,8 +25,8 @@ test("forget/quên scope words (only the first word is a scope), compact/gom né
     needle: "old note",
   });
   expect(p("quên: chung abc")).toMatchObject({ kind: "forget", scope: { kind: "global" } });
-  expect(p("forget: repo:Api old")).toMatchObject({
-    scope: { kind: "repo", name: "Api" },
+  expect(p("forget: location:Api old")).toMatchObject({
+    scope: { kind: "location", name: "Api" },
     needle: "old",
   });
   expect(p("forget: note chung stuff")).toMatchObject({
@@ -61,9 +61,17 @@ test("parseMessageCommand: forget/compact are memory commands; remember is a pla
   });
   expect(parseMessageCommand("nhớ: dùng bun")).toMatchObject({ kind: "message" });
   // the slash form forwards its text as the same ordinary message
-  expect(parseMessageCommand("/remember use pnpm in repo x")).toMatchObject({
+  expect(parseMessageCommand("/remember use pnpm in location x")).toMatchObject({
     kind: "message",
-    text: "remember: use pnpm in repo x",
+    text: "remember: use pnpm in location x",
   });
   expect(parseMessageCommand("what is remember: for?")).toMatchObject({ kind: "message" });
+});
+
+test("forget: the pre-v7 `repo:<name>` scope word is an alias of `location:<name>`", () => {
+  expect(parseMemoryCommand("forget: repo:api old note")).toEqual({
+    kind: "forget",
+    scope: { kind: "location", name: "api" },
+    needle: "old note",
+  });
 });

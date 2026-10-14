@@ -1,9 +1,9 @@
 import { slashToLegacy } from "../commands/slash-commands";
 
-/** Where an owner memory command writes: the default repo, a named repo, the workspace file, or the root file. */
+/** Where an owner memory command writes: the default location, a named location, the workspace file, or the root file. */
 export type MemoryScope =
   | { kind: "default" }
-  | { kind: "repo"; name: string }
+  | { kind: "location"; name: string }
   | { kind: "workspace" }
   | { kind: "global" };
 
@@ -24,7 +24,8 @@ const WRITE_CMD = /^(forget|quên)\s*:\s*([\s\S]*)$/iu;
 const COMPACT_CMD = /^(?:compact memory|gom nén)(\s+dry-run)?\s*$/iu;
 /** Scope word: only the FIRST word of the text counts (anything later is plain text). */
 const FIRST_WORD = /^(\S+)\s*([\s\S]*)$/u;
-const REPO_SCOPE = /^repo:(.+)$/iu;
+/** `location:<n>`; `repo:<n>` is the pre-v7 alias (parsers only, not the Remember tool scope). */
+const LOCATION_SCOPE = /^(?:location|repo):(.+)$/iu;
 
 /** First word and the trimmed rest of a text (both empty for an empty text). */
 export function splitFirstWord(rest: string): { word: string; tail: string } {
@@ -33,8 +34,8 @@ export function splitFirstWord(rest: string): { word: string; tail: string } {
 }
 
 /**
- * Split the optional scope word off the front of the text. A bare repo name is NOT recognised here (the parser
- * does not know the workspace's repos): memory-scope.ts resolves it for the default scope.
+ * Split the optional scope word off the front of the text. A bare location name is NOT recognised here (the parser
+ * does not know the workspace's locations): memory-scope.ts resolves it for the default scope.
  */
 function splitScope(rest: string): { scope: MemoryScope; text: string } {
   const m = FIRST_WORD.exec(rest);
@@ -42,8 +43,8 @@ function splitScope(rest: string): { scope: MemoryScope; text: string } {
   const tail = m?.[2]?.trim() ?? "";
   if (word === "global" || word === "chung") return { scope: { kind: "global" }, text: tail };
   if (word === "workspace" || word === "ws") return { scope: { kind: "workspace" }, text: tail };
-  const repo = REPO_SCOPE.exec(m?.[1] ?? "");
-  if (repo?.[1]) return { scope: { kind: "repo", name: repo[1] }, text: tail };
+  const location = LOCATION_SCOPE.exec(m?.[1] ?? "");
+  if (location?.[1]) return { scope: { kind: "location", name: location[1] }, text: tail };
   return { scope: { kind: "default" }, text: rest.trim() };
 }
 
@@ -55,7 +56,7 @@ export function lengthReply(body: string): string | undefined {
 
 /** Usage line shown for an invalid command. */
 const USAGE =
-  "Usage: `/forget [global|workspace|repo:<name>|<repo-name>] <text>` (3-100 chars), `/compact [dry-run]`. Legacy forms still work: `forget:`, `compact memory`; Vietnamese: `quên:`, `chung`, `ws`, `gom nén`. To save a note, just ask (`remember: ...`): the agent picks where.";
+  "Usage: `/forget [global|workspace|location:<name>|<location-name>] <text>` (3-100 chars), `/compact [dry-run]`. Legacy forms still work: `forget:`, `compact memory`; Vietnamese: `quên:`, `chung`, `ws`, `gom nén`. To save a note, just ask (`remember: ...`): the agent picks where.";
 
 /**
  * Parse a message as an owner memory command, or null when it is anything else (then it is a normal task).
@@ -69,7 +70,7 @@ export function parseMemoryCommand(input: string): MemoryCommand | null {
   const w = WRITE_CMD.exec(text);
   if (!w) return null;
   const { scope, text: body } = splitScope((w[2] ?? "").trim());
-  // Default scope: the first word may be a bare repo name stripped later (memory-scope.ts), which only
+  // Default scope: the first word may be a bare location name stripped later (memory-scope.ts), which only
   // shortens the text. So the max is checked after that step (the handler re-checks); min is safe now.
   const reply = lengthReply(body);
   if (reply && (scope.kind !== "default" || body.length < FORGET_MIN))

@@ -53,7 +53,7 @@ test("questions: role + multi_intent always; continues_task only with a task; fi
   expect(
     buildJevQuestions(roles, { hasTask: false, lastRole: noSide }).fits_last_role,
   ).toBeUndefined();
-  const withSide = { ...BG, sideEffects: "repo" } as RoleDefinition;
+  const withSide = { ...BG, sideEffects: "location" } as RoleDefinition;
   const q = buildJevQuestions(roles, { hasTask: false, lastRole: withSide }).fits_last_role!;
   expect(q.type).toBe("noul");
   expect(q.instructions).toContain(BG.name);

@@ -12,7 +12,7 @@ const QUOTA_ASSISTANT_ERRORS = new Set([
   "account_on_hold",
 ]);
 
-/** Text fallback: only provider phrases (bare words like "billing" or "429" appear in repo names and line numbers). */
+/** Text fallback: only provider phrases (bare words like "billing" or "429" appear in location names and line numbers). */
 const QUOTA_TEXT =
   /rate_limit_error|overloaded_error|api error:?\s*(429|529)|credit balance is too low|usage limit reached|rate limit (reached|exceeded)|too many requests/i;
 

@@ -6,10 +6,11 @@ import { workspacePaths } from "../src/config/workspace-paths";
 import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { g, makeRepo } from "./git-fixture";
+import { g, makeLocation } from "./git-fixture";
 import {
-  addRepo,
+  addLocation,
   clearWorkspaces,
+  defaultLocationPath,
   devIntent,
   makeEnv,
   resultMsg,
@@ -18,16 +19,16 @@ import {
 } from "./helpers";
 
 /** Adds a managed clone `real` to workspace `ws` with the given commit author. */
-async function addCloneRepo(home: string, ws: string, author: string, channels: string[] = []) {
-  const src = await makeRepo("main");
-  const clone = workspacePaths(home).workspace(ws).repo("real").clone;
-  addRepo(
+async function addCloneLocation(home: string, ws: string, author: string, channels: string[] = []) {
+  const src = await makeLocation("main");
+  const clone = defaultLocationPath(home, "real", ws);
+  addLocation(
     home,
     "real",
     { description: ws, gitAuthor: author },
     { workspace: ws, path: clone, channels },
   );
-  await g(home, "clone", "-q", src.repo, clone);
+  await g(home, "clone", "-q", src.location, clone);
   await g(clone, "config", "user.email", "x@example.com");
   await g(clone, "config", "user.name", "t");
   return clone;
@@ -47,7 +48,7 @@ function fakeSdk(seen: any[]) {
       writeFileSync(join(o.cwd, "b.txt"), "two\n");
       await g(o.cwd, "add", "b.txt");
       await g(o.cwd, "-c", "user.email=x@example.com", "-c", "user.name=t", "commit", "-qm", "b");
-      yield resultMsg({ result: "done\n\nrepo: real", session_id: "sess-exec" });
+      yield resultMsg({ result: "done\n\nlocation: real", session_id: "sess-exec" });
     })();
   };
 }
@@ -60,11 +61,11 @@ const msg = (text: string) => ({
   text,
 });
 
-/** Env with workspace `w-b` (repo `real`) that ran the thread's first task (one dev run in the repo). */
+/** Env with workspace `w-b` (location `real`) that ran the thread's first task (one dev run in the location). */
 async function started() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  await addCloneRepo(env.home, "w-b", "Bee <bee@example.com>", [TEST_CHANNEL]);
+  await addCloneLocation(env.home, "w-b", "Bee <bee@example.com>", [TEST_CHANNEL]);
   const seen: any[] = [];
   const gw = stubGateway({
     confirm: async () => ({ approved: false, reason: "no PR" }),
@@ -81,11 +82,11 @@ async function started() {
   return { env, seen, handle };
 }
 
-test("two workspaces with repo `real`: every task runs in the channel's workspace repo, even after another workspace gains the same repo name", async () => {
+test("two workspaces with location `real`: every task runs in the channel's workspace location, even after another workspace gains the same location name", async () => {
   const { env, seen, handle } = await started();
-  expect(seen[0].options.cwd).toContain("/w-b/"); // the first task: the repo of the channel's workspace
-  // An alphabetically earlier workspace gains the same repo name after the first task.
-  await addCloneRepo(env.home, "w-a", "Aye <aye@example.com>");
+  expect(seen[0].options.cwd).toContain("/w-b/"); // the first task: the location of the channel's workspace
+  // An alphabetically earlier workspace gains the same location name after the first task.
+  await addCloneLocation(env.home, "w-a", "Aye <aye@example.com>");
   const n = seen.length;
   await handle(msg("[dev] also c")); // a new task (no follow-up in a finished task)
   expect(seen.length).toBeGreaterThan(n);

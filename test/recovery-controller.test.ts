@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import pino from "pino";
 import type { DispatchDeps } from "../src/orchestrator/dispatch/dispatch-role";
-import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
+import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-location";
 import { intentTurn } from "../src/orchestrator/intent-turn";
 import { followTask } from "../src/orchestrator/recover-route";
 import { EffortFloors } from "../src/orchestrator/thread/effort-floor";
@@ -92,15 +92,15 @@ function setup() {
   const log = pino({ level: "debug" }, {
     write: (s: string) => void lines.push(JSON.parse(s)),
   } as never);
-  const repos = loadWorkspaces(env.home).workspaces[0]!.repos;
-  return { env, lines, log, repos };
+  const locations = loadWorkspaces(env.home).workspaces[0]!.locations;
+  return { env, lines, log, locations };
 }
 
 test("driver: a background role without approvals is rerouted once to a foreground role", async () => {
-  const { env, lines, log, repos } = setup();
+  const { env, lines, log, locations } = setup();
   const out = await routeWithRecovery(
     log,
-    { role: BG, text: "do it", repos, hasApprovals: false, db: env.db },
+    { role: BG, text: "do it", locations, hasApprovals: false, db: env.db },
     { allowReroute: true },
   );
   expect(out).toMatchObject({
@@ -116,10 +116,10 @@ test("driver: a background role without approvals is rerouted once to a foregrou
 });
 
 test("driver: explicit tag (allowReroute false) keeps the legacy refusal, one preflight", async () => {
-  const { env, lines, log, repos } = setup();
+  const { env, lines, log, locations } = setup();
   const out = await routeWithRecovery(
     log,
-    { role: BG, text: "do it", repos, hasApprovals: false, db: env.db },
+    { role: BG, text: "do it", locations, hasApprovals: false, db: env.db },
     { allowReroute: false },
   );
   expect(out).toMatchObject({ kind: "safe_fail", rerouted: false });
@@ -127,20 +127,26 @@ test("driver: explicit tag (allowReroute false) keeps the legacy refusal, one pr
   expect(lines.filter((l) => l.event === "preflight.result")).toHaveLength(1);
 });
 
-test("driver: unknown repo is a clarification (no reroute); task cap is a safe fail", async () => {
-  const { env, log, repos } = setup();
+test("driver: unknown location is a clarification (no reroute); task cap is a safe fail", async () => {
+  const { env, log, locations } = setup();
   const unknown = await routeWithRecovery(
     log,
-    { role: BG, text: "x", repoHint: "nope", repos, hasApprovals: true, db: env.db },
+    { role: BG, text: "x", locationHint: "nope", locations, hasApprovals: true, db: env.db },
     { allowReroute: true },
   );
   expect(unknown).toMatchObject({ kind: "clarify", rerouted: false });
-  expect(unknown.refusal?.reason).toBe("unknown_repo");
+  expect(unknown.refusal?.reason).toBe("unknown_location");
   for (let n = 0; n < MAX_CAPPED_TASKS; n++)
-    insertTurn(env.db, { id: `c${n}`, threadId: `c${n}`, source: "t", repo: "repo", role: BG });
+    insertTurn(env.db, {
+      id: `c${n}`,
+      threadId: `c${n}`,
+      source: "t",
+      location: "location",
+      role: BG,
+    });
   const capped = await routeWithRecovery(
     log,
-    { role: BG, text: "x", repos, hasApprovals: true, db: env.db },
+    { role: BG, text: "x", locations, hasApprovals: true, db: env.db },
     { allowReroute: true },
   );
   expect(capped).toMatchObject({ kind: "safe_fail", rerouted: false });
@@ -167,7 +173,7 @@ async function pickTurn(env: ReturnType<typeof makeEnv>, lines: unknown[], text:
     log,
     message: { threadId: "th", messageId: "m1", recent: [] } as never,
     workspace: "ws",
-    repos: loadWorkspaces(env.home).workspaces[0]!.repos,
+    locations: loadWorkspaces(env.home).workspaces[0]!.locations,
     ac: new AbortController(),
     intent: { pipeline, engine: "jev", proposer: impl },
     floors: new EffortFloors(),
@@ -215,7 +221,7 @@ test("intentTurn: reroute from a waiting task's owner to a foreground role leave
     log,
     message: { threadId: "th", messageId: "m2", recent: [] } as never,
     workspace: "ws",
-    repos: loadWorkspaces(env.home).workspaces[0]!.repos,
+    locations: loadWorkspaces(env.home).workspaces[0]!.locations,
     ac: new AbortController(),
     intent: { pipeline, engine: "jev", proposer: impl },
     floors: new EffortFloors(),

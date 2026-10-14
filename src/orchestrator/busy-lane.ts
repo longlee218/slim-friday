@@ -7,7 +7,7 @@ import { getSession } from "../storage/session-store";
 import { selectWorkspace } from "../workspaces/task-workspace";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { runSideAnswer } from "./dispatch/side-answer";
-import { pinnedRepo } from "./intent-turn";
+import { pinnedLocation } from "./intent-turn";
 import type { MessageCommand } from "./message-commands";
 import { replyWhileBusy } from "./reply-while-busy";
 import type { EffortFloors } from "./thread/effort-floor";
@@ -112,12 +112,16 @@ async function runSide(
   d.active.set(key, ac); // shutdown (abortAll) reaches it; the thread id key stays the task's lock
   try {
     const { ws } = picked;
-    const pinned = pinnedRepo(ws.repos, out.repo, getSession(d.deps.db, message.threadId));
+    const pinned = pinnedLocation(
+      ws.locations,
+      out.location,
+      getSession(d.deps.db, message.threadId),
+    );
     return await runSideAnswer(d.deps, {
       ...out,
       message,
       workspace: ws.name,
-      repos: ws.repos,
+      locations: ws.locations,
       pinned,
       ac,
       snapshot: statusSnapshot(d.deps.db, message.threadId),

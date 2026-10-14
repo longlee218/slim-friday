@@ -50,7 +50,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     const t0 = Date.now();
     logEvent(log, "task.routed", {
       kind: parsed.kind,
-      repoHint: "repo" in parsed ? (parsed.repo ?? null) : null,
+      locationHint: "location" in parsed ? (parsed.location ?? null) : null,
     });
     if (parsed.kind !== "message")
       logEvent(log, "intent.layer", { layer: "L0", ruleIds: [parsed.kind] });
@@ -70,19 +70,19 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     const ac = new AbortController();
     active.set(threadId, ac);
     const turnId = crypto.randomUUID();
-    // From here every log line of this turn (any module) carries taskId; repo/mode are set below.
+    // From here every log line of this turn (any module) carries taskId; location/mode are set below.
     setLogContext({ taskId: turnId }); // log schema key kept
     let turnInserted = false;
-    /** Repo of the log context ("*" = not chosen yet); follows later setLogContext (tool-hooks). */
-    const turnRepo = () => getLogContext().repo ?? "*";
+    /** Location of the log context ("*" = not chosen yet); follows later setLogContext (tool-hooks). */
+    const turnLocation = () => getLogContext().location ?? "*";
     /** The one place the turn row is created (after the refusals, before the flow runs). */
     let single: string | undefined;
-    const begin: RoleRunCtx["begin"] = (repo, role, cls, resumeOf, ownedTaskId) => {
+    const begin: RoleRunCtx["begin"] = (location, role, cls, resumeOf, ownedTaskId) => {
       beginTurn(
         db,
         log,
         { turnId, threadId, source: message.source, single },
-        { repo, role, cls, resume: !!resumeOf, parentTurnId: resumeOf, ownedTaskId },
+        { location, role, cls, resume: !!resumeOf, parentTurnId: resumeOf, ownedTaskId },
       );
       turnInserted = true;
     };
@@ -92,10 +92,10 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       const picked = selectWorkspace(config.agentHome, message.channelId);
       if ("reply" in picked) return refused(log, picked);
       const { ws } = picked;
-      const { repos } = ws; // every repo lookup below stays inside this workspace
+      const { locations } = ws; // every location lookup below stays inside this workspace
       setLogContext({ workspace: ws.name });
       workspaceName = ws.name;
-      single = repos.length === 1 ? repos[0]!.name : undefined;
+      single = locations.length === 1 ? locations[0]!.name : undefined;
       // Everything a role run needs (the approval gateway exists whenever a background role is routed).
       const rc: RoleRunCtx = {
         deps: dispatchDeps,
@@ -104,10 +104,10 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         turnId,
         t0,
         workspace: ws.name,
-        repos,
+        locations,
         ac,
         begin,
-        turnRepo,
+        turnLocation,
       };
       return await routeAndRun({
         rc,
@@ -121,7 +121,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     } catch (err) {
       // Never throw from the error path (db may be closed during shutdown).
       if (turnInserted) failTurn(db, log, turnId);
-      return reportCrash(log, err, { repo: turnRepo(), t0 });
+      return reportCrash(log, err, { location: turnLocation(), t0 });
     } finally {
       active.delete(threadId);
       release();

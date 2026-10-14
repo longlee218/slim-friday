@@ -74,7 +74,7 @@ test("active task = newest live one; terminal tasks are never the focus", async 
 test("link + lookup of a turn's task and the task's last turn", () => {
   const { db } = makeEnv();
   mk(db, "a");
-  insertTurn(db, { id: "t1", threadId: "th", source: "x", repo: "*", role: "dev" });
+  insertTurn(db, { id: "t1", threadId: "th", source: "x", location: "*", role: "dev" });
   expect(ownedTaskOfTurn(db, "t1")).toBeUndefined();
   linkTurn(db, "t1", "a");
   setTurnSession(db, "t1", "sess", "/cwd");

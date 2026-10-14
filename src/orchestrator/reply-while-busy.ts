@@ -43,7 +43,7 @@ export async function replyWhileBusy(c: {
     ...c,
     intent: c.intent,
     workspace: ws.name,
-    repos: ws.repos,
+    locations: ws.locations,
     stored: getSession(c.deps.db, c.message.threadId),
     busy: true,
     cmd: c.parsed,

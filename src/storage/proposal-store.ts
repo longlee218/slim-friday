@@ -26,7 +26,7 @@ export interface Proposal {
   fromTurnId: string | null;
   role: string;
   brief: string;
-  repo: string | null;
+  location: string | null;
   class: TaskClass | null;
   scope: string | null;
   confidence: number | null;
@@ -42,14 +42,14 @@ export interface Proposal {
 export type NewProposal = Pick<Proposal, "threadId" | "workspace" | "role" | "brief"> &
   Partial<Omit<Proposal, "id" | "status" | "createdAt" | "decidedAt">>;
 
-const COLS = `id, thread_id AS threadId, workspace, from_turn_id AS fromTurnId, role, brief, repo,
+const COLS = `id, thread_id AS threadId, workspace, from_turn_id AS fromTurnId, role, brief, location,
   class, scope, confidence, reason, effort, status, created_at AS createdAt, decided_at AS decidedAt`;
 
 /** Insert a `pending` proposal (brief stored redacted) and return its id. */
 export function insertProposal(db: Database, p: NewProposal, now = Date.now()): string {
   const id = crypto.randomUUID();
   db.query(
-    `INSERT INTO proposals (id, thread_id, workspace, from_turn_id, role, brief, repo, class,
+    `INSERT INTO proposals (id, thread_id, workspace, from_turn_id, role, brief, location, class,
        scope, confidence, reason, effort, status, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
   ).run(
@@ -59,7 +59,7 @@ export function insertProposal(db: Database, p: NewProposal, now = Date.now()): 
     p.fromTurnId ?? null,
     p.role,
     redactText(p.brief),
-    p.repo ?? null,
+    p.location ?? null,
     p.class ?? null,
     p.scope ?? null,
     p.confidence ?? null,

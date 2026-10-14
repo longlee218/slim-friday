@@ -5,6 +5,6 @@ import { GIT_TOOL } from "../mcp/mcp-tool-names";
  * its shell, so no role gets the staging/commit/checkout tools. A role lists groups in its `gitGroups` data.
  */
 export const GIT_GROUPS = {
-  /** Pure reads, allowed on registered repos. */
+  /** Pure reads, allowed on registered locations. */
   read: [GIT_TOOL.STATUS, GIT_TOOL.DIFF, GIT_TOOL.LOG, GIT_TOOL.SHOW, GIT_TOOL.BLAME],
 } as const;

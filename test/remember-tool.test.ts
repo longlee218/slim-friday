@@ -34,7 +34,7 @@ function setup() {
     db: openDb(":memory:"),
     home,
     workspace: "main",
-    repoNames: () => ["api", "web"],
+    locationNames: () => ["api", "web"],
     threadLabel: "thread abc123",
     now: () => NOW,
     onSaved: (p) => saved.push(p),
@@ -50,11 +50,13 @@ function setup() {
 
 test("every scope writes the right file and section", async () => {
   const s = setup();
-  expect(await s.call({ text: "uses bun", scope: "repo", repo: "api", kind: "decision" })).toEqual({
-    text: "saved to repo/api (Decisions)",
+  expect(
+    await s.call({ text: "uses bun", scope: "location", location: "api", kind: "decision" }),
+  ).toEqual({
+    text: "saved to location/api (Decisions)",
     isError: false,
   });
-  expect(readFileSync(join(s.ws, "repos", "api", "MEMORY.md"), "utf8")).toContain(
+  expect(readFileSync(join(s.ws, "locations", "api", "MEMORY.md"), "utf8")).toContain(
     "## Decisions\n- uses bun (2026-10-13)",
   );
   expect((await s.call({ text: "team of 3", scope: "workspace" })).text).toBe(
@@ -81,9 +83,9 @@ test("global goes to MEMORY.pending.md, root MEMORY.md is never touched", async 
   expect(existsSync(join(s.home, "MEMORY.md"))).toBe(false);
 });
 
-test("global stamp names the run's single repo; the queue has a line cap and its own full message", async () => {
+test("global stamp names the run's single location; the queue has a line cap and its own full message", async () => {
   const s = setup();
-  s.ctx.repo = "api";
+  s.ctx.location = "api";
   const t = createRememberTool(s.ctx);
   const call = (text: string) => t.handler({ text, scope: "global" } as never, {});
   await call("first queued note");
@@ -104,25 +106,25 @@ test("global stamp names the run's single repo; the queue has a line cap and its
 
 test("an unexpected error becomes a short tool error", async () => {
   const s = setup();
-  s.ctx.repoNames = () => {
+  s.ctx.locationNames = () => {
     throw new Error("registry broke");
   };
-  const r = await s.call({ text: "some note", scope: "repo", repo: "api" });
+  const r = await s.call({ text: "some note", scope: "location", location: "api" });
   expect(r.isError).toBe(true);
   expect(r.text).toContain("could not save: ");
   expect(r.text).toContain("registry broke");
 });
 
-test("bad repo, path tricks and open outside journal are refused without writing", async () => {
+test("bad location, path tricks and open outside journal are refused without writing", async () => {
   const s = setup();
-  for (const repo of ["nope", "../x", "a/b", "../../etc"]) {
-    const r = await s.call({ text: "note", scope: "repo", repo });
+  for (const location of ["nope", "../x", "a/b", "../../etc"]) {
+    const r = await s.call({ text: "note", scope: "location", location });
     expect(r.isError).toBe(true);
     expect(r.text).toContain("api, web");
   }
-  expect((await s.call({ text: "note", scope: "repo" })).isError).toBe(true);
+  expect((await s.call({ text: "note", scope: "location" })).isError).toBe(true);
   expect((await s.call({ text: "note", scope: "workspace", kind: "open" })).isError).toBe(true);
-  expect((await s.call({ text: "note", scope: "workspace", repo: "api" })).isError).toBe(true);
+  expect((await s.call({ text: "note", scope: "workspace", location: "api" })).isError).toBe(true);
   expect((await s.call({ text: "ab", scope: "workspace" })).isError).toBe(true);
   expect((await s.call({ text: "x".repeat(401), scope: "workspace" })).isError).toBe(true);
   expect(existsSync(join(s.ws))).toBe(false);

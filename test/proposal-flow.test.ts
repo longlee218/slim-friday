@@ -24,7 +24,7 @@ import {
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn, setTurnSession } from "../src/storage/run-store";
 import {
-  addRepo,
+  addLocation,
   BRIEF,
   clearWorkspaces,
   devIntent,
@@ -46,7 +46,7 @@ const msg = (text: string) => ({
 function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addRepo(env.home, "repo");
+  addLocation(env.home, "location");
   const stageRuns: any[] = [];
   const query = (a: any) => {
     stageRuns.push(a.options);
@@ -146,8 +146,14 @@ test("startup: stale proposals expire, the notice goes once per thread with a pe
 
 /** A thread whose last task ended on its budget (status failed, last run max_budget) with a saved session. */
 function budgetStopped(env: ReturnType<typeof makeEnv>) {
-  insertTurn(env.db, { id: "tb", threadId: "t1", source: "s", repo: "repo", role: "assistant" });
-  setTurnSession(env.db, "tb", "sess-b", env.repo);
+  insertTurn(env.db, {
+    id: "tb",
+    threadId: "t1",
+    source: "s",
+    location: "location",
+    role: "assistant",
+  });
+  setTurnSession(env.db, "tb", "sess-b", env.location);
   insertRun(env.db, {
     id: "rb",
     turnId: "tb",
@@ -172,7 +178,7 @@ test("go +<usd> resumes a budget-stopped task; plain resume is refused with the 
     db: env.db,
     agentHome: env.home,
     workspace: "main",
-    repos: [{ name: "repo", path: env.repo } as any],
+    locations: [{ name: "location", path: env.location } as any],
   };
   const plain = resolveCommand(deps, { kind: "resume" }, "t1");
   expect(plain).toMatchObject({ reason: "budget_stop" });
@@ -183,7 +189,7 @@ test("go +<usd> resumes a budget-stopped task; plain resume is refused with the 
 
 test("a budget stop offers `go +<usd>`; the message helper keeps the hint", () => {
   const env = makeEnv();
-  insertTurn(env.db, { id: "t", threadId: "t1", source: "s", repo: "r", role: "assistant" });
+  insertTurn(env.db, { id: "t", threadId: "t1", source: "s", location: "r", role: "assistant" });
   const text = finishRun(
     env.db,
     { turnId: "t", threadId: "t1" },

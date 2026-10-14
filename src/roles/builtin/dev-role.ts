@@ -8,7 +8,7 @@ const BUDGET_USD = 4.5;
 
 /**
  * Prompt text of the dev role. Skills are declared in the role data and listed by the SDK, so these texts state
- * only the facts of the run; they never restate or reword a skill step. Parsed markers stay verbatim: `repo:`
+ * only the facts of the run; they never restate or reword a skill step. Parsed markers stay verbatim: `location:`
  * (last line of the report). Each section stays within the 1200 char budget (test/dev-prompts.test.ts).
  */
 
@@ -18,23 +18,24 @@ const BUDGET_USD = 4.5;
  */
 export const askRules = (
   maxAsk: number,
-): string => `- Answer it yourself whenever it can be derived from the code, the request or sensible defaults. Ask the owner with ${ASK_USER_QUESTION_TOOL_NAME} only when really necessary: the answer cannot be derived from the repo or the request and a wrong guess is costly or irreversible (schema, public API, data deletion, user-visible behavior), or when a loaded skill's own process calls for a question.
-- Never ask about naming, file layout, libraries already in the repo, style, test location, anything readable from the repo, or small scope the owner can fix at plan approval. Pick a sensible default and state it as an assumption.
+): string => `- Answer it yourself whenever it can be derived from the code, the request or sensible defaults. Ask the owner with ${ASK_USER_QUESTION_TOOL_NAME} only when really necessary: the answer cannot be derived from the location or the request and a wrong guess is costly or irreversible (schema, public API, data deletion, user-visible behavior), or when a loaded skill's own process calls for a question.
+- Never ask about naming, file layout, libraries already in the location, style, test location, anything readable from the location, or small scope the owner can fix at plan approval. Pick a sensible default and state it as an assumption.
 - At most ${maxAsk} ${ASK_USER_QUESTION_TOOL_NAME} calls per run (questions a skill asks count): batch the questions of one round in one call, default option first with a label ending "(default)". A call over the limit is denied: use the defaults.
 - If the owner does not answer in time the run stops. Do not guess and do not continue.`;
 
 /** Run contract of a code task: outcome first, then the no-code-change path, follow-ups, tests and the report shape. */
-export const DEV = `This run is a code task in the repo's own checkout (your current directory): from the owner's request to a reported outcome.
+export const DEV = `This run is a code task in the location's own checkout (your current directory): from the owner's request to a reported outcome.
 - Outcome: the request implemented, verified, delivered the way the owner chose, and reported. If the request is unclear or the plan no longer fits, ask or stop and explain instead of improvising.
 - A request to research, design or improve with no explicit change and no defect or target named: invoke the listed skill whose description matches first; the deliverable may be a design or plan with no code change. Then do not edit or commit; put the result in your reply and say no code change was needed.
 - A follow-up message may be a pure question: answer it without editing when no change is asked.
-- Run the repo's tests with Bash when a test command is given.
+- Run the location's tests with Bash when it has some (README, package scripts).
 - When done, reply with the outcome first: what changed and whether it is verified, as a short summary.
-- The very last line of your final reply is exactly "repo: <name>" naming the repo you worked in (names are listed below, or the one you run in).`;
+- The very last line of your final reply is exactly "location: <name>" naming the location you worked in (names are listed below, or the one you run in).`;
 
 /** Run facts that a skill text cannot know: approval before changes, checkout, delivery by the agent, skill scripts, precedence. */
 export const DEV_RUN_FACTS = `- Do not change files before the owner approved your plan; get approval with ${ASK_USER_QUESTION_TOOL_NAME} (the skill says when). The owner sees only Discord.
 - You work in the owner's checkout with \`git\` and \`gh\` in the shell; their git config and GitHub login apply. The shell refuses force pushes and direct pushes to main/master; merge only after the owner chose it.
+- If the location has no .git, skip git delivery: leave the changes in place and say so in your reply.
 - Where a skill says to ask or wait for the human, use ${ASK_USER_QUESTION_TOOL_NAME}; never end your turn on a question. Merge, push or PR only after the owner chose it.
 - Text the owner types while a question is open reaches you only as a note after they choose an option.
 - Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow; a subagent's question reaches the owner too and counts toward the same limit.
@@ -45,10 +46,10 @@ export const COMMIT_RULES = `- Commit messages: one short conventional line (fea
 - Never commit secrets, key or credential files; add only the files of the task to a commit.`;
 
 /**
- * How to write the code (the Karpathy guidelines, condensed). Where they say "ask", the ask rules decide; the repo's
+ * How to write the code (the Karpathy guidelines, condensed). Where they say "ask", the ask rules decide; the location's
  * own conventions and the owner's instructions come first.
  */
-export const CODE_STANDARDS = `Code standards (the repo's conventions and the owner's instructions come first):
+export const CODE_STANDARDS = `Code standards (the location's conventions and the owner's instructions come first):
 - Before you start coding, invoke the \`using-superpowers\` skill (when it is listed) and follow it to pick the other skills.
 - Think before coding: state your assumptions in the plan. If a simpler approach exists, say so and push back. Settle unclear points by the ask rules below, never by a silent guess.
 - Simplicity first: the minimum code that solves the request. No extra features, no abstraction for single-use code, no configurability or error handling nobody asked for. If 200 lines could be 50, rewrite.
@@ -72,20 +73,20 @@ const CODE_CAPABILITIES: Capability[] = [
 ];
 
 /**
- * Code changes: ONE run in the repo's own checkout. Brainstorm, plan, the owner's approval (the ask tool), implement,
+ * Code changes: ONE run in the location's own checkout. Brainstorm, plan, the owner's approval (the ask tool), implement,
  * verify and deliver (commit, push, PR as the owner chose) come from the skills and the run facts: no code enforces an order.
  */
 export const DEV_ROLE: RoleDefinition = {
   name: "dev",
   whenToUse:
-    "A job that changes things or needs a plan the owner approves: implement, fix, refactor, add tests, design or plan a FUTURE change; works in the repo and delivers (merge, PR or keep) after the owner chose.",
+    "A job that changes things or needs a plan the owner approves: implement, fix, refactor, add tests, design or plan a FUTURE change; works in the location and delivers (merge, PR or keep) after the owner chose.",
   tag: "[dev]",
   background: true,
   skills: "all", // every installed publisher skill (installing one needs no code change)
   limits: { maxAsk: MAX_ASK },
-  sideEffects: "repo",
+  sideEffects: "location",
   approvalRequired: true,
-  capabilityVersion: "1",
+  capabilityVersion: "2",
   capabilities: CODE_CAPABILITIES,
   gitGroups: [], // no git MCP: the agent uses `git` in the shell
   // The SDK asks nothing; only the guard's hard denies stop a call. Approval of the plan is an ask, not a gate.

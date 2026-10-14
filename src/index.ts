@@ -53,16 +53,22 @@ async function main(): Promise<void> {
   // Fail fast: the resolved provider has no real credential (name only, never a key).
   if (!config.hasRealAuth) return fail(`No credential for provider ${config.provider}`);
 
-  const { workspaces } = loadWorkspaces(config.agentHome);
+  const { workspaces, needsMigration } = loadWorkspaces(config.agentHome);
+  // The bot refuses these workspaces on every message; say so once at boot.
+  if (needsMigration.length)
+    log.warn(
+      { workspaces: needsMigration },
+      "workspaces need `bun run migrate:locations` before they can be used",
+    );
 
-  // Fail closed: the home (persona, memory, db, logs) must not live inside a repo or a git working tree.
+  // Fail closed: the home (persona, memory, db, logs) must not live inside a location or a git working tree.
   const misplaced = homePlacementError(
     config.agentHome,
-    workspaces.flatMap((w) => w.repos.map((r) => r.path)),
+    workspaces.flatMap((w) => w.locations.map((r) => r.path)),
   );
   if (misplaced) return fail(misplaced);
 
-  // Create the missing root persona/memory files (and per-workspace/repo memory) once at startup, never
+  // Create the missing root persona/memory files (and per-workspace/location memory) once at startup, never
   // overwriting; works with zero workspaces, so a fresh home is complete before the first message.
   ensureHome(config.agentHome, workspaces);
 

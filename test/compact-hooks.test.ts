@@ -36,7 +36,7 @@ function setup(trackSummary = true) {
     db,
     home,
     workspace: "a",
-    repoNames: () => [],
+    locationNames: () => [],
     threadId: "th1",
     trackSummary,
     threadLabel: "thread t1",
@@ -62,7 +62,7 @@ function setup(trackSummary = true) {
     return f;
   };
   const journal = () => journalFile(home, "a", "2026-10-13");
-  const search = (q: string) => searchIndex(db, "a", { query: q, limit: 5, repos: [] }).hits;
+  const search = (q: string) => searchIndex(db, "a", { query: q, limit: 5, locations: [] }).hits;
   return { home, db, pre, post, transcript, journal, search };
 }
 
@@ -262,7 +262,7 @@ test("journal: hook text is never injected into a prompt; the line limit stops a
     agentHome: s.home,
     workspace: "a",
     registry: "",
-    memoryRepos: [],
+    memoryLocations: [],
   });
   expect(JSON.stringify(prompt)).not.toContain("quarkus");
 
@@ -312,7 +312,7 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
       id: "t1",
       threadId: "th",
       source: "test",
-      repo: "repo",
+      location: "location",
       role: "assistant",
     });
     await runRole(
@@ -333,7 +333,7 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
         text: "hi",
         role: probe.name,
         workspace: "main",
-        repos: [{ name: "repo", path: env.repo } as never],
+        locations: [{ name: "location", path: env.location } as never],
         ac: new AbortController(),
       },
     );
@@ -352,7 +352,7 @@ test("rollover context: PostCompact stores the SDK summary as is (no merge, no b
     db: s.db,
     home: s.home,
     workspace: "a",
-    repoNames: () => [],
+    locationNames: () => [],
     threadId: "th1",
     trackSummary: true,
     threadLabel: "thread t1",

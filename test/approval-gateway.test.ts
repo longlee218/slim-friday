@@ -21,7 +21,7 @@ function setup(timeoutMs = 5000, sendable = true) {
   };
   const client = { channels: { fetch: async () => channel } } as unknown as Client;
   const db = openDb(":memory:");
-  insertTurn(db, { id: "t1", threadId: "th", source: "discord", repo: "r", role: "assistant" });
+  insertTurn(db, { id: "t1", threadId: "th", source: "discord", location: "r", role: "assistant" });
   const gw = createDiscordApprovalGateway({
     getClient: () => client,
     ownerId: OWNER,

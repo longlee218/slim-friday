@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { locationMemoryFile } from "../src/memory/location-memory";
 import { capMemory } from "../src/memory/memory-cap";
 import { type CompactLlm, compactTargets } from "../src/memory/memory-compaction";
 import {
@@ -18,7 +19,6 @@ import {
   normalizeBullet,
 } from "../src/memory/memory-sections";
 import type { MemoryTarget } from "../src/memory/memory-targets";
-import { repoMemoryFile } from "../src/memory/repo-memory";
 import { emptyUsage } from "../src/observability/record-run";
 import { makeEnv } from "./helpers";
 
@@ -30,7 +30,7 @@ test("empty file: section created", () => {
 });
 
 test("owner prose only: byte-identical prefix, section appended after it", () => {
-  const owner = "# repo memory\n\nMy own notes.\nSecond line.\n";
+  const owner = "# location memory\n\nMy own notes.\nSecond line.\n";
   const out = insertBullet(owner, "decision", b("use pnpm"));
   expect(out.startsWith(owner)).toBe(true);
   expect(out).toBe(`${owner}\n## Decisions\n- use pnpm (2026-10-13)\n`);

@@ -16,7 +16,10 @@ const log = logger.child({ module: "remember-tool" });
 const SHAPE = {
   text: z.string().describe("The note: one short plain sentence."),
   scope: z.enum(REMEMBER_SCOPES),
-  repo: z.string().optional().describe("Repo name; required with scope repo, otherwise omit."),
+  location: z
+    .string()
+    .optional()
+    .describe("Location name; required with scope location, otherwise omit."),
   kind: z.enum(MEMORY_KINDS).optional().describe("Default fact. open only with scope journal."),
 };
 

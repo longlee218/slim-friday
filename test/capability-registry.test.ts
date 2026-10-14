@@ -29,7 +29,7 @@ const write: Capability[] = ["read", "write"];
 const SEVEN = [
   ROLES.assistant as RoleDefinition,
   ROLES.dev as RoleDefinition,
-  role("r1", { capabilities: write, approvalRequired: true, sideEffects: "repo" }),
+  role("r1", { capabilities: write, approvalRequired: true, sideEffects: "location" }),
   role("r2", { capabilities: write }),
   role("r3"),
   role("r4", { whenToUse: "" }),
@@ -39,10 +39,10 @@ const none = { visited: [], hasApprovals: true };
 
 test("real roles carry registry data", () => {
   expect(ROLES.assistant?.sideEffects).toBe("none");
-  expect(ROLES.dev?.sideEffects).toBe("repo");
+  expect(ROLES.dev?.sideEffects).toBe("location");
   expect(ROLES.dev?.approvalRequired).toBe(true);
   expect(() => validateRegistry()).not.toThrow();
-  expect(registryVersion()).toBe("assistant@1,dev@1");
+  expect(registryVersion()).toBe("assistant@2,dev@2");
 });
 
 test("filters: not dispatchable, visited, unauthorized, capability", () => {

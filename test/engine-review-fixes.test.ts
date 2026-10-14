@@ -5,7 +5,7 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
 import {
-  addRepo,
+  addLocation,
   clearWorkspaces,
   initMsg,
   makeEnv,
@@ -52,7 +52,7 @@ async function runDev(env: ReturnType<typeof makeEnv>, turnId: string) {
       text: "continue",
       role: "dev",
       workspace: "main",
-      repos: [{ name: "repo", path: env.repo } as never],
+      locations: [{ name: "location", path: env.location } as never],
       ac: new AbortController(),
     },
   );
@@ -62,14 +62,14 @@ async function runDev(env: ReturnType<typeof makeEnv>, turnId: string) {
 test("task ceiling: a run gets only what the task and the runs it resumes left of TASK_BUDGET_USD", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addRepo(env.home, "repo");
+  addLocation(env.home, "location");
   // t1 (4.0 spent) <- t2 (resume, 1.5 spent) <- t3 (resume, this run): 5.5 spent in the chain, 0.5 left.
-  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "dev" });
+  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", location: "location", role: "dev" });
   insertTurn(env.db, {
     id: "t2",
     threadId: "th",
     source: "t",
-    repo: "repo",
+    location: "location",
     role: "dev",
     resume: true,
     parentTurnId: "t1",
@@ -78,13 +78,19 @@ test("task ceiling: a run gets only what the task and the runs it resumes left o
     id: "t3",
     threadId: "th",
     source: "t",
-    repo: "repo",
+    location: "location",
     role: "dev",
     resume: true,
     parentTurnId: "t2",
   });
   // An unrelated task of the same thread does not count.
-  insertTurn(env.db, { id: "other", threadId: "th", source: "t", repo: "repo", role: "dev" });
+  insertTurn(env.db, {
+    id: "other",
+    threadId: "th",
+    source: "t",
+    location: "location",
+    role: "dev",
+  });
   spend(env.db, "t1", 4.0);
   spend(env.db, "t2", 1.5);
   spend(env.db, "other", 5.0);
@@ -97,13 +103,13 @@ test("task ceiling: a run gets only what the task and the runs it resumes left o
 test("task ceiling used up: the run is refused before it starts, `/go +usd` cannot lift it", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addRepo(env.home, "repo");
-  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "dev" });
+  addLocation(env.home, "location");
+  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", location: "location", role: "dev" });
   insertTurn(env.db, {
     id: "t2",
     threadId: "th",
     source: "t",
-    repo: "repo",
+    location: "location",
     role: "dev",
     resume: true,
     parentTurnId: "t1",
@@ -119,13 +125,13 @@ test("task ceiling used up: the run is refused before it starts, `/go +usd` cann
 test("a task that is not a resume starts at zero spent (an earlier task of the thread does not count)", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addRepo(env.home, "repo");
-  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "dev" });
+  addLocation(env.home, "location");
+  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", location: "location", role: "dev" });
   insertTurn(env.db, {
     id: "t2",
     threadId: "th",
     source: "t",
-    repo: "repo",
+    location: "location",
     role: "dev",
     parentTurnId: "t1",
   }); // a proposal hop, not a resume
@@ -136,7 +142,13 @@ test("a task that is not a resume starts at zero spent (an earlier task of the t
 
 test("a thrown run does not leave a run row 'running': the runs row carries the error", async () => {
   const env = makeEnv();
-  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "repo", role: "assistant" });
+  insertTurn(env.db, {
+    id: "t1",
+    threadId: "th",
+    source: "t",
+    location: "location",
+    role: "assistant",
+  });
   const run = runRole(
     {
       db: env.db,
@@ -152,7 +164,7 @@ test("a thrown run does not leave a run row 'running': the runs row carries the 
       text: "x",
       role: "assistant",
       workspace: "main",
-      repos: [{ name: "repo", path: env.repo } as never],
+      locations: [{ name: "location", path: env.location } as never],
       ac: new AbortController(),
     },
   );
@@ -200,7 +212,7 @@ async function runResumed(env: ReturnType<typeof makeEnv>, cwd: string, onStarte
       text: "continue",
       role: "dev",
       workspace: "main",
-      repos: [{ name: "repo", path: env.repo } as never],
+      locations: [{ name: "location", path: env.location } as never],
       ac: new AbortController(),
       resume: { sessionId: "s1", cwd },
       onStarted,
@@ -208,23 +220,23 @@ async function runResumed(env: ReturnType<typeof makeEnv>, cwd: string, onStarte
   );
 }
 
-test("resume: a background session whose cwd is not a registered repo is refused and the hold is kept (onStarted not called)", async () => {
+test("resume: a background session whose cwd is not a registered location is refused and the hold is kept (onStarted not called)", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addRepo(env.home, "repo");
+  addLocation(env.home, "location");
   let started = 0;
-  const res = await runResumed(env, `${env.home}/not-a-repo`, () => started++);
+  const res = await runResumed(env, `${env.home}/not-a-location`, () => started++);
   expect(res.outcome).toBe("error");
-  expect(res.text).toBe("The repo is not available.");
+  expect(res.text).toBe("The location is not available.");
   expect(started).toBe(0);
 });
 
-test("resume in a registered repo: the run starts and onStarted is called once", async () => {
+test("resume in a registered location: the run starts and onStarted is called once", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  addRepo(env.home, "repo");
+  addLocation(env.home, "location");
   let started = 0;
-  const res = await runResumed(env, env.repo, () => started++);
+  const res = await runResumed(env, env.location, () => started++);
   expect(res.outcome).toBe("success");
   expect(started).toBe(1);
 });

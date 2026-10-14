@@ -78,7 +78,17 @@ const SQL: Record<string, RegExp> = {
   "old kind literal": j("kind: ", '"task', '"'),
 };
 
-const RETIRED: Record<string, RegExp> = { ...SYMBOLS, ...SQL };
+/**
+ * Retired by the Repo -> Location rename (schema v7): the `Repo` type, its loader and the `repo-registry` module.
+ * Banned in src and test (the migration module and the frozen legacy storage files are exempt below).
+ */
+const REPO_CONCEPT: Record<string, RegExp> = {
+  "repo type": new RegExp(`\\b${["Re", "po"].join("")}\\b`),
+  "repo loader": j("load", "Repos"),
+  "repo registry path": j("repo", "-registry"),
+};
+
+const RETIRED: Record<string, RegExp> = { ...SYMBOLS, ...SQL, ...REPO_CONCEPT };
 
 /**
  * `task_id` is a column only of worktrees and run_messages (staged tasks) and an SDK tool input: allowed in
@@ -109,6 +119,12 @@ const EXEMPT: string[] = [
   "legacy-schema.ts",
   "legacy-migrate-v2.ts",
   "migrate-v3-turns.ts",
+  // the Repo -> Location migration reads the legacy `repos/<n>/repo.yaml` layout on purpose
+  "migrate-locations.ts",
+  "migrate-locations-cli.ts",
+  "migrate-locations-backup.ts",
+  "migrate-locations-report.ts",
+  "migrate-locations.test.ts",
   "db-migrate-v3.test.ts",
   "db-migrate-v4.test.ts",
   "db-migrate.test.ts",
@@ -132,7 +148,11 @@ test("src and test hold no retired message / turn / task name", () => {
 });
 
 test("retired table has no duplicate entry", () => {
-  const all = [...Object.values(SYMBOLS), ...Object.values(SQL)].map((r) => r.source);
+  const all = [
+    ...Object.values(SYMBOLS),
+    ...Object.values(SQL),
+    ...Object.values(REPO_CONCEPT),
+  ].map((r) => r.source);
   expect(new Set(all).size).toBe(all.length);
   expect(Object.keys(SYMBOLS).filter((k) => k in SQL)).toEqual([]);
 });

@@ -40,7 +40,7 @@ test("continuation only for an open or waiting task: a running or completed task
     running.db,
     logger,
     { turnId: "t1", threadId: "th", source: "t" },
-    { repo: "r", role: BG },
+    { location: "r", role: BG },
   );
   const runningTask = activeOwnedTask(running.db, "th")!;
   expect(runningTask.status).toBe("running");
@@ -70,7 +70,12 @@ test("continuation only for an open or waiting task: a running or completed task
 
 test("busy steer still routes: a running task takes the message as its steer (L3 scope), no proposer", async () => {
   const env = makeEnv();
-  beginTurn(env.db, logger, { turnId: "t1", threadId: "th", source: "t" }, { repo: "r", role: BG });
+  beginTurn(
+    env.db,
+    logger,
+    { turnId: "t1", threadId: "th", source: "t" },
+    { location: "r", role: BG },
+  );
   const h = haiku(verdict({ role: BG, scope: "active" }));
   const p = proposer({ kind: "continue" });
   const plan = await decideRoute(

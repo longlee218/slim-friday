@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { captureLogs } from "../src/observability/logger";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
-import { addRepo, makeEnv } from "./helpers";
+import { addLocation, defaultLocationPath, makeEnv, outsideDir } from "./helpers";
 
 const CH1 = "11111111111111111";
 const CH2 = "22222222222222222";
@@ -14,7 +14,7 @@ interface Case {
   name: string;
   /** Returns the fake $HOME to scan with (default: the real one). */
   setup: (env: ReturnType<typeof makeEnv>) => string | undefined | void;
-  /** Loaded workspaces as `ws:repo,repo|ws2`. */
+  /** Loaded workspaces as `ws:location,location|ws2`. */
   loaded: string[];
   legacy?: string[];
   /** Channels per workspace after the scan. */
@@ -27,7 +27,7 @@ const fakeGit = (dir: string): string => {
   return dir;
 };
 
-/** Write a bare `workspace.yaml` (no repos) for a workspace dir name, whatever the name. */
+/** Write a bare `workspace.yaml` (no locations) for a workspace dir name, whatever the name. */
 const rawWorkspace = (home: string, name: string, yaml = "channels: []\n"): void => {
   const root = join(home, "workspaces", name);
   mkdirSync(root, { recursive: true });
@@ -36,11 +36,11 @@ const rawWorkspace = (home: string, name: string, yaml = "channels: []\n"): void
 
 const cases: Case[] = [
   {
-    name: "valid workspaces with repos, sorted",
+    name: "valid workspaces with locations, sorted",
     setup: ({ home }) => {
-      addRepo(home, "api", {}, { workspace: "shop" });
-      addRepo(home, "web", {}, { workspace: "shop" });
-      addRepo(home, "cli", {}, { workspace: "alpha", channels: [CH1] });
+      addLocation(home, "api", {}, { workspace: "shop" });
+      addLocation(home, "web", {}, { workspace: "shop" });
+      addLocation(home, "cli", {}, { workspace: "alpha", channels: [CH1] });
     },
     loaded: ["alpha:cli", "shop:api,web"],
     channels: { alpha: [CH1], shop: [] },
@@ -48,29 +48,29 @@ const cases: Case[] = [
   {
     name: "legacy dir (config.yaml, no workspace.yaml) is listed and never loaded",
     setup: ({ home }) => {
-      addRepo(home, "api", {}, { workspace: "main" });
-      const old = join(home, "workspaces", "oldrepo");
-      mkdirSync(join(old, "repo", ".git"), { recursive: true });
-      writeFileSync(join(old, "config.yaml"), `path: ${join(old, "repo")}\n`);
+      addLocation(home, "api", {}, { workspace: "main" });
+      const old = join(home, "workspaces", "oldlocation");
+      mkdirSync(join(old, "location", ".git"), { recursive: true });
+      writeFileSync(join(old, "config.yaml"), `path: ${join(old, "location")}\n`);
     },
     loaded: ["main:api"],
-    legacy: ["oldrepo"],
+    legacy: ["oldlocation"],
   },
   {
     name: "symlinked workspace dir is skipped",
     setup: ({ home }) => {
-      addRepo(home, "api", {}, { workspace: "real" });
+      addLocation(home, "api", {}, { workspace: "real" });
       symlinkSync(join(home, "workspaces", "real"), join(home, "workspaces", "link"));
     },
     loaded: ["real:api"],
   },
   {
-    name: "symlinked repo dir is skipped",
+    name: "symlinked location dir is skipped",
     setup: ({ home }) => {
-      addRepo(home, "api", {}, { workspace: "main" });
+      addLocation(home, "api", {}, { workspace: "main" });
       symlinkSync(
-        workspacePaths(home).workspace("main").repo("api").root,
-        join(home, "workspaces", "main", "repos", "alias"),
+        workspacePaths(home).workspace("main").location("api").root,
+        join(home, "workspaces", "main", "locations", "alias"),
       );
     },
     loaded: ["main:api"],
@@ -94,58 +94,58 @@ const cases: Case[] = [
   {
     name: "a channel listed by 2 workspaces is dropped from both",
     setup: ({ home }) => {
-      addRepo(home, "a", {}, { workspace: "one", channels: [CH1, CH2] });
-      addRepo(home, "b", {}, { workspace: "two", channels: [CH1] });
+      addLocation(home, "a", {}, { workspace: "one", channels: [CH1, CH2] });
+      addLocation(home, "b", {}, { workspace: "two", channels: [CH1] });
     },
     loaded: ["one:a", "two:b"],
     channels: { one: [CH2], two: [] },
   },
   {
-    name: "bad repo names and repos that are not git roots are skipped",
+    name: "bad location names are skipped; a plain directory (no git) is a valid location",
     setup: ({ home }) => {
-      addRepo(home, "good", {}, { workspace: "main" });
-      addRepo(home, ".hidden", {}, { workspace: "main" });
-      addRepo(home, "has space", {}, { workspace: "main" });
-      mkdirSync(join(home, "notgit"));
-      addRepo(home, "plain", {}, { workspace: "main", path: join(home, "notgit") });
+      addLocation(home, "good", {}, { workspace: "main" });
+      addLocation(home, ".hidden", {}, { workspace: "main" });
+      addLocation(home, "has space", {}, { workspace: "main" });
+      const notgit = outsideDir();
+      addLocation(home, "plain", {}, { workspace: "main", path: notgit });
     },
-    loaded: ["main:good"],
+    loaded: ["main:good,plain"],
   },
   {
-    name: "repo path equal to AGENT_HOME is skipped",
+    name: "location path equal to AGENT_HOME is skipped",
     setup: ({ home }) => {
       mkdirSync(join(home, ".git"));
-      addRepo(home, "all", {}, { workspace: "main", path: home });
-      addRepo(home, "fine", {}, { workspace: "main" });
+      addLocation(home, "all", {}, { workspace: "main", path: home });
+      addLocation(home, "fine", {}, { workspace: "main" });
     },
     loaded: ["main:fine"],
   },
   {
-    name: "repo path above $HOME (an ancestor) is skipped",
+    name: "location path above $HOME (an ancestor) is skipped",
     setup: ({ home }) => {
       const top = fakeGit(join(home, "top"));
       const me = join(top, "sub", "me");
       mkdirSync(me, { recursive: true });
-      addRepo(home, "anc", {}, { workspace: "main", path: top });
+      addLocation(home, "anc", {}, { workspace: "main", path: top });
       return me;
     },
     loaded: ["main:"],
   },
   {
-    name: "repo path equal to $HOME is skipped",
+    name: "location path equal to $HOME is skipped",
     setup: ({ home }) => {
       const fakeHome = fakeGit(join(home, "fakehome"));
-      addRepo(home, "tilde", {}, { workspace: "main", path: fakeHome });
+      addLocation(home, "tilde", {}, { workspace: "main", path: fakeHome });
       return fakeHome;
     },
     loaded: ["main:"],
   },
   {
-    name: "overlapping repo paths across workspaces are both kept (warning only)",
+    name: "overlapping location paths across workspaces are both kept (warning only)",
     setup: ({ home }) => {
-      const shared = fakeGit(join(home, "shared"));
-      addRepo(home, "a", {}, { workspace: "one", path: shared });
-      addRepo(home, "b", {}, { workspace: "two", path: shared });
+      const shared = fakeGit(join(outsideDir(), "shared"));
+      addLocation(home, "a", {}, { workspace: "one", path: shared });
+      addLocation(home, "b", {}, { workspace: "two", path: shared });
     },
     loaded: ["one:a", "two:b"],
   },
@@ -153,12 +153,12 @@ const cases: Case[] = [
 
 test.each(cases)("loadWorkspaces: $name", (c) => {
   const env = makeEnv();
-  // Start from an empty registry (makeEnv seeds one repo for other suites).
+  // Start from an empty registry (makeEnv seeds one location for other suites).
   rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
   const scan = loadWorkspaces(env.home, c.setup(env) ?? undefined);
-  expect(scan.workspaces.map((w) => `${w.name}:${w.repos.map((r) => r.name).join(",")}`)).toEqual(
-    c.loaded,
-  );
+  expect(
+    scan.workspaces.map((w) => `${w.name}:${w.locations.map((r) => r.name).join(",")}`),
+  ).toEqual(c.loaded);
   expect(scan.legacy).toEqual(c.legacy ?? []);
   for (const [ws, channels] of Object.entries(c.channels ?? {}))
     expect(scan.workspaces.find((w) => w.name === ws)?.channels).toEqual(channels);
@@ -167,20 +167,71 @@ test.each(cases)("loadWorkspaces: $name", (c) => {
 test("loadWorkspaces: missing workspaces dir gives an empty scan", () => {
   const env = makeEnv();
   rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
-  expect(loadWorkspaces(env.home)).toEqual({ workspaces: [], legacy: [] });
+  expect(loadWorkspaces(env.home)).toEqual({ workspaces: [], legacy: [], needsMigration: [] });
 });
 
-test("loaded repos carry workspace name, repo dir and absolute path", () => {
+test("loaded locations carry workspace name, absolute path, description and the computed git flag", () => {
   const env = makeEnv();
   rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
-  addRepo(env.home, "api", { description: "billing" }, { workspace: "shop" });
-  const repo = loadWorkspaces(env.home).workspaces[0]!.repos[0]!;
-  const p = workspacePaths(env.home).workspace("shop").repo("api");
-  expect(repo).toMatchObject({
+  addLocation(env.home, "api", { description: "billing" }, { workspace: "shop" });
+  addLocation(env.home, "docs", {}, { workspace: "shop", git: false });
+  const [api, docs] = loadWorkspaces(env.home).workspaces[0]!.locations;
+  expect(api).toMatchObject({
     name: "api",
     workspace: "shop",
-    dir: p.root,
-    path: p.clone,
+    path: defaultLocationPath(env.home, "api", "shop"),
     description: "billing",
+    git: true,
   });
+  expect(docs?.git).toBe(false); // a plain directory is a valid location
+});
+
+test("workspace.yaml locations: legacy keys, bad names and duplicates are skipped", () => {
+  const env = makeEnv();
+  rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
+  const dir = join(outsideDir(), "somewhere");
+  mkdirSync(dir, { recursive: true });
+  rawWorkspace(
+    env.home,
+    "w",
+    `locations:
+  - {name: ok, path: ${dir}}
+  - {name: legacy, path: ${dir}, testCommand: x}
+  - {name: "bad name", path: ${dir}}
+  - {name: ok, path: ${dir}}
+  - {name: gone, path: ${join(env.home, "missing")}}
+`,
+  );
+  const w = loadWorkspaces(env.home).workspaces[0]!;
+  expect(w.locations.map((l) => l.name)).toEqual(["ok"]);
+});
+
+test("channel objects and legacy plain ids are both parsed; skills.extra stays valid", () => {
+  const env = makeEnv();
+  rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
+  rawWorkspace(
+    env.home,
+    "w",
+    `channels:
+  - "${CH1}"
+  - {id: "${CH2}", name: chat-room, mode: chat, locations: [api]}
+skills:
+  extra: [a]
+`,
+  );
+  const w = loadWorkspaces(env.home).workspaces[0]!;
+  expect(w.channels).toEqual([CH1, CH2]);
+  expect(w.channelDefs).toEqual([
+    { id: CH1, name: "w-agent", mode: "task" },
+    { id: CH2, name: "chat-room", mode: "chat", locations: ["api"] },
+  ]);
+});
+
+test("a workspace with repos/<n>/repo.yaml is reported in needsMigration", () => {
+  const env = makeEnv();
+  rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
+  rawWorkspace(env.home, "old");
+  mkdirSync(join(env.home, "workspaces", "old", "repos", "api"), { recursive: true });
+  writeFileSync(join(env.home, "workspaces", "old", "repos", "api", "repo.yaml"), "path: /x\n");
+  expect(loadWorkspaces(env.home).needsMigration).toEqual(["old"]);
 });

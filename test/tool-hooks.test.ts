@@ -66,8 +66,8 @@ test("start/done pair share toolUseId; target is relative; no result text in any
   const { db, paths } = makeEnv();
   const cap = captureLogs();
   const rec = new RunRecorder(db, "r1", "t1", "m", paths.taskLog("t1"));
-  const hooks = buildToolHooks(rec, { roots: ["/ws/repo"] });
-  const input = { file_path: "/ws/repo/src/a.ts", offset: 70, limit: 90 };
+  const hooks = buildToolHooks(rec, { roots: ["/ws/location"] });
+  const input = { file_path: "/ws/location/src/a.ts", offset: 70, limit: 90 };
   await hooks.PreToolUse![0]!.hooks[0]!(
     {
       hook_event_name: "PreToolUse",
@@ -131,7 +131,7 @@ test("guard-denied call writes tool.denied (warn) with target and reason, and no
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/repo"] }),
+    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
   });
   await perms.hooks[0]!.hooks[0]!(
     {
@@ -188,12 +188,12 @@ test("MCP tool (shape: content[] text parts): size from text, target = tool + re
   const cap = captureLogs();
   const rec = new RunRecorder(db, "r1", "t1", "m", paths.taskLog("t1"));
   const tool = mcpToolName(GIT_MCP_SERVER, GIT_TOOL.LOG);
-  await buildToolHooks(rec, { roots: ["/ws/repo"] }).PostToolUse![0]!.hooks[0]!(
+  await buildToolHooks(rec, { roots: ["/ws/location"] }).PostToolUse![0]!.hooks[0]!(
     {
       hook_event_name: "PostToolUse",
       tool_use_id: "m1",
       tool_name: tool,
-      tool_input: { path: "/ws/repo/lib" },
+      tool_input: { path: "/ws/location/lib" },
       tool_response: { content: [{ type: "text", text: "COMMIT LOG TEXT" }] },
       duration_ms: 3,
     } as never,
@@ -270,7 +270,7 @@ test("P3.1: tool.denied of a subagent carries its identity", async () => {
   const perms = buildToolPermissions({
     turnId: "t1",
     threadId: "th",
-    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/repo"] }),
+    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
   });
   const pre = {
     ...fixture("pre-tool-use-subagent-builtin-read"),

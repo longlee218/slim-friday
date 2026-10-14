@@ -1,8 +1,8 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
 import { stripAttachmentPaths } from "../../ingress/attachment-text";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
+import type { Location } from "../../locations/location-registry";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
-import type { Repo } from "../../repos/repo-registry";
 import { threadLedger } from "../../storage/ledger-store";
 import { runRole } from "../engine/run-role";
 import { runRoute } from "../message-routing";
@@ -19,7 +19,7 @@ import { validateRequest } from "./validate-request";
    - not the thread's task rows (its row lives under `<thread>:side`, so the thread state and the ledger of the
      running task are untouched);
    - not the task's steer input (a side run gets no steer hook, so it never registers a sink under the thread).
-   It runs the role itself with the role's own budget, repos and guards (read-only). Limits: no conversation
+   It runs the role itself with the role's own budget, locations and guards (read-only). Limits: no conversation
    continuity (the context is the owner text, the recent messages and the task ledger), and its answer is not part
    of the thread's session, so a later turn of the assistant does not remember it. */
 
@@ -34,14 +34,14 @@ export interface SideInput {
   role: string;
   /** Owner text without prefixes. */
   text: string;
-  repo?: string;
+  location?: string;
   cls?: TaskClass;
   effort?: Effort;
   /** The message (thread, source, recent conversation). */
   message: InboundMessage;
   workspace: string;
-  repos: Repo[];
-  pinned?: Repo;
+  locations: Location[];
+  pinned?: Location;
   /** Controller of this side run (linked to the thread's `/stop` and to shutdown by the caller). */
   ac: AbortController;
   /** Status of the thread's running task (see tasks/status-snapshot.ts), shown to the role as data; empty = none. */
@@ -56,10 +56,10 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
     {
       db,
       config,
-      repos: i.repos,
+      locations: i.locations,
       pinned: i.pinned,
     },
-    { role: i.role, brief, repo: i.repo, cls: i.cls },
+    { role: i.role, brief, location: i.location, cls: i.cls },
   );
   if (!v.ok) return v.refusal.reply;
   const { role } = v;
@@ -70,9 +70,9 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
     db,
     log,
     { turnId, threadId: sideThread, source: i.message.source },
-    { repo: v.repoName, brief, cls: v.cls, role: role.name },
+    { location: v.locationName, brief, cls: v.cls, role: role.name },
   );
-  logEvent(log, "side.started", { role: role.name, repo: v.repoName });
+  logEvent(log, "side.started", { role: role.name, location: v.locationName });
   const t0 = Date.now();
   const res = await runRole(
     { ...deps, steer: undefined }, // no steer hook: the side run must never register a sink under the thread
@@ -82,7 +82,7 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
       text: brief,
       role: role.name,
       workspace: i.workspace,
-      repos: role.repoScope === "all" ? i.repos : v.candidates,
+      locations: role.locationScope === "all" ? i.locations : v.candidates,
       ac: i.ac,
       route: runRoute({ cls: i.cls, effort: i.effort }),
       pinned: i.pinned,
@@ -104,7 +104,8 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
     {
       stopping: deps.stopping(),
       t0,
-      repo: v.repoName,
+      location: v.locationName,
+      locations: i.locations,
     },
   );
 }

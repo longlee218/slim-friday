@@ -3,31 +3,33 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { addRepo, clearWorkspaces, makeEnv, TEST_CHANNEL } from "./helpers";
+import { addLocation, clearWorkspaces, makeEnv, TEST_CHANNEL } from "./helpers";
 
 // Live test: verifies the SDK honors `additionalDirectories` (open spike item for phase 02).
 const key = process.env.OPENROUTER_API_KEY;
 const live = !!key && key !== PLACEHOLDER;
 if (!live) {
-  process.stderr.write("SKIP live multi-repo smoke: OPENROUTER_API_KEY missing or REPLACE_ME\n");
+  process.stderr.write(
+    "SKIP live multi-location smoke: OPENROUTER_API_KEY missing or REPLACE_ME\n",
+  );
 }
 
-describe.skipIf(!live)("live multi-repo smoke (OpenRouter)", () => {
-  test("unpinned run reads a file from a second repo via additionalDirectories", async () => {
+describe.skipIf(!live)("live multi-location smoke (OpenRouter)", () => {
+  test("unpinned run reads a file from a second location via additionalDirectories", async () => {
     const env = makeEnv({
       OPENROUTER_API_KEY: key!,
       LLM_PROVIDER: "openrouter",
       MAX_TURNS: "8",
       TIMEOUT_MS: "90000",
     });
-    const a = join(env.home, "alpha-repo");
-    const b = join(env.home, "beta-repo");
+    const a = join(env.home, "alpha-location");
+    const b = join(env.home, "beta-location");
     for (const p of [a, b]) mkdirSync(join(p, ".git"), { recursive: true });
-    writeFileSync(join(a, "readme.txt"), "alpha repo: nothing here\n");
+    writeFileSync(join(a, "readme.txt"), "alpha location: nothing here\n");
     writeFileSync(join(b, "magic.txt"), "the magic number is 48271\n");
     clearWorkspaces(env.home);
-    addRepo(env.home, "alpha", { description: "empty repo" }, { path: a });
-    addRepo(env.home, "beta", { description: "holds magic.txt" }, { path: b });
+    addLocation(env.home, "alpha", { description: "empty location" }, { path: a });
+    addLocation(env.home, "beta", { description: "holds magic.txt" }, { path: b });
 
     const reply = await createTurnHandler({ db: env.db, config: env.config })({
       source: "test",

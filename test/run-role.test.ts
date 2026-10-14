@@ -4,10 +4,11 @@ import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { g, makeRepo } from "./git-fixture";
+import { g, makeLocation } from "./git-fixture";
 import {
-  addRepo,
+  addLocation,
   clearWorkspaces,
+  defaultLocationPath,
   devIntent,
   initMsg,
   makeEnv,
@@ -16,20 +17,20 @@ import {
   TEST_CHANNEL,
 } from "./helpers";
 
-/** Env with one workspace whose repo `real` is a real git clone (a managed clone). */
+/** Env with one workspace whose location `real` is a real git clone (a managed clone). */
 async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const src = await makeRepo("main");
-  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
-  addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
-  await g(env.home, "clone", "-q", src.repo, clone);
+  const src = await makeLocation("main");
+  const clone = defaultLocationPath(env.home, "real", "main");
+  addLocation(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
+  await g(env.home, "clone", "-q", src.location, clone);
   return env;
 }
 
 /**
  * The dev run asks the owner to approve its plan (AskUserQuestion through canUseTool), then edits, commits and ends with
- * the report + `repo: real` marker; or ends on `result` (budget, error).
+ * the report + `location: real` marker; or ends on `result` (budget, error).
  */
 const fakeSdk = (result?: Record<string, unknown>) => (a: any) => {
   const o = a.options;
@@ -65,7 +66,7 @@ const fakeSdk = (result?: Record<string, unknown>) => (a: any) => {
       "add b",
     );
     yield resultMsg({
-      result: "done: b.txt added\n\nrepo: real",
+      result: "done: b.txt added\n\nlocation: real",
       session_id: "sess-dev",
       total_cost_usd: 0.25,
     });
@@ -103,7 +104,7 @@ const codeTask = (env: Awaited<ReturnType<typeof setup>>) =>
 const runsOf = (env: Awaited<ReturnType<typeof setup>>, turnId: string) =>
   env.db.query<any, [string]>("SELECT * FROM runs WHERE turn_id = ?").all(turnId);
 
-test("one dev run: the plan approval is a normal ask, then it edits; ONE runs row with model and cost; repo from the marker", async () => {
+test("one dev run: the plan approval is a normal ask, then it edits; ONE runs row with model and cost; location from the marker", async () => {
   const env = await setup();
   asked.length = 0;
   const reply = await handler(env)(msg("[dev] please add b.txt"));
@@ -114,7 +115,7 @@ test("one dev run: the plan approval is a normal ask, then it edits; ONE runs ro
     hop: 0,
     counts_toward_cap: 1,
     status: "done",
-    repo: "real",
+    location: "real",
   });
   expect(t.parent_turn_id).toBeNull(); // opened by the intent layer: no source turn
   expect(asked).toEqual(["Plan: add b.txt. Approve?"]); // the approval reached the owner through the ask relay
@@ -123,7 +124,7 @@ test("one dev run: the plan approval is a normal ask, then it edits; ONE runs ro
   expect(runs[0].model).toBe(env.config.models.sonnet);
   expect(runs[0].cost_usd).toBeCloseTo(0.25);
   expect(reply).toContain("done: b.txt added");
-  expect(reply).not.toContain("repo: real"); // the marker is the app's, not the owner's reply
+  expect(reply).not.toContain("location: real"); // the marker is the app's, not the owner's reply
   // The dev session is the turn row's, never the thread's.
   expect(env.db.query("SELECT session_id FROM sessions").get()).toBeNull();
   expect(t.session_id).toBe("sess-dev");
@@ -135,12 +136,12 @@ test("class design: the run row records the Opus model", async () => {
   expect(runsOf(env, codeTask(env)[0].id)[0].model).toBe(env.config.models.opus);
 });
 
-test("a final report without a valid `repo:` marker keeps the repo of the row; memory is skipped", async () => {
+test("a final report without a valid `location:` marker keeps the location of the row; memory is skipped", async () => {
   const env = await setup();
-  const handle = handler(env, { result: "done\n\nrepo: nope", total_cost_usd: 0.1 });
+  const handle = handler(env, { result: "done\n\nlocation: nope", total_cost_usd: 0.1 });
   await handle(msg("[dev] please add b.txt"));
-  // One registered repo: the sole repo is the run's repo even without a valid marker.
-  expect(codeTask(env)[0].repo).toBe("real");
+  // One registered location: the sole location is the run's location even without a valid marker.
+  expect(codeTask(env)[0].location).toBe("real");
 });
 
 test("dev on its budget: failed_resumable, reply offers `go +usd`, run row keeps the cost, session kept on the row", async () => {

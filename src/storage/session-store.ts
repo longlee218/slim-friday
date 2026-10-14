@@ -4,7 +4,7 @@ import type { Database } from "bun:sqlite";
 export interface SessionRow {
   thread_id: string;
   session_id: string;
-  repo: string;
+  location: string;
   cwd: string;
   status: string;
   updated_at: number;
@@ -18,15 +18,15 @@ export function getSession(db: Database, threadId: string): SessionRow | null {
 /** Insert or update the session for a thread. */
 export function setSession(
   db: Database,
-  s: { threadId: string; sessionId: string; repo: string; cwd: string; status?: string },
+  s: { threadId: string; sessionId: string; location: string; cwd: string; status?: string },
 ): void {
   db.query(
-    `INSERT INTO sessions (thread_id, session_id, repo, cwd, status, updated_at)
+    `INSERT INTO sessions (thread_id, session_id, location, cwd, status, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(thread_id) DO UPDATE SET session_id = excluded.session_id,
-       repo = excluded.repo, cwd = excluded.cwd, status = excluded.status,
+       location = excluded.location, cwd = excluded.cwd, status = excluded.status,
        updated_at = excluded.updated_at`,
-  ).run(s.threadId, s.sessionId, s.repo, s.cwd, s.status ?? "active", Date.now());
+  ).run(s.threadId, s.sessionId, s.location, s.cwd, s.status ?? "active", Date.now());
 }
 
 /** Forget a thread's session so the next message starts a fresh one. */

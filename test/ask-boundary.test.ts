@@ -125,7 +125,7 @@ test("dev run: no answer in time -> 'Awaiting clarification', no thread session,
   expect(reply).toContain("Drop the column? (default: keep)");
   expect(reply).toContain("Send `/go` to continue, or start a new request.");
   expect(runs).toBe(1);
-  expect(getSession(env.db, "th1")).toBeNull(); // a dev session in the repo is not the thread's (the assistant would resume it)
+  expect(getSession(env.db, "th1")).toBeNull(); // a dev session in the location is not the thread's (the assistant would resume it)
   expect(env.db.query("SELECT status FROM turns WHERE type = 'code'").all()).toEqual([
     { status: "cancelled" },
   ]);
@@ -278,7 +278,7 @@ test("after 'Awaiting clarification' (no clone): nothing is kept for the thread 
     notify: async () => {},
   });
   expect((await handle(msg("[dev] please start"))).startsWith("Awaiting clarification")).toBe(true);
-  expect(getSession(env.db, "th1")).toBeNull(); // the dev session ran in the repo's own checkout: not the thread's
+  expect(getSession(env.db, "th1")).toBeNull(); // the dev session ran in the location's own checkout: not the thread's
   await handle(msg("[dev] keep the column"));
   expect(runs.map((r) => r.resume)).toEqual([undefined, undefined]);
 });

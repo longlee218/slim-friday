@@ -351,9 +351,9 @@ test("remember:/nhớ: notes always go to the entry role without L3, in every th
     ["running", undefined],
     ["running", "Open a task for this?"], // a pending AskUserQuestion / proposal
     ["awaiting_confirmation", undefined],
-    ["awaiting_owner", "Which repo?"],
+    ["awaiting_owner", "Which location?"],
   ];
-  for (const text of ["remember: use pnpm in repo x", "Nhớ: dùng bun", "  REMEMBER :x y"])
+  for (const text of ["remember: use pnpm in location x", "Nhớ: dùng bun", "  REMEMBER :x y"])
     for (const [state, pendingQuestion] of states) {
       const r = await run(
         d,

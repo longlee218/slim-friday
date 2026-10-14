@@ -37,11 +37,11 @@ test("the assistant prompt has no handoff section: it never proposes a change", 
   expect(text).toContain("never change files or system state");
 });
 
-test("dev: one run contract: approval before changes by ask, no plan mode, the final repo line", () => {
+test("dev: one run contract: approval before changes by ask, no plan mode, the final location line", () => {
   const text = rules(dev);
   expect(text).toContain("Do not change files before the owner approved your plan");
   expect(text).toContain(`get approval with ${ASK_USER_QUESTION_TOOL_NAME}`);
-  expect(text).toContain('"repo: <name>"');
+  expect(text).toContain('"location: <name>"');
   expect(text).not.toMatch(/plan mode|ExitPlanMode|execute stage|plan stage|Need:/);
   expect(text).toContain("do not retry");
 });
@@ -63,7 +63,7 @@ test("dev: follow-up, memory contract, shell git and delivery by the agent", () 
   expect(text).toContain("pure question");
   expect(text).not.toContain("Memory:"); // no report section is parsed any more
   expect(text).not.toContain("[global]");
-  expect(text).not.toContain("Remember (scope repo;"); // repo memory rule lives in AGENTS.md
+  expect(text).not.toContain("Remember (scope location;"); // location memory rule lives in AGENTS.md
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).not.toContain("git_commit"); // no git MCP for the dev agent
   expect(text).toContain("`git` and `gh` in the shell");
@@ -96,11 +96,11 @@ test("ask boundary in dev only (the role's cap); no workflow mode rules", () => 
   expect(rules(qa)).not.toContain(ASK_USER_QUESTION_TOOL_NAME);
 });
 
-test("Q&A rules pin: git MCP tools must always get path, taken from the repo list or the pinned/only repo", () => {
+test("Q&A rules pin: git MCP tools must always get path, taken from the location list or the pinned/only location", () => {
   const text = rules(qa);
   expect(text).toContain("Git MCP tools");
-  expect(text).toContain("must always get path = the repo path");
-  expect(text).toContain("pinned/only repo");
+  expect(text).toContain("must always get path = the location path");
+  expect(text).toContain("pinned/only location");
   expect(rules(dev)).not.toContain("Git MCP tools (git_log");
 });
 

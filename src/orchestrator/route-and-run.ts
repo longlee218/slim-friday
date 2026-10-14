@@ -6,8 +6,8 @@ import type { SessionRow } from "../storage/session-store";
 import { PROPOSAL_EXPIRED_REPLY, pendingProposalFor } from "./dispatch/proposal-flow";
 import { drainQueued } from "./dispatch/queued-tasks";
 import { startPendingProposal } from "./dispatch/start-proposal";
-import { findRepo } from "./dispatch/task-repo";
-import { intentTurn, pinnedRepo } from "./intent-turn";
+import { findLocation } from "./dispatch/task-location";
+import { intentTurn, pinnedLocation } from "./intent-turn";
 import type { MessageCommand } from "./message-commands";
 import { PLAIN_GO, resolveCommand, routeMessage } from "./message-routing";
 import { type RoleRunCtx, runTurn } from "./run-turn";
@@ -39,7 +39,7 @@ export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
   const { rc, stored } = c;
   const { steer, stopping } = rc.deps;
   const thread = rc.message.threadId;
-  const q = { ...rc, pinned: pinnedRepo(rc.repos, undefined, stored) };
+  const q = { ...rc, pinned: pinnedLocation(rc.locations, undefined, stored) };
   /** Notes of steers a finished run never read (the ones of this turn go out BEFORE the queue starts: a held steer must not leak into the next task). */
   const notes: string[] = [];
   const unread = () => {
@@ -78,12 +78,12 @@ export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
 async function routeTurn(c: RouteAndRunInput): Promise<string> {
   const { rc, parsed, stored } = c;
   const { db, config } = rc.deps;
-  const { message, workspace: ws, repos } = rc;
+  const { message, workspace: ws, locations } = rc;
   // `go` starts the thread's pending proposal (it survived a restart), else it resumes like the button.
   const pending = parsed.kind === "go" ? pendingProposalFor(db, message.threadId, ws) : null;
   if (pending === "expired") return PROPOSAL_EXPIRED_REPLY;
   if (parsed.kind === "go" && pending) {
-    const pinned = repos.find((r) => r.name === stored?.repo);
+    const pinned = locations.find((r) => r.name === stored?.location);
     logRouteDecision(
       rc.log,
       directRoutingDecision({
@@ -99,7 +99,7 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
   let resumed = parsed.kind === "go" || parsed.kind === "resume";
   const input = parsed.kind === "go" ? { kind: "resume" as const, extraBudgetUsd } : parsed;
   // Resume button becomes a run of the interrupted task's role in that task's own session (or a refusal).
-  const rdeps = { db, agentHome: config.agentHome, workspace: ws, repos };
+  const rdeps = { db, agentHome: config.agentHome, workspace: ws, locations };
   let resolved = resolveCommand(rdeps, input, message.threadId);
   // Only an ordinary message goes through the intent layer: a bare `go` that falls back to plain text is still L0
   // (the entry role), and a Resume keeps its own role.
@@ -118,9 +118,10 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
   if ("reply" in resolved) return refused(rc.log, resolved);
   // The intent layer picks the role of a plain message (a Resume keeps its own role).
   let picked: (IntentOutcome & { kind: "run" }) | undefined;
-  // (empty text / unknown `repo:` fall through: `routeMessage` refuses them with its own reply)
+  // (empty text / unknown `location:` fall through: `routeMessage` refuses them with its own reply)
   const answerable =
-    !!resolved.cmd.text && !(resolved.cmd.repo && !findRepo(repos, resolved.cmd.repo));
+    !!resolved.cmd.text &&
+    !(resolved.cmd.location && !findLocation(locations, resolved.cmd.location));
   // Exactly one `route.decision` per message: the intent layer emits its own; every other path emits below.
   const routedByIntent = !!c.intent && plain && answerable;
   if (c.intent && plain && answerable) {
@@ -150,7 +151,7 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
     {
       cmd: resolved.cmd,
       threadId: message.threadId,
-      repos,
+      locations,
       existing: resolved.existing ?? stored,
       role: picked?.role,
     },

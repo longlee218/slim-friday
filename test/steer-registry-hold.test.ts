@@ -9,7 +9,7 @@ import { makeEnv } from "./helpers";
 
 const TH = { threadId: "th" };
 const dev = (db: ReturnType<typeof makeEnv>["db"], id = "t1") =>
-  insertTurn(db, { id, threadId: "th", source: "t", repo: "r", role: "dev", brief: "add b" });
+  insertTurn(db, { id, threadId: "th", source: "t", location: "r", role: "dev", brief: "add b" });
 
 /** A sink that records what is pushed. */
 const sink = (pushed: string[]): SteerSink => ({
@@ -56,7 +56,7 @@ test("no running task, or a role that reads no steers: nothing is held (none)", 
   const reg = createSteerRegistry(env.db);
   expect(reg.canTake("th")).toBe(false);
   expect(reg.steer(TH, "x").result).toBe("none");
-  insertTurn(env.db, { id: "a1", threadId: "th", source: "t", repo: "r", role: "assistant" });
+  insertTurn(env.db, { id: "a1", threadId: "th", source: "t", location: "r", role: "assistant" });
   expect(reg.canTake("th")).toBe(false); // the assistant reads no steers
   expect(reg.steer(TH, "y").result).toBe("none");
   expect(listRunMessages(env.db, "th").map((r) => r.status)).toEqual(["skipped", "skipped"]);

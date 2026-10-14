@@ -185,16 +185,16 @@ test("git tools: only reads (group read + by-mode reads), hidden = the complemen
 });
 
 test("guardFor: one builder per role, auto-allowed tools from the catalog", () => {
-  const qa = guardFor(qaRole, { readPaths: ["/r"], gitReadRepos: ["/r"] });
+  const qa = guardFor(qaRole, { readPaths: ["/r"], gitReadPaths: ["/r"] });
   expect(qa.allowTools).toEqual(autoAllowedTools(qaRole));
   expect(qa.writePaths).toBeUndefined(); // Q&A writes nothing
   const exec = guardFor(dev, {
-    writePaths: ["/repo", "/ws/worktrees"],
-    readPaths: ["/repo"],
+    writePaths: ["/location", "/ws/worktrees"],
+    readPaths: ["/location"],
     worktreeDirs: ["/ws/worktrees"],
   });
   expect(exec).toMatchObject({
-    writePaths: ["/repo", "/ws/worktrees"],
+    writePaths: ["/location", "/ws/worktrees"],
     worktreeDirs: ["/ws/worktrees"],
   });
   expect(exec.allowTools).toEqual(autoAllowedTools(dev));

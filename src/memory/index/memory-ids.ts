@@ -6,7 +6,7 @@ import { MEMORY_SECTION_HEADINGS, normalizeBullet } from "../memory-sections";
  * Entry ids of the memory read tools. An id is a POINTER, never a path: it is parsed with strict regexes and
  * re-resolved against the CURRENT file by position, then by content hash.
  *
- *   root#<Section>:<n>~<h>   workspace#<Section>:<n>~<h>   repo/<name>#<Section>:<n>~<h>
+ *   root#<Section>:<n>~<h>   workspace#<Section>:<n>~<h>   location/<name>#<Section>:<n>~<h>
  *   journal/<YYYY-MM-DD>#<HH:MM>:<n>~<h>        summary/<threadId>@<cycle>
  *
  * Section = a kind heading (Decisions...), `Other` (bullets outside kind sections) or `Text` (prose paragraphs).
@@ -15,7 +15,7 @@ import { MEMORY_SECTION_HEADINGS, normalizeBullet } from "../memory-sections";
  */
 
 /** Sources of a memory entry (the `scope` values of MemorySearch). */
-export const SOURCES = ["root", "workspace", "repo", "journal", "summary"] as const;
+export const SOURCES = ["root", "workspace", "location", "journal", "summary"] as const;
 export type Source = (typeof SOURCES)[number];
 
 /** Section tokens other than the kind headings. */
@@ -26,7 +26,7 @@ const FILE_TOKENS: readonly string[] = [...MEMORY_SECTION_HEADINGS, OTHER_TOKEN,
 /** Longest id accepted (hostile input is refused before any regex runs). */
 const ID_MAX_CHARS = 200;
 const FILE_ID =
-  /^(root|workspace|repo\/([A-Za-z0-9][A-Za-z0-9_.-]{0,63}))#([A-Za-z]{1,16}):(\d{1,5})~([0-9a-f]{6})$/;
+  /^(root|workspace|location\/([A-Za-z0-9][A-Za-z0-9_.-]{0,63}))#([A-Za-z]{1,16}):(\d{1,5})~([0-9a-f]{6})$/;
 const JOURNAL_ID = /^journal\/(\d{4}-\d{2}-\d{2})#(\d{2}:\d{2}):(\d{1,5})~([0-9a-f]{6})$/;
 const SUMMARY_ID = /^summary\/([A-Za-z0-9_.-]{1,80})@(\d{1,9})$/;
 /** Thread ids that can be put in an id (anything else is not indexed). */
@@ -36,7 +36,7 @@ export const THREAD_ID = /^[A-Za-z0-9_.-]{1,80}$/;
 export const hash6 = (text: string): string =>
   createHash("sha1").update(normalizeBullet(text)).digest("hex").slice(0, 6);
 
-/** `prefix` is `root`, `workspace`, `repo/<name>` or `journal/<date>`. */
+/** `prefix` is `root`, `workspace`, `location/<name>` or `journal/<date>`. */
 export const makeId = (prefix: string, token: string, n: number, hash: string): string =>
   `${prefix}#${token}:${n}~${hash}`;
 
@@ -45,8 +45,8 @@ export { summaryHitId };
 export type ParsedId =
   | {
       type: "file";
-      source: "root" | "workspace" | "repo";
-      repo?: string;
+      source: "root" | "workspace" | "location";
+      location?: string;
       token: string;
       n: number;
       hash: string;
@@ -59,13 +59,13 @@ export function parseId(id: unknown): ParsedId | null {
   if (typeof id !== "string" || id.length > ID_MAX_CHARS) return null;
   let m = FILE_ID.exec(id);
   if (m) {
-    const [, head, repo, token, n, hash] = m as unknown as string[];
+    const [, head, location, token, n, hash] = m as unknown as string[];
     if (!FILE_TOKENS.includes(token as string)) return null;
-    const source = head === "root" || head === "workspace" ? head : "repo";
+    const source = head === "root" || head === "workspace" ? head : "location";
     return {
       type: "file",
       source,
-      repo,
+      location,
       token: token as string,
       n: Number(n),
       hash: hash as string,

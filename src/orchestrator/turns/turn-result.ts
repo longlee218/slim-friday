@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { isGitLocation, type Location } from "../../locations/location-registry";
 import { excerpt, getLogContext, logEvent, logger } from "../../observability/logger";
 import type { RunOutcome, RunUsage } from "../../observability/record-run";
 import { errText, redactText } from "../../observability/redact";
@@ -35,12 +36,12 @@ export interface FlowResult
   > {
   /** Metrics of the run (spent USD for the budget-hit message); absent when no run happened. */
   usage?: RunUsage;
-  /** cwd + repo of the session to save (resume needs the same cwd), when a session should be stored. */
+  /** cwd + location of the session to save (resume needs the same cwd), when a session should be stored. */
   cwd?: string;
-  repo?: string;
+  location?: string;
   /** Save the session although the outcome is not success/limit (a run stopped to await the owner's reply). */
   keepSession?: boolean;
-  /** Do not save this run's session as the thread's (a background run in the repo itself: a later assistant message in the thread must not resume it). */
+  /** Do not save this run's session as the thread's (a background run in the location itself: a later assistant message in the thread must not resume it). */
   skipThreadSession?: true;
   /** Model of an escalated re-run (the first run's model is then not the one that answered). */
   model?: string;
@@ -105,7 +106,6 @@ export const RESUMABLE_OUTCOMES: ReadonlySet<RunOutcome> = new Set([
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "task-result" });
-
 /** End of a run, same for every role: save the session, close the turn row, return the redacted reply. */
 export function finishRun(
   db: Database,
@@ -121,10 +121,10 @@ export function finishRun(
     setSession(db, {
       threadId: ids.threadId,
       sessionId: res.sessionId,
-      repo: res.repo ?? "*",
+      location: res.location ?? "*",
       cwd: res.cwd,
     });
-    logEvent(log, "session.saved", { repo: res.repo ?? "*", sessionId: res.sessionId });
+    logEvent(log, "session.saved", { location: res.location ?? "*", sessionId: res.sessionId });
     // Context over the share of the model window: the handler rolls the thread after the reply is posted.
     if (res.outcome === "success") requestRollover(db, ids, res.usage);
   }
@@ -149,13 +149,13 @@ export function finishRun(
 
 /**
  * End of a task as the handler sees it: `finishRun`, then `interrupted` instead of cancelled when shutdown
- * aborted it (resumable), then the `task.finished` line. `repo` = repo to log when the flow named none.
+ * aborted it (resumable), then the `task.finished` line. `location` = location to log when the flow named none.
  */
 export function closeTurn(
   db: Database,
   ids: { turnId: string; threadId: string },
   res: FlowResult,
-  o: { stopping: boolean; t0: number; repo: string },
+  o: { stopping: boolean; t0: number; location: string; locations?: Location[] },
 ): string {
   let reply = finishRun(db, ids, res);
   if (o.stopping && res.outcome === "aborted") setTurnStatus(db, ids.turnId, "interrupted");
@@ -168,7 +168,11 @@ export function closeTurn(
   try {
     if (role) {
       const ev = deliveryEvidence(db, ids.turnId, res.text);
-      const outcome = validateOutcome(role, res, ev, getLogContext().traceId ?? "");
+      // Delivery is expected only when the reported location is a git working copy; cwd decides only when none is
+      // reported (an unpinned run starts in the first location but may work in another).
+      const reported = res.location ? o.locations?.find((l) => l.name === res.location) : undefined;
+      const git = reported ? reported.git : !res.cwd || isGitLocation(res.cwd);
+      const outcome = validateOutcome(role, res, ev, getLogContext().traceId ?? "", git);
       // `partial` after a successful run only happens for a role that must deliver (see `validateOutcome`).
       undelivered = res.outcome === "success" && status === "done" && outcome.status === "partial";
       if (undelivered) reply = `${reply}\n\n${NO_DELIVERY_NOTE}`;
@@ -187,7 +191,7 @@ export function closeTurn(
   // The owned task follows the turn's final status (no-op for a turn that owns none).
   settleTaskAfterTurn(db, ids.turnId, status, undelivered);
   logEvent(log, "task.finished", {
-    repo: res.repo && res.repo !== "*" ? res.repo : o.repo,
+    location: res.location && res.location !== "*" ? res.location : o.location,
     outcome: res.outcome,
     durationMs: Date.now() - o.t0,
     reply: excerpt(reply),

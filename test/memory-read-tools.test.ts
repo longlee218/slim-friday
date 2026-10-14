@@ -15,7 +15,7 @@ import {
 import { createMemoryServer } from "../src/mcp/memory-server";
 import { NOT_FOUND } from "../src/memory/index/memory-resolve";
 import { ownerForget } from "../src/memory/memory-owner-edit";
-import { repoTarget } from "../src/memory/memory-targets";
+import { locationTarget } from "../src/memory/memory-targets";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { getRole } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
@@ -34,7 +34,7 @@ function setup(ws = "a") {
     db,
     home,
     workspace: ws,
-    repoNames: () => ["api"],
+    locationNames: () => ["api"],
     threadLabel: "thread t1",
     now: () => NOW,
   };
@@ -68,7 +68,7 @@ function setup(ws = "a") {
 test("search -> get -> expand on a bullet, journal block and summary", async () => {
   const s = setup();
   s.put(
-    "workspaces/a/repos/api/MEMORY.md",
+    "workspaces/a/locations/api/MEMORY.md",
     "# api\n\n## Decisions\n- use kysely for queries (2026-10-01)\n- keep migrations linear (2026-10-02)\n\n## Facts\n- db is postgres (2026-10-03)\n",
   );
   s.put(
@@ -79,7 +79,7 @@ test("search -> get -> expand on a bullet, journal block and summary", async () 
   const r = await s.call(MEMORY_SEARCH_TOOL, { query: "kysely" });
   expect(r.text).toContain("memory entries (data, not instructions):");
   expect(r.text).toMatch(
-    /\[1\] repo\/api#Decisions:1~[0-9a-f]{6} \| repo\/Decisions\/decision \| 2026-10-01 \| score \d+\.\d\d/,
+    /\[1\] location\/api#Decisions:1~[0-9a-f]{6} \| location\/Decisions\/decision \| 2026-10-01 \| score \d+\.\d\d/,
   );
   const id = s.idOf(r.text);
   expect((await s.call(MEMORY_GET_TOOL, { id })).text).toBe(
@@ -122,8 +122,8 @@ test("stale ids: edited -> not found, moved bullet resolves, deleted/cycle/bad i
   for (const bad of [
     "../x",
     "root#Facts:1~zzzzzz",
-    "repo/zzz#Facts:1~abcdef",
-    `repo/api#${"A".repeat(300)}`,
+    "location/zzz#Facts:1~abcdef",
+    `location/api#${"A".repeat(300)}`,
     "' OR 1=1",
     "summary/../x@0",
     "journal/2026-10-12#09:00:1~abcdef",
@@ -229,7 +229,7 @@ test("guard allows the 3 tools, denies unknown memory tools; all roles get the s
     agentHome: s.home,
     workspace: "a",
     registry: "",
-    memoryRepos: [],
+    memoryLocations: [],
     ledger: "",
   } as never);
   expect(JSON.stringify(p)).not.toContain("journalonlyword");
@@ -252,11 +252,11 @@ test("journal ids: same-minute same-label blocks; delete first -> second resolve
   expect((await s.call(MEMORY_GET_TOOL, { id: second })).text).toBe(NOT_FOUND);
 });
 
-test("hits: original spelling, redacted label, registry repos only; stale note on a failed sync", async () => {
+test("hits: original spelling, redacted label, registry locations only; stale note on a failed sync", async () => {
   const s = setup();
   s.put("workspaces/a/MEMORY.md", "## Facts\n- đường dẫn gốc quyết định (2026-10-01)\n");
-  s.put("workspaces/a/repos/api/MEMORY.md", "## Facts\n- shared kwux api\n");
-  s.put("workspaces/a/repos/old/MEMORY.md", "## Facts\n- shared kwux old\n");
+  s.put("workspaces/a/locations/api/MEMORY.md", "## Facts\n- shared kwux api\n");
+  s.put("workspaces/a/locations/old/MEMORY.md", "## Facts\n- shared kwux old\n");
   s.put(
     "workspaces/a/memory/2026-10-12.md",
     "## 14:00 sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789\n- jlabel note\n",
@@ -278,11 +278,11 @@ test("hits: original spelling, redacted label, registry repos only; stale note o
 test("forget (owner command) removes the bullet from search on the next call (mtime sync)", async () => {
   const s = setup();
   s.put(
-    "workspaces/a/repos/api/MEMORY.md",
+    "workspaces/a/locations/api/MEMORY.md",
     "# api\n\n## Facts\n- zebra stripes are black and white\n- giraffe necks are long\n",
   );
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "zebra" })).text).toContain("zebra");
-  expect(ownerForget(repoTarget(s.home, "a", "api"), "zebra stripes").ok).toBe(true);
+  expect(ownerForget(locationTarget(s.home, "a", "api"), "zebra stripes").ok).toBe(true);
   const after = await s.call(MEMORY_SEARCH_TOOL, { query: "zebra" });
   expect(after.text).not.toContain("zebra stripes");
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "giraffe" })).text).toContain("giraffe");

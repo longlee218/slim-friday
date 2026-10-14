@@ -117,7 +117,7 @@ const errQuery = (msg: string) => (_a: any) =>
 
 test("M4: genuine resume failure clears the session and tells the user", async () => {
   const env = makeEnv();
-  setSession(env.db, { threadId: "th9", sessionId: "stale", repo: env.home, cwd: env.home });
+  setSession(env.db, { threadId: "th9", sessionId: "stale", location: env.home, cwd: env.home });
   const q = errQuery("No conversation found with session ID: stale");
   const reply = await createTurnHandler({ db: env.db, config: env.config, queryFn: q as never })(
     task("a", "th9"),
@@ -128,7 +128,7 @@ test("M4: genuine resume failure clears the session and tells the user", async (
 
 test("M1: transient error (auth/rate limit) keeps the session", async () => {
   const env = makeEnv();
-  setSession(env.db, { threadId: "th8", sessionId: "good", repo: env.home, cwd: env.home });
+  setSession(env.db, { threadId: "th8", sessionId: "good", location: env.home, cwd: env.home });
   const q = errQuery("rate limit exceeded, retry later");
   const reply = await createTurnHandler({ db: env.db, config: env.config, queryFn: q as never })(
     task("a", "th8"),

@@ -5,7 +5,7 @@ import { restrictFile } from "../config/workspace-paths";
 import { logEvent, logger } from "../observability/logger";
 
 /** Current schema version (`meta.schema_version` is the only version marker). */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 const log = logger.child({ module: "db-migrate" });
 
@@ -44,13 +44,13 @@ export function schemaVersion(db: Database): number {
 
 /**
  * Write a consistent copy of the db to `<backupDir>/friday-<label>-<ts>.db` (`VACUUM INTO`, safe with WAL);
- * `label` is the version the copy holds (`v1`, `v2`, `v5`). Throws on failure: the caller must then abort startup,
+ * `label` is the version the copy holds (`v1`, `v2`, `v5`, `v6`). Throws on failure: the caller must then abort startup,
  * no migration runs on an unsaved db.
  */
 export function snapshotDb(
   db: Database,
   backupDir: string,
-  label: "v1" | "v2" | "v5",
+  label: "v1" | "v2" | "v5" | "v6",
   now = new Date(),
 ): string {
   mkdirSync(backupDir, { recursive: true, mode: 0o700 });

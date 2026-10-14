@@ -62,11 +62,11 @@ test("cd is not tracked or judged any more: it is allowed anywhere; the segments
 describe("git MCP tools (@cyanheads/git-mcp-server): the assistant's read scope only", () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "gm-")));
   const other = realpathSync(mkdtempSync(join(tmpdir(), "gm2-")));
-  const c = { writePaths: [], gitReadRepos: [dir] };
+  const c = { writePaths: [], gitReadPaths: [dir] };
   const d = (tool: string, input: Record<string, unknown> = {}, path = dir) =>
     checkToolCall(mcpToolName(GIT_MCP_SERVER, tool), { path, ...input }, c).decision;
 
-  test("reads work on registered repos; any other path is denied", () => {
+  test("reads work on registered locations; any other path is denied", () => {
     for (const t of [GIT_TOOL.STATUS, GIT_TOOL.DIFF, GIT_TOOL.LOG, GIT_TOOL.SHOW, GIT_TOOL.BLAME]) {
       expect(d(t)).toBe("allow");
       expect(d(t, {}, other)).toBe("deny");
@@ -87,7 +87,7 @@ describe("git MCP tools (@cyanheads/git-mcp-server): the assistant's read scope 
     expect(d(GIT_TOOL.STASH, { mode: "pop" })).toBe("deny");
   });
 
-  test("every non-read tool is denied, even on a registered repo (the dev agent uses the shell)", () => {
+  test("every non-read tool is denied, even on a registered location (the dev agent uses the shell)", () => {
     for (const t of [
       GIT_TOOL.ADD,
       GIT_TOOL.COMMIT,

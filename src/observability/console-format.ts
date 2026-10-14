@@ -10,8 +10,16 @@ const LINE_MAX = 200;
  */
 export const CONSOLE_IGNORE = ["pid", "hostname", "module", "event", "toolUseId", "input", "runId"];
 
-/** Task context keys: shown as the `· 8f3a1c2e ws/repo <role>` suffix, never as a JSON tail. */
-const CONTEXT_KEYS = ["traceId", "threadId", "channelId", "taskId", "workspace", "repo", "mode"];
+/** Task context keys: shown as the `· 8f3a1c2e ws/location <role>` suffix, never as a JSON tail. */
+const CONTEXT_KEYS = [
+  "traceId",
+  "threadId",
+  "channelId",
+  "taskId",
+  "workspace",
+  "location",
+  "mode",
+];
 /** Detail keys of tool.* events: folded into the message body. */
 const TOOL_KEYS = [
   "tool",
@@ -96,8 +104,8 @@ export function consoleMessage(l: Log): string {
     showThread && l.channelId && `channel=${s(l.channelId)}`,
     l.taskId && (inContext ? s(l.taskId).slice(0, 8) : `taskId=${s(l.taskId)}`),
     l.workspace
-      ? `${s(l.workspace)}${l.repo ? `/${s(l.repo)}` : ""}`
-      : l.repo && `repo=${s(l.repo)}`,
+      ? `${s(l.workspace)}${l.location ? `/${s(l.location)}` : ""}`
+      : l.location && `location=${s(l.location)}`,
     l.mode,
   ];
   const suffix = parts.filter(Boolean).join(" ");

@@ -147,7 +147,7 @@ export function buildSdkOptions(
     abortController: input.abortController,
     // Streaming input: the CLI echoes each consumed user message (isReplay): the proof a steer was read (steered-stream.ts).
     ...(input.steer && { extraArgs: { "replay-user-messages": null } }),
-    // No filesystem settings in any run: no repo (or ancestor) CLAUDE.md, no repo hooks/settings. Friday's
+    // No filesystem settings in any run: no location (or ancestor) CLAUDE.md, no location hooks/settings. Friday's
     // persona, AGENTS.md and memory are the only instructions.
     settingSources: [],
     systemPrompt: buildSystemPrompt((input.extraContext ?? []).filter(Boolean).join("\n\n"), role, {

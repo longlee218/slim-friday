@@ -19,8 +19,8 @@ export interface SearchArgs {
   /** `YYYY-MM-DD`: only entries with this date or later. */
   since?: string;
   limit: number;
-  /** Repo names of the run's registry: hits of any other repo are left out. */
-  repos: string[];
+  /** Location names of the run's registry: hits of any other location are left out. */
+  locations: string[];
 }
 
 export interface Hit {
@@ -60,13 +60,13 @@ export function searchIndex(
   if (terms.length === 0) return { hits: [], terms: 0 };
   const where = ["memory_fts MATCH ?", "workspace IN (?, '')"];
   const params: (string | number)[] = [buildMatch(terms), workspace];
-  // Repo entries only for repos the run knows (the id prefix before '#' is `repo/<name>`).
-  if (a.repos.length) {
+  // Location entries only for locations the run knows (the id prefix before '#' is `location/<name>`).
+  if (a.locations.length) {
     where.push(
-      `(source <> 'repo' OR substr(id, 1, instr(id, '#') - 1) IN (${a.repos.map(() => "?").join(", ")}))`,
+      `(source <> 'location' OR substr(id, 1, instr(id, '#') - 1) IN (${a.locations.map(() => "?").join(", ")}))`,
     );
-    params.push(...a.repos.map((r) => `repo/${r}`));
-  } else where.push("source <> 'repo'");
+    params.push(...a.locations.map((r) => `location/${r}`));
+  } else where.push("source <> 'location'");
   if (a.scope) where.push("source = ?"), params.push(a.scope);
   if (a.kind) where.push("kind = ?"), params.push(a.kind);
   if (a.since) where.push("date >= ?"), params.push(a.since);

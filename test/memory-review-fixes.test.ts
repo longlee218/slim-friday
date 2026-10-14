@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
 import { readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { loadConfig } from "../src/config/agent-config";
+import { locationMemoryFile } from "../src/memory/location-memory";
 import { createMemoryRunner } from "../src/memory/memory-command-handler";
 import { compactExitCode, parseCompactArgs } from "../src/memory/memory-compact-args";
 import { type CompactLlm, compactTargets, sdkCompactLlm } from "../src/memory/memory-compaction";
 import { buildCompacted } from "../src/memory/memory-compaction-prompt";
 import { formatCompactResult } from "../src/memory/memory-compaction-report";
-import { repoTarget } from "../src/memory/memory-targets";
-import { repoMemoryFile } from "../src/memory/repo-memory";
+import { locationTarget } from "../src/memory/memory-targets";
 import { captureLogs } from "../src/observability/logger";
 import { emptyUsage } from "../src/observability/record-run";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
@@ -16,16 +16,16 @@ const stub =
   (text: string): CompactLlm =>
   async () => ({ text, usage: emptyUsage() });
 
-/** Big repo memory (over 80% of 8000) with bullets `- the deploy pipeline step number N ...`. */
+/** Big location memory (over 80% of 8000) with bullets `- the deploy pipeline step number N ...`. */
 function big(env: ReturnType<typeof makeEnv>, extra = "") {
-  const t = repoTarget(env.home, "main", "repo");
+  const t = locationTarget(env.home, "main", "location");
   const b = Array.from(
     { length: 140 },
     (_, i) => `- the deploy pipeline step number ${i} uses cache folder alpha${i}`,
   );
   writeFileSync(
     t.file,
-    `# repo memory\n\nIntro.\n\n## 2026-01-01 a\n${b.slice(0, 70).join("\n")}\n${extra}\n## 2026-03-05 b\n${b.slice(70).join("\n")}\n`,
+    `# location memory\n\nIntro.\n\n## 2026-01-01 a\n${b.slice(0, 70).join("\n")}\n${extra}\n## 2026-03-05 b\n${b.slice(70).join("\n")}\n`,
   );
   return { t, b };
 }
@@ -54,7 +54,7 @@ test("a broken file does not stop the batch (deleted meanwhile)", async () => {
     rmSync(t.file); // vanishes before the commit re-read
     return { text: b.slice(0, 5).join("\n"), usage: emptyUsage() };
   };
-  const t2 = repoTarget(env.home, "main", "repo");
+  const t2 = locationTarget(env.home, "main", "location");
   const res = await compactTargets([t2, gone], llm, { dryRun: false });
   expect(res).toHaveLength(2);
   expect(res[0]?.status).toBe("aborted");
@@ -67,7 +67,7 @@ test("compacted section keeps the date span; header kept; prose counted; bak hol
   const res = await compactTargets([t], stub(b.slice(0, 10).join("\n")), { dryRun: false });
   expect(res[0]?.status).toBe("compacted");
   const after = readFileSync(t.file, "utf8");
-  expect(after).toContain("# repo memory\n\nIntro.");
+  expect(after).toContain("# location memory\n\nIntro.");
   expect(after).toContain("## compacted 2026-01-01..2026-03-05");
   expect(after).not.toContain("prose note");
   expect(readFileSync(`${t.file}.bak`, "utf8")).toContain("prose note");
@@ -94,7 +94,7 @@ test("dry-run reply shows sizes and proposed bullets (full for CLI); a real run 
   const text = formatCompactResult(dry);
   expect(text).toContain("DRY RUN");
   expect(text).toContain("[-] ");
-  expect(text).not.toContain("# repo memory");
+  expect(text).not.toContain("# location memory");
   const full = formatCompactResult(dry, { full: true });
   expect(full).toContain("Proposed bullets:");
   expect(full).toContain("- the deploy pipeline step number 7");
@@ -106,7 +106,7 @@ test("dry-run reply shows sizes and proposed bullets (full for CLI); a real run 
   );
   writeFileSync(
     t.file,
-    `# repo memory\n\n## 2026-01-01 a\n${stuck.join("\n")}\n${"- filler line to stay big\n".repeat(30)}`,
+    `# location memory\n\n## 2026-01-01 a\n${stuck.join("\n")}\n${"- filler line to stay big\n".repeat(30)}`,
   );
   const llm = stub(stuck.join("\n").replaceAll("x".repeat(200), "x".repeat(200)));
   const r = (await compactTargets([t], llm, { dryRun: true }))[0]!;
@@ -177,16 +177,16 @@ test("sdk call: a timeout then a success is retried; a non-timeout error is not"
 
 test("symlinked memory file: owner forget refused, compaction aborts", async () => {
   const env = makeEnv();
-  const t = repoTarget(env.home, "main", "repo");
+  const t = locationTarget(env.home, "main", "location");
   rmSync(t.file, { force: true });
-  writeFileSync(`${t.file}.real`, "# repo memory\n");
+  writeFileSync(`${t.file}.real`, "# location memory\n");
   symlinkSync(`${t.file}.real`, t.file);
   const run = createMemoryRunner({ db: env.db, config: env.config });
   expect(await run({ channelId: TEST_CHANNEL, text: "forget: should not land" })).toContain(
     "symlink",
   );
-  expect(readFileSync(`${t.file}.real`, "utf8")).toBe("# repo memory\n");
-  writeFileSync(`${t.file}.real`, `# repo memory\n\n## d\n${"- ".padEnd(9000, "y")}\n`);
+  expect(readFileSync(`${t.file}.real`, "utf8")).toBe("# location memory\n");
+  writeFileSync(`${t.file}.real`, `# location memory\n\n## d\n${"- ".padEnd(9000, "y")}\n`);
   const res = await compactTargets([t], stub("- a b c"), { dryRun: false });
   expect(res[0]).toMatchObject({ status: "aborted" });
 });

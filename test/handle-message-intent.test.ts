@@ -12,11 +12,12 @@ import { QUEUE_RECEIVED } from "../src/orchestrator/thread/intent-replies";
 import { ROLES } from "../src/roles/role-registry";
 import { getProposal, insertProposal, listPendingProposals } from "../src/storage/proposal-store";
 import { listRunMessages } from "../src/storage/run-message-store";
-import { g, makeRepo } from "./git-fixture";
+import { g, makeLocation } from "./git-fixture";
 import {
-  addRepo,
+  addLocation,
   answering,
   clearWorkspaces,
+  defaultLocationPath,
   makeEnv,
   resultMsg,
   stubGateway,
@@ -27,10 +28,10 @@ import {
 async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const src = await makeRepo("main");
-  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
-  addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
-  await g(env.home, "clone", "-q", src.repo, clone);
+  const src = await makeLocation("main");
+  const clone = defaultLocationPath(env.home, "real", "main");
+  addLocation(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
+  await g(env.home, "clone", "-q", src.location, clone);
   await g(clone, "config", "user.email", "test@example.com");
   await g(clone, "config", "user.name", "t");
   return env;
@@ -60,7 +61,7 @@ const intentDeps = (home: string, classifier?: IntentClassifier): IntentDeps => 
   classifier,
 });
 
-/** The dev run (the one that can Write, in the repo) commits a file; anything else is a Q&A answer. */
+/** The dev run (the one that can Write, in the location) commits a file; anything else is a Q&A answer. */
 function fakeSdk(seen: any[]) {
   return (a: any) => {
     seen.push(a);
@@ -80,7 +81,7 @@ function fakeSdk(seen: any[]) {
           "-qm",
           f,
         );
-        yield resultMsg({ result: "Xong\n\nrepo: real", session_id: "sess-exec" });
+        yield resultMsg({ result: "Xong\n\nlocation: real", session_id: "sess-exec" });
         return;
       }
       yield resultMsg({ result: "assistant answer", session_id: "sess-qa" });
@@ -122,7 +123,7 @@ test("L3 picks the role of an undecided message, once; assistant answers a quest
   expect(seen[0].options.systemPrompt.append).not.toMatch(/hand ?over|propose/i);
 });
 
-test("dev request with an unknown repo is refused with the repo name, no plan stage", async () => {
+test("dev request with an unknown location is refused with the location name, no plan stage", async () => {
   const env = await setup();
   const seen: any[] = [];
   const handle = createTurnHandler({
@@ -132,8 +133,8 @@ test("dev request with an unknown repo is refused with the repo name, no plan st
     queryFn: fakeSdk(seen) as never,
     intent: intentDeps(env.home),
   });
-  const reply = await handle(msg("repo:nope [dev] add b.txt"));
-  expect(reply).toContain('Unknown repo "nope"');
+  const reply = await handle(msg("location:nope [dev] add b.txt"));
+  expect(reply).toContain('Unknown location "nope"');
   expect(seen).toHaveLength(0);
 });
 
@@ -297,7 +298,7 @@ test('a second dev task while one runs: auto-queued with "received" (no question
     queryFn: query as never,
     intent: intentDeps(env.home, e.classifier),
   });
-  const first = handle(msg("[ask] explain the repo"));
+  const first = handle(msg("[ask] explain the location"));
   await Bun.sleep(50);
   // second message while running: the `[dev]` tag (L1) picks the role; the run has no steer, so it is NEW work:
   // queued at once, no question, no L3 call
@@ -376,7 +377,7 @@ test("after a task ended a [dev] message is a NEW task (fresh session, no fix ro
     queryFn: fakeSdk(seen) as never,
     intent: intentDeps(env.home, engine(verdict()).classifier),
   });
-  await handle(msg("please add b.txt with two")); // L3 -> dev: one run in the repo
+  await handle(msg("please add b.txt with two")); // L3 -> dev: one run in the location
   expect(seen).toHaveLength(1);
   // an assistant question in the thread: answered, no dev session continued
   expect(await handle(msg("[ask] what did you change"))).toBe("assistant answer");
@@ -550,7 +551,7 @@ test("a crash of the active run still starts the queued task (no L3 call while a
   env.db.run(
     "CREATE TRIGGER boom BEFORE UPDATE ON turns WHEN NEW.role = 'assistant' AND NEW.status != 'running' BEGIN SELECT RAISE(ABORT, 'boom'); END",
   );
-  const first = handle(msg("[ask] explain the repo"));
+  const first = handle(msg("[ask] explain the location"));
   await Bun.sleep(50);
   expect(await handle(msg("[dev] add b.txt"))).toBe(QUEUE_RECEIVED);
   expect(e.seen).toEqual([]); // busy, the run takes no steer: no L3 call

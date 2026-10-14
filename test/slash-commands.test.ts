@@ -22,7 +22,7 @@ test("slashToLegacy maps each canonical form and leaves everything else alone", 
     expect(slashToLegacy(t)).toBe(t);
   expect(parseMessageCommand("/stop now")).toEqual({
     kind: "message",
-    repo: undefined,
+    location: undefined,
     text: "/stop now",
   });
   for (const t of ["stop", "hello /stop", "/unknown x", "/stopper", "see /go", "http://x/stop"])

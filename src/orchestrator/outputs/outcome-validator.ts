@@ -7,9 +7,12 @@ import type { DeliveryEvidence } from "./delivery-evidence";
 export const NO_DELIVERY_NOTE =
   "Note: nothing was committed, pushed or opened as a PR in this run.";
 
-/** A role is expected to deliver when it changes a repo: role data, no role name. */
-export const expectsDelivery = (role: RoleDefinition): boolean =>
-  role.background && role.sideEffects === "repo";
+/**
+ * A role is expected to deliver when it changes a git location (role data, no role name). A location
+ * without a git dir has no git delivery to expect (`git` false).
+ */
+export const expectsDelivery = (role: RoleDefinition, git = true): boolean =>
+  git && role.background && role.sideEffects === "location";
 
 /** Next step to offer per run outcome that did not succeed. */
 const HINT: Partial<Record<RunOutcome, string>> = {
@@ -30,6 +33,7 @@ export function validateOutcome(
   run: { outcome: RunOutcome; text: string },
   ev: DeliveryEvidence,
   traceId: string,
+  git = true,
 ): ExecutionOutcome {
   const base = {
     artifacts: ev.artifacts,
@@ -44,7 +48,7 @@ export function validateOutcome(
   });
   switch (run.outcome) {
     case "success":
-      return expectsDelivery(role) && !ev.any
+      return expectsDelivery(role, git) && !ev.any
         ? withHint("partial", "continue")
         : withHint("success");
     case "max_turns":

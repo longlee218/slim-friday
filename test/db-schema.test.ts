@@ -28,7 +28,7 @@ test("schema has 4 tables and WAL mode", () => {
 
 test("task/run/tool_call helpers insert rows", () => {
   const { db } = makeEnv();
-  insertTurn(db, { id: "t", threadId: "th", source: "test", repo: "/r", role: "assistant" });
+  insertTurn(db, { id: "t", threadId: "th", source: "test", location: "/r", role: "assistant" });
   finishTurn(db, "t", "done");
   insertRun(db, {
     id: "r",
@@ -60,7 +60,7 @@ test("task/run/tool_call helpers insert rows", () => {
 
 test("restart cleanup: waiting_approval tasks become interrupted, pending approvals cancelled", () => {
   const { db } = makeEnv();
-  insertTurn(db, { id: "t1", threadId: "th", source: "d", repo: "r", role: "dev" });
+  insertTurn(db, { id: "t1", threadId: "th", source: "d", location: "r", role: "dev" });
   setTurnStatus(db, "t1", "waiting_approval");
   db.run(
     "INSERT INTO approvals (id, turn_id, tool, summary, decision, requested_at) VALUES ('a','t1',?,'s','pending',1)",
@@ -178,7 +178,7 @@ test("migration: old db without brief column gets brief added via ALTER TABLE", 
       id: "t2",
       threadId: "th1",
       source: "test",
-      repo: "r1",
+      location: "r1",
       role: "dev",
       brief: "test brief",
     });

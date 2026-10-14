@@ -1,8 +1,8 @@
 import type { Logger } from "pino";
 import type { Effort, TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
+import type { Location } from "../locations/location-registry";
 import { logEvent } from "../observability/logger";
-import type { Repo } from "../repos/repo-registry";
 import { getRole } from "../roles/role-registry";
 import { RESUME_FAILED } from "../runtime/run-errors";
 import { threadLedger } from "../storage/ledger-store";
@@ -24,11 +24,11 @@ export interface RoleRunCtx {
   /** Start time of the call (for `task.finished`). */
   t0: number;
   workspace: string;
-  repos: Repo[];
+  locations: Location[];
   ac: AbortController;
   /** Creates the turn row (called once, after the refusals, before the flow runs). */
   begin: (
-    repo: string,
+    location: string,
     role: string,
     cls?: TaskClass,
     /** Task this run continues (interrupt Resume, `/go`): its row is a `resume` child, its spend counts against the same ceiling. */
@@ -36,8 +36,8 @@ export interface RoleRunCtx {
     /** Owned task this run continues (background roles only; the turn links to it). */
     ownedTaskId?: string,
   ) => void;
-  /** Repo of the log context, to report when the flow named none. */
-  turnRepo: () => string;
+  /** Location of the log context, to report when the flow named none. */
+  turnLocation: () => string;
 }
 
 /**
@@ -72,13 +72,14 @@ export async function runTurn(
   logEvent(c.log, "thread.state", { state });
   const ledger =
     role.context?.ledger && isIdleLike(state) ? threadLedger(db, message.threadId) : "";
-  // A continued task keeps the repo of the task it continues (its row names it), so the ledger does not show `*`.
-  const parentRepo = resume
-    ? db.query<{ repo: string }, [string]>("SELECT repo FROM turns WHERE id = ?").get(resume.of)
-        ?.repo
+  // A continued task keeps the location of the task it continues (its row names it), so the ledger does not show `*`.
+  const parentLocation = resume
+    ? db
+        .query<{ location: string }, [string]>("SELECT location FROM turns WHERE id = ?")
+        .get(resume.of)?.location
     : undefined;
   c.begin(
-    a.route.repo === "*" && parentRepo ? parentRepo : a.route.repo,
+    a.route.location === "*" && parentLocation ? parentLocation : a.route.location,
     role.name,
     cls,
     resume?.of,
@@ -90,19 +91,24 @@ export async function runTurn(
     text: cmd.text,
     role: role.name,
     workspace: ws,
-    // `repoScope: "all"` roles see every repo of the workspace; the others the candidates.
-    repos: role.repoScope === "all" ? c.repos : a.route.candidates,
+    // `locationScope: "all"` roles see every location of the workspace; the others the candidates.
+    locations: role.locationScope === "all" ? c.locations : a.route.candidates,
     ac: c.ac,
     resume,
     route: runRt,
-    // The held task is taken over only when the run really starts (repo gone, a failed role check keep the hold).
+    // The held task is taken over only when the run really starts (location gone, a failed role check keep the hold).
     onStarted: resume ? () => dropResumable(db, message.threadId) : undefined,
     pinned,
     existing,
     ledger,
     recent: message.recent,
   });
-  const o = { stopping: deps.stopping(), t0: c.t0, repo: c.turnRepo() };
+  const o = {
+    stopping: deps.stopping(),
+    t0: c.t0,
+    location: c.turnLocation(),
+    locations: c.locations,
+  };
   const reply = closeTurn(db, { turnId, threadId: message.threadId }, res, o);
   // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).
   if (res.outcome === "error" && RESUME_FAILED.test(res.text)) {

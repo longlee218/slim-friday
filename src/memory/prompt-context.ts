@@ -1,8 +1,8 @@
 import type { RecentMessage } from "../intent/intent-types";
 import { cleanRecent, recentLines } from "../intent/recent-messages";
 import { logEvent, logger } from "../observability/logger";
+import { buildMemoryContext, readMemoryLayers } from "./location-memory";
 import { buildPersonaContext } from "./persona";
-import { buildMemoryContext, readMemoryLayers } from "./repo-memory";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "prompt-context" });
@@ -18,8 +18,8 @@ export interface PromptContextInput {
   workspace: string;
   /** Registry block (qa unpinned, plan). */
   registry?: string;
-  /** Repos (of `workspace`) whose memory is added after the root and workspace memory. */
-  memoryRepos: string[];
+  /** Locations (of `workspace`) whose memory is added after the root and workspace memory. */
+  memoryLocations: string[];
   /** Idle thread: its task ledger (storage/ledger-store.ts), after memory; empty = none. */
   ledger?: string;
   /** Fresh session after a rollover: the saved thread summary; empty = none. */
@@ -30,26 +30,26 @@ export interface PromptContextInput {
 
 /**
  * The one place that orders the prompt context of a run:
- * AGENTS, IDENTITY, SOUL, USER -> registry -> memory (root, workspace, repos) -> task ledger (idle thread) ->
+ * AGENTS, IDENTITY, SOUL, USER -> registry -> memory (root, workspace, locations) -> task ledger (idle thread) ->
  * thread summary -> last messages (the last two only seed a fresh session after a rollover).
- * No repo CLAUDE.md anywhere: the SDK loads no settings (settingSources []) and nothing here injects one.
+ * No location CLAUDE.md anywhere: the SDK loads no settings (settingSources []) and nothing here injects one.
  * Logs one `prompt.context` event with the chars of each layer (counts only, never content).
  * BOOTSTRAP.md is an owner guide and is never injected.
  */
 export function buildPromptContext(i: PromptContextInput): string[] {
   const persona = buildPersonaContext(i.agentHome, i.workspace);
   const registry = i.registry ?? "";
-  const memory = buildMemoryContext(i.agentHome, i.workspace, i.memoryRepos);
+  const memory = buildMemoryContext(i.agentHome, i.workspace, i.memoryLocations);
   const ledger = i.ledger ?? "";
   const summary = i.threadSummary?.trim() ? `${SUMMARY_HEADING}\n${i.threadSummary.trim()}` : "";
   const lines = recentLines(cleanRecent(i.recent));
   const recent = lines.length ? `${RECENT_BLOCK_HEADING}\n${lines.join("\n")}` : "";
   const blocks = [persona.text, registry, memory, ledger, summary, recent];
-  const layers = readMemoryLayers(i.agentHome, i.workspace, i.memoryRepos);
-  // Silent truncation made visible: layers cut at read, repos skipped by the repos total (names only).
+  const layers = readMemoryLayers(i.agentHome, i.workspace, i.memoryLocations);
+  // Silent truncation made visible: layers cut at read, locations skipped by the locations total (names only).
   if (layers.overCap.length) logEvent(log, "memory.truncated", { files: layers.overCap }, "warn");
-  if (layers.skippedRepos.length)
-    logEvent(log, "memory.repo_skipped", { repos: layers.skippedRepos }, "warn");
+  if (layers.skippedLocations.length)
+    logEvent(log, "memory.location_skipped", { locations: layers.skippedLocations }, "warn");
   logEvent(
     log,
     "prompt.context",
@@ -62,7 +62,7 @@ export function buildPromptContext(i: PromptContextInput): string[] {
       recentChars: recent.length,
       memoryRootChars: layers.root.length,
       memoryWorkspaceChars: layers.workspace.length,
-      memoryRepoChars: layers.repos.reduce((n, r) => n + r.text.length, 0),
+      memoryLocationChars: layers.locations.reduce((n, r) => n + r.text.length, 0),
       memoryOverCap: layers.overCap,
       totalChars: blocks.reduce((n, b) => n + b.length, 0),
     },

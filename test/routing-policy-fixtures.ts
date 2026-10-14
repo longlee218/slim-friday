@@ -56,7 +56,12 @@ export function proposer(p: RouteProposal | Error) {
 /** A thread `th` whose background task was interrupted: its owned task waits for the owner (idle thread, no question). */
 export function waitingTask() {
   const env = makeEnv();
-  beginTurn(env.db, logger, { turnId: "t1", threadId: "th", source: "t" }, { repo: "r", role: BG });
+  beginTurn(
+    env.db,
+    logger,
+    { turnId: "t1", threadId: "th", source: "t" },
+    { location: "r", role: BG },
+  );
   interruptRunningTurns(env.db);
   return { ...env, task: activeOwnedTask(env.db, "th")! };
 }
@@ -82,7 +87,7 @@ export const VAGUE = "can you look at the auth thing";
 /** A thread whose last turn was `role` (finished, task completed). */
 export function afterTurn(role: string) {
   const env = makeEnv();
-  beginTurn(env.db, logger, { turnId: "t1", threadId: "th", source: "t" }, { repo: "r", role });
+  beginTurn(env.db, logger, { turnId: "t1", threadId: "th", source: "t" }, { location: "r", role });
   finishTurn(env.db, "t1", "done");
   settleTaskAfterTurn(env.db, "t1", "done");
   return env;

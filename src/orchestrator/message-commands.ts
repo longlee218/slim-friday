@@ -6,7 +6,7 @@ import { parseMemoryCommand } from "../memory/memory-commands";
 export const RESUME_PROMPT =
   "The bot restarted while you were working. Continue the task from where you stopped.";
 
-/** What an owner message means: a control command, or a plain message for a role with an optional repo hint. */
+/** What an owner message means: a control command, or a plain message for a role with an optional location hint. */
 export type MessageCommand =
   | { kind: "stop" }
   /** The Resume button: continue the thread's saved session. */
@@ -21,12 +21,12 @@ export type MessageCommand =
   /**
    * A plain message (not a control command); the intent layer picks its role (no intent layer: the entry role).
    * `role` is never parsed: only a Resume of an interrupted or failed task sets it (that task's role starts again).
-   * `repo:<name>` is an optional hint.
+   * `location:<name>` is an optional hint.
    */
   | {
       kind: "message";
       role?: string;
-      repo?: string;
+      location?: string;
       text: string;
       cls?: TaskClass;
       tier?: ModelTier;
@@ -47,7 +47,7 @@ export const MAX_GO_EXTRA_USD = 1000;
 /** `go` or `go +<usd>` (a positive amount, e.g. `go +1.5`); anything else is a normal message. */
 const GO_COMMAND = /^go(?:\s+\+(\d+(?:\.\d+)?))?$/i;
 
-/** Parse a message into one command. The only place that knows the `stop` / `repo:` syntax (canonical `/stop`: legacy forms still work). */
+/** Parse a message into one command. The only place that knows the `stop` / `location:` syntax (canonical `/stop`: legacy forms still work). */
 export function parseMessageCommand(input: string): MessageCommand {
   const text = slashToLegacy(input).trim(); // L0: `/stop`, `/go` ... map onto the legacy forms below
   if (text.toLowerCase() === "stop") return { kind: "stop" };
@@ -57,11 +57,11 @@ export function parseMessageCommand(input: string): MessageCommand {
   if (go && (go[1] === undefined || (Number(go[1]) > 0 && Number(go[1]) <= MAX_GO_EXTRA_USD)))
     return { kind: "go", ...(go[1] !== undefined && { extraBudgetUsd: Number(go[1]) }) };
   if (parseMemoryCommand(text)) return { kind: "memory" };
-  // Prefixes come in any order: `[design] repo:x ...` or `repo:x [design] ...`; all are stripped from the brief.
+  // Prefixes come in any order: `[design] location:x ...` or `location:x [design] ...`; all are stripped from the brief.
   let rest = text;
   let cls: TaskClass | undefined;
   let tier: ModelTier | undefined;
-  let repo: string | undefined;
+  let location: string | undefined;
   for (let i = 0; i < 3; i++) {
     const c = !cls && CLASS_PREFIX.exec(rest);
     if (c) {
@@ -81,11 +81,11 @@ export function parseMessageCommand(input: string): MessageCommand {
       rest = `${tt[1]} ${rest.slice(tt[0].length)}`;
       continue;
     }
-    const pin = !repo && /^repo:(\S+)\s*/i.exec(rest);
+    const pin = !location && /^(?:location|repo):(\S+)\s*/i.exec(rest);
     if (pin) {
-      repo = pin[1];
+      location = pin[1];
       rest = rest.slice(pin[0].length);
     }
   }
-  return { kind: "message", repo, text: rest, ...(cls && { cls }), ...(tier && { tier }) };
+  return { kind: "message", location, text: rest, ...(cls && { cls }), ...(tier && { tier }) };
 }

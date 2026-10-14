@@ -6,14 +6,14 @@ import { type CompactLlm, compactFile, sdkCompactLlm } from "../src/memory/memor
 import { parseCompacted } from "../src/memory/memory-compaction-prompt";
 import { formatCompactResult } from "../src/memory/memory-compaction-report";
 import { nonDerivable } from "../src/memory/memory-derivability";
-import { repoTarget } from "../src/memory/memory-targets";
+import { locationTarget } from "../src/memory/memory-targets";
 import { captureLogs } from "../src/observability/logger";
 import { emptyUsage } from "../src/observability/record-run";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
-/** A repo memory (cap 8000) well over 80%: many bullets, some duplicated. */
+/** A location memory (cap 8000) well over 80%: many bullets, some duplicated. */
 function bigMemory(env: ReturnType<typeof makeEnv>) {
-  const t = repoTarget(env.home, "main", "repo");
+  const t = locationTarget(env.home, "main", "location");
   const bullets = Array.from(
     { length: 140 },
     (_, i) => `- the deploy pipeline step number ${i} uses cache folder alpha${i}`,
@@ -22,7 +22,10 @@ function bigMemory(env: ReturnType<typeof makeEnv>) {
     "- always run database migrations before starting the server",
     "- run database migrations before starting server always",
   );
-  writeFileSync(t.file, `# repo memory\n\nLessons.\n\n## 2026-01-01 old\n${bullets.join("\n")}\n`);
+  writeFileSync(
+    t.file,
+    `# location memory\n\nLessons.\n\n## 2026-01-01 old\n${bullets.join("\n")}\n`,
+  );
   return { t, bullets };
 }
 
@@ -35,8 +38,8 @@ const stub =
 
 test("below 80% of the cap: no model call", async () => {
   const env = makeEnv();
-  const t = repoTarget(env.home, "main", "repo");
-  writeFileSync(t.file, "# repo memory\n\n## d\n- small\n");
+  const t = locationTarget(env.home, "main", "location");
+  writeFileSync(t.file, "# location memory\n\n## d\n- small\n");
   let calls = 0;
   const r = await compactFile(
     t,
@@ -65,7 +68,7 @@ test("success: bak kept, atomic write, header kept, sizes and removed count, usa
   expect(r.status).toBe("compacted");
   expect(readFileSync(`${t.file}.bak`, "utf8")).toBe(before);
   const after = readFileSync(t.file, "utf8");
-  expect(after.startsWith("# repo memory\n\nLessons.")).toBe(true);
+  expect(after.startsWith("# location memory\n\nLessons.")).toBe(true);
   expect(after).toContain(
     "## compacted 2026-01-01..2026-01-01\n- the deploy pipeline step number 0",
   );

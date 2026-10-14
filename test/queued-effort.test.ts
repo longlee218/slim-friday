@@ -5,11 +5,12 @@ import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
 import { getProposal, insertProposal } from "../src/storage/proposal-store";
-import { g, makeRepo } from "./git-fixture";
+import { g, makeLocation } from "./git-fixture";
 import {
-  addRepo,
+  addLocation,
   answering,
   clearWorkspaces,
+  defaultLocationPath,
   makeEnv,
   resultMsg,
   stubGateway,
@@ -20,10 +21,10 @@ import {
 async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const src = await makeRepo("main");
-  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
-  addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
-  await g(env.home, "clone", "-q", src.repo, clone);
+  const src = await makeLocation("main");
+  const clone = defaultLocationPath(env.home, "real", "main");
+  addLocation(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
+  await g(env.home, "clone", "-q", src.location, clone);
   return env;
 }
 
@@ -68,7 +69,7 @@ async function queueThenStart(devText: string) {
       classifier: { classify: async (i: any) => verdict(i) } as any,
     },
   });
-  const running = handle(msg("[ask] explain the repo"));
+  const running = handle(msg("[ask] explain the location"));
   await startedLatch; // the first run is inside `query`, so the next message queues behind it
   await handle(msg(devText));
   const stored = rows(env, "SELECT effort FROM proposals")[0].effort;

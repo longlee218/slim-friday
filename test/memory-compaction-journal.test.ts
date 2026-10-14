@@ -8,7 +8,7 @@ import { JOURNAL_PROMPT_CHARS } from "../src/memory/journal-reader";
 import { type CompactLlm, compactFile, compactTargets } from "../src/memory/memory-compaction";
 import { compactionPrompt, compactionSystem } from "../src/memory/memory-compaction-prompt";
 import { formatCompactResult } from "../src/memory/memory-compaction-report";
-import { repoTarget, workspaceTarget } from "../src/memory/memory-targets";
+import { locationTarget, workspaceTarget } from "../src/memory/memory-targets";
 import { emptyUsage } from "../src/observability/record-run";
 import { makeEnv } from "./helpers";
 
@@ -112,7 +112,7 @@ test("confirmed compaction writes the promoted bullet; MemorySearch finds it and
   const { env, t } = setup([["2026-10-12", NOTE]], mem);
   syncIndex(env.db, env.home, "main");
   const find = (q: string) =>
-    searchIndex(env.db, "main", { query: q, limit: 10, repos: [] } as never).hits;
+    searchIndex(env.db, "main", { query: q, limit: 10, locations: [] } as never).hits;
   expect(find("zebrafish").length).toBeGreaterThan(0);
   const out = `## Facts\n${OLD}\n## Decisions\n- ship the nightly report on friday (2026-10-12)`;
   const r = await compactTargets([t], stub(out, { calls: 0 }), { dryRun: false, home: env.home });
@@ -191,9 +191,9 @@ test("under threshold: runs with a promotable journal, skips without", async () 
   expect(seen.calls).toBe(1);
 });
 
-test("a repo target ignores the journal", async () => {
+test("a location target ignores the journal", async () => {
   const { env } = setup([["2026-10-12", NOTE]]);
-  const rt = repoTarget(env.home, "main", "repo");
+  const rt = locationTarget(env.home, "main", "location");
   writeFileSync(rt.file, MEMORY);
   const seen = { calls: 0 } as { system?: string; prompt?: string; calls: number };
   const r = await compactTargets([rt], stub(`## Facts\n${OLD}`, seen), {

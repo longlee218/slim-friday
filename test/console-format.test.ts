@@ -8,7 +8,7 @@ import { consolePrettyOptions } from "../src/observability/logger";
 const ctx = {
   taskId: "8f3a1c2e-1111-2222",
   workspace: "reelme",
-  repo: "reelme-v2",
+  location: "reelme-v2",
   mode: "assistant",
 };
 
@@ -123,7 +123,7 @@ function render(records: [Record<string, unknown>, string, ("info" | "warn")?][]
 const inCtx = {
   taskId: "8f3a1c2e-1111-2222",
   workspace: "ws",
-  repo: "r",
+  location: "r",
   mode: "assistant",
   threadId: "T1",
 };
@@ -138,7 +138,7 @@ test("pretty stream, non-tool events keep their fields (review M1)", () => {
     [{ event: "message.ignored", reason: "no_parent_channel", threadId: "T9" }, "message.ignored"],
     [{ threadId: "T7", err: "send failed" }, "resume notice failed", "warn"],
     [{ event: "worktree.orphan", taskId: "FULL-TASK-ID-0123456789" }, "worktree.orphan"],
-    [{ event: "pr.created", repo: "api", url: "u" }, "pr.created"],
+    [{ event: "pr.created", location: "api", url: "u" }, "pr.created"],
   ]);
   expect(plugin).toContain('"files":7');
   expect(plugin).toContain("· 8f3a1c2e ws/r assistant");
@@ -150,7 +150,7 @@ test("pretty stream, non-tool events keep their fields (review M1)", () => {
   expect(resume).toContain("thread=T7");
   expect(resume).toContain("err=send failed");
   expect(orphan).toContain("taskId=FULL-TASK-ID-0123456789");
-  expect(pr).toContain("repo=api");
+  expect(pr).toContain("location=api");
 });
 
 test("Read-shaped tool.done shows exact size, approx size shows ~", () => {

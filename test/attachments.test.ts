@@ -236,7 +236,7 @@ test("L4 input stays capped at 2000 chars of message; the ledger line stays shor
     id: "t1",
     threadId: "th",
     source: "t",
-    repo: "r",
+    location: "r",
     role: "dev",
     brief: text,
   });

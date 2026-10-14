@@ -90,7 +90,7 @@ test("buildIntentInput: lastTurn = the role of the thread's latest task; none fo
   expect(
     buildIntentInput(env.db, { threadId: "th", text: "x", state: "idle" }).thread.lastTurn,
   ).toBeUndefined();
-  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", repo: "r", role: "assistant" });
+  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", location: "r", role: "assistant" });
   const t = buildIntentInput(env.db, { threadId: "th", text: "x", state: "idle" }).thread;
   expect(t.lastTurn).toEqual({ role: "assistant" });
 });

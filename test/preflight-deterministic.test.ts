@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
+import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-location";
 import {
   deterministicPreflight,
   PREFLIGHT_CHECKS,
@@ -12,11 +12,11 @@ import { BG, FG } from "./routing-policy-fixtures";
 
 function setup(over: Partial<PreflightCtx> = {}) {
   const env = makeEnv();
-  const repos = loadWorkspaces(env.home).workspaces[0]!.repos;
+  const locations = loadWorkspaces(env.home).workspaces[0]!.locations;
   const ctx: PreflightCtx = {
     role: BG,
     text: "do it",
-    repos,
+    locations,
     hasApprovals: true,
     db: env.db,
     ...over,
@@ -33,24 +33,24 @@ test("accept: a background and a foreground candidate pass every check", () => {
   }
 });
 
-test("unknown repo hint -> need_clarification, legacy reason unknown_repo", () => {
-  const { ctx } = setup({ repoHint: "nope" });
+test("unknown location hint -> need_clarification, legacy reason unknown_location", () => {
+  const { ctx } = setup({ locationHint: "nope" });
   const out = deterministicPreflight(ctx);
   expect(out.result).toMatchObject({
     decision: "need_clarification",
     reasonCode: "MISSING_INFORMATION",
     suggestedAgents: [],
-    evidence: ["unknown_repo"],
+    evidence: ["unknown_location"],
     safeToExecute: false,
   });
-  expect(out.refusal?.reason).toBe("unknown_repo");
+  expect(out.refusal?.reason).toBe("unknown_location");
 });
 
-test("repo hint without text -> empty_text; background role without text -> empty_text", () => {
-  const withRepo = setup({ repoHint: "repo", text: "" }).ctx;
-  expect(deterministicPreflight(withRepo).refusal).toMatchObject({
+test("location hint without text -> empty_text; background role without text -> empty_text", () => {
+  const withLocation = setup({ locationHint: "location", text: "" }).ctx;
+  expect(deterministicPreflight(withLocation).refusal).toMatchObject({
     reason: "empty_text",
-    reply: 'Send your question after "repo:repo".',
+    reply: 'Send your question after "location:location".',
   });
   const bare = deterministicPreflight(setup({ text: "" }).ctx);
   expect(bare.result.decision).toBe("need_clarification");
@@ -86,7 +86,7 @@ test("approvalRequired without approvals -> reject, only authorized roles sugges
 test("capped task limit -> reject, not reroutable, legacy event task.busy", () => {
   const { ctx, env } = setup();
   for (const id of Array.from({ length: MAX_CAPPED_TASKS }, (_, n) => `cap${n}`))
-    insertTurn(env.db, { id, threadId: id, source: "t", repo: "repo", role: BG });
+    insertTurn(env.db, { id, threadId: id, source: "t", location: "location", role: BG });
   const out = deterministicPreflight(ctx);
   expect(out.result).toMatchObject({
     decision: "reject",
@@ -96,14 +96,14 @@ test("capped task limit -> reject, not reroutable, legacy event task.busy", () =
   expect(out.refusal).toMatchObject({ reason: "code_task_limit", event: "task.busy" });
 });
 
-test("first hit wins: unknown repo beats no approvals and an empty text", () => {
+test("first hit wins: unknown location beats no approvals and an empty text", () => {
   const out = deterministicPreflight(
-    setup({ repoHint: "nope", hasApprovals: false, text: "" }).ctx,
+    setup({ locationHint: "nope", hasApprovals: false, text: "" }).ctx,
   );
-  expect(out.result.evidence).toEqual(["unknown_repo"]);
+  expect(out.result.evidence).toEqual(["unknown_location"]);
   expect(PREFLIGHT_CHECKS.map((c) => c.id)).toEqual([
-    "unknown_repo",
-    "empty_text_repo",
+    "unknown_location",
+    "empty_text_location",
     "unknown_role",
     "no_approvals",
     "empty_text",
@@ -120,7 +120,7 @@ test("no side effects: every table keeps its row count", () => {
   const counts = () =>
     tables.map((t) => env.db.query<{ n: number }, []>(`SELECT COUNT(*) AS n FROM "${t}"`).get()!.n);
   const before = counts();
-  for (const c of [ctx, { ...ctx, hasApprovals: false }, { ...ctx, repoHint: "nope" }])
+  for (const c of [ctx, { ...ctx, hasApprovals: false }, { ...ctx, locationHint: "nope" }])
     deterministicPreflight(c);
   expect(counts()).toEqual(before);
 });

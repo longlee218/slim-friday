@@ -116,7 +116,7 @@ export function lastTurnOfTask(
   | {
       id: string;
       status: string;
-      repo: string;
+      location: string;
       sessionId: string | null;
       cwd: string | null;
     }
@@ -124,10 +124,16 @@ export function lastTurnOfTask(
   return (
     db
       .query<
-        { id: string; status: string; repo: string; sessionId: string | null; cwd: string | null },
+        {
+          id: string;
+          status: string;
+          location: string;
+          sessionId: string | null;
+          cwd: string | null;
+        },
         [string]
       >(
-        `SELECT id, status, repo, session_id AS sessionId, session_cwd AS cwd FROM turns
+        `SELECT id, status, location, session_id AS sessionId, session_cwd AS cwd FROM turns
          WHERE owned_task_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
       )
       .get(taskId) ?? undefined

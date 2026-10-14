@@ -50,3 +50,9 @@ test("max_turns with text is partial; error and timeout fail; quota and stop are
   });
   expect(validateOutcome(deliverer, run("aborted"), none, "tr").status).toBe("blocked");
 });
+
+test("a run in a location without a git dir is not expected to deliver: success without evidence", () => {
+  expect(expectsDelivery(deliverer, false)).toBe(false);
+  expect(validateOutcome(deliverer, run("success"), none, "tr", false).status).toBe("success");
+  expect(validateOutcome(deliverer, run("success"), none, "tr", true).status).toBe("partial");
+});

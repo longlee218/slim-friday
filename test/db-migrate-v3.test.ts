@@ -9,6 +9,7 @@ import { openDb } from "../src/storage/db";
 import { threadLedger } from "../src/storage/ledger-store";
 import { applyLegacySchema } from "../src/storage/legacy-schema";
 import { migrateV3 } from "../src/storage/migrate-v3-turns";
+import { migrateV7 } from "../src/storage/migrate-v7-locations-threads";
 import { insertTurn, latestTurnSession } from "../src/storage/run-store";
 
 // OLD NAMES ON PURPOSE: this file builds the v2 (pre-turns) database and checks the v2 -> v3 migration.
@@ -180,7 +181,8 @@ test("c. data: every row equal by column position, sums and joins equal, in-flig
 test("d. readers work on the migrated db", () => {
   const { file } = v2Home();
   const db = openV3(file);
-  insertTurn(db, { id: "t5", threadId: "th3", source: "s", repo: "r", role: "assistant" });
+  migrateV7(db); // the readers use the v7 column names
+  insertTurn(db, { id: "t5", threadId: "th3", source: "s", location: "r", role: "assistant" });
   expect(db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 5 });
   // The migrated `stages` rows stay on disk (dropped by v4) but nothing reads them any more.
   expect(db.query("SELECT COUNT(*) AS n FROM stages WHERE turn_id = 't2'").get()).toEqual({ n: 2 });
@@ -191,7 +193,7 @@ test("d. readers work on the migrated db", () => {
   });
   const ledger = threadLedger(db, "th2");
   expect(ledger).toContain('- t2 dev, running: "build it"');
-  expect(ledger).toContain("  repo repo, cost $0.50"); // the sum of the task's `runs`
+  expect(ledger).toContain("  location repo, cost $0.50"); // the sum of the task's `runs`
   expect(deriveThreadState(db, "th2")).toBe("idle"); // last turn t3 is failed_resumable
 });
 
@@ -238,7 +240,7 @@ test("g. v1 db chains to v5: version 5, exactly one backup and it is the v1 one"
   `);
   raw.close();
   const db = openDb(file);
-  expect(version(db)).toBe("6");
+  expect(version(db)).toBe("7");
   expect(db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 1 });
   const snaps = readdirSync(join(home, "db-backups"));
   expect(snaps).toHaveLength(1);
@@ -249,13 +251,13 @@ test("h. fresh file db and :memory: land on v5 with the new names and no backup"
   const home = mkdtempSync(join(tmpdir(), "friday-v3-"));
   const file = join(home, "data", "agent.db");
   const db = openDb(file);
-  expect(version(db)).toBe("6");
+  expect(version(db)).toBe("7");
   expect(names(db, "table")).toContain("turns");
   expect(names(db, "table")).not.toContain("tasks");
   expect(cols(db, "runs")).toContain("turn_id");
   expect(() => readdirSync(join(home, "db-backups"))).toThrow(); // no backup dir at all
   const mem = openDb(":memory:");
-  expect(version(mem)).toBe("6");
+  expect(version(mem)).toBe("7");
   expect(names(mem, "table")).toContain("turns");
 });
 
@@ -277,9 +279,9 @@ test("g. an old db with a worktrees row and a failed_resumable dev turn opens; `
   const cwd = mkdtempSync(join(tmpdir(), "friday-v3-cwd-"));
   db.query("UPDATE turns SET session_cwd = ? WHERE id = 't3'").run(cwd);
   // The session cwd is a registered repo of the workspace: the dev run may continue in it.
-  const repo = { name: "web", workspace: "main", dir: cwd, path: cwd, description: "" };
+  const repo = { name: "web", workspace: "main", dir: cwd, path: cwd, description: "", git: false };
   const r = resolveCommand(
-    { db, agentHome: home, workspace: "main", repos: [repo] },
+    { db, agentHome: home, workspace: "main", locations: [repo] },
     { kind: "resume" },
     "th2",
   );
@@ -296,9 +298,16 @@ test("g1. an old-shaped dev session whose cwd is a task scratch dir (no register
   const scratch = mkdtempSync(join(tmpdir(), "friday-v3-scratch-"));
   db.query("UPDATE turns SET session_cwd = ? WHERE id = 't3'").run(scratch);
   const other = mkdtempSync(join(tmpdir(), "friday-v3-repo-"));
-  const repo = { name: "web", workspace: "main", dir: other, path: other, description: "" };
+  const repo = {
+    name: "web",
+    workspace: "main",
+    dir: other,
+    path: other,
+    description: "",
+    git: false,
+  };
   const r = resolveCommand(
-    { db, agentHome: home, workspace: "main", repos: [repo] },
+    { db, agentHome: home, workspace: "main", locations: [repo] },
     { kind: "resume" },
     "th2",
   );
@@ -309,7 +318,7 @@ test("g2. the same turn whose cwd is gone: `/go` refuses, the task becomes faile
   const { home, file } = v2Home();
   const db = openDb(file);
   const r = resolveCommand(
-    { db, agentHome: home, workspace: "main", repos: [] },
+    { db, agentHome: home, workspace: "main", locations: [] },
     { kind: "resume" },
     "th2",
   );

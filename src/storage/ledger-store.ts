@@ -7,7 +7,7 @@ export const LEDGER_MAX_TASKS = 5;
 export const LEDGER_TASK_CHARS = 1500;
 /** Cap of a brief inside an entry. */
 const BRIEF_CHARS = 200;
-/** Cap of a repo name inside an entry. */
+/** Cap of a location name inside an entry. */
 const FIELD_CHARS = 100;
 
 /** Heading of the block; says the content is data from earlier tasks, not instructions. */
@@ -19,7 +19,7 @@ const oneLine = (s: string, max: number): string =>
 
 /**
  * The thread's task ledger: a VIEW over `turns` + `runs` (no table). One entry per task of a background
- * role (the last LEDGER_MAX_TASKS, oldest first): role, status, brief, repo and the USD its runs cost. Empty string when the thread has no such task. Injected into the assistant context
+ * role (the last LEDGER_MAX_TASKS, oldest first): role, status, brief, location and the USD its runs cost. Empty string when the thread has no such task. Injected into the assistant context
  * when the thread is idle, instead of run transcripts.
  */
 export function threadLedger(db: Database, threadId: string): string {
@@ -29,7 +29,7 @@ export function threadLedger(db: Database, threadId: string): string {
         id: string;
         role: string;
         status: string;
-        repo: string;
+        location: string;
         brief: string | null;
         costUsd: number;
       },
@@ -37,7 +37,7 @@ export function threadLedger(db: Database, threadId: string): string {
     >(
       // `counts_toward_cap` marks the background-role tasks; the v2 migration backfills it from the legacy `type`
       // for old rows (`type <> 'code'` -> 0), so this reads the same rows `type = 'code'` did.
-      `SELECT id, role, status, repo, brief,
+      `SELECT id, role, status, location, brief,
          (SELECT COALESCE(SUM(r.cost_usd), 0) FROM runs r WHERE r.turn_id = turns.id) AS costUsd
        FROM turns WHERE thread_id = ? AND counts_toward_cap = 1
        ORDER BY started_at DESC, rowid DESC LIMIT ?`,
@@ -48,7 +48,7 @@ export function threadLedger(db: Database, threadId: string): string {
   const entries = tasks.map((t) => {
     const lines = [
       `- ${t.id.slice(0, 8)} ${t.role}, ${t.status}: "${oneLine(t.brief ?? "", BRIEF_CHARS)}"`,
-      `  repo ${oneLine(t.repo, FIELD_CHARS)}, cost $${t.costUsd.toFixed(2)}`,
+      `  location ${oneLine(t.location, FIELD_CHARS)}, cost $${t.costUsd.toFixed(2)}`,
     ];
     return clip(lines.filter(Boolean).join("\n"), LEDGER_TASK_CHARS);
   });

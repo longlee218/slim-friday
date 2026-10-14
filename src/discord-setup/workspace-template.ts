@@ -6,7 +6,7 @@ import { workspaceMemoryTemplate } from "../memory/persona-templates";
 /** What `workspaces/<name>` is right now. */
 export type WorkspaceState =
   | { kind: "missing" }
-  /** Pre-Step-B per-repo dir (config.yaml, no workspace.yaml): never touched. */
+  /** Pre-Step-B per-location dir (config.yaml, no workspace.yaml): never touched. */
   | { kind: "legacy" }
   /** A dir that is not a real workspace (symlink, file, or no workspace.yaml). */
   | { kind: "foreign" }
@@ -57,7 +57,7 @@ export function createWorkspaceDir(home: string, name: string): void {
   const ws = paths.workspace(name);
   mkdirSync(paths.workspaces, { recursive: true, mode: 0o700 });
   mkdirSync(ws.root, { mode: 0o700 });
-  mkdirSync(ws.repos);
+  mkdirSync(ws.locations);
   mkdirSync(ws.cwd);
   mkdirSync(ws.skills, { mode: 0o700 }); // owner-curated skills (empty by default)
   writeFileSync(ws.config, Bun.YAML.stringify({ channels: [], skills: { extra: true } }, null, 2), {

@@ -183,21 +183,21 @@ describe("Q&A escalation through the handler", () => {
 });
 
 describe("class prefix", () => {
-  test("leading [mechanical|standard|design] sets cls and is stripped; either order with repo:", () => {
+  test("leading [mechanical|standard|design] sets cls and is stripped; either order with location:", () => {
     expect(parseMessageCommand("[Design] rethink the cache")).toEqual({
       kind: "message",
-      repo: undefined,
+      location: undefined,
       text: "rethink the cache",
       cls: "design",
     });
-    expect(parseMessageCommand("[mechanical] repo:api rename x")).toMatchObject({
+    expect(parseMessageCommand("[mechanical] location:api rename x")).toMatchObject({
       cls: "mechanical",
-      repo: "api",
+      location: "api",
       text: "rename x",
     });
-    expect(parseMessageCommand("repo:api [standard] fix y")).toMatchObject({
+    expect(parseMessageCommand("location:api [standard] fix y")).toMatchObject({
       cls: "standard",
-      repo: "api",
+      location: "api",
       text: "fix y",
     });
   });

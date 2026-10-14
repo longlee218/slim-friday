@@ -89,12 +89,12 @@ test("createWorkspaceDir writes the template; loadWorkspaces reads it", () => {
   const ws = workspacePaths(home).workspace("reelme");
   for (const f of ["workspace.yaml", "MEMORY.md", "IDENTITY.md", "SOUL.md", "USER.md", "AGENTS.md"])
     expect(existsSync(join(ws.root, f))).toBe(true);
-  expect(existsSync(ws.repos) && existsSync(ws.cwd)).toBe(true);
+  expect(existsSync(ws.locations) && existsSync(ws.cwd)).toBe(true);
   expect(readFileSync(ws.memory, "utf8")).toContain("reelme workspace memory");
   expect(workspaceState(home, "reelme")).toEqual({ kind: "workspace", channels: [] });
-  // The registry accepts the template as a workspace with no channels and no repos yet.
+  // The registry accepts the template as a workspace with no channels and no locations yet.
   expect(loadWorkspaces(home, home).workspaces).toMatchObject([
-    { name: "reelme", channels: [], repos: [] },
+    { name: "reelme", channels: [], locations: [] },
   ]);
   // Existing dir: the non-recursive mkdir refuses to reuse it.
   expect(() => createWorkspaceDir(home, "reelme")).toThrow();

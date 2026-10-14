@@ -9,7 +9,7 @@ import { createRoleTagRouter } from "../src/intent/role-tag";
 import { expireHeldTasks, HELD_TASK_DAYS } from "../src/lifecycle/startup";
 import { captureLogs } from "../src/observability/logger";
 import { resumeQuestionOf } from "../src/orchestrator/dispatch/resume-failed-task";
-import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
+import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-location";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { CONTINUE_PROMPT } from "../src/orchestrator/message-routing";
 import { NO_DELIVERY_NOTE } from "../src/orchestrator/outputs/outcome-validator";
@@ -18,11 +18,12 @@ import { type FlowResult, RESUMABLE, resumeReasonOf } from "../src/orchestrator/
 import { ROLES } from "../src/roles/role-registry";
 import { activeOwnedTask, getOwnedTask } from "../src/storage/owned-task-store";
 import { insertTurn } from "../src/storage/run-store";
-import { g, makeRepo } from "./git-fixture";
+import { g, makeLocation } from "./git-fixture";
 import {
-  addRepo,
+  addLocation,
   clearWorkspaces,
   DEV_REQUEST,
+  defaultLocationPath,
   initMsg,
   makeEnv,
   promptText,
@@ -32,16 +33,16 @@ import {
 } from "./helpers";
 
 /* Rev 12 D, Rev 15 phase 5: `failed_resumable`. A background run that fails (budget, error) with its session saved keeps
-   it; `/go` or a yes to the resume question continues THAT session in its cwd (the repo) with a "continue" prompt, as a
+   it; `/go` or a yes to the resume question continues THAT session in its cwd (the location) with a "continue" prompt, as a
    new `resume` row under the same task ceiling. `/go +<usd>` raises the budget. */
 
 async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const src = await makeRepo("main");
-  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
-  addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
-  await g(env.home, "clone", "-q", src.repo, clone);
+  const src = await makeLocation("main");
+  const clone = defaultLocationPath(env.home, "real", "main");
+  addLocation(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
+  await g(env.home, "clone", "-q", src.location, clone);
   await g(clone, "config", "user.email", "test@example.com");
   await g(clone, "config", "user.name", "t");
   return { env, clone };
@@ -90,7 +91,7 @@ function sdk(steps: RunStep[], seen: any[]) {
       }
       if (step === "answer") {
         // Ends well but changes nothing: no commit, push or PR.
-        yield resultMsg({ result: "Only an answer\n\nrepo: real", session_id: `sess-${n}` });
+        yield resultMsg({ result: "Only an answer\n\nlocation: real", session_id: `sess-${n}` });
         return;
       }
       writeFileSync(join(o.cwd, "b.txt"), "two\n");
@@ -105,7 +106,7 @@ function sdk(steps: RunStep[], seen: any[]) {
         "-qm",
         "add b",
       );
-      yield resultMsg({ result: "Xong\n\nrepo: real", session_id: `sess-${n}` });
+      yield resultMsg({ result: "Xong\n\nlocation: real", session_id: `sess-${n}` });
     })();
   };
 }
@@ -164,7 +165,7 @@ test("a transient error -> failed_resumable: session and reason kept; the reply 
   expect(existsSync(clone)).toBe(true);
 });
 
-test("/go continues the SAME session in the repo with the continue prompt; the new row is a resume child; the held row is closed", async () => {
+test("/go continues the SAME session in the location with the continue prompt; the new row is a resume child; the held row is closed", async () => {
   const { env, clone, seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
   const firstId = taskIds(env)[0]!.id;
@@ -242,9 +243,9 @@ test("a resume whose session is gone: a clear reply, the owner starts the task a
   expect(resumeQuestionOf(env.db, "th1")).toBeUndefined();
 });
 
-test("a repo.yaml without any commit identity is no reason to refuse: the task runs and a failure is resumable like any other", async () => {
+test("a location.yaml without any commit identity is no reason to refuse: the task runs and a failure is resumable like any other", async () => {
   const { env, clone } = await setup();
-  addRepo(env.home, "real", {}, { path: clone }); // no gitAuthor: ignored since Rev 15
+  addLocation(env.home, "real", {}, { path: clone }); // no gitAuthor: ignored since Rev 15
   const seen: any[] = [];
   const handle = createTurnHandler({
     db: env.db,
@@ -296,7 +297,7 @@ test("a resume that cannot start keeps the hold (task cap reached)", async () =>
   const { env, seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
   for (const id of Array.from({ length: MAX_CAPPED_TASKS }, (_, n) => `cap${n}`))
-    insertTurn(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
+    insertTurn(env.db, { id, threadId: id, source: "t", location: "real", role: "dev" });
   expect(await handle(msg("/go"))).toContain("busy");
   expect(seen).toHaveLength(1);
   expect(resumeQuestionOf(env.db, "th1")).toBeDefined();
@@ -313,7 +314,7 @@ test("`/go` racing a yes resumes once: the second message meets the running task
   expect(seen).toHaveLength(2);
 });
 
-test("a run cut short by a restart (interrupted) resumes its own session: `/go` (the Resume button) continues it in the repo", async () => {
+test("a run cut short by a restart (interrupted) resumes its own session: `/go` (the Resume button) continues it in the location", async () => {
   const { env, clone, seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
   // What a restart does to a running dev run: the task is `interrupted` (its session and cwd were saved at init).
@@ -332,7 +333,7 @@ test("hold expiry: a non-uuid id is skipped for rm but still failed; a throwing 
   const env = makeEnv();
   const ids = ["not-a-uuid", crypto.randomUUID(), crypto.randomUUID()];
   for (const id of ids) {
-    insertTurn(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
+    insertTurn(env.db, { id, threadId: id, source: "t", location: "real", role: "dev" });
     env.db
       .query("UPDATE turns SET status = 'failed_resumable', started_at = 1 WHERE id = ?")
       .run(id);

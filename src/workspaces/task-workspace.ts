@@ -3,7 +3,7 @@ import { loadWorkspaces, type Workspace } from "./workspace-registry";
 
 /** A task that cannot be placed in a workspace: `reason` is logged, `reply` goes to the owner. */
 export interface WorkspaceRefusal {
-  reason: "unmapped_channel" | "no_repos" | "legacy_layout";
+  reason: "unmapped_channel" | "needs_migration" | "legacy_layout";
   reply: string;
 }
 
@@ -23,7 +23,8 @@ export function resolveTaskWorkspace(
 /**
  * Scan the workspaces (re-read per task so yaml edits apply at once), create their missing files (never
  * overwrites) and route `channelId` to its workspace. Refuses (reply + reason) when the channel is unmapped,
- * the workspace has no repo, or only the pre-Step-B per-repo layout exists (migration pointer).
+ * the workspace still has pre-v7 `repos/` (needs `bun run migrate:locations`), or only the pre-Step-B
+ * per-repo layout exists (migration pointer). A workspace with no location is fine: it works in its `cwd/`.
  */
 export function selectWorkspace(
   agentHome: string,
@@ -33,10 +34,10 @@ export function selectWorkspace(
   ensureHome(agentHome, scan.workspaces);
   const ws = resolveTaskWorkspace(scan.workspaces, channelId);
   if (ws) {
-    if (ws.repos.length > 0) return { ws };
+    if (!scan.needsMigration.includes(ws.name)) return { ws };
     return {
-      reason: "no_repos",
-      reply: `Workspace ${ws.name} has no repos. Add workspaces/${ws.name}/repos/<name>/repo.yaml.`,
+      reason: "needs_migration",
+      reply: `Workspace ${ws.name} still uses repos/. Stop the bot and run \`bun run migrate:locations\`.`,
     };
   }
   if (scan.legacy.length > 0 && scan.workspaces.length === 0)

@@ -20,7 +20,8 @@ export interface InitDeps {
 }
 
 /** Next-step hint appended to a successful reply. */
-const nextStep = (name: string) => `Next: add repos at workspaces/${name}/repos/<name>/repo.yaml.`;
+const nextStep = (name: string) =>
+  `Next: add locations under \`locations:\` in workspaces/${name}/workspace.yaml.`;
 
 /** Log the outcome and return the reply. */
 function done(name: string, outcome: string, reply: string): string {
@@ -58,7 +59,7 @@ async function runInit(deps: InitDeps, name: string): Promise<string> {
     return done(
       name,
       "legacy_dir",
-      `workspaces/${name} is a pre-Step-B repo folder. Move it away first.`,
+      `workspaces/${name} is a pre-Step-B location folder. Move it away first.`,
     );
   if (state.kind === "foreign")
     return done(

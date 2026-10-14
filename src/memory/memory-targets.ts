@@ -1,8 +1,13 @@
 import { relative } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import type { Workspace } from "../workspaces/workspace-registry";
+import {
+  locationMemoryFile,
+  PER_LOCATION_CHARS,
+  ROOT_CHARS,
+  WORKSPACE_CHARS,
+} from "./location-memory";
 import { memoryTemplate, ROOT_MEMORY, workspaceMemoryTemplate } from "./persona-templates";
-import { PER_REPO_CHARS, ROOT_CHARS, repoMemoryFile, WORKSPACE_CHARS } from "./repo-memory";
 
 /** One owner-visible memory file: where it is, how it is named in replies, its prompt cap, its empty template. */
 export interface MemoryTarget {
@@ -13,7 +18,7 @@ export interface MemoryTarget {
   cap: number;
   /** Header used when the file does not exist yet. */
   template: string;
-  /** Set only on a workspace `MEMORY.md`: its journal feeds the compaction. Repo and root files have none. */
+  /** Set only on a workspace `MEMORY.md`: its journal feeds the compaction. Location and root files have none. */
   journalWorkspace?: string;
 }
 
@@ -39,12 +44,12 @@ export const workspaceTarget = (home: string, ws: string): MemoryTarget => ({
   journalWorkspace: ws,
 });
 
-/** `workspaces/<ws>/repos/<repo>/MEMORY.md`. */
-export const repoTarget = (home: string, ws: string, repo: string): MemoryTarget =>
-  make(home, repoMemoryFile(home, ws, repo), PER_REPO_CHARS, memoryTemplate(repo));
+/** `workspaces/<ws>/locations/<location>/MEMORY.md`. */
+export const locationTarget = (home: string, ws: string, location: string): MemoryTarget =>
+  make(home, locationMemoryFile(home, ws, location), PER_LOCATION_CHARS, memoryTemplate(location));
 
-/** Every memory file of a workspace (its own file, then each repo). */
+/** Every memory file of a workspace (its own file, then each location). */
 export const workspaceTargets = (home: string, ws: Workspace): MemoryTarget[] => [
   workspaceTarget(home, ws.name),
-  ...ws.repos.map((r) => repoTarget(home, ws.name, r.name)),
+  ...ws.locations.map((r) => locationTarget(home, ws.name, r.name)),
 ];

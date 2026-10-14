@@ -29,17 +29,17 @@ export function workspacePaths(agentHome: string) {
     attachments: (threadKey: string) => join(agentHome, "tmp", "attachments", threadKey),
     /** Pre-cutover copies of the home (migration backups). */
     backups: join(agentHome, "backups"),
-    /** Workspaces: each holds several repos (`workspaces/<ws>/repos/<repo>/`). */
+    /** Workspaces: each holds several locations (`workspaces/<ws>/locations/<location>/`). */
     workspaces: join(agentHome, "workspaces"),
     workspace: (name: string) => {
       const root = join(agentHome, "workspaces", name);
-      const repos = join(root, "repos");
+      const locations = join(root, "locations");
       const tasks = join(root, "tasks");
       return {
         root,
-        /** workspace.yaml: description + Discord channels. */
+        /** workspace.yaml: description, Discord channels, locations. */
         config: join(root, "workspace.yaml"),
-        /** `config.yaml` of the pre-Step-B per-repo dir: only used to recognise a dir that needs migration. */
+        /** `config.yaml` of the pre-Step-B per-location dir: only used to recognise a dir that needs migration. */
         legacyConfig: join(root, "config.yaml"),
         identity: join(root, "IDENTITY.md"),
         soul: join(root, "SOUL.md"),
@@ -49,7 +49,7 @@ export function workspacePaths(agentHome: string) {
         memory: join(root, "MEMORY.md"),
         /** Owner-curated skills (`skills/<name>/SKILL.md`): the only skills any run of this workspace gets. */
         skills: join(root, "skills"),
-        /** Working dir of runs that are not bound to one repo. */
+        /** Working dir of runs that are not bound to one location. */
         cwd: join(root, "cwd"),
         tasks,
         /** Where worktrees may be created: the guard only lets `git worktree add` / EnterWorktree name a path inside it. */
@@ -59,17 +59,14 @@ export function workspacePaths(agentHome: string) {
           const troot = join(tasks, id);
           return { root: troot, scratch: join(troot, "scratch") };
         },
-        repos,
-        repo: (r: string) => {
-          const rroot = join(repos, r);
+        locations,
+        /** Per-location dir `locations/<name>/` (only MEMORY.md lives in it; the location's own files are at its `path`). */
+        location: (r: string) => {
+          const rroot = join(locations, r);
           return {
             root: rroot,
-            /** repo.yaml: path, description, defaultBranch, testCommand... */
-            config: join(rroot, "repo.yaml"),
-            /** Agent-written repo memory. */
+            /** Agent-written location memory. */
             memory: join(rroot, "MEMORY.md"),
-            /** Managed clone: the default repo path (a dev run works in the repo's own checkout). */
-            clone: join(rroot, "repo"),
           };
         },
       };
@@ -85,8 +82,8 @@ let reserved: string[] | undefined;
  * read once on first use: lazy, so this module never needs the logger while it loads) would clash with `<ws>:<skill>`.
  */
 export const reservedWorkspaces = (): string[] => (reserved ??= ["ops", ...publisherPluginNames()]);
-/** Repo dir name; also the `repo:` pin and a request's `repo` value. */
-export const REPO_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+/** Location dir name; also the `location:` pin and a request's `location` value. */
+export const LOCATION_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
 /** True when `name` may become a workspace dir. */
 export const isWorkspaceName = (name: string): boolean =>

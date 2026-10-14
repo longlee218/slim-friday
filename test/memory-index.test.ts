@@ -28,7 +28,7 @@ function setup() {
     return f;
   };
   const find = (ws: string, query: string, extra: Record<string, unknown> = {}) =>
-    searchIndex(db, ws, { query, limit: 20, repos: ["api", "web"], ...extra } as never).hits;
+    searchIndex(db, ws, { query, limit: 20, locations: ["api", "web"], ...extra } as never).hits;
   return { home, db, put, find };
 }
 const MEM = (s: string) => `# M\n\n## Decisions\n${s}\n`;
@@ -49,11 +49,11 @@ test("fold: đ -> d, NFD -> NFC, accents stripped by the tokenizer", () => {
 });
 
 test("ids: round trip and hostile input", () => {
-  const id = makeId("repo/api", "Decisions", 2, hash6("Use Bun."));
+  const id = makeId("location/api", "Decisions", 2, hash6("Use Bun."));
   expect(parseId(id)).toMatchObject({
     type: "file",
-    source: "repo",
-    repo: "api",
+    source: "location",
+    location: "api",
     token: "Decisions",
     n: 2,
   });
@@ -66,7 +66,7 @@ test("ids: round trip and hostile input", () => {
   for (const bad of [
     "../x",
     "root#Evil:1~abcdef",
-    "repo/../x#Facts:1~abcdef",
+    "location/../x#Facts:1~abcdef",
     "root#Facts:1~ZZZZZZ",
     "x".repeat(500),
     "summary/a/b@1",
@@ -109,7 +109,10 @@ test("classify: only the four shapes; pending, AGENTS, odd paths refused", () =>
   const c = (rel: string) => classifyFile(home, join(home, rel));
   expect(c("MEMORY.md")).toMatchObject({ source: "root", workspace: "" });
   expect(c("workspaces/a/MEMORY.md")).toMatchObject({ source: "workspace" });
-  expect(c("workspaces/a/repos/api/MEMORY.md")).toMatchObject({ source: "repo", repo: "api" });
+  expect(c("workspaces/a/locations/api/MEMORY.md")).toMatchObject({
+    source: "location",
+    location: "api",
+  });
   expect(c("workspaces/a/memory/2026-10-13.md")).toMatchObject({ source: "journal" });
   for (const bad of [
     "MEMORY.pending.md",
@@ -118,7 +121,7 @@ test("classify: only the four shapes; pending, AGENTS, odd paths refused", () =>
     "workspaces/a/memory/notes.md",
     "workspaces/A_/MEMORY.md",
     "../x/MEMORY.md",
-    "workspaces/a/repos/api/repo/MEMORY.md",
+    "workspaces/a/locations/api/location/MEMORY.md",
   ])
     expect(c(bad)).toBeNull();
   expect(classifyFile(home, "/etc/passwd")).toBeNull();
@@ -205,9 +208,13 @@ test("FTS syntax in the query is inert", () => {
   s.put("workspaces/a/MEMORY.md", MEM("- foo bar"));
   s.put("workspaces/b/MEMORY.md", MEM("- foo secretb"));
   syncAll(s.db, s.home);
-  const r = searchIndex(s.db, "a", { query: 'foo" OR workspace:b* NEAR(', limit: 20, repos: [] });
+  const r = searchIndex(s.db, "a", {
+    query: 'foo" OR workspace:b* NEAR(',
+    limit: 20,
+    locations: [],
+  });
   expect(r.hits.map((h) => h.snippet)).toEqual(["foo bar"]);
-  expect(searchIndex(s.db, "a", { query: '"*^(', limit: 5, repos: [] })).toEqual({
+  expect(searchIndex(s.db, "a", { query: '"*^(', limit: 5, locations: [] })).toEqual({
     hits: [],
     terms: 0,
   });
@@ -227,7 +234,7 @@ test("freshness: unchanged file is not re-read; changed file replaced; deleted p
   expect(s.find("a", "first")).toEqual([]);
   const out = join(s.home, "outside.md");
   writeFileSync(out, MEM("- linked secret"));
-  const link = join(s.home, "workspaces/a/repos/api/MEMORY.md");
+  const link = join(s.home, "workspaces/a/locations/api/MEMORY.md");
   mkdirSync(join(link, ".."), { recursive: true });
   symlinkSync(out, link);
   syncIndex(s.db, s.home, "a");
@@ -244,15 +251,17 @@ test("caps: big file skipped, chunks per file, chunk text clipped, summaries of 
     `## Facts\n${"- bigword filler\n".repeat(INDEX_MAX_FILE_BYTES / 10)}`,
   );
   s.put(
-    "workspaces/a/repos/api/MEMORY.md",
+    "workspaces/a/locations/api/MEMORY.md",
     `## Facts\n${Array.from({ length: INDEX_MAX_CHUNKS_PER_FILE + 5 }, (_, i) => `- item${i} x`).join("\n")}\n`,
   );
-  s.put("workspaces/a/repos/web/MEMORY.md", `## Facts\n- ${"clipword ".repeat(400)}tailword\n`);
+  s.put("workspaces/a/locations/web/MEMORY.md", `## Facts\n- ${"clipword ".repeat(400)}tailword\n`);
   syncIndex(s.db, s.home, "a");
   expect(s.find("a", "bigword")).toEqual([]);
   expect(
     s.db
-      .query("SELECT count(*) AS c FROM memory_fts WHERE source = 'repo' AND id LIKE 'repo/api%'")
+      .query(
+        "SELECT count(*) AS c FROM memory_fts WHERE source = 'location' AND id LIKE 'location/api%'",
+      )
       .get(),
   ).toEqual({ c: INDEX_MAX_CHUNKS_PER_FILE });
   expect(s.find("a", "item0")).toEqual([]); // oldest dropped

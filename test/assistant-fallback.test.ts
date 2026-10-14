@@ -67,11 +67,11 @@ async function drive(
 describe("unsure detection", () => {
   test("clear whole-answer give-ups (EN + VI, markdown wrapped) are unsure", () => {
     for (const t of [
-      "I could not find that in the repo.",
+      "I could not find that in the location.",
       "**I couldn't find it.**",
       "> I couldn't find any config for the queue.",
       "- Unfortunately, I don't have enough information.",
-      "Tôi không tìm thấy hàm này trong repo.",
+      "Tôi không tìm thấy hàm này trong location.",
       "Mình không tìm thấy file cấu hình.",
       "Xin lỗi, không đủ thông tin để trả lời.",
     ])
@@ -84,8 +84,8 @@ describe("unsure detection", () => {
       "Mình không chắc về phần này.",
       "I couldn't find a config for X, but the default is in src/a.ts:3",
       "I couldn't find it. See src/a.ts:3",
-      "I don't know which repo you mean, which one?",
-      "I couldn't find it, which repo do you mean?",
+      "I don't know which location you mean, which one?",
+      "I couldn't find it, which location do you mean?",
       "Looked through the docs, but I couldn't find it.",
       "I couldn't find it.\n\n```ts\nconst x = 1;\n```",
       `${"Cơ chế cache hoạt động như sau, đọc src/cache.ts:12. ".repeat(4)}Tôi không chắc về phần TTL.`,
@@ -269,10 +269,10 @@ describe("[sonnet] prefix", () => {
       tier: "sonnet",
       text: "what is x?",
     });
-    expect(parseMessageCommand("repo:api [sonnet] [design] why?")).toMatchObject({
+    expect(parseMessageCommand("location:api [sonnet] [design] why?")).toMatchObject({
       tier: "sonnet",
       cls: "design",
-      repo: "api",
+      location: "api",
       text: "why?",
     });
     for (const t of ["[opus] q", "[haiku] q"]) {

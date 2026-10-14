@@ -114,7 +114,7 @@ function ctx(over: Partial<RouteCtx> = {}) {
     deps: { db: env.db, config: env.config, approvals: stubGateway() } as never,
     message: { source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th", text: "x" },
     workspace: "main",
-    repos: [],
+    locations: [],
     ac: new AbortController(),
     busy: true,
     text: "please add retries to fetch",
@@ -188,10 +188,10 @@ test("executor: rows that need the thread free give 'still working...' while a r
 });
 
 test('queue: independent work is persisted `queued` at once, answered "received" (no question), any role; capped', async () => {
-  const { env, c } = ctx({ repo: "api", cls: "mechanical" });
+  const { env, c } = ctx({ location: "api", cls: "mechanical" });
   expect(text(await routeByIntent(c, { kind: "queue", role: "dev" }))).toBe(QUEUE_RECEIVED);
   const p1 = oldestQueuedProposal(env.db, "th")!;
-  expect(p1).toMatchObject({ role: "dev", repo: "api", class: "mechanical", status: "queued" });
+  expect(p1).toMatchObject({ role: "dev", location: "api", class: "mechanical", status: "queued" });
   expect(p1.brief).toContain("please add retries");
   expect(pendingProposal(env.db, "th")).toBeNull(); // nothing waits for a yes
   // an answering role queues too (it used to get `still working...` and be lost)

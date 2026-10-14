@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { WORKSPACE_NAME, workspacePaths } from "../../config/workspace-paths";
 import { SUMMARY_MAX_CHARS } from "../../storage/thread-summary-store";
 import type { MemoryToolContext } from "../../tools/memory-tool-context";
-import { repoTarget, rootTarget, workspaceTarget } from "../memory-targets";
+import { locationTarget, rootTarget, workspaceTarget } from "../memory-targets";
 import type { Chunk } from "./memory-chunker";
 import { type FileInfo, readFileChunks } from "./memory-files";
 import { type ParsedId, parseId } from "./memory-ids";
@@ -39,10 +39,10 @@ function fileOf(ctx: MemoryToolContext, id: ParsedId): { file: string; info: Fil
       file: workspaceTarget(ctx.home, ctx.workspace).file,
       info: { workspace: ctx.workspace, source: "workspace" },
     };
-  if (id.type === "file" && id.repo !== undefined && ctx.repoNames().includes(id.repo))
+  if (id.type === "file" && id.location !== undefined && ctx.locationNames().includes(id.location))
     return {
-      file: repoTarget(ctx.home, ctx.workspace, id.repo).file,
-      info: { workspace: ctx.workspace, source: "repo", repo: id.repo },
+      file: locationTarget(ctx.home, ctx.workspace, id.location).file,
+      info: { workspace: ctx.workspace, source: "location", location: id.location },
     };
   if (id.type === "journal")
     return {
@@ -53,7 +53,7 @@ function fileOf(ctx: MemoryToolContext, id: ParsedId): { file: string; info: Fil
 }
 
 /**
- * Re-resolve an id against the CURRENT state. Null = cannot be served (bad id, other workspace, unknown repo,
+ * Re-resolve an id against the CURRENT state. Null = cannot be served (bad id, other workspace, unknown location,
  * file gone / symlink / too big, entry edited or deleted, summary cycle changed): the caller answers NOT_FOUND.
  * Never throws for model input, never opens a path built from the id.
  */

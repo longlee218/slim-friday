@@ -15,7 +15,7 @@ import { buildToolHooks } from "../src/observability/tool-hooks";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { addRepo, fakeQuery, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
+import { addLocation, fakeQuery, initMsg, makeEnv, readLogLines, resultMsg } from "./helpers";
 
 /** A logger whose lines are collected as parsed objects. */
 function capture() {
@@ -27,7 +27,7 @@ function capture() {
 test("logEvent writes a stable event field (also the message) plus fields", () => {
   const { log, lines } = capture();
   logEvent(log.child({ taskId: "T", threadId: "th" }), "task.started", {
-    repo: "api",
+    location: "api",
     type: "assistant",
   });
   expect(lines[0]).toMatchObject({
@@ -36,7 +36,7 @@ test("logEvent writes a stable event field (also the message) plus fields", () =
     level: 30,
     taskId: "T",
     threadId: "th",
-    repo: "api",
+    location: "api",
     type: "assistant",
   });
 });
@@ -68,19 +68,19 @@ test("secrets in an event field go through excerpt and never reach the file", as
   stream.end();
 });
 
-test("every line goes to the one app log; no per-repo log dir is created", async () => {
+test("every line goes to the one app log; no per-location log dir is created", async () => {
   const env = makeEnv();
-  addRepo(env.home, "api");
+  addLocation(env.home, "api");
   const paths = workspacePaths(env.home);
   const stream = rollingFile(paths.appLog());
   const log = createLogger(stream);
-  logEvent(log, "a.with_repo", { repo: "api", workspace: "main" });
-  logEvent(log, "b.star", { repo: "*" });
-  logEvent(log, "c.no_repo");
+  logEvent(log, "a.with_location", { location: "api", workspace: "main" });
+  logEvent(log, "b.star", { location: "*" });
+  logEvent(log, "c.no_location");
   await stream.ready();
   const lines = readLogLines(paths.appLog());
-  expect(lines.map((l) => l.event)).toEqual(["a.with_repo", "b.star", "c.no_repo"]);
-  expect(lines[0]).toMatchObject({ workspace: "main", repo: "api" });
+  expect(lines.map((l) => l.event)).toEqual(["a.with_location", "b.star", "c.no_location"]);
+  expect(lines[0]).toMatchObject({ workspace: "main", location: "api" });
   expect(existsSync(join(paths.workspace("main").root, "logs"))).toBe(false);
   expect(existsSync(join(paths.workspaces, "api"))).toBe(false);
   stream.end();
@@ -135,17 +135,19 @@ test("tool.done line has non-default guard decision, duration, ok flag and a red
 test("a run logs run.started and run.finished with the task's correlation fields", async () => {
   const env = makeEnv();
   const { lines, stop } = captureLogs();
-  await runWithLogContext({ taskId: "T1", threadId: "th1", repo: "repo", mode: "assistant" }, () =>
-    runAgent({
-      prompt: "q",
-      turnId: "T1",
-      role: getRole("assistant"),
-      cwd: env.home,
-      config: env.config,
-      db: env.db,
-      abortController: new AbortController(),
-      queryFn: fakeQuery([initMsg, resultMsg()]),
-    }),
+  await runWithLogContext(
+    { taskId: "T1", threadId: "th1", location: "location", mode: "assistant" },
+    () =>
+      runAgent({
+        prompt: "q",
+        turnId: "T1",
+        role: getRole("assistant"),
+        cwd: env.home,
+        config: env.config,
+        db: env.db,
+        abortController: new AbortController(),
+        queryFn: fakeQuery([initMsg, resultMsg()]),
+      }),
   );
   stop();
   const events = lines.map((l) => l.event);
@@ -153,7 +155,7 @@ test("a run logs run.started and run.finished with the task's correlation fields
   expect(lines[0]).toMatchObject({
     taskId: "T1",
     threadId: "th1",
-    repo: "repo",
+    location: "location",
     mode: "assistant",
     resume: false,
   });

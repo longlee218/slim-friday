@@ -16,7 +16,7 @@ export type Capability =
 
 /** Run-time facts a role needs to word its prompt. */
 export interface PromptCtx {
-  /** Where the agent puts a git worktree it creates (`<workspace worktrees dir>/<repo>`); omitted = no line. */
+  /** Where the agent puts a git worktree it creates (`<workspace worktrees dir>/<location>`); omitted = no line. */
   worktreesDir?: string;
   /** Answer run on a cheaper tier: the tiers the `ESCALATE: <tier>` rule offers (empty/omitted = no rule; never on an escalated run). */
   escalationTiers?: ("sonnet" | "opus")[];
@@ -45,7 +45,7 @@ export interface RoleDefinition {
   tag?: string;
   /**
    * Background role: a task. Its run counts toward the concurrent task cap, takes a start notice, is queued behind a
-   * busy thread, and works in a repo; the owner steers it. Not background = a short foreground answer (plus the side lane).
+   * busy thread, and works in a location; the owner steers it. Not background = a short foreground answer (plus the side lane).
    */
   background: boolean;
   /** The role a plain message starts, until the intent layer picks one (exactly one role sets it). */
@@ -57,8 +57,8 @@ export interface RoleDefinition {
     /** On an idle thread the run sees the thread's task ledger (earlier tasks). */
     ledger?: boolean;
   };
-  /** Repos the run sees: `all` = every repo of the workspace; `candidates` = the workspace repos or the one the owner named. Omitted = `candidates`. */
-  repoScope?: "all" | "candidates";
+  /** Locations the run sees: `all` = every location of the workspace; `candidates` = the workspace locations or the one the owner named. Omitted = `candidates`. */
+  locationScope?: "all" | "candidates";
   /** Publisher skills the role gets (see `RoleSkills`). Omitted = `none`. */
   skills?: RoleSkills;
   /** Limits of one run: AskUserQuestion calls (enforced in the permission guard). */
@@ -84,10 +84,10 @@ export interface RoleDefinition {
    */
   permissionMode?: "auto" | "bypassPermissions";
   /**
-   * What the role may change: `none` (answers only), `repo` (files / git of a checkout), `external` (outside systems).
+   * What the role may change: `none` (answers only), `location` (files / git of a checkout), `external` (outside systems).
    * Routing data: scales how sure the router must be before it picks the role. Authorization stays in the guards.
    */
-  sideEffects: "none" | "repo" | "external";
+  sideEffects: "none" | "location" | "external";
   /** The role needs the Discord approval flow to run; routing and reroute skip it when approvals are unavailable. */
   approvalRequired: boolean;
   /** Bump when the role's routing / capability data changes; logged with the routing decision. */

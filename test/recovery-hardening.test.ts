@@ -18,7 +18,7 @@ import {
 } from "../src/storage/run-store";
 import { getSession, setSession } from "../src/storage/session-store";
 import {
-  addRepo,
+  addLocation,
   clearWorkspaces,
   fakeQuery,
   initMsg,
@@ -59,27 +59,27 @@ function interrupted(
   id = "T0",
   role = "assistant",
 ) {
-  insertTurn(env.db, { id, threadId, source: "d", repo: "*", role });
+  insertTurn(env.db, { id, threadId, source: "d", location: "*", role });
   setTurnSession(env.db, id, "OLD", cwd);
   interruptRunningTurns(env.db);
 }
 
 test("session id is recorded on the task row at init; `sessions` keeps the previous good session", async () => {
   const env = makeEnv();
-  setSession(env.db, { threadId: "th1", sessionId: "GOOD", repo: "*", cwd: env.repo });
+  setSession(env.db, { threadId: "th1", sessionId: "GOOD", location: "*", cwd: env.location });
   // The stream dies after init: no result message ever arrives (error outcome).
   const q = fakeQuery([initMsg], new Error("boom"));
   await createTurnHandler({ db: env.db, config: env.config, queryFn: q as never })(task("hi"));
   const row = env.db
     .query<{ session_id: string; session_cwd: string }, []>("SELECT * FROM turns")
     .get();
-  expect(row).toMatchObject({ session_id: "sess-1", session_cwd: env.repo });
+  expect(row).toMatchObject({ session_id: "sess-1", session_cwd: env.location });
   expect(getSession(env.db, "th1")?.session_id).toBe("GOOD");
 });
 
 test("quota/error runs never replace the stored session either", async () => {
   const env = makeEnv();
-  setSession(env.db, { threadId: "th1", sessionId: "GOOD", repo: "*", cwd: env.repo });
+  setSession(env.db, { threadId: "th1", sessionId: "GOOD", location: "*", cwd: env.location });
   const m = resultMsg({
     subtype: "error_during_execution",
     is_error: true,
@@ -95,10 +95,10 @@ test("quota/error runs never replace the stored session either", async () => {
 
 test("restart marks running tasks interrupted; ack makes them cancelled (one notice)", () => {
   const { db } = makeEnv();
-  insertTurn(db, { id: "a", threadId: "th", source: "d", repo: "r", role: "assistant" });
-  insertTurn(db, { id: "b", threadId: "th", source: "d", repo: "r", role: "dev" });
+  insertTurn(db, { id: "a", threadId: "th", source: "d", location: "r", role: "assistant" });
+  insertTurn(db, { id: "b", threadId: "th", source: "d", location: "r", role: "dev" });
   setTurnStatus(db, "b", "waiting_approval");
-  insertTurn(db, { id: "c", threadId: "other", source: "d", repo: "r", role: "assistant" });
+  insertTurn(db, { id: "c", threadId: "other", source: "d", location: "r", role: "assistant" });
   setTurnStatus(db, "c", "done");
   interruptRunningTurns(db);
   expect(listInterruptedThreads(db)).toEqual(["th"]);
@@ -110,7 +110,7 @@ test("restart marks running tasks interrupted; ack makes them cancelled (one not
 
 test("Resume: Q&A thread resumes the interrupted task's session with the fixed prompt", async () => {
   const env = makeEnv();
-  interrupted(env, "th1", env.repo);
+  interrupted(env, "th1", env.location);
   let seen: any;
   const q = (a: any) => {
     seen = a;
@@ -146,8 +146,8 @@ test("Resume without a saved session replies it cannot resume (no run)", async (
 test("Resume of a dev run whose session cannot be resumed: tells the owner to start again", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const repo = addRepo(env.home, "real", { gitAuthor: "T <t@e.com>" }); // fake managed clone: code tasks are allowed
-  interrupted(env, "pl", repo, "T1", "dev");
+  const location = addLocation(env.home, "real", { gitAuthor: "T <t@e.com>" }); // fake managed clone: code tasks are allowed
+  interrupted(env, "pl", location, "T1", "dev");
   const q = fakeQuery([
     resultMsg({
       subtype: "error_during_execution",
@@ -165,7 +165,7 @@ test("Resume of a dev run whose session cannot be resumed: tells the owner to st
   // The failed resume task has no session: another Resume is refused (not offered forever).
   expect(
     resolveCommand(
-      { db: env.db, agentHome: env.home, workspace: "main", repos: [] },
+      { db: env.db, agentHome: env.home, workspace: "main", locations: [] },
       { kind: "resume" },
       "pl",
     ),
@@ -174,28 +174,28 @@ test("Resume of a dev run whose session cannot be resumed: tells the owner to st
 
 test("resolveCommand: a dev run resumes its own session in its cwd; Q&A cwd ok; unusable cwd, stale, none refused", () => {
   const env = makeEnv();
-  const repos = [{ name: "repo", path: env.repo, description: "" }] as never;
-  const deps = { db: env.db, agentHome: env.home, workspace: "main", repos };
+  const locations = [{ name: "location", path: env.location, description: "" }] as never;
+  const deps = { db: env.db, agentHome: env.home, workspace: "main", locations };
   const resume = (t: string) => resolveCommand(deps, { kind: "resume" }, t);
-  interrupted(env, "p", env.repo, "A", "dev");
+  interrupted(env, "p", env.location, "A", "dev");
   expect(resume("p")).toMatchObject({
     cmd: { kind: "message", role: "dev", text: RESUME_PROMPT },
-    resume: { sessionId: "OLD", cwd: env.repo, of: "A" },
+    resume: { sessionId: "OLD", cwd: env.location, of: "A" },
   });
 
-  interrupted(env, "q", env.repo, "B");
+  interrupted(env, "q", env.location, "B");
   expect(resume("q")).toMatchObject({ cmd: { kind: "message", text: RESUME_PROMPT } });
 
   // A dev session whose dir is gone cannot be continued (a fresh session would have no context).
   interrupted(env, "g", join(env.home, "gone-dir"), "G", "dev");
   expect(resume("g")).toMatchObject({ reason: "cannot_resume" });
 
-  // cwd outside the home cwd dir / registered repos: a fresh session would have no context.
+  // cwd outside the home cwd dir / registered locations: a fresh session would have no context.
   interrupted(env, "x", "/elsewhere", "C");
   expect(resume("x")).toHaveProperty("reply");
 
   // A newer finished task makes the Resume stale.
-  insertTurn(env.db, { id: "N", threadId: "q", source: "d", repo: "*", role: "assistant" });
+  insertTurn(env.db, { id: "N", threadId: "q", source: "d", location: "*", role: "assistant" });
   expect(resume("q")).toMatchObject({ reason: "stale_resume" });
 });
 
@@ -236,7 +236,7 @@ test("quota: a limit that only surfaces as a thrown error is classified too", as
   expect(r.outcome).toBe("quota");
 });
 
-test("not quota: repo names and line numbers are not provider phrases", async () => {
+test("not quota: location names and line numbers are not provider phrases", async () => {
   const env = makeEnv();
   const m = resultMsg({
     subtype: "error_during_execution",

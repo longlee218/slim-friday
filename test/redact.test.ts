@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { MASK, redactDeep, redactText, safePreview, truncate } from "../src/observability/redact";
 
-// Fake secrets assembled at runtime so no real-looking literal sits in the repo.
+// Fake secrets assembled at runtime so no real-looking literal sits in the location.
 const cases: [string, string][] = [
   ["anthropic", "sk-ant-" + "api03-abcdefghijklmnopqrstuv"],
   ["oauth", "sk-ant-" + "oat01-ABCDEFGH12345678_-xyz"],

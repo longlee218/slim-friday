@@ -17,20 +17,22 @@ afterAll(() => {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
 });
 
-test("home outside any repo and git tree: fine", () => {
+test("home outside any location and git tree: fine", () => {
   expect(homePlacementError(tmp(), [tmp()])).toBeUndefined();
   expect(homePlacementError(join(tmp(), "not-created-yet"), [])).toBeUndefined();
 });
 
-test("home inside a registered repo path: refused", () => {
-  const repo = tmp();
-  const home = join(repo, "sub", "friday");
+test("home inside a registered location path: refused", () => {
+  const location = tmp();
+  const home = join(location, "sub", "friday");
   mkdirSync(home, { recursive: true });
-  expect(homePlacementError(home, [repo])).toBe("AGENT_HOME is inside a registered repo");
-  expect(homePlacementError(repo, [repo])).toBe("AGENT_HOME is inside a registered repo");
+  expect(homePlacementError(home, [location])).toBe("AGENT_HOME is inside a registered location");
+  expect(homePlacementError(location, [location])).toBe(
+    "AGENT_HOME is inside a registered location",
+  );
 });
 
-test("home inside a git working tree (ancestor marker, repo not registered): refused", () => {
+test("home inside a git working tree (ancestor marker, location not registered): refused", () => {
   const tree = tmp();
   mkdirSync(join(tree, ".git"));
   const home = join(tree, "a", "b");

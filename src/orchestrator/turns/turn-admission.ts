@@ -29,11 +29,15 @@ export function admitTurn(
 }
 
 /** Log the crash of a turn (`task.finished` outcome crashed) and return the owner's generic error reply. Never throws. */
-export function reportCrash(log: Logger, err: unknown, t: { repo: string; t0: number }): string {
+export function reportCrash(
+  log: Logger,
+  err: unknown,
+  t: { location: string; t0: number },
+): string {
   logEvent(
     log,
     "task.finished",
-    { repo: t.repo, outcome: "crashed", durationMs: Date.now() - t.t0, err: errText(err) },
+    { location: t.location, outcome: "crashed", durationMs: Date.now() - t.t0, err: errText(err) },
     "error",
   );
   return OUTCOME_REPLY.error!;

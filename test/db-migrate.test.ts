@@ -56,7 +56,7 @@ test("v1 db survives: rows kept, new tables + columns, version marker, defaults 
     count(db, "approvals"),
   ]).toEqual([2, 2, 1, 1]);
   expect(db.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({
-    value: "6",
+    value: "7",
   });
   expect(hasTable(db, "stages")).toBe(false); // dropped by v4
   expect(count(db, "proposals")).toBe(0);
@@ -124,7 +124,7 @@ test("fresh db: version marker written, no snapshot", () => {
   const home = mkdtempSync(join(tmpdir(), "friday-migrate-"));
   const db = openDb(join(home, "data", "agent.db"));
   expect(db.query("SELECT value FROM meta WHERE key = 'schema_version'").get()).toEqual({
-    value: "6",
+    value: "7",
   });
   expect(existsSync(join(home, "db-backups"))).toBe(false);
 });
@@ -147,12 +147,12 @@ test("cap query counts code tasks only (counts_toward_cap), not Q&A", () => {
   const { file } = v1Home();
   const db = openDb(file);
   expect(countActiveCappedTasks(db)).toBe(1); // the v1 code task; the v1 Q&A row was backfilled to 0
-  insertTurn(db, { id: "q2", threadId: "x", source: "s", repo: "r", role: "assistant" });
+  insertTurn(db, { id: "q2", threadId: "x", source: "s", location: "r", role: "assistant" });
   insertTurn(db, {
     id: "c2",
     threadId: "x",
     source: "s",
-    repo: "r",
+    location: "r",
     role: "dev",
     cls: "design",
     proposalId: "p1",

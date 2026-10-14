@@ -32,7 +32,7 @@ async function pre(
   autoMode: boolean,
   tool: string,
   input: Record<string, unknown>,
-  guard = guardFor(getRole("assistant"), { readPaths: ["/ws/repo"] }),
+  guard = guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
 ) {
   const perms = buildToolPermissions({
     turnId: "t",
@@ -75,7 +75,7 @@ test("auto mode: canUseTool (classifier undecided) still asks the owner via the 
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/repo"] }),
+    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
     autoMode: { active: true },
     gateway: {
       request: async (r: { tool: string }) => (asked.push(r.tool), { approved: true }),
@@ -89,9 +89,9 @@ test("auto mode: canUseTool (classifier undecided) still asks the owner via the 
 
 test("auto mode: Bash never asks (deny list): an env override or make runs as allow, sudo is denied", async () => {
   const guard = guardFor(getRole("dev"), {
-    cwd: "/ws/repo",
-    writePaths: ["/ws/repo"],
-    readPaths: ["/ws/repo"],
+    cwd: "/ws/location",
+    writePaths: ["/ws/location"],
+    readPaths: ["/ws/location"],
   });
   for (const command of ["PATH=./bin make", "make"]) {
     const { out, perms } = await pre(true, "Bash", { command }, guard);
@@ -137,7 +137,7 @@ test("watch: after a fallback the hook forces ask and logs ask, not auto", async
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/repo"] }),
+    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
     autoMode: state,
   });
   const out: any = await perms.hooks[0]!.hooks[0]!(
@@ -211,7 +211,7 @@ async function execRun(actual: string) {
     abortController: new AbortController(),
     queryFn: queryFn as never,
     role: getRole("assistant"),
-    guard: guardFor(getRole("assistant"), { readPaths: [env.repo] }),
+    guard: guardFor(getRole("assistant"), { readPaths: [env.location] }),
     code: { threadId: "th" },
   });
   return out;

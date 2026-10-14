@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { captureLogs, logger } from "../src/observability/logger";
 import { NO_DELIVERY_NOTE } from "../src/orchestrator/outputs/outcome-validator";
 import { closeTurn, type FlowResult } from "../src/orchestrator/turns/turn-result";
@@ -16,7 +18,7 @@ import {
   settleTaskAfterTurn,
 } from "../src/tasks/task-resolver";
 import { canTransition } from "../src/tasks/task-state-machine";
-import { makeEnv } from "./helpers";
+import { makeEnv, outsideDir } from "./helpers";
 
 const background = Object.values(ROLES).find((r) => r.background)!.name;
 const foreground = Object.values(ROLES).find((r) => !r.background)!.name;
@@ -31,7 +33,7 @@ const begin = (
     db,
     logger,
     { turnId: id, threadId: extra.threadId ?? "th", source: "test" },
-    { repo: "*", role, brief: `brief of ${id}`, ...extra },
+    { location: "*", role, brief: `brief of ${id}`, ...extra },
   );
 
 test("a background turn opens a running task owned by its role", () => {
@@ -132,7 +134,7 @@ test("closeTurn settles through the real path (delivered success -> completed; s
     outcome,
     sessionId: undefined,
   });
-  const o = { stopping: false, t0: Date.now(), repo: "*" };
+  const o = { stopping: false, t0: Date.now(), location: "*" };
   begin(db, "t1", background);
   closeTurn(
     db,
@@ -186,7 +188,7 @@ test("state machine: terminal states have no exit; waiting_user continues", () =
 
 test("attachTurnToTask scope is redacted and clipped to one line", () => {
   const { db } = makeEnv();
-  insertTurn(db, { id: "t1", threadId: "th", source: "x", repo: "*", role: background });
+  insertTurn(db, { id: "t1", threadId: "th", source: "x", location: "*", role: background });
   const id = attachTurnToTask(db, {
     turnId: "t1",
     threadId: "th",
@@ -267,7 +269,7 @@ test("beginTurn is atomic: a failing task link leaves no turn row", () => {
 
 test("closeTurn: a failed or aborted run gets no no-delivery note and its task is not parked as undelivered", () => {
   const { db } = makeEnv();
-  const o = { stopping: false, t0: Date.now(), repo: "*" };
+  const o = { stopping: false, t0: Date.now(), location: "*" };
   begin(db, "f1", background);
   const failed = closeTurn(
     db,
@@ -286,4 +288,34 @@ test("closeTurn: a failed or aborted run gets no no-delivery note and its task i
   );
   expect(aborted).not.toContain(NO_DELIVERY_NOTE);
   expect(getOwnedTask(db, ownedTaskOfTurn(db, "a1")!)?.status).toBe("cancelled");
+});
+
+test("closeTurn: the no-delivery note follows the REPORTED location's git flag, not the run's cwd", () => {
+  const { db } = makeEnv();
+  const loc = (name: string, git: boolean) => ({
+    name,
+    workspace: "main",
+    path: `/x/${name}`,
+    description: "",
+    git,
+  });
+  const locations = [loc("notes", false), loc("app", true)];
+  const run = (id: string, over: Partial<FlowResult>): string => {
+    begin(db, id, background);
+    const o = { stopping: false, t0: Date.now(), location: "*", locations };
+    return closeTurn(
+      db,
+      { turnId: id, threadId: "th" },
+      { text: "done", outcome: "success", sessionId: undefined, ...over },
+      o,
+    );
+  };
+  // cwd is the non-git first location, but the agent reported (and worked in) the git one: note expected
+  expect(run("m1", { cwd: "/nonexistent/notes", location: "app" })).toContain(NO_DELIVERY_NOTE);
+  // reverse: cwd IS a git dir, but the reported location is non-git: no note
+  const gitDir = outsideDir();
+  mkdirSync(join(gitDir, ".git"));
+  expect(run("m2", { cwd: gitDir, location: "notes" })).not.toContain(NO_DELIVERY_NOTE);
+  // no reported location: falls back to cwd (a missing dir is not git => no note)
+  expect(run("m3", { cwd: "/nonexistent/app" })).not.toContain(NO_DELIVERY_NOTE);
 });

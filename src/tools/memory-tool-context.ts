@@ -8,12 +8,12 @@ export interface MemoryToolContext {
   db: Database;
   /** AGENT_HOME: where every memory file lives. */
   home: string;
-  /** Workspace of the run: scope `workspace`, `repo` and `journal` resolve inside it. */
+  /** Workspace of the run: scope `workspace`, `location` and `journal` resolve inside it. */
   workspace: string;
-  /** Valid repo names of the workspace (the registry), read when a tool needs them. */
-  repoNames: () => string[];
-  /** The run's single repo, when it has exactly one: stamps `global` notes with their origin (`[ws/repo]`). */
-  repo?: string;
+  /** Valid location names of the workspace (the registry), read when a tool needs them. */
+  locationNames: () => string[];
+  /** The run's single location, when it has exactly one: stamps `global` notes with their origin (`[ws/location]`). */
+  location?: string;
   /** Thread of the run: the compaction hooks store its summary and cycle counters under it. */
   threadId?: string;
   /** Foreground run: the PostCompact hook may store the thread summary and count cycles. Background runs (dev) leave the thread summary alone. */

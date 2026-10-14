@@ -77,17 +77,17 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
 }
 
 /**
- * Create the turn row (`brief` = the dispatched task's prompt) and set the log context of the task (repo, role). `single` = the only registered
- * workspace: an unpinned task ("*" row) then logs under it. Lines logged before the repo is known
- * (message.received, task.started with "*") stay in the main log only; tool-hooks sets the repo later
- * for unpinned multi-repo tasks.
+ * Create the turn row (`brief` = the dispatched task's prompt) and set the log context of the task (location, role). `single` = the only registered
+ * workspace: an unpinned task ("*" row) then logs under it. Lines logged before the location is known
+ * (message.received, task.started with "*") stay in the main log only; tool-hooks sets the location later
+ * for unpinned multi-location tasks.
  */
 export function beginTurn(
   db: Database,
   log: Logger,
   ids: { turnId: string; threadId: string; source: string; single?: string },
   t: {
-    repo: string;
+    location: string;
     brief?: string;
     cls?: TaskClass;
     proposalId?: string;
@@ -105,7 +105,7 @@ export function beginTurn(
       id: ids.turnId,
       threadId: ids.threadId,
       source: ids.source,
-      repo: t.repo,
+      location: t.location,
       brief: t.brief,
       cls: t.cls,
       proposalId: t.proposalId,
@@ -126,9 +126,9 @@ export function beginTurn(
         resumeOf: t.resume ? t.parentTurnId : undefined,
       });
   })();
-  const logRepo = t.repo === "*" && ids.single ? ids.single : t.repo;
-  setLogContext({ repo: logRepo, mode: t.role });
-  logEvent(log, "task.started", { repo: logRepo, type: t.role });
+  const logLocation = t.location === "*" && ids.single ? ids.single : t.location;
+  setLogContext({ location: logLocation, mode: t.role });
+  logEvent(log, "task.started", { location: logLocation, type: t.role });
 }
 
 /** Log a refused task (`task.refused`) and return the reply text for the owner. */

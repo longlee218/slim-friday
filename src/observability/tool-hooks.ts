@@ -11,18 +11,18 @@ import { inputPreview, scrubEditError } from "./tool-input-preview";
 import { summarizeResult } from "./tool-result-summary";
 import { describeTool, EDIT_TOOLS } from "./tool-target";
 
-/** Repos (real paths) per workspace per AGENT_HOME, shared by all tasks; refreshed after REPO_TTL_MS. */
-const repoCache = new Map<
+/** Locations (real paths) per workspace per AGENT_HOME, shared by all tasks; refreshed after LOCATION_TTL_MS. */
+const locationCache = new Map<
   string,
   { at: number; byWorkspace: Map<string, { name: string; path: string }[]> }
 >();
-const REPO_TTL_MS = 30_000;
+const LOCATION_TTL_MS = 30_000;
 
 /**
- * Repo of workspace `ws` (real path) containing the file/dir a tool call touches, else undefined.
- * Only repos of that workspace are considered: a same-named repo elsewhere is never matched.
+ * Location of workspace `ws` (real path) containing the file/dir a tool call touches, else undefined.
+ * Only locations of that workspace are considered: a same-named location elsewhere is never matched.
  */
-export function repoOfTool(
+export function locationOfTool(
   home: string,
   ws: string,
   tool: string,
@@ -33,16 +33,16 @@ export function repoOfTool(
   const i = input as Record<string, unknown>;
   const p = [i.file_path, i.path].find((v): v is string => typeof v === "string" && v !== "");
   if (!p) return undefined;
-  let hit = repoCache.get(home);
-  if (!hit || Date.now() - hit.at > REPO_TTL_MS) {
+  let hit = locationCache.get(home);
+  if (!hit || Date.now() - hit.at > LOCATION_TTL_MS) {
     const byWorkspace = new Map(
       loadWorkspaces(home).workspaces.map((w) => [
         w.name,
-        w.repos.map((r) => ({ name: r.name, path: resolveReal(r.path) })),
+        w.locations.map((r) => ({ name: r.name, path: resolveReal(r.path) })),
       ]),
     );
     hit = { at: Date.now(), byWorkspace };
-    repoCache.set(home, hit);
+    locationCache.set(home, hit);
   }
   const real = resolveReal(p);
   return hit.byWorkspace.get(ws)?.find((r) => isInside(r.path, real))?.name;
@@ -52,7 +52,7 @@ export function repoOfTool(
 export interface ToolHookOptions {
   /** Guard decision per tool_use_id; a non-default one is added to the `tool.done` line. */
   decisions?: Map<string, LoggedDecision>;
-  /** AGENT_HOME: enables attributing a tool call to the registered repo whose files it touches. */
+  /** AGENT_HOME: enables attributing a tool call to the registered location whose files it touches. */
   agentHome?: string;
   /** Directories paths are shown relative to in `target` (cwd + additional dirs). */
   roots?: string[];
@@ -108,24 +108,24 @@ export function buildToolHooks(
     // No guard (unit tests) = no decision recorded.
     const d = decisions?.get(id);
     decisions?.delete(id);
-    // Unpinned task ("*"): the first call into a repo of the task's workspace names the repo on this line
+    // Unpinned task ("*"): the first call into a location of the task's workspace names the location on this line
     // (explicit field wins over the mixin) and sets the context so later lines (task.finished...) carry it.
-    let repo: string | undefined;
+    let location: string | undefined;
     const workspace = getLogContext().workspace;
     if (agentHome && workspace) {
       try {
-        repo = repoOfTool(agentHome, workspace, tool, input);
+        location = locationOfTool(agentHome, workspace, tool, input);
       } catch {
-        repo = undefined; // unresolvable path: keep the context repo
+        location = undefined; // unresolvable path: keep the context location
       }
-      if (repo && getLogContext().repo === "*") setLogContext({ repo });
-      else repo = undefined; // pinned/known repo: the mixin already carries it
+      if (location && getLogContext().location === "*") setLogContext({ location });
+      else location = undefined; // pinned/known location: the mixin already carries it
     }
     const r = summarizeResult(output, isError);
     // An edit error echoes the file text it failed to match: keep only its first line.
     if (r.err && EDIT_TOOLS.includes(tool)) r.err = scrubEditError(r.err, input);
     logEvent(log, "tool.done", {
-      ...(repo && { repo }),
+      ...(location && { location }),
       ...who,
       tool,
       toolUseId: id,

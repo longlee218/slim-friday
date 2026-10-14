@@ -22,9 +22,9 @@ export function setTurnStatus(db: Database, id: string, status: TurnStatus): voi
   db.query("UPDATE turns SET status = ? WHERE id = ?").run(status, id);
 }
 
-/** Record the repo a turn works in once it is known (a background task starts with "*" until its final `repo:` marker names one). */
-export function setTurnRepo(db: Database, id: string, repo: string): void {
-  db.query("UPDATE turns SET repo = ? WHERE id = ?").run(repo, id);
+/** Record the location a turn works in once it is known (a background task starts with "*" until its final `location:` marker names one). */
+export function setTurnLocation(db: Database, id: string, location: string): void {
+  db.query("UPDATE turns SET location = ? WHERE id = ?").run(location, id);
 }
 
 /** Nothing is left to resume in this thread (no saved session): its `failed_resumable` task becomes `failed`. */
@@ -63,7 +63,7 @@ export function latestTurnSession(
 ): {
   id: string;
   status: string;
-  repo: string;
+  location: string;
   /** Role that ran it (a Resume starts the same role again). */
   role: string;
   sessionId: string | null;
@@ -76,7 +76,7 @@ export function latestTurnSession(
       {
         id: string;
         status: string;
-        repo: string;
+        location: string;
         role: string;
         sessionId: string | null;
         cwd: string | null;
@@ -84,7 +84,7 @@ export function latestTurnSession(
       },
       [string]
     >(
-      `SELECT id, status, repo, role, session_id AS sessionId, session_cwd AS cwd,
+      `SELECT id, status, location, role, session_id AS sessionId, session_cwd AS cwd,
          (SELECT r.outcome FROM runs r WHERE r.turn_id = turns.id ORDER BY r.rowid DESC LIMIT 1) AS outcome
        FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
     )
@@ -114,7 +114,7 @@ export function insertTurn(
     id: string;
     threadId: string;
     source: string;
-    repo: string;
+    location: string;
     /** Role that runs it: `type` and the cap flag are derived from its data (never from a type argument). */
     role: string;
     /** Task text of a dispatched task; stored redacted. */
@@ -133,13 +133,13 @@ export function insertTurn(
   // Only background roles count against the concurrency cap (see `countActiveCappedTasks`).
   const role = getRole(t.role);
   db.query(
-    `INSERT INTO turns (id, thread_id, source, repo, type, status, started_at, brief, class, proposal_id, counts_toward_cap, role, kind, parent_turn_id, hop)
+    `INSERT INTO turns (id, thread_id, source, location, type, status, started_at, brief, class, proposal_id, counts_toward_cap, role, kind, parent_turn_id, hop)
      VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     t.id,
     t.threadId,
     t.source,
-    t.repo,
+    t.location,
     turnTypeOf(role),
     Date.now(),
     t.brief === undefined ? null : redactText(t.brief),

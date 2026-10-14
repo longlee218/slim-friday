@@ -10,7 +10,7 @@ import { log, type PluginCaps } from "./plugin-copy";
 
 /**
  * Where the publisher's skills live: `<app root>/.agents/skills/<name>/` (a flat dir of skill folders, pinned by the
- * repo-root `skills-lock.json`). They are loaded whole and unmodified: Friday never patches a skill text.
+ * location-root `skills-lock.json`). They are loaded whole and unmodified: Friday never patches a skill text.
  */
 export const PUBLISHER_SKILLS_DIR = join(import.meta.dir, "../../../.agents/skills");
 

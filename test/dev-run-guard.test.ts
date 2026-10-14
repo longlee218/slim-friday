@@ -7,7 +7,7 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { setupWorkflow } from "./code-flow-fixture";
 import { devIntent, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 
-// Dev run options (Rev 15 phases 3 and 5): the run works in the repo's own checkout (no clone), with the guard
+// Dev run options (Rev 15 phases 3 and 5): the run works in the location's own checkout (no clone), with the guard
 // scope of the spec, no git or GitHub MCP, the owner's env passed through, and the one worktree line.
 
 const FAKE_TOKEN = "fake-owner-token-for-passthrough";
@@ -29,7 +29,7 @@ async function runExec() {
     queryFn: ((a: any) => {
       seen.push(a.options);
       return (async function* () {
-        yield resultMsg({ result: "done\n\nrepo: real" });
+        yield resultMsg({ result: "done\n\nlocation: real" });
       })();
     }) as never,
     intent: devIntent(env.home),
@@ -45,7 +45,7 @@ async function runExec() {
   return { env, clone: realpathSync(clone), exec: seen[0] };
 }
 
-test("the dev run works in the repo's own checkout: cwd = repo path, scratch + worktrees dir readable, no clone made", async () => {
+test("the dev run works in the location's own checkout: cwd = location path, scratch + worktrees dir readable, no clone made", async () => {
   const { env, clone, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   expect(exec.cwd).toBe(clone);
@@ -54,8 +54,8 @@ test("the dev run works in the repo's own checkout: cwd = repo path, scratch + w
     realpathSync(ws.task(taskId).root),
     realpathSync(ws.worktrees),
   ]);
-  // No plan file: the repo is on the turn row, named by the run's final `repo:` line.
-  expect(env.db.query("SELECT repo FROM turns").get()).toEqual({ repo: "real" });
+  // No plan file: the location is on the turn row, named by the run's final `location:` line.
+  expect(env.db.query("SELECT location FROM turns").get()).toEqual({ location: "real" });
 });
 
 test("dev: no git or GitHub MCP server; the owner's env passes through", async () => {
@@ -66,7 +66,7 @@ test("dev: no git or GitHub MCP server; the owner's env passes through", async (
   expect(exec.env.GH_TOKEN).toBe(FAKE_TOKEN); // `gh` in the agent's shell uses the owner's login
 });
 
-test("dev guard: writes in the repo (its git dir and .github too), the worktrees dir, scratch and the SDK plans dir; nothing else", async () => {
+test("dev guard: writes in the location (its git dir and .github too), the worktrees dir, scratch and the SDK plans dir; nothing else", async () => {
   const { env, clone, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   const write = async (file_path: string) =>
@@ -94,7 +94,7 @@ test("dev guard: `git worktree add` only under the worktrees dir; push of a feat
   expect(await bash("git push --force origin friday/x")).toBe("deny");
 });
 
-test("dev prompt: the one worktree line names <workspace worktrees dir>/<repo>/", async () => {
+test("dev prompt: the one worktree line names <workspace worktrees dir>/<location>/", async () => {
   const { env, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   const line = `If you use a git worktree, put it under ${join(realpathSync(ws.worktrees), "real")}/.`;
@@ -102,21 +102,21 @@ test("dev prompt: the one worktree line names <workspace worktrees dir>/<repo>/"
   expect(exec.systemPrompt.append).toContain("Merge, push or PR only after the owner chose it.");
 });
 
-test("wiring: Remember through the run's real memory server lands in the run's workspace/repo", async () => {
+test("wiring: Remember through the run's real memory server lands in the run's workspace/location", async () => {
   const { env, exec } = await runExec();
   // Test-only: `_registeredTools` is an undocumented MCP SDK internal (no public call API on the instance); may break on SDK upgrades.
   // The registered tool of the in-process server the role runner built (context closure of run-role.ts).
   const tool = exec.mcpServers[MEMORY_MCP_SERVER].instance._registeredTools[REMEMBER_TOOL];
   const ok = await tool.handler(
-    { text: "uses bun test", scope: "repo", repo: "real", kind: "fact" },
+    { text: "uses bun test", scope: "location", location: "real", kind: "fact" },
     {},
   );
   expect(ok.isError).toBeUndefined();
-  expect(ok.content[0].text).toBe("saved to repo/real (Facts)");
-  const file = workspacePaths(env.home).workspace("main").repo("real").memory;
+  expect(ok.content[0].text).toBe("saved to location/real (Facts)");
+  const file = workspacePaths(env.home).workspace("main").location("real").memory;
   expect(readFileSync(file, "utf8")).toContain("- uses bun test (");
-  // A repo outside this workspace's registry is refused (repoNames comes from the registry).
-  const bad = await tool.handler({ text: "x note", scope: "repo", repo: "other" }, {});
+  // A location outside this workspace's registry is refused (locationNames comes from the registry).
+  const bad = await tool.handler({ text: "x note", scope: "location", location: "other" }, {});
   expect(bad.isError).toBe(true);
   expect(bad.content[0].text).toContain("real");
   const j = await tool.handler({ text: "journal note", scope: "journal" }, {});

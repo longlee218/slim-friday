@@ -78,7 +78,7 @@ export function createMemorySearchTool(ctx: MemoryToolContext, budget: ReadBudge
       const { hits, terms } = searchIndex(ctx.db, ctx.workspace, {
         ...args,
         limit,
-        repos: ctx.repoNames(),
+        locations: ctx.locationNames(),
       });
       logEvent(log, "memory.search", {
         scope: args.scope,

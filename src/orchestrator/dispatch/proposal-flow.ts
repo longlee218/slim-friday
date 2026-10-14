@@ -35,7 +35,7 @@ export function persistProposal(
       fromTurnId: i.fromTurnId,
       role: i.request.role,
       brief: i.request.brief,
-      repo: i.request.repo,
+      location: i.request.location,
       class: i.request.cls,
       confidence: i.request.confidence,
       reason: i.request.reason,

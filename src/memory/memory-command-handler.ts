@@ -29,7 +29,7 @@ export interface MemoryRequest {
   where?: MemoryWhere;
   /** Routing key: the parent channel of a thread, else the channel itself (maps to a workspace). */
   channelId: string;
-  /** Set when typed inside a thread (default repo comes from that thread). */
+  /** Set when typed inside a thread (default location comes from that thread). */
   threadId?: string;
   text: string;
 }

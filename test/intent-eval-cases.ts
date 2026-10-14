@@ -87,9 +87,13 @@ export const GOLDEN: GoldenCase[] = [
     thread: PLAN,
     expect: { role: "dev", scope: "active" },
   },
-  { text: "What does the plan mean by 'repo: shop'?", thread: PLAN, expect: { role: "assistant" } },
   {
-    text: "New request, unrelated to this plan: add a LICENSE file to the repo.",
+    text: "What does the plan mean by 'location: shop'?",
+    thread: PLAN,
+    expect: { role: "assistant" },
+  },
+  {
+    text: "New request, unrelated to this plan: add a LICENSE file to the location.",
     thread: PLAN,
     expect: { role: "dev", scope: "new" },
   },

@@ -14,16 +14,16 @@ if (!live) {
 }
 
 describe.skipIf(!live)("live agent smoke (OpenRouter)", () => {
-  test("answers on a temp repo; Read/Glob/Grep only; init model matches; rows recorded", async () => {
+  test("answers on a temp location; Read/Glob/Grep only; init model matches; rows recorded", async () => {
     const env = makeEnv({
       OPENROUTER_API_KEY: key!,
       LLM_PROVIDER: "openrouter",
       MAX_TURNS: "6",
       TIMEOUT_MS: "90000",
     });
-    const repo = env.repo;
-    mkdirSync(repo, { recursive: true });
-    writeFileSync(join(repo, "a.txt"), "the secret word is alpha\n");
+    const location = env.location;
+    mkdirSync(location, { recursive: true });
+    writeFileSync(join(location, "a.txt"), "the secret word is alpha\n");
     const cfg = env.config;
 
     const inits: { tools: string[]; model: string }[] = [];

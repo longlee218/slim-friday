@@ -2,31 +2,31 @@ import type { Database } from "bun:sqlite";
 import { existsSync } from "node:fs";
 import { workspacePaths } from "../config/workspace-paths";
 import { realOrSame } from "../guardrails/paths";
-import type { Repo } from "../repos/repo-registry";
+import type { Location } from "../locations/location-registry";
 import { entryRole, getRole, ROLES } from "../roles/role-registry";
 import { deterministicPreflight } from "../routing/preflight/deterministic-preflight";
 import { getOwnedTask, ownedTaskOfTurn } from "../storage/owned-task-store";
 import { latestTurnSession } from "../storage/run-store";
 import type { SessionRow } from "../storage/session-store";
 import { resumeGone } from "./dispatch/resume-failed-task";
-import { findRepo, type Refusal, refuse, resolveTaskRepo } from "./dispatch/task-repo";
+import { findLocation, type Refusal, refuse, resolveTaskLocation } from "./dispatch/task-location";
 import { type MessageCommand, RESUME_PROMPT } from "./message-commands";
 
 /** Which role runs a message and where, decided before anything is created. */
 export interface Route {
-  /** Repo the thread is pinned to (or hinted with `repo:`), when any. */
-  pinned?: Repo;
+  /** Location the thread is pinned to (or hinted with `location:`), when any. */
+  pinned?: Location;
   /** Role that runs the message: the intent layer's pick; a Resume -> its role; else the entry role. */
   role: string;
-  /** Background roles: repos the run may work in (the hinted one, else every repo). */
-  candidates: Repo[];
-  /** Name for the turn row: the pinned repo's, else "*" (not chosen yet: the run's `repo:` marker names it). */
-  repo: string;
+  /** Background roles: locations the run may work in (the hinted one, else every location). */
+  candidates: Location[];
+  /** Name for the turn row: the pinned location's, else "*" (not chosen yet: the run's `location:` marker names it). */
+  location: string;
 }
 
 /**
- * Decide how a message is run: pinned repo, the role (from data, see `Route.role`), candidate repos, or a
- * refusal (unknown repo, empty text, no approval flow, too many capped tasks). `p.role` = the intent
+ * Decide how a message is run: pinned location, the role (from data, see `Route.role`), candidate locations, or a
+ * refusal (unknown location, empty text, no approval flow, too many capped tasks). `p.role` = the intent
  * layer's pick: it replaces the entry role.
  */
 export function routeMessage(
@@ -34,43 +34,47 @@ export function routeMessage(
   p: {
     cmd: Extract<MessageCommand, { kind: "message" }>;
     threadId: string;
-    repos: Repo[];
+    locations: Location[];
     existing: SessionRow | null;
     /** Role the intent layer picked; missing = the entry role. */
     role?: string;
   },
 ): Route | Refusal {
-  const { cmd, repos, existing } = p;
-  const hint = cmd.repo?.toLowerCase();
-  const pinned = hint ? findRepo(repos, hint) : repos.find((r) => r.name === existing?.repo); // thread stays on its pinned repo
+  const { cmd, locations, existing } = p;
+  const hint = cmd.location?.toLowerCase();
+  const pinned = hint
+    ? findLocation(locations, hint)
+    : locations.find((r) => r.name === existing?.location); // thread stays on its pinned location
   // A background role runs when the intent layer picks it, or as the Resume of a task (`cmd.role`).
   const roleName = cmd.role ?? p.role ?? entryRole().name;
-  // The shared deterministic checks (repo, approvals, empty text, task cap); the first failure is the refusal.
+  // The shared deterministic checks (location, approvals, empty text, task cap); the first failure is the refusal.
   const { refusal } = deterministicPreflight({
     role: roleName,
     text: cmd.text,
-    repoHint: cmd.repo,
-    repos,
+    locationHint: cmd.location,
+    locations,
     hasApprovals: deps.hasApprovals,
     db: deps.db,
   });
   if (refusal) return refusal;
   const role = getRole(roleName);
   if (!role.background)
-    return { pinned, role: role.name, candidates: [], repo: pinned?.name ?? "*" };
-  const blocked = resolveTaskRepo(repos, cmd.repo);
+    return { pinned, role: role.name, candidates: [], location: pinned?.name ?? "*" };
+  const blocked = resolveTaskLocation(locations, cmd.location);
   if ("reply" in blocked) return blocked;
   return {
     pinned,
     role: role.name,
     candidates: blocked.candidates,
-    repo: pinned?.name ?? "*",
+    location: pinned?.name ?? "*",
   };
 }
 
-/** `cwd` is a registered repo of the workspace (a background session must run in one; an old scratch-dir session has none). */
-export const inRegisteredRepo = (repos: Repo[], cwd: string | null | undefined): boolean =>
-  !!cwd && repos.some((r) => realOrSame(r.path) === realOrSame(cwd));
+/** `cwd` is a registered location of the workspace (a background session must run in one; an old scratch-dir session has none). */
+export const inRegisteredLocation = (
+  locations: Location[],
+  cwd: string | null | undefined,
+): boolean => !!cwd && locations.some((r) => realOrSame(r.path) === realOrSame(cwd));
 
 /** Refusal reasons after which a `go` message is treated as plain text (nothing to start or resume). */
 export const PLAIN_GO: ReadonlySet<string> = new Set(["cannot_resume", "stale_resume"]);
@@ -91,11 +95,11 @@ export interface ResumePlan {
 /**
  * Make the owner's command runnable. A message passes through; the Resume button (and `/go`) continues the latest
  * task of the thread, using the session that task recorded at init: a background role resumes that session in its cwd
- * (the repo; it must still exist); a foreground role resumes as a plain message in the workspace cwd dir or one of its
- * repos. Anything else (no session, cwd not usable, or the thread already moved on) -> a reply.
+ * (the location; it must still exist); a foreground role resumes as a plain message in the workspace cwd dir or one of its
+ * locations. Anything else (no session, cwd not usable, or the thread already moved on) -> a reply.
  */
 export function resolveCommand(
-  deps: { db: Database; agentHome: string; workspace: string; repos: Repo[] },
+  deps: { db: Database; agentHome: string; workspace: string; locations: Location[] },
   cmd: Exclude<MessageCommand, { kind: "stop" | "memory" | "go" }>,
   threadId: string,
 ): ResumePlan | Refusal {
@@ -126,16 +130,16 @@ export function resolveCommand(
   const failed = last.status === "failed_resumable";
   const role = ROLES[last.role];
   const ws = workspacePaths(deps.agentHome).workspace(deps.workspace);
-  // A background session runs in the repo: the dir must still be there. Nothing to continue = the task is dropped.
+  // A background session runs in the location: the dir must still be there. Nothing to continue = the task is dropped.
   const { sessionId, cwd } = last;
-  // A background session must run in a registered repo (an old scratch-dir session has none): nothing to continue.
-  const inRepo = inRegisteredRepo(deps.repos, cwd);
-  if (!sessionId || !cwd || (role?.background && (!existsSync(cwd) || !inRepo)))
+  // A background session must run in a registered location (an old scratch-dir session has none): nothing to continue.
+  const inLocation = inRegisteredLocation(deps.locations, cwd);
+  if (!sessionId || !cwd || (role?.background && (!existsSync(cwd) || !inLocation)))
     return failed ? resumeGone(deps.db, threadId) : cannot;
   const existing: SessionRow = {
     thread_id: threadId,
     session_id: sessionId,
-    repo: last.repo,
+    location: last.location,
     cwd,
     status: "active",
     updated_at: Date.now(),
@@ -152,8 +156,8 @@ export function resolveCommand(
       resume: { sessionId: existing.session_id, cwd: existing.cwd, of: last.id },
     };
   }
-  // A plain message only resumes in the workspace cwd dir or one of its repos; else the context would be lost.
-  const plainCwd = existing.cwd === ws.cwd || deps.repos.some((r) => r.path === existing.cwd);
+  // A plain message only resumes in the workspace cwd dir or one of its locations; else the context would be lost.
+  const plainCwd = existing.cwd === ws.cwd || deps.locations.some((r) => r.path === existing.cwd);
   return plainCwd ? { cmd: { kind: "message", text: RESUME_PROMPT }, existing } : cannot;
 }
 

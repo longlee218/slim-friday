@@ -20,7 +20,7 @@ import { makeEnv } from "./helpers";
 /** One thread, one code task in `status`. */
 function task(status: Parameters<typeof setTurnStatus>[2], role = "dev") {
   const { db } = makeEnv();
-  insertTurn(db, { id: "t1", threadId: "th", source: "t", repo: "r", role });
+  insertTurn(db, { id: "t1", threadId: "th", source: "t", location: "r", role });
   setTurnStatus(db, "t1", status);
   return db;
 }
@@ -100,7 +100,7 @@ test("done folds to idle", () => {
 
 test("the newest task decides; other threads are ignored", () => {
   const db = task("done");
-  insertTurn(db, { id: "t2", threadId: "th", source: "t", repo: "r", role: "dev" });
+  insertTurn(db, { id: "t2", threadId: "th", source: "t", location: "r", role: "dev" });
   expect(deriveThreadState(db, "th")).toBe("running");
   expect(deriveThreadState(db, "other")).toBe("idle");
 });

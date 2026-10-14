@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { GLOB_TOOL_NAME, READ_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { addRepo, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+import { addLocation, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 
 /** Write `<dir>/<name>/SKILL.md`. */
 function skill(dir: string, name: string): void {
@@ -13,19 +13,19 @@ function skill(dir: string, name: string): void {
 }
 
 /**
- * Workspace `main` with curated skill `ws-skill` and repos a and b. Each repo carries decoys: its own
+ * Workspace `main` with curated skill `ws-skill` and locations a and b. Each location carries decoys: its own
  * `.claude/skills`, hooks, .mcp.json and a CLAUDE.md, none of which may reach the run. Runs one Q&A text.
  */
 async function qa(text: string, fail = false) {
   const env = makeEnv();
   skill(env.paths.workspace("main").skills, "ws-skill");
   for (const name of ["a", "b"]) {
-    const repo = addRepo(env.home, name);
-    skill(join(repo, ".claude", "skills"), `sk-${name}`);
-    mkdirSync(join(repo, ".claude", "hooks"), { recursive: true });
-    writeFileSync(join(repo, ".claude", "hooks", "hooks.json"), '{"hooks":{}}');
-    writeFileSync(join(repo, ".mcp.json"), '{"mcpServers":{}}');
-    writeFileSync(join(repo, "CLAUDE.md"), "CLAUDE_BODY_MARK");
+    const location = addLocation(env.home, name);
+    skill(join(location, ".claude", "skills"), `sk-${name}`);
+    mkdirSync(join(location, ".claude", "hooks"), { recursive: true });
+    writeFileSync(join(location, ".claude", "hooks", "hooks.json"), '{"hooks":{}}');
+    writeFileSync(join(location, ".mcp.json"), '{"mcpServers":{}}');
+    writeFileSync(join(location, "CLAUDE.md"), "CLAUDE_BODY_MARK");
   }
   let opts: any;
   let pluginDirs: string[] = [];
@@ -49,8 +49,8 @@ async function qa(text: string, fail = false) {
   return { env, opts, pluginDirs, pluginFiles };
 }
 
-test("Q&A (pinned or not): one plugin with the workspace skills; repo skills/hooks/CLAUDE.md never contribute", async () => {
-  for (const text of ["repo:b where is x?", "where is x?"]) {
+test("Q&A (pinned or not): one plugin with the workspace skills; location skills/hooks/CLAUDE.md never contribute", async () => {
+  for (const text of ["location:b where is x?", "where is x?"]) {
     const { opts, pluginDirs, pluginFiles } = await qa(text);
     expect(opts.skills).toEqual(["main:ws-skill"]);
     expect(opts.plugins).toHaveLength(1);
@@ -61,10 +61,10 @@ test("Q&A (pinned or not): one plugin with the workspace skills; repo skills/hoo
   }
 });
 
-test("a workspace without curated skills gets no plugin even when its repos have .claude/skills", async () => {
+test("a workspace without curated skills gets no plugin even when its locations have .claude/skills", async () => {
   const env = makeEnv();
-  const repo = addRepo(env.home, "a");
-  skill(join(repo, ".claude", "skills"), "sk-a");
+  const location = addLocation(env.home, "a");
+  skill(join(location, ".claude", "skills"), "sk-a");
   let opts: any;
   const queryFn = (a: any) => {
     opts = a.options;
@@ -92,7 +92,7 @@ test("plugin dirs are removed also when the run throws", async () => {
 
 test("guard: this run's plugin dirs are READ-only; another plugin dir and <home>/tmp/other are denied", async () => {
   const env = makeEnv();
-  addRepo(env.home, "a");
+  addLocation(env.home, "a");
   skill(env.paths.workspace("main").skills, "sk-a");
   writeFileSync(join(env.paths.workspace("main").skills, "sk-a", "helper.sh"), "echo hi\n");
   const other = join(env.home, "tmp", "plugin-OTHERRUN");

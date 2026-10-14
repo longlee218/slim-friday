@@ -2,12 +2,12 @@ import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
+import type { Location } from "../src/locations/location-registry";
+import { locationMemoryFile } from "../src/memory/location-memory";
 import { buildPromptContext } from "../src/memory/prompt-context";
-import { repoMemoryFile } from "../src/memory/repo-memory";
-import { repoOfTool } from "../src/observability/tool-hooks";
+import { locationOfTool } from "../src/observability/tool-hooks";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { routeMessage } from "../src/orchestrator/message-routing";
-import type { Repo } from "../src/repos/repo-registry";
 import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import {
   CHANNEL_2,
@@ -17,42 +17,47 @@ import {
   TEST_CHANNEL,
   twoWorkspaces,
 } from "./helpers";
-import { writeRepoNotes } from "./memory-fixture";
+import { writeLocationNotes } from "./memory-fixture";
 
-/** Full prompt context text of a run in `ws` over repo `api`. */
+/** Full prompt context text of a run in `ws` over location `api`. */
 const promptOf = (home: string, ws: string) =>
-  buildPromptContext({ agentHome: home, workspace: ws, memoryRepos: ["api"] }).join("\n\n");
+  buildPromptContext({ agentHome: home, workspace: ws, memoryLocations: ["api"] }).join("\n\n");
 
-test("same repo name in two workspaces: lookups stay inside the workspace", () => {
+test("same location name in two workspaces: lookups stay inside the workspace", () => {
   const { env, a, b, scan } = twoWorkspaces();
   const [w1, w2] = scan.workspaces;
-  expect(w1!.repos[0]!.path).toBe(a);
-  expect(w2!.repos[0]!.path).toBe(b);
-  // pin: `repo:api` inside w2 resolves to w2's clone, never w1's.
-  const route = (repos: Repo[]) =>
+  expect(w1!.locations[0]!.path).toBe(a);
+  expect(w2!.locations[0]!.path).toBe(b);
+  // pin: `location:api` inside w2 resolves to w2's clone, never w1's.
+  const route = (locations: Location[]) =>
     routeMessage(
       { db: env.db, agentHome: env.home, hasApprovals: false },
-      { cmd: { kind: "message", text: "q", repo: "api" }, threadId: "t", repos, existing: null },
+      {
+        cmd: { kind: "message", text: "q", location: "api" },
+        threadId: "t",
+        locations,
+        existing: null,
+      },
     );
-  const r2 = route(w2!.repos);
+  const r2 = route(w2!.locations);
   expect("pinned" in r2 && r2.pinned?.workspace).toBe("w2");
   expect("pinned" in r2 && r2.pinned?.path).toBe(b);
-  // tool-hooks attribution: a file of w1/api is not a repo of w2.
+  // tool-hooks attribution: a file of w1/api is not a location of w2.
   writeFileSync(join(a, "f.txt"), "x");
   writeFileSync(join(b, "f.txt"), "x");
   const read = (ws: string, file: string) =>
-    repoOfTool(env.home, ws, READ_TOOL_NAME, { file_path: file });
+    locationOfTool(env.home, ws, READ_TOOL_NAME, { file_path: file });
   expect(read("w1", join(a, "f.txt"))).toBe("api");
   expect(read("w2", join(b, "f.txt"))).toBe("api");
   expect(read("w2", join(a, "f.txt"))).toBeUndefined();
   expect(read("w1", join(b, "f.txt"))).toBeUndefined();
 });
 
-test("same repo name: memory writes and reads are per workspace", () => {
+test("same location name: memory writes and reads are per workspace", () => {
   const { env } = twoWorkspaces();
-  writeRepoNotes(env.home, "w1", "api", ["W1_ONLY"]);
-  expect(readFileSync(repoMemoryFile(env.home, "w1", "api"), "utf8")).toContain("W1_ONLY");
-  expect(readFileSync(repoMemoryFile(env.home, "w2", "api"), "utf8")).not.toContain("W1_ONLY");
+  writeLocationNotes(env.home, "w1", "api", ["W1_ONLY"]);
+  expect(readFileSync(locationMemoryFile(env.home, "w1", "api"), "utf8")).toContain("W1_ONLY");
+  expect(readFileSync(locationMemoryFile(env.home, "w2", "api"), "utf8")).not.toContain("W1_ONLY");
   expect(promptOf(env.home, "w1")).toContain("W1_ONLY");
   expect(promptOf(env.home, "w2")).not.toContain("W1_ONLY");
 });
@@ -71,7 +76,7 @@ test("a real Q&A prompt contains no pending-file text and no other workspace's m
   const { env } = twoWorkspaces();
   const p = workspacePaths(env.home);
   writeFileSync(p.memoryPending, "# pending\n\n## d\n- PENDING_MARK\n");
-  writeRepoNotes(env.home, "w2", "api", ["W2_MARK"]);
+  writeLocationNotes(env.home, "w2", "api", ["W2_MARK"]);
   let prompt = "";
   const queryFn = (a: any) => {
     prompt = a.options.systemPrompt.append as string;
@@ -93,8 +98,8 @@ test("a real Q&A prompt contains no pending-file text and no other workspace's m
 
 test("a message from w2's channel gets w2's memory and not w1's", async () => {
   const { env } = twoWorkspaces();
-  writeRepoNotes(env.home, "w1", "api", ["W1_MARK"]);
-  writeRepoNotes(env.home, "w2", "api", ["W2_MARK"]);
+  writeLocationNotes(env.home, "w1", "api", ["W1_MARK"]);
+  writeLocationNotes(env.home, "w2", "api", ["W2_MARK"]);
   let prompt = "";
   const queryFn = (a: any) => {
     prompt = a.options.systemPrompt.append as string;
@@ -132,7 +137,7 @@ test("no CLAUDE.md is created under the home by ensureHome or a handler run", as
   expect(existsSync(join(env.home, "workspaces", "w1", "cwd"))).toBe(true);
 });
 
-test("source has no legacyWorkspace, loadRepoRegistry or TODO(1b) leftovers", () => {
+test("source has no legacyWorkspace, loadLocationRegistry or TODO(1b) leftovers", () => {
   const hits: string[] = [];
   for (const f of readdirSync(join(import.meta.dir, "..", "src"), {
     recursive: true,
@@ -140,7 +145,7 @@ test("source has no legacyWorkspace, loadRepoRegistry or TODO(1b) leftovers", ()
   })) {
     if (!f.isFile() || !f.name.endsWith(".ts")) continue;
     const file = join(f.parentPath, f.name);
-    if (/legacyWorkspace|loadRepoRegistry|TODO\(1b\)/.test(readFileSync(file, "utf8")))
+    if (/legacyWorkspace|loadLocationRegistry|TODO\(1b\)/.test(readFileSync(file, "utf8")))
       hits.push(file);
   }
   expect(hits).toEqual([]);
@@ -149,7 +154,7 @@ test("source has no legacyWorkspace, loadRepoRegistry or TODO(1b) leftovers", ()
 test("legacy dir and no workspace: cutover reply, and the legacy dir is left untouched", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const old = join(env.home, "workspaces", "oldrepo");
+  const old = join(env.home, "workspaces", "oldlocation");
   mkdirSync(old, { recursive: true });
   writeFileSync(join(old, "config.yaml"), "path: /x\n");
   const handle = createTurnHandler({ db: env.db, config: env.config });

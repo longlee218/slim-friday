@@ -6,7 +6,7 @@ import { routeWithRecovery } from "../routing/route-with-recovery";
 import type { ReasonCode, RoutingDecision, TaskState } from "../routing/routing-contracts";
 import type { RoutePlan } from "../routing/routing-policy";
 import { changeOwner } from "../tasks/task-resolver";
-import type { Refusal } from "./dispatch/task-repo";
+import type { Refusal } from "./dispatch/task-location";
 import type { IntentTurnCtx } from "./intent-turn";
 import { stripRoleTag } from "./thread/intent-replies";
 import { actionFor, type IntentAction } from "./thread/intent-table";
@@ -77,8 +77,8 @@ export async function recoverRoute(
     {
       role: decision.role,
       text: stripRoleTag(c.cmd.text),
-      repoHint: c.cmd.repo,
-      repos: c.repos,
+      locationHint: c.cmd.location,
+      locations: c.locations,
       hasApprovals: !!c.deps.approvals,
       ranking: plan.ranking,
       db: c.deps.db,

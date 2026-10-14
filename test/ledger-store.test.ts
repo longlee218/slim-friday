@@ -14,13 +14,13 @@ import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 const mk = (
   db: any,
   id: string,
-  o: { brief?: string; thread?: string; role?: string; repo?: string } = {},
+  o: { brief?: string; thread?: string; role?: string; location?: string } = {},
 ) =>
   insertTurn(db, {
     id,
     threadId: o.thread ?? "th",
     source: "t",
-    repo: o.repo ?? "r",
+    location: o.location ?? "r",
     role: o.role ?? "dev",
     brief: o.brief ?? `brief of ${id}`,
   });
@@ -32,9 +32,9 @@ test("empty when the thread has no code task (Q&A rows and other threads do not 
   expect(threadLedger(db, "th")).toBe("");
 });
 
-test("entry per task: role, status, brief, repo and the USD its runs cost", () => {
+test("entry per task: role, status, brief, location and the USD its runs cost", () => {
   const { db } = makeEnv();
-  mk(db, "abcdef123456", { brief: "Add b.txt\nwith   two", repo: "real" });
+  mk(db, "abcdef123456", { brief: "Add b.txt\nwith   two", location: "real" });
   finishTurn(db, "abcdef123456", "done");
   for (const [id, cost] of [
     ["r1", 0.25],
@@ -55,9 +55,11 @@ test("entry per task: role, status, brief, repo and the USD its runs cost", () =
       compactions: 0,
     });
   expect(threadLedger(db, "th")).toBe(
-    [LEDGER_HEADING, '- abcdef12 dev, done: "Add b.txt with two"', "  repo real, cost $0.75"].join(
-      "\n",
-    ),
+    [
+      LEDGER_HEADING,
+      '- abcdef12 dev, done: "Add b.txt with two"',
+      "  location real, cost $0.75",
+    ].join("\n"),
   );
 });
 
@@ -77,7 +79,7 @@ test("keeps the last 5 tasks (oldest first) and caps each entry; a brief secret 
 
 test("an idle thread's assistant sees the ledger in its system prompt; a Q&A-only thread sees none", async () => {
   const env = makeEnv();
-  mkdirSync(env.repo, { recursive: true });
+  mkdirSync(env.location, { recursive: true });
   mk(env.db, "c1", { thread: "th1", brief: "Earlier change to the parser" });
   finishTurn(env.db, "c1", "done");
   const prompts: Record<string, string> = {};
@@ -105,10 +107,10 @@ test("an idle thread's assistant sees the ledger in its system prompt; a Q&A-onl
   expect(prompts.hello).not.toContain(LEDGER_HEADING);
 });
 
-test("the repo name is one-line", () => {
+test("the location name is one-line", () => {
   const { db } = makeEnv();
-  mk(db, "wt1", { repo: "real\n- injected" });
+  mk(db, "wt1", { location: "real\n- injected" });
   const out = threadLedger(db, "th");
-  expect(out.split("\n")).toHaveLength(3); // heading, brief, repo line
-  expect(out).toContain("repo real - injected");
+  expect(out.split("\n")).toHaveLength(3); // heading, brief, location line
+  expect(out).toContain("location real - injected");
 });

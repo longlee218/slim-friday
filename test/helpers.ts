@@ -35,13 +35,13 @@ export function makeEnv(extra: Record<string, string> = {}) {
     TIMEOUT_MS: "5000",
     ...extra,
   });
-  // One workspace by default: `repo`, a fake git dir OUTSIDE workspaces/ (not a managed clone, so Q&A tests
-  // never touch the git MCP server). Code-task tests replace it with a managed clone via addRepo().
-  const repo = join(home, "plain", "repo");
-  mkdirSync(join(repo, ".git"), { recursive: true });
-  addRepo(home, "repo", {}, { path: repo });
+  // One workspace by default: `location`, a fake git dir OUTSIDE AGENT_HOME (the registry refuses a location inside
+  // it; not a managed clone, so Q&A tests never touch the git MCP server). Code-task tests replace it via addLocation().
+  const location = join(mkdtempSync(join(tmpdir(), "friday-test-loc-")), "location");
+  mkdirSync(join(location, ".git"), { recursive: true });
+  addLocation(home, "location", {}, { path: location });
   const db = openDb(workspacePaths(home).dbFile);
-  return { home, repo, config, db, paths: workspacePaths(home) };
+  return { home, location, config, db, paths: workspacePaths(home) };
 }
 
 /** Real `result` message shape captured by spike q06/q08b (keys trimmed to what exists live). */
@@ -101,6 +101,9 @@ export async function promptText(prompt: unknown): Promise<string> {
   return first.value?.message.content ?? "";
 }
 
+/** A fresh temp dir OUTSIDE any AGENT_HOME (locations inside the home are refused by the registry). */
+export const outsideDir = (): string => mkdtempSync(join(tmpdir(), "friday-out-"));
+
 /** Fail unless `home` is under the OS temp dir: tests must never touch the real ~/.friday. */
 export function assertTempHome(home: string): void {
   const root = realpathSync(tmpdir());
@@ -108,36 +111,42 @@ export function assertTempHome(home: string): void {
   if (!real.startsWith(`${root}${sep}`)) throw new Error(`AGENT_HOME ${home} is not under ${root}`);
 }
 
+/** Default path of a test location without an explicit `path`: `workspaces/<ws>/locations/<name>/location`. */
+export const defaultLocationPath = (home: string, name: string, workspace = "main"): string =>
+  join(workspacePaths(home).workspace(workspace).location(name).root, "location");
+
 /**
- * Create `workspaces/<ws>/repos/<name>/repo.yaml` (+ a fake git clone at `.../repo` unless `path` is given),
- * and `workspaces/<ws>/workspace.yaml` when missing (or when `channels` is given; `main` defaults to TEST_CHANNEL). Returns the repo path.
- * `config` holds extra repo.yaml keys (gitAuthor, githubAccount, testCommand...); `workspace` defaults to "main".
+ * Register a location in `workspaces/<ws>/workspace.yaml` (`locations:` list; the file is created when missing,
+ * or its channels replaced when `channels` is given; `main` defaults to TEST_CHANNEL). Without `path` a dir with
+ * a fake git dir is made at `defaultLocationPath` (`git: false` leaves it out). Returns the location path.
+ * Only `config.description` is stored: the other keys of old tests (gitAuthor, testCommand...) are ignored.
  */
-export function addRepo(
+export function addLocation(
   home: string,
   name: string,
   config: Record<string, string> = {},
-  opts: { workspace?: string; channels?: string[]; path?: string } = {},
+  opts: { workspace?: string; channels?: string[]; path?: string; git?: boolean } = {},
 ): string {
   assertTempHome(home);
-  const { workspace = "main", channels, path } = opts;
+  const { workspace = "main", channels, path, git = true } = opts;
   const ws = workspacePaths(home).workspace(workspace);
-  const rp = ws.repo(name);
-  mkdirSync(rp.root, { recursive: true });
+  mkdirSync(ws.location(name).root, { recursive: true }); // the memory dir of the location
+  const doc: { channels?: string[]; locations?: unknown[] } = existsSync(ws.config)
+    ? (Bun.YAML.parse(readFileSync(ws.config, "utf8")) ?? {})
+    : {};
   if (channels || !existsSync(ws.config)) {
     // `main` is the default test workspace and owns TEST_CHANNEL; any other workspace needs its own channels.
-    const ids = channels ?? (workspace === "main" ? [TEST_CHANNEL] : []);
-    const list = ids.map((c) => `  - "${c}"`).join("\n");
-    writeFileSync(ws.config, ids.length ? `channels:\n${list}\n` : "channels: []\n");
+    doc.channels = channels ?? (workspace === "main" ? [TEST_CHANNEL] : []);
   }
-  const repo = path ?? rp.clone;
-  if (!path) mkdirSync(join(repo, ".git"), { recursive: true });
-  const lines = [
-    `path: ${repo}`,
-    ...Object.entries(config).map(([k, v]) => `${k}: ${JSON.stringify(v)}`),
+  const location = path ?? defaultLocationPath(home, name, workspace);
+  mkdirSync(location, { recursive: true });
+  if (!path && git) mkdirSync(join(location, ".git"), { recursive: true });
+  doc.locations = [
+    ...(doc.locations ?? []).filter((l) => (l as { name: string }).name !== name),
+    { name, path: location, description: config.description ?? "" },
   ];
-  writeFileSync(rp.config, `${lines.join("\n")}\n`);
-  return repo;
+  writeFileSync(ws.config, Bun.YAML.stringify(doc));
+  return location;
 }
 
 /** Remove every workspace config (tests of the "nothing registered" paths). */
@@ -191,17 +200,17 @@ export const DEV_REQUEST = `[dev] ${BRIEF}`;
 /** Channel mapped to `w2` (w1 owns TEST_CHANNEL). */
 export const CHANNEL_2 = "200000000000000002";
 
-/** Two workspaces `w1` and `w2`, each with a repo named `api` (different clones). */
+/** Two workspaces `w1` and `w2`, each with a location named `api` (different clones). */
 export function twoWorkspaces() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const a = addRepo(
+  const a = addLocation(
     env.home,
     "api",
     { description: "one" },
     { workspace: "w1", channels: [TEST_CHANNEL] },
   );
-  const b = addRepo(
+  const b = addLocation(
     env.home,
     "api",
     { description: "two" },

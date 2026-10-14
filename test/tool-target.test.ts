@@ -12,12 +12,12 @@ import {
   WEB_SEARCH_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 
-const roots = ["/ws/repo", "/ws/other"];
+const roots = ["/ws/location", "/ws/other"];
 
 test("Read inside a root is relative, with the line range", () => {
   const d = describeTool(
     READ_TOOL_NAME,
-    { file_path: "/ws/repo/src/a.ts", offset: 70, limit: 90 },
+    { file_path: "/ws/location/src/a.ts", offset: 70, limit: 90 },
     roots,
   );
   expect(d).toMatchObject({ kind: "read", target: "src/a.ts:70-159", short: "a.ts" });
@@ -31,7 +31,7 @@ test("Read outside every root shows only the basename", () => {
 
 test("Grep and Glob: quoted pattern in a relative dir; long pattern clipped", () => {
   expect(
-    describeTool(GREP_TOOL_NAME, { pattern: "foo", path: "/ws/repo/src" }, roots),
+    describeTool(GREP_TOOL_NAME, { pattern: "foo", path: "/ws/location/src" }, roots),
   ).toMatchObject({
     kind: "search",
     target: '"foo" in src',
@@ -64,7 +64,7 @@ test("Bash: first 80 chars on one line, secrets masked, short clipped to 40", ()
 test("git MCP tool: name + relative path, kind git", () => {
   const d = describeTool(
     mcpToolName(GIT_MCP_SERVER, GIT_TOOL.LOG),
-    { path: "/ws/repo/lib" },
+    { path: "/ws/location/lib" },
     roots,
   );
   expect(d).toMatchObject({ kind: "git", target: "git_log lib" });
@@ -109,7 +109,7 @@ test("a token prefix left at the cut is dropped", () => {
 });
 
 test("a dir named ..foo inside the root is inside; a relative path escaping the root is not shown", () => {
-  expect(describeTool(READ_TOOL_NAME, { file_path: "/ws/repo/..foo/a.ts" }, roots).target).toBe(
+  expect(describeTool(READ_TOOL_NAME, { file_path: "/ws/location/..foo/a.ts" }, roots).target).toBe(
     "..foo/a.ts",
   );
   expect(describeTool(READ_TOOL_NAME, { file_path: "../../etc/passwd" }, roots).target).toBe(
@@ -126,9 +126,9 @@ test("clipping never splits a surrogate pair", () => {
 
 test("Read with offset only prints :70+, limit only :1-N", () => {
   expect(
-    describeTool(READ_TOOL_NAME, { file_path: "/ws/repo/x.ts", offset: 70 }, roots).target,
+    describeTool(READ_TOOL_NAME, { file_path: "/ws/location/x.ts", offset: 70 }, roots).target,
   ).toBe("x.ts:70+");
   expect(
-    describeTool(READ_TOOL_NAME, { file_path: "/ws/repo/x.ts", limit: 50 }, roots).target,
+    describeTool(READ_TOOL_NAME, { file_path: "/ws/location/x.ts", limit: 50 }, roots).target,
   ).toBe("x.ts:1-50");
 });

@@ -107,7 +107,7 @@ test("route.decision and span lines carry metadata only (field whitelist, no tex
     "channelId",
     "taskId",
     "workspace",
-    "repo",
+    "location",
     "mode",
     "messageId",
     "conversationId",
@@ -138,8 +138,14 @@ test("route.decision and span lines carry metadata only (field whitelist, no tex
 test("resume (`go +<usd>` on a budget-stopped task): one route.decision, source owner, RESUME, the resumed role", async () => {
   const env = makeEnv();
   // A budget-stopped assistant task in thread t1 (same fixture as proposal-flow: session + failed run).
-  insertTurn(env.db, { id: "tb", threadId: "t1", source: "s", repo: "repo", role: "assistant" });
-  setTurnSession(env.db, "tb", "sess-b", env.repo);
+  insertTurn(env.db, {
+    id: "tb",
+    threadId: "t1",
+    source: "s",
+    location: "location",
+    role: "assistant",
+  });
+  setTurnSession(env.db, "tb", "sess-b", env.location);
   insertRun(env.db, {
     id: "rb",
     turnId: "tb",

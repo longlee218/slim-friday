@@ -9,8 +9,8 @@ import { runAgent } from "../src/runtime/run-agent";
 import { makeEnv } from "./helpers";
 
 // Live check: with settingSources [] the SDK must load NONE of the CLAUDE.md / CLAUDE.local.md files around a
-// managed-clone cwd (`p/ws/repo`). Canaries: A=p/CLAUDE.md B=p/ws/CLAUDE.md C=p/ws/CLAUDE.local.md
-// D=repo/CLAUDE.md E=repo/CLAUDE.local.md F=repo/.claude/CLAUDE.md. Expected result: "none loaded".
+// managed-clone cwd (`p/ws/location`). Canaries: A=p/CLAUDE.md B=p/ws/CLAUDE.md C=p/ws/CLAUDE.local.md
+// D=location/CLAUDE.md E=location/CLAUDE.local.md F=location/.claude/CLAUDE.md. Expected result: "none loaded".
 // OPT-IN: runs only with RUN_CANARY=1 AND a real CLAUDE_CODE_OAUTH_TOKEN (the owner's Claude login, like
 // test/intent-eval.live.test.ts), so a plain `bun test` skips it. Command:
 //   RUN_CANARY=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/live-claude-md-loading.smoke.test.ts
@@ -35,25 +35,25 @@ describe.skipIf(!live)("live CLAUDE.md loading canaries (Claude login)", () => {
     });
     const root = mkdtempSync(join(tmpdir(), "friday-canary-"));
     const ws = join(root, "ws");
-    const repo = join(ws, "repo");
-    mkdirSync(repo, { recursive: true });
+    const location = join(ws, "location");
+    mkdirSync(location, { recursive: true });
     const files: Record<string, string> = {
       A: join(root, "CLAUDE.md"),
       B: join(ws, "CLAUDE.md"),
       C: join(ws, "CLAUDE.local.md"),
-      D: join(repo, "CLAUDE.md"),
-      E: join(repo, "CLAUDE.local.md"),
-      F: join(repo, ".claude", "CLAUDE.md"),
+      D: join(location, "CLAUDE.md"),
+      E: join(location, "CLAUDE.local.md"),
+      F: join(location, ".claude", "CLAUDE.md"),
     };
-    mkdirSync(join(repo, ".claude"));
+    mkdirSync(join(location, ".claude"));
     for (const [k, f] of Object.entries(files)) writeFileSync(f, `Canary token: CANARY_${k}_7f3\n`);
     const res = await runAgent({
       prompt:
         "List every token of the form CANARY_<letter>_7f3 that appears in your instructions. Reply with only the tokens, comma separated, or NONE. Do not use tools.",
       turnId: "canary1",
       role: getRole("assistant"),
-      cwd: repo,
-      guard: guardFor(getRole("assistant"), { readPaths: [repo], gitReadRepos: [] }),
+      cwd: location,
+      guard: guardFor(getRole("assistant"), { readPaths: [location], gitReadPaths: [] }),
       config: env.config,
       db: env.db,
       abortController: new AbortController(),

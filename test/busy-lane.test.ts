@@ -20,10 +20,11 @@ import { listRunMessages } from "../src/storage/run-message-store";
 import { insertToolCall } from "../src/storage/run-metrics-store";
 import { setTurnStatus } from "../src/storage/run-store";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { g, makeRepo } from "./git-fixture";
+import { g, makeLocation } from "./git-fixture";
 import {
-  addRepo,
+  addLocation,
   clearWorkspaces,
+  defaultLocationPath,
   initMsg,
   makeEnv,
   resultMsg,
@@ -39,10 +40,10 @@ import {
 async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const src = await makeRepo("main");
-  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
-  addRepo(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
-  await g(env.home, "clone", "-q", src.repo, clone);
+  const src = await makeLocation("main");
+  const clone = defaultLocationPath(env.home, "real", "main");
+  addLocation(env.home, "real", { gitAuthor: "Test User <test@example.com>" }, { path: clone });
+  await g(env.home, "clone", "-q", src.location, clone);
   return env;
 }
 
@@ -332,7 +333,7 @@ test("H-c plan question: typed feedback is a steer delivered after the decision;
   const waiting = STEER_WAITING(ASK_USER_QUESTION_TOOL_NAME);
   expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_owner");
   // a question for the assistant: answered at once, the plan question stays open
-  expect(await h.handle(msg("ask: why that repo"))).toBe("assistant answer");
+  expect(await h.handle(msg("ask: why that location"))).toBe("assistant answer");
   expect(deriveThreadState(h.env.db, "th1")).toBe("awaiting_owner");
   // independent background work waits for the task
   expect(await h.handle(msg("other: add c.txt"))).toBe(QUEUE_RECEIVED);

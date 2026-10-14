@@ -22,22 +22,22 @@ export async function g(cwd: string, ...args: string[]): Promise<string> {
   return r.stdout.trim();
 }
 
-/** Temp repo with one commit on `branch`; optionally with a bare origin that has it pushed. */
-export async function makeRepo(branch = "main", withOrigin = false) {
+/** Temp location with one commit on `branch`; optionally with a bare origin that has it pushed. */
+export async function makeLocation(branch = "main", withOrigin = false) {
   const root = mkdtempSync(join(tmpdir(), "wt-"));
-  const repo = join(root, "repo");
-  await g(root, "init", "-q", "-b", branch, repo);
-  await g(repo, "config", "user.email", "t@t.t");
-  await g(repo, "config", "user.name", "t");
-  writeFileSync(join(repo, "a.txt"), "one\n");
-  await g(repo, "add", "-A");
-  await g(repo, "commit", "-qm", "init");
+  const location = join(root, "location");
+  await g(root, "init", "-q", "-b", branch, location);
+  await g(location, "config", "user.email", "t@t.t");
+  await g(location, "config", "user.name", "t");
+  writeFileSync(join(location, "a.txt"), "one\n");
+  await g(location, "add", "-A");
+  await g(location, "commit", "-qm", "init");
   let origin = "";
   if (withOrigin) {
     origin = join(root, "origin.git");
     await g(root, "init", "-q", "--bare", "-b", branch, origin);
-    await g(repo, "remote", "add", "origin", origin);
-    await g(repo, "push", "-q", "-u", "origin", branch);
+    await g(location, "remote", "add", "origin", origin);
+    await g(location, "push", "-q", "-u", "origin", branch);
   }
-  return { root, repo, origin };
+  return { root, location, origin };
 }

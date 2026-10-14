@@ -28,7 +28,7 @@ export const RATIO_MIN = 2.0;
 /** Minimum top probability of a pick, scaled by the role's side effects (riskier = stricter). */
 export const ACT_MIN: Record<RoleDefinition["sideEffects"], number> = {
   none: 0.6,
-  repo: 0.85,
+  location: 0.85,
   external: 0.9,
 };
 /** Ratio reported when the runner-up has probability 0 (a finite number keeps the log JSON valid). */

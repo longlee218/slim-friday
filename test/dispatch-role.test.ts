@@ -1,16 +1,17 @@
 import { expect, test } from "bun:test";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { dispatchRole } from "../src/orchestrator/dispatch/dispatch-role";
-import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-repo";
+import { MAX_CAPPED_TASKS } from "../src/orchestrator/dispatch/task-location";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { listPendingProposals } from "../src/storage/proposal-store";
 import { insertTurn } from "../src/storage/run-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
-import { g, makeRepo } from "./git-fixture";
+import { g, makeLocation } from "./git-fixture";
 import {
-  addRepo,
+  addLocation,
   BRIEF,
   clearWorkspaces,
+  defaultLocationPath,
   devIntent,
   makeEnv,
   resultMsg,
@@ -21,11 +22,11 @@ import {
 async function setup() {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  const src = await makeRepo("main");
-  const clone = workspacePaths(env.home).workspace("main").repo("real").clone;
-  addRepo(env.home, "real", { gitAuthor: "T <t@example.com>" }, { path: clone });
-  await g(env.home, "clone", "-q", src.repo, clone);
-  return { env, repos: loadWorkspaces(env.home).workspaces[0]!.repos };
+  const src = await makeLocation("main");
+  const clone = defaultLocationPath(env.home, "real", "main");
+  addLocation(env.home, "real", { gitAuthor: "T <t@example.com>" }, { path: clone });
+  await g(env.home, "clone", "-q", src.location, clone);
+  return { env, locations: loadWorkspaces(env.home).workspaces[0]!.locations };
 }
 
 const task = { source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th1", text: "x" };
@@ -67,36 +68,36 @@ test("ordering: the proposal is persisted and validated before the dev run start
   expect(rows(env, "SELECT status FROM proposals")).toEqual([{ status: "dispatched" }]);
 });
 
-test("ask rule: unknown repo -> ONE question, proposal stays pending, no task row, no run", async () => {
-  const { env, repos } = await setup();
+test("ask rule: unknown location -> ONE question, proposal stays pending, no task row, no run", async () => {
+  const { env, locations } = await setup();
   const runs: unknown[] = [];
   const reply = await dispatchRole(deps(env, runs), {
-    request: { role: "dev", brief: BRIEF, repo: "nope" },
+    request: { role: "dev", brief: BRIEF, location: "nope" },
     message: task,
     reply: "Q&A answer",
     workspace: "main",
-    repos,
+    locations,
     ac: new AbortController(),
   });
   expect(reply).toContain("Q&A answer");
-  expect(reply).toContain('Unknown repo "nope"');
-  expect(reply).toContain("Send the task again with repo:<name>");
+  expect(reply).toContain('Unknown location "nope"');
+  expect(reply).toContain("Send the task again with location:<name>");
   expect(listPendingProposals(env.db)).toHaveLength(1);
   expect(rows(env, "SELECT 1 FROM turns")).toEqual([]);
   expect(runs).toEqual([]);
 });
 
 test("refusal (cap full): proposal refused, reply says busy, nothing starts", async () => {
-  const { env, repos } = await setup();
+  const { env, locations } = await setup();
   for (const id of Array.from({ length: MAX_CAPPED_TASKS }, (_, n) => `cap${n}`))
-    insertTurn(env.db, { id, threadId: id, source: "t", repo: "real", role: "dev" });
+    insertTurn(env.db, { id, threadId: id, source: "t", location: "real", role: "dev" });
   const runs: unknown[] = [];
   const reply = await dispatchRole(deps(env, runs), {
     request: { role: "dev", brief: BRIEF },
     message: task,
     reply: "",
     workspace: "main",
-    repos,
+    locations,
     ac: new AbortController(),
   });
   expect(reply).toContain("busy");
@@ -107,7 +108,7 @@ test("refusal (cap full): proposal refused, reply says busy, nothing starts", as
 });
 
 test("owner `go` on a pending proposal: confirmed, re-validated, dispatched with parent + hop", async () => {
-  const { env, repos } = await setup();
+  const { env, locations } = await setup();
   const runs: any[] = [];
   const d = deps(env, runs);
   // Low confidence: asked once, stays pending ...
@@ -116,7 +117,7 @@ test("owner `go` on a pending proposal: confirmed, re-validated, dispatched with
     message: task,
     reply: "",
     workspace: "main",
-    repos,
+    locations,
     ac: new AbortController(),
   });
   expect(first).toContain("Reply `/go`");
@@ -134,7 +135,7 @@ test("owner `go` on a pending proposal: confirmed, re-validated, dispatched with
     message: task,
     reply: "",
     workspace: "main",
-    repos,
+    locations,
     ac: new AbortController(),
     fromTurnId: "src-task",
   });
@@ -146,7 +147,7 @@ test("owner `go` on a pending proposal: confirmed, re-validated, dispatched with
 });
 
 test("new ask supersedes the thread's older pending proposals; go on an invalid proposal replies once and refuses it", async () => {
-  const { env, repos } = await setup();
+  const { env, locations } = await setup();
   const runs: unknown[] = [];
   const d = deps(env, runs);
   const send = (request: any) =>
@@ -155,14 +156,14 @@ test("new ask supersedes the thread's older pending proposals; go on an invalid 
       message: task,
       reply: "",
       workspace: "main",
-      repos,
+      locations,
       ac: new AbortController(),
     });
-  await send({ role: "dev", brief: BRIEF, repo: "nope" });
-  await send({ role: "dev", brief: BRIEF, repo: "nope2" });
+  await send({ role: "dev", brief: BRIEF, location: "nope" });
+  await send({ role: "dev", brief: BRIEF, location: "nope2" });
   const pending = listPendingProposals(env.db);
   expect(pending).toHaveLength(1);
-  expect(pending[0]!.repo).toBe("nope2");
+  expect(pending[0]!.location).toBe("nope2");
   expect(rows(env, "SELECT status FROM proposals ORDER BY created_at, rowid")).toEqual([
     { status: "expired" },
     { status: "pending" },
@@ -172,11 +173,11 @@ test("new ask supersedes the thread's older pending proposals; go on an invalid 
   const reply = await send({
     role: p.role,
     brief: p.brief,
-    repo: "nope2",
+    location: "nope2",
     proposalId: p.id,
     confirmed: true,
   });
-  expect(reply).toContain('Unknown repo "nope2"');
+  expect(reply).toContain('Unknown location "nope2"');
   expect(reply).toContain("Send a new request");
   expect(listPendingProposals(env.db)).toEqual([]);
   expect(rows(env, "SELECT status FROM proposals WHERE id = ?".replace("?", `'${p.id}'`))).toEqual([
@@ -186,7 +187,7 @@ test("new ask supersedes the thread's older pending proposals; go on an invalid 
 });
 
 test("a proposal that is no longer pending is never started twice", async () => {
-  const { env, repos } = await setup();
+  const { env, locations } = await setup();
   const runs: unknown[] = [];
   const d = deps(env, runs);
   await dispatchRole(d, {
@@ -194,7 +195,7 @@ test("a proposal that is no longer pending is never started twice", async () => 
     message: task,
     reply: "",
     workspace: "main",
-    repos,
+    locations,
     ac: new AbortController(),
   });
   const [p] = listPendingProposals(env.db);
@@ -204,7 +205,7 @@ test("a proposal that is no longer pending is never started twice", async () => 
     message: task,
     reply: "",
     workspace: "main",
-    repos,
+    locations,
     ac: new AbortController(),
   });
   expect(reply).toContain("no longer pending");

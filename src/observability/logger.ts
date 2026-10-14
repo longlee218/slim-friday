@@ -42,8 +42,8 @@ export interface LogContext {
   channelId?: string;
   /** Workspace the task runs in (one log for all workspaces; this field tells them apart). */
   workspace?: string;
-  /** Repo of the task ("*" = not chosen yet). */
-  repo?: string;
+  /** Location of the task ("*" = not chosen yet). */
+  location?: string;
   /** Role name (e.g. "assistant", "dev"). */
   mode?: string;
 }
@@ -56,7 +56,7 @@ export function runWithLogContext<T>(ctx: LogContext, fn: () => T): T {
   return contextStore.run({ ...contextStore.getStore(), ...ctx }, fn);
 }
 
-/** Add or change fields of the current context (e.g. repo once chosen). No-op outside a context. */
+/** Add or change fields of the current context (e.g. location once chosen). No-op outside a context. */
 export function setLogContext(fields: LogContext): void {
   const ctx = contextStore.getStore();
   if (ctx) Object.assign(ctx, fields);
@@ -150,7 +150,7 @@ export function excerpt(text: string, max = EXCERPT_MAX): string {
 
 /**
  * Log one lifecycle event: a stable `event` field (also the message) plus correlation/detail fields.
- * taskId/threadId/repo/mode come from the log context (see `runWithLogContext`), not from the caller.
+ * taskId/threadId/location/mode come from the log context (see `runWithLogContext`), not from the caller.
  * Callers pass free text through `excerpt()` and errors through `errText()`.
  */
 export function logEvent(

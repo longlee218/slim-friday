@@ -19,7 +19,7 @@ async function turn(text: string, approvals?: unknown) {
     log,
     message: { threadId: "th", messageId: "m1", recent: [] } as never,
     workspace: "ws",
-    repos: loadWorkspaces(env.home).workspaces[0]!.repos,
+    locations: loadWorkspaces(env.home).workspaces[0]!.locations,
     ac: new AbortController(),
     intent: failing,
     floors: new EffortFloors(),
