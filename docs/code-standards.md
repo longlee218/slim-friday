@@ -1,6 +1,6 @@
 # Code Standards
 
-Last updated: 2026-10-14 (schema v7 location vocabulary, phase 1a; space and channel vocabulary, phase 1b; reliable handoff phase 10). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
+Last updated: 2026-10-14 (schema v7 location vocabulary, phase 1a; space and channel vocabulary, phase 1b; thread vocabulary and custom tools, phase 1c; reliable handoff phase 10). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
 
 ## Stack
 - **Runtime:** Bun (package manager, test runner, `bun:sqlite`)
@@ -37,6 +37,8 @@ bun run start           # start the bot (reads .env)
 | **space** | the Discord-facing name of a workspace: a private category holding its channels | `Workspace`, `src/workspaces/` |
 | **channel** | a Discord channel of a space, listed in `workspace.yaml` `channels:` (`name` = memory dir `channels/<name>/`, `mode` task or chat, optional `locations` subset) | `WorkspaceChannel`, `channelOf`, `channelLocations` (`src/workspaces/task-workspace.ts`), `init-channel.ts`, `channel-topic.ts` |
 | **workspace** | code word for a space (a group of locations behind one set of channels); the Discord-facing words are space, channel, thread | `Workspace`, `src/workspaces/` |
+| **thread** | a Discord thread the agent knows; `origin` `bot` (opened by the agent, placeholder name) or `adopted` (owner-made, taken over on @mention) | `threads` table, `src/storage/thread-store.ts`, `src/ingress/thread-placement.ts` |
+| **placeholder** | the neutral name `⏳ MM-DD HH:MM` a new thread gets; renamed once by `SetThreadTitle` only while still unchanged | `placeholderName()`, `threads.placeholder` |
 
 - Banned by `test/retired-naming-scan.test.ts` in `src/` and `test/`: the `Repo` type, `loadRepos`, the `repo-registry` path. Exempt: the migration module and the frozen legacy storage files.
 - Retired, not scanned (keep out of new code): `repos/`, `repo.yaml`, `refresh-repo`, `isManagedClone`, `REPO_NAME`, `no_repos`, `repoScope`, `sideEffects: "repo"`, `testCommand`, `defaultBranch`, `githubAccount`, `gitAuthor`. Only the migration module reads the legacy file.
@@ -65,7 +67,16 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 
 **Organize by domain** (`src/<domain>/...`), not by technical layer: `orchestrator/`, `intent/`, `guardrails/`, `runtime/`, `roles/`, `storage/`, `memory/`, `workspaces/`, `locations/`, `lifecycle/`, `discord-setup/`, `ingress/`, `approvals/`, `config/`, `tools/`, `mcp/`, `observability/`.
 
-**Custom tools** (first: `Remember`, `src/tools/RememberTool/`; in-process SDK MCP server `memory` built by `src/mcp/memory-server.ts`, run context `src/tools/memory-tool-context.ts`): folder `src/tools/<Name>Tool/` (PascalCase folder, kebab-case files: `constants.ts`, `prompt.ts`, `<name>-tool.ts`). Tool names are PascalCase constants in `sdk-tool-names.ts` or `mcp-tool-names.ts`.
+**Custom tools** (in-process SDK MCP server `memory`, built per run by `src/mcp/memory-server.ts`, run context `src/tools/memory-tool-context.ts`; the tool list is `MEMORY_TOOLS` in `src/mcp/mcp-tool-names.ts`):
+
+| Tool | Folder | Who gets it |
+|---|---|---|
+| `Remember` | `src/tools/RememberTool/` | every role run; the rollover flush run lists only this tool |
+| `MemorySearch`, `MemoryGet`, `MemoryExpand` | `src/tools/MemorySearchTool/`, `MemoryGetTool/`, `MemoryExpandTool/` | every role run (read-only); lean runs list only what they need |
+| `SetThreadTitle` | `src/tools/SetThreadTitleTool/` | every role run with a rename port (assistant and dev); not in lean runs; max 2 calls per run |
+
+- Folder `src/tools/<Name>Tool/` (PascalCase folder, kebab-case files: `constants.ts`, `prompt.ts`, `<name>-tool.ts`). Tool names are PascalCase constants in `sdk-tool-names.ts` or `mcp-tool-names.ts`.
+- Adding a tool: folder, name constant, entry in `MEMORY_TOOLS`, registration in `memory-server.ts`. Tests: `test/set-thread-title-tool.test.ts`, `test/tool-catalog.test.ts`.
 
 **Role files:** `src/roles/builtin/<name>-role.ts` exports one `RoleDefinition` object. Prompt text lives in `<name>-prompts.ts` next to it.
 

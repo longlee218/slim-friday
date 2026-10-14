@@ -1,6 +1,6 @@
 # Friday Agent System Architecture
 
-Last updated: 2026-10-14 (schema v7 location model, phase 1a and phase 1b (spaces with N channels) in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 pending).
+Last updated: 2026-10-14 (schema v7 location model, phases 1a and 1b (spaces with N channels) and 1c (thread names, adoption, SetThreadTitle) in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 and of 1b/1c pending).
 
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite).
@@ -10,7 +10,7 @@ Last updated: 2026-10-14 (schema v7 location model, phase 1a and phase 1b (space
 
 ## Contents
 - [Message Flow](#message-flow) · [Intent Layer](#intent-layer) · [Vocabulary](#vocabulary-message--turn--task)
-- [Role Model](#role-model) · [Thread States and Routing](#thread-states-and-routing) · [Component Overview](#component-overview)
+- [Role Model](#role-model) · [Thread States and Routing](#thread-states-and-routing) · [Thread Lifecycle](#thread-lifecycle) · [Component Overview](#component-overview)
 - [Approval by ask tool](#approval-by-ask-tool) · [Approval & Guardrails](#approval--guardrails) · [Budget and Resume](#budget-and-resume)
 - [Skills and Subagents](#skills-and-subagents) · [Tool Restriction Strategy](#tool-restriction-strategy) · [Storage Schema](#storage-schema)
 - [Persona & Memory Layering](#persona--memory-layering) · [Workspace Layout](#workspace-layout) · [Space, Channel and Location](#space-channel-and-location) · [Location Model](#location-model) · [Discord Setup](#discord-setup)
@@ -193,11 +193,55 @@ State is DERIVED from `turns` and `approvals` (never stored): `src/orchestrator/
 | `awaiting_confirmation` | a run waits on an owner-confirm yes/no button |
 | `done` | the last task ended in `done`; folds to `idle` for routing |
 
+## Thread Lifecycle
+Code: `src/ingress/thread-placement.ts` (placeholder, open, adopt), `threads-port.ts` (db and workspaces port), `thread-rename.ts` (rename port), `src/tools/SetThreadTitleTool/`, `src/storage/thread-store.ts`.
+
+**Opening a bot thread.** A new conversation (a message in a mapped channel, or a slash command) opens a thread named with a placeholder `⏳ MM-DD HH:MM` (local time). The name is never the first message. The row is stored with `origin='bot'`, `placeholder` = that name, `channel_id` = the parent.
+
+**Naming (`SetThreadTitle`).** The agent calls the tool once it knows the topic:
+
+| Step | Rule |
+|---|---|
+| Who | every role run that has a rename port: assistant and dev. Not in rollover (flush and summary) runs or other lean runs |
+| Limit | max 2 calls per run (`SET_THREAD_TITLE_MAX_CALLS_PER_RUN`); a counter per run |
+| Input | `title` ≤ 60 chars (≤ 6 words, owner's language); `digest` ≤ 200 chars (1-2 lines). Both redacted; control, bidi and zero-width chars dropped; folded to one line; clipped by code point |
+| Store | title and digest are always stored (`saveTitle`, upsert by `thread_id`, overwrite) |
+| Rename | only while the live thread name still equals `threads.placeholder`. Final name `MM-DD <title>` (date of the row's creation, ≤ 100 chars) |
+| Never renamed | adopted threads (no placeholder), a thread the owner renamed by hand, a thread that is not a thread |
+| Greeting | a greeting-only or empty turn (`hello`, `thanks`) = no call (prompt rule) |
+| Timeout | the rename waits at most 5 s (`RENAME_TIMEOUT_MS`), so a Discord rate limit never stalls the turn. A timed-out rename is `failed` (Discord may still apply it later) |
+| Failure | Discord, lookup or timeout error = `failed`; the title stays stored, the reply says "saved; rename failed". Non-fatal |
+| Log | `thread.titled {renamed, chars}`; `thread rename timed out` (warn). The text is never logged |
+
+- The rename runs through an app-side port (`ThreadTitlePort`), built in `index.ts` over the lazily read bot client. The agent has no Discord token.
+- Live check pending: that the bot may rename its own thread without Manage Threads (`BOT_ALLOW` has no ManageThreads and is unchanged).
+
+**Adoption.** An owner-made thread under a mapped channel becomes the bot's thread on the owner's first real `@mention` there:
+
+| Condition | Result |
+|---|---|
+| Author is the owner and the text contains a literal `<@bot>` / `<@!bot>` (`mayAdopt`); slash commands never adopt | adopt: row `origin='adopted'`, answered as a thread turn |
+| Thread parent is an ops channel | never adopted |
+| Parent is not mapped to a space (`channelInfo` undefined) | not adopted (old `channel` route) |
+| Thread already bot-owned or already adopted | routed as before (`thread`) |
+| Later owner message in an adopted thread | answered without a mention |
+| Owner message without a mention in an owner-made, unadopted thread | ignored (`not_mentioned`) |
+| Non-owner message in any thread, bot, DM, other guild | ignored (`not_owner` etc.), unchanged |
+
+- Adoption is persisted before the answer. A store failure is logged at error level (`thread adoption failed`) and the turn is still answered.
+- Adopted threads have no placeholder, so `SetThreadTitle` stores their title and digest but never renames them.
+- Routing facts: `threadFacts()` (pure rules in `routeMessage`: `adoptedThread`, `adoptableThread`; route kind `adopt`).
+- Cost per message: `mayAdopt` runs first. Every message in a non-bot thread reads one `threads` row (`isAdopted`). The parent's workspace files are read (`channelInfo`) only when `mayAdopt` is true. Strangers and non-mention messages never load workspaces (test M1 in `test/thread-adoption.test.ts`).
+- Errors: a throw in `threadFacts` (db or workspace read) is logged (`thread facts failed`) and the thread counts as not adopted and not adoptable. The `control` path catches sync throws as well as rejections. `index.ts` has a global `unhandledRejection` handler that shuts the bot down, so unguarded throws here would stop the bot.
+- Known gap: if the adoption insert fails, the first `SetThreadTitle` for that thread creates an `origin='bot'` row. `INSERT OR IGNORE` then keeps `bot`, so the thread is never adopted and later no-mention messages are ignored. Not fixed.
+
+**Storage.** Table `threads` (schema v7): `origin` = `bot` | `adopted`, `placeholder` NULL for adopted rows, `title` / `digest` NULL until the tool runs. The run's `channelId` and `workspace` come from the message (`message` -> `RoleRunInput` -> memory tool context). A title for a thread with no row creates one with `origin='bot'` and those values (empty when unknown). Later writes fill empty channel/workspace only. Readers (the channel digest and `/find`, phase 1d) must ignore rows with `channel_id = ''`. See [Storage Schema](#storage-schema).
+
 ## Component Overview
 
 | Component | File(s) | Purpose |
 |---|---|---|
-| Discord ingress | `src/ingress/discord-bot.ts`, `discord-message-handler.ts`, `thread-turns.ts` | client, owner gate, thread history, attachments, busy-thread ack |
+| Discord ingress | `src/ingress/discord-bot.ts`, `discord-message-handler.ts`, `thread-turns.ts`, `thread-placement.ts`, `threads-port.ts`, `thread-history.ts`, `thread-rename.ts` | client, owner gate, thread placement and adoption, thread history, attachments, busy-thread ack, rename port |
 | Command parsing | `src/orchestrator/message-commands.ts`, `src/commands/` | L0 commands, `location:` pin (`repo:` alias), slash definitions |
 | Intent layer | `src/intent/` | L1 tag, L2 effort, L3 classifier, lexicon |
 | Route and dispatch | `src/orchestrator/thread/`, `src/orchestrator/dispatch/` | action table, proposals, queue, `/go` resume, side lane |
@@ -323,6 +367,7 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 | subagents (all roles) | Agent, SendMessage, ListAgents |
 | tasks | TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet, TaskStop, ToolSearch |
 | mcp | ListMcpResourcesTool, ReadMcpResourceTool, ReadMcpResourceDirTool, RefreshMcpTools, WaitForMcpServers (+ git MCP read tools for the assistant) |
+| memory (in-process MCP server `memory`, every role) | Remember, MemorySearch, MemoryGet, MemoryExpand, SetThreadTitle (`MEMORY_TOOLS` in `mcp-tool-names.ts`) |
 | feedback | SendFeedback (owner approval) |
 | ask | AskUserQuestion |
 
@@ -344,7 +389,7 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 | `run_messages` | id, message_id, thread_id, session_id, run_id, seq, kind (`steer`/`followup`/`stop`/`other`), status (`pending`/`delivered`/`skipped`/`dropped`), content (redacted, ≤ 2000), created_at, task_id | every message that arrived while a run worked; purged after 14 days |
 | `proposals` | id, thread_id, workspace, from_turn_id, role, brief, location, class, scope, confidence, reason, effort, status, created_at, decided_at | queued or pending background requests (`pending` → `queued` / `dispatched` / `refused` / `expired`) |
 | `owned_tasks` | id, thread_id, owner_role, status (`open`, `running`, `waiting_user`, `completed`, `failed`, `cancelled`), scope, version, correlation_id, created_at, last_progress_at | background work with one owner role (v6); index `owned_tasks_thread_progress` |
-| `threads` | thread_id (PK), channel_id, workspace, origin (`bot` / `adopted`), placeholder, title, digest, created_at, updated_at | one row per Discord thread the agent knows (v7; written from phase 1c, read by the channel digest and `/find` in 1d) |
+| `threads` | thread_id (PK), channel_id, workspace, origin (`bot` / `adopted`), placeholder, title, digest, created_at, updated_at | one row per Discord thread the agent knows (v7; written from phase 1c: bot threads, adoptions, titles; read by the channel digest and `/find` in 1d). Index `threads_channel_updated` (channel_id, updated_at) |
 
 ### Schema history
 
@@ -363,6 +408,7 @@ Owner steps for the current upgrade (v6 -> v7): [owner-checklist-schema-v7.md](o
 - `$AGENT_HOME/logs/tasks/<taskId>.jsonl`: SDK messages of one task (deleted after 30 days at startup).
 - Tool events: `tool.start`, `tool.done`, `tool.denied`. Result text is never logged, only sizes. Correlate by `toolUseId`.
 - `escalation {escalatedTo, action}` only when a run escalated.
+- `thread.titled {renamed, chars}` per SetThreadTitle call. Adoption logs `thread adopted` (info); a failed store write logs `thread adoption failed` / `thread record failed` (error) and the turn goes on; `thread facts failed` (error) when the routing facts cannot be read.
 
 ## Persona & Memory Layering
 - Root files in `$AGENT_HOME`: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md` (owner-written), `BOOTSTRAP.md` (never read by code), `MEMORY.pending.md` (agent `[global]` notes; never injected).

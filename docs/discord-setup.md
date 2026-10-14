@@ -133,6 +133,16 @@ Type in `#ops-control`. Legacy form: `init:channel:<space>/<name>`. One string a
 - Logs `admin.init_channel`. Rerun with the same path while in progress: "already in progress".
 - The topic states the mode (`task`: mention `@Friday` to open a thread). A channel's memory and persona files are read only by runs in that channel.
 
+## Threads: names, manual threads, titles
+- A thread the bot opens (a message in a mapped channel, or a slash command) starts as `⏳ MM-DD HH:MM` (placeholder, local time). The first message is never the name.
+- After a real question the agent names it once with `SetThreadTitle`: the name becomes `MM-DD <title>` (≤ 100 chars). A greeting only (`hello`, `thanks`) does not rename it; it keeps the placeholder.
+- A thread is renamed at most once (the rename runs only while the name is still the placeholder). Each run allows 2 `SetThreadTitle` calls. The title and a digest are stored even when the rename fails or times out (5 s).
+- Hand-rename: a name you set yourself is never overwritten. The title and digest are still stored for search.
+- Manual thread in a mapped channel: create it yourself, then `@Friday` (a real mention, not a slash command) in it. The bot adopts the thread (stored as `adopted`) and answers. Later messages in that thread need no mention.
+- Only the owner's messages adopt or continue an adopted thread. Other users are ignored. Threads under an ops channel are never adopted. A thread under a channel not mapped to a space is not adopted. A slash command typed in your own thread does not adopt it.
+- Adopted threads are never renamed by the agent (their title and digest are stored only).
+- Permission (unverified live): the rename assumes the bot may rename a thread it created without Manage Threads. The Step 3 permission list does not include Manage Threads. If the live check fails, the rename returns "failed" and nothing else changes.
+
 ## Manual live check (owner)
 1. `bun run bootstrap:discord --dry-run`, then without `--dry-run`: items appear; `discord.yaml` written.
 2. Restart: `#ops-log` shows the start line; no `discord.bot_administrator` warning.
@@ -297,6 +307,8 @@ After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v
 | "This control channel is not private" | Extra overwrites on the control channel | Leave only @everyone (denied), the owner and the bot |
 | `/init-workspace` says the name already exists | A category or channel with that name exists | Rename or delete it by hand, rerun |
 | Bot does not respond | Not running, or `DISCORD_TOKEN` invalid | `bun run start`, check logs |
+| Thread keeps the `⏳ MM-DD HH:MM` name | No real question yet (greeting only), the rename failed (`thread.titled` `renamed: false`, reply "rename failed"), or the name was set by hand | Ask a real question; check the log; the bot may need Manage Threads (unverified) |
+| Owner message in my own thread ignored | No `@Friday` yet, or the parent channel is not mapped to a space | Mention `@Friday` once; map the parent with `/init-channel` or `workspace.yaml` |
 | "Missing MESSAGE CONTENT" | Intent not enabled | Enable it in the Developer Portal (Bot tab) |
 | "Thread creation failed" | Missing "Create Public Threads" | Regenerate the invite URL with the right permissions |
 | Error replies, no answer | `CLAUDE_CODE_OAUTH_TOKEN` invalid or unset | Run `claude setup-token`, set the variable |

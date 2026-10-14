@@ -98,3 +98,44 @@ sqlite3 "$DB" "SELECT value FROM meta WHERE key='schema_version'"   # expect 6
 - Rollback steps (written from the code, never executed).
 - The `/forget channel` and Remember `channel` scope in Discord (covered by tests only).
 - The cross-category same-name case (step 9) and the `bad_category` refusal, against the real guild. Discord permission for Manage Roles on a second channel.
+
+## Phase 1c: threads (placeholder name, SetThreadTitle, adoption)
+
+**What changes:** a thread the bot opens is named `⏳ MM-DD HH:MM` (placeholder, never the first message). After a real question the agent renames it once to `MM-DD <title>`; a greeting only keeps the placeholder. An owner-made thread under a channel mapped to a space is adopted on the owner's first `@Friday` mention; later owner messages there need no mention. Non-owner messages are still ignored. A slash command never adopts a thread. A stranger or a no-mention message in a thread does not load workspaces. The tool `SetThreadTitle` stores a title and digest in `threads` (no schema change, still v7). Plan: `plans/261014-1043-space-channel-location-redesign/phase-01c-thread-title-and-adoption.md`.
+
+**Needs:** the bot keeps its current permissions. Whether it may rename a thread it created without Manage Threads is unverified (the invite list in Step 3 does not include it). If not, the rename reports "rename failed" and the thread keeps the placeholder; the title is still stored.
+
+### Before
+
+1. Stop the bot, back up the home: `cp -R "$AGENT_HOME" ~/friday-home-before-1c`.
+2. Note the time of the first test. The log checks in step 10 read `$AGENT_HOME/logs/app.*.jsonl`.
+
+### Deploy
+
+3. Start the bot (`bun run start` or the launchd job). No migration: the db stays at v7 and the `threads` table already exists from 1a.
+
+### Verify
+
+4. In a workspace channel (task mode), ask a real question with `@Friday`. Expect a new thread named `⏳ MM-DD HH:MM`; after the answer the name becomes `MM-DD <title>` (up to 100 chars).
+5. In the same thread send `hello` only. Expect an answer and the name unchanged (no `SetThreadTitle` call).
+6. Rename the thread by hand (Discord: Edit Thread), then ask another real question in it. Expect the hand-set name to stay. The log line `thread.titled` shows `renamed: false`.
+7. Create a thread by hand under the same channel (Discord: create thread, post a message). Post `@Friday <question>` in it. Expect an answer. Post a second message without a mention. Expect an answer. The name is not changed.
+8. Have a second account (not the owner) post in that thread. Expect no reply.
+9. Check the db rows: `sqlite3 "$AGENT_HOME/data/agent.db" "SELECT thread_id, origin, placeholder, title FROM threads ORDER BY updated_at DESC LIMIT 5"`. Expect a `bot` row with a placeholder and an `adopted` row with NULL placeholder.
+10. Count the calls and renames in the log: `grep '"event":"tool.start"' "$AGENT_HOME"/logs/app.*.jsonl | grep -c SetThreadTitle` (should be at most 2 per run); `grep '"event":"thread.titled"' "$AGENT_HOME"/logs/app.*.jsonl` (one line per call with `renamed`, `chars`; the text is never logged). `grep '"thread adopted"'` shows each adoption.
+11. Check the adoption guard in the log. Set `LOG_LEVEL=debug` for this check. A stranger message in the thread (step 8) gives `"event":"message.ignored"` with `"reason":"not_owner"`. An owner message without a mention in an unadopted owner-made thread gives `"reason":"not_mentioned"`. Neither gives a `thread adopted` line. Workspace loads are not logged; the no-load rule is covered by test M1 (`test/thread-adoption.test.ts`), not by this check.
+
+### Rollback
+
+1. Stop the bot. Check out the commit before this change (the phase 1b docs commit `09836a7`) and start the bot. The `threads` rows stay (the older code does not read them).
+2. Names the bot already set in Discord are not reverted by the app; rename by hand if needed.
+
+### Not verified live (all paid or live-only, owner approves each run)
+
+- Bot rename of its own thread without Manage Threads (step 4). If it fails, decide whether to grant Manage Threads or drop the rename.
+- The number of `SetThreadTitle` calls per run (cap is 2; step 10) and whether the model names the thread on a real question.
+- Greeting-only behavior (step 5) and hand-rename (step 6).
+- Adoption in a real owner-made thread (steps 7-8), including a thread under a channel that is not mapped (expected: not adopted).
+- Step 11 (log lines for the stranger and no-mention cases; the no-load rule itself is test-only).
+- Known gap (not a check): an adoption insert that fails leaves the thread `bot` (see system-architecture.md, Thread Lifecycle).
+- Rollback steps (written from the code, never executed).

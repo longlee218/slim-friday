@@ -1,20 +1,20 @@
 # Codebase Summary
 
-Last updated: 2026-10-14 (schema v7 location model, phase 1a; reliable handoff phases 1-10; Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
+Last updated: 2026-10-14 (schema v7 location model, phase 1a; spaces with N channels, phase 1b; threads, phase 1c; reliable handoff phases 1-10; Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
 
 ## Overview
 - **Friday**: Discord-driven personal agent on the Claude Agent SDK. Owner posts in a thread → the intent layer picks a role → the role runs as ONE agent run.
 - **assistant**: generalist, foreground, Haiku. Reads, searches the web, uses skills and MCP resources, runs read-only shell commands. Escalates to a stronger model when needed.
 - **dev**: background task in one of the workspace's locations (the owner's checkout). Plans and asks for approval through AskUserQuestion, implements, commits, pushes and opens the PR itself with the owner's git and gh login.
 - **Stack:** Bun, TypeScript, discord.js, Claude Agent SDK, SQLite (`bun:sqlite`), zod, pino.
-- **Size:** 276 `.ts` files, 23,564 lines under `src/` (2026-10-14, phase 1b final working tree; `find src -name '*.ts'`). Tests under `test/`.
+- **Size:** 283 `.ts` files, 24,006 lines under `src/` (2026-10-14, phase 1c working tree; `find src -name '*.ts'`). 208 `.ts` files under `test/`.
 
 ## Source Layout (`src/`)
 
 | Dir | Purpose | Key files |
 |-----|---------|-----------|
 | `index.ts` | bot entry: config, DB, startup, shutdown | - |
-| `ingress/` | Discord client, message rules, thread history, attachments, busy-thread ack, slash interactions | `discord-bot.ts`, `discord-message-handler.ts`, `discord-message-rules.ts`, `thread-turns.ts`, `attachment-text.ts`, `attachment-summary.ts` |
+| `ingress/` | Discord client, message rules, thread placement and adoption, thread history and rename port, attachments, busy-thread ack, slash interactions | `discord-bot.ts`, `discord-message-handler.ts` (200 lines; at the 200-line file limit, not under it), `discord-message-rules.ts`, `thread-placement.ts` (placeholder name, open, adopt), `threads-port.ts` (db and workspaces port), `thread-history.ts`, `thread-rename.ts` (rename port), `thread-turns.ts`, `attachment-text.ts`, `attachment-summary.ts` |
 | `commands/` | native slash command definitions and mapping to legacy text forms | `slash-definitions.ts`, `slash-commands.ts` |
 | `intent/` | L1 role tag, L2 effort signals, L3 Haiku classifier, lexicon | `decide-intent.ts`, `run-intent-pipeline.ts`, `haiku-intent-classifier.ts`, `role-tag.ts`, `data/intent-lexicon.yaml` |
 | `intent/jev/` | Jev (TypeSafe System One) proposer: questions, state, decision bands, client | `jev-proposer.ts`, `jev-client.ts`, `jev-questions.ts`, `jev-state.ts`, `jev-bands.ts`, `jev-constants.ts` |
@@ -31,13 +31,13 @@ Last updated: 2026-10-14 (schema v7 location model, phase 1a; reliable handoff p
 | `runtime/skills-plugin/` | per-run skill plugins from the lock and the workspace dir | `publisher-skills.ts`, `role-skills.ts`, `run-skills.ts`, `plugin-builder.ts`, `plugin-copy.ts`, `plugin-sweep.ts` |
 | `guardrails/` | deny-list guard: allow / ask / deny per tool call | `check-tool-call.ts`, `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `subagent-limit.ts` |
 | `approvals/` | owner questions and buttons over Discord | `discord-approval.ts`, `approval-buttons.ts`, `approval-types.ts` |
-| `tools/` | tool names and catalog (no custom tools exist) | `sdk-tool-names.ts`, `tool-catalog.ts`, `git-tool-groups.ts` |
+| `tools/` | tool names and catalog; custom in-process tools (one folder each) | `sdk-tool-names.ts`, `tool-catalog.ts`, `git-tool-groups.ts`, `memory-tool-context.ts`, `RememberTool/`, `MemorySearchTool/`, `MemoryGetTool/`, `MemoryExpandTool/`, `SetThreadTitleTool/` |
 | `mcp/` | the read-only git MCP client for the assistant | `git-mcp.ts`, `mcp-servers.ts`, `mcp-tool-names.ts` |
 | `config/` | env schema, model routing, role env pins, paths, skills lock | `agent-config.ts`, `model-routing.ts`, `role-env.ts`, `effort-mapping.ts`, `skills-lock.ts`, `workspace-paths.ts`, `child-env-deny.ts`, `data/child-env-deny.yaml` |
 | `locations/` | location registry (`locations:` in workspace.yaml), git detection, git CLI, filesystem migration CLI (`migrate:locations`) | `location-registry.ts`, `git-cli.ts`, `migrate-locations.ts`, `migrate-locations-cli.ts` |
 | `workspaces/` | workspace (space) registry with its channels and locations, task workspace (`selectWorkspace` returns the channel entry) | `workspace-registry.ts`, `channel-checks.ts` (channel names, locations subset, duplicates), `task-workspace.ts` |
 | `memory/` | persona layers, memory reads and writes, owner commands, manual compaction | `persona.ts`, `persona-templates.ts`, `prompt-context.ts`, `location-memory.ts`, `memory-writer.ts`, `memory-commands.ts`, `memory-compaction*.ts` |
-| `storage/` | SQLite stores and migrations (v2 → v7) | `db.ts`, `migrate.ts`, `run-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `migrate-v3-turns.ts`, `migrate-v4-drop-legacy-tables.ts`, `legacy-*.ts` (frozen) |
+| `storage/` | SQLite stores and migrations (v2 → v7) | `db.ts`, `migrate.ts`, `run-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `thread-store.ts`, `migrate-v3-turns.ts`, `migrate-v4-drop-legacy-tables.ts`, `legacy-*.ts` (frozen) |
 | `lifecycle/` | startup hygiene, drain, shutdown, interrupted-run recovery, home placement | `startup.ts`, `drain.ts`, `shutdown.ts`, `resume-interrupted.ts`, `home-placement-check.ts`, `proposal-notices.ts` |
 | `discord-setup/` | `discord.yaml`, private channels, `/init-workspace`, `/init-channel`, channel topic, bootstrap CLI, ops log | `discord-setup-config.ts`, `private-channels.ts`, `admin-handler.ts`, `init-workspace.ts`, `init-channel.ts`, `channel-topic.ts`, `workspace-template.ts`, `bootstrap-discord-cli.ts`, `ops-log.ts`, `ready-checks.ts` |
 | `observability/` | pino logger, tool and subagent hooks, redaction, usage lines, log files | `logger.ts`, `tool-hooks.ts`, `subagent-hooks.ts`, `redact.ts`, `record-run.ts`, `turn-usage.ts`, `console-format.ts`, `log-files.ts` |
@@ -77,13 +77,13 @@ Discord message (owner, in a workspace channel or its thread)
 ## Tools
 - `src/tools/tool-catalog.ts`: capability → built-in tool names (`CAPABILITY_TOOLS`), `toolsFor(role)` (adds `Agent`, `SendMessage`, `ListAgents` to every role), `autoAllowedTools`, `SECRET_FILE_RULES`, `toolOptions`.
 - Names are constants in `sdk-tool-names.ts` and `mcp-tool-names.ts`. String literals of tool names in `src/` fail a scan test.
-- No custom in-process tools exist (`src/tools/<Name>Tool/` is not used).
+- Custom tools live in `src/tools/<Name>Tool/` and are served by the in-process MCP server `memory` (`src/mcp/memory-server.ts`): `Remember`, `MemorySearch`, `MemoryGet`, `MemoryExpand`, `SetThreadTitle` (`MEMORY_TOOLS`). `SetThreadTitle` is registered only in runs with a rename port (not lean runs); see [system-architecture.md, Thread Lifecycle](system-architecture.md#thread-lifecycle).
 
 ## Storage
 - `src/storage/db.ts`: opens `$AGENT_HOME/data/agent.db` (WAL), runs migrations, owner-only file mode.
 - Schema v7: `meta`, `sessions` (`location` column), `turns` (+ `owned_task_id`, `location`), `runs`, `tool_calls`, `approvals`, `run_messages`, `proposals`, `owned_tasks`, `threads`. Details: [system-architecture.md, Storage Schema](system-architecture.md#storage-schema).
 - Migrations: `legacy-schema.ts` and `legacy-migrate-v2.ts` (frozen v1/v2 DDL), `migrate-v3-turns.ts` (rename, snapshot first), `migrate-v4-drop-legacy-tables.ts` (drops `stages`, `worktrees` and three columns; no snapshot), `migrate-v6-owned-tasks.ts` (additive; v5 snapshot first), `migrate-v7-locations-threads.ts` (renames `repo` columns, adds `threads`; v6 snapshot first).
-- Stores: `run-store.ts` (turns, finish, interrupt), `run-metrics-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `owned-task-store.ts`.
+- Stores: `run-store.ts` (turns, finish, interrupt), `run-metrics-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `owned-task-store.ts`, `thread-store.ts` (`threads`: record bot thread, adopt, `isAdopted`, `saveTitle`).
 - Read-only row-count check for the owner (v3 and v4 copies): `plans/261012-1130-orchestrate-not-micromanage/owner-verify-counts-v4.ts`.
 
 ## Memory and Persona
@@ -127,4 +127,5 @@ Discord message (owner, in a workspace channel or its thread)
 - Bash and guard parsing are best effort; the dev run is in bypass mode, so only hard denies stop a call.
 - Two dev tasks in one location share one working tree.
 - Routing default is `INTENT_ENGINE=haiku`; Jev (`jev`) is opt-in until the paid golden gate passes. Jev bands are conservative until calibrated.
+- Thread rename (phase 1c): the bot's permission to rename without Manage Threads is unverified. The rename waits at most 5 s; a timed-out rename reports `failed` and Discord may still apply it.
 - Live behavior not yet verified (phase 8): AskUserQuestion under bypass, PermissionDenied hook, background-task env, SDK subagent tools, `ListAgents`, resumed-session cost, golden set.
