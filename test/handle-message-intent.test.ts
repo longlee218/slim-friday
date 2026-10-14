@@ -753,3 +753,135 @@ test("conversation: search -> explicit replacement -> one result, no stale outpu
   for (const text of [replaced ?? "", ...notes])
     expect(text).not.toMatch(/\b(task|turn|proposal|queue|steer)\b/i);
 });
+
+/* Final-review fix pass (interrupt-steer): I-1 .. I-4. */
+
+test("I-2: a medium-confidence 'stop' on a busy thread neither aborts nor swallows the message (it keeps its normal route)", async () => {
+  const env = await setup();
+  const seen: any[] = [];
+  const sdk = abortableSdk(seen);
+  const e = engine((i) =>
+    i.text.includes("lodash")
+      ? verdict({ role: "dev", scope: "new", control: "stop", confidence: "medium" })
+      : answering(verdict())(i),
+  );
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: declinePr(),
+    queryFn: sdk.query as never,
+    intent: intentDeps(env.home, e.classifier),
+  });
+  const first = handle(msg("[ask] explain"));
+  await Bun.sleep(50);
+  expect(await handle(msg("[dev] stop using lodash, use native fetch"))).toBe(QUEUE_RECEIVED);
+  sdk.release();
+  expect(await first).toContain("stale answer"); // never aborted
+});
+
+test("I-3: a replace that finds the run already stopped (by /stop) still runs its request; a different second replace is not dropped", async () => {
+  const env = await setup();
+  const seen: any[] = [];
+  const sdk = abortableSdk(seen, 60);
+  const notes: string[] = [];
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: declinePr(),
+    queryFn: sdk.query as never,
+    intent: intentDeps(env.home, controlEngine().classifier),
+  });
+  const first = handle(msg("[ask] explain"));
+  await Bun.sleep(50);
+  expect(await handle(msg("/stop"))).toContain("stopping");
+  // the run is aborted but still cleaning up when the owner changes their mind
+  const y = await handle(withNotify("REPLACENOW do Y instead", notes, "m-y"));
+  await first;
+  expect(y).toContain("replacement answer"); // Y ran
+  expect(roles(env)).toEqual(["assistant", "assistant"]);
+});
+
+test("I-4: /stop sent while a replacement is pending cancels it: the new request never starts", async () => {
+  const env = await setup();
+  const seen: any[] = [];
+  const sdk = abortableSdk(seen, 150);
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: declinePr(),
+    queryFn: sdk.query as never,
+    intent: intentDeps(env.home, controlEngine().classifier),
+  });
+  const first = handle(msg("[ask] explain"));
+  await Bun.sleep(50);
+  const replaced = handle(withNotify("REPLACENOW do Y instead", [], "m-y"));
+  await Bun.sleep(30);
+  await handle(msg("/stop")); // during cleanup
+  await Promise.all([first, replaced]);
+  expect(roles(env)).toEqual(["assistant"]); // Y never started
+});
+
+test("I-1: a control decision made on a run that has since ended never runs next to the newer run", async () => {
+  const env = await setup();
+  let calls = 0;
+  let running = 0;
+  let maxRunning = 0;
+  let unblockL3!: () => void;
+  const l3Gate = new Promise<void>((r) => (unblockL3 = r));
+  let gate1!: () => void;
+  const g1 = new Promise<void>((r) => (gate1 = r));
+  let gate2!: () => void;
+  const g2 = new Promise<void>((r) => (gate2 = r));
+  const query = (a: any) => {
+    const n = ++calls;
+    return (async function* () {
+      running++;
+      maxRunning = Math.max(maxRunning, running);
+      try {
+        const signal: AbortSignal | undefined = a.options.abortController?.signal;
+        if (n <= 2) {
+          const gate = n === 1 ? g1 : g2;
+          await Promise.race([
+            gate,
+            new Promise<void>((r) => signal?.addEventListener("abort", () => r(), { once: true })),
+          ]);
+        }
+        yield resultMsg({ result: `answer ${n}` });
+      } finally {
+        running--;
+      }
+    })();
+  };
+  let slowOnce = true;
+  const classifier: IntentClassifier = {
+    classify: async (i) => {
+      if (i.text.includes("SLOWREPLACE") && slowOnce) {
+        slowOnce = false;
+        await l3Gate; // L3 is slow for the first look at this message
+      }
+      return i.text.includes("SLOWREPLACE")
+        ? verdict({ role: "assistant", scope: "new", control: "replace" })
+        : answering(verdict())(i);
+    },
+  };
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: declinePr(),
+    queryFn: query as never,
+    intent: intentDeps(env.home, classifier),
+  });
+  const r1 = handle(msg("[ask] first"));
+  await Bun.sleep(50);
+  const a = handle(msg("SLOWREPLACE do Y")); // decided on run 1 ... which ends meanwhile
+  await Bun.sleep(20);
+  gate1();
+  await r1;
+  const r2 = handle(msg("[ask] second")); // a newer run starts
+  await Bun.sleep(50);
+  unblockL3();
+  await Bun.sleep(100);
+  gate2();
+  await Promise.all([r2, a]);
+  expect(maxRunning).toBe(1);
+});

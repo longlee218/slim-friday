@@ -440,8 +440,14 @@ test("interrupt controller aborts the active controller once; a replace marks it
   expect(c.requestInterrupt(req)).toBe("accepted");
   expect(run.signal.reason).toBe(REPLACE_ABORT_REASON);
   expect(isReplaced(run.signal)).toBe(true);
-  expect(c.requestInterrupt(req)).toBe("duplicate");
-  expect(c.requestInterrupt({ ...req, action: "stop" })).toBe("duplicate");
+  // a different message finding it already interrupted is `stale` (the caller still handles it)
+  expect(c.requestInterrupt(req)).toBe("stale");
+  expect(c.requestInterrupt({ ...req, action: "stop" })).toBe("stale");
+  // the SAME message id delivered twice is a duplicate
+  const other = new AbortController();
+  const m = { threadId: "t", controller: other, action: "replace" as const, messageId: "m1" };
+  expect(c.requestInterrupt(m)).toBe("accepted");
+  expect(c.requestInterrupt(m)).toBe("duplicate");
   const stopped = new AbortController();
   expect(c.requestInterrupt({ threadId: "t", controller: stopped, action: "stop" })).toBe(
     "accepted",

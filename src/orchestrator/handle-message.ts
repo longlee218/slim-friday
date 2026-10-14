@@ -70,12 +70,16 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       dispatchDeps.steer?.record(message, message.text, "stop"); // audit; the queue stays
       return stopThread(db, threadId, language, live);
     }
+    const state = interrupts.requestInterrupt(req);
+    if (state === "duplicate") return renderUserNotice({ kind: "replacement" }, language); // same message, delivered twice
+    if (state === "stale") {
+      // The run was already stopped by something else: this message is still the owner's next request. It waits for that
+      // run to end and then takes the normal path (it can be a replacement itself only if it is controlling a live run).
+      await tracker.activeSettled(threadId, live);
+      return run(message);
+    }
     const reservation = tracker.reserveReplacement(threadId);
     try {
-      if (interrupts.requestInterrupt(req) === "duplicate") {
-        // The same order, or a second one, for a run already being stopped: acknowledged, never run twice.
-        return renderUserNotice({ kind: "replacement" }, language);
-      }
       dispatchDeps.steer?.record(message, message.text, "replace");
       const ack = renderUserNotice({ kind: "replacement" }, language);
       // Without a channel to post to, the acknowledgement leads the final reply instead.
@@ -86,6 +90,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
           )
         : false;
       await tracker.activeSettled(threadId, live);
+      if (reservation.isCancelled()) return undefined; // the owner sent `/stop` meanwhile
       const reply = await run(message, reservation);
       return posted || reply === undefined ? reply : `${ack}\n\n${reply}`;
     } finally {
@@ -95,7 +100,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   /** Handle one message (one turn) and return the (redacted) reply text; `replacement` = this message replaces the run that just settled. */
   const run = async (
     message: InboundMessage,
-    replacement?: { release: () => void },
+    replacement?: { release: () => void; isCancelled: () => boolean },
   ): Promise<string | undefined> => {
     const { threadId } = message;
     let workspaceName = "";
@@ -109,17 +114,23 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     if (parsed.kind !== "message")
       logEvent(log, "intent.layer", { layer: "L0", ruleIds: [parsed.kind] });
     if (parsed.kind === "memory") return (await memory(message)) ?? ""; // owner memory command: no agent
-    if (parsed.kind === "stop")
+    if (parsed.kind === "stop") {
+      tracker.cancelReplacement(threadId); // a replacement still waiting for cleanup must not start
       return stopCommand({ db, message, running, rollovers, steer: dispatchDeps.steer });
+    }
     // A rollover of the previous turn holds the thread until it is done; the checks below then see the final state.
     await rollovers.holdFor(message);
     // A replacement in progress holds the thread: this message looks at `active` only after the replacement claimed it.
+    if (replacement?.isCancelled()) return undefined; // `/stop` arrived while the old run's wrap-up held the thread
     if (!replacement) await tracker.waitReplacement(threadId);
     // The run holds the thread: `still working...`, or (intent layer on) steer / side answer / queue / yes-no / stop / replace.
     const live = active.get(threadId);
     if (live && !replacement) {
       const out = await busyLane(message, parsed, live);
-      return typeof out === "string" ? out : interrupt(message, live, out.control);
+      if (typeof out === "string") return out;
+      // The decision took time: when the run it was made on has ended (or another one took its place), it is stale.
+      if (active.get(threadId) !== live) return run(message);
+      return interrupt(message, live, out.control);
     }
     // Drain (deploy) and the global run cap refuse a new turn (the commands above still answer).
     const admitted = admitTurn(deps.limiter, config.agentHome, log, messageLanguage(message));

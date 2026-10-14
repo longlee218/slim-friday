@@ -160,20 +160,12 @@ export async function decideIntent(i: DecideInput, deps: IntentDeps): Promise<De
   // role steps below. No engine, a failure or a timeout never controls the run (`/stop` is the literal L0 route).
   const ctl =
     i.controlFromModel && deps.classifier ? await readControl(deps.classifier, i) : undefined;
-  if (ctl?.raw?.control) {
+  // Only a HIGH-confidence control acts. A weaker one is dropped: the message keeps its normal route (a steer, a queue)
+  // instead of being swallowed by a busy thread's "still working" reply.
+  if (ctl?.raw?.control && ctl.raw.confidence === "high") {
     layer("L3", []);
     logEvent(log, "intent.control", { action: ctl.raw.control, confidence: ctl.raw.confidence });
-    return done(
-      ctl.raw.confidence === "high"
-        ? { decision: { kind: "control", action: ctl.raw.control } }
-        : {
-            decision: {
-              kind: "ask",
-              reason: "low_confidence",
-              ...(ctl.raw.ask && { text: ctl.raw.ask }),
-            },
-          },
-    );
+    return done({ decision: { kind: "control", action: ctl.raw.control } });
   }
   if (ctl) deps = { ...deps, classifier: i.controlOnly ? undefined : ctl.classifier };
   if (p.decidedBy === "L1" && p.route?.kind === "role") {

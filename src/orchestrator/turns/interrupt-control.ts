@@ -21,17 +21,26 @@ export interface InterruptRequest {
 }
 
 /**
- * Deduplicates interrupts: a control message delivered twice, or two orders racing for the same active run, abort that
- * controller ONCE. The first is `accepted` (it marks a replacement via the abort reason); the rest are `duplicate`.
+ * Aborts the active run ONCE. `accepted` = this call aborted it (a replace marks it via the abort reason);
+ * `duplicate` = the SAME owner message was already handled (concurrent delivery): acknowledge, do nothing more;
+ * `stale` = a DIFFERENT message found the controller already interrupted (e.g. `/stop` came first): the caller must
+ * still handle that message itself, it is never dropped.
  */
 export function createInterruptController() {
   /** Controllers already interrupted (they are never reused for a new run). */
   const interrupted = new WeakSet<AbortController>();
+  /** Ingress ids of control messages already handled. */
+  const seen = new Set<string>();
   return {
-    requestInterrupt(r: InterruptRequest): "accepted" | "duplicate" {
-      if (interrupted.has(r.controller) || r.controller.signal.aborted) {
-        logEvent(log, "interrupt.duplicate", { action: r.action, messageId: r.messageId ?? null });
+    requestInterrupt(r: InterruptRequest): "accepted" | "duplicate" | "stale" {
+      if (r.messageId && seen.has(r.messageId)) {
+        logEvent(log, "interrupt.duplicate", { action: r.action, messageId: r.messageId });
         return "duplicate";
+      }
+      if (r.messageId) seen.add(r.messageId);
+      if (interrupted.has(r.controller) || r.controller.signal.aborted) {
+        logEvent(log, "interrupt.stale", { action: r.action, messageId: r.messageId ?? null });
+        return "stale";
       }
       interrupted.add(r.controller);
       r.controller.abort(r.action === "replace" ? REPLACE_ABORT_REASON : undefined);

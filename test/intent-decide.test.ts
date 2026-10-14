@@ -419,13 +419,12 @@ test("control: supplement / independent question / independent job keep their st
   expect(actionFor({ decision: queued.decision, state: "running" }).kind).toBe("queue");
 });
 
-test("control: medium or low confidence stop never aborts; the owner is asked", async () => {
+test("control: medium or low confidence stop never aborts and never swallows the message: it keeps its normal route", async () => {
   for (const confidence of ["medium", "low"] as const) {
-    const e = engine(
-      answer({ role: "dev", control: "stop", confidence, ask: "Dừng việc đang làm?" }),
-    );
+    const e = engine(answer({ role: "dev", scope: "active", control: "stop", confidence }));
     const r = await run({ pipeline, classifier: e.classifier }, busy());
-    expect(r.decision).toMatchObject({ kind: "ask", reason: "low_confidence" });
+    expect(r.decision.kind).not.toBe("control");
+    expect(r.decision.kind).not.toBe("ask"); // a busy thread's ask would become "still working" and lose the message
   }
 });
 

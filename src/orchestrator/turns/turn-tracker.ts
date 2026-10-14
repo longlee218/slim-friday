@@ -50,7 +50,7 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
   /** controller -> promise that resolves when the run that owned it has fully ended (cleanup included). */
   const settled = new WeakMap<AbortController, Promise<void>>();
   /** threadId -> promise of a replacement in progress: ordinary messages wait for it before looking at `active`. */
-  const reservations = new Map<string, Promise<void>>();
+  const reservations = new Map<string, { promise: Promise<void>; cancelled: boolean }>();
   /** Set once shutdown aborts the runs: those tasks are `interrupted` (resumable), not user-cancelled. */
   let stopping = false;
 
@@ -90,20 +90,27 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
     activeSettled: (_threadId: string, controller: AbortController): Promise<void> =>
       settled.get(controller) ?? Promise.resolve(),
     /** Hold the thread for a replacement: later ordinary messages wait on `waitReplacement` until `release`. */
-    reserveReplacement(threadId: string): { release: () => void } {
+    reserveReplacement(threadId: string): { release: () => void; isCancelled: () => boolean } {
       let release!: () => void;
-      const p = new Promise<void>((r) => {
+      const entry = { promise: undefined as unknown as Promise<void>, cancelled: false };
+      entry.promise = new Promise<void>((r) => {
         release = () => {
-          if (reservations.get(threadId) === p) reservations.delete(threadId);
+          if (reservations.get(threadId) === entry) reservations.delete(threadId);
           r();
         };
       });
-      reservations.set(threadId, p);
-      return { release };
+      reservations.set(threadId, entry);
+      return { release, isCancelled: () => entry.cancelled };
+    },
+    /** `/stop` while a replacement is pending: that replacement must not start. True when one was pending. */
+    cancelReplacement(threadId: string): boolean {
+      const entry = reservations.get(threadId);
+      if (entry) entry.cancelled = true;
+      return !!entry;
     },
     /** Wait until no replacement holds the thread (the replacement itself never calls this). */
     async waitReplacement(threadId: string): Promise<void> {
-      for (let p = reservations.get(threadId); p; p = reservations.get(threadId)) await p;
+      for (let e = reservations.get(threadId); e; e = reservations.get(threadId)) await e.promise;
     },
     abortAll,
     /** Keep the call in the in-flight set until it settles (`run` never rejects). */
