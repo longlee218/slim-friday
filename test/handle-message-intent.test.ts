@@ -593,3 +593,135 @@ test("numeric reply starts with a neutral acknowledgement and raw unknown failur
   expect(reply).toContain("chưa hoàn tất");
   expect(reply).not.toContain("RAW_EXCEPTION_123");
 });
+
+/* Interrupt-steer plan, Task 2: natural-language stop and replace of the active run. */
+
+/** Slow assistant run that honors the thread's abort: its (stale) result is "stale answer"; later runs answer "replacement answer". */
+function abortableSdk(seen: any[], cleanupMs = 0) {
+  let first = true;
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const query = (a: any) => {
+    const mine = first;
+    first = false;
+    seen.push(a);
+    return (async function* () {
+      if (!mine) {
+        yield resultMsg({ result: "replacement answer", session_id: "sess-2" });
+        return;
+      }
+      const signal: AbortSignal | undefined = a.options.abortController?.signal;
+      await Promise.race([
+        gate,
+        new Promise<void>((r) => signal?.addEventListener("abort", () => r(), { once: true })),
+      ]);
+      if (cleanupMs) await Bun.sleep(cleanupMs);
+      yield resultMsg({ result: "stale answer", session_id: "sess-1" });
+    })();
+  };
+  return { query, release };
+}
+
+const controlEngine = () =>
+  engine((i) =>
+    i.text.includes("STOPNOW")
+      ? verdict({ role: "assistant", scope: "active", control: "stop" })
+      : i.text.includes("REPLACENOW")
+        ? verdict({ role: "assistant", scope: "new", control: "replace" })
+        : answering(verdict())(i),
+  );
+const withNotify = (text: string, sink: string[], messageId?: string) => ({
+  ...msg(text),
+  ...(messageId && { messageId }),
+  notify: async (t: string) => {
+    sink.push(t);
+  },
+});
+
+test("natural stop: the run is aborted, the stopping notice replies, the queue is kept and runs after, the interrupt is audited", async () => {
+  const env = await setup();
+  const seen: any[] = [];
+  const sdk = abortableSdk(seen);
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: declinePr(),
+    queryFn: sdk.query as never,
+    intent: intentDeps(env.home, controlEngine().classifier),
+  });
+  const first = handle(msg("[ask] explain"));
+  await Bun.sleep(50);
+  expect(await handle(msg("[dev] older job"))).toBe(QUEUE_RECEIVED);
+  expect(await handle(msg("STOPNOW please"))).toBe(
+    "I’m stopping the current work. The waiting requests will run afterwards.",
+  );
+  await first;
+  expect(listRunMessages(env.db, "th1").map((r) => r.kind)).toEqual(["followup", "stop"]);
+  expect(roles(env)).toEqual(["assistant", "dev"]); // the queued job still ran
+});
+
+test("replace: acknowledged at once as stopping, the old result is dropped, the original request runs once after cleanup, older queued work starts after it", async () => {
+  const env = await setup();
+  const seen: any[] = [];
+  const sdk = abortableSdk(seen, 80);
+  const notes: string[] = [];
+  const cancelled: string[] = [];
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: { ...declinePr(), cancelTurn: (id: string) => void cancelled.push(id) },
+    queryFn: sdk.query as never,
+    intent: intentDeps(env.home, controlEngine().classifier),
+  });
+  const first = handle(msg("[ask] explain"));
+  await Bun.sleep(50);
+  expect(await handle(msg("[dev] older job"))).toBe(QUEUE_RECEIVED);
+  const replaced = handle(withNotify("REPLACENOW make it a table", notes, "m-replace"));
+  // a third message arrives during cleanup: it waits behind the replacement, then is queued (not run first)
+  await Bun.sleep(20);
+  const third = handle(msg("[dev] third job"));
+  const [oldOut, newOut, thirdOut] = await Promise.all([first, replaced, third]);
+  // the acknowledgement is first (posted before the old run settled) and appears once; later notes are the queue starting
+  expect(notes[0]).toBe("I’m stopping the current work before handling your new request.");
+  expect(notes.filter((n) => n.includes("stopping"))).toHaveLength(1);
+  expect(oldOut).toBeUndefined(); // the stopped run's result never reaches the owner
+  // stale controls: the old turn's open approvals are cancelled (a late click is "expired")
+  const oldTurn = rows(env, "SELECT id FROM turns ORDER BY started_at, rowid")[0]?.id;
+  expect(cancelled).toContain(oldTurn);
+  expect(newOut).toContain("replacement answer");
+  expect(newOut).not.toContain("stale answer");
+  expect(thirdOut).toBe(QUEUE_RECEIVED);
+  // one replacement run, with the ORIGINAL request text; the older queued job runs after it, then the third
+  expect(roles(env)).toEqual(["assistant", "assistant", "dev", "dev"]);
+  expect(JSON.stringify(seen[1].prompt)).toContain("REPLACENOW make it a table");
+  expect(
+    rows(env, "SELECT brief FROM turns WHERE role = 'dev' ORDER BY started_at, rowid").map(
+      (r) => String(r.brief).split("\n")[0],
+    ),
+  ).toEqual(["older job", "third job"]);
+  expect(listRunMessages(env.db, "th1").map((r) => r.kind)).toContain("replace");
+});
+
+test("replace: the same control message delivered twice aborts and replaces once", async () => {
+  const env = await setup();
+  const seen: any[] = [];
+  const sdk = abortableSdk(seen, 40);
+  const notes: string[] = [];
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: declinePr(),
+    queryFn: sdk.query as never,
+    intent: intentDeps(env.home, controlEngine().classifier),
+  });
+  const first = handle(msg("[ask] explain"));
+  await Bun.sleep(50);
+  const [a, b] = await Promise.all([
+    handle(withNotify("REPLACENOW again", notes, "m-dup")),
+    handle(withNotify("REPLACENOW again", notes, "m-dup")),
+  ]);
+  await first;
+  expect(roles(env)).toEqual(["assistant", "assistant"]); // exactly one replacement
+  expect([a, b].filter((x) => x?.includes("replacement answer"))).toHaveLength(1);
+  expect(listRunMessages(env.db, "th1").filter((r) => r.kind === "replace")).toHaveLength(1);
+});

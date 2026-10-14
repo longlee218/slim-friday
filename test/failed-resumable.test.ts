@@ -310,7 +310,7 @@ test("`/go` racing a yes resumes once: the second message meets the running task
   const { seen, handle } = await run(["error", "ok"]);
   await handle(msg(DEV_REQUEST));
   const replies = await Promise.all([handle(msg("/go")), handle(msg("continue"))]);
-  expect(replies.filter((r) => r.includes("Xong"))).toHaveLength(1);
+  expect(replies.filter((r) => r?.includes("Xong"))).toHaveLength(1);
   expect(seen).toHaveLength(2);
 });
 

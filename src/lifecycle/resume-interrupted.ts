@@ -109,7 +109,7 @@ export function createResumeHandler(deps: ResumeDeps) {
           // The prompt is English; the owner's pinned language decides the notices and the result.
           language,
         });
-        await sendReply(channel, reply, language);
+        if (reply !== undefined) await sendReply(channel, reply, language);
       } finally {
         stopTyping();
       }

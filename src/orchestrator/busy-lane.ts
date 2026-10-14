@@ -35,6 +35,9 @@ export interface BusyLaneDeps {
   active: Map<string, AbortController>;
 }
 
+/** What the lane returns: the reply text, or the owner's explicit order to stop / replace the running work (the handler executes it). */
+export type BusyReply = string | { control: "stop" | "replace" };
+
 /** Build the lane: `(message, parsed, running) => reply` for a message of a thread whose run holds the lock. */
 export function createBusyLane(d: BusyLaneDeps) {
   /** threadId -> end of the last decision queued for it. */
@@ -66,8 +69,9 @@ export function createBusyLane(d: BusyLaneDeps) {
     void tail.then(() => {
       if (tails.get(threadId) === tail) tails.delete(threadId);
     });
-    return step.then(async (out) => {
+    return step.then(async (out): Promise<BusyReply> => {
       if (out.kind === "reply") return out.text;
+      if (out.kind === "control") return { control: out.action };
       if (out.kind !== "side") return localizeUserCopy(CRASH_REPLY, messageLanguage(message));
       // A crashing side run is reported, never thrown: the task's own run is untouched.
       return runSide(d, message, out, running).catch((err: unknown) => {

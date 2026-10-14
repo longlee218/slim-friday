@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
 import type { InboundMessage } from "../ingress/discord-message-handler";
-import { localizeUserCopy, messageLanguage } from "../ingress/user-copy";
+import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/user-copy";
 import type { IntentDeps } from "../intent/decide-intent";
 import {
   getLogContext,
@@ -18,9 +18,17 @@ import { createHandlerServices } from "./handler-services";
 import { parseMessageCommand } from "./message-commands";
 import { routeAndRun } from "./route-and-run";
 import type { RoleRunCtx } from "./run-turn";
+import { createInterruptController, isReplaced } from "./turns/interrupt-control";
 import type { RunLimiter } from "./turns/run-limiter";
 import { admitTurn, reportCrash, stopCommand } from "./turns/turn-admission";
-import { beginTurn, failTurn, refused, renewActive, turnLogContext } from "./turns/turn-tracker";
+import {
+  beginTurn,
+  failTurn,
+  refused,
+  renewActive,
+  stopThread,
+  turnLogContext,
+} from "./turns/turn-tracker";
 
 /** Dependencies of the turn handler. */
 export interface TurnHandlerDeps {
@@ -42,8 +50,53 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   const log = logger.child({ module: "handle-message" });
   const { active, tracker, rollovers, floors, dispatchDeps, busyLane, memory } =
     createHandlerServices(deps, log);
-  /** Handle one message (one turn) and return the (redacted) reply text. */
-  const run = async (message: InboundMessage): Promise<string> => {
+  const interrupts = createInterruptController();
+  /**
+   * The owner explicitly stops (`stop`) or replaces (`replace`) the running work. STOP = `/stop` (the queue is kept and
+   * runs after). REPLACE reserves the thread, aborts the exact active run once, says it is stopping, waits for that run to
+   * settle, then runs the ORIGINAL message once as a fresh request (the older queue then runs after it). The stopped
+   * run's result is discarded (route-and-run). Returns the reply, or undefined when nothing is to be sent.
+   */
+  const interrupt = async (
+    message: InboundMessage,
+    live: AbortController,
+    action: "stop" | "replace",
+  ): Promise<string | undefined> => {
+    const { threadId } = message;
+    const language = messageLanguage(message);
+    const req = { threadId, controller: live, action, messageId: message.messageId };
+    if (action === "stop") {
+      interrupts.requestInterrupt(req);
+      dispatchDeps.steer?.record(message, message.text, "stop"); // audit; the queue stays
+      return stopThread(db, threadId, language, live);
+    }
+    const reservation = tracker.reserveReplacement(threadId);
+    try {
+      if (interrupts.requestInterrupt(req) === "duplicate") {
+        // The same order, or a second one, for a run already being stopped: acknowledged, never run twice.
+        return renderUserNotice({ kind: "replacement" }, language);
+      }
+      dispatchDeps.steer?.record(message, message.text, "replace");
+      const ack = renderUserNotice({ kind: "replacement" }, language);
+      // Without a channel to post to, the acknowledgement leads the final reply instead.
+      const posted = message.notify
+        ? await message.notify(ack).then(
+            () => true,
+            () => false,
+          )
+        : false;
+      await tracker.activeSettled(threadId, live);
+      const reply = await run(message, reservation);
+      return posted || reply === undefined ? reply : `${ack}\n\n${reply}`;
+    } finally {
+      reservation.release();
+    }
+  };
+  /** Handle one message (one turn) and return the (redacted) reply text; `replacement` = this message replaces the run that just settled. */
+  const run = async (
+    message: InboundMessage,
+    replacement?: { release: () => void },
+  ): Promise<string | undefined> => {
     const { threadId } = message;
     let workspaceName = "";
     const running = active.get(threadId);
@@ -60,16 +113,21 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       return stopCommand({ db, message, running, rollovers, steer: dispatchDeps.steer });
     // A rollover of the previous turn holds the thread until it is done; the checks below then see the final state.
     await rollovers.holdFor(message);
-    // The run holds the thread: `still working...`, or (intent layer on) steer / side answer / queue / yes-no.
+    // A replacement in progress holds the thread: this message looks at `active` only after the replacement claimed it.
+    if (!replacement) await tracker.waitReplacement(threadId);
+    // The run holds the thread: `still working...`, or (intent layer on) steer / side answer / queue / yes-no / stop / replace.
     const live = active.get(threadId);
-    if (live) return busyLane(message, parsed, live);
+    if (live && !replacement) {
+      const out = await busyLane(message, parsed, live);
+      return typeof out === "string" ? out : interrupt(message, live, out.control);
+    }
     // Drain (deploy) and the global run cap refuse a new turn (the commands above still answer).
     const admitted = admitTurn(deps.limiter, config.agentHome, log, messageLanguage(message));
     if ("reply" in admitted) return admitted.reply;
     const { release } = admitted;
     floors.quietTurn(threadId);
     const ac = new AbortController();
-    active.set(threadId, ac);
+    const settle = tracker.registerActive(threadId, ac);
     const turnId = crypto.randomUUID();
     // From here every log line of this turn (any module) carries taskId; location/mode are set below.
     setLogContext({ taskId: turnId }); // log schema key kept
@@ -86,6 +144,8 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         { location, role, cls, resume: !!resumeOf, parentTurnId: resumeOf, ownedTaskId },
       );
       turnInserted = true;
+      // The replacement owns the slot AND its turn row now: ordinary messages see a working thread (a queue, not a retry).
+      replacement?.release();
     };
     // Everything after the lock is taken lives in try so `finally` always releases it.
     try {
@@ -117,11 +177,17 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         floors,
         intent: deps.intent,
         hasApprovals: !!deps.approvals,
-        renewAc: () => renewActive(active, threadId), // the queue after a user `/stop`
+        renewAc: () => {
+          // the queue after a user `/stop`: a fresh controller of the same run (it settles with it)
+          const fresh = renewActive(active, threadId);
+          tracker.registerActive(threadId, fresh, ac);
+          return fresh;
+        },
       });
     } catch (err) {
       // Never throw from the error path (db may be closed during shutdown).
       if (turnInserted) failTurn(db, log, turnId);
+      if (isReplaced(ac.signal)) return undefined; // the owner replaced this run: no stale crash report
       return reportCrash(log, err, {
         location: turnLocation(),
         t0,
@@ -131,13 +197,16 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       active.delete(threadId);
       release();
       rollovers.schedule(message, turnId, workspaceName);
+      settle();
     }
   };
-  const handleMessage = (message: InboundMessage): Promise<string> =>
+  const handleMessage = (message: InboundMessage): Promise<string | undefined> =>
     // Every line logged while this call runs (any module, any await) carries the thread id and channel id.
     tracker
       .track(runWithLogContext(turnLogContext(message), () => run(message)))
-      .then((text) => localizeUserCopy(text, messageLanguage(message)));
+      .then((text) =>
+        text === undefined ? undefined : localizeUserCopy(text, messageLanguage(message)),
+      );
   handleMessage.memory = memory; // same runner for ingress (inline channel replies, #ops-control)
   handleMessage.rollover = (threadId: string) => rollovers.wait(threadId) ?? Promise.resolve(); // tests
   handleMessage.abortAll = () => {

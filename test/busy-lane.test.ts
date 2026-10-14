@@ -428,3 +428,49 @@ test("C: a dev supplement on the same busy thread still steers", async () => {
   await first;
   expect(h.p.pulled.slice(1)).toEqual(["also add a comment"]);
 });
+
+/* Interrupt controller and replacement reservation (interrupt-steer plan, Task 2). */
+test("interrupt controller aborts the active controller once; a replace marks it, a repeat is a duplicate", async () => {
+  const { createInterruptController, isReplaced, REPLACE_ABORT_REASON } = await import(
+    "../src/orchestrator/turns/interrupt-control"
+  );
+  const c = createInterruptController();
+  const run = new AbortController();
+  const req = { threadId: "t", controller: run, action: "replace" as const };
+  expect(c.requestInterrupt(req)).toBe("accepted");
+  expect(run.signal.reason).toBe(REPLACE_ABORT_REASON);
+  expect(isReplaced(run.signal)).toBe(true);
+  expect(c.requestInterrupt(req)).toBe("duplicate");
+  expect(c.requestInterrupt({ ...req, action: "stop" })).toBe("duplicate");
+  const stopped = new AbortController();
+  expect(c.requestInterrupt({ threadId: "t", controller: stopped, action: "stop" })).toBe(
+    "accepted",
+  );
+  expect(isReplaced(stopped.signal)).toBe(false);
+});
+
+test("tracker: activeSettled waits for the exact run's settle; a reservation holds ordinary messages until released", async () => {
+  const { createRunTracker } = await import("../src/orchestrator/turns/turn-tracker");
+  const { logger } = await import("../src/observability/logger");
+  const active = new Map<string, AbortController>();
+  const t = createRunTracker(makeEnv().db, logger, active);
+  const ac = new AbortController();
+  const settle = t.registerActive("t", ac);
+  const renewed = new AbortController();
+  t.registerActive("t", renewed, ac); // the queue after /stop shares the run's settlement
+  let done = false;
+  const waiting = t.activeSettled("t", renewed).then(() => (done = true));
+  await Bun.sleep(5);
+  expect(done).toBe(false);
+  settle();
+  await waiting;
+  expect(done).toBe(true);
+  const r = t.reserveReplacement("t");
+  let passed = false;
+  const w = t.waitReplacement("t").then(() => (passed = true));
+  await Bun.sleep(5);
+  expect(passed).toBe(false);
+  r.release();
+  await w;
+  expect(passed).toBe(true);
+});

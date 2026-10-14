@@ -15,6 +15,7 @@ import { type RoleRunCtx, runTurn } from "./run-turn";
 import type { EffortFloors } from "./thread/effort-floor";
 import { STILL_WORKING } from "./thread/intent-replies";
 import type { IntentOutcome } from "./thread/route-by-intent";
+import { isReplaced } from "./turns/interrupt-control";
 import { refused } from "./turns/turn-tracker";
 
 /** What the handler hands over once it holds the lock and knows the workspace. */
@@ -35,8 +36,10 @@ export interface RouteAndRunInput {
  * From a parsed command to a finished turn, then the queued tasks start (whatever the turn did: reply, refusal
  * or crash; a crash is re-thrown after the drain so the handler still reports it). After the owner's `/stop` the
  * queue still runs, on a fresh controller (the thread's `/stop` then aborts that one); a shutdown abort does not.
+ * A run the owner REPLACED drains nothing (the replacement's own completion drains the preserved queue) and its
+ * result is discarded: only the notice of steers it never read is returned (else undefined).
  */
-export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
+export async function routeAndRun(c: RouteAndRunInput): Promise<string | undefined> {
   const { rc, stored } = c;
   const { steer, stopping } = rc.deps;
   const thread = rc.message.threadId;
@@ -56,6 +59,7 @@ export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
     unread();
   } catch (err) {
     unread();
+    if (isReplaced(rc.ac.signal)) throw err; // no queue drain: the replacement runs first
     next();
     // Best effort: a failing queued task must not hide the crash that ended this one.
     await drainQueued(q, "").catch(() => undefined);
@@ -64,6 +68,7 @@ export async function routeAndRun(c: RouteAndRunInput): Promise<string> {
     if (notes.length) await rc.message.notify?.(notes.join("\n\n")).catch(() => undefined);
     throw err;
   }
+  if (isReplaced(rc.ac.signal)) return notes.length ? notes.join("\n\n") : undefined;
   next();
   const out = await drainQueued(q, reply);
   unread();

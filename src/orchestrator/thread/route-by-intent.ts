@@ -94,8 +94,8 @@ const queued = (c: RouteCtx, role: string) => ({
   effort: c.effort,
 });
 
-/** Actions that store their own `run_messages` row (the others are stored here as `other`). */
-const STORES_ITSELF: ReadonlySet<IntentAction["kind"]> = new Set(["steer", "queue"]);
+/** Actions that store their own `run_messages` row (the others are stored here as `other`); a control message is stored by the handler's transition (`stop` / `replace`). */
+const STORES_ITSELF: ReadonlySet<IntentAction["kind"]> = new Set(["steer", "queue", "control"]);
 
 /**
  * Carry out one table action. A row that needs the thread free (run, open) while a run holds the lock cannot

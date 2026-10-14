@@ -26,7 +26,7 @@ export type { InboundMessage } from "./inbound-message";
 /** Longest wait (ms) for the thread history; the message then goes on without it. */
 export const FETCH_RECENT_TIMEOUT_MS = 1500;
 /** What the handler needs from the orchestrator. */
-export type HandleMessage = (message: InboundMessage) => Promise<string>;
+export type HandleMessage = (message: InboundMessage) => Promise<string | undefined>;
 
 export { sendReply, startTyping } from "./discord-send";
 
@@ -106,6 +106,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       });
       started?.();
       const reply = await call;
+      if (reply === undefined) return; // nothing to send (a replaced run's result is dropped)
       if (shown) {
         stopTyping();
         stopTyping = startTyping(channel);

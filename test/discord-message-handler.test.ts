@@ -117,6 +117,23 @@ test("owner mention in channel -> thread created, task run, reply sent in thread
   expect(m.thread.sent[0].allowedMentions).toEqual({ parse: [], repliedUser: false });
 });
 
+test("a run that returns nothing (its result was replaced) sends no reply", async () => {
+  const messages: InboundMessage[] = [];
+  const onMessage = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
+    handleMessage: async (message) => {
+      messages.push(message);
+      return undefined;
+    },
+  });
+  const th = fakeChannel("thr5", { thread: true, ownerId: BOT, parentId: "parent5" });
+  await onMessage(fakeMsg({ channel: th, mention: false, content: "old request" }).msg);
+  expect(messages).toHaveLength(1);
+  expect(th.sent).toEqual([]);
+});
+
 test("non-owner and bot messages never reach the agent", async () => {
   const { onMessage, messages } = setup();
   await onMessage(fakeMsg({ authorId: "222" }).msg);

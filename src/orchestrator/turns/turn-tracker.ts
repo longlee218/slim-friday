@@ -46,7 +46,11 @@ export function renewActive(
 /** Tracks calls in flight and the active runs, so shutdown can abort and await them. */
 export function createRunTracker(db: Database, log: Logger, active: Map<string, AbortController>) {
   /** Promises of calls in flight. */
-  const inflight = new Set<Promise<string>>();
+  const inflight = new Set<Promise<string | undefined>>();
+  /** controller -> promise that resolves when the run that owned it has fully ended (cleanup included). */
+  const settled = new WeakMap<AbortController, Promise<void>>();
+  /** threadId -> promise of a replacement in progress: ordinary messages wait for it before looking at `active`. */
+  const reservations = new Map<string, Promise<void>>();
   /** Set once shutdown aborts the runs: those tasks are `interrupted` (resumable), not user-cancelled. */
   let stopping = false;
 
@@ -58,9 +62,52 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
 
   return {
     isStopping: () => stopping,
+    /**
+     * Make `controller` the thread's active one and return the function the run calls in `finally` when it has
+     * ended. `sameRunAs` = a fresh controller of the SAME run (the queue after `/stop`): it settles with that run.
+     */
+    registerActive(
+      threadId: string,
+      controller: AbortController,
+      sameRunAs?: AbortController,
+    ): () => void {
+      active.set(threadId, controller);
+      const shared = sameRunAs && settled.get(sameRunAs);
+      if (shared) {
+        settled.set(controller, shared);
+        return () => {};
+      }
+      let settle!: () => void;
+      settled.set(
+        controller,
+        new Promise<void>((r) => {
+          settle = r;
+        }),
+      );
+      return settle;
+    },
+    /** Resolves when the run that owned this exact controller has ended (already ended / unknown = now). */
+    activeSettled: (_threadId: string, controller: AbortController): Promise<void> =>
+      settled.get(controller) ?? Promise.resolve(),
+    /** Hold the thread for a replacement: later ordinary messages wait on `waitReplacement` until `release`. */
+    reserveReplacement(threadId: string): { release: () => void } {
+      let release!: () => void;
+      const p = new Promise<void>((r) => {
+        release = () => {
+          if (reservations.get(threadId) === p) reservations.delete(threadId);
+          r();
+        };
+      });
+      reservations.set(threadId, p);
+      return { release };
+    },
+    /** Wait until no replacement holds the thread (the replacement itself never calls this). */
+    async waitReplacement(threadId: string): Promise<void> {
+      for (let p = reservations.get(threadId); p; p = reservations.get(threadId)) await p;
+    },
     abortAll,
     /** Keep the call in the in-flight set until it settles (`run` never rejects). */
-    track(p: Promise<string>): Promise<string> {
+    track(p: Promise<string | undefined>): Promise<string | undefined> {
       inflight.add(p);
       const done = () => {
         inflight.delete(p);
