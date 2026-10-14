@@ -1,5 +1,6 @@
 import { isAdminText } from "../discord-setup/admin-command";
 import { clip, redactText } from "../observability/redact";
+import { type OwnerLanguage, renderUserNotice } from "./user-copy";
 
 /** Mention policy for every outgoing message: nothing can ping (@everyone, @here, roles, users). */
 export const SAFE_MENTIONS = { parse: [] as never[], repliedUser: false };
@@ -145,23 +146,26 @@ function isMainlyDiff(text: string): boolean {
 }
 
 /** First ~HEAD_MAX chars, cut on a line boundary, with an open ``` fence closed. */
-function headOf(text: string): string {
+function headOf(text: string, language: OwnerLanguage): string {
   const cut = text.slice(0, HEAD_MAX);
   const head = cut.length < text.length ? cut.slice(0, Math.max(cut.lastIndexOf("\n"), 1)) : cut;
   const open = (head.match(/^\s*```/gm) ?? []).length % 2 === 1;
-  return `${head}${open ? "\n```" : ""}\n\n[full reply attached]`;
+  return `${head}${open ? "\n```" : ""}\n\n${renderUserNotice({ kind: "label", state: "reply-attached" }, language)}`;
 }
 
 /**
  * What to send for a reply: chunks, plus a file when the reply is long (> ATTACH_MIN) or mainly a diff
  * (head + `changes.diff` / `reply.md`). Everything is redacted, including the file content.
  */
-export function prepareOutput(text: string): { chunks: string[]; file?: OutputFile } {
+export function prepareOutput(
+  text: string,
+  language: OwnerLanguage,
+): { chunks: string[]; file?: OutputFile } {
   const safe = redactText(text);
   const diff = isMainlyDiff(safe);
   if (safe.length <= ATTACH_MIN && !diff) return { chunks: prepareReply(safe) };
   return {
-    chunks: [headOf(safe)],
+    chunks: [headOf(safe, language)],
     file: { name: diff ? "changes.diff" : "reply.md", content: safe },
   };
 }

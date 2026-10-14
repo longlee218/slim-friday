@@ -8,6 +8,7 @@ import {
   SAFE_MENTIONS,
   safeLinks,
 } from "./discord-message-rules";
+import type { OwnerLanguage } from "./user-copy";
 
 /** Temporary receipt on an accepted message whose first visible reply is delayed. */
 export const BUSY_ACK_EMOJI = "👀";
@@ -19,9 +20,10 @@ const TYPING_REFRESH_MS = 8000;
 export async function sendReply(
   channel: SendableChannels,
   text: string,
+  language: OwnerLanguage,
   visible?: () => Promise<void>,
 ): Promise<void> {
-  const { chunks, file } = prepareOutput(text);
+  const { chunks, file } = prepareOutput(text, language);
   // A long Markdown reply is a structured report: summary + file component (+ link buttons).
   if (file?.name === "reply.md") {
     await sendReport(channel, { summary: chunks[0]!, markdown: file.content });

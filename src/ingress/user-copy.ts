@@ -42,6 +42,8 @@ export type UserNotice =
         | "options-in-file";
     }
   | { kind: "choice"; state: "chose" | "answered"; text: string }
+  /** Short labels and gate questions; never matched back by text (a bare "No" must not be replaced). */
+  | { kind: "label"; state: "yes-run" | "no" | "reply-attached" | "max-effort" | "escalate-opus" }
   | {
       kind: "decision";
       state:
@@ -264,6 +266,22 @@ function render(event: UserNotice, language: OwnerLanguage): string {
       } as const;
       return say(copy[event.state][0], copy[event.state][1]);
     }
+    case "label": {
+      const copy = {
+        "yes-run": ["Có, chạy đi", "Yes, run it"],
+        no: ["Không", "No"],
+        "reply-attached": ["[đã đính kèm toàn bộ câu trả lời]", "[full reply attached]"],
+        "max-effort": [
+          "Việc này cần mức nỗ lực tối đa (Opus, chi phí gấp khoảng 5 lần). Chạy theo cách đó chứ?",
+          "That asks for max effort (Opus, about 5x the cost). Run it that way?",
+        ],
+        "escalate-opus": [
+          "Mô hình rẻ hơn chưa trả lời tốt việc này. Chạy lại bằng Opus (chi phí gấp khoảng 5 lần) chứ?",
+          "The cheaper model could not answer this well. Re-run it on Opus (about 5x the cost)?",
+        ],
+      } as const;
+      return say(copy[event.state][0], copy[event.state][1]);
+    }
     case "choice":
       return event.state === "chose"
         ? say(`Đã chọn: ${event.text}`, `Chose: ${event.text}`)
@@ -323,6 +341,7 @@ export function renderUserNotice(event: UserNotice, language: OwnerLanguage): st
   const dynamic =
     event.kind === "approval" ||
     event.kind === "choice" ||
+    event.kind === "label" ||
     (event.kind === "outcome" && (event.resetsAt || event.resumable));
   if (language === "en" && !dynamic) ENGLISH_NOTICES.set(text, event);
   return text;

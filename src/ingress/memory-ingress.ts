@@ -1,6 +1,7 @@
 import type { Message } from "discord.js";
 import type { MemoryRunner, MemoryWhere } from "../memory/memory-command-handler";
 import { sendReply } from "./discord-message-handler";
+import { languageOf } from "./user-copy";
 
 /**
  * Run `text` as an owner memory command and reply inline in the message's own channel or thread (no thread is
@@ -23,6 +24,6 @@ export async function replyToMemoryCommand(
     text,
   });
   if (reply === null) return false;
-  if (ch.isSendable()) await sendReply(ch, reply, visible);
+  if (ch.isSendable()) await sendReply(ch, reply, languageOf(text), visible);
   return true;
 }

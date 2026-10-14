@@ -1,5 +1,6 @@
 import { type Route, resolveModel } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
+import { threadLanguage } from "../../ingress/discord-components";
 import { renderUserNotice } from "../../ingress/user-copy";
 import { buildLocationsContext } from "../../locations/location-registry";
 import { buildMemoryToolContext } from "../../memory/memory-context";
@@ -21,10 +22,6 @@ import { closeBackgroundRun } from "./run-report";
 import { validateRole } from "./validate-role";
 
 export type { RoleRunInput, RoleRunnerDeps };
-
-/** Question of the Opus escalation gate. */
-const ESCALATE_OPUS_QUESTION =
-  "The cheaper model could not answer this well. Re-run it on Opus (about 5x the cost)?";
 
 /**
  * Run a role: ONE agent run, whatever the role. The engine reads only role DATA (capabilities, `background`, `streaming`,
@@ -115,12 +112,14 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     return done;
   };
   // An Opus escalation asks the owner first (buttons; fails closed).
+  const language = threadLanguage(db, i.threadId);
   const confirmOpus = () =>
     ownerConfirm(approvals, {
       kind: "escalate_opus",
       turnId: i.turnId,
       threadId: i.threadId,
-      summary: ESCALATE_OPUS_QUESTION,
+      summary: renderUserNotice({ kind: "label", state: "escalate-opus" }, language),
+      language,
       signal: i.ac.signal,
     });
   const res = await answerOutput({

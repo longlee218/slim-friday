@@ -1,14 +1,12 @@
 import type { ApprovalGateway } from "../../approvals/approval-types";
 import type { TaskClass } from "../../config/model-routing";
+import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import type { EffortSignals } from "../../intent/effort-signals";
 import { ownerConfirm } from "../engine/owner-confirm";
 import type { EffortFloors } from "./effort-floor";
 import { type TurnEffort, turnEffort } from "./turn-effort";
 
 /* Effort `max` (Opus, costly) runs only after the owner-confirm gate says yes. */
-
-/** Question shown above the Yes / No buttons. */
-const MAX_EFFORT_QUESTION = "That asks for max effort (Opus, about 5x the cost). Run it that way?";
 
 /** One line put before the reply when the owner did not confirm: the run went on at `high`. */
 export const MAX_DECLINED_NOTICE = "Max effort not confirmed: ran at high.";
@@ -22,6 +20,8 @@ export async function settleMaxEffort(a: {
   approvals: ApprovalGateway | undefined;
   floors: EffortFloors;
   threadId: string;
+  /** Owner's conversation language for the question and buttons. */
+  language: OwnerLanguage;
   cls: TaskClass | undefined;
   signals: EffortSignals;
   turn: TurnEffort;
@@ -31,7 +31,8 @@ export async function settleMaxEffort(a: {
     kind: "max_effort",
     turnId: crypto.randomUUID(),
     threadId: a.threadId,
-    summary: MAX_EFFORT_QUESTION,
+    summary: renderUserNotice({ kind: "label", state: "max-effort" }, a.language),
+    language: a.language,
     signal: a.signal,
   });
   if (!yes) return { turn: a.turn, declined: true };

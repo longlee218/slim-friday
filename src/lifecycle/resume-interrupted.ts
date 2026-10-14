@@ -106,7 +106,7 @@ export function createResumeHandler(deps: ResumeDeps) {
           channelId,
           text: RESUME_PROMPT,
         });
-        await sendReply(channel, reply);
+        await sendReply(channel, reply, threadLanguage(deps.db, threadId));
       } finally {
         stopTyping();
       }

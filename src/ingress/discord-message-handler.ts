@@ -93,7 +93,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
           }
           // A caught send failure ends this composing phase too; background work must not refresh typing.
           const stopNotificationTyping = stopTyping;
-          return sendReply(channel, m, visible).finally(stopNotificationTyping);
+          return sendReply(channel, m, language, visible).finally(stopNotificationTyping);
         },
       });
       started?.();
@@ -102,7 +102,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         stopTyping();
         stopTyping = startTyping(channel);
       }
-      await sendReply(channel, reply, visible);
+      await sendReply(channel, reply, language, visible);
     } finally {
       posted();
       stopTyping();
@@ -250,15 +250,15 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       // Full error to the log (redacted), short generic text to the user.
       log.error({ err: errText(err) }, "message handling failed");
       try {
-        if (errorTarget)
+        if (errorTarget) {
+          const language = conversationLanguages.get(errorTarget.id) ?? languageOf(route.prompt);
           await sendReply(
             errorTarget,
-            renderUserNotice(
-              { kind: "failure" },
-              conversationLanguages.get(errorTarget.id) ?? languageOf(route.prompt),
-            ),
+            renderUserNotice({ kind: "failure" }, language),
+            language,
             receipt.visible,
           );
+        }
       } catch {
         /* channel unusable; already logged */
       }

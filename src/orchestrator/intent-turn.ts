@@ -1,6 +1,7 @@
 import type { Logger } from "pino";
 import type { TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
+import { messageLanguage } from "../ingress/user-copy";
 import type { IntentDeps } from "../intent/decide-intent";
 import { buildIntentInput } from "../intent/intent-input";
 import type { Location } from "../locations/location-registry";
@@ -121,6 +122,7 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
         approvals: c.deps.approvals,
         floors: c.floors,
         threadId,
+        language: messageLanguage(c.message),
         cls: decision.cls,
         signals: effort,
         turn,

@@ -1,4 +1,5 @@
 import type { ApprovalGateway } from "../../approvals/approval-types";
+import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 
@@ -14,8 +15,13 @@ export const OWNER_CONFIRM_APPROVAL = "OwnerConfirm";
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "owner-confirm" });
 
-/** Button labels of the gate: [yes, no]. */
-export const OWNER_CONFIRM_LABELS: [string, string] = ["Yes, run it", "No"];
+/** Button labels of the gate in the owner's language: [yes, no]. */
+export function ownerConfirmLabels(language: OwnerLanguage): [string, string] {
+  return [
+    renderUserNotice({ kind: "label", state: "yes-run" }, language),
+    renderUserNotice({ kind: "label", state: "no" }, language),
+  ];
+}
 
 /** What is asked and where. */
 export interface OwnerConfirmRequest {
@@ -24,8 +30,10 @@ export interface OwnerConfirmRequest {
   /** Id the approval row carries (the task's, or a fresh id before the task exists). */
   turnId: string;
   threadId: string;
-  /** The question shown above the buttons. */
+  /** The question shown above the buttons (already in `language`). */
   summary: string;
+  /** Owner's conversation language: the button labels follow it. */
+  language: OwnerLanguage;
   /** Stop / shutdown: ends the wait with "no". */
   signal?: AbortSignal;
 }
@@ -54,7 +62,7 @@ export async function ownerConfirm(
         tool: OWNER_CONFIRM_APPROVAL,
         summary: req.summary,
       },
-      OWNER_CONFIRM_LABELS,
+      ownerConfirmLabels(req.language),
     );
     return done(r.approved, r.reason);
   } catch (err) {
