@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { type Client, Events } from "discord.js";
 import pkg from "../package.json";
 import { createDiscordApprovalGateway } from "./approvals/discord-approval";
@@ -26,6 +27,7 @@ import {
 import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
+import { real } from "./locations/location-registry";
 import { ensureHome } from "./memory/persona";
 import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
@@ -65,9 +67,13 @@ async function main(): Promise<void> {
     );
 
   // Fail closed: the home (persona, memory, db, logs) must not live inside a location or a git working tree.
+  // A location equal to the owner's $HOME is allowed: the guard denies AGENT_HOME to every run instead.
+  const userHomes = [homedir(), process.env.HOME ?? ""].filter(Boolean).map(real);
   const misplaced = homePlacementError(
     config.agentHome,
-    workspaces.flatMap((w) => w.locations.map((r) => r.path)),
+    workspaces.flatMap((w) =>
+      w.locations.map((r) => r.path).filter((p) => !userHomes.includes(real(p))),
+    ),
   );
   if (misplaced) return fail(misplaced);
 

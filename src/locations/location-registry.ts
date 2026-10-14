@@ -55,13 +55,15 @@ export function isRealDir(p: string): boolean {
 /**
  * Locations of one workspace from its raw `locations:` entries. An entry with a bad shape or name, a path that
  * is missing or not a directory, a path that is/contains one of `forbidden` (the owner's $HOME, AGENT_HOME) or
- * a name already taken is logged and skipped. Relative paths resolve against the workspace dir. Returns [] when
- * there is none.
+ * a name already taken is logged and skipped. A path EQUAL to one of `userHomes` is the exception: the owner may
+ * register their whole home (AGENT_HOME inside it stays off-limits through the guard); strict ancestors of it
+ * (`/`, `/Users`) stay rejected. Relative paths resolve against the workspace dir. Returns [] when there is none.
  */
 export function loadLocations(
   entries: unknown[],
   ws: WorkspaceDirs,
   forbidden: string[] = [],
+  userHomes: string[] = [],
 ): Location[] {
   const wsName = basename(ws.root);
   const wsRoot = ws.root;
@@ -91,7 +93,8 @@ export function loadLocations(
       continue;
     }
     const rpath = real(path);
-    if (forbidden.some((f) => isInside(rpath, real(f)))) {
+    const isUserHome = userHomes.some((h) => real(h) === rpath);
+    if (!isUserHome && forbidden.some((f) => isInside(rpath, real(f)))) {
       log.warn({ workspace: wsName, location: name }, "skipped location: path covers the home dir");
       continue;
     }

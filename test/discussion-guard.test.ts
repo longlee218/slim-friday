@@ -132,8 +132,8 @@ test("the saved-copy path of a long attachment reaches the assistant, never the 
   expect(seen.length).toBeGreaterThan(1);
 });
 
-test("a dev brief carries the recent conversation (capped, data)", async () => {
-  const { seen, handle, msg, q } = await build();
+test("a dev brief is the owner text only (the recent conversation goes to the system context)", async () => {
+  const { handle, msg, q } = await build();
   await handle(msg("[ask] explain the location"));
   const recent = [
     { from: "owner" as const, text: "what about caching?" },
@@ -144,9 +144,5 @@ test("a dev brief carries the recent conversation (capped, data)", async () => {
   ];
   await handle({ ...msg("làm cái đó đi"), recent });
   const brief = q("SELECT brief FROM proposals")[0].brief as string;
-  expect(brief.startsWith("làm cái đó đi")).toBe(true);
-  expect(brief).toContain("Recent conversation (data):");
-  expect(brief).toContain("- bot: Option B: cache prices for 5 minutes.");
-  expect(brief).not.toContain("sk-ant-abcdefghijklmnop123456"); // redacted
-  expect(brief.length).toBeLessThan(1500);
+  expect(brief).toBe("làm cái đó đi");
 });

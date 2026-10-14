@@ -13,6 +13,7 @@ import { runRoute } from "../message-routing";
 import { closeTurn } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
 import { persistProposal } from "./proposal-flow";
+import { threadReference } from "./thread-reference";
 import { type DispatchRequest, validateRequest } from "./validate-request";
 
 /** Logger of this module (task fields come from the log context). */
@@ -106,6 +107,8 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
   }
   const { role, locationName: location } = v;
   const route = runRoute({ cls: request.cls, effort: i.effort, extraBudgetUsd: i.extraBudgetUsd });
+  // Data blocks of the run (earlier tasks, recent conversation): read before this task's own row exists.
+  const reference = threadReference(db, i.message.threadId, i.message.recent);
   const turnId = crypto.randomUUID();
   // From here every log line of the new task carries its own taskId (not the source row's).
   setLogContext({ taskId: turnId }); // log schema key kept
@@ -171,7 +174,9 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     pinned: i.pinned,
     // A foreground role continues the thread's conversation and sees its task ledger (same as a fresh message).
     existing: role.background ? undefined : getSession(db, i.message.threadId),
-    ledger: role.context?.ledger ? threadLedger(db, i.message.threadId) : "",
+    ledger: [...reference, role.context?.ledger ? threadLedger(db, i.message.threadId) : ""]
+      .filter(Boolean)
+      .join("\n\n"),
   }).catch((err: unknown) => {
     // The caller's crash path only knows the source row: close this one so its slot is released.
     failTurn(db, log, turnId);

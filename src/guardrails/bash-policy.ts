@@ -16,6 +16,13 @@ import type { Decision, GuardrailContext } from "./check-tool-call";
 import { isSecretPath } from "./deny-dangerous";
 import { ghDenial, RAW_GH_DENY } from "./gh-policy";
 import { isInside, realOrSame } from "./paths";
+import {
+  type Base,
+  baseTracker,
+  expandHome,
+  gitReachesProtected,
+  segmentTouchesProtected,
+} from "./protected-paths";
 
 const allow = (reason: string): Decision => ({ decision: "allow", reason });
 const deny = (reason: string): Decision => ({ decision: "deny", reason });
@@ -53,6 +60,9 @@ const NETWORK = new Set([
 const PROTECTED = new Set(["main", "master"]);
 /** Words the guard cannot resolve itself: variable, command substitution, home or brace expansion. */
 const EXPANSION = /[$`~{}]/;
+/** Word of a raw (unparsed) line: judged from the cwd, a non-bulk command. */
+const rawWordDenied = (w: string, ctx: GuardrailContext): boolean =>
+  segmentTouchesProtected([w], ctx, { dir: ctx.cwd, unknown: false });
 
 /** Strip `@` (curl -d @file) and `--opt=` prefixes, then test for a secret file name. */
 function isSecretArg(arg: string): boolean {
@@ -99,8 +109,9 @@ function checkRm(args: string[], ctx: GuardrailContext, viaXargs: boolean): Deci
   for (const t of args.filter((a) => a !== "--" && !a.startsWith("-"))) {
     // Home, `$VAR`, backticks, braces: the guard cannot prove the target is safe. A glob is judged by its stem
     // (`out/*` -> `out/`, `/*` -> `/`, a lone `*` -> the cwd).
-    const stem = t.replace(/[*?[].*$/, "") || ".";
-    const abs = EXPANSION.test(t) ? undefined : absolute(stem, ctx.cwd);
+    const x = expandHome(t);
+    const stem = x.replace(/[*?[].*$/, "") || ".";
+    const abs = EXPANSION.test(x) ? undefined : absolute(stem, ctx.cwd);
     if (!abs || !insideAny(abs, roots))
       return deny("recursive delete outside the work directories is blocked");
   }
@@ -108,7 +119,9 @@ function checkRm(args: string[], ctx: GuardrailContext, viaXargs: boolean): Deci
 }
 
 /** git: deny force push, push to main/master and a worktree outside the dir; every other git command (a push included) runs. */
-function checkGit(args: string[], ctx: GuardrailContext): Decision {
+function checkGit(args: string[], ctx: GuardrailContext, cwd: Base): Decision {
+  if (gitReachesProtected(args, ctx, cwd))
+    return deny("git on a dir above the agent home is blocked");
   let i = 0;
   let base = ctx.cwd; // `git -C <dir>` moves the base of relative paths
   // Skip global options (and the value of those that take one) to find the subcommand.
@@ -148,7 +161,7 @@ function checkGit(args: string[], ctx: GuardrailContext): Decision {
 }
 
 /** Judge one simple command. */
-function checkSegment(seg: Segment, ctx: GuardrailContext): Decision {
+function checkSegment(seg: Segment, ctx: GuardrailContext, base: Base): Decision {
   const words = [...seg.words];
   // Drop env assignments and wrapper commands (`FOO=1 env nice -n 5 cmd`), with the flag values of the wrapper.
   let viaXargs = false;
@@ -170,6 +183,8 @@ function checkSegment(seg: Segment, ctx: GuardrailContext): Decision {
   const cmd = basename(words[0]);
   const args = words.slice(1);
 
+  if (segmentTouchesProtected(words, ctx, base)) return deny("access to the agent home is blocked");
+
   if (["sudo", "su", "doas"].includes(cmd)) return deny("privilege escalation is blocked");
   if ((SHELLS.has(cmd) || INTERPRETER.test(cmd)) && seg.piped)
     return deny("piping into a shell or interpreter is blocked");
@@ -178,7 +193,7 @@ function checkSegment(seg: Segment, ctx: GuardrailContext): Decision {
   const gh = cmd === "gh" ? ghDenial(args) : undefined;
   if (gh) return deny(gh);
   if (cmd === "rm") return checkRm(args, ctx, viaXargs);
-  if (cmd === "git") return checkGit(args, ctx);
+  if (cmd === "git") return checkGit(args, ctx, base);
   return allow("no deny rule matched");
 }
 
@@ -196,8 +211,9 @@ const RAW_DENY: RegExp[] = [
 ];
 
 /** True when the raw text of an unparseable line hits a clear danger or names a secret file. */
-const rawDanger = (command: string): boolean =>
+const rawDanger = (command: string, ctx: GuardrailContext): boolean =>
   RAW_DENY.some((re) => re.test(command)) ||
+  command.split(/[\s'"`;&|()<>]+/).some((w) => w !== "" && rawWordDenied(w, ctx)) ||
   command.split(/[\s'"`;&|()<>=]+/).some((w) => w !== "" && isSecretPath(w));
 
 /**
@@ -210,13 +226,15 @@ export function checkBash(command: string, ctx: GuardrailContext): Decision {
   try {
     segments = parseCommand(command);
   } catch {
-    return rawDanger(command)
+    return rawDanger(command, ctx)
       ? deny("command could not be parsed and looks dangerous: rewrite it as simple commands")
       : allow("command not parsed, not checked");
   }
+  const bases = baseTracker(ctx.cwd);
   for (const seg of segments) {
-    const d = checkSegment(seg, ctx);
+    const d = checkSegment(seg, ctx, bases.at(seg.depth));
     if (d.decision === "deny") return d;
+    bases.after(seg);
   }
   return allow("no deny rule matched");
 }

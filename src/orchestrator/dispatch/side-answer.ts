@@ -10,7 +10,7 @@ import { runRoute } from "../message-routing";
 import { closeTurn } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
 import type { DispatchDeps } from "./dispatch-role";
-import { taskBrief } from "./queued-tasks";
+import { threadReference } from "./thread-reference";
 import { validateRequest } from "./validate-request";
 
 /* The side lane: an independent question for a FOREGROUND role (not background, no writes) sent while the thread's task runs
@@ -54,7 +54,9 @@ export interface SideInput {
 /** Answer a side question; returns the reply text. Throws only on a crash (the caller reports it). */
 export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<string> {
   const { db, config } = deps;
-  const brief = stripAttachmentPaths(taskBrief({ deps, message: i.message }, i.text));
+  const brief = stripAttachmentPaths(i.text);
+  // Data blocks (earlier tasks, recent conversation) go to the system context, never into the brief.
+  const reference = threadReference(db, i.message.threadId, i.message.recent);
   const v = await validateRequest(
     {
       db,
@@ -95,7 +97,11 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
       pinned: i.pinned,
       existing: undefined, // fresh: never resumes (nor overwrites) the thread's session
       // The status snapshot goes with the ledger: both are data blocks of the running task.
-      ledger: [i.snapshot, role.context?.ledger ? threadLedger(db, i.message.threadId) : ""]
+      ledger: [
+        i.snapshot,
+        ...reference,
+        role.context?.ledger ? threadLedger(db, i.message.threadId) : "",
+      ]
         .filter(Boolean)
         .join("\n\n"),
     },

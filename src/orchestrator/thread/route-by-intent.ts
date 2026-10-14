@@ -11,7 +11,6 @@ import {
   DECLINE_BUSY_REPLY,
   declineConfirmedTask,
   queueTask,
-  taskBrief,
 } from "../dispatch/queued-tasks";
 import { resumeAnswer } from "../dispatch/resume-failed-task";
 import type { ResumePlan } from "../message-routing";
@@ -181,7 +180,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       // No source turn: the dispatcher persists the proposal, validates, asks or starts the role.
       return reply(
         await dispatchRole(c.deps, {
-          request: { role: a.role, brief: taskBrief(c, c.text), location: c.location, cls: c.cls },
+          request: { role: a.role, brief: c.text, location: c.location, cls: c.cls },
           message: c.message,
           reply: "",
           workspace: c.workspace,

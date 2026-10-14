@@ -1,6 +1,6 @@
 # Friday Agent System Architecture
 
-Last updated: 2026-10-14 (schema v7 location model, phases 1a and 1b (spaces with N channels) and 1c (thread names, adoption, SetThreadTitle) in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 and of 1b/1c pending).
+Last updated: 2026-10-15 (phase 1g: $HOME location, AGENT_HOME guard, title note, brief = owner text; schema v7 location model, phases 1a and 1b (spaces with N channels) and 1c (thread names, adoption, SetThreadTitle) in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 and of 1b/1c pending).
 
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite).
@@ -31,7 +31,7 @@ Discord
         ├─ route by intent (thread state x role x scope → action, src/orchestrator/thread/intent-table.ts)
         └─ run the role (src/orchestrator/engine/run-role.ts → src/runtime/run-agent.ts)
            ├─ scope: cwd = pinned location / sole location (dev: first) / workspace `cwd/`; additional dirs = the other locations
-           ├─ system prompt: role sections + COMMON safety rules + context (persona, registry, memory, ledger)
+           ├─ system prompt: role sections + COMMON safety rules + context (persona, registry, memory, ledger, thread reference, title note)
            ├─ permission layer: PreToolUse guard (hard deny) + canUseTool (owner questions via AskUserQuestion)
            └─ SDK query loop → outcome → turn row closed → reply (redacted, chunked; long replies as attachments)
 ```
@@ -160,6 +160,12 @@ Offline metrics: `bun run metrics:routing` ([owner checklist v6](owner-checklist
 - Kept on purpose: log field `taskId`, log event names `task.*`, env `TASK_BUDGET_USD`, disk path `logs/tasks/`.
 - Log contract: `task.started.type` and `mode` carry the ROLE name. `turns.type` still stores `qa` / `code` (no schema change).
 
+### Task brief and thread reference (phase 1g)
+
+- A task brief (`turns.brief`, `proposals.brief`, owned-task scope, resume input) is the OWNER TEXT ONLY. The old "Earlier tasks" and "Recent conversation" blocks are no longer part of it. Rows written by older builds may still carry them; `briefText()` (`src/orchestrator/dispatch/queued-tasks.ts`) strips them for display.
+- The thread reference is DATA in the run's system context (`extraContext`), built at run start by `threadReference()` (`src/orchestrator/dispatch/thread-reference.ts`) from the ledger (earlier tasks) and `message.recent`. A queued task builds its recent block when it starts, from the starting message.
+- Recent-block filter: the app's own canned notices (steer, queue, start copy) are dropped as whole lines before the last-N cut; each bot line is clipped to 200 chars (`BOT_LINE_CHARS`).
+
 ## Role Model
 Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-types.ts`). The engine (`src/orchestrator/engine/`) reads only that data and never a role name (test-checked).
 
@@ -213,6 +219,7 @@ Code: `src/ingress/thread-placement.ts` (placeholder, open, adopt), `threads-por
 | Rename | only while the live thread name still equals `threads.placeholder`. Final name `MM-DD <title>` (date of the row's creation, ≤ 100 chars) |
 | Never renamed | adopted threads (no placeholder), a thread the owner renamed by hand, a thread that is not a thread |
 | Greeting | a greeting-only or empty turn (`hello`, `thanks`) = no call (prompt rule) |
+| Prompt line (phase 1g) | while the thread still has its placeholder and no title, and the run has a rename port: one system-context line asks for one early call (`threadTitleNote`, `src/orchestrator/engine/thread-title-note.ts`). No line once titled, for adopted threads, or in runs without a port |
 | Timeout | the rename waits at most 5 s (`RENAME_TIMEOUT_MS`), so a Discord rate limit never stalls the turn. A timed-out rename is `failed` (Discord may still apply it later) |
 | Failure | Discord, lookup or timeout error = `failed`; the title stays stored, the reply says "saved; rename failed". Non-fatal |
 | Log | `thread.titled {renamed, chars}`; `thread rename timed out` (warn). The text is never logged |
@@ -254,7 +261,7 @@ Code: `src/ingress/thread-placement.ts` (placeholder, open, adopt), `threads-por
 | Run turn tracking | `src/orchestrator/turns/` | turn rows, run limiter (30 concurrent), steer registry, session compaction, status snapshot, progress notes (in memory) |
 | Agent runner | `src/runtime/run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `run-stream.ts` | SDK `query()`, hooks, child env, stream outcome |
 | Permissions | `src/runtime/tool-permissions.ts`, `guard-hook.ts`, `permission-mode.ts`, `ask-limit.ts` | PreToolUse guard, canUseTool, owner questions, mode check |
-| Guardrails | `src/guardrails/` | `check-tool-call.ts` (entry), `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `subagent-limit.ts` |
+| Guardrails | `src/guardrails/` | `check-tool-call.ts` (entry), `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `protected-paths.ts` (AGENT_HOME rules beyond "inside"), `subagent-limit.ts` |
 | Skills | `src/runtime/skills-plugin/`, `src/config/skills-lock.ts` | publisher skills from the lock, workspace skills, per-run plugins |
 | Tool catalog | `src/tools/tool-catalog.ts`, `sdk-tool-names.ts`, `mcp-tool-names.ts` | capability → tool names, auto-allow list, secret-file rules |
 | Roles | `src/roles/` | role type, registry, `assistant-role.ts`, `dev-role.ts` (each role file holds its own prompt text) |
@@ -287,6 +294,7 @@ The guard is a DENY LIST. It runs in the PreToolUse hook of each run and returns
 - `gh` and `git` otherwise run (commit, branch, push of other branches, PRs, merges after the owner's choice).
 - Writes (`deny-dangerous.ts`): only inside the run's write paths (see below). Reads outside the read paths and secret files are denied.
 - Bash parsing is best effort. Variables, `sh -c`, scripts and unparseable lines are not fully checked (owner-accepted risk).
+- `rm -r ~/...` is expanded before the check (`~` and `$HOME`); `rm -r ~/proj/node_modules` is allowed for dev.
 
 ### Ask decisions
 - Bash never asks. Monitor with a shell command follows the Bash policy; a WebSocket Monitor asks.
@@ -301,6 +309,9 @@ The guard is a DENY LIST. It runs in the PreToolUse hook of each run and returns
 ### Write and read scopes (per run, `src/orchestrator/engine/role-scope.ts`)
 - Write-capable (dev): the run's cwd location, all workspace locations, the workspace worktrees dir, the task scratch dir, `~/.claude/plans`.
 - Read-only (assistant): cwd and additional dirs (registered locations, ingress attachment dir).
+- AGENT_HOME is a protected dir for EVERY run (read and write), even when a location contains it (a `$HOME` location). `denyPaths` = real AGENT_HOME; `allowInside` = the run's own granted dirs under it (task scratch, worktrees dir, workspace `cwd/`, attachments, skill plugin dirs, `<ws>/locations/`).
+- Checked by Read, Glob, Grep, Edit, Write, NotebookEdit and by Bash path words (`deny-dangerous.ts`, `protected-paths.ts`). Glob/Grep are denied when the search root contains AGENT_HOME. Bash: bulk or recursive commands on an ancestor of AGENT_HOME, glob words that match it, `~user`, relative words after a non-static `cd`; `git init/add`, `-C`, `--git-dir`, `--work-tree` above it; the git MCP repo path above it.
+- Best effort (accepted): `GIT_DIR` / `GIT_WORK_TREE` env, `git -c core.worktree`, `env -C`, shell variables, `$(...)`, scripts and `sh -c`, glob symlinks, macOS case aliases in globs. Moving AGENT_HOME outside `$HOME` or an SDK sandbox is deferred (owner, 2026-10-15).
 
 ### Child environment (`src/runtime/sdk-env.ts`, `src/config/data/child-env-deny.yaml`)
 - The SDK child gets the owner's environment (so `git`, `gh`, SSH and proxies work) MINUS the bot's own variables.
@@ -450,7 +461,7 @@ $AGENT_HOME/                       (real directory outside every location and gi
 ```
 - Location rules: [Location Model](#location-model).
 - Env `GIT_AUTHOR` is accepted and IGNORED: the agent uses the owner's git config and gh login.
-- Registries fail closed: invalid names, missing or non-directory location paths, paths that are or contain `$HOME` / AGENT_HOME, paths inside AGENT_HOME (except that workspace's own `locations/`), and duplicate names are skipped with a warn. A channel listed by two workspaces is dropped from both. A duplicate channel `name` inside one space keeps the first entry (channel checks: `src/workspaces/channel-checks.ts`).
+- Registries fail closed: invalid names, missing or non-directory location paths, paths that are strict ancestors of `$HOME` or contain AGENT_HOME (a path EQUAL to `$HOME` is allowed, phase 1g), paths inside AGENT_HOME (except that workspace's own `locations/`), and duplicate names are skipped with a warn. A channel listed by two workspaces is dropped from both. A duplicate channel `name` inside one space keeps the first entry (channel checks: `src/workspaces/channel-checks.ts`).
 
 ## Space, Channel and Location
 Discord-facing words: **space** (a private category), **channel** (a channel of the space), **thread**. Code word for a space: `workspace`.
@@ -471,7 +482,7 @@ A **location** is a directory the owner registers in a workspace. It replaces th
 | Field | Source | Rule |
 |---|---|---|
 | `name` | `locations[].name` | `LOCATION_NAME`: letters, digits, `_ . -`; 1-64 chars; unique in the workspace; the `location:` pin and the memory dir name |
-| `path` | `locations[].path` | a directory; absolute, or relative to the workspace dir. Missing or not a directory, a path that is or contains `$HOME` / AGENT_HOME, or a path inside AGENT_HOME outside `workspaces/<ws>/locations/`: skipped with a warn |
+| `path` | `locations[].path` | a directory; absolute, or relative to the workspace dir. Missing or not a directory, a strict ancestor of `$HOME` (`/`, `/Users`), a path that contains AGENT_HOME, or a path inside AGENT_HOME outside `workspaces/<ws>/locations/`: skipped with a warn. A path EQUAL to `$HOME` is allowed (phase 1g); AGENT_HOME inside it is protected by the guard |
 | `description` | `locations[].description` | one line the agent uses to pick a location |
 | `git` | computed | `.git` present at `path`; never configured. A dev run delivers through git only in a git location |
 
@@ -502,7 +513,7 @@ A **location** is a directory the owner registers in a workspace. It replaces th
 4. **Child env deny list:** the bot's own secrets never reach the agent process (`child-env-deny.yaml`).
 5. **Redaction:** replies, logs, attachments and stored text pass `redact.ts` (API keys, tokens, `KEY=value`, auth headers, cookies).
 6. **Provider isolation:** Anthropic mode passes only the OAuth token; OpenRouter mode passes only its base URL, key and aliases.
-7. **Home placement:** startup refuses an `AGENT_HOME` inside a registered location or git working tree.
+7. **Home placement:** startup refuses an `AGENT_HOME` inside a registered location (a location equal to `$HOME` is not refused) or inside a git working tree.
 8. **Known limits (accepted by the owner):** the bypass-mode dev run can run network and package commands; Bash parsing is best effort; the owner's git and gh credentials are visible to the agent.
 
 ## Output Handling & Quota

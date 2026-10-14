@@ -5,10 +5,11 @@
  * Paths are resolved with realpath of the nearest existing ancestor, so `..` segments
  * and symlinks cannot escape. Bash parsing is best effort (see bash-policy.ts).
  */
-import { basename, isAbsolute } from "node:path";
-import { NOTEBOOK_EDIT_TOOL_NAME } from "../tools/sdk-tool-names";
-import type { Decision } from "./check-tool-call";
-import { isInside, resolveReal } from "./paths";
+import { basename, isAbsolute, resolve } from "node:path";
+import { GLOB_TOOL_NAME, GREP_TOOL_NAME, NOTEBOOK_EDIT_TOOL_NAME } from "../tools/sdk-tool-names";
+import type { Decision, GuardrailContext } from "./check-tool-call";
+import { isDeniedPath, isInside, resolveReal } from "./paths";
+import { COVERS_PROTECTED_REASON, searchRootDenied } from "./protected-paths";
 
 /** Basename patterns of files that may hold secrets (.env*, keys, credentials). */
 const SECRET_PATTERNS = [
@@ -31,11 +32,33 @@ export function isSecretPath(p: string): boolean {
   return SECRET_PATTERNS.some((re) => re.test(name));
 }
 
-/** Write/Edit/MultiEdit/NotebookEdit: allow only inside `allowedPaths`, else deny. */
+/** Reason of a path under `ctx.denyPaths` (AGENT_HOME): never echoes the path. */
+export const DENIED_PATH_REASON = "access to the agent home is blocked";
+
+/**
+ * True when the real path of `value` (relative ones against `ctx.cwd`) is inside `ctx.denyPaths` and outside
+ * `ctx.allowInside`. An unresolvable path is not denied here (the tool fails on it; write/read checks still apply).
+ */
+export function touchesDeniedPath(
+  value: string,
+  ctx?: Pick<GuardrailContext, "denyPaths" | "allowInside" | "cwd">,
+): boolean {
+  if (!ctx?.denyPaths?.length) return false;
+  const abs = isAbsolute(value) ? value : ctx.cwd ? resolve(ctx.cwd, value) : undefined;
+  if (!abs) return false;
+  try {
+    return isDeniedPath(resolveReal(abs), ctx.denyPaths, ctx.allowInside);
+  } catch {
+    return false;
+  }
+}
+
+/** Write/Edit/MultiEdit/NotebookEdit: allow only inside `allowedPaths` (and outside the denied dirs), else deny. */
 export function checkFileWrite(
   toolName: string,
   input: Record<string, unknown>,
   allowedPaths: string[],
+  ctx?: GuardrailContext,
 ): Decision {
   const key = toolName === NOTEBOOK_EDIT_TOOL_NAME ? "notebook_path" : "file_path";
   const value = input[key];
@@ -51,6 +74,8 @@ export function checkFileWrite(
   } catch {
     return { decision: "deny", reason: `${toolName}: path cannot be resolved safely` };
   }
+  if (isDeniedPath(target, ctx?.denyPaths ?? [], ctx?.allowInside))
+    return { decision: "deny", reason: DENIED_PATH_REASON };
   for (const root of allowedPaths) {
     try {
       if (isInside(resolveReal(root), target)) {
@@ -87,7 +112,14 @@ export function checkFileRead(
   toolName: string,
   input: Record<string, unknown>,
   readPaths?: string[],
+  ctx?: GuardrailContext,
 ): Decision {
+  // Glob/Grep walk a whole tree: a root that contains a protected dir is denied whatever the pattern.
+  if (
+    (toolName === GLOB_TOOL_NAME || toolName === GREP_TOOL_NAME) &&
+    searchRootDenied(input.path, ctx ?? {})
+  )
+    return { decision: "deny", reason: COVERS_PROTECTED_REASON };
   for (const key of READ_KEYS[toolName] ?? []) {
     const value = input[key];
     if (typeof value !== "string" || value === "") continue;
@@ -100,6 +132,8 @@ export function checkFileRead(
       }
     }
     if (secret) return { decision: "deny", reason: "access to secret files is blocked" };
+    if (key !== "pattern" && key !== "glob" && touchesDeniedPath(value, ctx))
+      return { decision: "deny", reason: DENIED_PATH_REASON };
     if (readPaths && !withinReadPaths(key, value, readPaths)) {
       return { decision: "deny", reason: "read outside the allowed directories is blocked" };
     }

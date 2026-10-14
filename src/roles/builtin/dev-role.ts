@@ -50,7 +50,6 @@ export const COMMIT_RULES = `- Commit messages: one short conventional line (fea
  * own conventions and the owner's instructions come first.
  */
 export const CODE_STANDARDS = `Code standards (the location's conventions and the owner's instructions come first):
-- Before you start coding, invoke the \`using-superpowers\` skill (when it is listed) and follow it to pick the other skills.
 - Think before coding: state your assumptions in the plan. If a simpler approach exists, say so and push back. Settle unclear points by the ask rules below, never by a silent guess.
 - Simplicity first: the minimum code that solves the request. No extra features, no abstraction for single-use code, no configurability or error handling nobody asked for. If 200 lines could be 50, rewrite.
 - Surgical changes: touch only what the request needs; match the surrounding style; do not refactor, reformat or reword adjacent code. Mention unrelated dead code, do not delete it. Remove only the imports and variables your own change made unused. Every changed line traces to the request.

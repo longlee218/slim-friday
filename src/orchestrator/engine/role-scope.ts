@@ -10,6 +10,17 @@ import type { RoleRunInput } from "./role-run-types";
 
 /* Where a role run works and what it may touch, from role DATA (capabilities, background) and the run input. */
 
+/** Dirs of the run under AGENT_HOME that stay usable although AGENT_HOME is denied (guard `allowInside`). */
+function grantedUnderHome(
+  dirs: ReturnType<ReturnType<typeof workspacePaths>["workspace"]>,
+  attached: string,
+  scratch?: string,
+): string[] {
+  return [dirs.cwd, dirs.worktrees, dirs.locations, attached, ...(scratch ? [scratch] : [])].map(
+    realOrSame,
+  );
+}
+
 /** What `roleScope` decides for one run. */
 export interface RoleScope {
   /** Working dir of the run (real path for a writing role). */
@@ -77,8 +88,11 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
       scope,
       sessionId,
       guard: {
+        cwd: realOrSame(cwd),
         readPaths: [cwd, ...additionalDirectories].map(realOrSame),
         gitReadPaths: scope.map((r) => realOrSame(r.path)),
+        denyPaths: [realOrSame(config.agentHome)],
+        allowInside: grantedUnderHome(dirs, attached),
       },
     };
   }
@@ -109,6 +123,12 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
         ]),
       ],
       worktreeDirs: [real.worktrees],
+      denyPaths: [realOrSame(config.agentHome)],
+      allowInside: grantedUnderHome(
+        dirs,
+        workspacePaths(config.agentHome).attachments(i.threadId),
+        real.scratch,
+      ),
     },
   };
 }

@@ -49,3 +49,16 @@ export function isInside(root: string, target: string): boolean {
   const rel = relative(root, target);
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
+
+/**
+ * True when the real path `target` lies inside one of `denyPaths` (real roots, e.g. AGENT_HOME) and NOT inside one of
+ * `allowInside` (the run's own granted dirs under a denied root). `allowInside` wins only for paths it covers.
+ */
+export function isDeniedPath(
+  target: string,
+  denyPaths: string[],
+  allowInside: string[] = [],
+): boolean {
+  if (!denyPaths.some((d) => isInside(d, target))) return false;
+  return !allowInside.some((a) => isInside(a, target));
+}

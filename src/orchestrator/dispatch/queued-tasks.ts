@@ -1,10 +1,9 @@
 import type { Effort, TaskClass } from "../../config/model-routing";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { renderUserNotice } from "../../ingress/user-copy";
-import { RECENT_HEADING, recentBlock } from "../../intent/recent-messages";
+import { RECENT_HEADING } from "../../intent/recent-messages";
 import type { Location } from "../../locations/location-registry";
 import { excerpt, logEvent, logger } from "../../observability/logger";
-import { ledgerLines } from "../../storage/ledger-store";
 import {
   countQueuedProposals,
   oldestQueuedProposal,
@@ -43,22 +42,15 @@ export interface QueueCtx {
   pinned?: Location;
 }
 
-/** Heading of the thread reference appended to a brief. */
-const EARLIER_HEADING = "\n\nEarlier tasks in this thread:\n";
+/** Heading older builds appended to a brief (rows written before phase 1g still carry it). */
+const LEGACY_EARLIER_HEADING = "\n\nEarlier tasks in this thread:\n";
 
 /**
- * Brief of a new task: the owner message, a thread reference (the last tasks, one line each) and the recent
- * conversation (<= 1200 chars, data) so a reference like "do that" makes sense to the role.
+ * The owner message of a brief. A brief is the owner text only; rows of older builds also carry the thread
+ * reference and the recent conversation after it, which this strips.
  */
-export function taskBrief(c: Pick<QueueCtx, "deps" | "message">, text: string): string {
-  const lines = ledgerLines(c.deps.db, c.message.threadId, 3);
-  const earlier = lines.length ? `${EARLIER_HEADING}${lines.map((l) => `- ${l}`).join("\n")}` : "";
-  return `${text}${earlier}${recentBlock(c.message.recent)}`;
-}
-
-/** The owner message of a brief (without the thread reference and the recent conversation). */
 export const briefText = (brief: string): string =>
-  brief.split(EARLIER_HEADING)[0]?.split(RECENT_HEADING)[0] ?? brief;
+  brief.split(LEGACY_EARLIER_HEADING)[0]?.split(RECENT_HEADING)[0] ?? brief;
 
 /** `reason` of a proposal that only asks "open a task for this?" (a discussion turn that looked like a task). */
 export const CONFIRM_TASK_REASON = "confirm_task";
@@ -104,7 +96,7 @@ export function queueTask(
   const id = persistProposal(db, log, {
     request: {
       role: r.role,
-      brief: taskBrief(c, r.text),
+      brief: r.text,
       location: r.location,
       cls: r.cls,
       effort: r.effort,

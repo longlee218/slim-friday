@@ -105,9 +105,15 @@ export function buildSdkOptions(
   const effort = input.route && safeEffort(input.route);
   // Every run goes through the permission layer when it has a guard (a run without a gateway: ask = deny).
   // This run's plugin dirs (and only them) become READABLE so skills can open their bundled files.
+  // Skill plugin dirs may sit under the denied AGENT_HOME: the run's own ones stay usable (`allowInside`), even
+  // for a role without a readPaths limit.
   const guard =
-    input.guard?.readPaths && sk.dirs.length
-      ? { ...input.guard, readPaths: [...input.guard.readPaths, ...sk.dirs] }
+    input.guard && sk.dirs.length
+      ? {
+          ...input.guard,
+          ...(input.guard.readPaths && { readPaths: [...input.guard.readPaths, ...sk.dirs] }),
+          allowInside: [...(input.guard.allowInside ?? []), ...sk.dirs],
+        }
       : input.guard;
   const permissionMode = resolvePermissionMode(role, config);
   const perms = guard

@@ -59,6 +59,10 @@ export interface GuardrailContext {
   worktreeDirs?: string[];
   /** Real paths of registered locations: git MCP tools (the assistant's read tools) may READ these. */
   gitReadPaths?: string[];
+  /** Real dirs no tool may touch, read or write (AGENT_HOME), even inside a registered location. Omitted = none. */
+  denyPaths?: string[];
+  /** Real dirs under `denyPaths` that stay usable: the run's own scratch, worktrees, `cwd/`, attachments, skill dirs. */
+  allowInside?: string[];
   /** False = the role has no shell capability: Bash and Monitor are denied. Omitted (no role known) = allowed. */
   shell?: boolean;
   /** Orchestration tools of the current mode that need no approval (Skill, TodoWrite, WebFetch...). */
@@ -94,8 +98,8 @@ export function checkToolCall(
   input: Record<string, unknown>,
   ctx: GuardrailContext,
 ): Decision {
-  if (WRITE_TOOLS.has(toolName)) return checkFileWrite(toolName, input, ctx.writePaths ?? []);
-  if (READ_TOOLS.has(toolName)) return checkFileRead(toolName, input, ctx.readPaths);
+  if (WRITE_TOOLS.has(toolName)) return checkFileWrite(toolName, input, ctx.writePaths ?? [], ctx);
+  if (READ_TOOLS.has(toolName)) return checkFileRead(toolName, input, ctx.readPaths, ctx);
   // EnterWorktree: only an existing worktree under the worktrees dir (`name` would create one in the location's .claude dir).
   if (toolName === ENTER_WORKTREE_TOOL_NAME)
     return checkWorktreePath(typeof input.path === "string" ? input.path : undefined, ctx.cwd, ctx);

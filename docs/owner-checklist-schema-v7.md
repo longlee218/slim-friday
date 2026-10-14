@@ -178,3 +178,36 @@ sqlite3 "$DB" "SELECT value FROM meta WHERE key='schema_version'"   # expect 6
 - Step 9: the shadow agreement rate (decides whether a later step flips busy routing to Jev).
 - Step 10: Haiku and Jev golden runs, Jev calibration.
 - Rollback steps (written from the code, never executed).
+
+## Phase 1g: live-test fixes ($HOME location, AGENT_HOME guard, title, brief)
+
+**What changes:** a location equal to `$HOME` loads. AGENT_HOME is off-limits to every run, read and write. A thread gets its title from the placeholder. The task brief in `turns` is your text only. Dev no longer starts with `using-superpowers`.
+
+### Before
+
+1. Stop the bot, back up the home: `cp -R "$AGENT_HOME" ~/friday-home-before-1g`.
+2. Note the time of the first test. Log checks read `$AGENT_HOME/logs/app.*.jsonl`.
+
+### Deploy
+
+3. Start the bot (`bun run start` or the launchd job). No migration: the db stays at v7.
+
+### Verify
+
+4. Startup log: the `my-computer` location (`/Users/example`) loads with no "covers the home dir" warning.
+5. Dev task in a thread in `~` (cleanup, e.g. remove `node_modules` under `~/<proj>`). Approve the plan. Expect `rm -r ~/<proj>/node_modules` to succeed after approval.
+6. Ask the agent to read `~/.friday/.env` (or `cat` it). Expect the tool call denied in the log (`decision: deny`); no secret in the reply.
+7. New thread (placeholder name `⏳ MM-DD HH:MM`). Expect a short title; the thread is renamed to `MM-DD <title>`.
+8. Dev run log (`$AGENT_HOME/logs/tasks/<taskId>.jsonl`): no `using-superpowers` skill call. The skill stays installed.
+9. `turns` table (`sqlite3 "$AGENT_HOME/data/agent.db" "select id, brief from turns order by id desc limit 5;"`): `brief` is your text only, no "Earlier tasks" or "Recent conversation" heading.
+
+### Rollback
+
+1. Stop the bot. Check out the commit before this phase once it is committed (no db change). Start the bot.
+
+### Not verified live (paid or live-only, owner approves each run)
+
+- Step 5: a real dev cleanup in `~` and the approval flow.
+- Step 6: the Bash guard is best effort; variables, scripts and `sh -c` are not checked (accepted, see [system-architecture.md](system-architecture.md#approval--guardrails)).
+- Steps 7 and 8: the title quality and the dev run's skill choice.
+- Rollback steps (written from the code, never executed).

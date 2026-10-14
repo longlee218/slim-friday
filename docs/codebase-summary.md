@@ -1,6 +1,6 @@
 # Codebase Summary
 
-Last updated: 2026-10-14 (schema v7 location model, phase 1a; spaces with N channels, phase 1b; threads, phase 1c; reliable handoff phases 1-10; Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
+Last updated: 2026-10-15 (phase 1g: `protected-paths.ts`, `thread-reference.ts`, `thread-title-note.ts`; schema v7 location model, phase 1a; spaces with N channels, phase 1b; threads, phase 1c; reliable handoff phases 1-10; Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
 
 ## Overview
 - **Friday**: Discord-driven personal agent on the Claude Agent SDK. Owner posts in a thread → the intent layer picks a role → the role runs as ONE agent run.
@@ -20,8 +20,8 @@ Last updated: 2026-10-14 (schema v7 location model, phase 1a; spaces with N chan
 | `intent/jev/` | Jev (TypeSafe System One) proposer: questions, state, decision bands, client | `jev-proposer.ts`, `jev-client.ts`, `jev-questions.ts`, `jev-state.ts`, `jev-bands.ts`, `jev-constants.ts` |
 | `orchestrator/` | handle a message: commands, intent turn, busy lane, routing | `handle-message.ts`, `intent-turn.ts`, `message-commands.ts`, `message-routing.ts`, `route-and-run.ts`, `run-turn.ts`, `busy-lane.ts` |
 | `orchestrator/thread/` | thread state, action table, effort floor, steer reply | `thread-state.ts`, `intent-table.ts`, `route-by-intent.ts`, `max-effort-gate.ts`, `effort-floor.ts`, `steer-reply.ts`, `unclear-steer.ts` (steer + side answer), `steer-notice-sentinel.ts` (60 s dedupe marker) |
-| `orchestrator/dispatch/` | proposals, validation, queue, `/go` resume, side lane | `dispatch-role.ts`, `validate-request.ts`, `queued-tasks.ts`, `resume-failed-task.ts`, `side-answer.ts`, `task-location.ts` |
-| `orchestrator/engine/` | the role engine: one run per role | `run-role.ts`, `role-scope.ts`, `budget.ts`, `ask-timeout-control.ts`, `owner-confirm.ts`, `run-report.ts`, `validate-role.ts`, `location-activity.ts` |
+| `orchestrator/dispatch/` | proposals, validation, queue, `/go` resume, side lane | `dispatch-role.ts`, `validate-request.ts`, `queued-tasks.ts`, `resume-failed-task.ts`, `side-answer.ts`, `task-location.ts`, `thread-reference.ts` (task brief data block: earlier tasks, recent conversation) |
+| `orchestrator/engine/` | the role engine: one run per role | `run-role.ts`, `role-scope.ts`, `budget.ts`, `ask-timeout-control.ts`, `owner-confirm.ts`, `run-report.ts`, `validate-role.ts`, `location-activity.ts`, `thread-title-note.ts` (SetThreadTitle prompt line while placeholder) |
 | `orchestrator/outputs/` | answer reply, `ESCALATE` re-run, outcome validation and no-delivery note | `answer-output.ts`, `outcome-validator.ts`, `delivery-evidence.ts` |
 | `routing/` | routing policy (tag -> Jev -> Haiku -> history), contracts, preflight, recovery, capability registry | `routing-policy.ts`, `jev-busy-shadow.ts` (Jev shadow on the busy path, log only), `routing-contracts.ts`, `route-proposer.ts`, `route-with-recovery.ts`, `recovery-controller.ts`, `preflight/deterministic-preflight.ts` |
 | `tasks/` | owned tasks: resolver (focus, owner change) and state machine | `task-resolver.ts`, `task-state-machine.ts` |
@@ -29,7 +29,7 @@ Last updated: 2026-10-14 (schema v7 location model, phase 1a; spaces with N chan
 | `roles/` | role type, registry, built-in roles and their prompts | `role-types.ts`, `role-registry.ts`, `builtin/assistant-role.ts`, `builtin/dev-role.ts` |
 | `runtime/` | SDK run: query loop, hooks, permissions, env, streaming, skills plugins | `run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `system-prompt.ts`, `tool-permissions.ts`, `guard-hook.ts`, `permission-mode.ts`, `permission-watch.ts`, `ask-limit.ts`, `run-stream.ts`, `steered-stream.ts`, `run-input-channel.ts`, `run-errors.ts`, `skills-config.ts` |
 | `runtime/skills-plugin/` | per-run skill plugins from the lock and the workspace dir | `publisher-skills.ts`, `role-skills.ts`, `run-skills.ts`, `plugin-builder.ts`, `plugin-copy.ts`, `plugin-sweep.ts` |
-| `guardrails/` | deny-list guard: allow / ask / deny per tool call | `check-tool-call.ts`, `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `subagent-limit.ts` |
+| `guardrails/` | deny-list guard: allow / ask / deny per tool call | `check-tool-call.ts`, `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `protected-paths.ts` (AGENT_HOME: search roots, recursive commands, globs, git above it), `subagent-limit.ts` |
 | `approvals/` | owner questions and buttons over Discord | `discord-approval.ts`, `approval-buttons.ts`, `approval-types.ts` |
 | `tools/` | tool names and catalog; custom in-process tools (one folder each) | `sdk-tool-names.ts`, `tool-catalog.ts`, `git-tool-groups.ts`, `memory-tool-context.ts`, `RememberTool/`, `MemorySearchTool/`, `MemoryGetTool/`, `MemoryExpandTool/`, `SetThreadTitleTool/` |
 | `mcp/` | the read-only git MCP client for the assistant | `git-mcp.ts`, `mcp-servers.ts`, `mcp-tool-names.ts` |
@@ -62,6 +62,7 @@ Discord message (owner, in a workspace channel or its thread)
 
 ## Guardrails and Permissions
 - **`check-tool-call.ts`**: one entry point. Routes by tool name to file checks (`deny-dangerous.ts`), Bash (`bash-policy.ts`), git MCP (`git-mcp-guard.ts`), or the auto-allow list. Bash never asks.
+- **`protected-paths.ts`**: AGENT_HOME (`denyPaths`, granted dirs as `allowInside`) for every run, also when a location is `$HOME`. Best effort for Bash.
 - **`bash-policy.ts`**: denies privilege escalation, secret files as arguments, `rm -r` outside work dirs, force push / push to main or master / push --mirror, pipes into shells, worktrees outside the workspace dir. Parsing is best effort; a line that cannot be tokenized gets a raw-text check.
 - **`gh-policy.ts`**: denies `gh repo delete`, `gh api` DELETE, printing the gh token. Other `gh` runs.
 - **`subagent-limit.ts`**: at most 50 subagents in flight per run.

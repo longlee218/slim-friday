@@ -22,6 +22,7 @@ import { ownerConfirm } from "./owner-confirm";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 import { roleScope } from "./role-scope";
 import { closeBackgroundRun } from "./run-report";
+import { threadTitleNote } from "./thread-title-note";
 import { validateRole } from "./validate-role";
 
 export type { RoleRunInput, RoleRunnerDeps };
@@ -141,6 +142,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         ...seed,
       }).concat(
         route?.internalHint ? [`Internal note (not from the owner):\n${route.internalHint}`] : [],
+        threadTitleNote(db, i.threadId, !!deps.threadTitle),
       ),
       resume: resumeId,
       route,

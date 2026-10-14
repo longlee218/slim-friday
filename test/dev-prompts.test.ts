@@ -53,7 +53,7 @@ test("dev: one contract, approval before changes by ask, design request invokes 
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).toContain("add only the files of the task to a commit");
   expect(text).toContain("Surgical changes");
-  expect(text).toContain("invoke the `using-superpowers` skill");
+  expect(text).not.toContain("using-superpowers");
   expect(text).not.toMatch(/subagent-run-facts|implementer|task-reviewer|brainstorming/);
   expect(text).not.toContain("git MCP");
   expect(text).not.toContain("plan.md"); // no plan file, no handoff

@@ -90,7 +90,8 @@ function warnOverlap(workspaces: Workspace[]): void {
 /**
  * Scan `AGENT_HOME/workspaces/*`. A dir counts as a workspace when it is a real dir (not a symlink) with a
  * valid name and a valid `workspace.yaml`; anything else is warned about and skipped (fail closed).
- * Locations must be real directories that do not cover `userHome` (the owner's $HOME) or AGENT_HOME.
+ * Locations must be real directories that do not strictly cover `userHome` (the owner's $HOME) or AGENT_HOME;
+ * a location equal to `userHome` is allowed (the guard keeps AGENT_HOME off-limits).
  */
 export function loadWorkspaces(agentHome: string, userHome = homedir()): WorkspaceScan {
   const log = logger.child({ module: "workspace-registry" });
@@ -103,7 +104,8 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
     return out; // no workspaces dir yet
   }
   // $HOME env can differ from os.homedir() / userHome: forbid both.
-  const forbidden = [userHome, agentHome, ...(process.env.HOME ? [process.env.HOME] : [])];
+  const userHomes = [userHome, ...(process.env.HOME ? [process.env.HOME] : [])];
+  const forbidden = [...userHomes, agentHome];
   for (const name of names) {
     const ws = paths.workspace(name);
     if (!isRealDir(ws.root)) continue;
@@ -125,7 +127,7 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
       }
       const { description = "", channels, locations } = parsed.data;
       if (hasLegacyRepos(ws.root)) out.needsMigration.push(name);
-      const locs = loadLocations(locations, ws, forbidden);
+      const locs = loadLocations(locations, ws, forbidden, userHomes);
       const channelDefs = checkChannels(
         name,
         channels,

@@ -2,6 +2,7 @@
 import { GIT_GROUPS, GIT_READ_BY_MODE } from "../tools/tool-catalog";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { resolveReal } from "./paths";
+import { containsDenied } from "./protected-paths";
 
 /** Read tools of the git server; every other tool of it is denied. */
 const GIT_READ = new Set<string>(GIT_GROUPS.read);
@@ -20,6 +21,9 @@ export function checkGitMcp(
   }
   if (!real || !ctx.gitReadPaths?.includes(real))
     return { decision: "deny", reason: "git tools need an explicit path of a registered location" };
+  // A repo above the agent home (a $HOME location) would expose it through log / diff / show.
+  if (containsDenied(real, ctx))
+    return { decision: "deny", reason: "this repo path would cover a protected dir" };
   const mode = typeof input.mode === "string" ? input.mode : undefined;
   const readModes = GIT_READ_BY_MODE[name];
   return GIT_READ.has(name) || (readModes && (mode === undefined || readModes.includes(mode)))
