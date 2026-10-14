@@ -162,3 +162,74 @@ test("recoverOnce never follows a success, an abort, a quota stop or an unknown 
     kind: "none",
   });
 });
+
+/* Task 4: outcome and audit. The audit (`run.control`) keeps the technical reason; Discord text stays plain. */
+import { captureLogs } from "../src/observability/logger";
+import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+
+const HINT_WORDS = /Internal note|recovery|supervisor|turn_limit|repeated_issue|run\.control/i;
+
+/** Assistant handler whose queries answer from `script` (one entry per query); records every prompt. */
+function assistantRun(script: Record<string, unknown>[]) {
+  const env = makeEnv();
+  let n = 0;
+  const prompts: string[] = [];
+  const query = (a: any) => {
+    prompts.push(String(a.prompt));
+    const r = script[Math.min(n++, script.length - 1)]!;
+    return (async function* () {
+      yield resultMsg(r);
+    })();
+  };
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: query as never });
+  const ask = () =>
+    handle({
+      source: "t",
+      channelId: TEST_CHANNEL,
+      userId: "u",
+      threadId: "th-ctl",
+      text: "where is the TTL?",
+    });
+  return { ask, prompts, runs: () => n };
+}
+const MAX_TURNS_RESULT = {
+  subtype: "error_max_turns",
+  is_error: true,
+  result: undefined,
+  errors: [],
+};
+
+test("audit: a successful recovery logs run.control recover (reason turn_limit); the reply is the answer, with no internal text", async () => {
+  const cap = captureLogs();
+  const r = assistantRun([MAX_TURNS_RESULT, { result: "it is 60s, src/cache.ts:42" }]);
+  const reply = await r.ask();
+  cap.stop();
+  expect(r.runs()).toBe(2);
+  expect(reply).toContain("60s");
+  expect(reply).not.toMatch(HINT_WORDS);
+  const ctl = cap.lines.filter((l) => l.event === "run.control");
+  expect(ctl).toContainEqual(expect.objectContaining({ action: "recover", reason: "turn_limit" }));
+  for (const l of ctl) expect(JSON.stringify(l)).not.toMatch(/Internal note|where is the TTL/);
+});
+
+test("audit: an exhausted recovery logs the technical reason; Discord text says plainly what did not finish", async () => {
+  const cap = captureLogs();
+  const r = assistantRun([MAX_TURNS_RESULT, MAX_TURNS_RESULT, MAX_TURNS_RESULT]);
+  const reply = await r.ask();
+  cap.stop();
+  expect(r.runs()).toBe(2); // ONE automatic recovery, never more
+  expect(reply).toMatch(/did not finish|chưa hoàn tất/i);
+  expect(reply).not.toMatch(HINT_WORDS);
+  const ctl = cap.lines.filter((l) => l.event === "run.control");
+  expect(ctl.map((l) => l.action)).toEqual(["recover", "report_incomplete"]);
+  expect(ctl.at(-1)).toMatchObject({ reason: "recovery_exhausted" });
+});
+
+test("audit: a success logs nothing (no control action, no noise)", async () => {
+  const cap = captureLogs();
+  const r = assistantRun([{ result: "fine" }]);
+  await r.ask();
+  cap.stop();
+  expect(cap.lines.some((l) => l.event === "run.control")).toBe(false);
+});

@@ -171,3 +171,24 @@ test("a second dev message in the thread is a new task with its own run", async 
   expect(tasks).toHaveLength(2);
   expect(runsOf(env, tasks[1].id)).toHaveLength(1);
 });
+
+test("partial background result: a dev run that hits its turn limit is NOT re-run automatically (it may have written); audit says why, the reply stays plain", async () => {
+  const { captureLogs } = await import("../src/observability/logger");
+  const env = await setup();
+  const cap = captureLogs();
+  const reply = await handler(env, {
+    subtype: "error_max_turns",
+    is_error: true,
+    result: undefined,
+    errors: [],
+    session_id: "sess-dev",
+  })(msg("[dev] please add b.txt"));
+  cap.stop();
+  expect(codeTask(env)).toHaveLength(1);
+  expect(runsOf(env, codeTask(env)[0].id)).toHaveLength(1); // no second run
+  const ctl = cap.lines.filter((l) => l.event === "run.control");
+  expect(ctl).toContainEqual(
+    expect.objectContaining({ action: "recover_suppressed", reason: "uncertain_partial_write" }),
+  );
+  expect(reply).not.toMatch(/Internal note|uncertain_partial_write|recover/i);
+});

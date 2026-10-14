@@ -6,7 +6,7 @@ import { renderUserNotice } from "../../ingress/user-copy";
 import { buildLocationsContext } from "../../locations/location-registry";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { buildPromptContext } from "../../memory/prompt-context";
-import { setLogContext } from "../../observability/logger";
+import { logEvent, logger, setLogContext } from "../../observability/logger";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
@@ -24,6 +24,9 @@ import { closeBackgroundRun } from "./run-report";
 import { validateRole } from "./validate-role";
 
 export type { RoleRunInput, RoleRunnerDeps };
+
+/** Logger of this module (task fields come from the log context). */
+const log = logger.child({ module: "run-role" });
 
 /**
  * Run a role: ONE agent run, whatever the role. The engine reads only role DATA (capabilities, `background`, `streaming`,
@@ -59,6 +62,29 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   // ONE supervisor per owner message: it counts turns, trusted tool issues and guard denials, follows the owner steers
   // of THIS run (SDK-confirmed states only) and an owner stop. It only decides; the retry itself is answerOutput's.
   const supervisor = createRunSupervisor({ maxTurns: MAX_TURNS, alreadyRecovered: false });
+  /** Audit line of a supervisor action: the technical reason, state words and numbers only (no owner text, no hint). */
+  const audit = (action: string, reason: string) => {
+    const s = supervisor.snapshot();
+    logEvent(log, "run.control", {
+      action,
+      reason,
+      turnId: i.turnId,
+      turns: s.turns,
+      issues: Object.values(s.issues).reduce((a, b) => a + (b ?? 0), 0),
+      guardDenied: s.guardDenied,
+      ...(s.steer && { steer: s.steer }),
+    });
+  };
+  /** The last result the supervisor saw (a retry produces a second one). */
+  let observed: unknown;
+  const observeResult = (result: { outcome: string; sessionId?: string }) => {
+    observed = result;
+    return supervisor.observe({
+      kind: "run_result",
+      outcome: result.outcome,
+      resumable: !!result.sessionId,
+    });
+  };
   const unwatchSteer = deps.steer?.subscribe(i.threadId, i.turnId, (e) =>
     supervisor.observe({ kind: "owner_steer_state", state: e.state }),
   );
@@ -149,6 +175,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     awaitingOwner: () => !!awaiting,
     // Post-result boundary: a write-capable role may have partly written, so it is never re-run automatically.
     recover: (result, c) => {
+      const decision = observeResult(result);
       const d = recoverOnce({
         result,
         snapshot: supervisor.snapshot(),
@@ -157,12 +184,34 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         uncertainPartialWrite: role.capabilities.includes("write"),
         approvalWaiting: !!awaiting,
       });
-      return d.kind === "resume" ? d.hint : undefined;
+      if (d.kind === "resume") {
+        audit("recover", decision.kind === "recover_after_result" ? decision.reason : "turn_limit");
+        return d.hint;
+      }
+      if (decision.kind === "recover_after_result") {
+        // The supervisor wanted a recovery but a guard of the selector said no: say which one.
+        audit(
+          "recover_suppressed",
+          role.capabilities.includes("write")
+            ? "uncertain_partial_write"
+            : awaiting
+              ? "approval_waiting"
+              : !result.sessionId
+                ? "no_session"
+                : "no_budget",
+        );
+      } else if (decision.kind === "report_incomplete") audit("report_incomplete", decision.reason);
+      return undefined;
     },
   }).finally(() => {
     release?.();
     unwatchSteer?.();
   });
+  // A retry produced a second result: the supervisor sees it too (a failed retry is reported as exhausted).
+  if (res.outcome !== "success" && observed !== undefined && observed !== res) {
+    const d = observeResult(res);
+    if (d.kind === "report_incomplete") audit("report_incomplete", d.reason);
+  }
   // A background run's session is the turn row's only: saved as the thread's, the assistant would resume it.
   const base: FlowResult = {
     ...res,
