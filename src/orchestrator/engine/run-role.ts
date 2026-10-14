@@ -1,5 +1,6 @@
 import { type Route, resolveModel } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
+import { renderUserNotice } from "../../ingress/user-copy";
 import { buildLocationsContext } from "../../locations/location-registry";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { buildPromptContext } from "../../memory/prompt-context";
@@ -43,7 +44,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   try {
     s = roleScope(config, i, role);
   } catch {
-    return failResult("The location is not available.");
+    return failResult(renderUserNotice({ kind: "failure", cause: "location" }, "en"));
   }
   // The start checks passed: a held task this run continues is taken over now (a failure above keeps the hold).
   i.onStarted?.();

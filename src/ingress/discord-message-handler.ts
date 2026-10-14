@@ -13,7 +13,7 @@ import { replyToMemoryCommand } from "./memory-ingress";
 import { createMessageReceipt } from "./message-receipt";
 import { fetchRecent, HISTORY_CHARS, type HistoryChannel } from "./thread-history";
 import { createThreadTurns } from "./thread-turns";
-import { languageOf, type OwnerLanguage, renderUserNotice } from "./user-copy";
+import { detectLanguage, languageOf, type OwnerLanguage, renderUserNotice } from "./user-copy";
 
 export type { InboundMessage } from "./inbound-message";
 
@@ -60,22 +60,9 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     recent?: RecentMessage[],
     started?: () => void,
   ): Promise<void> {
-    const language = languageOf(
-      text,
-      recent?.length
-        ? recent
-        : conversationLanguages.has(ids.threadId)
-          ? [
-              {
-                from: "bot",
-                text:
-                  conversationLanguages.get(ids.threadId) === "en"
-                    ? "Please continue"
-                    : "Bạn hãy tiếp tục",
-              },
-            ]
-          : [],
-    );
+    // The text decides; neutral text ("3", "yes") keeps the thread's language, else the recent owner messages.
+    const language =
+      detectLanguage(text) ?? conversationLanguages.get(ids.threadId) ?? languageOf(text, recent);
     conversationLanguages.set(ids.threadId, language);
     let stopTyping = startTyping(channel);
     let shown = false;
@@ -266,7 +253,10 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         if (errorTarget)
           await sendReply(
             errorTarget,
-            renderUserNotice({ kind: "failure" }, languageOf(route.prompt)),
+            renderUserNotice(
+              { kind: "failure" },
+              conversationLanguages.get(errorTarget.id) ?? languageOf(route.prompt),
+            ),
             receipt.visible,
           );
       } catch {

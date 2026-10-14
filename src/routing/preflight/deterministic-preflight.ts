@@ -55,9 +55,7 @@ export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
     reasonCode: "MISSING_INFORMATION",
     reroutable: false,
     run: (c) =>
-      c.locationHint && !findLocation(c.locations, c.locationHint)
-        ? unknownLocation(c.locations, c.locationHint)
-        : undefined,
+      c.locationHint && !findLocation(c.locations, c.locationHint) ? unknownLocation() : undefined,
   },
   {
     id: "empty_text_location",

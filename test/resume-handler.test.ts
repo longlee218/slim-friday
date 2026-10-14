@@ -38,7 +38,7 @@ function click(channel: any, over: { guildId?: string; userId?: string } = {}) {
 function setup(guildId?: string) {
   const messages: InboundMessage[] = [];
   const handle = createResumeHandler({
-    db: undefined as never,
+    db: makeEnv().db,
     getClient: () => undefined,
     ownerId: OWNER,
     guildId,

@@ -23,7 +23,7 @@ export function withSpent<T extends { turnId: string; route?: Route }>(db: Datab
 /** Owner text when the task ceiling is already used up by the task's earlier runs: the run is refused up front (no 0 budget). */
 export const ceilingRefusal = (route?: Route): string | undefined =>
   (route?.spentUsd ?? 0) >= TASK_BUDGET_USD
-    ? renderUserNotice({ kind: "failure", cause: "budget" }, "en")
+    ? renderUserNotice({ kind: "failure", cause: "ceiling" }, "en")
     : undefined;
 
 /** Facts of a run that stopped on its budget. */
@@ -50,7 +50,7 @@ export const BUDGET_SUMMARY_MAX = 500;
  * possible) and the last summary; the `go +<usd>` line only when `goPlusUsd` is set
  * (resuming with the same budget would loop, so the hint carries a raise).
  */
-export function budgetHitMessage(h: BudgetHit, language: OwnerLanguage = "en"): string {
+export function budgetHitMessage(h: BudgetHit, language: OwnerLanguage): string {
   const lines = [renderUserNotice({ kind: "outcome", outcome: "max_budget" }, language)];
   if (h.summary?.trim()) lines.push(clip(h.summary.trim(), BUDGET_SUMMARY_MAX));
   if (h.goPlusUsd !== undefined)
@@ -75,7 +75,7 @@ export function budgetHitReply(
     spentBeforeUsd?: number;
     lastText?: string;
   },
-  language: OwnerLanguage = "en",
+  language: OwnerLanguage,
 ): string {
   logEvent(log, "budget.exceeded", {
     spentUsd: res.usage?.costUsd,

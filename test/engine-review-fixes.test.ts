@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { TASK_BUDGET_USD } from "../src/config/model-routing";
 import { runRole } from "../src/orchestrator/engine/run-role";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { finishRun } from "../src/orchestrator/turns/turn-result";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
 import {
@@ -117,9 +118,14 @@ test("task ceiling used up: the run is refused before it starts, `/go +usd` cann
   spend(env.db, "t1", TASK_BUDGET_USD);
   const { res, seen } = await runDev(env, "t2");
   expect(res.outcome).toBe("error");
-  expect(res.text).toContain("allowed spending limit was reached");
+  expect(res.text).toContain("cannot be raised");
   expect(res.text).not.toContain("/go +");
+  expect(res.refusal).toBe(true); // a verified refusal: finishRun shows it instead of the generic failure
   expect(seen).toHaveLength(0);
+  // the owner reads that copy (localized), not the generic "try again"
+  const shown = finishRun(env.db, { turnId: "t2", threadId: "th" }, res, "vi");
+  expect(shown).toContain("không thể tăng thêm");
+  expect(shown).not.toContain("thử lại");
 });
 
 test("a task that is not a resume starts at zero spent (an earlier task of the thread does not count)", async () => {
@@ -227,7 +233,7 @@ test("resume: a background session whose cwd is not a registered location is ref
   let started = 0;
   const res = await runResumed(env, `${env.home}/not-a-location`, () => started++);
   expect(res.outcome).toBe("error");
-  expect(res.text).toBe("The location is not available.");
+  expect(res.text).toContain("could not find the location");
   expect(started).toBe(0);
 });
 

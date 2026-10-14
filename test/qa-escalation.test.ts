@@ -210,16 +210,19 @@ describe("class prefix", () => {
 
 describe("budget hit message", () => {
   test("states spent/limit, overshoot note, summary; go +usd only when offered", () => {
-    const m = budgetHitMessage({
-      spentUsd: 1.52,
-      limitUsd: 1.5,
-      summary: "did A",
-    });
+    const m = budgetHitMessage(
+      {
+        spentUsd: 1.52,
+        limitUsd: 1.5,
+        summary: "did A",
+      },
+      "en",
+    );
     expect(m).toContain("allowed spending limit was reached");
     expect(m).toContain("did A");
     expect(m).not.toContain("go +");
-    expect(budgetHitMessage({ goPlusUsd: 1.5 })).toContain("`/go +1.5`");
-    expect(budgetHitMessage({})).toContain("did not finish");
+    expect(budgetHitMessage({ goPlusUsd: 1.5 }, "en")).toContain("`/go +1.5`");
+    expect(budgetHitMessage({}, "en")).toContain("did not finish");
   });
   test("a max_budget run replies with the message, keeps the session, logs the stop", async () => {
     // Model pinned: no cheap-tier fallback, so the first run's stop is the reply (the fallback has its own tests).

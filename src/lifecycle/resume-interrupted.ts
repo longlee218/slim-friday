@@ -4,7 +4,7 @@ import { buildButtonRows } from "../approvals/approval-buttons";
 import type { HandleMessage } from "../ingress/discord-message-handler";
 import { sendReply, startTyping } from "../ingress/discord-message-handler";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
-import { languageOf, renderUserNotice } from "../ingress/user-copy";
+import { languageOf, type OwnerLanguage, renderUserNotice } from "../ingress/user-copy";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { RESUME_PROMPT } from "../orchestrator/message-commands";
@@ -37,12 +37,7 @@ export async function postResumeNotices(
     try {
       const channel = await deps.getClient()?.channels.fetch(threadId);
       if (!channel?.isSendable()) throw new Error("no channel");
-      const last = deps.db
-        .query<{ brief: string | null }, [string]>(
-          "SELECT brief FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
-        )
-        .get(threadId);
-      const language = languageOf(last?.brief ?? "");
+      const language = threadLanguage(deps.db, threadId);
       await channel.send({
         content: renderUserNotice({ kind: "decision", state: "restart" }, language),
         components: buildButtonRows(PREFIX, threadId, [
@@ -66,6 +61,16 @@ export async function postResumeNotices(
 }
 
 /** Interaction handler of the Resume button (owner only): run the thread with the fixed resume prompt. */
+/** Language of a thread's latest task brief (what the owner last wrote there); Vietnamese when unknown. */
+function threadLanguage(db: Database, threadId: string): OwnerLanguage {
+  const last = db
+    .query<{ brief: string | null }, [string]>(
+      "SELECT brief FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+    )
+    .get(threadId);
+  return languageOf(last?.brief ?? "");
+}
+
 export function createResumeHandler(deps: ResumeDeps) {
   return async function handleResume(i: Interaction): Promise<void> {
     try {
@@ -78,7 +83,13 @@ export function createResumeHandler(deps: ResumeDeps) {
         return;
       }
       if (i.user.id !== deps.ownerId) {
-        await i.reply({ content: "Only the owner can resume.", flags: MessageFlags.Ephemeral });
+        await i.reply({
+          content: renderUserNotice(
+            { kind: "failure", cause: "owner" },
+            threadLanguage(deps.db, threadId),
+          ),
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
       const channel = i.channel;
@@ -88,7 +99,10 @@ export function createResumeHandler(deps: ResumeDeps) {
       const channelId = channel.isThread() ? channel.parentId : null;
       if (!channelId) return;
       await i.update({
-        content: renderUserNotice({ kind: "decision", state: "resuming" }, "vi"),
+        content: renderUserNotice(
+          { kind: "decision", state: "resuming" },
+          threadLanguage(deps.db, threadId),
+        ),
         components: [],
       });
       logEvent(log, "resume.clicked", { threadId });

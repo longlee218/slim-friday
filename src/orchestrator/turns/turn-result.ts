@@ -35,6 +35,8 @@ export interface FlowResult
     | "lastText"
     | "spentBeforeUsd"
   > {
+  /** The text is a verified refusal of the app (not an SDK exception), so the owner may read it. */
+  refusal?: true;
   /** Metrics of the run (spent USD for the budget-hit message); absent when no run happened. */
   usage?: RunUsage;
   /** cwd + location of the session to save (resume needs the same cwd), when a session should be stored. */
@@ -55,6 +57,8 @@ export const failResult = (text: string, outcome: "error" | "aborted" = "error")
   text,
   outcome,
   sessionId: undefined,
+  // The text is a verified refusal of the app (not an SDK exception): the owner may read it.
+  refusal: outcome === "error" ? true : undefined,
 });
 
 /** Map run outcome to the user-facing reply when there is no answer text. */
@@ -83,7 +87,7 @@ export const resumeReasonOf = (r: FlowResult): ResumeReason | undefined =>
   RESUMABLE_WHEN.find(([, when]) => when(r))?.[0];
 
 /** The question L3 reads the owner's next message against (same words as the notice of the failure). */
-export const resumeQuestion = (_turnId: string, _reason: string): string =>
+export const resumeQuestion = (): string =>
   renderUserNotice({ kind: "decision", state: "resume" }, "en");
 
 /** Map run outcome to the task status stored in db. */
@@ -110,7 +114,7 @@ export function finishRun(
   db: Database,
   ids: { turnId: string; threadId: string },
   res: FlowResult,
-  language: OwnerLanguage = "en",
+  language: OwnerLanguage,
 ): string {
   if (
     !res.skipThreadSession &&
@@ -135,21 +139,20 @@ export function finishRun(
   );
   if (res.outcome === "max_budget") return budgetHitReply(res, language);
   // Unknown failure text may be an SDK exception. Keep it in the audit/log path, never guess a cause from it.
-  if (res.outcome === "error")
-    logEvent(log, "run.failed", { reason: "error", detail: redactText(res.text) });
-  const text =
-    res.outcome === "error"
-      ? renderUserNotice({ kind: "failure" }, language)
-      : redactText(
-          localizeUserCopy(
-            res.text ||
-              renderUserNotice(
-                { kind: "outcome", outcome: res.outcome, resetsAt: res.resetsAt },
-                language,
-              ),
-            language,
-          ),
-        );
+  const unknownError = res.outcome === "error" && !res.refusal;
+  if (unknownError) logEvent(log, "run.failed", { reason: "error", detail: redactText(res.text) });
+  const text = unknownError
+    ? renderUserNotice({ kind: "failure" }, language)
+    : redactText(
+        localizeUserCopy(
+          res.text ||
+            renderUserNotice(
+              { kind: "outcome", outcome: res.outcome, resetsAt: res.resetsAt },
+              language,
+            ),
+          language,
+        ),
+      );
   return res.resumable
     ? `${text}\n${renderUserNotice({ kind: "decision", state: "resume" }, language)}`
     : text;
@@ -168,7 +171,7 @@ export function closeTurn(
     t0: number;
     location: string;
     locations?: Location[];
-    language?: OwnerLanguage;
+    language: OwnerLanguage;
   },
 ): string {
   let reply = finishRun(db, ids, res, o.language);

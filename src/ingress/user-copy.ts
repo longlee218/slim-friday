@@ -1,3 +1,4 @@
+import { francAll } from "franc-min";
 import type { RecentMessage } from "../intent/intent-types";
 
 /** The two conversation languages supported by application notices. */
@@ -14,7 +15,16 @@ export type UserNotice =
   | { kind: "outcome"; outcome: string; resumable?: boolean; resetsAt?: number }
   | {
       kind: "failure";
-      cause?: "busy" | "budget" | "location" | "resume" | "approval" | "expired" | "drain";
+      cause?:
+        | "busy"
+        | "budget"
+        | "location"
+        | "resume"
+        | "approval"
+        | "expired"
+        | "drain"
+        | "ceiling"
+        | "owner";
     }
   | {
       kind: "decision";
@@ -31,28 +41,34 @@ export type UserNotice =
         | "undelivered";
     };
 
-/** Neutral selections inherit the latest recognizable conversation language; unknown text defaults to Vietnamese. */
+/** Digits, yes/no and slash commands say nothing about the language: they inherit the conversation's. */
+const NEUTRAL = /^(?:\d+|yes|no|ok|okay|go|stop|\/go(?: \+\d+(?:\.\d+)?)?|\/stop)[.!?]*$/i;
+/** Vietnamese diacritics; any of them settles the language. */
+const VI_MARKS = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+/** The detector must beat the other language by this much, else the text is treated as undecided. */
+const DETECT_MARGIN = 0.3;
+
+/** Detect vi/en from one text with franc (diacritics first); undefined when neutral, too short or ambiguous. */
+export function detectLanguage(value: string): OwnerLanguage | undefined {
+  const t = value.trim();
+  if (NEUTRAL.test(t)) return;
+  if (VI_MARKS.test(t)) return "vi";
+  const [top, second] = francAll(t, { only: ["vie", "eng"], minLength: 3 });
+  if (!top || top[0] === "und" || (second && top[1] - second[1] < DETECT_MARGIN)) return;
+  return top[0] === "vie" ? "vi" : "en";
+}
+
+/**
+ * Conversation language of the owner's text. Neutral or ambiguous text inherits the latest recognizable OWNER
+ * message of `recent` (bot messages never count); with none, Vietnamese.
+ */
 export function languageOf(text: string, recent: RecentMessage[] = []): OwnerLanguage {
-  const detect = (value: string): OwnerLanguage | undefined => {
-    const t = value.trim().toLowerCase();
-    if (/^(?:\d+|yes|no|ok|okay|go|stop|\/go(?: \+\d+(?:\.\d+)?)?|\/stop)[.!?]*$/.test(t)) return;
-    if (
-      /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(t) ||
-      /\b(?:toi|ban|giup|khong|xin|chao)\b/.test(t)
-    )
-      return "vi";
-    if (
-      /\b(?:i|you|please|help|hello|hi|the|this|that|file|read|write|add|fix|can|could|what|why|how|do|make|send|start|continue|work|received|waiting)\b/.test(
-        t,
-      )
-    )
-      return "en";
-  };
   return (
-    detect(text) ??
+    detectLanguage(text) ??
     [...recent]
       .reverse()
-      .map((m) => detect(m.text))
+      .filter((m) => m.from === "owner")
+      .map((m) => detectLanguage(m.text))
       .find(Boolean) ??
     "vi"
   );
@@ -68,7 +84,7 @@ export function messageLanguage(message: {
 }
 
 /** Render only what the application knows happened, with no claim that a model applied an unread message. */
-export function renderUserNotice(event: UserNotice, language: OwnerLanguage): string {
+function render(event: UserNotice, language: OwnerLanguage): string {
   const say = (vi: string, en: string) => (language === "vi" ? vi : en);
   switch (event.kind) {
     case "start":
@@ -199,6 +215,11 @@ export function renderUserNotice(event: UserNotice, language: OwnerLanguage): st
           "Yêu cầu này không còn chờ xử lý; chưa bắt đầu. Bạn hãy gửi lại yêu cầu.",
           "This request is no longer waiting; nothing started. Please send it again.",
         ],
+        ceiling: [
+          "Chưa bắt đầu vì việc này đã dùng hết giới hạn chi phí và không thể tăng thêm. Bạn hãy gửi một yêu cầu mới.",
+          "Nothing started because this work has used up its spending limit, which cannot be raised. Please send a new request.",
+        ],
+        owner: ["Chỉ chủ sở hữu mới có thể tiếp tục việc này.", "Only the owner can resume."],
         drain: [
           "Mình đang cập nhật. Bạn hãy thử lại sau một lát.",
           "I’m updating. Please try again shortly.",
@@ -250,42 +271,25 @@ export function renderUserNotice(event: UserNotice, language: OwnerLanguage): st
   }
 }
 
-/** Localize an already-rendered default notice at legacy boundaries; arbitrary model/diagnostic text is untouched. */
+/**
+ * Every English notice rendered by the app registers itself here (text -> event), so the boundary can render it
+ * again in the owner's language without a hand-kept table: a new notice cannot be forgotten.
+ */
+const ENGLISH_NOTICES = new Map<string, UserNotice>();
+
+/** Render a notice in the owner's language (English renders are remembered for `localizeUserCopy`). */
+export function renderUserNotice(event: UserNotice, language: OwnerLanguage): string {
+  const text = render(event, language);
+  const dynamic = event.kind === "outcome" && (event.resetsAt || event.resumable);
+  if (language === "en" && !dynamic) ENGLISH_NOTICES.set(text, event);
+  return text;
+}
+
+/** Localize default notices that leaves rendered in English; arbitrary model/diagnostic text is untouched. */
 export function localizeUserCopy(text: string, language: OwnerLanguage): string {
   if (language === "en") return text;
-  const events: UserNotice[] = [
-    { kind: "start" },
-    { kind: "queue" },
-    { kind: "queue", full: true },
-    { kind: "clarification" },
-    { kind: "clarification", pending: true },
-    ...(["queued", "held", "waiting", "full", "ended"] as const).map((state) => ({
-      kind: "steer" as const,
-      state,
-    })),
-    ...(["busy", "budget", "location", "resume", "approval", "expired", "drain"] as const).map(
-      (cause) => ({ kind: "failure" as const, cause }),
-    ),
-    ...(
-      [
-        "confirm",
-        "gate",
-        "none",
-        "dropped",
-        "kept",
-        "resume",
-        "restart",
-        "resuming",
-        "decline-busy",
-        "undelivered",
-      ] as const
-    ).map((state) => ({ kind: "decision" as const, state })),
-    ...["error", "quota", "max_budget", "max_turns", "timeout", "aborted"].map((outcome) => ({
-      kind: "outcome" as const,
-      outcome,
-    })),
-  ];
-  for (const event of events)
-    text = text.replaceAll(renderUserNotice(event, "en"), renderUserNotice(event, language));
+  // Longest first, so a notice that contains a shorter one is replaced whole.
+  const known = [...ENGLISH_NOTICES].sort((a, b) => b[0].length - a[0].length);
+  for (const [english, event] of known) text = text.replaceAll(english, render(event, language));
   return text;
 }

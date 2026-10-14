@@ -20,11 +20,9 @@ export const refuse = (
   event: Refusal["event"] = "task.refused",
 ): Refusal => ({ event, reason, reply });
 
-/** Refusal for a location name that is not in the workspace (lists the available ones). */
-export const unknownLocation = (locations: Location[], _name: string): Refusal => {
-  const _names = locations.map((r) => r.name).join(", ");
-  return refuse("unknown_location", renderUserNotice({ kind: "failure", cause: "location" }, "en"));
-};
+/** Refusal for a location name that is not in the workspace . */
+export const unknownLocation = (): Refusal =>
+  refuse("unknown_location", renderUserNotice({ kind: "failure", cause: "location" }, "en"));
 
 /** The location of `locations` called `name` (case-insensitive), or undefined. */
 export const findLocation = (locations: Location[], name: string): Location | undefined =>
@@ -51,7 +49,7 @@ export function resolveTaskLocation(
   locationName?: string,
 ): Refusal | { candidates: Location[] } {
   const picked = locationName ? findLocation(locations, locationName) : undefined;
-  if (locationName && !picked) return unknownLocation(locations, locationName);
+  if (locationName && !picked) return unknownLocation();
   return { candidates: picked ? [picked] : locations };
 }
 

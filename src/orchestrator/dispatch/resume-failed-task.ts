@@ -3,7 +3,7 @@ import { renderUserNotice } from "../../ingress/user-copy";
 import { pendingProposal } from "../../storage/proposal-store";
 import { lastRunOutcome } from "../../storage/run-metrics-store";
 import { dropResumable } from "../../storage/run-store";
-import { RESUMABLE, type ResumeReason, resumeQuestion } from "../turns/turn-result";
+import { type ResumeReason, resumeQuestion } from "../turns/turn-result";
 import { type Refusal, refuse } from "./task-location";
 
 /* `failed_resumable` (Rev 12): a background run that failed with its session saved (budget, transient error) keeps it.
@@ -51,7 +51,7 @@ export function failedResumable(db: Database, threadId: string): FailedResumable
 /** The unanswered question of a thread whose last task is resumable (what L3 reads the next message against). */
 export function resumeQuestionOf(db: Database, threadId: string): string | undefined {
   const f = failedResumable(db, threadId);
-  return f && resumeQuestion(f.id, f.reason ? RESUMABLE[f.reason] : "it did not get to run");
+  return f && resumeQuestion();
 }
 
 /** Reply of a "no" to the question: nothing is dropped, the owner decides later. */

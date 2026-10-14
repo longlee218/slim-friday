@@ -15,7 +15,7 @@ export function admitTurn(
   limiter: RunLimiter | undefined,
   agentHome: string,
   log: Logger,
-  language: OwnerLanguage = "en",
+  language: OwnerLanguage,
 ): { release: () => void } | { reply: string } {
   if (isDraining(agentHome)) {
     logEvent(log, "task.refused", { reason: "drain", reply: DRAIN_REPLY });
@@ -33,7 +33,7 @@ export function admitTurn(
 export function reportCrash(
   log: Logger,
   err: unknown,
-  t: { location: string; t0: number; language?: OwnerLanguage },
+  t: { location: string; t0: number; language: OwnerLanguage },
 ): string {
   logEvent(
     log,
@@ -41,7 +41,7 @@ export function reportCrash(
     { location: t.location, outcome: "crashed", durationMs: Date.now() - t.t0, err: errText(err) },
     "error",
   );
-  return renderUserNotice({ kind: "failure" }, t.language ?? "en");
+  return renderUserNotice({ kind: "failure" }, t.language);
 }
 
 /** `/stop`: abort the wrap-up of the previous turn when no run is active, else the thread's run (audit row first). */
@@ -57,5 +57,5 @@ export function stopCommand(c: {
   if (!running && c.rollovers.abort(message.threadId))
     return renderUserNotice({ kind: "stop", active: true }, messageLanguage(message));
   if (running) c.steer?.record(message, message.text, "stop"); // audit; stopThread aborts, the queue stays
-  return stopThread(c.db, message.threadId, running, messageLanguage(message));
+  return stopThread(c.db, message.threadId, messageLanguage(message), running);
 }

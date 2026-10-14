@@ -24,8 +24,8 @@ export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
 export function stopThread(
   db: Database,
   threadId: string,
+  language: OwnerLanguage,
   running?: AbortController,
-  language: OwnerLanguage = "en",
 ): string {
   if (!running) return renderUserNotice({ kind: "stop", active: false }, language);
   running.abort();

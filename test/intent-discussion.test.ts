@@ -1,11 +1,13 @@
 import { expect, test } from "bun:test";
-import { languageOf, renderUserNotice } from "../src/ingress/user-copy";
+import { languageOf, localizeUserCopy, renderUserNotice } from "../src/ingress/user-copy";
 import { decideIntent } from "../src/intent/decide-intent";
 import { buildIntentInput } from "../src/intent/intent-input";
 import { buildIntentSystemPrompt, buildIntentUserPrompt } from "../src/intent/intent-prompt";
 import type { IntentClassifier, IntentInput, IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
+import { isStillWorking } from "../src/orchestrator/reply-while-busy";
+import { STILL_WORKING } from "../src/orchestrator/thread/intent-replies";
 import { actionFor } from "../src/orchestrator/thread/route-by-intent";
 import { intentRoles, ROLES } from "../src/roles/role-registry";
 import { insertTurn } from "../src/storage/run-store";
@@ -147,6 +149,14 @@ test("neutral choices inherit the latest conversation language rather than becom
   expect(languageOf("yes", [{ from: "owner", text: "giúp tôi chuyển file" }])).toBe("vi");
   expect(languageOf("3")).toBe("vi");
   expect(languageOf("Please read this file", [{ from: "bot", text: "Bạn chọn nhé" }])).toBe("en");
+  // only the owner's own messages count as the conversation language
+  expect(languageOf("3", [{ from: "bot", text: "Bạn chọn nhé" }])).toBe("vi");
+  expect(
+    languageOf("3", [
+      { from: "owner", text: "Please convert the file" },
+      { from: "bot", text: "Bạn chọn nhé" },
+    ]),
+  ).toBe("en");
   for (const language of ["vi", "en"] as const) {
     for (const state of ["queued", "held", "waiting", "full", "ended"] as const) {
       const notice = renderUserNotice({ kind: "steer", state }, language);
@@ -160,4 +170,28 @@ test("neutral choices inherit the latest conversation language rather than becom
       language === "vi" ? /đang dừng/ : /stopping/,
     );
   }
+});
+
+test("language detection handles unaccented Vietnamese and short English", () => {
+  expect(languageOf("mo file nay giup toi")).toBe("vi");
+  expect(languageOf("sua loi, fix giup")).toBe("vi");
+  expect(languageOf("Deploy staging", [{ from: "owner", text: "giúp tôi" }])).toBe("en");
+  expect(languageOf("Run tests", [{ from: "owner", text: "giúp tôi" }])).toBe("en");
+  // ambiguous one-word text keeps the conversation language
+  expect(languageOf("Thanks", [{ from: "owner", text: "Please convert the file" }])).toBe("en");
+});
+
+test("English notices rendered by leaves are localized at the boundary without a hand-kept table", () => {
+  const en = renderUserNotice({ kind: "failure", cause: "ceiling" }, "en");
+  expect(localizeUserCopy(`x ${en}`, "vi")).toBe(
+    `x ${renderUserNotice({ kind: "failure", cause: "ceiling" }, "vi")}`,
+  );
+  expect(localizeUserCopy("model text untouched", "vi")).toBe("model text untouched");
+});
+
+test("the busy notice stays recognizable after localization (task.still_working is logged)", () => {
+  const vi = localizeUserCopy(STILL_WORKING, "vi");
+  expect(vi).not.toBe(STILL_WORKING);
+  expect(isStillWorking(vi, { language: "vi" } as never)).toBe(true);
+  expect(isStillWorking(STILL_WORKING, { language: "en" } as never)).toBe(true);
 });

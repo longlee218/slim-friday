@@ -201,9 +201,10 @@ test("a budget stop offers `go +<usd>`; the message helper keeps the hint", () =
       budgetUsd: 1.5,
       usage: { costUsd: 1.6 } as any,
     },
+    "en",
   );
   expect(text).toContain("`/go +1.5`");
-  expect(budgetHitMessage({ spentUsd: 1, limitUsd: 1 })).not.toContain("go +");
+  expect(budgetHitMessage({ spentUsd: 1, limitUsd: 1 }, "en")).not.toContain("go +");
 });
 
 test("go +<usd> reaches the run: the resumed Q&A run carries extraBudgetUsd in its budget", async () => {
