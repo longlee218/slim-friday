@@ -125,6 +125,12 @@ Type in `#ops-control` (no mention needed). Legacy form: `init:workspace:<name>`
 5. `/init-workspace <ws>` typed in `#<ws>-agent` is refused; same text in a thread too.
 6. A question in `#<ws>-agent` is answered. A mention in `#ops-log` is ignored.
 7. Ctrl-C: `#ops-log` shows `[shutdown] SIGINT`.
+8. Conversation check (pending: needs a Discord test guild + owner; not yet run live). In a thread, send a greeting, a request that takes more than ~2 s, a message while work runs, a question with options, and a request for a long Markdown report. Expected:
+   - A quick reply needs no reaction. A slow one gets a temporary 👀 on your message that is removed once Friday replies; typing stops after the reply.
+   - Replies use your language (Vietnamese or English) and show no internal ids or task wording.
+   - A message sent while work runs is acknowledged as received, never as already read or applied.
+   - A question with options shows buttons (a select menu for 6 to 25 options, an Enter answer button for typed text). After you answer, the message shows `Đã chọn: <label>` / `Chose: <label>` with the controls removed.
+   - A long report arrives as a summary plus an attached `reply.md` (Mermaid code stays as source) and link buttons for public `http(s)` links only.
 
 **Important:** never commit `.env` with real values. `.env.example` has placeholders only.
 
