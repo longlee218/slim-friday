@@ -1,9 +1,10 @@
 import { slashToLegacy } from "../commands/slash-commands";
 
-/** Where an owner memory command writes: the default location, a named location, the workspace file, or the root file. */
+/** Where an owner memory command writes: the default location, a named location, the channel file, the workspace file, or the root file. */
 export type MemoryScope =
   | { kind: "default" }
   | { kind: "location"; name: string }
+  | { kind: "channel" }
   | { kind: "workspace" }
   | { kind: "global" };
 
@@ -42,6 +43,8 @@ function splitScope(rest: string): { scope: MemoryScope; text: string } {
   const word = m?.[1]?.toLowerCase() ?? "";
   const tail = m?.[2]?.trim() ?? "";
   if (word === "global" || word === "chung") return { scope: { kind: "global" }, text: tail };
+  if (word === "channel" || word === "kenh" || word === "kênh")
+    return { scope: { kind: "channel" }, text: tail };
   if (word === "workspace" || word === "ws") return { scope: { kind: "workspace" }, text: tail };
   const location = LOCATION_SCOPE.exec(m?.[1] ?? "");
   if (location?.[1]) return { scope: { kind: "location", name: location[1] }, text: tail };
@@ -56,7 +59,7 @@ export function lengthReply(body: string): string | undefined {
 
 /** Usage line shown for an invalid command. */
 const USAGE =
-  "Usage: `/forget [global|workspace|location:<name>|<location-name>] <text>` (3-100 chars), `/compact [dry-run]`. Legacy forms still work: `forget:`, `compact memory`; Vietnamese: `quên:`, `chung`, `ws`, `gom nén`. To save a note, just ask (`remember: ...`): the agent picks where.";
+  "Usage: `/forget [global|workspace|channel|location:<name>|<location-name>] <text>` (3-100 chars), `/compact [dry-run]`. Legacy forms still work: `forget:`, `compact memory`; Vietnamese: `quên:`, `chung`, `ws`, `kênh`, `gom nén`. To save a note, just ask (`remember: ...`): the agent picks where.";
 
 /**
  * Parse a message as an owner memory command, or null when it is anything else (then it is a normal task).

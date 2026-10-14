@@ -52,6 +52,10 @@ export const SLASH_DEFINITIONS: Record<SlashName, SlashDefinition> = {
     description: "Create a workspace (ops control channel only)",
     arg: { name: "name", description: "Workspace name", required: true, kind: "string" },
   },
+  "init-channel": {
+    description: "Add a private channel to a space (ops control channel only)",
+    arg: { name: "path", description: "space/channel", required: true, kind: "string" },
+  },
 };
 
 /** The payload for the Discord bulk-overwrite call (chat-input commands, usable in guilds only). */

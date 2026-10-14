@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { WORKSPACE_NAME, workspacePaths } from "../../config/workspace-paths";
 import { SUMMARY_MAX_CHARS } from "../../storage/thread-summary-store";
 import type { MemoryToolContext } from "../../tools/memory-tool-context";
-import { locationTarget, rootTarget, workspaceTarget } from "../memory-targets";
+import { channelTarget, locationTarget, rootTarget, workspaceTarget } from "../memory-targets";
 import type { Chunk } from "./memory-chunker";
 import { type FileInfo, readFileChunks } from "./memory-files";
 import { type ParsedId, parseId } from "./memory-ids";
@@ -38,6 +38,12 @@ function fileOf(ctx: MemoryToolContext, id: ParsedId): { file: string; info: Fil
     return {
       file: workspaceTarget(ctx.home, ctx.workspace).file,
       info: { workspace: ctx.workspace, source: "workspace" },
+    };
+  // A channel id is served only for the run's own channel (other channels' notes stay out of reach).
+  if (id.type === "file" && id.channel !== undefined && id.channel === ctx.channel)
+    return {
+      file: channelTarget(ctx.home, ctx.workspace, id.channel).file,
+      info: { workspace: ctx.workspace, source: "channel", channel: id.channel },
     };
   if (id.type === "file" && id.location !== undefined && ctx.locationNames().includes(id.location))
     return {

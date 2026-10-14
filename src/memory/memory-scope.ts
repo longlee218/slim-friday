@@ -6,7 +6,13 @@ import {
   type MemoryScope,
   splitFirstWord,
 } from "./memory-commands";
-import { locationTarget, type MemoryTarget, rootTarget, workspaceTarget } from "./memory-targets";
+import {
+  channelTarget,
+  locationTarget,
+  type MemoryTarget,
+  rootTarget,
+  workspaceTarget,
+} from "./memory-targets";
 
 /** Where a command was typed, which decides the scopes it may use. */
 export type MemoryPlace = "workspace" | "control";
@@ -17,6 +23,8 @@ export interface ScopeInput {
   home: string;
   /** Workspace of the channel (absent in the control channel: only `global` is possible there). */
   ws?: Workspace;
+  /** Channel (yaml name) the command was typed in; scope `channel` needs it. */
+  channel?: string;
   /** Thread the command was typed in; undefined for a plain channel message. */
   threadId?: string;
   place: MemoryPlace;
@@ -80,6 +88,12 @@ export function resolveMemoryTarget(
   if (!ws) return { reply: "This channel is not linked to a workspace." };
   if (scope.kind === "global") return rootTarget(i.home);
   if (scope.kind === "workspace") return workspaceTarget(i.home, ws.name);
+  if (scope.kind === "channel")
+    return i.channel
+      ? channelTarget(i.home, ws.name, i.channel)
+      : {
+          reply: "This message has no channel: `/forget channel` works inside a workspace channel.",
+        };
   const inWs = (name: string | undefined) => ws.locations.find((r) => r.name === name)?.name;
   if (scope.kind === "location") {
     const hit = ws.locations.find((r) => r.name.toLowerCase() === scope.name.toLowerCase());

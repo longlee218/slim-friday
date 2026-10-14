@@ -2,12 +2,19 @@ import { relative } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import type { Workspace } from "../workspaces/workspace-registry";
 import {
+  CHANNEL_CHARS,
+  channelMemoryFile,
   locationMemoryFile,
   PER_LOCATION_CHARS,
   ROOT_CHARS,
   WORKSPACE_CHARS,
 } from "./location-memory";
-import { memoryTemplate, ROOT_MEMORY, workspaceMemoryTemplate } from "./persona-templates";
+import {
+  channelMemoryTemplate,
+  memoryTemplate,
+  ROOT_MEMORY,
+  workspaceMemoryTemplate,
+} from "./persona-templates";
 
 /** One owner-visible memory file: where it is, how it is named in replies, its prompt cap, its empty template. */
 export interface MemoryTarget {
@@ -48,8 +55,13 @@ export const workspaceTarget = (home: string, ws: string): MemoryTarget => ({
 export const locationTarget = (home: string, ws: string, location: string): MemoryTarget =>
   make(home, locationMemoryFile(home, ws, location), PER_LOCATION_CHARS, memoryTemplate(location));
 
-/** Every memory file of a workspace (its own file, then each location). */
+/** `workspaces/<ws>/channels/<channel>/MEMORY.md`. */
+export const channelTarget = (home: string, ws: string, channel: string): MemoryTarget =>
+  make(home, channelMemoryFile(home, ws, channel), CHANNEL_CHARS, channelMemoryTemplate(channel));
+
+/** Every memory file of a workspace (its own file, then each channel, then each location). */
 export const workspaceTargets = (home: string, ws: Workspace): MemoryTarget[] => [
   workspaceTarget(home, ws.name),
+  ...ws.channelDefs.map((c) => channelTarget(home, ws.name, c.name)),
   ...ws.locations.map((r) => locationTarget(home, ws.name, r.name)),
 ];

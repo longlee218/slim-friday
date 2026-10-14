@@ -128,9 +128,22 @@ export interface ChannelRef {
   type: ChannelType;
 }
 
-/** First channel of `type` named `name` (case-insensitive: Discord lowercases text channel names). */
-export function findExisting(channels: ChannelRef[], name: string, type: ChannelType) {
-  return channels.find((c) => c.type === type && c.name.toLowerCase() === name.toLowerCase());
+/**
+ * First channel of `type` named `name` (case-insensitive: Discord lowercases text channel names). With
+ * `parentId` only channels under that category count; without it the whole guild is searched.
+ */
+export function findExisting(
+  channels: (ChannelRef & { parentId?: string | null })[],
+  name: string,
+  type: ChannelType,
+  parentId?: string,
+) {
+  return channels.find(
+    (c) =>
+      c.type === type &&
+      c.name.toLowerCase() === name.toLowerCase() &&
+      (parentId === undefined || c.parentId === parentId),
+  );
 }
 
 /** Outcome of one create-only call. */
@@ -148,16 +161,17 @@ export async function listGuildChannels(
 
 /**
  * Create a private category or text channel. CREATE-ONLY: a category/channel of that name already in the
- * guild is reported as "exists" and left untouched (never adopted, edited or deleted).
+ * guild is reported as "exists" and left untouched (never adopted, edited or deleted). With `spec.parentId`
+ * only that category is searched (a same-named channel elsewhere is no conflict); else the whole guild.
  */
 export async function createPrivate(
   guild: Guild,
-  existing: ChannelRef[],
+  existing: (ChannelRef & { parentId?: string | null })[],
   spec: { name: string; kind: "category" | "text"; parentId?: string },
   ids: PrivateIds,
 ): Promise<CreateResult> {
   const type = spec.kind === "category" ? ChannelType.GuildCategory : ChannelType.GuildText;
-  const found = findExisting(existing, spec.name, type);
+  const found = findExisting(existing, spec.name, type, spec.parentId);
   if (found) return { status: "exists", id: found.id };
   const created = await guild.channels.create({
     name: spec.name,

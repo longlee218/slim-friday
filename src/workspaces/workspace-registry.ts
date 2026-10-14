@@ -7,9 +7,10 @@ import { isInside } from "../guardrails/paths";
 import { isRealDir, type Location, loadLocations, real } from "../locations/location-registry";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { checkChannels, dropDuplicateChannels } from "./channel-checks";
 
 /** One channel of a workspace: `mode` task (default) or chat; `locations` limits the location names it may use. */
-export interface ChannelDef {
+export interface WorkspaceChannel {
   id: string;
   name: string;
   mode: "task" | "chat";
@@ -27,7 +28,7 @@ export interface Workspace {
   /** Discord parent-channel ids routed to this workspace (each id belongs to exactly one workspace). */
   channels: string[];
   /** The same channels with their name, mode and allowed locations (a legacy plain id gets the defaults). */
-  channelDefs: ChannelDef[];
+  channelDefs: WorkspaceChannel[];
   /** Valid locations of the workspace. */
   locations: Location[];
 }
@@ -71,25 +72,6 @@ function hasLegacyRepos(wsRoot: string): boolean {
     return readdirSync(dir).some((n) => existsSync(join(dir, n, "repo.yaml")));
   } catch {
     return false; // no repos dir
-  }
-}
-
-/** Drop channel ids that two workspaces both list (from both: routing must never be ambiguous). */
-function dropDuplicateChannels(workspaces: Workspace[]): void {
-  const owners = new Map<string, number>();
-  for (const w of workspaces)
-    for (const c of new Set(w.channels)) owners.set(c, (owners.get(c) ?? 0) + 1);
-  const dup = [...owners].filter(([, n]) => n > 1).map(([c]) => c);
-  if (!dup.length) return;
-  logEvent(
-    logger.child({ module: "workspace-registry" }),
-    "channel.duplicate",
-    { channels: dup },
-    "warn",
-  );
-  for (const w of workspaces) {
-    w.channels = w.channels.filter((c) => !dup.includes(c));
-    w.channelDefs = w.channelDefs.filter((c) => !dup.includes(c.id));
   }
 }
 
@@ -143,8 +125,11 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
       }
       const { description = "", channels, locations } = parsed.data;
       if (hasLegacyRepos(ws.root)) out.needsMigration.push(name);
-      const channelDefs: ChannelDef[] = channels.map((c) =>
-        typeof c === "string" ? { id: c, name: `${name}-agent`, mode: "task" } : c,
+      const locs = loadLocations(locations, ws, forbidden);
+      const channelDefs = checkChannels(
+        name,
+        channels,
+        locs.map((l) => l.name),
       );
       out.workspaces.push({
         name,
@@ -152,7 +137,7 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
         description,
         channels: channelDefs.map((c) => c.id),
         channelDefs,
-        locations: loadLocations(locations, ws, forbidden),
+        locations: locs,
       });
     } catch (err) {
       log.warn({ name, err: errText(err) }, "skipped workspace: workspace.yaml unreadable");

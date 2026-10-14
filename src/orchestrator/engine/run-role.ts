@@ -76,6 +76,8 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         db,
         home: config.agentHome,
         workspace: i.workspace,
+        channel: i.channel,
+        locationNames: i.locations.map((r) => r.name), // channel subset: memory tools cannot reach other locations
         location: i.locations.length === 1 ? i.locations[0]?.name : undefined,
         threadId: i.threadId,
         trackSummary: !role.background,
@@ -85,6 +87,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       extraContext: buildPromptContext({
         agentHome: config.agentHome,
         workspace: i.workspace,
+        channel: i.channel,
         // A background role always sees its location(s) with their test command; a pinned foreground role needs no list.
         registry:
           i.pinned && !role.background

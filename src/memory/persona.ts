@@ -3,6 +3,7 @@ import { workspacePaths } from "../config/workspace-paths";
 import type { Workspace } from "../workspaces/workspace-registry";
 import {
   BOOTSTRAP,
+  channelMemoryTemplate,
   DEFAULT_AGENTS,
   DEFAULT_IDENTITY,
   DEFAULT_SOUL,
@@ -22,9 +23,16 @@ function ensureFile(file: string, text: string): void {
   if (!existsSync(file)) writeFileSync(file, text);
 }
 
+/** Create `channels/<name>/` and its MEMORY.md for a channel of space `ws` (never overwrites). */
+export function ensureChannelDir(agentHome: string, ws: string, name: string): void {
+  const ch = workspacePaths(agentHome).workspace(ws).channel(name);
+  mkdirSync(ch.root, { recursive: true });
+  ensureFile(ch.memory, channelMemoryTemplate(name));
+}
+
 /**
  * Create the missing pieces of the home and of every workspace (never overwrites): root
- * AGENTS/IDENTITY/SOUL/USER/MEMORY/BOOTSTRAP; per workspace `cwd/` + empty `skills/` + MEMORY.md; per location MEMORY.md.
+ * AGENTS/IDENTITY/SOUL/USER/MEMORY/BOOTSTRAP; per workspace `cwd/` + empty `skills/` + MEMORY.md; per location and per channel `MEMORY.md`.
  * Writes no CLAUDE.md; the SDK loads none (settingSources []), so these files are the only instructions.
  */
 export function ensureHome(agentHome: string, workspaces: Workspace[]): void {
@@ -42,6 +50,7 @@ export function ensureHome(agentHome: string, workspaces: Workspace[]): void {
     mkdirSync(ws.skills, { recursive: true, mode: 0o700 }); // owner-curated skills, empty by default
     ensureFile(ws.memory, workspaceMemoryTemplate(w.name));
     for (const r of w.locations) ensureFile(ws.location(r.name).memory, memoryTemplate(r.name));
+    for (const c of w.channelDefs) ensureChannelDir(agentHome, w.name, c.name);
   }
 }
 
@@ -77,19 +86,22 @@ const PERSONA_FILES = [
 /**
  * AGENTS, IDENTITY, SOUL, USER for a run, as one `# Project Context` block: a legend that declares the
  * order and the role of each loaded file, then one `## <FILE>.md` section per file (this order: operating
- * notes first, then who, tone, owner). Per file the workspace's own non-empty file replaces the root one.
+ * notes first, then who, tone, owner). Per file the first non-empty of channel, workspace, root wins.
  * `workspace` is undefined for runs that belong to no workspace (root files only). `truncated` is true
  * when any file hit PERSONA_MAX. Text is "" when no file has content.
  */
 export function buildPersonaContext(
   agentHome: string,
   workspace?: string,
+  channel?: string,
 ): { text: string; truncated: boolean } {
   const paths = workspacePaths(agentHome);
   const ws = workspace ? paths.workspace(workspace) : undefined;
+  const ch = workspace && channel ? ws?.channel(channel) : undefined;
   const loaded = PERSONA_FILES.map((f) => ({
     ...f,
-    body: readPersona(ws?.[f.key] ?? "") || readPersona(paths[f.key]),
+    body:
+      readPersona(ch?.[f.key] ?? "") || readPersona(ws?.[f.key] ?? "") || readPersona(paths[f.key]),
   })).filter((f) => f.body);
   if (!loaded.length) return { text: "", truncated: false };
   const legend = [

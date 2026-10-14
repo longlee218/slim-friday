@@ -4,6 +4,7 @@ import type { MemoryRunner } from "../memory/memory-command-handler";
 import { logEvent, logger } from "../observability/logger";
 import { adminGate, parseAdminCommand } from "./admin-command";
 import type { DiscordSetup } from "./discord-setup-config";
+import { initChannel } from "./init-channel";
 import { initWorkspace } from "./init-workspace";
 import { isPrivateChannel, type PrivateIds } from "./private-channels";
 
@@ -69,16 +70,17 @@ export function createAdminHandler(deps: AdminDeps) {
     const memo = await deps.memory?.({ where: "control", channelId: ch.id, text: prompt });
     if (memo != null) return void (await reply(memo));
     const cmd = parseAdminCommand(prompt);
-    if (cmd.kind !== "init_workspace") return void (await reply(cmd.reply));
+    if (cmd.kind !== "init_workspace" && cmd.kind !== "init_channel")
+      return void (await reply(cmd.reply));
+    const init = {
+      home: deps.home,
+      guild: msg.guild,
+      ids: { guildId: msg.guild.id, ownerId: deps.ownerId, botId },
+    };
     await reply(
-      await initWorkspace(
-        {
-          home: deps.home,
-          guild: msg.guild,
-          ids: { guildId: msg.guild.id, ownerId: deps.ownerId, botId },
-        },
-        cmd.name,
-      ),
+      cmd.kind === "init_channel"
+        ? await initChannel(init, cmd.space, cmd.name)
+        : await initWorkspace(init, cmd.name),
     );
   };
 }

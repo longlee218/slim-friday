@@ -60,6 +60,22 @@ export function workspacePaths(agentHome: string) {
           return { root: troot, scratch: join(troot, "scratch") };
         },
         locations,
+        /** Channels dir: `channels/<name>/` holds the channel's own memory and optional persona files. */
+        channels: join(root, "channels"),
+        /** Per-channel dir `channels/<name>/` (name = `CHANNEL_NAME`, the yaml key; never the Discord channel name). */
+        channel: (name: string) => {
+          const croot = join(root, "channels", name);
+          return {
+            root: croot,
+            /** Agent-written channel memory. */
+            memory: join(croot, "MEMORY.md"),
+            /** Optional persona files: a non-empty one overrides the space's (then the root's). */
+            agents: join(croot, "AGENTS.md"),
+            identity: join(croot, "IDENTITY.md"),
+            soul: join(croot, "SOUL.md"),
+            user: join(croot, "USER.md"),
+          };
+        },
         /** Per-location dir `locations/<name>/` (only MEMORY.md lives in it; the location's own files are at its `path`). */
         location: (r: string) => {
           const rroot = join(locations, r);
@@ -84,6 +100,9 @@ let reserved: string[] | undefined;
 export const reservedWorkspaces = (): string[] => (reserved ??= ["ops", ...publisherPluginNames()]);
 /** Location dir name; also the `location:` pin and a request's `location` value. */
 export const LOCATION_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+
+/** Channel dir name (the `name` key in workspace.yaml): lowercase letters, digits, hyphens. */
+export const CHANNEL_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 /** True when `name` may become a workspace dir. */
 export const isWorkspaceName = (name: string): boolean =>

@@ -1,6 +1,11 @@
 import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
-import { LOCATION_NAME, WORKSPACE_NAME, workspacePaths } from "../../config/workspace-paths";
+import {
+  CHANNEL_NAME,
+  LOCATION_NAME,
+  WORKSPACE_NAME,
+  workspacePaths,
+} from "../../config/workspace-paths";
 import { localDay } from "../memory-clock";
 import { type Chunk, chunkJournal, chunkMemory } from "./memory-chunker";
 import { makeId, type Source } from "./memory-ids";
@@ -15,14 +20,16 @@ export interface FileInfo {
   workspace: string;
   source: Exclude<Source, "summary">;
   location?: string;
+  /** Channel name (source `channel`). */
+  channel?: string;
   date?: string;
 }
 
 const DATE_FILE = /^(\d{4}-\d{2}-\d{2})\.md$/;
 
 /**
- * Classify a path under AGENT_HOME as an indexable memory file, or null. ONLY the four known shapes are indexable:
- * root MEMORY.md, workspace MEMORY.md, location MEMORY.md, journal `memory/YYYY-MM-DD.md`. Anything else
+ * Classify a path under AGENT_HOME as an indexable memory file, or null. ONLY the five known shapes are indexable:
+ * root MEMORY.md, workspace MEMORY.md, channel MEMORY.md, location MEMORY.md, journal `memory/YYYY-MM-DD.md`. Anything else
  * (MEMORY.pending.md, AGENTS.md, persona files, other trees) is refused here, whoever asks.
  */
 export function classifyFile(home: string, file: string): FileInfo | null {
@@ -33,6 +40,9 @@ export function classifyFile(home: string, file: string): FileInfo | null {
   const ws = p[1] ?? "";
   if (p[0] !== "workspaces" || !WORKSPACE_NAME.test(ws)) return null;
   if (p.length === 3 && p[2] === "MEMORY.md") return { workspace: ws, source: "workspace" };
+  const channel = p[3] ?? "";
+  if (p.length === 5 && p[2] === "channels" && CHANNEL_NAME.test(channel) && p[4] === "MEMORY.md")
+    return { workspace: ws, source: "channel", channel };
   const location = p[3] ?? "";
   if (
     p.length === 5 &&
@@ -50,6 +60,7 @@ export function classifyFile(home: string, file: string): FileInfo | null {
 /** Prefix of the ids of a file's entries. */
 export function idPrefix(info: FileInfo): string {
   if (info.source === "location") return `location/${info.location}`;
+  if (info.source === "channel") return `channel/${info.channel}`;
   if (info.source === "journal") return `journal/${info.date}`;
   return info.source;
 }
@@ -66,12 +77,15 @@ const names = (dir: string): string[] => {
 export const listWorkspaces = (home: string): string[] =>
   names(workspacePaths(home).workspaces).filter((n) => WORKSPACE_NAME.test(n));
 
-/** Candidate memory files of one workspace (they may not exist): its MEMORY.md, each location's, each journal day. */
+/** Candidate memory files of one workspace (they may not exist): its MEMORY.md, each channel's, each location's, each journal day. */
 export function workspaceFiles(home: string, workspace: string): string[] {
   if (!WORKSPACE_NAME.test(workspace)) return [];
   const ws = workspacePaths(home).workspace(workspace);
   return [
     ws.memory,
+    ...names(ws.channels)
+      .filter((c) => CHANNEL_NAME.test(c))
+      .map((c) => ws.channel(c).memory),
     ...names(ws.locations)
       .filter((r) => LOCATION_NAME.test(r))
       .map((r) => ws.location(r).memory),

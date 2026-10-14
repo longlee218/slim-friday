@@ -15,6 +15,7 @@ export function startPendingProposal(
     deps: DispatchDeps;
     message: InboundMessage;
     workspace: string;
+    channel?: string;
     locations: Location[];
     ac: AbortController;
     pinned?: Location;
@@ -36,6 +37,7 @@ export function startPendingProposal(
     message: c.message,
     reply: "",
     workspace: c.workspace,
+    channel: c.channel,
     locations: c.locations,
     pinned: c.pinned,
     ac: c.ac,

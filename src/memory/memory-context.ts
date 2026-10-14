@@ -14,16 +14,22 @@ export function buildMemoryToolContext(p: {
   /** Foreground run: the PostCompact hook may store the thread summary. */
   trackSummary: boolean;
   location?: string;
+  /** Channel (yaml name) of the run. */
+  channel?: string;
+  /** Location names the run may use (the channel's subset); absent = every location of the space (rollover runs). */
+  locationNames?: string[];
 }): MemoryToolContext {
   return {
     db: p.db,
     home: p.home,
     workspace: p.workspace,
     locationNames: () =>
+      p.locationNames ??
       (loadWorkspaces(p.home).workspaces.find((w) => w.name === p.workspace)?.locations ?? []).map(
         (r) => r.name,
       ),
     location: p.location,
+    channel: p.channel,
     threadId: p.threadId,
     trackSummary: p.trackSummary,
     threadLabel: `thread ${p.threadId.slice(-6)}`,

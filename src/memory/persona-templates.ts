@@ -81,3 +81,7 @@ export const workspaceMemoryTemplate = (ws: string) =>
 /** Per-location memory template (a header only: it counts as empty until the first entry). */
 export const memoryTemplate = (name: string) =>
   `# ${name} memory\n\nLessons the Friday agent keeps about this location, in sections by kind (Decisions, Facts, Preferences, Lessons). Kind sections are never dropped; size is kept down by compact memory, and a full file refuses new notes. Dated legacy sections are trimmed at 300 lines.\n`;
+
+/** Per-channel memory template (a header only: it counts as empty until the first entry). */
+export const channelMemoryTemplate = (name: string) =>
+  `# ${name} channel memory\n\nNotes the Friday agent keeps about this channel's topic, in sections by kind (Decisions, Facts, Preferences, Lessons). Only runs started in this channel read it. Size is kept down by compact memory, and a full file refuses new notes.\n`;

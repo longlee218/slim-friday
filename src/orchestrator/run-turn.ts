@@ -24,6 +24,8 @@ export interface RoleRunCtx {
   /** Start time of the call (for `task.finished`). */
   t0: number;
   workspace: string;
+  /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
+  channel?: string;
   locations: Location[];
   ac: AbortController;
   /** Creates the turn row (called once, after the refusals, before the flow runs). */
@@ -91,6 +93,7 @@ export async function runTurn(
     text: cmd.text,
     role: role.name,
     workspace: ws,
+    channel: c.channel,
     // `locationScope: "all"` roles see every location of the workspace; the others the candidates.
     locations: role.locationScope === "all" ? c.locations : a.route.candidates,
     ac: c.ac,

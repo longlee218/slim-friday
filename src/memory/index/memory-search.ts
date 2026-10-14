@@ -21,6 +21,8 @@ export interface SearchArgs {
   limit: number;
   /** Location names of the run's registry: hits of any other location are left out. */
   locations: string[];
+  /** Channel of the run: channel entries of any other channel are left out (none when absent). */
+  channel?: string;
 }
 
 export interface Hit {
@@ -67,6 +69,11 @@ export function searchIndex(
     );
     params.push(...a.locations.map((r) => `location/${r}`));
   } else where.push("source <> 'location'");
+  // Channel entries only for the run's own channel (id prefix `channel/<name>`).
+  if (a.channel)
+    where.push("(source <> 'channel' OR substr(id, 1, instr(id, '#') - 1) = ?)"),
+      params.push(`channel/${a.channel}`);
+  else where.push("source <> 'channel'");
   if (a.scope) where.push("source = ?"), params.push(a.scope);
   if (a.kind) where.push("kind = ?"), params.push(a.kind);
   if (a.since) where.push("date >= ?"), params.push(a.since);

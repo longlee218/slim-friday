@@ -1,6 +1,8 @@
 import { ChannelType, type Guild } from "discord.js";
+import { ensureChannelDir } from "../memory/persona";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { setChannelTopic } from "./channel-topic";
 import {
   type CreateResult,
   createPrivate,
@@ -93,7 +95,9 @@ async function runInit(deps: InitDeps, name: string): Promise<string> {
       { name: channelName, kind: "text", parentId: category.id },
       deps.ids,
     );
-    addWorkspaceChannel(deps.home, name, created.id);
+    addWorkspaceChannel(deps.home, name, { id: created.id, name: channelName, mode: "task" });
+    ensureChannelDir(deps.home, name, channelName);
+    await setChannelTopic(deps.guild, created.id, "task");
     return done(
       name,
       "created",

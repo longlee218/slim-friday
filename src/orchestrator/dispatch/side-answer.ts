@@ -40,6 +40,8 @@ export interface SideInput {
   /** The message (thread, source, recent conversation). */
   message: InboundMessage;
   workspace: string;
+  /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
+  channel?: string;
   locations: Location[];
   pinned?: Location;
   /** Controller of this side run (linked to the thread's `/stop` and to shutdown by the caller). */
@@ -82,6 +84,7 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
       text: brief,
       role: role.name,
       workspace: i.workspace,
+      channel: i.channel,
       locations: role.locationScope === "all" ? i.locations : v.candidates,
       ac: i.ac,
       route: runRoute({ cls: i.cls, effort: i.effort }),

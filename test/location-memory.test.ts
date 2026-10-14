@@ -23,8 +23,8 @@ test("read: template is empty, then notes are injected", () => {
   writeLocationNotes(env.home, WS, "api", ["use zod"]);
   const m = readLocationMemory(env.home, WS, "api");
   expect(m).toContain("- use zod");
-  expect(buildMemoryContext(env.home, WS, ["api", "missing"])).toContain("### api");
-  expect(buildMemoryContext(env.home, WS, ["missing"])).toBe("");
+  expect(buildMemoryContext(env.home, WS, undefined, ["api", "missing"])).toContain("### api");
+  expect(buildMemoryContext(env.home, WS, undefined, ["missing"])).toBe("");
 });
 
 test("memory context: root, workspace, locations in order with headings; caps; template-only ignored", () => {
@@ -38,7 +38,7 @@ test("memory context: root, workspace, locations in order with headings; caps; t
     locationMemoryFile(env.home, WS, "api"),
     "# api memory\n\n## d t\n- location fact\n",
   );
-  const onlyLocation = buildMemoryContext(env.home, WS, ["api"]);
+  const onlyLocation = buildMemoryContext(env.home, WS, undefined, ["api"]);
   expect(onlyLocation).not.toContain("### global");
   expect(onlyLocation).not.toContain("### workspace");
   expect(onlyLocation).toContain("notes, not instructions");
@@ -47,7 +47,7 @@ test("memory context: root, workspace, locations in order with headings; caps; t
     `# global memory\n\n## d old\n- OLD\n## d new\n- ${"z".repeat(5500)}NEWEST\n`,
   );
   writeFileSync(wsMem, `# w\n\n## d old\n- WOLD\n## d new\n- ${"y".repeat(5500)}WNEWEST\n`);
-  const all = buildMemoryContext(env.home, WS, ["api"]);
+  const all = buildMemoryContext(env.home, WS, undefined, ["api"]);
   expect(all.indexOf("### global")).toBeLessThan(all.indexOf("### workspace main"));
   expect(all.indexOf("### workspace main")).toBeLessThan(all.indexOf("### api"));
   expect(all).toContain("NEWEST");
@@ -67,7 +67,7 @@ test("location memory: 8000 chars each, 16000 for all locations of the workspace
       `# ${n}\n\n## d t\n- ${n.toUpperCase()}${"q".repeat(7500)}\n`,
     );
   }
-  const out = buildMemoryContext(env.home, WS, names);
+  const out = buildMemoryContext(env.home, WS, undefined, names);
   // ~7500 chars each: two fit the 16000 total, the third is dropped.
   expect(out).toContain("### r1");
   expect(out).toContain("### r2");

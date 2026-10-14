@@ -1,10 +1,10 @@
 import { join } from "node:path";
 import { workspacePaths } from "../../config/workspace-paths";
-import { PER_LOCATION_CHARS, WORKSPACE_CHARS } from "../../memory/location-memory";
+import { CHANNEL_CHARS, PER_LOCATION_CHARS, WORKSPACE_CHARS } from "../../memory/location-memory";
 import { localDay, localHhmm } from "../../memory/memory-clock";
 import { saveJournalBullet, saveMemoryBullet } from "../../memory/memory-section-writer";
 import { DEFAULT_KIND, KIND_HEADING, type MemoryKind } from "../../memory/memory-sections";
-import { locationTarget, workspaceTarget } from "../../memory/memory-targets";
+import { channelTarget, locationTarget, workspaceTarget } from "../../memory/memory-targets";
 import { PENDING_HEADER } from "../../memory/memory-writer";
 import type { MemoryToolContext } from "../memory-tool-context";
 import {
@@ -75,6 +75,17 @@ export function rememberNote(ctx: MemoryToolContext, a: RememberArgs, now: Date)
         saveMemoryBullet(t.file, t.template, kind, text, date, PER_LOCATION_CHARS, {
           ...fields,
           location: a.location,
+        });
+      break;
+    }
+    case "channel": {
+      if (!ctx.channel) return fail("this run has no channel: use scope workspace", "no_channel");
+      const t = channelTarget(ctx.home, ctx.workspace, ctx.channel);
+      [file, where] = [t.file, `channel/${ctx.channel}`];
+      save = () =>
+        saveMemoryBullet(t.file, t.template, kind, text, date, CHANNEL_CHARS, {
+          ...fields,
+          channel: ctx.channel,
         });
       break;
     }

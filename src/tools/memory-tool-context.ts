@@ -10,6 +10,8 @@ export interface MemoryToolContext {
   home: string;
   /** Workspace of the run: scope `workspace`, `location` and `journal` resolve inside it. */
   workspace: string;
+  /** Channel (yaml name) the run started in: scope `channel` writes its MEMORY.md; absent = no channel. */
+  channel?: string;
   /** Valid location names of the workspace (the registry), read when a tool needs them. */
   locationNames: () => string[];
   /** The run's single location, when it has exactly one: stamps `global` notes with their origin (`[ws/location]`). */

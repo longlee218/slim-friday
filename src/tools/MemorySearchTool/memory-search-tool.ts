@@ -79,6 +79,7 @@ export function createMemorySearchTool(ctx: MemoryToolContext, budget: ReadBudge
         ...args,
         limit,
         locations: ctx.locationNames(),
+        channel: ctx.channel,
       });
       logEvent(log, "memory.search", {
         scope: args.scope,

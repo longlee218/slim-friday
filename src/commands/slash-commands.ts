@@ -9,6 +9,7 @@
  *   /forget <text>           -> forget: <text>
  *   /compact [dry-run]       -> compact memory [dry-run]
  *   /init-workspace <name>   -> init:workspace:<name>  (ops control channel only)
+ *   /init-channel <space>/<name> -> init:channel:<space>/<name>  (ops control channel only)
  */
 /** Every slash command name; the regex below and the native Discord definitions are both built from it. */
 export const SLASH_NAMES = [
@@ -18,6 +19,7 @@ export const SLASH_NAMES = [
   "forget",
   "compact",
   "init-workspace",
+  "init-channel",
 ] as const;
 export type SlashName = (typeof SLASH_NAMES)[number];
 
@@ -45,6 +47,8 @@ export function slashToLegacy(input: string): string {
       return !arg || arg.toLowerCase() === "dry-run"
         ? `compact memory${arg ? ` ${arg}` : ""}`
         : input;
+    case "init-channel":
+      return `init:channel:${arg}`;
     default:
       return `init:workspace:${arg}`;
   }

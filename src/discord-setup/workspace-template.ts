@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
@@ -21,16 +22,25 @@ const PERSONA_STUBS: Record<string, string> = {
   "AGENTS.md": "# Agents\n<!-- Optional override of the root AGENTS.md for this workspace. -->\n",
 };
 
+/** A `channels:` entry as written in workspace.yaml: a plain id (legacy) or an object with `id`. */
+type ChannelEntry = string | ({ id: string } & Record<string, unknown>);
+
 /**
- * Channel ids as strings. An unquoted 17-20 digit id is parsed by YAML as a lossy number: never map it to
+ * The raw `channels:` entries. An unquoted 17-20 digit id is parsed by YAML as a lossy number: never map it to
  * a (wrong) string, throw instead so the workspace is treated as not safe to touch.
  */
-function stringChannels(value: unknown): string[] {
+function channelEntries(value: unknown): ChannelEntry[] {
   if (value === undefined || value === null) return [];
-  if (!Array.isArray(value) || value.some((c) => typeof c !== "string"))
-    throw new Error("workspace.yaml channels must be quoted strings");
-  return value;
+  const ok = (c: unknown) =>
+    typeof c === "string" ||
+    (typeof c === "object" && c !== null && typeof (c as { id?: unknown }).id === "string");
+  if (!Array.isArray(value) || !value.every(ok))
+    throw new Error("workspace.yaml channels must be quoted strings or objects with a string id");
+  return value as ChannelEntry[];
 }
+
+/** The Discord id of one `channels:` entry. */
+const entryId = (c: ChannelEntry): string => (typeof c === "string" ? c : c.id);
 
 /** Inspect `workspaces/<name>` without changing anything. */
 export function workspaceState(home: string, name: string): WorkspaceState {
@@ -45,7 +55,7 @@ export function workspaceState(home: string, name: string): WorkspaceState {
   if (!existsSync(ws.config)) return { kind: existsSync(ws.legacyConfig) ? "legacy" : "foreign" };
   try {
     const data = (Bun.YAML.parse(readFileSync(ws.config, "utf8")) ?? {}) as { channels?: unknown };
-    return { kind: "workspace", channels: stringChannels(data.channels) };
+    return { kind: "workspace", channels: channelEntries(data.channels).map(entryId) };
   } catch {
     return { kind: "foreign" };
   }
@@ -68,16 +78,28 @@ export function createWorkspaceDir(home: string, name: string): void {
     writeFileSync(join(ws.root, file), body, { mode: 0o600 });
 }
 
+/** A channel to append to `workspace.yaml`. */
+export interface NewChannel {
+  id: string;
+  name: string;
+  mode: "task" | "chat";
+}
+
 /**
- * Add a Discord channel id to `workspace.yaml` `channels` (idempotent). Other fields are kept; the file is
- * re-rendered deterministically, so comments in it are lost. Atomic via temp file + rename.
+ * Append `{id, name, mode}` to `workspace.yaml` `channels` (idempotent by id; refuses a name an object entry already uses; existing entries, legacy plain
+ * ids included, are kept as they are). Other fields are kept; the file is re-rendered deterministically, so
+ * comments in it are lost. Atomic via temp file + rename.
  */
-export function addWorkspaceChannel(home: string, name: string, channelId: string): void {
+export function addWorkspaceChannel(home: string, name: string, channel: NewChannel): void {
   const { config } = workspacePaths(home).workspace(name);
   const data = (Bun.YAML.parse(readFileSync(config, "utf8")) ?? {}) as Record<string, unknown>;
-  const channels = stringChannels(data.channels);
-  if (!channels.includes(channelId)) channels.push(channelId);
-  const tmp = `${config}.tmp`;
+  const channels = channelEntries(data.channels);
+  if (!channels.some((c) => entryId(c) === channel.id)) {
+    if (channels.some((c) => typeof c === "object" && c.name === channel.name))
+      throw new Error(`channel name already used in ${name}: ${channel.name}`);
+    channels.push({ ...channel });
+  }
+  const tmp = `${config}.${process.pid}.${randomUUID()}.tmp`; // unique: never follows a pre-planted file
   writeFileSync(tmp, Bun.YAML.stringify({ ...data, channels }, null, 2), { mode: 0o600 });
   renameSync(tmp, config);
 }

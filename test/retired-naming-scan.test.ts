@@ -15,7 +15,7 @@ function sources(dir: string): { file: string; text: string }[] {
 
 /**
  * Names retired by the message / turn / task naming cleanup (P3.7). Built from parts so this file does not
- * contain them. History lives in docs/project-changelog.md only.
+ * contain them. History lives in docs/project-changelog.md and its archive only.
  */
 const j = (...parts: string[]) => new RegExp(parts.join(""));
 
@@ -158,7 +158,9 @@ test("retired table has no duplicate entry", () => {
 });
 
 test("docs hold no retired file or symbol name (changelog history excepted)", () => {
-  const docs = readdirSync("docs").filter((f) => f.endsWith(".md") && f !== "project-changelog.md");
+  const docs = readdirSync("docs").filter(
+    (f) => f.endsWith(".md") && !f.startsWith("project-changelog"),
+  );
   expect(docs.length).toBeGreaterThan(3);
   const hits: string[] = [];
   for (const d of docs) {

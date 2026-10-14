@@ -33,6 +33,8 @@ export interface RoleRunInput {
   role: string;
   /** Workspace the run belongs to; every location lookup of the flow stays inside it. */
   workspace: string;
+  /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
+  channel?: string;
   /** Locations the run may use (the role's `locationScope` decided which). */
   locations: Location[];
   /** The task's abort controller (`stop`, shutdown). */

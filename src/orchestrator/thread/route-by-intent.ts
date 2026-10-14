@@ -65,6 +65,8 @@ export interface RouteCtx {
   deps: DispatchDeps;
   message: InboundMessage;
   workspace: string;
+  /** Channel (yaml name) of the message: handed to the dispatched run. */
+  channel?: string;
   locations: Location[];
   ac: AbortController;
   pinned?: Location;
@@ -169,6 +171,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
           message: c.message,
           reply: "",
           workspace: c.workspace,
+          channel: c.channel,
           locations: c.locations,
           pinned: c.pinned,
           ac: c.ac,

@@ -4,7 +4,7 @@ import type { IntentDeps } from "../intent/decide-intent";
 import { logEvent } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { getSession } from "../storage/session-store";
-import { selectWorkspace } from "../workspaces/task-workspace";
+import { channelLocations, selectWorkspace } from "../workspaces/task-workspace";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { runSideAnswer } from "./dispatch/side-answer";
 import { pinnedLocation } from "./intent-turn";
@@ -111,17 +111,15 @@ async function runSide(
   const key = `${message.threadId}:side:${++sideSeq}`;
   d.active.set(key, ac); // shutdown (abortAll) reaches it; the thread id key stays the task's lock
   try {
-    const { ws } = picked;
-    const pinned = pinnedLocation(
-      ws.locations,
-      out.location,
-      getSession(d.deps.db, message.threadId),
-    );
+    const { ws, channel } = picked;
+    const locations = channelLocations(ws, channel);
+    const pinned = pinnedLocation(locations, out.location, getSession(d.deps.db, message.threadId));
     return await runSideAnswer(d.deps, {
       ...out,
       message,
       workspace: ws.name,
-      locations: ws.locations,
+      channel: channel.name,
+      locations,
       pinned,
       ac,
       snapshot: statusSnapshot(d.deps.db, message.threadId),

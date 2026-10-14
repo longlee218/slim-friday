@@ -35,6 +35,8 @@ export interface QueueCtx {
   deps: DispatchDeps;
   message: InboundMessage;
   workspace: string;
+  /** Channel (yaml name) of the message: kept for the queued task's run. */
+  channel?: string;
   locations: Location[];
   ac: AbortController;
   pinned?: Location;

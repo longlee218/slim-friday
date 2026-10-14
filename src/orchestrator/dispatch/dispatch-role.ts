@@ -38,6 +38,8 @@ export interface DispatchInput {
   reply: string;
   /** Workspace the task runs in and its locations. */
   workspace: string;
+  /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
+  channel?: string;
   locations: Location[];
   /** Location the thread is pinned to, when any. */
   pinned?: Location;
@@ -160,6 +162,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     text: request.brief,
     role: role.name,
     workspace: i.workspace,
+    channel: i.channel,
     // `locationScope: "all"` roles see every location of the workspace; the others pick among the locations.
     locations: role.locationScope === "all" ? i.locations : v.candidates,
     ac: i.ac,

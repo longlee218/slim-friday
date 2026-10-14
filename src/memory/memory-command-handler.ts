@@ -97,11 +97,13 @@ export function createMemoryRunner(deps: MemoryRunnerDeps): MemoryRunner {
     if (where === "ops")
       return "Memory commands run in a workspace channel, or in #ops-control for global memory only.";
     let ws: Workspace | undefined;
+    let channel: string | undefined;
     let all: Workspace[] = [];
     if (where === "workspace") {
       const picked = selectWorkspace(home, req.channelId);
       if ("reply" in picked) return picked.reply;
       ws = picked.ws;
+      channel = picked.channel.name;
     } else {
       all = loadWorkspaces(home).workspaces;
       ensureHome(home, all);
@@ -115,7 +117,7 @@ export function createMemoryRunner(deps: MemoryRunnerDeps): MemoryRunner {
     const refined = refineWriteCommand(ws, cmd);
     if ("reply" in refined) return refined.reply;
     const t = resolveMemoryTarget(
-      { db: deps.db, home, ws, threadId: req.threadId, place: where },
+      { db: deps.db, home, ws, channel, threadId: req.threadId, place: where },
       refined.scope,
     );
     if ("reply" in t) return t.reply;

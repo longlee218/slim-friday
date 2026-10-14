@@ -12,7 +12,7 @@ import {
 } from "../observability/logger";
 import type { QueryFn } from "../runtime/run-agent";
 import { getSession } from "../storage/session-store";
-import { selectWorkspace } from "../workspaces/task-workspace";
+import { channelLocations, selectWorkspace } from "../workspaces/task-workspace";
 import { createHandlerServices } from "./handler-services";
 import { parseMessageCommand } from "./message-commands";
 import { routeAndRun } from "./route-and-run";
@@ -91,8 +91,8 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       const stored = getSession(db, threadId);
       const picked = selectWorkspace(config.agentHome, message.channelId);
       if ("reply" in picked) return refused(log, picked);
-      const { ws } = picked;
-      const { locations } = ws; // every location lookup below stays inside this workspace
+      const { ws, channel } = picked;
+      const locations = channelLocations(ws, channel); // every location lookup below stays inside this channel's locations
       setLogContext({ workspace: ws.name });
       workspaceName = ws.name;
       single = locations.length === 1 ? locations[0]!.name : undefined;
@@ -104,6 +104,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         turnId,
         t0,
         workspace: ws.name,
+        channel: channel.name,
         locations,
         ac,
         begin,

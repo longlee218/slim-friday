@@ -6,6 +6,8 @@ import { capMemory } from "./memory-cap";
 export const ROOT_CHARS = 5000;
 /** Max chars of the workspace memory (owner-edited, never written by the agent). */
 export const WORKSPACE_CHARS = 5000;
+/** Max chars of the channel memory (agent-written) injected into a prompt. */
+export const CHANNEL_CHARS = 3000;
 /** Max chars of one location's memory injected into a prompt (see `capMemory`: kind sections keep their newest bullets, legacy files their tail). */
 export const PER_LOCATION_CHARS = 8000;
 /** Max chars of all location memories of the workspace together (root and workspace layers are counted apart). */
@@ -42,6 +44,10 @@ export function readLocationMemory(
   return readMemoryFile(locationMemoryFile(agentHome, ws, location), max);
 }
 
+/** `AGENT_HOME/workspaces/<ws>/channels/<channel>/MEMORY.md`. */
+export const channelMemoryFile = (agentHome: string, ws: string, channel: string): string =>
+  workspacePaths(agentHome).workspace(ws).channel(channel).memory;
+
 /** Capped part of the root (global, owner-edited) memory, or "". */
 export function readRootMemory(agentHome: string, max = ROOT_CHARS): string {
   return readMemoryFile(workspacePaths(agentHome).memory, max);
@@ -56,16 +62,23 @@ export function readWorkspaceMemory(agentHome: string, ws: string, max = WORKSPA
 export interface MemoryLayers {
   root: string;
   workspace: string;
+  /** Memory of the channel the run started in ("" when the run has no channel). */
+  channel: string;
   /** Locations with a non-empty memory (total capped at LOCATIONS_TOTAL_CHARS). */
   locations: { name: string; text: string }[];
-  /** Layers whose oldest part was cut at read ("root", "workspace", location names): visible via `prompt.context`. */
+  /** Layers whose oldest part was cut at read ("root", "workspace", "channel", location names): visible via `prompt.context`. */
   overCap: string[];
   /** Locations left out because the locations total (LOCATIONS_TOTAL_CHARS) was already used. */
   skippedLocations: string[];
 }
 
-/** Read the three layers for workspace `ws` and the locations the run may touch. Pure: callers log what was cut. */
-export function readMemoryLayers(agentHome: string, ws: string, locations: string[]): MemoryLayers {
+/** Read the layers (root, workspace, channel, locations) for workspace `ws`. Pure: callers log what was cut. */
+export function readMemoryLayers(
+  agentHome: string,
+  ws: string,
+  channel: string | undefined,
+  locations: string[],
+): MemoryLayers {
   let total = 0;
   const out: MemoryLayers["locations"] = [];
   const overCap: string[] = [];
@@ -89,6 +102,9 @@ export function readMemoryLayers(agentHome: string, ws: string, locations: strin
   return {
     root: layer("root", paths.memory, ROOT_CHARS),
     workspace: layer("workspace", paths.workspace(ws).memory, WORKSPACE_CHARS),
+    channel: channel
+      ? layer("channel", channelMemoryFile(agentHome, ws, channel), CHANNEL_CHARS)
+      : "",
     locations: out,
     overCap,
     skippedLocations,
@@ -96,14 +112,20 @@ export function readMemoryLayers(agentHome: string, ws: string, locations: strin
 }
 
 /**
- * Prompt block: `### global` (root), `### workspace <ws>`, then `### <location>` for each location.
+ * Prompt block: `### global` (root), `### workspace <ws>`, `### channel <name>`, then `### <location>` for each location.
  * Empty when there is none.
  */
-export function buildMemoryContext(agentHome: string, ws: string, locations: string[]): string {
-  const l = readMemoryLayers(agentHome, ws, locations);
+export function buildMemoryContext(
+  agentHome: string,
+  ws: string,
+  channel: string | undefined,
+  locations: string[],
+): string {
+  const l = readMemoryLayers(agentHome, ws, channel, locations);
   const parts = [
     l.root && `### global\n${l.root}`,
     l.workspace && `### workspace ${ws}\n${l.workspace}`,
+    l.channel && `### channel ${channel}\n${l.channel}`,
     ...l.locations.map((r) => `### ${r.name}\n${r.text}`),
   ].filter(Boolean);
   return parts.length

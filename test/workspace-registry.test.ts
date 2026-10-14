@@ -223,7 +223,7 @@ skills:
   expect(w.channels).toEqual([CH1, CH2]);
   expect(w.channelDefs).toEqual([
     { id: CH1, name: "w-agent", mode: "task" },
-    { id: CH2, name: "chat-room", mode: "chat", locations: ["api"] },
+    { id: CH2, name: "chat-room", mode: "chat", locations: [] }, // unknown `api`: fail closed, no locations
   ]);
 });
 

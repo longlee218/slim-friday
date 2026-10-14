@@ -3,7 +3,7 @@ import type { InboundMessage } from "../ingress/discord-message-handler";
 import type { IntentDeps } from "../intent/decide-intent";
 import { logEvent } from "../observability/logger";
 import { getSession } from "../storage/session-store";
-import { selectWorkspace } from "../workspaces/task-workspace";
+import { channelLocations, selectWorkspace } from "../workspaces/task-workspace";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { intentTurn } from "./intent-turn";
 import type { MessageCommand } from "./message-commands";
@@ -38,12 +38,13 @@ export async function replyWhileBusy(c: {
     return { kind: "reply", text: STILL_WORKING };
   };
   if (!c.intent || c.parsed.kind !== "message" || !picked || "reply" in picked) return still();
-  const { ws } = picked;
+  const { ws, channel } = picked;
   const out = await intentTurn({
     ...c,
     intent: c.intent,
     workspace: ws.name,
-    locations: ws.locations,
+    channel: channel.name,
+    locations: channelLocations(ws, channel),
     stored: getSession(c.deps.db, c.message.threadId),
     busy: true,
     cmd: c.parsed,

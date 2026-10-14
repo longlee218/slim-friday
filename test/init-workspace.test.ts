@@ -3,12 +3,14 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { ChannelType } from "discord.js";
 import { workspacePaths } from "../src/config/workspace-paths";
 import {
   ADMIN_ONLY_CONTROL,
@@ -17,6 +19,7 @@ import {
   isAdminText,
   parseAdminCommand,
 } from "../src/discord-setup/admin-command";
+import { TASK_TOPIC } from "../src/discord-setup/channel-topic";
 import { initWorkspace } from "../src/discord-setup/init-workspace";
 import {
   addWorkspaceChannel,
@@ -24,6 +27,7 @@ import {
   workspaceState,
 } from "../src/discord-setup/workspace-template";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
+import { fakeGuild } from "./fake-guild";
 import { assertTempHome } from "./helpers";
 
 const tmpHome = () => {
@@ -31,6 +35,9 @@ const tmpHome = () => {
   assertTempHome(home);
   return home;
 };
+
+/** A channel entry for `addWorkspaceChannel`. */
+const ch = (id: string, name = "c") => ({ id, name, mode: "task" as const });
 
 const bad = ["../x", "a/b", " a", "a b", "Reelme", "ops", "a".repeat(33), "", "-x", "a.b", "a\nb"];
 test.each(bad)("parseAdminCommand rejects name %j before anything runs", (name) => {
@@ -105,14 +112,21 @@ test("addWorkspaceChannel keeps other fields, is idempotent and deterministic", 
   createWorkspaceDir(home, "w");
   const { config } = workspacePaths(home).workspace("w");
   writeFileSync(config, '# note\ndescription: "my ws"\nchannels: []\nextra: 1\n');
-  addWorkspaceChannel(home, "w", "100000000000000001");
+  addWorkspaceChannel(home, "w", ch("100000000000000001"));
   const once = readFileSync(config, "utf8");
-  addWorkspaceChannel(home, "w", "100000000000000001");
+  addWorkspaceChannel(home, "w", ch("100000000000000001"));
   expect(readFileSync(config, "utf8")).toBe(once);
   const parsed = Bun.YAML.parse(once) as any;
-  expect(parsed).toEqual({ description: "my ws", channels: ["100000000000000001"], extra: 1 });
-  addWorkspaceChannel(home, "w", "100000000000000002");
+  expect(parsed).toEqual({
+    description: "my ws",
+    channels: [{ id: "100000000000000001", name: "c", mode: "task" }],
+    extra: 1,
+  });
+  // A name an object entry already uses is refused (other id); the same id stays idempotent.
+  expect(() => addWorkspaceChannel(home, "w", ch("100000000000000002"))).toThrow("already used");
+  addWorkspaceChannel(home, "w", { ...ch("100000000000000002"), name: "d" });
   expect((Bun.YAML.parse(readFileSync(config, "utf8")) as any).channels).toHaveLength(2);
+  expect(readdirSync(dirname(config)).some((f) => f.endsWith(".tmp"))).toBe(false);
   expect(workspaceState(home, "w")).toEqual({
     kind: "workspace",
     channels: ["100000000000000001", "100000000000000002"],
@@ -152,7 +166,7 @@ test("initWorkspace refuses a legacy dir and a foreign dir without touching Disc
 test("initWorkspace rerun on a finished workspace says already set up and creates nothing", async () => {
   const home = tmpHome();
   createWorkspaceDir(home, "done");
-  addWorkspaceChannel(home, "done", "100000000000000001");
+  addWorkspaceChannel(home, "done", ch("100000000000000001"));
   const before = readFileSync(workspacePaths(home).workspace("done").config, "utf8");
   expect(await initWorkspace(noGuild(home), "done")).toContain("already set up");
   expect(readFileSync(workspacePaths(home).workspace("done").config, "utf8")).toBe(before);
@@ -192,15 +206,32 @@ test("an unquoted 19-digit channel id is never mapped to a wrong string", () => 
   expect(loadWorkspaces(home, home).workspaces).toEqual([]);
   // Template helpers: foreign (untouched), and adding a channel throws instead of rewriting the id.
   expect(workspaceState(home, "num")).toEqual({ kind: "foreign" });
-  expect(() => addWorkspaceChannel(home, "num", "100000000000000001")).toThrow();
+  expect(() => addWorkspaceChannel(home, "num", ch("100000000000000001"))).toThrow();
   expect(readFileSync(config, "utf8")).toContain("1234567890123456789");
 });
 
 test("the deterministic renderer quotes channel ids", () => {
   const home = tmpHome();
   createWorkspaceDir(home, "q");
-  addWorkspaceChannel(home, "q", "1234567890123456789");
+  addWorkspaceChannel(home, "q", ch("1234567890123456789"));
   const text = readFileSync(workspacePaths(home).workspace("q").config, "utf8");
   expect(text).toContain('"1234567890123456789"');
   expect(loadWorkspaces(home, home).workspaces[0]?.channels).toEqual(["1234567890123456789"]);
+});
+
+test("initWorkspace success: first channel is an object, channel dir exists, topic set", async () => {
+  const home = tmpHome();
+  const g = fakeGuild([]);
+  const reply = await initWorkspace({ ...noGuild(home), guild: g.guild }, "shop");
+  expect(reply).toContain("Created private category");
+  const category = g.created.find((c) => c.type === ChannelType.GuildCategory);
+  const text = g.created.find((c) => c.type === ChannelType.GuildText);
+  expect(text.parent).toBe(category.id);
+  const paths = workspacePaths(home).workspace("shop");
+  expect((Bun.YAML.parse(readFileSync(paths.config, "utf8")) as any).channels).toEqual([
+    { id: text.id, name: "shop-agent", mode: "task" },
+  ]);
+  expect(existsSync(paths.channel("shop-agent").memory)).toBe(true);
+  expect(g.topics[text.id]).toBe(TASK_TOPIC);
+  expect(workspaceState(home, "shop")).toEqual({ kind: "workspace", channels: [text.id] });
 });

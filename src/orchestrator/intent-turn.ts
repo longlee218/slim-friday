@@ -28,6 +28,8 @@ export interface IntentTurnCtx {
   log: Logger;
   message: InboundMessage;
   workspace: string;
+  /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
+  channel?: string;
   locations: Location[];
   ac: AbortController;
   intent: IntentDeps;
