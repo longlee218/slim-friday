@@ -84,7 +84,9 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
             stopTyping();
             stopTyping = startTyping(channel);
           }
-          return sendReply(channel, m, visible);
+          // A caught send failure ends this composing phase too; background work must not refresh typing.
+          const stopNotificationTyping = stopTyping;
+          return sendReply(channel, m, visible).finally(stopNotificationTyping);
         },
       });
       started?.();

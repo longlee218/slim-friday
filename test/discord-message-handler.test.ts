@@ -460,3 +460,41 @@ test("failed visible sends leave the receipt present", async () => {
   expect(m.calls.reactions).toEqual([BUSY_ACK_EMOJI]);
   expect(m.calls.removed).toEqual([]);
 });
+
+test("a caught failed later notification stops typing during deferred background work", async () => {
+  const gate = deferred<string>();
+  const caught = deferred<void>();
+  const m = fakeMsg({});
+  let typing = 0;
+  m.thread.sendTyping = async () => {
+    typing++;
+  };
+  const send = m.thread.send;
+  m.thread.send = async (output: any) => {
+    if (output.content === "later") throw new Error("notification send failed");
+    await send(output);
+  };
+  const handler = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    handleMessage: async (message) => {
+      await message.notify!("accepted");
+      try {
+        await message.notify!("later");
+      } catch {
+        caught.resolve();
+      }
+      return gate.promise;
+    },
+  });
+  const pending = handler(m.msg);
+  await caught.promise;
+  const before = typing;
+  await Bun.sleep(8100);
+  const after = typing;
+  gate.resolve("done");
+  await pending;
+  expect(before).toBe(2);
+  expect(after).toBe(before);
+  expect(m.thread.sent.map((output: any) => output.content)).toEqual(["accepted", "done"]);
+}, 12000);
