@@ -116,6 +116,7 @@ export function buildSdkOptions(
         turnId: input.turnId,
         threadId: input.code?.threadId ?? "",
         guard,
+        runSignal: input.abortController.signal,
         autoMode: deps.autoState,
         bypassMode: deps.bypassState,
         onDeny: (id) => deps.recorder.denied.add(id),

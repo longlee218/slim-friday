@@ -110,3 +110,90 @@ test("Q&A with several locations uses the neutral cwd and lists no CLAUDE.md hin
   expect(prompt).toContain("uses bun");
   expect(opts.skills).toEqual([]); // no location skills here: bundled SDK skills are not listed
 });
+
+/* Interrupt-steer plan, Task 3: the abort fence only denies new tools; it never undoes a finished one. */
+import { existsSync } from "node:fs";
+import { guardFor } from "../src/guardrails/check-tool-call";
+import { getRole } from "../src/roles/role-registry";
+import { buildToolPermissions, RUN_STOPPED_REASON } from "../src/runtime/tool-permissions";
+
+const fenceInput = (runSignal: AbortSignal, gateway?: any) => ({
+  turnId: "t",
+  threadId: "th",
+  guard: guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
+  runSignal,
+  gateway,
+});
+const readCall = (id: string) =>
+  ({
+    hook_event_name: "PreToolUse",
+    tool_use_id: id,
+    tool_name: READ_TOOL_NAME,
+    tool_input: { file_path: "/ws/location/a.txt" },
+  }) as never;
+const SIG = { signal: new AbortController().signal };
+
+test("fence: PreToolUse allows a new tool while the run lives and denies it once the run is aborted", async () => {
+  const ac = new AbortController();
+  const hook = buildToolPermissions(fenceInput(ac.signal)).hooks[0]!.hooks[0]!;
+  expect(await hook(readCall("u1"), "u1", SIG)).toEqual({ continue: true });
+  ac.abort();
+  const out: any = await hook(readCall("u2"), "u2", SIG);
+  expect(out.hookSpecificOutput).toMatchObject({
+    permissionDecision: "deny",
+    permissionDecisionReason: RUN_STOPPED_REASON,
+  });
+});
+
+test("fence: canUseTool denies before asking when the run is already stopped, and a 'yes' that lands during the stop does not start the tool", async () => {
+  const requests: string[] = [];
+  const ac = new AbortController();
+  let answer!: (r: { approved: boolean }) => void;
+  const gateway = {
+    request: (r: { tool: string }) => {
+      requests.push(r.tool);
+      return new Promise((res) => (answer = res as never));
+    },
+    askChoice: async () => undefined,
+    cancelTurn: () => {},
+  };
+  const { canUseTool } = buildToolPermissions(fenceInput(ac.signal, gateway));
+  const opts = { signal: ac.signal, toolUseID: "u1" } as never;
+  // an unknown tool asks the owner; the owner says yes AFTER the run was aborted
+  const pending = canUseTool("MysteryTool", {}, opts);
+  await Bun.sleep(5);
+  expect(requests).toEqual(["MysteryTool"]);
+  ac.abort();
+  answer({ approved: true });
+  expect(await pending).toMatchObject({ behavior: "deny", message: RUN_STOPPED_REASON });
+  // a later call never even reaches the owner
+  expect(
+    await canUseTool("MysteryTool", {}, { ...(opts as object), toolUseID: "u2" } as never),
+  ).toMatchObject({
+    behavior: "deny",
+    message: RUN_STOPPED_REASON,
+  });
+  expect(requests).toHaveLength(1);
+});
+
+test("fence: it cannot override a guard denial (the guard's reason stays) and never undoes a completed write", async () => {
+  const env = makeEnv();
+  const done = join(env.home, "completed.txt");
+  writeFileSync(done, "x\n"); // a tool that finished before the stop
+  const ac = new AbortController();
+  const { canUseTool } = buildToolPermissions(
+    fenceInput(ac.signal, {
+      request: async () => ({ approved: true }),
+      askChoice: async () => undefined,
+      cancelTurn: () => {},
+    }),
+  );
+  const denied: any = await canUseTool(READ_TOOL_NAME, { file_path: "/etc/passwd" }, {
+    signal: ac.signal,
+    toolUseID: "g1",
+  } as never);
+  expect(denied.behavior).toBe("deny");
+  expect(denied.message).not.toBe(RUN_STOPPED_REASON); // the guard's own reason, run not stopped yet
+  ac.abort();
+  expect(existsSync(done)).toBe(true);
+});

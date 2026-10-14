@@ -300,3 +300,58 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
     expect(listRunMessages(env.db, "th")[0]?.status).toBe("dropped");
   });
 });
+
+describe("interrupt-steer Task 3: delivery stays truthful across tool batches", () => {
+  const toolBatch = (id: string) =>
+    [
+      {
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id, name: "Bash", input: {} }],
+        },
+      },
+      {
+        type: "user",
+        message: {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: id, content: "ok" }],
+        },
+      },
+    ] as unknown as SDKMessage[];
+
+  test("a steer queued during several tool calls is delivered only when the CLI echoes it (SDK replay is the proof)", async () => {
+    const s = setup([
+      async function* (it) {
+        yield initMsg;
+        expect(s.reg.steer(TH, "add a Mermaid diagram").result).toBe("queued");
+        for (const m of toolBatch("a")) yield m; // tool batch 1: the steer is NOT delivered by merely being pushed
+        for (const m of toolBatch("b")) yield m; // tool batch 2
+        expect(listRunMessages(s.env.db, "th")[0]).toMatchObject({ status: "pending" });
+        await it.next(); // the CLI pulls it ...
+        yield echo("add a Mermaid diagram"); // ... and replays it: now it is delivered
+        yield resultMsg({ result: "with diagram" });
+      },
+    ]);
+    await s.go();
+    expect(listRunMessages(s.env.db, "th")[0]).toMatchObject({ status: "delivered" });
+    expect(s.reg.undeliveredNotice("th")).toBe("");
+  });
+
+  test("a steer accepted during a tool batch but never replayed ends as dropped and is reported, never applied", async () => {
+    const s = setup([
+      async function* (it) {
+        yield initMsg;
+        s.reg.steer(TH, "make it a table");
+        for (const m of toolBatch("a")) yield m;
+        await it.next(); // pulled, never echoed
+        yield resultMsg({ result: "r1" });
+        yield resultMsg({ result: "r2" });
+        yield resultMsg({ result: "r3" });
+      },
+    ]);
+    await s.go();
+    expect(listRunMessages(s.env.db, "th")[0]).toMatchObject({ status: "dropped" });
+    expect(s.reg.undeliveredNotice("th")).toContain("make it a table");
+  });
+});
