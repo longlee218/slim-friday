@@ -50,6 +50,12 @@ export interface ToolPermissionInput {
    * guard denial or the owner's decision) and never undoes a tool that already ran. Required for real runs.
    */
   runSignal?: AbortSignal;
+  /** Observation only: every guard decision of a PreToolUse call. It cannot change the decision; a throwing observer is ignored. */
+  onGuardDecision?: (event: {
+    toolUseId: string;
+    decision: "allow" | "ask" | "deny";
+    reason: string;
+  }) => void;
   /** A tool call was denied by the guard hook or by canUseTool (owner / ask limit): its tool_use_id. For run metrics. */
   onDeny?: (toolUseId: string) => void;
 }

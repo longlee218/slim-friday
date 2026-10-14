@@ -5,6 +5,7 @@ import { MEMORY_KINDS } from "../../memory/memory-sections";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import type { MemoryToolContext } from "../memory-tool-context";
+import { formatTrustedToolIssue, type TrustedToolIssueCode } from "../trusted-tool-issue";
 import { REMEMBER_MAX_CALLS_PER_RUN, REMEMBER_SCOPES } from "./constants";
 import { REMEMBER_DESCRIPTION } from "./prompt";
 import { type RememberOutcome, rememberNote } from "./remember-write";
@@ -23,6 +24,18 @@ const SHAPE = {
   kind: z.enum(MEMORY_KINDS).optional().describe("Default fact. open only with scope journal."),
 };
 
+/** Trusted code of a refused write; any result this map does not know is `unavailable` (no guessed cause). */
+const ISSUE_OF: Record<string, TrustedToolIssueCode> = {
+  too_short: "invalid_input",
+  too_long: "invalid_input",
+  bad_kind: "invalid_input",
+  bad_location: "invalid_input",
+  empty: "invalid_input",
+  full: "limit",
+  limit: "limit",
+  busy: "temporarily_busy",
+};
+
 /**
  * The `Remember` tool of ONE run: it counts its own calls (REMEMBER_MAX_CALLS_PER_RUN), so build it once per run.
  * Logs `memory.remember {scope, kind, chars, result}`; the text is never logged.
@@ -36,17 +49,24 @@ export function createRememberTool(ctx: MemoryToolContext) {
       out =
         ++calls > REMEMBER_MAX_CALLS_PER_RUN
           ? {
-              text: `limit reached: at most ${REMEMBER_MAX_CALLS_PER_RUN} saves per run`,
+              text: `at most ${REMEMBER_MAX_CALLS_PER_RUN} saves per run`,
               isError: true,
               result: "limit",
             }
           : rememberNote(ctx, args, now);
     } catch (err) {
       // Never let a bug escape into the SDK: the model gets a short error, the log gets the class only (never the text).
+      log.warn({ err: errText(err).slice(0, 120) }, "remember failed");
+      out = { text: "", isError: true, result: "error" };
+    }
+    if (out.isError) {
+      // The model gets a trusted code and one next step: known outcomes keep their short text as detail, an unknown
+      // one (an exception, an unmapped result) gets none.
+      const code = ISSUE_OF[out.result] ?? "unavailable";
+      ctx.onIssue?.({ tool: REMEMBER_TOOL, code });
       out = {
-        text: `could not save: ${errText(err).slice(0, 120)}`,
-        isError: true,
-        result: "error",
+        ...out,
+        text: formatTrustedToolIssue(code, ISSUE_OF[out.result] ? out.text : undefined),
       };
     }
     logEvent(log, "memory.remember", {

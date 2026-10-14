@@ -30,7 +30,9 @@ const NOW = new Date(2026, 9, 13, 9, 5);
 function setup() {
   const home = mkdtempSync(join(tmpdir(), "remember-"));
   const saved: string[] = [];
+  const issues: { tool: string; code: string }[] = [];
   const ctx: MemoryToolContext = {
+    onIssue: (e) => issues.push(e),
     db: openDb(":memory:"),
     home,
     workspace: "main",
@@ -45,7 +47,7 @@ function setup() {
     return { text: (r.content[0] as { text: string }).text, isError: !!r.isError };
   };
   const ws = join(home, "workspaces", "main");
-  return { home, ws, saved, call, ctx };
+  return { home, ws, saved, call, ctx, issues };
 }
 
 test("every scope writes the right file and section", async () => {
@@ -111,8 +113,23 @@ test("an unexpected error becomes a short tool error", async () => {
   };
   const r = await s.call({ text: "some note", scope: "location", location: "api" });
   expect(r.isError).toBe(true);
-  expect(r.text).toContain("could not save: ");
-  expect(r.text).toContain("registry broke");
+  // raw exception text never reaches the model: only the trusted code and a next step
+  expect(r.text).toStartWith("unavailable");
+  expect(r.text).not.toContain("registry broke");
+  expect(s.issues).toEqual([{ tool: "Remember", code: "unavailable" }]);
+});
+
+test("known refusals carry a trusted code and are reported through onIssue", async () => {
+  const s = setup();
+  expect((await s.call({ text: "x", scope: "workspace" })).text).toStartWith(
+    "invalid_input: text too short",
+  );
+  const full = setup();
+  for (let i = 0; i < REMEMBER_MAX_CALLS_PER_RUN; i++)
+    await full.call({ text: `note number ${i}`, scope: "workspace" });
+  const over = await full.call({ text: "one more", scope: "workspace" });
+  expect(over.text).toStartWith("limit:");
+  expect(full.issues.at(-1)).toEqual({ tool: "Remember", code: "limit" });
 });
 
 test("bad location, path tricks and open outside journal are refused without writing", async () => {

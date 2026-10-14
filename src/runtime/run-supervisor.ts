@@ -2,15 +2,11 @@
    never sees owner text or raw tool output, and has no way to allow what the guard denied. Recovery is requested at most
    once, and only after a result (the in-flight query is never touched). */
 
-/** Issue codes Friday-owned tools report (a closed set: free-form text is never an issue). */
-export const TRUSTED_ISSUE_CODES = [
-  "invalid_input",
-  "not_found",
-  "temporarily_busy",
-  "limit",
-  "unavailable",
-] as const;
-export type TrustedIssueCode = (typeof TRUSTED_ISSUE_CODES)[number];
+import { TRUSTED_TOOL_ISSUE_CODES, type TrustedToolIssueCode } from "../tools/trusted-tool-issue";
+
+/** The closed set of trusted issue codes (defined with the tools that report them). */
+export const TRUSTED_ISSUE_CODES = TRUSTED_TOOL_ISSUE_CODES;
+export type TrustedIssueCode = TrustedToolIssueCode;
 
 /** Same trusted issue this many times in one run counts as repeated (a single failure is not a trigger). */
 const REPEAT_THRESHOLD = 2;

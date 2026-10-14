@@ -197,3 +197,35 @@ test("fence: it cannot override a guard denial (the guard's reason stays) and ne
   ac.abort();
   expect(existsSync(done)).toBe(true);
 });
+
+test("guard decision observer sees allow / deny, cannot change them, and a throwing observer never lets a denied call through", async () => {
+  const seen: { decision: string; reason: string }[] = [];
+  const base = {
+    turnId: "t",
+    threadId: "th",
+    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
+  };
+  const call = (p: string, id: string) =>
+    ({
+      hook_event_name: "PreToolUse",
+      tool_use_id: id,
+      tool_name: READ_TOOL_NAME,
+      tool_input: { file_path: p },
+    }) as never;
+  const watched = buildToolPermissions({
+    ...base,
+    onGuardDecision: (e: { decision: string; reason: string }) => seen.push(e),
+  } as never).hooks[0]!.hooks[0]!;
+  expect(await watched(call("/ws/location/a.txt", "o1"), "o1", SIG)).toEqual({ continue: true });
+  const denied: any = await watched(call("/etc/passwd", "o2"), "o2", SIG);
+  expect(denied.hookSpecificOutput.permissionDecision).toBe("deny");
+  expect(seen.map((e) => e.decision)).toEqual(["allow", "deny"]);
+  const throwing = buildToolPermissions({
+    ...base,
+    onGuardDecision: () => {
+      throw new Error("observer bug");
+    },
+  } as never).hooks[0]!.hooks[0]!;
+  const still: any = await throwing(call("/etc/passwd", "o3"), "o3", SIG);
+  expect(still.hookSpecificOutput.permissionDecision).toBe("deny");
+});

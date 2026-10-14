@@ -51,6 +51,11 @@ export function guardHook(
     const input = (i.tool_input ?? {}) as Record<string, unknown>;
     const checked = checkToolCall(i.tool_name, input, p.guard);
     const d = isSpawnCall(i.tool_name) ? gateSpawn(checked, i.tool_use_id, limit) : checked;
+    try {
+      p.onGuardDecision?.({ toolUseId: i.tool_use_id, decision: d.decision, reason: d.reason });
+    } catch {
+      /* observation only: an observer bug never touches the decision */
+    }
     // Auto mode: an `ask` is deferred to the classifier; logged as decision "auto" (reason only, no content).
     const deferred = d.decision === "ask" && p.autoMode?.active;
     // Bypass mode: the owner chose "let them run"; an ask never reaches canUseTool (the SDK asks nothing).
