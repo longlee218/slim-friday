@@ -99,7 +99,9 @@ export function createMemorySearchTool(ctx: MemoryToolContext, budget: ReadBudge
       return textResult(formatHits(hits) + (syncErrors > 0 ? STALE_NOTE : ""));
     } catch (err) {
       logEvent(log, "memory.search.error", { err: errText(err, 120) }, "warn");
-      return issue("unavailable"); // the cause stays in the log, never in the model text
+      // The cause stays in the log, never in the model text; an unknown failure is NOT reported as a trusted issue
+      // (the run supervisor would count it toward a recovery).
+      return textResult(formatTrustedToolIssue("unavailable"), true);
     }
   });
 }

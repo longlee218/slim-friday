@@ -116,7 +116,7 @@ test("an unexpected error becomes a short tool error", async () => {
   // raw exception text never reaches the model: only the trusted code and a next step
   expect(r.text).toStartWith("unavailable");
   expect(r.text).not.toContain("registry broke");
-  expect(s.issues).toEqual([{ tool: "Remember", code: "unavailable" }]);
+  expect(s.issues).toEqual([]); // unknown failure: never counted toward a recovery
 });
 
 test("known refusals carry a trusted code and are reported through onIssue", async () => {

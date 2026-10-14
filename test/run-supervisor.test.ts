@@ -103,7 +103,8 @@ test("already recovered: no second recovery, an honest incomplete outcome", () =
 });
 
 test("quota and aborted results are never recovered", () => {
-  for (const outcome of ["quota", "aborted"]) {
+  // max_budget too: the owner decides a budget raise (`go +usd`), the app never spends more on its own
+  for (const outcome of ["quota", "aborted", "max_budget"]) {
     const s = sup();
     s.observe(issue("limit"));
     s.observe(issue("limit"));
@@ -153,7 +154,7 @@ test("recoverOnce is suppressed without a session, without budget, after a parti
 });
 
 test("recoverOnce never follows a success, an abort, a quota stop or an unknown failure", () => {
-  for (const outcome of ["success", "aborted", "quota"])
+  for (const outcome of ["success", "aborted", "quota", "max_budget"])
     expect(
       recoverOnce({ ...base, result: { outcome, sessionId: "s1" }, snapshot: snap({ limit: 3 }) }),
     ).toEqual({ kind: "none" });

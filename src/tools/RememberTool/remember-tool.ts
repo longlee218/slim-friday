@@ -62,11 +62,13 @@ export function createRememberTool(ctx: MemoryToolContext) {
     if (out.isError) {
       // The model gets a trusted code and one next step: known outcomes keep their short text as detail, an unknown
       // one (an exception, an unmapped result) gets none.
-      const code = ISSUE_OF[out.result] ?? "unavailable";
-      ctx.onIssue?.({ tool: REMEMBER_TOOL, code });
+      const known = ISSUE_OF[out.result];
+      // Only a KNOWN outcome is reported to the supervisor; an unknown failure stays `unavailable` for the model but
+      // never counts toward a recovery.
+      if (known) ctx.onIssue?.({ tool: REMEMBER_TOOL, code: known });
       out = {
         ...out,
-        text: formatTrustedToolIssue(code, ISSUE_OF[out.result] ? out.text : undefined),
+        text: formatTrustedToolIssue(known ?? "unavailable", known ? out.text : undefined),
       };
     }
     logEvent(log, "memory.remember", {

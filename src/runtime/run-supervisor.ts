@@ -16,7 +16,7 @@ export type TrustedIssueCode = TrustedToolIssueCode;
 const REPEAT_THRESHOLD = 2;
 
 /** Outcomes that are never recovered: the owner or the service ended the run. */
-const NEVER_RECOVERED: ReadonlySet<string> = new Set(["aborted", "quota"]);
+const NEVER_RECOVERED: ReadonlySet<string> = new Set(["aborted", "quota", "max_budget"]);
 
 /** Events the orchestration feeds in. Only codes, outcomes, counts and delivery states: no text. */
 export type RunControlEvent =
@@ -118,7 +118,7 @@ export function createRunSupervisor(o: { maxTurns: number; alreadyRecovered: boo
 export const MIN_RECOVERY_BUDGET_USD = 0.1;
 
 /** Outcomes after which nothing is recovered: the work is done, or the owner / the service ended it. */
-const FINAL_OUTCOMES: ReadonlySet<string> = new Set(["success", "aborted", "quota"]);
+const FINAL_OUTCOMES: ReadonlySet<string> = new Set(["success", "aborted", "quota", "max_budget"]);
 
 /** What the orchestration does after a result: nothing, or resume the saved session with a trusted internal hint. */
 export type RecoverySelection = { kind: "none" } | { kind: "resume"; hint: string };

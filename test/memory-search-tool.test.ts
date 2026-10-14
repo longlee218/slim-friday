@@ -63,6 +63,6 @@ test("an unknown exception withholds its raw text and is only `unavailable`; a '
   expect(r.isError).toBe(true);
   expect(r.text).toStartWith("unavailable");
   expect(r.text).not.toMatch(/permission|secret|hunter2/i);
-  expect(s.issues).toEqual([{ tool: "MemorySearch", code: "unavailable" }]);
+  expect(s.issues).toEqual([]); // an unknown failure is not a trusted issue: the supervisor must not count it
   expect(TRUSTED_TOOL_ISSUE_CODES).not.toContain("permission_denied" as never);
 });
