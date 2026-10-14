@@ -139,3 +139,42 @@ sqlite3 "$DB" "SELECT value FROM meta WHERE key='schema_version'"   # expect 6
 - Step 11 (log lines for the stranger and no-mention cases; the no-load rule itself is test-only).
 - Known gap (not a check): an adoption insert that fails leaves the thread `bot` (see system-architecture.md, Thread Lifecycle).
 - Rollback steps (written from the code, never executed).
+
+## Phase 1f: status questions while a task runs (`question`, `/status`, steer receipts)
+
+**What changes:** a question about a running or waiting task ("đang làm tới đâu rồi?") is answered at once by the entry role (side lane). It never steers the task or resumes it. A busy classifier failure still steers the message and adds a side answer in one reply. `/status` shows the task facts with no model call. Repeated steer notices within 60 s get ✅. An agent-read steer gets 📖 on your message. Jev runs on the busy path as a SHADOW only (`routing.jev_shadow` in the log; the route does not change).
+
+**Needs:** a bot restart so Discord gets the new `/status` command (guild: instant; global: up to an hour).
+
+### Before
+
+1. Stop the bot, back up the home: `cp -R "$AGENT_HOME" ~/friday-home-before-1f`.
+2. Note the time of the first test. Log checks read `$AGENT_HOME/logs/app.*.jsonl`.
+
+### Deploy
+
+3. Start the bot (`bun run start` or the launchd job). No migration: the db stays at v7.
+
+### Verify
+
+4. Start a dev task in a thread (a task that runs for a while). While it runs, ask "đang làm tới đâu rồi?". Expect a short answer from the assistant (side lane) that names the work done so far. Expect no "Đã nhận ... đầu vào đang chờ" text and no change in the task.
+5. Same thread, while it runs: "làm tới đâu rồi, xoá được những gì rồi?". Expect an answer that lists the tools and the latest note, not a steer.
+6. Send a real supplement while it runs ("also keep it small"). Expect the steer copy ("Got it, I passed this to the work in progress.") and 📖 on your message once the agent reads it.
+7. Send `/status` while a task runs. Expect "Running (role, state) for …", tool lines, and the latest note. After the task ends, `/status` on a waiting owned task (if any) shows "Waiting task (…)". With nothing: "Nothing is running." Outside a thread: a note to use it in the thread.
+8. Send two supplements within 60 s while the run is queued or held. Expect the first text, then ✅ on the second (no second text).
+9. Paid, owner-approved only: the shadow runs only with `INTENT_ENGINE=jev` (default `haiku` = no shadow) and `JEV_API_KEY` set. Each busy message then makes one Jev call. Check the log: `grep '"event":"routing.jev_shadow"' "$AGENT_HOME"/logs/app.*.jsonl`. Expect `busy: true`, `jevKind`, `haikuAction`, `agree`, and no message text.
+10. Paid, owner-approved per run: Haiku golden set including the new question cases (`test/intent-eval-cases.ts`, running and waiting-owner threads). Jev golden with `asks_about_task` only after you approve the spend.
+
+### Rollback
+
+1. Stop the bot. Check out the commit before this phase once it is committed (no db change; the older code ignores the new fields and the `question` proposal). Start the bot.
+2. The `/status` entry stays in Discord until the next start of the older build (the picker is replaced on start).
+
+### Not verified live (all paid or live-only, owner approves each run)
+
+- Step 4 and 5: the side answer quality during a real dev run.
+- Step 6: 📖 after a real SDK replay of a steer.
+- Steps 7 and 8: `/status` in all three cases; the ✅ dedupe window.
+- Step 9: the shadow agreement rate (decides whether a later step flips busy routing to Jev).
+- Step 10: Haiku and Jev golden runs, Jev calibration.
+- Rollback steps (written from the code, never executed).

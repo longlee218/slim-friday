@@ -1,4 +1,6 @@
 import type { Database } from "bun:sqlite";
+import type { MessageReactionPort } from "../../ingress/message-reaction";
+import { STEER_READ_EMOJI } from "../../ingress/message-reaction";
 import { excerpt, logEvent, logger, tryLog } from "../../observability/logger";
 import { redactText } from "../../observability/redact";
 import { ROLES } from "../../roles/role-registry";
@@ -12,6 +14,7 @@ import {
   insertRunMessage,
   type RunMessageKind,
   type RunMessageStatus,
+  runMessageSourceId,
   setRunMessageStatus,
   setRunMessageTarget,
 } from "../../storage/run-message-store";
@@ -35,6 +38,12 @@ export type SteerResult = "queued" | "held" | "full" | "none";
 /** A steer and what the registry did with it. */
 export interface SteerOutcome {
   result: SteerResult;
+}
+
+/** One steer state change; `messageId` = the owner's Discord message it is about (known for `delivered` / `dropped`). */
+export interface SteerEvent {
+  state: "queued" | "held" | "delivered" | "dropped";
+  messageId?: string;
 }
 
 /** The facts of an owner message the registry stores. */
@@ -64,17 +73,13 @@ export interface SteerRegistry {
    * `delivered` / `dropped` only when the SDK replay (or its absence) settled them. Events of other turns are never
    * delivered to this subscriber. Returns the unsubscribe function. A throwing subscriber is ignored.
    */
-  subscribe(
-    threadId: string,
-    turnId: string,
-    onState: (event: { state: "queued" | "held" | "delivered" | "dropped" }) => void,
-  ): () => void;
+  subscribe(threadId: string, turnId: string, onState: (event: SteerEvent) => void): () => void;
   /** The notice for steers the run never read, held ones included (`""` when none), and forget them. */
   undeliveredNotice(threadId: string): string;
 }
 
 /** Build an empty registry over `db` (the `run_messages` table). */
-export function createSteerRegistry(db: Database): SteerRegistry {
+export function createSteerRegistry(db: Database, reactions?: MessageReactionPort): SteerRegistry {
   const sinks = new Map<string, { sink: SteerSink; run: SteerRun }>();
   /** threadId -> texts of steers that were never read, for the notice at the end of the call. */
   const dropped = new Map<string, string[]>();
@@ -99,18 +104,22 @@ export function createSteerRegistry(db: Database): SteerRegistry {
     string,
     Set<{
       turnId: string;
-      onState: (e: { state: "queued" | "held" | "delivered" | "dropped" }) => void;
+      onState: (e: SteerEvent) => void;
     }>
   >();
   /** Tell the observers of `turnId` about a steer state (never throws, never blocks the steer). */
   const publish = (
     threadId: string,
     turnId: string | undefined,
-    state: "queued" | "held" | "delivered" | "dropped",
+    state: SteerEvent["state"],
+    messageId?: string,
   ) => {
     if (!turnId) return;
     for (const w of watchers.get(threadId) ?? [])
-      if (w.turnId === turnId) tryLog(log, "steer observer failed", () => w.onState({ state }));
+      if (w.turnId === turnId)
+        tryLog(log, "steer observer failed", () =>
+          w.onState({ state, ...(messageId && { messageId }) }),
+        );
   };
   /** Mark a row final without raising. */
   const finalize = (ref: string | undefined, status: RunMessageStatus) => {
@@ -181,7 +190,11 @@ export function createSteerRegistry(db: Database): SteerRegistry {
         settle(steer, fate) {
           finalize(steer.ref, fate);
           if (fate === "dropped") drop(threadId, steer.text);
-          publish(threadId, runTurn, fate); // `delivered` only here: the SDK replay (or a verified resume) settled it
+          const messageId = steer.ref ? runMessageSourceId(db, steer.ref) : undefined;
+          // The agent read it (SDK replay): a quiet receipt on the owner's message. A failure is logged by the port, never thrown.
+          if (fate === "delivered" && messageId && reactions)
+            void reactions.react(threadId, messageId, STEER_READ_EMOJI).catch(() => undefined);
+          publish(threadId, runTurn, fate, messageId); // `delivered` only here: the SDK replay (or a verified resume) settled it
         },
       };
     },

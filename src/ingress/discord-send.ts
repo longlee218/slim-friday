@@ -13,6 +13,9 @@ import type { OwnerLanguage } from "./user-copy";
 /** Temporary receipt on an accepted message whose first visible reply is delayed. */
 export const BUSY_ACK_EMOJI = "👀";
 
+/** Reaction on the owner message instead of a repeated steer notice (see `steerReply`). */
+export const STEER_DONE_EMOJI = "✅";
+
 /** Typing indicator lasts ~10s on Discord; refresh a bit earlier. */
 const TYPING_REFRESH_MS = 8000;
 

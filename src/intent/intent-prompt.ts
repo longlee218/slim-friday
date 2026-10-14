@@ -48,13 +48,14 @@ const PENDING_END = "PENDING>>>";
 export function buildIntentSystemPrompt(roles: IntentInput["roles"]): string {
   return [
     "You understand ONE message from the owner of a general workflow assistant, in the light of the whole conversation, and route it to exactly one role.",
-    'Reply with ONLY one JSON object, no prose, no code fence: {"role": string, "scope": "active" | "new", "class": "mechanical" | "standard" | "design" | null, "confidence": "high" | "medium" | "low", "reason": string (max 20 words), "pendingAnswer": "yes" | "no" | null, "control": "none" | "stop" | "replace", "ask": string | null}',
+    'Reply with ONLY one JSON object, no prose, no code fence: {"role": string, "scope": "active" | "new", "class": "mechanical" | "standard" | "design" | null, "confidence": "high" | "medium" | "low", "reason": string (max 20 words), "pendingAnswer": "yes" | "no" | null, "control": "none" | "stop" | "replace", "ask": string | null, "question": boolean}',
     "Roles:",
     ...roles.map((r) => `- ${r.name}: ${r.whenToUse}`),
     "Rules:",
     "- role is exactly one of the names above.",
-    '- scope "active" = the message is about the task in progress or the thread\'s existing work (feedback, a fix, a status question). "new" = a separate request. An idle thread is always "new".',
+    '- scope "active" = the message is about the task in progress or the thread\'s existing work (feedback, a fix). "new" = a separate request. An idle thread is always "new".',
     '- While a task runs (thread state running), "active" = the message adds to, changes or corrects the running work (it is handed to the running agent); "new" = independent work that can wait until the task ends. When unsure, "active".',
+    "- question (a task runs or waits): true ONLY if the message just asks the work's progress, state or result ('đang làm tới đâu rồi?'), no change; role = the answering role. 'why not delete X?' asks a change: false.",
     "- class for every role. Pick by the WORK, not message length:",
     "  - mechanical = ONLY a rename, a typo, formatting, a docs/comment edit, or a one-line config/constant value change with no behavior to design or test. Answers: greeting, one-fact lookup.",
     "  - standard = anything that adds or changes tests, fixes a bug or wrong behavior, or adds/changes a function or feature of normal size. Also a follow-up fix on earlier work. Answers: ordinary explanation, search, summary.",

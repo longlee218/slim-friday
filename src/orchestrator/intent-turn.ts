@@ -76,6 +76,7 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
         threadId,
         messageId: c.message.messageId,
         busy: c.busy,
+        steerable,
         recent: c.message.recent,
         active,
         text: c.cmd.text,

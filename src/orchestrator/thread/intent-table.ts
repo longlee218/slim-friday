@@ -1,5 +1,5 @@
 import type { IntentDecision } from "../../intent/decide-intent";
-import { ROLES } from "../../roles/role-registry";
+import { entryRole, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import type { AskKind } from "./intent-replies";
 import { isIdleLike, isWorking, type ThreadState } from "./thread-state";
@@ -14,7 +14,7 @@ export type IntentAction =
   | { kind: "run"; role: string } // idle: run the role (foreground)
   | { kind: "open"; role: string } // idle: open a new background task (proposal -> run)
   | { kind: "side"; role: string } // busy: the answering role answers at once in a parallel read-only run (side lane), the task is not touched
-  | { kind: "steer"; role: string } // running: supplement of the running work, pushed into its input (P1.4b)
+  | { kind: "steer"; role: string; unclear?: true } // running: supplement of the running work, pushed into its input (P1.4b)
   | { kind: "queue"; role: string } // independent work while a task is active: queued for after it, ANY role
   | { kind: "answer-ask"; answer: "yes" | "no" } // L3 read a yes/no to a pending proposal
   | { kind: "gate-hint" } // yes/no text to an owner-confirm button question
@@ -36,6 +36,8 @@ export interface TableInput {
  * scope active -> steer (typed feedback on a plan is a steer, delivered after the decision), scope new -> queue
  * (independent work runs after the task, auto-queued).
  * owner-confirm: side role -> side (any scope); background active -> steer; background new -> queue.
+ * running, awaiting the owner or owner-confirm with `question` (the message only asks about the running or last work,
+ * asks for no change): side with the entry role, whatever role the engine named; the task is not touched.
  * Any state: low confidence / unknown role / failure -> ask (the fallback of an idle thread already is the entry role).
  */
 export function actionFor(i: TableInput): IntentAction {
@@ -47,9 +49,15 @@ export function actionFor(i: TableInput): IntentAction {
   const role = ROLES[d.role];
   if (!role) return { kind: "ask", reason: "unknown_role" };
   if (isIdleLike(i.state)) {
+    // A pure question in an idle thread is answered by the entry role, never opened or resumed as a task.
+    if (d.question) return { kind: "run", role: entryRole().name };
     if (!role.background) return { kind: "run", role: d.role };
     return { kind: "open", role: d.role };
   }
+  // A pure question about the work is answered at once by the entry role, never steered or queued (any non-idle state).
+  if (d.question) return { kind: "side", role: entryRole().name };
+  // A fallback supplement (unclear) is steered whatever the role: the message is never lost, and the router adds a side answer.
+  if (d.unclear && isWorking(i.state)) return { kind: "steer", role: d.role, unclear: true };
   // A run works: the scope (L3's call, see decide-intent) says supplement or independent, whatever the role.
   // A foreground role never steers the run (a question to it is not a change of the work): the side lane answers it.
   if (isWorking(i.state)) {

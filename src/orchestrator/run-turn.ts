@@ -13,6 +13,7 @@ import type { DispatchDeps } from "./dispatch/dispatch-role";
 import { runRole } from "./engine/run-role";
 import { type ResumePlan, type Route, runRoute } from "./message-routing";
 import { deriveThreadState, isIdleLike } from "./thread/thread-state";
+import { waitingTaskSnapshot } from "./turns/status-snapshot";
 import type { FlowResult } from "./turns/turn-result";
 import { closeTurn } from "./turns/turn-result";
 
@@ -73,8 +74,13 @@ export async function runTurn(
   // State BEFORE the new row exists (it would read as `running`): a role with `context.ledger` sees its task ledger on an idle thread.
   const state = deriveThreadState(db, message.threadId);
   logEvent(c.log, "thread.state", { state });
+  // An idle thread with a waiting owned task also gets that task's facts (same data block as a side answer).
   const ledger =
-    role.context?.ledger && isIdleLike(state) ? threadLedger(db, message.threadId) : "";
+    role.context?.ledger && isIdleLike(state)
+      ? [waitingTaskSnapshot(db, message.threadId), threadLedger(db, message.threadId)]
+          .filter(Boolean)
+          .join("\n\n")
+      : "";
   // A continued task keeps the location of the task it continues (its row names it), so the ledger does not show `*`.
   const parentLocation = resume
     ? db

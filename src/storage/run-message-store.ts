@@ -72,6 +72,17 @@ export function insertRunMessage(
   return id;
 }
 
+/** Ingress message id (Discord) of a stored message, or undefined (no such row, or no id was known). */
+export function runMessageSourceId(db: Database, id: string): string | undefined {
+  return (
+    db
+      .query<{ m: string | null }, [string]>(
+        "SELECT message_id AS m FROM run_messages WHERE id = ?",
+      )
+      .get(id)?.m ?? undefined
+  );
+}
+
 /** Move a row to a new status (a final status is never reopened: only `pending` rows change). */
 export function setRunMessageStatus(db: Database, id: string, status: RunMessageStatus): boolean {
   return (

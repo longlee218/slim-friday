@@ -12,6 +12,7 @@ import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
 import { createRunSupervisor, recoverOnce } from "../../runtime/run-supervisor";
 import { answerOutput } from "../outputs/answer-output";
+import { clearProgressNote, setProgressNote } from "../turns/progress-notes";
 import { rolloverSeed } from "../turns/rollover-seed";
 import { type FlowResult, failResult } from "../turns/turn-result";
 import { askTimeoutControl, awaitingResult } from "./ask-timeout-control";
@@ -123,6 +124,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),
       }),
       onControlEvent: (e) => supervisor.observe(e),
+      onProgress: (text) => setProgressNote(i.turnId, text),
       skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
       guard: guardFor(role, s.guard),
       extraContext: buildPromptContext({
@@ -211,6 +213,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   }).finally(() => {
     release?.();
     unwatchSteer?.();
+    clearProgressNote(i.turnId);
   });
   // A retry produced a second result: the supervisor sees it too (a failed retry is reported as exhausted).
   if (res.outcome !== "success" && observed !== undefined && observed !== res) {

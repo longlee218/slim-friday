@@ -101,7 +101,7 @@ export interface ResumePlan {
  */
 export function resolveCommand(
   deps: { db: Database; agentHome: string; workspace: string; locations: Location[] },
-  cmd: Exclude<MessageCommand, { kind: "stop" | "memory" | "go" }>,
+  cmd: Exclude<MessageCommand, { kind: "stop" | "status" | "memory" | "go" }>,
   threadId: string,
 ): ResumePlan | Refusal {
   if (cmd.kind !== "resume") return { cmd };

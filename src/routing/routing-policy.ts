@@ -11,6 +11,7 @@ import type { EffortSignals } from "../intent/effort-signals";
 import type { RecentMessage } from "../intent/intent-types";
 import { withSpan } from "../observability/trace-spans";
 import { ROLES } from "../roles/role-registry";
+import { startBusyShadow } from "./jev-busy-shadow";
 import { routingDecisionOf } from "./route-decision-of";
 import { historyDefault, lastRoleOf } from "./route-history-default";
 import { decisionOfProposal } from "./route-proposal-decision";
@@ -34,6 +35,8 @@ export interface RouteInput extends DecideInput {
   busy: boolean;
   /** Last messages of the thread (for the proposer). */
   recent?: RecentMessage[];
+  /** A running task takes steers (the Jev busy shadow only runs then). */
+  steerable?: boolean;
   /** The thread's focus: its newest live owned task. */
   active?: TaskState;
 }
@@ -107,6 +110,8 @@ export async function decideRoute(i: RouteInput, deps: IntentDeps): Promise<Rout
         }
       : undefined;
 
+  // Busy + steerable under `jev`: the proposer runs next to Haiku, logged only (never routes).
+  const shadow = startBusyShadow(i, deps);
   const d = await decideIntent(
     {
       ...i,
@@ -123,6 +128,7 @@ export async function decideRoute(i: RouteInput, deps: IntentDeps): Promise<Rout
     },
     deps,
   );
+  shadow?.settle(d.decision);
   const { proposal } = got;
   let { decision } = d;
   const role = decision.kind === "role" ? decision.role : undefined;
@@ -160,7 +166,8 @@ export async function decideRoute(i: RouteInput, deps: IntentDeps): Promise<Rout
     owner &&
     sameAsOwner &&
     decision.kind === "role" &&
-    decision.scope === "active"
+    decision.scope === "active" &&
+    !decision.question // a pure question never continues (resumes) the waiting task
   ) {
     cont("owner"); // the Haiku fallback read the message as about the waiting task
   }

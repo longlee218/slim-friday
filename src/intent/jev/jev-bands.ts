@@ -6,13 +6,14 @@ import {
   CONTINUE_MIN,
   JEV_UNCLEAR,
   MULTI_MIN,
+  QUESTION_MIN,
   RATIO_CAP,
   RATIO_MIN,
   STOP_MAX,
 } from "./jev-constants";
 
 /**
- * Pure decision bands over the answers (numbers in, proposal out). Order: multi-intent -> continue the open task ->
+ * Pure decision bands over the answers (numbers in, proposal out). Order: multi-intent -> question about the task -> continue the open task ->
  * `unclear` -> pick when the top probability clears the role's risk-scaled threshold AND leads the runner-up.
  * Anything else is `undecided` (the Haiku fallback follows). Every proposal carries the numbers behind it.
  */
@@ -40,6 +41,7 @@ export function decideBands(
     confidence: a.role.confidence,
     multiP: a.multi_intent.noul,
     ...(a.fits_last_role && { fitsLastP: a.fits_last_role.noul }),
+    ...(a.asks_about_task && { questionP: a.asks_about_task.noul }),
     ...(a.continues_task && { continueP: a.continues_task.noul }),
   };
   const out = (p: RouteProposal, band: string): RouteProposal => ({
@@ -50,6 +52,8 @@ export function decideBands(
 
   if (a.multi_intent.noul >= MULTI_MIN && best && next)
     return out({ kind: "multi", roles: [best[0], next[0]] }, "multi");
+  // A pure progress question beats `continue`: it must not resume the owner's task.
+  if ((a.asks_about_task?.noul ?? 0) >= QUESTION_MIN) return out({ kind: "question" }, "question");
   const cont = a.continues_task?.noul;
   if (cont !== undefined) {
     if (cont >= CONTINUE_MIN) return out({ kind: "continue" }, "continue");

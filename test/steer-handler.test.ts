@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { beforeEach, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { IntentDeps } from "../src/intent/decide-intent";
@@ -13,6 +13,8 @@ import {
   STEER_FULL,
   STEER_RECEIVED,
 } from "../src/orchestrator/thread/intent-replies";
+import { STEER_REACT_REPLY } from "../src/orchestrator/thread/steer-notice-sentinel";
+import { resetNoticeDedupe } from "../src/orchestrator/thread/steer-reply";
 import { ROLES } from "../src/roles/role-registry";
 import { listRunMessages } from "../src/storage/run-message-store";
 import { g, makeLocation } from "./git-fixture";
@@ -26,6 +28,9 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
+
+/** Steer notices are deduped per thread for 60 s: every test starts with a fresh window. */
+beforeEach(() => resetNoticeDedupe());
 
 /** Roles of the thread's queued proposals, oldest first. */
 const queuedRoles = (db: ReturnType<typeof makeEnv>["db"]) =>
@@ -144,7 +149,8 @@ test("running dev run: supplement -> steered (task.steer {len}, no body, reply s
   expect(listPendingProposals(env.db)).toHaveLength(0);
   expect(queuedRoles(env.db)).toEqual(["dev"]);
   // cap: 5 pending (the fake has not pulled the steer yet), the next one is refused
-  for (let n = 0; n < 4; n++) expect(await handle(msg(`more ${n}`))).toBe(STEER_RECEIVED);
+  // the same "received" notice within 60 s becomes a reaction
+  for (let n = 0; n < 4; n++) expect(await handle(msg(`more ${n}`))).toBe(STEER_REACT_REPLY);
   expect(await handle(msg("one more"))).toBe(STEER_FULL);
   release();
   const firstReply = await first;
@@ -246,9 +252,10 @@ test("[dev] tag while a steerable run works: the tag only picks the role, L3 dec
   // a tagged supplement steers
   expect(await handle(msg("[dev] also keep it small"))).toBe(STEER_RECEIVED);
   // ambiguous (L3 unsure, or L3 failing) = supplement, never a lost message; also untagged
-  expect(await handle(msg("[dev] hmm"))).toBe(STEER_RECEIVED);
-  expect(await handle(msg("[dev] boom"))).toBe(STEER_RECEIVED);
-  expect(await handle(msg("hmm what about it"))).toBe(STEER_RECEIVED);
+  expect(await handle(msg("[dev] hmm"))).toBe(STEER_REACT_REPLY);
+  expect(await handle(msg("[dev] boom"))).toBe(STEER_REACT_REPLY);
+  // untagged + L3 unsure: steered AND answered by the side lane (the repeated notice is dropped, the steer row stays)
+  expect(await handle(msg("hmm what about it"))).not.toBe(STEER_RECEIVED);
   expect(l3).toHaveLength(5); // one L3 call per message while the run works (the failing one included)
   expect(rowKinds(env.db)).toEqual(["followup", "steer", "steer", "steer", "steer"]);
   release();

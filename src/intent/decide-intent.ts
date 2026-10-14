@@ -40,6 +40,10 @@ export type IntentDecision =
       role: string;
       scope: "active" | "new";
       cls?: TaskClass;
+      /** The message only asks about the running or last work (no change): the table answers it in the side lane. */
+      question?: true;
+      /** A fallback supplement (engine failure / invalid / low confidence), not a clear `active` verdict: steer AND side answer. */
+      unclear?: true;
     }
   /** Busy thread: the owner explicitly orders the running work stopped, or replaced by this message's request. */
   | { kind: "control"; action: "stop" | "replace" }

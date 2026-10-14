@@ -19,6 +19,8 @@ export const JEV_UNCLEAR = "unclear";
 
 /** `multi_intent` at or above: ask which request goes first. */
 export const MULTI_MIN = 0.8;
+/** `asks_about_task` at or above: the message only asks about the task's progress or result (answered by the entry role, never a resume). */
+export const QUESTION_MIN = 0.8;
 /** `continues_task` at or above: the message continues the open task. */
 export const CONTINUE_MIN = 0.8;
 /** `continues_task` at or below: surely NOT about the open task (the role pick follows); between = undecided. */

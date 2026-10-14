@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { beforeEach, expect, test } from "bun:test";
 import type { IntentDeps } from "../src/intent/decide-intent";
 import type { IntentClassifier, IntentResult } from "../src/intent/intent-types";
 import { loadLexicon } from "../src/intent/load-lexicon";
@@ -10,6 +10,8 @@ import {
   STEER_RECEIVED,
   STEER_WAITING,
 } from "../src/orchestrator/thread/intent-replies";
+import { STEER_REACT_REPLY } from "../src/orchestrator/thread/steer-notice-sentinel";
+import { resetNoticeDedupe } from "../src/orchestrator/thread/steer-reply";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { STATUS_HEADING } from "../src/orchestrator/turns/status-snapshot";
@@ -30,6 +32,9 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
+
+/** Steer notices are deduped per thread for 60 s: every test starts with a fresh window. */
+beforeEach(() => resetNoticeDedupe());
 
 /* The busy lane (Rev 11 review fixes): per-thread order of busy messages (H-a), the side lane for a foreground
    role (H-b), the plan question and typed feedback (H-c), the immediate ack (M-d). A fake CLI keeps a dev run
@@ -224,7 +229,7 @@ test("H-a: busy messages are decided one after the other in arrival order, whate
   // A is slow in L3, B is fast: B must NOT overtake A
   const a = h.handle(msg("slow also A"));
   const b = h.handle(msg("also B"));
-  expect(await Promise.all([a, b])).toEqual([STEER_RECEIVED, STEER_RECEIVED]);
+  expect(await Promise.all([a, b])).toEqual([STEER_RECEIVED, STEER_REACT_REPLY]); // same notice within 60 s: a reaction
   expect(
     h.p.events.filter((e) => e.startsWith("l3:") && e !== "l3:please add b.txt with two"),
   ).toEqual(["l3:slow also A", "l3:also B"]);
@@ -343,7 +348,7 @@ test("H-c plan question: typed feedback is a steer delivered after the decision;
   // a typed yes does not approve (the buttons do): it is stored as a steer for after the decision
   expect(await h.handle(msg("yes"))).toBe(waiting);
   // feedback on the plan: typed text, a steer too
-  expect(await h.handle(msg("make the plan smaller"))).toBe(waiting);
+  expect(await h.handle(msg("make the plan smaller"))).toBe(STEER_REACT_REPLY); // same notice: a reaction
   answer("Revise"); // the owner presses "Revise"
   const reply = await first;
   expect(h.p.answers).toEqual(["Revise"]);

@@ -41,7 +41,7 @@ Discord
 
 | Layer | What | LLM |
 |---|---|---|
-| L0 | explicit commands: `/stop`, `/go [+usd]`, `/remember`, `/forget`, `/compact`, Resume; legacy text forms still parse (`src/commands/slash-commands.ts`) | no |
+| L0 | explicit commands: `/stop`, `/status` (phase 1f, snapshot, no model), `/go [+usd]`, `/remember`, `/forget`, `/compact`, Resume; legacy text forms still parse (`src/commands/slash-commands.ts`) | no |
 | L1 | leading role tag `[dev]` / `[ask]` (`RoleDefinition.tag`, unique, case-insensitive); stripped from the brief | no |
 | L2 | effort-signal regex (lexicon `src/intent/data/intent-lexicon.yaml`): never routes, only adds effort hints | no |
 | L3 | `IntentClassifier` (`INTENT_ENGINE=haiku` default; `jev` = Haiku as fallback; `none` = L0-L2 only: untagged → assistant when idle, else ask). One SDK query, no tools, JSON checked by zod. Returns `{role, scope active\|new, class, confidence, reason, ask?, pendingAnswer?}` | Haiku |
@@ -61,6 +61,9 @@ Discord
 | idle / done | foreground role (assistant) | `run` |
 | idle / done | background role (dev) | `open` (proposal → run) |
 | running / awaiting owner | foreground role | `side`: answered at once in a parallel read-only run (see below) |
+| idle / done | any role, `question` (asks only about the work) | `run` with the entry role; never `open`, never resumes the task (phase 1f) |
+| running / awaiting owner | any role, `question` | `side` with the entry role, at once; the task is not touched (phase 1f) |
+| running / awaiting owner | background role, `unclear` fallback (classifier failed, invalid or low) | `steer` AND a side answer in ONE reply (phase 1f) |
 | running / awaiting owner | background role, scope active | `steer`: pushed into the running run |
 | running / awaiting owner | background role, scope new | `queue`: runs after the current task (max 3 per thread) |
 | awaiting confirmation | owner-confirm buttons | typed text is a hint only; buttons decide |
@@ -98,6 +101,7 @@ The default flips to `jev` only as an owner step after the paid golden gate ([ow
 - Questions in one request: `role` (Choice; option criteria = each role's `whenToUse`, plus `unclear`), `multi_intent`, `continues_task` (only with an open owned task), `fits_last_role` (only when the last role has side effects).
 - Sent to TypeSafe: the message (redacted and clipped, same function as the Haiku L3 input), thread state, owned task owner role and scope (redacted, 160 chars), last responding role, last 4 messages (redacted, clipped). Nothing else.
 - Bands (`jev-constants.ts`, conservative until calibrated): `MULTI_MIN` 0.8, `CONTINUE_MIN` 0.8, `STOP_MAX` 0.2, `RATIO_MIN` 2.0 (top / runner-up), `ACT_MIN` by `sideEffects`: none 0.6, location 0.85, external 0.9. Order: multi -> continue -> unclear -> pick; otherwise undecided -> Haiku.
+- Question (phase 1f): `asks_about_task` (Noul) at `QUESTION_MIN` 0.8 gives a `question` proposal, checked after `multi` and before `continue`. `continues_task` excludes progress questions. A `question` goes to the entry role and never resumes the task.
 - Timeout, error, invalid answer or no key = undecided (reason in `route.decision.jev.band`). Latency and price are not documented by TypeSafe: measured in paid runs (`llm.turn {kind: "jev"}`).
 
 **Preflight** (`src/routing/preflight/deterministic-preflight.ts`): deterministic, no model call, no write. Checks run in this order; the first refusal wins.
@@ -247,7 +251,7 @@ Code: `src/ingress/thread-placement.ts` (placeholder, open, adopt), `threads-por
 | Route and dispatch | `src/orchestrator/thread/`, `src/orchestrator/dispatch/` | action table, proposals, queue, `/go` resume, side lane |
 | Role engine | `src/orchestrator/engine/run-role.ts`, `role-scope.ts`, `budget.ts`, `owner-confirm.ts`, `validate-role.ts` | one run per role: scope, ask gate, budget, outcome |
 | Outputs | `src/orchestrator/outputs/answer-output.ts` | reply text, `ESCALATE` re-run (Opus needs owner confirmation) |
-| Run turn tracking | `src/orchestrator/turns/` | turn rows, run limiter (30 concurrent), steer registry, session compaction, status snapshot |
+| Run turn tracking | `src/orchestrator/turns/` | turn rows, run limiter (30 concurrent), steer registry, session compaction, status snapshot, progress notes (in memory) |
 | Agent runner | `src/runtime/run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `run-stream.ts` | SDK `query()`, hooks, child env, stream outcome |
 | Permissions | `src/runtime/tool-permissions.ts`, `guard-hook.ts`, `permission-mode.ts`, `ask-limit.ts` | PreToolUse guard, canUseTool, owner questions, mode check |
 | Guardrails | `src/guardrails/` | `check-tool-call.ts` (entry), `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `subagent-limit.ts` |
@@ -515,7 +519,13 @@ A **location** is a directory the owner registers in a workspace. It replaces th
 
 ## Thread Steering and Side Answers
 - **Busy thread:** every message that arrives while a run holds the thread is stored in `run_messages` first, then acted on in arrival order (`src/orchestrator/busy-lane.ts`). The owner sees a reaction at once.
-- **Steer** (`streaming` roles): the message is pushed into the run's input (SDK streaming input). The reply says "received, the agent takes it at its next step". A steer is not an interrupt; `/stop` is. The SDK echo confirms delivery.
+- **Steer** (`streaming` roles): the message is pushed into the run's input (SDK streaming input). Reply copy (`src/ingress/user-copy.ts`): queued = "Got it, I passed this to the work in progress."; held and waiting say "Not applied yet.". A steer is not an interrupt; `/stop` is.
+- **Steer receipts** (phase 1f): when the SDK replay confirms the agent read a steer, 📖 is added to the owner's message (`ingress/message-reaction.ts`; not the 👀 busy receipt). Queued, held and waiting notices repeat at most once per thread and state within 60 s (`STEER_DEDUPE_MS`, `orchestrator/thread/steer-reply.ts`); the repeat gets ✅ instead of text. `full` and `ended` always reply with text.
+- **Question while busy** (phase 1f): a `question` goes to the side lane at once, whatever role is named. The task is not touched.
+- **Unclear while busy** (phase 1f): classifier failure, invalid or low confidence still steers the message, and a side answer with the status snapshot follows in ONE reply (`orchestrator/thread/unclear-steer.ts`). A clear supplement is steered only.
+- **`/status`** (phase 1f, L0, no model, no thread lock): `renderStatus` (`ingress/status-copy.ts`) shows the running task (role, state, time, tools so far, last 5 tools, latest progress note, pending approval), or the waiting owned task (role, status, scope, time since it stopped), or "Nothing is running.". Outside a thread: a note to use it in the thread.
+- **Snapshot content** (`turns/status-snapshot.ts`, `turns/status-tools.ts`, `turns/progress-notes.ts`): tool count; last 5 tool names (Bash shows its `description` only, redacted, ≤ 80 chars); latest assistant text as the progress note (redacted, ≤ 200 chars, in memory, cleared at run end). No raw tool input or output.
+- **Jev on the busy path** (phase 1f, shadow only): engine `jev` runs the proposer beside the Haiku decision (`routing/jev-busy-shadow.ts`) and logs `routing.jev_shadow` (labels only, no text; `late: true` when the answer comes after the Haiku verdict). It never changes the route. Routing on the busy path is a later owner step.
 - **Queue** (background role, independent work): stored in `proposals` as `queued`; runs after the current task. At most 3 per thread. Starts in order. A restart puts queued rows back to `pending` and asks for `go`.
 - **Side answer** (foreground role): a parallel read-only run that starts fresh, takes a run slot, and gets a status snapshot of the running task. It never touches the thread session.
 - **Hard limits:** `MAX_PENDING_STEERS` 5 per run; `MAX_STEER_HOLDS` 2; `MAX_LATE_RESUMES` 1 (one resume of the same session when a message arrives after the input closed).

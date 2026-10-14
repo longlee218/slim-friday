@@ -10,11 +10,16 @@ import { type IntentClassifier, IntentEngineError, type IntentInput } from "./in
 /** Logger of this module. */
 const log = logger.child({ module: "steer-scope" });
 
-/** A message that adds to the running task whose role nothing settled: the entry role carries it (a steer ignores the role). */
-export const supplement = (role = entryRole().name): IntentDecision => ({
+/**
+ * A message that adds to the running task whose role nothing settled: the entry role carries it (a steer ignores the
+ * role). `unclear` = it is a FALLBACK (engine failure, invalid or low-confidence answer), not a clear `active` verdict:
+ * the router steers it AND answers it in the side lane, so an unread question is never lost.
+ */
+export const supplement = (role = entryRole().name, unclear = false): IntentDecision => ({
   kind: "role",
   role,
   scope: "active",
+  ...(unclear && { unclear: true as const }),
 });
 
 /**

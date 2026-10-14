@@ -50,6 +50,8 @@ export interface IntentResult {
   pendingAnswer?: "yes" | "no";
   /** Busy thread only: the owner explicitly orders the running work stopped or replaced; absent = a normal message. */
   control?: "stop" | "replace";
+  /** The message only asks for information about the running or last work (progress, state, what was done) and asks for no change; absent = false. */
+  question?: true;
 }
 
 /** Pluggable L3 engine: Haiku today, the owner's own engine later. */

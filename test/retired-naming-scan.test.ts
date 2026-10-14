@@ -106,6 +106,7 @@ const TASK_ID_OK = [
   "guard-sdk-tool-catalog.test.ts",
   // owned_task_id: the link column of schema v6 (owned tasks)
   "owned-task-store.ts",
+  "status-snapshot.ts", // `/status` reads the waiting owned task's last turn
   "migrate-v6-owned-tasks.ts",
   "db-migrate-v6.test.ts",
 ];

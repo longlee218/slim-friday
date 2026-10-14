@@ -25,6 +25,7 @@ import {
 } from "./intent-replies";
 import { type IntentAction, isSideRole } from "./intent-table";
 import { steerReply } from "./steer-reply";
+import { steerAndAnswer } from "./unclear-steer";
 
 export { actionFor, type IntentAction } from "./intent-table";
 
@@ -47,6 +48,8 @@ export type IntentOutcome =
       location?: string;
       cls?: TaskClass;
       effort?: Effort;
+      /** Steer line put before the answer (a fallback steer is also answered: one reply). */
+      lead?: string;
     }
   | {
       kind: "run";
@@ -149,8 +152,11 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
       );
       return reply(text);
     }
-    case "steer":
-      return reply(steerReply(c.deps, c.message, c.text));
+    case "steer": {
+      const line = reply(steerReply(c.deps, c.message, c.text));
+      // A fallback steer (unclear) is also answered by the entry role: one reply, steer line first.
+      return a.unclear && line.kind === "reply" ? steerAndAnswer(c, line) : line;
+    }
     case "side": {
       // Not busy (an owner-confirm with a free lock): the foreground role simply runs. Busy: the parallel read-only run.
       const role = ROLES[a.role] as RoleDefinition;

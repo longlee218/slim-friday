@@ -9,6 +9,8 @@ export const RESUME_PROMPT =
 /** What an owner message means: a control command, or a plain message for a role with an optional location hint. */
 export type MessageCommand =
   | { kind: "stop" }
+  /** `/status`: what the thread's task is doing, answered by app code (no model). */
+  | { kind: "status" }
   /** The Resume button: continue the thread's saved session. */
   | { kind: "resume"; extraBudgetUsd?: number }
   /**
@@ -51,6 +53,7 @@ const GO_COMMAND = /^go(?:\s+\+(\d+(?:\.\d+)?))?$/i;
 export function parseMessageCommand(input: string): MessageCommand {
   const text = slashToLegacy(input).trim(); // L0: `/stop`, `/go` ... map onto the legacy forms below
   if (text.toLowerCase() === "stop") return { kind: "stop" };
+  if (text.toLowerCase() === "status") return { kind: "status" };
   if (text === RESUME_PROMPT) return { kind: "resume" };
   const go = GO_COMMAND.exec(text);
   // `go +0` is not a raise: it stays a plain message.

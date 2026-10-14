@@ -15,7 +15,7 @@ export interface QuestionContext {
 
 /**
  * The questions of ONE request, from registry data (`whenToUse`, `sideEffects`): ids are local, the model never sees
- * them, so the full meaning is in `instructions`. `role` + `multi_intent` always; `continues_task` with an open task;
+ * them, so the full meaning is in `instructions`. `role` + `multi_intent` always; `continues_task` + `asks_about_task` with an open task;
  * `fits_last_role` for a last role with side effects. No role names here.
  */
 export function buildJevQuestions(
@@ -39,12 +39,18 @@ export function buildJevQuestions(
         "Does state.message ask for two or more separate pieces of work that would need different roles?",
     },
   };
-  if (ctx.hasTask)
+  if (ctx.hasTask) {
     q.continues_task = {
       type: "noul",
       instructions:
-        "Is state.message about the open task in state.thread.task (an answer, approval, correction or next instruction for it), and not a new topic, small talk or thanks?",
+        "Is state.message about the open task in state.thread.task (an answer, approval, correction or next instruction for it, NOT a question about its progress), and not a new topic, small talk or thanks?",
     };
+    q.asks_about_task = {
+      type: "noul",
+      instructions:
+        "Is state.message only a question about the progress, state or result of the task in state.thread (what was done, how far it is), and not a request to change, add or stop anything?",
+    };
+  }
   if (ctx.lastRole && ctx.lastRole.sideEffects !== "none")
     q.fits_last_role = {
       type: "noul",

@@ -4,6 +4,7 @@
  * parser calls `slashToLegacy` first and never sees a slash.
  *
  *   /stop                    -> stop
+ *   /status                  -> status   (answered by app code, no model)
  *   /go [+usd]               -> go [+usd]
  *   /remember <text>         -> remember: <text>      (NOT an app command: a plain message for the agent, which saves the note)
  *   /forget <text>           -> forget: <text>
@@ -14,6 +15,7 @@
 /** Every slash command name; the regex below and the native Discord definitions are both built from it. */
 export const SLASH_NAMES = [
   "stop",
+  "status",
   "go",
   "remember",
   "forget",
@@ -36,6 +38,8 @@ export function slashToLegacy(input: string): string {
   switch ((m[1] ?? "").toLowerCase()) {
     case "stop":
       return arg ? input : "stop";
+    case "status":
+      return arg ? input : "status";
     case "go":
       return !arg || /^\+\d+(\.\d+)?$/.test(arg) ? `go${arg ? ` ${arg}` : ""}` : input;
     case "remember":

@@ -55,6 +55,7 @@ function score(
     codeLeak: !!c.codeRequest && c.thread.state === "idle" && role !== undefined && role !== "dev",
   };
   if (e.role) out.role = roleMatches(d, { role: e.role });
+  if (e.question) out.role = d.kind === "role" && d.question === true;
   if (e.ask) out.role = d.kind === "ask";
   if (e.pendingAnswer) out.role = d.kind === "gate-answer" && d.answer === e.pendingAnswer;
   if (e.anyRegistryRoleOrAsk) out.role = d.kind === "ask" || role === "assistant" || role === "dev";

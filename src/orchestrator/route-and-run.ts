@@ -21,7 +21,7 @@ import { refused } from "./turns/turn-tracker";
 /** What the handler hands over once it holds the lock and knows the workspace. */
 export interface RouteAndRunInput {
   rc: RoleRunCtx;
-  parsed: Exclude<MessageCommand, { kind: "stop" | "memory" }>;
+  parsed: Exclude<MessageCommand, { kind: "stop" | "status" | "memory" }>;
   /** The thread's stored session. */
   stored: SessionRow | null;
   floors: EffortFloors;

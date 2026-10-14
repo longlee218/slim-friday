@@ -29,6 +29,8 @@ export interface Expected {
   ask?: true;
   /** The message answers the pending question: the decision must be this yes / no (a `gate-answer`). */
   pendingAnswer?: "yes" | "no";
+  /** The message only asks about the running or last work (no change): the decision must carry `question`. */
+  question?: true;
   /** Injection-style text: any registry role or an owner question passes (never a crash / unknown role). */
   anyRegistryRoleOrAsk?: true;
 }
@@ -65,7 +67,46 @@ const RESULT: ThreadFacts = {
   ledger: ["dev: round formatPrice to 2 decimals (done)"],
 };
 
+// A task waiting for the owner (a tool approval or question): status questions land on the side lane too.
+const WAITING: ThreadFacts = {
+  state: "awaiting_owner",
+  activeRole: "dev",
+  ledger: ["dev: delete stale build outputs (waiting for the owner)"],
+};
+
+/** Status questions about the running work (question, no change) and contrast pairs that DO change it (steer). */
+const STATUS_CASES: GoldenCase[] = [
+  { text: "đang làm tới đâu rồi", thread: RUNNING, expect: { question: true } },
+  {
+    text: "làm tới đâu rồi, xoá được những gì rồi",
+    thread: RUNNING,
+    expect: { question: true },
+  },
+  { text: "How far along are you?", thread: RUNNING, expect: { question: true } },
+  { text: "What have you changed so far?", thread: RUNNING, expect: { question: true } },
+  // The same questions while the task waits for the owner.
+  { text: "đang làm tới đâu rồi nhỉ, sao dừng vậy", thread: WAITING, expect: { question: true } },
+  { text: "How far along are you now?", thread: WAITING, expect: { question: true } },
+  {
+    text: "What have you changed so far, before this stop?",
+    thread: WAITING,
+    expect: { question: true },
+  },
+  // Contrast: phrased as a question or not, these ask for a change: dev / active.
+  {
+    text: "sao không xoá luôn thư mục build đi?",
+    thread: RUNNING,
+    expect: { role: "dev", scope: "active" },
+  },
+  {
+    text: "also delete the build folder",
+    thread: RUNNING,
+    expect: { role: "dev", scope: "active" },
+  },
+];
+
 export const GOLDEN: GoldenCase[] = [
+  ...STATUS_CASES,
   ...IDLE_CASES,
   ...CLASS_CASES,
   ...DISCUSSION_CASES,

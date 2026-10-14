@@ -75,6 +75,8 @@ export interface RunAgentInput {
   onControlEvent?: (event: RunControlEvent) => void;
   /** Sees every stream message of a plain (non-steered) run: the rollover flush counts its `Remember` results. */
   onMessage?: (msg: SDKMessage) => void;
+  /** Called with each assistant text of the run (the status snapshot's progress note); observation only. */
+  onProgress?: (text: string) => void;
   /**
    * Streaming-input mode (background roles): the prompt goes in as the first item of an input channel whose
    * sink is registered here, so the owner's later messages reach the model. Omitted = a plain string prompt.
@@ -181,6 +183,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       db: input.db,
       turnId: input.turnId,
       cwd: input.cwd,
+      onProgress: input.onProgress,
       permissionWatch: createPermissionWatch(requestedMode, autoState, bypassState),
       onTurn:
         input.onControlEvent &&

@@ -74,10 +74,11 @@ export function createBusyLane(d: BusyLaneDeps) {
       if (out.kind === "control") return { control: out.action };
       if (out.kind !== "side") return localizeUserCopy(CRASH_REPLY, messageLanguage(message));
       // A crashing side run is reported, never thrown: the task's own run is untouched.
-      return runSide(d, message, out, running).catch((err: unknown) => {
+      const answer = await runSide(d, message, out, running).catch((err: unknown) => {
         logEvent(d.log, "side.crashed", { err: errText(err) }, "error");
         return localizeUserCopy(CRASH_REPLY, messageLanguage(message));
       });
+      return out.lead ? `${out.lead}\n\n${answer}` : answer; // a fallback steer: its line leads the answer
     });
   };
 }

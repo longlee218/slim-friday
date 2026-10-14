@@ -11,6 +11,7 @@ const answersSchema = z.object({
   }),
   multi_intent: z.object({ noul: prob }),
   continues_task: z.object({ noul: prob }).optional(),
+  asks_about_task: z.object({ noul: prob }).optional(),
   fits_last_role: z.object({ noul: prob }).optional(),
 });
 

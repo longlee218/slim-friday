@@ -2,6 +2,8 @@ import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
 import type { InboundMessage } from "../ingress/discord-message-handler";
+import type { MessageReactionPort } from "../ingress/message-reaction";
+import { renderStatus } from "../ingress/status-copy";
 import type { ThreadTitlePort } from "../ingress/thread-rename";
 import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/user-copy";
 import type { IntentDeps } from "../intent/decide-intent";
@@ -21,6 +23,7 @@ import { routeAndRun } from "./route-and-run";
 import type { RoleRunCtx } from "./run-turn";
 import { createInterruptController, isReplaced } from "./turns/interrupt-control";
 import type { RunLimiter } from "./turns/run-limiter";
+import { statusFacts } from "./turns/status-snapshot";
 import { admitTurn, reportCrash, stopCommand } from "./turns/turn-admission";
 import {
   beginTurn,
@@ -45,6 +48,8 @@ export interface TurnHandlerDeps {
   intent?: IntentDeps;
   /** Renames threads for `SetThreadTitle` (offered to every role run; not rollover runs); omitted = the tool is not offered. */
   threadTitle?: ThreadTitlePort;
+  /** Reacts on the owner message of a steer the agent has read (the delivered receipt); omitted = no reaction. */
+  messageReaction?: MessageReactionPort;
 }
 
 /** Build `handleMessage`: Discord-free entry that owns the per-thread lock and `stop`. */
@@ -121,6 +126,9 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       tracker.cancelReplacement(threadId); // a replacement still waiting for cleanup must not start
       return stopCommand({ db, message, running, rollovers, steer: dispatchDeps.steer });
     }
+    // `/status`: facts of the thread's task rendered by app code (L0: no model, no thread lock, answered while it runs).
+    if (parsed.kind === "status")
+      return renderStatus(statusFacts(db, threadId), messageLanguage(message));
     // A rollover of the previous turn holds the thread until it is done; the checks below then see the final state.
     await rollovers.holdFor(message);
     // A replacement in progress holds the thread: this message looks at `active` only after the replacement claimed it.

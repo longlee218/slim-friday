@@ -21,6 +21,7 @@ interface SlashDefinition {
 /** Native Discord definitions; `Record<SlashName, ...>` makes the compiler reject a missing or extra command. */
 export const SLASH_DEFINITIONS: Record<SlashName, SlashDefinition> = {
   stop: { description: "Stop the run of this thread" },
+  status: { description: "Show what the running task is doing" },
   go: {
     description: "Start the approved run, optionally raising the budget",
     arg: {

@@ -42,7 +42,9 @@ function fallback(state: DecideInput["state"], pending: boolean): Verdict {
 
 /** No engine / the engine failed: a steerable run takes the message as a supplement, else the plain fallback. */
 export const undecided = (i: DecideInput, pending: boolean): Verdict =>
-  i.scopeFromModel && !pending ? { decision: supplement() } : fallback(i.state, pending);
+  i.scopeFromModel && !pending
+    ? { decision: supplement(undefined, true) }
+    : fallback(i.state, pending);
 
 /**
  * L3: the LLM classifier reads the conversation and any pending question (at most one call). Failures and low
@@ -69,18 +71,18 @@ export async function decideWithModel(
     layer("L3");
     if (!v.ok) {
       logEvent(log, "intent.fallback", { reason: v.reason, role: raw.role.slice(0, 64) }, "warn");
-      if (i.scopeFromModel && !pending) return { decision: supplement() };
+      if (i.scopeFromModel && !pending) return { decision: supplement(undefined, true) };
       if (softAsk && isIdleState(i.state) && !pending) return entryFallback();
       return { decision: { kind: "ask", reason: v.reason } };
     }
-    const { role, scope, class: cls, confidence, reason, ask, pendingAnswer } = v.result;
+    const { role, scope, class: cls, confidence, reason, ask, pendingAnswer, question } = v.result;
     logEvent(log, "intent.classified", { role, scope, class: cls ?? null, confidence, reason });
     if (raw.class !== guardMechanical(raw))
       logEvent(log, "intent.class_downgraded", { from: raw.class, to: "standard", confidence });
     // Low confidence never runs the model's pick. An idle thread with no pending question goes to the entry role
     // (the assistant changes nothing: the answer itself clarifies); a pending question / gate / busy thread keeps the owner question.
     if (confidence === "low") {
-      if (i.scopeFromModel && !pending) return { decision: supplement(role) }; // ambiguous -> supplement
+      if (i.scopeFromModel && !pending) return { decision: supplement(role, true) }; // ambiguous -> supplement
       if (isIdleState(i.state) && !pending) return entryFallback();
       return { decision: { kind: "ask", reason: "low_confidence", ...(ask && { text: ask }) } };
     }
@@ -95,6 +97,7 @@ export async function decideWithModel(
         role,
         scope,
         ...(cls && { cls }),
+        ...(question && { question }),
       },
     };
   } catch (err) {

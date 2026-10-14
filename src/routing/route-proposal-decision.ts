@@ -1,5 +1,5 @@
 import type { IntentDecision } from "../intent/decide-intent";
-import { ROLES } from "../roles/role-registry";
+import { entryRole, ROLES } from "../roles/role-registry";
 import type { RouteProposal } from "./route-proposer";
 import type { TaskState } from "./routing-contracts";
 
@@ -23,6 +23,9 @@ export function decisionOfProposal(
       return owner?.ownerAgentId
         ? { kind: "role", role: owner.ownerAgentId, scope: "active" }
         : undefined;
+    // A pure question about the task: the entry role answers it (a new run, never a resume of the owner's session).
+    case "question":
+      return { kind: "role", role: entryRole().name, scope: "new", question: true };
     case "pick":
       return ROLES[p.role] ? { kind: "role", role: p.role, scope: "new" } : undefined;
     default:

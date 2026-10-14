@@ -32,6 +32,8 @@ export const intentResultSchema = z.object({
   pendingAnswer: z.enum(["yes", "no"]).nullish(),
   /** `none` / null mean no control; only an explicit stop or replace is kept. */
   control: z.enum(["none", "stop", "replace"]).nullish(),
+  /** Only asks for information about the running or last work and asks for no change; null / missing = false. */
+  question: z.boolean().nullish(),
 });
 
 /**
@@ -53,13 +55,14 @@ export function parseIntentText(text: string): IntentResult {
     const why = parsed.error.issues.map((i) => i.path.join(".") || "(root)").join(", ");
     throw new IntentEngineError("schema", `output does not match the schema: ${why}`);
   }
-  const { class: cls, ask, pendingAnswer, control, ...rest } = parsed.data;
+  const { class: cls, ask, pendingAnswer, control, question, ...rest } = parsed.data;
   return {
     ...rest,
     ...(cls && { class: cls }),
     ...(ask && { ask }),
     ...(pendingAnswer && { pendingAnswer }),
     ...(control && control !== "none" && { control }),
+    ...(question && { question }),
   };
 }
 

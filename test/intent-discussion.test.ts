@@ -158,9 +158,10 @@ test("neutral choices inherit the latest conversation language rather than becom
     ]),
   ).toBe("en");
   for (const language of ["vi", "en"] as const) {
-    for (const state of ["queued", "held", "waiting", "full", "ended"] as const) {
+    // "queued" only says received (the 👀 reaction says read); the others say it is not applied yet.
+    for (const state of ["held", "waiting", "full", "ended"] as const) {
       const notice = renderUserNotice({ kind: "steer", state }, language);
-      expect(notice).toMatch(language === "vi" ? /chưa|Chưa/ : /not/);
+      expect(notice).toMatch(language === "vi" ? /chưa|Chưa/ : /not|Not/);
       expect(notice).not.toMatch(/agent|model|dev|task|applied successfully|đã áp dụng/i);
     }
     expect(renderUserNotice({ kind: "start" }, language)).not.toMatch(

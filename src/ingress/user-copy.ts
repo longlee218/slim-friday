@@ -44,6 +44,7 @@ export type UserNotice =
         | "budget-stop"
         | "empty-text"
         | "stop-in-thread"
+        | "status-in-thread"
         | "not-allowed"
         | "channel-unavailable"
         | "proposal-pending"
@@ -155,24 +156,24 @@ function render(event: UserNotice, language: OwnerLanguage): string {
     case "steer": {
       const copy = {
         queued: [
-          "Đã nhận bổ sung và đưa vào đầu vào đang chờ; chưa xác nhận việc áp dụng.",
-          "Received your update and queued it as input; it has not been confirmed as applied.",
+          "Đã nhận, mình chuyển ý này cho việc đang làm.",
+          "Got it, I passed this to the work in progress.",
         ],
         held: [
-          "Đã nhận bổ sung và đang giữ để chuyển khi sẵn sàng; chưa áp dụng.",
-          "Received your update and am holding it until ready; it has not been applied.",
+          "Đã nhận, mình giữ ý này và chuyển cho việc đang làm khi sẵn sàng. Chưa áp dụng.",
+          "Got it, I’m holding this and will pass it to the work in progress when it is ready. Not applied yet.",
         ],
         waiting: [
-          "Đã lưu bổ sung; mình đang đợi bạn trả lời hoặc phê duyệt ở trên trước khi chuyển tiếp. Chưa áp dụng bổ sung này.",
-          "Saved your update; I’m waiting for your answer or approval above before forwarding it. It has not been applied.",
+          "Đã nhận, mình đang đợi bạn trả lời hoặc duyệt ở trên rồi mới chuyển ý này đi. Chưa áp dụng.",
+          "Got it, I’m waiting for your answer or approval above before passing this on. Not applied yet.",
         ],
         full: [
-          "Chưa nhận được bổ sung vì hàng chờ đầy, nên chưa áp dụng. Bạn hãy gửi lại sau.",
-          "The update could not be accepted because the queue is full, so it has not been applied. Please send it again later.",
+          "Chưa nhận được vì hàng chờ đầy, nên chưa áp dụng. Bạn gửi lại sau nhé.",
+          "I could not take this because the queue is full, so it is not applied. Please send it again later.",
         ],
         ended: [
-          "Việc đang làm vừa kết thúc nên bổ sung chưa được chuyển hay áp dụng. Bạn hãy gửi lại.",
-          "The work just ended, so your update was not delivered or applied. Please send it again.",
+          "Việc đang làm vừa xong nên ý này chưa được chuyển hay áp dụng. Bạn gửi lại nhé.",
+          "The work just finished, so this was not passed on or applied. Please send it again.",
         ],
       } as const;
       return say(copy[event.state][0], copy[event.state][1]);
@@ -343,6 +344,10 @@ function render(event: UserNotice, language: OwnerLanguage): string {
         "stop-in-thread": [
           "Bạn gửi `/stop` trong thread của lần chạy nhé.",
           "Send `/stop` inside the thread of the run.",
+        ],
+        "status-in-thread": [
+          "Bạn gửi `/status` trong thread của lần chạy nhé.",
+          "Send `/status` inside the thread of the run.",
         ],
         "not-allowed": ["Bạn không có quyền dùng lệnh này.", "Not allowed."],
         "channel-unavailable": [

@@ -16,6 +16,8 @@ export interface RouteScores {
   fitsLastP?: number;
   /** Probability that the message continues the open task. */
   continueP?: number;
+  /** Probability that the message only asks about the task's progress or result. */
+  questionP?: number;
   /** Numbers behind a Jev pick, logged in `route.decision.jev` (never text): top probability, top / second ratio, Choice confidence, multi-intent probability, request ms, band label. */
   top?: number;
   ratio?: number;
@@ -28,6 +30,7 @@ export interface RouteScores {
 /** What the proposer says about one message. `undecided` covers low confidence, close top two, `unclear`, error, timeout, no key. */
 export type RouteProposal = (
   | { kind: "continue" }
+  | { kind: "question" }
   | { kind: "pick"; role: string; alternatives: string[] }
   | { kind: "multi"; roles: string[] }
   | { kind: "undecided"; reason: string }

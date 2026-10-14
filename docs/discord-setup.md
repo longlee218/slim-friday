@@ -109,7 +109,7 @@ controlChannels:   # default: [ops.control]
 
 ## Native slash commands
 - On every start the bot overwrites its application commands (`src/commands/slash-definitions.ts`): guild commands when `DISCORD_GUILD_ID` is set (instant), else global (can take up to an hour).
-- The picker lists: `/stop`, `/go [usd]`, `/remember <text>`, `/forget <text>`, `/compact [dry-run]`, `/init-workspace <name>`, `/init-channel <space>/<name>`.
+- The picker lists: `/stop`, `/status` (phase 1f: the running task or the waiting one, no model call; re-register by restarting the bot), `/go [usd]`, `/remember <text>`, `/forget <text>`, `/compact [dry-run]`, `/init-workspace <name>`, `/init-channel <space>/<name>`.
 - `/cleanup` is removed. The picker is replaced at the next start; old entries may linger until then.
 - A pick runs as the owner's `/name arg` message through the same gates. A non-owner gets "Not allowed."
 - A failed registration is logged (`slash command registration failed`) and does not block startup.
