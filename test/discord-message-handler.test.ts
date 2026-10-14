@@ -507,3 +507,52 @@ test("unknown ingress failure uses owner language and never leaks exception or g
   expect(content).toContain("chưa hoàn tất");
   expect(content).not.toMatch(/SECRET|SDK|logs|permission|quota/i);
 });
+
+const V2_FLAG = 1 << 15;
+
+test("a long Markdown reply is a components-v2 message: summary, file component, attachment, no content/embeds", async () => {
+  const mermaid = "```mermaid\ngraph TD; A-->B\n```";
+  const key = `ghp_${"a".repeat(36)}`;
+  const long = `${"line of text\n".repeat(600)}${mermaid}\n[Docs](https://d.example/x) [local](file:///tmp/x.md) ${key}`;
+  const { onMessage } = setup(long);
+  const m = fakeMsg({});
+  await onMessage(m.msg);
+  const sent = m.thread.sent[0];
+  expect(sent.content).toBeUndefined();
+  expect(sent.embeds).toBeUndefined();
+  expect(sent.flags & V2_FLAG).toBe(V2_FLAG);
+  expect(sent.allowedMentions).toEqual({ parse: [], repliedUser: false });
+  const json = sent.components.map((c: any) => c.toJSON());
+  expect(json.map((c: any) => c.type)).toEqual([10, 13, 1]);
+  expect(json[1].file.url).toBe("attachment://reply.md");
+  expect(json[2].components.map((b: any) => b.url)).toEqual(["https://d.example/x"]);
+  const file = sent.files[0].attachment.toString();
+  expect(file).toContain("graph TD; A-->B"); // Mermaid source kept verbatim
+  expect(file).not.toContain(key);
+});
+
+test("a short Markdown reply stays one plain inline message", async () => {
+  const { onMessage } = setup("**bold** [Docs](https://d.example)");
+  const m = fakeMsg({});
+  await onMessage(m.msg);
+  expect(m.thread.sent[0].content).toBe("**bold** [Docs](https://d.example)");
+  expect(m.thread.sent[0].flags).toBeUndefined();
+});
+
+test("a failed report send leaves the receipt present (visible never fires)", async () => {
+  const gate = deferred<string>();
+  const m = fakeMsg({});
+  m.thread.send = async () => {
+    throw new Error("send failed");
+  };
+  const handler = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    handleMessage: () => gate.promise,
+  });
+  const pending = handler(m.msg);
+  await Bun.sleep(2100);
+  gate.resolve("long line\n".repeat(700));
+  await pending;
+  expect(m.calls.removed).toEqual([]);
+});

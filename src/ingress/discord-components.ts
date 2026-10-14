@@ -3,12 +3,15 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  FileBuilder,
   ModalBuilder,
   StringSelectMenuBuilder,
+  TextDisplayBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
 import { clip } from "../observability/redact";
+import type { ReportLink } from "./discord-message-rules";
 import { languageOf, type OwnerLanguage, renderUserNotice } from "./user-copy";
 
 /** customId prefix of a question; format `choice:<requestId>:<value>` (no private text, ever). */
@@ -115,4 +118,32 @@ export function threadLanguage(db: Database, threadId: string): OwnerLanguage {
     )
     .get(threadId);
   return languageOf(last?.brief ?? "");
+}
+
+/** Row of link buttons (they navigate, never send an interaction); undefined when there is no link. */
+export function buildLinkRow(links: ReportLink[]): ActionRowBuilder<ButtonBuilder> | undefined {
+  if (!links.length) return undefined;
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    links.map((l) =>
+      new ButtonBuilder().setLabel(l.label).setURL(l.url).setStyle(ButtonStyle.Link),
+    ),
+  );
+}
+
+/**
+ * Components-v2 layout of a report: summary text, the attached file exposed by a File component
+ * (v2 messages have no `content`, so an attachment must be referenced), then link buttons.
+ */
+export function buildReportComponents(
+  summary: string,
+  fileName?: string,
+  links: ReportLink[] = [],
+): (TextDisplayBuilder | FileBuilder | ActionRowBuilder<ButtonBuilder>)[] {
+  const parts: (TextDisplayBuilder | FileBuilder | ActionRowBuilder<ButtonBuilder>)[] = [
+    new TextDisplayBuilder().setContent(summary),
+  ];
+  if (fileName) parts.push(new FileBuilder().setURL(`attachment://${fileName}`));
+  const row = buildLinkRow(links);
+  if (row) parts.push(row);
+  return parts;
 }

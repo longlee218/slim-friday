@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   buildAnswerModal,
   buildChoiceRows,
+  buildLinkRow,
+  buildReportComponents,
   choiceLayout,
   threadLanguage,
 } from "../src/ingress/discord-components";
@@ -67,5 +69,25 @@ describe("threadLanguage", () => {
       brief: "Please run the tests in this repository and tell me what failed",
     });
     expect(threadLanguage(db, "th")).toBe("en");
+  });
+});
+
+describe("report components", () => {
+  test("link row holds link buttons with absolute urls and no custom id", () => {
+    const row = buildLinkRow([{ label: "Docs", url: "https://d.example/" }])!.toJSON() as any;
+    expect(row.components[0]).toMatchObject({ label: "Docs", url: "https://d.example/", style: 5 });
+    expect(row.components[0].custom_id).toBeUndefined();
+    expect(buildLinkRow([])).toBeUndefined();
+  });
+  test("summary text, file component by attachment name, link row; no content/embeds", () => {
+    const parts = buildReportComponents("Summary", "reply.md", [
+      { label: "L", url: "https://l.example/" },
+    ]).map((c) => c.toJSON() as any);
+    expect(parts.map((p) => p.type)).toEqual([10, 13, 1]);
+    expect(parts[0].content).toBe("Summary");
+    expect(parts[1].file.url).toBe("attachment://reply.md");
+  });
+  test("no file and no links is just the summary", () => {
+    expect(buildReportComponents("S").map((c) => (c.toJSON() as any).type)).toEqual([10]);
   });
 });

@@ -3,11 +3,13 @@ import {
   CHUNK_MAX,
   HEAD_MAX,
   type MessageFacts,
+  markdownLinks,
   prepareOutput,
   prepareReply,
   REPLY_CAP,
   routeMessage,
   SAFE_MENTIONS,
+  safeLinks,
   splitChunks,
   stripMention,
   threadName,
@@ -222,4 +224,31 @@ test("admin text outside ops channels is control (gate refuses it), never a thre
     kind: "ignore",
     reason: "not_mentioned",
   });
+});
+
+test("markdownLinks: only absolute http(s) Markdown links, max three, deduped", () => {
+  const md = [
+    "[a](https://a.example/x) [b](http://b.example) [file](file:///etc/passwd) [rel](./notes.md)",
+    "[abs](/Users/me/x.md) [dup](https://a.example/x) [c](https://c.example) [d](https://d.example)",
+  ].join("\n");
+  expect(markdownLinks(md)).toEqual([
+    { label: "a", url: "https://a.example/x" },
+    { label: "b", url: "http://b.example/" },
+    { label: "c", url: "https://c.example/" },
+  ]);
+  expect(markdownLinks("[x](javascript:alert(1)) [y](mailto:a@b.c)")).toEqual([]);
+});
+
+test("safeLinks: structured links drop unsafe urls, blank labels fall back to the host", () => {
+  expect(
+    safeLinks([
+      { label: "ok", url: "https://ok.example/p" },
+      { label: "bad", url: "file:///tmp/x" },
+      { label: "rel", url: "docs/x.md" },
+      { label: "  ", url: "https://host.example/q" },
+    ]),
+  ).toEqual([
+    { label: "ok", url: "https://ok.example/p" },
+    { label: "host.example", url: "https://host.example/q" },
+  ]);
 });
