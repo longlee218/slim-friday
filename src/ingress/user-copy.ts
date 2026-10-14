@@ -43,7 +43,10 @@ export type UserNotice =
     }
   | { kind: "choice"; state: "chose" | "answered"; text: string }
   /** Short labels and gate questions; never matched back by text (a bare "No" must not be replaced). */
-  | { kind: "label"; state: "yes-run" | "no" | "reply-attached" | "max-effort" | "escalate-opus" }
+  | {
+      kind: "label";
+      state: "yes-run" | "no" | "reply-attached" | "max-effort" | "escalate-opus" | "max-declined";
+    }
   | {
       kind: "decision";
       state:
@@ -274,6 +277,10 @@ function render(event: UserNotice, language: OwnerLanguage): string {
         "max-effort": [
           "Việc này cần mức nỗ lực tối đa (Opus, chi phí gấp khoảng 5 lần). Chạy theo cách đó chứ?",
           "That asks for max effort (Opus, about 5x the cost). Run it that way?",
+        ],
+        "max-declined": [
+          "Chưa xác nhận mức nỗ lực tối đa: đã chạy ở mức cao.",
+          "Max effort not confirmed: ran at high.",
         ],
         "escalate-opus": [
           "Mô hình rẻ hơn chưa trả lời tốt việc này. Chạy lại bằng Opus (chi phí gấp khoảng 5 lần) chứ?",

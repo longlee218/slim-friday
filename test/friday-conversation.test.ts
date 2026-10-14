@@ -201,7 +201,7 @@ describe("Friday conversation (Vietnamese owner)", () => {
     for (const state of ["queued", "held", "waiting", "full", "ended"] as const) {
       const vi = renderUserNotice({ kind: "steer", state }, "vi");
       expect(vi).not.toMatch(JARGON);
-      expect(vi).toMatch(/chưa/i); // every state says it is not (yet) applied
+      expect(vi).toMatch(/chưa[^.]*áp dụng/i); // every state says it is not (yet) applied
     }
     expect(renderUserNotice({ kind: "steer", state: "queued" }, "vi")).not.toMatch(
       /đã (đọc|áp dụng)/,

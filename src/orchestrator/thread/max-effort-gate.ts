@@ -8,9 +8,6 @@ import { type TurnEffort, turnEffort } from "./turn-effort";
 
 /* Effort `max` (Opus, costly) runs only after the owner-confirm gate says yes. */
 
-/** One line put before the reply when the owner did not confirm: the run went on at `high`. */
-export const MAX_DECLINED_NOTICE = "Max effort not confirmed: ran at high.";
-
 /**
  * Settle a `pendingMax` turn: ask the owner with buttons. Yes -> the turn is resolved again with `max`
  * confirmed (the floor is already raised, so no second raise); no / timeout / stop / no button flow -> the turn

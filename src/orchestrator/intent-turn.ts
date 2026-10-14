@@ -1,7 +1,7 @@
 import type { Logger } from "pino";
 import type { TaskClass } from "../config/model-routing";
 import type { InboundMessage } from "../ingress/discord-message-handler";
-import { messageLanguage } from "../ingress/user-copy";
+import { messageLanguage, renderUserNotice } from "../ingress/user-copy";
 import type { IntentDeps } from "../intent/decide-intent";
 import { buildIntentInput } from "../intent/intent-input";
 import type { Location } from "../locations/location-registry";
@@ -18,7 +18,7 @@ import { findLocation } from "./dispatch/task-location";
 import { recoverRoute } from "./recover-route";
 import type { EffortFloors } from "./thread/effort-floor";
 import { stripRoleTag } from "./thread/intent-replies";
-import { MAX_DECLINED_NOTICE, settleMaxEffort } from "./thread/max-effort-gate";
+import { settleMaxEffort } from "./thread/max-effort-gate";
 import { type IntentOutcome, routeByIntent } from "./thread/route-by-intent";
 import { deriveThreadState, isGateState, isIdleLike, isWorking } from "./thread/thread-state";
 import { turnEffort } from "./thread/turn-effort";
@@ -176,7 +176,12 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
   // One `route.decision` per message, once the outcome is known (a yes to a failed task is a RESUME).
   logRouteDecision(c.log, settleRouting(routing, action, out, c.busy), extra);
   // The declined notice goes before the reply of a run that started at the capped effort.
-  if (maxDeclined && out.kind === "run")
-    return { ...out, notice: [MAX_DECLINED_NOTICE, out.notice].filter(Boolean).join("\n") };
+  if (maxDeclined && out.kind === "run") {
+    const declined = renderUserNotice(
+      { kind: "label", state: "max-declined" },
+      messageLanguage(c.message),
+    );
+    return { ...out, notice: [declined, out.notice].filter(Boolean).join("\n") };
+  }
   return out;
 }
