@@ -135,7 +135,7 @@ async function routeTurn(c: RouteAndRunInput): Promise<string> {
       cmd: resolved.cmd,
     });
     if (out.kind === "reply") return out.text;
-    if (out.kind === "side") return STILL_WORKING; // only a busy thread gets one (see route-by-intent `side`)
+    if (out.kind === "side" || out.kind === "control") return STILL_WORKING; // only a busy thread gets one (see route-by-intent `side`)
     picked = out;
     // A yes to the failed task's question: the same path as `/go` (the task continues in its own session).
     if (out.resume) {

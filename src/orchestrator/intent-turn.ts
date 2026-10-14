@@ -83,6 +83,8 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
         // ended the next request is NEW.
         hasTask: steerable || (!c.busy && !isIdleLike(state)),
         scopeFromModel: steerable,
+        controlFromModel: c.busy,
+        controlOnly: c.busy && !pendingQuestion && !steerable && !gated,
         ownerClass: c.cmd.cls,
         signal: c.ac.signal,
         l3Input: () =>
@@ -94,11 +96,9 @@ export async function intentTurn(c: IntentTurnCtx): Promise<IntentOutcome> {
             pendingQuestion,
           }),
       },
-      // A busy thread pays for L3 only to read the answer to a pending question, to scope a steerable run's message or
-      // to read a message on an owner gate; else only a role tag (L1) acts on it.
-      c.busy && !pendingQuestion && !steerable && !gated
-        ? { ...c.intent, classifier: undefined }
-        : c.intent,
+      // A busy thread always pays one L3 call: it reads an explicit stop / replace first (a role tag cannot bypass it).
+      // The same verdict then serves the pending answer, the steer scope or the owner gate; otherwise it is control-only.
+      c.intent,
     ),
   );
   const { effort } = plan;

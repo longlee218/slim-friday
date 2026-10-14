@@ -8,6 +8,7 @@ function classify(
   layer?: IntentLayer,
 ): Pick<RoutingDecision, "source" | "rationaleCode"> {
   if (decision.kind === "ask") return { source: "clarify", rationaleCode: "AMBIGUOUS_INTENT" };
+  if (decision.kind === "control") return { source: "owner", rationaleCode: "EXPLICIT_SWITCH" };
   if (decision.kind === "gate-answer") return { source: "owner", rationaleCode: "PENDING_ANSWER" };
   if (layer === "L1") return { source: "tag", rationaleCode: "EXPLICIT_TAG" };
   if (layer === "jev") return { source: "jev", rationaleCode: "JEV_MATCH" };

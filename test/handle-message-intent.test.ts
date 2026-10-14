@@ -301,18 +301,18 @@ test('a second dev task while one runs: auto-queued with "received" (no question
   const first = handle(msg("[ask] explain the location"));
   await Bun.sleep(50);
   // second message while running: the `[dev]` tag (L1) picks the role; the run has no steer, so it is NEW work:
-  // queued at once, no question, no L3 call
+  // queued at once, no question; L3 only reads for an explicit stop / replace (one call, never the route)
   const q = await handle(msg("[dev] please add b.txt with two"));
-  expect(e.seen).toHaveLength(0);
+  expect(e.seen).toHaveLength(1);
   expect(q).toBe(QUEUE_RECEIVED);
   expect(listPendingProposals(env.db)).toHaveLength(0);
   expect(rows(env, "SELECT status, brief FROM proposals")).toMatchObject([{ status: "queued" }]);
   expect(rows(env, "SELECT brief FROM proposals")[0]?.brief).toStartWith("please add b.txt"); // the tag is not part of the brief
-  // an undecided message gets "I’m handling other work. Please try again shortly." (nothing pending: no L3 call, no ask)
+  // an undecided message gets "I’m handling other work. Please try again shortly." (L3 found no control: no ask)
   expect(await handle(msg("hmm and then what"))).toBe(
     "I’m handling other work. Please try again shortly.",
   );
-  expect(e.seen).toHaveLength(0);
+  expect(e.seen).toHaveLength(2);
   release();
   const reply = await first;
   expect(reply).toContain("slow answer");
@@ -528,7 +528,7 @@ test("yes / no on an idle thread (read by L3) answers the pending proposal (yes 
   expect(roles(env)).toEqual(["dev"]);
 });
 
-test("a crash of the active run still starts the queued task (no L3 call while a run without steer works)", async () => {
+test("a crash of the active run still starts the queued task (L3 only reads control while a run without steer works)", async () => {
   const env = await setup();
   let release!: () => void;
   const gate = new Promise<void>((r) => (release = r));
@@ -560,7 +560,7 @@ test("a crash of the active run still starts the queued task (no L3 call while a
   const first = handle(msg("[ask] explain the location"));
   await Bun.sleep(50);
   expect(await handle(msg("[dev] add b.txt"))).toBe(QUEUE_RECEIVED);
-  expect(e.seen).toEqual([]); // busy, the run takes no steer: no L3 call
+  expect(e.seen).toHaveLength(1); // busy, the run takes no steer: L3 only reads control
   release();
   const out = await first;
   expect(out).toBe("I did not finish your request. You can try again."); // the handler reported the crash

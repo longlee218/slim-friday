@@ -322,3 +322,9 @@ test("Vietnamese clarification and busy replies hide orchestration", async () =>
   expect(busy).not.toContain("still working");
   env.db.close();
 });
+
+test("table: a control decision maps to a control action in any busy state (never to steer / queue)", () => {
+  for (const s of ["running", "awaiting_owner", "awaiting_confirmation"] as const)
+    for (const action of ["stop", "replace"] as const)
+      expect(act({ kind: "control", action }, s)).toEqual({ kind: "control", action });
+});

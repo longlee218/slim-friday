@@ -20,13 +20,20 @@ test("class applies to every role: answering work has its own examples per class
   expect(p).toContain("Answers: deep multi-file reasoning, cross-module comparison, long analysis");
 });
 
-/** Length of the L3 system prompt before the outcome rule (P1 baseline, 4617 chars) + the 15% budget (5310). */
+/** Length of the L3 system prompt before the outcome rule (P1 baseline, 4617 chars) + the 25% budget (5771; was 15% before the busy-thread control rule). */
 const PROMPT_BASELINE = 4617;
-const PROMPT_BUDGET = Math.floor(PROMPT_BASELINE * 1.15);
+const PROMPT_BUDGET = Math.floor(PROMPT_BASELINE * 1.25);
 
-test("role list carries every whenToUse; prompt stays within +15% of the baseline", () => {
+test("role list carries every whenToUse; prompt stays within +25% of the baseline", () => {
   const roles = intentRoles();
   const p = buildIntentSystemPrompt(roles);
   for (const r of roles) expect(p).toContain(`- ${r.name}: ${r.whenToUse}`);
   expect(p.length).toBeLessThanOrEqual(PROMPT_BUDGET);
+});
+
+test("prompt states the control field: explicit stop / replace only, high confidence, never from a supplement", () => {
+  const p = buildIntentSystemPrompt(intentRoles());
+  expect(p).toContain('"control"');
+  expect(p).toContain("explicitly");
+  expect(p).toContain("replace");
 });

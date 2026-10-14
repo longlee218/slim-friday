@@ -37,6 +37,8 @@ const log = logger.child({ module: "route-by-intent" });
 /** What the handler does next. */
 export type IntentOutcome =
   | { kind: "reply"; text: string }
+  /** The owner explicitly stops or replaces the running work (executed by the handler, see interrupt-control). */
+  | { kind: "control"; action: "stop" | "replace" }
   /** A busy thread's independent question for a foreground role: answered at once in a parallel read-only run (side lane). */
   | {
       kind: "side";
@@ -119,6 +121,8 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
     case "ask":
       // A busy thread never asks (the run is still going) unless it waits on an owner gate: there the owner is asked.
       return reply(c.busy && !c.gated ? STILL_WORKING : (a.text ?? ASK_TEXT[a.reason]()));
+    case "control":
+      return { kind: "control", action: a.action };
     case "gate-hint":
       return reply(GATE_HINT);
     case "answer-ask": {

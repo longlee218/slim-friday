@@ -18,6 +18,7 @@ export type IntentAction =
   | { kind: "queue"; role: string } // independent work while a task is active: queued for after it, ANY role
   | { kind: "answer-ask"; answer: "yes" | "no" } // L3 read a yes/no to a pending proposal
   | { kind: "gate-hint" } // yes/no text to an owner-confirm button question
+  | { kind: "control"; action: "stop" | "replace" } // busy: the owner explicitly stops or replaces the running work
   | { kind: "ask"; reason: AskKind; text?: string };
 
 /** Facts of the thread the table needs. */
@@ -40,6 +41,7 @@ export interface TableInput {
 export function actionFor(i: TableInput): IntentAction {
   const d = i.decision;
   if (d.kind === "ask") return { kind: "ask", reason: d.reason, ...(d.text && { text: d.text }) };
+  if (d.kind === "control") return { kind: "control", action: d.action };
   if (d.kind === "gate-answer")
     return d.target === "ask" ? { kind: "answer-ask", answer: d.answer } : { kind: "gate-hint" };
   const role = ROLES[d.role];

@@ -30,6 +30,8 @@ export const intentResultSchema = z.object({
         .slice(0, ASK_MAX),
     ),
   pendingAnswer: z.enum(["yes", "no"]).nullish(),
+  /** `none` / null mean no control; only an explicit stop or replace is kept. */
+  control: z.enum(["none", "stop", "replace"]).nullish(),
 });
 
 /**
@@ -51,12 +53,13 @@ export function parseIntentText(text: string): IntentResult {
     const why = parsed.error.issues.map((i) => i.path.join(".") || "(root)").join(", ");
     throw new IntentEngineError("schema", `output does not match the schema: ${why}`);
   }
-  const { class: cls, ask, pendingAnswer, ...rest } = parsed.data;
+  const { class: cls, ask, pendingAnswer, control, ...rest } = parsed.data;
   return {
     ...rest,
     ...(cls && { class: cls }),
     ...(ask && { ask }),
     ...(pendingAnswer && { pendingAnswer }),
+    ...(control && control !== "none" && { control }),
   };
 }
 
