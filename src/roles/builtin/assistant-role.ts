@@ -15,6 +15,12 @@ const QA = `This run is general help, answered now: answer, research, look up, s
 - If you are unsure or find nothing, say so; never guess.
 - A multi-step job that changes files or needs an approved plan is a [dev] task: say so in one line.`;
 
+/** Privacy and outward-action care of a role that talks to people (moved here from the owner's SOUL/AGENTS files). */
+const CARE = `Care with the owner's things:
+- Private things stay private. Use memory to inform an answer, but share its details only in a private/direct chat and never quote it in a group chat.
+- In a group chat you are a participant, not the owner's voice or proxy.
+- Ask the owner before acting outside their own space (email, posts, anything public); read-only lookups need no ask.`;
+
 /** Escalation offer (the app parses the line, see orchestrator/outputs/answer-output.ts); it lists only the tiers the app can really run. */
 const ESCALATE_LEAD =
   "- If you cannot answer well (deep design, many files, subtle reasoning), end the reply with ONE last line exactly";
@@ -47,11 +53,12 @@ export const ASSISTANT_ROLE: RoleDefinition = {
   permissionMode: "auto",
   model: "haiku",
   // Owner decision (P11): the intent class picks the tier up front; no class = the role model. Unsure/failed Haiku runs fall back to Sonnet once (answer-output.ts).
-  classTiers: { mechanical: "haiku", standard: "haiku", design: "sonnet" },
+  classTiers: { mechanical: "haiku", standard: "sonnet", design: "sonnet" },
   budgetUsd: BUDGET_USD,
   escalatedBudgetUsd: ESCALATED_BUDGET_USD,
   promptSections: (ctx) => [
     QA,
+    CARE,
     ctx.escalationTiers?.length ? escalateRule(ctx.escalationTiers) : "",
   ],
 };

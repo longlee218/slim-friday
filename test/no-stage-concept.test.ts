@@ -29,7 +29,6 @@ test("the word stage/stages appears nowhere in src except the frozen legacy file
   const files = sourceFiles(SRC);
   // Not vacuous: the scan really walked the source tree.
   expect(files.length).toBeGreaterThan(100);
-  expect(files.some((f) => f.endsWith(".md"))).toBe(true);
   const hits: string[] = [];
   for (const f of files.filter((f) => !ALLOWED.some((re) => re.test(f)))) {
     readFileSync(join(SRC, f), "utf8")

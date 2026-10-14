@@ -76,11 +76,6 @@ guild (DISCORD_GUILD_ID)
 - The bot warns on every start (`discord.bot_administrator`) when it holds Administrator.
 - Intents: Guilds, Guild Messages, Message Content (privileged). `bootstrap:discord` logs in with Guilds only.
 
-## Workflow skill (optional): `bun run discord init-workflow-skill <ws>`
-- `/init-workspace` writes `workspaces/<ws>/skills/workflow/SKILL.md` from `src/discord-setup/templates/workflow-skill.md`.
-- For an older workspace, run the command once on the host. It writes the file only when missing and never overwrites an edited one. Startup never writes into workspaces.
-- Optional: the dev role already gets every installed publisher skill. The workflow skill adds owner-specific rules.
-
 ## Create the ops channels: `bun run bootstrap:discord`
 Needs `DISCORD_TOKEN`, `DISCORD_GUILD_ID`, `OWNER_DISCORD_ID`, `AGENT_HOME` and the bot with Manage Channels + Manage Roles.
 ```bash
@@ -113,7 +108,7 @@ controlChannels:   # default: [ops.control]
 Type in `#ops-control` (no mention needed). Legacy form: `init:workspace:<name>`.
 - Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops` or a publisher skill name (reserved).
 - Gate: you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else: not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
-- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `repos/`, `cwd/`, `skills/`, `MEMORY.md`, persona stubs, the workflow skill). (2) private category `<name>` and `#<name>-agent`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
+- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `repos/`, `cwd/`, `skills/`, `MEMORY.md`, persona stubs). (2) private category `<name>` and `#<name>-agent`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
 - Rerun on a finished workspace: "already set up". If creation fails midway, the reply names what exists.
 - No turn row, no agent. Logs `admin.init_workspace`.
 

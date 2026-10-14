@@ -1,6 +1,6 @@
 # Code Standards
 
-Last updated: 2026-10-12 (Rev 15). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
+Last updated: 2026-10-14 (reliable handoff phase 10). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
 
 ## Stack
 - **Runtime:** Bun (package manager, test runner, `bun:sqlite`)
@@ -28,6 +28,7 @@ bun run start           # start the bot (reads .env)
 5. **Guard is a deny-list.** `src/guardrails/` decides allow / ask / deny per tool call. Hard denies are never approvable. Do not add an allowlist for Bash.
 6. **Fail closed for owner decisions.** An owner question without an answer means "do not run" (owner-confirm, approvals). A missing or invalid config refuses startup.
 7. **Layering.** `thread/` and `dispatch/` never import `runtime/`. `roles/` never imports `orchestrator/`. Tested in `test/engine-layering.test.ts`.
+8. **Routing is data (reliable handoff).** Routing reads role fields (`whenToUse`, `sideEffects`, `approvalRequired`, `capabilityVersion`, `background`). No role name in `src/routing/`, `src/intent/jev/` or `src/tasks/` (review rule; no scan test yet). Thresholds are named constants in `src/intent/jev/jev-constants.ts`. Only background roles own tasks.
 
 ## Scan Rules (test-enforced)
 These rules are checked by tests that scan `src/` on every run. A violation fails `bun test`.
@@ -64,7 +65,8 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 ## Logging (owner rule)
 - Use only `logger` (or `logger.child({...})`) from `src/observability/logger.ts`.
 - Never `console.log`, `console.error`, `console.warn` or `console.info` in `src/`.
-- Context keys: `taskId` (task id), `threadId`, `workspace`, `repo`, `mode` (= role name), `module`.
+- Context keys: `taskId` (turn id), `threadId`, `workspace`, `repo`, `mode` (= role name), `module`. The owned task is `ownedTaskId` (in `route.decision`, `task.owner_changed`).
+- Routing events (`route.decision`, `span`, `preflight.result`, `task.owner_changed`, `execution.outcome`, `llm.turn {kind: "jev"}`) carry metadata only: ids, role names, reason codes, numbers. Never message text, scope text or Jev state.
 - `task.started` carries `type` = role name. `escalation {escalatedTo, action}` only when a run escalated.
 - Output: JSON lines in `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days); terminal line from `console-format.ts`.
 - Sensitive data: `redact.ts` masks tokens and keys before logging. Clip text with `redactClip` (mask first, then cut).
@@ -104,7 +106,7 @@ bun test --timeout 10000             # per-test timeout (ms)
 - **Authorship:** the owner's own git identity. No AI or Claude attribution lines (`Co-Authored-By`, "Generated with") in commits or PRs.
 - **Before commit:** `bun run format && bun run lint && bun test && bunx tsc --noEmit`.
 - **Secrets:** never commit `.env` or real credentials. `.env.example` holds `REPLACE_ME` placeholders.
-- **Agent commits:** the dev agent commits in the owner's checkout as the owner. The agent's commit rule is in the live `AGENTS.md` (`## Commits`), not in code.
+- **Agent commits:** the dev agent commits in the owner's checkout as the owner. The agent's commit rule is in the dev role prompt (`COMMIT_RULES` in `src/roles/builtin/dev-role.ts`), not in `AGENTS.md`.
 
 ## Environment Variables
 - Schema: `src/config/agent-config.ts` (zod). Routing and pins: `src/config/role-env.ts`, `src/config/model-routing.ts`.

@@ -1,13 +1,13 @@
 # Codebase Summary
 
-Last updated: 2026-10-12 (Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
+Last updated: 2026-10-14 (reliable handoff phases 1-10; Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
 
 ## Overview
 - **Friday**: Discord-driven personal agent on the Claude Agent SDK. Owner posts in a thread → the intent layer picks a role → the role runs as ONE agent run.
 - **assistant**: generalist, foreground, Haiku. Reads, searches the web, uses skills and MCP resources, runs read-only shell commands. Escalates to a stronger model when needed.
 - **dev**: background task in the owner's repo checkout. Plans and asks for approval through AskUserQuestion, implements, commits, pushes and opens the PR itself with the owner's git and gh login.
 - **Stack:** Bun, TypeScript, discord.js, Claude Agent SDK, SQLite (`bun:sqlite`), zod, pino.
-- **Size:** about 190 non-test `.ts` files, about 16,300 lines under `src/`. Tests under `test/`.
+- **Size:** about 266 non-test `.ts` files, about 22,650 lines under `src/` (2026-10-14). Tests under `test/`.
 
 ## Source Layout (`src/`)
 
@@ -17,13 +17,16 @@ Last updated: 2026-10-12 (Rev 15 phases 1-6). Source of truth: the code under `s
 | `ingress/` | Discord client, message rules, thread history, attachments, busy-thread ack, slash interactions | `discord-bot.ts`, `discord-message-handler.ts`, `discord-message-rules.ts`, `thread-turns.ts`, `attachment-text.ts`, `attachment-summary.ts` |
 | `commands/` | native slash command definitions and mapping to legacy text forms | `slash-definitions.ts`, `slash-commands.ts` |
 | `intent/` | L1 role tag, L2 effort signals, L3 Haiku classifier, lexicon | `decide-intent.ts`, `run-intent-pipeline.ts`, `haiku-intent-classifier.ts`, `role-tag.ts`, `data/intent-lexicon.yaml` |
+| `intent/jev/` | Jev (TypeSafe System One) proposer: questions, state, decision bands, client | `jev-proposer.ts`, `jev-client.ts`, `jev-questions.ts`, `jev-state.ts`, `jev-bands.ts`, `jev-constants.ts` |
 | `orchestrator/` | handle a message: commands, intent turn, busy lane, routing | `handle-message.ts`, `intent-turn.ts`, `message-commands.ts`, `message-routing.ts`, `route-and-run.ts`, `run-turn.ts`, `busy-lane.ts` |
 | `orchestrator/thread/` | thread state, action table, effort floor, steer reply | `thread-state.ts`, `intent-table.ts`, `route-by-intent.ts`, `max-effort-gate.ts`, `effort-floor.ts`, `steer-reply.ts` |
 | `orchestrator/dispatch/` | proposals, validation, queue, `/go` resume, side lane | `dispatch-role.ts`, `validate-request.ts`, `queued-tasks.ts`, `resume-failed-task.ts`, `side-answer.ts`, `task-repo.ts` |
 | `orchestrator/engine/` | the role engine: one run per role | `run-role.ts`, `role-scope.ts`, `budget.ts`, `ask-timeout-control.ts`, `owner-confirm.ts`, `run-report.ts`, `validate-role.ts`, `repo-activity.ts` |
-| `orchestrator/outputs/` | answer reply and `ESCALATE` re-run | `answer-output.ts` |
-| `orchestrator/turns/` | turn tracking, run limiter, steer registry, session compaction, status snapshot | `turn-tracker.ts`, `turn-result.ts`, `run-limiter.ts`, `steer-registry.ts`, `session-compaction.ts`, `status-snapshot.ts` |
-| `roles/` | role type, registry, built-in roles and their prompts | `role-types.ts`, `role-registry.ts`, `builtin/assistant-role.ts`, `builtin/dev-role.ts`, `builtin/dev-prompts.ts` |
+| `orchestrator/outputs/` | answer reply, `ESCALATE` re-run, outcome validation and no-delivery note | `answer-output.ts`, `outcome-validator.ts`, `delivery-evidence.ts` |
+| `routing/` | routing policy (tag -> Jev -> Haiku -> history), contracts, preflight, recovery, capability registry | `routing-policy.ts`, `routing-contracts.ts`, `route-proposer.ts`, `route-with-recovery.ts`, `recovery-controller.ts`, `preflight/deterministic-preflight.ts` |
+| `tasks/` | owned tasks: resolver (focus, owner change) and state machine | `task-resolver.ts`, `task-state-machine.ts` |
+| `orchestrator/turns/` | turn tracking, run limiter, steer registry, thread rollover (flush, summary, session drop), status snapshot | `turn-tracker.ts`, `turn-result.ts`, `run-limiter.ts`, `steer-registry.ts`, `thread-rollover.ts`, `rollover-flush.ts`, `rollover-summary.ts`, `status-snapshot.ts` |
+| `roles/` | role type, registry, built-in roles and their prompts | `role-types.ts`, `role-registry.ts`, `builtin/assistant-role.ts`, `builtin/dev-role.ts` |
 | `runtime/` | SDK run: query loop, hooks, permissions, env, streaming, skills plugins | `run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `system-prompt.ts`, `tool-permissions.ts`, `guard-hook.ts`, `permission-mode.ts`, `permission-watch.ts`, `ask-limit.ts`, `run-stream.ts`, `steered-stream.ts`, `run-input-channel.ts`, `run-errors.ts`, `skills-config.ts` |
 | `runtime/skills-plugin/` | per-run skill plugins from the lock and the workspace dir | `publisher-skills.ts`, `role-skills.ts`, `run-skills.ts`, `plugin-builder.ts`, `plugin-copy.ts`, `plugin-sweep.ts` |
 | `guardrails/` | deny-list guard: allow / ask / deny per tool call | `check-tool-call.ts`, `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `subagent-limit.ts` |
@@ -54,7 +57,7 @@ Discord message (owner, in a workspace channel or its thread)
 ## Roles (data)
 - Defined in `src/roles/builtin/*.ts` as `RoleDefinition` objects; the engine reads only the data (test-checked: no role-name literals in the engine).
 - Fields and values: see [system-architecture.md, Role Model](system-architecture.md#role-model).
-- Dev prompt pieces are in `dev-prompts.ts`: role text, run facts (ask for approval, git and gh rules, commit message rules), the `repo:` report line and memory bullets, the skills rule.
+- Dev prompt pieces are in `dev-role.ts`: role text, run facts (ask for approval, git and gh rules), commit rules, code standards, the `repo:` report line, the skills rule. The assistant's (answer rules, care, escalation) are in `assistant-role.ts`.
 - Config files for roles: closed for now (owner, 2026-10-12); roles stay TypeScript objects.
 
 ## Guardrails and Permissions
@@ -78,9 +81,9 @@ Discord message (owner, in a workspace channel or its thread)
 
 ## Storage
 - `src/storage/db.ts`: opens `$AGENT_HOME/data/agent.db` (WAL), runs migrations, owner-only file mode.
-- Schema v4: `meta`, `sessions`, `turns`, `runs`, `tool_calls`, `approvals`, `run_messages`, `proposals`. Details: [system-architecture.md, Storage Schema](system-architecture.md#storage-schema).
-- Migrations: `legacy-schema.ts` and `legacy-migrate-v2.ts` (frozen v1/v2 DDL), `migrate-v3-turns.ts` (rename, snapshot first), `migrate-v4-drop-legacy-tables.ts` (drops `stages`, `worktrees` and three columns; no snapshot).
-- Stores: `run-store.ts` (turns, finish, interrupt), `run-metrics-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`.
+- Schema v6: `meta`, `sessions`, `turns` (+ `owned_task_id`), `runs`, `tool_calls`, `approvals`, `run_messages`, `proposals`, `owned_tasks`. Details: [system-architecture.md, Storage Schema](system-architecture.md#storage-schema).
+- Migrations: `legacy-schema.ts` and `legacy-migrate-v2.ts` (frozen v1/v2 DDL), `migrate-v3-turns.ts` (rename, snapshot first), `migrate-v4-drop-legacy-tables.ts` (drops `stages`, `worktrees` and three columns; no snapshot), `migrate-v6-owned-tasks.ts` (additive; v5 snapshot first).
+- Stores: `run-store.ts` (turns, finish, interrupt), `run-metrics-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `owned-task-store.ts`.
 - Read-only row-count check for the owner (v3 and v4 copies): `plans/261012-1130-orchestrate-not-micromanage/owner-verify-counts-v4.ts`.
 
 ## Memory and Persona
@@ -92,7 +95,7 @@ Discord message (owner, in a workspace channel or its thread)
 - `memory/memory-compaction*.ts`: manual compaction with `MEMORY_MODEL`, a derivability check, `.bak` backup, dry-run (`bun run memory:compact`).
 
 ## Discord Setup
-- `discord-setup/`: `discord.yaml` (ops channel ids, control channels), private channel overwrites (create-only), `/init-workspace` (admin, `#ops-control` only), `bun run bootstrap:discord [--dry-run]`, `bun run discord init-workflow-skill <ws>` (writes the optional workflow skill template into an existing workspace).
+- `discord-setup/`: `discord.yaml` (ops channel ids, control channels), private channel overwrites (create-only), `/init-workspace` (admin, `#ops-control` only), `bun run bootstrap:discord [--dry-run]`.
 - Setup steps: [discord-setup.md](discord-setup.md).
 
 ## Configuration
@@ -121,4 +124,5 @@ Discord message (owner, in a workspace channel or its thread)
 - No run timeout exists. Only memory compaction has a time limit. A hung run holds its slot until `/stop`.
 - Bash and guard parsing are best effort; the dev run is in bypass mode, so only hard denies stop a call.
 - Two dev tasks in one repo share one working tree.
+- Routing default is `INTENT_ENGINE=haiku`; Jev (`jev`) is opt-in until the paid golden gate passes. Jev bands are conservative until calibrated.
 - Live behavior not yet verified (phase 8): AskUserQuestion under bypass, PermissionDenied hook, background-task env, SDK subagent tools, `ListAgents`, resumed-session cost, golden set.

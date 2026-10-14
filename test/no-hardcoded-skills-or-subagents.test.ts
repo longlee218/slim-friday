@@ -9,6 +9,9 @@ import { readSkillsLock } from "../src/config/skills-lock";
 
 const SRC = join(import.meta.dir, "..", "src");
 
+/** Owner decision (2026-10-14): the dev role prompt names this one skill; no other file may. */
+const ALLOWED_NAME = { name: "using-superpowers", file: "roles/builtin/dev-role.ts" };
+
 const lock = readSkillsLock();
 const BANNED = new Set<string>([
   ...Object.keys(lock),
@@ -35,7 +38,8 @@ test("no skill, plugin or subagent name in src/", async () => {
     const lines = (await Bun.file(join(SRC, rel)).text()).split("\n");
     lines.forEach((line, i) => {
       for (const [name, m] of MATCHERS)
-        if (m.test(line)) hits.push(`src/${rel}:${i + 1}: [${name}] ${line.trim()}`);
+        if (m.test(line) && !(name === ALLOWED_NAME.name && rel === ALLOWED_NAME.file))
+          hits.push(`src/${rel}:${i + 1}: [${name}] ${line.trim()}`);
     });
   }
   expect(hits).toEqual([]);

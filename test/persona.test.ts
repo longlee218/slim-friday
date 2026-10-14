@@ -55,9 +55,8 @@ test("persona: workspace files replace root per file; templates and comments inj
   expect(shared.text).toContain("Name: Friday");
   expect(shared.text).toContain("Vietnamese"); // from USER
   expect(shared.text).not.toContain("<!--"); // comments stripped
-  // The default AGENTS.md carries the one-line commit rule (Rev 15 phase 3): injected in a new home.
-  expect(shared.text).toContain("## Commits");
-  expect(shared.text).toContain("no AI attribution");
+  // The commit rules live in the dev role prompt, not in the owner's AGENTS.md.
+  expect(shared.text).not.toContain("## Commits");
   // The workspace has no persona files yet: everything falls back to root.
   const forMain = buildPersonaContext(env.home, "main");
   expect(forMain.text).toContain("Name: Friday");

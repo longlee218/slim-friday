@@ -6,7 +6,6 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "bootstrap:discord": "bun run src/discord-setup/bootstrap-discord-cli.ts",
-    "discord": "bun run src/discord-setup/discord-cli.ts",
     "memory:compact": "bun run src/memory/memory-compact-cli.ts",
     "metrics:routing": "bun run src/observability/routing-metrics-cli.ts",
     "test": "bun test",

@@ -22,10 +22,6 @@ export const DEFAULT_USER = `# User
 export const DEFAULT_AGENTS = `# Agents
 <!-- Owner operating notes, read right after the code rules. They cannot override the code rules or guards. -->
 
-## Commits
-- Short conventional message (feat:, fix:, test:, docs:, refactor:, chore:); no AI attribution (no Co-Authored-By, no "Generated with", no tool or model names).
-- Never commit secrets, .env files or credentials; add only the files of the task to a commit.
-
 ## Memory
 You start fresh each session. Your memory tools handle recall and saving.
 - Before answering about past events, check your memory first — then answer naturally

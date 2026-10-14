@@ -44,9 +44,9 @@ Discord
 | L0 | explicit commands: `/stop`, `/go [+usd]`, `/remember`, `/forget`, `/compact`, Resume; legacy text forms still parse (`src/commands/slash-commands.ts`) | no |
 | L1 | leading role tag `[dev]` / `[ask]` (`RoleDefinition.tag`, unique, case-insensitive); stripped from the brief | no |
 | L2 | effort-signal regex (lexicon `src/intent/data/intent-lexicon.yaml`): never routes, only adds effort hints | no |
-| L3 | `IntentClassifier` (`INTENT_ENGINE=haiku` default; `none` = L0-L2 only: untagged → assistant when idle, else ask). One SDK query, no tools, JSON checked by zod. Returns `{role, scope active\|new, class, confidence, reason, ask?, pendingAnswer?}` | Haiku |
+| L3 | `IntentClassifier` (`INTENT_ENGINE=haiku` default; `jev` = Haiku as fallback; `none` = L0-L2 only: untagged → assistant when idle, else ask). One SDK query, no tools, JSON checked by zod. Returns `{role, scope active\|new, class, confidence, reason, ask?, pendingAnswer?}` | Haiku |
 
-- L3 input is DATA between markers: owner text (cap 2000), thread state, last tasks, last 4 thread messages (redacted), a pending question, the role list.
+- L3 input is DATA between markers: owner text (redacted and clipped, same function as the Jev input), thread state, last tasks, last 4 thread messages (redacted), a pending question, the role list.
 - L3 only SELECTS a registry role. Unknown role, schema error or engine failure → ask (idle thread: entry role, read-only).
 - Low confidence on an idle thread → the entry role (`assistant`). Medium proceeds.
 - An engine failure never starts a background task.
@@ -66,6 +66,81 @@ Discord
 | awaiting confirmation | owner-confirm buttons | typed text is a hint only; buttons decide |
 | any | unknown role, engine failure, low confidence with a pending question | `ask` the owner |
 
+### Routing and preflight (reliable handoff)
+Routing proposes, policy decides, preflight checks, runtime recovers. Code: `src/routing/` (policy, proposer, preflight, recovery), `src/intent/jev/` (Jev proposer), `src/tasks/` (owned tasks). Plan: `plans/261013-2134-reliable-handoff/`.
+
+**Order for one message** (idle thread, no pending question or gate; `src/routing/routing-policy.ts`):
+
+| Step | Source | Reason code |
+|---|---|---|
+| 1 | Tag `[role]` (L1) | `EXPLICIT_TAG` (never rerouted) |
+| 2 | Engine `jev` only: ONE Jev request; open owned task continued, or a pick, or multi-intent (clarify) | `CONTEXT_CONTINUATION`, `JEV_MATCH` |
+| 3 | Haiku L3: the classifier under `haiku`, the fallback under `jev` (undecided, error, timeout, no key) | `MODEL_FALLBACK` |
+| 4 | Role that answered the thread's last turn | `HISTORY_DEFAULT` |
+| 5 | Entry role (`assistant`) | `ENTRY_DEFAULT` |
+
+- Pending question, gate and busy messages keep the L3 logic of `decideIntent`; they only emit `route.decision`.
+- Under `haiku` an open owned task is logged as `ownerCandidate` (shadow); only `jev` continues it.
+- Clarify only for missing information (preflight) or several requests in one message. An unresolved route never asks.
+
+**Engines (`INTENT_ENGINE`):**
+
+| Value | Routing |
+|---|---|
+| `haiku` (default) | tag -> Haiku L3 -> history / entry |
+| `jev` | tag -> Jev -> Haiku L3 fallback -> history / entry |
+| `none` | L0-L2 only: untagged idle message -> `assistant`, else ask |
+
+The default flips to `jev` only as an owner step after the paid golden gate ([owner checklist v6](owner-checklist-schema-v6.md)).
+
+**Jev (TypeSafe System One, `src/intent/jev/`):**
+- Model `jev-latest`, SDK `@typesafe-ai/sdk`, key `JEV_API_KEY` passed explicitly. Placeholder or `sk_` = no key = Haiku only. Timeout 5 s, 1 SDK retry (`jev-constants.ts`).
+- Questions in one request: `role` (Choice; option criteria = each role's `whenToUse`, plus `unclear`), `multi_intent`, `continues_task` (only with an open owned task), `fits_last_role` (only when the last role has side effects).
+- Sent to TypeSafe: the message (redacted and clipped, same function as the Haiku L3 input), thread state, owned task owner role and scope (redacted, 160 chars), last responding role, last 4 messages (redacted, clipped). Nothing else.
+- Bands (`jev-constants.ts`, conservative until calibrated): `MULTI_MIN` 0.8, `CONTINUE_MIN` 0.8, `STOP_MAX` 0.2, `RATIO_MIN` 2.0 (top / runner-up), `ACT_MIN` by `sideEffects`: none 0.6, repo 0.85, external 0.9. Order: multi -> continue -> unclear -> pick; otherwise undecided -> Haiku.
+- Timeout, error, invalid answer or no key = undecided (reason in `route.decision.jev.band`). Latency and price are not documented by TypeSafe: measured in paid runs (`llm.turn {kind: "jev"}`).
+
+**Preflight** (`src/routing/preflight/deterministic-preflight.ts`): deterministic, no model call, no write. Checks run in this order; the first refusal wins.
+
+| Check | Decision | Reason code | Reroutable |
+|---|---|---|---|
+| `unknown_repo` | need_clarification | MISSING_INFORMATION | no |
+| `empty_text_repo` | need_clarification | MISSING_INFORMATION | no |
+| `unknown_role` | reject | CAPABILITY_UNAVAILABLE | yes |
+| `no_approvals` (role needs approvals, none available) | reject | AUTHORIZATION_REQUIRED | yes |
+| `empty_text` | need_clarification | MISSING_INFORMATION | no |
+| `code_task_limit` | reject | CAPABILITY_UNAVAILABLE | no |
+
+**Recovery** (`src/routing/route-with-recovery.ts`, `recovery-controller.ts`): a reroutable reject moves to the next ranked candidate not yet visited, at most `MAX_REROUTES_PER_TURN` = 1 per message. Otherwise the outcome is `clarify` (ask for the missing part) or `safe_fail` (reply, nothing runs). `task.refused` is logged only when nothing runs.
+
+**Owned tasks** (`src/tasks/`, table `owned_tasks`, schema v6): only background roles own tasks. A foreground answer creates none.
+
+| From | Allowed to |
+|---|---|
+| `open` | `running`, `waiting_user`, `cancelled`, `failed` |
+| `running` | `waiting_user`, `completed`, `failed`, `cancelled` |
+| `waiting_user` | `running`, `completed`, `failed`, `cancelled` |
+| `completed`, `failed`, `cancelled` | none (terminal) |
+
+- Focus of a thread = its newest live task (`open`, `waiting_user`, `running`). Old waiting tasks are kept (no TTL).
+- Owner change = compare-and-set on `version` (one retry), logged as `task.owner_changed`.
+- No-delivery: a dev run that leaves no delivery evidence (commit, push, branch create, PR create, merge, cherry-pick; `bash -c` included) gets one neutral note line and its owned task waits (`waiting_user`). No auto re-run.
+
+**Outcome** (`src/orchestrator/outputs/outcome-validator.ts`): `success` = ran to its end (and delivered when the role is background with `sideEffects: repo`); `partial` = text but no delivery, or turn limit; `failed` = error or quota.
+
+**Routing events** (metadata only, never message text or state):
+
+| Event | When | Notes |
+|---|---|---|
+| `route.decision` | every routed message | `source`, `candidateAgentId`, `alternatives`, `rationaleCode`, `routingVersion`, `ownedTaskId`, `jev` (scores and band, Jev only) |
+| `span` | each step of the routing and run pipeline | `resolve_context`, `classify`, `select_candidate`, `preflight`, `execute`, `validate`, `recover` |
+| `preflight.result` | each preflight check | `candidate`, `decision`, `reasonCode`, `evidence` |
+| `task.owner_changed` | owner moved | `ownedTaskId`, `from`, `to`, `reasonCode` |
+| `execution.outcome` | run ended | `status`, artifact count, actions, `recoveryHint` |
+| `llm.turn` | Jev or Haiku call | `kind: "jev"` for Jev; tokens and duration |
+
+Offline metrics: `bun run metrics:routing` ([owner checklist v6](owner-checklist-schema-v6.md#route-labels-and-metrics)). Golden set: `test/routing-policy-golden.test.ts` (deterministic) and the opt-in live sets.
+
 ### Vocabulary: message / turn / task
 
 | Word | Means | Code / storage |
@@ -75,6 +150,7 @@ Discord
 | **task** | a background role's turn plus its `resume` child turns | no table of its own: the task id = the id of the first turn row; a resume row points at it with `parent_turn_id` |
 
 - A foreground answer is a turn, not a task. A background run is a task.
+- **Owned task** (`owned_tasks`, schema v6): the routing record of a background task: one owner role, a status, a scope. Logged as `ownedTaskId`; the log `taskId` stays the turn id.
 - There are NO stages. A role run is one agent run. Phase names (plan, exec) live in the skills and prompt text, not in code.
 - `runs.turns` / SDK `maxTurns` are model-loop turns, a different thing.
 - Kept on purpose: log field `taskId`, log event names `task.*`, env `TASK_BUDGET_USD`, disk path `logs/tasks/`.
@@ -103,6 +179,7 @@ Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-type
 - `subagents` (SDK `Agent`, `SendMessage`, `ListAgents`) are added to EVERY role by `toolsFor`. No app-defined subagent types exist.
 - A role's prompt is its `promptSections` + COMMON safety rules + context. The assistant has an `ESCALATE: sonnet|opus` line only on the cheap tier.
 - Dev `whenToUse`: a job that changes files or needs an owner-approved plan. Assistant: greetings, questions, read-only work.
+- Routing fields (data): `whenToUse` (Jev criteria), `sideEffects` (`none` / `repo` / `external`: the pick threshold), `approvalRequired`, `capabilityVersion` (logged with the decision). Delivery expectation = `background` and `sideEffects: repo`.
 - Adding a role or skill is a data change (see code standards). Roles as separate config files: closed for now (owner, 2026-10-12), not built.
 
 ## Thread States and Routing
@@ -132,10 +209,11 @@ State is DERIVED from `turns` and `approvals` (never stored): `src/orchestrator/
 | Guardrails | `src/guardrails/` | `check-tool-call.ts` (entry), `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `subagent-limit.ts` |
 | Skills | `src/runtime/skills-plugin/`, `src/config/skills-lock.ts` | publisher skills from the lock, workspace skills, per-run plugins |
 | Tool catalog | `src/tools/tool-catalog.ts`, `sdk-tool-names.ts`, `mcp-tool-names.ts` | capability → tool names, auto-allow list, secret-file rules |
-| Roles | `src/roles/` | role type, registry, `assistant-role.ts`, `dev-role.ts`, `dev-prompts.ts` |
+| Roles | `src/roles/` | role type, registry, `assistant-role.ts`, `dev-role.ts` (each role file holds its own prompt text) |
 | Repos and workspaces | `src/repos/`, `src/workspaces/` | registries (fail closed), `git` CLI for managed checkouts, refresh (ff-only, throttled) |
 | Memory | `src/memory/` | persona layers, repo memory writer, owner commands, manual compaction |
-| Storage | `src/storage/` | `db.ts`, stores, schema migrations v2 → v3 → v4 |
+| Routing | `src/routing/`, `src/intent/jev/`, `src/tasks/` | routing policy, Jev proposer, preflight, recovery, owned tasks |
+| Storage | `src/storage/` | `db.ts`, stores, schema migrations v2 → v3 → v4 → v5 → v6 |
 | Approvals | `src/approvals/` | Discord buttons and questions (`discord-approval.ts`, 10 min wait) |
 | Git MCP | `src/mcp/git-mcp.ts` | read-only git MCP client for the assistant |
 | Lifecycle | `src/lifecycle/` | startup hygiene, drain, shutdown, interrupted-run recovery, home placement check |
@@ -216,7 +294,7 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 - Each publisher is one plugin (the lock `source` name, e.g. `superpowers`), built per run in `<AGENT_HOME>/tmp/` and removed after the run (startup sweep for crash leftovers).
 - Caps per skill and per plugin; over-cap skills are skipped alone with a warn.
 - A repo's `.claude/skills`, hooks and `.mcp.json` are never read.
-- Dev run facts are prompt text (`src/roles/builtin/dev-prompts.ts`): ask via AskUserQuestion when a skill says to, commit message rules, the `repo:` report line, memory bullets.
+- Dev run facts are prompt text (`src/roles/builtin/dev-role.ts`): ask via AskUserQuestion when a skill says to, commit rules, the code standards (simplicity, surgical changes, goal-driven), the `repo:` report line.
 
 ### Workspace skills (owner-curated)
 - `workspaces/<ws>/skills/<name>/SKILL.md` (+ bundled files). Built per run as a plugin named after the workspace, only when `skills.extra` is true (default true in `workspace.yaml`).
@@ -253,22 +331,24 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 
 ## Storage Schema
 
-**DB:** `$AGENT_HOME/data/agent.db` (SQLite, WAL). Current schema version: 4 (`meta.schema_version`).
+**DB:** `$AGENT_HOME/data/agent.db` (SQLite, WAL). Current schema version: 6 (`meta.schema_version`).
 
 | Table | Key columns | Purpose |
 |---|---|---|
 | `meta` | key, value | schema version (the only version marker) |
 | `sessions` | thread_id (PK), session_id, repo, cwd, status, updated_at | the thread's stored session (written after a successful run) |
-| `turns` | id, thread_id, source, repo, type (`qa`/`code`), status, started_at, ended_at, session_id, session_cwd, brief, role, kind (`single`/`resume`), parent_turn_id, proposal_id, hop, counts_toward_cap, class | one role run; a task is its first row plus `resume` rows. Status: `running`, `waiting_approval`, `done`, `failed`, `failed_resumable`, `cancelled`, `interrupted`, `timeout` |
+| `turns` | id, thread_id, source, repo, type (`qa`/`code`), status, started_at, ended_at, session_id, session_cwd, brief, role, kind (`single`/`resume`), parent_turn_id, proposal_id, hop, counts_toward_cap, class, owned_task_id (v6; NULL for foreground and side-lane turns) | one role run; a task is its first row plus `resume` rows. Status: `running`, `waiting_approval`, `done`, `failed`, `failed_resumable`, `cancelled`, `interrupted`, `timeout` |
 | `runs` | id, turn_id, cost_usd, model | one SDK result summary per run |
 | `tool_calls` | id, run_id, turn_id, tool_name, input_redacted, output_redacted, duration_ms, agent_id | one row per tool call (NULL `agent_id` = main agent) |
 | `approvals` | id, turn_id, tool, decision (`pending` until answered), requested_at | owner questions and owner-confirm buttons |
 | `run_messages` | id, message_id, thread_id, session_id, run_id, seq, kind (`steer`/`followup`/`stop`/`other`), status (`pending`/`delivered`/`skipped`/`dropped`), content (redacted, ≤ 2000), created_at, task_id | every message that arrived while a run worked; purged after 14 days |
 | `proposals` | id, thread_id, workspace, from_turn_id, role, brief, repo, class, scope, confidence, reason, effort, status, created_at, decided_at | queued or pending background requests (`pending` → `queued` / `dispatched` / `refused` / `expired`) |
+| `owned_tasks` | id, thread_id, owner_role, status (`open`, `running`, `waiting_user`, `completed`, `failed`, `cancelled`), scope, version, correlation_id, created_at, last_progress_at | background work with one owner role (v6); index `owned_tasks_thread_progress` |
 
 ### Schema history
 
-Owner steps for the current upgrade: [owner-checklist-schema-v4.md](owner-checklist-schema-v4.md).
+Owner steps for the current upgrade (v5 -> v6): [owner-checklist-schema-v6.md](owner-checklist-schema-v6.md). Rev 15 (v3 -> v4): [owner-checklist-schema-v4.md](owner-checklist-schema-v4.md).
+- **v5 -> v6 (additive, `src/storage/migrate-v6-owned-tasks.ts`):** creates `owned_tasks` + index, adds `turns.owned_task_id`. Snapshot `friday-v5-<ts>.db` first (taken when the db is v5 at open). Kept-table counts compared; a failure keeps the db at v5. Rollback: restore the snapshot and check out `616cbb0`.
 - **v1 → v2 (additive):** `meta`, `stages`, `proposals`, `run_messages`, guarded column additions.
 - **v2 → v3 (rename):** `tasks` → `turns`; `task_id` → `turn_id`. Snapshot first: `VACUUM INTO <AGENT_HOME>/db-backups/friday-v2-<ts>.db`. One transaction with row-count checks.
 - **v3 → v4 (drop, `src/storage/migrate-v4-drop-legacy-tables.ts`):** drops tables `stages` and `worktrees`; columns `runs.stage_idx`, `run_messages.after_plan`, `proposals.base`. One transaction; kept-table counts compared; `schema_version` written last. No snapshot in v4 (owner decision).
@@ -284,7 +364,7 @@ Owner steps for the current upgrade: [owner-checklist-schema-v4.md](owner-checkl
 
 ## Persona & Memory Layering
 - Root files in `$AGENT_HOME`: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md` (owner-written), `BOOTSTRAP.md` (never read by code), `MEMORY.pending.md` (agent `[global]` notes; never injected).
-- `ensureHome` creates the root files and per-workspace templates if missing; it never overwrites. New defaults (`DEFAULT_IDENTITY`, `DEFAULT_AGENTS` with the `## Commits` rule) apply to NEW homes only: a live home is edited by hand.
+- `ensureHome` creates the root files and per-workspace templates if missing; it never overwrites. New defaults (`DEFAULT_IDENTITY`, `DEFAULT_AGENTS`) apply to NEW homes only: a live home is edited by hand.
 - A non-empty workspace file replaces the root file of the same name.
 - Prompt order: role sections + COMMON → `# Project Context` (AGENTS, IDENTITY, SOUL, USER) → registry → MEMORY layers → task ledger (idle, `context.ledger` roles).
 - Memory caps: root 5000 chars, workspace 5000, each repo 8000, all repos of a workspace 16000. Each persona file 6000.
@@ -348,7 +428,7 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 - **Queue** (background role, independent work): stored in `proposals` as `queued`; runs after the current task. At most 3 per thread. Starts in order. A restart puts queued rows back to `pending` and asks for `go`.
 - **Side answer** (foreground role): a parallel read-only run that starts fresh, takes a run slot, and gets a status snapshot of the running task. It never touches the thread session.
 - **Hard limits:** `MAX_PENDING_STEERS` 5 per run; `MAX_STEER_HOLDS` 2; `MAX_LATE_RESUMES` 1 (one resume of the same session when a message arrives after the input closed).
-- **Session reset:** when a `context.ledger` role's task ends with an average context ≥ 60,000 tokens, the thread's stored session is dropped; the next message starts fresh with the task ledger (`src/orchestrator/turns/session-compaction.ts`).
+- **Thread rollover** (`src/orchestrator/turns/thread-rollover.ts`, `rollover-*.ts`): after a successful FOREGROUND run (a `background` role such as dev never rolls) whose last model call's context is ≥ 75% of the model window (`ROLLOVER_CONTEXT_SHARE`; window from the SDK result, else 200k for Haiku and 1M for other models), the thread is rolled: (1) memory flush (an LLM run with only `Remember`, 4 turns, 60 s, prefers scope journal; when it saves nothing, the keyword extract goes to the day journal), (2) thread summary update, (3) the stored session is dropped. The next message starts a fresh session seeded by the summary and the last messages. The SDK also compacts mid-run at the same 75%, so the rollover rarely fires.
 - SDK auto-compact: every role run gets `CLAUDE_CODE_AUTO_COMPACT_WINDOW` = 1,000,000 (capped at the model window) and `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` = 75, plus cache TTL 1h (main and subagents); one-shot calls (intent, memory compaction) get none. Effect not verified live.
 
 ## Environment Variables and Limits
@@ -376,7 +456,8 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 | `COMPACT_WINDOW_<ROLE>` | role setting | 0 = no window var (SDK default window, 75% still applies); otherwise 100,000 to 1,000,000 |
 | `MAX_BUDGET_USD` | none | optional global cap on every run |
 | `MEMORY_MODEL` | haiku tier | manual memory compaction model |
-| `INTENT_ENGINE` | `haiku` | `haiku` \| `none` (`jev` is refused until built) |
+| `INTENT_ENGINE` | `haiku` | `haiku` \| `jev` \| `none` (see Routing and preflight) |
+| `JEV_API_KEY` | none | TypeSafe System One key; placeholder or `sk_` = no key = Haiku only. Sent to TypeSafe only under `jev` |
 | `MODEL_INTENT` | haiku tier | L3 classifier model |
 | `INTENT_BUDGET_USD` | 0.02 | per classifier call |
 | `INTENT_TIMEOUT_MS` | 20000 | minimum 8000 |
@@ -400,6 +481,7 @@ $AGENT_HOME/                       (real directory outside every repo; startup r
 | Owner question wait | 10 min | `src/approvals/discord-approval.ts` |
 
 ## Planned, Not Built
+- **Reliable handoff non-goals (phase 1):** supervisor, task TTL, dynamic DAG, multi-intent execution (a multi-intent message asks which part goes first). Jev bands stay conservative until calibrated.
 - **Config as agent (old phase 9):** roles as files plus a resolver. Closed for now (owner, 2026-10-12), not built: roles stay flat TypeScript objects in `src/roles/builtin/`, so the move stays cheap if reopened.
 - **Live verification (phase 8, paid):** AskUserQuestion under bypass, the PermissionDenied hook for owner denies, `DISABLE_BACKGROUND_TASKS` vs `run_in_background`, SDK general-purpose subagent tools, `ListAgents`, resumed-session cost accounting, golden set for the rewritten prompts.
 - **Known gaps (owner decisions):** two dev tasks in one repo share one working tree; `repo.defaultBranch` is not protected (only `main` and `master` are); the thread does not pin the last task's repo.

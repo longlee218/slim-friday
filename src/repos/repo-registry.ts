@@ -37,7 +37,7 @@ const configSchema = z.object({
   // Accepted and IGNORED since Rev 15 (the agent commits and opens PRs with the owner's own git config and `gh` login).
   githubAccount: z.string().trim().min(1).optional(),
   gitAuthor: z.string().trim().min(1).optional(),
-  // Accepted and IGNORED since the lean/full split was removed (every dev run follows the loaded workflow skill).
+  // Accepted and IGNORED since the lean/full split was removed (a dev run has one flow).
   workflow: z.string().optional(),
 });
 
