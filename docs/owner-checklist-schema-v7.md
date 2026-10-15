@@ -237,3 +237,14 @@ sqlite3 "$DB" "SELECT value FROM meta WHERE key='schema_version'"   # expect 6
 ### Rollback
 
 1. Stop the bot. Check out `8554925` (phase 1g, the commit before 1d) and start the bot. No db change, so the home needs no restore. The restarted build overwrites the slash list, so `/find` disappears.
+
+## Phase 2: chat channel mode
+
+Set a channel to `mode: chat` in `workspace.yaml`, restart. No db change.
+
+1. After start the channel topic is `💬 chat: nhắn thẳng, không cần @Friday` (needs Manage Channels; a failure is only a warning `admin.topic_failed`).
+2. Post two plain messages (no mention). Expect two inline replies, no thread, and the second continues the first (`sessions.thread_id` = the channel id).
+3. Run `/stop` and `/status` in the channel. Expect inline answers, not "send it inside the thread".
+4. Ask for a code task. Expect the proposal / plan buttons to render in the channel (not verified).
+5. Start a thread under the channel with `@Friday ...`. Expect a normal task thread (placeholder title, rename after the answer).
+6. After a restart mid-turn the Resume button works in a chat channel (fixed: the handler accepts a button in a channel mapped `mode: chat`).

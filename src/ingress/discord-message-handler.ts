@@ -14,13 +14,7 @@ import { reactDoneOf } from "./message-reaction";
 import { createMessageReceipt } from "./message-receipt";
 import { type HistoryChannel, historyOf, recentFor } from "./thread-history";
 import { threadOnlyNote } from "./thread-only-commands";
-import {
-  adoptRoute,
-  mayAdopt,
-  openThread,
-  type ThreadsPort,
-  threadFacts,
-} from "./thread-placement";
+import { adoptRoute, openThread, type ThreadsPort, threadFacts } from "./thread-placement";
 import { createThreadTurns } from "./thread-turns";
 import {
   detectLanguage,
@@ -148,7 +142,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         authorIsBot: msg.author.bot,
         inGuild: msg.inGuild(),
         otherGuild: !!deps.guildId && msg.guildId !== deps.guildId,
-        ...threadFacts(ch, botId, ops, deps.threads, mayAdopt(msg, deps.ownerId, botId)),
+        ...threadFacts(ch, botId, ops, deps.threads, msg, deps.ownerId, !!msg.guildId),
         mentionsBot: msg.mentions.has(botId, { ignoreEveryone: true, ignoreRoles: true }),
         content: msg.content,
         hasAttachments: (msg.attachments?.size ?? 0) > 0,

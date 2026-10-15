@@ -36,13 +36,14 @@ function click(channel: any, over: { guildId?: string; userId?: string } = {}) {
 }
 
 /** Resume handler with a recording fake task layer. */
-function setup(guildId?: string) {
+function setup(guildId?: string, chatIds: string[] = []) {
   const messages: InboundMessage[] = [];
   const handle = createResumeHandler({
     db: makeEnv().db,
     getClient: () => undefined,
     ownerId: OWNER,
     guildId,
+    isChatChannel: (id) => chatIds.includes(id),
     handleMessage: async (message) => {
       messages.push(message);
       return "ok";
@@ -73,6 +74,21 @@ test("button outside a thread (no parent): nothing runs, no 'Resuming...' update
   await handle(c.i);
   expect(messages).toEqual([]);
   expect(c.calls.update).toBe(0);
+});
+
+test("button in a chat channel (not a thread): resumes keyed by the channel itself", async () => {
+  const { handle, messages } = setup(undefined, ["chat1"]);
+  const c = click(fakeChannel("chat1"));
+  c.i.channel.isThread = () => false;
+  await handle(c.i);
+  expect(messages).toMatchObject([{ threadId: "chat1", channelId: "chat1" }]);
+  expect(c.calls.update).toBe(1);
+  // a non-chat, non-thread channel stays ignored
+  const o = click(fakeChannel("other"));
+  o.i.channel.isThread = () => false;
+  await handle(o.i);
+  expect(messages.length).toBe(1);
+  expect(o.calls.update).toBe(0);
 });
 
 test("pinned guild: a button from another guild is ignored, the pinned guild runs", async () => {

@@ -477,7 +477,7 @@ Discord-facing words: **space** (a private category), **channel** (a channel of 
 | Concept | Where it lives | Behavior |
 |---|---|---|
 | Space | `workspaces/<ws>/` + its category | owns its `locations:`, its `MEMORY.md`, persona overrides, and N channels |
-| Channel | `channels:` entry in `workspace.yaml` (`name` = memory dir `channels/<name>/`) | `mode` task (now) or chat (phase 2); `locations` optional subset of the space's locations; own MEMORY.md and persona overrides |
+| Channel | `channels:` entry in `workspace.yaml` (`name` = memory dir `channels/<name>/`) | `mode` task or chat (`chat`: the owner needs no mention, the answer is inline, `threadId = channelId` so one session per channel; no thread row, no SetThreadTitle, no digest; `/stop` and `/status` work in the channel; threads under it are still adoptable task threads; the bot syncs the channel topic on start); `locations` optional subset of the space's locations; own MEMORY.md and persona overrides |
 | Location | `locations:` entry | a directory a run may work in; see [Location Model](#location-model) |
 
 - A message is routed by its parent channel id to exactly one space and one channel entry; the run's location candidates are the channel's `locations` subset (present = exactly the known names, `[]` = none, run in `cwd/`), else all of the space's (key absent).

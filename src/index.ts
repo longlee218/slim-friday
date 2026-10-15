@@ -9,6 +9,7 @@ import {
   logProviderSelected,
 } from "./config/agent-config";
 import { workspacePaths } from "./config/workspace-paths";
+import { syncChannelTopics } from "./discord-setup/channel-topic";
 import { opsIds, readDiscordSetup } from "./discord-setup/discord-setup-config";
 import { createOpsLog } from "./discord-setup/ops-log";
 import { warnIfBotAdministrator } from "./discord-setup/ready-checks";
@@ -134,12 +135,14 @@ async function main(): Promise<void> {
     threadTitle: createThreadTitlePort(() => botClient),
     messageReaction: createMessageReactionPort(() => botClient),
   });
+  const threadsPort = createThreadsPort(db, config.agentHome);
   const handleResume = createResumeHandler({
     db,
     getClient: () => botClient,
     ownerId: config.ownerDiscordId!,
     handleMessage,
     guildId: config.discordGuildId,
+    isChatChannel: (id) => threadsPort.channelInfo(id)?.mode === "chat",
   });
   // One interaction listener: each handler ignores buttons of the other (different customId prefix).
   const { client } = createDiscordBot(
@@ -151,7 +154,7 @@ async function main(): Promise<void> {
     },
     setup,
     handleMessage.memory,
-    createThreadsPort(db, config.agentHome),
+    threadsPort,
   );
   botClient = client;
   // One #ops-log line per start / shutdown / uncaught error; no-op without ops.log in discord.yaml.
@@ -160,6 +163,7 @@ async function main(): Promise<void> {
     void postResumeNotices({ db, getClient: () => botClient });
     void postProposalNotices({ db, getClient: () => botClient, queuedThreads });
     warnIfBotAdministrator(client, config.discordGuildId);
+    void syncChannelTopics(client, config.agentHome, opsIds(setup)); // never blocks the start
     void opsLog.post("start", `pid=${process.pid} v${pkg.version}`);
   });
 

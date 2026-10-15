@@ -28,6 +28,8 @@ export interface MessageFacts {
   adoptedThread?: boolean;
   /** True for a thread under a channel mapped to a space that is not bot-owned, not adopted, not in an ops channel. */
   adoptableThread?: boolean;
+  /** True for a channel (not a thread) the owner marked `mode: chat`: the owner needs no mention there. */
+  chatChannel?: boolean;
   /** True when the message mentions this bot. */
   mentionsBot: boolean;
   content: string;
@@ -54,7 +56,7 @@ export type Route =
     }
   /** Admin text (control channel, or `init:workspace:` typed anywhere): handled by the admin gate, never by the agent. */
   | { kind: "control"; prompt: string }
-  /** Continue the session of the thread the message is in. */
+  /** Continue the session of the thread (or chat channel) the message is in. */
   | { kind: "thread"; prompt: string }
   /** Owner @mention in an adoptable owner-made thread: the handler persists the adoption, then answers as `thread`. */
   | { kind: "adopt"; prompt: string }
@@ -80,7 +82,8 @@ export function routeMessage(f: MessageFacts, ownerId: string, botId: string): R
       ? { kind: "control", prompt }
       : { kind: "ignore", reason: "ops_channel" };
   // Admin text anywhere else is refused by the gate, never sent to the agent.
-  const inThread = f.inBotThread || !!f.adoptedThread; // bot-owned or adopted: no mention needed
+  // Bot-owned or adopted thread, or a chat channel (the channel is the thread): no mention needed.
+  const inThread = f.inBotThread || !!f.adoptedThread || !!f.chatChannel;
   if (isAdminText(prompt) && (inThread || f.mentionsBot)) return { kind: "control", prompt };
   if (inThread) return { kind: "thread", prompt };
   // An owner-made thread under a mapped channel: the first mention adopts it (never a thread inside a thread).

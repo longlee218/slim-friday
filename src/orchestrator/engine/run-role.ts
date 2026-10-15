@@ -22,7 +22,7 @@ import { ownerConfirm } from "./owner-confirm";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 import { roleScope } from "./role-scope";
 import { closeBackgroundRun } from "./run-report";
-import { threadTitleNote } from "./thread-title-note";
+import { threadTitleNote, titlePortFor } from "./thread-title-note";
 import { validateRole } from "./validate-role";
 
 export type { RoleRunInput, RoleRunnerDeps };
@@ -98,6 +98,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   const release = role.capabilities.includes("write") ? markWorking(s.cwd) : undefined;
   let rerunModel: string | undefined; // model of the escalated re-run, when one ran
   let rerunUsage: unknown; // usage of that re-run: identifies whether its result is the answer that was kept
+  const titlePort = titlePortFor(i, deps.threadTitle); // none in a chat channel; gates the tool and its note
   const runOnce = (r?: Route, resumeId?: string) => {
     const route = i.route || r ? { ...i.route, ...r } : undefined;
     if (r?.escalated) rerunModel = resolveModel(role, route ?? {}, config);
@@ -121,7 +122,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         location: i.locations.length === 1 ? i.locations[0]?.name : undefined,
         threadId: i.threadId,
         trackSummary: !role.background,
-        threadTitle: deps.threadTitle,
+        threadTitle: titlePort,
         onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),
       }),
       onControlEvent: (e) => supervisor.observe(e),
@@ -141,7 +142,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         ledger: i.ledger,
       }).concat(
         route?.internalHint ? [`Internal note (not from the owner):\n${route.internalHint}`] : [],
-        threadTitleNote(db, i.threadId, !!deps.threadTitle),
+        threadTitleNote(db, i.threadId, !!titlePort),
       ),
       resume: resumeId,
       route,

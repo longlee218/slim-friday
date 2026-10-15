@@ -14,3 +14,7 @@ export function threadTitleNote(db: Database, threadId: string, hasPort: boolean
   const row = getThread(db, threadId);
   return row?.placeholder && !row.title ? [THREAD_TITLE_NOTE] : [];
 }
+
+/** The rename port a run may use: none in a chat channel (`threadId === channelId`: no thread to rename, no tool offered). */
+export const titlePortFor = <P>(i: { threadId: string; channelId?: string }, port?: P) =>
+  i.threadId === i.channelId ? undefined : port;

@@ -24,6 +24,8 @@ export interface ResumeDeps {
   handleMessage: HandleMessage;
   /** The one guild served (DISCORD_GUILD_ID); a button from another guild is ignored. */
   guildId?: string;
+  /** True for a channel mapped with `mode: chat` (the owner talks in it inline, so Resume works there too). */
+  isChatChannel?: (id: string) => boolean;
 }
 
 /**
@@ -86,8 +88,12 @@ export function createResumeHandler(deps: ResumeDeps) {
       const channel = i.channel;
       // The button must live in the thread it names.
       if (i.channelId !== threadId || !channel?.isSendable()) return;
-      // Routing key: the thread's parent channel (a button outside a thread is not ours).
-      const channelId = channel.isThread() ? channel.parentId : null;
+      // Routing key: the thread's parent channel, or the chat channel itself (any other channel is not ours).
+      const channelId = channel.isThread()
+        ? channel.parentId
+        : deps.isChatChannel?.(channel.id)
+          ? channel.id
+          : null;
       if (!channelId) return;
       await i.update({
         content: renderUserNotice(

@@ -40,21 +40,39 @@ export function mayAdopt(
 
 /**
  * The thread facts `routeMessage` needs, read from the channel and the port. Never throws: a store or
- * workspace-load error is logged and the thread counts as not adopted / not adoptable. `canAdopt` (see
- * `mayAdopt`) gates the costly `channelInfo` lookup, so strangers' messages never load the workspaces.
+ * workspace-load error is logged and the thread counts as not adopted / not adoptable. Only the owner's
+ * `msg` (a real @mention for adoption, see `mayAdopt`) triggers the costly `channelInfo` lookups, so strangers never load the workspaces.
+ * `chatChannel`: the channel itself is mapped with `mode: chat` (the owner talks in it inline, no thread).
  */
 export function threadFacts(
   ch: { id: string; isThread(): boolean; ownerId?: string | null; parentId?: string | null },
   botId: string,
   ops: ReadonlySet<string>,
   threads?: ThreadsPort,
-  canAdopt = false,
-): { inBotThread: boolean; adoptedThread: boolean; adoptableThread: boolean } {
+  msg?: { author: { id: string }; content: string },
+  ownerId?: string,
+  inGuild = true,
+): {
+  inBotThread: boolean;
+  adoptedThread: boolean;
+  adoptableThread: boolean;
+  chatChannel: boolean;
+} {
   const inThread = ch.isThread();
+  const isOwner = !!msg && msg.author.id === ownerId;
+  const canAdopt = !!msg && !!ownerId && mayAdopt(msg, ownerId, botId);
   const inBotThread = inThread && ch.ownerId === botId;
   let adoptedThread = false;
   let adoptableThread = false;
+  let chatChannel = false;
   try {
+    // Only the owner's message looks the channel up (strangers never load the workspaces); ops channels never chat.
+    chatChannel =
+      isOwner &&
+      inGuild &&
+      !inThread &&
+      !ops.has(ch.id) &&
+      threads?.channelInfo(ch.id)?.mode === "chat";
     adoptedThread = inThread && !inBotThread && !!threads?.isAdopted(ch.id); // one indexed query
     adoptableThread =
       canAdopt &&
@@ -68,8 +86,9 @@ export function threadFacts(
     log.error({ err: errText(err) }, "thread facts failed");
     adoptedThread = false;
     adoptableThread = false;
+    chatChannel = false;
   }
-  return { inBotThread, adoptedThread, adoptableThread };
+  return { inBotThread, adoptedThread, adoptableThread, chatChannel };
 }
 
 /** Persist an `adopt` route and return it as the `thread` turn it becomes. A store failure is logged, the turn goes on. */

@@ -55,7 +55,7 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
      - "123456789012345678"           # plain id (legacy): channel <ws>-agent, then <ws>-agent-2, -3... for further plain ids
      - id: "234567890123456789"       # object form
        name: "<ws>-notes"             # lowercase letters, digits, hyphens; unique in the space; names the memory dir
-       mode: task                     # task | chat (chat has no effect until phase 2)
+       mode: task                     # task | chat (chat: the owner writes without @Friday, answers come inline in the channel, no threads; topic synced on start: only an empty or bot-made topic is replaced, an owner-edited one is kept)
        locations: [app]               # optional subset of the space's locations
    ```
    - `locations`: absent = every location of the space; present = exactly the listed known names. Unknown names warn (`channel.unknown_location`) and are ignored. `locations: []` or all-unknown = no location: the run works in the workspace `cwd/`.
