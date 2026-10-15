@@ -32,6 +32,8 @@ export interface OwnerConfirmRequest {
   threadId: string;
   /** The question shown above the buttons (already in `language`). */
   summary: string;
+  /** Long text sent as a redacted `.txt` attachment next to the question (a diff); omitted = none. */
+  detail?: string;
   /** Owner's conversation language: the button labels follow it. */
   language: OwnerLanguage;
   /** Stop / shutdown: ends the wait with "no". */
@@ -63,6 +65,7 @@ export async function ownerConfirm(
         threadId: req.threadId,
         tool: OWNER_CONFIRM_APPROVAL,
         summary: req.summary,
+        detail: req.detail,
         onPosted: req.onPosted,
       },
       ownerConfirmLabels(req.language),

@@ -30,7 +30,7 @@ import {
   READ_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
-import { autoAllowedTools, toolsFor } from "../tools/tool-catalog";
+import { appMcpToolsFor, autoAllowedTools, toolsFor } from "../tools/tool-catalog";
 import { checkBash, checkWorktreePath } from "./bash-policy";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
 import { checkGitMcp } from "./git-mcp-guard";
@@ -79,7 +79,7 @@ export type GuardScope = Omit<GuardrailContext, "allowTools">;
 export function guardFor(role: RoleDefinition, scope: GuardScope): GuardrailContext {
   return {
     ...scope,
-    allowTools: autoAllowedTools(role),
+    allowTools: [...autoAllowedTools(role), ...appMcpToolsFor(role)],
     shell: toolsFor(role).includes(BASH_TOOL_NAME),
   };
 }
@@ -128,7 +128,11 @@ export function checkToolCall(
     return MEMORY_TOOLS.includes(toolName.slice(memoryPrefix.length))
       ? { decision: "allow", reason: "memory tool" }
       : { decision: "deny", reason: "unknown memory tool" };
-  if (toolName.startsWith(MCP_PREFIX)) return { decision: "deny", reason: "unknown MCP tool" };
+  // An app server a role lists in its data: its tools arrive in `allowTools` (tool-catalog `appMcpToolsFor`).
+  if (toolName.startsWith(MCP_PREFIX))
+    return ctx.allowTools?.includes(toolName)
+      ? { decision: "allow", reason: "app MCP tool of this role" }
+      : { decision: "deny", reason: "unknown MCP tool" };
   // `Task` is the legacy name of the Agent tool: same decision.
   if (ctx.allowTools?.includes(toolName === LEGACY_AGENT_TOOL_NAME ? AGENT_TOOL_NAME : toolName))
     return { decision: "allow", reason: "tool allowed in this mode" };

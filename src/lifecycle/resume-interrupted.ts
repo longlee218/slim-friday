@@ -30,13 +30,18 @@ export interface ResumeDeps {
 
 /**
  * Post a notice + Resume button in every thread with an interrupted task (once: the tasks are then
- * acknowledged). Call after Discord is ready. Returns the number of notices posted.
+ * acknowledged; a control channel is only acknowledged, never offered). Call after Discord is ready. Returns the number of notices posted.
  */
 export async function postResumeNotices(
-  deps: Pick<ResumeDeps, "db" | "getClient">,
+  deps: Pick<ResumeDeps, "db" | "getClient"> & { isControlChannel?: (id: string) => boolean },
 ): Promise<number> {
   let posted = 0;
   for (const threadId of listInterruptedThreads(deps.db)) {
+    // The control channel has no Resume flow (its Continue button would be dead): just close the row.
+    if (deps.isControlChannel?.(threadId)) {
+      ackInterrupted(deps.db, threadId);
+      continue;
+    }
     try {
       const channel = await deps.getClient()?.channels.fetch(threadId);
       if (!channel?.isSendable()) throw new Error("no channel");

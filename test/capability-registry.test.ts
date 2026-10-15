@@ -42,7 +42,7 @@ test("real roles carry registry data", () => {
   expect(ROLES.dev?.sideEffects).toBe("location");
   expect(ROLES.dev?.approvalRequired).toBe(true);
   expect(() => validateRegistry()).not.toThrow();
-  expect(registryVersion()).toBe("assistant@2,dev@2");
+  expect(registryVersion()).toBe("assistant@2,dev@2,discord-manager@1");
 });
 
 test("filters: not dispatchable, visited, unauthorized, capability", () => {

@@ -1,7 +1,7 @@
 import type { AgentConfig } from "../config/agent-config";
 import { logEvent, logger } from "../observability/logger";
 import { validateRegistry } from "../roles/capability-registry";
-import { ROLES } from "../roles/role-registry";
+import { spaceRoles } from "../roles/role-registry";
 import { createIntentClassifier } from "./create-intent-classifier";
 import type { IntentDeps } from "./decide-intent";
 import type { IntentQueryFn } from "./haiku-intent-classifier";
@@ -35,7 +35,7 @@ export function buildIntentDeps(
     ...(engine === "jev" && client && { proposer: createJevProposer(client) }),
     pipeline: {
       lexicon: loadLexicon(config.agentHome),
-      tagRouter: createRoleTagRouter(Object.values(ROLES)),
+      tagRouter: createRoleTagRouter(spaceRoles()),
     },
     classifier: createIntentClassifier(config, queryFn),
   };

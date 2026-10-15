@@ -6,6 +6,7 @@ import type { GuardScope } from "../../guardrails/check-tool-call";
 import { realOrSame } from "../../guardrails/paths";
 import type { Location } from "../../locations/location-registry";
 import type { RoleDefinition } from "../../roles/role-types";
+import { controlScope } from "./control-scope";
 import type { RoleRunInput } from "./role-run-types";
 
 /* Where a role run works and what it may touch, from role DATA (capabilities, background) and the run input. */
@@ -48,6 +49,7 @@ export interface RoleScope {
  * Throws when a dir of a writing role is gone (the caller turns it into a failed result).
  */
 export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefinition): RoleScope {
+  if (i.workspace === undefined) return controlScope(config, i); // no workspace: the control channel
   const { locations, pinned } = i;
   const dirs = workspacePaths(config.agentHome).workspace(i.workspace);
   mkdirSync(dirs.cwd, { recursive: true });

@@ -1,4 +1,4 @@
-import { ROLES } from "../../roles/role-registry";
+import { ROLES, spaceRoles } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import type { ProposeInput, RouteProposal, RouteProposer } from "../../routing/route-proposer";
 import { parseJevAnswers } from "./jev-answer-schema";
@@ -15,7 +15,7 @@ import { buildJevState } from "./jev-state";
  */
 export function createJevProposer(
   client: JevClient,
-  roles: () => RoleDefinition[] = () => Object.values(ROLES),
+  roles: () => RoleDefinition[] = spaceRoles,
 ): RouteProposer {
   return {
     async propose(input: ProposeInput, signal?: AbortSignal): Promise<RouteProposal> {

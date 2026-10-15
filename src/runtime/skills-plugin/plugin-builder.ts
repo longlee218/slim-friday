@@ -34,8 +34,8 @@ export interface RunSkills {
 export interface PluginSpec {
   /** Plugin name: the skills of it are `<name>:<skill>`. */
   name: string;
-  /** `workspace` (owner dir, logs say so) or `publisher` (the publisher's skills in `.agents/skills/`). */
-  kind: "workspace" | "publisher";
+  /** `workspace` (owner dir, logs say so), `publisher` (the publisher's skills in `.agents/skills/`) or `app` (the app's own role skills). */
+  kind: "workspace" | "publisher" | "app";
   /** Dir holding `<skill>/SKILL.md` folders. */
   srcDir: string;
   /** Skill dir names to copy; omitted = every skill dir found. */

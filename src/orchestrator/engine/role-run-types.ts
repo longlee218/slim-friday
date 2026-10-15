@@ -6,6 +6,7 @@ import type { ThreadTitlePort } from "../../ingress/thread-rename";
 import type { OwnerLanguage } from "../../ingress/user-copy";
 import type { RecentMessage } from "../../intent/intent-types";
 import type { Location } from "../../locations/location-registry";
+import type { AppServersFactory } from "../../mcp/mcp-servers";
 import type { QueryFn } from "../../runtime/run-agent";
 import type { SessionRow } from "../../storage/session-store";
 import type { SteerRegistry } from "../turns/steer-registry";
@@ -39,8 +40,10 @@ export interface RoleRunInput {
   text: string;
   /** Role to run (registry name). */
   role: string;
-  /** Workspace the run belongs to; every location lookup of the flow stays inside it. */
-  workspace: string;
+  /** Workspace the run belongs to; every location lookup of the flow stays inside it. Absent = a control-channel run (no workspace, no location, no memory). */
+  workspace?: string;
+  /** Builds the in-process app MCP servers (by name, see `RoleDefinition.mcpServers`) on every query() call; only the ones the role lists are used. */
+  appServers?: AppServersFactory;
   /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
   channel?: string;
   /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */

@@ -1,6 +1,6 @@
 # Code Standards
 
-Last updated: 2026-10-14 (schema v7 location vocabulary, phase 1a; space and channel vocabulary, phase 1b; thread vocabulary and custom tools, phase 1c; reliable handoff phase 10). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
+Last updated: 2026-10-15 (control-channel role fields `surface`, `appSkills`, `mcpServers` and the discord-admin tools, phase 3, uncommitted; schema v7 location vocabulary, phase 1a; space and channel vocabulary, phase 1b; thread vocabulary and custom tools, phase 1c; reliable handoff phase 10). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
 
 ## Stack
 - **Runtime:** Bun (package manager, test runner, `bun:sqlite`)
@@ -29,6 +29,12 @@ bun run start           # start the bot (reads .env)
 6. **Fail closed for owner decisions.** An owner question without an answer means "do not run" (owner-confirm, approvals). A missing or invalid config refuses startup.
 7. **Layering.** `thread/` and `dispatch/` never import `runtime/`. `roles/` never imports `orchestrator/`. Tested in `test/engine-layering.test.ts`.
 8. **Routing is data (reliable handoff).** Routing reads role fields (`whenToUse`, `sideEffects`, `approvalRequired`, `capabilityVersion`, `background`). No role name in `src/routing/`, `src/intent/jev/` or `src/tasks/` (review rule; no scan test yet). Thresholds are named constants in `src/intent/jev/jev-constants.ts`. Only background roles own tasks.
+
+## Roles, App Skills and Custom Tools (phase 3)
+- **Role fields (data):** `surface` (`space` default, or `control`: only `#ops-control`, never routed to); `appSkills` (dirs under `src/roles/builtin/skills/`, this role only); `mcpServers` (in-process app servers, names in `mcp-tool-names.ts`; the caller supplies them per query, and their tools need `allowTools`). A new control skill or space kind is a folder, never code.
+- **Discord admin tools** (`src/tools/ListSpacesTool/`, `CreateSpaceOrChannelTool/`, `WriteSpaceFileTool/`): names are constants (`LIST_SPACES_TOOL`, `CREATE_SPACE_OR_CHANNEL_TOOL`, `WRITE_SPACE_FILE_TOOL`). Create-only: no delete or rename tool may be added without an owner decision.
+- **Write guards:** `WriteSpaceFile` takes a fixed file set (`SPACE_FILES`), never a path from model text; every write needs an owner confirm (no answer = no write); a backup comes before every replace. Keep the 6000-char content and 16000-char diff caps in the tool's `constants.ts`.
+- **Templates:** `src/discord-setup/templates/space-kinds/<kind>/`; kinds are the folder names (`spaceKinds()`), no kind list in code.
 
 ## Vocabulary (schema v7, phase 1b)
 | Word | Means | Code |

@@ -3,10 +3,9 @@ import { type Route, resolveModel } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
 import { threadLanguage } from "../../ingress/discord-components";
 import { renderUserNotice } from "../../ingress/user-copy";
-import { buildLocationsContext } from "../../locations/location-registry";
 import { buildMemoryToolContext } from "../../memory/memory-context";
-import { buildPromptContext } from "../../memory/prompt-context";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
+import { mayHaveWritten } from "../../roles/capability-registry";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
@@ -21,8 +20,9 @@ import { markWorking } from "./location-activity";
 import { ownerConfirm } from "./owner-confirm";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 import { roleScope } from "./role-scope";
+import { runExtraContext } from "./run-extra-context";
 import { closeBackgroundRun } from "./run-report";
-import { threadTitleNote, titlePortFor } from "./thread-title-note";
+import { titlePortFor } from "./thread-title-note";
 import { validateRole } from "./validate-role";
 
 export type { RoleRunInput, RoleRunnerDeps };
@@ -112,38 +112,28 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       additionalDirectories: s.additionalDirectories,
       worktreesDir: s.worktreesDir,
       // In-process memory tools (Remember...): location names are read from the registry only when a tool needs them.
-      memory: buildMemoryToolContext({
-        db,
-        home: config.agentHome,
-        workspace: i.workspace,
-        channel: i.channel,
-        channelId: i.channelId,
-        locationNames: i.locations.map((r) => r.name), // channel subset: memory tools cannot reach other locations
-        location: i.locations.length === 1 ? i.locations[0]?.name : undefined,
-        threadId: i.threadId,
-        trackSummary: !role.background,
-        threadTitle: titlePort,
-        onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),
-      }),
+      memory:
+        i.workspace === undefined
+          ? undefined // a control-channel run has no workspace: no memory tools
+          : buildMemoryToolContext({
+              db,
+              home: config.agentHome,
+              workspace: i.workspace,
+              channel: i.channel,
+              channelId: i.channelId,
+              locationNames: i.locations.map((r) => r.name), // channel subset: memory tools cannot reach other locations
+              location: i.locations.length === 1 ? i.locations[0]?.name : undefined,
+              threadId: i.threadId,
+              trackSummary: !role.background,
+              threadTitle: titlePort,
+              onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),
+            }),
       onControlEvent: (e) => supervisor.observe(e),
       onProgress: (text) => setProgressNote(i.turnId, text),
       skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
       guard: guardFor(role, s.guard),
-      extraContext: buildPromptContext({
-        agentHome: config.agentHome,
-        workspace: i.workspace,
-        channel: i.channel,
-        // A background role always sees its location(s) with their test command; a pinned foreground role needs no list.
-        registry:
-          i.pinned && !role.background
-            ? ""
-            : buildLocationsContext(i.workspace, s.scope, role.background),
-        memoryLocations: s.scope.map((r) => r.name),
-        ledger: i.ledger,
-      }).concat(
-        route?.internalHint ? [`Internal note (not from the owner):\n${route.internalHint}`] : [],
-        threadTitleNote(db, i.threadId, !!titlePort),
-      ),
+      extraContext: runExtraContext({ db, config, i, s, role, route, hasTitlePort: !!titlePort }),
+      appServers: i.appServers,
       resume: resumeId,
       route,
       config,
@@ -182,7 +172,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     route: i.route,
     confirmOpus,
     awaitingOwner: () => !!awaiting,
-    // Post-result boundary: a write-capable role may have partly written, so it is never re-run automatically.
+    // Post-result boundary: a role that may have partly written (files, or an external side effect) is never re-run automatically.
     recover: (result, c) => {
       const decision = observeResult(result);
       const d = recoverOnce({
@@ -190,7 +180,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         snapshot: supervisor.snapshot(),
         alreadyReran: c.alreadyReran,
         remainingBudgetUsd: c.remainingBudgetUsd,
-        uncertainPartialWrite: role.capabilities.includes("write"),
+        uncertainPartialWrite: mayHaveWritten(role),
         approvalWaiting: !!awaiting,
       });
       if (d.kind === "resume") {
@@ -201,7 +191,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
         // The supervisor wanted a recovery but a guard of the selector said no: say which one.
         audit(
           "recover_suppressed",
-          role.capabilities.includes("write")
+          mayHaveWritten(role)
             ? "uncertain_partial_write"
             : awaiting
               ? "approval_waiting"

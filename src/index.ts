@@ -160,7 +160,11 @@ async function main(): Promise<void> {
   // One #ops-log line per start / shutdown / uncaught error; no-op without ops.log in discord.yaml.
   const opsLog = createOpsLog(() => botClient, setup.ops.log);
   client.once(Events.ClientReady, () => {
-    void postResumeNotices({ db, getClient: () => botClient });
+    void postResumeNotices({
+      db,
+      getClient: () => botClient,
+      isControlChannel: (id) => setup.controlChannels.includes(id),
+    });
     void postProposalNotices({ db, getClient: () => botClient, queuedThreads });
     warnIfBotAdministrator(client, config.discordGuildId);
     void syncChannelTopics(client, config.agentHome, opsIds(setup)); // never blocks the start

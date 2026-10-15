@@ -140,7 +140,7 @@ export function buildSdkOptions(
     model: config.model,
     resume: input.resume,
     ...toolOptions(role),
-    mcpServers: mcpServersFor(role, input.memory),
+    mcpServers: mcpServersFor(role, input.memory, input.appServers),
     ...(permissionMode && { permissionMode }),
     // The SDK refuses bypassPermissions without this explicit opt-in (the guard hook stays the gate).
     ...(permissionMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),

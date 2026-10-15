@@ -1,14 +1,14 @@
 import { renderUserNotice } from "../../ingress/user-copy";
 import type { AskReason } from "../../intent/decide-intent";
 import { leadingRoleTag } from "../../intent/role-tag";
-import { ROLES } from "../../roles/role-registry";
+import { spaceRoles } from "../../roles/role-registry";
 
 /** Why the owner is asked (the intent reasons; a `max` effort is confirmed with buttons, see max-effort-gate.ts). */
 export type AskKind = AskReason;
 
 /** Drop the leading role tag (`[dev]`, `[ask]`) the owner typed: it routed the message, it is not part of the brief. */
 export function stripRoleTag(text: string): string {
-  const hit = leadingRoleTag(text, Object.values(ROLES));
+  const hit = leadingRoleTag(text, spaceRoles());
   return hit?.rest || text;
 }
 

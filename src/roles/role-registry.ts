@@ -1,12 +1,24 @@
 import { ASSISTANT_ROLE } from "./builtin/assistant-role";
 import { DEV_ROLE } from "./builtin/dev-role";
+import { DISCORD_MANAGER_ROLE } from "./builtin/discord-manager-role";
 import type { RoleDefinition } from "./role-types";
 
 /** Every role of the app, by name. A new role = one file in `builtin/` + one line here. */
 export const ROLES: Readonly<Record<string, RoleDefinition>> = {
   [ASSISTANT_ROLE.name]: ASSISTANT_ROLE,
   [DEV_ROLE.name]: DEV_ROLE,
+  [DISCORD_MANAGER_ROLE.name]: DISCORD_MANAGER_ROLE,
 };
+
+/** True for a role that runs in space channels (the default surface); a `control` role is never routed to from one. */
+export const isSpaceRole = (r: RoleDefinition): boolean => (r.surface ?? "space") === "space";
+
+/** Roles of the space surface: the only ones intent routing, dispatch and reroute may offer. */
+export const spaceRoles = (): RoleDefinition[] => Object.values(ROLES).filter(isSpaceRole);
+
+/** The role of the control channel (#ops-control), found by its `surface` data; undefined when none is registered. */
+export const controlRole = (): RoleDefinition | undefined =>
+  Object.values(ROLES).find((r) => r.surface === "control");
 
 /** Role by name; an unknown name is a programming/config error. */
 export function getRole(name: string): RoleDefinition {
@@ -17,7 +29,7 @@ export function getRole(name: string): RoleDefinition {
 
 /** Roles the dispatcher may start from a request (a queued follow-up of any role included): every role with a `whenToUse`. */
 export function dispatchableRoleNames(): [string, ...string[]] {
-  const names = Object.values(ROLES)
+  const names = spaceRoles()
     .filter((r) => r.whenToUse)
     .map((r) => r.name);
   return names as [string, ...string[]];
@@ -25,7 +37,7 @@ export function dispatchableRoleNames(): [string, ...string[]] {
 
 /** Name + `whenToUse` of every role: the input of the intent layer (P1.4c). */
 export function intentRoles(): { name: string; whenToUse: string }[] {
-  return Object.values(ROLES).map(({ name, whenToUse }) => ({ name, whenToUse }));
+  return spaceRoles().map(({ name, whenToUse }) => ({ name, whenToUse }));
 }
 
 /**

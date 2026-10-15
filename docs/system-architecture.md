@@ -1,6 +1,6 @@
 # Friday Agent System Architecture
 
-Last updated: 2026-10-15 (phase 1d: channel digest and rollover seed in the fresh session's first prompt, `/find`; phase 1g: $HOME location, AGENT_HOME guard, title note, brief = owner text; schema v7 location model, phases 1a and 1b (spaces with N channels) and 1c (thread names, adoption, SetThreadTitle) in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 and of 1b/1c pending).
+Last updated: 2026-10-15 (phase 3: control channel, `discord-manager` role, three discord-admin tools, space-kind templates, uncommitted; phase 1d: channel digest and rollover seed in the fresh session's first prompt, `/find`; phase 1g: $HOME location, AGENT_HOME guard, title note, brief = owner text; schema v7 location model, phases 1a and 1b (spaces with N channels) and 1c (thread names, adoption, SetThreadTitle) in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 and of 1b/1c pending).
 
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite).
@@ -13,7 +13,7 @@ Last updated: 2026-10-15 (phase 1d: channel digest and rollover seed in the fres
 - [Role Model](#role-model) · [Thread States and Routing](#thread-states-and-routing) · [Thread Lifecycle](#thread-lifecycle) · [Component Overview](#component-overview)
 - [Approval by ask tool](#approval-by-ask-tool) · [Approval & Guardrails](#approval--guardrails) · [Budget and Resume](#budget-and-resume)
 - [Skills and Subagents](#skills-and-subagents) · [Tool Restriction Strategy](#tool-restriction-strategy) · [Storage Schema](#storage-schema)
-- [Persona & Memory Layering](#persona--memory-layering) · [Workspace Layout](#workspace-layout) · [Space, Channel and Location](#space-channel-and-location) · [Location Model](#location-model) · [Discord Setup](#discord-setup)
+- [Persona & Memory Layering](#persona--memory-layering) · [Workspace Layout](#workspace-layout) · [Space, Channel and Location](#space-channel-and-location) · [Location Model](#location-model) · [Discord Setup](#discord-setup) · [Control Channel](#control-channel-phase-3)
 - [Security Layers](#security-layers) · [Environment Variables and Limits](#environment-variables-and-limits) · [Planned, Not Built](#planned-not-built)
 
 ## Message Flow
@@ -21,7 +21,7 @@ Last updated: 2026-10-15 (phase 1d: channel digest and rollover seed in the fres
 Discord
   └─ message in a channel (mention) or a thread
      ├─ ingress gate: bot / non-owner / DM ignored; other guild than DISCORD_GUILD_ID ignored
-     ├─ control channel or admin text (/init-workspace, /init-channel): admin handler (src/discord-setup), never a run
+     ├─ control channel: admin commands (/init-workspace, /init-channel) in the admin handler; other text runs the control role (phase 3, see Control Channel), never a space run
      ├─ ops channels: ignored
      ├─ routing key = parent channel id (thread → parentId)
      └─ handle message (src/orchestrator/handle-message.ts)
@@ -200,6 +200,34 @@ Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-type
 - Routing fields (data): `whenToUse` (Jev criteria), `sideEffects` (`none` / `location` / `external`: the pick threshold), `approvalRequired`, `capabilityVersion` (logged with the decision). Delivery expectation = `background` and `sideEffects: location`.
 - Adding a role or skill is a data change (see code standards). Roles as separate config files: closed for now (owner, 2026-10-12), not built.
 
+### Control channel role fields (phase 3)
+- `surface`: `space` (default) or `control`. Intent, dispatch, reroute and tag routing see only `space` roles (`spaceRoles()`); `controlRole()` finds the `control` role by data. A control role with a `tag` is refused at registry validation.
+- `appSkills`: dir names under `src/roles/builtin/skills/`; only this role gets them. The app plugin is named `friday` (a reserved workspace name).
+- `mcpServers`: in-process app servers the role gets (names in `mcp-tool-names.ts`). The guard allows their tools only when they are in the role's `allowTools` (`appMcpToolsFor`).
+- `mayHaveWritten(role)` (write capability or `sideEffects: external`): such a run is never re-run automatically after a result.
+
+## Control Channel (phase 3)
+Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/roles/builtin/discord-manager-role.ts`): haiku, effort low, capabilities `read`, `skills`, `ask` (no write, shell or web), `maxAsk` 4, `BUDGET_USD` 0.5, `sideEffects: external`. It is the only way to reach Discord or the space files, and the agent has no Discord token.
+
+| Part | Where | Behaviour |
+|---|---|---|
+| Entry | `src/discord-setup/admin-handler.ts` → `control-role-run.ts` | After the admin gate. One session per control channel (`threadId` = channel id), fresh after 24 h idle. `stop` aborts; a message while running gets "still running". Joined into shutdown (`abortAll`, `drain`) |
+| Scope | `src/orchestrator/engine/control-scope.ts` | cwd `<AGENT_HOME>/tmp/control`; no write path. Per space: reads `workspace.yaml`, the 5 persona/memory files and `channels/` only. AGENT_HOME otherwise denied. No memory tools; root persona only (`run-extra-context.ts`) |
+| Tools | in-process server `discord-admin` (`src/mcp/discord-admin-server.ts`), built per query | `ListSpaces`, `CreateSpaceOrChannel`, `WriteSpaceFile`. No delete or rename tool |
+| Skill | `src/roles/builtin/skills/discord-server-manager/SKILL.md` | App-owned, data only |
+| Restart | `src/lifecycle/resume-interrupted.ts` | An interrupted control run is acknowledged, never offered a Continue button |
+
+**Write rules (tools):**
+
+| Tool | Rule |
+|---|---|
+| `CreateSpaceOrChannel` | Create-only, same name rules as `/init-workspace` and `/init-channel`. Owner confirm button in code. Private overwrites as in [discord-setup.md](discord-setup.md) |
+| `WriteSpaceFile` | Only `USER.md`, `IDENTITY.md`, `AGENTS.md`, `SOUL.md`, `MEMORY.md` of a space or one channel. Realpath must stay inside the space; symlinks refused. Content ≤ 6000 chars, secret-like text refused. The owner sees a redacted line diff (≤ 16000 chars, sent as a `.txt` attachment) and confirms; no, timeout or error = nothing written. The file is re-read after the confirm (refused if changed). Old file backed up to `<AGENT_HOME>/backups/persona/`; 0600 temp file + rename |
+| `ListSpaces` | Read-only. With `kind` returns that space kind's template text |
+
+- Space kinds are folders: `src/discord-setup/templates/space-kinds/{personal,company,study}/{USER,IDENTITY,AGENTS,SOUL}.md`, read through `persona-templates.ts` (`spaceKinds()`, `spaceKindFile()`). Applying a kind = one `WriteSpaceFile` per file, each with its own diff.
+- Known limits: a space created during a run is readable by Read from the next run. A written `MEMORY.md` is re-indexed at once (MemorySearch); the write runs under the memory file lock. Backups: `backups/persona/<space>/[channels/<channel>/]<file>-<ts>`, newest 10 per file kept.
+
 ## Thread States and Routing
 State is DERIVED from `turns` and `approvals` (never stored): `src/orchestrator/thread/thread-state.ts`.
 
@@ -272,7 +300,8 @@ Code: `src/ingress/thread-placement.ts` (placeholder, open, adopt), `threads-por
 | Guardrails | `src/guardrails/` | `check-tool-call.ts` (entry), `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `protected-paths.ts` (AGENT_HOME rules beyond "inside"), `subagent-limit.ts` |
 | Skills | `src/runtime/skills-plugin/`, `src/config/skills-lock.ts` | publisher skills from the lock, workspace skills, per-run plugins |
 | Tool catalog | `src/tools/tool-catalog.ts`, `sdk-tool-names.ts`, `mcp-tool-names.ts` | capability → tool names, auto-allow list, secret-file rules |
-| Roles | `src/roles/` | role type, registry, `assistant-role.ts`, `dev-role.ts` (each role file holds its own prompt text) |
+| Roles | `src/roles/` | role type, registry, `assistant-role.ts`, `dev-role.ts`, `discord-manager-role.ts` (each role file holds its own prompt text) |
+| Control surface (phase 3) | `src/discord-setup/control-role-run.ts`, `src/orchestrator/engine/control-scope.ts`, `run-extra-context.ts`, `src/mcp/discord-admin-server.ts`, `src/tools/{ListSpaces,CreateSpaceOrChannel,WriteSpaceFile}Tool/`, `src/roles/builtin/skills/` | `#ops-control` role run, no-workspace scope, discord-admin tools, app-owned skills |
 | Locations and workspaces | `src/locations/`, `src/workspaces/` | location and workspace registries (fail closed), git detection, `git-cli.ts`, migration CLI `migrate:locations` (`migrate-locations*.ts`) |
 | Memory | `src/memory/` | persona layers, location memory writer, owner commands, manual compaction |
 | Routing | `src/routing/`, `src/intent/jev/`, `src/tasks/` | routing policy, Jev proposer, preflight, recovery, owned tasks |
@@ -511,7 +540,7 @@ A **location** is a directory the owner registers in a workspace. It replaces th
 - **Memory layer:** `workspaces/<ws>/locations/<name>/MEMORY.md`, memory source `location`, id prefix `location/<name>#`.
 
 ## Discord Setup
-- `src/discord-setup/`: `discord.yaml` schema, private control channels, `/init-workspace` and `/init-channel` (admin handler, `#ops-control` only), channel topic, `bootstrap:discord` CLI, ops log, ready checks.
+- `src/discord-setup/`: `discord.yaml` schema, private control channels, `/init-workspace` and `/init-channel` (admin handler, `#ops-control` only), control-channel role run (`control-role-run.ts`), space-kind templates (`templates/space-kinds/`), channel topic, `bootstrap:discord` CLI, ops log, ready checks.
 - Everything is create-only and never deletes. Setup steps and the slash command list: [discord-setup.md](discord-setup.md).
 
 ## Security Layers

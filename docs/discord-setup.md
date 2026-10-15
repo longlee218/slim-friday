@@ -20,7 +20,7 @@ Last updated: 2026-10-12 (Rev 15). Architecture: [system-architecture.md](system
 1. "OAuth2" → "URL Generator" → scope `bot`
 2. Permissions (least privilege):
    - View Channels, Send Messages, Send Messages in Threads, Create Public Threads, Read Message History, Attach Files, Embed Links
-   - Manage Channels and Manage Roles: only for `bootstrap:discord`, `/init-workspace` and `/init-channel` (private channels with overwrites; Manage Channels also sets the topic); revoke afterwards if you create channels by hand
+   - Manage Channels and Manage Roles: only for `bootstrap:discord`, `/init-workspace`, `/init-channel` and the server manager's `CreateSpaceOrChannel` (phase 3; same code path; private channels with overwrites; Manage Channels also sets the topic); revoke afterwards if you create channels by hand. No new permission was added in phase 3
    - **Never Administrator**: it bypasses every overwrite
 3. Permission integer `309506198544`. URL: `https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=309506198544`
 4. Open the URL and add the bot to your test server
@@ -71,7 +71,7 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
 ```
 guild (DISCORD_GUILD_ID)
 ├─ ops            (private category)
-│   ├─ #ops-control     admin commands only (/init-workspace, /init-channel); never reaches the agent
+│   ├─ #ops-control     admin commands (/init-workspace, /init-channel); other text runs the server manager (phase 3), never a space run
 │   ├─ #ops-log         one line on start / shutdown / uncaught error
 │   ├─ #ops-health      reserved (no producer yet)
 │   └─ #ops-analytics   reserved (no producer yet)
@@ -132,6 +132,14 @@ Type in `#ops-control`. Legacy form: `init:channel:<space>/<name>`. One string a
 - A failure after step 1 names the created channel and the `workspace.yaml` line to add by hand. Never renames, edits or deletes a channel.
 - Logs `admin.init_channel`. Rerun with the same path while in progress: "already in progress".
 - The topic states the mode (`task`: mention `@Friday` to open a thread). A channel's memory and persona files are read only by runs in that channel.
+
+## Server manager: `#ops-control` free text (phase 3)
+- Any non-command text in `#ops-control` goes to the server manager (role `discord-manager`). Ask it in plain words: list spaces, create a space or channel, apply a kind (`personal`, `company`, `study`), or edit a space's persona file.
+- Gate: same as `/init-workspace` (owner, pinned guild, control channel, private). Text in any other channel is never sent to it.
+- Creating: `CreateSpaceOrChannel` is create-only (same name rules and private overwrites as `/init-workspace` and `/init-channel`). It asks for a confirm button first. No delete or rename.
+- Writing a persona file (`USER.md`, `IDENTITY.md`, `AGENTS.md`, `SOUL.md`, `MEMORY.md`): the owner gets a diff (`.txt` attachment) and confirms. No answer, a "no", or a timeout writes nothing. The old file is backed up to `$AGENT_HOME/backups/persona/`.
+- Session: one per control channel; `stop` aborts the run; a fresh session after 24 h idle. A run interrupted by a restart gets no Continue button.
+- Limits: each run has a 0.5 USD budget and at most 4 owner questions. The agent has no Discord token, no shell and no web.
 
 ## Threads: names, manual threads, titles
 - A thread the bot opens (a message in a mapped channel, or a slash command) starts as `⏳ MM-DD HH:MM` (placeholder, local time). The first message is never the name.
@@ -230,6 +238,7 @@ Canonical forms are slash commands. Legacy text forms keep working this release.
 | `/remember [scope] <text>`, `/forget [scope] <text>`, `/compact [dry-run]` | `remember:` / `nhớ:`, `forget:` / `quên:`, `compact memory` / `gom nén` | owner memory (see Memory) |
 | `/init-workspace <name>` (ops control channel only) | `init:workspace:<name>` | create the workspace, private category and `#<name>-agent` |
 | `/init-channel <space>/<name>` (ops control channel only) | `init:channel:<space>/<name>` | add a private `#<name>` to the space's category (see Add a channel) |
+| Any other text (ops control channel only) | - | the server manager (see Server manager); `stop` aborts its run |
 | `[dev]` / `[ask]` at the very start of the message | - | force the role (dev: works in its location; ask: read-only answer). Case-insensitive; the tag is removed from the request. A tag anywhere else, or a plain word like "dev", does nothing |
 | `location:<name>` prefix | `repo:<name>` (alias) | pins the thread to a location of the workspace |
 

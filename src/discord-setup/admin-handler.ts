@@ -3,6 +3,7 @@ import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
 import type { MemoryRunner } from "../memory/memory-command-handler";
 import { logEvent, logger } from "../observability/logger";
 import { adminGate, parseAdminCommand } from "./admin-command";
+import type { ControlRun } from "./control-role-run";
 import type { DiscordSetup } from "./discord-setup-config";
 import { initChannel } from "./init-channel";
 import { initWorkspace } from "./init-workspace";
@@ -21,6 +22,8 @@ export interface AdminDeps {
   setup: DiscordSetup;
   /** Owner memory commands typed in #ops-control (global scope and `compact memory` only). */
   memory?: MemoryRunner;
+  /** Runs the control-channel role for non-command text; absent = the help text. */
+  controlRun?: ControlRun;
 }
 
 /**
@@ -70,13 +73,15 @@ export function createAdminHandler(deps: AdminDeps) {
     const memo = await deps.memory?.({ where: "control", channelId: ch.id, text: prompt });
     if (memo != null) return void (await reply(memo));
     const cmd = parseAdminCommand(prompt);
-    if (cmd.kind !== "init_workspace" && cmd.kind !== "init_channel")
-      return void (await reply(cmd.reply));
     const init = {
       home: deps.home,
       guild: msg.guild,
       ids: { guildId: msg.guild.id, ownerId: deps.ownerId, botId },
     };
+    // Non-command text goes to the control-channel role (when one is registered and wired), else the help text.
+    if (cmd.kind === "help" && (await deps.controlRun?.(msg, prompt, init))) return;
+    if (cmd.kind !== "init_workspace" && cmd.kind !== "init_channel")
+      return void (await reply(cmd.reply));
     await reply(
       cmd.kind === "init_channel"
         ? await initChannel(init, cmd.space, cmd.name)

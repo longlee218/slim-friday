@@ -1,4 +1,4 @@
-import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../mcp/mcp-tool-names";
+import { APP_MCP_TOOLS, GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../mcp/mcp-tool-names";
 import type { Capability, RoleDefinition } from "../roles/role-types";
 import { GIT_GROUPS } from "./git-tool-groups";
 import {
@@ -98,6 +98,12 @@ export const toolsFor = (role: RoleDefinition): string[] => [
 /** Tools of a role that need no approval (the guard's `allowTools`). */
 export const autoAllowedTools = (role: RoleDefinition): string[] =>
   toolsFor(role).filter((t) => AUTO_ALLOWED.has(t));
+
+/** Full names of the tools of the app MCP servers a role lists in `mcpServers` (the guard allows exactly these). */
+export const appMcpToolsFor = (role: RoleDefinition): string[] =>
+  (role.mcpServers ?? []).flatMap((server) =>
+    (APP_MCP_TOOLS[server] ?? []).map((tool) => mcpToolName(server, tool)),
+  );
 
 /* ---------------- git MCP tools (@cyanheads/git-mcp-server 2.15.3) ---------------- */
 

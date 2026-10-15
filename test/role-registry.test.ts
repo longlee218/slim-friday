@@ -34,8 +34,8 @@ const BARE: RoleDefinition = {
   promptSections: () => [],
 };
 
-test("registry: assistant and dev, unknown role fails", () => {
-  expect(Object.keys(ROLES).sort()).toEqual(["assistant", "dev"]);
+test("registry: assistant, dev and the control role, unknown role fails", () => {
+  expect(Object.keys(ROLES).sort()).toEqual(["assistant", "dev", "discord-manager"]);
   expect(() => getRole("nope")).toThrow("Unknown role");
 });
 

@@ -56,14 +56,14 @@ export interface TurnHandlerDeps {
 export function createTurnHandler(deps: TurnHandlerDeps) {
   const { db, config } = deps;
   const log = logger.child({ module: "handle-message" });
-  const { active, tracker, rollovers, floors, dispatchDeps, busyLane, memory } =
+  const { active, tracker, rollovers, floors, dispatchDeps, busyLane, memory, control, shutdown } =
     createHandlerServices(deps, log);
   const interrupts = createInterruptController();
   /**
    * The owner explicitly stops (`stop`) or replaces (`replace`) the running work. STOP = `/stop` (the queue is kept and
-   * runs after). REPLACE reserves the thread, aborts the exact active run once, says it is stopping, waits for that run to
-   * settle, then runs the ORIGINAL message once as a fresh request (the older queue then runs after it). The stopped
-   * run's result is discarded (route-and-run). Returns the reply, or undefined when nothing is to be sent.
+   * runs after). REPLACE reserves the thread, aborts the exact active run once, says it is stopping, waits for it to
+   * settle, then runs the ORIGINAL message once as a fresh request (the older queue then runs after it). The stopped run's
+   * result is discarded (route-and-run). Returns the reply, or undefined when nothing is to be sent.
    */
   const interrupt = async (
     message: InboundMessage,
@@ -232,12 +232,9 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         text === undefined ? undefined : localizeUserCopy(text, messageLanguage(message)),
       );
   handleMessage.memory = memory; // same runner for ingress (inline channel replies, #ops-control)
+  handleMessage.control = control; // non-command text of #ops-control (the control-channel role)
   handleMessage.rollover = (threadId: string) => rollovers.wait(threadId) ?? Promise.resolve(); // tests
-  handleMessage.abortAll = () => {
-    tracker.abortAll();
-    rollovers.abortAll();
-  };
-  // Shutdown: rollovers are aborted and awaited first; the runs get the rest of the timeout.
-  handleMessage.drain = async (ms: number) => tracker.drain(await rollovers.drain(ms));
+  handleMessage.abortAll = shutdown.abortAll;
+  handleMessage.drain = shutdown.drain;
   return handleMessage;
 }

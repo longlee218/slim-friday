@@ -4,6 +4,7 @@ import type { AgentConfig } from "../config/agent-config";
 import { ceilingBinds, type Route } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import type { GuardrailContext } from "../guardrails/check-tool-call";
+import type { AppServersFactory } from "../mcp/mcp-servers";
 import { logEvent, logger } from "../observability/logger";
 import {
   avgContextTokens,
@@ -62,6 +63,8 @@ export interface RunAgentInput {
   skillsWorkspace?: string;
   /** Context of the in-process `memory` server (Remember...): omitted = the run has no memory tools. */
   memory?: MemoryToolContext;
+  /** Builds the app MCP servers by name (the role's `mcpServers` picks them); called per query() call. */
+  appServers?: AppServersFactory;
   /** Routing facts (class, effort, forced tier, escalation); omitted = the role defaults. */
   route?: Route;
   /** Existing Claude session id to resume. */
@@ -147,11 +150,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const run = input.queryFn ?? (sdkQuery as QueryFn);
 
   // No run timeout (owner): a run ends by its result, the budget, the turn ceiling or an abort (/stop, shutdown).
-
   let res: StreamResult = { text: "", sessionId: undefined, outcome: "error", usage: emptyUsage() };
   // Workspace skills plugin (fail closed, never throws); built inside the try so `finally` always removes it.
   let sk: RunSkills = NO_SKILLS;
-
   try {
     sk = buildRoleSkills(role, input.skillsWorkspace, config.agentHome);
     // Auto mode is requested here and confirmed by the SDK init message (permission-watch.ts).

@@ -67,3 +67,23 @@ export const MEMORY_TOOLS: readonly string[] = [
   MEMORY_EXPAND_TOOL,
   SET_THREAD_TITLE_TOOL,
 ];
+
+/** In-process `discord-admin` server (the control-channel role only; added by role data `mcpServers`). */
+export const DISCORD_ADMIN_MCP_SERVER = "discord-admin";
+/** Read the spaces, their channels, locations and persona files (read-only). */
+export const LIST_SPACES_TOOL = "ListSpaces";
+/** Create a private space (category + first channel) or one more channel in a space (create-only, never deletes). */
+export const CREATE_SPACE_OR_CHANNEL_TOOL = "CreateSpaceOrChannel";
+/** Replace one persona / memory file of a space or channel after a diff the owner confirmed. */
+export const WRITE_SPACE_FILE_TOOL = "WriteSpaceFile";
+/**
+ * Tools of every app MCP server a role may list in `mcpServers` (the guard allows exactly these; any other
+ * `mcp__*` tool is denied). A new in-process server = one entry here.
+ */
+export const APP_MCP_TOOLS: Readonly<Record<string, readonly string[]>> = {
+  [DISCORD_ADMIN_MCP_SERVER]: [
+    LIST_SPACES_TOOL,
+    CREATE_SPACE_OR_CHANNEL_TOOL,
+    WRITE_SPACE_FILE_TOOL,
+  ],
+};

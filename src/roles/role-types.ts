@@ -61,6 +61,15 @@ export interface RoleDefinition {
   locationScope?: "all" | "candidates";
   /** Publisher skills the role gets (see `RoleSkills`). Omitted = `none`. */
   skills?: RoleSkills;
+  /** App-owned skills (dir names under `src/roles/builtin/skills/`) this role gets and no other role does. Omitted = none. */
+  appSkills?: string[];
+  /**
+   * Where the role runs: `space` (default) = in a space channel, offered to intent routing; `control` = only in the
+   * owner's #ops-control channel, never routed to from a space channel, and run with no workspace.
+   */
+  surface?: "space" | "control";
+  /** In-process app MCP servers the role gets (names in `APP_MCP_TOOLS`; the caller supplies the instances). Omitted = none. */
+  mcpServers?: string[];
   /** Limits of one run: AskUserQuestion calls (enforced in the permission guard). */
   limits: { maxAsk: number };
   /** Default model: a tier name (`haiku|sonnet|opus`) or an explicit model id. Class and effort may override it. */

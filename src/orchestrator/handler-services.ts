@@ -1,4 +1,5 @@
 import type { Logger } from "pino";
+import { createControlRoleRun } from "../discord-setup/control-role-run";
 import { withFindCommand } from "../memory/find-command-handler";
 import { createMemoryRunner } from "../memory/memory-command-handler";
 import { createBusyLane } from "./busy-lane";
@@ -9,7 +10,7 @@ import { createRolloverScheduler } from "./turns/rollover-scheduler";
 import { createSteerRegistry } from "./turns/steer-registry";
 import { createRunTracker } from "./turns/turn-tracker";
 
-/** The long-lived services of one turn handler, built once: run tracking, rollovers, effort floors, dispatch deps, busy lane, memory runner. */
+/** The long-lived services of one turn handler, built once: run tracking, rollovers, effort floors, dispatch deps, busy lane, memory runner, control-channel runner. */
 export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   const { db, config } = deps;
   /** threadId -> controller of the active run (one run per thread). */
@@ -42,5 +43,21 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     createMemoryRunner({ db, config, queryFn: deps.queryFn, limiter: deps.limiter }),
     { db, agentHome: config.agentHome },
   );
-  return { active, tracker, rollovers, floors, dispatchDeps, busyLane, memory };
+  // Non-command owner text in #ops-control runs the control-channel role (no workspace; see discord-setup/control-role-run.ts).
+  const control = createControlRoleRun({
+    db,
+    config,
+    approvals: deps.approvals,
+    queryFn: deps.queryFn,
+  });
+  // Shutdown: abort everything; drain rollovers first, then control runs, then the task runs get the time left.
+  const shutdown = {
+    abortAll: () => {
+      tracker.abortAll();
+      rollovers.abortAll();
+      control.abortAll();
+    },
+    drain: async (ms: number) => tracker.drain(await control.drain(await rollovers.drain(ms))),
+  };
+  return { active, tracker, rollovers, floors, dispatchDeps, busyLane, memory, control, shutdown };
 }

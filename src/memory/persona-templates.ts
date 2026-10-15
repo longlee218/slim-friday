@@ -1,3 +1,32 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+/** Dir of the space-kind templates: one folder per kind (`personal`, `company`, `study`...), one file per persona file. */
+const SPACE_KINDS_DIR = join(import.meta.dir, "../discord-setup/templates/space-kinds");
+
+/** The persona files a space kind ships (a kind has no MEMORY.md: memory is written by the owner and the agent). */
+export const SPACE_KIND_FILES = ["USER.md", "IDENTITY.md", "AGENTS.md", "SOUL.md"] as const;
+
+/** Space kinds = the folders of the templates dir (data: adding a kind is adding a folder). Sorted. */
+export function spaceKinds(): string[] {
+  try {
+    return readdirSync(SPACE_KINDS_DIR, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/** Template text of `file` for `kind`, or undefined for an unknown kind or file name (never builds a path from either). */
+export function spaceKindFile(kind: string, file: string): string | undefined {
+  if (!spaceKinds().includes(kind) || !(SPACE_KIND_FILES as readonly string[]).includes(file))
+    return undefined;
+  const path = join(SPACE_KINDS_DIR, kind, file);
+  return existsSync(path) ? readFileSync(path, "utf8") : undefined;
+}
+
 /** Default identity card (who the agent is). Owner-editable; created once when missing. */
 export const DEFAULT_IDENTITY = `# Identity
 - Name: Friday

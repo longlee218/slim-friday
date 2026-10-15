@@ -1,6 +1,7 @@
 import { Client, Events, GatewayIntentBits, type Interaction } from "discord.js";
 import type { AgentConfig } from "../config/agent-config";
 import { createAdminHandler } from "../discord-setup/admin-handler";
+import type { ControlRun } from "../discord-setup/control-role-run";
 import { type DiscordSetup, EMPTY_SETUP } from "../discord-setup/discord-setup-config";
 import type { MemoryRunner } from "../memory/memory-command-handler";
 import { logger } from "../observability/logger";
@@ -24,7 +25,7 @@ export const CLIENT_OPTIONS = {
 /** Build the Discord bot (not connected until `login`). */
 export function createDiscordBot(
   config: AgentConfig,
-  handleMessage: HandleMessage,
+  handleMessage: HandleMessage & { control?: ControlRun },
   handleInteraction?: (i: Interaction) => Promise<void>,
   setup: DiscordSetup = EMPTY_SETUP,
   memory?: MemoryRunner,
@@ -49,6 +50,7 @@ export function createDiscordBot(
       botId: () => client.user?.id,
       setup,
       memory,
+      controlRun: handleMessage.control, // non-command owner text in #ops-control -> the control-channel role
     }),
   });
 

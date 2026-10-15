@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { TaskClass } from "../config/model-routing";
 import { redactText } from "../observability/redact";
-import { hasClassTiers, ROLES } from "../roles/role-registry";
+import { hasClassTiers, isSpaceRole, ROLES } from "../roles/role-registry";
 import { IntentEngineError, type IntentResult } from "./intent-types";
 
 /** Longest `reason` kept (log only). */
@@ -92,7 +92,7 @@ export function guardMechanical(raw: IntentResult): TaskClass | undefined {
  */
 export function validateIntent(raw: IntentResult, v: IntentValidation): ValidatedIntent {
   const role = Object.hasOwn(ROLES, raw.role) ? ROLES[raw.role] : undefined;
-  if (!role) return { ok: false, reason: "unknown_role" };
+  if (!role || !isSpaceRole(role)) return { ok: false, reason: "unknown_role" }; // a control role is never routed to
   const { class: _modelClass, ...rest } = raw;
   // Guard: Haiku over-uses `mechanical` (it routes real work to the cheapest model). Keep the model's `mechanical`
   // only with `high` confidence, else `standard`. Never upgrades; owner prefix and L2 hint are not touched.

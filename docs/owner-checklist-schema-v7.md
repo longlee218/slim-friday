@@ -248,3 +248,33 @@ Set a channel to `mode: chat` in `workspace.yaml`, restart. No db change.
 4. Ask for a code task. Expect the proposal / plan buttons to render in the channel (not verified).
 5. Start a thread under the channel with `@Friday ...`. Expect a normal task thread (placeholder title, rename after the answer).
 6. After a restart mid-turn the Resume button works in a chat channel (fixed: the handler accepts a button in a channel mapped `mode: chat`).
+
+## Phase 3: DiscordManager role and space-kind templates
+
+**What changes:** non-command text in `#ops-control` runs the server manager (role `discord-manager`): it lists spaces, creates a private space or channel (create-only), and edits a space's persona file after a diff and an owner confirm. No db change; no new Discord permission (Manage Channels and Manage Roles are already needed).
+
+### Before
+
+1. Stop the bot, back up the home: `cp -R "$AGENT_HOME" ~/friday-home-before-3`.
+2. Note the time of the first test. Tool checks read `$AGENT_HOME/logs/app.*.jsonl` (`tool.start`, `tool.done`, `tool.denied`; targets only, no file content).
+
+### Deploy
+
+3. Start the bot (`bun run start` or the launchd job). No migration: the db stays at v7.
+
+### Verify (paid, owner approves each run)
+
+4. In `#ops-control` write "list my spaces". Expect the spaces with their channels, locations and persona files. No file change, no confirm button.
+5. Write "create a study space called `<name>`". Expect a confirm button; confirm. Expect a private category `<name>` with `#<name>-agent`, and `workspaces/<name>/workspace.yaml` lists the channel.
+6. Write "apply the study template to SOUL.md of `<name>`". Expect a `.txt` diff attachment; answer yes. Expect `workspaces/<name>/SOUL.md` changed and one backup under `$AGENT_HOME/backups/persona/<name>/`.
+7. Ask another SOUL.md edit and answer no. Expect a reply that nothing was written; the file is unchanged and no new backup exists.
+8. Start a run in `#ops-control`, then restart the bot while it is open. Expect a restart notice with no Continue button, and no resumed run.
+
+### Rollback
+
+9. Stop the bot. Check out `fcf218d` (phase 2, the last commit before phase 3) and start it. No db change. Created Discord channels and spaces stay (delete by hand if unwanted). A changed persona file can be restored from `$AGENT_HOME/backups/persona/`.
+
+### Not verified live (all paid or live-only, owner approves each run)
+
+- Steps 4 to 8 above. Also not verified: the diff attachment rendering in Discord, and Haiku's choice of kind and wording.
+- Known limits: a space created during a run is readable by Read only from the next run. A written `MEMORY.md` is searchable at once; persona backups keep the newest 10 per file.
