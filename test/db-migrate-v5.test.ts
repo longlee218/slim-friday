@@ -97,7 +97,7 @@ test("FTS5 probe passes on this Bun build and leaves no temp table behind", () =
 test("fresh db is v5 with the new tables; accented text matches an unaccented query", () => {
   const dir = mkdtempSync(join(tmpdir(), "friday-v5-"));
   const db = openDb(join(dir, "data", "agent.db"));
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
   for (const t of NEW_TABLES) expect(hasTable(db, t)).toBe(true);
   db.query("INSERT INTO memory_fts (text, id, workspace) VALUES (?, 'c1', 'main')").run(
     "Café résumé of the plan",
@@ -107,7 +107,7 @@ test("fresh db is v5 with the new tables; accented text matches an unaccented qu
     .get("cafe");
   expect(hit?.id).toBe("c1");
   expect(snaps(join(dir, "db-backups"))).toEqual([]);
-  expect(version(openDb(":memory:"))).toBe("7");
+  expect(version(openDb(":memory:"))).toBe("8");
 });
 
 test("v4 db: kept counts equal, new tables exist, v5, NO snapshot", () => {
@@ -117,7 +117,7 @@ test("v4 db: kept counts equal, new tables exist, v5, NO snapshot", () => {
   const before = counts(raw);
   raw.close();
   const db = openDb(file);
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
   expect(counts(db)).toEqual(before);
   for (const t of KEPT) expect(before[t]).toBeGreaterThan(0);
   for (const t of NEW_TABLES) expect(hasTable(db, t)).toBe(true);
@@ -127,7 +127,7 @@ test("v4 db: kept counts equal, new tables exist, v5, NO snapshot", () => {
 test("v2 db chains to v5 with exactly ONE friday-v2 snapshot", () => {
   const { file, backups } = home(2);
   const db = openDb(file);
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
   expect(hasTable(db, "thread_summaries")).toBe(true);
   const files = snaps(backups);
   expect(files).toHaveLength(1);
@@ -174,5 +174,5 @@ test("FTS5 probe failure throws the clear error and the db stays v4", () => {
 test("a v4 binary gate (>= 4 returns early) accepts a v5 db", () => {
   const db = openDb(":memory:");
   expect(() => migrateV4(db)).not.toThrow();
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
 });

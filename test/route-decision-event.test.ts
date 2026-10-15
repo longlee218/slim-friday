@@ -109,6 +109,7 @@ test("route.decision and span lines carry metadata only (field whitelist, no tex
     "workspace",
     "location",
     "mode",
+    "sessionKey",
     "messageId",
     "conversationId",
     "ownedTaskId",

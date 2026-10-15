@@ -191,6 +191,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     t0,
     location,
     locations: i.locations,
+    agentHome: config.agentHome,
   });
   return posted ? reply : `${head}\n\n${reply}`;
 }

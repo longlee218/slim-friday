@@ -325,3 +325,23 @@ test("closeTurn: the no-delivery note follows the REPORTED location's git flag, 
   // no reported location: falls back to cwd (a missing dir is not git => no note)
   expect(run("m3", { cwd: "/nonexistent/app" })).not.toContain(NO_DELIVERY_NOTE);
 });
+
+test("closeTurn: success in a non-git location with no delivery evidence parks the task (waiting_user), no reply note", () => {
+  const { db } = makeEnv();
+  const o = {
+    language: "en" as const,
+    stopping: false,
+    t0: Date.now(),
+    location: "*",
+    locations: [{ name: "home", workspace: "main", path: "/x/home", description: "", git: false }],
+  };
+  begin(db, "n1", background);
+  const reply = closeTurn(
+    db,
+    { turnId: "n1", threadId: "th" },
+    { text: "Pick one of two options", outcome: "success", sessionId: undefined, location: "home" },
+    o,
+  );
+  expect(reply).not.toContain(NO_DELIVERY_NOTE);
+  expect(getOwnedTask(db, ownedTaskOfTurn(db, "n1")!)?.status).toBe("waiting_user");
+});

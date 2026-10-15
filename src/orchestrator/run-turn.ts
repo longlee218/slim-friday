@@ -125,6 +125,7 @@ export async function runTurn(
     t0: c.t0,
     location: c.turnLocation(),
     locations: c.locations,
+    agentHome: deps.config.agentHome,
   };
   const reply = closeTurn(db, { turnId, threadId: message.threadId }, res, o);
   // Genuine resume failure only: drop the stale session. Transient errors keep it (and the prompt).

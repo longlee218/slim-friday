@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { TaskState } from "../routing/routing-contracts";
+import type { TaskState } from "../tasks/task-contracts";
 
 /** Statuses of a task that is still the thread's live work (the focus is the newest of these). */
 export const LIVE_STATUSES = ["open", "waiting_user", "running"] as const;
@@ -40,13 +40,34 @@ export function insertOwnedTask(
     status: TaskState["status"];
     scope: string;
     correlationId: string;
+    /** Item fields (a goal leaves them out): the goal it belongs to, its key, the keys it waits for. */
+    parentId?: string;
+    itemKey?: string;
+    dependsOn?: string[];
+    location?: string;
+    brief?: string;
   },
 ): void {
   const now = Date.now();
   db.query(
-    `INSERT INTO owned_tasks (id, thread_id, owner_role, status, scope, version, correlation_id, created_at, last_progress_at)
-     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-  ).run(t.id, t.threadId, t.ownerRole, t.status, t.scope, t.correlationId, now, now);
+    `INSERT INTO owned_tasks (id, thread_id, owner_role, status, scope, version, correlation_id, created_at,
+       last_progress_at, parent_id, item_key, depends_on, location, brief)
+     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    t.id,
+    t.threadId,
+    t.ownerRole,
+    t.status,
+    t.scope,
+    t.correlationId,
+    now,
+    now,
+    t.parentId ?? null,
+    t.itemKey ?? null,
+    JSON.stringify(t.dependsOn ?? []),
+    t.location ?? null,
+    t.brief ?? null,
+  );
 }
 
 /** Task by id, or undefined. */

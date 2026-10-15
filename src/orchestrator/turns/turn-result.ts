@@ -1,23 +1,16 @@
 import type { Database } from "bun:sqlite";
 import { localizeUserCopy, type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
-import { isGitLocation, type Location } from "../../locations/location-registry";
-import { excerpt, getLogContext, logEvent, logger } from "../../observability/logger";
+import type { Location } from "../../locations/location-registry";
+import { excerpt, logEvent, logger } from "../../observability/logger";
 import type { RunOutcome, RunUsage } from "../../observability/record-run";
-import { errText, redactText } from "../../observability/redact";
-import { ROLES } from "../../roles/role-registry";
+import { redactText } from "../../observability/redact";
 import type { RunAgentResult } from "../../runtime/run-agent";
-import {
-  finishTurn,
-  setTurnStatus,
-  type TurnStatus,
-  turnRole,
-  turnStatusOf,
-} from "../../storage/run-store";
+import { finishTurn, setTurnStatus, type TurnStatus, turnStatusOf } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
 import { settleTaskAfterTurn } from "../../tasks/task-resolver";
 import { budgetHitReply } from "../engine/budget";
-import { deliveryEvidence } from "../outputs/delivery-evidence";
-import { NO_DELIVERY_NOTE, validateOutcome } from "../outputs/outcome-validator";
+import { saveResultFile } from "./result-file-save";
+import { checkRunOutcome } from "./run-outcome-check";
 import { requestRollover } from "./thread-rollover";
 
 /* The result of a role run, and the bookkeeping that closes a run. */
@@ -172,42 +165,20 @@ export function closeTurn(
     location: string;
     locations?: Location[];
     language: OwnerLanguage;
+    /** AGENT_HOME: where the result file of a task run goes (absent = no file). */
+    agentHome?: string;
   },
 ): string {
   let reply = finishRun(db, ids, res, o.language);
   if (o.stopping && res.outcome === "aborted") setTurnStatus(db, ids.turnId, "interrupted");
   const status = turnStatusOf(db, ids.turnId);
-  // Rule-based result of the run (logged `execution.outcome`); a role that must deliver but left no trace of it
-  // gets the reply it wrote plus one neutral line, and its task waits for the owner (no re-run, no marker).
-  const role = ROLES[turnRole(db, ids.turnId) ?? ""];
-  let undelivered = false;
-  // Bookkeeping only: a failure here must never block the task settle, `task.finished` or the reply.
-  try {
-    if (role) {
-      const ev = deliveryEvidence(db, ids.turnId, res.text);
-      // Delivery is expected only when the reported location is a git working copy; cwd decides only when none is
-      // reported (an unpinned run starts in the first location but may work in another).
-      const reported = res.location ? o.locations?.find((l) => l.name === res.location) : undefined;
-      const git = reported ? reported.git : !res.cwd || isGitLocation(res.cwd);
-      const outcome = validateOutcome(role, res, ev, getLogContext().traceId ?? "", git);
-      // `partial` after a successful run only happens for a role that must deliver (see `validateOutcome`).
-      undelivered = res.outcome === "success" && status === "done" && outcome.status === "partial";
-      if (undelivered)
-        reply = `${reply}\n\n${renderUserNotice({ kind: "note", state: "no-delivery" }, o.language)}`;
-      logEvent(log, "execution.outcome", {
-        status: outcome.status,
-        artifacts: outcome.artifacts.length,
-        actions: outcome.actionsPerformed,
-        recoveryHint: outcome.recoveryHint,
-        traceId: outcome.traceId,
-      });
-    }
-  } catch (err) {
-    undelivered = false;
-    log.warn({ err: errText(err) }, "execution.outcome failed");
-  }
+  // Rule-based result of the run (logged `execution.outcome`): see `checkRunOutcome`.
+  const check = checkRunOutcome(db, ids.turnId, res, status, o.locations);
+  if (check.undelivered)
+    reply = `${reply}\n\n${renderUserNotice({ kind: "note", state: "no-delivery" }, o.language)}`;
   // The owned task follows the turn's final status (no-op for a turn that owns none).
-  settleTaskAfterTurn(db, ids.turnId, status, undelivered);
+  settleTaskAfterTurn(db, ids.turnId, status, check.undelivered || check.parkTask);
+  if (o.agentHome) saveResultFile(db, o.agentHome, ids.turnId, status, res.outcome, reply);
   logEvent(log, "task.finished", {
     location: res.location && res.location !== "*" ? res.location : o.location,
     outcome: res.outcome,

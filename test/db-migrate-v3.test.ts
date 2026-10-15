@@ -240,7 +240,7 @@ test("g. v1 db chains to v5: version 5, exactly one backup and it is the v1 one"
   `);
   raw.close();
   const db = openDb(file);
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
   expect(db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 1 });
   const snaps = readdirSync(join(home, "db-backups"));
   expect(snaps).toHaveLength(1);
@@ -251,13 +251,13 @@ test("h. fresh file db and :memory: land on v5 with the new names and no backup"
   const home = mkdtempSync(join(tmpdir(), "friday-v3-"));
   const file = join(home, "data", "agent.db");
   const db = openDb(file);
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
   expect(names(db, "table")).toContain("turns");
   expect(names(db, "table")).not.toContain("tasks");
   expect(cols(db, "runs")).toContain("turn_id");
   expect(() => readdirSync(join(home, "db-backups"))).toThrow(); // no backup dir at all
   const mem = openDb(":memory:");
-  expect(version(mem)).toBe("7");
+  expect(version(mem)).toBe("8");
   expect(names(mem, "table")).toContain("turns");
 });
 

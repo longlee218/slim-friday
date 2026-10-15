@@ -9,10 +9,11 @@ import { migrateV4 } from "./migrate-v4-drop-legacy-tables";
 import { migrateV5 } from "./migrate-v5-thread-summaries";
 import { migrateV6 } from "./migrate-v6-owned-tasks";
 import { migrateV7 } from "./migrate-v7-locations-threads";
+import { migrateV8 } from "./migrate-v8-lead-orchestration";
 
 /**
- * Open (creating if needed) the SQLite db in WAL mode and migrate it to schema v7. A v1, v2, v5 or v6 db (no `meta`
- * table / marker 2 / 5 / 6) is snapshotted to `backupDir` (default `<home>/db-backups`, home = parent of the db's `data/`
+ * Open (creating if needed) the SQLite db in WAL mode and migrate it to schema v8. A v1, v2, v5, v6 or v7 db (no `meta`
+ * table / marker 2 / 5 / 6 / 7) is snapshotted to `backupDir` (default `<home>/db-backups`, home = parent of the db's `data/`
  * dir) before the first change; a failed snapshot throws, so startup aborts with the db untouched.
  */
 export function openDb(
@@ -25,7 +26,7 @@ export function openDb(
   db.run("PRAGMA busy_timeout = 5000");
   const version = schemaVersion(db);
   // Back up a db that already holds data (v1 = no marker + sessions table; v2 = marker 2) before any change.
-  // A v3 db goes to v4 and a v4 db to v5 without a snapshot (owner decisions); a v5 db is saved before v6 and a v6 db before v7.
+  // A v3 db goes to v4 and a v4 db to v5 without a snapshot (owner decisions); a v5 db is saved before v6 and a v6 db before v7 and a v7 db before v8.
   const label = isV1Db(db)
     ? "v1"
     : version === 2
@@ -34,7 +35,9 @@ export function openDb(
         ? "v5"
         : version === 6
           ? "v6"
-          : undefined;
+          : version === 7
+            ? "v7"
+            : undefined;
   if (file !== ":memory:" && label) {
     try {
       snapshotDb(db, backupDir, label);
@@ -51,8 +54,9 @@ export function openDb(
     migrateV5(db);
     migrateV6(db);
     migrateV7(db);
+    migrateV8(db);
   } catch (err) {
-    // v3 to v7 are each one transaction (rolled back on error: the db stays at its last version);
+    // v3 to v8 are each one transaction (rolled back on error: the db stays at its last version);
     // legacy steps are additive.
     db.close();
     throw err;

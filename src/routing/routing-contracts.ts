@@ -48,17 +48,8 @@ export type RoutingDecision = {
   timestamp: string;
 };
 
-/** State of an owned task (phase 2). */
-export type TaskState = {
-  taskId: string;
-  ownerAgentId: string | null;
-  status: "open" | "waiting_user" | "running" | "completed" | "failed" | "cancelled";
-  scope: string;
-  lastProgressAt: string;
-  /** Compare-and-set counter against concurrent updates. */
-  version: number;
-  correlationId: string;
-};
+/** State of an owned task: lives in `tasks/task-contracts`, re-exported until this layer is removed. */
+export type { TaskState } from "../tasks/task-contracts";
 
 /** Deterministic check of a candidate before it runs (phase 5). */
 export type AgentPreflightResult = {

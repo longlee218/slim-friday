@@ -109,6 +109,9 @@ const TASK_ID_OK = [
   "status-snapshot.ts", // `/status` reads the waiting owned task's last turn
   "migrate-v6-owned-tasks.ts",
   "db-migrate-v6.test.ts",
+  // thread_events.task_id: the goal / task an outbox event is about (schema v8)
+  "migrate-v8-ddl.ts",
+  "event-store.ts",
 ];
 
 /**

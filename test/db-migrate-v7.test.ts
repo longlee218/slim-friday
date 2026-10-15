@@ -63,7 +63,7 @@ test("v6 db: columns renamed, data kept, threads + index added, ONE friday-v6 sn
   const before = counts(raw);
   raw.close();
   const db = openDb(file);
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
   expect(counts(db)).toEqual(before);
   for (const t of ["turns", "sessions", "proposals"]) {
     expect(columns(db, t)).toContain("location");
@@ -117,11 +117,11 @@ test("rollback: a clashing threads table leaves the db at v6 with `repo` columns
   raw.close();
 });
 
-test("fresh db is v7 without snapshot; v7 step is idempotent", () => {
+test("fresh db is v8 without snapshot; v7 step is idempotent", () => {
   const dir = mkdtempSync(join(tmpdir(), "friday-v7-"));
   const db = openDb(join(dir, "data", "agent.db"));
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
   expect(snaps(join(dir, "db-backups"))).toEqual([]);
   expect(() => migrateV7(db)).not.toThrow();
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
 });

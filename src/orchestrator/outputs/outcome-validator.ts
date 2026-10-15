@@ -14,6 +14,14 @@ export const NO_DELIVERY_NOTE = renderUserNotice({ kind: "note", state: "no-deli
 export const expectsDelivery = (role: RoleDefinition, git = true): boolean =>
   git && role.background && role.sideEffects === "location";
 
+/**
+ * A run that ended `done` completes its task only with delivery evidence, or when the role has no side effects
+ * to deliver (`sideEffects: "none"`). Anything else (no evidence, e.g. the work happened in a non-git location
+ * or the agent only asked the owner in prose) leaves the task waiting for the owner.
+ */
+export const completesTask = (role: RoleDefinition, ev: DeliveryEvidence): boolean =>
+  ev.any || role.sideEffects === "none";
+
 /** Next step to offer per run outcome that did not succeed. */
 const HINT: Partial<Record<RunOutcome, string>> = {
   max_budget: "resume",

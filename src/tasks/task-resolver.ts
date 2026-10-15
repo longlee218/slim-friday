@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { getRole } from "../roles/role-registry";
-import type { ReasonCode, TaskState } from "../routing/routing-contracts";
+import type { ReasonCode } from "../routing/routing-contracts";
 import {
   activeOwnedTask,
   casUpdateTask,
@@ -11,6 +11,7 @@ import {
   ownedTaskOfTurn,
   threadOfTask,
 } from "../storage/owned-task-store";
+import type { TaskState } from "./task-contracts";
 import { canTransition } from "./task-state-machine";
 
 const log = logger.child({ module: "task-resolver" });

@@ -5,11 +5,13 @@ import { threadLanguage } from "../../ingress/discord-components";
 import { renderUserNotice } from "../../ingress/user-copy";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
+import { sessionKeyOf } from "../../orchestration/engine/session-keys";
 import { mayHaveWritten } from "../../roles/capability-registry";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
 import { createRunSupervisor, recoverOnce } from "../../runtime/run-supervisor";
+import { ownedTaskOfTurn } from "../../storage/owned-task-store";
 import { answerOutput } from "../outputs/answer-output";
 import { clearProgressNote, setProgressNote } from "../turns/progress-notes";
 import { type FlowResult, failResult } from "../turns/turn-result";
@@ -54,6 +56,14 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   }
   // The start checks passed: a held task this run continues is taken over now (a failure above keeps the hold).
   i.onStarted?.();
+  // Every log line of this run names its session (lead of the thread, or the worker of its owned task).
+  setLogContext({
+    sessionKey: sessionKeyOf({
+      threadId: i.threadId,
+      role: run.role,
+      taskId: ownedTaskOfTurn(db, i.turnId),
+    }),
+  });
   const stop = ceilingRefusal(i.route, language); // task ceiling already used up: refuse, never start with budget 0
   if (stop) return failResult(stop);
   const known =

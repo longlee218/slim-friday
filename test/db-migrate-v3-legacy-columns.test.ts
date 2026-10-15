@@ -45,7 +45,7 @@ test("v2 db missing proposals.effort and worktrees.files_*: legacy step re-adds 
   expect(
     db.query<{ value: string }, []>("SELECT value FROM meta WHERE key = 'schema_version'").get()
       ?.value,
-  ).toBe("7");
+  ).toBe("8");
   const snaps = readdirSync(join(home, "db-backups"));
   expect(snaps).toHaveLength(1);
   expect(snaps[0]).toMatch(/^friday-v2-/);

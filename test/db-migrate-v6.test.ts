@@ -49,14 +49,14 @@ const turnColumns = (db: Database) =>
     .all()
     .map((c) => c.name);
 
-test("fresh db is v7 (v6 contents kept): owned_tasks + turns.owned_task_id, no snapshot", () => {
+test("fresh db is v8 (v6 contents kept): owned_tasks + turns.owned_task_id, no snapshot", () => {
   const dir = mkdtempSync(join(tmpdir(), "friday-v6-"));
   const db = openDb(join(dir, "data", "agent.db"));
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
   expect(hasTable(db, "owned_tasks")).toBe(true);
   expect(turnColumns(db)).toContain("owned_task_id");
   expect(snaps(join(dir, "db-backups"))).toEqual([]);
-  expect(version(openDb(":memory:"))).toBe("7");
+  expect(version(openDb(":memory:"))).toBe("8");
 });
 
 test("v5 db: kept counts equal, table + column added, ONE friday-v5 snapshot, old turn unlinked", () => {
@@ -66,7 +66,7 @@ test("v5 db: kept counts equal, table + column added, ONE friday-v5 snapshot, ol
   const before = counts(raw);
   raw.close();
   const db = openDb(file);
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
   expect(counts(db)).toEqual(before);
   expect(before.turns).toBe(1);
   expect(hasTable(db, "owned_tasks")).toBe(true);
@@ -98,9 +98,9 @@ test("rollback: a clashing owned_tasks table leaves the db at v5 and without the
   raw.close();
 });
 
-test("a v5 binary gate (>= 5 returns early) accepts a v7 db; v6 step is idempotent", () => {
+test("a v5 binary gate (>= 5 returns early) accepts a v8 db; v6 step is idempotent", () => {
   const db = openDb(":memory:");
   expect(() => migrateV5(db)).not.toThrow();
   expect(() => migrateV6(db)).not.toThrow();
-  expect(version(db)).toBe("7");
+  expect(version(db)).toBe("8");
 });

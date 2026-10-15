@@ -46,6 +46,8 @@ export interface LogContext {
   location?: string;
   /** Role name (e.g. "assistant", "dev"). */
   mode?: string;
+  /** Session key of the run (`lead:discord:<thread>` or `task:<taskId>:<role>`). */
+  sessionKey?: string;
 }
 
 /** Holds the mutable context object of the current async call tree (follows awaits, timers, callbacks). */
