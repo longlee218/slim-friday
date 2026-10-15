@@ -211,3 +211,29 @@ sqlite3 "$DB" "SELECT value FROM meta WHERE key='schema_version'"   # expect 6
 - Step 6: the Bash guard is best effort; variables, scripts and `sh -c` are not checked (accepted, see [system-architecture.md](system-architecture.md#approval--guardrails)).
 - Steps 7 and 8: the title quality and the dev run's skill choice.
 - Rollback steps (written from the code, never executed).
+
+## Phase 1d: channel digest, rollover seed, `/find`
+
+**What changes:** a fresh session's first prompt starts with the channel digest (titles of the 5 newest titled threads of the same task channel, not this one) and, after a rollover, the thread seed. `/find <keywords>` lists threads of the space. No schema change, no migration.
+
+### Before
+
+1. Back up the home: `cp -R "$AGENT_HOME" ~/friday-home-before-1d`.
+2. Note the time of the first test. The log checks read `$AGENT_HOME/logs/app.*.jsonl`. The digest text is never logged; only counts.
+
+### Deploy
+
+3. Restart the bot (`/find` is registered on start). No migration.
+
+### Verify
+
+4. In a task channel, start thread A with `@Friday <real question>`. Expect the title `MM-DD <title>` after the answer.
+5. Start a new thread B in the same channel with `@Friday <question>`. Expect an answer, and a `prompt.digest` line for B's run with `entries` ≥ 1: `grep '"event":"prompt.digest"' "$AGENT_HOME"/logs/app.*.jsonl`.
+6. Send a second message in B. Expect an answer and no new `prompt.digest` line for that run (the session resumes).
+7. In B, run `/find <word from thread A's title>`. Expect a line `<#A-id> MM-DD <title>`. Run `/find zzqx`. Expect `No thread matches.`. Check `grep '"event":"find.command"' ...`.
+8. Post `find: <word from A>` in a thread. Expect an agent answer, not the list.
+9. Rollover (needs a long thread; the rollover triggers at 75% of the context window): after `grep '"event":"session.rolled"' ...`, ask a detail from before the roll in the next message. Expect the answer to use the seed. Ask one more follow-up. Expect it to keep the context (the seed is in the transcript). The seed is not logged; this check is by the answer only.
+
+### Rollback
+
+1. Stop the bot. Check out `8554925` (phase 1g, the commit before 1d) and start the bot. No db change, so the home needs no restore. The restarted build overwrites the slash list, so `/find` disappears.

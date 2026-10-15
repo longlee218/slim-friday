@@ -14,8 +14,11 @@ test("definitions and the SLASH parser list the same commands", () => {
       .map((c) => c.name)
       .sort(),
   ).toEqual([...SLASH_NAMES].sort());
-  // The parser really knows each name (a slash text becomes a legacy text) and nothing else.
-  for (const n of SLASH_NAMES) expect(slashToLegacy(`/${n}`)).not.toBe(`/${n}`);
+  // The parser really knows each name (a slash text becomes a legacy text) and nothing else; `/find` keeps its
+  // slash text on purpose (the find handler matches it, no legacy `find:` form exists).
+  for (const n of SLASH_NAMES.filter((n) => n !== "find"))
+    expect(slashToLegacy(`/${n}`)).not.toBe(`/${n}`);
+  expect(slashToLegacy("/find x")).toBe("/find x");
   expect(slashToLegacy("/bogus")).toBe("/bogus");
 });
 

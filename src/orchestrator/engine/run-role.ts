@@ -13,10 +13,10 @@ import { runAgent } from "../../runtime/run-agent";
 import { createRunSupervisor, recoverOnce } from "../../runtime/run-supervisor";
 import { answerOutput } from "../outputs/answer-output";
 import { clearProgressNote, setProgressNote } from "../turns/progress-notes";
-import { rolloverSeed } from "../turns/rollover-seed";
 import { type FlowResult, failResult } from "../turns/turn-result";
 import { askTimeoutControl, awaitingResult } from "./ask-timeout-control";
 import { ceilingRefusal, withSpent } from "./budget";
+import { firstPromptPrefix, withPrefix } from "./first-prompt-prefix";
 import { markWorking } from "./location-activity";
 import { ownerConfirm } from "./owner-confirm";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
@@ -93,9 +93,8 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   i.ac.signal.addEventListener("abort", () => supervisor.observe({ kind: "owner_stop" }), {
     once: true,
   });
-  // A rolled thread starts a fresh session: seed it with the thread summary + the last messages (never while a session lives).
-  const seed =
-    !role.background && !s.sessionId ? rolloverSeed(db, i.threadId, i.turnId, i.recent) : {};
+  // A fresh session (never while one lives) opens with the rollover seed + the channel digest, in its first user prompt.
+  const prefix = s.sessionId ? "" : firstPromptPrefix(db, i, !role.background);
   const release = role.capabilities.includes("write") ? markWorking(s.cwd) : undefined;
   let rerunModel: string | undefined; // model of the escalated re-run, when one ran
   let rerunUsage: unknown; // usage of that re-run: identifies whether its result is the answer that was kept
@@ -104,7 +103,8 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     if (r?.escalated) rerunModel = resolveModel(role, route ?? {}, config);
     const done = runAgent({
       role,
-      prompt: i.text, // the owner's text only: internal notes go to the system context (extraContext below)
+      // The owner's text (behind the fresh-session prefix; a resume or re-run adds none); internal notes go to extraContext.
+      prompt: resumeId ? i.text : withPrefix(prefix, i.text),
       steer: role.streaming ? deps.steer?.hook(i.threadId) : undefined,
       turnId: i.turnId,
       cwd: s.cwd,
@@ -139,7 +139,6 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
             : buildLocationsContext(i.workspace, s.scope, role.background),
         memoryLocations: s.scope.map((r) => r.name),
         ledger: i.ledger,
-        ...seed,
       }).concat(
         route?.internalHint ? [`Internal note (not from the owner):\n${route.internalHint}`] : [],
         threadTitleNote(db, i.threadId, !!deps.threadTitle),

@@ -15,6 +15,7 @@ test("slashToLegacy maps each canonical form and leaves everything else alone", 
     "remember: global tabs not spaces",
   );
   expect(slashToLegacy("/forget tabs")).toBe("forget: tabs");
+  expect(slashToLegacy("/find invoice csv")).toBe("/find invoice csv"); // no legacy text: "find: x" is a plain message
   expect(slashToLegacy("/compact dry-run")).toBe("compact memory dry-run");
   expect(slashToLegacy("/init-workspace shop")).toBe("init:workspace:shop");
   // not commands (legacy parity: stop / go [+usd] / compact [dry-run] take nothing else): ORIGINAL text kept

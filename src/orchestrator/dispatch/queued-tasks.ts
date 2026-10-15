@@ -37,6 +37,8 @@ export interface QueueCtx {
   workspace: string;
   /** Channel (yaml name) of the message: kept for the queued task's run. */
   channel?: string;
+  /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */
+  channelMode?: "task" | "chat";
   locations: Location[];
   ac: AbortController;
   pinned?: Location;

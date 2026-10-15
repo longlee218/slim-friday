@@ -43,6 +43,8 @@ export interface RoleRunInput {
   workspace: string;
   /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
   channel?: string;
+  /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */
+  channelMode?: "task" | "chat";
   /** Discord channel id the run started in (the thread's parent): stamped on thread rows `SetThreadTitle` creates. */
   channelId?: string;
   /** Locations the run may use (the role's `locationScope` decided which). */

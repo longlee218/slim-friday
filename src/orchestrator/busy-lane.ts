@@ -116,6 +116,7 @@ async function runSide(
       message,
       workspace: ws.name,
       channel: channel.name,
+      channelMode: channel.mode,
       locations,
       pinned,
       ac,

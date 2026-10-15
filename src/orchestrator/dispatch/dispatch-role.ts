@@ -38,6 +38,8 @@ export interface DispatchInput {
   workspace: string;
   /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
   channel?: string;
+  /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */
+  channelMode?: "task" | "chat";
   locations: Location[];
   /** Location the thread is pinned to, when any. */
   pinned?: Location;
@@ -166,6 +168,7 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
     role: role.name,
     workspace: i.workspace,
     channel: i.channel,
+    channelMode: i.channelMode,
     channelId: i.message.channelId,
     // `locationScope: "all"` roles see every location of the workspace; the others pick among the locations.
     locations: role.locationScope === "all" ? i.locations : v.candidates,

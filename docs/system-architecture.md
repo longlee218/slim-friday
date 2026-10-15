@@ -1,6 +1,6 @@
 # Friday Agent System Architecture
 
-Last updated: 2026-10-15 (phase 1g: $HOME location, AGENT_HOME guard, title note, brief = owner text; schema v7 location model, phases 1a and 1b (spaces with N channels) and 1c (thread names, adoption, SetThreadTitle) in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 and of 1b/1c pending).
+Last updated: 2026-10-15 (phase 1d: channel digest and rollover seed in the fresh session's first prompt, `/find`; phase 1g: $HOME location, AGENT_HOME guard, title note, brief = owner text; schema v7 location model, phases 1a and 1b (spaces with N channels) and 1c (thread names, adoption, SetThreadTitle) in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 and of 1b/1c pending).
 
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite).
@@ -165,6 +165,14 @@ Offline metrics: `bun run metrics:routing` ([owner checklist v6](owner-checklist
 - A task brief (`turns.brief`, `proposals.brief`, owned-task scope, resume input) is the OWNER TEXT ONLY. The old "Earlier tasks" and "Recent conversation" blocks are no longer part of it. Rows written by older builds may still carry them; `briefText()` (`src/orchestrator/dispatch/queued-tasks.ts`) strips them for display.
 - The thread reference is DATA in the run's system context (`extraContext`), built at run start by `threadReference()` (`src/orchestrator/dispatch/thread-reference.ts`) from the ledger (earlier tasks) and `message.recent`. A queued task builds its recent block when it starts, from the starting message.
 - Recent-block filter: the app's own canned notices (steer, queue, start copy) are dropped as whole lines before the last-N cut; each bot line is clipped to 200 chars (`BOT_LINE_CHARS`).
+
+### Prompt assembly and channel digest (phase 1d)
+
+- **System context** (`buildPromptContext`, `src/memory/prompt-context.ts`): persona, registry, memory layers, task ledger. Rebuilt every run. It no longer holds the rollover seed or any thread summary.
+- **First-prompt prefix** (`firstPromptPrefix`, `src/orchestrator/engine/first-prompt-prefix.ts`): built only when the run starts a fresh session (no stored session id). A resume or an escalated re-run adds none. Order: rollover seed (foreground roles only) -> channel digest -> `Owner message:` -> owner text. It is part of the user turn, so later resumes keep it.
+- **Channel digest** (`channelDigestBlock`, `src/memory/channel-digest.ts`; query `channelDigest` in `src/storage/thread-store.ts`): up to 5 newest titled threads of the same channel, excluding this thread; one line `MM-DD <title> - <digest>` (local time). Block ≤ 800 chars with its heading; the oldest lines are dropped to fit. Task channels only: `chat` skips it, and an absent `channelMode` counts as task. Background roles get it too. Logs `prompt.digest {chars, entries}` (no content).
+- **`/find <keywords>`** (`withFindCommand`, `src/memory/find-command-handler.ts`): slash command only, answered by app code with no model call and no task row. Owner only. Scope = the workspace's channel ids (the same space). Every keyword must match the title or digest (NFC, case-insensitive, Vietnamese locale fold). Scans the newest 500 titled rows (`SEARCH_SCAN_LIMIT`), returns the newest 10 as `<#thread> MM-DD title`. A plain `find: x` message is an ordinary message to the agent. Logs `find.command {words, hits}`.
+- `prompt.context` no longer logs `threadSummaryChars` / `recentChars`.
 
 ## Role Model
 Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-types.ts`). The engine (`src/orchestrator/engine/`) reads only that data and never a role name (test-checked).
@@ -429,7 +437,7 @@ Owner steps for the current upgrade (v6 -> v7): [owner-checklist-schema-v7.md](o
 - Root files in `$AGENT_HOME`: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md` (owner-written), `BOOTSTRAP.md` (never read by code), `MEMORY.pending.md` (agent `[global]` notes; never injected).
 - `ensureHome` creates the root files and per-workspace templates if missing; it never overwrites. New defaults (`DEFAULT_IDENTITY`, `DEFAULT_AGENTS`) apply to NEW homes only: a live home is edited by hand.
 - A non-empty workspace file replaces the root file of the same name.
-- Prompt order: role sections + COMMON → `# Project Context` (AGENTS, IDENTITY, SOUL, USER) → registry → MEMORY layers (root → space → channel → location) → task ledger (idle, `context.ledger` roles).
+- Prompt order: role sections + COMMON → `# Project Context` (AGENTS, IDENTITY, SOUL, USER) → registry → MEMORY layers (root → space → channel → location) → task ledger (idle, `context.ledger` roles). The rollover seed is NOT here (phase 1d): see Prompt assembly.
 - Persona files (AGENTS, IDENTITY, SOUL, USER): per file the first non-empty of channel, space, root wins (`buildPersonaContext`).
 - Memory caps: root 5000 chars, workspace 5000, channel 3000 (`CHANNEL_CHARS`), each location 8000, all locations of a workspace 16000. Each persona file 6000. `prompt.context` logs `memoryChannelChars`.
 - Agent writes: `Memory:` bullets (max 5) → `workspaces/<ws>/locations/<name>/MEMORY.md` (source `location`, id `location/<name>#...`); Remember tool scopes `location | channel | workspace | global | journal` (`REMEMBER_SCOPES`): `global` → `MEMORY.pending.md` (never injected), `journal` → `memory/<date>.md`. Every bullet is sanitized.
@@ -540,7 +548,7 @@ A **location** is a directory the owner registers in a workspace. It replaces th
 - **Queue** (background role, independent work): stored in `proposals` as `queued`; runs after the current task. At most 3 per thread. Starts in order. A restart puts queued rows back to `pending` and asks for `go`.
 - **Side answer** (foreground role): a parallel read-only run that starts fresh, takes a run slot, and gets a status snapshot of the running task. It never touches the thread session.
 - **Hard limits:** `MAX_PENDING_STEERS` 5 per run; `MAX_STEER_HOLDS` 2; `MAX_LATE_RESUMES` 1 (one resume of the same session when a message arrives after the input closed).
-- **Thread rollover** (`src/orchestrator/turns/thread-rollover.ts`, `rollover-*.ts`): after a successful FOREGROUND run (a `background` role such as dev never rolls) whose last model call's context is ≥ 75% of the model window (`ROLLOVER_CONTEXT_SHARE`; window from the SDK result, else 200k for Haiku and 1M for other models), the thread is rolled: (1) memory flush (an LLM run with only `Remember`, 4 turns, 60 s, prefers scope journal; when it saves nothing, the keyword extract goes to the day journal), (2) thread summary update, (3) the stored session is dropped. The next message starts a fresh session seeded by the summary and the last messages. The SDK also compacts mid-run at the same 75%, so the rollover rarely fires.
+- **Thread rollover** (`src/orchestrator/turns/thread-rollover.ts`, `rollover-*.ts`): after a successful FOREGROUND run (a `background` role such as dev never rolls) whose last model call's context is ≥ 75% of the model window (`ROLLOVER_CONTEXT_SHARE`; window from the SDK result, else 200k for Haiku and 1M for other models), the thread is rolled: (1) memory flush (an LLM run with only `Remember`, 4 turns, 60 s, prefers scope journal; when it saves nothing, the keyword extract goes to the day journal), (2) thread summary update, (3) the stored session is dropped. The next message starts a fresh session whose first user prompt is seeded by the summary and the last messages (phase 1d: the seed moved from the system context to the first prompt; see Prompt assembly). The SDK also compacts mid-run at the same 75%, so the rollover rarely fires.
 - SDK auto-compact: every role run gets `CLAUDE_CODE_AUTO_COMPACT_WINDOW` = 1,000,000 (capped at the model window) and `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` = 75, plus cache TTL 1h (main and subagents); one-shot calls (intent, memory compaction) get none. Effect not verified live.
 
 ## Environment Variables and Limits

@@ -188,6 +188,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         t0,
         workspace: ws.name,
         channel: channel.name,
+        channelMode: channel.mode,
         locations,
         ac,
         begin,

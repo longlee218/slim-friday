@@ -84,3 +84,54 @@ export function saveTitle(
        workspace = CASE WHEN threads.workspace = '' THEN excluded.workspace ELSE threads.workspace END`,
   ).run(threadId, channelId, workspace, title, digest, now, now);
 }
+
+/** Newest threads of one channel for the digest: titled, not `excludeThreadId`, never a row without a channel. */
+export function channelDigest(
+  db: Database,
+  channelId: string,
+  excludeThreadId: string,
+  limit = 5,
+): ThreadRow[] {
+  if (!channelId) return []; // rows saved without a channel are never listed
+  return db
+    .query<ThreadRow, [string, string, number]>(
+      `SELECT * FROM threads WHERE channel_id = ? AND thread_id != ? AND title IS NOT NULL AND title != ''
+       ORDER BY updated_at DESC LIMIT ?`,
+    )
+    .all(channelId, excludeThreadId, limit);
+}
+
+/** Most recent titled rows `searchThreads` scans (the match runs in JS, so the scan is bounded). */
+export const SEARCH_SCAN_LIMIT = 500;
+
+/** NFC + lower case (Vietnamese locale), so "hóa" matches "HÓA" and decomposed accents match composed ones. */
+const fold = (s: string): string => s.normalize("NFC").toLocaleLowerCase("vi");
+
+/**
+ * Titled threads of ONE space (`workspace` AND its `channelIds`, so a channel moved to another space never leaks)
+ * whose title or digest holds EVERY keyword (case-insensitive, literal, NFC), newest first. SQLite's LIKE folds ASCII
+ * only, so the newest SEARCH_SCAN_LIMIT candidate rows are filtered here. Rows without a channel are ignored.
+ */
+export function searchThreads(
+  db: Database,
+  workspace: string,
+  channelIds: readonly string[],
+  words: readonly string[],
+  limit = 10,
+): ThreadRow[] {
+  const ids = channelIds.filter(Boolean);
+  const needles = words.map(fold).filter(Boolean);
+  if (!ids.length || !needles.length) return [];
+  const rows = db
+    .query<ThreadRow, (string | number)[]>(
+      `SELECT * FROM threads WHERE workspace = ? AND channel_id IN (${ids.map(() => "?").join(",")})
+       AND title IS NOT NULL AND title != '' ORDER BY updated_at DESC LIMIT ?`,
+    )
+    .all(workspace, ...ids, SEARCH_SCAN_LIMIT);
+  return rows
+    .filter((r) => {
+      const hay = fold(`${r.title}\n${r.digest ?? ""}`);
+      return needles.every((n) => hay.includes(n));
+    })
+    .slice(0, limit);
+}

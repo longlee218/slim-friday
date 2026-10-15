@@ -16,6 +16,8 @@ export function startPendingProposal(
     message: InboundMessage;
     workspace: string;
     channel?: string;
+    /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */
+    channelMode?: "task" | "chat";
     locations: Location[];
     ac: AbortController;
     pinned?: Location;
@@ -38,6 +40,7 @@ export function startPendingProposal(
     reply: "",
     workspace: c.workspace,
     channel: c.channel,
+    channelMode: c.channelMode,
     locations: c.locations,
     pinned: c.pinned,
     ac: c.ac,

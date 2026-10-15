@@ -1,13 +1,13 @@
 # Codebase Summary
 
-Last updated: 2026-10-15 (phase 1g: `protected-paths.ts`, `thread-reference.ts`, `thread-title-note.ts`; schema v7 location model, phase 1a; spaces with N channels, phase 1b; threads, phase 1c; reliable handoff phases 1-10; Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
+Last updated: 2026-10-15 (phase 1d: `channel-digest.ts`, `find-command-handler.ts`, `first-prompt-prefix.ts`; phase 1g: `protected-paths.ts`, `thread-reference.ts`, `thread-title-note.ts`; schema v7 location model, phase 1a; spaces with N channels, phase 1b; threads, phase 1c; reliable handoff phases 1-10; Rev 15 phases 1-6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
 
 ## Overview
 - **Friday**: Discord-driven personal agent on the Claude Agent SDK. Owner posts in a thread → the intent layer picks a role → the role runs as ONE agent run.
 - **assistant**: generalist, foreground, Haiku. Reads, searches the web, uses skills and MCP resources, runs read-only shell commands. Escalates to a stronger model when needed.
 - **dev**: background task in one of the workspace's locations (the owner's checkout). Plans and asks for approval through AskUserQuestion, implements, commits, pushes and opens the PR itself with the owner's git and gh login.
 - **Stack:** Bun, TypeScript, discord.js, Claude Agent SDK, SQLite (`bun:sqlite`), zod, pino.
-- **Size:** 283 `.ts` files, 24,006 lines under `src/` (2026-10-14, phase 1c working tree; `find src -name '*.ts'`). 208 `.ts` files under `test/`.
+- **Size:** 303 `.ts` files, 26,971 lines under `src/` (2026-10-15, phase 1d working tree; `find src -name '*.ts'`). 208 `.ts` files under `test/`.
 
 ## Source Layout (`src/`)
 
@@ -21,11 +21,11 @@ Last updated: 2026-10-15 (phase 1g: `protected-paths.ts`, `thread-reference.ts`,
 | `orchestrator/` | handle a message: commands, intent turn, busy lane, routing | `handle-message.ts`, `intent-turn.ts`, `message-commands.ts`, `message-routing.ts`, `route-and-run.ts`, `run-turn.ts`, `busy-lane.ts` |
 | `orchestrator/thread/` | thread state, action table, effort floor, steer reply | `thread-state.ts`, `intent-table.ts`, `route-by-intent.ts`, `max-effort-gate.ts`, `effort-floor.ts`, `steer-reply.ts`, `unclear-steer.ts` (steer + side answer), `steer-notice-sentinel.ts` (60 s dedupe marker) |
 | `orchestrator/dispatch/` | proposals, validation, queue, `/go` resume, side lane | `dispatch-role.ts`, `validate-request.ts`, `queued-tasks.ts`, `resume-failed-task.ts`, `side-answer.ts`, `task-location.ts`, `thread-reference.ts` (task brief data block: earlier tasks, recent conversation) |
-| `orchestrator/engine/` | the role engine: one run per role | `run-role.ts`, `role-scope.ts`, `budget.ts`, `ask-timeout-control.ts`, `owner-confirm.ts`, `run-report.ts`, `validate-role.ts`, `location-activity.ts`, `thread-title-note.ts` (SetThreadTitle prompt line while placeholder) |
+| `orchestrator/engine/` | the role engine: one run per role | `run-role.ts`, `first-prompt-prefix.ts` (fresh-session prefix: seed + digest), `role-scope.ts`, `budget.ts`, `ask-timeout-control.ts`, `owner-confirm.ts`, `run-report.ts`, `validate-role.ts`, `location-activity.ts`, `thread-title-note.ts` (SetThreadTitle prompt line while placeholder) |
 | `orchestrator/outputs/` | answer reply, `ESCALATE` re-run, outcome validation and no-delivery note | `answer-output.ts`, `outcome-validator.ts`, `delivery-evidence.ts` |
 | `routing/` | routing policy (tag -> Jev -> Haiku -> history), contracts, preflight, recovery, capability registry | `routing-policy.ts`, `jev-busy-shadow.ts` (Jev shadow on the busy path, log only), `routing-contracts.ts`, `route-proposer.ts`, `route-with-recovery.ts`, `recovery-controller.ts`, `preflight/deterministic-preflight.ts` |
 | `tasks/` | owned tasks: resolver (focus, owner change) and state machine | `task-resolver.ts`, `task-state-machine.ts` |
-| `orchestrator/turns/` | turn tracking, run limiter, steer registry, thread rollover (flush, summary, session drop), status snapshot | `turn-tracker.ts`, `turn-result.ts`, `run-limiter.ts`, `steer-registry.ts`, `thread-rollover.ts`, `rollover-flush.ts`, `rollover-summary.ts`, `status-snapshot.ts`, `status-tools.ts` (recent tools), `progress-notes.ts` (in-memory progress note) |
+| `orchestrator/turns/` | turn tracking, run limiter, steer registry, thread rollover (flush, summary, session drop), rollover seed, status snapshot | `turn-tracker.ts`, `turn-result.ts`, `run-limiter.ts`, `steer-registry.ts`, `thread-rollover.ts`, `rollover-flush.ts`, `rollover-summary.ts`, `rollover-seed.ts` (seed text for the first prompt), `status-snapshot.ts`, `status-tools.ts` (recent tools), `progress-notes.ts` (in-memory progress note) |
 | `roles/` | role type, registry, built-in roles and their prompts | `role-types.ts`, `role-registry.ts`, `builtin/assistant-role.ts`, `builtin/dev-role.ts` |
 | `runtime/` | SDK run: query loop, hooks, permissions, env, streaming, skills plugins | `run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `system-prompt.ts`, `tool-permissions.ts`, `guard-hook.ts`, `permission-mode.ts`, `permission-watch.ts`, `ask-limit.ts`, `run-stream.ts`, `steered-stream.ts`, `run-input-channel.ts`, `run-errors.ts`, `skills-config.ts` |
 | `runtime/skills-plugin/` | per-run skill plugins from the lock and the workspace dir | `publisher-skills.ts`, `role-skills.ts`, `run-skills.ts`, `plugin-builder.ts`, `plugin-copy.ts`, `plugin-sweep.ts` |
@@ -36,7 +36,7 @@ Last updated: 2026-10-15 (phase 1g: `protected-paths.ts`, `thread-reference.ts`,
 | `config/` | env schema, model routing, role env pins, paths, skills lock | `agent-config.ts`, `model-routing.ts`, `role-env.ts`, `effort-mapping.ts`, `skills-lock.ts`, `workspace-paths.ts`, `child-env-deny.ts`, `data/child-env-deny.yaml` |
 | `locations/` | location registry (`locations:` in workspace.yaml), git detection, git CLI, filesystem migration CLI (`migrate:locations`) | `location-registry.ts`, `git-cli.ts`, `migrate-locations.ts`, `migrate-locations-cli.ts` |
 | `workspaces/` | workspace (space) registry with its channels and locations, task workspace (`selectWorkspace` returns the channel entry) | `workspace-registry.ts`, `channel-checks.ts` (channel names, locations subset, duplicates), `task-workspace.ts` |
-| `memory/` | persona layers, memory reads and writes, owner commands, manual compaction | `persona.ts`, `persona-templates.ts`, `prompt-context.ts`, `location-memory.ts`, `memory-writer.ts`, `memory-commands.ts`, `memory-compaction*.ts` |
+| `memory/` | persona layers, memory reads and writes, owner commands, manual compaction, channel digest, `/find` | `persona.ts`, `persona-templates.ts`, `prompt-context.ts`, `channel-digest.ts` (digest block), `find-command-handler.ts` (`/find`), `location-memory.ts`, `memory-writer.ts`, `memory-commands.ts`, `memory-compaction*.ts` |
 | `storage/` | SQLite stores and migrations (v2 → v7) | `db.ts`, `migrate.ts`, `run-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `thread-store.ts`, `migrate-v3-turns.ts`, `migrate-v4-drop-legacy-tables.ts`, `legacy-*.ts` (frozen) |
 | `lifecycle/` | startup hygiene, drain, shutdown, interrupted-run recovery, home placement | `startup.ts`, `drain.ts`, `shutdown.ts`, `resume-interrupted.ts`, `home-placement-check.ts`, `proposal-notices.ts` |
 | `discord-setup/` | `discord.yaml`, private channels, `/init-workspace`, `/init-channel`, channel topic, bootstrap CLI, ops log | `discord-setup-config.ts`, `private-channels.ts`, `admin-handler.ts`, `init-workspace.ts`, `init-channel.ts`, `channel-topic.ts`, `workspace-template.ts`, `bootstrap-discord-cli.ts`, `ops-log.ts`, `ready-checks.ts` |
@@ -84,7 +84,7 @@ Discord message (owner, in a workspace channel or its thread)
 - `src/storage/db.ts`: opens `$AGENT_HOME/data/agent.db` (WAL), runs migrations, owner-only file mode.
 - Schema v7: `meta`, `sessions` (`location` column), `turns` (+ `owned_task_id`, `location`), `runs`, `tool_calls`, `approvals`, `run_messages`, `proposals`, `owned_tasks`, `threads`. Details: [system-architecture.md, Storage Schema](system-architecture.md#storage-schema).
 - Migrations: `legacy-schema.ts` and `legacy-migrate-v2.ts` (frozen v1/v2 DDL), `migrate-v3-turns.ts` (rename, snapshot first), `migrate-v4-drop-legacy-tables.ts` (drops `stages`, `worktrees` and three columns; no snapshot), `migrate-v6-owned-tasks.ts` (additive; v5 snapshot first), `migrate-v7-locations-threads.ts` (renames `repo` columns, adds `threads`; v6 snapshot first).
-- Stores: `run-store.ts` (turns, finish, interrupt), `run-metrics-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `owned-task-store.ts`, `thread-store.ts` (`threads`: record bot thread, adopt, `isAdopted`, `saveTitle`).
+- Stores: `run-store.ts` (turns, finish, interrupt), `run-metrics-store.ts`, `session-store.ts`, `approval-store.ts`, `proposal-store.ts`, `run-message-store.ts`, `ledger-store.ts`, `owned-task-store.ts`, `thread-store.ts` (`threads`: record bot thread, adopt, `isAdopted`, `saveTitle`, `channelDigest`, `searchThreads`).
 - Read-only row-count check for the owner (v3 and v4 copies): `plans/261012-1130-orchestrate-not-micromanage/owner-verify-counts-v4.ts`.
 
 ## Memory and Persona

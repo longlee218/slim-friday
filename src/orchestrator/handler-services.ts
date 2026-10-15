@@ -1,4 +1,5 @@
 import type { Logger } from "pino";
+import { withFindCommand } from "../memory/find-command-handler";
 import { createMemoryRunner } from "../memory/memory-command-handler";
 import { createBusyLane } from "./busy-lane";
 import type { DispatchDeps } from "./dispatch/dispatch-role";
@@ -36,6 +37,10 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     limiter: deps.limiter,
     active,
   });
-  const memory = createMemoryRunner({ db, config, queryFn: deps.queryFn, limiter: deps.limiter });
+  // `/find` rides the same inline owner-command path as the memory commands (answered before any thread or task).
+  const memory = withFindCommand(
+    createMemoryRunner({ db, config, queryFn: deps.queryFn, limiter: deps.limiter }),
+    { db, agentHome: config.agentHome },
+  );
   return { active, tracker, rollovers, floors, dispatchDeps, busyLane, memory };
 }

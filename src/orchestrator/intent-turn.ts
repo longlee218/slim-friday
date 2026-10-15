@@ -31,6 +31,8 @@ export interface IntentTurnCtx {
   workspace: string;
   /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
   channel?: string;
+  /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */
+  channelMode?: "task" | "chat";
   locations: Location[];
   ac: AbortController;
   intent: IntentDeps;

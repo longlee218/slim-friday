@@ -72,6 +72,8 @@ export interface RouteCtx {
   workspace: string;
   /** Channel (yaml name) of the message: handed to the dispatched run. */
   channel?: string;
+  /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */
+  channelMode?: "task" | "chat";
   locations: Location[];
   ac: AbortController;
   pinned?: Location;
@@ -185,6 +187,7 @@ export async function routeByIntent(c: RouteCtx, a: IntentAction): Promise<Inten
           reply: "",
           workspace: c.workspace,
           channel: c.channel,
+          channelMode: c.channelMode,
           locations: c.locations,
           pinned: c.pinned,
           ac: c.ac,

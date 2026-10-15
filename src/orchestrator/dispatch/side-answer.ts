@@ -43,6 +43,8 @@ export interface SideInput {
   workspace: string;
   /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
   channel?: string;
+  /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */
+  channelMode?: "task" | "chat";
   locations: Location[];
   pinned?: Location;
   /** Controller of this side run (linked to the thread's `/stop` and to shutdown by the caller). */
@@ -90,6 +92,7 @@ export async function runSideAnswer(deps: DispatchDeps, i: SideInput): Promise<s
       role: role.name,
       workspace: i.workspace,
       channel: i.channel,
+      channelMode: i.channelMode,
       channelId: i.message.channelId,
       locations: role.locationScope === "all" ? i.locations : v.candidates,
       ac: i.ac,

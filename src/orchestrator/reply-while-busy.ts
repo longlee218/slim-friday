@@ -49,6 +49,7 @@ export async function replyWhileBusy(c: {
     intent: c.intent,
     workspace: ws.name,
     channel: channel.name,
+    channelMode: channel.mode,
     locations: channelLocations(ws, channel),
     stored: getSession(c.deps.db, c.message.threadId),
     busy: true,
