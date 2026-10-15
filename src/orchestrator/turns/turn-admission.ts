@@ -8,7 +8,7 @@ import { errText } from "../../observability/redact";
 import type { createRolloverScheduler } from "./rollover-scheduler";
 import type { RunLimiter } from "./run-limiter";
 import type { SteerRegistry } from "./steer-registry";
-import { stopThread } from "./turn-tracker";
+import { stopThread } from "./turn-stop";
 
 /** Whether a new turn may start: not draining (deploy) and under the global run cap. `release` frees the slot. */
 export function admitTurn(

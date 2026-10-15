@@ -128,12 +128,3 @@ export function syncAll(db: Database, home: string): SyncResult {
     }
   return total;
 }
-
-/** Drop every row and re-sync (tests; also usable when the ledger is empty). */
-export function rebuildIndex(db: Database, home: string): SyncResult {
-  db.transaction(() => {
-    db.query("DELETE FROM memory_fts").run();
-    db.query("DELETE FROM memory_files").run();
-  })();
-  return syncAll(db, home);
-}

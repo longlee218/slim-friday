@@ -6,7 +6,7 @@ import { BASH_TOOL_NAME } from "../tools/sdk-tool-names";
 import { loadWorkspaces } from "../workspaces/workspace-registry";
 import { getLogContext, logEvent, logger, setLogContext, tryLog } from "./logger";
 import type { RunRecorder } from "./record-run";
-import { type AgentIdentity, agentIdentity, buildSubagentHooks } from "./subagent-hooks";
+import { agentIdentity, buildSubagentHooks } from "./subagent-hooks";
 import { inputPreview, scrubEditError } from "./tool-input-preview";
 import { summarizeResult } from "./tool-result-summary";
 import { describeTool, EDIT_TOOLS } from "./tool-target";

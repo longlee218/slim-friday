@@ -58,13 +58,3 @@ export function resolveTaskLocation(
   if (locationName && !picked) return unknownLocation(locations);
   return { candidates: picked ? [picked] : locations };
 }
-
-/** Can a new capped task start now? `resolveTaskLocation` plus the concurrency cap (shared by routing and dispatch). */
-export function cappedTaskBlocker(
-  db: Database,
-  locations: Location[],
-  locationName?: string,
-): Refusal | { candidates: Location[] } {
-  const r = resolveTaskLocation(locations, locationName);
-  return "reply" in r ? r : (capRefusal(db) ?? r);
-}

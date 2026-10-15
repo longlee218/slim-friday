@@ -1,6 +1,6 @@
 import { logEvent, logger } from "../observability/logger";
 import type { ThreadState } from "../orchestrator/thread/thread-state";
-import { entryRole, ROLES } from "../roles/role-registry";
+import { entryRole } from "../roles/role-registry";
 import type { DecideInput, IntentDecision, IntentDeps } from "./decide-intent";
 import type { EffortSignals } from "./effort-signals";
 import { guardMechanical, validateIntent } from "./intent-schema";

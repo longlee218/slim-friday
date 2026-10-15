@@ -41,4 +41,3 @@ export const lexiconFileSchema = z
   .strict();
 
 export type GroupEffect = z.infer<typeof effectSchema>;
-export type LexiconFile = z.infer<typeof lexiconFileSchema>;

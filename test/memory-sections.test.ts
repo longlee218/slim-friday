@@ -1,8 +1,7 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { locationMemoryFile } from "../src/memory/location-memory";
+import { join } from "node:path";
 import { capMemory } from "../src/memory/memory-cap";
 import { type CompactLlm, compactTargets } from "../src/memory/memory-compaction";
 import {
@@ -20,7 +19,6 @@ import {
 } from "../src/memory/memory-sections";
 import type { MemoryTarget } from "../src/memory/memory-targets";
 import { emptyUsage } from "../src/observability/record-run";
-import { makeEnv } from "./helpers";
 
 const b = (t: string, d = "2026-10-13") => formatBullet(t, d);
 const tmp = () => join(mkdtempSync(join(tmpdir(), "sections-")), "MEMORY.md");

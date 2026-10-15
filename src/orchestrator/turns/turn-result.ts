@@ -54,14 +54,6 @@ export const failResult = (text: string, outcome: "error" | "aborted" = "error")
   refusal: outcome === "error" ? true : undefined,
 });
 
-/** Map run outcome to the user-facing reply when there is no answer text. */
-export const OUTCOME_REPLY: Record<string, string> = Object.fromEntries(
-  ["max_turns", "max_budget", "timeout", "aborted", "quota", "error"].map((outcome) => [
-    outcome,
-    renderUserNotice({ kind: "outcome", outcome }, "en"),
-  ]),
-);
-
 /** Why a background run stopped but can be continued: label shown to the owner (the key is the reason). */
 export const RESUMABLE = {
   budget: "budget limit reached",

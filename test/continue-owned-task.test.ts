@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { realpathSync } from "node:fs";
-import { workspacePaths } from "../src/config/workspace-paths";
 import type { IntentDeps } from "../src/intent/decide-intent";
 import type { RouteProposer } from "../src/intent/jev/route-proposer";
 import { loadLexicon } from "../src/intent/load-lexicon";

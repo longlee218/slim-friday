@@ -3,7 +3,7 @@ import {
   leadSessionKey,
   sessionKeyOf,
   taskSessionKey,
-} from "../src/orchestration/engine/session-keys";
+} from "../src/orchestrator/engine/session-keys";
 
 test("builders: lead per thread, task per (task, role)", () => {
   expect(leadSessionKey("123")).toBe("lead:discord:123");

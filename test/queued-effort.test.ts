@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { workspacePaths } from "../src/config/workspace-paths";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createTurnHandler } from "../src/orchestrator/handle-message";

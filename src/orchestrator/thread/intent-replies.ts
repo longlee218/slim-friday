@@ -29,7 +29,6 @@ export const NO_APPROVALS = renderUserNotice({ kind: "failure", cause: "approval
 export const STEER_RECEIVED = renderUserNotice({ kind: "steer", state: "queued" }, "en");
 export const STEER_WAITING = (_tool: string) =>
   renderUserNotice({ kind: "steer", state: "waiting" }, "en");
-export const STEER_HELD = renderUserNotice({ kind: "steer", state: "held" }, "en");
 export const SIDE_BUSY = (_active: number) => STILL_WORKING;
 export const STEER_FULL = renderUserNotice({ kind: "steer", state: "full" }, "en");
 export const STEER_ENDED = renderUserNotice({ kind: "steer", state: "ended" }, "en");

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { lstatSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { logger } from "../src/observability/logger";
-import { RESULT_EXCERPT_CHARS, writeTaskResultFile } from "../src/orchestration/engine/result-file";
+import { RESULT_EXCERPT_CHARS, writeTaskResultFile } from "../src/orchestrator/engine/result-file";
 import { closeTurn } from "../src/orchestrator/turns/turn-result";
 import { beginTurn } from "../src/orchestrator/turns/turn-tracker";
 import { ROLES } from "../src/roles/role-registry";

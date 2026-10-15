@@ -6,7 +6,7 @@ import {
   markDelivered,
   unclaimStale,
   undeliveredThreads,
-} from "../src/orchestration/events/event-store";
+} from "../src/orchestrator/events/event-store";
 import { finishTurn, insertTurn } from "../src/storage/run-store";
 import { makeEnv } from "./helpers";
 

@@ -1,18 +1,14 @@
 import {
   existsSync,
-  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   renameSync,
   rmdirSync,
   rmSync,
-  writeFileSync,
 } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { backup } from "./migrate-locations-backup";
-import type { LegacyRepo } from "./migrate-locations-legacy";
-import { DROPPED_FIELDS, legacyRepoSchema } from "./migrate-locations-legacy";
 import { NOTE, planRepo } from "./migrate-locations-plan-repo";
 import { writeWorkspaceYaml } from "./migrate-locations-yaml";
 

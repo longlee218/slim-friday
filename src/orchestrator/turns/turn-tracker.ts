@@ -2,12 +2,11 @@
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
 import type { TaskClass } from "../../config/model-routing";
-import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { getLogContext, logEvent, setLogContext, tryLog } from "../../observability/logger";
 import { getRole } from "../../roles/role-registry";
-import { countQueuedProposals } from "../../storage/proposal-store";
 import { finishTurn, insertTurn, interruptRunningTurns } from "../../storage/run-store";
 import { attachTurnToTask, settleTaskAfterTurn } from "../../tasks/task-resolver";
+import { abortAllTaskRuns, pendingTaskRuns, taskRunSettled } from "../engine/task-runs";
 
 /** Log-context fields every line of a call carries: a fresh trace id, its thread and its routing channel. */
 export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
@@ -15,33 +14,6 @@ export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
   threadId: t.threadId,
   channelId: t.channelId,
 });
-
-/**
- * `stop` (an orchestrator command, never steer): abort the thread's active run at once. The thread's queued tasks
- * are KEPT: they start, in order, once the stopped run has ended (a stop cancels the running work, not the
- * owner's other requests). The run's input channel closes on that abort (nothing more is yielded).
- */
-export function stopThread(
-  db: Database,
-  threadId: string,
-  language: OwnerLanguage,
-  running?: AbortController,
-): string {
-  if (!running) return renderUserNotice({ kind: "stop", active: false }, language);
-  running.abort();
-  const queued = countQueuedProposals(db, threadId);
-  return renderUserNotice({ kind: "stop", active: true, queued }, language);
-}
-
-/** Register a fresh controller as the thread's active one (the queue that runs after a user `/stop`) and return it. */
-export function renewActive(
-  active: Map<string, AbortController>,
-  threadId: string,
-): AbortController {
-  const fresh = new AbortController();
-  active.set(threadId, fresh);
-  return fresh;
-}
 
 /** Tracks calls in flight and the active runs, so shutdown can abort and await them. */
 export function createRunTracker(db: Database, log: Logger, active: Map<string, AbortController>) {
@@ -58,6 +30,7 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
   const abortAll = () => {
     stopping = true;
     for (const ac of active.values()) ac.abort();
+    abortAllTaskRuns(); // detached task runs hold no thread: they are aborted (and drained) too
   };
 
   return {
@@ -88,7 +61,7 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
     },
     /** Resolves when the run that owned this exact controller has ended (already ended / unknown = now). */
     activeSettled: (_threadId: string, controller: AbortController): Promise<void> =>
-      settled.get(controller) ?? Promise.resolve(),
+      settled.get(controller) ?? taskRunSettled(controller) ?? Promise.resolve(),
     /** Hold the thread for a replacement: later ordinary messages wait on `waitReplacement` until `release`. */
     reserveReplacement(threadId: string): { release: () => void; isCancelled: () => boolean } {
       let release!: () => void;
@@ -129,7 +102,7 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
       const timeout = new Promise<void>((r) => {
         timer = setTimeout(r, timeoutMs);
       });
-      await Promise.race([Promise.allSettled([...inflight]), timeout]);
+      await Promise.race([Promise.allSettled([...inflight, ...pendingTaskRuns()]), timeout]);
       clearTimeout(timer);
       tryLog(log, "interruptRunningTurns failed", () => interruptRunningTurns(db));
     },

@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 /** Same fake SDK as the main code-flow tests, copied small: the run asks to approve its plan, then commits b.txt. */
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { workspacePaths } from "../src/config/workspace-paths";
 import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";

@@ -18,7 +18,6 @@ import { buildSkillsPlugin } from "../src/runtime/skills-plugin/plugin-builder";
 import { removeTree } from "../src/runtime/skills-plugin/plugin-copy";
 import { sweepStalePlugins } from "../src/runtime/skills-plugin/plugin-sweep";
 import { PUBLISHER_CAPS } from "../src/runtime/skills-plugin/publisher-skills";
-import { buildRunSkills } from "../src/runtime/skills-plugin/run-skills";
 
 const dirs: string[] = [];
 const tmp = () => {

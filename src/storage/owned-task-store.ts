@@ -170,3 +170,19 @@ export function reconcileRunningTasks(db: Database): void {
     "UPDATE owned_tasks SET status = 'waiting_user', version = version + 1, last_progress_at = ? WHERE status = 'running'",
   ).run(Date.now());
 }
+
+/** The newest running (or approval-waiting) turn of a task, given as an owned task id or a turn id; undefined when none. */
+export function runningTurnOfTask(
+  db: Database,
+  taskId: string,
+): { id: string; role: string; threadId: string } | undefined {
+  return (
+    db
+      .query<{ id: string; role: string; threadId: string }, [string, string]>(
+        `SELECT id, role, thread_id AS threadId FROM turns
+         WHERE (owned_task_id = ? OR id = ?) AND status IN ('running', 'waiting_approval')
+         ORDER BY started_at DESC, rowid DESC LIMIT 1`,
+      )
+      .get(taskId, taskId) ?? undefined
+  );
+}

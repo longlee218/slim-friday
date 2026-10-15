@@ -1,9 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
-import { writeTaskResultFile } from "../../orchestration/engine/result-file";
 import { getItem, goalOf, setTaskResult } from "../../storage/owned-item-store";
 import { getOwnedTask, ownedTaskOfTurn } from "../../storage/owned-task-store";
+import { writeTaskResultFile } from "../engine/result-file";
 
 const log = logger.child({ module: "result-file" });
 

@@ -1,14 +1,12 @@
 import { expect, test } from "bun:test";
 import { readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { loadConfig } from "../src/config/agent-config";
-import { locationMemoryFile } from "../src/memory/location-memory";
 import { createMemoryRunner } from "../src/memory/memory-command-handler";
 import { compactExitCode, parseCompactArgs } from "../src/memory/memory-compact-args";
 import { type CompactLlm, compactTargets, sdkCompactLlm } from "../src/memory/memory-compaction";
 import { buildCompacted } from "../src/memory/memory-compaction-prompt";
 import { formatCompactResult } from "../src/memory/memory-compaction-report";
 import { locationTarget } from "../src/memory/memory-targets";
-import { captureLogs } from "../src/observability/logger";
 import { emptyUsage } from "../src/observability/record-run";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 

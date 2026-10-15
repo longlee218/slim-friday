@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { captureLogs } from "../src/observability/logger";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { addLocation, defaultLocationPath, makeEnv, outsideDir } from "./helpers";
 

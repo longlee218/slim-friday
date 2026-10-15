@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { captureLogs } from "../src/observability/logger";
 import { createTurnHandler } from "../src/orchestrator/handle-message";

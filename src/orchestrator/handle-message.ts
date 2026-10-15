@@ -17,6 +17,7 @@ import {
 import type { QueryFn } from "../runtime/run-agent";
 import { getSession } from "../storage/session-store";
 import { channelLocations, selectWorkspace } from "../workspaces/task-workspace";
+import { liveRunOf } from "./engine/task-runs";
 import { createHandlerServices } from "./handler-services";
 import { parseMessageCommand } from "./message-commands";
 import { routeAndRun } from "./route-and-run";
@@ -25,14 +26,8 @@ import { createInterruptController, isReplaced } from "./turns/interrupt-control
 import type { RunLimiter } from "./turns/run-limiter";
 import { statusFacts } from "./turns/status-snapshot";
 import { admitTurn, reportCrash, stopCommand } from "./turns/turn-admission";
-import {
-  beginTurn,
-  failTurn,
-  refused,
-  renewActive,
-  stopThread,
-  turnLogContext,
-} from "./turns/turn-tracker";
+import { renewActive, stopThread } from "./turns/turn-stop";
+import { beginTurn, failTurn, refused, turnLogContext } from "./turns/turn-tracker";
 
 /** Dependencies of the turn handler. */
 export interface TurnHandlerDeps {
@@ -112,7 +107,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   ): Promise<string | undefined> => {
     const { threadId } = message;
     let workspaceName = "";
-    const running = active.get(threadId);
+    const running = liveRunOf(active, threadId); // the foreground run, else the thread's newest task run
     const parsed = parseMessageCommand(message.text);
     const t0 = Date.now();
     logEvent(log, "task.routed", {
@@ -135,12 +130,12 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     if (replacement?.isCancelled()) return undefined; // `/stop` arrived while the old run's wrap-up held the thread
     if (!replacement) await tracker.waitReplacement(threadId);
     // The run holds the thread: `still working...`, or (intent layer on) steer / side answer / queue / yes-no / stop / replace.
-    const live = active.get(threadId);
+    const live = liveRunOf(active, threadId);
     if (live && !replacement) {
       const out = await busyLane(message, parsed, live);
       if (typeof out === "string") return out;
       // The decision took time: when the run it was made on has ended (or another one took its place), it is stale.
-      if (active.get(threadId) !== live) return run(message);
+      if (liveRunOf(active, threadId) !== live) return run(message);
       return interrupt(message, live, out.control);
     }
     // Drain (deploy) and the global run cap refuse a new turn (the commands above still answer).

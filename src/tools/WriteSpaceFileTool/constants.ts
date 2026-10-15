@@ -2,7 +2,6 @@
 
 /** The only files the tool writes (fixed names: a path is never built from model text). */
 export const SPACE_FILES = ["USER.md", "IDENTITY.md", "AGENTS.md", "SOUL.md", "MEMORY.md"] as const;
-export type SpaceFile = (typeof SPACE_FILES)[number];
 
 /** Max chars of the new content (the prompt reads at most 6000 chars of a persona file). */
 export const CONTENT_MAX_CHARS = 6000;

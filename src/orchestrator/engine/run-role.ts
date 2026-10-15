@@ -5,7 +5,6 @@ import { threadLanguage } from "../../ingress/discord-components";
 import { renderUserNotice } from "../../ingress/user-copy";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
-import { sessionKeyOf } from "../../orchestration/engine/session-keys";
 import { mayHaveWritten } from "../../roles/capability-registry";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
@@ -24,6 +23,7 @@ import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 import { roleScope } from "./role-scope";
 import { runExtraContext } from "./run-extra-context";
 import { closeBackgroundRun } from "./run-report";
+import { sessionKeyOf } from "./session-keys";
 import { titlePortFor } from "./thread-title-note";
 import { validateRole } from "./validate-role";
 

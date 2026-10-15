@@ -8,11 +8,12 @@ import { errText } from "../../observability/redact";
 import { threadLedger } from "../../storage/ledger-store";
 import { setProposalStatus, supersedePending } from "../../storage/proposal-store";
 import { getSession } from "../../storage/session-store";
-import { type RoleRunnerDeps, runRole } from "../engine/run-role";
+import type { RoleRunnerDeps } from "../engine/role-run-types";
 import { runRoute } from "../message-routing";
-import { closeTurn } from "../turns/turn-result";
+import type { RunLimiter } from "../turns/run-limiter";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
 import { persistProposal } from "./proposal-flow";
+import { runDispatchedTask } from "./run-dispatched-task";
 import { threadReference } from "./thread-reference";
 import { type DispatchRequest, validateRequest } from "./validate-request";
 
@@ -25,6 +26,8 @@ export type { DispatchRequest };
 export interface DispatchDeps extends RoleRunnerDeps {
   /** True once shutdown aborted the runs: an aborted task is then `interrupted` (resumable), not cancelled. */
   stopping: () => boolean;
+  /** Global run cap: a detached task run takes its own slot from it (the source turn's slot ends with the turn). */
+  limiter?: RunLimiter;
 }
 
 /** One dispatch: the source turn is over and proposed `request`. */
@@ -53,6 +56,8 @@ export interface DispatchInput {
   extraBudgetUsd?: number;
   /** Effort of this run (intent signals / thread floor); missing = the role defaults. */
   effort?: Effort;
+  /** Run the task in the background: dispatch returns at once and the run does not hold the thread (default: wait for it). */
+  detach?: boolean;
 }
 
 /**
@@ -159,39 +164,35 @@ export async function dispatchRole(deps: DispatchDeps, i: DispatchInput): Promis
           return false;
         },
       );
-  const res = await runRole(deps, {
-    turnId,
-    threadId: i.message.threadId,
-    text: request.brief,
-    language: messageLanguage(i.message),
-    onVisible: i.message.visible,
-    role: role.name,
-    workspace: i.workspace,
-    channel: i.channel,
-    channelMode: i.channelMode,
-    channelId: i.message.channelId,
-    // `locationScope: "all"` roles see every location of the workspace; the others pick among the locations.
-    locations: role.locationScope === "all" ? i.locations : v.candidates,
-    ac: i.ac,
-    route,
-    pinned: i.pinned,
-    // A foreground role continues the thread's conversation and sees its task ledger (same as a fresh message).
-    existing: role.background ? undefined : getSession(db, i.message.threadId),
-    ledger: [...reference, role.context?.ledger ? threadLedger(db, i.message.threadId) : ""]
-      .filter(Boolean)
-      .join("\n\n"),
-  }).catch((err: unknown) => {
-    // The caller's crash path only knows the source row: close this one so its slot is released.
-    failTurn(db, log, turnId);
-    throw err;
-  });
-  const reply = closeTurn(db, { turnId, threadId: i.message.threadId }, res, {
-    language: messageLanguage(i.message),
-    stopping: deps.stopping(),
-    t0,
+  return runDispatchedTask(deps, {
+    input: {
+      turnId,
+      threadId: i.message.threadId,
+      text: request.brief,
+      language: messageLanguage(i.message),
+      onVisible: i.message.visible,
+      role: role.name,
+      workspace: i.workspace,
+      channel: i.channel,
+      channelMode: i.channelMode,
+      channelId: i.message.channelId,
+      // `locationScope: "all"` roles see every location of the workspace; the others pick among the locations.
+      locations: role.locationScope === "all" ? i.locations : v.candidates,
+      ac: i.ac,
+      route,
+      pinned: i.pinned,
+      // A foreground role continues the thread's conversation and sees its task ledger (same as a fresh message).
+      existing: role.background ? undefined : getSession(db, i.message.threadId),
+      ledger: [...reference, role.context?.ledger ? threadLedger(db, i.message.threadId) : ""]
+        .filter(Boolean)
+        .join("\n\n"),
+    },
+    message: i.message,
     location,
     locations: i.locations,
-    agentHome: config.agentHome,
+    t0,
+    head,
+    posted: !!posted,
+    detach: !!i.detach,
   });
-  return posted ? reply : `${head}\n\n${reply}`;
 }
