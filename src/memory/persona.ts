@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import type { Workspace } from "../workspaces/workspace-registry";
 import {
@@ -18,9 +19,14 @@ export const PERSONA_MAX = 6000;
 /** Marker appended to a persona file that was cut at PERSONA_MAX. */
 export const TRUNCATED_MARK = "\n...(truncated)";
 
-/** Write `text` to `file` only when the file does not exist yet. */
+/**
+ * Write `text` to `file` only when the file does not exist yet. The parent folder is created first: a location
+ * added to workspace.yaml by hand (or one that was refused before and is accepted now) has no folder yet.
+ */
 function ensureFile(file: string, text: string): void {
-  if (!existsSync(file)) writeFileSync(file, text);
+  if (existsSync(file)) return;
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, text);
 }
 
 /** Create `channels/<name>/` and its MEMORY.md for a channel of space `ws` (never overwrites). */

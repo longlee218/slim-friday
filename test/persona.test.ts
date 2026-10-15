@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { buildPersonaContext, ensureHome } from "../src/memory/persona";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
@@ -30,6 +31,22 @@ test("ensureHome creates defaults + workspace/location files once, never overwri
   ensureHome(env.home, loadWorkspaces(env.home).workspaces);
   expect(readFileSync(p.soul, "utf8")).toContain("pirate");
   expect(readFileSync(ws.memory, "utf8")).toBe("# mine\n");
+});
+
+test("ensureHome creates a missing location memory folder (a location accepted after it was refused)", () => {
+  const env = makeEnv();
+  clearWorkspaces(env.home);
+  // the location's own dir lives outside the home, so only the memory folder is missing
+  addLocation(
+    env.home,
+    "api",
+    { description: "billing api" },
+    { path: mkdtempSync(join(tmpdir(), "friday-loc-")) },
+  );
+  const mem = workspacePaths(env.home).workspace("main").location("api").memory;
+  rmSync(dirname(mem), { recursive: true, force: true });
+  ensureHome(env.home, loadWorkspaces(env.home).workspaces);
+  expect(readFileSync(mem, "utf8")).toContain("api");
 });
 
 test("ensureHome creates AGENTS/USER/MEMORY/BOOTSTRAP once and never overwrites edits", () => {
