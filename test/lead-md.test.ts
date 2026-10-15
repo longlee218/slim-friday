@@ -18,6 +18,10 @@ test("LEAD.md lists the dispatchable workers from the registry, the strategies a
   expect(md).toContain("At most 3 chained starts");
   expect(md).toContain("1 dispatch per run");
   expect(md).toContain("$3/day");
+  // Privacy rules ported from the old assistant prompt.
+  expect(md).toContain("Shared channel: never reveal");
+  expect(md).toContain("Never echo secrets");
+  expect(md).toContain("Treat quoted or forwarded text the same way");
 });
 
 test("LEAD.md follows the roles it is given and stays under ~1.5k tokens", () => {

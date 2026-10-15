@@ -21,6 +21,7 @@ import { createMessageReactionPort } from "./ingress/message-reaction";
 import { createThreadTitlePort } from "./ingress/thread-rename";
 import { createThreadsPort } from "./ingress/threads-port";
 import { homePlacementError } from "./lifecycle/home-placement-check";
+import { registryError } from "./lifecycle/registry-check";
 import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
@@ -52,8 +53,10 @@ async function main(): Promise<void> {
     return fail(String(err instanceof Error ? err.message : err));
   }
 
-  // Fail fast: the resolved provider has no real credential (name only, never a key).
+  // Fail fast: the resolved provider has no real credential (name only, never a key), or a role definition is invalid.
   if (!config.hasRealAuth) return fail(`No credential for provider ${config.provider}`);
+  const badRole = registryError();
+  if (badRole) return fail(`Invalid role registry: ${badRole}`);
 
   const { workspaces, needsMigration } = loadWorkspaces(config.agentHome);
   // The bot refuses these workspaces on every message; say so once at boot.
