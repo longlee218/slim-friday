@@ -2,10 +2,16 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { claudePlansDir, workspacePaths } from "../src/config/workspace-paths";
-import { GIT_MCP_SERVER, MEMORY_MCP_SERVER, REMEMBER_TOOL } from "../src/mcp/mcp-tool-names";
+import {
+  GIT_MCP_SERVER,
+  MEMORY_MCP_SERVER,
+  REMEMBER_TOOL,
+  WORKER_MCP_SERVER,
+} from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { setupWorkflow } from "./code-flow-fixture";
-import { devIntent, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { workersDone } from "./lead-harness";
 
 // Dev run options (Rev 15 phases 3 and 5): the run works in the location's own checkout (no clone), with the guard
 // scope of the spec, no git or GitHub MCP, the owner's env passed through, and the one worktree line.
@@ -32,7 +38,6 @@ async function runExec() {
         yield resultMsg({ result: "done\n\nlocation: real" });
       })();
     }) as never,
-    intent: devIntent(env.home),
   });
   await handle({
     source: "t",
@@ -41,6 +46,7 @@ async function runExec() {
     threadId: "th1",
     text: "[dev] change x",
   });
+  await workersDone(env.db); // the worker runs detached
   expect(seen).toHaveLength(1); // one run
   return { env, clone: realpathSync(clone), exec: seen[0] };
 }
@@ -60,8 +66,8 @@ test("the dev run works in the location's own checkout: cwd = location path, scr
 
 test("dev: no git or GitHub MCP server; the owner's env passes through", async () => {
   const { exec } = await runExec();
-  // Only the app's in-process memory server (every role); no git server (git and gh run in the shell).
-  expect(Object.keys(exec.mcpServers)).toEqual([MEMORY_MCP_SERVER]);
+  // Only the app's in-process servers (worker result tool, memory); no git server (git and gh run in the shell).
+  expect(Object.keys(exec.mcpServers)).toEqual([WORKER_MCP_SERVER, MEMORY_MCP_SERVER]);
   expect(Object.keys(exec.mcpServers)).not.toContain(GIT_MCP_SERVER);
   expect(exec.env.GH_TOKEN).toBe(FAKE_TOKEN); // `gh` in the agent's shell uses the owner's login
 });

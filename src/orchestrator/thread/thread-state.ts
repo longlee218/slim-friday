@@ -63,9 +63,3 @@ export function deriveThreadState(db: Database, threadId: string): ThreadState {
 
 /** `done` folds to `idle`: both route to the assistant, which then sees the thread ledger. */
 export const isIdleLike = (s: ThreadState): boolean => s === "idle" || s === "done";
-
-/** The thread waits on an owner-confirm yes/no (buttons). */
-export const isGateState = (s: ThreadState): boolean => s === "awaiting_confirmation";
-
-/** A task works: it runs, or waits on the owner's approval or answer. Steers and side questions treat both the same. */
-export const isWorking = (s: ThreadState): boolean => s === "running" || s === "awaiting_owner";

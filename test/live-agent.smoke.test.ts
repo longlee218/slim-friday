@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
+import { WORKER_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { EDIT_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
+import { until, workersDone } from "./lead-harness";
 
 // Live test: needs a real OAuth token (a dummy gives 401 and retries forever).
 // Note: bun auto-loads .env, so a placeholder there must be treated as missing.
@@ -14,7 +16,7 @@ if (!live) {
   process.stderr.write("SKIP live-agent smoke: CLAUDE_CODE_OAUTH_TOKEN missing or REPLACE_ME\n");
 }
 
-describe.skipIf(!live)("live agent smoke (Haiku)", () => {
+describe.skipIf(!live)("live agent smoke (lead -> scout, Haiku)", () => {
   test("answers on a temp location; no write tools exposed; rows recorded", async () => {
     const env = makeEnv({
       CLAUDE_CODE_OAUTH_TOKEN: token!,
@@ -29,25 +31,42 @@ describe.skipIf(!live)("live agent smoke (Haiku)", () => {
 
     const tools: string[][] = [];
     const { query } = await import("@anthropic-ai/claude-agent-sdk");
-    // Wrap the real query to capture the system init tool list.
-    const queryFn = (a: Parameters<typeof query>[0]) =>
-      (async function* () {
+    // Wrap the real query to capture the system init tool list of the WORKER runs (the lead has its own tools).
+    const queryFn = (a: Parameters<typeof query>[0]) => {
+      const isWorker = WORKER_MCP_SERVER in ((a.options?.mcpServers as object) ?? {});
+      return (async function* () {
         for await (const m of query(a)) {
-          if (m.type === "system" && (m as any).subtype === "init") tools.push((m as any).tools);
+          if (isWorker && m.type === "system" && (m as any).subtype === "init")
+            tools.push((m as any).tools);
           yield m;
         }
       })();
+    };
 
-    const reply = await createTurnHandler({ db: env.db, config: cfg, queryFn: queryFn as never })({
+    // Plain text: the lead decides and dispatches a read-only scout; the scout's typed result lands on its item row.
+    await createTurnHandler({ db: env.db, config: cfg, queryFn: queryFn as never })({
       source: "test",
       channelId: TEST_CHANNEL,
       userId: "u",
       threadId: "live1",
       text: "What is the secret word in a.txt? Answer in one word.",
     });
-    expect(reply?.toLowerCase()).toContain("alpha");
+    await workersDone(env.db, 110_000);
+    // The turn closes before its result file and excerpt are written: wait for them.
+    const itemSql = "FROM owned_tasks WHERE parent_id IS NOT NULL AND result_excerpt IS NOT NULL";
+    await until(() => !!env.db.query(`SELECT 1 ${itemSql}`).get(), 5000);
+    const task = env.db
+      .query<{ result_excerpt: string | null }, []>(`SELECT result_excerpt ${itemSql}`)
+      .get();
+    expect(task?.result_excerpt?.toLowerCase()).toContain("alpha");
     expect(tools[0]!.some((t) => [WRITE_TOOL_NAME, EDIT_TOOL_NAME].includes(t))).toBe(false); // strictMcpConfig leak check
-    expect(env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM runs").get()!.n).toBe(1);
+    expect(
+      env.db
+        .query<{ n: number }, []>(
+          "SELECT COUNT(*) n FROM runs r JOIN turns t ON t.id = r.turn_id WHERE t.role != 'lead'",
+        )
+        .get()!.n,
+    ).toBe(1); // one worker run (the lead's own runs are not counted)
     expect(
       env.db.query<{ n: number }, []>("SELECT COUNT(*) n FROM tool_calls").get()!.n,
     ).toBeGreaterThan(0);

@@ -1,16 +1,16 @@
 import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { messageLanguage, renderUserNotice } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
-import { logEvent, logger, tryLog } from "../../observability/logger";
+import { getLogContext, logEvent, logger, tryLog } from "../../observability/logger";
 import { errText } from "../../observability/redact";
+import type { ResultKind } from "../../storage/owned-item-store";
 import { ownedTaskOfTurn } from "../../storage/owned-task-store";
-import type { RoleRunInput } from "../engine/role-run-types";
+import type { DispatchDeps, RoleRunInput } from "../engine/role-run-types";
 import { runRole } from "../engine/run-role";
 import { registerTaskRun } from "../engine/task-runs";
 import { appendEvent } from "../events/event-store";
 import { closeTurn } from "../turns/turn-result";
 import { failTurn } from "../turns/turn-tracker";
-import type { DispatchDeps } from "./dispatch-role";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "run-dispatched-task" });
@@ -28,6 +28,10 @@ export interface DispatchedRun {
   posted: boolean;
   /** Run in the background: return at once, the run keeps going without holding the thread. */
   detach: boolean;
+  /** Typed result the worker reported (read after the run ends): it decides the task status over the derived one. */
+  resultKind?: () => ResultKind | undefined;
+  /** Detached only: called last, once the run ended and its slot is free (the caller emits the end event and starts the next item). */
+  onSettled?: () => void;
 }
 
 /** Run the role, close the turn, return the owner-facing reply (the crash path fails the turn row first). */
@@ -43,9 +47,10 @@ async function runAndClose(deps: DispatchDeps, r: DispatchedRun, ac: AbortContro
     language: messageLanguage(r.message),
     stopping: deps.stopping(),
     t0: r.t0,
-    location: r.location,
+    location: getLogContext().location ?? r.location, // tool hooks move an unpinned task to the location it worked in
     locations: r.locations,
     agentHome: config.agentHome,
+    resultKind: r.resultKind?.(),
   });
 }
 
@@ -100,6 +105,7 @@ export async function runDispatchedTask(deps: DispatchDeps, r: DispatchedRun): P
     } finally {
       settle();
       release();
+      tryLog(log, "onSettled failed", () => r.onSettled?.());
     }
   })();
   return r.posted ? "" : r.head;

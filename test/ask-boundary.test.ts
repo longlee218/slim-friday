@@ -1,13 +1,10 @@
 import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
-import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { getRole } from "../src/roles/role-registry";
 import { newAskLimit } from "../src/runtime/ask-limit";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
-import { getSession } from "../src/storage/session-store";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { setupWorkflow } from "./code-flow-fixture";
-import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { stubGateway } from "./helpers";
 
 /** Ask cap of the dev role (the engine passes it to the guard; direct permission layers below get it explicitly). */
 const MAX_ASK = getRole("dev").limits.maxAsk;
@@ -17,13 +14,6 @@ const QUESTIONS = {
   questions: [
     { question: "Drop the column?", options: [{ label: "keep (default)" }, { label: "drop" }] },
   ],
-};
-
-/** Run fake: asks once through canUseTool; a deny aborts like the real SDK does when the flow aborts. */
-const askAndMaybeStop = async (o: any) => {
-  const r = await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {});
-  if (o.abortController.signal.aborted) throw new Error("process aborted");
-  return r;
 };
 
 test("guard: AskUserQuestion calls beyond the cap are denied and never reach the owner", async () => {
@@ -49,130 +39,6 @@ test("guard: AskUserQuestion calls beyond the cap are denied and never reach the
   expect((over as { message: string }).message).toContain("Already asked");
   expect((over as { message: string }).message).toContain("use the defaults");
   expect(asked).toHaveLength(MAX_ASK);
-});
-
-test("the ask budget is per run: MAX_ASK questions reach the owner, the next is denied; a new task has its own budget", async () => {
-  const { env } = await setupWorkflow();
-  const asked: string[] = [];
-  const results: any[][] = [];
-  const next = (a: any) =>
-    (async function* () {
-      const o = a.options;
-      yield initMsg;
-      const mine: any[] = [];
-      for (let n = 0; n <= MAX_ASK; n++)
-        mine.push(await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {}));
-      results.push(mine);
-      yield resultMsg({ result: "done" });
-    })();
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    approvals: stubGateway({
-      askChoice: async (a) => {
-        asked.push(a.question);
-        return a.options[0];
-      },
-      confirm: async () => ({ approved: false, reason: "no" }),
-    }),
-    queryFn: next as never,
-    intent: devIntent(env.home),
-  });
-  const msg = (text: string) => ({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th1",
-    text,
-  });
-  await handle(msg("[dev] change the schema"));
-  await handle(msg("[dev] and again"));
-  expect(results).toHaveLength(2);
-  for (const mine of results) {
-    for (const r of mine.slice(0, MAX_ASK)) expect(r).toMatchObject({ behavior: "allow" });
-    expect(mine[MAX_ASK]).toMatchObject({ behavior: "deny" }); // over the cap: never reaches the owner
-  }
-  expect(asked).toHaveLength(MAX_ASK * 2);
-});
-
-test("dev run: no answer in time -> 'Awaiting clarification', no thread session, task cancelled", async () => {
-  const { env } = await setupWorkflow();
-  let runs = 0;
-  const next = (a: any) =>
-    (async function* () {
-      runs++;
-      const o = a.options;
-      yield { ...initMsg, session_id: "sess-dev" };
-      await askAndMaybeStop(o);
-      yield resultMsg({ result: "must not be reached" });
-    })();
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    approvals: stubGateway({ askChoice: async () => undefined }), // owner never answers
-    queryFn: next as never,
-    intent: devIntent(env.home),
-  });
-  const reply = await handle({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th1",
-    text: "[dev] change it",
-    notify: async () => {},
-  });
-  expect(reply?.startsWith("Awaiting clarification:")).toBe(true);
-  expect(reply).toContain("Drop the column? (default: keep)");
-  expect(reply).toContain("Send `/go` to continue, or start a new request.");
-  expect(runs).toBe(1);
-  expect(getSession(env.db, "th1")).toBeNull(); // a dev session in the location is not the thread's (the assistant would resume it)
-  expect(env.db.query("SELECT status FROM turns WHERE type = 'code'").all()).toEqual([
-    { status: "cancelled" },
-  ]);
-});
-
-/** Handler whose run fakes run `run(options, runIndex)`; the owner answers via `askChoice`. */
-function handlerWith(
-  env: Awaited<ReturnType<typeof setupWorkflow>>["env"],
-  askChoice: (a: any) => Promise<string | undefined>,
-  run: (o: any, call: number) => AsyncGenerator<any>,
-) {
-  let call = 0;
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    approvals: stubGateway({ askChoice }),
-    queryFn: (a: any) => run(a.options, call++) as never,
-    intent: devIntent(env.home),
-  });
-  return handle;
-}
-
-test("stop while a question is pending: not 'Awaiting clarification', session not kept", async () => {
-  const { env } = await setupWorkflow();
-  const handle: ReturnType<typeof handlerWith> = handlerWith(
-    env,
-    async () => {
-      handle.abortAll(); // what `stop` does: the pending ask is cancelled (resolves undefined)
-      return undefined;
-    },
-    (o) =>
-      (async function* () {
-        yield initMsg;
-        await askAndMaybeStop(o);
-        yield resultMsg({ result: "must not be reached" });
-      })(),
-  );
-  const reply = await handle({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th1",
-    text: "[dev] please start",
-  });
-  expect(reply?.startsWith("Awaiting clarification")).toBe(false);
-  // No session kept for the cancelled run (and no assistant turn before the dev task).
-  expect(getSession(env.db, "th1")).toBeNull();
 });
 
 test("one AskUserQuestion call with 2 questions: both reach the owner, all answered, one call of the budget used", async () => {
@@ -207,80 +73,4 @@ test("one AskUserQuestion call with 2 questions: both reach the owner, all answe
     });
   const again = await perms.canUseTool(ASK_USER_QUESTION_TOOL_NAME, two, {} as never);
   expect(again).toMatchObject({ behavior: "deny" });
-});
-
-test("two concurrent tasks have independent ask limits", async () => {
-  const { env } = await setupWorkflow();
-  let waiting = 0;
-  let release!: () => void;
-  const both = new Promise<void>((r) => (release = r));
-  const results: string[] = [];
-  const handle = handlerWith(
-    env,
-    // Each ask waits until both tasks are asking at once, then answers the default.
-    async (a) => {
-      if (++waiting === 2) release();
-      await both;
-      return a.options[0];
-    },
-    (o) =>
-      (async function* () {
-        yield initMsg;
-        results.push((await o.canUseTool(ASK_USER_QUESTION_TOOL_NAME, QUESTIONS, {})).behavior);
-        yield resultMsg({ result: "done" });
-      })(),
-  );
-  await Promise.all([
-    handle({
-      source: "t",
-      channelId: TEST_CHANNEL,
-      userId: "u",
-      threadId: "th1",
-      text: "[dev] one",
-    }),
-    handle({
-      source: "t",
-      channelId: TEST_CHANNEL,
-      userId: "u",
-      threadId: "th2",
-      text: "[dev] two",
-    }),
-  ]);
-  expect(results).toEqual(["allow", "allow"]); // a shared limit would deny the second
-});
-
-test("after 'Awaiting clarification' (no clone): nothing is kept for the thread and a typed reply is a NEW task with a fresh run", async () => {
-  const { env } = await setupWorkflow();
-  const runs: { resume?: string; cwd: string }[] = [];
-  let ask = 0;
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    // First ask: owner silent (timeout). After the reply: the owner answers the next ask.
-    approvals: stubGateway({ askChoice: async (a) => (++ask === 1 ? undefined : a.options[0]) }),
-    queryFn: ((a: any) => {
-      const o = a.options;
-      runs.push({ resume: o.resume, cwd: o.cwd });
-      return (async function* () {
-        yield initMsg;
-        await askAndMaybeStop(o);
-        yield resultMsg({ result: "done" });
-      })();
-    }) as never,
-    intent: devIntent(env.home),
-  });
-  const msg = (text: string) => ({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th1",
-    text,
-    notify: async () => {},
-  });
-  expect((await handle(msg("[dev] please start")))?.startsWith("Awaiting clarification")).toBe(
-    true,
-  );
-  expect(getSession(env.db, "th1")).toBeNull(); // the dev session ran in the location's own checkout: not the thread's
-  await handle(msg("[dev] keep the column"));
-  expect(runs.map((r) => r.resume)).toEqual([undefined, undefined]);
 });

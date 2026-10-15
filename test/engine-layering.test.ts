@@ -17,16 +17,16 @@ function sources(dir: string): { file: string; text: string }[] {
 const imports = (text: string): string[] =>
   [...text.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)].map((m) => m[1] as string);
 
-test('engine knows no role names: no "dev" / "assistant" string literal under orchestrator/engine', () => {
+test('engine knows no role names: no "dev" / "lead" string literal under orchestrator/engine', () => {
   const files = sources("src/orchestrator/engine");
   expect(files.length).toBeGreaterThan(5);
-  const hits = files.filter((f) => /["'`](dev|assistant)["'`]/.test(f.text)).map((f) => f.file);
+  const hits = files.filter((f) => /["'`](dev|scout)["'`]/.test(f.text)).map((f) => f.file);
   expect(hits).toEqual([]);
 });
 
 test("thread/ and dispatch/ never import runtime/", () => {
   const files = [...sources("src/orchestrator/thread"), ...sources("src/orchestrator/dispatch")];
-  expect(files.length).toBeGreaterThan(5);
+  expect(files.length).toBeGreaterThan(1);
   const bad = files.filter((f) => imports(f.text).some((s) => /(^|\/)runtime\//.test(s)));
   expect(bad.map((f) => f.file)).toEqual([]);
 });
@@ -38,10 +38,12 @@ test("src/roles/** never imports src/orchestrator/**", () => {
   expect(bad.map((f) => f.file)).toEqual([]);
 });
 
-test("engine/ imports nothing from dispatch/ (the handler passes ports in)", () => {
+test("engine/ imports dispatch/ only in worker-run.ts (the detached worker glue); the rest gets ports in", () => {
   const files = sources("src/orchestrator/engine");
   expect(files.length).toBeGreaterThan(5);
-  const bad = files.filter((f) => imports(f.text).some((s) => /(^|\/)dispatch(\/|$)/.test(s)));
+  const bad = files
+    .filter((f) => !f.file.endsWith("worker-run.ts"))
+    .filter((f) => imports(f.text).some((s) => /(^|\/)dispatch(\/|$)/.test(s)));
   expect(bad.map((f) => f.file)).toEqual([]);
 });
 

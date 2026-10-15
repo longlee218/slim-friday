@@ -103,15 +103,6 @@ export function spentByTask(db: Database, turnId: string): number {
   return row?.usd ?? 0;
 }
 
-/** Outcome of the latest run of a turn (`max_budget`, `error`, ...), or undefined when it has no run row. */
-export function lastRunOutcome(db: Database, turnId: string): string | undefined {
-  return db
-    .query<{ outcome: string }, [string]>(
-      "SELECT outcome FROM runs WHERE turn_id = ? ORDER BY rowid DESC LIMIT 1",
-    )
-    .get(turnId)?.outcome;
-}
-
 /** Raw `input_json` of every call of tool `tool` in a turn (main agent and subagents), oldest first. */
 export function toolInputsOfTurn(db: Database, turnId: string, tool: string): string[] {
   return db

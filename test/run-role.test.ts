@@ -2,19 +2,18 @@ import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeLocation } from "./git-fixture";
 import {
   addLocation,
   clearWorkspaces,
   defaultLocationPath,
-  devIntent,
   initMsg,
   makeEnv,
   resultMsg,
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
+import { noticeSink, workersDone } from "./lead-harness";
 
 /** Env with one workspace whose location `real` is a real git clone (a managed clone). */
 async function setup() {
@@ -28,26 +27,13 @@ async function setup() {
 }
 
 /**
- * The dev run asks the owner to approve its plan (AskUserQuestion through canUseTool), then edits, commits and ends with
- * the report + `location: real` marker; or ends on `result` (budget, error).
+ * The dev worker edits, commits and ends with the report + `location: real` marker; or ends on `result` (budget, error).
+ * No plan approval here: a worker's ask is relayed to the lead (covered by lead-flow).
  */
 const fakeSdk = (result?: Record<string, unknown>) => (a: any) => {
   const o = a.options;
   return (async function* () {
     yield { ...initMsg, session_id: "sess-dev", cwd: o.cwd } as never;
-    const ans = await o.canUseTool(
-      ASK_USER_QUESTION_TOOL_NAME,
-      {
-        questions: [
-          {
-            question: "Plan: add b.txt. Approve?",
-            options: [{ label: "Approve" }, { label: "Revise" }],
-          },
-        ],
-      },
-      {},
-    );
-    if (ans.behavior !== "allow") throw new Error("ask denied");
     if (result) {
       yield resultMsg(result);
       return;
@@ -63,6 +49,11 @@ const fakeSdk = (result?: Record<string, unknown>) => (a: any) => {
       "commit",
       "-qm",
       "add b",
+    );
+    // The typed result a worker ends with: what decides the task status.
+    await o.mcpServers.worker.instance._registeredTools.ReportResult.handler(
+      { status: "COMPLETED", summary: "b.txt added" },
+      {},
     );
     yield resultMsg({
       result: "done: b.txt added\n\nlocation: real",
@@ -80,70 +71,69 @@ const msg = (text: string) => ({
   text,
 });
 
-const asked: string[] = [];
-
 const handler = (env: Awaited<ReturnType<typeof setup>>, result?: Record<string, unknown>) =>
   createTurnHandler({
     db: env.db,
     config: env.config,
-    approvals: stubGateway({
-      askChoice: async (a) => {
-        asked.push(a.question);
-        return a.options[0];
-      },
-      confirm: async () => ({ approved: false, reason: "owner declined" }),
-    }),
+    approvals: stubGateway(),
     queryFn: fakeSdk(result) as never,
-    intent: devIntent(env.home),
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
 
+/** Send one message and wait until its detached worker settled (the worker's text is never returned). */
+const send = async (
+  h: ReturnType<typeof handler>,
+  env: Awaited<ReturnType<typeof setup>>,
+  text: string,
+) => {
+  const sink = noticeSink();
+  const out = await h({ ...msg(text), notify: sink.notify });
+  const reply = out ?? (await sink.first()); // a role tag answers through the lead queue
+  await workersDone(env.db);
+  return reply;
+};
+
 const codeTask = (env: Awaited<ReturnType<typeof setup>>) =>
-  env.db.query<any, []>("SELECT * FROM turns WHERE type = 'code' ORDER BY started_at").all();
+  env.db.query<any, []>("SELECT * FROM turns WHERE role != 'lead' ORDER BY started_at").all();
 
 const runsOf = (env: Awaited<ReturnType<typeof setup>>, turnId: string) =>
   env.db.query<any, [string]>("SELECT * FROM runs WHERE turn_id = ?").all(turnId);
 
-test("one dev run: the plan approval is a normal ask, then it edits; ONE runs row with model and cost; location from the marker", async () => {
+test("one dev run: ONE runs row with model and cost; the worker's text is not returned; location from the marker", async () => {
   const env = await setup();
-  asked.length = 0;
-  const reply = await handler(env)(msg("[dev] please add b.txt"));
+  const reply = await send(handler(env), env, "[dev] please add b.txt");
+  expect(reply).toContain("starting"); // the fixed start notice, not the worker's report
   const [t] = codeTask(env);
   expect(t).toMatchObject({
     role: "dev",
     kind: "single",
-    hop: 0,
+    hop: 1,
     counts_toward_cap: 1,
     status: "done",
     location: "real",
   });
-  expect(t.parent_turn_id).toBeNull(); // opened by the intent layer: no source turn
-  expect(asked).toEqual(["Plan: add b.txt. Approve?"]); // the approval reached the owner through the ask relay
   const runs = runsOf(env, t.id);
   expect(runs).toHaveLength(1);
   expect(runs[0].model).toBe(env.config.models.sonnet);
   expect(runs[0].cost_usd).toBeCloseTo(0.25);
-  expect(reply).toContain("done: b.txt added");
-  expect(reply).not.toContain("location: real"); // the marker is the app's, not the owner's reply
   // The dev session is the turn row's, never the thread's.
   expect(env.db.query("SELECT session_id FROM sessions").get()).toBeNull();
   expect(t.session_id).toBe("sess-dev");
+  // The typed result of the owned task carries the report; the marker line is the app's, not the owner's.
+  const task = env.db.query<any, []>("SELECT * FROM owned_tasks WHERE parent_id IS NOT NULL").get();
+  expect(task?.status).toBe("completed");
+  expect(task?.result_excerpt ?? "").not.toContain("location: real");
 });
 
-test("class design: the run row records the Opus model", async () => {
-  const env = await setup();
-  await handler(env)(msg("[design] [dev] please add b.txt"));
-  expect(runsOf(env, codeTask(env)[0].id)[0].model).toBe(env.config.models.opus);
-});
-
-test("a final report without a valid `location:` marker keeps the location of the row; memory is skipped", async () => {
+test("a final report without a valid `location:` marker keeps the location of the row", async () => {
   const env = await setup();
   const handle = handler(env, { result: "done\n\nlocation: nope", total_cost_usd: 0.1 });
-  await handle(msg("[dev] please add b.txt"));
+  await send(handle, env, "[dev] please add b.txt");
   // One registered location: the sole location is the run's location even without a valid marker.
   expect(codeTask(env)[0].location).toBe("real");
 });
 
-test("dev on its budget: failed_resumable, reply offers `go +usd`, run row keeps the cost, session kept on the row", async () => {
+test("dev on its budget: the run row keeps the cost and outcome, the task is not done", async () => {
   const env = await setup();
   const handle = handler(env, {
     subtype: "error_max_budget_usd",
@@ -152,43 +142,37 @@ test("dev on its budget: failed_resumable, reply offers `go +usd`, run row keeps
     total_cost_usd: 3.2,
     session_id: "sess-dev",
   });
-  const reply = await handle(msg("[dev] please add b.txt"));
+  await send(handle, env, "[dev] please add b.txt");
   const t = codeTask(env)[0];
-  expect(t.status).toBe("failed_resumable");
   expect(runsOf(env, t.id)[0]).toMatchObject({ outcome: "max_budget" });
   expect(runsOf(env, t.id)[0].cost_usd).toBeCloseTo(3.2);
-  expect(reply).toContain("spending limit was reached");
-  expect(reply).toContain("`/go +");
+  expect(t.status).not.toBe("done");
   expect(env.db.query("SELECT session_id FROM sessions").get()).toBeNull();
 });
 
 test("a second dev message in the thread is a new task with its own run", async () => {
   const env = await setup();
   const handle = handler(env);
-  await handle(msg("[dev] please add b.txt"));
-  await handle(msg("[dev] also add c"));
+  await send(handle, env, "[dev] please add b.txt");
+  await send(handle, env, "[dev] also add c");
   const tasks = codeTask(env);
   expect(tasks).toHaveLength(2);
   expect(runsOf(env, tasks[1].id)).toHaveLength(1);
 });
 
-test("partial background result: a dev run that hits its turn limit is NOT re-run automatically (it may have written); audit says why, the reply stays plain", async () => {
-  const { captureLogs } = await import("../src/observability/logger");
+test("partial background result: a dev run that hits its turn limit is NOT re-run automatically (it may have written)", async () => {
   const env = await setup();
-  const cap = captureLogs();
-  const reply = await handler(env, {
-    subtype: "error_max_turns",
-    is_error: true,
-    result: undefined,
-    errors: [],
-    session_id: "sess-dev",
-  })(msg("[dev] please add b.txt"));
-  cap.stop();
+  await send(
+    handler(env, {
+      subtype: "error_max_turns",
+      is_error: true,
+      result: undefined,
+      errors: [],
+      session_id: "sess-dev",
+    }),
+    env,
+    "[dev] please add b.txt",
+  );
   expect(codeTask(env)).toHaveLength(1);
   expect(runsOf(env, codeTask(env)[0].id)).toHaveLength(1); // no second run
-  const ctl = cap.lines.filter((l) => l.event === "run.control");
-  expect(ctl).toContainEqual(
-    expect.objectContaining({ action: "recover_suppressed", reason: "uncertain_partial_write" }),
-  );
-  expect(reply).not.toMatch(/Internal note|uncertain_partial_write|recover/i);
 });

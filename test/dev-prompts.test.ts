@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { ASSISTANT_ROLE } from "../src/roles/builtin/assistant-role";
 import {
   askRules,
   CODE_STANDARDS,
@@ -8,6 +7,7 @@ import {
   DEV_ROLE,
   DEV_RUN_FACTS,
 } from "../src/roles/builtin/dev-role";
+import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { buildSystemPrompt } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
@@ -15,15 +15,15 @@ const rules = (role: typeof DEV_ROLE) => buildSystemPrompt("", role).append;
 /** Run contract budget per section (prompt-standard.md), before interpolation of context. */
 const SECTION_BUDGET = 1200;
 
-test("every dev section and the QA section fit the 1200 char budget", () => {
+test("every dev section and the lead section fit the 1200 char budget", () => {
   for (const t of [DEV, DEV_RUN_FACTS, COMMIT_RULES, CODE_STANDARDS])
     expect(t.length).toBeLessThanOrEqual(SECTION_BUDGET);
-  const qa = ASSISTANT_ROLE.promptSections({}) ?? [];
-  expect(qa[0]?.length).toBeLessThanOrEqual(SECTION_BUDGET);
+  const lead = LEAD_ROLE.promptSections({}) ?? [];
+  expect(lead[0]?.length).toBeLessThanOrEqual(SECTION_BUDGET);
 });
 
 test("the skills bootstrap block is gone; skills are not described in the prompt", () => {
-  for (const role of [DEV_ROLE, ASSISTANT_ROLE]) {
+  for (const role of [DEV_ROLE, LEAD_ROLE]) {
     const text = rules(role);
     expect(text).not.toContain("## Skills");
     expect(text).not.toContain("superpowers:<name>");
@@ -58,19 +58,6 @@ test("dev: one contract, approval before changes by ask, design request invokes 
   expect(text).not.toContain("git MCP");
   expect(text).not.toContain("plan.md"); // no plan file, no handoff
   expect(text.indexOf("Outcome:")).toBeLessThan(text.indexOf("`git` and `gh` in the shell"));
-});
-
-test("assistant QA: short, answer first, unsure rule, change requests need a task, ESCALATE verbatim", () => {
-  const qa = ASSISTANT_ROLE.promptSections({ escalationTiers: ["sonnet", "opus"] });
-  expect(qa[0]?.length).toBeLessThanOrEqual(1200);
-  expect(qa[0]).toContain("Answer first");
-  expect(qa[0]).toContain("never guess");
-  expect(qa[0]).toContain("is a [dev] task");
-  const escalate = qa.find((s) => s.includes("ESCALATE:"));
-  expect(escalate).toContain("`ESCALATE: sonnet`");
-  expect(escalate).toContain("`ESCALATE: opus`");
-  expect(qa.every((s) => s.length <= 1200)).toBe(true);
-  expect(qa.join("\n")).toContain("Private things stay private"); // care rules live in the role, not the owner's files
 });
 
 test("no tool-name literal in the dev role source", async () => {

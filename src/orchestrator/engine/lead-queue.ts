@@ -13,8 +13,10 @@ const log = logger.child({ module: "lead-queue" });
 /** One input for a lead run. */
 export interface LeadInput {
   threadId: string;
-  /** `owner` = owner messages (merged); `announce` = events of finished work (queued as they come). */
-  kind: "owner" | "announce";
+  /** `owner` = owner messages (merged); `announce` = events of finished work; `direct` = a role tag (no model). Queued as they come. */
+  kind: "owner" | "announce" | "direct";
+  /** A `direct` input: the worker the owner's role tag names. */
+  direct?: { role: string; brief: string; location?: string; messageId?: string };
   /** Ingress message ids merged into this input. */
   messageIds: string[];
   /** Owner text (merged messages joined by a new line). */
@@ -116,7 +118,8 @@ export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
     try {
       for (let input = s.queue.shift(); input; input = s.queue.shift()) {
         const epoch = s.epoch; // a stop after this point drops the input while it waits for a slot
-        const release = await acquire(s, epoch);
+        // A role-tag input runs no model: it takes no run slot (the worker it starts takes its own).
+        const release = input.kind === "direct" ? () => {} : await acquire(s, epoch);
         if (s.epoch !== epoch) {
           release?.(); // stopped while waiting for a slot: this input is dropped
           continue;
@@ -166,7 +169,7 @@ export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
   return {
     push(input) {
       const s = stateOf(input.threadId);
-      if (input.kind === "announce") return enqueue(s, input); // announces come already batched by their producer
+      if (input.kind !== "owner") return enqueue(s, input); // announces come already batched by their producer; a role tag is one message
       const now = Date.now();
       s.pendingSince = s.pending ? s.pendingSince : now;
       s.pending = s.pending ? merge(s.pending, input) : input;

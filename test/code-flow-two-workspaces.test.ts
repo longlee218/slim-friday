@@ -1,21 +1,20 @@
 import { expect, test } from "bun:test";
-/** Same fake SDK as the main code-flow tests, copied small: the run asks to approve its plan, then commits b.txt. */
+/** Same fake SDK as the main code-flow tests, copied small: the worker commits b.txt. */
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { MEMORY_MCP_SERVER, WORKER_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeLocation } from "./git-fixture";
 import {
   addLocation,
   clearWorkspaces,
   defaultLocationPath,
-  devIntent,
   makeEnv,
   resultMsg,
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
+import { until, workersDone } from "./lead-harness";
 
 /** Adds a managed clone `real` to workspace `ws` with the given commit author. */
 async function addCloneLocation(home: string, ws: string, author: string, channels: string[] = []) {
@@ -33,17 +32,12 @@ async function addCloneLocation(home: string, ws: string, author: string, channe
   return clone;
 }
 
-/** Fake SDK recording every run; the dev run asks to approve its plan, then commits a file. */
+/** Fake SDK recording every run; the dev worker commits a file. */
 function fakeSdk(seen: any[]) {
   return (a: any) => {
     seen.push(a);
     const o = a.options;
     return (async function* () {
-      await o.canUseTool(
-        ASK_USER_QUESTION_TOOL_NAME,
-        { questions: [{ question: "Approve the plan?", options: [{ label: "Approve" }] }] },
-        {},
-      );
       writeFileSync(join(o.cwd, "b.txt"), "two\n");
       await g(o.cwd, "add", "b.txt");
       await g(o.cwd, "-c", "user.email=x@example.com", "-c", "user.name=t", "commit", "-qm", "b");
@@ -66,18 +60,15 @@ async function started() {
   clearWorkspaces(env.home);
   await addCloneLocation(env.home, "w-b", "Bee <bee@example.com>", [TEST_CHANNEL]);
   const seen: any[] = [];
-  const gw = stubGateway({
-    confirm: async () => ({ approved: false, reason: "no PR" }),
-    askChoice: async (a) => a.options[0],
-  });
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
-    approvals: gw,
+    approvals: stubGateway(),
     queryFn: fakeSdk(seen) as never,
-    intent: devIntent(env.home),
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   await handle(msg("[dev] add b"));
+  await workersDone(env.db);
   return { env, seen, handle };
 }
 
@@ -88,7 +79,12 @@ test("two workspaces with location `real`: every task runs in the channel's work
   await addCloneLocation(env.home, "w-a", "Aye <aye@example.com>");
   const n = seen.length;
   await handle(msg("[dev] also c")); // a new task (no follow-up in a finished task)
-  expect(seen.length).toBeGreaterThan(n);
-  expect(seen[n].options.cwd).toContain("/w-b/");
-  expect(Object.keys(seen[n].options.mcpServers)).toEqual([MEMORY_MCP_SERVER]); // no git MCP, no identity from the app
+  // The lead may also run (it reads the first task's result): pick the second worker call.
+  const second = () => seen.slice(n).find((c) => c.options.mcpServers?.[WORKER_MCP_SERVER]);
+  await until(() => second() !== undefined);
+  expect(second().options.cwd).toContain("/w-b/");
+  expect(Object.keys(second().options.mcpServers).sort()).toEqual([
+    MEMORY_MCP_SERVER,
+    WORKER_MCP_SERVER,
+  ]); // no git MCP, no identity from the app
 });

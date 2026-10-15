@@ -59,7 +59,7 @@ test("withPrefix labels the owner text after the DATA blocks; no prefix = the te
   expect(withPrefix("", "hi")).toBe("hi");
 });
 
-/** A data-only foreground role on the Haiku tier that may escalate (so the re-run is a different model). */
+/** A data-only foreground role (a supervisor recovery re-runs it once after a turn limit). */
 const PROBE: RoleDefinition = {
   name: "prefix-probe",
   whenToUse: "test only",
@@ -72,7 +72,6 @@ const PROBE: RoleDefinition = {
   gitGroups: ["read"],
   model: "haiku",
   budgetUsd: 0.4,
-  escalation: true,
   promptSections: () => ["probe contract"],
 };
 
@@ -89,7 +88,7 @@ async function runProbe(results: Record<string, unknown>[]) {
       threadId: "th",
       source: "t",
       location: "location",
-      role: "assistant",
+      role: PROBE.name,
     });
     await runRole(
       {
@@ -118,22 +117,12 @@ async function runProbe(results: Record<string, unknown>[]) {
   return calls;
 }
 
-test("escalation re-run that resumes the first session gets no second prefix", async () => {
+test("a recovery re-run that resumes the first session gets no second prefix", async () => {
   const calls = await runProbe([
-    { result: "no idea\nESCALATE: sonnet", session_id: "s0" },
+    { subtype: "error_max_turns", is_error: false, result: undefined, session_id: "s0" },
     { result: "done", session_id: "s0" },
   ]);
   expect(calls).toHaveLength(2);
   expect(calls[0]?.prompt).toContain(DIGEST_HEADING);
   expect(calls[1]).toEqual({ prompt: "hard question", resume: "s0" });
-});
-
-test("a first run that left no session: its re-run starts fresh and carries the prefix again", async () => {
-  const calls = await runProbe([
-    { result: "no idea\nESCALATE: sonnet", session_id: undefined },
-    { result: "done" },
-  ]);
-  expect(calls).toHaveLength(2);
-  expect(calls[1]?.resume).toBeUndefined();
-  expect(calls[1]?.prompt).toContain(DIGEST_HEADING);
 });

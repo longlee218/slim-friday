@@ -6,7 +6,7 @@ import { ChannelType } from "discord.js";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createWorkspaceDir } from "../src/discord-setup/workspace-template";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
-import { validateIntent } from "../src/intent/intent-schema";
+import { leadingRoleTag } from "../src/intent/role-tag";
 import { mcpServersFor } from "../src/mcp/mcp-servers";
 import {
   APP_MCP_TOOLS,
@@ -15,20 +15,9 @@ import {
   WRITE_SPACE_FILE_TOOL,
 } from "../src/mcp/mcp-tool-names";
 import { roleScope } from "../src/orchestrator/engine/role-scope";
-import { stripRoleTag } from "../src/orchestrator/thread/intent-replies";
 import { DISCORD_MANAGER_ROLE } from "../src/roles/builtin/discord-manager-role";
-import {
-  mayHaveWritten,
-  rerouteCandidates,
-  validateRegistry,
-} from "../src/roles/capability-registry";
-import {
-  controlRole,
-  dispatchableRoleNames,
-  getRole,
-  intentRoles,
-  spaceRoles,
-} from "../src/roles/role-registry";
+import { mayHaveWritten, validateRegistry } from "../src/roles/capability-registry";
+import { controlRole, dispatchableWorkers, getRole, spaceRoles } from "../src/roles/role-registry";
 import { buildRoleSkills } from "../src/runtime/skills-plugin/role-skills";
 import { createCreateSpaceOrChannelTool } from "../src/tools/CreateSpaceOrChannelTool/create-space-or-channel-tool";
 import {
@@ -61,15 +50,9 @@ test("role data: control surface, cheap, read + skills + ask only, own limits", 
     expect(tools).not.toContain(t);
 });
 
-test("the role is never offered to a space channel: intent, dispatch, reroute, Jev, a model-picked name", () => {
-  expect(intentRoles().map((r) => r.name)).not.toContain(NAME);
-  expect(dispatchableRoleNames()).not.toContain(NAME);
+test("the role is never offered to a space channel: dispatch, role tags", () => {
+  expect(dispatchableWorkers().map((r) => r.name)).not.toContain(NAME);
   expect(spaceRoles().map((r) => r.name)).not.toContain(NAME);
-  expect(rerouteCandidates({ visited: [], hasApprovals: true })).not.toContain(NAME);
-  expect(validateIntent({ role: NAME } as never, { hasTask: false })).toEqual({
-    ok: false,
-    reason: "unknown_role",
-  });
   // The registry still knows it (the control runner finds it by `surface`).
   expect(getRole(NAME)).toBe(DISCORD_MANAGER_ROLE);
 });
@@ -83,10 +66,9 @@ test("the guard allows exactly the role's app tools; other roles and unknown too
   expect(
     checkToolCall(mcpToolName(DISCORD_ADMIN_MCP_SERVER, "DeleteChannel"), {}, guard).decision,
   ).toBe("deny");
-  const assistant = guardFor(getRole("assistant"), {});
+  const lead = guardFor(getRole("lead"), {});
   expect(
-    checkToolCall(mcpToolName(DISCORD_ADMIN_MCP_SERVER, WRITE_SPACE_FILE_TOOL), {}, assistant)
-      .decision,
+    checkToolCall(mcpToolName(DISCORD_ADMIN_MCP_SERVER, WRITE_SPACE_FILE_TOOL), {}, lead).decision,
   ).toBe("deny");
 });
 
@@ -102,7 +84,7 @@ test("the admin server is added only when the caller supplies it and the role li
   expect(Object.keys(mcpServersFor(DISCORD_MANAGER_ROLE))).toEqual([]);
   expect(
     Object.keys(
-      mcpServersFor(getRole("assistant"), undefined, () => ({
+      mcpServersFor(getRole("lead"), undefined, () => ({
         [DISCORD_ADMIN_MCP_SERVER]: server,
       })),
     ),
@@ -122,7 +104,7 @@ test("its skill ships with the app, loads without a workspace, and no other role
   } finally {
     mine.cleanup();
   }
-  for (const other of ["assistant", "dev"]) {
+  for (const other of ["lead", "dev"]) {
     const s = buildRoleSkills(getRole(other), undefined, env.home);
     expect(s.skills.some((n) => n.includes("discord-server-manager"))).toBe(false);
     s.cleanup();
@@ -232,7 +214,7 @@ test("CreateSpaceOrChannel asks the owner first; a no, a timeout (false) or an e
 test("a role that may cause external side effects is never re-run automatically", () => {
   expect(mayHaveWritten(DISCORD_MANAGER_ROLE)).toBe(true); // no write capability, sideEffects external
   expect(mayHaveWritten(getRole("dev"))).toBe(true);
-  expect(mayHaveWritten(getRole("assistant"))).toBe(false);
+  expect(mayHaveWritten(getRole("lead"))).toBe(false);
 });
 
 test("tag paths use the space roles; a control role with a tag is rejected", () => {
@@ -241,7 +223,7 @@ test("tag paths use the space roles; a control role with a tag is rejected", () 
     /control role cannot have a tag/,
   );
   expect(() => validateRegistry()).not.toThrow();
-  // the tag router of the intent layer is built from space roles only
-  expect(stripRoleTag("[dev] fix it")).toBe("fix it");
-  expect(stripRoleTag(`[${NAME}] make a space`)).toBe(`[${NAME}] make a space`);
+  // the tag router is built from space roles only
+  expect(leadingRoleTag("[dev] fix it", spaceRoles())?.rest).toBe("fix it");
+  expect(leadingRoleTag(`[${NAME}] make a space`, spaceRoles())).toBeUndefined();
 });

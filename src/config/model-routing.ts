@@ -26,12 +26,8 @@ export interface Route {
   cls?: TaskClass;
   /** Effort hint; missing = derive everything from the class table. */
   effort?: Effort;
-  /** Forced tier (Haiku triage escalation re-run); beats class and effort. */
+  /** Forced tier (the lead's escalated re-run); beats class and effort. */
   tier?: ModelTier;
-  /** This run is an escalated answer re-run: uses the role's larger `escalatedBudgetUsd`. */
-  escalated?: boolean;
-  /** First answer run: the tiers the model may ask for with `ESCALATE: <tier>`; the prompt lists only these (answer-output.ts). */
-  offerEscalation?: ("sonnet" | "opus")[];
   /**
    * Trusted internal note for a NEW query (never shown to the owner, never part of the user prompt or a steer): the
    * fallback re-run's "previous attempt failed" note and the run supervisor's recovery hint. It goes into the system context.
@@ -95,7 +91,7 @@ export const ceilingBinds = (limitUsd: number | undefined, spentUsd = 0): boolea
 
 /**
  * Budget (USD) of a role run, or undefined = no cap. Anthropic: env pin BUDGET_<ROLE>_USD > the role's default
- * (escalated answer re-runs use the larger one) plus any owner raise, limited to what is left of
+ * plus any owner raise, limited to what is left of
  * TASK_BUDGET_USD, then capped by MAX_BUDGET_USD.
  * OpenRouter has no role budget (SDK prices cost from Anthropic tables): only MAX_BUDGET_USD applies.
  */
@@ -107,8 +103,7 @@ export function resolveBudget(
   const cap = config.limits.maxBudgetUsd;
   if (config.provider === "openrouter") return cap;
   const pin = config.budgetOverrides[roleKey(role.name)];
-  const base =
-    pin ?? (route.escalated ? (role.escalatedBudgetUsd ?? role.budgetUsd) : role.budgetUsd);
+  const base = pin ?? role.budgetUsd;
   // Task ceiling: the run gets at most what the task's earlier runs left of TASK_BUDGET_USD. An owner raise
   // (`go +usd`) widens the role budget only, never the ceiling (a hard per-task cost cap by design).
   const left = Math.max(0, TASK_BUDGET_USD - (route.spentUsd ?? 0));

@@ -69,7 +69,10 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
     cwd = i.resume.cwd;
     sessionId = i.resume.sessionId;
   } else if (role.background) {
-    cwd = pinned?.path ?? locations[0]?.path ?? dirs.cwd;
+    // A background role that cannot write (a scout) works in the neutral dir and reads the locations as extra dirs.
+    cwd =
+      pinned?.path ??
+      (role.capabilities.includes("write") ? (locations[0]?.path ?? dirs.cwd) : dirs.cwd);
   } else {
     const stored = i.existing;
     const storedOk =

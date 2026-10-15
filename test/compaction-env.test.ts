@@ -74,7 +74,7 @@ describe("compaction + cache TTL env (set by the app for every role, never inher
 
   test("every role run: window, 75%, main and subagent cache TTL", async () => {
     const env = makeEnv();
-    for (const role of ["assistant", "dev"]) {
+    for (const role of ["lead", "dev"]) {
       const e = (await optionsOf(env, role)).env;
       expect(e[AUTO_COMPACT_WINDOW_VAR]).toBe(String(COMPACT_WINDOW_TOKENS));
       expect(e[AUTOCOMPACT_PCT_VAR]).toBe("75");
@@ -86,7 +86,7 @@ describe("compaction + cache TTL env (set by the app for every role, never inher
   test("the owner's shell values of the 4 vars reach no role", async () => {
     for (const v of VARS) process.env[v] = "12345";
     const env = makeEnv();
-    for (const role of ["assistant", "dev"]) {
+    for (const role of ["lead", "dev"]) {
       const e = (await optionsOf(env, role)).env;
       expect(e[AUTO_COMPACT_WINDOW_VAR]).toBe(String(COMPACT_WINDOW_TOKENS));
       expect(e[AUTOCOMPACT_PCT_VAR]).toBe("75");
@@ -96,29 +96,29 @@ describe("compaction + cache TTL env (set by the app for every role, never inher
   });
 
   test("COMPACT_WINDOW_<ROLE> overrides; 0 turns it off; garbage fails startup naming the variable", async () => {
-    const role = getRole("assistant");
-    const set = makeEnv({ COMPACT_WINDOW_ASSISTANT: "150000" });
+    const role = getRole("lead");
+    const set = makeEnv({ COMPACT_WINDOW_LEAD: "150000" });
     expect(resolveCompactWindow(role, set.config)).toBe(150_000);
-    expect((await optionsOf(set, "assistant")).env[AUTO_COMPACT_WINDOW_VAR]).toBe("150000");
-    const off = makeEnv({ COMPACT_WINDOW_ASSISTANT: "0" });
+    expect((await optionsOf(set, "lead")).env[AUTO_COMPACT_WINDOW_VAR]).toBe("150000");
+    const off = makeEnv({ COMPACT_WINDOW_LEAD: "0" });
     expect(resolveCompactWindow(role, off.config)).toBe(0);
-    const offEnv = (await optionsOf(off, "assistant")).env;
+    const offEnv = (await optionsOf(off, "lead")).env;
     expect(offEnv[AUTO_COMPACT_WINDOW_VAR]).toBeUndefined();
     expect(offEnv[AUTOCOMPACT_PCT_VAR]).toBe("75");
-    expect(() => makeEnv({ COMPACT_WINDOW_ASSISTANT: "lots" })).toThrow("COMPACT_WINDOW_ASSISTANT");
+    expect(() => makeEnv({ COMPACT_WINDOW_LEAD: "lots" })).toThrow("COMPACT_WINDOW_LEAD");
   });
 
   test("range: 0 or 100000-1000000 only; anything else fails startup naming the variable, not the value", () => {
     for (const ok of ["0", "100000", "1000000"])
-      expect(() => makeEnv({ COMPACT_WINDOW_ASSISTANT: ok })).not.toThrow();
+      expect(() => makeEnv({ COMPACT_WINDOW_LEAD: ok })).not.toThrow();
     for (const bad of ["5", "99999", "1000001", "1e3", "-1", "150000.5"]) {
       let msg = "";
       try {
-        makeEnv({ COMPACT_WINDOW_ASSISTANT: bad });
+        makeEnv({ COMPACT_WINDOW_LEAD: bad });
       } catch (e) {
         msg = String(e);
       }
-      expect(msg).toContain("COMPACT_WINDOW_ASSISTANT");
+      expect(msg).toContain("COMPACT_WINDOW_LEAD");
       expect(msg).not.toContain(bad);
     }
   });

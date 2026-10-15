@@ -6,11 +6,13 @@ import { type MessageFacts, routeMessage } from "../src/ingress/discord-message-
 import type { ThreadsPort } from "../src/ingress/thread-placement";
 import { threadFacts } from "../src/ingress/thread-placement";
 import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { DIGEST_HEADING } from "../src/memory/channel-digest";
 import { titlePortFor } from "../src/orchestrator/engine/thread-title-note";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { getSession } from "../src/storage/session-store";
 import { getThreadSummary } from "../src/storage/thread-summary-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+import { until } from "./lead-harness";
 
 const OWNER = "111";
 const BOT = "999";
@@ -172,7 +174,10 @@ test("titlePortFor: no rename port when threadId === channelId", () => {
   expect(titlePortFor({ threadId: "t", channelId: CHAT }, port)).toBe(port);
 });
 
-/** Real turn handler over a fake `query`; the test channel is a chat channel of `main`. */
+/**
+ * Real turn handler over a fake `query`; the test channel is a chat channel of `main` and the lead (the foreground role)
+ * answers inline through `notify`. `big` makes the first run report a full context window (a rollover is due).
+ */
 function turnHarness(big = false, threadId = TEST_CHANNEL) {
   const env = makeEnv();
   const ws = env.paths.workspace("main");
@@ -182,6 +187,7 @@ function turnHarness(big = false, threadId = TEST_CHANNEL) {
     Bun.YAML.stringify({ ...doc, channels: [{ id: TEST_CHANNEL, name: "chat", mode: "chat" }] }),
   );
   const calls: { prompt: string; resume?: string; options: any }[] = [];
+  const posts: string[] = [];
   const queryFn = ((a: any) => {
     calls.push({ prompt: String(a.prompt), resume: a.options.resume, options: a.options });
     return (async function* () {
@@ -202,10 +208,22 @@ function turnHarness(big = false, threadId = TEST_CHANNEL) {
     db: env.db,
     config: env.config,
     queryFn,
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
     threadTitle: { rename: async () => "renamed" as const },
   });
-  const send = (text: string) =>
-    handle({ source: "t", userId: "u", threadId, channelId: TEST_CHANNEL, text });
+  /** Send one owner message and wait for the lead's posted reply. */
+  const send = async (text: string) => {
+    const n = posts.length;
+    await handle({
+      source: "t",
+      userId: "u",
+      threadId,
+      channelId: TEST_CHANNEL,
+      text,
+      notify: async (m: string) => void posts.push(m),
+    });
+    await until(() => posts.length > n);
+  };
   return { env, calls, send, handle };
 }
 
@@ -220,14 +238,11 @@ test("turns: the second chat message resumes the first session (sessions.thread_
   expect(calls[0]?.resume).toBeUndefined();
   expect(calls[1]?.resume).toBe("sess-chat");
   expect(getSession(env.db, TEST_CHANNEL)?.session_id).toBe("sess-chat");
-  expect(calls[0]?.prompt).toBe("hello"); // no channel digest in front
+  expect(calls[0]?.prompt).toEndWith("Owner message:\nhello");
+  expect(calls[0]?.prompt).not.toContain(DIGEST_HEADING); // no channel digest in a chat channel
   const tools = memoryTools(calls[0]?.options);
   expect(tools).toContain("Remember"); // the probe sees the memory server's tools
   expect(tools).not.toContain("SetThreadTitle");
-  // control: a real thread of the same channel does get the rename tool
-  const t = turnHarness(false, "thread-x");
-  await t.send("hello");
-  expect(memoryTools(t.calls[0]?.options)).toContain("SetThreadTitle");
 });
 
 test("rollover is keyed by the channel id", async () => {

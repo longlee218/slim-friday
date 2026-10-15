@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
-import { getItem, goalOf, setTaskResult } from "../../storage/owned-item-store";
+import { getItem, goalOf, type ResultKind, setTaskResult } from "../../storage/owned-item-store";
 import { getOwnedTask, ownedTaskOfTurn } from "../../storage/owned-task-store";
 import { writeTaskResultFile } from "../engine/result-file";
 
@@ -18,6 +18,7 @@ export function saveResultFile(
   turnStatus: string,
   outcome: string,
   reply: string,
+  kind?: ResultKind,
 ): void {
   try {
     const taskId = ownedTaskOfTurn(db, turnId);
@@ -31,7 +32,7 @@ export function saveResultFile(
       taskStatus: getOwnedTask(db, taskId)?.status,
       reply,
     });
-    setTaskResult(db, taskId, written);
+    setTaskResult(db, taskId, { ...written, ...(kind && { kind }) });
   } catch (err) {
     log.warn({ err: errText(err) }, "task result file failed");
   }

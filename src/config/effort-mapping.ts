@@ -1,17 +1,10 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import type { Effort, TaskClass } from "./model-routing";
+import type { Effort } from "./model-routing";
 
 /** Agent loops (SDK turns) one run may take: an absolute ceiling, whatever the effort level (owner-set). */
 export const MAX_TURNS = 20;
 
 /* Effort -> SDK knobs. Pure: the model tier part lives in model-routing.ts (`effortTier`). */
-
-/** Base effort of a class (decisions Rev 5): mechanical low, standard medium, design high. */
-export const BASE_EFFORT: Record<TaskClass, Effort> = {
-  mechanical: "low",
-  standard: "medium",
-  design: "high",
-};
 
 /** Turn limit relative to MAX_TURNS: low works shorter, the others use the whole ceiling (it is never exceeded). */
 const TURNS_FACTOR: Record<Effort, number> = { low: 0.5, medium: 1, high: 1, max: 1 };

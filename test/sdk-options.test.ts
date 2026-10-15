@@ -2,24 +2,23 @@ import { afterEach, expect, spyOn, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { MAX_TURNS } from "../src/config/effort-mapping";
 import { guardFor } from "../src/guardrails/check-tool-call";
-import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { SEND_MESSAGE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv, resultMsg } from "./helpers";
 
 /**
- * BEHAVIOR LOCK: the SDK options `runAgent` passes to `query` for the two roles (assistant, dev). Functions are
+ * BEHAVIOR LOCK: the SDK options `runAgent` passes to `query` for the two roles (lead, dev). Functions are
  * compared by presence, not identity; per-run values (cwd, env, abort controller) are asserted apart.
  */
 
-type Kind = "qa" | "dev";
+type Kind = "lead" | "dev";
 
 /** Config limits are fixed so timeout and budget assertions are exact. */
 const ENV = {
-  MODEL_ASSISTANT: "model-qa",
+  MODEL_LEAD: "model-lead",
   MODEL_DEV: "model-code",
-  CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test", // real Anthropic login: the assistant may use auto mode
+  CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test", // real Anthropic login: the lead may use auto mode
   MAX_BUDGET_USD: "3",
 };
 
@@ -55,11 +54,11 @@ async function capture(kind: Kind) {
     queryFn: queryFn as never,
   };
   const scope = { readPaths: [env.location], gitReadPaths: [env.location], writePaths: [] };
-  if (kind === "qa") {
+  if (kind === "lead") {
     await runAgent({
       ...base,
-      role: getRole("assistant"),
-      guard: guardFor(getRole("assistant"), scope),
+      role: getRole("lead"),
+      guard: guardFor(getRole("lead"), scope),
     });
   } else {
     await runAgent({
@@ -93,7 +92,7 @@ function normalize(o: Options, home: string) {
   };
 }
 
-const KINDS: Kind[] = ["qa", "dev"];
+const KINDS: Kind[] = ["lead", "dev"];
 
 for (const kind of KINDS) {
   test(`options lock: ${kind} options snapshot`, async () => {
@@ -103,45 +102,45 @@ for (const kind of KINDS) {
 }
 
 test("options lock: tools, mcp servers, permission mode per role", async () => {
-  const qa = await capture("qa");
+  const lead = await capture("lead");
   const dev = await capture("dev");
-  // Built-in tools: the assistant is read + web; dev has the code set.
-  expect(qa.o.tools).toContain("WebFetch");
-  expect(qa.o.tools).toContain(SEND_MESSAGE_TOOL_NAME); // every role gets Agent + SendMessage
+  // Built-in tools: the lead is read only; dev has the code set.
+  expect(lead.o.tools).toEqual(["Read", "Glob", "Grep", "LSP"]); // read only: no web, no shell, no subagents
+  expect(lead.o.tools).not.toContain(SEND_MESSAGE_TOOL_NAME); // the lead dispatches through its tools only
   expect(dev.o.tools).toContain("Write");
   expect(dev.o.tools).toContain("AskUserQuestion"); // the plan approval is an ask
   expect(dev.o.tools).not.toContain("ExitPlanMode"); // no plan mode, no plan gate
-  expect(qa.o.tools).not.toContain("Write");
-  // MCP: the git server (reads) only for the assistant; dev gets none (git and gh run in the shell); no
-  // GitHub server and no in-process app server anywhere.
-  expect(Object.keys(qa.o.mcpServers ?? {})).toEqual([GIT_MCP_SERVER]);
+  expect(lead.o.tools).not.toContain("Write");
+  // MCP: none from `runAgent` itself (the lead's own server is passed by the lead runner); dev gets none (git and gh
+  // run in the shell); no GitHub server anywhere.
+  expect(lead.o.mcpServers).toEqual({});
   expect(dev.o.mcpServers).toEqual({});
-  // dev: bypass from the first token; the assistant: auto mode (classifier).
+  // dev: bypass from the first token; the lead: auto mode (classifier).
   expect(dev.o.permissionMode).toBe("bypassPermissions");
   expect(dev.o.allowDangerouslySkipPermissions).toBe(true);
-  expect(qa.o.permissionMode).toBe("auto");
-  expect(qa.o.allowDangerouslySkipPermissions).toBeUndefined();
+  expect(lead.o.permissionMode).toBe("auto");
+  expect(lead.o.allowDangerouslySkipPermissions).toBeUndefined();
   // Never any filesystem settings; strict MCP config.
-  for (const r of [qa, dev]) {
+  for (const r of [lead, dev]) {
     expect(r.o.settingSources).toEqual([]);
     expect(r.o.strictMcpConfig).toBe(true);
     expect(typeof r.o.canUseTool).toBe("function");
   }
   // No app-defined subagents: the SDK's built-in one is what the Agent tool starts.
-  for (const r of [qa, dev]) expect("agents" in r.o).toBe(false);
+  for (const r of [lead, dev]) expect("agents" in r.o).toBe(false);
 });
 
 test("options lock: model and limits per role, no run timeout", async () => {
-  const qa = await capture("qa");
+  const lead = await capture("lead");
   const dev = await capture("dev");
-  expect(qa.o.model).toBe("model-qa");
+  expect(lead.o.model).toBe("model-lead");
   expect(dev.o.model).toBe("model-code");
-  for (const r of [qa, dev]) expect(r.o.maxTurns).toBe(MAX_TURNS);
-  // Per-role budget (assistant 1, dev 4.5) capped by MAX_BUDGET_USD=3.
-  expect(qa.o.maxBudgetUsd).toBe(1);
+  for (const r of [lead, dev]) expect(r.o.maxTurns).toBe(MAX_TURNS);
+  // Per-role budget (lead 0.75, dev 4.5) capped by MAX_BUDGET_USD=3.
+  expect(lead.o.maxBudgetUsd).toBe(0.75);
   expect(dev.o.maxBudgetUsd).toBe(3);
   // No run timeout: no timer is armed for the run (owner decision).
-  for (const r of [qa, dev]) expect(r.delays).toEqual([]);
+  for (const r of [lead, dev]) expect(r.delays).toEqual([]);
 });
 
 test("options lock: per-run values", async () => {

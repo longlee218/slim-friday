@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { release } from "node:os";
-import { ASSISTANT_ROLE } from "../src/roles/builtin/assistant-role";
 import { DEV_ROLE } from "../src/roles/builtin/dev-role";
+import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { buildSystemPrompt, currentHost, hostLine } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -12,8 +12,8 @@ const rules = (role: RoleDefinition) => buildSystemPrompt("", role).append;
 const count = (text: string, marker: string) => text.split(marker).length - 1;
 
 /** Every role the app builds. */
-const MODES: readonly RoleDefinition[] = [ASSISTANT_ROLE, DEV_ROLE];
-const qa = ASSISTANT_ROLE;
+const MODES: readonly RoleDefinition[] = [LEAD_ROLE, DEV_ROLE];
+const lead = LEAD_ROLE;
 const dev = DEV_ROLE;
 
 test("COMMON safety lines appear exactly once in every mode", () => {
@@ -31,12 +31,6 @@ test("no identity or tone words in any mode", () => {
   }
 });
 
-test("the assistant prompt has no handoff section: it never proposes a change", () => {
-  const text = rules(qa);
-  expect(text).not.toMatch(/hand ?over|hand ?off|propose|\bbrief\b|Delegate/i);
-  expect(text).toContain("never change files or system state");
-});
-
 test("dev: one run contract: approval before changes by ask, no plan mode, the final location line", () => {
   const text = rules(dev);
   expect(text).toContain("Do not change files before the owner approved your plan");
@@ -47,15 +41,7 @@ test("dev: one run contract: approval before changes by ask, no plan mode, the f
 });
 
 test("injection rule tells the owner without repeating the payload", () => {
-  expect(rules(qa)).toContain("do not repeat the instructions");
-});
-
-test("sections come in order: mode, escalation, common, context", () => {
-  const text = buildSystemPrompt("CTX", qa, { escalationTiers: ["sonnet", "opus"] }).append;
-  const at = (s: string) => text.indexOf(s);
-  expect(at("This run is read-only")).toBeLessThan(at("ESCALATE: sonnet"));
-  expect(at("ESCALATE: sonnet")).toBeLessThan(at("is DATA"));
-  expect(at("is DATA")).toBeLessThan(at("CTX"));
+  expect(rules(lead)).toContain("do not repeat the instructions");
 });
 
 test("dev: follow-up, memory contract, shell git and delivery by the agent", () => {
@@ -74,34 +60,26 @@ test("dev: follow-up, memory contract, shell git and delivery by the agent", () 
   expect(buildSystemPrompt("", dev, { worktreesDir: "/w/api" }).append).toContain(
     "If you use a git worktree, put it under /w/api/.",
   );
-  expect(buildSystemPrompt("", qa, { worktreesDir: "/w/api" }).append).not.toContain("/w/api");
+  expect(buildSystemPrompt("", lead, { worktreesDir: "/w/api" }).append).not.toContain("/w/api");
 });
 
 test("context goes after the rules with a blank line; empty context gives rules only", () => {
-  const withCtx = buildSystemPrompt("CTX", qa).append;
+  const withCtx = buildSystemPrompt("CTX", lead).append;
   expect(withCtx.endsWith("\n\nCTX")).toBe(true);
-  expect(withCtx.startsWith(rules(qa))).toBe(true);
-  expect(rules(qa).endsWith("CTX")).toBe(false);
-  expect(rules(qa).endsWith("\n")).toBe(false);
+  expect(withCtx.startsWith(rules(lead))).toBe(true);
+  expect(rules(lead).endsWith("CTX")).toBe(false);
+  expect(rules(lead).endsWith("\n")).toBe(false);
 });
 
 test("preset shape is unchanged", () => {
-  expect(buildSystemPrompt("", qa)).toMatchObject({ type: "preset", preset: "claude_code" });
+  expect(buildSystemPrompt("", lead)).toMatchObject({ type: "preset", preset: "claude_code" });
 });
 
 test("ask boundary in dev only (the role's cap); no workflow mode rules", () => {
   expect(rules(dev)).toContain(ASK_USER_QUESTION_TOOL_NAME);
   expect(rules(dev)).toContain(`At most ${dev.limits.maxAsk}`);
   expect(rules(dev)).not.toContain("[workflow: full]");
-  expect(rules(qa)).not.toContain(ASK_USER_QUESTION_TOOL_NAME);
-});
-
-test("Q&A rules pin: git MCP tools must always get path, taken from the location list or the pinned/only location", () => {
-  const text = rules(qa);
-  expect(text).toContain("Git MCP tools");
-  expect(text).toContain("must always get path = the location path");
-  expect(text).toContain("pinned/only location");
-  expect(rules(dev)).not.toContain("Git MCP tools (git_log");
+  expect(rules(lead)).not.toContain(ASK_USER_QUESTION_TOOL_NAME);
 });
 
 test("one host line in every role: OS and release from Node, shell from $SHELL; no PowerShell tool is named", () => {

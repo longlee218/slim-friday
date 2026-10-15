@@ -42,6 +42,11 @@ export interface ToolPermissionInput {
    * SDK did not enter bypass) asks go to the owner as in default mode (fail closed).
    */
   bypassMode?: ModeActive;
+  /**
+   * Lead-dispatched worker: its AskUserQuestion goes to this relay (a `question` event for the lead) instead of the
+   * owner's buttons. Resolves with the answers by question text, or undefined when nobody answered (then the run stops).
+   */
+  askRelay?: (questions: AskQuestion[]) => Promise<Record<string, string> | undefined>;
   /** The owner did not answer the questions in time: the caller stops the run and replies "Awaiting clarification". */
   onAskTimeout?: (questions: AskQuestion[]) => void;
   /**
@@ -102,6 +107,18 @@ export function buildToolPermissions(p: ToolPermissionInput): {
     // Abort fence: a stopped run starts nothing new (before any approval is requested).
     if (p.runSignal?.aborted) return { behavior: "deny", message: RUN_STOPPED_REASON };
     try {
+      if (tool === ASK_USER_QUESTION_TOOL_NAME && p.askRelay) {
+        if (askLimit.calls >= askLimit.max)
+          return { behavior: "deny", message: askLimitDenial(askLimit.max) };
+        askLimit.calls++;
+        const questions = (input.questions ?? []) as AskQuestion[];
+        const answers = await p.askRelay(questions);
+        if (!answers) {
+          p.onAskTimeout?.(questions);
+          return { behavior: "deny", message: "Nobody answered in time. Stop here." };
+        }
+        return { behavior: "allow", updatedInput: { ...input, answers } };
+      }
       if (tool === ASK_USER_QUESTION_TOOL_NAME && !p.gateway) {
         return { behavior: "deny", message: "Not available in this mode." };
       }

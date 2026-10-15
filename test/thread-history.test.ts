@@ -5,7 +5,7 @@ import {
   type InboundMessage,
 } from "../src/ingress/discord-message-handler";
 import { fetchRecent, type HistoryMessage, toRecent } from "../src/ingress/thread-history";
-import { BRIEF_RECENT_CHARS, cleanRecent, recentBlock } from "../src/intent/recent-messages";
+import { cleanRecent } from "../src/intent/recent-messages";
 
 const P = { currentId: "cur", ownerId: "o", botId: "b" };
 const m = (id: string, author: string, content: string, ts: number, files = 0): HistoryMessage => ({
@@ -47,20 +47,6 @@ test("toRecent / cleanRecent: last 4 only, redacted, each <= 300 chars, whitespa
   expect(long[0]?.text).toHaveLength(300);
   expect(long[1]?.text).not.toContain("sk-ant-abcdefghijklmnop123456");
   expect(long[1]?.text).not.toContain("\n");
-});
-
-test("recentBlock: heading, newest lines that fit 1200 chars, empty when none", () => {
-  expect(recentBlock(undefined)).toBe("");
-  expect(recentBlock([])).toBe("");
-  const small = recentBlock([{ from: "owner", text: "hi" }]);
-  expect(small).toBe("\n\nRecent conversation (data):\n- owner: hi");
-  const big = recentBlock(
-    Array.from({ length: 4 }, (_, i) => ({ from: "bot" as const, text: `${i}`.repeat(300) })),
-  );
-  expect(big.length).toBeLessThanOrEqual(
-    BRIEF_RECENT_CHARS + "\n\nRecent conversation (data):\n".length,
-  );
-  expect(big).toContain("3".repeat(300)); // the newest survives
 });
 
 test("fetchRecent never throws: a failing or missing fetch is no history", async () => {

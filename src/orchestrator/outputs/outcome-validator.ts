@@ -1,11 +1,15 @@
-import { renderUserNotice } from "../../ingress/user-copy";
 import type { RunOutcome } from "../../observability/record-run";
 import type { RoleDefinition } from "../../roles/role-types";
-import type { ExecutionOutcome } from "../../routing/routing-contracts";
 import type { DeliveryEvidence } from "./delivery-evidence";
 
-/** One neutral line after a run that was expected to deliver but left no trace of it (never a verdict). */
-export const NO_DELIVERY_NOTE = renderUserNotice({ kind: "note", state: "no-delivery" }, "en");
+/** What a run delivered. */
+export type ExecutionOutcome = {
+  status: "success" | "partial" | "failed" | "blocked";
+  artifacts: string[];
+  actionsPerformed: string[];
+  recoveryHint?: string;
+  traceId: string;
+};
 
 /**
  * A role is expected to deliver when it changes a git location (role data, no role name). A location

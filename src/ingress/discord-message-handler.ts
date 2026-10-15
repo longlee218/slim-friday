@@ -4,13 +4,11 @@ import type { RecentMessage } from "../intent/intent-types";
 import type { MemoryRunner } from "../memory/memory-command-handler";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { STEER_REACT_REPLY } from "../orchestrator/thread/steer-notice-sentinel";
 import { type AttachmentDeps, withAttachments } from "./attachment-text";
 import { routeMessage, SAFE_MENTIONS, stripMention } from "./discord-message-rules";
 import { BUSY_ACK_EMOJI, sendReply, startTyping } from "./discord-send";
 import type { InboundMessage } from "./inbound-message";
 import { replyToMemoryCommand } from "./memory-ingress";
-import { reactDoneOf } from "./message-reaction";
 import { createMessageReceipt } from "./message-receipt";
 import { type HistoryChannel, historyOf, recentFor } from "./thread-history";
 import { threadOnlyNote } from "./thread-only-commands";
@@ -70,7 +68,6 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     text: string,
     recent?: RecentMessage[],
     started?: () => void,
-    reactDone?: () => Promise<unknown>,
   ): Promise<void> {
     // The text decides; neutral text ("3", "yes") keeps the thread's language, else the recent owner messages.
     const language =
@@ -112,15 +109,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       });
       started?.();
       const reply = await call;
-      if (reply === undefined) return; // nothing to send (a replaced run's result is dropped)
-      if (reply === STEER_REACT_REPLY) {
-        // A repeated steer notice: no text, a done reaction on the owner message (a Discord failure is not fatal).
-        await receipt.visible();
-        await reactDone?.().catch((err) =>
-          log.warn({ err: errText(err) }, "steer reaction failed"),
-        );
-        return;
-      }
+      if (reply === undefined) return; // nothing to send here: the lead answers on its own through `notify`
       if (shown) {
         stopTyping();
         stopTyping = startTyping(channel);
@@ -221,7 +210,6 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
             text,
             await recentFor(ch, msg.id, { ownerId: deps.ownerId, botId }, text),
             turn?.done,
-            reactDoneOf(msg),
           );
         else
           logEvent(
@@ -251,7 +239,6 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         text,
         undefined,
         undefined,
-        reactDoneOf(msg),
       );
     } catch (err) {
       // Full error to the log (redacted), short generic text to the user.

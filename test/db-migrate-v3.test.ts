@@ -3,14 +3,12 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveCommand } from "../src/orchestrator/message-routing";
 import { deriveThreadState } from "../src/orchestrator/thread/thread-state";
 import { openDb } from "../src/storage/db";
-import { threadLedger } from "../src/storage/ledger-store";
 import { applyLegacySchema } from "../src/storage/legacy-schema";
 import { migrateV3 } from "../src/storage/migrate-v3-turns";
 import { migrateV7 } from "../src/storage/migrate-v7-locations-threads";
-import { insertTurn, latestTurnSession } from "../src/storage/run-store";
+import { insertTurn } from "../src/storage/run-store";
 
 // OLD NAMES ON PURPOSE: this file builds the v2 (pre-turns) database and checks the v2 -> v3 migration.
 // Tmp dirs only: it never touches a real home.
@@ -182,18 +180,10 @@ test("d. readers work on the migrated db", () => {
   const { file } = v2Home();
   const db = openV3(file);
   migrateV7(db); // the readers use the v7 column names
-  insertTurn(db, { id: "t5", threadId: "th3", source: "s", location: "r", role: "assistant" });
+  insertTurn(db, { id: "t5", threadId: "th3", source: "s", location: "r", role: "lead" });
   expect(db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 5 });
   // The migrated `stages` rows stay on disk (dropped by v4) but nothing reads them any more.
   expect(db.query("SELECT COUNT(*) AS n FROM stages WHERE turn_id = 't2'").get()).toEqual({ n: 2 });
-  expect(latestTurnSession(db, "th2")).toMatchObject({
-    id: "t3",
-    sessionId: "s3",
-    budgetStopped: false,
-  });
-  const ledger = threadLedger(db, "th2");
-  expect(ledger).toContain('- t2 dev, running: "build it"');
-  expect(ledger).toContain("  location repo, cost $0.50"); // the sum of the task's `runs`
   expect(deriveThreadState(db, "th2")).toBe("idle"); // last turn t3 is failed_resumable
 });
 
@@ -270,58 +260,4 @@ test("backup failure on a v2 db aborts startup and leaves it untouched", () => {
   expect(version(raw)).toBe("2");
   expect(names(raw, "table")).toContain("tasks");
   raw.close();
-});
-
-test("g. an old db with a worktrees row and a failed_resumable dev turn opens; `/go` continues its saved session in its cwd (no clone, no plan file)", () => {
-  const { home, file } = v2Home();
-  const db = openDb(file);
-  // t3 (th2's last turn, `failed_resumable`, session s3, with a legacy worktrees row) ran in a dir that still exists.
-  const cwd = mkdtempSync(join(tmpdir(), "friday-v3-cwd-"));
-  db.query("UPDATE turns SET session_cwd = ? WHERE id = 't3'").run(cwd);
-  // The session cwd is a registered repo of the workspace: the dev run may continue in it.
-  const repo = { name: "web", workspace: "main", dir: cwd, path: cwd, description: "", git: false };
-  const r = resolveCommand(
-    { db, agentHome: home, workspace: "main", locations: [repo] },
-    { kind: "resume" },
-    "th2",
-  );
-  expect(r).toMatchObject({
-    cmd: { kind: "message", role: "dev" },
-    resume: { sessionId: "s3", cwd, of: "t3" },
-  });
-});
-
-test("g1. an old-shaped dev session whose cwd is a task scratch dir (no registered repo) is not resumed as dev", () => {
-  const { home, file } = v2Home();
-  const db = openDb(file);
-  // The dir exists (an old plan-run scratch dir) but is not one of the workspace repos.
-  const scratch = mkdtempSync(join(tmpdir(), "friday-v3-scratch-"));
-  db.query("UPDATE turns SET session_cwd = ? WHERE id = 't3'").run(scratch);
-  const other = mkdtempSync(join(tmpdir(), "friday-v3-repo-"));
-  const repo = {
-    name: "web",
-    workspace: "main",
-    dir: other,
-    path: other,
-    description: "",
-    git: false,
-  };
-  const r = resolveCommand(
-    { db, agentHome: home, workspace: "main", locations: [repo] },
-    { kind: "resume" },
-    "th2",
-  );
-  expect(r).toMatchObject({ reason: "resume_gone" });
-});
-
-test("g2. the same turn whose cwd is gone: `/go` refuses, the task becomes failed (nothing to continue)", () => {
-  const { home, file } = v2Home();
-  const db = openDb(file);
-  const r = resolveCommand(
-    { db, agentHome: home, workspace: "main", locations: [] },
-    { kind: "resume" },
-    "th2",
-  );
-  expect(r).toMatchObject({ reason: "resume_gone" });
-  expect(db.query("SELECT status FROM turns WHERE id = 't3'").get()).toEqual({ status: "failed" });
 });

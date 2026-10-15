@@ -14,6 +14,7 @@ import {
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import { resultMsg, TEST_CHANNEL, twoWorkspaces } from "./helpers";
+import { workersDone } from "./lead-harness";
 
 /** Isolation cases: a w1 run (real guard, fake query) must be denied every reach into w2 or the home data. */
 test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or agent.db", async () => {
@@ -31,13 +32,16 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
       yield resultMsg();
     })();
   };
-  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
+  // A tagged message starts a dev worker (detached): its canUseTool is the run's real permission layer.
+  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+  await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th",
-    text: "hello",
+    text: "[dev] hello",
   });
+  await workersDone(env.db);
   const qa = can!;
   // Exec-stage guard of a w1 task: it may write only its own worktree.
   const w1wt = join(workspacePaths(env.home).workspace("w1").worktrees, "api", "t0");

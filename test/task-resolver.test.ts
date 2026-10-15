@@ -1,24 +1,30 @@
 import { expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { renderUserNotice } from "../src/ingress/user-copy";
 import { captureLogs, logger } from "../src/observability/logger";
-import { NO_DELIVERY_NOTE } from "../src/orchestrator/outputs/outcome-validator";
 import { closeTurn, type FlowResult } from "../src/orchestrator/turns/turn-result";
 import { beginTurn, failTurn } from "../src/orchestrator/turns/turn-tracker";
 import { ROLES } from "../src/roles/role-registry";
-import type { TaskState } from "../src/routing/routing-contracts";
 import { openDb } from "../src/storage/db";
-import { casUpdateTask, getOwnedTask, ownedTaskOfTurn } from "../src/storage/owned-task-store";
+import {
+  activeOwnedTask,
+  casUpdateTask,
+  getOwnedTask,
+  ownedTaskOfTurn,
+} from "../src/storage/owned-task-store";
 import { finishTurn, insertTurn, interruptRunningTurns } from "../src/storage/run-store";
+import type { TaskState } from "../src/tasks/task-contracts";
 import {
   attachTurnToTask,
   changeOwner,
   openTask,
-  resolveTaskContext,
   settleTaskAfterTurn,
 } from "../src/tasks/task-resolver";
 import { canTransition } from "../src/tasks/task-state-machine";
 import { makeEnv, outsideDir } from "./helpers";
+
+const NO_DELIVERY_NOTE = renderUserNotice({ kind: "note", state: "no-delivery" }, "en");
 
 const background = Object.values(ROLES).find((r) => r.background)!.name;
 const foreground = Object.values(ROLES).find((r) => !r.background)!.name;
@@ -45,20 +51,20 @@ test("a background turn opens a running task owned by its role", () => {
     status: "running",
     scope: "brief of t1",
   });
-  expect(resolveTaskContext(db, "th").active?.taskId).toBe(taskId);
+  expect(activeOwnedTask(db, "th")?.taskId).toBe(taskId);
 });
 
 test("a foreground turn (idle or side lane) creates no task and leaves the focus alone", () => {
   const { db } = makeEnv();
   begin(db, "t1", background);
-  const focus = resolveTaskContext(db, "th").active?.taskId;
+  const focus = activeOwnedTask(db, "th")?.taskId;
   begin(db, "a1", foreground);
   begin(db, "a2", foreground, { threadId: "th:side" });
   expect(ownedTaskOfTurn(db, "a1")).toBeUndefined();
   expect(ownedTaskOfTurn(db, "a2")).toBeUndefined();
   expect(db.query("SELECT COUNT(*) AS n FROM owned_tasks").get()).toEqual({ n: 1 });
-  expect(resolveTaskContext(db, "th").active?.taskId).toBe(focus);
-  expect(resolveTaskContext(db, "th:side")).toEqual({});
+  expect(activeOwnedTask(db, "th")?.taskId).toBe(focus);
+  expect(activeOwnedTask(db, "th:side")).toBeUndefined();
 });
 
 test("every owner_role is a background role", () => {
@@ -80,7 +86,7 @@ test("topic switch opens a second task; the first stays unchanged; newest is the
   const second = ownedTaskOfTurn(db, "t2")!;
   expect(second).not.toBe(first);
   expect(getOwnedTask(db, first)).toMatchObject({ status: "completed", version: 1 });
-  expect(resolveTaskContext(db, "th").active?.taskId).toBe(second);
+  expect(activeOwnedTask(db, "th")?.taskId).toBe(second);
 });
 
 test("resume reuses the parent's task; a named ownedTaskId links to it", () => {

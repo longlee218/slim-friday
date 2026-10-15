@@ -16,13 +16,13 @@ export interface PromptContextInput {
   registry?: string;
   /** Locations (of `workspace`) whose memory is added after the root and workspace memory. */
   memoryLocations: string[];
-  /** Idle thread: its task ledger (storage/ledger-store.ts), after memory; empty = none. */
+  /** Idle thread: the results of the steps it waits for (engine/worker-run.ts), after memory; empty = none. */
   ledger?: string;
 }
 
 /**
  * The one place that orders the prompt context of a run:
- * AGENTS, IDENTITY, SOUL, USER -> registry -> memory (root, workspace, channel, locations) -> task ledger (idle thread).
+ * AGENTS, IDENTITY, SOUL, USER -> registry -> memory (root, workspace, channel, locations) -> earlier-steps block (worker).
  * No location CLAUDE.md anywhere: the SDK loads no settings (settingSources []) and nothing here injects one.
  * Logs one `prompt.context` event with the chars of each layer (counts only, never content).
  * BOOTSTRAP.md is an owner guide and is never injected.

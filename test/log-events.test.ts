@@ -141,7 +141,7 @@ test("a run logs run.started and run.finished with the task's correlation fields
       runAgent({
         prompt: "q",
         turnId: "T1",
-        role: getRole("assistant"),
+        role: getRole("lead"),
         cwd: env.home,
         config: env.config,
         db: env.db,

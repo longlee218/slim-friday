@@ -5,6 +5,7 @@ import { locationMemoryFile } from "../src/memory/location-memory";
 import { createMemoryRunner, type MemoryRequest } from "../src/memory/memory-command-handler";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { addLocation, makeEnv, TEST_CHANNEL } from "./helpers";
+import { until } from "./lead-harness";
 import { writeLocationNotes } from "./memory-fixture";
 
 /** Env with workspace main (channel TEST_CHANNEL) and a runner on it. */
@@ -136,13 +137,14 @@ test("invalid command replies with usage (no remember form) and removes nothing"
   expect(r).not.toContain("/remember [");
 });
 
-test("via handleMessage: forget is answered without any task row or agent call; remember reaches the agent", async () => {
+test("via handleMessage: forget is answered without any task row or agent call; remember reaches the lead", async () => {
   const env = makeEnv();
   writeLocationNotes(env.home, "main", "location", ["via handler note"]);
   let called = 0;
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
     queryFn: () => {
       called++;
       throw new Error("agent must not run");
@@ -159,9 +161,9 @@ test("via handleMessage: forget is answered without any task row or agent call; 
   expect(reply).toContain("Forgot");
   expect(called).toBe(0);
   expect(env.db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 0 });
-  // remember: is no command: the agent run is attempted (the fake throws, proving the message was not answered by app code).
+  // remember: is no command: the lead run is attempted (the fake throws, proving the message was not answered by app code).
   await handle(msg("remember: via handler again")).catch(() => undefined);
-  expect(called).toBeGreaterThan(0);
+  await until(() => called > 0);
 });
 
 test("forget: bare location name as first word selects that location; case-insensitive", async () => {

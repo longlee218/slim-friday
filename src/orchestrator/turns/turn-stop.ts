@@ -1,6 +1,5 @@
 import type { Database } from "bun:sqlite";
 import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
-import { countQueuedProposals } from "../../storage/proposal-store";
 import type { LeadQueue } from "../engine/lead-queue";
 import { stopThreadTree } from "../engine/stop-thread-tree";
 
@@ -15,21 +14,12 @@ export function stopThread(
   threadId: string,
   language: OwnerLanguage,
   running?: AbortController,
-  leadQueue?: Pick<LeadQueue, "stop">,
+  leadQueue?: Pick<LeadQueue, "stop" | "busy">,
 ): string {
-  if (!running) return renderUserNotice({ kind: "stop", active: false }, language);
-  running.abort();
+  // A queued or debouncing lead input counts as work too: it is dropped below.
+  if (!running && !leadQueue?.busy(threadId))
+    return renderUserNotice({ kind: "stop", active: false }, language);
+  running?.abort();
   stopThreadTree(db, threadId, leadQueue);
-  const queued = countQueuedProposals(db, threadId);
-  return renderUserNotice({ kind: "stop", active: true, queued }, language);
-}
-
-/** Register a fresh controller as the thread's active one (the queue that runs after a user `/stop`) and return it. */
-export function renewActive(
-  active: Map<string, AbortController>,
-  threadId: string,
-): AbortController {
-  const fresh = new AbortController();
-  active.set(threadId, fresh);
-  return fresh;
+  return renderUserNotice({ kind: "stop", active: true }, language);
 }

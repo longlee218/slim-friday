@@ -65,7 +65,7 @@ describe("threadLanguage", () => {
       threadId: "th",
       source: "discord",
       location: "r",
-      role: "assistant",
+      role: "lead",
       brief: "Please run the tests in this repository and tell me what failed",
     });
     expect(threadLanguage(db, "th")).toBe("en");

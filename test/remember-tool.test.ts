@@ -5,12 +5,7 @@ import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { mcpServersFor } from "../src/mcp/mcp-servers";
-import {
-  GIT_MCP_SERVER,
-  MEMORY_MCP_SERVER,
-  mcpToolName,
-  REMEMBER_TOOL,
-} from "../src/mcp/mcp-tool-names";
+import { MEMORY_MCP_SERVER, mcpToolName, REMEMBER_TOOL } from "../src/mcp/mcp-tool-names";
 import { localDay, localHhmm } from "../src/memory/memory-clock";
 import { PERSONA_MAX } from "../src/memory/persona";
 import { DEFAULT_AGENTS } from "../src/memory/persona-templates";
@@ -200,17 +195,14 @@ test("the guard allows exactly Remember on the memory server", () => {
 
 test("every role gets the memory server when the run brings a context; none without", async () => {
   const { ctx } = setup();
-  for (const name of ["assistant", "dev"] as const) {
+  for (const name of ["lead", "dev"] as const) {
     expect(Object.keys(mcpServersFor(getRole(name), ctx))).toContain(MEMORY_MCP_SERVER);
     expect(Object.keys(mcpServersFor(getRole(name)))).not.toContain(MEMORY_MCP_SERVER);
   }
-  expect(Object.keys(mcpServersFor(getRole("assistant"), ctx))).toEqual([
-    GIT_MCP_SERVER,
-    MEMORY_MCP_SERVER,
-  ]);
+  expect(Object.keys(mcpServersFor(getRole("lead"), ctx))).toEqual([MEMORY_MCP_SERVER]);
 });
 
-for (const roleName of ["assistant", "dev"] as const)
+for (const roleName of ["lead", "dev"] as const)
   test(`runAgent passes the in-process memory server to query (${roleName})`, async () => {
     const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test" });
     const { ctx } = setup();
@@ -245,7 +237,7 @@ test("DEFAULT_AGENTS has the Memory + Privacy text within the persona cap; no ro
   expect(DEFAULT_AGENTS).toContain("## Memory");
   expect(DEFAULT_AGENTS).toContain("### Privacy");
   expect(DEFAULT_AGENTS.length).toBeLessThan(PERSONA_MAX);
-  for (const name of ["assistant", "dev"] as const) {
+  for (const name of ["lead", "dev"] as const) {
     const p = JSON.stringify(buildSystemPrompt("", getRole(name)));
     // No role prompt names the tool: every role relies on the AGENTS.md rule.
     expect(p.includes(REMEMBER_TOOL)).toBe(false);

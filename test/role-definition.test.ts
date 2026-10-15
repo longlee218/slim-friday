@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
 import { extractLocationMarker } from "../src/orchestrator/engine/run-report";
 import { validateRole } from "../src/orchestrator/engine/validate-role";
-import { ASSISTANT_ROLE } from "../src/roles/builtin/assistant-role";
 import { DEV_ROLE } from "../src/roles/builtin/dev-role";
-import { entryRole, hasClassTiers, ROLES, turnTypeOf } from "../src/roles/role-registry";
+import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
+import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
+import { ROLES, turnTypeOf } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 
 const location = (name: string) => ({
@@ -25,16 +26,19 @@ test("dev is a background role: one run, bypass from the first token, no plan co
   expect(DEV_ROLE.classTiers).toEqual({ mechanical: "sonnet", standard: "sonnet", design: "opus" });
   expect(DEV_ROLE.skills).toBe("all");
   expect(turnTypeOf(DEV_ROLE)).toBe("code");
-  expect(hasClassTiers(DEV_ROLE)).toBe(true);
 });
 
-test("the assistant is a plain foreground role: shell but no ask, no write", () => {
-  expect(ASSISTANT_ROLE.background).toBe(false);
-  for (const c of ["write", "ask"]) expect(ASSISTANT_ROLE.capabilities).not.toContain(c as never);
-  expect(ASSISTANT_ROLE.gitGroups).toEqual(["read"]);
-  expect(ASSISTANT_ROLE.permissionMode).toBe("auto");
-  expect(turnTypeOf(ASSISTANT_ROLE)).toBe("qa");
-  expect(entryRole()).toBe(ASSISTANT_ROLE);
+test("the lead is a foreground role without shell, ask, write or subagents; the scout is a read-only background worker", () => {
+  expect(LEAD_ROLE.background).toBe(false);
+  for (const c of ["write", "ask", "shell"])
+    expect(LEAD_ROLE.capabilities).not.toContain(c as never);
+  expect(LEAD_ROLE.noSubagents).toBe(true);
+  expect(LEAD_ROLE.permissionMode).toBe("auto");
+  expect(turnTypeOf(LEAD_ROLE)).toBe("qa");
+  expect(SCOUT_ROLE.background).toBe(true);
+  expect(SCOUT_ROLE.sideEffects).toBe("none");
+  for (const c of ["write", "ask", "shell"])
+    expect(SCOUT_ROLE.capabilities).not.toContain(c as never);
 });
 
 test("role data is flat: no stages, gates, handoffs or per-run timeouts in any role", () => {
@@ -45,7 +49,8 @@ test("role data is flat: no stages, gates, handoffs or per-run timeouts in any r
 
 test("validateRole refuses a role without a positive budget or with a bad ask limit", () => {
   expect(validateRole(DEV_ROLE)).toBeUndefined();
-  expect(validateRole(ASSISTANT_ROLE)).toBeUndefined();
+  expect(validateRole(LEAD_ROLE)).toBeUndefined();
+  expect(validateRole(SCOUT_ROLE)).toBeUndefined();
   const bad = (p: Partial<RoleDefinition>) => validateRole({ ...DEV_ROLE, ...p });
   expect(bad({ budgetUsd: 0 })).toContain("budget");
   expect(bad({ limits: { maxAsk: -1 } })).toContain("ask limit");

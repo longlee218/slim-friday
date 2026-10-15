@@ -148,3 +148,26 @@ export function cancelStartEvents(db: Database, threadId: string): number {
     )
     .run(Date.now(), threadId).changes;
 }
+
+/** Close events by id as delivered (the lead run that read them ended; a record needs no reader). Returns how many rows changed. */
+export function markDeliveredIds(db: Database, ids: string[]): number {
+  if (!ids.length) return 0;
+  const now = Date.now();
+  return db.transaction(() => {
+    let n = 0;
+    for (const id of ids)
+      n += db
+        .query("UPDATE thread_events SET delivered_at = ? WHERE id = ? AND delivered_at IS NULL")
+        .run(now, id).changes;
+    return n;
+  })();
+}
+
+/** A work order was taken (its item was dispatched): the item's `start` event is delivered. */
+export function markStartDelivered(db: Database, itemId: string): number {
+  return db
+    .query(
+      "UPDATE thread_events SET delivered_at = ?, claimed_by = 'dispatch' WHERE item_id = ? AND kind = 'start' AND delivered_at IS NULL",
+    )
+    .run(Date.now(), itemId).changes;
+}

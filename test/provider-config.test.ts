@@ -116,7 +116,6 @@ describe("sdkEnv per provider", () => {
       GIT_AUTHOR: "A <a@a.a>",
       MODEL_DEV_EXEC: "opus",
       BUDGET_DEV_EXEC_USD: "9",
-      INTENT_ENGINE: "none",
       FRIDAY_X: "1",
     };
     const providers: Record<string, string>[] = [
@@ -154,7 +153,7 @@ describe("run-agent wiring", () => {
     runAgent({
       prompt: "q",
       turnId: "T",
-      role: getRole("assistant"),
+      role: getRole("lead"),
       cwd: env.home,
       config: env.config,
       db: env.db,

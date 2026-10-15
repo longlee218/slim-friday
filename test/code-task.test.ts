@@ -2,24 +2,14 @@ import { expect, test } from "bun:test";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { ApprovalGateway, ApprovalRequest } from "../src/approvals/approval-types";
-import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { parseMessageCommand, RESUME_PROMPT } from "../src/orchestrator/message-commands";
 import {
-  ASK_USER_QUESTION_TOOL_NAME,
   BASH_TOOL_NAME,
   SEND_FEEDBACK_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
-import {
-  addLocation,
-  clearWorkspaces,
-  DEV_REQUEST,
-  devIntent,
-  makeEnv,
-  resultMsg,
-  stubGateway,
-  TEST_CHANNEL,
-} from "./helpers";
+import { runDevWorker } from "./dev-worker-fixture";
+import { addLocation, clearWorkspaces, DEV_REQUEST, makeEnv, stubGateway } from "./helpers";
 
 /** Fake gateway: records requests and answers with a scripted decision. */
 function fakeGateway(approved = true) {
@@ -35,38 +25,15 @@ function fakeGateway(approved = true) {
 }
 
 /**
- * Run one `[dev]` message (the intent layer opens a dev task); capture the SDK options of its run.
- * Without `gw` the approval flow is off (nothing runs).
+ * Run one `[dev]` message (the role tag starts a dev worker directly); capture the SDK options of its run.
+ * `gw` answers the owner-decided tools of the run.
  */
 async function runCodeTask(gw?: ApprovalGateway) {
   const env = makeEnv();
   clearWorkspaces(env.home);
   const location = addLocation(env.home, "location"); // managed clone (code tasks need one)
-  let opts: any;
-  const qa: any[] = []; // every run
-  const query = (a: any) => {
-    opts = a.options;
-    qa.push(a.options);
-    return (async function* () {
-      yield resultMsg();
-    })();
-  };
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    queryFn: query as never,
-    approvals: gw,
-    intent: devIntent(env.home),
-  });
-  const reply = await handle({
-    source: "t",
-    language: "en" as const,
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "t1",
-    text: DEV_REQUEST,
-  });
-  return { env, opts, reply, location, qa };
+  const { runs, reply } = await runDevWorker(env, DEV_REQUEST, { gw });
+  return { env, opts: runs[0], reply, location, qa: runs };
 }
 
 test("parseMessageCommand: stop and location: hint; cleanup: is plain text; task: is plain Q&A text", () => {
@@ -115,12 +82,6 @@ test("parseMessageCommand: go, go +<usd>; invalid raises are plain messages; Res
   expect(parseMessageCommand(RESUME_PROMPT)).toEqual({ kind: "resume" });
 });
 
-test("without approvals no run starts: the owner is told code tasks need the approval flow", async () => {
-  const { qa, reply } = await runCodeTask();
-  expect(qa).toHaveLength(0);
-  expect(reply).toContain("Discord approvals");
-});
-
 test("code task runs in bypass mode in the location with write tools and no allowedTools", async () => {
   const { gw } = fakeGateway();
   const { env, opts, location, qa } = await runCodeTask(gw);
@@ -141,7 +102,7 @@ test("code task runs in bypass mode in the location with write tools and no allo
   expect(env.db.query("SELECT type FROM turns").all()).toEqual([{ type: "code" }]);
 });
 
-test("canUseTool: writes only in the workspace; a feedback report asks; the plan question goes to the owner", async () => {
+test("canUseTool: writes only in the workspace; a feedback report asks the owner", async () => {
   const { gw, asked } = fakeGateway();
   const { opts } = await runCodeTask(gw);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
@@ -162,26 +123,12 @@ test("canUseTool: writes only in the workspace; a feedback report asks; the plan
     "allow",
   );
   expect(asked[0]).toMatchObject({ kind: "request", req: { tool: SEND_FEEDBACK_TOOL_NAME } });
-
-  const ans = await can(
-    ASK_USER_QUESTION_TOOL_NAME,
-    { questions: [{ question: "Q?", options: [{ label: "A" }, { label: "B" }] }] },
-    {},
-  );
-  expect(ans.updatedInput.answers).toEqual({ "Q?": "A" });
 });
 
-test("a tool the owner denies, or a question the owner does not answer, becomes a deny message the agent can act on", async () => {
+test("a tool the owner denies becomes a deny the agent can act on", async () => {
   const { gw } = fakeGateway(false);
   const { opts } = await runCodeTask(gw);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
-  const plan = await can(
-    ASK_USER_QUESTION_TOOL_NAME,
-    { questions: [{ question: "Approve the plan?", options: [{ label: "Approve" }] }] },
-    {},
-  );
-  expect(plan.behavior).toBe("deny");
-  expect(plan.message).toContain("did not answer");
   const feedback = await can(SEND_FEEDBACK_TOOL_NAME, { type: "bug", title: "t" }, {});
   expect(feedback).toMatchObject({ behavior: "deny" });
 });

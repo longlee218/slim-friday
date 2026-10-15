@@ -1,0 +1,32 @@
+import type { Database } from "bun:sqlite";
+import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
+import { moveTaskTo } from "../../tasks/task-resolver";
+import { cancelSet } from "./effect-port-queries";
+
+/* Goal bookkeeping: items that can never run are cancelled, a goal whose items all ended gets its final status. */
+
+/** Item statuses that ended for good. */
+const TERMINAL = new Set(["completed", "failed", "cancelled"]);
+
+/** Cancel every item that waits (transitively) for `itemId`: it failed, so they can never start. */
+export function cancelDependents(db: Database, itemId: string): void {
+  for (const id of cancelSet(db, itemId)) if (id !== itemId) moveTaskTo(db, id, "cancelled");
+}
+
+/**
+ * When every item of the goal ended, settle the goal row: all completed = `completed`, any failed = `failed`, else
+ * `cancelled`. (A goal row starts `open`; the state machine has no `open -> completed`, so it passes through `running`.)
+ * Returns the items read.
+ */
+export function settleGoal(db: Database, goalId: string): ItemRow[] {
+  const items = childrenOf(db, goalId);
+  if (!items.length || !items.every((i) => TERMINAL.has(i.status))) return items;
+  const final = items.every((i) => i.status === "completed")
+    ? "completed"
+    : items.some((i) => i.status === "failed")
+      ? "failed"
+      : "cancelled";
+  if (final === "cancelled") moveTaskTo(db, goalId, "cancelled");
+  else if (moveTaskTo(db, goalId, "running")) moveTaskTo(db, goalId, final);
+  return items;
+}

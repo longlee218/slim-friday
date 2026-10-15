@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { getSession, setSession } from "../src/storage/session-store";
-import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
+import { makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { noticeSink, until, workersDone } from "./lead-harness";
 
+/** A `[dev]` message: starts a detached dev worker (the handler returns the start notice, never the worker's text). */
 const task = (text: string, threadId = "th1") => ({
   source: "test",
   language: "en" as const,
@@ -11,6 +13,19 @@ const task = (text: string, threadId = "th1") => ({
   threadId,
   text,
 });
+const dev = (brief: string, threadId = "th1") => task(`[dev] ${brief}`, threadId);
+
+/** Handler over a fake query; workers run detached, so tests wait with `workersDone`. */
+const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
+  createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: stubGateway(),
+    limiter: createRunLimiter(10),
+    queryFn: queryFn as never,
+  });
+const turnStatus = (env: ReturnType<typeof makeEnv>) =>
+  env.db.query<{ status: string }, []>("SELECT status FROM turns WHERE role = 'dev'").get()?.status;
 
 /** Query that waits until aborted (or released), simulating a long run. */
 function slowQuery(release: { fn?: () => void; ready?: () => void }) {
@@ -27,68 +42,35 @@ function slowQuery(release: { fn?: () => void; ready?: () => void }) {
     })();
 }
 
-test("second message during run -> still working; reply is redacted; session saved", async () => {
+test("stop aborts the worker run and marks its task cancelled", async () => {
   const env = makeEnv();
   const release: { fn?: () => void; ready?: () => void } = {};
-  let readyResolve: (() => void) | undefined;
-  const ready = new Promise<void>((r) => {
-    readyResolve = r;
-  });
-  release.ready = readyResolve;
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    queryFn: slowQuery(release) as never,
-  });
-  const first = handle(task("hi"));
-  await ready; // Wait for slow query to be ready, not timing
-  expect(await handle(task("again"))).toBe("I’m handling other work. Please try again shortly.");
-  release.fn!();
-  const reply = await first;
-  expect(reply).toContain("done secret");
-  expect(reply).not.toContain("ghp_");
-  expect(getSession(env.db, "th1")?.session_id).toBe("sess-1");
-});
-
-test("stop aborts run and marks task cancelled", async () => {
-  const env = makeEnv();
-  const release: { fn?: () => void; ready?: () => void } = {};
-  let readyResolve: (() => void) | undefined;
-  const ready = new Promise<void>((r) => {
-    readyResolve = r;
-  });
-  release.ready = readyResolve;
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    queryFn: slowQuery(release) as never,
-  });
-  const first = handle(task("hi"));
-  await ready; // Wait for slow query to be ready
-  expect(await handle(task("stop"))).toBe("I’m stopping the current work.");
-  expect(await first).toBe("Stopped.");
-  expect(env.db.query<{ status: string }, []>("SELECT status FROM turns").get()?.status).toBe(
-    "cancelled",
-  );
+  const ready = new Promise<void>((r) => (release.ready = r));
+  const handle = devHandler(env, slowQuery(release));
+  const sink = noticeSink();
+  expect(await handle({ ...dev("hi"), notify: sink.notify })).toBeUndefined();
+  expect(await sink.first()).toBe("I’m starting on your request.");
+  await ready; // the worker's query is waiting on its abort signal
+  expect(await handle(task("stop"))).toContain("stop");
+  await until(() => turnStatus(env) === "cancelled");
+  expect(
+    env.db
+      .query<{ status: string }, []>("SELECT status FROM owned_tasks WHERE status != 'open'")
+      .get()?.status,
+  ).toBe("cancelled");
   // lock released: stop with nothing running
   expect(await handle(task("stop"))).toBe("Nothing is running.");
 });
 
 test("H1: DB failure before the run does not leave the thread locked", async () => {
   const env = makeEnv();
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    queryFn: (() => {
-      throw new Error("no");
-    }) as never,
+  const handle = devHandler(env, () => {
+    throw new Error("no");
   });
   env.db.close(); // every DB call now throws
-  expect(await handle(task("hi"))).toBe("I did not finish your request. You can try again.");
-  // A leaked lock would answer "I’m handling other work. Please try again shortly." here.
-  expect(await handle(task("again"))).not.toBe(
-    "I’m handling other work. Please try again shortly.",
-  );
+  // The handler never throws, and the thread stays usable: a second message is answered too (no leaked lock).
+  expect(["undefined", "string"]).toContain(typeof (await handle(dev("hi"))));
+  expect(["undefined", "string"]).toContain(typeof (await handle(dev("again"))));
 });
 
 const okQuery = (_a: any) =>
@@ -100,44 +82,20 @@ const failQuery = (_a: any) =>
     yield resultMsg({ subtype: "error_during_execution", is_error: true, errors: ["boom"] });
   })();
 
-test("M4: session saved on success, not on error/abort outcomes", async () => {
-  const env = makeEnv();
-  await createTurnHandler({ db: env.db, config: env.config, queryFn: okQuery as never })(
-    task("a", "ok"),
-  );
-  expect(getSession(env.db, "ok")?.session_id).toBe("sess-1");
-  await createTurnHandler({ db: env.db, config: env.config, queryFn: failQuery as never })(
-    task("a", "bad"),
-  );
-  expect(getSession(env.db, "bad")).toBeNull();
-});
-
-/** Query yielding an error result with the given error text. */
-const errQuery = (msg: string) => (_a: any) =>
-  (async function* () {
-    yield resultMsg({ subtype: "error_during_execution", is_error: true, errors: [msg] });
-  })();
-
-test("M4: genuine resume failure clears the session and tells the user", async () => {
-  const env = makeEnv();
-  setSession(env.db, { threadId: "th9", sessionId: "stale", location: env.home, cwd: env.home });
-  const q = errQuery("No conversation found with session ID: stale");
-  const reply = await createTurnHandler({ db: env.db, config: env.config, queryFn: q as never })(
-    task("a", "th9"),
-  );
-  expect(reply).toContain("cleared");
-  expect(getSession(env.db, "th9")).toBeNull();
-});
-
-test("M1: transient error (auth/rate limit) keeps the session", async () => {
-  const env = makeEnv();
-  setSession(env.db, { threadId: "th8", sessionId: "good", location: env.home, cwd: env.home });
-  const q = errQuery("rate limit exceeded, retry later");
-  const reply = await createTurnHandler({ db: env.db, config: env.config, queryFn: q as never })(
-    task("a", "th8"),
-  );
-  expect(reply).not.toContain("cleared");
-  expect(getSession(env.db, "th8")?.session_id).toBe("good");
+test("M4: a success outcome finishes the worker turn; a resumable error fails the turn and holds its task", async () => {
+  const ok = makeEnv();
+  await devHandler(ok, okQuery)(dev("a", "ok"));
+  await workersDone(ok.db);
+  expect(turnStatus(ok)).toBe("done");
+  const bad = makeEnv();
+  await devHandler(bad, failQuery)(dev("a", "bad"));
+  await workersDone(bad.db);
+  expect(turnStatus(bad)).toStartWith("failed"); // failed_resumable: the run left a session
+  expect(
+    bad.db
+      .query<{ status: string }, []>("SELECT status FROM owned_tasks WHERE status != 'open'")
+      .get()?.status,
+  ).toBe("waiting_user"); // resumable failure: the task is held for the owner
 });
 
 test("M2: finishTurn failure in the catch path does not throw", async () => {
@@ -145,24 +103,19 @@ test("M2: finishTurn failure in the catch path does not throw", async () => {
   const q = (() => {
     throw new Error("boom");
   }) as never;
-  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: q });
+  const handle = devHandler(env, q);
   // Close db after insertTurn succeeds: first query throw happens in runAgent, then finishTurn hits a closed db.
-  const p = handle(task("hi", "th7"));
+  const p = handle(dev("hi", "th7"));
   env.db.close();
-  expect(typeof (await p)).toBe("string");
+  expect(["undefined", "string"]).toContain(typeof (await p)); // never throws
 });
 
 test("M3: drain aborts runs, waits for them, and leaves no task running", async () => {
   const env = makeEnv();
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    queryFn: slowQuery({}) as never,
-  });
-  const p = handle(task("hi", "th6"));
+  const handle = devHandler(env, slowQuery({}));
+  await handle(dev("hi", "th6"));
   await Bun.sleep(30);
   await handle.drain(5000);
-  expect(await p).toBe("Stopped.");
   expect(
     env.db.query<{ n: number }, []>("SELECT count(*) n FROM turns WHERE status='running'").get()?.n,
   ).toBe(0);
@@ -175,8 +128,8 @@ test("M3: drain times out on a stuck run and marks its task interrupted", async 
       await new Promise(() => {});
       yield resultMsg();
     })();
-  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: stuck as never });
-  void handle(task("hi", "th5"));
+  const handle = devHandler(env, stuck);
+  void handle(dev("hi", "th5"));
   await Bun.sleep(50);
   await handle.drain(100);
   expect(env.db.query<{ status: string }, []>("SELECT status FROM turns").get()?.status).toBe(

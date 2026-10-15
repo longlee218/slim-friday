@@ -129,38 +129,6 @@ export function ownedTaskOfTurn(db: Database, turnId: string): string | undefine
   );
 }
 
-/** Newest turn of a task with the session it recorded (what a continuation resumes), or undefined. */
-export function lastTurnOfTask(
-  db: Database,
-  taskId: string,
-):
-  | {
-      id: string;
-      status: string;
-      location: string;
-      sessionId: string | null;
-      cwd: string | null;
-    }
-  | undefined {
-  return (
-    db
-      .query<
-        {
-          id: string;
-          status: string;
-          location: string;
-          sessionId: string | null;
-          cwd: string | null;
-        },
-        [string]
-      >(
-        `SELECT id, status, location, session_id AS sessionId, session_cwd AS cwd FROM turns
-         WHERE owned_task_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
-      )
-      .get(taskId) ?? undefined
-  );
-}
-
 /**
  * Startup/shutdown reconcile. Only safe when no run is alive (startup, drain): it flips EVERY running task. No process runs the work of a `running` task any more, so it waits for the owner
  * (its turn became `interrupted` in the same step).

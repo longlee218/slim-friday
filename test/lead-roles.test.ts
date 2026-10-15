@@ -15,10 +15,7 @@ import {
 import { createWorkerServer } from "../src/mcp/worker-server";
 import {
   countsTowardCap,
-  dispatchableRoleNames,
   dispatchableWorkers,
-  entryRole,
-  intentRoles,
   isSpaceRole,
   ROLES,
 } from "../src/roles/role-registry";
@@ -53,7 +50,6 @@ test("lead role is data: Sonnet entry role of the lead surface, no skills, only 
   expect(lead.appSkills).toBeUndefined();
   expect(lead.capabilities).not.toContain("write");
   expect(lead.capabilities).not.toContain("shell"); // no Bash at all in L2a
-  expect(lead.entry).toBeUndefined(); // chosen by the lead runner, not by entryRole
 });
 
 test("scout role is data: Haiku, read + search, no side effects, dispatchable, app skills", () => {
@@ -72,15 +68,9 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, a
     expect(existsSync(join(APP_SKILLS_DIR, n, "SKILL.md"))).toBe(true);
 });
 
-test("owner-visible routing is unchanged: lead and scout are not space roles; assistant stays the entry role", () => {
+test("lead and scout are not space roles; dev is", () => {
   expect(isSpaceRole(lead) || isSpaceRole(scout)).toBe(false);
-  expect(
-    intentRoles()
-      .map((r) => r.name)
-      .sort(),
-  ).toEqual(["assistant", "dev"]);
-  expect(dispatchableRoleNames()).toEqual(["assistant", "dev"]);
-  expect(entryRole().name).toBe("assistant");
+  expect(isSpaceRole(ROLES.dev!)).toBe(true);
 });
 
 test("dispatchable workers come from role data: dev and scout", () => {

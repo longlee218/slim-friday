@@ -29,7 +29,7 @@ function setup(timeoutMs = 5000, sendable = true, brief = EN_BRIEF) {
     threadId: "th",
     source: "discord",
     location: "r",
-    role: "assistant",
+    role: "lead",
     brief,
   });
   const gw = createDiscordApprovalGateway({

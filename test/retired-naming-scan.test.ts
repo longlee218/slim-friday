@@ -112,6 +112,7 @@ const TASK_ID_OK = [
   // thread_events.task_id: the goal / task an outbox event is about (schema v8)
   "migrate-v8-ddl.ts",
   "event-store.ts",
+  "dispatch-ready.ts", // writes the outbox event of a dispatched task
 ];
 
 /**
@@ -142,12 +143,15 @@ test("src and test hold no retired message / turn / task name", () => {
   );
   expect(files.length).toBeGreaterThan(100);
   const hits: string[] = [];
-  // The lead's status tool is named like the retired type; its name constant is the one allowed place.
+  // The lead's status tool is named like the retired type; its name constant (and the lead test that calls it) is the allowed place.
   for (const f of files)
     for (const [name, re] of Object.entries(RETIRED))
       if (
         re.test(f.text) &&
-        !(name === "storage status type" && f.file.endsWith("mcp-tool-names.ts"))
+        !(
+          name === "storage status type" &&
+          ["mcp-tool-names.ts", "lead-runtime.test.ts"].some((ok) => f.file.endsWith(ok))
+        )
       )
         hits.push(`${f.file}: ${name}`);
   for (const f of files)

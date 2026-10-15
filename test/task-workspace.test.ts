@@ -103,8 +103,9 @@ test("handler: mapped channel whose workspace still has repos/ -> migration refu
   });
   cap.stop();
   expect(reply).toContain("bun run migrate:locations");
-  // task.routed and task.refused both carry the routing channel.
-  for (const event of ["task.routed", "task.refused"])
-    expect(cap.lines.find((l) => l.event === event)).toMatchObject({ channelId: TEST_CHANNEL });
+  // task.routed carries the routing channel.
+  expect(cap.lines.find((l) => l.event === "task.routed")).toMatchObject({
+    channelId: TEST_CHANNEL,
+  });
   expect(env.db.query("SELECT count(*) AS n FROM turns").get()).toEqual({ n: 0 });
 });

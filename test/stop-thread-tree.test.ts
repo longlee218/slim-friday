@@ -39,7 +39,10 @@ test("/stop aborts the lead run + both task runs, clears the lead queue, cancels
   appendEvent(env.db, { id: "e-res", threadId: "st-th", kind: "result", payload: {} });
   const stopped: string[] = [];
 
-  const notice = stopThread(env.db, "st-th", "en", lead, { stop: (t) => void stopped.push(t) });
+  const notice = stopThread(env.db, "st-th", "en", lead, {
+    stop: (t) => void stopped.push(t),
+    busy: () => false,
+  });
 
   expect(notice.length).toBeGreaterThan(0);
   expect(lead.signal.aborted).toBe(true);

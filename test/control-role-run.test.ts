@@ -264,14 +264,14 @@ test("restart: an interrupted control turn is closed without a Continue button",
     threadId: CTRL,
     source: "discord",
     location: "*",
-    role: "assistant",
+    role: "lead",
   });
   insertTurn(s.env.db, {
     id: "t2",
     threadId: "T9",
     source: "discord",
     location: "*",
-    role: "assistant",
+    role: "lead",
   });
   interruptRunningTurns(s.env.db);
   const sent: string[] = [];

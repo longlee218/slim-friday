@@ -1,5 +1,5 @@
 import { MAX_TURNS } from "../../config/effort-mapping";
-import { type Route, resolveModel } from "../../config/model-routing";
+import type { Route } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
 import { threadLanguage } from "../../ingress/discord-components";
 import { renderUserNotice } from "../../ingress/user-copy";
@@ -18,7 +18,6 @@ import { askTimeoutControl, awaitingResult } from "./ask-timeout-control";
 import { ceilingRefusal, withSpent } from "./budget";
 import { firstPromptPrefix, withPrefix } from "./first-prompt-prefix";
 import { markWorking } from "./location-activity";
-import { ownerConfirm } from "./owner-confirm";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 import { roleScope } from "./role-scope";
 import { runExtraContext } from "./run-extra-context";
@@ -106,12 +105,9 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   // A fresh session (never while one lives) opens with the rollover seed + the channel digest, in its first user prompt.
   const prefix = s.sessionId ? "" : firstPromptPrefix(db, i, !role.background);
   const release = role.capabilities.includes("write") ? markWorking(s.cwd) : undefined;
-  let rerunModel: string | undefined; // model of the escalated re-run, when one ran
-  let rerunUsage: unknown; // usage of that re-run: identifies whether its result is the answer that was kept
   const titlePort = titlePortFor(i, deps.threadTitle); // none in a chat channel; gates the tool and its note
   const runOnce = (r?: Route, resumeId?: string) => {
     const route = i.route || r ? { ...i.route, ...r } : undefined;
-    if (r?.escalated) rerunModel = resolveModel(role, route ?? {}, config);
     const done = runAgent({
       role,
       // The owner's text (behind the fresh-session prefix; a resume or re-run adds none); internal notes go to extraContext.
@@ -141,7 +137,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       onControlEvent: (e) => supervisor.observe(e),
       onProgress: (text) => setProgressNote(i.turnId, text),
       skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
-      guard: guardFor(role, s.guard),
+      guard: guardFor(role, i.noSubagents ? { ...s.guard, subagents: false } : s.guard),
       extraContext: runExtraContext({ db, config, i, s, role, route, hasTitlePort: !!titlePort }),
       appServers: i.appServers,
       resume: resumeId,
@@ -157,31 +153,16 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
             gateway: approvals,
             askLimit: newAskLimit(role.limits.maxAsk),
             onAskTimeout: ctl.onAskTimeout,
+            askRelay: i.askRelay,
           }
         : undefined,
     });
-    if (r?.escalated) void done.then((x) => (rerunUsage = x.usage)).catch(() => undefined);
     return done;
   };
-  // An Opus escalation asks the owner first (buttons; fails closed).
-  const confirmOpus = () =>
-    ownerConfirm(approvals, {
-      kind: "escalate_opus",
-      turnId: i.turnId,
-      threadId: i.threadId,
-      summary: renderUserNotice({ kind: "label", state: "escalate-opus" }, language),
-      language,
-      signal: i.ac.signal,
-      onPosted: i.onVisible,
-    });
   const res = await answerOutput({
-    role,
-    config,
     run: runOnce,
     resume: s.sessionId,
     route: i.route,
-    confirmOpus,
-    awaitingOwner: () => !!awaiting,
     // Post-result boundary: a role that may have partly written (files, or an external side effect) is never re-run automatically.
     recover: (result, c) => {
       const decision = observeResult(result);
@@ -227,8 +208,6 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     ...res,
     cwd: s.cwd,
     location: known?.name ?? "*",
-    // The re-run model only when the re-run produced the kept answer (a failed re-run keeps the first one).
-    model: res.usage === rerunUsage ? rerunModel : undefined,
     ...(role.background && { skipThreadSession: true as const }),
   };
   if (awaiting) return awaitingResult(base, awaiting);

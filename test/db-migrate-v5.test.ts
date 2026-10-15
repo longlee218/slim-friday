@@ -10,7 +10,6 @@ import { hasTable } from "../src/storage/migrate";
 import { migrateV3 } from "../src/storage/migrate-v3-turns";
 import { migrateV4 } from "../src/storage/migrate-v4-drop-legacy-tables";
 import { migrateV5, probeFts5 } from "../src/storage/migrate-v5-thread-summaries";
-import { insertProposal } from "../src/storage/proposal-store";
 import { insertRunMessage } from "../src/storage/run-message-store";
 import { insertRun, insertToolCall } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
@@ -49,7 +48,7 @@ function seedEveryKeptTable(db: Database) {
 
 /** The rows of `seedEveryKeptTable`. */
 function seedRows(db: Database) {
-  insertTurn(db, { id: "t1", threadId: "th1", source: "test", location: "/r", role: "assistant" });
+  insertTurn(db, { id: "t1", threadId: "th1", source: "test", location: "/r", role: "lead" });
   insertRun(db, {
     id: "r1",
     turnId: "t1",
@@ -75,7 +74,9 @@ function seedRows(db: Database) {
     turnId: "t1",
   });
   insertApproval(db, { id: "a1", turnId: "t1", tool: "Bash", summary: "ls" });
-  insertProposal(db, { threadId: "th1", workspace: "main", role: "dev", brief: "b" });
+  db.query(
+    "INSERT INTO proposals (id, thread_id, workspace, role, brief, status, created_at) VALUES ('p1', 'th1', 'main', 'dev', 'b', 'pending', 1)",
+  ).run();
   insertRunMessage(db, { threadId: "th1", kind: "steer", content: "hi" });
 }
 

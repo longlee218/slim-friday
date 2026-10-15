@@ -5,6 +5,7 @@ import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { insertTurn } from "../src/storage/run-store";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { workersDone } from "./lead-harness";
 
 /** A role invented in the test: data only, no engine code behind it (read-only, foreground). */
 const PROBE: RoleDefinition = {
@@ -34,7 +35,7 @@ async function runProbe(role: RoleDefinition) {
       threadId: "th",
       source: "test",
       location: "location",
-      role: "assistant",
+      role: "lead",
     });
     const res = await runRole(
       {
@@ -85,23 +86,25 @@ test("a role whose data the engine cannot run fails closed, nothing is run", asy
   expect(env.db.query("SELECT COUNT(*) AS n FROM runs").get()).toEqual({ n: 0 });
 });
 
-test("the assistant is a role run by the same engine: its turn leaves a runs row", async () => {
+test("a dev worker is a role run by the same engine: its turn leaves a runs row", async () => {
   const env = makeEnv();
   const queryFn = (_a: unknown) =>
     (async function* () {
       yield initMsg;
       yield resultMsg();
     })();
-  const reply = await createTurnHandler({
-    db: env.db,
-    config: env.config,
-    queryFn: queryFn as never,
-  })({ source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th-qa", text: "where is x?" });
-  expect(reply).toContain("alpha is in a.txt:1");
+  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
+    source: "t",
+    channelId: TEST_CHANNEL,
+    userId: "u",
+    threadId: "th-dev",
+    text: "[dev] where is x?",
+  });
+  await workersDone(env.db);
   const task = env.db
     .query<{ id: string; role: string }, [string]>("SELECT id, role FROM turns WHERE thread_id = ?")
-    .get("th-qa");
-  expect(task?.role).toBe("assistant");
+    .get("th-dev");
+  expect(task?.role).toBe("dev");
   expect(env.db.query("SELECT outcome FROM runs WHERE turn_id = ?").all(task?.id ?? "")).toEqual([
     { outcome: "success" },
   ]);

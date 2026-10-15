@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { GLOB_TOOL_NAME, READ_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import { addLocation, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+import { runWorkerViaLead } from "./dev-worker-fixture";
+import { addLocation, makeEnv } from "./helpers";
 
 /** Write `<dir>/<name>/SKILL.md`. */
 function skill(dir: string, name: string): void {
@@ -14,9 +14,10 @@ function skill(dir: string, name: string): void {
 
 /**
  * Workspace `main` with curated skill `ws-skill` and locations a and b. Each location carries decoys: its own
- * `.claude/skills`, hooks, .mcp.json and a CLAUDE.md, none of which may reach the run. Runs one Q&A text.
+ * `.claude/skills`, hooks, .mcp.json and a CLAUDE.md, none of which may reach the run. Runs a scout (read-only worker)
+ * through the lead and captures its options and plugin dir listing while the run lives.
  */
-async function qa(text: string, fail = false) {
+async function qa(fail = false) {
   const env = makeEnv();
   skill(env.paths.workspace("main").skills, "ws-skill");
   for (const name of ["a", "b"]) {
@@ -27,65 +28,42 @@ async function qa(text: string, fail = false) {
     writeFileSync(join(location, ".mcp.json"), '{"mcpServers":{}}');
     writeFileSync(join(location, "CLAUDE.md"), "CLAUDE_BODY_MARK");
   }
-  let opts: any;
   let pluginDirs: string[] = [];
   let pluginFiles: string[] = [];
-  const queryFn = (a: any) => {
-    opts = a.options;
-    pluginDirs = (a.options.plugins ?? []).map((p: { path: string }) => p.path);
-    if (pluginDirs[0]) pluginFiles = readdirSync(pluginDirs[0], { recursive: true }) as string[];
-    return (async function* () {
-      if (fail) throw new Error("boom");
-      yield resultMsg();
-    })();
-  };
-  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "t1",
-    text,
+  const [opts] = await runWorkerViaLead(env, "scout", {
+    fail,
+    probe: async (o) => {
+      pluginDirs = (o.plugins ?? []).map((p: { path: string }) => p.path);
+      // The workspace plugin is the first one; the app-owned skills plugin follows.
+      if (pluginDirs[0]) pluginFiles = readdirSync(pluginDirs[0], { recursive: true }) as string[];
+    },
   });
   return { env, opts, pluginDirs, pluginFiles };
 }
 
-test("Q&A (pinned or not): one plugin with the workspace skills; location skills/hooks/CLAUDE.md never contribute", async () => {
-  for (const text of ["location:b where is x?", "where is x?"]) {
-    const { opts, pluginDirs, pluginFiles } = await qa(text);
-    expect(opts.skills).toEqual(["main:ws-skill"]);
-    expect(opts.plugins).toHaveLength(1);
-    expect(opts.settingSources).toEqual([]);
-    expect(opts.systemPrompt.append).not.toContain("CLAUDE");
-    expect(pluginFiles.some((f) => /sk-[ab]|hooks|mcp/.test(f))).toBe(false);
-    expect(pluginDirs.every((d) => !existsSync(d))).toBe(true); // removed after the run
-  }
+test("scout: one plugin with the workspace skills (plus the app's); location skills/hooks/CLAUDE.md never contribute", async () => {
+  const { opts, pluginDirs, pluginFiles } = await qa();
+  expect(opts.skills).toContain("main:ws-skill");
+  expect(opts.skills.some((n: string) => n.includes("sk-"))).toBe(false);
+  expect(opts.plugins).toHaveLength(2); // workspace plugin + the app-owned skills
+  expect(opts.settingSources).toEqual([]);
+  expect(opts.systemPrompt.append).not.toContain("CLAUDE_BODY_MARK");
+  expect(pluginFiles.some((f) => /sk-[ab]|hooks|mcp/.test(f))).toBe(false);
+  expect(pluginDirs.every((d) => !existsSync(d))).toBe(true); // removed after the run
 });
 
-test("a workspace without curated skills gets no plugin even when its locations have .claude/skills", async () => {
+test("a workspace without curated skills gets no workspace plugin even when its locations have .claude/skills", async () => {
   const env = makeEnv();
   const location = addLocation(env.home, "a");
   skill(join(location, ".claude", "skills"), "sk-a");
-  let opts: any;
-  const queryFn = (a: any) => {
-    opts = a.options;
-    return (async function* () {
-      yield resultMsg();
-    })();
-  };
-  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "t1",
-    text: "where is x?",
-  });
-  expect(opts.skills).toEqual([]);
-  expect(opts.plugins).toBeUndefined();
+  const [opts] = await runWorkerViaLead(env, "scout");
+  expect(opts.skills.some((n: string) => n.startsWith("main:") || n.includes("sk-a"))).toBe(false);
+  expect(opts.plugins).toHaveLength(1); // only the app-owned skills
 });
 
 test("plugin dirs are removed also when the run throws", async () => {
-  const { env, pluginDirs } = await qa("where is x?", true);
-  expect(pluginDirs).toHaveLength(1);
+  const { env, pluginDirs } = await qa(true);
+  expect(pluginDirs).toHaveLength(2);
   expect(pluginDirs.some((d) => existsSync(d))).toBe(false);
   expect(readdirSync(join(env.home, "tmp")).filter((n) => n.startsWith("plugin-"))).toEqual([]);
 });
@@ -101,10 +79,10 @@ test("guard: this run's plugin dirs are READ-only; another plugin dir and <home>
   mkdirSync(join(env.home, "tmp", "other"), { recursive: true });
   writeFileSync(join(env.home, "tmp", "other", "y.txt"), "y");
   const seen: string[] = [];
-  const queryFn = (a: any) =>
-    (async function* () {
-      const dir: string = a.options.plugins[0].path;
-      const can = (t: string, i: object) => a.options.canUseTool(t, i, {});
+  await runWorkerViaLead(env, "scout", {
+    probe: async (o) => {
+      const dir: string = o.plugins[0].path;
+      const can = (t: string, i: object) => o.canUseTool(t, i, {});
       const file = join(dir, "skills", "sk-a", "helper.sh");
       seen.push((await can(READ_TOOL_NAME, { file_path: file })).behavior);
       seen.push((await can(GLOB_TOOL_NAME, { pattern: "*", path: dir })).behavior);
@@ -114,14 +92,7 @@ test("guard: this run's plugin dirs are READ-only; another plugin dir and <home>
         (await can(READ_TOOL_NAME, { file_path: join(env.home, "tmp", "other", "y.txt") }))
           .behavior,
       );
-      yield resultMsg();
-    })();
-  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "t1",
-    text: "where is x?",
+    },
   });
   expect(seen).toEqual(["allow", "allow", "deny", "deny", "deny"]);
 });

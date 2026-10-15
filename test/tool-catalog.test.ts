@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
-import { ASSISTANT_ROLE } from "../src/roles/builtin/assistant-role";
 import { DEV_ROLE } from "../src/roles/builtin/dev-role";
+import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
+import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
 import * as sdkNames from "../src/tools/sdk-tool-names";
 import {
   AGENT_TOOL_NAME,
@@ -12,15 +13,11 @@ import {
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
   LIST_AGENTS_TOOL_NAME,
-  LIST_MCP_RESOURCES_TOOL_NAME,
   LSP_TOOL_NAME,
   MONITOR_TOOL_NAME,
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
-  READ_MCP_RESOURCE_DIR_TOOL_NAME,
-  READ_MCP_RESOURCE_TOOL_NAME,
   READ_TOOL_NAME,
-  REFRESH_MCP_TOOLS_TOOL_NAME,
   SEND_FEEDBACK_TOOL_NAME,
   SEND_MESSAGE_TOOL_NAME,
   SKILL_TOOL_NAME,
@@ -49,11 +46,12 @@ import {
   toolsFor,
 } from "../src/tools/tool-catalog";
 
-const ROLES = [ASSISTANT_ROLE, DEV_ROLE];
-const qaRole = ASSISTANT_ROLE;
+const ROLES = [LEAD_ROLE, SCOUT_ROLE, DEV_ROLE];
+/** The read-only worker: read + web + skills, no shell. */
+const qaRole = SCOUT_ROLE;
 const dev = DEV_ROLE;
 
-test("Q&A: read + web + skills + subagents; nothing that writes or runs commands", () => {
+test("scout: read + web + skills; nothing that writes or runs commands; depth 1 (no subagents)", () => {
   const t = toolsFor(qaRole);
   for (const x of [
     READ_TOOL_NAME,
@@ -62,19 +60,15 @@ test("Q&A: read + web + skills + subagents; nothing that writes or runs commands
     WEB_SEARCH_TOOL_NAME,
     WEB_FETCH_TOOL_NAME,
     SKILL_TOOL_NAME,
-    AGENT_TOOL_NAME,
   ])
     expect(t).toContain(x);
   for (const x of [WRITE_TOOL_NAME, EDIT_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME])
     expect(t).not.toContain(x);
-  for (const x of [BASH_TOOL_NAME, MONITOR_TOOL_NAME]) expect(t).toContain(x); // the shell capability
+  for (const x of [BASH_TOOL_NAME, MONITOR_TOOL_NAME, AGENT_TOOL_NAME]) expect(t).not.toContain(x);
 });
 
-test("dev gets the full toolset (no plan-mode tools); every role gets Agent and SendMessage", () => {
-  for (const role of ROLES)
-    expect(toolsFor(role)).toEqual(
-      expect.arrayContaining([AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME]),
-    );
+test("dev gets the full toolset (no plan-mode tools); a role without `noSubagents` gets Agent and SendMessage", () => {
+  expect(toolsFor(dev)).toEqual(expect.arrayContaining([AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME]));
   expect(toolsFor(dev)).not.toContain("ExitPlanMode");
   expect(toolsFor(dev)).not.toContain("EnterPlanMode");
   for (const x of [
@@ -99,12 +93,14 @@ test("dev gets the full toolset (no plan-mode tools); every role gets Agent and 
   ]) {
     expect(toolsFor(dev)).toContain(x);
   }
-  expect(toolsFor(dev)).not.toContain(WEB_FETCH_TOOL_NAME); // web stays the assistant's
+  expect(toolsFor(dev)).not.toContain(WEB_FETCH_TOOL_NAME); // web stays the scout's
 });
 
-test("every role gets the subagent tools (Agent, SendMessage, ListAgents) from toolsFor, whatever its capabilities", () => {
-  for (const m of ROLES)
+test("every role without `noSubagents` gets the subagent tools (Agent, SendMessage, ListAgents) from toolsFor, whatever its capabilities", () => {
+  for (const m of ROLES.filter((r) => !r.noSubagents))
     expect(toolsFor(m)).toEqual(expect.arrayContaining([...CAPABILITY_TOOLS.subagents]));
+  for (const m of ROLES.filter((r) => r.noSubagents))
+    for (const t of CAPABILITY_TOOLS.subagents) expect(toolsFor(m)).not.toContain(t);
   expect(CAPABILITY_TOOLS.subagents).toEqual([
     AGENT_TOOL_NAME,
     SEND_MESSAGE_TOOL_NAME,
@@ -137,14 +133,6 @@ test("auto-allowed tools are a subset of the role's tools and never include writ
     WEB_SEARCH_TOOL_NAME,
     WEB_FETCH_TOOL_NAME,
     SKILL_TOOL_NAME,
-    LIST_MCP_RESOURCES_TOOL_NAME,
-    READ_MCP_RESOURCE_TOOL_NAME,
-    READ_MCP_RESOURCE_DIR_TOOL_NAME,
-    REFRESH_MCP_TOOLS_TOOL_NAME,
-    WAIT_FOR_MCP_SERVERS_TOOL_NAME,
-    AGENT_TOOL_NAME,
-    SEND_MESSAGE_TOOL_NAME,
-    LIST_AGENTS_TOOL_NAME,
   ]);
   expect(autoAllowedTools(dev)).toContain(TASK_GET_TOOL_NAME);
   // Owner / guard decide these: never auto-allowed.
@@ -158,12 +146,15 @@ test("auto-allowed tools are a subset of the role's tools and never include writ
     expect(autoAllowedTools(dev)).not.toContain(t);
 });
 
+/** No built-in role lists the git read group any more; a role that does is built from the scout's data. */
+const gitReader = { ...SCOUT_ROLE, gitGroups: ["read" as const] };
+
 test("git tools: only reads (group read + by-mode reads), hidden = the complement; no role gets add/commit", () => {
   expect(Object.keys(GIT_GROUPS)).toEqual(["read"]);
   for (const t of [...GIT_GROUPS.read, ...Object.keys(GIT_READ_BY_MODE)])
-    expect(gitToolsFor(qaRole)).toContain(t);
+    expect(gitToolsFor(gitReader)).toContain(t);
   expect(gitToolsFor(dev)).toEqual(Object.keys(GIT_READ_BY_MODE)); // dev lists no git groups
-  for (const m of ROLES) {
+  for (const m of [...ROLES, gitReader]) {
     const hidden = hiddenGitTools(m);
     for (const t of gitToolsFor(m)) expect(hidden).not.toContain(mcpToolName(GIT_MCP_SERVER, t));
     for (const t of [
@@ -187,8 +178,9 @@ test("git tools: only reads (group read + by-mode reads), hidden = the complemen
 
 test("guardFor: one builder per role, auto-allowed tools from the catalog", () => {
   const qa = guardFor(qaRole, { readPaths: ["/r"], gitReadPaths: ["/r"] });
-  expect(qa.allowTools).toEqual(autoAllowedTools(qaRole));
-  expect(qa.writePaths).toBeUndefined(); // Q&A writes nothing
+  // the scout lists the worker server (its ReportResult tool): allowed next to the auto tools
+  expect(qa.allowTools).toEqual([...autoAllowedTools(qaRole), ...appMcpToolsFor(qaRole)]);
+  expect(qa.writePaths).toBeUndefined(); // a read-only role writes nothing
   const exec = guardFor(dev, {
     writePaths: ["/location", "/ws/worktrees"],
     readPaths: ["/location"],
@@ -212,16 +204,6 @@ test("options: tools from the catalog, no allowedTools, strict MCP", () => {
     WEB_SEARCH_TOOL_NAME,
     WEB_FETCH_TOOL_NAME,
     SKILL_TOOL_NAME,
-    LIST_MCP_RESOURCES_TOOL_NAME,
-    READ_MCP_RESOURCE_TOOL_NAME,
-    READ_MCP_RESOURCE_DIR_TOOL_NAME,
-    REFRESH_MCP_TOOLS_TOOL_NAME,
-    WAIT_FOR_MCP_SERVERS_TOOL_NAME,
-    BASH_TOOL_NAME,
-    MONITOR_TOOL_NAME,
-    AGENT_TOOL_NAME,
-    SEND_MESSAGE_TOOL_NAME,
-    LIST_AGENTS_TOOL_NAME,
   ]);
   expect("allowedTools" in o).toBe(false); // would bypass canUseTool
   expect(o.strictMcpConfig).toBe(true);
@@ -267,7 +249,7 @@ test("every declared SDK tool name belongs to exactly one capability (a new cons
   for (const t of owners.keys()) expect(Object.values<string>(sdkNames)).toContain(t);
 });
 
-test("the assistant has no write, feedback or task tools (it has Bash/Monitor); dev gets the full set", () => {
+test("the scout has no write, feedback, task or shell tools; dev gets the full set", () => {
   const qa = toolsFor(qaRole);
   for (const t of [
     MULTI_EDIT_TOOL_NAME,
@@ -277,7 +259,7 @@ test("the assistant has no write, feedback or task tools (it has Bash/Monitor); 
     SEND_FEEDBACK_TOOL_NAME,
   ])
     expect(qa).not.toContain(t);
-  expect(qa).toContain(MONITOR_TOOL_NAME);
+  expect(qa).not.toContain(MONITOR_TOOL_NAME);
   for (const t of [
     MULTI_EDIT_TOOL_NAME,
     NOTEBOOK_EDIT_TOOL_NAME,

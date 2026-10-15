@@ -14,11 +14,7 @@ import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { loadConfig } from "../src/config/agent-config";
 import { workspacePaths } from "../src/config/workspace-paths";
-import type { IntentDeps } from "../src/intent/decide-intent";
-import { loadLexicon } from "../src/intent/load-lexicon";
-import { createRoleTagRouter } from "../src/intent/role-tag";
 import { ensureHome } from "../src/memory/persona";
-import { ROLES } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
@@ -185,11 +181,6 @@ export function readLogLines(base: string): Record<string, unknown>[] {
   }
 }
 
-/** Intent layer with L0-L3 only (no L4 engine): a `[dev]` message opens a dev task straight through the dispatcher. */
-export const devIntent = (home: string): IntentDeps => ({
-  pipeline: { lexicon: loadLexicon(home), tagRouter: createRoleTagRouter(Object.values(ROLES)) },
-});
-
 /** A valid brief of a dev task (the owner's message, tagged so L3 routes it to the dev role). */
 export const BRIEF =
   "Add b.txt containing two. Findings: a.txt:1 holds one. Acceptance: file exists.";
@@ -220,22 +211,3 @@ export function twoWorkspaces() {
   ensureHome(env.home, scan.workspaces);
   return { env, a, b, scan };
 }
-
-/**
- * Test stand-in for the L3 model's reading of a yes / no: when a question is pending, a whole message that
- * agrees or declines gets `pendingAnswer`; everything else is `base` unchanged. (A fake of the LLM, not product
- * logic: the product never matches words.)
- */
-export const answering =
-  <T extends { pendingQuestion?: string; text: string }, R extends object>(base: R) =>
-  (i: T): R & { pendingAnswer?: "yes" | "no" } => {
-    const t = i.text.trim().toLowerCase();
-    const pendingAnswer = !i.pendingQuestion
-      ? undefined
-      : /^(yes|ok|okay|đồng ý)$/.test(t)
-        ? "yes"
-        : /^(no|khong|không|thôi)$/.test(t)
-          ? "no"
-          : undefined;
-    return { ...base, ...(pendingAnswer && { pendingAnswer }) };
-  };

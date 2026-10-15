@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ASSISTANT_ROLE } from "../src/roles/builtin/assistant-role";
 
 /** Every .ts file under `dir` (relative to the repo root), with its source. */
 function sources(dir: string): { file: string; text: string }[] {
@@ -42,10 +41,4 @@ test("src and test hold no name of the retired handoff tool (this file excepted)
     for (const [name, re] of Object.entries(RETIRED))
       if (re.test(f.text)) hits.push(`${f.file}: ${name}`);
   expect(hits).toEqual([]);
-});
-
-test("the assistant is a plain role: shell but no write or ask capability", () => {
-  for (const c of ["write", "ask"]) expect(ASSISTANT_ROLE.capabilities).not.toContain(c as never);
-  expect(ASSISTANT_ROLE.capabilities).toContain("shell");
-  expect(ASSISTANT_ROLE.gitGroups.join()).toBe("read");
 });

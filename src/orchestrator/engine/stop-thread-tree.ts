@@ -1,7 +1,10 @@
 import type { Database } from "bun:sqlite";
 import { logEvent, logger, tryLog } from "../../observability/logger";
+import { childrenOf } from "../../storage/owned-item-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { cancelStartEvents } from "../events/event-store";
+import { openGoalIdOf } from "./effect-port-queries";
+import { settleGoal } from "./goal-settle";
 import type { LeadQueue } from "./lead-queue";
 import { abortThreadTasks } from "./task-runs";
 
@@ -22,7 +25,14 @@ export function stopThreadTree(
   const aborted = abortThreadTasks(threadId);
   tryLog(log, "stop tree rows failed", () => {
     // `moveTaskTo` is a CAS and refuses a move out of a terminal state: an ended task keeps its status.
+    const goalId = openGoalIdOf(db, threadId); // read before the cancels: an all-ended goal no longer reads as open
     for (const h of aborted) moveTaskTo(db, h.taskId, "cancelled");
+    // Items of the open goal that never started (`pending` / `ready`) would start on the next dispatch pass: cancel them too.
+    if (goalId) {
+      for (const it of childrenOf(db, goalId))
+        if (it.status === "pending" || it.status === "ready") moveTaskTo(db, it.id, "cancelled");
+      settleGoal(db, goalId);
+    }
     cancelStartEvents(db, threadId);
   });
   if (aborted.length) logEvent(log, "stop.tree", { threadId, tasks: aborted.length });

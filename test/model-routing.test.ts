@@ -15,7 +15,7 @@ import { roleConfig } from "../src/runtime/sdk-options";
 import { makeEnv, resultMsg } from "./helpers";
 
 const cfg = (extra: Record<string, string> = {}) => loadConfig({ AGENT_HOME: "/h", ...extra });
-const assistant = getRole("assistant");
+const scout = getRole("scout");
 const dev = getRole("dev");
 const H = DEFAULT_TIER_MODELS.haiku;
 const S = DEFAULT_TIER_MODELS.sonnet;
@@ -66,9 +66,9 @@ describe("tier defaults and env", () => {
     const c = cfg({ MODEL: "m-qa", MODEL_DEV: "sonnet" });
     expect(c.deprecated).toEqual(["MODEL"]);
     expect(c.modelOverrides).toEqual({ dev: "sonnet" });
-    expect(resolveModel(assistant, {}, c)).toBe(H); // the role's own model, not MODEL
+    expect(resolveModel(scout, {}, c)).toBe(H); // the role's own model, not MODEL
     expect(resolveModel(dev, {}, c)).toBe(S);
-    expect(cfg({ MODEL: "m-qa", MODEL_ASSISTANT: "opus" }).modelOverrides.assistant).toBe("opus");
+    expect(cfg({ MODEL: "m-qa", MODEL_SCOUT: "opus" }).modelOverrides.scout).toBe("opus");
     expect(cfg().deprecated).toEqual([]);
     // CODE_MODEL is ignored now.
     expect(cfg({ CODE_MODEL: "x" }).deprecated).toEqual([]);
@@ -77,22 +77,19 @@ describe("tier defaults and env", () => {
 
 describe("resolveModel", () => {
   const c = cfg();
-  test("default map: assistant haiku; dev sonnet (opus for design)", () => {
-    expect(resolveModel(assistant, {}, c)).toBe(H);
+  test("default map: scout haiku; dev sonnet (opus for design)", () => {
+    expect(resolveModel(scout, {}, c)).toBe(H);
     expect(resolveModel(dev, { cls: "standard" }, c)).toBe(S);
     expect(resolveModel(dev, { cls: "mechanical" }, c)).toBe(S);
     expect(resolveModel(dev, {}, c)).toBe(S); // missing class = standard
     expect(resolveModel(dev, { cls: "design" }, c)).toBe(O);
   });
-  test("assistant class tiers: mechanical / standard haiku, design sonnet, no class = role model", () => {
-    expect(resolveModel(assistant, { cls: "mechanical" }, c)).toBe(H);
-    expect(resolveModel(assistant, { cls: "standard" }, c)).toBe(H);
-    expect(resolveModel(assistant, { cls: "design" }, c)).toBe(S);
-    expect(resolveModel(assistant, {}, c)).toBe(H);
-    // env pin still wins over the class; a forced tier and effort beat the class
-    expect(resolveModel(assistant, { cls: "design" }, cfg({ MODEL_ASSISTANT: "haiku" }))).toBe(H);
-    expect(resolveModel(assistant, { cls: "design", tier: "haiku" }, c)).toBe(H);
-    expect(resolveModel(assistant, { cls: "standard", effort: "medium" }, c)).toBe(S);
+  test("a role without classTiers keeps its own model for every class; a forced tier and effort beat the class", () => {
+    for (const cls of ["mechanical", "standard", "design"] as const)
+      expect(resolveModel(scout, { cls }, c)).toBe(H);
+    expect(resolveModel(scout, {}, c)).toBe(H);
+    expect(resolveModel(scout, { cls: "design", tier: "haiku" }, c)).toBe(H);
+    expect(resolveModel(scout, { cls: "standard", effort: "medium" }, c)).toBe(S);
   });
   test("effort: low haiku, medium sonnet, high by class, max opus", () => {
     expect(effortTier("low")).toBe("haiku");
@@ -101,33 +98,32 @@ describe("resolveModel", () => {
     expect(effortTier("high", "design")).toBe("opus");
     expect(effortTier("max")).toBe("opus");
     expect(resolveModel(dev, { cls: "standard", effort: "low" }, c)).toBe(H);
-    expect(resolveModel(assistant, { effort: "medium" }, c)).toBe(S);
+    expect(resolveModel(scout, { effort: "medium" }, c)).toBe(S);
   });
   test("precedence: env pin > forced tier > effort > class", () => {
-    expect(resolveModel(assistant, { tier: "sonnet", effort: "low" }, c)).toBe(S);
-    expect(resolveModel(assistant, { tier: "sonnet" }, cfg({ MODEL_ASSISTANT: "opus" }))).toBe(O);
+    expect(resolveModel(scout, { tier: "sonnet", effort: "low" }, c)).toBe(S);
+    expect(resolveModel(scout, { tier: "sonnet" }, cfg({ MODEL_SCOUT: "opus" }))).toBe(O);
     expect(resolveModel(dev, { cls: "design" }, cfg({ MODEL_DEV: "claude-x" }))).toBe("claude-x");
   });
   test("openrouter: tiers unused; env pin > the role's openrouterModel > the one default model", () => {
     const key = `sk-or-v1-${"a1b2c3d4".repeat(8)}`;
     const or = cfg({ OPENROUTER_API_KEY: key });
-    expect(resolveModel(assistant, { tier: "opus" }, or)).toBe(or.model);
+    expect(resolveModel(scout, { tier: "opus" }, or)).toBe(or.model);
     expect(resolveModel(dev, { cls: "design" }, or)).toBe("anthropic/claude-haiku-4.5");
     const pinned = cfg({ OPENROUTER_API_KEY: key, MODEL_DEV: "x/y" });
     expect(resolveModel(dev, {}, pinned)).toBe("x/y");
-    expect(resolveModel(assistant, {}, pinned)).toBe(pinned.model);
+    expect(resolveModel(scout, {}, pinned)).toBe(pinned.model);
   });
 });
 
 describe("resolveBudget", () => {
   test("role defaults replace the global cap; MAX_BUDGET_USD is a cap", () => {
     const c = cfg();
-    expect([assistant, dev].map((r) => resolveBudget(r, {}, c))).toEqual([1, 4.5]);
+    expect([scout, dev].map((r) => resolveBudget(r, {}, c))).toEqual([0.75, 4.5]);
     expect(resolveBudget(dev, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(2);
-    expect(resolveBudget(assistant, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(1);
+    expect(resolveBudget(scout, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(0.75);
   });
-  test("escalated assistant 2.5; env pin; owner raise; the task ceiling limits both", () => {
-    expect(resolveBudget(assistant, { escalated: true }, cfg())).toBe(2.5);
+  test("env pin; owner raise; the task ceiling limits both", () => {
     expect(resolveBudget(dev, {}, cfg({ BUDGET_DEV_USD: "4" }))).toBe(4);
     expect(resolveBudget(dev, { extraBudgetUsd: 1.0 }, cfg())).toBe(5.5);
     expect(resolveBudget(dev, { extraBudgetUsd: 3 }, cfg())).toBe(6); // TASK_BUDGET_USD
@@ -143,10 +139,10 @@ describe("resolveBudget", () => {
 describe("opus guard (defense in depth)", () => {
   const c = cfg();
   test("effort max / tier opus resolve to Opus only with ownerConfirmedMax; else capped at high", () => {
-    expect(resolveModel(assistant, { effort: "max" }, c)).toBe(S);
-    expect(resolveModel(assistant, { effort: "max", ownerConfirmedMax: true }, c)).toBe(O);
-    expect(resolveModel(assistant, { tier: "opus" }, c)).toBe(S);
-    expect(resolveModel(assistant, { tier: "opus", ownerConfirmedMax: true }, c)).toBe(O);
+    expect(resolveModel(scout, { effort: "max" }, c)).toBe(S);
+    expect(resolveModel(scout, { effort: "max", ownerConfirmedMax: true }, c)).toBe(O);
+    expect(resolveModel(scout, { tier: "opus" }, c)).toBe(S);
+    expect(resolveModel(scout, { tier: "opus", ownerConfirmedMax: true }, c)).toBe(O);
     // design: the cap is the high tier of the class (opus already by the table)
     expect(resolveModel(dev, { cls: "design", effort: "max" }, c)).toBe(O);
   });
@@ -159,9 +155,7 @@ describe("opus guard (defense in depth)", () => {
     expect(safeEffort({})).toBeUndefined();
   });
   test("tier lookup ignores prototype keys", () => {
-    expect(resolveModel(assistant, {}, cfg({ MODEL_ASSISTANT: "constructor" }))).toBe(
-      "constructor",
-    );
+    expect(resolveModel(scout, {}, cfg({ MODEL_SCOUT: "constructor" }))).toBe("constructor");
   });
 });
 
@@ -191,7 +185,7 @@ describe("effort knobs", () => {
       runAgent({
         prompt: "q",
         turnId: "t",
-        role: assistant,
+        role: scout,
         cwd: env.home,
         config: env.config,
         db: env.db,

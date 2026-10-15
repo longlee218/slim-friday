@@ -190,13 +190,13 @@ test("the workspace dir (extra) gets its own plugin next to the publisher one; s
   only.cleanup();
 });
 
-test("dev loads every installed skill, the assistant none; a role without `skills` loads none", () => {
+test("dev loads every installed skill, the lead none; a role without `skills` loads none", () => {
   const names = (role: RoleDefinition) => {
     const r = buildRoleSkills(role, "main", homeWith());
     r.cleanup();
     return [...r.skills].sort();
   };
   expect(names(ROLES.dev as RoleDefinition)).toEqual([...INSTALLED].sort());
-  expect(names(ROLES.assistant as RoleDefinition)).toEqual([]);
+  expect(names(ROLES.lead as RoleDefinition)).toEqual([]);
   expect(names({ ...(ROLES.dev as RoleDefinition), skills: undefined })).toEqual([]);
 });

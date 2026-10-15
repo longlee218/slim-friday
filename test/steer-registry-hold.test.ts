@@ -56,8 +56,8 @@ test("no running task, or a role that reads no steers: nothing is held (none)", 
   const reg = createSteerRegistry(env.db);
   expect(reg.canTake("th")).toBe(false);
   expect(reg.steer(TH, "x").result).toBe("none");
-  insertTurn(env.db, { id: "a1", threadId: "th", source: "t", location: "r", role: "assistant" });
-  expect(reg.canTake("th")).toBe(false); // the assistant reads no steers
+  insertTurn(env.db, { id: "a1", threadId: "th", source: "t", location: "r", role: "lead" });
+  expect(reg.canTake("th")).toBe(false); // the lead reads no steers
   expect(reg.steer(TH, "y").result).toBe("none");
   expect(listRunMessages(env.db, "th").map((r) => r.status)).toEqual(["skipped", "skipped"]);
   finishTurn(env.db, "a1", "done");

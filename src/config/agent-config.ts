@@ -1,17 +1,10 @@
 import type { Logger } from "pino";
 import { z } from "zod";
-import { DEFAULT_TIER_MODELS, type ModelTier, specToId } from "./model-routing";
+import { DEFAULT_TIER_MODELS, type ModelTier } from "./model-routing";
 import { type RoutingEnv, readRoutingEnv } from "./role-env";
 
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
-
-/**
- * Default `INTENT_ENGINE`. OWNER STEP (reliable handoff phase 9): flip to "jev" ONLY after the paid golden gate passed
- * (live Jev run >= Haiku run on role accuracy, no code request routed to a non-dev role, no act-band misroute) and the
- * owner approved. This is the single place to change; then update the tests that pin the legacy order to `haiku`.
- */
-export const DEFAULT_INTENT_ENGINE: "haiku" | "jev" | "none" = "haiku";
 
 /** Default `model` on the Anthropic path (Haiku tier). Roles resolve their own model (model-routing.ts); this one is the default model slot of the SDK env. */
 const DEFAULT_MODEL = DEFAULT_TIER_MODELS.haiku;
@@ -59,20 +52,12 @@ const envSchema = z.object({
   GIT_AUTHOR: z.string().trim().min(1).optional(), // accepted and IGNORED since Rev 15 (the agent uses the owner's git config)
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
-  // Intent layer (src/intent). `jev` = TypeSafe System One proposer first, Haiku L3 as the fallback.
-  INTENT_ENGINE: z.enum(["haiku", "jev", "none"]).default(DEFAULT_INTENT_ENGINE),
-  MODEL_INTENT: z.string().trim().min(1).optional(),
-  INTENT_BUDGET_USD: z.coerce.number().positive().default(0.02),
-  INTENT_TIMEOUT_MS: z.coerce.number().int().min(8000).default(20000),
   // TypeSafe System One (Jev) key, passed explicitly to its client. Placeholder / `sk_` stub = no key (Haiku only).
   JEV_API_KEY: secret,
 });
 
 /** Names of the env variables the app itself reads: each must be classified in `data/child-env-deny.yaml`. */
 export const ENV_SCHEMA_KEYS: string[] = Object.keys(envSchema.shape);
-
-/** Engines of the intent layer's L3 classifier (`none` = rules L0-L2 only). */
-export type IntentEngine = "haiku" | "jev" | "none";
 
 /** Validated, typed config used across the app. Contains secrets: never log it whole. */
 /** `compactOverrides` (env COMPACT_WINDOW_<ROLE>) is declared with the other routing env in role-env.ts. */
@@ -107,12 +92,8 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   memoryModel: string;
   /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the role budget; OpenRouter: only this). */
   limits: { maxBudgetUsd: number | undefined; timeoutMs: number };
-  /** Intent layer L3: engine, model id (MODEL_INTENT, tier-resolvable), per-call budget and timeout. */
+  /** Jev (TypeSafe System One, parked: not wired while the lead is the only router). */
   intent: {
-    engine: IntentEngine;
-    model: string;
-    budgetUsd: number;
-    timeoutMs: number;
     /** Real JEV_API_KEY or undefined (missing / placeholder / `sk_` stub). Never log. */
     jevApiKey?: string | undefined;
   };
@@ -169,13 +150,6 @@ export function loadConfig(
       timeoutMs: e.TIMEOUT_MS,
     },
     intent: {
-      engine: e.INTENT_ENGINE,
-      // A tier name (haiku|sonnet|opus) resolves to its id on Anthropic; OpenRouter takes the id as is.
-      model: isOpenrouter
-        ? (e.MODEL_INTENT ?? DEFAULT_OPENROUTER_MEMORY_MODEL)
-        : specToId(e.MODEL_INTENT ?? "haiku", routing),
-      budgetUsd: e.INTENT_BUDGET_USD,
-      timeoutMs: e.INTENT_TIMEOUT_MS,
       jevApiKey:
         isPlaceholder(e.JEV_API_KEY) || e.JEV_API_KEY === JEV_KEY_STUB ? undefined : e.JEV_API_KEY,
     },

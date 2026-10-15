@@ -15,16 +15,12 @@ import { createOpsLog } from "./discord-setup/ops-log";
 import { warnIfBotAdministrator } from "./discord-setup/ready-checks";
 import { warnOpsChannelsInWorkspaces } from "./discord-setup/warn-ops-channels";
 import { createDiscordBot } from "./ingress/discord-bot";
+import { threadLanguage } from "./ingress/discord-components";
+import { sendReply } from "./ingress/discord-message-handler";
 import { createMessageReactionPort } from "./ingress/message-reaction";
 import { createThreadTitlePort } from "./ingress/thread-rename";
 import { createThreadsPort } from "./ingress/threads-port";
-import { buildIntentDeps } from "./intent/intent-deps";
 import { homePlacementError } from "./lifecycle/home-placement-check";
-import {
-  expireStaleProposals,
-  postProposalNotices,
-  releaseQueuedProposals,
-} from "./lifecycle/proposal-notices";
 import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
@@ -108,18 +104,8 @@ async function main(): Promise<void> {
   }
   // A crash leaves tasks "running"/"waiting_approval": they become "interrupted" (Resume button once ready), each
   // running owned task is announced by a `recovered_after_restart` event, stale event claims are released.
-  recoverInFlight(db);
-  expireStaleProposals(db); // open proposals older than 24h; the rest get a `go` notice once ready
-  const queuedThreads = releaseQueuedProposals(db); // queued tasks lost their run: back to `go`
+  const recovery = recoverInFlight(db);
   await runStartupHygiene(db, config.agentHome);
-  // Fail closed: an invalid lexicon override, or a duplicate role tag refuse the start.
-  let intent: ReturnType<typeof buildIntentDeps>;
-  try {
-    intent = buildIntentDeps(config);
-  } catch (err) {
-    db.close();
-    return fail(errText(err));
-  }
   // Client is created after the handler, so the gateway looks it up lazily.
   let botClient: Client | undefined;
   const approvals = createDiscordApprovalGateway({
@@ -132,9 +118,13 @@ async function main(): Promise<void> {
     config,
     approvals,
     limiter: createRunLimiter(),
-    intent,
     threadTitle: createThreadTitlePort(() => botClient),
     messageReaction: createMessageReactionPort(() => botClient),
+    // The lead's boot wake has no owner message to answer through: post into the thread by id.
+    post: async (threadId, text) => {
+      const channel = await botClient?.channels.fetch(threadId);
+      if (channel?.isSendable()) await sendReply(channel, text, threadLanguage(db, threadId));
+    },
   });
   const threadsPort = createThreadsPort(db, config.agentHome);
   const handleResume = createResumeHandler({
@@ -161,12 +151,12 @@ async function main(): Promise<void> {
   // One #ops-log line per start / shutdown / uncaught error; no-op without ops.log in discord.yaml.
   const opsLog = createOpsLog(() => botClient, setup.ops.log);
   client.once(Events.ClientReady, () => {
+    handleMessage.wake(recovery); // threads with undelivered work wake their lead
     void postResumeNotices({
       db,
       getClient: () => botClient,
       isControlChannel: (id) => setup.controlChannels.includes(id),
     });
-    void postProposalNotices({ db, getClient: () => botClient, queuedThreads });
     warnIfBotAdministrator(client, config.discordGuildId);
     void syncChannelTopics(client, config.agentHome, opsIds(setup)); // never blocks the start
     void opsLog.post("start", `pid=${process.pid} v${pkg.version}`);
@@ -217,7 +207,6 @@ async function main(): Promise<void> {
   logEvent(log, "app.started", {
     provider: config.provider,
     model: config.model,
-    intentEngine: config.intent.engine,
     agentHome: config.agentHome,
     pid: process.pid,
   });

@@ -41,5 +41,5 @@ export function runExtraContext(p: {
         : buildLocationsContext(i.workspace, s.scope, role.background),
     memoryLocations: s.scope.map((r) => r.name),
     ledger: i.ledger,
-  }).concat(hint, threadTitleNote(db, i.threadId, p.hasTitlePort));
+  }).concat(hint, threadTitleNote(db, i.threadId, p.hasTitlePort), i.extraSystem ?? []);
 }

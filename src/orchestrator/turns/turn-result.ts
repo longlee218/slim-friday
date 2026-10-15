@@ -5,10 +5,13 @@ import { excerpt, logEvent, logger } from "../../observability/logger";
 import type { RunOutcome, RunUsage } from "../../observability/record-run";
 import { redactText } from "../../observability/redact";
 import type { RunAgentResult } from "../../runtime/run-agent";
+import type { ResultKind } from "../../storage/owned-item-store";
+import { ownedTaskOfTurn } from "../../storage/owned-task-store";
 import { finishTurn, setTurnStatus, type TurnStatus, turnStatusOf } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
-import { settleTaskAfterTurn } from "../../tasks/task-resolver";
+import { moveTaskTo, settleTaskAfterTurn } from "../../tasks/task-resolver";
 import { budgetHitReply } from "../engine/budget";
+import { STATUS_OF_RESULT } from "../strategy/typed-result";
 import { saveResultFile } from "./result-file-save";
 import { checkRunOutcome } from "./run-outcome-check";
 import { requestRollover } from "./thread-rollover";
@@ -39,6 +42,8 @@ export interface FlowResult
   keepSession?: boolean;
   /** Do not save this run's session as the thread's (a background run in the location itself: a later assistant message in the thread must not resume it). */
   skipThreadSession?: true;
+  /** The session is the lead's (stored with `kind='lead'` and the run's model): set by the lead runner only. */
+  sessionKind?: "lead";
   /** Model of an escalated re-run (the first run's model is then not the one that answered). */
   model?: string;
   /** Set by the role runner: the failure qualifies for `failed_resumable` (its session is kept). */
@@ -70,10 +75,6 @@ const RESUMABLE_WHEN: ReadonlyArray<readonly [ResumeReason, (r: FlowResult) => b
 /** The reason a failed run can be resumed, or undefined (stop, restart, timeout and quota do not qualify). */
 export const resumeReasonOf = (r: FlowResult): ResumeReason | undefined =>
   RESUMABLE_WHEN.find(([, when]) => when(r))?.[0];
-
-/** The question L3 reads the owner's next message against (same words as the notice of the failure). */
-export const resumeQuestion = (): string =>
-  renderUserNotice({ kind: "decision", state: "resume" }, "en");
 
 /** Map run outcome to the task status stored in db. */
 const TURN_STATUS: Record<string, TurnStatus> = {
@@ -112,6 +113,7 @@ export function finishRun(
       sessionId: res.sessionId,
       location: res.location ?? "*",
       cwd: res.cwd,
+      ...(res.sessionKind && { kind: res.sessionKind, model: res.model }),
     });
     logEvent(log, "session.saved", { location: res.location ?? "*", sessionId: res.sessionId });
     // Context over the share of the model window: the handler rolls the thread after the reply is posted.
@@ -123,6 +125,8 @@ export function finishRun(
     res.resumable ? "failed_resumable" : (TURN_STATUS[res.outcome] ?? "failed"),
   );
   if (res.outcome === "max_budget") return budgetHitReply(res, language);
+  // A lead run may answer with tool calls only (it dispatched, forwarded, or has nothing to add): say nothing then.
+  if (res.sessionKind === "lead" && res.outcome === "success" && !res.text.trim()) return "";
   // Unknown failure text may be an SDK exception. Keep it in the audit/log path, never guess a cause from it.
   const unknownError = res.outcome === "error" && !res.refusal;
   if (unknownError) logEvent(log, "run.failed", { reason: "error", detail: redactText(res.text) });
@@ -159,6 +163,8 @@ export function closeTurn(
     language: OwnerLanguage;
     /** AGENT_HOME: where the result file of a task run goes (absent = no file). */
     agentHome?: string;
+    /** Typed result the worker reported: it settles the task (over the derived status) when the turn ended `done`. */
+    resultKind?: ResultKind;
   },
 ): string {
   let reply = finishRun(db, ids, res, o.language);
@@ -169,8 +175,12 @@ export function closeTurn(
   if (check.undelivered)
     reply = `${reply}\n\n${renderUserNotice({ kind: "note", state: "no-delivery" }, o.language)}`;
   // The owned task follows the turn's final status (no-op for a turn that owns none).
-  settleTaskAfterTurn(db, ids.turnId, status, check.undelivered || check.parkTask);
-  if (o.agentHome) saveResultFile(db, o.agentHome, ids.turnId, status, res.outcome, reply);
+  const taskId = ownedTaskOfTurn(db, ids.turnId);
+  if (o.resultKind && status === "done" && taskId)
+    moveTaskTo(db, taskId, STATUS_OF_RESULT[o.resultKind]);
+  else settleTaskAfterTurn(db, ids.turnId, status, check.undelivered || check.parkTask);
+  if (o.agentHome)
+    saveResultFile(db, o.agentHome, ids.turnId, status, res.outcome, reply, o.resultKind);
   logEvent(log, "task.finished", {
     location: res.location && res.location !== "*" ? res.location : o.location,
     outcome: res.outcome,

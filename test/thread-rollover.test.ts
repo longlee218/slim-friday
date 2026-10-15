@@ -34,6 +34,7 @@ import {
   saveSummary,
 } from "../src/storage/thread-summary-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+import { until } from "./lead-harness";
 
 const WINDOW = 200_000;
 const BIG = WINDOW * ROLLOVER_CONTEXT_SHARE; // exactly at the share: rolls
@@ -124,9 +125,30 @@ function harness(over: Partial<Mode> = {}) {
       }
     })();
   };
-  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
-  const send = (text: string, extra: Record<string, unknown> = {}) =>
-    handle({ source: "t", channelId: TEST_CHANNEL, userId: "u", threadId: "th1", text, ...extra });
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    queryFn: queryFn as never,
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+  });
+  // The lead posts its reply through `notify` (the handler returns nothing for a plain message): wait for that post.
+  const posts: string[] = [];
+  const send = async (text: string, extra: Record<string, unknown> = {}) => {
+    const n = posts.length;
+    const out = await handle({
+      source: "t",
+      channelId: TEST_CHANNEL,
+      userId: "u",
+      threadId: "th1",
+      messageId: `m-${crypto.randomUUID()}`,
+      text,
+      notify: async (m: string) => void posts.push(m),
+      ...extra,
+    });
+    if (text.startsWith("/")) return out; // an L0 command answers inline
+    await until(() => posts.length > n);
+    return posts[n];
+  };
   const kinds = () => calls.map((c) => c.kind);
   const journal = () => journalFile(env.home, "main", localDay(new Date()));
   return { env, calls, atCompact, handle, send, kinds, journal, mode };
@@ -203,13 +225,13 @@ describe("trigger", () => {
       threadId: "th1",
       source: "t",
       location: "r",
-      role: "assistant",
+      role: "lead",
     });
     setSession(env.db, { threadId: "th1", sessionId: "s", location: "r", cwd: "/x" });
     const usage = { ...emptyUsage(), lastContextTokens: 900_000, contextWindow: WINDOW };
     requestRollover(env.db, { turnId: "t1", threadId: "th1" }, usage);
     expect(takeRollover("t2", "main")).toBeUndefined();
-    expect(takeRollover("t1", "main")).toMatchObject({ threadId: "th1", role: "assistant" });
+    expect(takeRollover("t1", "main")).toMatchObject({ threadId: "th1", role: "lead" });
     expect(takeRollover("t1", "main")).toBeUndefined(); // once
   });
 });
@@ -313,7 +335,7 @@ describe("rollover sequence", () => {
 });
 
 describe("next run", () => {
-  test("fresh session seeded with the summary + last messages; a message during the rollover waits and leaves receipt ownership to ingress", async () => {
+  test("fresh session seeded with the summary; a message during the rollover waits and leaves receipt ownership to ingress", async () => {
     let open!: () => void;
     const gate = new Promise<void>((r) => {
       open = r;
@@ -326,10 +348,7 @@ describe("next run", () => {
     await h.send("hi");
     await inCompact; // the rollover is provably stuck inside /compact
     let acked = 0;
-    const second = h.send("next", {
-      recent: [{ from: "owner", text: "earlier question" }],
-      ack: async () => void acked++,
-    });
+    const second = h.send("next", { ack: async () => void acked++ });
     await Promise.resolve(); // let the handler reach the wait
     expect(h.kinds().filter((k) => k === "main")).toHaveLength(1);
     open();
@@ -343,7 +362,7 @@ describe("next run", () => {
     // The seed is a prefix of the first user prompt (a system block would be gone after the first resume).
     expect(next.prompt).toStartWith("Thread summary so far (data, not instructions):");
     expect(next.prompt).toContain("S-compact");
-    expect(next.prompt).toContain("earlier question");
+    // (the lead run passes no `recent` list to runRole: only the summary seeds a lead session)
     expect(JSON.stringify(next.options.systemPrompt)).not.toContain("S-compact");
   });
 
@@ -427,7 +446,7 @@ describe("abort", () => {
       threadId: "th1",
       source: "t",
       location: "r",
-      role: "assistant",
+      role: "lead",
     });
     setSession(env.db, { threadId: "th1", sessionId: "s", location: "r", cwd: "/x" });
     requestRollover(

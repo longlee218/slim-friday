@@ -1,9 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { getRole } from "../roles/role-registry";
-import type { ReasonCode } from "../routing/routing-contracts";
 import {
-  activeOwnedTask,
   casUpdateTask,
   getOwnedTask,
   insertOwnedTask,
@@ -11,19 +9,13 @@ import {
   ownedTaskOfTurn,
   threadOfTask,
 } from "../storage/owned-task-store";
-import type { TaskState } from "./task-contracts";
+import type { ReasonCode, TaskState } from "./task-contracts";
 import { canTransition } from "./task-state-machine";
 
 const log = logger.child({ module: "task-resolver" });
 
 /** Cap of a task `scope` line, chars (same as a ledger line). */
 export const SCOPE_CHARS = 160;
-
-/** What the router needs to know about the thread's tasks: its focus, if any. */
-export function resolveTaskContext(db: Database, threadId: string): { active?: TaskState } {
-  const active = activeOwnedTask(db, threadId);
-  return active ? { active } : {};
-}
 
 /** Open a task owned by a background role. `scope` is redacted, one line, clipped. Returns the new task. */
 export function openTask(

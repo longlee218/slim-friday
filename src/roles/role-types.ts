@@ -18,8 +18,6 @@ export type Capability =
 export interface PromptCtx {
   /** Where the agent puts a git worktree it creates (`<workspace worktrees dir>/<location>`); omitted = no line. */
   worktreesDir?: string;
-  /** Answer run on a cheaper tier: the tiers the `ESCALATE: <tier>` rule offers (empty/omitted = no rule; never on an escalated run). */
-  escalationTiers?: ("sonnet" | "opus")[];
 }
 
 /**
@@ -48,10 +46,6 @@ export interface RoleDefinition {
    * busy thread, and works in a location; the owner steers it. Not background = a short foreground answer (plus the side lane).
    */
   background: boolean;
-  /** The role a plain message starts, until the intent layer picks one (exactly one role sets it). */
-  entry?: boolean;
-  /** The cheap-tier answer may end in `ESCALATE: sonnet|opus` and be re-run on that tier. */
-  escalation?: boolean;
   /** Extra context the role's runs get. Omitted = none. */
   context?: {
     /** On an idle thread the run sees the thread's task ledger (earlier tasks). */
@@ -85,8 +79,6 @@ export interface RoleDefinition {
   openrouterModel?: string;
   /** Default budget (USD) of one run (env BUDGET_<ROLE>_USD overrides). */
   budgetUsd: number;
-  /** Budget of an escalated re-run (`escalation` roles only). Omitted = `budgetUsd`. */
-  escalatedBudgetUsd?: number;
   /**
    * Streaming input: the run takes the owner's later messages while it works ("steer"). Omitted = a string prompt, no
    * steer (a short answer). Data, so any role can opt in; the engine reads no role name.

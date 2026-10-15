@@ -27,21 +27,6 @@ export function setTurnLocation(db: Database, id: string, location: string): voi
   db.query("UPDATE turns SET location = ? WHERE id = ?").run(location, id);
 }
 
-/** Nothing is left to resume in this thread (no saved session): its `failed_resumable` task becomes `failed`. */
-export function dropResumable(db: Database, threadId: string): boolean {
-  // An `interrupted` task that was resumed is taken over too (no second restart notice).
-  db.query(
-    "UPDATE turns SET status = 'cancelled' WHERE thread_id = ? AND status = 'interrupted'",
-  ).run(threadId);
-  return (
-    db
-      .query(
-        "UPDATE turns SET status = 'failed' WHERE thread_id = ? AND status = 'failed_resumable'",
-      )
-      .run(threadId).changes > 0
-  );
-}
-
 /** Record the Claude session of a turn (reported at `system/init`) and the cwd it runs in. */
 export function setTurnSession(db: Database, id: string, sessionId: string, cwd: string): void {
   db.query("UPDATE turns SET session_id = ?, session_cwd = ? WHERE id = ?").run(sessionId, cwd, id);
@@ -54,44 +39,6 @@ export function turnSessionId(db: Database, id: string): string | undefined {
       .query<{ session_id: string | null }, [string]>("SELECT session_id FROM turns WHERE id = ?")
       .get(id)?.session_id ?? undefined
   );
-}
-
-/** Latest turn of a thread with the session it recorded (what Resume continues), or null. */
-export function latestTurnSession(
-  db: Database,
-  threadId: string,
-): {
-  id: string;
-  status: string;
-  location: string;
-  /** Role that ran it (a Resume starts the same role again). */
-  role: string;
-  sessionId: string | null;
-  cwd: string | null;
-  /** The task's last run ended on its budget (`go +<usd>` may resume it). */
-  budgetStopped: boolean;
-} | null {
-  const row = db
-    .query<
-      {
-        id: string;
-        status: string;
-        location: string;
-        role: string;
-        sessionId: string | null;
-        cwd: string | null;
-        outcome: string | null;
-      },
-      [string]
-    >(
-      `SELECT id, status, location, role, session_id AS sessionId, session_cwd AS cwd,
-         (SELECT r.outcome FROM runs r WHERE r.turn_id = turns.id ORDER BY r.rowid DESC LIMIT 1) AS outcome
-       FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1`,
-    )
-    .get(threadId);
-  if (!row) return null;
-  const { outcome, ...rest } = row;
-  return { ...rest, budgetStopped: outcome === "max_budget" };
 }
 
 /** Status of a turn row, or "" when the row is missing. */

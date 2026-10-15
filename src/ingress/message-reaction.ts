@@ -1,7 +1,6 @@
-import type { Client, Message } from "discord.js";
+import type { Client } from "discord.js";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { STEER_DONE_EMOJI } from "./discord-send";
 
 /** Reaction put on an owner message once the agent has READ it (the SDK replayed the steer): the quiet delivered receipt. */
 // Not 👀: that is the busy receipt (`BUSY_ACK_EMOJI`), removed by the receipt on the same message. Owner may change it.
@@ -35,12 +34,3 @@ export function createMessageReactionPort(
     },
   };
 }
-
-/**
- * The done reaction for a repeated steer notice, as a callback safe on any `Message`: a slash interaction's stand-in
- * message has no `react`, so it resolves to nothing instead of throwing.
- */
-export const reactDoneOf =
-  (msg: Message): (() => Promise<unknown>) =>
-  async () =>
-    msg.react?.(STEER_DONE_EMOJI);

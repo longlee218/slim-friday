@@ -1,17 +1,16 @@
 import { expect, test } from "bun:test";
-import type { TaskState } from "../src/routing/routing-contracts";
 import { openDb } from "../src/storage/db";
 import {
   activeOwnedTask,
   casUpdateTask,
   getOwnedTask,
   insertOwnedTask,
-  lastTurnOfTask,
   linkTurn,
   ownedTaskOfTurn,
   reconcileRunningTasks,
 } from "../src/storage/owned-task-store";
 import { insertTurn, interruptRunningTurns, setTurnSession } from "../src/storage/run-store";
+import type { TaskState } from "../src/tasks/task-contracts";
 import { makeEnv } from "./helpers";
 
 const mk = (
@@ -71,7 +70,7 @@ test("active task = newest live one; terminal tasks are never the focus", async 
   expect(activeOwnedTask(db, "other-thread")).toBeUndefined();
 });
 
-test("link + lookup of a turn's task and the task's last turn", () => {
+test("link + lookup of a turn's task", () => {
   const { db } = makeEnv();
   mk(db, "a");
   insertTurn(db, { id: "t1", threadId: "th", source: "x", location: "*", role: "dev" });
@@ -79,8 +78,6 @@ test("link + lookup of a turn's task and the task's last turn", () => {
   linkTurn(db, "t1", "a");
   setTurnSession(db, "t1", "sess", "/cwd");
   expect(ownedTaskOfTurn(db, "t1")).toBe("a");
-  expect(lastTurnOfTask(db, "a")).toMatchObject({ id: "t1", sessionId: "sess", cwd: "/cwd" });
-  expect(lastTurnOfTask(db, "none")).toBeUndefined();
 });
 
 test("reconcile: running tasks wait for the owner, others stay; interruptRunningTurns runs it", () => {

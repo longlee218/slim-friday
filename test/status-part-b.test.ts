@@ -1,24 +1,15 @@
 import { expect, test } from "bun:test";
 import { STEER_READ_EMOJI } from "../src/ingress/message-reaction";
-import { type DecideInput, decideIntent } from "../src/intent/decide-intent";
-import type { IntentResult } from "../src/intent/intent-types";
-import { loadLexicon } from "../src/intent/load-lexicon";
-import { createRoleTagRouter } from "../src/intent/role-tag";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { parseMessageCommand } from "../src/orchestrator/message-commands";
-import { actionFor } from "../src/orchestrator/thread/intent-table";
-import { routeByIntent } from "../src/orchestrator/thread/route-by-intent";
-import { STEER_REACT_REPLY } from "../src/orchestrator/thread/steer-notice-sentinel";
-import { resetNoticeDedupe } from "../src/orchestrator/thread/steer-reply";
 import {
   clearProgressNote,
   getProgressNote,
   PROGRESS_NOTE_MAX,
   setProgressNote,
 } from "../src/orchestrator/turns/progress-notes";
-import { statusFacts, statusSnapshot } from "../src/orchestrator/turns/status-snapshot";
+import { statusFacts } from "../src/orchestrator/turns/status-snapshot";
 import { createSteerRegistry } from "../src/orchestrator/turns/steer-registry";
-import { entryRole, ROLES } from "../src/roles/role-registry";
 import type { SteerSink } from "../src/runtime/run-input-channel";
 import { insertOwnedTask, linkTurn } from "../src/storage/owned-task-store";
 import { insertToolCall } from "../src/storage/run-metrics-store";
@@ -72,126 +63,25 @@ test("snapshot: tool count, last 5 tools (Bash description only, redacted, 80 ch
   ];
   runningTurn(env.db, calls);
   setProgressNote("t1", "Deleted 3 folders so far");
-  const snap = statusSnapshot(env.db, "th");
+  const f = statusFacts(env.db, "th");
   clearProgressNote("t1");
-  expect(snap).toContain("tools so far: 6");
-  expect(snap.match(/^- recent: /gm)).toHaveLength(5); // the oldest of the 6 is not listed
-  expect(snap).not.toContain("delete dir 0");
-  expect(snap).toContain("recent: Bash: delete dir 1");
-  expect(snap).toContain("recent: Grep"); // name only
-  expect(snap).toContain("latest progress note: Deleted 3 folders so far");
-  expect(snap).not.toContain("SECRETSECRET");
-  expect(snap).not.toContain("rm -rf");
-  expect(snap).not.toContain("TOPSECRET-PATTERN");
-  expect(snap).not.toContain("/home/x");
-  const longLine = snap.split("\n").find((l) => l.includes("leak")) as string;
-  expect(longLine.replace("- recent: Bash: ", "").length).toBeLessThanOrEqual(80);
+  expect(f?.running && f.toolCount).toBe(6);
+  const recent = f?.running ? f.recent : [];
+  expect(recent).toHaveLength(5); // the oldest of the 6 is not listed
+  const all = JSON.stringify(f);
+  expect(all).not.toContain("delete dir 0");
+  expect(recent.map((r) => `${r.tool}: ${r.description ?? ""}`)).toContain("Bash: delete dir 1");
+  expect(recent.some((r) => r.tool === "Grep" && !r.description)).toBe(true); // name only
+  expect(f?.running && f.note).toBe("Deleted 3 folders so far");
+  for (const leak of ["SECRETSECRET", "rm -rf", "TOPSECRET-PATTERN", "/home/x"])
+    expect(all).not.toContain(leak);
+  const leakLine = recent.find((r) => r.description?.includes("leak"));
+  expect(leakLine?.description?.length).toBeLessThanOrEqual(80);
 });
 
-test("statusFacts: nothing running and no owned task -> undefined; snapshot -> empty string", () => {
+test("statusFacts: nothing running and no owned task -> undefined", () => {
   const env = makeEnv();
   expect(statusFacts(env.db, "th")).toBeUndefined();
-  expect(statusSnapshot(env.db, "th")).toBe("");
-});
-
-// ---- step 6: busy fallback --------------------------------------------------------------------------
-
-const pipeline = { lexicon: loadLexicon(), tagRouter: createRoleTagRouter(Object.values(ROLES)) };
-const decide = (classify: () => Promise<IntentResult>) => {
-  const i: DecideInput = {
-    text: "hmm",
-    state: "running",
-    hasTask: true,
-    scopeFromModel: true,
-    l3Input: () => ({ text: "x", thread: { state: "running" }, ledger: [], recent: [], roles: [] }),
-  };
-  return decideIntent(i, { pipeline, classifier: { classify } });
-};
-const ok = { role: "dev", scope: "active", confidence: "high", reason: "r" } as IntentResult;
-
-test("fallback supplements are unclear: L3 throw, invalid answer, low confidence; a clear active is not", async () => {
-  expect(
-    (
-      await decide(async () => {
-        throw new Error("down");
-      })
-    ).decision,
-  ).toMatchObject({ unclear: true });
-  expect((await decide(async () => ({ ...ok, role: "no-such-role" }))).decision).toMatchObject({
-    unclear: true,
-  });
-  expect((await decide(async () => ({ ...ok, confidence: "low" }))).decision).toMatchObject({
-    unclear: true,
-  });
-  expect((await decide(async () => ok)).decision).not.toHaveProperty("unclear");
-});
-
-test("actionFor: unclear while working steers (any role, even a side role); clear active keeps its row", () => {
-  const entry = entryRole().name;
-  expect(
-    actionFor({
-      decision: { kind: "role", role: entry, scope: "active", unclear: true },
-      state: "running",
-    }),
-  ).toEqual({ kind: "steer", role: entry, unclear: true });
-  expect(
-    actionFor({ decision: { kind: "role", role: "dev", scope: "active" }, state: "running" }),
-  ).toEqual({ kind: "steer", role: "dev" });
-});
-
-/** Minimal route context over a fake steer registry that records what it was given. */
-function routeCtx(db: Db) {
-  const steered: string[] = [];
-  const message = {
-    source: "t",
-    language: "en" as const,
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th",
-    text: "how far?",
-  };
-  const deps = {
-    db,
-    steer: {
-      steer: (_m: unknown, t: string) => (steered.push(t), { result: "queued" as const }),
-      record() {},
-    },
-  };
-  const ctx = {
-    deps,
-    message,
-    workspace: "w",
-    locations: [],
-    ac: new AbortController(),
-    busy: true,
-    text: message.text,
-  };
-  return { ctx: ctx as never, steered };
-}
-
-test("unclear steer: the message is steered AND a side answer is requested, steer line leads (one reply)", async () => {
-  resetNoticeDedupe();
-  const env = makeEnv();
-  const { ctx, steered } = routeCtx(env.db);
-  const out = await routeByIntent(ctx, { kind: "steer", role: entryRole().name, unclear: true });
-  expect(steered).toEqual(["how far?"]);
-  expect(out).toMatchObject({ kind: "side", role: entryRole().name, text: "how far?" });
-  expect((out as { lead?: string }).lead).toContain("Got it");
-  // a repeated notice inside the window: no lead line, the answer alone
-  const again = await routeByIntent(ctx, { kind: "steer", role: entryRole().name, unclear: true });
-  expect(again).toMatchObject({ kind: "side" });
-  expect((again as { lead?: string }).lead).toBeUndefined();
-  expect(steered).toHaveLength(2);
-});
-
-test("clear active steer: steer only, no side answer", async () => {
-  resetNoticeDedupe();
-  const env = makeEnv();
-  const { ctx, steered } = routeCtx(env.db);
-  const out = await routeByIntent(ctx, { kind: "steer", role: "dev" });
-  expect(steered).toEqual(["how far?"]);
-  expect(out).toMatchObject({ kind: "reply" });
-  expect((out as { text: string }).text).not.toBe(STEER_REACT_REPLY);
 });
 
 // ---- step 7: /status --------------------------------------------------------------------------------

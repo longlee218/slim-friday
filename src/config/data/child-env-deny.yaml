@@ -33,8 +33,7 @@ exact:
 
 # Prefixes.
 prefixes:
-  - INTENT_ # INTENT_ENGINE, INTENT_BUDGET_USD, INTENT_TIMEOUT_MS
-  - MODEL_ # MODEL_HAIKU|SONNET|OPUS, MODEL_INTENT, MODEL_<ROLE> (role-env.ts)
+  - MODEL_ # MODEL_HAIKU|SONNET|OPUS, MODEL_<ROLE> (role-env.ts)
   - BUDGET_ # BUDGET_<ROLE>_USD (role-env.ts)
   - COMPACT_WINDOW_ # COMPACT_WINDOW_<ROLE> (role-env.ts)
   - FRIDAY_

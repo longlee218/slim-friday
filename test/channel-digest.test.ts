@@ -8,7 +8,6 @@ import {
 } from "../src/memory/channel-digest";
 import { FIND_NONE, FIND_USAGE, withFindCommand } from "../src/memory/find-command-handler";
 import { createMemoryRunner } from "../src/memory/memory-command-handler";
-import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { openDb } from "../src/storage/db";
 import {
   channelDigest,
@@ -17,7 +16,8 @@ import {
   searchThreads,
   type ThreadRow,
 } from "../src/storage/thread-store";
-import { addLocation, CHANNEL_2, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
+import { addLocation, CHANNEL_2, makeEnv, TEST_CHANNEL } from "./helpers";
+import { type Call, leadHarness, until } from "./lead-harness";
 
 /** A titled thread row written through the store (the way SetThreadTitle does). */
 const titled = (
@@ -92,41 +92,37 @@ test("searchThreads: every keyword, case-insensitive (also non-ASCII, NFC), lite
   expect(searchThreads(db, "main", ["c1"], ["many"], 10)).toHaveLength(10);
 });
 
-/** Env + handler whose fake `query` records each prompt and resume id. */
+/** The lead harness (real handler + fake `query`); the fake records each lead prompt and resume id. */
 function runHarness() {
-  const env = makeEnv();
-  const calls: { prompt: string; resume?: string }[] = [];
-  const queryFn = (a: any) => {
-    calls.push({ prompt: String(a.prompt), resume: a.options.resume });
-    return (async function* () {
-      yield resultMsg({ session_id: "sess-1", result: "answer" });
-    })();
+  const h = leadHarness(() => "answer");
+  const calls = h.calls;
+  const send = async (threadId: string, text: string) => {
+    const n = h.ofKind("lead").length;
+    await h.send(text, threadId);
+    await until(() => h.ofKind("lead").length > n);
+    return h.ofKind("lead")[n] as Call;
   };
-  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
-  const send = (threadId: string, text: string, channelId = TEST_CHANNEL) =>
-    handle({ source: "t", channelId, userId: "u", threadId, text });
-  return { env, calls, send };
+  return { env: h.env, calls, send };
 }
 
 test("fresh session: first prompt starts with the digest; the resumed turn adds none; other channels excluded", async () => {
-  const { env, calls, send } = runHarness();
+  const { env, send } = runHarness();
   titled(env.db, "thA", TEST_CHANNEL, "Fix invoice export", Date.now(), "csv columns");
   titled(env.db, "thX", "999", "Foreign channel", Date.now());
-  await send("thB", "hello there");
-  expect(calls[0]?.resume).toBeUndefined();
-  expect(calls[0]?.prompt.startsWith(DIGEST_HEADING)).toBe(true);
-  expect(calls[0]?.prompt).toContain("Fix invoice export - csv columns");
-  expect(calls[0]?.prompt).not.toContain("Foreign channel");
-  expect(calls[0]?.prompt.endsWith("\n\nOwner message:\nhello there")).toBe(true);
-  await send("thB", "and again");
-  expect(calls[1]?.resume).toBe("sess-1");
-  expect(calls[1]?.prompt).toBe("and again"); // resumed: no new digest block
+  const first = await send("thB", "hello there");
+  expect(first.options.resume).toBeUndefined();
+  expect(first.prompt.startsWith(DIGEST_HEADING)).toBe(true);
+  expect(first.prompt).toContain("Fix invoice export - csv columns");
+  expect(first.prompt).not.toContain("Foreign channel");
+  expect(first.prompt.endsWith("hello there")).toBe(true);
+  const second = await send("thB", "and again");
+  expect(second.options.resume).toBeDefined();
+  expect(second.prompt).not.toContain(DIGEST_HEADING); // resumed: no new digest block
 });
 
-test("no digest rows: the prompt is the owner text; chat channels skip the digest", async () => {
-  const { env, calls, send } = runHarness();
-  await send("thB", "plain");
-  expect(calls[0]?.prompt).toBe("plain");
+test("no digest rows: no digest block; chat channels skip the digest", async () => {
+  const { env, send } = runHarness();
+  expect((await send("thB", "plain")).prompt).not.toContain(DIGEST_HEADING);
   // The same channel as a chat-mode channel of the space.
   const ws = env.paths.workspace("main");
   const doc = Bun.YAML.parse(await Bun.file(ws.config).text()) as Record<string, unknown>;
@@ -135,8 +131,7 @@ test("no digest rows: the prompt is the owner text; chat channels skip the diges
     Bun.YAML.stringify({ ...doc, channels: [{ id: TEST_CHANNEL, name: "chat", mode: "chat" }] }),
   );
   titled(env.db, "thA", TEST_CHANNEL, "Earlier", Date.now());
-  await send("thC", "in chat");
-  expect(calls[1]?.prompt).toBe("in chat");
+  expect((await send("thC", "in chat")).prompt).not.toContain(DIGEST_HEADING);
 });
 
 /** `/find` runner over a space with two channels plus another space. */

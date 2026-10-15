@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildIntentUserPrompt } from "../src/intent/intent-prompt";
 import { parseJevAnswers } from "../src/intent/jev/jev-answer-schema";
 import { buildJevQuestions } from "../src/intent/jev/jev-questions";
 import { buildJevState } from "../src/intent/jev/jev-state";
@@ -75,16 +74,8 @@ test("answer schema: valid, unknown option, out-of-range, missing question", () 
   expect(parseJevAnswers(null, opts)).toBeUndefined();
 });
 
-test("shared redaction: the Haiku user prompt and routingMessageText mask a secret in the message", () => {
+test("redaction: routingMessageText masks a secret in the message", () => {
   expect(routingMessageText(`deploy ${SECRET}`)).not.toContain("supersecretvalue");
-  const prompt = buildIntentUserPrompt({
-    text: `deploy ${SECRET}`,
-    thread: { state: "idle" },
-    ledger: [],
-    recent: [],
-    roles: [],
-  });
-  expect(prompt).not.toContain("supersecretvalue");
 });
 
 test("no role literal in src/intent/jev (roles are data)", () => {

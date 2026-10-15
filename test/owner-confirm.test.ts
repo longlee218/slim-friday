@@ -7,10 +7,6 @@ import {
   ownerConfirm,
   ownerConfirmLabels,
 } from "../src/orchestrator/engine/owner-confirm";
-import { runRoute } from "../src/orchestrator/message-routing";
-import { EffortFloors } from "../src/orchestrator/thread/effort-floor";
-import { settleMaxEffort } from "../src/orchestrator/thread/max-effort-gate";
-import { turnEffort } from "../src/orchestrator/thread/turn-effort";
 import { openDb } from "../src/storage/db";
 
 const OWNER = "owner1";
@@ -136,49 +132,5 @@ describe("owner-confirm gate", () => {
       cancelTurn: () => undefined,
     } as any;
     expect(await ownerConfirm(gw, req())).toBe(false);
-  });
-});
-
-describe("max effort through the gate", () => {
-  const signals = {
-    floorDelta: 0,
-    turnDelta: 0,
-    minEffort: "max" as const,
-    lookup: false,
-    ruleIds: [],
-  };
-  const fake = (approved: boolean) =>
-    ({ confirm: async () => ({ approved }), cancelTurn: () => undefined }) as any;
-  const run = async (approved: boolean) => {
-    const floors = new EffortFloors();
-    const turn = turnEffort(floors, "th", undefined, signals);
-    expect(turn).toEqual({ effort: "high", pendingMax: true });
-    return settleMaxEffort({
-      approvals: fake(approved),
-      floors,
-      threadId: "th",
-      language: "en" as const,
-      cls: undefined,
-      signals,
-      turn,
-      signal: new AbortController().signal,
-    });
-  };
-
-  test("yes -> max, routed to Opus", async () => {
-    const r = await run(true);
-    expect(r.declined).toBe(false);
-    expect(r.turn.effort).toBe("max");
-    const route = runRoute({ effort: r.turn.effort });
-    expect(route?.ownerConfirmedMax).toBe(true);
-  });
-
-  test("no / timeout -> stays high, declined", async () => {
-    const r = await run(false);
-    expect(r.declined).toBe(true);
-    expect(r.turn.effort).toBe("high");
-    expect(runRoute({ effort: r.turn.effort })?.ownerConfirmedMax).toBeUndefined();
-    expect(renderUserNotice({ kind: "label", state: "max-declined" }, "en")).toContain("high");
-    expect(renderUserNotice({ kind: "label", state: "max-declined" }, "vi")).toContain("mức cao");
   });
 });

@@ -1,10 +1,9 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupTaskLogs } from "../src/lifecycle/startup";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { RESUME_PROMPT } from "../src/orchestrator/message-commands";
-import { resolveCommand } from "../src/orchestrator/message-routing";
+import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { finishRun } from "../src/orchestrator/turns/turn-result";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
@@ -13,35 +12,36 @@ import {
   insertTurn,
   interruptRunningTurns,
   listInterruptedThreads,
-  setTurnSession,
   setTurnStatus,
 } from "../src/storage/run-store";
 import { getSession, setSession } from "../src/storage/session-store";
-import {
-  addLocation,
-  clearWorkspaces,
-  fakeQuery,
-  initMsg,
-  makeEnv,
-  resultMsg,
-  stubGateway,
-  TEST_CHANNEL,
-} from "./helpers";
+import { fakeQuery, initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { workersDone } from "./lead-harness";
 
+/** A `[dev]` message: starts a detached dev worker. */
 const task = (text: string, threadId = "th1") => ({
   source: "test",
   channelId: TEST_CHANNEL,
   userId: "u",
   threadId,
-  text,
+  text: `[dev] ${text}`,
 });
+/** Handler over a fake query; the worker runs detached, so tests wait with `workersDone`. */
+const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
+  createTurnHandler({
+    db: env.db,
+    config: env.config,
+    approvals: stubGateway(),
+    limiter: createRunLimiter(10),
+    queryFn: queryFn as never,
+  });
 
 /** Run the agent against a fake query and return its result. */
 const go = (env: ReturnType<typeof makeEnv>, q: ReturnType<typeof fakeQuery>) =>
   runAgent({
     prompt: "q",
     turnId: "T",
-    role: getRole("assistant"),
+    role: getRole("lead"),
     cwd: env.home,
     config: env.config,
     db: env.db,
@@ -51,29 +51,17 @@ const go = (env: ReturnType<typeof makeEnv>, q: ReturnType<typeof fakeQuery>) =>
 
 // ---- Early session persistence + interrupted status + Resume ----
 
-/** Task row of a thread that was cut short with a recorded session (what a restart leaves behind). */
-function interrupted(
-  env: ReturnType<typeof makeEnv>,
-  threadId: string,
-  cwd: string,
-  id = "T0",
-  role = "assistant",
-) {
-  insertTurn(env.db, { id, threadId, source: "d", location: "*", role });
-  setTurnSession(env.db, id, "OLD", cwd);
-  interruptRunningTurns(env.db);
-}
-
 test("session id is recorded on the task row at init; `sessions` keeps the previous good session", async () => {
   const env = makeEnv();
   setSession(env.db, { threadId: "th1", sessionId: "GOOD", location: "*", cwd: env.location });
   // The stream dies after init: no result message ever arrives (error outcome).
   const q = fakeQuery([initMsg], new Error("boom"));
-  await createTurnHandler({ db: env.db, config: env.config, queryFn: q as never })(task("hi"));
+  await devHandler(env, q)(task("hi"));
+  await workersDone(env.db);
   const row = env.db
     .query<{ session_id: string; session_cwd: string }, []>("SELECT * FROM turns")
     .get();
-  expect(row).toMatchObject({ session_id: "sess-1", session_cwd: env.location });
+  expect(row).toMatchObject({ session_id: "sess-1", session_cwd: realpathSync(env.location) });
   expect(getSession(env.db, "th1")?.session_id).toBe("GOOD");
 });
 
@@ -85,20 +73,17 @@ test("quota/error runs never replace the stored session either", async () => {
     is_error: true,
     errors: ["API Error: 429 rate_limit_error"],
   });
-  await createTurnHandler({
-    db: env.db,
-    config: env.config,
-    queryFn: fakeQuery([initMsg, m]) as never,
-  })(task("hi"));
+  await devHandler(env, fakeQuery([initMsg, m]))(task("hi"));
+  await workersDone(env.db);
   expect(getSession(env.db, "th1")?.session_id).toBe("GOOD");
 });
 
 test("restart marks running tasks interrupted; ack makes them cancelled (one notice)", () => {
   const { db } = makeEnv();
-  insertTurn(db, { id: "a", threadId: "th", source: "d", location: "r", role: "assistant" });
+  insertTurn(db, { id: "a", threadId: "th", source: "d", location: "r", role: "lead" });
   insertTurn(db, { id: "b", threadId: "th", source: "d", location: "r", role: "dev" });
   setTurnStatus(db, "b", "waiting_approval");
-  insertTurn(db, { id: "c", threadId: "other", source: "d", location: "r", role: "assistant" });
+  insertTurn(db, { id: "c", threadId: "other", source: "d", location: "r", role: "lead" });
   setTurnStatus(db, "c", "done");
   interruptRunningTurns(db);
   expect(listInterruptedThreads(db)).toEqual(["th"]);
@@ -106,97 +91,6 @@ test("restart marks running tasks interrupted; ack makes them cancelled (one not
   expect(listInterruptedThreads(db)).toEqual([]);
   const st = db.query<{ status: string }, []>("SELECT status FROM turns WHERE id='a'").get();
   expect(st?.status).toBe("cancelled");
-});
-
-test("Resume: Q&A thread resumes the interrupted task's session with the fixed prompt", async () => {
-  const env = makeEnv();
-  interrupted(env, "th1", env.location);
-  let seen: any;
-  const q = (a: any) => {
-    seen = a;
-    return (async function* () {
-      yield initMsg;
-      yield resultMsg({ result: "continued" });
-    })();
-  };
-  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: q as never });
-  expect(await handle(task(RESUME_PROMPT))).toBe("continued");
-  expect(seen.prompt).toBe(RESUME_PROMPT);
-  expect(seen.options.resume).toBe("OLD");
-  // The thread moved on (task finished): a second Resume click is out of date.
-  expect(await handle(task(RESUME_PROMPT))).toContain("out of date");
-});
-
-test("Resume without a saved session replies it cannot resume (no run)", async () => {
-  const env = makeEnv();
-  let ran = false;
-  const q = () => {
-    ran = true;
-    return (async function* () {})();
-  };
-  const reply = await createTurnHandler({
-    db: env.db,
-    config: env.config,
-    queryFn: q as never,
-  })(task(RESUME_PROMPT, "empty"));
-  expect(reply).toContain("Cannot resume");
-  expect(ran).toBe(false);
-});
-
-test("Resume of a dev run whose session cannot be resumed: tells the owner to start again", async () => {
-  const env = makeEnv();
-  clearWorkspaces(env.home);
-  const location = addLocation(env.home, "real", { gitAuthor: "T <t@e.com>" }); // fake managed clone: code tasks are allowed
-  interrupted(env, "pl", location, "T1", "dev");
-  const q = fakeQuery([
-    resultMsg({
-      subtype: "error_during_execution",
-      is_error: true,
-      errors: ["No conversation found with session ID: OLD"],
-    }),
-  ]);
-  const reply = await createTurnHandler({
-    db: env.db,
-    config: env.config,
-    queryFn: q as never,
-    approvals: stubGateway(),
-  })(task(RESUME_PROMPT, "pl"));
-  expect(reply).toContain("start the task again");
-  // The failed resume task has no session: another Resume is refused (not offered forever).
-  expect(
-    resolveCommand(
-      { db: env.db, agentHome: env.home, workspace: "main", locations: [] },
-      { kind: "resume" },
-      "pl",
-    ),
-  ).toHaveProperty("reply");
-});
-
-test("resolveCommand: a dev run resumes its own session in its cwd; Q&A cwd ok; unusable cwd, stale, none refused", () => {
-  const env = makeEnv();
-  const locations = [{ name: "location", path: env.location, description: "" }] as never;
-  const deps = { db: env.db, agentHome: env.home, workspace: "main", locations };
-  const resume = (t: string) => resolveCommand(deps, { kind: "resume" }, t);
-  interrupted(env, "p", env.location, "A", "dev");
-  expect(resume("p")).toMatchObject({
-    cmd: { kind: "message", role: "dev", text: RESUME_PROMPT },
-    resume: { sessionId: "OLD", cwd: env.location, of: "A" },
-  });
-
-  interrupted(env, "q", env.location, "B");
-  expect(resume("q")).toMatchObject({ cmd: { kind: "message", text: RESUME_PROMPT } });
-
-  // A dev session whose dir is gone cannot be continued (a fresh session would have no context).
-  interrupted(env, "g", join(env.home, "gone-dir"), "G", "dev");
-  expect(resume("g")).toMatchObject({ reason: "cannot_resume" });
-
-  // cwd outside the home cwd dir / registered locations: a fresh session would have no context.
-  interrupted(env, "x", "/elsewhere", "C");
-  expect(resume("x")).toHaveProperty("reply");
-
-  // A newer finished task makes the Resume stale.
-  insertTurn(env.db, { id: "N", threadId: "q", source: "d", location: "*", role: "assistant" });
-  expect(resume("q")).toMatchObject({ reason: "stale_resume" });
 });
 
 // ---- Quota / error classification ----

@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { OWNER_CONFIRM_APPROVAL } from "../src/orchestrator/engine/owner-confirm";
 import {
   deriveThreadState,
-  isGateState,
   isIdleLike,
   pendingToolApproval,
 } from "../src/orchestrator/thread/thread-state";
@@ -39,7 +38,7 @@ test("idle: the last task was cancelled, failed, timed out or interrupted", () =
 
 test("running: task running (Q&A or code)", () => {
   expect(deriveThreadState(task("running"), "th")).toBe("running");
-  expect(deriveThreadState(task("running", "assistant"), "th")).toBe("running");
+  expect(deriveThreadState(task("running", "lead"), "th")).toBe("running");
 });
 
 test("awaiting_owner: the run waits on an AskUserQuestion (the plan approval is one); not a gate", () => {
@@ -53,7 +52,6 @@ test("awaiting_confirmation: an owner-confirm yes/no is the one gate state, neve
   const db = task("waiting_approval");
   pending(db, OWNER_CONFIRM_APPROVAL);
   expect(deriveThreadState(db, "th")).toBe("awaiting_confirmation");
-  expect(isGateState("awaiting_confirmation")).toBe(true);
   expect(isIdleLike("awaiting_confirmation")).toBe(false);
   expect(pendingToolApproval(db, "t1")).toBeUndefined();
 });
@@ -68,7 +66,6 @@ test("awaiting_owner: a pending tool approval is not a gate; the decision lands 
   const db = task("waiting_approval");
   pending(db, "Bash");
   expect(deriveThreadState(db, "th")).toBe("awaiting_owner");
-  expect(isGateState("awaiting_owner")).toBe(false);
   expect(isIdleLike("awaiting_owner")).toBe(false);
   expect(pendingToolApproval(db, "t1")?.tool).toBe("Bash");
   db.query("UPDATE approvals SET decision = 'approved'").run();

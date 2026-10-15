@@ -15,7 +15,7 @@ const cfg = (provider: "anthropic" | "openrouter", hasRealAuth: boolean) =>
   ({ provider, hasRealAuth }) as AgentConfig;
 
 test("resolver: auto only on anthropic with a real login; otherwise fail closed to default", () => {
-  const qa = getRole("assistant");
+  const qa = getRole("lead");
   expect(resolvePermissionMode(qa, cfg("anthropic", true))).toBe("auto");
   expect(resolvePermissionMode(qa, cfg("anthropic", false))).toBe("default");
   expect(resolvePermissionMode(qa, cfg("openrouter", true))).toBe("default");
@@ -32,7 +32,7 @@ async function pre(
   autoMode: boolean,
   tool: string,
   input: Record<string, unknown>,
-  guard = guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
+  guard = guardFor(getRole("lead"), { readPaths: ["/ws/location"] }),
 ) {
   const perms = buildToolPermissions({
     turnId: "t",
@@ -75,7 +75,7 @@ test("auto mode: canUseTool (classifier undecided) still asks the owner via the 
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
+    guard: guardFor(getRole("lead"), { readPaths: ["/ws/location"] }),
     autoMode: { active: true },
     gateway: {
       request: async (r: { tool: string }) => (asked.push(r.tool), { approved: true }),
@@ -137,7 +137,7 @@ test("watch: after a fallback the hook forces ask and logs ask, not auto", async
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
+    guard: guardFor(getRole("lead"), { readPaths: ["/ws/location"] }),
     autoMode: state,
   });
   const out: any = await perms.hooks[0]!.hooks[0]!(
@@ -210,8 +210,8 @@ async function execRun(actual: string) {
     db: env.db,
     abortController: new AbortController(),
     queryFn: queryFn as never,
-    role: getRole("assistant"),
-    guard: guardFor(getRole("assistant"), { readPaths: [env.location] }),
+    role: getRole("lead"),
+    guard: guardFor(getRole("lead"), { readPaths: [env.location] }),
     code: { threadId: "th" },
   });
   return out;

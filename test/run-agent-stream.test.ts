@@ -25,23 +25,10 @@ const SUBAGENT_ENV = {
 };
 
 import {
-  AGENT_TOOL_NAME,
-  BASH_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
-  LIST_AGENTS_TOOL_NAME,
-  LIST_MCP_RESOURCES_TOOL_NAME,
   LSP_TOOL_NAME,
-  MONITOR_TOOL_NAME,
-  READ_MCP_RESOURCE_DIR_TOOL_NAME,
-  READ_MCP_RESOURCE_TOOL_NAME,
   READ_TOOL_NAME,
-  REFRESH_MCP_TOOLS_TOOL_NAME,
-  SEND_MESSAGE_TOOL_NAME,
-  SKILL_TOOL_NAME,
-  WAIT_FOR_MCP_SERVERS_TOOL_NAME,
-  WEB_FETCH_TOOL_NAME,
-  WEB_SEARCH_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import { fakeQuery, initMsg, makeEnv, resultMsg } from "./helpers";
 
@@ -54,7 +41,7 @@ function go(
   return runAgent({
     prompt: "q",
     turnId: "T",
-    role: getRole("assistant"),
+    role: getRole("lead"),
     cwd: env.home,
     config: env.config,
     db: env.db,
@@ -119,36 +106,17 @@ describe("run-agent stream handling", () => {
     );
   });
 
-  test("sdk options: assistant tools (read, web, shell, no write), project settings, abort controller", async () => {
+  test("sdk options: lead tools (read only, no shell or write), project settings, abort controller", async () => {
     const env = makeEnv();
     let seen: any;
     await go(env, ((a: any) => {
       seen = a.options;
       return fakeQuery([resultMsg()])(a);
     }) as never);
-    expect(seen.tools).toEqual([
-      READ_TOOL_NAME,
-      GLOB_TOOL_NAME,
-      GREP_TOOL_NAME,
-      LSP_TOOL_NAME,
-      WEB_SEARCH_TOOL_NAME,
-      WEB_FETCH_TOOL_NAME,
-      SKILL_TOOL_NAME,
-      LIST_MCP_RESOURCES_TOOL_NAME,
-      READ_MCP_RESOURCE_TOOL_NAME,
-      READ_MCP_RESOURCE_DIR_TOOL_NAME,
-      REFRESH_MCP_TOOLS_TOOL_NAME,
-      WAIT_FOR_MCP_SERVERS_TOOL_NAME,
-      BASH_TOOL_NAME,
-      MONITOR_TOOL_NAME,
-      AGENT_TOOL_NAME,
-      SEND_MESSAGE_TOOL_NAME,
-      LIST_AGENTS_TOOL_NAME,
-    ]);
+    expect(seen.tools).toEqual([READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME, LSP_TOOL_NAME]); // read only, no shell
     expect("agents" in seen).toBe(false); // no app-defined subagents
-    expect(seen.mcpServers.git.args[0]).toContain("git-mcp-server"); // pinned package, no npx
-    expect(seen.mcpServers.git.env.GIT_AUTHOR_EMAIL).toBeUndefined(); // Q&A never commits
-    expect(seen.mcpServers.github).toBeUndefined(); // GitHub MCP only in code tasks
+    expect(Object.keys(seen.mcpServers)).not.toContain("git"); // the lead has no git groups
+    expect(seen.mcpServers.github).toBeUndefined();
     expect(seen.allowedTools).toBeUndefined();
     expect(seen.settingSources).toEqual([]);
     expect(seen.abortController).toBeDefined();
@@ -290,7 +258,7 @@ describe("run supervisor observation (onControlEvent)", () => {
     await runAgent({
       prompt: "q",
       turnId: "T",
-      role: getRole("assistant"),
+      role: getRole("lead"),
       cwd: env.home,
       config: env.config,
       db: env.db,

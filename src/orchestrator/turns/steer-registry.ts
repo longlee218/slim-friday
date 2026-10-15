@@ -3,14 +3,9 @@ import type { MessageReactionPort } from "../../ingress/message-reaction";
 import { STEER_READ_EMOJI } from "../../ingress/message-reaction";
 import { logEvent, logger, tryLog } from "../../observability/logger";
 import { ROLES } from "../../roles/role-registry";
-import type { SteerHook, SteerRun, SteerSink } from "../../runtime/run-input-channel";
+import type { SteerRun, SteerSink } from "../../runtime/run-input-channel";
 import { ownedTaskOfTurn, runningTurnOfTask, threadOfTask } from "../../storage/owned-task-store";
-import {
-  type RunMessageKind,
-  type RunMessageStatus,
-  runMessageSourceId,
-  setRunMessageTarget,
-} from "../../storage/run-message-store";
+import { runMessageSourceId, setRunMessageTarget } from "../../storage/run-message-store";
 import { taskRunOf } from "../engine/task-runs";
 import { createHeldSteers } from "./steer-held";
 import { createSteerStore, type MessageRef } from "./steer-store";

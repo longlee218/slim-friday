@@ -1,14 +1,7 @@
 import { expect, test } from "bun:test";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { mcpServersFor } from "../src/mcp/mcp-servers";
-import { GIT_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import {
-  dispatchableRoleNames,
-  getRole,
-  hasClassTiers,
-  intentRoles,
-  ROLES,
-} from "../src/roles/role-registry";
+import { dispatchableWorkers, getRole, ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import {
   AGENT_TOOL_NAME,
@@ -34,58 +27,41 @@ const BARE: RoleDefinition = {
   promptSections: () => [],
 };
 
-test("registry: assistant, dev, the control role, the lead and the scout; unknown role fails", () => {
-  expect(Object.keys(ROLES).sort()).toEqual([
-    "assistant",
-    "dev",
-    "discord-manager",
-    "lead",
-    "scout",
-  ]);
+test("registry: dev, the control role, the lead and the scout; unknown role fails", () => {
+  expect(Object.keys(ROLES).sort()).toEqual(["dev", "discord-manager", "lead", "scout"]);
   expect(() => getRole("nope")).toThrow("Unknown role");
 });
 
-test("roles: bypass only for dev, auto for the assistant, default tier and budget per role", () => {
+test("roles: bypass only for dev, auto for the others that set it, default tier and budget per role", () => {
   expect(getRole("dev").permissionMode).toBe("bypassPermissions");
-  expect(getRole("assistant").permissionMode).toBe("auto");
-  expect(getRole("assistant")).toMatchObject({
-    model: "haiku",
-    budgetUsd: 1,
-    escalatedBudgetUsd: 2.5,
-    background: false,
-  });
+  expect(getRole("lead").permissionMode).toBe("auto");
+  expect(getRole("scout").permissionMode).toBe("auto");
   expect(getRole("dev")).toMatchObject({ model: "sonnet", budgetUsd: 4.5, background: true });
+  expect(getRole("lead")).toMatchObject({ model: "sonnet", background: false });
 });
 
-test("whenToUse: every role has one, all different; both roles have class tiers", () => {
-  const roles = intentRoles();
-  expect(roles.map((r) => r.name).sort()).toEqual(["assistant", "dev"]);
+test("whenToUse: every dispatchable role has one, all different; dev has class tiers", () => {
+  const roles = dispatchableWorkers();
+  expect(roles.map((r) => r.name).sort()).toEqual(["dev", "scout"]);
   for (const r of roles) expect(r.whenToUse.length).toBeGreaterThan(20);
   expect(new Set(roles.map((r) => r.whenToUse)).size).toBe(roles.length);
-  expect(hasClassTiers(getRole("dev"))).toBe(true);
-  expect(hasClassTiers(getRole("assistant"))).toBe(true); // P11: haiku / haiku / sonnet
 });
 
 test("whenToUse stays within the 220-char budget of prompt-standard.md", () => {
-  for (const r of intentRoles()) expect(r.whenToUse.length).toBeLessThanOrEqual(220);
-});
-
-test("dispatchableRoleNames: every role with whenToUse (a queued follow-up may be any role)", () => {
-  expect(dispatchableRoleNames()).toEqual(["assistant", "dev"]);
+  for (const r of dispatchableWorkers()) expect(r.whenToUse.length).toBeLessThanOrEqual(220);
 });
 
 test("guard: every role gets the subagent tools, auto-allowed, even one that lists no capability for them", () => {
   const scope = { readPaths: ["/r"] };
-  const qa = guardFor(getRole("assistant"), scope);
-  expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, qa).decision).toBe("allow");
-  expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, qa).decision).toBe("allow");
+  const dev = guardFor(getRole("dev"), scope);
+  expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, dev).decision).toBe("allow");
+  expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, dev).decision).toBe("allow");
   const bare = guardFor(BARE, scope); // lists only `read`: toolsFor adds the subagent tools
   expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("allow");
   expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("allow");
 });
 
-test("mcp servers come from the role's gitGroups data only: the assistant's git reads; dev and a bare role get none", () => {
-  expect(Object.keys(mcpServersFor(getRole("assistant")))).toEqual([GIT_MCP_SERVER]);
+test("mcp servers come from the role's gitGroups data only: a bare role and dev get none", () => {
   expect(mcpServersFor(BARE)).toEqual({});
   expect(mcpServersFor(getRole("dev"))).toEqual({}); // the agent uses git and gh in the shell
 });
@@ -99,9 +75,8 @@ test("tools derive from capabilities", () => {
   ]);
 });
 
-test("role tags: dev = [dev], assistant = [ask], unique across roles", () => {
+test("role tags: dev = [dev], unique across roles", () => {
   expect(ROLES.dev?.tag).toBe("[dev]");
-  expect(ROLES.assistant?.tag).toBe("[ask]");
   const tags = Object.values(ROLES).flatMap((r) => (r.tag ? [r.tag.toLowerCase()] : []));
   expect(new Set(tags).size).toBe(tags.length);
   expect("aliases" in (ROLES.dev ?? {})).toBe(false); // natural-language aliases are gone

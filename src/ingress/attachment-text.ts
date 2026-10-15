@@ -15,9 +15,6 @@ export const ATTACHMENT_INLINE_GATE_CHARS = 2000;
 export const ATTACHMENT_FETCH_TIMEOUT_MS = 10_000;
 /** Only these hosts (https) are fetched: Discord's CDN. Anything else in an attachment url is refused. */
 export const ATTACHMENT_HOSTS: readonly string[] = ["cdn.discordapp.com", "media.discordapp.net"];
-/** Start of the line that names the saved full copy (assistant-only; stripped from dev briefs). */
-export const ATTACHMENT_PATH_PREFIX =
-  "Full redacted text (read-only, read it if details are needed): ";
 /** Longest file name shown in the block. */
 const NAME_MAX = 80;
 /** Extensions read as text when the content type does not say so. */
@@ -112,13 +109,6 @@ async function download(url: string, d: AttachmentDeps): Promise<Uint8Array> {
   }
   return Buffer.concat(chunks);
 }
-
-/** Text without the lines naming a saved attachment copy: a background role cannot read it, only the summary stays. */
-export const stripAttachmentPaths = (text: string): string =>
-  text
-    .split("\n")
-    .filter((l) => !l.startsWith(ATTACHMENT_PATH_PREFIX))
-    .join("\n");
 
 /**
  * The attachments of one message as text to append to it: a DATA block per readable text file (redacted), a

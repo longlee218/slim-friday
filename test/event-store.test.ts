@@ -55,7 +55,7 @@ test("one consumer per thread: a second claim gets nothing until the first is de
 test("unclaimStale reads the turns table: a running turn's claim stays, a finished or missing turn's is released once", () => {
   const { db } = makeEnv();
   const turn = (id: string) =>
-    insertTurn(db, { id, threadId: "x", source: "t", location: "*", role: "assistant" });
+    insertTurn(db, { id, threadId: "x", source: "t", location: "*", role: "lead" });
   turn("live");
   turn("fin");
   finishTurn(db, "fin", "done");

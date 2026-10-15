@@ -10,7 +10,7 @@ export type UserNotice =
   | { kind: "steer"; state: "queued" | "held" | "waiting" | "full" | "ended" }
   | { kind: "queue"; full?: boolean }
   | { kind: "clarification"; pending?: boolean }
-  | { kind: "stop"; active: boolean; queued?: number }
+  | { kind: "stop"; active: boolean }
   | { kind: "replacement" }
   | { kind: "outcome"; outcome: string; resumable?: boolean; resetsAt?: number }
   | {
@@ -32,11 +32,6 @@ export type UserNotice =
       kind: "note";
       state:
         | "no-delivery"
-        | "opus-declined"
-        | "opus-unavailable"
-        | "ceiling-rerun"
-        | "escalated-opus"
-        | "escalated-sonnet"
         | "resume-task-lost"
         | "resume-cleared"
         | "cannot-resume"
@@ -46,9 +41,7 @@ export type UserNotice =
         | "stop-in-thread"
         | "status-in-thread"
         | "not-allowed"
-        | "channel-unavailable"
-        | "proposal-pending"
-        | "proposal-queued";
+        | "channel-unavailable";
     }
   | { kind: "ask-after-location"; name?: string }
   | {
@@ -206,10 +199,7 @@ function render(event: UserNotice, language: OwnerLanguage): string {
     case "stop":
       return !event.active
         ? say("Hiện không có việc nào đang chạy.", "Nothing is running.")
-        : say(
-            `Mình đang dừng việc hiện tại.${event.queued ? " Các yêu cầu đang chờ sẽ được xử lý sau đó." : ""}`,
-            `I’m stopping the current work.${event.queued ? " The waiting requests will run afterwards." : ""}`,
-          );
+        : say("Mình đang dừng việc hiện tại.", "I’m stopping the current work.");
     case "outcome": {
       const text =
         event.outcome === "aborted"
@@ -306,20 +296,6 @@ function render(event: UserNotice, language: OwnerLanguage): string {
           "Lưu ý: lần chạy này chưa có commit, push hay PR nào.",
           "Note: nothing was committed, pushed or opened as a PR in this run.",
         ],
-        "opus-declined": [
-          "Chưa chạy lại bằng Opus (chưa được xác nhận); đây là câu trả lời từ mô hình rẻ hơn.",
-          "Not run on Opus (not confirmed); this is the cheaper answer.",
-        ],
-        "opus-unavailable": [
-          "Mô hình mạnh hơn không khả dụng ở đây (mô hình đã được cố định trong cấu hình).",
-          "A stronger model is not available here (model is fixed by config).",
-        ],
-        "ceiling-rerun": [
-          "Chưa chạy lại vì đã dùng hết giới hạn chi phí của việc này; đây là câu trả lời đầu tiên. Bạn có thể gửi một yêu cầu mới.",
-          "Not re-run: the spending limit for this work is used up; this is the first answer. You can send a new request.",
-        ],
-        "escalated-opus": ["Đã chạy lại bằng Opus.", "Escalated to Opus."],
-        "escalated-sonnet": ["Đã chạy lại bằng Sonnet.", "Escalated to Sonnet."],
         "resume-task-lost": [
           "Không tiếp tục được phiên làm việc trước. Bạn hãy gửi lại yêu cầu để bắt đầu lại.",
           "Could not resume the task's session; start the task again.",
@@ -353,14 +329,6 @@ function render(event: UserNotice, language: OwnerLanguage): string {
         "channel-unavailable": [
           "Hiện chưa dùng được kênh này. Bạn hãy thử lại.",
           "Channel unavailable.",
-        ],
-        "proposal-pending": [
-          "Yêu cầu chưa được bắt đầu; trả lời `/go` để bắt đầu.",
-          "Request not started; reply `/go` to start",
-        ],
-        "proposal-queued": [
-          "Yêu cầu đang chờ chưa được bắt đầu; trả lời `/go` để bắt đầu.",
-          "Queued request not started; reply `/go` to start",
         ],
       } as const;
       return say(copy[event.state][0], copy[event.state][1]);

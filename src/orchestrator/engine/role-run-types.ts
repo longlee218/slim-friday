@@ -8,7 +8,9 @@ import type { RecentMessage } from "../../intent/intent-types";
 import type { Location } from "../../locations/location-registry";
 import type { AppServersFactory } from "../../mcp/mcp-servers";
 import type { QueryFn } from "../../runtime/run-agent";
+import type { AskQuestion } from "../../runtime/tool-permissions";
 import type { SessionRow } from "../../storage/session-store";
+import type { RunLimiter } from "../turns/run-limiter";
 import type { SteerRegistry } from "../turns/steer-registry";
 
 /* Input and dependency types of the role runner (run-role.ts). */
@@ -25,6 +27,14 @@ export interface RoleRunnerDeps {
   steer?: SteerRegistry;
   /** Renames the thread for `SetThreadTitle` (every role; rollover/lean runs never get it). Omitted = the tool is not offered. */
   threadTitle?: ThreadTitlePort;
+}
+
+/** Dependencies of a task run: the role runner's, plus whether shutdown is aborting runs and the global run cap. */
+export interface DispatchDeps extends RoleRunnerDeps {
+  /** True once shutdown aborted the runs: an aborted task is then `interrupted` (resumable), not cancelled. */
+  stopping: () => boolean;
+  /** Global run cap: a detached task run takes its own slot from it. */
+  limiter?: RunLimiter;
 }
 
 /** One role run: a fresh message, a dispatched task, or the continuation of one (`resume`). */
@@ -64,6 +74,12 @@ export interface RoleRunInput {
   recent?: RecentMessage[];
   /** Task ledger of the thread (idle thread only); empty = none. */
   ledger?: string;
+  /** Extra system-context blocks of this run (the lead's LEAD.md); appended after the persona / memory context. */
+  extraSystem?: string[];
+  /** Dispatched worker run: no SDK subagent tools even when the role allows them (depth 1, dev included). */
+  noSubagents?: boolean;
+  /** Where the typed question of a worker's AskUserQuestion goes instead of the owner (the run's `code` hook); omitted = the owner's buttons. */
+  askRelay?: (questions: AskQuestion[]) => Promise<Record<string, string> | undefined>;
   /** Continue this saved session in its cwd (interrupt Resume, `/go`): the task's own, never the thread's. */
   resume?: { sessionId: string; cwd: string };
 }

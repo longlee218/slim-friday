@@ -313,7 +313,7 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
       threadId: "th",
       source: "test",
       location: "location",
-      role: "assistant",
+      role: "lead",
     });
     await runRole(
       {

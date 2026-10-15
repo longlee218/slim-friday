@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
+import { renderUserNotice } from "../../ingress/user-copy";
 import { excerpt, logEvent, tryLog } from "../../observability/logger";
 import { redactText } from "../../observability/redact";
 import type { SteerRun } from "../../runtime/run-input-channel";
@@ -10,10 +11,12 @@ import {
   setRunMessageStatus,
 } from "../../storage/run-message-store";
 import { turnSessionId } from "../../storage/run-store";
-import { NOT_DELIVERED } from "../thread/intent-replies";
 
 /* The audit side of the steer registry: `run_messages` rows (insert / final status) and the texts of steers the
    agent never read (the not-delivered notice). No sinks and no held steers here. */
+
+/** Owner line for a steer the run ended without reading. */
+const NOT_DELIVERED = renderUserNotice({ kind: "decision", state: "undelivered" }, "en");
 
 /** The facts of an owner message the registry stores. */
 export interface MessageRef {

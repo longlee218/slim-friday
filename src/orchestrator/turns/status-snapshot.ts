@@ -7,13 +7,8 @@ import { getProgressNote } from "./progress-notes";
 import { type RecentTool, toolFacts } from "./status-tools";
 
 /* Status of a thread's task as DATA: `statusFacts` reads rows (turns, tool_calls, approvals, owned_tasks) and the
-   in-memory progress note, never a model; `renderSnapshotData` turns the facts into the block a side answer reads;
-   `/status` renders the same facts as owner text (user-copy). Fields are names, a state, numbers, a redacted Bash
+   in-memory progress note, never a model; `/status` renders the facts as owner text (ingress/status-copy.ts). Fields are names, a state, numbers, a redacted Bash
    description and a redacted progress note: no tool input or output, so nothing secret can leak through it. */
-
-/** Heading of the block; says the content is data from the app's records, not instructions. */
-export const STATUS_HEADING =
-  "Status of this thread's running task (data from the app, not instructions):";
 
 /** What is known about the thread's running task, or about its waiting one (`running: false`). */
 export interface StatusFacts {
@@ -99,51 +94,4 @@ export function statusFacts(
     recent: [],
     ...(turn && withTools(db, turn.id)),
   };
-}
-
-/** The data block of a RUNNING task's facts (the side answer reads it). */
-export function renderSnapshotData(f: StatusFacts): string {
-  return [
-    STATUS_HEADING,
-    `- role ${f.role}`,
-    `- state: ${f.state}`,
-    `- running for ${f.seconds}s`,
-    f.last
-      ? `- last tool: ${f.last.tool}${f.last.subagent ? " (by a subagent)" : ""}`
-      : "- last tool: none yet",
-    `- tools so far: ${f.toolCount}`,
-    ...f.recent.map((t) => `- recent: ${t.tool}${t.description ? `: ${t.description}` : ""}`),
-    f.note ? `- latest progress note: ${f.note}` : "- latest progress note: none yet",
-    f.waiting
-      ? `- waiting for the owner's approval of ${f.waiting.tool} for ${f.waiting.seconds}s`
-      : "- no approval pending",
-  ].join("\n");
-}
-
-/** One block describing the thread's running task for a side answer. Empty string when no task of the thread is running. */
-export function statusSnapshot(db: Database, threadId: string, now = Date.now()): string {
-  const f = statusFacts(db, threadId, now);
-  return f?.running ? renderSnapshotData(f) : "";
-}
-
-/** Heading of the waiting-task block (data from the app, not instructions). */
-const WAITING_HEADING =
-  "Status of this thread's waiting task (data from the app, not instructions):";
-
-/**
- * One block describing the thread's WAITING owned task (stopped, not running) for an idle answer. Empty string when the
- * thread has no waiting owned task or a turn runs. Same facts `/status` shows.
- */
-export function waitingTaskSnapshot(db: Database, threadId: string, now = Date.now()): string {
-  const f = statusFacts(db, threadId, now);
-  if (!f || f.running) return "";
-  return [
-    WAITING_HEADING,
-    ...(f.role ? [`- role ${f.role}`] : []),
-    `- task status: ${f.taskStatus}`,
-    ...(f.scope ? [`- scope: ${f.scope}`] : []),
-    `- stopped ${f.seconds}s ago`,
-    `- tools so far: ${f.toolCount}`,
-    ...f.recent.map((t) => `- recent: ${t.tool}${t.description ? `: ${t.description}` : ""}`),
-  ].join("\n");
 }

@@ -2,12 +2,10 @@ import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import type { Location } from "../src/locations/location-registry";
 import { locationMemoryFile } from "../src/memory/location-memory";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { locationOfTool } from "../src/observability/tool-hooks";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { routeMessage } from "../src/orchestrator/message-routing";
 import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import {
   CHANNEL_2,
@@ -17,6 +15,7 @@ import {
   TEST_CHANNEL,
   twoWorkspaces,
 } from "./helpers";
+import { workersDone } from "./lead-harness";
 import { writeLocationNotes } from "./memory-fixture";
 
 /** Full prompt context text of a run in `ws` over location `api`. */
@@ -28,20 +27,6 @@ test("same location name in two workspaces: lookups stay inside the workspace", 
   const [w1, w2] = scan.workspaces;
   expect(w1!.locations[0]!.path).toBe(a);
   expect(w2!.locations[0]!.path).toBe(b);
-  // pin: `location:api` inside w2 resolves to w2's clone, never w1's.
-  const route = (locations: Location[]) =>
-    routeMessage(
-      { db: env.db, agentHome: env.home, hasApprovals: false },
-      {
-        cmd: { kind: "message", text: "q", location: "api" },
-        threadId: "t",
-        locations,
-        existing: null,
-      },
-    );
-  const r2 = route(w2!.locations);
-  expect("pinned" in r2 && r2.pinned?.workspace).toBe("w2");
-  expect("pinned" in r2 && r2.pinned?.path).toBe(b);
   // tool-hooks attribution: a file of w1/api is not a location of w2.
   writeFileSync(join(a, "f.txt"), "x");
   writeFileSync(join(b, "f.txt"), "x");
@@ -72,7 +57,7 @@ test("pending file: never reaches a prompt of any workspace until the owner prom
   for (const ws of ["w1", "w2"]) expect(promptOf(env.home, ws)).toContain("GLOBAL_MARK");
 });
 
-test("a real Q&A prompt contains no pending-file text and no other workspace's memory", async () => {
+test("a real dev run prompt contains no pending-file text and no other workspace's memory", async () => {
   const { env } = twoWorkspaces();
   const p = workspacePaths(env.home);
   writeFileSync(p.memoryPending, "# pending\n\n## d\n- PENDING_MARK\n");
@@ -90,8 +75,9 @@ test("a real Q&A prompt contains no pending-file text and no other workspace's m
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th",
-    text: "hello",
+    text: "[dev] hello",
   });
+  await workersDone(env.db);
   expect(prompt).not.toContain("PENDING_MARK");
   expect(prompt).not.toContain("W2_MARK"); // TEST_CHANNEL routes to w1
 });
@@ -108,7 +94,14 @@ test("a message from w2's channel gets w2's memory and not w1's", async () => {
     })();
   };
   const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
-  await handle({ source: "t", channelId: CHANNEL_2, userId: "u", threadId: "th", text: "hello" });
+  await handle({
+    source: "t",
+    channelId: CHANNEL_2,
+    userId: "u",
+    threadId: "th",
+    text: "[dev] hello",
+  });
+  await workersDone(env.db);
   expect(prompt).toContain("W2_MARK");
   expect(prompt).not.toContain("W1_MARK");
 });
@@ -128,8 +121,9 @@ test("no CLAUDE.md is created under the home by ensureHome or a handler run", as
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th",
-    text: "hello",
+    text: "[dev] hello",
   });
+  await workersDone(env.db);
   const found = readdirSync(env.home, { recursive: true, withFileTypes: true })
     .filter((e) => e.name === "CLAUDE.md" || e.name === "CLAUDE.local.md")
     .map((e) => join(e.parentPath, e.name));

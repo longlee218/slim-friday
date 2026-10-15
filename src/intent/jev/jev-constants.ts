@@ -35,3 +35,6 @@ export const ACT_MIN: Record<RoleDefinition["sideEffects"], number> = {
 };
 /** Ratio reported when the runner-up has probability 0 (a finite number keeps the log JSON valid). */
 export const RATIO_CAP = 100;
+
+/** Jev is parked: the lead is the only router, so nothing calls the proposer. Flip only with a new wiring (the `jev-*` tests still run). */
+export const JEV_ENABLED = false;

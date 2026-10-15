@@ -1,19 +1,10 @@
 import { expect, test } from "bun:test";
 import { TASK_BUDGET_USD } from "../src/config/model-routing";
 import { runRole } from "../src/orchestrator/engine/run-role";
-import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { finishRun } from "../src/orchestrator/turns/turn-result";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
-import {
-  addLocation,
-  clearWorkspaces,
-  initMsg,
-  makeEnv,
-  resultMsg,
-  stubGateway,
-  TEST_CHANNEL,
-} from "./helpers";
+import { addLocation, clearWorkspaces, makeEnv, resultMsg, stubGateway } from "./helpers";
 
 /** One finished run row of `turnId` that cost `costUsd`. */
 const spend = (db: ReturnType<typeof makeEnv>["db"], turnId: string, costUsd: number) =>
@@ -154,7 +145,7 @@ test("a thrown run does not leave a run row 'running': the runs row carries the 
     threadId: "th",
     source: "t",
     location: "location",
-    role: "assistant",
+    role: "lead",
   });
   const run = runRole(
     {
@@ -169,7 +160,7 @@ test("a thrown run does not leave a run row 'running': the runs row carries the 
       turnId: "t1",
       threadId: "th",
       text: "x",
-      role: "assistant",
+      role: "lead",
       workspace: "main",
       locations: [{ name: "location", path: env.location } as never],
       ac: new AbortController(),
@@ -177,28 +168,6 @@ test("a thrown run does not leave a run row 'running': the runs row carries the 
   );
   await run.catch(() => undefined);
   expect(env.db.query("SELECT outcome FROM runs").all()).toEqual([{ outcome: "error" }]);
-});
-
-test("`go +5` that falls back to a plain message does not carry the raise into Q&A", async () => {
-  const env = makeEnv();
-  const budgets: unknown[] = [];
-  const handler = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    queryFn: ((a: { options: { maxBudgetUsd?: number } }) => {
-      budgets.push(a.options.maxBudgetUsd);
-      return (async function* () {
-        yield initMsg;
-        yield resultMsg();
-      })();
-    }) as never,
-  });
-  const send = (threadId: string, text: string) =>
-    handler({ source: "t", channelId: TEST_CHANNEL, userId: "u", threadId, text });
-  await send("th-a", "where is x?");
-  await send("th-b", "go +5");
-  expect(budgets).toHaveLength(2);
-  expect(budgets[1]).toBe(budgets[0]);
 });
 
 /** Dev run input that continues a task in `cwd` (a Resume), with an `onStarted` probe. */

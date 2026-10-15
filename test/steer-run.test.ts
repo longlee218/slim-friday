@@ -39,7 +39,7 @@ function go(
   return runAgent({
     prompt: "task prompt",
     turnId: "T",
-    role: getRole("assistant"),
+    role: getRole("lead"),
     cwd: env.home,
     config: env.config,
     db: env.db,
@@ -114,7 +114,7 @@ describe("steer: streaming input of a run", () => {
     await runAgent({
       prompt: "task prompt",
       turnId: "T0",
-      role: getRole("assistant"),
+      role: getRole("lead"),
       cwd: env.home,
       config: env.config,
       db: env.db,
@@ -163,7 +163,7 @@ describe("steer: streaming input of a run", () => {
     await runAgent({
       prompt: "question",
       turnId: "T",
-      role: getRole("assistant"),
+      role: getRole("lead"),
       cwd: env.home,
       config: env.config,
       db: env.db,

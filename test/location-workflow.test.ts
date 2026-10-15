@@ -2,9 +2,8 @@ import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readSkillsLock } from "../src/config/skills-lock";
-import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { setupWorkflow } from "./code-flow-fixture";
-import { devIntent, initMsg, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { runDevWorker } from "./dev-worker-fixture";
 
 /** Skills the dev role gets: every installed publisher skill, as the lock lists them (no names here). */
 const SP = Object.entries(readSkillsLock()).map(([k, e]) => `${e.source.split("/").pop()}:${k}`);
@@ -22,35 +21,17 @@ async function runTask(
 ) {
   const { env, clone } = await setupWorkflow(config, skills, locationSkills);
   prep?.(clone);
-  const seen: any[] = [];
-  /** Plugin dir listing at run start (the app removes the dir when the run ends). */
+  /** Plugin dir listing while the run lives (the app removes the dir when the run ends). */
   let pluginFiles: string[] = [];
-  const next = (a: any) => {
-    seen.push(a.options);
-    const pdir = a.options.plugins?.at(-1)?.path; // the workspace plugin is built last
-    if (pdir) pluginFiles = (readdirSync(pdir, { recursive: true }) as string[]).sort();
-    return (async function* () {
-      yield initMsg;
-      await probe?.(a.options);
-      yield resultMsg({ result: "done\n\nlocation: real" });
-    })();
-  };
-  const handle = createTurnHandler({
-    db: env.db,
-    config: env.config,
-    approvals: stubGateway({ confirm: async () => ({ approved: false, reason: "no" }) }),
-    queryFn: next as never,
-    intent: devIntent(env.home),
+  const { runs } = await runDevWorker(env, "[dev] change it", {
+    probe: async (o) => {
+      const pdir = o.plugins?.at(-1)?.path; // the workspace plugin is built last
+      if (pdir) pluginFiles = (readdirSync(pdir, { recursive: true }) as string[]).sort();
+      await probe?.(o);
+    },
   });
-  await handle({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th1",
-    text: "[dev] change it",
-  });
-  expect(seen).toHaveLength(1); // one run
-  return { env, clone, exec: seen[0], pluginFiles };
+  expect(runs).toHaveLength(1); // one run
+  return { env, clone, exec: runs[0], pluginFiles };
 }
 
 test("workspace skills load in the dev run; no workflow mode rules", async () => {

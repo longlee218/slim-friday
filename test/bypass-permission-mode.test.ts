@@ -176,7 +176,7 @@ test("runAgent: exec asks SDK for bypass with the opt-in; confirmed -> ask runs,
 
 test("an auto role's options carry no allowDangerouslySkipPermissions", async () => {
   expect(getRole("dev").permissionMode).toBe("bypassPermissions");
-  for (const role of ["assistant"] as const) {
+  for (const role of ["lead"] as const) {
     const env = makeEnv();
     let opts: Options | undefined;
     await runAgent({
@@ -192,7 +192,7 @@ test("an auto role's options carry no allowDangerouslySkipPermissions", async ()
           yield resultMsg({ result: "ok" });
         })()) as never,
       role: getRole(role),
-      guard: guardFor(getRole("assistant"), { readPaths: [env.location] }),
+      guard: guardFor(getRole("lead"), { readPaths: [env.location] }),
       code: { threadId: "th" },
     });
     expect(opts!.allowDangerouslySkipPermissions).toBeUndefined();

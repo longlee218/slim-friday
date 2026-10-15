@@ -35,7 +35,7 @@ test("roles pick publisher skills by `all`/`none`, never by name", () => {
   for (const role of Object.values(ROLES))
     expect(["all", "none", undefined]).toContain(role.skills);
   expect(ROLES.dev?.skills).toBe("all");
-  expect(ROLES.assistant?.skills).toBe("none");
+  expect(ROLES.lead?.skills).toBe("none");
 });
 
 test("every plugin name of the lock is a reserved workspace name (it would clash with <ws>:<skill>)", () => {

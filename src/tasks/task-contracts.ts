@@ -1,5 +1,5 @@
 /**
- * State of an owned task (a goal or one of its items). Moved here from `routing/routing-contracts`
+ * State of an owned task (a goal or one of its items). Lives here (was `routing/routing-contracts`)
  * (that file re-exports it until the routing layer is removed).
  */
 export type TaskState = {
@@ -25,3 +25,14 @@ export type TaskState = {
   version: number;
   correlationId: string;
 };
+
+/** Why an owned task changed owner (logged as `task.owner_changed`). */
+export type ReasonCode =
+  | "OUT_OF_SCOPE"
+  | "CONTEXT_CONTINUATION"
+  | "EXPLICIT_SWITCH"
+  | "MISSING_INFORMATION"
+  | "CAPABILITY_UNAVAILABLE"
+  | "AUTHORIZATION_REQUIRED"
+  | "AMBIGUOUS_INTENT"
+  | "ROUTE_CONFLICT";

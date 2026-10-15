@@ -131,7 +131,7 @@ test("guard-denied call writes tool.denied (warn) with target and reason, and no
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
+    guard: guardFor(getRole("lead"), { readPaths: ["/ws/location"] }),
   });
   await perms.hooks[0]!.hooks[0]!(
     {
@@ -270,7 +270,7 @@ test("P3.1: tool.denied of a subagent carries its identity", async () => {
   const perms = buildToolPermissions({
     turnId: "t1",
     threadId: "th",
-    guard: guardFor(getRole("assistant"), { readPaths: ["/ws/location"] }),
+    guard: guardFor(getRole("lead"), { readPaths: ["/ws/location"] }),
   });
   const pre = {
     ...fixture("pre-tool-use-subagent-builtin-read"),

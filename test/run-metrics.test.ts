@@ -55,7 +55,7 @@ function go(env: ReturnType<typeof makeEnv>, queryFn: ReturnType<typeof fakeQuer
   return runAgent({
     prompt: "q",
     turnId: "T",
-    role: getRole("assistant"),
+    role: getRole("lead"),
     cwd: env.home,
     config: env.config,
     db: env.db,

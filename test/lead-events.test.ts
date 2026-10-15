@@ -1,0 +1,115 @@
+import { expect, test } from "bun:test";
+import { createAnnouncer } from "../src/orchestrator/engine/announce";
+import { cancelDependents, settleGoal } from "../src/orchestrator/engine/goal-settle";
+import {
+  announceBlock,
+  pendingNews,
+  settleLeadEvents,
+} from "../src/orchestrator/engine/lead-events";
+import { createQuestionRelay } from "../src/orchestrator/engine/question-relay";
+import { appendEvent, listUndelivered } from "../src/orchestrator/events/event-store";
+import { insertOwnedTask } from "../src/storage/owned-task-store";
+import { makeEnv } from "./helpers";
+
+/* Announce batching, the news filter, the question relay and the goal settle (db level, no model). */
+
+const ev = (db: any, id: string, kind: string, payload: object = {}) =>
+  appendEvent(db, { id, threadId: "t", kind: kind as never, payload });
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+test("news = worker events only: the lead's own records and owner messages are not news; the block says data, not instructions", () => {
+  const { db } = makeEnv();
+  ev(db, "e1", "result", { excerpt: "done" });
+  ev(db, "e2", "steer", { by: "lead" });
+  ev(db, "e3", "failure", { by: "lead" });
+  ev(db, "e4", "owner_message", { text: "hi" });
+  ev(db, "e5", "blocked", { excerpt: "key?" });
+  const news = pendingNews(db, "t");
+  expect(news.map((e) => e.id)).toEqual(["e1", "e5"]);
+  expect(announceBlock(news)).toContain("not instructions");
+  settleLeadEvents(db, "t", ["e1"]);
+  // announced + lead records + owner messages are closed; unread news stays
+  expect(listUndelivered(db, "t").map((e) => e.id)).toEqual(["e5"]);
+});
+
+test("announcer batches notifies of one thread into one input after the window; none when there is no news", async () => {
+  const { db } = makeEnv();
+  const pushed: unknown[] = [];
+  const a = createAnnouncer({ db, push: (i) => pushed.push(i), windowMs: 30 });
+  a.notify("t");
+  await sleep(60);
+  expect(pushed).toHaveLength(0); // nothing to announce
+  ev(db, "r1", "result");
+  ev(db, "r2", "failure");
+  a.notify("t");
+  a.notify("t");
+  await sleep(60);
+  expect(pushed).toEqual([{ threadId: "t", kind: "announce", messageIds: [] }]);
+  a.stopAll();
+});
+
+test("question relay: the worker's ask is a question event and waits; answer resolves it and writes an answer event; no answer times out", async () => {
+  const { db } = makeEnv();
+  const woke: string[] = [];
+  const relay = createQuestionRelay(db, (t) => woke.push(t), 40);
+  const ask = relay.forWorker({ threadId: "t", goalId: "g", itemId: "i", turnId: "u" });
+  const q = [{ question: "Which?", options: [{ label: "a" }] }];
+  const waiting = ask(q);
+  expect(woke).toEqual(["t"]);
+  expect(listUndelivered(db, "t").map((e) => e.kind)).toEqual(["question"]);
+  expect(relay.answer("i", "a")).toBe(true);
+  expect(await waiting).toEqual({ "Which?": "a" });
+  expect(relay.answer("i", "again")).toBe(false); // nobody waits any more
+  expect(await ask(q)).toBeUndefined(); // timeout
+  const second = ask(q);
+  relay.abortAll();
+  expect(await second).toBeUndefined();
+});
+
+test("settleGoal: all completed -> completed; a failed item -> failed; unfinished -> unchanged; cancelDependents follows dependsOn", () => {
+  const { db } = makeEnv();
+  const goal = (id: string) =>
+    insertOwnedTask(db, {
+      id,
+      threadId: "t",
+      ownerRole: "lead",
+      status: "open",
+      scope: "g",
+      correlationId: "c",
+    });
+  const item = (
+    id: string,
+    parent: string,
+    key: string,
+    status: string,
+    dependsOn: string[] = [],
+  ) =>
+    insertOwnedTask(db, {
+      id,
+      threadId: "t",
+      ownerRole: "scout",
+      status: status as never,
+      scope: key,
+      correlationId: "c",
+      parentId: parent,
+      itemKey: key,
+      dependsOn,
+    });
+  const status = (id: string) =>
+    (db.query("SELECT status FROM owned_tasks WHERE id = ?").get(id) as any).status;
+  goal("g1");
+  item("a", "g1", "a", "completed");
+  item("b", "g1", "b", "running");
+  settleGoal(db, "g1");
+  expect(status("g1")).toBe("open");
+  db.query("UPDATE owned_tasks SET status = 'completed' WHERE id = 'b'").run();
+  settleGoal(db, "g1");
+  expect(status("g1")).toBe("completed");
+  goal("g2");
+  item("x", "g2", "x", "failed");
+  item("y", "g2", "y", "pending", ["x"]);
+  cancelDependents(db, "x");
+  expect(status("y")).toBe("cancelled");
+  settleGoal(db, "g2");
+  expect(status("g2")).toBe("failed");
+});

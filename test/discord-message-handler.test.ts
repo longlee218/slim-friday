@@ -5,6 +5,8 @@ import { createMessageHandler } from "../src/ingress/discord-message-handler";
 import { BUSY_ACK_EMOJI, sendReport } from "../src/ingress/discord-send";
 import { createMessageReceipt } from "../src/ingress/message-receipt";
 import { captureLogs } from "../src/observability/logger";
+import { TEST_CHANNEL } from "./helpers";
+import { leadHarness, until } from "./lead-harness";
 
 const OWNER = "111";
 /** Receipt delay injected into the handler (the production default is 2 s). */
@@ -602,4 +604,23 @@ test("sendReport: structured links, over-long url dropped, report still sent; su
   const json = sent.components.map((c: any) => c.toJSON());
   expect(json.map((c: any) => c.type)).toEqual([10, 1]);
   expect(json[1].components.map((b: any) => b.url)).toEqual(["https://pr.example/1"]);
+});
+
+test("lead level: a stranger's or a bot's message never reaches the lead queue; the owner's does", async () => {
+  const h = leadHarness(async () => "lead answer");
+  const onMessage = createMessageHandler({
+    ownerId: OWNER,
+    botId: () => BOT,
+    receiptDelayMs: RECEIPT_MS,
+    handleMessage: h.handle,
+  });
+  const th = fakeChannel("thrL", { thread: true, ownerId: BOT, parentId: TEST_CHANNEL });
+  await onMessage(fakeMsg({ authorId: "222", channel: th, mention: false, content: "hey" }).msg);
+  await onMessage(fakeMsg({ bot: true, channel: th, mention: false, content: "hey" }).msg);
+  await new Promise((r) => setTimeout(r, 100)); // past the lead queue's debounce
+  expect(h.ofKind("lead")).toHaveLength(0);
+  expect(h.env.db.query("SELECT COUNT(*) AS n FROM thread_events").get()).toEqual({ n: 0 });
+  await onMessage(fakeMsg({ channel: th, mention: false, content: "hello" }).msg);
+  await until(() => h.ofKind("lead").length === 1);
+  await until(() => th.sent.some((s: any) => s.content === "lead answer")); // the lead posts through notify
 });
