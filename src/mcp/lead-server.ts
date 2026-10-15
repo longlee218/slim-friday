@@ -1,10 +1,12 @@
 import { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import type { LeadToolContext } from "../orchestrator/engine/lead-call";
+import { createApprovePlanTool } from "../tools/ApprovePlanTool/approve-plan-tool";
 import { createAskOwnerTool } from "../tools/AskOwnerTool/ask-owner-tool";
 import { createCancelTaskTool } from "../tools/CancelTaskTool/cancel-task-tool";
 import { createDispatchAgentTool } from "../tools/DispatchAgentTool/dispatch-agent-tool";
 import { createForwardResultTool } from "../tools/ForwardResultTool/forward-result-tool";
 import { createRequestEscalationTool } from "../tools/RequestEscalationTool/request-escalation-tool";
+import { createRequestPlanTool } from "../tools/RequestPlanTool/request-plan-tool";
 import { createSteerTaskTool } from "../tools/SteerTaskTool/steer-task-tool";
 import { createTaskStatusTool } from "../tools/TaskStatusTool/task-status-tool";
 import { LEAD_MCP_SERVER } from "./mcp-tool-names";
@@ -24,6 +26,8 @@ export function createLeadServer(ctx: LeadToolContext) {
       createAskOwnerTool(ctx),
       createForwardResultTool(ctx),
       createRequestEscalationTool(ctx),
+      createRequestPlanTool(ctx),
+      createApprovePlanTool(ctx),
     ],
   });
 }

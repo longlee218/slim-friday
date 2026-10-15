@@ -105,12 +105,60 @@ export function casPlanStatus(
   version: number,
   from: PlanStatus,
   to: PlanStatus,
+  reason?: string,
 ): boolean {
   const res = db
     .query(
-      `UPDATE work_plans SET status = ?, approved_at = CASE WHEN ? = 'approved' THEN ? ELSE approved_at END
+      `UPDATE work_plans SET status = ?, approved_at = CASE WHEN ? = 'approved' THEN ? ELSE approved_at END,
+         reason = COALESCE(?, reason)
        WHERE id = ? AND version = ? AND status = ?`,
     )
-    .run(to, to, Date.now(), id, version, from);
+    .run(to, to, Date.now(), reason ?? null, id, version, from);
   return res.changes === 1;
+}
+
+/** Every version of a plan, oldest first (the history is kept). */
+export function planVersions(db: Database, id: string): WorkPlanRow[] {
+  return db
+    .query<WorkPlanRow, [string]>(`SELECT ${COLUMNS} FROM work_plans WHERE id = ? ORDER BY version`)
+    .all(id);
+}
+
+/** Id of the plan of a goal (a goal has one plan; its versions share the id), or undefined. */
+export function planIdOfGoal(db: Database, goalId: string): string | undefined {
+  return db
+    .query<{ id: string }, [string]>(
+      "SELECT id FROM work_plans WHERE goal_id = ? ORDER BY created_at DESC, version DESC LIMIT 1",
+    )
+    .get(goalId)?.id;
+}
+
+/** A `draft` / `valid` version older than this (ms) no longer holds its goal open: the owner never answered. */
+export const PENDING_PLAN_MAX_AGE_MS = 30 * 60 * 1000;
+
+/** True while a recent version of the goal's plan waits for the owner (`draft` or `valid`): the goal is not finished. */
+export function hasPendingPlan(db: Database, goalId: string, now = Date.now()): boolean {
+  return (
+    db
+      .query<{ n: number }, [string, number]>(
+        "SELECT COUNT(*) AS n FROM work_plans WHERE goal_id = ? AND status IN ('draft', 'valid') AND created_at > ?",
+      )
+      .get(goalId, now - PENDING_PLAN_MAX_AGE_MS)?.n !== 0
+  );
+}
+
+/**
+ * Close every `draft` / `valid` version of the goal's plans (the goal was stopped or cancelled): `rejected` when the
+ * plan never had an approved version (nothing was agreed), else `superseded` (the approved one stays in the history).
+ * Returns how many versions were closed.
+ */
+export function closePendingPlans(db: Database, goalId: string, reason: string): number {
+  return db
+    .query(
+      `UPDATE work_plans SET reason = ?,
+         status = CASE WHEN EXISTS (SELECT 1 FROM work_plans a WHERE a.id = work_plans.id AND a.status = 'approved')
+                       THEN 'superseded' ELSE 'rejected' END
+       WHERE goal_id = ? AND status IN ('draft', 'valid')`,
+    )
+    .run(reason, goalId).changes;
 }

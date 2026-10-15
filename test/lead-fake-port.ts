@@ -5,6 +5,9 @@ import type {
   NewEvent,
   OwnerAnswer,
   OwnerQuestion,
+  PlanDecision,
+  PlanRequestWrite,
+  PlanView,
   Post,
   SteerReply,
   TaskSnapshot,
@@ -61,6 +64,20 @@ export class FakePort implements EffectPort {
       });
     this.memo.set(x.key, JSON.stringify({ ok: true, goalId, itemIds }));
     return { ok: true, goalId, itemIds };
+  };
+  planRequests: PlanRequestWrite[] = [];
+  plans = new Map<string, PlanView>();
+  decisions: { planId: string; version: number; approve: boolean }[] = [];
+  requestPlan = (w: PlanRequestWrite): DispatchResult => {
+    if (w.goalId && w.goalId !== this.goalState.openGoalId)
+      return { ok: false, code: "BAD_TASK", message: "not this thread's goal" };
+    this.planRequests.push(w);
+    return { ok: true, goalId: w.goalId ?? "goal-p", itemIds: ["planner-item"] };
+  };
+  plan = (planId: string, version: number) => this.plans.get(`${planId}:${version}`);
+  decidePlan = (planId: string, version: number, approve: boolean): PlanDecision => {
+    this.decisions.push({ planId, version, approve });
+    return { ok: true, created: approve ? ["a", "b"] : [] };
   };
   appendEvent = (e: NewEvent) => (this.events.push(e), true);
   steer = (taskId: string, text: string) => (this.steered.push({ taskId, text }), this.steerReply);

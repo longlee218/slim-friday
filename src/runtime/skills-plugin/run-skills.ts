@@ -39,18 +39,23 @@ export function buildRunSkills(i: RunSkillsInput): RunSkills {
   const cfg = readWorkspaceSkills(i.agentHome, i.workspace);
   const parts: RunSkills[] = [];
   try {
-    if (i.skills === "all") {
+    if (i.skills !== "none") {
       const srcDir = i.publisherDir ?? PUBLISHER_SKILLS_DIR;
       for (const { plugin, skills } of installedPublisherPlugins(
         srcDir,
         i.lockFile ?? SKILLS_LOCK_FILE,
-      ))
-        parts.push(
-          buildSkillsPlugin(
-            { name: plugin, kind: "publisher", srcDir, allow: skills, caps: PUBLISHER_CAPS },
-            i.agentHome,
-          ),
-        );
+      )) {
+        // A role's skill list narrows each plugin to the listed names; a plugin left with none is not built.
+        const want = i.skills;
+        const allow = Array.isArray(want) ? skills.filter((n) => want.includes(n)) : skills;
+        if (allow.length)
+          parts.push(
+            buildSkillsPlugin(
+              { name: plugin, kind: "publisher", srcDir, allow, caps: PUBLISHER_CAPS },
+              i.agentHome,
+            ),
+          );
+      }
     }
     if (cfg.extra) {
       const ws = workspacePaths(i.agentHome).workspace(i.workspace);

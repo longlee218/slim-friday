@@ -143,13 +143,16 @@ test("no Bash for lead or scout: not offered and denied by the guard", () => {
   );
 });
 
-test("ReportResult: dev and scout may call it; no other role may; lead tools only for the lead", () => {
+test("ReportResult: dev, scout and planner may call it; no other role may; lead tools only for the lead", () => {
   const scope = { readPaths: ["/r"] };
   const report = mcpToolName(WORKER_MCP_SERVER, REPORT_RESULT_TOOL);
   const allowed = (role: string, tool: string) =>
     checkToolCall(tool, {}, guardFor(ROLES[role]!, scope)).decision === "allow";
   for (const name of Object.keys(ROLES)) {
-    expect([name, allowed(name, report)]).toEqual([name, name === "dev" || name === "scout"]);
+    expect([name, allowed(name, report)]).toEqual([
+      name,
+      name === "dev" || name === "scout" || name === "planner",
+    ]);
     for (const t of APP_MCP_TOOLS[LEAD_MCP_SERVER] ?? [])
       expect([name, allowed(name, mcpToolName(LEAD_MCP_SERVER, t))]).toEqual([
         name,

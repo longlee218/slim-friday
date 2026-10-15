@@ -22,9 +22,9 @@ import { RESULT_KINDS } from "../strategy/typed-result";
    against them before any handler runs; the handlers' input types are inferred from the same shapes. */
 
 /** Item key: a short slug (it becomes a file name segment). */
-const KEY = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/);
+export const KEY = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/);
 /** Task id as given by the status and dispatch tools. */
-const TASK_ID = z.string().min(1).max(80);
+export const TASK_ID = z.string().min(1).max(80);
 
 /** One worker assignment. */
 export const ASSIGNMENT = z.object({

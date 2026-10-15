@@ -92,10 +92,30 @@ export const ASK_OWNER_TOOL = "AskOwner";
 export const FORWARD_RESULT_TOOL = "ForwardResult";
 /** Ask for one re-run of this lead input on a stronger tier. */
 export const REQUEST_ESCALATION_TOOL = "RequestEscalation";
+/** Open (or reuse) a goal and start the planner on it; the lead never plans itself. */
+export const REQUEST_PLAN_TOOL = "RequestPlan";
+/** Ask the owner to approve a valid plan once; yes starts its items. */
+export const APPROVE_PLAN_TOOL = "ApprovePlan";
 /** In-process `worker` server (every dispatched worker run; no lead tool is reachable from it). */
 export const WORKER_MCP_SERVER = "worker";
 /** The worker's typed end-of-run report. */
 export const REPORT_RESULT_TOOL = "ReportResult";
+/** In-process `planner` server (the planner role only; added by role data `mcpServers`). Read-only except its plan rows. */
+export const PLANNER_MCP_SERVER = "planner";
+/** Objective, findings, locations, channel digest and the finished items of the goal. */
+export const GET_PROJECT_CONTEXT_TOOL = "GetProjectContext";
+/** The worker roles a plan may use (what each is for and may change). */
+export const GET_AGENT_CAPABILITIES_TOOL = "GetAgentCapabilities";
+/** Store a plan (version 1); code validates it and answers valid or a coded error list. */
+export const CREATE_PLAN_TOOL = "CreatePlan";
+/** Re-run the plan validator on a stored version (read-only). */
+export const VALIDATE_PLAN_TOOL = "ValidatePlan";
+/** A new plan version from add / cancel / modify, checked against the base version. */
+export const PROPOSE_PLAN_REVISION_TOOL = "ProposePlanRevision";
+/** The item table of the goal: status, result kind, excerpt, attempt. */
+export const GET_EXECUTION_PROGRESS_TOOL = "GetExecutionProgress";
+/** Blocked and failed items with their cause. */
+export const ANALYZE_BLOCKERS_TOOL = "AnalyzeBlockers";
 /**
  * Tools of every app MCP server a role may list in `mcpServers` (the guard allows exactly these; any other
  * `mcp__*` tool is denied). A new in-process server = one entry here.
@@ -114,6 +134,17 @@ export const APP_MCP_TOOLS: Readonly<Record<string, readonly string[]>> = {
     ASK_OWNER_TOOL,
     FORWARD_RESULT_TOOL,
     REQUEST_ESCALATION_TOOL,
+    REQUEST_PLAN_TOOL,
+    APPROVE_PLAN_TOOL,
+  ],
+  [PLANNER_MCP_SERVER]: [
+    GET_PROJECT_CONTEXT_TOOL,
+    GET_AGENT_CAPABILITIES_TOOL,
+    CREATE_PLAN_TOOL,
+    VALIDATE_PLAN_TOOL,
+    PROPOSE_PLAN_REVISION_TOOL,
+    GET_EXECUTION_PROGRESS_TOOL,
+    ANALYZE_BLOCKERS_TOOL,
   ],
   [WORKER_MCP_SERVER]: [REPORT_RESULT_TOOL],
 };

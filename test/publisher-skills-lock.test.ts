@@ -31,9 +31,11 @@ test("every skill dir hashes to the computedHash the lock pins (paths and bytes)
     ]);
 });
 
-test("roles pick publisher skills by `all`/`none`, never by name", () => {
+test("roles pick publisher skills by `all`/`none` or a data list, never by a name in code", () => {
   for (const role of Object.values(ROLES))
-    expect(["all", "none", undefined]).toContain(role.skills);
+    expect(
+      ["all", "none", undefined].includes(role.skills as never) || Array.isArray(role.skills),
+    ).toBe(true);
   expect(ROLES.dev?.skills).toBe("all");
   expect(ROLES.lead?.skills).toBe("none");
 });

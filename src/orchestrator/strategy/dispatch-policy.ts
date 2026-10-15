@@ -128,7 +128,7 @@ export function checkDispatch(
   if (n > DELEGATE_MAX || shape === "branching")
     return refuse(
       "NEEDS_PLAN",
-      `DELEGATE takes up to ${DELEGATE_MAX} chained workers: a bigger shape needs a plan.`,
+      `DELEGATE takes up to ${DELEGATE_MAX} chained workers: a bigger shape needs a plan (call RequestPlan).`,
     );
   // Every assignment is one `start`: the chain after this request must stay within the cap (checked last, so a
   // request that is too big answers NEEDS_PLAN rather than CHAIN_CAP).

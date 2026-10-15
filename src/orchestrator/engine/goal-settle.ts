@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
+import { hasPendingPlan } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { cancelSet } from "./effect-port-queries";
 
@@ -21,6 +22,7 @@ export function cancelDependents(db: Database, itemId: string): void {
 export function settleGoal(db: Database, goalId: string): ItemRow[] {
   const items = childrenOf(db, goalId);
   if (!items.length || !items.every((i) => TERMINAL.has(i.status))) return items;
+  if (hasPendingPlan(db, goalId)) return items; // the planner ended, the plan waits for the owner: the goal goes on
   const final = items.every((i) => i.status === "completed")
     ? "completed"
     : items.some((i) => i.status === "failed")

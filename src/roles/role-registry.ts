@@ -1,6 +1,7 @@
 import { DEV_ROLE } from "./builtin/dev-role";
 import { DISCORD_MANAGER_ROLE } from "./builtin/discord-manager-role";
 import { LEAD_ROLE } from "./builtin/lead-role";
+import { PLANNER_ROLE } from "./builtin/planner-role";
 import { SCOUT_ROLE } from "./builtin/scout-role";
 import type { RoleDefinition } from "./role-types";
 
@@ -9,6 +10,7 @@ export const ROLES: Readonly<Record<string, RoleDefinition>> = {
   [DEV_ROLE.name]: DEV_ROLE,
   [DISCORD_MANAGER_ROLE.name]: DISCORD_MANAGER_ROLE,
   [LEAD_ROLE.name]: LEAD_ROLE,
+  [PLANNER_ROLE.name]: PLANNER_ROLE,
   [SCOUT_ROLE.name]: SCOUT_ROLE,
 };
 

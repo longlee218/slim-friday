@@ -22,9 +22,10 @@ export interface PromptCtx {
 
 /**
  * Publisher skills of a role: `all` = every installed publisher skill (the skills lock + dirs on disk decide, no names in
- * code), `none` = the workspace's own curated skills only. Widening or narrowing a role is a one-word edit.
+ * code), `none` = the workspace's own curated skills only, a list = exactly those installed skills (a name not installed
+ * is skipped). Widening or narrowing a role is a data edit.
  */
-export type RoleSkills = "all" | "none";
+export type RoleSkills = "all" | "none" | string[];
 
 /**
  * A named job the agent can do. ONE role run = ONE agent run: what it may do (tools, git, prompt, limits) is flat data

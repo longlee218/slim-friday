@@ -1,5 +1,6 @@
 import type { ItemRow, ResultKind } from "../../storage/owned-item-store";
 import type { EventKind } from "../events/event-types";
+import type { PlanDoc, PlanStatusView } from "../plan/plan-types";
 import type { Caps, GoalState, PolicyEnv } from "../strategy/caps";
 import type { ItemDraft } from "../strategy/dispatch-policy";
 
@@ -76,6 +77,27 @@ export type DispatchResult =
   | { ok: true; goalId: string; itemIds: string[] }
   | { ok: false; code: string; message: string };
 
+/** What `RequestPlan` writes: a planner item (in a new goal, or in the open goal `goalId`). */
+export interface PlanRequestWrite {
+  /** Idempotency key of the call (audit row id and event id prefix). */
+  key: string;
+  objective: string;
+  findings?: string | undefined;
+  goalId?: string | undefined;
+}
+
+/** One plan version as the owner's approval reads it. */
+export interface PlanView extends PlanStatusView {
+  goalId: string;
+  objective: string;
+  doc: PlanDoc;
+}
+
+/** Result of the owner's decision on a plan: the item keys the approval created, or a coded refusal. */
+export type PlanDecision =
+  | { ok: true; created?: string[] }
+  | { ok: false; code: string; message: string };
+
 /** Everything a lead tool may do to the world; every method acts on the thread the port was built for. */
 export interface EffectPort {
   /** Stored reply of an earlier call with this key, or undefined (idempotency: replay it, do not act again). */
@@ -98,6 +120,15 @@ export interface EffectPort {
    * thread's own open goal, else a coded BAD_TASK refusal (nothing written).
    */
   dispatch(d: DispatchWrite): DispatchResult;
+  /**
+   * Start a planner on a new goal (or in the thread's open goal): ONE transaction with the planner item, its `start`
+   * event and the audit row. A `goalId` that is not the thread's open goal is a coded BAD_TASK refusal.
+   */
+  requestPlan(w: PlanRequestWrite): DispatchResult;
+  /** One plan version of this thread's goals, or undefined. */
+  plan(planId: string, version: number): PlanView | undefined;
+  /** Record the owner's decision on a `valid` plan version: approve (items are created) or reject. */
+  decidePlan(planId: string, version: number, approve: boolean, reason?: string): PlanDecision;
   /** Append an event to the thread outbox. Returns false when the id already existed. */
   appendEvent(e: NewEvent): boolean;
   /** Steer a task (answers its pending question when there is one). */

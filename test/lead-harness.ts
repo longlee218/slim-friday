@@ -1,4 +1,5 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
@@ -8,7 +9,7 @@ import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helper
 
 /** One model call as the fake sees it. */
 export interface Call {
-  kind: "lead" | "worker" | "other";
+  kind: "lead" | "worker" | "planner" | "other";
   prompt: string;
   options: any;
   /** Call a tool of the run's lead / worker server; returns the parsed JSON reply. */
@@ -44,13 +45,22 @@ export function scriptedQuery(script: Script, calls: Call[]) {
   return ((a: { prompt: unknown; options: any }) =>
     (async function* (): AsyncGenerator<SDKMessage> {
       const servers = a.options?.mcpServers ?? {};
-      const kind: Call["kind"] = servers.lead ? "lead" : servers.worker ? "worker" : "other";
-      const server = servers.lead ?? servers.worker;
+      const kind: Call["kind"] = servers.lead
+        ? "lead"
+        : servers.planner
+          ? "planner"
+          : servers.worker
+            ? "worker"
+            : "other";
       const call: Call = {
         kind,
         prompt: await promptOf(a.prompt),
         options: a.options,
         tool: async (name, args) => {
+          // The tool lives on whichever server of the run holds it (a planner run has `planner` and `worker`).
+          const server = [servers.lead, servers.planner, servers.worker].find(
+            (x) => x?.instance._registeredTools[name],
+          );
           const r = await server.instance._registeredTools[name].handler(args, {});
           return JSON.parse(r.content[0].text);
         },
@@ -68,14 +78,18 @@ export function scriptedQuery(script: Script, calls: Call[]) {
 }
 
 /** Build the handler and a fake query driven by `script`. */
-export function leadHarness(script: Script, env = makeEnv()) {
+export function leadHarness(
+  script: Script,
+  env = makeEnv(),
+  approvals: Partial<ApprovalGateway> = {},
+) {
   const calls: Call[] = [];
   const posts: string[] = [];
   const queryFn = scriptedQuery(script, calls);
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
-    approvals: stubGateway(),
+    approvals: stubGateway(approvals),
     limiter: createRunLimiter(10),
     queryFn,
     leadTiming: { debounceMs: 10, announceWindowMs: 20 },

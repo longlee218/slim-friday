@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../../observability/redact";
 import { LEAD_ROLE } from "../../roles/builtin/lead-role";
 import { childrenOf, getItem, goalOf } from "../../storage/owned-item-store";
+import { PENDING_PLAN_MAX_AGE_MS } from "../../storage/work-plan-store";
 import type { Caps } from "../strategy/caps";
 import type { TaskSnapshot } from "./effect-port";
 
@@ -12,18 +13,19 @@ const OPEN_ITEM = "('pending', 'ready', 'running', 'waiting_user', 'blocked')";
 
 /**
  * Id of the thread's open goal: its newest lead goal with status `open` and at least one unfinished item (or no item
- * yet). A goal whose items all ended is done even while its row still says `open`.
+ * yet) or a plan waiting for the owner (not older than `PENDING_PLAN_MAX_AGE_MS`). A goal whose items all ended is done even while its row still says `open`.
  */
-export function openGoalIdOf(db: Database, threadId: string): string | undefined {
+export function openGoalIdOf(db: Database, threadId: string, now = Date.now()): string | undefined {
   return db
-    .query<{ id: string }, [string, string]>(
+    .query<{ id: string }, [string, string, number]>(
       `SELECT g.id FROM owned_tasks g
        WHERE g.thread_id = ? AND g.parent_id IS NULL AND g.owner_role = ? AND g.status = 'open'
          AND (NOT EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id)
-              OR EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id AND i.status IN ${OPEN_ITEM}))
+              OR EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id AND i.status IN ${OPEN_ITEM})
+              OR EXISTS (SELECT 1 FROM work_plans p WHERE p.goal_id = g.id AND p.status IN ('draft', 'valid') AND p.created_at > ?))
        ORDER BY g.rowid DESC LIMIT 1`,
     )
-    .get(threadId, LEAD_ROLE.name)?.id;
+    .get(threadId, LEAD_ROLE.name, now - PENDING_PLAN_MAX_AGE_MS)?.id;
 }
 
 /** Start of the local day of `now` (epoch ms): "today" of the daily lead budget. */
@@ -31,7 +33,8 @@ const startOfDay = (now: number): number => new Date(now).setHours(0, 0, 0, 0);
 
 /**
  * Cap counters from the db: `start` events after the thread's last `owner_message` (the chain), and the cost of
- * today's lead runs (runs of turns whose role is `lead`).
+ * today's lead runs (runs of turns whose role is `lead`). A `start` materialized from an owner-approved plan
+ * (`payload.plan`) is not counted: the owner already agreed to the whole plan, so its items are no chain.
  */
 export function goalCaps(
   db: Database,
@@ -41,7 +44,7 @@ export function goalCaps(
   const chain = db
     .query<{ n: number }, [string, string]>(
       `SELECT COUNT(*) AS n FROM thread_events
-       WHERE thread_id = ? AND kind = 'start'
+       WHERE thread_id = ? AND kind = 'start' AND COALESCE(json_extract(payload, '$.plan'), 0) != 1
          AND seq > COALESCE((SELECT MAX(seq) FROM thread_events WHERE thread_id = ? AND kind = 'owner_message'), 0)`,
     )
     .get(threadId, threadId);

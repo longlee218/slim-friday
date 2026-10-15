@@ -3,8 +3,9 @@ import { DISPATCH_AGENT_TOOL } from "../../mcp/mcp-tool-names";
 import { excerpt } from "../../observability/logger";
 import { LEAD_ROLE } from "../../roles/builtin/lead-role";
 import { appendEffect } from "../../storage/effect-log-store";
-import { childrenOf, getItem, type ItemRow } from "../../storage/owned-item-store";
+import { childrenOf, getItem, goalOf, type ItemRow } from "../../storage/owned-item-store";
 import { insertOwnedTask, threadOfTask } from "../../storage/owned-task-store";
+import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
 import { appendEvent } from "../events/event-store";
 import type { PolicyEnv } from "../strategy/caps";
@@ -17,6 +18,7 @@ import type {
   Post,
   SteerReply,
 } from "./effect-port";
+import { createPlanPort } from "./effect-port-plan";
 import {
   cancelSet,
   goalCaps,
@@ -65,6 +67,8 @@ export function createDbEffectPort(d: PortDeps): DbEffectPort {
   /** Move the whole cancel set to `cancelled` (CAS: an ended task keeps its status); returns the set to abort. */
   const markCancelled = (taskId: string): { all: string[]; moved: string[] } => {
     const all = cancelSet(db, taskId);
+    // A plan waiting for the owner dies with its goal's work: a later approve must create nothing.
+    closePendingPlans(db, goalOf(db, taskId) ?? taskId, "cancelled");
     return { all, moved: all.filter((id) => moveTaskTo(db, id, "cancelled")) };
   };
   const abortRuns = (ids: string[]): void => {
@@ -170,6 +174,7 @@ export function createDbEffectPort(d: PortDeps): DbEffectPort {
       abortRuns(w.abort); // after the commit: a rolled-back dispatch aborts nothing
       return { ok: true, goalId: w.goalId, itemIds: w.itemIds };
     },
+    ...createPlanPort(db, threadId, d.correlationId),
     appendEvent: (e) => appendEvent(db, { ...e, threadId }),
     steer: (taskId, text): SteerReply => {
       if (pendingQuestionOf(db, taskId) && d.io.answerPending?.(taskId, text)) return "answered";

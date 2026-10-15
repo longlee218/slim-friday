@@ -1,7 +1,5 @@
 import type { Database } from "bun:sqlite";
 import { messageLanguage } from "../../ingress/user-copy";
-import { WORKER_MCP_SERVER } from "../../mcp/mcp-tool-names";
-import { createWorkerServer } from "../../mcp/worker-server";
 import { logger, setLogContext } from "../../observability/logger";
 import { clip, redactText } from "../../observability/redact";
 import { getRole } from "../../roles/role-registry";
@@ -16,10 +14,13 @@ import { getOwnedTask } from "../../storage/owned-task-store";
 import type { ReportSink } from "../../tools/ReportResultTool/report-result-tool";
 import { runDispatchedTask } from "../dispatch/run-dispatched-task";
 import { appendEvent, markStartDelivered } from "../events/event-store";
+import { planReadyOf } from "../plan/plan-ready";
+import { PLANNER_KEY } from "../plan/plan-types";
 import { beginTurn } from "../turns/turn-tracker";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import type { LeadRuntime, LeadThreadCtx } from "./lead-runtime";
 import type { DispatchDeps } from "./role-run-types";
+import { workerServers } from "./worker-servers";
 
 /** Logger of this module. */
 const log = logger.child({ module: "worker-run" });
@@ -80,6 +81,8 @@ export function emitEndEvent(
       excerpt: it.resultExcerpt,
       path: it.resultPath,
       ...(report && { summary: report.summary, requests: report.requests }),
+      // The planner ended with a plan waiting for the owner: the lead is told which one (plan-ready).
+      ...(it.itemKey?.startsWith(PLANNER_KEY) && { plan: planReadyOf(db, it.parentId ?? it.id) }),
     },
   });
 }
@@ -142,7 +145,7 @@ export async function startWorker(
         pinned,
         ledger: earlierSteps(db, item),
         noSubagents: true, // depth 1: dev too
-        appServers: () => ({ [WORKER_MCP_SERVER]: createWorkerServer(sink) }),
+        appServers: workerServers({ db, role, sink, ctx, threadId, goalId }),
         askRelay: role.capabilities.includes("ask")
           ? rt.relay.forWorker({ threadId, goalId, itemId: item.id, turnId })
           : undefined,
