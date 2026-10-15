@@ -9,7 +9,7 @@ import {
 } from "../src/orchestrator/engine/lead-schemas";
 
 const ok = (shape: z.ZodRawShape, v: unknown) => z.object(shape).safeParse(v).success;
-const A = { key: "main", role: "dev", brief: "b" };
+const A = { key: "main", role: "developer", brief: "b" };
 const D = { strategy: "DIRECT", intent: "i", reason: "r", assignments: [A] };
 
 test("DispatchAgent: accepts a minimal request (dependsOn defaults to [])", () => {

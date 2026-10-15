@@ -15,7 +15,7 @@ const REQ: DispatchInput = {
   strategy: "DIRECT",
   intent: "clean node_modules",
   reason: "one job",
-  assignments: [{ key: "main", role: "dev", brief: "clean it", dependsOn: [] }],
+  assignments: [{ key: "main", role: "developer", brief: "clean it", dependsOn: [] }],
 };
 
 test("dispatch: opens the goal, adds items, one start event per item, counts the run", async () => {
@@ -25,7 +25,7 @@ test("dispatch: opens the goal, adds items, one start event per item, counts the
   expect(r).toEqual({ ok: true, goalId: "goal1", itemIds: ["goal1-main"] });
   expect(ctx.run.dispatched).toBe(1);
   expect(port.events.map((e) => [e.kind, e.itemId])).toEqual([["start", "goal1-main"]]);
-  expect(port.events[0]?.payload).toMatchObject({ by: "lead", role: "dev" });
+  expect(port.events[0]?.payload).toMatchObject({ by: "lead", role: "developer" });
 });
 
 test("dispatch: a second DIFFERENT dispatch in the same run is refused ONE_PER_RUN, nothing opened", async () => {
@@ -48,7 +48,12 @@ test("dispatch refusal: coded, writes a lead_decision event and no goal", async 
 
 test("dispatch with 4 assignments answers NEEDS_PLAN; supersedes passes to openGoal", async () => {
   const port = new FakePort();
-  const four = ["a", "b", "c", "d"].map((key) => ({ key, role: "dev", brief: "b", dependsOn: [] }));
+  const four = ["a", "b", "c", "d"].map((key) => ({
+    key,
+    role: "developer",
+    brief: "b",
+    dependsOn: [],
+  }));
   expect(
     await handleDispatch(leadCtx(port), { ...REQ, strategy: "DELEGATE", assignments: four }),
   ).toMatchObject({

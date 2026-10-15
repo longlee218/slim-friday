@@ -113,8 +113,8 @@ test("dev task: ONE detached run in the location's own checkout, bypass permissi
   expect(o.tools).not.toContain("ExitPlanMode");
   expect(Object.keys(o.mcpServers)).toContain("worker");
   expect(Object.keys(o.mcpServers)).not.toContain("git"); // git and gh run in the agent's shell
-  expect(env.db.query("SELECT role, location FROM turns WHERE role = 'dev'").get()).toEqual({
-    role: "dev",
+  expect(env.db.query("SELECT role, location FROM turns WHERE role = 'developer'").get()).toEqual({
+    role: "developer",
     location: "real",
   });
   expect(await g(clone, "log", "-1", "--format=%s")).toBe("add b");
@@ -162,7 +162,7 @@ test("stop during the dev run cancels the dev task", async () => {
   await started;
   expect(await send("stop")).toBe("I’m stopping the current work.");
   await workersDone(env.db);
-  expect(env.db.query("SELECT type, status FROM turns WHERE role = 'dev'").all()).toEqual([
+  expect(env.db.query("SELECT type, status FROM turns WHERE role = 'developer'").all()).toEqual([
     { type: "code", status: "cancelled" },
   ]);
 });

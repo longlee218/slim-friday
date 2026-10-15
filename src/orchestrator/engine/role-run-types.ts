@@ -77,7 +77,7 @@ export interface RoleRunInput {
   ledger?: string;
   /** Extra system-context blocks of this run (the lead's LEAD.md); appended after the persona / memory context. */
   extraSystem?: string[];
-  /** Dispatched worker run: no SDK subagent tools even when the role allows them (depth 1, dev included). */
+  /** Dispatched worker run: no SDK subagent tools even when the role allows them (depth 1, developer included). */
   noSubagents?: boolean;
   /** Envelope of a dispatched worker: its shell is an allowlist and every tool call is checked against it. Omitted = no envelope. */
   envelope?: DispatchEnvelope;

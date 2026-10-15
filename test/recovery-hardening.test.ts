@@ -81,7 +81,7 @@ test("quota/error runs never replace the stored session either", async () => {
 test("restart marks running tasks interrupted; ack makes them cancelled (one notice)", () => {
   const { db } = makeEnv();
   insertTurn(db, { id: "a", threadId: "th", source: "d", location: "r", role: "lead" });
-  insertTurn(db, { id: "b", threadId: "th", source: "d", location: "r", role: "dev" });
+  insertTurn(db, { id: "b", threadId: "th", source: "d", location: "r", role: "developer" });
   setTurnStatus(db, "b", "waiting_approval");
   insertTurn(db, { id: "c", threadId: "other", source: "d", location: "r", role: "lead" });
   setTurnStatus(db, "c", "done");

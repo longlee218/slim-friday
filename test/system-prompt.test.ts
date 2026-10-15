@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { release } from "node:os";
-import { DEV_ROLE } from "../src/roles/builtin/dev-role";
+import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { buildSystemPrompt, currentHost, hostLine } from "../src/runtime/system-prompt";
@@ -12,9 +12,9 @@ const rules = (role: RoleDefinition) => buildSystemPrompt("", role).append;
 const count = (text: string, marker: string) => text.split(marker).length - 1;
 
 /** Every role the app builds. */
-const MODES: readonly RoleDefinition[] = [LEAD_ROLE, DEV_ROLE];
+const MODES: readonly RoleDefinition[] = [LEAD_ROLE, DEVELOPER_ROLE];
 const lead = LEAD_ROLE;
-const dev = DEV_ROLE;
+const dev = DEVELOPER_ROLE;
 
 test("COMMON safety lines appear exactly once in every mode", () => {
   for (const mode of MODES) {

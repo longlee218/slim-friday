@@ -196,7 +196,7 @@ test("dev loads every installed skill, the lead none; a role without `skills` lo
     r.cleanup();
     return [...r.skills].sort();
   };
-  expect(names(ROLES.dev as RoleDefinition)).toEqual([...INSTALLED].sort());
+  expect(names(ROLES.developer as RoleDefinition)).toEqual([...INSTALLED].sort());
   expect(names(ROLES.lead as RoleDefinition)).toEqual([]);
-  expect(names({ ...(ROLES.dev as RoleDefinition), skills: undefined })).toEqual([]);
+  expect(names({ ...(ROLES.developer as RoleDefinition), skills: undefined })).toEqual([]);
 });

@@ -61,7 +61,7 @@ export interface GuardrailContext {
   readPaths?: string[];
   /** Real dirs where `git worktree add` / EnterWorktree may put a worktree (`workspace(ws).worktrees`). Omitted = none allowed. */
   worktreeDirs?: string[];
-  /** Real paths of registered locations: git MCP tools (the assistant's read tools) may READ these. */
+  /** Real paths of registered locations: git MCP tools (the read-only roles' git tools) may READ these. */
   gitReadPaths?: string[];
   /** Real dirs no tool may touch, read or write (AGENT_HOME), even inside a registered location. Omitted = none. */
   denyPaths?: string[];

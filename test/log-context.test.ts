@@ -62,8 +62,8 @@ test("a line from a module logger deep in a worker run carries sessionKey/thread
   await workersDone(env.db);
   cap.stop();
   const started = cap.lines.find((l) => l.event === "run.started")!;
-  expect(started).toMatchObject({ threadId: "th1", location: "location", mode: "dev" });
-  expect(started.sessionKey).toMatch(/^task:.+:dev$/);
+  expect(started).toMatchObject({ threadId: "th1", location: "location", mode: "developer" });
+  expect(started.sessionKey).toMatch(/^task:.+:developer$/);
   // Every run line has the same ids, none passed by hand.
   for (const l of cap.lines.filter((l) => String(l.event).startsWith("run."))) {
     expect(l.sessionKey).toBe(started.sessionKey);
@@ -126,9 +126,10 @@ test("context survives into SDK callbacks (hooks, timers): tool lines carry the 
   const calls = cap.lines.filter((l) => l.event === "tool.done" || l.event === "tool.denied");
   expect(calls.map((c) => c.event).sort()).toEqual(["tool.denied", "tool.done"]);
   const started = cap.lines.find((l) => l.event === "task.started")!;
-  expect(started.type).toBe("dev"); // the log type is the role name
+  expect(started.type).toBe("developer"); // the log type is the role name
   const sessionKey = cap.lines.find((l) => l.event === "run.started")!.sessionKey;
-  for (const c of calls) expect(c).toMatchObject({ sessionKey, threadId: "th1", mode: "dev" });
+  for (const c of calls)
+    expect(c).toMatchObject({ sessionKey, threadId: "th1", mode: "developer" });
   expect(calls.find((c) => c.event === "tool.denied")!.reason).toBeTruthy();
 });
 

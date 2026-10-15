@@ -16,7 +16,7 @@ import { makeEnv, resultMsg } from "./helpers";
 
 const cfg = (extra: Record<string, string> = {}) => loadConfig({ AGENT_HOME: "/h", ...extra });
 const scout = getRole("scout");
-const dev = getRole("dev");
+const dev = getRole("developer");
 const H = DEFAULT_TIER_MODELS.haiku;
 const S = DEFAULT_TIER_MODELS.sonnet;
 const O = DEFAULT_TIER_MODELS.opus;
@@ -42,9 +42,9 @@ describe("tier defaults and env", () => {
       COMPACT_WINDOW_DEV: "200000",
       MODEL_INTENT: "x",
     });
-    expect(c.modelOverrides).toEqual({ dev: "opus" });
-    expect(c.budgetOverrides.dev).toBe(5);
-    expect(c.compactOverrides.dev).toBe(200000);
+    expect(c.modelOverrides).toEqual({ developer: "opus" });
+    expect(c.budgetOverrides.developer).toBe(5);
+    expect(c.compactOverrides.developer).toBe(200000);
     expect(() => cfg({ BUDGET_DEV_USD: "abc" })).toThrow("BUDGET_DEV_USD");
     expect(cfg({ MODEL_SONNET: "s" }).modelOverrides).toEqual({});
   });
@@ -65,7 +65,7 @@ describe("tier defaults and env", () => {
   test("legacy MODEL alias pins no role (Anthropic path): flagged deprecated; MODEL_<ROLE> pins stay", () => {
     const c = cfg({ MODEL: "m-qa", MODEL_DEV: "sonnet" });
     expect(c.deprecated).toEqual(["MODEL"]);
-    expect(c.modelOverrides).toEqual({ dev: "sonnet" });
+    expect(c.modelOverrides).toEqual({ developer: "sonnet" });
     expect(resolveModel(scout, {}, c)).toBe(H); // the role's own model, not MODEL
     expect(resolveModel(dev, {}, c)).toBe(S);
     expect(cfg({ MODEL: "m-qa", MODEL_SCOUT: "opus" }).modelOverrides.scout).toBe("opus");

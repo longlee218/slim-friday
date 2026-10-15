@@ -30,7 +30,7 @@ export interface TurnHandlerDeps {
   queryFn?: QueryFn;
   /** Optional global concurrency cap shared by the lead runs and the worker runs. */
   limiter?: RunLimiter;
-  /** Owner approval gateway; required for background roles such as dev. */
+  /** Owner approval gateway; required for background roles such as developer. */
   approvals?: ApprovalGateway;
   /** Renames threads for `SetThreadTitle` (offered to every role run; not rollover runs); omitted = the tool is not offered. */
   threadTitle?: ThreadTitlePort;
@@ -44,7 +44,7 @@ export interface TurnHandlerDeps {
 
 /**
  * Build `handleMessage`: Discord-free entry. Commands (`/stop`, `/status`, memory) are answered by app code. A role tag
- * (`[dev] ...`) starts that worker directly. Every other owner message goes to the thread's lead (queue): the handler
+ * (`[developer] ...`) starts that worker directly. Every other owner message goes to the thread's lead (queue): the handler
  * returns nothing and the lead posts its own reply, so the owner hears one voice.
  */
 export function createTurnHandler(deps: TurnHandlerDeps) {

@@ -55,7 +55,7 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
           items: [
             {
               key: "cleanup",
-              role: "dev",
+              role: "developer",
               brief: "remove old.txt",
               location: "location",
               dependsOn: [],
@@ -178,7 +178,13 @@ test("the dispatch lists effect grants: one owner question, No = nothing starts,
           intent: "ship",
           reason: "owner asked for a PR",
           assignments: [
-            { key: "main", role: "dev", brief: "open a PR", location: "location", dependsOn: [] },
+            {
+              key: "main",
+              role: "developer",
+              brief: "open a PR",
+              location: "location",
+              dependsOn: [],
+            },
           ],
           effects: [{ tool: GIT_PUSH_TOOL, location: "location", branch: "feat/x" }],
         };

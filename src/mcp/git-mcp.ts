@@ -5,7 +5,7 @@ const entry = (): string => Bun.resolveSync("@cyanheads/git-mcp-server", import.
 
 /**
  * Env of one server process: stdio transport, no signing, no terminal prompts. It carries no commit identity (it
- * serves reads only; the dev agent commits through its own shell with the owner's git config).
+ * serves reads only; the developer agent commits through its own shell with the owner's git config).
  */
 export function gitServerEnv(): Record<string, string> {
   return {

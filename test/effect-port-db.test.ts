@@ -17,7 +17,7 @@ import { insertTurn } from "../src/storage/run-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 
 const TH = "th1";
-const ENV = { workerRoles: ["dev", "scout"], locations: ["repo"] };
+const ENV = { workerRoles: ["developer", "scout"], locations: ["repo"] };
 let db: Database;
 afterEach(() => db?.close());
 
@@ -50,7 +50,7 @@ const req = (over: Partial<DispatchInput> = {}): DispatchInput => ({
   intent: "two steps",
   reason: "r",
   assignments: [
-    { key: "a", role: "dev", brief: "first", dependsOn: [] },
+    { key: "a", role: "developer", brief: "first", dependsOn: [] },
     { key: "b", role: "scout", brief: "second", dependsOn: ["a"] },
   ],
   ...over,
@@ -85,7 +85,7 @@ test("one open goal: a second dispatch is refused GOAL_OPEN; supersedes cancels 
       intent: "y",
       supersedes: goalId,
       strategy: "DIRECT",
-      assignments: [{ key: "m", role: "dev", brief: "b", dependsOn: [] }],
+      assignments: [{ key: "m", role: "developer", brief: "b", dependsOn: [] }],
     }),
   );
   expect(next.ok).toBe(true);
@@ -99,7 +99,7 @@ test("a goal whose items all ended is no longer open", async () => {
     ctx(),
     req({
       strategy: "DIRECT",
-      assignments: [{ key: "m", role: "dev", brief: "b", dependsOn: [] }],
+      assignments: [{ key: "m", role: "developer", brief: "b", dependsOn: [] }],
     }),
   );
   const id = port.state().items[0]?.id as string;
@@ -142,7 +142,7 @@ test("lead budget sums today's lead runs only", () => {
   };
   run("t1", "lead", 1.25);
   run("t2", "lead", 0.5);
-  run("t3", "dev", 9);
+  run("t3", "developer", 9);
   expect(port.caps().leadSpentTodayUsd).toBeCloseTo(1.75);
   const tomorrow = createDbEffectPort({
     db,
@@ -209,8 +209,8 @@ test("escalation is granted once and readable by the runner", () => {
 
 /** Two items with the same key: the second insert hits the unique (goal, item key) index and throws. */
 const DUP_ITEMS = [
-  { key: "a", role: "dev", brief: "x", dependsOn: [], status: "ready" as const },
-  { key: "a", role: "dev", brief: "y", dependsOn: [], status: "ready" as const },
+  { key: "a", role: "developer", brief: "x", dependsOn: [], status: "ready" as const },
+  { key: "a", role: "developer", brief: "y", dependsOn: [], status: "ready" as const },
 ];
 
 const WRITE = { key: "k1", strategy: "DELEGATE", intent: "two same-key items", reason: "r" };
@@ -296,7 +296,7 @@ test("an escalation re-run of the same input does not post or ask twice; a refus
     run1,
     req({
       strategy: "DIRECT",
-      assignments: [{ key: "m", role: "dev", brief: "b", dependsOn: [] }],
+      assignments: [{ key: "m", role: "developer", brief: "b", dependsOn: [] }],
     }),
   );
   const id = port.state().items[0]?.id as string;
@@ -312,7 +312,7 @@ test("an escalation re-run of the same input does not post or ask twice; a refus
   // a dispatch refused by an open goal succeeds after the blocker is cleared (not replayed from a stored refusal)
   const again = req({
     strategy: "DIRECT",
-    assignments: [{ key: "n", role: "dev", brief: "b", dependsOn: [] }],
+    assignments: [{ key: "n", role: "developer", brief: "b", dependsOn: [] }],
   });
   const c2 = ctx("in2");
   expect(await handleDispatch(c2, again)).toMatchObject({ code: "GOAL_OPEN" });

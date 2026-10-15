@@ -152,7 +152,9 @@ test("MergeBranch: only into the granted, checked-out branch; a conflict is abor
   const { dir } = repo();
   const grant: EffectGrant = { tool: MERGE_BRANCH_TOOL, scope: { location: "api", into: "main" } };
   const { ctx } = ctxOf(dir, [grant]);
-  expect(await mergeBranch(ctx, { location: "api", from: "feat/x", into: "dev" })).toMatchObject({
+  expect(
+    await mergeBranch(ctx, { location: "api", from: "feat/x", into: "developer" }),
+  ).toMatchObject({
     code: "OUT_OF_ENVELOPE",
   });
   git(dir, "checkout", "feat/x");

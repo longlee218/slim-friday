@@ -12,7 +12,7 @@ const log = { warn() {}, info() {}, error() {}, debug() {} } as unknown as Logge
 function setup() {
   const limit = newSubagentLimit();
   const hook = guardHook(
-    { turnId: "t", threadId: "th", guard: guardFor(getRole("dev"), {}) },
+    { turnId: "t", threadId: "th", guard: guardFor(getRole("developer"), {}) },
     new Map(),
     log,
     limit,

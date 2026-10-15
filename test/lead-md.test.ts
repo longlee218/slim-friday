@@ -11,13 +11,14 @@ test("LEAD.md lists the dispatchable workers from the registry, the strategies a
   expect(md).toContain(
     "Answer only simple chat/status yourself; dispatch anything a specialist covers.",
   );
-  expect(md).toMatch(/^- dev: .*changes: location/m);
+  expect(md).toMatch(/^- developer: .*changes: location/m);
   expect(md).toMatch(/^- scout: .*changes: none/m);
   expect(md).not.toMatch(/^- (assistant|lead|discord-manager):/m);
   for (const s of ["ANSWER", "DIRECT", "DELEGATE", "PLAN"]) expect(md).toContain(`- ${s}:`);
   expect(md).toContain("At most 3 chained starts");
   expect(md).toContain("1 dispatch per run");
   expect(md).toContain("$3/day");
+  expect(md).toContain("no resume tool exists"); // resume = a new DispatchAgent with a brief
   // Privacy rules ported from the old assistant prompt.
   expect(md).toContain("Shared channel: never reveal");
   expect(md).toContain("Never echo secrets");
@@ -25,7 +26,7 @@ test("LEAD.md lists the dispatchable workers from the registry, the strategies a
 });
 
 test("LEAD.md follows the roles it is given and stays under ~1.5k tokens", () => {
-  expect(buildLeadMd([ROLES.scout!])).not.toContain("- dev:");
+  expect(buildLeadMd([ROLES.scout!])).not.toContain("- developer:");
   expect(buildLeadMd([])).toContain("none available");
   expect(buildLeadMd().length).toBeLessThan(6000);
 });

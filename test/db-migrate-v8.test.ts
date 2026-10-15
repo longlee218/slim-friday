@@ -23,11 +23,11 @@ function v7Home(extraSql = "") {
   raw.exec("INSERT INTO sessions VALUES ('th1', 'sess-1', 'my-repo', '/r', 'active', 1);");
   for (const step of [migrateV3, migrateV4, migrateV5, migrateV6, migrateV7]) step(raw);
   raw.exec(
-    "INSERT INTO turns (id, thread_id, source, location, type, status, started_at, role) VALUES ('t1', 'th1', 'test', 'my-repo', 'run', 'done', 1, 'dev');",
+    "INSERT INTO turns (id, thread_id, source, location, type, status, started_at, role) VALUES ('t1', 'th1', 'test', 'my-repo', 'run', 'done', 1, 'developer');",
   );
   raw.exec(
     `INSERT INTO owned_tasks (id, thread_id, owner_role, status, scope, correlation_id, created_at, last_progress_at)
-     VALUES ('o1', 'th1', 'dev', 'completed', 's', 'c', 1, 1);`,
+     VALUES ('o1', 'th1', 'developer', 'completed', 's', 'c', 1, 1);`,
   );
   if (extraSql) raw.exec(extraSql);
   raw.close();

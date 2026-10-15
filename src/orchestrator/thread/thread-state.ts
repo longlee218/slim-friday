@@ -61,5 +61,5 @@ export function deriveThreadState(db: Database, threadId: string): ThreadState {
   return last.status === "done" ? "done" : "idle";
 }
 
-/** `done` folds to `idle`: both route to the assistant, which then sees the thread ledger. */
+/** `done` folds to `idle`: both go to the lead, which then sees the thread ledger. */
 export const isIdleLike = (s: ThreadState): boolean => s === "idle" || s === "done";

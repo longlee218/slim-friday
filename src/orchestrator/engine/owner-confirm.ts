@@ -3,7 +3,7 @@ import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 
-/* The owner-confirm gate: a yes/no with buttons before a costlier step (effort `max`, an assistant's
+/* The owner-confirm gate: a yes/no with buttons before a costlier step (effort `max`, a worker's
    `ESCALATE: opus`). It FAILS CLOSED: anything but a click on "yes" (no button flow, no answer in time, a
    restart that dropped the pending click, stop/shutdown, a send error) means "do not run the costly step".
    The pending click lives in the gateway's memory, so a click after a restart answers "This action expired."

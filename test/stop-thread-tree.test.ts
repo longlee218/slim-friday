@@ -12,7 +12,7 @@ const task = (env: ReturnType<typeof makeEnv>, id: string, threadId: string, sta
   insertOwnedTask(env.db, {
     id,
     threadId,
-    ownerRole: "dev",
+    ownerRole: "developer",
     status: status as never,
     scope: "s",
     correlationId: "c",
@@ -30,7 +30,7 @@ test("/stop aborts the lead run + both task runs, clears the lead queue, cancels
     const settle = registerTaskRun(taskId, {
       threadId: taskId === "st-other" ? "st-other-th" : "st-th",
       turnId: `turn-${taskId}`,
-      role: "dev",
+      role: "developer",
       ac,
     });
     return { taskId, ac, settle };
@@ -58,7 +58,13 @@ test("/stop aborts the lead run + both task runs, clears the lead queue, cancels
 
 test("L4: a start event claimed by a live consumer is kept; an unclaimed one is closed", () => {
   const env = makeEnv();
-  insertTurn(env.db, { id: "lc-turn", threadId: "lc-th", source: "t", location: "r", role: "dev" }); // running
+  insertTurn(env.db, {
+    id: "lc-turn",
+    threadId: "lc-th",
+    source: "t",
+    location: "r",
+    role: "developer",
+  }); // running
   appendEvent(env.db, { id: "lc-1", threadId: "lc-th", kind: "start", payload: {} });
   claimBatch(env.db, "lc-th", "lc-turn");
   appendEvent(env.db, { id: "lc-2", threadId: "lc-th", kind: "start", payload: {} });

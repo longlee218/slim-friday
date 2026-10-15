@@ -19,7 +19,7 @@ const FORBIDDEN: Record<string, RegExp> = {
   codeModel: /\bcodeModel\b/,
   CODE_MODEL: /\bCODE_MODEL\b/,
   ASSISTANT_ROLE: /\bASSISTANT_ROLE\b/,
-  DEV_ROLE: /\bDEV_ROLE\b/,
+  DEVELOPER_ROLE: /\bDEV_ROLE\b/,
 };
 
 /** Documented exceptions: file -> forbidden names it may contain, with the reason. Empty today. */

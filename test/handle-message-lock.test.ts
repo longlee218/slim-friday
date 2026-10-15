@@ -25,7 +25,8 @@ const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
     queryFn: queryFn as never,
   });
 const turnStatus = (env: ReturnType<typeof makeEnv>) =>
-  env.db.query<{ status: string }, []>("SELECT status FROM turns WHERE role = 'dev'").get()?.status;
+  env.db.query<{ status: string }, []>("SELECT status FROM turns WHERE role = 'developer'").get()
+    ?.status;
 
 /** Query that waits until aborted (or released), simulating a long run. */
 function slowQuery(release: { fn?: () => void; ready?: () => void }) {

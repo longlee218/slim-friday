@@ -20,7 +20,7 @@ import {
 } from "../src/storage/work-plan-store";
 import { makeEnv } from "./helpers";
 
-const base = { threadId: "th", ownerRole: "dev", correlationId: "c" };
+const base = { threadId: "th", ownerRole: "developer", correlationId: "c" };
 
 test("owned items: children in order, goalOf, deps parsed, dispatch counter, result", () => {
   const { db } = makeEnv();

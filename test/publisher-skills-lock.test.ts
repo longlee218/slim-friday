@@ -36,7 +36,7 @@ test("roles pick publisher skills by `all`/`none` or a data list, never by a nam
     expect(
       ["all", "none", undefined].includes(role.skills as never) || Array.isArray(role.skills),
     ).toBe(true);
-  expect(ROLES.dev?.skills).toBe("all");
+  expect(ROLES.developer?.skills).toBe("all");
   expect(ROLES.lead?.skills).toBe("none");
 });
 

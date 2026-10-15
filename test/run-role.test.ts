@@ -105,7 +105,7 @@ test("one dev run: ONE runs row with model and cost; the worker's text is not re
   expect(reply).toContain("starting"); // the fixed start notice, not the worker's report
   const [t] = codeTask(env);
   expect(t).toMatchObject({
-    role: "dev",
+    role: "developer",
     kind: "single",
     hop: 1,
     counts_toward_cap: 1,

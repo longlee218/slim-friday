@@ -7,7 +7,7 @@ import { createMemoryServer } from "./memory-server";
 
 /**
  * MCP servers of a role, from its role DATA only: the git server (read tools) when the role lists `gitGroups`
- * (the assistant). A role that writes has none: its agent uses `git` and `gh` in the shell. The guard limits
+ * (the lead and scout). A role that writes has none: its agent uses `git` and `gh` in the shell. The guard limits
  * `path` and the tools of the server. The in-process `memory` server is added to EVERY role when the run
  * brings a `memory` context (a run without one, e.g. a classifier call, has no memory tools). The app servers a role
  * lists in `mcpServers` come from the caller (`appServers`, a factory called per query() call with the run's context): a listed server the

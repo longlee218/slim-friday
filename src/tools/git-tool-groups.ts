@@ -1,7 +1,7 @@
 import { GIT_TOOL } from "../mcp/mcp-tool-names";
 
 /**
- * Git MCP tools (@cyanheads/git-mcp-server 2.15.3) a role may use. Only reads: the dev agent changes git through
+ * Git MCP tools (@cyanheads/git-mcp-server 2.15.3) a role may use. Only reads: the developer agent changes git through
  * its shell, so no role gets the staging/commit/checkout tools. A role lists groups in its `gitGroups` data.
  */
 export const GIT_GROUPS = {

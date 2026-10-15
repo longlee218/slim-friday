@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
-import { DEV_ROLE } from "../src/roles/builtin/dev-role";
+import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
 import * as sdkNames from "../src/tools/sdk-tool-names";
@@ -46,10 +46,10 @@ import {
   toolsFor,
 } from "../src/tools/tool-catalog";
 
-const ROLES = [LEAD_ROLE, SCOUT_ROLE, DEV_ROLE];
+const ROLES = [LEAD_ROLE, SCOUT_ROLE, DEVELOPER_ROLE];
 /** The read-only worker: read + web + skills, no shell. */
 const qaRole = SCOUT_ROLE;
-const dev = DEV_ROLE;
+const dev = DEVELOPER_ROLE;
 
 test("scout: read + web + skills; nothing that writes or runs commands; depth 1 (no subagents)", () => {
   const t = toolsFor(qaRole);

@@ -203,3 +203,28 @@ test("relative markdown links in docs point at existing files", () => {
   expect(checked).toBeGreaterThan(0);
   expect(missing).toEqual([]);
 });
+
+/**
+ * Retired role names (`dev` renamed `developer`; the `assistant` role is gone): no role literal in src outside the one
+ * alias map and the frozen legacy storage files. The SDK's own `"assistant"` message type is not a role and stays legal.
+ */
+const ROLE_NAMES: Record<string, RegExp> = {
+  "dev role literal": /["'`]dev["'`]/,
+  "dev role tag": /\[dev\]/,
+  "assistant role literal":
+    /\bname:\s*["']assistant["']|getRole\(["']assistant["']\)|ASSISTANT_ROLE/,
+};
+const ROLE_NAMES_EXEMPT = [
+  "role-aliases.ts",
+  "legacy-migrate-v2.ts",
+  "legacy-schema.ts",
+  "migrate-v3-turns.ts",
+];
+
+test("src holds no `dev` or `assistant` role name outside the alias map", () => {
+  const hits: string[] = [];
+  for (const f of sources("src").filter((x) => !ROLE_NAMES_EXEMPT.some((e) => x.file.endsWith(e))))
+    for (const [name, re] of Object.entries(ROLE_NAMES))
+      if (re.test(f.text)) hits.push(`${f.file}: ${name}`);
+  expect(hits).toEqual([]);
+});

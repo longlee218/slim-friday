@@ -1,3 +1,4 @@
+import { canonicalRoleName } from "../roles/role-aliases";
 import { DEFAULT_TIER_MODELS, type ModelTier } from "./model-routing";
 
 /* Env of model routing: tier ids, per-role model pins, budgets and compact windows. Errors name variables, never values. */
@@ -24,6 +25,9 @@ export interface RoutingEnv {
   /** Deprecated env names that are set (legacy MODEL, the old two-name shapes): the startup warns once, the old shapes are ignored. */
   deprecated: string[];
 }
+
+/** Role key of an env var name part: lowercased, an old role name (`MODEL_DEV`) reads as its current one. */
+const roleKey = (part: string): string => canonicalRoleName(part.toLowerCase());
 
 const trimmed = (v: string | undefined): string | undefined => v?.trim() || undefined;
 
@@ -57,17 +61,17 @@ export function readRoutingEnv(env: Env): RoutingEnv {
       deprecated.push(name);
       continue;
     }
-    if (model && !NOT_A_ROLE.has(model[1])) modelOverrides[model[1].toLowerCase()] = value;
+    if (model && !NOT_A_ROLE.has(model[1])) modelOverrides[roleKey(model[1])] = value;
     if (budget) {
       const usd = Number(raw);
-      if (Number.isFinite(usd) && usd > 0) budgetOverrides[budget[1].toLowerCase()] = usd;
+      if (Number.isFinite(usd) && usd > 0) budgetOverrides[roleKey(budget[1])] = usd;
       else bad.push(name);
     }
     if (compact) {
       const tokens = Number(raw);
       const inRange = tokens >= COMPACT_WINDOW_MIN && tokens <= COMPACT_WINDOW_MAX;
       if (Number.isInteger(tokens) && (tokens === 0 || inRange))
-        compactOverrides[compact[1].toLowerCase()] = tokens;
+        compactOverrides[roleKey(compact[1])] = tokens;
       else bad.push(name);
     }
   }

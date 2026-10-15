@@ -56,10 +56,10 @@ function gatedHandler(env: ReturnType<typeof makeEnv>, limiter = createRunLimite
 test("a worker holds the only slot; a second one is deferred (stays ready, no failure) and starts when the first ends", async () => {
   const env = makeEnv();
   const { send, gate, limiter } = gatedHandler(env);
-  await send("[dev] a", "th1");
+  await send("[developer] a", "th1");
   await until(() => gate.entered === 1);
   expect(limiter.active()).toBe(1);
-  await send("[dev] b", "th2"); // cap reached: the item waits, it never fails
+  await send("[developer] b", "th2"); // cap reached: the item waits, it never fails
   await until(
     () =>
       !!env.db
@@ -95,13 +95,13 @@ test("slot released when the run errors", async () => {
 test("abortAll aborts active worker runs and frees their slot", async () => {
   const env = makeEnv();
   const { handle, send, gate, limiter } = gatedHandler(env);
-  await send("[dev] a", "th1");
+  await send("[developer] a", "th1");
   await until(() => gate.entered === 1);
   handle.abortAll();
   await until(() => limiter.active() === 0);
   expect(
     env.db
-      .query("SELECT COUNT(*) AS n FROM turns WHERE role = 'dev' AND status = 'completed'")
+      .query("SELECT COUNT(*) AS n FROM turns WHERE role = 'developer' AND status = 'completed'")
       .get(),
   ).toEqual({ n: 0 });
 });

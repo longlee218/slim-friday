@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { MessageReactionPort } from "../../ingress/message-reaction";
 import { STEER_READ_EMOJI } from "../../ingress/message-reaction";
 import { logEvent, logger, tryLog } from "../../observability/logger";
+import { canonicalRoleName } from "../../roles/role-aliases";
 import { ROLES } from "../../roles/role-registry";
 import type { SteerRun, SteerSink } from "../../runtime/run-input-channel";
 import { ownedTaskOfTurn, runningTurnOfTask, threadOfTask } from "../../storage/owned-task-store";
@@ -44,7 +45,8 @@ export function createSteerRegistry(db: Database, reactions?: MessageReactionPor
   /** The running turn of one task (owned task id or turn id), with its role and thread. */
   const liveTurnOfTask = (taskId: string) => runningTurnOfTask(db, taskId);
   /** A running turn is a streaming role (one that reads steers): a message can wait for it. */
-  const streams = (t: { role: string } | undefined): boolean => !!(t && ROLES[t.role]?.streaming);
+  const streams = (t: { role: string } | undefined): boolean =>
+    !!(t && ROLES[canonicalRoleName(t.role)]?.streaming);
   const canHold = (threadId: string): boolean => streams(liveTask(threadId));
   /** threadId -> observers of the run supervisor, each bound to one target turn. */
   const watchers = new Map<

@@ -19,12 +19,12 @@ const SEED = `
 INSERT INTO sessions VALUES ('th1', 'sess-1', 'repo', '/r', 'active', 1);
 INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at, role, kind, hop, counts_toward_cap) VALUES
  ('t1', 'th1', 'discord', 'repo', 'qa', 'done', 1, 'assistant', 'single', 0, 0),
- ('t2', 'th1', 'discord', 'repo', 'code', 'running', 3, 'dev', 'staged', 0, 1);
+ ('t2', 'th1', 'discord', 'repo', 'code', 'running', 3, 'developer', 'staged', 0, 1);
 INSERT INTO runs (id, task_id, model, cost_usd, outcome, stage_idx) VALUES ('r1', 't1', 'm', 0.25, 'success', NULL), ('r2', 't2', 'm', 0.5, 'success', 0);
 INSERT INTO tool_calls (id, run_id, tool, input_json, output_preview, task_id) VALUES ('c1', 'r1', 'Read', '{}', 'a', 't1');
 INSERT INTO approvals VALUES ('a1', 't2', 'Bash', 'ls', 'approved', 1, 2);
 INSERT INTO stages (task_id, idx, name, status) VALUES ('t2', 0, 'plan', 'done'), ('t2', 1, 'exec', 'running');
-INSERT INTO proposals (id, thread_id, workspace, from_task_id, role, brief, status, created_at, base) VALUES ('p1', 'th1', 'main', 't1', 'dev', 'b', 'started', 1, 'main');
+INSERT INTO proposals (id, thread_id, workspace, from_task_id, role, brief, status, created_at, base) VALUES ('p1', 'th1', 'main', 't1', 'developer', 'b', 'started', 1, 'main');
 INSERT INTO run_messages (id, thread_id, seq, kind, status, content, created_at, task_id, after_plan) VALUES ('m1', 'th1', 1, 'steer', 'pending', 'hi', 1, 't2', 1);
 INSERT INTO worktrees (task_id, thread_id, repo, repo_path, path, branch, base, created_at) VALUES ('t2', 'th1', 'repo', '/r', '/w2', 'agent/t2', 'main', 1);
 `;

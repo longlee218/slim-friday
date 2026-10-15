@@ -20,7 +20,7 @@ test("DIRECT -> worker -> ReportResult -> announce -> ForwardResult, then a foll
         assignments: [
           {
             key: "main",
-            role: "dev",
+            role: "developer",
             brief: "Remove node_modules in location",
             location: "location",
             dependsOn: [],
@@ -140,7 +140,7 @@ test("a worker question becomes an event; SteerTask answers it and the worker co
       return "done with b";
     }
     if (c.prompt.includes("Owner message:\nstart")) {
-      await dispatch(c, [{ key: "main", role: "dev", brief: "do it", dependsOn: [] }]);
+      await dispatch(c, [{ key: "main", role: "developer", brief: "do it", dependsOn: [] }]);
       return "started";
     }
     const id = ITEM.exec(c.prompt)?.[1] as string;

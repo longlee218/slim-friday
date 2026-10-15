@@ -43,7 +43,7 @@ async function runDev(env: ReturnType<typeof makeEnv>, turnId: string) {
       threadId: "th",
       language: "en",
       text: "continue",
-      role: "dev",
+      role: "developer",
       workspace: "main",
       locations: [{ name: "location", path: env.location } as never],
       ac: new AbortController(),
@@ -57,13 +57,19 @@ test("task ceiling: a run gets only what the task and the runs it resumes left o
   clearWorkspaces(env.home);
   addLocation(env.home, "location");
   // t1 (4.0 spent) <- t2 (resume, 1.5 spent) <- t3 (resume, this run): 5.5 spent in the chain, 0.5 left.
-  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", location: "location", role: "dev" });
+  insertTurn(env.db, {
+    id: "t1",
+    threadId: "th",
+    source: "t",
+    location: "location",
+    role: "developer",
+  });
   insertTurn(env.db, {
     id: "t2",
     threadId: "th",
     source: "t",
     location: "location",
-    role: "dev",
+    role: "developer",
     resume: true,
     parentTurnId: "t1",
   });
@@ -72,7 +78,7 @@ test("task ceiling: a run gets only what the task and the runs it resumes left o
     threadId: "th",
     source: "t",
     location: "location",
-    role: "dev",
+    role: "developer",
     resume: true,
     parentTurnId: "t2",
   });
@@ -82,7 +88,7 @@ test("task ceiling: a run gets only what the task and the runs it resumes left o
     threadId: "th",
     source: "t",
     location: "location",
-    role: "dev",
+    role: "developer",
   });
   spend(env.db, "t1", 4.0);
   spend(env.db, "t2", 1.5);
@@ -97,13 +103,19 @@ test("task ceiling used up: the run is refused before it starts, `/go +usd` cann
   const env = makeEnv();
   clearWorkspaces(env.home);
   addLocation(env.home, "location");
-  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", location: "location", role: "dev" });
+  insertTurn(env.db, {
+    id: "t1",
+    threadId: "th",
+    source: "t",
+    location: "location",
+    role: "developer",
+  });
   insertTurn(env.db, {
     id: "t2",
     threadId: "th",
     source: "t",
     location: "location",
-    role: "dev",
+    role: "developer",
     resume: true,
     parentTurnId: "t1",
   });
@@ -124,13 +136,19 @@ test("a task that is not a resume starts at zero spent (an earlier task of the t
   const env = makeEnv();
   clearWorkspaces(env.home);
   addLocation(env.home, "location");
-  insertTurn(env.db, { id: "t1", threadId: "th", source: "t", location: "location", role: "dev" });
+  insertTurn(env.db, {
+    id: "t1",
+    threadId: "th",
+    source: "t",
+    location: "location",
+    role: "developer",
+  });
   insertTurn(env.db, {
     id: "t2",
     threadId: "th",
     source: "t",
     location: "location",
-    role: "dev",
+    role: "developer",
     parentTurnId: "t1",
   }); // a proposal hop, not a resume
   spend(env.db, "t1", 5.9);
@@ -187,7 +205,7 @@ async function runResumed(env: ReturnType<typeof makeEnv>, cwd: string, onStarte
       threadId: "th",
       language: "en",
       text: "continue",
-      role: "dev",
+      role: "developer",
       workspace: "main",
       locations: [{ name: "location", path: env.location } as never],
       ac: new AbortController(),

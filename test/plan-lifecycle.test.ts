@@ -15,10 +15,10 @@ import { moveTaskTo } from "../src/tasks/task-resolver";
 
 let db: Database;
 afterEach(() => db?.close());
-const ENV = { workerRoles: ["dev", "scout"], locations: ["repo", "docs"], goalBudgetUsd: 6 };
+const ENV = { workerRoles: ["developer", "scout"], locations: ["repo", "docs"], goalBudgetUsd: 6 };
 const item = (key: string, over: Record<string, unknown> = {}) => ({
   key,
-  role: "dev",
+  role: "developer",
   brief: `do ${key}`,
   dependsOn: [] as string[],
   risk: "R1",
@@ -241,7 +241,7 @@ test("NEEDS_PLANNING items are released (cancelled) by the first approval; finis
     insertOwnedTask(db, {
       id: `i-${key}`,
       threadId: "th1",
-      ownerRole: "dev",
+      ownerRole: "developer",
       status: "ready",
       scope: key,
       correlationId: "c",

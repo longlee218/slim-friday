@@ -104,7 +104,7 @@ test("a dev worker is a role run by the same engine: its turn leaves a runs row"
   const task = env.db
     .query<{ id: string; role: string }, [string]>("SELECT id, role FROM turns WHERE thread_id = ?")
     .get("th-dev");
-  expect(task?.role).toBe("dev");
+  expect(task?.role).toBe("developer");
   expect(env.db.query("SELECT outcome FROM runs WHERE turn_id = ?").all(task?.id ?? "")).toEqual([
     { outcome: "success" },
   ]);

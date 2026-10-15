@@ -13,7 +13,12 @@ import {
 
 const reg = (taskId: string, threadId: string) => {
   const ac = new AbortController();
-  const settle = registerTaskRun(taskId, { threadId, turnId: `turn-${taskId}`, role: "dev", ac });
+  const settle = registerTaskRun(taskId, {
+    threadId,
+    turnId: `turn-${taskId}`,
+    role: "developer",
+    ac,
+  });
   return { ac, settle };
 };
 

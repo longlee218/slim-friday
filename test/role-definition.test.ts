@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { extractLocationMarker } from "../src/orchestrator/engine/run-report";
 import { validateRole } from "../src/orchestrator/engine/validate-role";
-import { DEV_ROLE } from "../src/roles/builtin/dev-role";
+import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
 import { ROLES, turnTypeOf } from "../src/roles/role-registry";
@@ -16,16 +16,20 @@ const location = (name: string) => ({
 });
 
 test("dev is a background role: one run, bypass from the first token, no plan control", () => {
-  expect(DEV_ROLE.background).toBe(true);
-  expect(DEV_ROLE.permissionMode).toBe("bypassPermissions");
-  expect(DEV_ROLE.streaming).toBe(true);
-  expect(DEV_ROLE.limits.maxAsk).toBe(6);
-  expect(DEV_ROLE.budgetUsd).toBe(4.5);
-  expect(DEV_ROLE.capabilities).toContain("ask");
-  expect(DEV_ROLE.capabilities).not.toContain("planControl" as never);
-  expect(DEV_ROLE.classTiers).toEqual({ mechanical: "sonnet", standard: "sonnet", design: "opus" });
-  expect(DEV_ROLE.skills).toBe("all");
-  expect(turnTypeOf(DEV_ROLE)).toBe("code");
+  expect(DEVELOPER_ROLE.background).toBe(true);
+  expect(DEVELOPER_ROLE.permissionMode).toBe("bypassPermissions");
+  expect(DEVELOPER_ROLE.streaming).toBe(true);
+  expect(DEVELOPER_ROLE.limits.maxAsk).toBe(6);
+  expect(DEVELOPER_ROLE.budgetUsd).toBe(4.5);
+  expect(DEVELOPER_ROLE.capabilities).toContain("ask");
+  expect(DEVELOPER_ROLE.capabilities).not.toContain("planControl" as never);
+  expect(DEVELOPER_ROLE.classTiers).toEqual({
+    mechanical: "sonnet",
+    standard: "sonnet",
+    design: "opus",
+  });
+  expect(DEVELOPER_ROLE.skills).toBe("all");
+  expect(turnTypeOf(DEVELOPER_ROLE)).toBe("code");
 });
 
 test("the lead is a foreground role without shell, ask, write or subagents; the scout is a read-only background worker", () => {
@@ -48,10 +52,10 @@ test("role data is flat: no stages, gates, handoffs or per-run timeouts in any r
 });
 
 test("validateRole refuses a role without a positive budget or with a bad ask limit", () => {
-  expect(validateRole(DEV_ROLE)).toBeUndefined();
+  expect(validateRole(DEVELOPER_ROLE)).toBeUndefined();
   expect(validateRole(LEAD_ROLE)).toBeUndefined();
   expect(validateRole(SCOUT_ROLE)).toBeUndefined();
-  const bad = (p: Partial<RoleDefinition>) => validateRole({ ...DEV_ROLE, ...p });
+  const bad = (p: Partial<RoleDefinition>) => validateRole({ ...DEVELOPER_ROLE, ...p });
   expect(bad({ budgetUsd: 0 })).toContain("budget");
   expect(bad({ limits: { maxAsk: -1 } })).toContain("ask limit");
   expect(bad({ limits: { maxAsk: 1.5 } })).toContain("ask limit");

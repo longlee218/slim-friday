@@ -204,7 +204,13 @@ describe("trigger", () => {
 
   test("a background role never asks for a rollover", () => {
     const env = makeEnv();
-    insertTurn(env.db, { id: "t1", threadId: "th1", source: "t", location: "r", role: "dev" });
+    insertTurn(env.db, {
+      id: "t1",
+      threadId: "th1",
+      source: "t",
+      location: "r",
+      role: "developer",
+    });
     setSession(env.db, { threadId: "th1", sessionId: "s", location: "r", cwd: "/x" });
     requestRollover(
       env.db,

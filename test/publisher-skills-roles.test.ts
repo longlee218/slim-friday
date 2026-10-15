@@ -14,11 +14,11 @@ test("installedPublisherPlugins: every locked skill with a dir on disk, grouped 
 });
 
 test("dev loads all installed skills (so worktree and finishing skills load); the lead none", () => {
-  expect(ROLES.dev?.skills).toBe("all");
+  expect(ROLES.developer?.skills).toBe("all");
   expect(ROLES.lead?.skills).toBe("none");
 });
 
 test("limits live in the role: dev asks up to 6; the lead has no ask capability", () => {
-  expect(ROLES.dev?.limits.maxAsk).toBe(6);
+  expect(ROLES.developer?.limits.maxAsk).toBe(6);
   expect(ROLES.lead?.limits.maxAsk).toBe(0);
 });

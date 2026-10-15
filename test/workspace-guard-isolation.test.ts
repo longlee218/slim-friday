@@ -39,7 +39,7 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th",
-    text: "[dev] hello",
+    text: "[developer] hello",
   });
   await workersDone(env.db);
   const qa = can!;
@@ -49,7 +49,7 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
   const exec = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("dev"), { writePaths: [w1wt], readPaths: [w1wt] }),
+    guard: guardFor(getRole("developer"), { writePaths: [w1wt], readPaths: [w1wt] }),
   }).canUseTool as unknown as Can;
   const db = workspacePaths(env.home).dbFile;
   const cases: [string, () => Promise<{ behavior: string }>][] = [

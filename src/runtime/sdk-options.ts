@@ -98,7 +98,7 @@ export function buildSdkOptions(
     skills: RunSkills;
     /** Shared with the stream watch: flips off when the SDK did not enter the requested auto mode. */
     autoState: ModeActive;
-    /** Same for bypassPermissions (the dev role). */
+    /** Same for bypassPermissions (the developer role). */
     bypassState: ModeActive;
   },
 ): Options {

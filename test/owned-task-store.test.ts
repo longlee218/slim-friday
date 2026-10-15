@@ -21,7 +21,7 @@ const mk = (
   insertOwnedTask(db, {
     id,
     threadId: "th",
-    ownerRole: "dev",
+    ownerRole: "developer",
     status,
     scope: "s",
     correlationId: "c",
@@ -32,7 +32,7 @@ test("insert/get round trip; version starts at 0", () => {
   mk(db, "a");
   expect(getOwnedTask(db, "a")).toMatchObject({
     taskId: "a",
-    ownerAgentId: "dev",
+    ownerAgentId: "developer",
     status: "open",
     scope: "s",
     version: 0,
@@ -49,7 +49,7 @@ test("CAS: matching version applies and bumps; a stale version changes nothing",
   expect(getOwnedTask(db, "a")).toMatchObject({
     status: "running",
     version: 1,
-    ownerAgentId: "dev",
+    ownerAgentId: "developer",
   });
   expect(casUpdateTask(db, "a", 1, { ownerRole: "other" })).toBe(true);
   expect(getOwnedTask(db, "a")).toMatchObject({
@@ -73,7 +73,7 @@ test("active task = newest live one; terminal tasks are never the focus", async 
 test("link + lookup of a turn's task", () => {
   const { db } = makeEnv();
   mk(db, "a");
-  insertTurn(db, { id: "t1", threadId: "th", source: "x", location: "*", role: "dev" });
+  insertTurn(db, { id: "t1", threadId: "th", source: "x", location: "*", role: "developer" });
   expect(ownedTaskOfTurn(db, "t1")).toBeUndefined();
   linkTurn(db, "t1", "a");
   setTurnSession(db, "t1", "sess", "/cwd");
@@ -97,5 +97,8 @@ test("a task and its owner survive a db reopen", () => {
   mk(db, "a", "waiting_user");
   db.close();
   const again = openDb(paths.dbFile);
-  expect(getOwnedTask(again, "a")).toMatchObject({ ownerAgentId: "dev", status: "waiting_user" });
+  expect(getOwnedTask(again, "a")).toMatchObject({
+    ownerAgentId: "developer",
+    status: "waiting_user",
+  });
 });

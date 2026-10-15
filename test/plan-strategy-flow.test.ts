@@ -10,7 +10,7 @@ const GOAL = /Goal id: ([0-9a-f-]{36})/;
 const PLAN_ID = /"planId":"([0-9a-f-]{36})"/;
 const item = (key: string, dependsOn: string[] = []) => ({
   key,
-  role: "dev",
+  role: "developer",
   brief: `do ${key}`,
   location: "location",
   dependsOn,
@@ -27,7 +27,7 @@ test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run 
         const goalId = GOAL.exec(c.prompt)?.[1] as string;
         expect((await c.tool("GetProjectContext", { goalId })).request).toContain("todo app");
         expect((await c.tool("GetAgentCapabilities", {})).roles.map((r: any) => r.name)).toContain(
-          "dev",
+          "developer",
         );
         const made = await c.tool("CreatePlan", {
           goalId,

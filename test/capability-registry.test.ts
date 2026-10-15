@@ -23,7 +23,7 @@ const role = (name: string, over: Partial<RoleDefinition> = {}): RoleDefinition 
 
 const write: Capability[] = ["read", "write"];
 const SIX = [
-  ROLES.dev as RoleDefinition,
+  ROLES.developer as RoleDefinition,
   role("r1", { capabilities: write, approvalRequired: true, sideEffects: "location" }),
   role("r2", { capabilities: write }),
   role("r3"),
@@ -32,8 +32,8 @@ const SIX = [
 ];
 test("real roles carry registry data", () => {
   expect(ROLES.scout?.sideEffects).toBe("none");
-  expect(ROLES.dev?.sideEffects).toBe("location");
-  expect(ROLES.dev?.approvalRequired).toBe(true);
+  expect(ROLES.developer?.sideEffects).toBe("location");
+  expect(ROLES.developer?.approvalRequired).toBe(true);
   expect(() => validateRegistry()).not.toThrow();
 });
 

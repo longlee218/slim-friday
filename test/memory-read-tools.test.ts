@@ -212,14 +212,17 @@ test("get output is clipped and redacted; summary uses its own cap", async () =>
 test("guard allows the 3 tools, denies unknown memory tools; all roles get the server; prompt unchanged", () => {
   const s = setup();
   for (const name of [MEMORY_SEARCH_TOOL, MEMORY_GET_TOOL, MEMORY_EXPAND_TOOL])
-    for (const role of ["lead", "dev"] as const)
+    for (const role of ["lead", "developer"] as const)
       expect(
         checkToolCall(mcpToolName(MEMORY_MCP_SERVER, name), {}, guardFor(getRole(role), {}))
           .decision,
       ).toBe("allow");
   expect(
-    checkToolCall(mcpToolName(MEMORY_MCP_SERVER, "MemoryWrite"), {}, guardFor(getRole("dev"), {}))
-      .decision,
+    checkToolCall(
+      mcpToolName(MEMORY_MCP_SERVER, "MemoryWrite"),
+      {},
+      guardFor(getRole("developer"), {}),
+    ).decision,
   ).toBe("deny");
   expect(Object.keys(mcpServersFor(getRole("lead"), s.ctx))).toContain(MEMORY_MCP_SERVER);
   s.put("workspaces/a/memory/2026-10-12.md", "## 14:00 t\n### Facts\n- journalonlyword\n");

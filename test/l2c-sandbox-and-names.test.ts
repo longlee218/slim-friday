@@ -49,7 +49,7 @@ test("sandbox: a worker run passes sandbox options to query (writes in its dirs 
       options = a.options;
       yield resultMsg({ result: "ok" });
     })();
-  const role = getRole("dev");
+  const role = getRole("developer");
   await runAgent({
     prompt: "q",
     turnId: "t1",

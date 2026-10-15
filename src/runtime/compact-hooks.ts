@@ -159,7 +159,7 @@ export function buildCompactHooks(
     PreCompact: [
       { hooks: [guarded<PreCompactHookInput>("PreCompact", (i) => onPreCompact(ctx, i))] },
     ],
-    // Background runs (dev) never touch the thread summary or its cycle counters.
+    // Background runs (developer) never touch the thread summary or its cycle counters.
     ...(ctx.trackSummary && {
       PostCompact: [
         { hooks: [guarded<PostCompactHookInput>("PostCompact", (i) => onPostCompact(ctx, i))] },

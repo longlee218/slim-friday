@@ -43,7 +43,7 @@ export const TASK_GET_TOOL_NAME = "TaskGet";
 export const TASK_STOP_TOOL_NAME = "TaskStop";
 export const TOOL_SEARCH_TOOL_NAME = "ToolSearch";
 
-/* AskUserQuestion is answered by the owner (buttons); the plan approval of a dev run is one of these asks. */
+/* AskUserQuestion is answered by the owner (buttons); the plan approval of a developer run is one of these asks. */
 export const ASK_USER_QUESTION_TOOL_NAME = "AskUserQuestion";
 
 /*

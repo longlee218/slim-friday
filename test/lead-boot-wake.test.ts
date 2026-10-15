@@ -45,7 +45,7 @@ test("worker text reaches the owner only through the lead; the worker's own repl
         strategy: "DIRECT",
         intent: "work",
         reason: "one specialist",
-        assignments: [{ key: "main", role: "dev", brief: "do it", dependsOn: [] }],
+        assignments: [{ key: "main", role: "developer", brief: "do it", dependsOn: [] }],
       });
       return "On it.";
     }

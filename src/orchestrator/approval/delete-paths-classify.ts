@@ -8,7 +8,7 @@ import type { EffectsCtx } from "./effect-context";
 /* Where one DeletePaths target stands relative to the run's envelope. Fail closed: anything unclear is `refused`.
    Names are compared folded (case, unicode): macOS volumes are case-insensitive. */
 
-/** What `classifyPath` found. `dev` + `ino` identify the entry for the re-check just before it moves. */
+/** What `classifyPath` found. device + `ino` identify the entry for the re-check just before it moves. */
 export type PathKind =
   | { kind: "ok" | "other_location"; real: string; dev: number; ino: number }
   | { kind: "refused" };

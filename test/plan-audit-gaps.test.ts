@@ -31,7 +31,7 @@ const ENV = {
   goalBudgetUsd: 6,
 };
 const item = (key: string, over: Record<string, unknown> = {}) =>
-  toPlanItem({ key, role: "dev", brief: `do ${key}`, dependsOn: [], risk: "R1", ...over });
+  toPlanItem({ key, role: "developer", brief: `do ${key}`, dependsOn: [], risk: "R1", ...over });
 const ENVELOPE = {
   locations: ["repo"],
   riskClasses: ["R0", "R1"],

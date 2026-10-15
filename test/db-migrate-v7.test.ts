@@ -28,11 +28,11 @@ function v6Home(extraSql = "") {
   migrateV5(raw);
   migrateV6(raw);
   raw.exec(
-    "INSERT INTO turns (id, thread_id, source, repo, type, status, started_at, role) VALUES ('t1', 'th1', 'test', 'my-repo', 'run', 'done', 1, 'dev');",
+    "INSERT INTO turns (id, thread_id, source, repo, type, status, started_at, role) VALUES ('t1', 'th1', 'test', 'my-repo', 'run', 'done', 1, 'developer');",
   );
   raw.exec(
     `INSERT INTO proposals (id, thread_id, workspace, from_turn_id, role, brief, repo, class, status, created_at)
-     VALUES ('p1', 'th1', 'ws', 't1', 'dev', 'b', 'my-repo', 'c', 'pending', 1);`,
+     VALUES ('p1', 'th1', 'ws', 't1', 'developer', 'b', 'my-repo', 'c', 'pending', 1);`,
   );
   if (extraSql) raw.exec(extraSql);
   raw.close();

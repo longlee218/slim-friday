@@ -26,7 +26,7 @@ let db: Database;
 afterEach(() => db?.close());
 const item = (key: string, over: Record<string, unknown> = {}) => ({
   key,
-  role: "dev",
+  role: "developer",
   brief: `do ${key}`,
   dependsOn: [],
   risk: "R1",
@@ -59,7 +59,7 @@ function setup() {
     db,
     threadId: "th1",
     goalId: w.goalId,
-    workers: [ROLES.dev!, ROLES.scout!],
+    workers: [ROLES.developer!, ROLES.scout!],
     locations: [{ name: "location", path: "/tmp/loc" }],
     channelDigest: () => "03-01 earlier thread",
   };
@@ -95,7 +95,7 @@ test("GetProjectContext + GetAgentCapabilities: request, locations, digest, role
     code: "BAD_TASK",
   });
   const caps = await call("GetAgentCapabilities", {});
-  expect(caps.roles.map((r: { name: string }) => r.name)).toEqual(["dev", "scout"]);
+  expect(caps.roles.map((r: { name: string }) => r.name)).toEqual(["developer", "scout"]);
   expect(caps.roles[0]).toHaveProperty("whenToUse");
 });
 
@@ -193,10 +193,10 @@ test("RequestPlan: daily budget and chain cap refuse before any write", () => {
 /** A plan view for the fake port. */
 function view(status = "valid") {
   const doc = {
-    items: [{ key: "a", role: "dev", brief: "do a", dependsOn: [], risk: "R1" as const }],
+    items: [{ key: "a", role: "developer", brief: "do a", dependsOn: [], risk: "R1" as const }],
     acceptanceCriteria: ["works"],
     envelope: {
-      roles: ["dev"],
+      roles: ["developer"],
       locations: ["location"],
       riskClasses: ["R1" as const],
       bounds: { maxItems: 8, maxGb: 1 },
@@ -256,12 +256,12 @@ test("renderPlan lists steps with dependencies, criteria and the limits", () => 
       ...v.doc,
       items: [
         ...v.doc.items,
-        { key: "b", role: "dev", brief: "x".repeat(500), dependsOn: ["a"], risk: "R1" },
+        { key: "b", role: "developer", brief: "x".repeat(500), dependsOn: ["a"], risk: "R1" },
       ],
     },
   });
-  expect(text).toContain("1. a [dev, risk R1]: do a");
-  expect(text).toContain("2. b [dev, risk R1] after a:");
+  expect(text).toContain("1. a [developer, risk R1]: do a");
+  expect(text).toContain("2. b [developer, risk R1] after a:");
   expect(text).toContain("Done when:");
   expect(text).toContain("budget $3");
   // The brief is carried in full (the worker receives it whole); the head says where the full text lives.

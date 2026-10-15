@@ -22,7 +22,7 @@ export interface MemoryToolContext {
   location?: string;
   /** Thread of the run: the compaction hooks store its summary and cycle counters under it. */
   threadId?: string;
-  /** Foreground run: the PostCompact hook may store the thread summary and count cycles. Background runs (dev) leave the thread summary alone. */
+  /** Foreground run: the PostCompact hook may store the thread summary and count cycles. Background runs (developer) leave the thread summary alone. */
   trackSummary?: boolean;
   /**
    * The app's own rollover `/compact` (phase 9): PostCompact saves the SDK summary AS IS (no merge, no cycle bump:

@@ -40,7 +40,7 @@ export interface FlowResult
   location?: string;
   /** Save the session although the outcome is not success/limit (a run stopped to await the owner's reply). */
   keepSession?: boolean;
-  /** Do not save this run's session as the thread's (a background run in the location itself: a later assistant message in the thread must not resume it). */
+  /** Do not save this run's session as the thread's (a background run in the location itself: a later lead message in the thread must not resume it). */
   skipThreadSession?: true;
   /** The session is the lead's (stored with `kind='lead'` and the run's model): set by the lead runner only. */
   sessionKind?: "lead";

@@ -75,7 +75,7 @@ function seedRows(db: Database) {
   });
   insertApproval(db, { id: "a1", turnId: "t1", tool: "Bash", summary: "ls" });
   db.query(
-    "INSERT INTO proposals (id, thread_id, workspace, role, brief, status, created_at) VALUES ('p1', 'th1', 'main', 'dev', 'b', 'pending', 1)",
+    "INSERT INTO proposals (id, thread_id, workspace, role, brief, status, created_at) VALUES ('p1', 'th1', 'main', 'developer', 'b', 'pending', 1)",
   ).run();
   insertRunMessage(db, { threadId: "th1", kind: "steer", content: "hi" });
 }

@@ -162,7 +162,7 @@ export async function startWorker(
         ac: new AbortController(), // replaced by the detached run's own controller
         pinned,
         ledger: earlierSteps(db, item),
-        noSubagents: true, // depth 1: dev too
+        noSubagents: true, // depth 1: developer too
         envelope,
         appServers: workerServers({
           db,

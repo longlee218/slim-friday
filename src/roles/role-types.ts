@@ -38,7 +38,7 @@ export interface RoleDefinition {
   /** Mutually exclusive wording; the intent layer reads it from the registry (P1.4c). */
   whenToUse: string;
   /**
-   * Explicit role tag (`[dev]`): a message that STARTS with it goes to this role (intent layer L1) and the tag is
+   * Explicit role tag (`[developer]`): a message that STARTS with it goes to this role (intent layer L1) and the tag is
    * stripped from the brief. Case-insensitive, unique across roles (startup error otherwise); omitted = no tag.
    */
   tag?: string;

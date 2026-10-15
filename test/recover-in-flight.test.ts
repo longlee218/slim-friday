@@ -12,15 +12,27 @@ test("running task at boot -> one recovered_after_restart event, task waits for 
   insertOwnedTask(env.db, {
     id: "rc-task",
     threadId: "rc-th",
-    ownerRole: "dev",
+    ownerRole: "developer",
     status: "running",
     scope: "add b.txt",
     correlationId: "c",
   });
-  insertTurn(env.db, { id: "rc-turn", threadId: "rc-th", source: "t", location: "r", role: "dev" });
+  insertTurn(env.db, {
+    id: "rc-turn",
+    threadId: "rc-th",
+    source: "t",
+    location: "r",
+    role: "developer",
+  });
   linkTurn(env.db, "rc-turn", "rc-task");
   // An event claimed by a consumer turn that is still `running` when the process died.
-  insertTurn(env.db, { id: "rc-lead", threadId: "rc-th", source: "t", location: "r", role: "dev" });
+  insertTurn(env.db, {
+    id: "rc-lead",
+    threadId: "rc-th",
+    source: "t",
+    location: "r",
+    role: "developer",
+  });
   appendEvent(env.db, { id: "rc-e1", threadId: "rc-th", kind: "result", payload: {} });
   expect(claimBatch(env.db, "rc-th", "rc-lead")).toHaveLength(1);
 
@@ -49,12 +61,18 @@ test("M3: interrupt and events are one transaction: a failing append rolls the i
   insertOwnedTask(env.db, {
     id: "rt-task",
     threadId: "rt-th",
-    ownerRole: "dev",
+    ownerRole: "developer",
     status: "running",
     scope: "s",
     correlationId: "c",
   });
-  insertTurn(env.db, { id: "rt-turn", threadId: "rt-th", source: "t", location: "r", role: "dev" });
+  insertTurn(env.db, {
+    id: "rt-turn",
+    threadId: "rt-th",
+    source: "t",
+    location: "r",
+    role: "developer",
+  });
   linkTurn(env.db, "rt-turn", "rt-task");
   env.db.run("DROP TABLE thread_events"); // the append will throw
   expect(() => recoverInFlight(env.db)).toThrow();

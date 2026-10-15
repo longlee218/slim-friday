@@ -4,13 +4,13 @@ import type { Capability, RoleDefinition } from "../role-types";
 
 /** Owner questions (the ask tool) one run may make. Wired: ask guard + prompt text. */
 const MAX_ASK = 6;
-/** Budget (USD) of one dev run (the task ceiling `TASK_BUDGET_USD` still caps the task over its resumes). */
+/** Budget (USD) of one developer run (the task ceiling `TASK_BUDGET_USD` still caps the task over its resumes). */
 const BUDGET_USD = 4.5;
 
 /**
- * Prompt text of the dev role. Skills are declared in the role data and listed by the SDK, so these texts state
+ * Prompt text of the developer role. Skills are declared in the role data and listed by the SDK, so these texts state
  * only the facts of the run; they never restate or reword a skill step. Parsed markers stay verbatim: `location:`
- * (last line of the report). Each section stays within the 1200 char budget (test/dev-prompts.test.ts).
+ * (last line of the report). Each section stays within the 1200 char budget (test/developer-prompts.test.ts).
  */
 
 /**
@@ -25,7 +25,7 @@ export const askRules = (
 - If the owner does not answer in time the run stops. Do not guess and do not continue.`;
 
 /** Run contract of a code task: outcome first, then the no-code-change path, follow-ups, tests and the report shape. */
-export const DEV = `This run is a code task in the location's own checkout (your current directory): from the owner's request to a reported outcome.
+export const DEVELOPER = `This run is a code task in the location's own checkout (your current directory): from the owner's request to a reported outcome.
 - Outcome: the request implemented, verified, delivered the way the owner chose, and reported. If the request is unclear or the plan no longer fits, ask or stop and explain instead of improvising.
 - A request to research, design or improve with no explicit change and no defect or target named: invoke the listed skill whose description matches first; the deliverable may be a design or plan with no code change. Then do not edit or commit; put the result in your reply and say no code change was needed.
 - A follow-up message may be a pure question: answer it without editing when no change is asked.
@@ -34,7 +34,7 @@ export const DEV = `This run is a code task in the location's own checkout (your
 - The very last line of your final reply is exactly "location: <name>" naming the location you worked in (names are listed below, or the one you run in).`;
 
 /** Run facts that a skill text cannot know: approval before changes, checkout, delivery by the agent, skill scripts, precedence. */
-export const DEV_RUN_FACTS = `- Do not change files before the owner approved your plan; get approval with ${ASK_USER_QUESTION_TOOL_NAME} (the skill says when). The owner sees only Discord.
+export const DEVELOPER_RUN_FACTS = `- Do not change files before the owner approved your plan; get approval with ${ASK_USER_QUESTION_TOOL_NAME} (the skill says when). The owner sees only Discord.
 - You work in the owner's checkout with \`git\` in the shell; the shell rules are in the next section.
 - If the location has no .git, skip git delivery: leave the changes in place and say so in your reply.
 - Where a skill says to ask or wait for the human, use ${ASK_USER_QUESTION_TOOL_NAME}; never end your turn on a question. Merge, push or PR only after the owner chose it.
@@ -43,7 +43,7 @@ export const DEV_RUN_FACTS = `- Do not change files before the owner approved yo
 - Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.`;
 
 /** What the worker's shell accepts and the alternative for what it does not (the gate's denial text says the same). */
-export const DEV_SHELL_RULES = `Shell rules: ONE plain command a call (no pipe, &&, ;, redirect, $, glob, \`..\`); quotes only in git commit -m "msg" (a second -m is fine; no $, backtick, backslash or ! in it).
+export const DEVELOPER_SHELL_RULES = `Shell rules: ONE plain command a call (no pipe, &&, ;, redirect, $, glob, \`..\`); quotes only in git commit -m "msg" (a second -m is fine; no $, backtick, backslash or ! in it).
 - Works: status, diff, log, show (\`show REV:path\` too), add, commit, stash, checkout|switch <existing branch> or -b <new> [base], bun test [-t name] [--coverage], bunx tsc --noEmit, biome check, ls/cat/rg/find/sed -n.
 - Instead of the shell: rm = DeletePaths, git push = GitPush, git merge = MergeBranch, gh pr create = CreatePullRequest (each per grant); files = Write/Edit; there is no network (no fetch/pull/curl).
 - Any other shell line is denied: change it to one of the forms above, or report BLOCKED with what you need.`;
@@ -82,11 +82,11 @@ const CODE_CAPABILITIES: Capability[] = [
  * Code changes: ONE run in the location's own checkout. Brainstorm, plan, the owner's approval (the ask tool), implement,
  * verify and deliver (commit, push, PR as the owner chose) come from the skills and the run facts: no code enforces an order.
  */
-export const DEV_ROLE: RoleDefinition = {
-  name: "dev",
+export const DEVELOPER_ROLE: RoleDefinition = {
+  name: "developer",
   whenToUse:
     "A job that changes things or needs a plan the owner approves: implement, fix, refactor, add tests, design or plan a FUTURE change; works in the location and delivers (merge, PR or keep) after the owner chose.",
-  tag: "[dev]",
+  tag: "[developer]",
   background: true,
   dispatchable: true, // the lead may start it as a worker
   mcpServers: [WORKER_MCP_SERVER, EFFECTS_MCP_SERVER], // ReportResult + the effect tools when dispatched (a run without the servers just lacks them)
@@ -100,15 +100,15 @@ export const DEV_ROLE: RoleDefinition = {
   // The SDK asks nothing; only the guard's hard denies stop a call. Approval of the plan is an ask, not a gate.
   permissionMode: "bypassPermissions",
   streaming: true, // a background run: the owner can steer it
-  model: "sonnet",
+  model: "sonnet", // Sonnet 5.5 tier
   classTiers: { mechanical: "sonnet", standard: "sonnet", design: "opus" },
   budgetUsd: BUDGET_USD,
   // OpenRouter: a Claude model follows the ask flow reliably; deepseek-v4-flash did not call the plan tool (live test).
   openrouterModel: "anthropic/claude-haiku-4.5",
   promptSections: (ctx) => [
-    DEV,
-    DEV_RUN_FACTS,
-    DEV_SHELL_RULES,
+    DEVELOPER,
+    DEVELOPER_RUN_FACTS,
+    DEVELOPER_SHELL_RULES,
     COMMIT_RULES,
     CODE_STANDARDS,
     ctx.worktreesDir ? worktreeRule(ctx.worktreesDir) : "",

@@ -7,7 +7,7 @@ import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { stubGateway } from "./helpers";
 
 /** Ask cap of the dev role (the engine passes it to the guard; direct permission layers below get it explicitly). */
-const MAX_ASK = getRole("dev").limits.maxAsk;
+const MAX_ASK = getRole("developer").limits.maxAsk;
 
 /** One batched AskUserQuestion input. */
 const QUESTIONS = {
@@ -22,7 +22,7 @@ test("guard: AskUserQuestion calls beyond the cap are denied and never reach the
     askLimit: newAskLimit(MAX_ASK),
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("dev"), { writePaths: [], readPaths: [] }),
+    guard: guardFor(getRole("developer"), { writePaths: [], readPaths: [] }),
     gateway: stubGateway({
       askChoice: async (a) => {
         asked.push(a.question);
@@ -47,7 +47,7 @@ test("one AskUserQuestion call with 2 questions: both reach the owner, all answe
     askLimit: newAskLimit(MAX_ASK),
     turnId: "t",
     threadId: "th",
-    guard: guardFor(getRole("dev"), { writePaths: [], readPaths: [] }),
+    guard: guardFor(getRole("developer"), { writePaths: [], readPaths: [] }),
     gateway: stubGateway({
       askChoice: async (a) => {
         asked.push(a.question);

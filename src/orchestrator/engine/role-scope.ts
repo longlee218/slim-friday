@@ -58,7 +58,7 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
   let sessionId: string | undefined;
   if (i.resume) {
     // A background role resumes only inside a registered location or the workspace's neutral `cwd/` (a zero-location
-    // workspace works there); an old session whose cwd was a plan scratch dir must not run as dev.
+    // workspace works there); an old session whose cwd was a plan scratch dir must not run as developer.
     const resumeCwd = realOrSame(i.resume.cwd);
     if (
       role.background &&

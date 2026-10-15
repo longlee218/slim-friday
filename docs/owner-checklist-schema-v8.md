@@ -116,3 +116,21 @@ Check out the commit before L2c and restart. `$AGENT_HOME/trash/` may stay (noth
 - The OS sandbox (Seatbelt on macOS) with the real SDK: a worker `bun test` runs, a write outside its dirs and any network call fail.
 - The remote URL is pinned at the goal's FIRST push, not at the grant (the first push of a goal is trusted).
 - The allowlist is tight: expect some BLOCKED reports for commands it does not list (widen the yaml: a data change).
+
+## Phase L4: developer rename, metrics, lead golden set
+
+**What changes:** the worker `dev` is `developer` (Sonnet). No db change, no migration, no new env var. Stored `dev` rows, the tag `[dev]`, `MODEL_DEV`, `BUDGET_DEV_USD` and `COMPACT_WINDOW_DEV` still work through an alias.
+
+### Deploy
+- Restart the bot. Old `dev` rows in the db are read as `developer`; nothing is rewritten.
+- Env: `MODEL_DEVELOPER`, `BUDGET_DEVELOPER_USD`, `COMPACT_WINDOW_DEVELOPER` are the new names; the `_DEV` names keep working.
+
+### Verify
+1. `bun run metrics:lead` (default last 7 days) prints the sections Decisions, Refusals, Envelope blocks and Cost per day. `bun run metrics:lead --days 1` narrows it. The db is opened read-only; the bot may run.
+2. A message `[developer] <task>` starts the developer; `[dev] <task>` still does.
+3. Optional, paid, owner-run: `LEAD_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<real token> bun test test/lead-golden.eval.test.ts`. It sends the 20 golden messages to the real lead (workers and planner faked) and prints the pass rate. `LEAD_EVAL_MIN` (default 0.8) sets the bar. It is a report, not a gate.
+
+### Not verified live
+- `metrics:lead` against your real db (the counts and the cost per day).
+- The golden set run (not yet run on the cutover code).
+- Plain-text answers and read-only tool calls are not counted anywhere (no stored source).

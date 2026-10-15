@@ -63,8 +63,8 @@ async function capture(kind: Kind) {
   } else {
     await runAgent({
       ...base,
-      role: getRole("dev"),
-      guard: guardFor(getRole("dev"), { ...scope, writePaths: [env.home] }),
+      role: getRole("developer"),
+      guard: guardFor(getRole("developer"), { ...scope, writePaths: [env.home] }),
       code: { threadId: "th", gateway: undefined },
     });
   }

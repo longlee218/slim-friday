@@ -41,7 +41,7 @@ const ENVELOPE = {
   bounds: { maxItems: 8, maxGb: 1 },
 };
 const item = (key: string, over: Record<string, unknown> = {}) =>
-  toPlanItem({ key, role: "dev", brief: `do ${key}`, dependsOn: [], risk: "R1", ...over });
+  toPlanItem({ key, role: "developer", brief: `do ${key}`, dependsOn: [], risk: "R1", ...over });
 const edit = (over: Partial<Edit> = {}): Edit => ({ add: [], cancel: [], modify: [], ...over });
 const byKey = (goalId: string, k: string) => childrenOf(db, goalId).find((i) => i.itemKey === k)!;
 const keys = (goalId: string) => childrenOf(db, goalId).map((i) => `${i.itemKey}:${i.status}`);
@@ -94,10 +94,10 @@ test("H2: the rendered plan carries each brief, the objective and the criteria i
     version: 1,
     objective,
     doc: {
-      items: [{ key: "a", role: "dev", brief, dependsOn: [], risk: "R1" }],
+      items: [{ key: "a", role: "developer", brief, dependsOn: [], risk: "R1" }],
       acceptanceCriteria: ["c".repeat(290)],
       envelope: {
-        roles: ["dev"],
+        roles: ["developer"],
         locations: [],
         riskClasses: ["R1"],
         bounds: { maxItems: 8, maxGb: 1 },

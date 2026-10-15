@@ -62,7 +62,7 @@ export function safeEffort(route: Route): Effort | undefined {
   return route.effort === "max" && !route.ownerConfirmedMax ? "high" : route.effort;
 }
 
-/** Env override key of a role: `dev` for MODEL_DEV / BUDGET_DEV_USD / COMPACT_WINDOW_DEV. */
+/** Env override key of a role: `developer` for MODEL_DEVELOPER / BUDGET_DEVELOPER_USD / COMPACT_WINDOW_DEVELOPER (the old `DEV` names still read). */
 export const roleKey = (role: string): string => role.toLowerCase();
 
 /**

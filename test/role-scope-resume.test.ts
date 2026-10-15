@@ -9,7 +9,7 @@ const input = (env: ReturnType<typeof makeEnv>, resumeCwd: string, locations = e
   turnId: "t1",
   threadId: "th",
   text: "x",
-  role: "dev",
+  role: "developer",
   workspace: "main",
   locations: locations
     ? [{ name: "location", workspace: "main", path: locations, description: "", git: true }]
@@ -20,7 +20,7 @@ const input = (env: ReturnType<typeof makeEnv>, resumeCwd: string, locations = e
 
 test("background resume: accepted in a registered location and in the neutral cwd/ of a zero-location workspace", () => {
   const env = makeEnv();
-  const dev = getRole("dev");
+  const dev = getRole("developer");
   const neutral = env.paths.workspace("main").cwd;
   mkdirSync(neutral, { recursive: true });
   // zero locations: the neutral cwd/ is where a dev run works, so it must resume there
@@ -32,7 +32,7 @@ test("background resume: accepted in a registered location and in the neutral cw
 
 test("background resume: any other dir is refused", () => {
   const env = makeEnv();
-  expect(() => roleScope(env.config, input(env, outsideDir()), getRole("dev"))).toThrow(
+  expect(() => roleScope(env.config, input(env, outsideDir()), getRole("developer"))).toThrow(
     "resume cwd is not a workspace location",
   );
 });

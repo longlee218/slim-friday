@@ -31,9 +31,9 @@ const SEED = `
 INSERT INTO sessions VALUES ('th1', 'sess-1', 'repo', '/r', 'active', 1), ('th2', 'sess-2', 'repo', '/r', 'active', 2);
 INSERT INTO tasks (id, thread_id, source, repo, type, status, started_at, ended_at, session_id, session_cwd, brief, role, kind, parent_task_id, proposal_id, hop, counts_toward_cap, class) VALUES
  ('t1', 'th1', 'discord', 'repo', 'qa', 'done', 1, 2, 's1', '/c1', NULL, 'assistant', 'single', NULL, NULL, 0, 0, NULL),
- ('t2', 'th2', 'discord', 'repo', 'code', 'running', 3, NULL, 's2', '/c2', 'build it', 'dev', 'staged', NULL, 'p1', 0, 1, 'standard'),
- ('t3', 'th2', 'discord', 'repo', 'code', 'failed_resumable', 4, 5, 's3', '/c3', 'fix it', 'dev', 'staged', 't2', NULL, 1, 1, 'design'),
- ('t4', 'th1', 'discord', 'repo', 'code', 'interrupted', 6, 7, NULL, NULL, 'x', 'dev', 'staged', NULL, NULL, 0, 1, NULL);
+ ('t2', 'th2', 'discord', 'repo', 'code', 'running', 3, NULL, 's2', '/c2', 'build it', 'developer', 'staged', NULL, 'p1', 0, 1, 'standard'),
+ ('t3', 'th2', 'discord', 'repo', 'code', 'failed_resumable', 4, 5, 's3', '/c3', 'fix it', 'developer', 'staged', 't2', NULL, 1, 1, 'design'),
+ ('t4', 'th1', 'discord', 'repo', 'code', 'interrupted', 6, 7, NULL, NULL, 'x', 'developer', 'staged', NULL, NULL, 0, 1, NULL);
 INSERT INTO runs (id, task_id, model, input_tokens, cost_usd, turns, outcome, stage_idx) VALUES
  ('r1', 't1', 'm', 10, 0.25, 2, 'success', NULL), ('r2', 't2', 'm', 20, 0.5, 3, 'success', 0), ('r3', 't3', 'm', 30, 1.125, 4, 'error', 1);
 INSERT INTO tool_calls (id, run_id, tool, input_json, output_preview, agent_id, task_id) VALUES
@@ -42,7 +42,7 @@ INSERT INTO approvals VALUES ('a1', 't2', 'Bash', 'ls', 'approved', 1, 2), ('a2'
 INSERT INTO stages (task_id, idx, name, status, cost_usd) VALUES
  ('t1', 0, 'qa', 'done', 0.25), ('t2', 0, 'plan', 'done', 0.5), ('t2', 1, 'exec', 'running', NULL), ('t3', 0, 'plan', 'done', 1), ('t3', 1, 'exec', 'failed', 0.125);
 INSERT INTO proposals (id, thread_id, workspace, from_task_id, role, brief, status, created_at) VALUES
- ('p1', 'th2', 'main', 't1', 'dev', 'b', 'started', 1), ('p2', 'th1', 'main', NULL, 'dev', 'b2', 'pending', 2);
+ ('p1', 'th2', 'main', 't1', 'developer', 'b', 'started', 1), ('p2', 'th1', 'main', NULL, 'developer', 'b2', 'pending', 2);
 INSERT INTO run_messages (id, thread_id, seq, kind, status, content, created_at, task_id) VALUES
  ('m1', 'th2', 1, 'steer', 'pending', 'hi', 1, 't2'), ('m2', 'th2', 2, 'steer', 'applied', 'yo', 2, NULL);
 INSERT INTO worktrees (task_id, thread_id, repo, repo_path, path, branch, base, created_at) VALUES

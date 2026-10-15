@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { TaskClass } from "../config/model-routing";
 import { redactText } from "../observability/redact";
+import { canonicalRoleName } from "../roles/role-aliases";
 import { countsTowardCap, getRole, turnTypeOf } from "../roles/role-registry";
 import { reconcileRunningTasks } from "./owned-task-store";
 
@@ -51,7 +52,10 @@ export function turnStatusOf(db: Database, id: string): string {
 
 /** Role that owns a turn row, or undefined when the row is missing. */
 export function turnRole(db: Database, id: string): string | undefined {
-  return db.query<{ role: string }, [string]>("SELECT role FROM turns WHERE id = ?").get(id)?.role;
+  const role = db
+    .query<{ role: string }, [string]>("SELECT role FROM turns WHERE id = ?")
+    .get(id)?.role;
+  return role === undefined ? undefined : canonicalRoleName(role); // an old-name row reads as the current role
 }
 
 /** Insert a turn row in `running` state. */

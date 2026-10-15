@@ -103,7 +103,7 @@ async function workerRun(thrown?: Error) {
       if (thrown) throw thrown;
       yield resultMsg({ result: "ok" });
     })();
-  const role = getRole("dev");
+  const role = getRole("developer");
   const run = runAgent({
     prompt: "q",
     turnId: "t1",
@@ -165,7 +165,7 @@ test("the lead hears a `failure` event naming SANDBOX_UNAVAILABLE; the worker is
         intent: "x",
         reason: "r",
         assignments: [
-          { key: "a", role: "dev", brief: "do a", location: "location", dependsOn: [] },
+          { key: "a", role: "developer", brief: "do a", location: "location", dependsOn: [] },
         ],
       });
       return "started";

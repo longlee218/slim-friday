@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { loadConfig } from "../src/config/agent-config";
 import { type JevClient, JevError, type JevRaw } from "../src/intent/jev/jev-client";
 import { createJevProposer } from "../src/intent/jev/jev-proposer";
-import { DEV_ROLE } from "../src/roles/builtin/dev-role";
+import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import type { RoleDefinition } from "../src/roles/role-types";
 
@@ -11,7 +11,7 @@ const FG = "fg-probe";
 const BG = "bg-probe";
 const ROLES_UNDER_TEST: RoleDefinition[] = [
   { ...LEAD_ROLE, name: FG, whenToUse: "answers questions", surface: undefined },
-  { ...DEV_ROLE, name: BG },
+  { ...DEVELOPER_ROLE, name: BG },
 ];
 
 const SECRET = "API_KEY=supersecretvalue1234567890";

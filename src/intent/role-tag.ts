@@ -1,3 +1,4 @@
+import { aliasesOf } from "../roles/role-aliases";
 import type { RoleDefinition } from "../roles/role-types";
 
 /** The part of a role the tag router needs. */
@@ -16,9 +17,16 @@ function leading(text: string, tags: { tag: string; role: string }[]): TagMatch 
   return hit ? { role: hit.role, rest: head.slice(hit.tag.length).trim() } : undefined;
 }
 
-/** Lowercased tags of the roles that have one. */
+/** Lowercased tags of the roles that have one, plus `[old-name]` for each old name of a role. */
 const tagsOf = (roles: readonly TagRole[]) =>
-  roles.flatMap((r) => (r.tag ? [{ tag: r.tag.toLowerCase(), role: r.name }] : []));
+  roles.flatMap((r) =>
+    r.tag
+      ? [r.tag, ...aliasesOf(r.name).map((a) => `[${a}]`)].map((tag) => ({
+          tag: tag.toLowerCase(),
+          role: r.name,
+        }))
+      : [],
+  );
 
 /** Role tag at the start of `text`, or undefined (used to strip the tag from the brief). */
 export const leadingRoleTag = (text: string, roles: readonly TagRole[]): TagMatch | undefined =>

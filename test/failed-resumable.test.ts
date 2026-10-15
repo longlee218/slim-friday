@@ -26,7 +26,7 @@ test("hold expiry: a non-uuid id is skipped for rm but still failed; a throwing 
   const env = makeEnv();
   const ids = ["not-a-uuid", crypto.randomUUID(), crypto.randomUUID()];
   for (const id of ids) {
-    insertTurn(env.db, { id, threadId: id, source: "t", location: "real", role: "dev" });
+    insertTurn(env.db, { id, threadId: id, source: "t", location: "real", role: "developer" });
     env.db
       .query("UPDATE turns SET status = 'failed_resumable', started_at = 1 WHERE id = ?")
       .run(id);

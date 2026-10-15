@@ -71,7 +71,7 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, a
 
 test("lead and scout are not space roles; dev is", () => {
   expect(isSpaceRole(lead) || isSpaceRole(scout)).toBe(false);
-  expect(isSpaceRole(ROLES.dev!)).toBe(true);
+  expect(isSpaceRole(ROLES.developer!)).toBe(true);
 });
 
 test("dispatchable workers come from role data: dev and scout", () => {
@@ -79,7 +79,7 @@ test("dispatchable workers come from role data: dev and scout", () => {
     dispatchableWorkers()
       .map((r) => r.name)
       .sort(),
-  ).toEqual(["dev", "scout"]);
+  ).toEqual(["developer", "scout"]);
 });
 
 test("app skills of scout have no sub-agent or missing-CLI instructions", async () => {
@@ -159,7 +159,7 @@ test("ReportResult: dev, scout and planner may call it; no other role may; lead 
   for (const name of Object.keys(ROLES)) {
     expect([name, allowed(name, report)]).toEqual([
       name,
-      name === "dev" || name === "scout" || name === "planner",
+      name === "developer" || name === "scout" || name === "planner",
     ]);
     for (const t of APP_MCP_TOOLS[LEAD_MCP_SERVER] ?? [])
       expect([name, allowed(name, mcpToolName(LEAD_MCP_SERVER, t))]).toEqual([
@@ -171,7 +171,7 @@ test("ReportResult: dev, scout and planner may call it; no other role may; lead 
 
 test("dev and scout get the worker server when the caller supplies it; the lead does not", () => {
   const supply = () => ({ [WORKER_MCP_SERVER]: createWorkerServer({}) });
-  for (const n of ["dev", "scout"])
+  for (const n of ["developer", "scout"])
     expect(Object.keys(mcpServersFor(ROLES[n]!, undefined, supply))).toContain(WORKER_MCP_SERVER);
   expect(Object.keys(mcpServersFor(lead, undefined, supply))).not.toContain(WORKER_MCP_SERVER);
 });
@@ -196,13 +196,13 @@ test("depth 1: Agent, Task, SendMessage, ListAgents are denied for the lead and 
   }
   // a dispatched dev run: the scope turns subagents off (the role itself still allows them outside the lead)
   expect(
-    checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, guardFor(ROLES.dev!, scope)).decision,
+    checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, guardFor(ROLES.developer!, scope)).decision,
   ).toBe("allow");
   expect(
     checkToolCall(
       AGENT_TOOL_NAME,
       { prompt: "p" },
-      guardFor(ROLES.dev!, { ...scope, subagents: false }),
+      guardFor(ROLES.developer!, { ...scope, subagents: false }),
     ).decision,
   ).toBe("deny");
 });
@@ -211,9 +211,9 @@ test("a scout task does not count toward the capped-task limit; a dev task does"
   const db = openDb(":memory:");
   insertTurn(db, { id: "s1", threadId: "th", source: "s", location: "l", role: "scout" });
   expect(countActiveCappedTasks(db)).toBe(0);
-  insertTurn(db, { id: "d1", threadId: "th", source: "s", location: "l", role: "dev" });
+  insertTurn(db, { id: "d1", threadId: "th", source: "s", location: "l", role: "developer" });
   expect(countActiveCappedTasks(db)).toBe(1);
   expect(countsTowardCap(scout)).toBe(false);
-  expect(countsTowardCap(ROLES.dev!)).toBe(true);
+  expect(countsTowardCap(ROLES.developer!)).toBe(true);
   db.close();
 });

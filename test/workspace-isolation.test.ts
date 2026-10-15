@@ -75,7 +75,7 @@ test("a real dev run prompt contains no pending-file text and no other workspace
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th",
-    text: "[dev] hello",
+    text: "[developer] hello",
   });
   await workersDone(env.db);
   expect(prompt).not.toContain("PENDING_MARK");
@@ -99,7 +99,7 @@ test("a message from w2's channel gets w2's memory and not w1's", async () => {
     channelId: CHANNEL_2,
     userId: "u",
     threadId: "th",
-    text: "[dev] hello",
+    text: "[developer] hello",
   });
   await workersDone(env.db);
   expect(prompt).toContain("W2_MARK");
@@ -121,7 +121,7 @@ test("no CLAUDE.md is created under the home by ensureHome or a handler run", as
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th",
-    text: "[dev] hello",
+    text: "[developer] hello",
   });
   await workersDone(env.db);
   const found = readdirSync(env.home, { recursive: true, withFileTypes: true })

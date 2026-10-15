@@ -104,7 +104,7 @@ test("its skill ships with the app, loads without a workspace, and no other role
   } finally {
     mine.cleanup();
   }
-  for (const other of ["lead", "dev"]) {
+  for (const other of ["lead", "developer"]) {
     const s = buildRoleSkills(getRole(other), undefined, env.home);
     expect(s.skills.some((n) => n.includes("discord-server-manager"))).toBe(false);
     s.cleanup();
@@ -213,7 +213,7 @@ test("CreateSpaceOrChannel asks the owner first; a no, a timeout (false) or an e
 
 test("a role that may cause external side effects is never re-run automatically", () => {
   expect(mayHaveWritten(DISCORD_MANAGER_ROLE)).toBe(true); // no write capability, sideEffects external
-  expect(mayHaveWritten(getRole("dev"))).toBe(true);
+  expect(mayHaveWritten(getRole("developer"))).toBe(true);
   expect(mayHaveWritten(getRole("lead"))).toBe(false);
 });
 

@@ -7,14 +7,14 @@ import { validatePlan } from "../src/orchestrator/plan/validate-plan";
 /* The plan validator is pure: one table row per error code, plus the happy path and the envelope diff. */
 
 const CTX: PlanCtx = {
-  workerRoles: ["dev", "scout"],
+  workerRoles: ["developer", "scout"],
   locations: ["repo", "docs"],
   goalBudgetUsd: 6,
   existingKeys: [],
   revisions: 0,
 };
 const item = (key: string, over: Record<string, unknown> = {}) =>
-  toPlanItem({ key, role: "dev", brief: `do ${key}`, dependsOn: [], risk: "R1", ...over });
+  toPlanItem({ key, role: "developer", brief: `do ${key}`, dependsOn: [], risk: "R1", ...over });
 /** A plan doc over the given items; the envelope covers repo + R0-R2 by default. */
 const doc = (items: ReturnType<typeof item>[], env: Record<string, unknown> = {}): PlanDoc => ({
   items,
@@ -79,7 +79,7 @@ test("envelopeGrew: only a wider ask is growth", () => {
   expect(envelopeGrew(base, { ...base, locations: ["repo"], budgetUsd: 2 })).toBe(false); // narrower
   expect(envelopeGrew(base, { ...base, locations: ["repo", "docs"] })).toBe(true);
   expect(envelopeGrew(base, { ...base, riskClasses: ["R0", "R1", "R2", "R3"] })).toBe(true);
-  expect(envelopeGrew(base, { ...base, roles: ["dev", "scout"] })).toBe(true);
+  expect(envelopeGrew(base, { ...base, roles: ["developer", "scout"] })).toBe(true);
   expect(envelopeGrew(base, { ...base, bounds: { maxItems: 9, maxGb: 1 } })).toBe(true);
   expect(envelopeGrew(base, { ...base, budgetUsd: 4 })).toBe(true);
   expect(envelopeGrew(base, { ...base, deliveryMode: "merge" })).toBe(true);

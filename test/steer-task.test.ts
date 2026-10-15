@@ -20,12 +20,12 @@ function devTask(env: ReturnType<typeof makeEnv>, taskId: string, turnId: string
   insertOwnedTask(env.db, {
     id: taskId,
     threadId: "th",
-    ownerRole: "dev",
+    ownerRole: "developer",
     status: "running",
     scope: "s",
     correlationId: "c",
   });
-  insertTurn(env.db, { id: turnId, threadId: "th", source: "t", location: "r", role: "dev" });
+  insertTurn(env.db, { id: turnId, threadId: "th", source: "t", location: "r", role: "developer" });
   linkTurn(env.db, turnId, taskId);
 }
 
@@ -70,7 +70,7 @@ test("H1: undeliveredNotice keeps the held steers of a live detached task, drops
   const settle = registerTaskRun("task-e", {
     threadId: "th",
     turnId: "turn-e",
-    role: "dev",
+    role: "developer",
     ac: new AbortController(),
   });
   expect(reg.undeliveredNotice("th")).toBe(""); // live detached run: the steer survives

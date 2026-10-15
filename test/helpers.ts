@@ -186,7 +186,7 @@ export const BRIEF =
   "Add b.txt containing two. Findings: a.txt:1 holds one. Acceptance: file exists.";
 
 /** `BRIEF` as the owner would type it to open a dev task. */
-export const DEV_REQUEST = `[dev] ${BRIEF}`;
+export const DEV_REQUEST = `[developer] ${BRIEF}`;
 
 /** Channel mapped to `w2` (w1 owns TEST_CHANNEL). */
 export const CHANNEL_2 = "200000000000000002";

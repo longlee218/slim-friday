@@ -1,6 +1,6 @@
 # Code Standards
 
-Last updated: 2026-10-15 (control-channel role fields `surface`, `appSkills`, `mcpServers` and the discord-admin tools, phase 3, uncommitted; schema v7 location vocabulary, phase 1a; space and channel vocabulary, phase 1b; thread vocabulary and custom tools, phase 1c; reliable handoff phase 10). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
+Last updated: 2026-10-16 (lead orchestration L2b, L2c and L4: orchestrator folders, effect tools, role alias, `developer` role; L4 uncommitted; control-channel role fields, phase 3; schema v7 location vocabulary, phase 1a; space and channel vocabulary, phase 1b; thread vocabulary and custom tools, phase 1c). Module map: [codebase-summary.md](codebase-summary.md). Runtime design: [system-architecture.md](system-architecture.md).
 
 ## Stack
 - **Runtime:** Bun (package manager, test runner, `bun:sqlite`)
@@ -24,11 +24,37 @@ bun run start           # start the bot (reads .env)
    - Publisher skills come from `.agents/skills/` and `skills-lock.json`. A role lists them with `skills: "all" | "none"`.
    - Subagents are the SDK built-in `Agent` tool. The app defines no subagent types.
    - Adding or removing a skill is a data change. A code change for it is a bug.
-4. **Limits live as named constants in the role file.** Role limits (`MAX_ASK`, `BUDGET_USD`, `ESCALATED_BUDGET_USD`) are declared at the top of `src/roles/builtin/<role>-role.ts`. The task ceiling `TASK_BUDGET_USD` lives only in `src/config/model-routing.ts`. Other run-wide caps are constants in their owning module.
-5. **Guard is a deny-list.** `src/guardrails/` decides allow / ask / deny per tool call. Hard denies are never approvable. Do not add an allowlist for Bash.
+4. **Limits live as named constants in the role file.** Role limits (`MAX_ASK`, `BUDGET_USD`) are declared at the top of `src/roles/builtin/<role>-role.ts`. The task ceiling `TASK_BUDGET_USD` lives only in `src/config/model-routing.ts`. Other run-wide caps are constants in their owning module.
+5. **Two guards, by run kind.** `src/guardrails/` is a deny-list for every run: it decides allow / ask / deny per tool call, and hard denies are never approvable. A dispatched worker also has an envelope (`src/orchestrator/approval/`): its shell is default-deny by shape with an exact table (`src/config/data/worker-bash-allowlist.yaml`), and R2/R3 work goes only through the effect tools. Do not add an allowlist for the shell of a run without an envelope.
 6. **Fail closed for owner decisions.** An owner question without an answer means "do not run" (owner-confirm, approvals). A missing or invalid config refuses startup.
 7. **Layering.** `thread/` and `dispatch/` never import `runtime/`. `roles/` never imports `orchestrator/`. Tested in `test/engine-layering.test.ts`.
 8. **Lead policy is code constants and typed actions.** Caps live in `src/orchestrator/strategy/caps.ts`; dispatch shape rules in `strategy/dispatch-policy.ts`. Lead tools are typed actions whose handlers check state, caps and CAS. The lead starts only roles with the `dispatchable` data flag. Only background roles own tasks.
+9. **Effects go through the effect port.** Every state change of a lead or effect tool is one atomic write through `engine/effect-port.ts` (`effect_log` row). Handlers never write the db directly. Tests use the fake port.
+10. **The planner never dispatches.** A plan is written by the `planner` role, validated by code (`src/orchestrator/plan/validate-plan.ts`), and approved by the owner through `ApprovePlan`. The planner is not `dispatchable`.
+
+## Orchestrator Layout (lead orchestration)
+Folders under `src/orchestrator/` (file counts at L4):
+
+| Folder | Files | Holds |
+|---|---|---|
+| top level | `handle-message.ts`, `handler-services.ts`, `message-commands.ts` | ingress to the lead queue, commands, `[role]` direct dispatch |
+| `engine/` | 40 | lead queue and run, lead tools' handlers, worker and dispatch runs, announce, effect port, recovery, budget, location activity, control scope |
+| `strategy/` | 6 | lead policy: `dispatch-policy.ts`, `plan-policy.ts`, `caps.ts`, `lead-md.ts` (LEAD.md built per run), `lead-context-block.ts`, `typed-result.ts` |
+| `plan/` | 12 | plan types and schemas, validator, lifecycle and CAS revision, materialize into items, planner handlers, progress and blocker reads |
+| `approval/` | 25 | risk classes, envelope and its check, ask policy, shell gate and tables, effect tools' classify and run (`delete-paths`, `git-push`, `pull-request`, `merge-branch`), trash store and purge |
+| `events/` | 2 | thread outbox (`thread_events`) types and store |
+| `outputs/` | 3 | reply text, outcome validation, delivery evidence |
+| `dispatch/` | 1 | `run-dispatched-task.ts` (worker run wiring) |
+| `thread/`, `turns/` | 1, 20 | thread state, turn rows, run limiter, steer, rollover, status snapshot |
+
+- Engine reads role data only (test-checked, `test/engine-layering.test.ts`); `roles/` never imports `orchestrator/`.
+- Effect tool names are constants (`EFFECT_TOOLS` in `src/mcp/mcp-tool-names.ts`): `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch`. A new effect tool needs a risk class in `classify-tool-call.ts`, a grant rule in the envelope check, and a test in `test/effect-tools-scope.test.ts`.
+- Worker shell lines an effect tool replaces (`rm`, `git push`, `gh pr create`, `git merge`) are denied for workers with the tool's name in the reason. Keep that table in step with the effect tools.
+
+## Role Aliases (L4)
+- `src/roles/role-aliases.ts` holds old role names as data: `{ dev: "developer" }`. Every read of a stored or typed role name goes through `canonicalRoleName`; the role tag router also takes `aliasesOf(role)` (`[dev]` still starts the developer).
+- Renaming a role adds one alias entry. Stored rows are never rewritten.
+- Env names follow the same key: `MODEL_DEV`, `BUDGET_DEV_USD`, `COMPACT_WINDOW_DEV` read as `developer`. Old names must not appear in new code, docs or prompts except in this alias table and in the docs' history notes.
 
 ## Roles, App Skills and Custom Tools (phase 3)
 - **Role fields (data):** `surface` (`space` default, or `control`: only `#ops-control`, never routed to); `appSkills` (dirs under `src/roles/builtin/skills/`, this role only); `mcpServers` (in-process app servers, names in `mcp-tool-names.ts`; the caller supplies them per query, and their tools need `allowTools`). A new control skill or space kind is a folder, never code.
@@ -48,7 +74,7 @@ bun run start           # start the bot (reads .env)
 
 - Banned by `test/retired-naming-scan.test.ts` in `src/` and `test/`: the `Repo` type, `loadRepos`, the `repo-registry` path. Exempt: the migration module and the frozen legacy storage files.
 - Retired, not scanned (keep out of new code): `repos/`, `repo.yaml`, `refresh-repo`, `isManagedClone`, `REPO_NAME`, `no_repos`, `repoScope`, `sideEffects: "repo"`, `testCommand`, `defaultBranch`, `githubAccount`, `gitAuthor`. Only the migration module reads the legacy file.
-- Kept aliases: `repo:<name>` (thread pin, dev report line, `/forget` parser only). Remember tool scopes (`REMEMBER_SCOPES`): `location | channel | workspace | global | journal`; no `repo:` scope.
+- Kept aliases: `repo:<name>` (thread pin, developer report line, `/forget` parser only). Remember tool scopes (`REMEMBER_SCOPES`): `location | channel | workspace | global | journal`; no `repo:` scope.
 
 ## Scan Rules (test-enforced)
 These rules are checked by tests that scan `src/` on every run. A violation fails `bun test`.
@@ -108,7 +134,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 3. **Error handling:** try/catch around I/O and SDK calls; log the redacted error; reply with a safe message ("Something went wrong. Check logs.").
 4. **Runs have no run timeout.** `TIMEOUT_MS` bounds only the memory-compaction call. A hung run holds its slot until `/stop` (owner-accepted). Do not add a run timer without an owner decision.
 5. **Tools never hardcoded.** Build tool lists through `src/tools/tool-catalog.ts` (`toolsFor`, `autoAllowedTools`, `toolOptions`).
-6. **Owner-visible questions:** workers use AskUserQuestion; the lead uses `AskOwner`. Do not add a new Discord approval type for a plan, a finish step or a merge.
+6. **Owner-visible questions:** developer workers use AskUserQuestion; the lead uses `AskOwner`; a plan is approved once through `ApprovePlan` (Discord buttons reused). Do not add a new Discord approval type for a plan, a finish step or a merge.
 7. **Owner-confirm buttons are the only costly-step gate.** Used for effort `max` and the Opus escalation; no answer or timeout means "do not run".
 8. **Credentials and env:** read config only through the zod schema in `src/config/agent-config.ts` (and `role-env.ts`). Direct `process.env` reads outside the schema are limited to `HOME`, `CLAUDE_CONFIG_DIR`, `SHELL` and `NODE_ENV`; add none.
 9. **Git for the app:** `src/locations/git-cli.ts` (argv, never a shell). The app never clones, fetches or pulls a location; the agent runs git in the owner's checkout.
@@ -135,7 +161,7 @@ bun test --timeout 10000             # per-test timeout (ms)
 - **Authorship:** the owner's own git identity. No AI or Claude attribution lines (`Co-Authored-By`, "Generated with") in commits or PRs.
 - **Before commit:** `bun run format && bun run lint && bun test && bunx tsc --noEmit`.
 - **Secrets:** never commit `.env` or real credentials. `.env.example` holds `REPLACE_ME` placeholders.
-- **Agent commits:** the dev agent commits in the owner's checkout as the owner. The agent's commit rule is in the dev role prompt (`COMMIT_RULES` in `src/roles/builtin/dev-role.ts`), not in `AGENTS.md`.
+- **Agent commits:** the developer agent commits in the owner's checkout as the owner. The agent's commit rule is in the developer role prompt (`COMMIT_RULES` in `src/roles/builtin/developer-role.ts`), not in `AGENTS.md`.
 
 ## Environment Variables
 - Schema: `src/config/agent-config.ts` (zod). Routing and pins: `src/config/role-env.ts`, `src/config/model-routing.ts`.
@@ -150,4 +176,4 @@ bun test --timeout 10000             # per-test timeout (ms)
 - **Child env deny list.** The agent process never inherits the bot's own secrets (`child-env-deny.yaml`). The owner's git and gh login does pass through (owner decision).
 - **File modes:** the DB, logs and per-run temp files are owner-only (0600 files, 0700 dirs).
 - **Owner only:** the bot obeys `OWNER_DISCORD_ID` in the pinned guild; owner questions are answered by that user.
-- **Known limits (accepted):** Bash parsing is best effort; the dev run is in bypass mode, so only hard denies stop a call; network commands run.
+- **Known limits (accepted):** Bash parsing is best effort for runs without an envelope; a worker's shell is shape-gated and sandboxed (sandbox not verified live); R1 runners execute repo code.

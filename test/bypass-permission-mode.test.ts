@@ -10,7 +10,7 @@ import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { initMsg, makeEnv, resultMsg } from "./helpers";
 
 const SIG = { signal: new AbortController().signal };
-const guard = guardFor(getRole("dev"), {
+const guard = guardFor(getRole("developer"), {
   cwd: "/ws/location",
   writePaths: ["/ws/location"],
   readPaths: ["/ws/location"],
@@ -154,8 +154,8 @@ async function execRun(actual: string) {
     db: env.db,
     abortController: new AbortController(),
     queryFn: queryFn as never,
-    role: getRole("dev"),
-    guard: guardFor(getRole("dev"), {
+    role: getRole("developer"),
+    guard: guardFor(getRole("developer"), {
       cwd: env.home,
       readPaths: [env.location],
       writePaths: [env.home],
@@ -175,7 +175,7 @@ test("runAgent: exec asks SDK for bypass with the opt-in; confirmed -> ask runs,
 });
 
 test("an auto role's options carry no allowDangerouslySkipPermissions", async () => {
-  expect(getRole("dev").permissionMode).toBe("bypassPermissions");
+  expect(getRole("developer").permissionMode).toBe("bypassPermissions");
   for (const role of ["lead"] as const) {
     const env = makeEnv();
     let opts: Options | undefined;

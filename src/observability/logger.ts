@@ -44,7 +44,7 @@ export interface LogContext {
   workspace?: string;
   /** Location of the task ("*" = not chosen yet). */
   location?: string;
-  /** Role name (e.g. "assistant", "dev"). */
+  /** Role name (e.g. "lead", "developer"). */
   mode?: string;
   /** Session key of the run (`lead:discord:<thread>` or `task:<taskId>:<role>`). */
   sessionKey?: string;

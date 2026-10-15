@@ -17,10 +17,12 @@ function sources(dir: string): { file: string; text: string }[] {
 const imports = (text: string): string[] =>
   [...text.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)].map((m) => m[1] as string);
 
-test('engine knows no role names: no "dev" / "lead" string literal under orchestrator/engine', () => {
+test('engine knows no role names: no "developer" / "lead" string literal under orchestrator/engine', () => {
   const files = sources("src/orchestrator/engine");
   expect(files.length).toBeGreaterThan(5);
-  const hits = files.filter((f) => /["'`](dev|scout)["'`]/.test(f.text)).map((f) => f.file);
+  const hits = files
+    .filter((f) => /["'`](dev|developer|scout)["'`]/.test(f.text))
+    .map((f) => f.file);
   expect(hits).toEqual([]);
 });
 

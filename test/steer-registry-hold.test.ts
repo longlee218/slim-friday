@@ -9,7 +9,14 @@ import { makeEnv } from "./helpers";
 
 const TH = { threadId: "th" };
 const dev = (db: ReturnType<typeof makeEnv>["db"], id = "t1") =>
-  insertTurn(db, { id, threadId: "th", source: "t", location: "r", role: "dev", brief: "add b" });
+  insertTurn(db, {
+    id,
+    threadId: "th",
+    source: "t",
+    location: "r",
+    role: "developer",
+    brief: "add b",
+  });
 
 /** A sink that records what is pushed. */
 const sink = (pushed: string[]): SteerSink => ({

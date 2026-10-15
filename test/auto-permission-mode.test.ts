@@ -24,7 +24,7 @@ test("resolver: auto only on anthropic with a real login; otherwise fail closed 
 
 test("resolver: dev stays bypassPermissions on every provider and auth state", () => {
   for (const c of [cfg("anthropic", true), cfg("openrouter", false)])
-    expect(resolvePermissionMode(getRole("dev"), c)).toBe("bypassPermissions");
+    expect(resolvePermissionMode(getRole("developer"), c)).toBe("bypassPermissions");
 });
 
 /** Run the PreToolUse guard hook for one call. */
@@ -88,7 +88,7 @@ test("auto mode: canUseTool (classifier undecided) still asks the owner via the 
 });
 
 test("auto mode: Bash never asks (deny list): an env override or make runs as allow, sudo is denied", async () => {
-  const guard = guardFor(getRole("dev"), {
+  const guard = guardFor(getRole("developer"), {
     cwd: "/ws/location",
     writePaths: ["/ws/location"],
     readPaths: ["/ws/location"],

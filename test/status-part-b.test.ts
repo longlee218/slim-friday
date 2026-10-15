@@ -20,7 +20,7 @@ type Db = ReturnType<typeof makeEnv>["db"];
 
 /** A running dev turn with `n` Bash calls (description `d<i>`), then a Grep call whose input holds a secret. */
 function runningTurn(db: Db, calls: { tool: string; input: unknown }[], id = "t1") {
-  insertTurn(db, { id, threadId: "th", source: "t", location: "r", role: "dev", brief: "x" });
+  insertTurn(db, { id, threadId: "th", source: "t", location: "r", role: "developer", brief: "x" });
   for (const [i, c] of calls.entries())
     insertToolCall(db, {
       id: `${id}-c${i}`,
@@ -145,7 +145,7 @@ test("/status: no running task but a waiting owned task -> its last state", asyn
   insertOwnedTask(env.db, {
     id: "ot1",
     threadId: "th",
-    ownerRole: "dev",
+    ownerRole: "developer",
     status: "waiting_user",
     scope: "clean the logs folder",
     correlationId: "c1",
@@ -153,7 +153,7 @@ test("/status: no running task but a waiting owned task -> its last state", asyn
   linkTurn(env.db, "t1", "ot1");
   const h = statusHandler(env.db, env);
   const text = (await h.say("/status")) as string;
-  expect(text).toContain("Waiting task (dev, waiting_user), stopped");
+  expect(text).toContain("Waiting task (developer, waiting_user), stopped");
   expect(text).toContain("Scope: clean the logs folder");
   expect(text).toContain("- Edit");
   expect(text).not.toContain("/x");
@@ -170,7 +170,7 @@ function receiptEnv(failReact = false) {
     threadId: "th",
     source: "t",
     location: "r",
-    role: "dev",
+    role: "developer",
     brief: "x",
   });
   const reacted: [string, string, string][] = [];

@@ -30,7 +30,7 @@ export class FakePort implements EffectPort {
   /** Test-set reads. */
   goalState: GoalState = { items: [] };
   capsNow = { chainCount: 0, leadSpentTodayUsd: 0 };
-  envNow: PolicyEnv = { workerRoles: ["dev", "scout"], locations: ["repo"] };
+  envNow: PolicyEnv = { workerRoles: ["developer", "scout"], locations: ["repo"] };
   rows = new Map<string, ItemRow>();
   steerReply: SteerReply = "queued";
   answer: OwnerAnswer = { answer: "yes", timedOut: false };

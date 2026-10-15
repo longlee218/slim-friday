@@ -31,7 +31,7 @@ const [homeLoc] = loadLocations(
 );
 
 /** Guard of one role run in workspace `main` with the $HOME location. */
-const guard = (role: "dev" | "lead") => {
+const guard = (role: "developer" | "lead") => {
   const r = getRole(role);
   const s = roleScope(
     config,
@@ -48,7 +48,7 @@ const guard = (role: "dev" | "lead") => {
   );
   return guardFor(r, s.guard);
 };
-const decide = (role: "dev" | "lead", tool: string, input: Record<string, unknown>) =>
+const decide = (role: "developer" | "lead", tool: string, input: Record<string, unknown>) =>
   checkToolCall(tool, input, guard(role)).decision;
 
 test("registry: $HOME accepted, strict ancestors rejected, AGENT_HOME inside rule unchanged", () => {
@@ -67,7 +67,7 @@ test("registry: $HOME accepted, strict ancestors rejected, AGENT_HOME inside rul
   expect(got).toEqual([]);
 });
 
-for (const role of ["dev", "lead"] as const) {
+for (const role of ["developer", "lead"] as const) {
   test(`${role} with a $HOME location: agent home is unreadable`, () => {
     expect(decide(role, "Read", { file_path: join(agentHome, ".env") })).toBe("deny");
     expect(decide(role, "Read", { file_path: join(agentHome, "data", "agent.db") })).toBe("deny");
@@ -77,31 +77,35 @@ for (const role of ["dev", "lead"] as const) {
 }
 
 test("dev: agent home unwritable, Bash reads and writes of it denied, own dirs granted", () => {
-  expect(decide("dev", "Write", { file_path: join(agentHome, "data", "x") })).toBe("deny");
-  expect(decide("dev", "Bash", { command: `cat ${join(agentHome, ".env")}` })).toBe("deny");
-  expect(decide("dev", "Bash", { command: `cat ${join(agentHome, "data", "agent.db")}` })).toBe(
-    "deny",
-  );
-  expect(decide("dev", "Bash", { command: `rm -r ${join(agentHome, "x")}` })).toBe("deny");
+  expect(decide("developer", "Write", { file_path: join(agentHome, "data", "x") })).toBe("deny");
+  expect(decide("developer", "Bash", { command: `cat ${join(agentHome, ".env")}` })).toBe("deny");
+  expect(
+    decide("developer", "Bash", { command: `cat ${join(agentHome, "data", "agent.db")}` }),
+  ).toBe("deny");
+  expect(decide("developer", "Bash", { command: `rm -r ${join(agentHome, "x")}` })).toBe("deny");
   // Relative (cwd = $HOME) and `~` / `$HOME` forms (os.homedir() follows the HOME env).
-  expect(decide("dev", "Bash", { command: "cat .friday/data/agent.db" })).toBe("deny");
+  expect(decide("developer", "Bash", { command: "cat .friday/data/agent.db" })).toBe("deny");
   const prevHome = process.env.HOME;
   process.env.HOME = home;
   try {
-    expect(decide("dev", "Bash", { command: "ls ~/.friday/data" })).toBe("deny");
-    expect(decide("dev", "Bash", { command: "echo hi > $HOME/.friday/data/x" })).toBe("deny");
+    expect(decide("developer", "Bash", { command: "ls ~/.friday/data" })).toBe("deny");
+    expect(decide("developer", "Bash", { command: "echo hi > $HOME/.friday/data/x" })).toBe("deny");
   } finally {
     process.env.HOME = prevHome;
   }
   // The run's scratch and worktrees dir (under AGENT_HOME) stay writable.
-  expect(decide("dev", "Write", { file_path: join(ws.task("t1").root, "plan.md") })).toBe("allow");
-  expect(decide("dev", "Write", { file_path: join(ws.worktrees, "my-computer", "a.ts") })).toBe(
+  expect(decide("developer", "Write", { file_path: join(ws.task("t1").root, "plan.md") })).toBe(
     "allow",
   );
-  expect(decide("dev", "Bash", { command: `rm -r ${join(ws.worktrees, "x")}` })).toBe("allow");
-  expect(decide("dev", "Bash", { command: `rm -r ${join(home, "proj", "node_modules")}` })).toBe(
+  expect(
+    decide("developer", "Write", { file_path: join(ws.worktrees, "my-computer", "a.ts") }),
+  ).toBe("allow");
+  expect(decide("developer", "Bash", { command: `rm -r ${join(ws.worktrees, "x")}` })).toBe(
     "allow",
   );
+  expect(
+    decide("developer", "Bash", { command: `rm -r ${join(home, "proj", "node_modules")}` }),
+  ).toBe("allow");
 });
 
 test("lead: files of its own workspace cwd/ stay readable", () => {

@@ -1,4 +1,4 @@
-/** Guard of the git MCP server's tools: READ scope only (the assistant). No role that writes gets this server. */
+/** Guard of the git MCP server's tools: READ scope only (the lead and scout). No role that writes gets this server. */
 import { GIT_GROUPS, GIT_READ_BY_MODE } from "../tools/tool-catalog";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { resolveReal } from "./paths";

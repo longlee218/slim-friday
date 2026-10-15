@@ -85,7 +85,7 @@ test("push / merge need a grant on the location and the branch; a default branch
 
 test("an approved plan becomes an envelope: R3 / pr opens push + PR, merge opens MergeBranch, GB bound applies", () => {
   const plan = {
-    roles: ["dev"],
+    roles: ["developer"],
     locations: ["api"],
     riskClasses: ["R1", "R3"] as ("R1" | "R3")[],
     bounds: { maxItems: 8, maxGb: 2 },

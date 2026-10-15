@@ -15,7 +15,7 @@ export interface Location {
   path: string;
   /** One-line hint the agent uses to pick the location. */
   description: string;
-  /** True when `path` holds a `.git` (computed at load, never configured): a dev run delivers through git only then. */
+  /** True when `path` holds a `.git` (computed at load, never configured): a developer run delivers through git only then. */
   git: boolean;
 }
 
@@ -98,7 +98,7 @@ export function loadLocations(
       log.warn({ workspace: wsName, location: name }, "skipped location: path covers the home dir");
       continue;
     }
-    // A location inside AGENT_HOME (db, .env, persona; ws.root = <home>/workspaces/<ws>) would give a dev run write
+    // A location inside AGENT_HOME (db, .env, persona; ws.root = <home>/workspaces/<ws>) would give a developer run write
     // scope over it. Only this workspace's own `locations/` subtree (migrated managed clones) is allowed.
     if (isInside(real(agentHome), rpath) && !isInside(real(join(wsRoot, "locations")), rpath)) {
       log.warn(

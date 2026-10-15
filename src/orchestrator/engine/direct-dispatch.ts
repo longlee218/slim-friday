@@ -8,7 +8,7 @@ import type { LeadInput } from "./lead-queue";
 import type { LeadRuntime, LeadThreadCtx } from "./lead-runtime";
 
 /**
- * The owner's role tag (`[dev] ...`) starts a worker WITHOUT the lead model: the same typed DIRECT dispatch the lead would
+ * The owner's role tag (`[developer] ...`) starts a worker WITHOUT the lead model: the same typed DIRECT dispatch the lead would
  * make (policy, goal, item, work order), so the lead being down never blocks work. Runs inside the lead queue (one input
  * per thread at a time, so it cannot race a lead run). Returns the owner-facing line.
  */

@@ -213,7 +213,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     const d = observeResult(res);
     if (d.kind === "report_incomplete") audit("report_incomplete", d.reason);
   }
-  // A background run's session is the turn row's only: saved as the thread's, the assistant would resume it.
+  // A background run's session is the turn row's only: saved as the thread's, the lead would resume it.
   const base: FlowResult = {
     ...res,
     cwd: s.cwd,

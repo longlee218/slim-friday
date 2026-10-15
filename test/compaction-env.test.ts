@@ -74,7 +74,7 @@ describe("compaction + cache TTL env (set by the app for every role, never inher
 
   test("every role run: window, 75%, main and subagent cache TTL", async () => {
     const env = makeEnv();
-    for (const role of ["lead", "dev"]) {
+    for (const role of ["lead", "developer"]) {
       const e = (await optionsOf(env, role)).env;
       expect(e[AUTO_COMPACT_WINDOW_VAR]).toBe(String(COMPACT_WINDOW_TOKENS));
       expect(e[AUTOCOMPACT_PCT_VAR]).toBe("75");
@@ -86,7 +86,7 @@ describe("compaction + cache TTL env (set by the app for every role, never inher
   test("the owner's shell values of the 4 vars reach no role", async () => {
     for (const v of VARS) process.env[v] = "12345";
     const env = makeEnv();
-    for (const role of ["lead", "dev"]) {
+    for (const role of ["lead", "developer"]) {
       const e = (await optionsOf(env, role)).env;
       expect(e[AUTO_COMPACT_WINDOW_VAR]).toBe(String(COMPACT_WINDOW_TOKENS));
       expect(e[AUTOCOMPACT_PCT_VAR]).toBe("75");

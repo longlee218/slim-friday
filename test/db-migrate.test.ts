@@ -197,7 +197,7 @@ test("proposals.effort: added once on the v1 -> v3 chain, old rows read null, re
   const db = openDb(file);
   expect(cols(db)).toHaveLength(1);
   db.run(
-    "INSERT INTO proposals (id, thread_id, workspace, role, brief, status, created_at) VALUES ('p1', 'th1', 'main', 'dev', 'b', 'pending', 1)",
+    "INSERT INTO proposals (id, thread_id, workspace, role, brief, status, created_at) VALUES ('p1', 'th1', 'main', 'developer', 'b', 'pending', 1)",
   );
   const effort = () =>
     db.query<{ effort: string | null }, []>("SELECT effort FROM proposals").get()?.effort;

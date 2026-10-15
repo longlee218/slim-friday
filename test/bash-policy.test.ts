@@ -260,7 +260,7 @@ describe("EnterWorktree tool", () => {
 describe("shell capability", () => {
   test("a role without it (a no-shell role) denies Bash and Monitor; a role with it (dev) allows them", () => {
     const qa = guardFor({ ...getRole("lead"), capabilities: ["read"] }, { readPaths: ["/r"] });
-    const exec = guardFor(getRole("dev"), { cwd: "/w", writePaths: ["/w"] });
+    const exec = guardFor(getRole("developer"), { cwd: "/w", writePaths: ["/w"] });
     for (const tool of [BASH_TOOL_NAME, MONITOR_TOOL_NAME]) {
       expect(checkToolCall(tool, { command: "ls" }, qa)).toEqual({
         decision: "deny",

@@ -7,12 +7,12 @@ import {
   depsShape,
 } from "../src/orchestrator/strategy/dispatch-policy";
 
-const ENV: PolicyEnv = { workerRoles: ["dev", "scout"], locations: ["repo"] };
+const ENV: PolicyEnv = { workerRoles: ["developer", "scout"], locations: ["repo"] };
 const CAPS: Caps = { chainCount: 0, dispatchedThisRun: 0, leadSpentTodayUsd: 0 };
 const IDLE: GoalState = { items: [] };
 const a = (key: string, dependsOn: string[] = [], over: Partial<Assignment> = {}): Assignment => ({
   key,
-  role: "dev",
+  role: "developer",
   brief: "b",
   dependsOn,
   ...over,

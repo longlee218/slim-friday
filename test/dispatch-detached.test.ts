@@ -31,7 +31,7 @@ function start(
     threadId: over.threadId,
     source: "t",
     location: locations[0]!.name,
-    role: "dev",
+    role: "developer",
     brief: BRIEF,
   });
   const message = { ...base, threadId: over.threadId, notify: over.notify };
@@ -48,7 +48,7 @@ function start(
         turnId,
         threadId: over.threadId,
         text: BRIEF,
-        role: "dev",
+        role: "developer",
         workspace: "main",
         locations,
         ac: new AbortController(),
