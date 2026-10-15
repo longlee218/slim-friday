@@ -2,7 +2,7 @@ import type { Logger } from "pino";
 import type { IntentDecision, IntentDeps } from "../intent/decide-intent";
 import { logEvent } from "../observability/logger";
 import { statusFacts } from "../orchestrator/turns/status-snapshot";
-import type { RouteProposal } from "./route-proposer";
+import type { RouteProposal } from "../intent/jev/route-proposer";
 import type { RouteInput } from "./routing-policy";
 
 /**

@@ -19,7 +19,7 @@ import {
 } from "../src/ingress/attachment-text";
 import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
 import { routeMessage } from "../src/ingress/discord-message-rules";
-import { l3MessageText } from "../src/intent/intent-prompt";
+import { l3MessageText } from "../src/intent/routing-message-text";
 import { stripMarkers } from "../src/intent/strip-markers";
 import { sdkCompactLlm } from "../src/memory/memory-compaction-llm";
 import { captureLogs } from "../src/observability/logger";

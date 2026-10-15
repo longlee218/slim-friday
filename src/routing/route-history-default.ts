@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { TaskClass } from "../config/model-routing";
 import type { IntentDecision } from "../intent/decide-intent";
 import { hasClassTiers, ROLES } from "../roles/role-registry";
-import { FIT_MIN } from "./route-proposer";
+import { FIT_MIN } from "../intent/jev/route-proposer";
 
 /** Role of the thread's latest turn (any role), or undefined in a new thread. */
 export const lastRoleOf = (db: Database, threadId: string): string | undefined =>

@@ -1,6 +1,6 @@
 import { ROLES, spaceRoles } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
-import type { ProposeInput, RouteProposal, RouteProposer } from "../../routing/route-proposer";
+import type { ProposeInput, RouteProposal, RouteProposer } from "./route-proposer";
 import { parseJevAnswers } from "./jev-answer-schema";
 import { decideBands } from "./jev-bands";
 import { type JevClient, JevError } from "./jev-client";

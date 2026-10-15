@@ -3,7 +3,7 @@ import type { TaskClass } from "../config/model-routing";
 import { logEvent, logger } from "../observability/logger";
 import type { ThreadState } from "../orchestrator/thread/thread-state";
 import { entryRole, hasClassTiers, ROLES } from "../roles/role-registry";
-import type { RouteProposer } from "../routing/route-proposer";
+import type { RouteProposer } from "./jev/route-proposer";
 import { decideWithModel, undecided, type Verdict } from "./decide-with-model";
 import type { EffortSignals } from "./effort-signals";
 import type { IntentClassifier, IntentInput, IntentResult } from "./intent-types";

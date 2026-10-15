@@ -1,6 +1,6 @@
 import { redactText } from "../../observability/redact";
-import type { ProposeInput } from "../../routing/route-proposer";
-import { routingMessageText } from "../intent-prompt";
+import type { ProposeInput } from "./route-proposer";
+import { routingMessageText } from "../routing-message-text";
 import { cleanRecent } from "../recent-messages";
 
 /** Longest task scope sent (already redacted at its source; clipped again here). */

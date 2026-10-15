@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { RouteProposal } from "../src/routing/route-proposer";
+import type { RouteProposal } from "../src/intent/jev/route-proposer";
 import { decideRoute } from "../src/routing/routing-policy";
 import { makeEnv } from "./helpers";
 import {

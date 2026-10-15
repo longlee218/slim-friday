@@ -1,6 +1,6 @@
 import type { IntentDecision } from "../intent/decide-intent";
 import { entryRole, ROLES } from "../roles/role-registry";
-import type { RouteProposal } from "./route-proposer";
+import type { RouteProposal } from "../intent/jev/route-proposer";
 import type { TaskState } from "./routing-contracts";
 
 /** The question for a message that holds several requests. */

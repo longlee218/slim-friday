@@ -1,5 +1,5 @@
 import type { RoleDefinition } from "../../roles/role-types";
-import type { RouteProposal, RouteScores } from "../../routing/route-proposer";
+import type { RouteProposal, RouteScores } from "./route-proposer";
 import type { JevAnswers } from "./jev-answer-schema";
 import {
   ACT_MIN,

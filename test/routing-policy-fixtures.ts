@@ -5,7 +5,7 @@ import { createRoleTagRouter } from "../src/intent/role-tag";
 import { logger } from "../src/observability/logger";
 import { beginTurn } from "../src/orchestrator/turns/turn-tracker";
 import { ROLES } from "../src/roles/role-registry";
-import type { RouteProposal, RouteProposer } from "../src/routing/route-proposer";
+import type { RouteProposal, RouteProposer } from "../src/intent/jev/route-proposer";
 import type { RouteInput } from "../src/routing/routing-policy";
 import { activeOwnedTask } from "../src/storage/owned-task-store";
 import { finishTurn, interruptRunningTurns } from "../src/storage/run-store";

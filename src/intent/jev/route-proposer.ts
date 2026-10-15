@@ -1,4 +1,4 @@
-import type { RecentMessage } from "../intent/intent-types";
+import type { RecentMessage } from "../intent-types";
 
 /**
  * Async route proposer: the slot Jev (TypeSafe System One, phase 7) plugs into. The policy asks ONE proposal per

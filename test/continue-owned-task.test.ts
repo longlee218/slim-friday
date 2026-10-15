@@ -9,7 +9,7 @@ import { continueOwnedTask } from "../src/orchestrator/dispatch/continue-owned-t
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { beginTurn } from "../src/orchestrator/turns/turn-tracker";
 import { ROLES } from "../src/roles/role-registry";
-import type { RouteProposer } from "../src/routing/route-proposer";
+import type { RouteProposer } from "../src/intent/jev/route-proposer";
 import { activeOwnedTask, getOwnedTask, ownedTaskOfTurn } from "../src/storage/owned-task-store";
 import { interruptRunningTurns, setTurnSession } from "../src/storage/run-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";

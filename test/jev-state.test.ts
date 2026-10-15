@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildIntentUserPrompt, routingMessageText } from "../src/intent/intent-prompt";
+import { buildIntentUserPrompt } from "../src/intent/intent-prompt";
+import { routingMessageText } from "../src/intent/routing-message-text";
 import { parseJevAnswers } from "../src/intent/jev/jev-answer-schema";
 import { buildJevQuestions } from "../src/intent/jev/jev-questions";
 import { buildJevState } from "../src/intent/jev/jev-state";

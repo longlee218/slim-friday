@@ -1,4 +1,4 @@
-import { ATTACHMENT_BLOCK_START } from "../intent/intent-prompt";
+import { ATTACHMENT_BLOCK_START } from "../intent/routing-message-text";
 import { redactText } from "../observability/redact";
 
 /* Text attachments of an owner message (Discord turns a message > 2000 chars into `message.txt`). The files are
