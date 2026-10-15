@@ -1,0 +1,113 @@
+import type { ItemRow, ResultKind } from "../../storage/owned-item-store";
+import type { EventKind } from "../events/event-types";
+import type { Caps, GoalState, PolicyEnv } from "../strategy/caps";
+import type { ItemDraft } from "../strategy/dispatch-policy";
+
+/* The port the lead's tool handlers act through. Handlers hold the rules and stay pure over it: tests pass a fake,
+   the real one (`effect-port-db.ts`) reads and writes the db and calls the injected IO. */
+
+/** What `SteerTask` did. `answered` = it resolved a pending worker question. */
+export type SteerReply = "queued" | "held" | "full" | "ended" | "answered";
+
+/** One item as the status tool shows it (facts from the db). */
+export interface ItemFacts {
+  id: string;
+  key: string | null;
+  status: string;
+  /** Question the worker waits on, redacted; undefined = none. */
+  pendingQuestion?: string;
+  resultKind: ResultKind | null;
+  resultExcerpt: string | null;
+  resultPath: string | null;
+}
+
+/** Goal and item facts of a thread (or of one task). */
+export interface TaskSnapshot {
+  goalId?: string;
+  /** Goal sentence (`owned_tasks.scope`). */
+  intent?: string;
+  items: ItemFacts[];
+}
+
+/** A button question to the owner. */
+export interface OwnerQuestion {
+  question: string;
+  options: string[];
+  taskId?: string;
+  workerAskId?: string;
+}
+
+/** The owner's answer; `timedOut` = no click within the limit. */
+export interface OwnerAnswer {
+  answer?: string;
+  timedOut: boolean;
+}
+
+/** Something to post to the owner: text, or a result file (split / attached by the poster). */
+export interface Post {
+  text?: string;
+  filePath?: string;
+}
+
+/** A new event for the thread's outbox (id = idempotency key). */
+export interface NewEvent {
+  id: string;
+  kind: EventKind;
+  taskId?: string;
+  itemId?: string;
+  payload: unknown;
+  correlationId?: string;
+  causationId?: string;
+}
+
+/** What `dispatch` writes. */
+export interface DispatchWrite {
+  /** Idempotency key of the call (also the audit row id and the prefix of the event ids). */
+  key: string;
+  strategy: string;
+  intent: string;
+  reason: string;
+  supersedes?: string;
+  items: ItemDraft[];
+}
+
+/** Result of `dispatch`. */
+export type DispatchResult =
+  | { ok: true; goalId: string; itemIds: string[] }
+  | { ok: false; code: string; message: string };
+
+/** Everything a lead tool may do to the world; every method acts on the thread the port was built for. */
+export interface EffectPort {
+  /** Stored reply of an earlier call with this key, or undefined (idempotency: replay it, do not act again). */
+  recall(key: string): string | undefined;
+  /** Store the reply of a call (audit row in `effect_log`, goal / item optional). */
+  remember(key: string, e: { tool: string; reply: string; goalId?: string; itemId?: string }): void;
+  /** Open goal and items of the thread. */
+  state(): GoalState;
+  /** Cap counters (`dispatchedThisRun` comes from the run, not the port). */
+  caps(): Omit<Caps, "dispatchedThisRun">;
+  /** Registry facts the policy needs. */
+  env(): PolicyEnv;
+  /** Facts of the thread's goal, or of the goal of `taskId`; undefined when `taskId` is not in this thread. */
+  snapshot(taskId?: string): TaskSnapshot | undefined;
+  /** One item of this thread, or undefined. */
+  item(taskId: string): ItemRow | undefined;
+  /**
+   * Start a goal in ONE transaction: cancel the superseded goal, open the new goal, add its items, one `start` event per
+   * item and the audit row (`key` = idempotency key). A failure part-way leaves nothing behind. `supersedes` must be the
+   * thread's own open goal, else a coded BAD_TASK refusal (nothing written).
+   */
+  dispatch(d: DispatchWrite): DispatchResult;
+  /** Append an event to the thread outbox. Returns false when the id already existed. */
+  appendEvent(e: NewEvent): boolean;
+  /** Steer a task (answers its pending question when there is one). */
+  steer(taskId: string, text: string): SteerReply;
+  /** Cancel a task and its dependents, abort live runs. Returns the cancelled ids. */
+  cancel(taskId: string, reason: string): string[];
+  /** Ask the owner with buttons; resolves with the answer or a timeout. */
+  askOwner(q: OwnerQuestion): Promise<OwnerAnswer>;
+  /** Post to the owner. */
+  post(p: Post): Promise<void>;
+  /** Ask for one re-run of this lead input on a stronger tier; false = refused (already asked this run). */
+  requestEscalation(to: "high" | "opus", reason: string): boolean;
+}

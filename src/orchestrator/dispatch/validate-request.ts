@@ -3,7 +3,7 @@ import type { AgentConfig } from "../../config/agent-config";
 import { type Effort, resolveBudget, type TaskClass } from "../../config/model-routing";
 import { renderUserNotice } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
-import { dispatchableRoleNames, ROLES } from "../../roles/role-registry";
+import { countsTowardCap, dispatchableRoleNames, ROLES } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import { capRefusal, type Refusal, refuse, resolveTaskLocation } from "./task-location";
 
@@ -98,7 +98,7 @@ export async function validateRequest(
   }
   const { candidates } = resolved;
   const locationName = hint ? (candidates[0]?.name ?? "*") : "*";
-  const capped = role.background ? capRefusal(d.db) : undefined;
+  const capped = countsTowardCap(role) ? capRefusal(d.db) : undefined;
   if (capped) return { ok: false, action: "refuse", refusal: capped };
   const cls = req.cls ?? "standard";
   const budget = resolveBudget(role, { cls }, d.config);

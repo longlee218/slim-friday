@@ -1,3 +1,4 @@
+import { WORKER_MCP_SERVER } from "../../mcp/mcp-tool-names";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition } from "../role-types";
 
@@ -81,6 +82,8 @@ export const DEV_ROLE: RoleDefinition = {
     "A job that changes things or needs a plan the owner approves: implement, fix, refactor, add tests, design or plan a FUTURE change; works in the location and delivers (merge, PR or keep) after the owner chose.",
   tag: "[dev]",
   background: true,
+  dispatchable: true, // the lead may start it as a worker
+  mcpServers: [WORKER_MCP_SERVER], // its ReportResult tool when dispatched (a run without the server just lacks it)
   skills: "all", // every installed publisher skill (installing one needs no code change)
   limits: { maxAsk: MAX_ASK },
   sideEffects: "location",

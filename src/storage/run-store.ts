@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { TaskClass } from "../config/model-routing";
 import { redactText } from "../observability/redact";
-import { getRole, turnTypeOf } from "../roles/role-registry";
+import { countsTowardCap, getRole, turnTypeOf } from "../roles/role-registry";
 import { reconcileRunningTasks } from "./owned-task-store";
 
 /** Final status of a turn row. */
@@ -130,7 +130,7 @@ export function insertTurn(
     resume?: boolean;
   },
 ): void {
-  // Only background roles count against the concurrency cap (see `countActiveCappedTasks`).
+  // Only background roles that change something count against the concurrency cap (see `countActiveCappedTasks`).
   const role = getRole(t.role);
   db.query(
     `INSERT INTO turns (id, thread_id, source, location, type, status, started_at, brief, class, proposal_id, counts_toward_cap, role, kind, parent_turn_id, hop)
@@ -145,7 +145,7 @@ export function insertTurn(
     t.brief === undefined ? null : redactText(t.brief),
     t.cls ?? null,
     t.proposalId ?? null,
-    role.background ? 1 : 0,
+    countsTowardCap(role) ? 1 : 0,
     role.name,
     // `kind` is NOT NULL (default 'staged' before v4): a role run is one run, `single`; a continuation is `resume`.
     t.resume ? "resume" : "single",

@@ -1,14 +1,26 @@
 import { ASSISTANT_ROLE } from "./builtin/assistant-role";
 import { DEV_ROLE } from "./builtin/dev-role";
 import { DISCORD_MANAGER_ROLE } from "./builtin/discord-manager-role";
+import { LEAD_ROLE } from "./builtin/lead-role";
+import { SCOUT_ROLE } from "./builtin/scout-role";
 import type { RoleDefinition } from "./role-types";
 
-/** Every role of the app, by name. A new role = one file in `builtin/` + one line here. */
+/** Every role of the app, by name. A new role = one file in `builtin/` + one line here. The lead is listed AFTER the assistant: `entryRole()` returns the first role with the `entry` flag. */
 export const ROLES: Readonly<Record<string, RoleDefinition>> = {
   [ASSISTANT_ROLE.name]: ASSISTANT_ROLE,
   [DEV_ROLE.name]: DEV_ROLE,
   [DISCORD_MANAGER_ROLE.name]: DISCORD_MANAGER_ROLE,
+  [LEAD_ROLE.name]: LEAD_ROLE,
+  [SCOUT_ROLE.name]: SCOUT_ROLE,
 };
+
+/** A task of this role counts toward the concurrent task cap: it runs in the background AND may change something (a read-only scout does not). */
+export const countsTowardCap = (r: RoleDefinition): boolean =>
+  r.background && r.sideEffects !== "none";
+
+/** Roles the lead may dispatch as workers (`dispatchable` data flag), whatever their surface. */
+export const dispatchableWorkers = (): RoleDefinition[] =>
+  Object.values(ROLES).filter((r) => r.dispatchable);
 
 /** True for a role that runs in space channels (the default surface); a `control` role is never routed to from one. */
 export const isSpaceRole = (r: RoleDefinition): boolean => (r.surface ?? "space") === "space";

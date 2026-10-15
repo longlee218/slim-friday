@@ -25,6 +25,7 @@ const NAMES = new Set<string>([
   ...Object.values(mcpNames.GIT_TOOL),
   mcpNames.GIT_MCP_SERVER,
   ...mcpNames.MEMORY_TOOLS,
+  ...Object.values(mcpNames.APP_MCP_TOOLS).flat(),
 ]);
 /** Server names are generic words ("git" is also a shell command); only tool names + mcp__ are scanned. */
 NAMES.delete(mcpNames.GIT_MCP_SERVER);

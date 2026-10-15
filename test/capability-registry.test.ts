@@ -42,7 +42,7 @@ test("real roles carry registry data", () => {
   expect(ROLES.dev?.sideEffects).toBe("location");
   expect(ROLES.dev?.approvalRequired).toBe(true);
   expect(() => validateRegistry()).not.toThrow();
-  expect(registryVersion()).toBe("assistant@2,dev@2,discord-manager@1");
+  expect(registryVersion()).toBe("assistant@2,dev@2,discord-manager@1,lead@1,scout@1");
 });
 
 test("filters: not dispatchable, visited, unauthorized, capability", () => {
@@ -92,9 +92,11 @@ test("validateRegistry rejects key mismatch, missing sideEffects, background wit
   expect(() =>
     validateRegistry({ a: role("a", { sideEffects: undefined as unknown as "none" }) }),
   ).toThrow(/sideEffects/);
-  expect(() => validateRegistry({ a: role("a", { background: true }) })).toThrow(
-    /approvalRequired/,
-  );
+  expect(() =>
+    validateRegistry({ a: role("a", { background: true, sideEffects: "location" }) }),
+  ).toThrow(/approvalRequired/);
+  // a background role that changes nothing (the scout) needs no approvals
+  expect(() => validateRegistry({ a: role("a", { background: true }) })).not.toThrow();
   expect(() => validateRegistry({ a: role("a", { whenToUse: "" }) })).not.toThrow();
 });
 

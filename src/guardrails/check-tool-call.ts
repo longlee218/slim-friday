@@ -23,11 +23,13 @@ import {
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
   LEGACY_AGENT_TOOL_NAME,
+  LIST_AGENTS_TOOL_NAME,
   LSP_TOOL_NAME,
   MONITOR_TOOL_NAME,
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
   READ_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
 import { appMcpToolsFor, autoAllowedTools, toolsFor } from "../tools/tool-catalog";
@@ -65,6 +67,8 @@ export interface GuardrailContext {
   allowInside?: string[];
   /** False = the role has no shell capability: Bash and Monitor are denied. Omitted (no role known) = allowed. */
   shell?: boolean;
+  /** False = no SDK subagent tools (Agent, Task, SendMessage, ListAgents): denied. Omitted = allowed. */
+  subagents?: boolean;
   /** Orchestration tools of the current mode that need no approval (Skill, TodoWrite, WebFetch...). */
   allowTools?: string[];
 }
@@ -81,6 +85,8 @@ export function guardFor(role: RoleDefinition, scope: GuardScope): GuardrailCont
     ...scope,
     allowTools: [...autoAllowedTools(role), ...appMcpToolsFor(role)],
     shell: toolsFor(role).includes(BASH_TOOL_NAME),
+    // Depth 1: the role's data wins; a run (a dispatched worker) may also turn subagents off through the scope.
+    subagents: role.noSubagents ? false : (scope.subagents ?? true),
   };
 }
 
@@ -90,6 +96,12 @@ const WRITE_TOOLS = new Set([
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
 ]);
+const SUBAGENT_TOOLS = new Set([
+  AGENT_TOOL_NAME,
+  LEGACY_AGENT_TOOL_NAME,
+  SEND_MESSAGE_TOOL_NAME,
+  LIST_AGENTS_TOOL_NAME,
+]);
 const READ_TOOLS = new Set([READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME, LSP_TOOL_NAME]);
 
 /** Decide whether a tool call may run (any caller, subagents included). Unknown tools need approval. */
@@ -98,6 +110,9 @@ export function checkToolCall(
   input: Record<string, unknown>,
   ctx: GuardrailContext,
 ): Decision {
+  // Depth 1: a lead or worker spawns no subagent of its own (second lock behind `tools`).
+  if (ctx.subagents === false && SUBAGENT_TOOLS.has(toolName))
+    return { decision: "deny", reason: "no subagents in this role" };
   if (WRITE_TOOLS.has(toolName)) return checkFileWrite(toolName, input, ctx.writePaths ?? [], ctx);
   if (READ_TOOLS.has(toolName)) return checkFileRead(toolName, input, ctx.readPaths, ctx);
   // EnterWorktree: only an existing worktree under the worktrees dir (`name` would create one in the location's .claude dir).

@@ -37,6 +37,7 @@ import {
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import {
+  appMcpToolsFor,
   autoAllowedTools,
   CAPABILITY_TOOLS,
   GIT_GROUPS,
@@ -197,7 +198,8 @@ test("guardFor: one builder per role, auto-allowed tools from the catalog", () =
     writePaths: ["/location", "/ws/worktrees"],
     worktreeDirs: ["/ws/worktrees"],
   });
-  expect(exec.allowTools).toEqual(autoAllowedTools(dev));
+  // dev lists the worker server in its data (its ReportResult tool): allowed next to the auto tools
+  expect(exec.allowTools).toEqual([...autoAllowedTools(dev), ...appMcpToolsFor(dev)]);
 });
 
 test("options: tools from the catalog, no allowedTools, strict MCP", () => {

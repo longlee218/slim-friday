@@ -65,9 +65,14 @@ export interface RoleDefinition {
   appSkills?: string[];
   /**
    * Where the role runs: `space` (default) = in a space channel, offered to intent routing; `control` = only in the
-   * owner's #ops-control channel, never routed to from a space channel, and run with no workspace.
+   * owner's #ops-control channel, never routed to from a space channel, and run with no workspace; `lead` = reached only
+   * through the lead (the lead itself, or a worker it dispatches): never offered to intent routing.
    */
-  surface?: "space" | "control";
+  surface?: "space" | "control" | "lead";
+  /** No SDK subagent tools (Agent, SendMessage, ListAgents): not offered and denied by the guard. Lead and workers set it (depth 1). Omitted = allowed. */
+  noSubagents?: boolean;
+  /** The lead may dispatch this role as a worker (`DispatchAgent`); LEAD.md lists these roles. Omitted = not dispatchable. */
+  dispatchable?: boolean;
   /** In-process app MCP servers the role gets (names in `APP_MCP_TOOLS`; the caller supplies the instances). Omitted = none. */
   mcpServers?: string[];
   /** Limits of one run: AskUserQuestion calls (enforced in the permission guard). */

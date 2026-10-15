@@ -9,7 +9,7 @@ import {
   unknownLocation,
 } from "../../orchestrator/dispatch/task-location";
 import { rerouteCandidates } from "../../roles/capability-registry";
-import { ROLES } from "../../roles/role-registry";
+import { countsTowardCap, ROLES } from "../../roles/role-registry";
 import type { AgentPreflightResult, ReasonCode } from "../routing-contracts";
 
 /**
@@ -110,7 +110,10 @@ export const PREFLIGHT_CHECKS: readonly PreflightCheck[] = [
     decision: "reject",
     reasonCode: "CAPABILITY_UNAVAILABLE",
     reroutable: false,
-    run: (c) => (isBackground(c) ? capRefusal(c.db) : undefined),
+    run: (c) => {
+      const role = ROLES[c.role];
+      return role && countsTowardCap(role) ? capRefusal(c.db) : undefined;
+    },
   },
 ];
 

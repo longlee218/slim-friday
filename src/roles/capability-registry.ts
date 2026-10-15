@@ -49,7 +49,7 @@ export function registryVersion(roles: RoleDefinition[] = allRoles()): string {
 
 /**
  * Startup check: every registry key equals its role's name, every role has a side-effect class, and a background
- * role requires approvals (its plan / delivery goes through the owner); a control-surface role has no tag. Throws.
+ * role that changes something requires approvals (its plan / delivery goes through the owner); a control-surface role has no tag. Throws.
  */
 export function validateRegistry(registry: Readonly<Record<string, RoleDefinition>> = ROLES): void {
   for (const [key, r] of Object.entries(registry)) {
@@ -59,7 +59,7 @@ export function validateRegistry(registry: Readonly<Record<string, RoleDefinitio
       throw new Error(
         `Role ${r.name}: a control role cannot have a tag (no space message routes to it)`,
       );
-    if (r.background && !r.approvalRequired)
+    if (r.background && r.sideEffects !== "none" && !r.approvalRequired)
       throw new Error(`Role ${r.name}: a background role must set approvalRequired`);
   }
 }

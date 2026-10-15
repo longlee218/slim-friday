@@ -86,12 +86,12 @@ const AUTO_ALLOWED = new Set<string>([
 
 /**
  * Built-in tools of a role (the SDK `tools` option): the tools of its capabilities, plus the `subagents` tools that
- * EVERY role gets (owner: all roles may spawn subagents). Deduplicated, so a role that still lists the capability is harmless.
+ * EVERY role gets (owner: all roles may spawn subagents), except a role with `noSubagents` (lead and workers: depth 1). Deduplicated, so a role that still lists the capability is harmless.
  */
 export const toolsFor = (role: RoleDefinition): string[] => [
   ...new Set([
     ...role.capabilities.flatMap((c) => CAPABILITY_TOOLS[c]),
-    ...CAPABILITY_TOOLS.subagents,
+    ...(role.noSubagents ? [] : CAPABILITY_TOOLS.subagents),
   ]),
 ];
 

@@ -76,6 +76,26 @@ export const LIST_SPACES_TOOL = "ListSpaces";
 export const CREATE_SPACE_OR_CHANNEL_TOOL = "CreateSpaceOrChannel";
 /** Replace one persona / memory file of a space or channel after a diff the owner confirmed. */
 export const WRITE_SPACE_FILE_TOOL = "WriteSpaceFile";
+/** In-process `lead` server (the lead role only; added by role data `mcpServers`). The lead's tools are typed actions; their handlers check state, caps and CAS. */
+export const LEAD_MCP_SERVER = "lead";
+/** Start a goal with one worker (DIRECT) or up to three chained workers (DELEGATE). */
+export const DISPATCH_AGENT_TOOL = "DispatchAgent";
+/** Read the goal / item facts from the database (never from session memory). */
+export const TASK_STATUS_TOOL = "TaskStatus";
+/** Send owner text to a running worker (or answer its pending question). */
+export const STEER_TASK_TOOL = "SteerTask";
+/** Cancel a task (its dependents too) and abort its run. */
+export const CANCEL_TASK_TOOL = "CancelTask";
+/** Ask the owner a question with buttons; the answer comes back as the tool result. */
+export const ASK_OWNER_TOOL = "AskOwner";
+/** Post a finished item's result to the owner (verbatim file or excerpt). */
+export const FORWARD_RESULT_TOOL = "ForwardResult";
+/** Ask for one re-run of this lead input on a stronger tier. */
+export const REQUEST_ESCALATION_TOOL = "RequestEscalation";
+/** In-process `worker` server (every dispatched worker run; no lead tool is reachable from it). */
+export const WORKER_MCP_SERVER = "worker";
+/** The worker's typed end-of-run report. */
+export const REPORT_RESULT_TOOL = "ReportResult";
 /**
  * Tools of every app MCP server a role may list in `mcpServers` (the guard allows exactly these; any other
  * `mcp__*` tool is denied). A new in-process server = one entry here.
@@ -86,4 +106,14 @@ export const APP_MCP_TOOLS: Readonly<Record<string, readonly string[]>> = {
     CREATE_SPACE_OR_CHANNEL_TOOL,
     WRITE_SPACE_FILE_TOOL,
   ],
+  [LEAD_MCP_SERVER]: [
+    DISPATCH_AGENT_TOOL,
+    TASK_STATUS_TOOL,
+    STEER_TASK_TOOL,
+    CANCEL_TASK_TOOL,
+    ASK_OWNER_TOOL,
+    FORWARD_RESULT_TOOL,
+    REQUEST_ESCALATION_TOOL,
+  ],
+  [WORKER_MCP_SERVER]: [REPORT_RESULT_TOOL],
 };

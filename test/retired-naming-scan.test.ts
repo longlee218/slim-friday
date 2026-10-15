@@ -142,9 +142,14 @@ test("src and test hold no retired message / turn / task name", () => {
   );
   expect(files.length).toBeGreaterThan(100);
   const hits: string[] = [];
+  // The lead's status tool is named like the retired type; its name constant is the one allowed place.
   for (const f of files)
     for (const [name, re] of Object.entries(RETIRED))
-      if (re.test(f.text)) hits.push(`${f.file}: ${name}`);
+      if (
+        re.test(f.text) &&
+        !(name === "storage status type" && f.file.endsWith("mcp-tool-names.ts"))
+      )
+        hits.push(`${f.file}: ${name}`);
   for (const f of files)
     if (TASK_ID.test(f.text) && !TASK_ID_OK.some((ok) => f.file.endsWith(ok)))
       hits.push(`${f.file}: task id column`);
