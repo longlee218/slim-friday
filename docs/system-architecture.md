@@ -1,210 +1,155 @@
 # Friday Agent System Architecture
 
-Last updated: 2026-10-15 (phase 3: control channel, `discord-manager` role, three discord-admin tools, space-kind templates, uncommitted; phase 1d: channel digest and rollover seed in the fresh session's first prompt, `/find`; phase 1g: $HOME location, AGENT_HOME guard, title note, brief = owner text; schema v7 location model, phases 1a and 1b (spaces with N channels) and 1c (thread names, adoption, SetThreadTitle) in the working tree; Rev 15 phases 1-6 in code; live checks of phase 8 and of 1b/1c pending).
+Last updated: 2026-10-15 (lead orchestration L0, L1 and L2a in code, commit `f6a0a6d`: schema v8, detached worker runs, lead queue, the lead as the only router. L2b-L5 pending, see [Planned, Not Built](#planned-not-built)).
 
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite).
-- The owner posts in a thread → the intent layer picks a role → the role runs as ONE agent run.
-- `assistant` (generalist, Haiku, foreground answers). `dev` (background task in one of the workspace's locations, the owner's checkout: the agent plans, asks the owner for approval, implements, commits, pushes and opens the PR itself).
-- Code decides routing, limits and guards. The agent and its skills decide HOW the work is done (no code enforces an order).
+- The owner posts in a thread → the thread's **lead** (Sonnet) answers simple questions itself or dispatches typed work to workers.
+- Workers: `dev` (background change in one of the workspace's locations, owner-approved plan, delivers its own git/PR) and `scout` (read-only search, Haiku, web tools). Workers run detached and report through `ReportResult`.
+- Results come back to the lead in a short batch. The lead is the only voice to the owner.
+- Code decides routing, caps, budgets and guards. Roles, prompts and skills decide HOW the work is done.
 
 ## Contents
-- [Message Flow](#message-flow) · [Intent Layer](#intent-layer) · [Vocabulary](#vocabulary-message--turn--task)
-- [Role Model](#role-model) · [Thread States and Routing](#thread-states-and-routing) · [Thread Lifecycle](#thread-lifecycle) · [Component Overview](#component-overview)
+- [Message Flow](#message-flow) · [Lead Orchestration](#lead-orchestration) · [Vocabulary](#vocabulary-message--turn--task--goal--item)
+- [Role Model](#role-model) · [Control Channel](#control-channel-phase-3) · [Thread States](#thread-states) · [Thread Lifecycle](#thread-lifecycle) · [Component Overview](#component-overview)
 - [Approval by ask tool](#approval-by-ask-tool) · [Approval & Guardrails](#approval--guardrails) · [Budget and Resume](#budget-and-resume)
 - [Skills and Subagents](#skills-and-subagents) · [Tool Restriction Strategy](#tool-restriction-strategy) · [Storage Schema](#storage-schema)
-- [Persona & Memory Layering](#persona--memory-layering) · [Workspace Layout](#workspace-layout) · [Space, Channel and Location](#space-channel-and-location) · [Location Model](#location-model) · [Discord Setup](#discord-setup) · [Control Channel](#control-channel-phase-3)
-- [Security Layers](#security-layers) · [Environment Variables and Limits](#environment-variables-and-limits) · [Planned, Not Built](#planned-not-built)
+- [Persona & Memory Layering](#persona--memory-layering) · [Workspace Layout](#workspace-layout) · [Space, Channel and Location](#space-channel-and-location) · [Location Model](#location-model) · [Discord Setup](#discord-setup)
+- [Security Layers](#security-layers) · [Output Handling](#output-handling--quota) · [Startup and Lifecycle](#startup-hygiene-and-lifecycle) · [Environment Variables and Limits](#environment-variables-and-limits) · [Planned, Not Built](#planned-not-built)
 
 ## Message Flow
 ```
 Discord
   └─ message in a channel (mention) or a thread
      ├─ ingress gate: bot / non-owner / DM ignored; other guild than DISCORD_GUILD_ID ignored
-     ├─ control channel: admin commands (/init-workspace, /init-channel) in the admin handler; other text runs the control role (phase 3, see Control Channel), never a space run
+     ├─ control channel (#ops-control): admin commands in the admin handler; other text runs the discord-manager role
      ├─ ops channels: ignored
      ├─ routing key = parent channel id (thread → parentId)
      └─ handle message (src/orchestrator/handle-message.ts)
-        ├─ workspace = the one space whose `channels:` lists the parent channel (else refused, no turn row); channel entry = its name, mode, locations
-        ├─ L0 commands (no LLM): /stop, /go [+usd], /remember, /forget, /compact, Resume
-        ├─ intent layer: L1 leading tag [dev]/[ask], L2 effort signals, L3 Haiku classifier (only when L0/L1 cannot decide)
-        ├─ route by intent (thread state x role x scope → action, src/orchestrator/thread/intent-table.ts)
-        └─ run the role (src/orchestrator/engine/run-role.ts → src/runtime/run-agent.ts)
-           ├─ scope: cwd = pinned location / sole location (dev: first) / workspace `cwd/`; additional dirs = the other locations
-           ├─ system prompt: role sections + COMMON safety rules + context (persona, registry, memory, ledger, thread reference, title note)
-           ├─ permission layer: PreToolUse guard (hard deny) + canUseTool (owner questions via AskUserQuestion)
-           └─ SDK query loop → outcome → turn row closed → reply (redacted, chunked; long replies as attachments)
+        ├─ workspace = the one space whose `channels:` lists the parent channel (else refused)
+        ├─ commands (no LLM): /stop, /go [+usd], /status, /remember, /forget, /compact, /find, Resume
+        ├─ role tag `[dev] ...` → DIRECT dispatch of that worker (no lead model call)
+        └─ every other owner message → the thread's lead queue (src/orchestrator/engine/lead-queue.ts)
+           ├─ debounce 800 ms: messages close together merge into one lead input
+           ├─ one lead run per thread at a time; global slot from the run limiter (30)
+           └─ lead run (src/orchestrator/engine/lead-run.ts): LEAD.md + data block + lead tools
+              ├─ answers simple chat / status itself, or calls DispatchAgent / TaskStatus / SteerTask / CancelTask / AskOwner / ForwardResult / RequestEscalation
+              ├─ dispatch → owned task rows → dispatch-ready → detached worker run (dev or scout)
+              └─ lead posts the reply (the only owner-facing text)
+
+Worker run (detached, not tied to the owner message)
+  └─ ReportResult → result file goals/<goalId>/<itemKey>.md → event in thread_events
+     └─ announce (2 s batch) → lead queue → lead run reads the events → lead tells the owner
 ```
 
-## Intent Layer
-`src/intent/` decides WHICH role handles a plain message; `src/orchestrator/thread/intent-table.ts` decides WHAT happens with it. The first layer that decides wins. No layer matches natural-language words.
+## Lead Orchestration
+One lead session per thread (`lead:discord:{threadId}`). Workers are separate sessions (`task:{taskId}:{role}`), so a worker never mixes with another task or role. Code: `src/orchestrator/engine/` (37 files), `src/orchestrator/events/`, `src/orchestrator/strategy/`.
 
-| Layer | What | LLM |
+| Part | File(s) | Role |
 |---|---|---|
-| L0 | explicit commands: `/stop`, `/status` (phase 1f, snapshot, no model), `/go [+usd]`, `/remember`, `/forget`, `/compact`, Resume; legacy text forms still parse (`src/commands/slash-commands.ts`) | no |
-| L1 | leading role tag `[dev]` / `[ask]` (`RoleDefinition.tag`, unique, case-insensitive); stripped from the brief | no |
-| L2 | effort-signal regex (lexicon `src/intent/data/intent-lexicon.yaml`): never routes, only adds effort hints | no |
-| L3 | `IntentClassifier` (`INTENT_ENGINE=haiku` default; `jev` = Haiku as fallback; `none` = L0-L2 only: untagged → assistant when idle, else ask). One SDK query, no tools, JSON checked by zod. Returns `{role, scope active\|new, class, confidence, reason, ask?, pendingAnswer?}` | Haiku |
+| Queue | `engine/lead-queue.ts` | per-thread FIFO, debounce 800 ms, cap (oldest dropped), run-limiter slot |
+| Lead run | `engine/lead-run.ts`, `lead-runtime.ts`, `lead-call.ts`, `lead-io.ts` | one turn row per input; lead tools over a fresh effect port; session stored as the lead's; rollover starts after the reply |
+| Lead tools | `engine/lead-handlers.ts`, `lead-schemas.ts`, `src/tools/*Tool/` | typed actions; handlers check state, caps and CAS |
+| Dispatch policy | `strategy/dispatch-policy.ts`, `strategy/caps.ts` | DIRECT / DELEGATE shape checks before a goal starts |
+| Dispatch | `engine/dispatch-ready.ts`, `engine/worker-run.ts`, `dispatch/run-dispatched-task.ts` | start ready items; a worker's input carries its earlier steps' excerpts (DATA) |
+| Results | `engine/result-file.ts`, `tools/ReportResultTool/` | result file per finished item; excerpt ≤ 600 chars |
+| Goal settle | `engine/goal-settle.ts` | all items ended → goal `completed` or `failed`; a failed item cancels its dependents |
+| Event outbox | `events/event-store.ts`, `events/event-types.ts`, table `thread_events` | append (idempotent by `id`), claim per lead run, mark delivered, redeliver after crash |
+| Announce | `engine/announce.ts`, `engine/lead-events.ts` | 2 s quiet window per thread → one lead run; `ANNOUNCE_ATTEMPTS` 2 |
+| Effects | `engine/effect-port.ts`, `effect-port-db.ts`, table `effect_log` | the handlers' only write path (atomic); test port is a fake |
+| Recovery | `engine/recover-in-flight.ts`, `lifecycle/` | boot: in-flight items recovered, leads of threads with undelivered events woken |
+| Budget | `engine/lead-budget.ts`, `strategy/caps.ts` | lead daily cap; a notice when spent |
+| Locations | `engine/location-activity.ts` | a writing run marks its location busy (one count per real path) |
 
-- L3 input is DATA between markers: owner text (redacted and clipped, same function as the Jev input), thread state, last tasks, last 4 thread messages (redacted), a pending question, the role list.
-- L3 only SELECTS a registry role. Unknown role, schema error or engine failure → ask (idle thread: entry role, read-only).
-- Low confidence on an idle thread → the entry role (`assistant`). Medium proceeds.
-- An engine failure never starts a background task.
-- Logs `intent.layer {layer, ruleIds}` per message (`L0|L1|L3|none|fallback`). The share reaching L3 is the main cost metric.
-- Attachments: text files up to 64 KB are read (https Discord CDN only), redacted and added as a DATA block. Files over 2000 chars are summarized by a cheap model; the full redacted copy is saved for the assistant only.
-- No discussion guard (removed 2026-10-14): a background role chosen on an idle thread opens the task at once, even right after an answering turn. Old `confirm_task` proposals still resolve (`yes` / `no`).
+### Lead tools
 
-### Route by intent (`actionFor`, table-driven)
-
-| Thread state | Role / scope | Action |
+| Tool (`src/mcp/mcp-tool-names.ts`) | Does | Code rule |
 |---|---|---|
-| idle / done | foreground role (assistant) | `run` |
-| idle / done | background role (dev) | `open` (proposal → run) |
-| running / awaiting owner | foreground role | `side`: answered at once in a parallel read-only run (see below) |
-| idle / done | any role, `question` (asks only about the work) | `run` with the entry role; never `open`, never resumes the task (phase 1f) |
-| running / awaiting owner | any role, `question` | `side` with the entry role, at once; the task is not touched (phase 1f) |
-| running / awaiting owner | background role, `unclear` fallback (classifier failed, invalid or low) | `steer` AND a side answer in ONE reply (phase 1f) |
-| running / awaiting owner | background role, scope active | `steer`: pushed into the running run |
-| running / awaiting owner | background role, scope new | `queue`: runs after the current task (max 3 per thread) |
-| awaiting confirmation | owner-confirm buttons | typed text is a hint only; buttons decide |
-| any | unknown role, engine failure, low confidence with a pending question | `ask` the owner |
+| `DispatchAgent` | start work: DIRECT (one worker) or DELEGATE (chained workers) | `DELEGATE_MAX` 3; `CHAIN_CAP` 3 starts per owner message; `DISPATCHES_PER_RUN` 1; bigger request → `NEEDS_PLAN` (plan path is L2b) |
+| `TaskStatus` | read goal and task state | facts come from the store, not the model's memory |
+| `SteerTask` | send an owner answer or note to a running worker | task-keyed; code resolves the worker's pending question |
+| `CancelTask` | cancel a task and its waiting dependents | state machine decides what is allowed |
+| `AskOwner` | ask the owner a question | the only owner question tool of the lead (`question-relay.ts`) |
+| `ForwardResult` | post a finished item's result to the thread | the result file verbatim, or its excerpt (summary) |
+| `RequestEscalation` | ask for a stronger model / more budget | one escalation per run (`ESCALATION_USED` refusal) |
 
-### Routing and preflight (reliable handoff)
-Routing proposes, policy decides, preflight checks, runtime recovers. Code: `src/routing/` (policy, proposer, preflight, recovery), `src/intent/jev/` (Jev proposer), `src/tasks/` (owned tasks). Plan: `plans/261013-2134-reliable-handoff/`.
+- Lead role data: `MAX_ASK` 0 (the lead never uses AskUserQuestion), `BUDGET_USD` 0.75 per run, `noSubagents`, no shell, no write tools.
+- Worker results and events are DATA in the lead's prompt, never instructions.
 
-**Order for one message** (idle thread, no pending question or gate; `src/routing/routing-policy.ts`):
+### Worker tool
 
-| Step | Source | Reason code |
+| Tool | Who | Rule |
 |---|---|---|
-| 1 | Tag `[role]` (L1) | `EXPLICIT_TAG` (never rerouted) |
-| 2 | Engine `jev` only: ONE Jev request; open owned task continued, or a pick, or multi-intent (clarify) | `CONTEXT_CONTINUATION`, `JEV_MATCH` |
-| 3 | Haiku L3: the classifier under `haiku`, the fallback under `jev` (undecided, error, timeout, no key) | `MODEL_FALLBACK` |
-| 4 | Role that answered the thread's last turn | `HISTORY_DEFAULT` |
-| 5 | Entry role (`assistant`) | `ENTRY_DEFAULT` |
+| `ReportResult` | `dev`, `scout` (in-process `worker` MCP server) | strict typed result. No call → code derives the result from the run outcome |
 
-- Pending question, gate and busy messages keep the L3 logic of `decideIntent`; they only emit `route.decision`.
-- Under `haiku` an open owned task is logged as `ownerCandidate` (shadow); only `jev` continues it.
-- Clarify only for missing information (preflight) or several requests in one message. An unresolved route never asks.
+### Owned task and goal model
+- A **goal** is a root `owned_tasks` row (`parent_id` NULL). Its **items** are child rows (`parent_id` = goal, unique `item_key` per goal, `depends_on` list).
+- Item states (`src/tasks/task-state-machine.ts`): `pending → ready → running → waiting_user | blocked | completed | failed | cancelled`. `open` is the start of a standalone task. `completed`, `failed`, `cancelled` are terminal.
+- `attempt` and `dispatch_count` count runs. An item dispatched `MAX_DISPATCHES_PER_ITEM` (3) times fails instead of starting again (circuit breaker).
+- A `blocked` item (e.g. needs planning) is released to `pending` / `ready`, or dropped.
+- Work plans (`work_plans`, versioned) exist in schema v8; the PLAN strategy that writes them is L2b (not built).
 
-**Engines (`INTENT_ENGINE`):**
+### Dispatch and result flow (one request, sequential)
+1. Lead calls `DispatchAgent` → policy check → goal and item rows written with the effect port.
+2. `dispatch-ready` starts each item whose dependencies completed; a worker run is detached (it survives the owner message ending).
+3. Worker writes its work, calls `ReportResult`; code writes the result file `<AGENT_HOME>/goals/<goalId>/<itemKey>.md` (dir 0700, file 0600) and appends an event.
+4. Event goes to the thread outbox; the announcer waits 2 s for more events; one lead run reads them.
+5. The lead decides: report to the owner, start the next step, or ask the owner (`AskOwner`).
+6. Goal settles when every item ended (`goal-settle.ts`).
 
-| Value | Routing |
-|---|---|
-| `haiku` (default) | tag -> Haiku L3 -> history / entry |
-| `jev` | tag -> Jev -> Haiku L3 fallback -> history / entry |
-| `none` | L0-L2 only: untagged idle message -> `assistant`, else ask |
+### Restart
+- Detached worker runs and the lead queue are rebuilt from the store on boot. In-flight items are recovered; a thread with undelivered events gets its lead woken (`handleMessage.wake`). The lead's boot wake posts into the thread by id (no owner message to answer).
+- Unfinished news is not lost: `thread_events` rows stay undelivered until a lead run claims and delivers them. Test-covered; live check pending.
 
-The default flips to `jev` only as an owner step after the paid golden gate ([owner checklist v6](owner-checklist-schema-v6.md)).
+### Direct dispatch (`[dev] ...`)
+- A leading `[dev]` tag (the only role tag left) starts that worker directly with the same DIRECT dispatch the lead would make. No lead model call.
+- An explicit tag replaces the thread's open goal (`supersedes`). Tag names come from `dispatchableWorkers()`.
 
-**Jev (TypeSafe System One, `src/intent/jev/`):**
-- Model `jev-latest`, SDK `@typesafe-ai/sdk`, key `JEV_API_KEY` passed explicitly. Placeholder or `sk_` = no key = Haiku only. Timeout 5 s, 1 SDK retry (`jev-constants.ts`).
-- Questions in one request: `role` (Choice; option criteria = each role's `whenToUse`, plus `unclear`), `multi_intent`, `continues_task` (only with an open owned task), `fits_last_role` (only when the last role has side effects).
-- Sent to TypeSafe: the message (redacted and clipped, same function as the Haiku L3 input), thread state, owned task owner role and scope (redacted, 160 chars), last responding role, last 4 messages (redacted, clipped). Nothing else.
-- Bands (`jev-constants.ts`, conservative until calibrated): `MULTI_MIN` 0.8, `CONTINUE_MIN` 0.8, `STOP_MAX` 0.2, `RATIO_MIN` 2.0 (top / runner-up), `ACT_MIN` by `sideEffects`: none 0.6, location 0.85, external 0.9. Order: multi -> continue -> unclear -> pick; otherwise undecided -> Haiku.
-- Question (phase 1f): `asks_about_task` (Noul) at `QUESTION_MIN` 0.8 gives a `question` proposal, checked after `multi` and before `continue`. `continues_task` excludes progress questions. A `question` goes to the entry role and never resumes the task.
-- Timeout, error, invalid answer or no key = undecided (reason in `route.decision.jev.band`). Latency and price are not documented by TypeSafe: measured in paid runs (`llm.turn {kind: "jev"}`).
-
-**Preflight** (`src/routing/preflight/deterministic-preflight.ts`): deterministic, no model call, no write. Checks run in this order; the first refusal wins.
-
-| Check | Decision | Reason code | Reroutable |
-|---|---|---|---|
-| `unknown_location` | need_clarification | MISSING_INFORMATION | no |
-| `empty_text_location` | need_clarification | MISSING_INFORMATION | no |
-| `unknown_role` | reject | CAPABILITY_UNAVAILABLE | yes |
-| `no_approvals` (role needs approvals, none available) | reject | AUTHORIZATION_REQUIRED | yes |
-| `empty_text` | need_clarification | MISSING_INFORMATION | no |
-| `code_task_limit` | reject | CAPABILITY_UNAVAILABLE | no |
-
-**Recovery** (`src/routing/route-with-recovery.ts`, `recovery-controller.ts`): a reroutable reject moves to the next ranked candidate not yet visited, at most `MAX_REROUTES_PER_TURN` = 1 per message. Otherwise the outcome is `clarify` (ask for the missing part) or `safe_fail` (reply, nothing runs). `task.refused` is logged only when nothing runs.
-
-**Owned tasks** (`src/tasks/`, table `owned_tasks`, schema v6): only background roles own tasks. A foreground answer creates none.
-
-| From | Allowed to |
-|---|---|
-| `open` | `running`, `waiting_user`, `cancelled`, `failed` |
-| `running` | `waiting_user`, `completed`, `failed`, `cancelled` |
-| `waiting_user` | `running`, `completed`, `failed`, `cancelled` |
-| `completed`, `failed`, `cancelled` | none (terminal) |
-
-- Focus of a thread = its newest live task (`open`, `waiting_user`, `running`). Old waiting tasks are kept (no TTL).
-- Owner change = compare-and-set on `version` (one retry), logged as `task.owner_changed`.
-- No-delivery: a dev run that leaves no delivery evidence (commit, push, branch create, PR create, merge, cherry-pick; `bash -c` included) gets one neutral note line and its owned task waits (`waiting_user`). No auto re-run. Only a git location expects delivery: the reported `location:` line decides; the run's start cwd is the fallback when no location is reported.
-
-**Outcome** (`src/orchestrator/outputs/outcome-validator.ts`): `success` = ran to its end (and delivered when the role is background with `sideEffects: location`); `partial` = text but no delivery, or turn limit; `failed` = error or quota.
-
-**Routing events** (metadata only, never message text or state):
-
-| Event | When | Notes |
-|---|---|---|
-| `route.decision` | every routed message | `source`, `candidateAgentId`, `alternatives`, `rationaleCode`, `routingVersion`, `ownedTaskId`, `jev` (scores and band, Jev only) |
-| `span` | each step of the routing and run pipeline | `resolve_context`, `classify`, `select_candidate`, `preflight`, `execute`, `validate`, `recover` |
-| `preflight.result` | each preflight check | `candidate`, `decision`, `reasonCode`, `evidence` |
-| `task.owner_changed` | owner moved | `ownedTaskId`, `from`, `to`, `reasonCode` |
-| `execution.outcome` | run ended | `status`, artifact count, actions, `recoveryHint` |
-| `llm.turn` | Jev or Haiku call | `kind: "jev"` for Jev; tokens and duration |
-
-Offline metrics: `bun run metrics:routing` ([owner checklist v6](owner-checklist-schema-v6.md#route-labels-and-metrics)). Golden set: `test/routing-policy-golden.test.ts` (deterministic) and the opt-in live sets.
-
-### Vocabulary: message / turn / task
+## Vocabulary: message / turn / task / goal / item
 
 | Word | Means | Code / storage |
 |---|---|---|
 | **message** | one inbound Discord message from the owner | `InboundMessage` (`src/ingress/inbound-message.ts`), `handleMessage` |
-| **turn** | one role run (one `runRole` call) | `turns` table (`turn_id` in child tables); `src/orchestrator/turns/` |
-| **task** | a background role's turn plus its `resume` child turns | no table of its own: the task id = the id of the first turn row; a resume row points at it with `parent_turn_id` |
+| **turn** | one model run row (a lead run or a worker run) | `turns` table; `src/orchestrator/turns/` |
+| **task** | one owned task = one dispatched worker item (a run in session `task:{taskId}:{role}`) | `owned_tasks` row; log field `taskId` is the turn id, `ownedTaskId` the owned task |
+| **goal** | the root owned task of one request (`parent_id` NULL) | `owned_tasks` root row; result folder `goals/<goalId>/` |
+| **item** | one step of a goal | `owned_tasks` child row (`item_key`, `depends_on`) |
 
-- A foreground answer is a turn, not a task. A background run is a task.
-- **Owned task** (`owned_tasks`, schema v6): the routing record of a background task: one owner role, a status, a scope. Logged as `ownedTaskId`; the log `taskId` stays the turn id.
-- There are NO stages. A role run is one agent run. Phase names (plan, exec) live in the skills and prompt text, not in code.
+- A lead run is a turn, not a task. Only dispatched items are tasks.
+- There are NO stages in code. Phase names (plan, exec) live in the skills and prompt text.
 - `runs.turns` / SDK `maxTurns` are model-loop turns, a different thing.
 - Kept on purpose: log field `taskId`, log event names `task.*`, env `TASK_BUDGET_USD`, disk path `logs/tasks/`.
-- Log contract: `task.started.type` and `mode` carry the ROLE name. `turns.type` still stores `qa` / `code` (no schema change).
-
-### Task brief and thread reference (phase 1g)
-
-- A task brief (`turns.brief`, `proposals.brief`, owned-task scope, resume input) is the OWNER TEXT ONLY. The old "Earlier tasks" and "Recent conversation" blocks are no longer part of it. Rows written by older builds may still carry them; `briefText()` (`src/orchestrator/dispatch/queued-tasks.ts`) strips them for display.
-- The thread reference is DATA in the run's system context (`extraContext`), built at run start by `threadReference()` (`src/orchestrator/dispatch/thread-reference.ts`) from the ledger (earlier tasks) and `message.recent`. A queued task builds its recent block when it starts, from the starting message.
-- Recent-block filter: the app's own canned notices (steer, queue, start copy) are dropped as whole lines before the last-N cut; each bot line is clipped to 200 chars (`BOT_LINE_CHARS`).
-
-### Prompt assembly and channel digest (phase 1d)
-
-- **System context** (`buildPromptContext`, `src/memory/prompt-context.ts`): persona, registry, memory layers, task ledger. Rebuilt every run. It no longer holds the rollover seed or any thread summary.
-- **First-prompt prefix** (`firstPromptPrefix`, `src/orchestrator/engine/first-prompt-prefix.ts`): built only when the run starts a fresh session (no stored session id). A resume or an escalated re-run adds none. Order: rollover seed (foreground roles only) -> channel digest -> `Owner message:` -> owner text. It is part of the user turn, so later resumes keep it.
-- **Channel digest** (`channelDigestBlock`, `src/memory/channel-digest.ts`; query `channelDigest` in `src/storage/thread-store.ts`): up to 5 newest titled threads of the same channel, excluding this thread; one line `MM-DD <title> - <digest>` (local time). Block ≤ 800 chars with its heading; the oldest lines are dropped to fit. Task channels only: `chat` skips it, and an absent `channelMode` counts as task. Background roles get it too. Logs `prompt.digest {chars, entries}` (no content).
-- **`/find <keywords>`** (`withFindCommand`, `src/memory/find-command-handler.ts`): slash command only, answered by app code with no model call and no task row. Owner only. Scope = the workspace's channel ids (the same space). Every keyword must match the title or digest (NFC, case-insensitive, Vietnamese locale fold). Scans the newest 500 titled rows (`SEARCH_SCAN_LIMIT`), returns the newest 10 as `<#thread> MM-DD title`. A plain `find: x` message is an ordinary message to the agent. Logs `find.command {words, hits}`.
-- `prompt.context` no longer logs `threadSummaryChars` / `recentChars`.
 
 ## Role Model
-Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-types.ts`). The engine (`src/orchestrator/engine/`) reads only that data and never a role name (test-checked).
+Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-types.ts`). The engine reads only that data and never a role name (test-checked).
 
-| Field | Meaning | assistant | dev |
+| Field | `lead` | `scout` | `dev` |
 |---|---|---|---|
-| `background` | counts toward the task cap, queues behind a busy thread, gets a start notice | false | true |
-| `tag` | explicit leading tag | `[ask]` | `[dev]` |
-| `entry` / `escalation` | default role for untagged messages / may re-run on a stronger model | yes / yes | - / - |
-| `context.ledger` | sees the thread's earlier tasks when idle | yes | no |
-| `locationScope` | locations the run sees (`all` or `candidates`) | all | candidates |
-| `skills` | publisher skills: `all` or `none` (workspace skills always by `workspace.yaml`) | none | all |
-| `limits.maxAsk` | owner questions (AskUserQuestion) per run | 6 | 6 |
-| `model` / `classTiers` | default tier; per-class tier | haiku | sonnet; design → opus |
-| `budgetUsd` / `escalatedBudgetUsd` | run budget | 1.0 / 2.5 | 4.5 |
-| `streaming` | owner can steer the run mid-work | no | yes |
-| `permissionMode` | SDK mode (see Approval & Guardrails) | `auto` | `bypassPermissions` |
-| `capabilities` | tool groups (`src/tools/tool-catalog.ts`) | read, web, skills, mcp, shell | read, write, shell, skills, tasks, mcp, feedback, ask |
-| `gitGroups` | git MCP tool groups | read | none (shell `git`) |
-| `autoCompactWindow` | SDK compaction window | 400,000 | not set |
+| `surface` | `lead` | `lead` | `space` (default) |
+| `tag` | - | - | `[dev]` |
+| `dispatchable` | no | yes | yes |
+| `model` | sonnet | haiku | sonnet |
+| `background` | no | yes | yes |
+| `skills` | none | none (`appSkills`: `scout`) | all (publisher) |
+| `mcpServers` | `lead` | `worker` | `worker` |
+| `limits.maxAsk` | 0 | 0 | 6 |
+| `budgetUsd` | 0.75 | 0.75 | 4.5 |
+| `permissionMode` | `auto` | `auto` | `bypassPermissions` |
+| `noSubagents` | yes | yes | yes (set by the worker runner) |
+| `sideEffects` | none | none | location |
 
-- `subagents` (SDK `Agent`, `SendMessage`, `ListAgents`) are added to EVERY role by `toolsFor`. No app-defined subagent types exist.
-- A role's prompt is its `promptSections` + COMMON safety rules + context. The assistant has an `ESCALATE: sonnet|opus` line only on the cheap tier.
-- Dev `whenToUse`: a job that changes files or needs an owner-approved plan. Assistant: greetings, questions, read-only work.
-- Routing fields (data): `whenToUse` (Jev criteria), `sideEffects` (`none` / `location` / `external`: the pick threshold), `approvalRequired`, `capabilityVersion` (logged with the decision). Delivery expectation = `background` and `sideEffects: location`.
-- Adding a role or skill is a data change (see code standards). Roles as separate config files: closed for now (owner, 2026-10-12), not built.
+- Control role `discord-manager` (`surface: control`) is not a lead worker; see [Control Channel](#control-channel-phase-3).
+- `assistant` and its `[ask]` tag are removed (L2a). Its read-only questions go to `scout`.
+- `dev` is renamed `developer` in L4 (not yet).
+- `noSubagents` removes the subagents capability (`check-tool-call.ts`); see [Skills and Subagents](#skills-and-subagents).
+- Adding a role or skill is a data change. Role files stay flat TypeScript objects (roles as separate config files: closed, owner 2026-10-12).
 
-### Control channel role fields (phase 3)
-- `surface`: `space` (default) or `control`. Intent, dispatch, reroute and tag routing see only `space` roles (`spaceRoles()`); `controlRole()` finds the `control` role by data. A control role with a `tag` is refused at registry validation.
-- `appSkills`: dir names under `src/roles/builtin/skills/`; only this role gets them. The app plugin is named `friday` (a reserved workspace name).
-- `mcpServers`: in-process app servers the role gets (names in `mcp-tool-names.ts`). The guard allows their tools only when they are in the role's `allowTools` (`appMcpToolsFor`).
+### Role fields (data)
+- `surface`: `lead` (only reached through the lead), `control` (`#ops-control` only) or `space` (default; unused after L2a).
+- `appSkills`: dirs under `src/roles/builtin/skills/`; only the listed role gets them.
+- `mcpServers`: in-process app servers (names in `mcp-tool-names.ts`). The guard allows their tools only when listed in `allowTools` (`appMcpToolsFor`).
 - `mayHaveWritten(role)` (write capability or `sideEffects: external`): such a run is never re-run automatically after a result.
+- Limits live as constants in each role file (`MAX_ASK`, `BUDGET_USD`); the task ceiling `TASK_BUDGET_USD` lives in `model-routing.ts`.
 
 ## Control Channel (phase 3)
 Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/roles/builtin/discord-manager-role.ts`): haiku, effort low, capabilities `read`, `skills`, `ask` (no write, shell or web), `maxAsk` 4, `BUDGET_USD` 0.5, `sideEffects: external`. It is the only way to reach Discord or the space files, and the agent has no Discord token.
@@ -225,135 +170,137 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 | `WriteSpaceFile` | Only `USER.md`, `IDENTITY.md`, `AGENTS.md`, `SOUL.md`, `MEMORY.md` of a space or one channel. Realpath must stay inside the space; symlinks refused. Content ≤ 6000 chars, secret-like text refused. The owner sees a redacted line diff (≤ 16000 chars, sent as a `.txt` attachment) and confirms; no, timeout or error = nothing written. The file is re-read after the confirm (refused if changed). Old file backed up to `<AGENT_HOME>/backups/persona/`; 0600 temp file + rename |
 | `ListSpaces` | Read-only. With `kind` returns that space kind's template text |
 
-- Space kinds are folders: `src/discord-setup/templates/space-kinds/{personal,company,study}/{USER,IDENTITY,AGENTS,SOUL}.md`, read through `persona-templates.ts` (`spaceKinds()`, `spaceKindFile()`). Applying a kind = one `WriteSpaceFile` per file, each with its own diff.
-- Known limits: a space created during a run is readable by Read from the next run. A written `MEMORY.md` is re-indexed at once (MemorySearch); the write runs under the memory file lock. Backups: `backups/persona/<space>/[channels/<channel>/]<file>-<ts>`, newest 10 per file kept.
+- Space kinds are folders: `src/discord-setup/templates/space-kinds/{personal,company,study}/{USER,IDENTITY,AGENTS,SOUL}.md`, read through `persona-templates.ts`. Applying a kind = one `WriteSpaceFile` per file, each with its own diff.
+- Known limits: a space created during a run is readable from the next run. A written `MEMORY.md` is re-indexed at once (MemorySearch). Backups: `backups/persona/<space>/[channels/<channel>/]<file>-<ts>`, newest 10 per file kept.
 
-## Thread States and Routing
+## Thread States
 State is DERIVED from `turns` and `approvals` (never stored): `src/orchestrator/thread/thread-state.ts`.
 
 | State | Meaning |
 |---|---|
 | `idle` | no run; the last turn ended with a reply |
 | `running` | a run holds the thread |
-| `awaiting_owner` | a run waits on an AskUserQuestion answer |
+| `awaiting_owner` | a run waits on an owner answer (AskUserQuestion or AskOwner) |
 | `awaiting_confirmation` | a run waits on an owner-confirm yes/no button |
-| `done` | the last task ended in `done`; folds to `idle` for routing |
+| `done` | the last task ended in `done`; treated as `idle` |
 
 ## Thread Lifecycle
 Code: `src/ingress/thread-placement.ts` (placeholder, open, adopt), `threads-port.ts` (db and workspaces port), `thread-rename.ts` (rename port), `src/tools/SetThreadTitleTool/`, `src/storage/thread-store.ts`.
 
-**Opening a bot thread.** A new conversation (a message in a mapped channel, or a slash command) opens a thread named with a placeholder `⏳ MM-DD HH:MM` (local time). The name is never the first message. The row is stored with `origin='bot'`, `placeholder` = that name, `channel_id` = the parent.
+**Opening a bot thread.** A new conversation (a message in a mapped channel, or a slash command) opens a thread named with a placeholder `⏳ MM-DD HH:MM` (local time). The row is stored with `origin='bot'`, `placeholder` = that name, `channel_id` = the parent.
 
-**Naming (`SetThreadTitle`).** The agent calls the tool once it knows the topic:
+**Naming (`SetThreadTitle`):**
 
 | Step | Rule |
 |---|---|
-| Who | every role run that has a rename port: assistant and dev. Not in rollover (flush and summary) runs or other lean runs |
-| Limit | max 2 calls per run (`SET_THREAD_TITLE_MAX_CALLS_PER_RUN`); a counter per run |
-| Input | `title` ≤ 60 chars (≤ 6 words, owner's language); `digest` ≤ 200 chars (1-2 lines). Both redacted; control, bidi and zero-width chars dropped; folded to one line; clipped by code point |
-| Store | title and digest are always stored (`saveTitle`, upsert by `thread_id`, overwrite) |
-| Rename | only while the live thread name still equals `threads.placeholder`. Final name `MM-DD <title>` (date of the row's creation, ≤ 100 chars) |
-| Never renamed | adopted threads (no placeholder), a thread the owner renamed by hand, a thread that is not a thread |
-| Greeting | a greeting-only or empty turn (`hello`, `thanks`) = no call (prompt rule) |
-| Prompt line (phase 1g) | while the thread still has its placeholder and no title, and the run has a rename port: one system-context line asks for one early call (`threadTitleNote`, `src/orchestrator/engine/thread-title-note.ts`). No line once titled, for adopted threads, or in runs without a port |
-| Timeout | the rename waits at most 5 s (`RENAME_TIMEOUT_MS`), so a Discord rate limit never stalls the turn. A timed-out rename is `failed` (Discord may still apply it later) |
-| Failure | Discord, lookup or timeout error = `failed`; the title stays stored, the reply says "saved; rename failed". Non-fatal |
+| Who | every role run that has a rename port (none in a chat channel). Not in rollover (flush and summary) runs or other lean runs |
+| Limit | max 2 calls per run (`SET_THREAD_TITLE_MAX_CALLS_PER_RUN`) |
+| Input | `title` ≤ 60 chars; `digest` ≤ 200 chars. Both redacted; control, bidi and zero-width chars dropped; one line |
+| Store | title and digest always stored (`saveTitle`, upsert by `thread_id`) |
+| Rename | only while the live thread name still equals `threads.placeholder`. Final name `MM-DD <title>` (≤ 100 chars) |
+| Never renamed | adopted threads, a thread the owner renamed by hand, a thread that is not a thread |
+| Timeout | rename waits at most 5 s (`RENAME_TIMEOUT_MS`); a timed-out rename is `failed` |
+| Failure | non-fatal; the title stays stored |
 | Log | `thread.titled {renamed, chars}`; `thread rename timed out` (warn). The text is never logged |
 
-- The rename runs through an app-side port (`ThreadTitlePort`), built in `index.ts` over the lazily read bot client. The agent has no Discord token.
-- Live check pending: that the bot may rename its own thread without Manage Threads (`BOT_ALLOW` has no ManageThreads and is unchanged).
+- The rename runs through an app-side port (`ThreadTitlePort`), built in `index.ts`. The agent has no Discord token.
+- Live check pending: that the bot may rename its own thread without Manage Threads.
 
 **Adoption.** An owner-made thread under a mapped channel becomes the bot's thread on the owner's first real `@mention` there:
 
 | Condition | Result |
 |---|---|
-| Author is the owner and the text contains a literal `<@bot>` / `<@!bot>` (`mayAdopt`); slash commands never adopt | adopt: row `origin='adopted'`, answered as a thread turn |
+| Author is the owner and the text contains a literal `<@bot>` / `<@!bot>`; slash commands never adopt | adopt: row `origin='adopted'` |
 | Thread parent is an ops channel | never adopted |
-| Parent is not mapped to a space (`channelInfo` undefined) | not adopted (old `channel` route) |
-| Thread already bot-owned or already adopted | routed as before (`thread`) |
+| Parent is not mapped to a space | not adopted |
+| Thread already bot-owned or already adopted | routed as before |
 | Later owner message in an adopted thread | answered without a mention |
-| Owner message without a mention in an owner-made, unadopted thread | ignored (`not_mentioned`) |
-| Non-owner message in any thread, bot, DM, other guild | ignored (`not_owner` etc.), unchanged |
+| Owner message without a mention in an owner-made, unadopted thread | ignored |
+| Non-owner message in any thread, bot, DM, other guild | ignored, unchanged |
 
-- Adoption is persisted before the answer. A store failure is logged at error level (`thread adoption failed`) and the turn is still answered.
-- Adopted threads have no placeholder, so `SetThreadTitle` stores their title and digest but never renames them.
-- Routing facts: `threadFacts()` (pure rules in `routeMessage`: `adoptedThread`, `adoptableThread`; route kind `adopt`).
-- Cost per message: `mayAdopt` runs first. Every message in a non-bot thread reads one `threads` row (`isAdopted`). The parent's workspace files are read (`channelInfo`) only when `mayAdopt` is true. Strangers and non-mention messages never load workspaces (test M1 in `test/thread-adoption.test.ts`).
-- Errors: a throw in `threadFacts` (db or workspace read) is logged (`thread facts failed`) and the thread counts as not adopted and not adoptable. The `control` path catches sync throws as well as rejections. `index.ts` has a global `unhandledRejection` handler that shuts the bot down, so unguarded throws here would stop the bot.
-- Known gap: if the adoption insert fails, the first `SetThreadTitle` for that thread creates an `origin='bot'` row. `INSERT OR IGNORE` then keeps `bot`, so the thread is never adopted and later no-mention messages are ignored. Not fixed.
+- Adoption is persisted before the answer. A store failure is logged at error level and the turn still goes on.
+- Adopted threads have no placeholder, so `SetThreadTitle` never renames them.
+- Routing facts: `threadFacts()` / `mayAdopt` in `src/ingress/discord-message-rules.ts` and `thread-placement.ts`.
+- Known gap: if the adoption insert fails, the first `SetThreadTitle` creates an `origin='bot'` row, and the thread is never adopted. Not fixed.
 
-**Storage.** Table `threads` (schema v7): `origin` = `bot` | `adopted`, `placeholder` NULL for adopted rows, `title` / `digest` NULL until the tool runs. The run's `channelId` and `workspace` come from the message (`message` -> `RoleRunInput` -> memory tool context). A title for a thread with no row creates one with `origin='bot'` and those values (empty when unknown). Later writes fill empty channel/workspace only. Readers (the channel digest and `/find`, phase 1d) must ignore rows with `channel_id = ''`. See [Storage Schema](#storage-schema).
+**Storage.** Table `threads` (schema v7): `origin` = `bot` | `adopted`, `placeholder` NULL for adopted rows, `title` / `digest` NULL until the tool runs. Readers (the channel digest and `/find`) ignore rows with `channel_id = ''`.
 
 ## Component Overview
 
 | Component | File(s) | Purpose |
 |---|---|---|
-| Discord ingress | `src/ingress/discord-bot.ts`, `discord-message-handler.ts`, `thread-turns.ts`, `thread-placement.ts`, `threads-port.ts`, `thread-history.ts`, `thread-rename.ts` | client, owner gate, thread placement and adoption, thread history, attachments, busy-thread ack, rename port |
-| Command parsing | `src/orchestrator/message-commands.ts`, `src/commands/` | L0 commands, `location:` pin (`repo:` alias), slash definitions |
-| Intent layer | `src/intent/` | L1 tag, L2 effort, L3 classifier, lexicon |
-| Route and dispatch | `src/orchestrator/thread/`, `src/orchestrator/dispatch/` | action table, proposals, queue, `/go` resume, side lane |
+| Discord ingress | `src/ingress/discord-bot.ts`, `discord-message-handler.ts`, `thread-turns.ts`, `thread-placement.ts`, `threads-port.ts`, `thread-history.ts`, `thread-rename.ts` | client, owner gate, thread placement and adoption, thread history, attachments, rename port |
+| Commands | `src/orchestrator/message-commands.ts`, `src/commands/` | L0 commands (`/stop`, `/status`, `/go`, `/remember`, `/forget`, `/compact`, Resume), `location:` pin, slash definitions |
+| Handle message | `src/orchestrator/handle-message.ts`, `handler-services.ts` | commands, `[role]` direct dispatch, queue the lead, control path |
+| Lead | `src/orchestrator/engine/lead-*.ts`, `src/orchestrator/strategy/` | queue, run, tools, dispatch policy, caps, announce (see [Lead Orchestration](#lead-orchestration)) |
+| Events | `src/orchestrator/events/` | thread outbox (`thread_events`) |
+| Workers | `src/orchestrator/engine/worker-run.ts`, `dispatch-ready.ts`, `src/orchestrator/dispatch/run-dispatched-task.ts`, `engine/task-runs.ts` | detached worker runs, run-to-task link, stop tree |
 | Role engine | `src/orchestrator/engine/run-role.ts`, `role-scope.ts`, `budget.ts`, `owner-confirm.ts`, `validate-role.ts` | one run per role: scope, ask gate, budget, outcome |
-| Outputs | `src/orchestrator/outputs/answer-output.ts` | reply text, `ESCALATE` re-run (Opus needs owner confirmation) |
-| Run turn tracking | `src/orchestrator/turns/` | turn rows, run limiter (30 concurrent), steer registry, session compaction, status snapshot, progress notes (in memory) |
+| Outputs | `src/orchestrator/outputs/answer-output.ts`, `outcome-validator.ts`, `delivery-evidence.ts` | reply text, outcome (`success` / `partial` / `failed`), delivery evidence for dev |
+| Turn tracking | `src/orchestrator/turns/` | turn rows, run limiter (30 concurrent), steer registry and store, session compaction, status snapshot, rollover |
+| Tasks | `src/tasks/` | task state machine, contracts, resolver |
 | Agent runner | `src/runtime/run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `run-stream.ts` | SDK `query()`, hooks, child env, stream outcome |
 | Permissions | `src/runtime/tool-permissions.ts`, `guard-hook.ts`, `permission-mode.ts`, `ask-limit.ts` | PreToolUse guard, canUseTool, owner questions, mode check |
-| Guardrails | `src/guardrails/` | `check-tool-call.ts` (entry), `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `protected-paths.ts` (AGENT_HOME rules beyond "inside"), `subagent-limit.ts` |
+| Guardrails | `src/guardrails/` | `check-tool-call.ts` (entry), `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `protected-paths.ts`, `subagent-limit.ts` |
 | Skills | `src/runtime/skills-plugin/`, `src/config/skills-lock.ts` | publisher skills from the lock, workspace skills, per-run plugins |
 | Tool catalog | `src/tools/tool-catalog.ts`, `sdk-tool-names.ts`, `mcp-tool-names.ts` | capability → tool names, auto-allow list, secret-file rules |
-| Roles | `src/roles/` | role type, registry, `assistant-role.ts`, `dev-role.ts`, `discord-manager-role.ts` (each role file holds its own prompt text) |
-| Control surface (phase 3) | `src/discord-setup/control-role-run.ts`, `src/orchestrator/engine/control-scope.ts`, `run-extra-context.ts`, `src/mcp/discord-admin-server.ts`, `src/tools/{ListSpaces,CreateSpaceOrChannel,WriteSpaceFile}Tool/`, `src/roles/builtin/skills/` | `#ops-control` role run, no-workspace scope, discord-admin tools, app-owned skills |
-| Locations and workspaces | `src/locations/`, `src/workspaces/` | location and workspace registries (fail closed), git detection, `git-cli.ts`, migration CLI `migrate:locations` (`migrate-locations*.ts`) |
-| Memory | `src/memory/` | persona layers, location memory writer, owner commands, manual compaction |
-| Routing | `src/routing/`, `src/intent/jev/`, `src/tasks/` | routing policy, Jev proposer, preflight, recovery, owned tasks |
-| Storage | `src/storage/` | `db.ts`, stores, schema migrations v2 → v3 → v4 → v5 → v6 → v7 |
+| Lead tools | `src/tools/{DispatchAgent,TaskStatus,SteerTask,CancelTask,AskOwner,ForwardResult,RequestEscalation}Tool/` | typed lead actions, in-process `lead` server |
+| Worker tool | `src/tools/ReportResultTool/`, `src/mcp/mcp-servers.ts` | typed worker result, in-process `worker` server |
+| Roles | `src/roles/` | role type, registry, `lead-role.ts`, `scout-role.ts`, `dev-role.ts`, `discord-manager-role.ts` (each role file holds its prompt text) |
+| Lead prompt | `src/orchestrator/strategy/lead-md.ts`, `lead-context-block.ts`, `src/orchestrator/engine/lead-system.ts` | `LEAD.md` (roles, policy, caps) and the per-run data block |
+| Control surface | `src/discord-setup/control-role-run.ts`, `src/orchestrator/engine/control-scope.ts`, `run-extra-context.ts`, `src/mcp/discord-admin-server.ts`, `src/tools/{ListSpaces,CreateSpaceOrChannel,WriteSpaceFile}Tool/`, `src/roles/builtin/skills/` | `#ops-control` role run, no-workspace scope, discord-admin tools, app-owned skills |
+| Locations and workspaces | `src/locations/`, `src/workspaces/` | location and workspace registries (fail closed), git detection, `git-cli.ts`, migration CLI `migrate:locations` |
+| Memory | `src/memory/` | persona layers, location and channel memory writers, channel digest, owner commands, compaction |
+| Intent (parked) | `src/intent/jev/`, `src/intent/role-tag.ts`, `routing-message-text.ts` | Jev code kept, not wired; role-tag parser for `[role]` direct dispatch; message text helper |
+| Storage | `src/storage/` | `db.ts`, stores, schema migrations v2 → v8 |
 | Approvals | `src/approvals/` | Discord buttons and questions (`discord-approval.ts`, 10 min wait) |
-| Git MCP | `src/mcp/git-mcp.ts` | read-only git MCP client for the assistant |
+| MCP | `src/mcp/` | in-process servers (`lead`, `worker`, `memory`, `discord-admin`) and the git MCP client (`git-mcp.ts`) |
 | Lifecycle | `src/lifecycle/` | startup hygiene, drain, shutdown, interrupted-run recovery, home placement check |
 | Observability | `src/observability/` | pino logger, tool hooks, redaction, usage lines |
 
 ## Approval by ask tool
 - There is no plan mode, no ExitPlanMode, no plan file and no approval button gate.
-- The owner's approval of a plan (and any risky step, and the finishing choice: merge, PR or keep) is a normal `AskUserQuestion` call made by the agent.
-- Flow: the agent calls AskUserQuestion → `canUseTool` (`src/runtime/tool-permissions.ts`) → Discord buttons (`discord-approval.ts`) → the chosen label goes back to the agent.
+- The owner's approval of a plan and the finishing choice (merge, PR or keep) is a normal `AskUserQuestion` call made by a worker (dev).
+- The lead asks the owner with its own `AskOwner` tool. Lead runs never use AskUserQuestion (`maxAsk` 0).
+- Flow (worker): AskUserQuestion → `canUseTool` (`src/runtime/tool-permissions.ts`) → Discord buttons (`discord-approval.ts`) → the chosen label goes back to the agent.
 - Long question text goes out as the attachment `AskUserQuestion-detail.txt`, with a short stem above the buttons.
-- Per-run cap: `limits.maxAsk` (6). The 7th call is denied and never reaches the owner.
-- No answer in 10 minutes: the run stops and replies "Awaiting clarification" with `/go` to continue (a typed reply starts a NEW task).
+- Per-run cap: `limits.maxAsk` (dev 6). The 7th call is denied and never reaches the owner.
+- No answer in 10 minutes: the run stops and the owner is told; `/go` continues.
 - Typed text while a question is open is a NOTE only after the owner chooses. A typed "yes" never approves anything.
-- Nothing in code enforces that the plan is approved before edits: the run fact "do not change files before the owner approved your plan" is prompt text.
-- Subagent questions: the prompt tells subagents not to ask; the code does not block a subagent's AskUserQuestion (it counts toward `maxAsk`). Unverified live (phase 8).
+- Nothing in code enforces that the plan is approved before edits: the rule is prompt text. Approval envelopes (risk levels R0-R4) are L2c (not built).
 
 ## Approval & Guardrails
 The guard is a DENY LIST. It runs in the PreToolUse hook of each run and returns allow / ask / deny (`src/guardrails/check-tool-call.ts`). The owner runs the agent as himself, so the list only stops clear dangers.
 
 ### Hard denies (never approvable)
-- Tools: Bash and Monitor for a role without the `shell` capability; unknown MCP tools; git MCP write tools (the assistant has read-only git).
+- Tools: Bash and Monitor for a role without the `shell` capability; unknown MCP tools; git MCP write tools for read-only roles.
 - Bash (`bash-policy.ts`): privilege escalation (`sudo`, `su`, `doas`); secret files as arguments (`.env*`, keys); `rm -r` outside the work dirs, `/tmp` and the worktrees dir; force push, `push --mirror/--all`, push to `main`/`master`; `gh repo delete`, `gh api` with DELETE, printing the gh token; a pipe into a shell or interpreter; `git worktree add` outside the workspace worktrees dir.
 - `gh` and `git` otherwise run (commit, branch, push of other branches, PRs, merges after the owner's choice).
-- Writes (`deny-dangerous.ts`): only inside the run's write paths (see below). Reads outside the read paths and secret files are denied.
+- Writes (`deny-dangerous.ts`): only inside the run's write paths. Reads outside the read paths and secret files are denied.
 - Bash parsing is best effort. Variables, `sh -c`, scripts and unparseable lines are not fully checked (owner-accepted risk).
-- `rm -r ~/...` is expanded before the check (`~` and `$HOME`); `rm -r ~/proj/node_modules` is allowed for dev.
+- `rm -r ~/...` is expanded before the check (`~` and `$HOME`).
 
 ### Ask decisions
-- Bash never asks. Monitor with a shell command follows the Bash policy; a WebSocket Monitor asks.
+- Bash never asks. Monitor with a shell command follows the Bash policy.
 - Unknown tools ask. `AskUserQuestion` always goes to `canUseTool`.
 - TaskStop asks the owner (cannot tell own tasks from foreign ones).
 
 ### Permission modes
 - `dev`: SDK `bypassPermissions`. The SDK asks nothing; every guard `ask` is let through and logged `decision: "bypass"`. Only hard denies stop a call.
-- `assistant`: SDK `auto` on Anthropic with a real login; otherwise `default` (asks go to the owner). The classifier decides soft guard asks.
+- `lead`, `scout`: SDK `auto` (role data). Read-only roles have no write or shell tools.
 - If the SDK init reports another mode than requested, the run warns and treats asks as owner asks (fail closed).
 
 ### Write and read scopes (per run, `src/orchestrator/engine/role-scope.ts`)
 - Write-capable (dev): the run's cwd location, all workspace locations, the workspace worktrees dir, the task scratch dir, `~/.claude/plans`.
-- Read-only (assistant): cwd and additional dirs (registered locations, ingress attachment dir).
-- AGENT_HOME is a protected dir for EVERY run (read and write), even when a location contains it (a `$HOME` location). `denyPaths` = real AGENT_HOME; `allowInside` = the run's own granted dirs under it (task scratch, worktrees dir, workspace `cwd/`, attachments, skill plugin dirs, `<ws>/locations/`).
-- Checked by Read, Glob, Grep, Edit, Write, NotebookEdit and by Bash path words (`deny-dangerous.ts`, `protected-paths.ts`). Glob/Grep are denied when the search root contains AGENT_HOME. Bash: bulk or recursive commands on an ancestor of AGENT_HOME, glob words that match it, `~user`, relative words after a non-static `cd`; `git init/add`, `-C`, `--git-dir`, `--work-tree` above it; the git MCP repo path above it.
-- Best effort (accepted): `GIT_DIR` / `GIT_WORK_TREE` env, `git -c core.worktree`, `env -C`, shell variables, `$(...)`, scripts and `sh -c`, glob symlinks, macOS case aliases in globs. Moving AGENT_HOME outside `$HOME` or an SDK sandbox is deferred (owner, 2026-10-15).
+- Read-only (scout, lead): cwd and additional dirs (registered locations, ingress attachment dir).
+- AGENT_HOME is a protected dir for EVERY run (read and write), even when a location contains it. `denyPaths` = real AGENT_HOME; `allowInside` = the run's own granted dirs under it (task scratch, worktrees dir, workspace `cwd/`, attachments, skill plugin dirs, `<ws>/locations/`).
+- Checked by Read, Glob, Grep, Edit, Write, NotebookEdit and by Bash path words (`deny-dangerous.ts`, `protected-paths.ts`).
+- Best effort (accepted): `GIT_DIR` / `GIT_WORK_TREE` env, `git -c core.worktree`, `env -C`, shell variables, `$(...)`, scripts and `sh -c`, glob symlinks, macOS case aliases in globs.
 
 ### Child environment (`src/runtime/sdk-env.ts`, `src/config/data/child-env-deny.yaml`)
 - The SDK child gets the owner's environment (so `git`, `gh`, SSH and proxies work) MINUS the bot's own variables.
-- Denied: exact names (`DISCORD_TOKEN`, `OWNER_DISCORD_ID`, `DISCORD_GUILD_ID`, `AGENT_HOME`, `MODEL`, `MEMORY_MODEL`, `GIT_AUTHOR`, `MAX_TURNS`, `MAX_BUDGET_USD`, `TIMEOUT_MS`, ...) and prefixes (`INTENT_`, `MODEL_`, `BUDGET_`, `COMPACT_WINDOW_`, `FRIDAY_`, `ANTHROPIC_`).
-- The app then sets the provider credentials (OAuth token, or OpenRouter base URL, auth token and empty API key), the subagent limits, and the role's compaction window.
+- Denied: exact names (`DISCORD_TOKEN`, `OWNER_DISCORD_ID`, `DISCORD_GUILD_ID`, `AGENT_HOME`, `JEV_API_KEY`, `MODEL`, `MEMORY_MODEL`, `GIT_AUTHOR`, `MAX_TURNS`, `MAX_BUDGET_USD`, `TIMEOUT_MS`, `MAX_CONCURRENT_RUNS`, ...) and prefixes (`INTENT_`, `MODEL_`, `BUDGET_`, `COMPACT_WINDOW_`, `FRIDAY_`, `ANTHROPIC_`).
+- The app then sets the provider credentials, the subagent limits, and the role's compaction window.
 - Accepted risk (owner): the child uses the owner's git and gh login and can reach the network.
 - Test-checked: a new env schema key must be classified in `child-env-deny.yaml`.
 
@@ -367,41 +314,39 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 ## Budget and Resume
 
 ### Budgets
-- Run budget: role `budgetUsd` (env `BUDGET_<ROLE>_USD` overrides). Escalated re-runs use `escalatedBudgetUsd`.
-- Task ceiling: `TASK_BUDGET_USD` = 6.0 (`src/config/model-routing.ts`). It is the sum of the cost of the task's turns along the resume chain (`spentByTask` follows `kind = 'resume'`).
-- A run starts with `min(run budget, ceiling left)`. A spent ceiling refuses the start (nothing runs, `/go +usd` cannot lift it).
-- Budget stop: the reply names spent / limit and the last words. It offers `/go +<usd>` (capped by what is left) unless the ceiling is the binding limit.
-- Stop message: "Stopped: task ceiling reached" when the ceiling binds; no raise is offered then.
-- Open question (phase 8): whether the SDK `total_cost_usd` of a resumed session accumulates. If it does, the chain sum is correct; if it restarts at 0, the sum over-counts.
+- Run budget: role `budgetUsd` (env `BUDGET_<ROLE>_USD` overrides).
+- Lead daily cap: `LEAD_DAILY_BUDGET_USD` = 3 (sum of today's lead runs). Past the cap the lead stays silent with a notice; `/status` still works.
+- Task ceiling: `TASK_BUDGET_USD` = 6.0 (`src/config/model-routing.ts`). It is the sum of the cost of the task's turns along the resume chain.
+- A run starts with `min(run budget, ceiling left)`. A spent ceiling refuses the start.
+- Budget stop: the reply names spent / limit. It offers `/go +<usd>` unless the ceiling is the binding limit.
+- Open question (not verified live): whether the SDK `total_cost_usd` of a resumed session accumulates.
 
 ### Resume
-- A background run that fails after work (budget, transient error) with its session saved ends `failed_resumable`. Its reason text is shown and `/go` continues.
-- `/go` or a `yes` read by L3 resumes the thread's LAST task: a new turn row with `kind = resume` and `parent_turn_id`, same session and cwd. The cwd must still be a location of the workspace, or the workspace's neutral `cwd/` dir (zero-location workspaces can `/go`).
+- A background run that fails after work (budget, transient error) with its session saved ends `failed_resumable`. `/go` continues.
+- `/go` resumes the thread's LAST task: a new turn row with `kind = resume` and `parent_turn_id`, same session and cwd. The cwd must still be a location of the workspace, or the workspace's neutral `cwd/` dir.
 - If the SDK says the session is gone (`RESUME_FAILED`): the owner is told to start the task again.
-- A restart while a run is active: its turns become `interrupted`, their pending questions are cancelled, the thread gets a Resume button.
+- A restart while a run is active: its turns become `interrupted`, pending questions are cancelled, the thread gets a Resume button. Worker items of a goal are recovered by `recover-in-flight.ts` (see [Restart](#restart)).
 - A held `failed_resumable` task older than `HELD_TASK_DAYS` (14) expires at startup: its scratch dir is removed and the task becomes `failed`.
-- Only the thread's last task can be resumed. A different request starts a new task.
+- Only the thread's last task can be resumed.
 
 ## Skills and Subagents
 
 ### Publisher skills (data)
 - Source: `<app root>/.agents/skills/<name>/`, pinned by the repo-root `skills-lock.json` (`computedHash` = sha256 of the skill dir). Skills are loaded WHOLE and UNMODIFIED.
-- A role picks them with `skills: "all" | "none"`. `all` = every installed publisher skill (lock entries whose dir exists). No skill name appears in code (test-checked).
-- Each publisher is one plugin (the lock `source` name, e.g. `superpowers`), built per run in `<AGENT_HOME>/tmp/` and removed after the run (startup sweep for crash leftovers).
-- Caps per skill and per plugin; over-cap skills are skipped alone with a warn.
+- A role picks them with `skills: "all" | "none"`. No skill name appears in code (test-checked).
+- Each publisher is one plugin, built per run in `<AGENT_HOME>/tmp/` and removed after the run (startup sweep for crash leftovers).
 - A location's `.claude/skills`, hooks and `.mcp.json` are never read.
-- Dev run facts are prompt text (`src/roles/builtin/dev-role.ts`): ask via AskUserQuestion when a skill says to, commit rules, the code standards (simplicity, surgical changes, goal-driven), the `location:` report line (`repo:` still accepted).
+- Dev run facts are prompt text (`src/roles/builtin/dev-role.ts`): ask via AskUserQuestion when a skill says to, commit rules, the code standards, the `location:` report line.
 
 ### Workspace skills (owner-curated)
-- `workspaces/<ws>/skills/<name>/SKILL.md` (+ bundled files). Built per run as a plugin named after the workspace, only when `skills.extra` is true (default true in `workspace.yaml`).
+- `workspaces/<ws>/skills/<name>/SKILL.md` (+ bundled files). Built per run as a plugin named after the workspace, only when `skills.extra` is true.
 - Read-only copy; a location's content never adds skills.
 
 ### Subagents (SDK built-in only)
-- Every role may call the SDK's built-in `Agent` tool. `SendMessage` resumes a subagent and `ListAgents` lists them.
-- The app defines NO subagent types, models or tool lists. Subagents run in the foreground.
-- Parallel cap: 50 subagents in flight per run (`MAX_PARALLEL_SUBAGENTS`, `src/guardrails/subagent-limit.ts`). The 51st start is denied with a message telling the agent to wait.
-- Subagents go through the same guard as the main agent (`agent_id` / `agent_type` are logged).
-- Unverified live (phase 8): the SDK general-purpose subagent's tools, `DISABLE_BACKGROUND_TASKS=1` against `run_in_background`, and `ListAgents` behavior.
+- Roles may call the SDK's built-in `Agent` tool unless the role sets `noSubagents` (lead, scout and dev set it). `SendMessage` resumes a subagent and `ListAgents` lists them.
+- The app defines NO subagent types, models or tool lists.
+- Parallel cap: 50 subagents in flight per run (`MAX_PARALLEL_SUBAGENTS`, `src/guardrails/subagent-limit.ts`).
+- Unverified live: the SDK general-purpose subagent's tools and `ListAgents` behavior.
 
 ## Tool Restriction Strategy
 - Built-in tools are limited ONLY by the SDK `tools` option, derived from role capabilities (`toolsFor` in `src/tools/tool-catalog.ts`). `allowedTools` is never used (it would bypass `canUseTool`).
@@ -416,63 +361,64 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 | shell | Bash, Monitor (policy above) |
 | web | WebSearch, WebFetch |
 | skills | Skill |
-| subagents (all roles) | Agent, SendMessage, ListAgents |
+| subagents | Agent, SendMessage, ListAgents (not for `noSubagents` roles) |
 | tasks | TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet, TaskStop, ToolSearch |
-| mcp | ListMcpResourcesTool, ReadMcpResourceTool, ReadMcpResourceDirTool, RefreshMcpTools, WaitForMcpServers (+ git MCP read tools for the assistant) |
-| memory (in-process MCP server `memory`, every role) | Remember, MemorySearch, MemoryGet, MemoryExpand, SetThreadTitle (`MEMORY_TOOLS` in `mcp-tool-names.ts`) |
+| mcp | ListMcpResourcesTool, ReadMcpResourceTool, ReadMcpResourceDirTool, RefreshMcpTools, WaitForMcpServers |
+| memory (in-process MCP server `memory`) | Remember, MemorySearch, MemoryGet, MemoryExpand, SetThreadTitle (`MEMORY_TOOLS`) |
+| lead (in-process MCP server `lead`, lead only) | DispatchAgent, TaskStatus, SteerTask, CancelTask, AskOwner, ForwardResult, RequestEscalation |
+| worker (in-process MCP server `worker`, dispatched workers) | ReportResult |
 | feedback | SendFeedback (owner approval) |
 | ask | AskUserQuestion |
 
-- The run's prompt has one `Host:` line (OS, release, shell).
 - Tool names are constants (`sdk-tool-names.ts`, `mcp-tool-names.ts`). Tool-name string literals in `src/` are a scan-test failure.
 
 ## Storage Schema
 
-**DB:** `$AGENT_HOME/data/agent.db` (SQLite, WAL). Current schema version: 7 (`meta.schema_version`).
+**DB:** `$AGENT_HOME/data/agent.db` (SQLite, WAL). Current schema version: 8 (`meta.schema_version`, `SCHEMA_VERSION` in `src/storage/migrate.ts`).
 
 | Table | Key columns | Purpose |
 |---|---|---|
 | `meta` | key, value | schema version (the only version marker) |
-| `sessions` | thread_id (PK), session_id, location, cwd, status, updated_at | the thread's stored session (written after a successful run) |
-| `turns` | id, thread_id, source, location, type (`qa`/`code`), status, started_at, ended_at, session_id, session_cwd, brief, role, kind (`single`/`resume`), parent_turn_id, proposal_id, hop, counts_toward_cap, class, owned_task_id (v6; NULL for foreground and side-lane turns) | one role run; a task is its first row plus `resume` rows. Status: `running`, `waiting_approval`, `done`, `failed`, `failed_resumable`, `cancelled`, `interrupted`, `timeout` |
+| `sessions` | thread_id, session_id, location, cwd, status, updated_at; v8: `model`, `generation`, `kind` (`role` \| `lead`) | the stored session per key (`lead:discord:{threadId}` or `task:{taskId}:{role}`). A lead never resumes an old role session |
+| `turns` | id, thread_id, source, location, type, status, started_at, ended_at, session_id, session_cwd, brief, role, kind (`single`/`resume`), parent_turn_id, owned_task_id | one model run (lead or worker). Status: `running`, `waiting_approval`, `done`, `failed`, `failed_resumable`, `cancelled`, `interrupted`, `timeout` |
 | `runs` | id, turn_id, cost_usd, model | one SDK result summary per run |
 | `tool_calls` | id, run_id, turn_id, tool_name, input_redacted, output_redacted, duration_ms, agent_id | one row per tool call (NULL `agent_id` = main agent) |
-| `approvals` | id, turn_id, tool, decision (`pending` until answered), requested_at | owner questions and owner-confirm buttons |
-| `run_messages` | id, message_id, thread_id, session_id, run_id, seq, kind (`steer`/`followup`/`stop`/`other`), status (`pending`/`delivered`/`skipped`/`dropped`), content (redacted, ≤ 2000), created_at, task_id | every message that arrived while a run worked; purged after 14 days |
-| `proposals` | id, thread_id, workspace, from_turn_id, role, brief, location, class, scope, confidence, reason, effort, status, created_at, decided_at | queued or pending background requests (`pending` → `queued` / `dispatched` / `refused` / `expired`) |
-| `owned_tasks` | id, thread_id, owner_role, status (`open`, `running`, `waiting_user`, `completed`, `failed`, `cancelled`), scope, version, correlation_id, created_at, last_progress_at | background work with one owner role (v6); index `owned_tasks_thread_progress` |
-| `threads` | thread_id (PK), channel_id, workspace, origin (`bot` / `adopted`), placeholder, title, digest, created_at, updated_at | one row per Discord thread the agent knows (v7; written from phase 1c: bot threads, adoptions, titles; read by the channel digest and `/find` in 1d). Index `threads_channel_updated` (channel_id, updated_at) |
+| `approvals` | id, turn_id, tool, decision, requested_at | owner questions and owner-confirm buttons |
+| `owned_tasks` | id, thread_id, owner_role, status, scope, version, correlation_id, created_at, last_progress_at; v8: `parent_id`, `item_key`, `depends_on` (JSON), `attempt`, `dispatch_count`, `location`, `brief`, `ready_at`, `result_kind`, `result_path`, `result_excerpt`, `plan_id`, `plan_version` | goals (root rows) and their items. Unique `(parent_id, item_key)` per goal |
+| `work_plans` | id, version (PK), goal_id, status, strategy, objective, body, acceptance, envelope, budget_usd, delivery_mode, reason, created_at, approved_at | versioned plan of a goal (written by L2b, table in v8) |
+| `thread_events` | seq (PK, FIFO), id (UNIQUE = idempotency key), thread_id, task_id, item_id, kind, payload, correlation_id, causation_id, created_at, claimed_by, delivered_at, redelivered | the event outbox: worker results and news for the lead. Index `thread_events_pending` (thread_id, delivered_at, seq) |
+| `effect_log` | id, thread_id, goal_id, item_id, tool, scope, granted_by, result, undo, expires_at, created_at | audit of side effects a grant allowed (filled by the effect port) |
+| `threads` | thread_id (PK), channel_id, workspace, origin, placeholder, title, digest, created_at, updated_at | one row per Discord thread the agent knows (v7) |
+| `run_messages` | id, message_id, thread_id, session_id, run_id, seq, kind, status, content, created_at, task_id | owner messages kept for the audit; purged after 14 days at startup |
+| `memory_files`, `thread_summaries` | (v5) | memory file index; rollover thread summaries |
+| `proposals` | (v1-v7 columns) | kept by migration, no code writes it since L2a (the proposal flow is removed) |
 
 ### Schema history
 
-Owner steps for the current upgrade (v6 -> v7): [owner-checklist-schema-v7.md](owner-checklist-schema-v7.md). v5 -> v6: [owner-checklist-schema-v6.md](owner-checklist-schema-v6.md). Rev 15 (v3 -> v4): [owner-checklist-schema-v4.md](owner-checklist-schema-v4.md).
-- **v6 -> v7 (rename + additive, `src/storage/migrate-v7-locations-threads.ts`):** `turns`, `sessions`, `proposals` column `repo` renamed to `location`; creates `threads` and index `threads_channel_updated` (written from phase 1c). Snapshot `friday-v6-<ts>.db` first. One transaction, kept-table counts compared, `schema_version` written last; a failure keeps the db at v6. The filesystem move is not in the DB step (see Location Model). Rollback: restore the v6 snapshot and check out `bd6ece5`.
-- **v5 -> v6 (additive, `src/storage/migrate-v6-owned-tasks.ts`):** creates `owned_tasks` + index, adds `turns.owned_task_id`. Snapshot `friday-v5-<ts>.db` first (taken when the db is v5 at open). Kept-table counts compared; a failure keeps the db at v5. Rollback: restore the snapshot and check out `616cbb0`.
-- **v1 → v2 (additive):** `meta`, `stages`, `proposals`, `run_messages`, guarded column additions.
-- **v2 → v3 (rename):** `tasks` → `turns`; `task_id` → `turn_id`. Snapshot first: `VACUUM INTO <AGENT_HOME>/db-backups/friday-v2-<ts>.db`. One transaction with row-count checks.
-- **v3 → v4 (drop, `src/storage/migrate-v4-drop-legacy-tables.ts`):** drops tables `stages` and `worktrees`; columns `runs.stage_idx`, `run_messages.after_plan`, `proposals.base`. One transaction; kept-table counts compared; `schema_version` written last. No snapshot in v4 (owner decision).
-- `turns` keeps `session_id` / `session_cwd` so resume works. Old `worktrees` directories on disk are never removed by code.
-- An older binary cannot open a v3 or v4 db. Rollback = restore the oldest `friday-v2-*.db` backup and run the pre-P3.7 commit. Owner steps for v3: [owner-checklist-schema-v3.md](owner-checklist-schema-v3.md).
+Owner steps: [owner-checklist-schema-v8.md](owner-checklist-schema-v8.md) (v7 → v8). Earlier: [v7](owner-checklist-schema-v7.md), [v6](owner-checklist-schema-v6.md), [v4](owner-checklist-schema-v4.md), [v3](owner-checklist-schema-v3.md).
+- **v7 → v8 (additive, `src/storage/migrate-v8-lead-orchestration.ts`):** `owned_tasks` item and goal columns and unique index; new `work_plans`, `thread_events` (+ index), `effect_log`; `sessions` gets `model`, `generation`, `kind`. One transaction. Snapshot `friday-v7-<ts>.db` first. Rollback: restore the v7 snapshot and check out `5ad840f` (an older binary cannot open a v8 db).
+- **v6 → v7 (rename + additive):** `turns`, `sessions`, `proposals` column `repo` renamed to `location`; creates `threads`. Snapshot `friday-v6-<ts>.db` first.
+- **v5 → v6 (additive):** creates `owned_tasks`, adds `turns.owned_task_id`. Snapshot `friday-v5-<ts>.db`.
+- **v3 → v4 (drop):** drops tables `stages`, `worktrees`; columns `runs.stage_idx`, `run_messages.after_plan`, `proposals.base`.
+- **v2 → v3 (rename):** `tasks` → `turns`; `task_id` → `turn_id`. Snapshot first: `VACUUM INTO <AGENT_HOME>/db-backups/friday-v2-<ts>.db`.
 - Legacy DDL (`legacy-schema.ts`, `legacy-migrate-v2.ts`, `migrate-v3-turns.ts`) is frozen and runs only below v3.
 
 **Logs:**
 - `$AGENT_HOME/logs/app.<date>.<n>.jsonl`: all app events (pino-roll, 14 days). Task lines carry `workspace`, `location`, `taskId`, `threadId`, `mode`.
 - `$AGENT_HOME/logs/tasks/<taskId>.jsonl`: SDK messages of one task (deleted after 30 days at startup).
-- Tool events: `tool.start`, `tool.done`, `tool.denied`. Result text is never logged, only sizes. Correlate by `toolUseId`.
-- `escalation {escalatedTo, action}` only when a run escalated.
-- `thread.titled {renamed, chars}` per SetThreadTitle call. Adoption logs `thread adopted` (info); a failed store write logs `thread adoption failed` / `thread record failed` (error) and the turn goes on; `thread facts failed` (error) when the routing facts cannot be read.
+- Tool events: `tool.start`, `tool.done`, `tool.denied`. Result text is never logged, only sizes.
+- Lead and task events (`task.*`, `thread.titled`, `thread adopted`) carry ids, role names and counts. Message text is never logged.
 
 ## Persona & Memory Layering
 - Root files in `$AGENT_HOME`: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md` (owner-written), `BOOTSTRAP.md` (never read by code), `MEMORY.pending.md` (agent `[global]` notes; never injected).
-- `ensureHome` creates the root files and per-workspace templates if missing; it never overwrites. New defaults (`DEFAULT_IDENTITY`, `DEFAULT_AGENTS`) apply to NEW homes only: a live home is edited by hand.
+- `ensureHome` creates the root files and per-workspace templates if missing; it never overwrites.
 - A non-empty workspace file replaces the root file of the same name.
-- Prompt order: role sections + COMMON → `# Project Context` (AGENTS, IDENTITY, SOUL, USER) → registry → MEMORY layers (root → space → channel → location) → task ledger (idle, `context.ledger` roles). The rollover seed is NOT here (phase 1d): see Prompt assembly.
-- Persona files (AGENTS, IDENTITY, SOUL, USER): per file the first non-empty of channel, space, root wins (`buildPersonaContext`).
-- Memory caps: root 5000 chars, workspace 5000, channel 3000 (`CHANNEL_CHARS`), each location 8000, all locations of a workspace 16000. Each persona file 6000. `prompt.context` logs `memoryChannelChars`.
-- Agent writes: `Memory:` bullets (max 5) → `workspaces/<ws>/locations/<name>/MEMORY.md` (source `location`, id `location/<name>#...`); Remember tool scopes `location | channel | workspace | global | journal` (`REMEMBER_SCOPES`): `global` → `MEMORY.pending.md` (never injected), `journal` → `memory/<date>.md`. Every bullet is sanitized.
-- Channel memory (`channels/<name>/MEMORY.md`, source `channel`, id `channel/<name>#...`) is indexed and searched only for runs in that channel. Rollover runs carry no channel.
-- Memory tools (`MemorySearch`, Remember `location` scope) see only the run's location names (the channel's `locations` subset). Rollover runs (no channel) see all locations of the space. Remember `channel` scope exists only in runs with a channel.
-- Owner: `/forget channel <text>` (`kenh`, `kênh`) edits this channel's file.
+- Lead prompt: `LEAD.md` (roles, policy, caps) + data block (thread state, goal, events, memory context). Worker prompt: role sections + COMMON safety rules + `# Project Context` (AGENTS, IDENTITY, SOUL, USER) + registry + MEMORY layers (root → space → channel → location).
+- Persona files: per file the first non-empty of channel, space, root wins (`buildPersonaContext`).
+- Memory caps: root 5000 chars, workspace 5000, channel 3000, each location 8000, all locations of a workspace 16000. Each persona file 6000.
+- Agent writes: `Memory:` bullets → `workspaces/<ws>/locations/<name>/MEMORY.md`; Remember tool scopes `location | channel | workspace | global | journal` (`REMEMBER_SCOPES`): `global` → `MEMORY.pending.md` (never injected), `journal` → `memory/<date>.md`.
+- Channel memory (`channels/<name>/MEMORY.md`) is indexed and searched only for runs in that channel.
+- Owner: `/forget channel <text>` edits this channel's file.
 - The app never reads or creates `CLAUDE.md` or `CLAUDE.local.md`. No location `CLAUDE.md` is loaded or injected.
 
 ## Workspace Layout
@@ -481,24 +427,23 @@ $AGENT_HOME/                       (real directory outside every location and gi
 ├── AGENTS.md IDENTITY.md SOUL.md USER.md MEMORY.md BOOTSTRAP.md MEMORY.pending.md
 ├── discord.yaml                   ops channel ids and controlChannels
 ├── data/agent.db                  SQLite (WAL)
+├── goals/<goalId>/<itemKey>.md    result file of each finished item (0700 dir, 0600 file)
 ├── logs/app.*.jsonl, logs/tasks/<taskId>.jsonl
-├── db-backups/                    friday-v2-<ts>.db snapshot (v2 → v3)
-├── tmp/                           per-run skill plugins, attachment copies, intent scratch (swept at startup)
+├── db-backups/                    friday-v*-<ts>.db snapshots
+├── tmp/                           per-run skill plugins, attachment copies, control scratch (swept at startup)
 └── workspaces/<ws>/
     ├── workspace.yaml             description?, channels: [ids or {id,name,mode,locations?}], locations: [{name,path,description}], skills.extra
-    ├── channels/<name>/           channel dir (v7 phase 1b): MEMORY.md; optional AGENTS/IDENTITY/SOUL/USER.md persona overrides
-    │   └── MEMORY.md              channel memory (agent- and owner-written)
+    ├── channels/<name>/           channel dir: MEMORY.md; optional AGENTS/IDENTITY/SOUL/USER.md persona overrides
     ├── skills/                    owner-curated skills (<name>/SKILL.md)
     ├── MEMORY.md AGENTS.md IDENTITY.md SOUL.md USER.md   (optional overrides)
-    ├── cwd/                       neutral cwd of runs not bound to a location (the only dir of a workspace with no location)
+    ├── cwd/                       neutral cwd of runs not bound to a location
     ├── tasks/<taskId>/scratch/    per-task scratch dir
     ├── worktrees/                 optional git worktrees a dev run creates (prompt-only rule)
-    └── locations/<name>/          location dir (v7): MEMORY.md only; the checkout is at the location's `path`
-        └── MEMORY.md              location memory (agent-written)
+    └── locations/<name>/          location dir: MEMORY.md only; the checkout is at the location's `path`
 ```
 - Location rules: [Location Model](#location-model).
 - Env `GIT_AUTHOR` is accepted and IGNORED: the agent uses the owner's git config and gh login.
-- Registries fail closed: invalid names, missing or non-directory location paths, paths that are strict ancestors of `$HOME` or contain AGENT_HOME (a path EQUAL to `$HOME` is allowed, phase 1g), paths inside AGENT_HOME (except that workspace's own `locations/`), and duplicate names are skipped with a warn. A channel listed by two workspaces is dropped from both. A duplicate channel `name` inside one space keeps the first entry (channel checks: `src/workspaces/channel-checks.ts`).
+- Registries fail closed: invalid names, missing or non-directory location paths, paths that are strict ancestors of `$HOME` or contain AGENT_HOME, and duplicate names are skipped with a warn.
 
 ## Space, Channel and Location
 Discord-facing words: **space** (a private category), **channel** (a channel of the space), **thread**. Code word for a space: `workspace`.
@@ -506,10 +451,10 @@ Discord-facing words: **space** (a private category), **channel** (a channel of 
 | Concept | Where it lives | Behavior |
 |---|---|---|
 | Space | `workspaces/<ws>/` + its category | owns its `locations:`, its `MEMORY.md`, persona overrides, and N channels |
-| Channel | `channels:` entry in `workspace.yaml` (`name` = memory dir `channels/<name>/`) | `mode` task or chat (`chat`: the owner needs no mention, the answer is inline, `threadId = channelId` so one session per channel; no thread row, no SetThreadTitle, no digest; `/stop` and `/status` work in the channel; threads under it are still adoptable task threads; the bot syncs the channel topic on start); `locations` optional subset of the space's locations; own MEMORY.md and persona overrides |
+| Channel | `channels:` entry in `workspace.yaml` (`name` = memory dir) | `mode` task or chat. `chat`: the owner needs no mention, `threadId = channelId` (one lead session per channel); no thread row, no SetThreadTitle, no digest; threads under it stay adoptable task threads; the bot syncs the channel topic on start |
 | Location | `locations:` entry | a directory a run may work in; see [Location Model](#location-model) |
 
-- A message is routed by its parent channel id to exactly one space and one channel entry; the run's location candidates are the channel's `locations` subset (present = exactly the known names, `[]` = none, run in `cwd/`), else all of the space's (key absent).
+- A message is routed by its parent channel id to exactly one space and one channel entry. The run's location candidates are the channel's `locations` subset, else all of the space's.
 - Prompt memory order: root → space → channel → location. Persona per file: channel > space > root.
 - `/init-channel <space>/<name>` (admin, `#ops-control`, create-only) adds a channel; see [discord-setup.md](discord-setup.md#add-a-channel-init-channel-spacename).
 
@@ -519,66 +464,52 @@ A **location** is a directory the owner registers in a workspace. It replaces th
 | Field | Source | Rule |
 |---|---|---|
 | `name` | `locations[].name` | `LOCATION_NAME`: letters, digits, `_ . -`; 1-64 chars; unique in the workspace; the `location:` pin and the memory dir name |
-| `path` | `locations[].path` | a directory; absolute, or relative to the workspace dir. Missing or not a directory, a strict ancestor of `$HOME` (`/`, `/Users`), a path that contains AGENT_HOME, or a path inside AGENT_HOME outside `workspaces/<ws>/locations/`: skipped with a warn. A path EQUAL to `$HOME` is allowed (phase 1g); AGENT_HOME inside it is protected by the guard |
+| `path` | `locations[].path` | a directory; absolute, or relative to the workspace dir. Missing or not a directory, a strict ancestor of `$HOME`, a path that contains AGENT_HOME, or a path inside AGENT_HOME outside `workspaces/<ws>/locations/`: skipped with a warn. A path EQUAL to `$HOME` is allowed |
 | `description` | `locations[].description` | one line the agent uses to pick a location |
 | `git` | computed | `.git` present at `path`; never configured. A dev run delivers through git only in a git location |
 
 - No `access` field. Write permission is the dev role's `capabilities: write`.
-- Dropped legacy fields (`defaultBranch`, `testCommand`, `githubAccount`, `gitAuthor`, `workflow`) are not read. `migrate:locations` prints them; nothing stores them.
-- No managed clone, no fetch, no pull: the app never refreshes a location (removed in v7).
+- Dropped legacy fields (`defaultBranch`, `testCommand`, `githubAccount`, `gitAuthor`, `workflow`) are not read.
+- No managed clone, no fetch, no pull: the app never refreshes a location.
 - A workspace with zero locations is valid: its runs work in `workspaces/<ws>/cwd/`.
-- A workspace that still has `repos/<n>/repo.yaml` is not loaded. `selectWorkspace` replies `needs_migration` ("run `bun run migrate:locations`"). The bot still starts and logs one warn listing those workspaces.
-- **Migration** (`bun run migrate:locations`; bot stopped; dry run unless `--apply`; AGENT_HOME is resolved to an absolute path):
-  - Backup first to `$AGENT_HOME/backups/locations-<ts>/` (0700).
-  - Per workspace, in order: write `workspace.yaml` (`locations:` with final paths, object channels; temp file + rename, 0600, comments lost), then rename `repos/<n>/` to `locations/<n>/` (one rename, never a copy), then remove `repo.yaml` and an empty `repos/`.
-  - A workspace whose apply throws is listed as `FAILED` and the others still run. An interrupted workspace is finished on re-run.
-  - A managed clone at `repos/<n>/repo` moves to `locations/<n>/repo` and its path is rewritten.
-  - Skipped (exit 1): symlinked or non-directory entries, invalid `repo.yaml`, existing `locations/<n>`, unquoted numeric channel ids (that workspace is not migrated), failed workspaces.
-  - Notes (exit unaffected): a `repos/<n>` without `repo.yaml` is left in place.
-  - Exit 0 ok or nothing to do, 1 skipped or failed, 2 bad arguments. A second run on a finished home is a no-op. Steps: [owner-checklist-schema-v7.md](owner-checklist-schema-v7.md).
-- **Channels:** an entry is a plain id (legacy; named `<ws>-agent`, `-2`, ... by position) or `{id, name, mode: task|chat, locations?}`. `/init-channel` (phase 1b) appends `task` channels; `chat` behavior arrives in phase 2. `/init-channel` reads names from the registry (legacy `<ws>-agent`, `-2`... included) and `addWorkspaceChannel` refuses a name already used.
-- **Memory layer:** `workspaces/<ws>/locations/<name>/MEMORY.md`, memory source `location`, id prefix `location/<name>#`.
+- A workspace that still has `repos/<n>/repo.yaml` is not loaded (`needs_migration`). Run `bun run migrate:locations` (bot stopped; dry run unless `--apply`; backup first to `$AGENT_HOME/backups/locations-<ts>/`). Steps: [owner-checklist-schema-v7.md](owner-checklist-schema-v7.md).
+- **Channels:** an entry is a plain id (legacy) or `{id, name, mode: task|chat, locations?}`.
+- **Memory layer:** `workspaces/<ws>/locations/<name>/MEMORY.md`, memory source `location`.
 
 ## Discord Setup
-- `src/discord-setup/`: `discord.yaml` schema, private control channels, `/init-workspace` and `/init-channel` (admin handler, `#ops-control` only), control-channel role run (`control-role-run.ts`), space-kind templates (`templates/space-kinds/`), channel topic, `bootstrap:discord` CLI, ops log, ready checks.
+- `src/discord-setup/`: `discord.yaml` schema, private control channels, `/init-workspace` and `/init-channel` (admin handler, `#ops-control` only), control-channel role run (`control-role-run.ts`), space-kind templates, channel topic, `bootstrap:discord` CLI, ops log, ready checks.
 - Everything is create-only and never deletes. Setup steps and the slash command list: [discord-setup.md](discord-setup.md).
 
 ## Security Layers
 1. **Owner allowlist:** only `OWNER_DISCORD_ID` can drive the bot; the guild is pinned by `DISCORD_GUILD_ID`.
 2. **Hard denies:** the Bash and file deny list above (sudo, secret files, push to main, destructive gh, pipes into shells, writes outside the scope).
-3. **Owner questions:** AskUserQuestion via Discord buttons, capped per run (`maxAsk`).
+3. **Owner questions:** AskUserQuestion (workers) and AskOwner (lead), via Discord buttons for workers; no answer = the run stops.
 4. **Child env deny list:** the bot's own secrets never reach the agent process (`child-env-deny.yaml`).
-5. **Redaction:** replies, logs, attachments and stored text pass `redact.ts` (API keys, tokens, `KEY=value`, auth headers, cookies).
+5. **Redaction:** replies, logs, attachments and stored text pass `redact.ts`.
 6. **Provider isolation:** Anthropic mode passes only the OAuth token; OpenRouter mode passes only its base URL, key and aliases.
-7. **Home placement:** startup refuses an `AGENT_HOME` inside a registered location (a location equal to `$HOME` is not refused) or inside a git working tree.
+7. **Home placement:** startup refuses an `AGENT_HOME` inside a registered location or inside a git working tree.
 8. **Known limits (accepted by the owner):** the bypass-mode dev run can run network and package commands; Bash parsing is best effort; the owner's git and gh credentials are visible to the agent.
 
 ## Output Handling & Quota
-- Replies ≤ 2000 chars: one message. Longer: chunked at line / code-block boundaries. Very long replies or large diffs: head in the thread, full text as `reply.md`, diffs as `changes.diff` (`prepareOutput`, `src/ingress/discord-message-rules.ts`).
+- Replies ≤ 2000 chars: one message. Longer: chunked at line / code-block boundaries. Very long replies or large diffs: head in the thread, full text as `reply.md`, diffs as `changes.diff`.
 - All text is redacted before it is sent.
 - Quota, rate-limit, billing and overload errors are classified from SDK signals (`src/runtime/run-errors.ts`). No automatic retry: the owner decides.
 - Unknown errors give a generic reply; the raw redacted error is logged.
 
 ## Startup Hygiene and Lifecycle
-- Startup (`src/lifecycle/startup.ts`): delete task logs older than 30 days; sweep stale plugin dirs (> 1 h); expire held tasks (14 days); remove old attachment copies; purge `run_messages` older than 14 days.
-- Interrupted runs (restart, shutdown): `running` / `waiting_approval` turns become `interrupted`; the thread gets a Resume button; pending questions are cancelled.
-- Drain (`FRIDAY_DRAIN=1` or a `DRAIN` file in `AGENT_HOME`): new tasks are refused until it is removed.
+- Startup (`src/lifecycle/startup.ts`): delete task logs older than 30 days; sweep stale plugin dirs (> 1 h); expire held tasks (14 days); remove old attachment copies; purge `run_messages` older than 14 days; journal retention; memory index sync.
+- Interrupted runs (restart, shutdown): `running` / `waiting_approval` turns become `interrupted`; the thread gets a Resume button; in-flight goal items are recovered (see [Restart](#restart)).
+- Drain (`FRIDAY_DRAIN=1` or a `DRAIN` file in `AGENT_HOME`): new work is refused until it is removed.
 - SIGINT / SIGTERM: close the DB and drain handlers, exit 0. Launchd `KeepAlive` restarts the bot (`deploy/com.friday.agent.plist`).
 
-## Thread Steering and Side Answers
-- **Busy thread:** every message that arrives while a run holds the thread is stored in `run_messages` first, then acted on in arrival order (`src/orchestrator/busy-lane.ts`). The owner sees a reaction at once.
-- **Steer** (`streaming` roles): the message is pushed into the run's input (SDK streaming input). Reply copy (`src/ingress/user-copy.ts`): queued = "Got it, I passed this to the work in progress."; held and waiting say "Not applied yet.". A steer is not an interrupt; `/stop` is.
-- **Steer receipts** (phase 1f): when the SDK replay confirms the agent read a steer, 📖 is added to the owner's message (`ingress/message-reaction.ts`; not the 👀 busy receipt). Queued, held and waiting notices repeat at most once per thread and state within 60 s (`STEER_DEDUPE_MS`, `orchestrator/thread/steer-reply.ts`); the repeat gets ✅ instead of text. `full` and `ended` always reply with text.
-- **Question while busy** (phase 1f): a `question` goes to the side lane at once, whatever role is named. The task is not touched.
-- **Unclear while busy** (phase 1f): classifier failure, invalid or low confidence still steers the message, and a side answer with the status snapshot follows in ONE reply (`orchestrator/thread/unclear-steer.ts`). A clear supplement is steered only.
-- **`/status`** (phase 1f, L0, no model, no thread lock): `renderStatus` (`ingress/status-copy.ts`) shows the running task (role, state, time, tools so far, last 5 tools, latest progress note, pending approval), or the waiting owned task (role, status, scope, time since it stopped), or "Nothing is running.". Outside a thread: a note to use it in the thread.
-- **Snapshot content** (`turns/status-snapshot.ts`, `turns/status-tools.ts`, `turns/progress-notes.ts`): tool count; last 5 tool names (Bash shows its `description` only, redacted, ≤ 80 chars); latest assistant text as the progress note (redacted, ≤ 200 chars, in memory, cleared at run end). No raw tool input or output.
-- **Jev on the busy path** (phase 1f, shadow only): engine `jev` runs the proposer beside the Haiku decision (`routing/jev-busy-shadow.ts`) and logs `routing.jev_shadow` (labels only, no text; `late: true` when the answer comes after the Haiku verdict). It never changes the route. Routing on the busy path is a later owner step.
-- **Queue** (background role, independent work): stored in `proposals` as `queued`; runs after the current task. At most 3 per thread. Starts in order. A restart puts queued rows back to `pending` and asks for `go`.
-- **Side answer** (foreground role): a parallel read-only run that starts fresh, takes a run slot, and gets a status snapshot of the running task. It never touches the thread session.
-- **Hard limits:** `MAX_PENDING_STEERS` 5 per run; `MAX_STEER_HOLDS` 2; `MAX_LATE_RESUMES` 1 (one resume of the same session when a message arrives after the input closed).
-- **Thread rollover** (`src/orchestrator/turns/thread-rollover.ts`, `rollover-*.ts`): after a successful FOREGROUND run (a `background` role such as dev never rolls) whose last model call's context is ≥ 75% of the model window (`ROLLOVER_CONTEXT_SHARE`; window from the SDK result, else 200k for Haiku and 1M for other models), the thread is rolled: (1) memory flush (an LLM run with only `Remember`, 4 turns, 60 s, prefers scope journal; when it saves nothing, the keyword extract goes to the day journal), (2) thread summary update, (3) the stored session is dropped. The next message starts a fresh session whose first user prompt is seeded by the summary and the last messages (phase 1d: the seed moved from the system context to the first prompt; see Prompt assembly). The SDK also compacts mid-run at the same 75%, so the rollover rarely fires.
-- SDK auto-compact: every role run gets `CLAUDE_CODE_AUTO_COMPACT_WINDOW` = 1,000,000 (capped at the model window) and `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` = 75, plus cache TTL 1h (main and subagents); one-shot calls (intent, memory compaction) get none. Effect not verified live.
+## Lead Queue, Steer and Rollover
+- **Queue:** one lead run per thread at a time. Owner inputs that arrive within 800 ms merge into one input. The queue has a cap (oldest dropped). A message that arrives while the lead runs waits for the next run.
+- **Announce:** worker events wait 2 s (`ANNOUNCE_WINDOW_MS`) and go into one lead run. Up to 2 attempts per announce (`ANNOUNCE_ATTEMPTS`). Undelivered events survive a restart.
+- **Steer:** `SteerTask` pushes an owner answer or note into a running worker (`steer-registry.ts`, `steer-store.ts`, task-keyed). A steer is not an interrupt; `/stop` is. `MAX_PENDING_STEERS` 5 per run; `MAX_STEER_HOLDS` 2; `MAX_LATE_RESUMES` 1.
+- **`/stop`** stops the thread's run tree (`stop-thread-tree.ts`).
+- **`/status`** (no model, no thread lock): running and waiting work, tools so far, latest progress note. Progress notes are in memory and cleared at run end; no raw tool input or output.
+- **Rollover** (`src/orchestrator/turns/thread-rollover.ts`): after a successful run whose context is ≥ 75% of the model window, the thread's session is flushed (memory flush, thread summary) and dropped. The next input starts a fresh session seeded by the summary and the last messages (first-prompt prefix, `first-prompt-prefix.ts`). Lead runs follow the same rollover after the reply. Live effect not verified.
+- SDK auto-compact: every role run gets `CLAUDE_CODE_AUTO_COMPACT_WINDOW` = 1,000,000 (capped at the model window) and `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` = 75. Effect not verified live.
 
 ## Environment Variables and Limits
 
@@ -599,39 +530,46 @@ A **location** is a directory the owner registers in a workspace. It replaces th
 
 | Var | Default | Notes |
 |---|---|---|
-| `MODEL_HAIKU` / `MODEL_SONNET` / `MODEL_OPUS` | `claude-haiku-4-5-20251001` / `claude-sonnet-5-5` / `claude-opus-5-5` | tier → model id |
-| `MODEL_<ROLE>` | role default | pins a role's model (tier name or id), e.g. `MODEL_DEV=opus` |
-| `BUDGET_<ROLE>_USD` | role `budgetUsd` (assistant 1.0, dev 4.5) | run budget override |
-| `COMPACT_WINDOW_<ROLE>` | role setting | 0 = no window var (SDK default window, 75% still applies); otherwise 100,000 to 1,000,000 |
+| `MODEL_HAIKU` / `MODEL_SONNET` / `MODEL_OPUS` | `claude-haiku-4-5-20251001` / `claude-sonnet-5-5` / `claude-opus-5-5` | tier → model id. Haiku default moves to `claude-haiku-5-5` in L5 |
+| `MODEL_<ROLE>` | role default | pins a role's model (tier name or id) |
+| `BUDGET_<ROLE>_USD` | role `budgetUsd` | run budget override |
+| `COMPACT_WINDOW_<ROLE>` | role setting | 0 = no window var; otherwise 100,000 to 1,000,000 |
 | `MAX_BUDGET_USD` | none | optional global cap on every run |
 | `MEMORY_MODEL` | haiku tier | manual memory compaction model |
-| `INTENT_ENGINE` | `haiku` | `haiku` \| `jev` \| `none` (see Routing and preflight) |
-| `JEV_API_KEY` | none | TypeSafe System One key; placeholder or `sk_` = no key = Haiku only. Sent to TypeSafe only under `jev` |
-| `MODEL_INTENT` | haiku tier | L3 classifier model |
-| `INTENT_BUDGET_USD` | 0.02 | per classifier call |
-| `INTENT_TIMEOUT_MS` | 20000 | minimum 8000 |
+| `JEV_API_KEY` | none | read by the config schema; not used by routing (Jev parked). Placeholder or `sk_` = no key |
 | `TIMEOUT_MS` | 300000 | memory compaction call only; NO run timeout exists |
 
-- Removed: `MODEL` (warned and ignored), `MODEL_<ROLE>_<STAGE>`, `BUDGET_<ROLE>_<STAGE>_USD`, `COMPACT_WINDOW_<ROLE>_<STAGE>` (old shapes ignored with a warn), `GIT_AUTHOR` (ignored), `CLONE_RETENTION_DAYS`, `MAX_KEPT_CLONES`, `MAX_CONCURRENT_RUNS`, `MAX_TURNS`.
+- Removed: `INTENT_ENGINE`, `MODEL_INTENT`, `INTENT_BUDGET_USD`, `INTENT_TIMEOUT_MS` (no longer in the config schema), `MODEL` (warned and ignored), `MODEL_<ROLE>_<STAGE>`, `BUDGET_<ROLE>_<STAGE>_USD`, `COMPACT_WINDOW_<ROLE>_<STAGE>`, `GIT_AUTHOR` (ignored), `CLONE_RETENTION_DAYS`, `MAX_KEPT_CLONES`, `MAX_CONCURRENT_RUNS`, `MAX_TURNS`.
 
 ### Code constants (not env)
 
 | Constant | Value | Where |
 |---|---|---|
-| `MAX_ASK` (per run, `limits.maxAsk`) | 6 | role files |
-| `BUDGET_USD` / `ESCALATED_BUDGET_USD` | assistant 1.0 / 2.5; dev 4.5 | role files |
+| `MAX_ASK` (per run, `limits.maxAsk`) | lead 0, scout 0, dev 6 | role files |
+| `BUDGET_USD` | lead 0.75, scout 0.75, dev 4.5 | role files |
+| `LEAD_DAILY_BUDGET_USD` | 3 | `src/orchestrator/strategy/caps.ts` |
+| `CHAIN_CAP` / `DELEGATE_MAX` / `DISPATCHES_PER_RUN` | 3 / 3 / 1 | `src/orchestrator/strategy/caps.ts` |
+| `MAX_DISPATCHES_PER_ITEM` | 3 | `src/orchestrator/engine/dispatch-ready.ts` |
 | `TASK_BUDGET_USD` | 6.0 | `src/config/model-routing.ts` |
 | `MAX_TURNS` (ceiling; low effort uses half) | 20 | `src/config/effort-mapping.ts` |
 | `MAX_CONCURRENT_RUNS` | 30 | `src/orchestrator/turns/run-limiter.ts` |
+| Lead debounce | 800 ms | `src/orchestrator/engine/lead-queue.ts` |
+| `ANNOUNCE_WINDOW_MS` / `ANNOUNCE_ATTEMPTS` | 2000 / 2 | `announce.ts`, `lead-run.ts` |
 | `MAX_PARALLEL_SUBAGENTS` | 50 | `src/guardrails/subagent-limit.ts` |
-| `MAX_CAPPED_TASKS` | 10 | `src/orchestrator/dispatch/task-location.ts` (active background tasks) |
-| `MAX_DRAIN` (queue per thread) | 3 | `src/orchestrator/dispatch/queued-tasks.ts` |
 | `HELD_TASK_DAYS` | 14 | `src/lifecycle/startup.ts` |
 | Owner question wait | 10 min | `src/approvals/discord-approval.ts` |
 
 ## Planned, Not Built
-- **Reliable handoff non-goals (phase 1):** supervisor, task TTL, dynamic DAG, multi-intent execution (a multi-intent message asks which part goes first). Jev bands stay conservative until calibrated.
-- **Config as agent (old phase 9):** roles as files plus a resolver. Closed for now (owner, 2026-10-12), not built: roles stay flat TypeScript objects in `src/roles/builtin/`, so the move stays cheap if reopened.
-- **Live verification (phase 8, paid):** AskUserQuestion under bypass, the PermissionDenied hook for owner denies, `DISABLE_BACKGROUND_TASKS` vs `run_in_background`, SDK general-purpose subagent tools, `ListAgents`, resumed-session cost accounting, golden set for the rewritten prompts.
-- **Known gaps (owner decisions):** two dev tasks in one location share one working tree; only `main` and `master` are protected (no branch setting; `defaultBranch` is dropped in v7); the thread does not pin the last task's location. Open from 1a review: migration moves a `repos/<n>` whose name fails `LOCATION_NAME` (the loader then drops it with a warn). Channel names (also the generated `<ws>-agent`) are checked by `CHANNEL_NAME` in the registry (1b).
-- **Backlog:** orphan legacy clone cleanup by hand; approval persistence across restarts; PreCompact hook; HTTP webhook ingress.
+Source of truth: [plan](../plans/261015-1538-lead-supervisor-orchestration/plan.md).
+
+| Phase | Status | Scope |
+|---|---|---|
+| L2b | pending | `planner` role, PLAN strategy, plan validation, owner plan approval (`work_plans`) |
+| L2c | pending | approval policy R0-R4 (envelope), worker bash allowlist, effect tools, trash; `effect_log` filled |
+| L4 | pending | cutover cleanup: `dev` → `developer`, remaining old-path removal, docs |
+| L5 | pending | DAG scheduler (parallel items), roster as data, Haiku 5.5 default, spec acceptance tests |
+| L6 | deferred | standing approvals learned from owner decisions; learned skills |
+
+- Known gaps (owner decisions): two dev tasks in one location share one working tree; only `main` and `master` are protected; the thread does not pin the last task's location.
+- Jev routing (`src/intent/jev/`) is parked, not wired; a later decision decides whether it returns.
+- Live verification pending (paid or owner-approved): lead golden set, one dev task end to end through the lead, restart with undelivered events, `ReportResult` without a call.

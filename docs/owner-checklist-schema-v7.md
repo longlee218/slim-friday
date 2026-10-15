@@ -142,7 +142,7 @@ sqlite3 "$DB" "SELECT value FROM meta WHERE key='schema_version'"   # expect 6
 
 ## Phase 1f: status questions while a task runs (`question`, `/status`, steer receipts)
 
-**What changes:** a question about a running or waiting task ("đang làm tới đâu rồi?") is answered at once by the entry role (side lane). It never steers the task or resumes it. A busy classifier failure still steers the message and adds a side answer in one reply. `/status` shows the task facts with no model call. Repeated steer notices within 60 s get ✅. An agent-read steer gets 📖 on your message. Jev runs on the busy path as a SHADOW only (`routing.jev_shadow` in the log; the route does not change).
+**What changes:** the side lane, busy-path routing and the Jev shadow of this phase are removed by the lead (L2a, see [owner checklist v8](owner-checklist-schema-v8.md)). Still in place: `/status` shows the task facts with no model call; repeated steer notices within 60 s get ✅; an agent-read steer gets 📖 on your message.
 
 **Needs:** a bot restart so Discord gets the new `/status` command (guild: instant; global: up to an hour).
 
@@ -157,13 +157,9 @@ sqlite3 "$DB" "SELECT value FROM meta WHERE key='schema_version'"   # expect 6
 
 ### Verify
 
-4. Start a dev task in a thread (a task that runs for a while). While it runs, ask "đang làm tới đâu rồi?". Expect a short answer from the assistant (side lane) that names the work done so far. Expect no "Đã nhận ... đầu vào đang chờ" text and no change in the task.
-5. Same thread, while it runs: "làm tới đâu rồi, xoá được những gì rồi?". Expect an answer that lists the tools and the latest note, not a steer.
-6. Send a real supplement while it runs ("also keep it small"). Expect the steer copy ("Got it, I passed this to the work in progress.") and 📖 on your message once the agent reads it.
-7. Send `/status` while a task runs. Expect "Running (role, state) for …", tool lines, and the latest note. After the task ends, `/status` on a waiting owned task (if any) shows "Waiting task (…)". With nothing: "Nothing is running." Outside a thread: a note to use it in the thread.
-8. Send two supplements within 60 s while the run is queued or held. Expect the first text, then ✅ on the second (no second text).
-9. Paid, owner-approved only: the shadow runs only with `INTENT_ENGINE=jev` (default `haiku` = no shadow) and `JEV_API_KEY` set. Each busy message then makes one Jev call. Check the log: `grep '"event":"routing.jev_shadow"' "$AGENT_HOME"/logs/app.*.jsonl`. Expect `busy: true`, `jevKind`, `haikuAction`, `agree`, and no message text.
-10. Paid, owner-approved per run: Haiku golden set including the new question cases (`test/intent-eval-cases.ts`, running and waiting-owner threads). Jev golden with `asks_about_task` only after you approve the spend.
+4. Send a real supplement while a task runs ("also keep it small"). Expect the steer copy ("Got it, I passed this to the work in progress.") and 📖 on your message once the agent reads it.
+5. Send `/status` while a task runs. Expect "Running (role, state) for …", tool lines, and the latest note. After the task ends, `/status` on a waiting owned task (if any) shows "Waiting task (…)". With nothing: "Nothing is running." Outside a thread: a note to use it in the thread.
+6. Send two supplements within 60 s while the run is queued or held. Expect the first text, then ✅ on the second (no second text).
 
 ### Rollback
 
@@ -172,12 +168,10 @@ sqlite3 "$DB" "SELECT value FROM meta WHERE key='schema_version'"   # expect 6
 
 ### Not verified live (all paid or live-only, owner approves each run)
 
-- Step 4 and 5: the side answer quality during a real dev run.
-- Step 6: 📖 after a real SDK replay of a steer.
-- Steps 7 and 8: `/status` in all three cases; the ✅ dedupe window.
-- Step 9: the shadow agreement rate (decides whether a later step flips busy routing to Jev).
-- Step 10: Haiku and Jev golden runs, Jev calibration.
+- Step 4: 📖 after a real SDK replay of a steer.
+- Steps 5 and 6: `/status` in all three cases; the ✅ dedupe window.
 - Rollback steps (written from the code, never executed).
+- Steps 4 to 10 of the former phase 1f list (side answer, Jev shadow, golden sets) are removed with the routing they checked. See [owner checklist v8](owner-checklist-schema-v8.md).
 
 ## Phase 1g: live-test fixes ($HOME location, AGENT_HOME guard, title, brief)
 
@@ -245,7 +239,7 @@ Set a channel to `mode: chat` in `workspace.yaml`, restart. No db change.
 1. After start the channel topic is `💬 chat: nhắn thẳng, không cần @Friday` (needs Manage Channels; a failure is only a warning `admin.topic_failed`).
 2. Post two plain messages (no mention). Expect two inline replies, no thread, and the second continues the first (`sessions.thread_id` = the channel id).
 3. Run `/stop` and `/status` in the channel. Expect inline answers, not "send it inside the thread".
-4. Ask for a code task. Expect the proposal / plan buttons to render in the channel (not verified).
+- Note: the former step 4 (proposal / plan buttons in a text channel) is removed: the proposal flow is gone (L2a). Routing: see [owner checklist v8](owner-checklist-schema-v8.md).
 5. Start a thread under the channel with `@Friday ...`. Expect a normal task thread (placeholder title, rename after the answer).
 6. After a restart mid-turn the Resume button works in a chat channel (fixed: the handler accepts a button in a channel mapped `mode: chat`).
 

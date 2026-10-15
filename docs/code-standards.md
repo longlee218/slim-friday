@@ -28,7 +28,7 @@ bun run start           # start the bot (reads .env)
 5. **Guard is a deny-list.** `src/guardrails/` decides allow / ask / deny per tool call. Hard denies are never approvable. Do not add an allowlist for Bash.
 6. **Fail closed for owner decisions.** An owner question without an answer means "do not run" (owner-confirm, approvals). A missing or invalid config refuses startup.
 7. **Layering.** `thread/` and `dispatch/` never import `runtime/`. `roles/` never imports `orchestrator/`. Tested in `test/engine-layering.test.ts`.
-8. **Routing is data (reliable handoff).** Routing reads role fields (`whenToUse`, `sideEffects`, `approvalRequired`, `capabilityVersion`, `background`). No role name in `src/routing/`, `src/intent/jev/` or `src/tasks/` (review rule; no scan test yet). Thresholds are named constants in `src/intent/jev/jev-constants.ts`. Only background roles own tasks.
+8. **Lead policy is code constants and typed actions.** Caps live in `src/orchestrator/strategy/caps.ts`; dispatch shape rules in `strategy/dispatch-policy.ts`. Lead tools are typed actions whose handlers check state, caps and CAS. The lead starts only roles with the `dispatchable` data flag. Only background roles own tasks.
 
 ## Roles, App Skills and Custom Tools (phase 3)
 - **Role fields (data):** `surface` (`space` default, or `control`: only `#ops-control`, never routed to); `appSkills` (dirs under `src/roles/builtin/skills/`, this role only); `mcpServers` (in-process app servers, names in `mcp-tool-names.ts`; the caller supplies them per query, and their tools need `allowTools`). A new control skill or space kind is a folder, never code.
@@ -79,7 +79,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 |---|---|---|
 | `Remember` | `src/tools/RememberTool/` | every role run; the rollover flush run lists only this tool |
 | `MemorySearch`, `MemoryGet`, `MemoryExpand` | `src/tools/MemorySearchTool/`, `MemoryGetTool/`, `MemoryExpandTool/` | every role run (read-only); lean runs list only what they need |
-| `SetThreadTitle` | `src/tools/SetThreadTitleTool/` | every role run with a rename port (assistant and dev); not in lean runs; max 2 calls per run |
+| `SetThreadTitle` | `src/tools/SetThreadTitleTool/` | every role run with a rename port (none in a chat channel); not in lean runs; max 2 calls per run |
 
 - Folder `src/tools/<Name>Tool/` (PascalCase folder, kebab-case files: `constants.ts`, `prompt.ts`, `<name>-tool.ts`). Tool names are PascalCase constants in `sdk-tool-names.ts` or `mcp-tool-names.ts`.
 - Adding a tool: folder, name constant, entry in `MEMORY_TOOLS`, registration in `memory-server.ts`. Tests: `test/set-thread-title-tool.test.ts`, `test/tool-catalog.test.ts`.
@@ -94,8 +94,8 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 ## Logging (owner rule)
 - Use only `logger` (or `logger.child({...})`) from `src/observability/logger.ts`.
 - Never `console.log`, `console.error`, `console.warn` or `console.info` in `src/`.
-- Context keys: `taskId` (turn id), `threadId`, `workspace`, `location`, `mode` (= role name), `module`. The owned task is `ownedTaskId` (in `route.decision`, `task.owner_changed`).
-- Routing events (`route.decision`, `span`, `preflight.result`, `task.owner_changed`, `execution.outcome`, `llm.turn {kind: "jev"}`) carry metadata only: ids, role names, reason codes, numbers. Never message text, scope text or Jev state.
+- Context keys: `taskId` (turn id), `threadId`, `workspace`, `location`, `mode` (= role name), `module`. The owned task is `ownedTaskId`.
+- Lead and dispatch log events carry metadata only: ids, role names, reason codes, numbers. Never message text, result text or file content.
 - `task.started` carries `type` = role name. `escalation {escalatedTo, action}` only when a run escalated.
 - Output: JSON lines in `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days); terminal line from `console-format.ts`.
 - Sensitive data: `redact.ts` masks tokens and keys before logging. Clip text with `redactClip` (mask first, then cut).
@@ -108,7 +108,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 3. **Error handling:** try/catch around I/O and SDK calls; log the redacted error; reply with a safe message ("Something went wrong. Check logs.").
 4. **Runs have no run timeout.** `TIMEOUT_MS` bounds only the memory-compaction call. A hung run holds its slot until `/stop` (owner-accepted). Do not add a run timer without an owner decision.
 5. **Tools never hardcoded.** Build tool lists through `src/tools/tool-catalog.ts` (`toolsFor`, `autoAllowedTools`, `toolOptions`).
-6. **Owner-visible questions use AskUserQuestion.** Do not add a new Discord approval type for a plan, a finish step or a merge.
+6. **Owner-visible questions:** workers use AskUserQuestion; the lead uses `AskOwner`. Do not add a new Discord approval type for a plan, a finish step or a merge.
 7. **Owner-confirm buttons are the only costly-step gate.** Used for effort `max` and the Opus escalation; no answer or timeout means "do not run".
 8. **Credentials and env:** read config only through the zod schema in `src/config/agent-config.ts` (and `role-env.ts`). Direct `process.env` reads outside the schema are limited to `HOME`, `CLAUDE_CONFIG_DIR`, `SHELL` and `NODE_ENV`; add none.
 9. **Git for the app:** `src/locations/git-cli.ts` (argv, never a shell). The app never clones, fetches or pulls a location; the agent runs git in the owner's checkout.
@@ -117,7 +117,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 ## Testing
 - **Framework:** `bun test` (`bun:test` `expect`).
 - **Naming:** `test/<area>.test.ts`. Live tests are named `*.smoke.test.ts` or `*.live.test.ts` and skip without credentials.
-- **Opt-in:** the intent golden set runs only with `INTENT_EVAL=1`. Live SDK checks run only with their own gate variable.
+- **Opt-in:** golden sets and Jev calibration run only with their own gate variables. Live SDK checks run only with their own gate variable.
 - **Fakes:** fake `query` for SDK options; in-memory SQLite for storage; fake Discord message objects.
 - **Scan tests** (see above) run in the normal suite.
 - **No sleeps for concurrency tests:** wait on a deferred promise or a callback.
