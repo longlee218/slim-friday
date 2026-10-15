@@ -9,13 +9,13 @@ import {
 import { isIdleState } from "../intent/decide-with-model";
 import type { EffortSignals } from "../intent/effort-signals";
 import type { RecentMessage } from "../intent/intent-types";
+import type { ProposeInput, RouteProposal, RouteScores } from "../intent/jev/route-proposer";
 import { withSpan } from "../observability/trace-spans";
 import { ROLES } from "../roles/role-registry";
 import { startBusyShadow } from "./jev-busy-shadow";
 import { routingDecisionOf } from "./route-decision-of";
 import { historyDefault, lastRoleOf } from "./route-history-default";
 import { decisionOfProposal } from "./route-proposal-decision";
-import type { ProposeInput, RouteProposal, RouteScores } from "../intent/jev/route-proposer";
 import type { RoutingDecision, TaskState } from "./routing-contracts";
 
 /**

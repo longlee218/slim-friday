@@ -4,9 +4,9 @@ import type { IntentDeps } from "../src/intent/decide-intent";
 import type { JevAnswers } from "../src/intent/jev/jev-answer-schema";
 import { decideBands } from "../src/intent/jev/jev-bands";
 import { buildJevQuestions } from "../src/intent/jev/jev-questions";
+import type { RouteProposal, RouteProposer } from "../src/intent/jev/route-proposer";
 import { entryRole, ROLES } from "../src/roles/role-registry";
 import { decisionOfProposal } from "../src/routing/route-proposal-decision";
-import type { RouteProposal, RouteProposer } from "../src/intent/jev/route-proposer";
 import { decideRoute } from "../src/routing/routing-policy";
 import { makeEnv } from "./helpers";
 import {

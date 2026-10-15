@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { realpathSync } from "node:fs";
 import { workspacePaths } from "../src/config/workspace-paths";
 import type { IntentDeps } from "../src/intent/decide-intent";
+import type { RouteProposer } from "../src/intent/jev/route-proposer";
 import { loadLexicon } from "../src/intent/load-lexicon";
 import { createRoleTagRouter } from "../src/intent/role-tag";
 import { captureLogs, logger } from "../src/observability/logger";
@@ -9,7 +10,6 @@ import { continueOwnedTask } from "../src/orchestrator/dispatch/continue-owned-t
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { beginTurn } from "../src/orchestrator/turns/turn-tracker";
 import { ROLES } from "../src/roles/role-registry";
-import type { RouteProposer } from "../src/intent/jev/route-proposer";
 import { activeOwnedTask, getOwnedTask, ownedTaskOfTurn } from "../src/storage/owned-task-store";
 import { interruptRunningTurns, setTurnSession } from "../src/storage/run-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";

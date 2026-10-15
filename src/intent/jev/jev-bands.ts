@@ -1,5 +1,4 @@
 import type { RoleDefinition } from "../../roles/role-types";
-import type { RouteProposal, RouteScores } from "./route-proposer";
 import type { JevAnswers } from "./jev-answer-schema";
 import {
   ACT_MIN,
@@ -11,6 +10,7 @@ import {
   RATIO_MIN,
   STOP_MAX,
 } from "./jev-constants";
+import type { RouteProposal, RouteScores } from "./route-proposer";
 
 /**
  * Pure decision bands over the answers (numbers in, proposal out). Order: multi-intent -> question about the task -> continue the open task ->
