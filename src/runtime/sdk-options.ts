@@ -21,6 +21,7 @@ import { sdkEnv } from "./sdk-env";
 import type { RunSkills } from "./skills-plugin/plugin-builder";
 import { buildSystemPrompt } from "./system-prompt";
 import { buildToolPermissions } from "./tool-permissions";
+import { workerSandbox } from "./worker-sandbox";
 
 /**
  * Config of the role run: `model` and `limits.maxBudgetUsd` replaced by the role's own (tier routing and
@@ -113,9 +114,11 @@ export function buildSdkOptions(
           ...input.guard,
           ...(input.guard.readPaths && { readPaths: [...input.guard.readPaths, ...sk.dirs] }),
           allowInside: [...(input.guard.allowInside ?? []), ...sk.dirs],
+          skillDirs: [...(input.guard.skillDirs ?? []), ...sk.dirs],
         }
       : input.guard;
-  const permissionMode = resolvePermissionMode(role, config);
+  const sandbox = workerSandbox(guard);
+  const permissionMode = resolvePermissionMode(role, config, input.guard);
   const perms = guard
     ? buildToolPermissions({
         ...input.code, // gateway, askLimit, onAskTimeout
@@ -161,6 +164,8 @@ export function buildSdkOptions(
     // No filesystem settings in any run: no location (or ancestor) CLAUDE.md, no location hooks/settings. Friday's
     // persona, AGENTS.md and memory are the only instructions.
     settingSources: [],
+    // A dispatched worker's shell runs in an OS sandbox (writes only in its dirs, no network); see worker-sandbox.ts.
+    ...(sandbox && { sandbox }),
     systemPrompt: buildSystemPrompt((input.extraContext ?? []).filter(Boolean).join("\n\n"), role, {
       worktreesDir: input.worktreesDir,
     }),
@@ -170,7 +175,9 @@ export function buildSdkOptions(
       ...(input.memory?.threadId &&
         buildCompactHooks({ ...input.memory, threadId: input.memory.threadId })),
     },
-    env: sdkEnv(config, process.env, resolveCompactWindow(role, config)),
+    env: sdkEnv(config, process.env, resolveCompactWindow(role, config), {
+      worker: !!guard?.envelope,
+    }),
     ...(input.lean && leanOptions(input.lean)),
   };
 }

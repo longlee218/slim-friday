@@ -25,6 +25,7 @@ import { registryError } from "./lifecycle/registry-check";
 import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
+import { startTrashSweeper } from "./lifecycle/trash-sweeper";
 import { real } from "./locations/location-registry";
 import { ensureHome } from "./memory/persona";
 import { logEvent, logger } from "./observability/logger";
@@ -109,6 +110,7 @@ async function main(): Promise<void> {
   // running owned task is announced by a `recovered_after_restart` event, stale event claims are released.
   const recovery = recoverInFlight(db);
   await runStartupHygiene(db, config.agentHome);
+  startTrashSweeper(config.agentHome); // boot sweep + every 6h: trash entries past 7 days go
   // Client is created after the handler, so the gateway looks it up lazily.
   let botClient: Client | undefined;
   const approvals = createDiscordApprovalGateway({

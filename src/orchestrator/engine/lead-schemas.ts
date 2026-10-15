@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+  CREATE_PULL_REQUEST_TOOL,
+  GIT_PUSH_TOOL,
+  MERGE_BRANCH_TOOL,
+} from "../../mcp/mcp-tool-names";
+import {
   OPTION_MAX_CHARS,
   OPTIONS_MAX,
   OPTIONS_MIN,
@@ -35,12 +40,25 @@ export const ASSIGNMENT = z.object({
   dependsOn: z.array(KEY).max(3).default([]).describe("Keys this assignment waits for"),
 });
 
+/** One effect action the workers need beyond the default envelope; the owner is asked once at dispatch. */
+export const EFFECT_GRANT = z.object({
+  tool: z.enum([GIT_PUSH_TOOL, CREATE_PULL_REQUEST_TOOL, MERGE_BRANCH_TOOL]),
+  location: z.string().min(1).max(80),
+  branch: z.string().min(1).max(100).optional().describe("GitPush / CreatePullRequest: the branch"),
+  into: z.string().min(1).max(100).optional().describe("MergeBranch: the branch merged into"),
+});
+
 export const DISPATCH_AGENT_SHAPE = {
   strategy: z.enum(["DIRECT", "DELEGATE"]),
   intent: z.string().min(1).max(REASON_MAX_CHARS).describe("The goal in one sentence"),
   reason: z.string().min(1).max(REASON_MAX_CHARS).describe("Why this strategy and these workers"),
   supersedes: TASK_ID.optional().describe("Id of the open goal this replaces"),
   assignments: z.array(ASSIGNMENT).min(1).max(MAX_ASSIGNMENTS),
+  effects: z
+    .array(EFFECT_GRANT)
+    .max(6)
+    .optional()
+    .describe("Push / PR / merge the workers need, e.g. the owner asked for a PR"),
 };
 export const TASK_STATUS_SHAPE = { taskId: TASK_ID.optional() };
 export const STEER_TASK_SHAPE = {

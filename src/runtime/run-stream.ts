@@ -17,6 +17,7 @@ import { createRunGauges } from "../observability/run-gauges";
 import { createTurnUsage } from "../observability/turn-usage";
 import { setTurnSession } from "../storage/run-store";
 import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
+import { isSandboxFailure } from "./sandbox-errors";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "run-stream" });
@@ -41,6 +42,8 @@ export interface StreamResult {
   resetsAt?: number;
   /** Last assistant message that had text (what the agent last said); undefined = none. Used by the budget-hit message. */
   lastText?: string;
+  /** The raw error text when the run failed because the required OS sandbox could not start (see sandbox-errors.ts). */
+  sandboxFailure?: string;
 }
 
 /** Text blocks of an assistant message, joined; empty when it only called tools. */
@@ -96,6 +99,8 @@ export async function consumeStream(p: {
   let rejected = false;
   let resetsAt: number | undefined;
   let lastText: string | undefined;
+  /** Raw error text when the required sandbox could not start. */
+  let sandboxFailure: string | undefined;
   const turns = createTurnUsage(); // one `llm.turn` line per distinct model call
   const gauges = createRunGauges(recorder.denied); // context peak/last, tool errors vs guard denials
   try {
@@ -159,6 +164,7 @@ export async function consumeStream(p: {
         // Failure (error subtype, or success flagged is_error): quota, or unknown (raw error to the log only).
         if (outcome === "error" || (outcome === "success" && r.is_error)) {
           const errors = outcome === "error" ? text : (r.result ?? "");
+          if (isSandboxFailure(errors)) sandboxFailure = errors;
           if (isQuotaFailure({ subtype: r.subtype, errors, assistantError, rejected })) {
             outcome = "quota";
             text = "";
@@ -175,6 +181,7 @@ export async function consumeStream(p: {
     // Abort throws "process aborted" with no result message.
     if (outcome === "error" && !ac.signal.aborted) text = "Agent error";
     log.warn({ err: errText(err), outcome }, "query loop ended with throw");
+    if (isSandboxFailure(errText(err))) sandboxFailure = errText(err);
     // A limit can also surface only as a thrown error (no result message).
     if (outcome === "error" && !ac.signal.aborted) {
       const errors = errText(err);
@@ -203,5 +210,6 @@ export async function consumeStream(p: {
     },
     resetsAt,
     lastText,
+    ...(sandboxFailure && { sandboxFailure }),
   };
 }

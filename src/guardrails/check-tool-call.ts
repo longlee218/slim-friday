@@ -13,6 +13,7 @@ import {
   MEMORY_TOOLS,
   mcpServerPrefix,
 } from "../mcp/mcp-tool-names";
+import type { DispatchEnvelope } from "../orchestrator/approval/envelope";
 import type { RoleDefinition } from "../roles/role-types";
 import {
   AGENT_TOOL_NAME,
@@ -35,6 +36,7 @@ import {
 import { appMcpToolsFor, autoAllowedTools, toolsFor } from "../tools/tool-catalog";
 import { checkBash, checkWorktreePath } from "./bash-policy";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
+import { envelopeGate } from "./envelope-guard";
 import { checkGitMcp } from "./git-mcp-guard";
 
 /** Outcome of a guardrail check. `deny` is never approvable; `ask` needs the owner. */
@@ -65,8 +67,14 @@ export interface GuardrailContext {
   denyPaths?: string[];
   /** Real dirs under `denyPaths` that stay usable: the run's own scratch, worktrees, `cwd/`, attachments, skill dirs. */
   allowInside?: string[];
+  /** Real dirs of the run's skill plugins (read-only, under the agent home): the only place a worker's shell may run a script from. Omitted = none. */
+  skillDirs?: string[];
   /** False = the role has no shell capability: Bash and Monitor are denied. Omitted (no role known) = allowed. */
   shell?: boolean;
+  /** `read` = the shell may run read-only commands only (role data `shellMode`); omitted = the role's deny-list shell. */
+  shellMode?: "read";
+  /** A dispatched worker's envelope: the shell is an allowlist and every call is checked against it (fail closed). Omitted = no envelope (deny-list only). */
+  envelope?: DispatchEnvelope;
   /** False = no SDK subagent tools (Agent, Task, SendMessage, ListAgents): denied. Omitted = allowed. */
   subagents?: boolean;
   /** Orchestration tools of the current mode that need no approval (Skill, TodoWrite, WebFetch...). */
@@ -85,6 +93,7 @@ export function guardFor(role: RoleDefinition, scope: GuardScope): GuardrailCont
     ...scope,
     allowTools: [...autoAllowedTools(role), ...appMcpToolsFor(role)],
     shell: toolsFor(role).includes(BASH_TOOL_NAME),
+    ...(role.shellMode && { shellMode: role.shellMode }),
     // Depth 1: the role's data wins; a run (a dispatched worker) may also turn subagents off through the scope.
     subagents: role.noSubagents ? false : (scope.subagents ?? true),
   };
@@ -104,8 +113,21 @@ const SUBAGENT_TOOLS = new Set([
 ]);
 const READ_TOOLS = new Set([READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME, LSP_TOOL_NAME]);
 
-/** Decide whether a tool call may run (any caller, subagents included). Unknown tools need approval. */
+/**
+ * Decide whether a tool call may run (any caller, subagents included). Unknown tools need approval. The hard denies
+ * come first; a run with an envelope then passes through the envelope gate (envelope-guard.ts).
+ */
 export function checkToolCall(
+  toolName: string,
+  input: Record<string, unknown>,
+  ctx: GuardrailContext,
+): Decision {
+  const d = checkBase(toolName, input, ctx);
+  return ctx.envelope ? envelopeGate(toolName, input, ctx, d) : d;
+}
+
+/** The role-independent rules of `checkToolCall` (paths, shell, MCP tools): allow / ask / deny without the envelope. */
+function checkBase(
   toolName: string,
   input: Record<string, unknown>,
   ctx: GuardrailContext,

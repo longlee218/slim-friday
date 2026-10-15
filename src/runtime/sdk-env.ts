@@ -1,5 +1,5 @@
 import type { AgentConfig } from "../config/agent-config";
-import { isChildEnvDenied } from "../config/child-env-deny";
+import { isChildEnvDenied, isWorkerEnvDenied } from "../config/child-env-deny";
 
 /** Compaction window var the orchestrator sets (on the deny list: never copied from the owner's shell, like the 3 below). */
 export const AUTO_COMPACT_WINDOW_VAR = "CLAUDE_CODE_AUTO_COMPACT_WINDOW";
@@ -33,6 +33,9 @@ const SUBAGENT_LIMIT_ENV = {
   CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "1",
 } as const;
 
+/** Claude Code switch: strip Anthropic and cloud provider credentials from the env of the tools' subprocesses (workers only). */
+export const SUBPROCESS_SCRUB_VAR = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB";
+
 /** OpenRouter's Anthropic-compatible endpoint. */
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api";
 
@@ -54,17 +57,20 @@ const MODEL_ALIAS_VARS = [
  * provider's credentials (anthropic -> OAuth token when real; openrouter -> base URL, auth token, empty API key,
  * aliases), the subagent limits, the compaction vars (window = `compactWindow` from `resolveCompactWindow`, else the app default;
  * 0 = no window var; percent always) and the cache TTL vars: the ONLY source of these, the same names in the
- * caller env are on the deny list.
+ * caller env are on the deny list. `opts.worker` (a dispatched worker) drops every secret-like variable too and turns the SDK's
+ * subprocess scrub on.
  */
 export function sdkEnv(
   config: AgentConfig,
   source: Record<string, string | undefined> = process.env,
   compactWindow?: number,
-  opts: { oneShot?: boolean } = {},
+  opts: { oneShot?: boolean; worker?: boolean } = {},
 ): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {};
+  // A dispatched worker (it runs repo code in its shell) also loses every token, key, secret, cloud and git auth of the owner.
+  const denied = opts.worker ? isWorkerEnvDenied : isChildEnvDenied;
   for (const [name, value] of Object.entries(source))
-    if (value !== undefined && !isChildEnvDenied(name)) env[name] = value;
+    if (value !== undefined && !denied(name)) env[name] = value;
   if (config.provider === "openrouter") {
     env.ANTHROPIC_BASE_URL = OPENROUTER_BASE_URL;
     if (config.hasRealAuth) env.ANTHROPIC_AUTH_TOKEN = config.openrouterApiKey;
@@ -75,6 +81,8 @@ export function sdkEnv(
     env.CLAUDE_CODE_OAUTH_TOKEN = config.oauthToken;
   }
   Object.assign(env, SUBAGENT_LIMIT_ENV);
+  // The SDK strips the provider credentials above from the env of its Bash tool, hooks and MCP servers: the model call still has them.
+  if (opts.worker) env[SUBPROCESS_SCRUB_VAR] = "1";
   // One-shot calls (intent classifier, memory compaction) are single-turn: no compaction, and a 1h cache write
   // would only cost more than it saves, so they get none of the four vars.
   if (opts.oneShot) return env;

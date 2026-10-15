@@ -6,6 +6,7 @@ import {
   DEV,
   DEV_ROLE,
   DEV_RUN_FACTS,
+  DEV_SHELL_RULES,
 } from "../src/roles/builtin/dev-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { buildSystemPrompt } from "../src/runtime/system-prompt";
@@ -16,7 +17,7 @@ const rules = (role: typeof DEV_ROLE) => buildSystemPrompt("", role).append;
 const SECTION_BUDGET = 1200;
 
 test("every dev section and the lead section fit the 1200 char budget", () => {
-  for (const t of [DEV, DEV_RUN_FACTS, COMMIT_RULES, CODE_STANDARDS])
+  for (const t of [DEV, DEV_RUN_FACTS, DEV_SHELL_RULES, COMMIT_RULES, CODE_STANDARDS])
     expect(t.length).toBeLessThanOrEqual(SECTION_BUDGET);
   const lead = LEAD_ROLE.promptSections({}) ?? [];
   expect(lead[0]?.length).toBeLessThanOrEqual(SECTION_BUDGET);
@@ -45,7 +46,7 @@ test("dev: one contract, approval before changes by ask, design request invokes 
   expect(text).toContain("the location's own checkout");
   expect(text).toContain("Do not change files before the owner approved your plan");
   expect(text).toContain('"location: <name>"');
-  expect(text).toContain("`git` and `gh` in the shell");
+  expect(text).toContain("`git` in the shell");
   expect(text).toContain("Merge, push or PR only after the owner chose it.");
   expect(text).toContain("by absolute path from the skill's base directory");
   expect(text).not.toContain("Memory:");
@@ -57,7 +58,7 @@ test("dev: one contract, approval before changes by ask, design request invokes 
   expect(text).not.toMatch(/subagent-run-facts|implementer|task-reviewer|brainstorming/);
   expect(text).not.toContain("git MCP");
   expect(text).not.toContain("plan.md"); // no plan file, no handoff
-  expect(text.indexOf("Outcome:")).toBeLessThan(text.indexOf("`git` and `gh` in the shell"));
+  expect(text.indexOf("Outcome:")).toBeLessThan(text.indexOf("`git` in the shell"));
 });
 
 test("no tool-name literal in the dev role source", async () => {

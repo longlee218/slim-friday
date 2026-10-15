@@ -64,7 +64,9 @@ test("scout: read + web + skills; nothing that writes or runs commands; depth 1 
     expect(t).toContain(x);
   for (const x of [WRITE_TOOL_NAME, EDIT_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME])
     expect(t).not.toContain(x);
-  for (const x of [BASH_TOOL_NAME, MONITOR_TOOL_NAME, AGENT_TOOL_NAME]) expect(t).not.toContain(x);
+  expect(t).not.toContain(AGENT_TOOL_NAME);
+  // The scout has a read-only shell (role data `shellMode: read`, allowlist in the guard).
+  for (const x of [BASH_TOOL_NAME, MONITOR_TOOL_NAME]) expect(t).toContain(x);
 });
 
 test("dev gets the full toolset (no plan-mode tools); a role without `noSubagents` gets Agent and SendMessage", () => {
@@ -203,6 +205,8 @@ test("options: tools from the catalog, no allowedTools, strict MCP", () => {
     LSP_TOOL_NAME,
     WEB_SEARCH_TOOL_NAME,
     WEB_FETCH_TOOL_NAME,
+    BASH_TOOL_NAME, // read-only shell of the scout (role data `shellMode`)
+    MONITOR_TOOL_NAME,
     SKILL_TOOL_NAME,
   ]);
   expect("allowedTools" in o).toBe(false); // would bypass canUseTool
@@ -249,7 +253,7 @@ test("every declared SDK tool name belongs to exactly one capability (a new cons
   for (const t of owners.keys()) expect(Object.values<string>(sdkNames)).toContain(t);
 });
 
-test("the scout has no write, feedback, task or shell tools; dev gets the full set", () => {
+test("the scout has no write, feedback or task tools (a read-only shell only); dev gets the full set", () => {
   const qa = toolsFor(qaRole);
   for (const t of [
     MULTI_EDIT_TOOL_NAME,
@@ -259,7 +263,6 @@ test("the scout has no write, feedback, task or shell tools; dev gets the full s
     SEND_FEEDBACK_TOOL_NAME,
   ])
     expect(qa).not.toContain(t);
-  expect(qa).not.toContain(MONITOR_TOOL_NAME);
   for (const t of [
     MULTI_EDIT_TOOL_NAME,
     NOTEBOOK_EDIT_TOOL_NAME,

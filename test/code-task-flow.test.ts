@@ -106,8 +106,8 @@ test("dev task: ONE detached run in the location's own checkout, bypass permissi
   expect(seen).toHaveLength(1);
   const o = seen[0].options;
   expect(o.cwd).toBe(realpathSync(clone)); // no clone, no worktree: the location itself
-  expect(o.permissionMode).toBe("bypassPermissions"); // the guard hook is the gate
-  expect(o.allowDangerouslySkipPermissions).toBe(true);
+  expect(o.permissionMode).toBe("default"); // a worker is never auto-approved: canUseTool + the guard hook are the gate
+  expect(o.allowDangerouslySkipPermissions).toBeUndefined();
   expect(o.resume).toBeUndefined();
   expect(o.tools).toContain(ASK_USER_QUESTION_TOOL_NAME);
   expect(o.tools).not.toContain("ExitPlanMode");

@@ -11,6 +11,8 @@ import { DRAIN_REPLY, isDraining } from "../lifecycle/drain";
 import { logEvent, logger, runWithLogContext } from "../observability/logger";
 import { dispatchableWorkers } from "../roles/role-registry";
 import type { QueryFn } from "../runtime/run-agent";
+import { purgeThreadTrash } from "./approval/purge-trash";
+import { ownerConfirm } from "./engine/owner-confirm";
 import type { RecoveryReport } from "./engine/recover-in-flight";
 import { liveRunOf } from "./engine/task-runs";
 import { createHandlerServices } from "./handler-services";
@@ -70,6 +72,20 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     // `/status`: facts of the thread's tasks rendered by app code (no model, no lock, answered while work runs).
     if (parsed.kind === "status")
       return renderStatus(statusFacts(deps.db, threadId), messageLanguage(message));
+    // `/purge`: the trash of this thread's goals is emptied after one owner click (app code; the owner-only ingress already filtered the sender).
+    if (parsed.kind === "purge") {
+      const language = messageLanguage(message);
+      // Plain text `purge` and `/purge` both land here: emptying the trash is final, so the owner confirms with one click.
+      return purgeThreadTrash(deps.db, config.agentHome, threadId, language, (summary) =>
+        ownerConfirm(deps.approvals, {
+          kind: "purge_trash",
+          turnId: crypto.randomUUID(),
+          threadId,
+          summary,
+          language,
+        }),
+      );
+    }
     // A rollover of the previous turn holds the thread until it is done.
     await rollovers.holdFor(message);
     if (isDraining(config.agentHome)) {

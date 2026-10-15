@@ -57,8 +57,8 @@ export function scriptedQuery(script: Script, calls: Call[]) {
         prompt: await promptOf(a.prompt),
         options: a.options,
         tool: async (name, args) => {
-          // The tool lives on whichever server of the run holds it (a planner run has `planner` and `worker`).
-          const server = [servers.lead, servers.planner, servers.worker].find(
+          // The tool lives on whichever server of the run holds it (a planner run has `planner` and `worker`; dev also `effects`).
+          const server = [servers.lead, servers.planner, servers.worker, servers.effects].find(
             (x) => x?.instance._registeredTools[name],
           );
           const r = await server.instance._registeredTools[name].handler(args, {});

@@ -3,6 +3,7 @@ import { mkdirSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { claudePlansDir, workspacePaths } from "../src/config/workspace-paths";
 import {
+  EFFECTS_MCP_SERVER,
   GIT_MCP_SERVER,
   MEMORY_MCP_SERVER,
   REMEMBER_TOOL,
@@ -64,15 +65,21 @@ test("the dev run works in the location's own checkout: cwd = location path, scr
   expect(env.db.query("SELECT location FROM turns").get()).toEqual({ location: "real" });
 });
 
-test("dev: no git or GitHub MCP server; the owner's env passes through", async () => {
+test("dev: no git or GitHub MCP server; a worker's env keeps no owner secret (the SDK also scrubs its tools' env)", async () => {
   const { exec } = await runExec();
-  // Only the app's in-process servers (worker result tool, memory); no git server (git and gh run in the shell).
-  expect(Object.keys(exec.mcpServers)).toEqual([WORKER_MCP_SERVER, MEMORY_MCP_SERVER]);
+  // Only the app's in-process servers (worker result tool, effect tools, memory); no git server (git runs in the shell).
+  expect(Object.keys(exec.mcpServers)).toEqual([
+    WORKER_MCP_SERVER,
+    EFFECTS_MCP_SERVER,
+    MEMORY_MCP_SERVER,
+  ]);
   expect(Object.keys(exec.mcpServers)).not.toContain(GIT_MCP_SERVER);
-  expect(exec.env.GH_TOKEN).toBe(FAKE_TOKEN); // `gh` in the agent's shell uses the owner's login
+  // A worker runs repo code: no gh / git login of the owner in its env. The effect tools use it in their own subprocess.
+  expect(exec.env.GH_TOKEN).toBeUndefined();
+  expect(exec.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe("1");
 });
 
-test("dev guard: writes in the location (its git dir and .github too), the worktrees dir, scratch and the SDK plans dir; nothing else", async () => {
+test("dev guard: writes in the location (.github and the git dir too), the worktrees dir, scratch and the SDK plans dir; nothing else", async () => {
   const { env, clone, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   const write = async (file_path: string) =>
@@ -80,22 +87,25 @@ test("dev guard: writes in the location (its git dir and .github too), the workt
   mkdirSync(ws.worktrees, { recursive: true });
   expect(await write(join(clone, "src", "a.ts"))).toBe("allow");
   expect(await write(join(clone, ".github", "workflows", "ci.yml"))).toBe("allow");
+  // The location is trusted: its git dir is writable like the rest of it (hooks, config, info).
   expect(await write(join(clone, ".git", "info", "exclude"))).toBe("allow");
+  expect(await write(join(clone, ".git", "hooks", "pre-commit"))).toBe("allow");
   expect(await write(join(realpathSync(ws.worktrees), "real", "wt", "a.ts"))).toBe("allow");
   expect(await write(join(claudePlansDir(), "p.md"))).toBe("allow");
   expect(await write(join(env.home, "outside.txt"))).toBe("deny");
   expect(await write("/etc/friday-x")).toBe("deny");
 });
 
-test("dev guard: `git worktree add` only under the worktrees dir; push of a feature branch runs, main and force do not", async () => {
+test("dev guard: `git worktree` is not on the shell list; push and PR are denied in the shell (GitPush / CreatePullRequest do them), main and force too", async () => {
   const { env, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   const bash = async (command: string) => (await exec.canUseTool("Bash", { command }, {})).behavior;
   const wtDir = realpathSync(ws.worktrees);
-  expect(await bash(`git worktree add ${wtDir}/real/feat`)).toBe("allow");
+  expect(await bash(`git worktree add ${wtDir}/real/feat`)).toBe("deny"); // unlisted subcommand = unknown = R2
   expect(await bash("git worktree add ../feat")).toBe("deny");
-  expect(await bash("git push -u origin friday/x")).toBe("allow");
-  expect(await bash("gh pr create --fill")).toBe("allow");
+  // A worker pushes and opens PRs only through the effect tools: the shell names them in its denial.
+  expect(await bash("git push -u origin friday/x")).toBe("deny");
+  expect(await bash("gh pr create --fill")).toBe("deny");
   expect(await bash("git push origin main")).toBe("deny");
   expect(await bash("git push --force origin friday/x")).toBe("deny");
 });
@@ -103,7 +113,7 @@ test("dev guard: `git worktree add` only under the worktrees dir; push of a feat
 test("dev prompt: the one worktree line names <workspace worktrees dir>/<location>/", async () => {
   const { env, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
-  const line = `If you use a git worktree, put it under ${join(realpathSync(ws.worktrees), "real")}/.`;
+  const line = `If you use a git worktree, put it under ${join(realpathSync(ws.worktrees), "real")}/:`;
   expect(exec.systemPrompt.append).toContain(line);
   expect(exec.systemPrompt.append).toContain("Merge, push or PR only after the owner chose it.");
 });

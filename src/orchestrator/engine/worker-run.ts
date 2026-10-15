@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { workspacePaths } from "../../config/workspace-paths";
 import { messageLanguage } from "../../ingress/user-copy";
 import { logger, setLogContext } from "../../observability/logger";
 import { clip, redactText } from "../../observability/redact";
@@ -12,6 +13,8 @@ import {
 } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import type { ReportSink } from "../../tools/ReportResultTool/report-result-tool";
+import { spawnRunner } from "../approval/git-run";
+import { goalLocations, loadEnvelope } from "../approval/load-envelope";
 import { runDispatchedTask } from "../dispatch/run-dispatched-task";
 import { appendEvent, markStartDelivered } from "../events/event-store";
 import { planReadyOf } from "../plan/plan-ready";
@@ -19,6 +22,7 @@ import { PLANNER_KEY } from "../plan/plan-types";
 import { beginTurn } from "../turns/turn-tracker";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import type { LeadRuntime, LeadThreadCtx } from "./lead-runtime";
+import { ownerConfirm } from "./owner-confirm";
 import type { DispatchDeps } from "./role-run-types";
 import { workerServers } from "./worker-servers";
 
@@ -129,12 +133,26 @@ export async function startWorker(
       { location, brief: item.brief ?? "", role: role.name, hop: 1, ownedTaskId: item.id },
     );
     const sink: ReportSink = {};
+    // The envelope is rebuilt from the db at every start (approved plan, dispatch grants or the default): never kept only in memory.
+    const language = messageLanguage(ctx.message);
+    const envelope = loadEnvelope(
+      db,
+      goalId,
+      // Only the goal's own locations: any other channel location asks the owner at every delete.
+      goalLocations(
+        db,
+        goalId,
+        item.location,
+        ctx.locations.map((l) => l.name),
+      ),
+      workspacePaths(rt.deps.config.agentHome).workspace(ctx.workspace).task(turnId).root,
+    );
     await runDispatchedTask(deps, {
       input: {
         turnId,
         threadId,
         text: item.brief ?? "",
-        language: messageLanguage(ctx.message),
+        language,
         role: role.name,
         workspace: ctx.workspace,
         channel: ctx.channel,
@@ -145,7 +163,34 @@ export async function startWorker(
         pinned,
         ledger: earlierSteps(db, item),
         noSubagents: true, // depth 1: dev too
-        appServers: workerServers({ db, role, sink, ctx, threadId, goalId }),
+        envelope,
+        appServers: workerServers({
+          db,
+          role,
+          sink,
+          ctx,
+          threadId,
+          goalId,
+          effects: {
+            db,
+            threadId,
+            goalId,
+            itemId: item.id,
+            envelope,
+            locations: ctx.locations.map((l) => ({ name: l.name, path: l.path })),
+            agentHome: rt.deps.config.agentHome,
+            // R4 and over-bound asks: a yes / no to the owner (fail closed without the button flow).
+            confirm: (summary) =>
+              ownerConfirm(rt.deps.approvals, {
+                kind: "effect",
+                turnId,
+                threadId,
+                summary,
+                language,
+              }),
+            run: spawnRunner,
+          },
+        }),
         askRelay: role.capabilities.includes("ask")
           ? rt.relay.forWorker({ threadId, goalId, itemId: item.id, turnId })
           : undefined,

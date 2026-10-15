@@ -137,7 +137,17 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       onControlEvent: (e) => supervisor.observe(e),
       onProgress: (text) => setProgressNote(i.turnId, text),
       skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
-      guard: guardFor(role, i.noSubagents ? { ...s.guard, subagents: false } : s.guard),
+      guard: guardFor(role, {
+        ...s.guard,
+        ...(i.noSubagents && { subagents: false }),
+        ...(i.envelope && {
+          envelope: i.envelope,
+          // A worker reads only what it was granted (locations, goal dir, worktrees, attachments, skill dirs): never ~/.ssh, ~/.aws ...
+          readPaths: s.guard.readPaths ?? [
+            ...new Set([...(s.guard.writePaths ?? []), ...(s.guard.allowInside ?? [])]),
+          ],
+        }),
+      }),
       extraContext: runExtraContext({ db, config, i, s, role, route, hasTitlePort: !!titlePort }),
       appServers: i.appServers,
       resume: resumeId,

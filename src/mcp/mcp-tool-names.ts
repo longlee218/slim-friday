@@ -116,6 +116,23 @@ export const PROPOSE_PLAN_REVISION_TOOL = "ProposePlanRevision";
 export const GET_EXECUTION_PROGRESS_TOOL = "GetExecutionProgress";
 /** Blocked and failed items with their cause. */
 export const ANALYZE_BLOCKERS_TOOL = "AnalyzeBlockers";
+/** In-process `effects` server (workers that may delete, push, open a PR or merge; added by role data `mcpServers`). The only way to do these: raw shell equivalents are denied. */
+export const EFFECTS_MCP_SERVER = "effects";
+/** Move paths to the trash (kept 7 days, restorable). */
+export const DELETE_PATHS_TOOL = "DeletePaths";
+/** Push a non-default branch of a location (never forced). */
+export const GIT_PUSH_TOOL = "GitPush";
+/** Open a pull request with `gh` (head pushed already). */
+export const CREATE_PULL_REQUEST_TOOL = "CreatePullRequest";
+/** Merge one branch into the checked-out branch of a location. */
+export const MERGE_BRANCH_TOOL = "MergeBranch";
+/** The effect tools: each one is checked against the run's envelope. */
+export const EFFECT_TOOLS = [
+  DELETE_PATHS_TOOL,
+  GIT_PUSH_TOOL,
+  CREATE_PULL_REQUEST_TOOL,
+  MERGE_BRANCH_TOOL,
+] as const;
 /**
  * Tools of every app MCP server a role may list in `mcpServers` (the guard allows exactly these; any other
  * `mcp__*` tool is denied). A new in-process server = one entry here.
@@ -147,4 +164,5 @@ export const APP_MCP_TOOLS: Readonly<Record<string, readonly string[]>> = {
     ANALYZE_BLOCKERS_TOOL,
   ],
   [WORKER_MCP_SERVER]: [REPORT_RESULT_TOOL],
+  [EFFECTS_MCP_SERVER]: EFFECT_TOOLS,
 };

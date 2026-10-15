@@ -9,26 +9,27 @@ import { basename, isAbsolute, resolve } from "node:path";
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME, NOTEBOOK_EDIT_TOOL_NAME } from "../tools/sdk-tool-names";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { isDeniedPath, isInside, resolveReal } from "./paths";
+import { foldName } from "./protected-names";
 import { COVERS_PROTECTED_REASON, searchRootDenied } from "./protected-paths";
 
-/** Basename patterns of files that may hold secrets (.env*, keys, credentials). */
+/** Folded (lower case, NFC) basename patterns of files that may hold secrets (.env*, keys, credentials). */
 const SECRET_PATTERNS = [
   /^\.env/,
-  /\.pem$/i,
-  /\.key$/i,
+  /\.pem$/,
+  /\.key$/,
   /^id_(rsa|ed25519|ecdsa|dsa)/,
-  /^credentials/i,
-  /^\.credentials/i,
+  /^credentials/,
+  /^\.credentials/,
   /^\.(npmrc|netrc|pgpass|git-credentials)$/,
-  /\.(p12|pfx)$/i,
+  /\.(p12|pfx)$/,
 ];
 
 /** Reason of the default allow (read-only access); logs omit it as the unremarkable case. */
 export const READ_ONLY_REASON = "read-only access";
 
-/** True when the basename of `p` looks like a secret file. */
+/** True when the basename of `p` looks like a secret file (any case, unicode normalized). */
 export function isSecretPath(p: string): boolean {
-  const name = basename(p.replace(/[\\/]+$/, ""));
+  const name = foldName(basename(p.replace(/[\\/]+$/, "")));
   return SECRET_PATTERNS.some((re) => re.test(name));
 }
 
@@ -97,13 +98,19 @@ const READ_KEYS: Record<string, string[]> = {
 };
 
 /** True when a read target stays inside `roots` (real paths; symlinks and `..` resolved). */
-function withinReadPaths(key: string, value: string, roots: string[]): boolean {
+function withinReadPaths(key: string, value: string, roots: string[], cwd?: string): boolean {
   // Glob patterns / globs: no absolute, home or parent-escaping patterns.
   if (key === "pattern" || key === "glob") {
     return !(isAbsolute(value) || value.startsWith("~") || value.split(/[\\/]/).includes(".."));
   }
-  if (!isAbsolute(value)) return !value.split(/[\\/]/).includes(".."); // relative to cwd (scratch)
-  const real = resolveReal(value);
+  if (!isAbsolute(value) && (value.split(/[\\/]/).includes("..") || !cwd)) return false;
+  // Relative paths resolve against the cwd: a symlink inside a location cannot lead out of the granted dirs.
+  let real: string;
+  try {
+    real = resolveReal(isAbsolute(value) ? value : resolve(cwd as string, value));
+  } catch {
+    return false;
+  }
   return roots.some((r) => isInside(r, real));
 }
 
@@ -134,7 +141,7 @@ export function checkFileRead(
     if (secret) return { decision: "deny", reason: "access to secret files is blocked" };
     if (key !== "pattern" && key !== "glob" && touchesDeniedPath(value, ctx))
       return { decision: "deny", reason: DENIED_PATH_REASON };
-    if (readPaths && !withinReadPaths(key, value, readPaths)) {
+    if (readPaths && !withinReadPaths(key, value, readPaths, ctx?.cwd)) {
       return { decision: "deny", reason: "read outside the allowed directories is blocked" };
     }
   }

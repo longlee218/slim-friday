@@ -62,7 +62,8 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, a
   expect(scout.appSkills).toEqual(["scout", "docs-seeker"]);
   expect(scout.capabilities).toEqual(expect.arrayContaining(["read", "web"]));
   expect(scout.capabilities).not.toContain("write");
-  expect(scout.capabilities).not.toContain("shell"); // read-only Bash allowlist returns in L2c
+  expect(scout.capabilities).toContain("shell"); // read-only shell: shellMode `read` limits it to the R0 allowlist
+  expect(scout.shellMode).toBe("read");
   expect(scout.gitGroups).toEqual([]);
   for (const n of scout.appSkills ?? [])
     expect(existsSync(join(APP_SKILLS_DIR, n, "SKILL.md"))).toBe(true);
@@ -131,13 +132,20 @@ test("ReportResult stores the first report in the sink; a second call is refused
   expect(sink.report?.status).toBe("COMPLETED");
 });
 
-test("no Bash for lead or scout: not offered and denied by the guard", () => {
-  for (const r of [lead, scout]) {
-    expect(toolsFor(r)).not.toContain(BASH_TOOL_NAME);
-    expect(
-      checkToolCall(BASH_TOOL_NAME, { command: "ls" }, guardFor(r, { readPaths: ["/r"] })).decision,
-    ).toBe("deny");
-  }
+test("no Bash for the lead; the scout's shell is read-only (allowlist R0)", () => {
+  expect(toolsFor(lead)).not.toContain(BASH_TOOL_NAME);
+  expect(
+    checkToolCall(BASH_TOOL_NAME, { command: "ls" }, guardFor(lead, { readPaths: ["/r"] }))
+      .decision,
+  ).toBe("deny");
+  const scoutGuard = guardFor(scout, { readPaths: ["/r"], cwd: "/r" });
+  const bash = (command: string) => checkToolCall(BASH_TOOL_NAME, { command }, scoutGuard).decision;
+  expect(bash("rg foo src")).toBe("allow");
+  expect(bash("rg foo src | wc -l")).toBe("deny"); // one simple command only: no pipe
+  expect(bash("git log --oneline")).toBe("allow");
+  expect(bash("mkdir x")).toBe("deny"); // R1 is a write
+  expect(bash("rm -rf x")).toBe("deny");
+  expect(bash("sh -c 'ls'")).toBe("deny");
   expect(toolsFor(scout)).toEqual(
     expect.arrayContaining([READ_TOOL_NAME, GREP_TOOL_NAME, WEB_FETCH_TOOL_NAME]),
   );

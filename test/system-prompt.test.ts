@@ -52,13 +52,13 @@ test("dev: follow-up, memory contract, shell git and delivery by the agent", () 
   expect(text).not.toContain("Remember (scope location;"); // location memory rule lives in AGENTS.md
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).not.toContain("git_commit"); // no git MCP for the dev agent
-  expect(text).toContain("`git` and `gh` in the shell");
+  expect(text).toContain("`git` in the shell");
   expect(text).toContain(
     `Where a skill says to ask or wait for the human, use ${ASK_USER_QUESTION_TOOL_NAME}; never end your turn on a question. Merge, push or PR only after the owner chose it.`,
   );
   expect(text).not.toContain("worktree"); // the worktree line appears only when the run names a dir
   expect(buildSystemPrompt("", dev, { worktreesDir: "/w/api" }).append).toContain(
-    "If you use a git worktree, put it under /w/api/.",
+    "If you use a git worktree, put it under /w/api/:",
   );
   expect(buildSystemPrompt("", lead, { worktreesDir: "/w/api" }).append).not.toContain("/w/api");
 });

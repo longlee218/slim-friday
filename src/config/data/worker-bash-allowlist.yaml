@@ -1,0 +1,142 @@
+# Shell commands a worker may run. DEFAULT DENY BY SHAPE (orchestrator/approval/shell-shape.ts + shell-table.ts):
+# a line is allowed only when it is ONE simple command made of plain words (no operator, redirect, quote, expansion or
+# non-ASCII char; the one exception is `git commit -m "<text>"`), its command and subcommand are listed here, EVERY flag is
+# listed (an unknown flag, an attached value like -n5 or an abbreviated long flag makes the line unknown) and every path
+# operand resolves inside the granted dirs. Unknown = R2 = denied unless the envelope grants R2. Widening = a data change.
+#
+# Entry fields (a `sub` entry may override any of them; the command's own are the default):
+#   class:     R0 read, R1 write-local, R2 destructive, R3 external (default R0)
+#   fs:        read | write | none: where the cwd and the path operands must lie (granted read dirs / write dirs, never a .git dir)
+#   flags:     the EXACT flags allowed. `-x` / `--long` take no value; `-x:kind` / `--long:kind` take a value (`--long=v` or the
+#              next word; a short one only as the next word). `-NUM` = a count like -20. Nothing else is accepted.
+#   cluster:   true = `-la` is allowed when every letter is a listed no-value short flag
+#   operands:  none | path (each a path of `fs`) | pattern (first a word, the rest paths) | sed (`1,5p` then paths) | script (one
+#              package script name) | word (up to 3 words) | plain (one word, no `:` or `/`) | ref (at most one
+#              branch name) | delref (one non-default branch name) | worktree (`<dir> <branch>`) | any (no check; only for entries that are never run)
+#   max:       most operands (uniq: 1, a second one would be its OUTPUT file)
+#   require:   flags that must be present (`checkout -b <name>` = a NEW branch only)
+#   use:       the effect tool that replaces the command (named in the denial reason; entries with `use` are never allowed here)
+# Value kinds: num, word, ref (a branch name), msg (a commit message), path (a path of `fs`).
+# Not listed on purpose: cd/pushd (the shell's cwd persists between calls), env, sh, bash -c, interpreters, xargs, eval, curl, less,
+# man, watch, tail -f, git -C/-c, reset --hard, a real clean, checkout of a file, config, fetch, pull (the sandbox has no network).
+# R2 rows (reset, restore, branch -D) are LISTED R2: they need the envelope's R2 grant. An unknown line is never allowed, grant or not.
+# Residual risk: bun/npm/pytest/tsc/cargo/go execute repo code; no allowlist can close that (the SDK sandbox bounds it).
+commands:
+  # Read-only
+  ls: {fs: read, cluster: true, operands: path, flags: [-l, -a, -h, "-1", -R, -t, -r, -S, -d, -F, -A]}
+  cat: {fs: read, cluster: true, operands: path, flags: [-n, -b, -s]}
+  head: {fs: read, operands: path, flags: ["-n:num", "-c:num", -NUM]}
+  tail: {fs: read, operands: path, flags: ["-n:num", "-c:num", -NUM]}
+  wc: {fs: read, cluster: true, operands: path, flags: [-l, -w, -c, -m]}
+  stat: {fs: read, operands: path, flags: []}
+  diff: {fs: read, cluster: true, operands: path, flags: [-u, -q, -w, -b, -i, --brief]}
+  du: {fs: read, cluster: true, operands: path, flags: [-s, -h, -a, -c, -k, "-d:num", "--max-depth:num", --summarize]}
+  tree: {fs: read, cluster: true, operands: path, flags: [-a, -d, -f, -i, -F, -s, -h, "-L:num"]}
+  sort: {fs: read, cluster: true, operands: path, flags: [-n, -r, -u, -f, -h, -V, -b, -d, -s, "-k:word", "-t:word"]}
+  uniq: {fs: read, cluster: true, operands: path, max: 1, flags: [-c, -d, -u, -i]}
+  grep: {fs: read, cluster: true, operands: pattern, flags: [-i, -n, -l, -c, -w, -v, -F, -E, -h, -H, -o, -q, "-A:num", "-B:num", "-C:num", "-m:num"]}
+  rg:
+    fs: read
+    cluster: true
+    operands: pattern
+    flags: [-i, -n, -l, -c, -w, -v, -F, -s, -S, -N, -o, -q, -x, -H, -I, --no-heading, --files, --count, --files-with-matches, --line-number, --ignore-case, --smart-case, --fixed-strings, --word-regexp, --invert-match, --only-matching, --json, --stats, --no-filename, --with-filename, "-A:num", "-B:num", "-C:num", "-m:num", "-t:word", "-T:word", "-e:word", "--type:word", "--type-not:word", "--max-count:num", "--max-depth:num", "--context:num"]
+  find:
+    fs: read
+    operands: path
+    flags: ["-name:word", "-iname:word", "-type:word", "-maxdepth:num", "-mindepth:num", -print, -empty]
+  sed: {fs: read, operands: sed, flags: [-n]}
+  # No file access
+  pwd: {fs: none, operands: none, flags: []}
+  echo: {fs: none, operands: any, flags: []}
+  which: {fs: none, operands: word, flags: []}
+  basename: {fs: none, operands: word, flags: []}
+  dirname: {fs: none, operands: word, flags: []}
+  date: {fs: none, operands: none, flags: [-u]}
+  "true": {fs: none, operands: none, flags: []}
+  "false": {fs: none, operands: none, flags: []}
+  # Write inside the work dirs (never into a .git dir)
+  mkdir: {class: R1, fs: write, operands: path, flags: [-p]}
+  touch: {class: R1, fs: write, operands: path, flags: []}
+  cp: {class: R1, fs: write, operands: path, flags: [-r, -R, -v, -n]}
+  mv: {class: R1, fs: write, operands: path, flags: [-v, -n]}
+  # Test runners and the location's own tools (they run repo code; the sandbox bounds them)
+  tsc: {class: R1, fs: write, operands: none, flags: [--noEmit, "-p:path"]}
+  biome:
+    class: R1
+    fs: write
+    sub:
+      check: {operands: path, flags: ["--diagnostic-level:word"]}
+      lint: {operands: path, flags: ["--diagnostic-level:word"]}
+  pytest: {class: R1, fs: write, cluster: true, operands: path, flags: [-q, -v, -x, "-k:word", "--tb:word"]}
+  bun:
+    class: R1
+    fs: write
+    sub:
+      test: {operands: path, flags: [--bail, --coverage, "-t:word", "--timeout:num"]}
+      run: {operands: script, flags: []}
+  bunx:
+    class: R1
+    fs: write
+    sub:
+      tsc: {operands: none, flags: [--noEmit, "-p:path"]}
+      biome check: {operands: path, flags: ["--diagnostic-level:word"]}
+      biome lint: {operands: path, flags: ["--diagnostic-level:word"]}
+  npm: {class: R1, fs: write, sub: {test: {operands: none, flags: []}, run: {operands: script, flags: []}}}
+  pnpm: {class: R1, fs: write, sub: {test: {operands: none, flags: []}, run: {operands: script, flags: []}}}
+  yarn: {class: R1, fs: write, sub: {test: {operands: none, flags: []}, run: {operands: script, flags: []}}}
+  cargo: {class: R1, fs: write, sub: {test: {operands: none, flags: []}, check: {operands: none, flags: []}}}
+  go: {class: R1, fs: write, sub: {test: {operands: path, flags: [-v, "-run:word", "-count:num"]}}}
+  # Destructive or external: the effect tools do these
+  rm: {class: R2, operands: any, use: DeletePaths}
+  rmdir: {class: R2, operands: any, use: DeletePaths}
+  unlink: {class: R2, operands: any, use: DeletePaths}
+  git:
+    fs: read
+    sub:
+      status: {cluster: true, operands: path, flags: [-s, --short, -b, --branch, --porcelain, -z, --ignored, "--untracked-files:word"]}
+      diff:
+        cluster: true
+        operands: path
+        flags: [--cached, --staged, --stat, --name-only, --name-status, --shortstat, --numstat, --no-color, -w, --check, "--unified:num", -p, --patch, --no-patch, -s]
+      log:
+        cluster: true
+        operands: path
+        flags: [--oneline, --stat, --graph, --decorate, --all, --no-merges, --merges, --first-parent, --reverse, -p, --patch, --name-only, --name-status, --no-color, --abbrev-commit, -NUM, "-n:num", "--max-count:num", "--author:word", "--since:word", "--until:word", "--grep:word", "--format:word", "--pretty:word", "-S:word"]
+      show:
+        cluster: true
+        operands: path
+        flags: [--stat, --name-only, --name-status, --no-color, --oneline, -s, --no-patch, --abbrev-commit, "--format:word", "--pretty:word"]
+      blame: {operands: path, flags: ["-L:word", -w, -e]}
+      rev-parse: {operands: path, flags: [--abbrev-ref, --show-toplevel, --git-dir, --is-inside-work-tree, --short, --verify, --show-prefix]}
+      ls-files: {cluster: true, operands: path, flags: [-m, -o, -d, -s, -z, --others, --cached, --exclude-standard, --deleted, --modified]}
+      branch: {cluster: true, operands: none, flags: [-a, -r, -v, -vv, --show-current, --list]}
+      tag: {operands: none, flags: [-l, --list]}
+      remote: {operands: none, flags: [-v, --verbose]}
+      stash list: {operands: none, flags: []}
+      stash push: {class: R1, fs: write, operands: none, flags: [--include-untracked]}
+      stash pop: {class: R1, fs: write, operands: none, flags: []}
+      stash: {class: R1, fs: write, operands: none, flags: []}
+      add: {class: R1, fs: write, cluster: true, operands: path, flags: [-A, --all, -u, -v, -n, --dry-run]}
+      commit: {class: R1, fs: write, operands: none, flags: ["-m:msg", -a, --amend, --no-edit, --allow-empty, -q]}
+      # An existing branch (`checkout main`) or a new one (`checkout -b new [base]`); a name that is also a FILE in the cwd is refused
+      # in code (git would restore the file). `-f`, `--detach`, `--` and path forms are not listed.
+      checkout: {class: R1, fs: write, operands: ref, flags: ["-b:ref"]}
+      switch: {class: R1, fs: write, operands: ref, flags: ["-c:ref"]}
+      # R2 rows: listed, so they run only when the envelope grants R2; never a default branch for -D, no --hard, no force.
+      reset: {class: R2, fs: write, operands: path, flags: [--soft, --mixed, -q]}
+      restore: {class: R2, fs: write, operands: path, flags: [--staged, -S, --worktree, -W]}
+      "branch -D": {class: R2, fs: write, operands: delref, flags: []}
+      # A dry run only (`-n` is required): the real clean is not listed.
+      clean: {cluster: true, operands: none, flags: [-n, -d], require: [-n]}
+      # A worktree only under the run's worktrees dir (checked in code); the branch is a name, never a path.
+      "worktree add": {class: R1, fs: write, operands: worktree, flags: ["-b:ref"]}
+      "worktree list": {operands: none, flags: [--porcelain]}
+      merge: {class: R2, operands: any, use: MergeBranch}
+      push: {class: R3, operands: any, use: GitPush}
+  gh:
+    fs: none
+    sub:
+      pr view: {operands: plain, flags: ["--json:word"]}
+      pr checks: {operands: plain, flags: []}
+      pr list: {operands: none, flags: ["--json:word", "--state:word", "--limit:num"]}
+      pr create: {class: R3, operands: any, use: CreatePullRequest}

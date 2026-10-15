@@ -66,6 +66,8 @@ export interface RoleDefinition {
   surface?: "space" | "control" | "lead";
   /** No SDK subagent tools (Agent, SendMessage, ListAgents): not offered and denied by the guard. Lead and workers set it (depth 1). Omitted = allowed. */
   noSubagents?: boolean;
+  /** Shell of a role with the `shell` capability: `read` = read-only commands only (allowlist class R0, fail closed). Omitted = the full shell policy (a worker with an envelope gets the R0 + R1 allowlist). */
+  shellMode?: "read";
   /** The lead may dispatch this role as a worker (`DispatchAgent`); LEAD.md lists these roles. Omitted = not dispatchable. */
   dispatchable?: boolean;
   /** In-process app MCP servers the role gets (names in `APP_MCP_TOOLS`; the caller supplies the instances). Omitted = none. */

@@ -10,6 +10,7 @@ import type { AppServersFactory } from "../../mcp/mcp-servers";
 import type { QueryFn } from "../../runtime/run-agent";
 import type { AskQuestion } from "../../runtime/tool-permissions";
 import type { SessionRow } from "../../storage/session-store";
+import type { DispatchEnvelope } from "../approval/envelope";
 import type { RunLimiter } from "../turns/run-limiter";
 import type { SteerRegistry } from "../turns/steer-registry";
 
@@ -78,6 +79,8 @@ export interface RoleRunInput {
   extraSystem?: string[];
   /** Dispatched worker run: no SDK subagent tools even when the role allows them (depth 1, dev included). */
   noSubagents?: boolean;
+  /** Envelope of a dispatched worker: its shell is an allowlist and every tool call is checked against it. Omitted = no envelope. */
+  envelope?: DispatchEnvelope;
   /** Where the typed question of a worker's AskUserQuestion goes instead of the owner (the run's `code` hook); omitted = the owner's buttons. */
   askRelay?: (questions: AskQuestion[]) => Promise<Record<string, string> | undefined>;
   /** Continue this saved session in its cwd (interrupt Resume, `/go`): the task's own, never the thread's. */

@@ -20,6 +20,7 @@ import { createPermissionWatch } from "./permission-watch";
 import type { SteerHook } from "./run-input-channel";
 import { consumeStream, type QueryFn, type StreamResult } from "./run-stream";
 import type { RunControlEvent } from "./run-supervisor";
+import { SandboxUnavailableError } from "./sandbox-errors";
 import { buildSdkOptions, roleConfig } from "./sdk-options";
 import { NO_SKILLS, type RunSkills } from "./skills-plugin/plugin-builder";
 import { buildRoleSkills } from "./skills-plugin/role-skills";
@@ -156,7 +157,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   try {
     sk = buildRoleSkills(role, input.skillsWorkspace, config.agentHome);
     // Auto mode is requested here and confirmed by the SDK init message (permission-watch.ts).
-    const requestedMode = resolvePermissionMode(role, config);
+    const requestedMode = resolvePermissionMode(role, config, input.guard);
     const autoState: ModeActive = { active: requestedMode === "auto" };
     const bypassState: ModeActive = { active: requestedMode === "bypassPermissions" };
     const options = buildSdkOptions(role, input, {
@@ -193,6 +194,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     res = input.steer
       ? await consumeSteered({ ...common, first: input.prompt, hook: input.steer, runId })
       : await consumeStream({ ...common, prompt: input.prompt, onMessage: input.onMessage });
+    // A run that REQUIRED the OS sandbox and could not get it fails with a code, never a hang or an unsandboxed retry.
+    if (options.sandbox && res.sandboxFailure)
+      throw new SandboxUnavailableError(res.sandboxFailure);
   } finally {
     sk.cleanup();
     recorder.finish(res.outcome, res.usage);

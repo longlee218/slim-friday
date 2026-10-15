@@ -5,6 +5,7 @@
  *
  *   /stop                    -> stop
  *   /status                  -> status   (answered by app code, no model)
+ *   /purge                   -> purge    (empties the trash of this thread's goals, answered by app code)
  *   /find <keywords>         -> unchanged (answered by the find handler, no model; a plain "find: x" is NOT a command)
  *   /go [+usd]               -> go [+usd]
  *   /remember <text>         -> remember: <text>      (NOT an app command: a plain message for the agent, which saves the note)
@@ -17,6 +18,7 @@
 export const SLASH_NAMES = [
   "stop",
   "status",
+  "purge",
   "find",
   "go",
   "remember",
@@ -42,6 +44,8 @@ export function slashToLegacy(input: string): string {
       return arg ? input : "stop";
     case "status":
       return arg ? input : "status";
+    case "purge":
+      return arg ? input : "purge";
     case "find":
       return input; // not mapped: only the slash form is a command (the find handler matches `/find <keywords>`)
     case "go":

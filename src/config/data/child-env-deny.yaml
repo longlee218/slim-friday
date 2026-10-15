@@ -41,3 +41,35 @@ prefixes:
 
 # Schema keys that are on purpose NOT denied (the agent may see them). None today.
 passthrough: []
+
+# Extra denies for a dispatched WORKER's process: its Bash tool inherits the SDK child's env, and a worker runs repo code. The
+# app's own provider credentials are added AFTER this filter (runtime/sdk-env.ts) and the SDK strips them from the tools' env
+# (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1, set for workers). git / gh auth never reaches a worker: the effect tools use it in their own
+# subprocess (approval/git-run.ts).
+worker:
+  exact:
+    - GH_TOKEN
+    - GITHUB_TOKEN
+    - SSH_AUTH_SOCK
+    - SSH_AGENT_PID
+    - PASSWORD
+  prefixes:
+    - GH_
+    - GITHUB_
+    - AWS_
+    - OPENROUTER_
+    - ANTHROPIC_
+    - DISCORD_
+    - JEV_
+    - AZURE_
+    - GOOGLE_
+    - GCP_
+    - GIT_ # git's own switches (GIT_EXTERNAL_DIFF, GIT_SSH_COMMAND, GIT_DIR ...), except the identity names kept below
+  # Any variable whose name has a secret-looking word between `_`: API_KEY, MY_TOKEN, DB_PASSWORD, X_SECRET.
+  pattern: "PASSWORD|PASSWD|SECRET|TOKEN|APIKEY|(^|_)(KEY|PWD|CREDENTIALS?|DSN|DATABASE_URL|CONNECTION_STRING)($|_)"
+  keep:
+    - PWD # the shell's own current dir, not a password
+    - GIT_AUTHOR_NAME
+    - GIT_AUTHOR_EMAIL
+    - GIT_COMMITTER_NAME
+    - GIT_COMMITTER_EMAIL

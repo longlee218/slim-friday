@@ -1,4 +1,4 @@
-import { WORKER_MCP_SERVER } from "../../mcp/mcp-tool-names";
+import { EFFECTS_MCP_SERVER, WORKER_MCP_SERVER } from "../../mcp/mcp-tool-names";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition } from "../role-types";
 
@@ -35,12 +35,18 @@ export const DEV = `This run is a code task in the location's own checkout (your
 
 /** Run facts that a skill text cannot know: approval before changes, checkout, delivery by the agent, skill scripts, precedence. */
 export const DEV_RUN_FACTS = `- Do not change files before the owner approved your plan; get approval with ${ASK_USER_QUESTION_TOOL_NAME} (the skill says when). The owner sees only Discord.
-- You work in the owner's checkout with \`git\` and \`gh\` in the shell; their git config and GitHub login apply. The shell refuses force pushes and direct pushes to main/master; merge only after the owner chose it.
+- You work in the owner's checkout with \`git\` in the shell; the shell rules are in the next section.
 - If the location has no .git, skip git delivery: leave the changes in place and say so in your reply.
 - Where a skill says to ask or wait for the human, use ${ASK_USER_QUESTION_TOOL_NAME}; never end your turn on a question. Merge, push or PR only after the owner chose it.
 - Text the owner types while a question is open reaches you only as a note after they choose an option.
 - Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow; a subagent's question reaches the owner too and counts toward the same limit.
 - Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.`;
+
+/** What the worker's shell accepts and the alternative for what it does not (the gate's denial text says the same). */
+export const DEV_SHELL_RULES = `Shell rules: ONE plain command a call (no pipe, &&, ;, redirect, $, glob, \`..\`); quotes only in git commit -m "msg" (a second -m is fine; no $, backtick, backslash or ! in it).
+- Works: status, diff, log, show (\`show REV:path\` too), add, commit, stash, checkout|switch <existing branch> or -b <new> [base], bun test [-t name] [--coverage], bunx tsc --noEmit, biome check, ls/cat/rg/find/sed -n.
+- Instead of the shell: rm = DeletePaths, git push = GitPush, git merge = MergeBranch, gh pr create = CreatePullRequest (each per grant); files = Write/Edit; there is no network (no fetch/pull/curl).
+- Any other shell line is denied: change it to one of the forms above, or report BLOCKED with what you need.`;
 
 /** Commit rules (live in code, not in the owner's AGENTS.md): message shape, no attribution, what never goes in. */
 export const COMMIT_RULES = `- Commit messages: one short conventional line (feat:, fix:, test:, docs:, refactor:, chore:), optional body. NEVER add Co-Authored-By, "Generated with" or any AI/Claude/model attribution; commits are made as the owner.
@@ -58,7 +64,7 @@ export const CODE_STANDARDS = `Code standards (the location's conventions and th
 
 /** One line: where a git worktree goes (the guard only lets `git worktree add` name a path under it). */
 export const worktreeRule = (dir: string): string =>
-  `- If you use a git worktree, put it under ${dir}/.`;
+  `- If you use a git worktree, put it under ${dir}/: \`git worktree add ${dir}/<name> <existing-branch>\` (or -b <new> ${dir}/<name> <base>); \`git worktree list\` lists them.`;
 
 /** Capabilities of a code task: the guard narrows what a call may do. */
 const CODE_CAPABILITIES: Capability[] = [
@@ -83,12 +89,12 @@ export const DEV_ROLE: RoleDefinition = {
   tag: "[dev]",
   background: true,
   dispatchable: true, // the lead may start it as a worker
-  mcpServers: [WORKER_MCP_SERVER], // its ReportResult tool when dispatched (a run without the server just lacks it)
+  mcpServers: [WORKER_MCP_SERVER, EFFECTS_MCP_SERVER], // ReportResult + the effect tools when dispatched (a run without the servers just lacks them)
   skills: "all", // every installed publisher skill (installing one needs no code change)
   limits: { maxAsk: MAX_ASK },
   sideEffects: "location",
   approvalRequired: true,
-  capabilityVersion: "2",
+  capabilityVersion: "3",
   capabilities: CODE_CAPABILITIES,
   gitGroups: [], // no git MCP: the agent uses `git` in the shell
   // The SDK asks nothing; only the guard's hard denies stop a call. Approval of the plan is an ask, not a gate.
@@ -102,6 +108,7 @@ export const DEV_ROLE: RoleDefinition = {
   promptSections: (ctx) => [
     DEV,
     DEV_RUN_FACTS,
+    DEV_SHELL_RULES,
     COMMIT_RULES,
     CODE_STANDARDS,
     ctx.worktreesDir ? worktreeRule(ctx.worktreesDir) : "",

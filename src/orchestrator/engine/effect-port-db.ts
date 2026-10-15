@@ -7,6 +7,7 @@ import { childrenOf, getItem, goalOf, type ItemRow } from "../../storage/owned-i
 import { insertOwnedTask, threadOfTask } from "../../storage/owned-task-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
+import { GRANT_TOOL, grantRowId } from "../approval/load-envelope";
 import { appendEvent } from "../events/event-store";
 import type { PolicyEnv } from "../strategy/caps";
 import type {
@@ -132,6 +133,17 @@ export function createDbEffectPort(d: PortDeps): DbEffectPort {
         grantedBy: "role",
         result: JSON.stringify({ ok: true, goalId, itemIds }),
       });
+      // The grants the owner confirmed are read back by every worker start (the envelope), never kept in memory.
+      if (x.grants?.length)
+        appendEffect(db, {
+          id: grantRowId(goalId),
+          threadId,
+          goalId,
+          tool: GRANT_TOOL,
+          scope: JSON.stringify(x.grants),
+          grantedBy: "owner",
+          result: "granted",
+        });
       return { goalId, itemIds, abort: old.all };
     })();
 

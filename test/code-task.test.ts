@@ -82,11 +82,13 @@ test("parseMessageCommand: go, go +<usd>; invalid raises are plain messages; Res
   expect(parseMessageCommand(RESUME_PROMPT)).toEqual({ kind: "resume" });
 });
 
-test("code task runs in bypass mode in the location with write tools and no allowedTools", async () => {
+test("code task (a dispatched worker) runs in default mode, never bypass, in the location with write tools and no allowedTools", async () => {
   const { gw } = fakeGateway();
   const { env, opts, location, qa } = await runCodeTask(gw);
   expect(qa).toHaveLength(1); // one run: no assistant turn before it
-  expect(opts.permissionMode).toBe("bypassPermissions");
+  // A worker is never auto-approved (no bypass flag, no classifier): the guard answers every call, a sandbox ask included.
+  expect(opts.permissionMode).toBe("default");
+  expect(opts.allowDangerouslySkipPermissions).toBeUndefined();
   expect(opts.tools).toContain(WRITE_TOOL_NAME);
   expect(opts.allowedTools).toBeUndefined(); // would bypass canUseTool
   expect(opts.cwd).toBe(realpathSync(location));
@@ -102,7 +104,7 @@ test("code task runs in bypass mode in the location with write tools and no allo
   expect(env.db.query("SELECT type FROM turns").all()).toEqual([{ type: "code" }]);
 });
 
-test("canUseTool: writes only in the workspace; a feedback report asks the owner", async () => {
+test("canUseTool: writes only in the workspace; a feedback report is outside a worker envelope", async () => {
   const { gw, asked } = fakeGateway();
   const { opts } = await runCodeTask(gw);
   const can = opts.canUseTool as (t: string, i: any, o: any) => Promise<any>;
@@ -116,13 +118,17 @@ test("canUseTool: writes only in the workspace; a feedback report asks the owner
   expect((await can(BASH_TOOL_NAME, { command: "rm -rf /etc/x" }, {})).behavior).toBe("deny");
   expect(asked).toHaveLength(0); // allow/deny decisions never bother the owner
 
-  // Bash never asks; a tool the owner must decide (SendFeedback) does.
-  expect((await can(BASH_TOOL_NAME, { command: "bun add left-pad" }, {})).behavior).toBe("allow");
-  expect(asked).toHaveLength(0);
-  expect((await can(SEND_FEEDBACK_TOOL_NAME, { type: "bug", title: "t" }, {})).behavior).toBe(
-    "allow",
+  // Bash never asks. A dispatched worker has an envelope: a tool the guard would ask about (SendFeedback) is unknown
+  // = R2 = denied (fail closed), the owner is not bothered.
+  expect((await can(BASH_TOOL_NAME, { command: "bun run lint" }, {})).behavior).toBe("allow");
+  expect((await can(BASH_TOOL_NAME, { command: "bun add left-pad" }, {})).behavior).toBe("deny"); // not listed: unknown = R2
+  expect((await can(BASH_TOOL_NAME, { command: "git push origin feat" }, {})).behavior).toBe(
+    "deny",
   );
-  expect(asked[0]).toMatchObject({ kind: "request", req: { tool: SEND_FEEDBACK_TOOL_NAME } });
+  expect((await can(SEND_FEEDBACK_TOOL_NAME, { type: "bug", title: "t" }, {})).behavior).toBe(
+    "deny",
+  );
+  expect(asked).toHaveLength(0);
 });
 
 test("a tool the owner denies becomes a deny the agent can act on", async () => {
@@ -133,20 +139,22 @@ test("a tool the owner denies becomes a deny the agent can act on", async () => 
   expect(feedback).toMatchObject({ behavior: "deny" });
 });
 
-test("PreToolUse hook denies dangerous Bash and lets other Bash run; in bypass an owner-decided tool is let through (the SDK asks nothing)", async () => {
+test("PreToolUse hook denies dangerous Bash and lets allowlisted Bash run; a tool outside the worker envelope is denied even in bypass", async () => {
   const { gw } = fakeGateway();
   const { opts } = await runCodeTask(gw);
   const hook = opts.hooks.PreToolUse[0].hooks[0] as (i: any) => Promise<any>;
   const call = (command: string) =>
     hook({ hook_event_name: "PreToolUse", tool_name: BASH_TOOL_NAME, tool_input: { command } });
   expect((await call("sudo ls")).hookSpecificOutput.permissionDecision).toBe("deny");
-  expect(await call("less notes.txt")).toEqual({ continue: true });
+  expect(await call("ls notes.txt")).toEqual({ continue: true });
+  expect((await call("less notes.txt")).hookSpecificOutput.permissionDecision).toBe("deny"); // a pager hangs
   const feedback = await hook({
     hook_event_name: "PreToolUse",
     tool_name: SEND_FEEDBACK_TOOL_NAME,
     tool_input: { type: "bug", title: "t" },
   });
-  expect(feedback).toEqual({ continue: true });
+  // A worker has an envelope: an owner-decided tool is outside it, so even in bypass it is denied.
+  expect(feedback.hookSpecificOutput.permissionDecision).toBe("deny");
   expect(await call("git status")).toEqual({ continue: true });
 });
 

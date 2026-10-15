@@ -22,6 +22,7 @@ interface SlashDefinition {
 export const SLASH_DEFINITIONS: Record<SlashName, SlashDefinition> = {
   stop: { description: "Stop the run of this thread" },
   status: { description: "Show what the running task is doing" },
+  purge: { description: "Empty the trash of this thread's goals now" },
   find: {
     description: "Find threads of this space by keywords",
     arg: { name: "keywords", description: "Words to look for", required: true, kind: "string" },

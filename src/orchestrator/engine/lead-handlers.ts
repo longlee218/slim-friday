@@ -7,7 +7,7 @@ import {
   STEER_TASK_TOOL,
   TASK_STATUS_TOOL,
 } from "../../mcp/mcp-tool-names";
-import { checkDispatch } from "../strategy/dispatch-policy";
+import { checkDispatch, dispatchQuestion } from "../strategy/dispatch-policy";
 import { type LeadToolContext, leadCall, type Reply, refuse } from "./lead-call";
 import type {
   AskOwnerInput,
@@ -29,11 +29,23 @@ const badTask = (id: string): Reply => refuse(BAD_TASK, `Task ${id} is not in th
 
 /** DispatchAgent: check the policy, then one port transaction writes goal, items, `start` events and the audit row. */
 export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Promise<Reply> =>
-  leadCall(ctx, DISPATCH_AGENT_TOOL, input, (key) => {
+  leadCall(ctx, DISPATCH_AGENT_TOOL, input, async (key) => {
     const { port } = ctx;
     const caps = { ...port.caps(), dispatchedThisRun: ctx.run.dispatched };
     const check = checkDispatch(port.state(), input, caps, port.env());
     if (!check.ok) return { reply: refuse(check.code, check.message) };
+    // Effect actions the lead declared (push, PR, merge): ONE question to the owner, listing the scope. No = nothing starts.
+    const question = dispatchQuestion(input.strategy, check.grants);
+    if (question) {
+      const a = await port.askOwner({ question, options: ["Yes", "No"] });
+      if (a.answer !== "Yes")
+        return {
+          reply: refuse(
+            "OWNER_DENIED",
+            "The owner did not allow those actions: dispatch again without them.",
+          ),
+        };
+    }
     const w = port.dispatch({
       key,
       strategy: input.strategy,
@@ -41,6 +53,7 @@ export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Prom
       reason: input.reason,
       ...(input.supersedes && { supersedes: input.supersedes }),
       items: check.items,
+      ...(check.grants.length && { grants: check.grants }),
     });
     if (!w.ok) return { reply: refuse(w.code, w.message) };
     ctx.run.dispatched += 1;

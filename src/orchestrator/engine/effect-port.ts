@@ -1,4 +1,5 @@
 import type { ItemRow, ResultKind } from "../../storage/owned-item-store";
+import type { EffectGrant } from "../approval/envelope";
 import type { EventKind } from "../events/event-types";
 import type { PlanDoc, PlanStatusView } from "../plan/plan-types";
 import type { Caps, GoalState, PolicyEnv } from "../strategy/caps";
@@ -70,6 +71,8 @@ export interface DispatchWrite {
   reason: string;
   supersedes?: string;
   items: ItemDraft[];
+  /** Effect actions the owner allowed for the goal (stored as the goal's grant row). */
+  grants?: EffectGrant[];
 }
 
 /** Result of `dispatch`. */

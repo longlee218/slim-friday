@@ -2,7 +2,11 @@ import { expect, test } from "bun:test";
 /** Same fake SDK as the main code-flow tests, copied small: the worker commits b.txt. */
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { MEMORY_MCP_SERVER, WORKER_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import {
+  EFFECTS_MCP_SERVER,
+  MEMORY_MCP_SERVER,
+  WORKER_MCP_SERVER,
+} from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { g, makeLocation } from "./git-fixture";
 import {
@@ -84,7 +88,8 @@ test("two workspaces with location `real`: every task runs in the channel's work
   await until(() => second() !== undefined);
   expect(second().options.cwd).toContain("/w-b/");
   expect(Object.keys(second().options.mcpServers).sort()).toEqual([
+    EFFECTS_MCP_SERVER,
     MEMORY_MCP_SERVER,
     WORKER_MCP_SERVER,
-  ]); // no git MCP, no identity from the app
+  ]); // no git MCP, no identity from the app; the effect tools next to ReportResult
 });

@@ -11,6 +11,7 @@
  * short and never echo command text, so secrets are not leaked to the agent.
  */
 import { basename, isAbsolute, resolve } from "node:path";
+import { allowlistGate } from "../orchestrator/approval/shell-gate";
 import { parseCommand, type Segment } from "./bash-parser";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { isSecretPath } from "./deny-dangerous";
@@ -217,11 +218,19 @@ const rawDanger = (command: string, ctx: GuardrailContext): boolean =>
   command.split(/[\s'"`;&|()<>=]+/).some((w) => w !== "" && isSecretPath(w));
 
 /**
+ * Decide a Bash command line: the deny list first (see `denyListCheck`), then the worker allowlist.
+ */
+export function checkBash(command: string, ctx: GuardrailContext): Decision {
+  const d = denyListCheck(command, ctx);
+  return d.decision === "deny" ? d : (allowlistGate(command, ctx) ?? d);
+}
+
+/**
  * Decide a Bash command line: the first segment that hits a deny rule decides, else allow. A line that still cannot
  * be tokenized (unbalanced quote, paren or backtick) gets a coarse raw-text check instead: a match is denied with a
  * "rewrite" reason, anything else runs (the parser is best effort and the owner chose a deny list).
  */
-export function checkBash(command: string, ctx: GuardrailContext): Decision {
+function denyListCheck(command: string, ctx: GuardrailContext): Decision {
   let segments: Segment[];
   try {
     segments = parseCommand(command);

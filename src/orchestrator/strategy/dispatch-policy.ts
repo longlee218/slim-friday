@@ -1,3 +1,7 @@
+import { MERGE_BRANCH_TOOL } from "../../mcp/mcp-tool-names";
+import { askNeeded } from "../approval/ask-policy";
+import { effectRisk } from "../approval/check-envelope";
+import type { EffectGrant } from "../approval/envelope";
 import {
   type Caps,
   CHAIN_CAP,
@@ -21,12 +25,24 @@ export interface Assignment {
   dependsOn: string[];
 }
 
+/** One action the lead asks the owner to allow for the goal (DeletePaths needs none: the trash is restorable within bounds). */
+export interface GrantReq {
+  tool: EffectGrant["tool"];
+  location: string;
+  /** GitPush / CreatePullRequest: the one branch. */
+  branch?: string;
+  /** MergeBranch: the one branch merged into. */
+  into?: string;
+}
+
 /** A dispatch request as the policy reads it. */
 export interface DispatchReq {
   strategy: "DIRECT" | "DELEGATE";
   assignments: Assignment[];
   /** Id of the open goal this request replaces (required while a goal is open). */
   supersedes?: string;
+  /** Effect actions the workers need beyond the default envelope (R0 + R1, deletes to the trash). Omitted = none. */
+  effects?: GrantReq[];
 }
 
 /** Refusal codes, checked in this order. */
@@ -39,6 +55,7 @@ export type RefusalCode =
   | "TOO_MANY"
   | "NOT_WORKER"
   | "BAD_LOCATION"
+  | "BAD_GRANT"
   | "CYCLE"
   | "NEEDS_PLAN";
 
@@ -49,7 +66,7 @@ export interface ItemDraft extends Assignment {
 
 /** The policy answer. */
 export type DispatchCheck =
-  | { ok: true; items: ItemDraft[] }
+  | { ok: true; items: ItemDraft[]; grants: EffectGrant[] }
   | { ok: false; code: RefusalCode; message: string };
 
 const refuse = (code: RefusalCode, message: string): DispatchCheck => ({
@@ -122,6 +139,17 @@ export function checkDispatch(
   const badLoc = req.assignments.find((a) => a.location && !env.locations.includes(a.location));
   if (badLoc)
     return refuse("BAD_LOCATION", `Location ${badLoc.location} is not in this workspace.`);
+  const grants = req.effects ?? [];
+  if (grants.some((g) => !env.locations.includes(g.location)))
+    return refuse(
+      "BAD_LOCATION",
+      "An effect grant names a location that is not in this workspace.",
+    );
+  if (grants.some((g) => (g.tool === MERGE_BRANCH_TOOL ? !g.into : !g.branch)))
+    return refuse(
+      "BAD_GRANT",
+      "GitPush and CreatePullRequest need a branch; MergeBranch needs into.",
+    );
   const shape = depsShape(req.assignments);
   if (shape === "bad")
     return refuse("CYCLE", "dependsOn must name other keys of this request, without a cycle.");
@@ -140,5 +168,32 @@ export function checkDispatch(
   return {
     ok: true,
     items: req.assignments.map((a) => ({ ...a, status: a.dependsOn.length ? "pending" : "ready" })),
+    grants: grants.map((g) => ({
+      tool: g.tool,
+      scope: {
+        location: g.location,
+        ...(g.branch && { branch: g.branch }),
+        ...(g.into && { into: g.into }),
+      },
+    })),
   };
+}
+
+/**
+ * The one question of a DIRECT / DELEGATE dispatch that grants effect actions (a known scope = asked at dispatch, brainstorm
+ * 5.14), or undefined when nothing needs the owner. A plan asks inside its own approval instead.
+ */
+export function dispatchQuestion(
+  strategy: DispatchReq["strategy"],
+  grants: EffectGrant[],
+): string | undefined {
+  const asked = grants.filter(
+    (g) =>
+      askNeeded(strategy, { risk: effectRisk(g.tool), tool: g.tool }, false, true) ===
+      "at_dispatch",
+  );
+  if (!asked.length) return undefined;
+  const line = (g: EffectGrant) =>
+    `- ${g.tool} on ${g.scope.location} (${g.scope.into ? `into ${g.scope.into}` : `branch ${g.scope.branch}`})`;
+  return `Allow these actions for this goal?\n${asked.map(line).join("\n")}`;
 }
