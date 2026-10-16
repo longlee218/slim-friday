@@ -63,7 +63,7 @@ export interface RoleRunInput {
   channelId?: string;
   /** Locations the run may use. */
   locations: Location[];
-  /** The task's abort controller (`stop`, shutdown). */
+  /** The task's abort controller (`/stop`, shutdown). */
   ac: AbortController;
   /** Internal hint, extra budget and spent-so-far of this run (budget routing). */
   route?: Route;

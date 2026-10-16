@@ -42,7 +42,7 @@ export function createDiscordBot(
     memory,
     threads,
     attachments: createAttachmentDeps(config),
-    // Admin commands (init:workspace) run outside the turn handler, behind their own gate.
+    // Admin commands (/init-workspace) run outside the turn handler, behind their own gate.
     admin: createAdminHandler({
       home: config.agentHome,
       guildId: config.discordGuildId,

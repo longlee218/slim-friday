@@ -173,12 +173,12 @@ test("the 21st call of a run is refused; calls in parallel all land", async () =
   expect(over.text).toContain("limit");
 });
 
-test("a full file gives a tool error that names compact memory", async () => {
+test("a full file gives a tool error that names /compact", async () => {
   const s = setup();
   for (let i = 0; i < 20; i++) {
     const r = await s.call({ text: `${i} ${"x".repeat(380)}`, scope: "workspace" });
     if (r.isError) {
-      expect(r.text).toContain("compact memory");
+      expect(r.text).toContain("/compact");
       return;
     }
   }

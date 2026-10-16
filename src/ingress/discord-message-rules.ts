@@ -54,7 +54,7 @@ export type Route =
         | "empty"
         | "not_mentioned";
     }
-  /** Admin text (control channel, or `init:workspace:` typed anywhere): handled by the admin gate, never by the agent. */
+  /** Admin text (control channel, or `/init-workspace` typed anywhere): handled by the admin gate, never by the agent. */
   | { kind: "control"; prompt: string }
   /** Continue the session of the thread (or chat channel) the message is in. */
   | { kind: "thread"; prompt: string }

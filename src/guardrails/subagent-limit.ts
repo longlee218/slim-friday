@@ -1,4 +1,4 @@
-import { AGENT_TOOL_NAME, LEGACY_AGENT_TOOL_NAME } from "../tools/sdk-tool-names";
+import { AGENT_TOOL_NAME } from "../tools/sdk-tool-names";
 import type { Decision } from "./check-tool-call";
 
 /** Subagents that may run at once in one agent run (owner-set). The 51st concurrent start is denied. */
@@ -12,9 +12,8 @@ export interface SubagentLimit {
 /** A fresh counter (one per permission layer = one per run). */
 export const newSubagentLimit = (): SubagentLimit => ({ inFlight: new Set() });
 
-/** True for the tool that starts a subagent (`Agent`, legacy `Task`). */
-export const isSpawnCall = (tool: string): boolean =>
-  tool === AGENT_TOOL_NAME || tool === LEGACY_AGENT_TOOL_NAME;
+/** True for the tool that starts a subagent (`Agent`). */
+export const isSpawnCall = (tool: string): boolean => tool === AGENT_TOOL_NAME;
 
 /**
  * Known limits, plainly:

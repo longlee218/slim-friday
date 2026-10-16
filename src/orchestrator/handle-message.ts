@@ -68,7 +68,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     // `/purge`: the trash of this thread's goals is emptied after one owner click (app code; the owner-only ingress already filtered the sender).
     if (parsed.kind === "purge") {
       const language = messageLanguage(message);
-      // Plain text `purge` and `/purge` both land here: emptying the trash is final, so the owner confirms with one click.
+      // Emptying the trash is final, so the owner confirms with one click.
       return purgeThreadTrash(deps.db, config.agentHome, threadId, language, (summary) =>
         ownerConfirm(deps.approvals, {
           kind: "purge_trash",

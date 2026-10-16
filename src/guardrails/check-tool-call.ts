@@ -22,7 +22,6 @@ import {
   ENTER_WORKTREE_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
-  LEGACY_AGENT_TOOL_NAME,
   LIST_AGENTS_TOOL_NAME,
   LSP_TOOL_NAME,
   MONITOR_TOOL_NAME,
@@ -101,12 +100,7 @@ const WRITE_TOOLS = new Set([
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
 ]);
-const SUBAGENT_TOOLS = new Set([
-  AGENT_TOOL_NAME,
-  LEGACY_AGENT_TOOL_NAME,
-  SEND_MESSAGE_TOOL_NAME,
-  LIST_AGENTS_TOOL_NAME,
-]);
+const SUBAGENT_TOOLS = new Set([AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME, LIST_AGENTS_TOOL_NAME]);
 const READ_TOOLS = new Set([READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME, LSP_TOOL_NAME]);
 
 /**
@@ -163,8 +157,7 @@ function checkBase(
     return ctx.allowTools?.includes(toolName)
       ? { decision: "allow", reason: "app MCP tool of this role" }
       : { decision: "deny", reason: "unknown MCP tool" };
-  // `Task` is the legacy name of the Agent tool: same decision.
-  if (ctx.allowTools?.includes(toolName === LEGACY_AGENT_TOOL_NAME ? AGENT_TOOL_NAME : toolName))
+  if (ctx.allowTools?.includes(toolName))
     return { decision: "allow", reason: "tool allowed in this mode" };
   if (toolName === ASK_USER_QUESTION_TOOL_NAME) {
     return { decision: "allow", reason: "handled by approval flow" };

@@ -43,7 +43,7 @@ export interface MessageHandlerDeps {
   setup?: DiscordSetup;
   /** Admin handling for messages routed as `control` (gate + commands); never the agent. */
   admin?: (msg: Message, prompt: string) => Promise<void>;
-  /** Owner memory commands (`forget:`, `compact memory`): answered inline before any thread or task is created. */
+  /** Owner memory commands (`/forget`, `/compact`): answered inline before any thread or task is created. */
   memory?: MemoryRunner;
   /** Ports of the attachment reader (summary, saved copy, fetch); tests inject fakes. */
   attachments?: AttachmentDeps;
@@ -220,7 +220,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
           );
         return;
       }
-      // `stop` and `status` only make sense inside a thread that has a run.
+      // `/stop` and `/status` only make sense inside a thread that has a run.
       const threadOnly = threadOnlyNote(route.prompt);
       if (threadOnly) {
         await msg.reply({

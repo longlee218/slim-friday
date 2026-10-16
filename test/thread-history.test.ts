@@ -140,8 +140,8 @@ async function threadRun(content: string, fetch: () => Promise<unknown>) {
   return { messages, fetched, ms: Date.now() - t0 };
 }
 
-test("commands (slash and legacy) never wait for or call the history fetch", async () => {
-  for (const c of ["/stop", "stop", "/status", "/forget a long note here"]) {
+test("commands never wait for or call the history fetch", async () => {
+  for (const c of ["/stop", "/status", "/forget a long note here"]) {
     const r = await threadRun(c, () => new Promise(() => {}));
     expect(r.fetched).toBe(0);
     expect(r.ms).toBeLessThan(500);

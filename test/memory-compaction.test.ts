@@ -276,10 +276,10 @@ test("chat command: compact memory goes through the runner with the stub, replie
     config: env.config,
     llm: stub(bullets.slice(0, 10).join("\n")),
   });
-  const reply = await run({ channelId: TEST_CHANNEL, text: "compact memory dry-run" });
+  const reply = await run({ channelId: TEST_CHANNEL, text: "/compact dry-run" });
   expect(reply).toContain("DRY RUN");
   expect(reply).toContain("no compaction needed"); // the workspace file is small
   expect(reply).toContain(t.label);
-  const ops = await run({ where: "ops", channelId: "x", text: "gom nén" });
+  const ops = await run({ where: "ops", channelId: "x", text: "/compact" });
   expect(ops).toContain("workspace channel");
 });

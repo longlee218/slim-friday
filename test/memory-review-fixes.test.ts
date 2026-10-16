@@ -180,7 +180,7 @@ test("symlinked memory file: owner forget refused, compaction aborts", async () 
   writeFileSync(`${t.file}.real`, "# location memory\n");
   symlinkSync(`${t.file}.real`, t.file);
   const run = createMemoryRunner({ db: env.db, config: env.config });
-  expect(await run({ channelId: TEST_CHANNEL, text: "forget: should not land" })).toContain(
+  expect(await run({ channelId: TEST_CHANNEL, text: "/forget should not land" })).toContain(
     "symlink",
   );
   expect(readFileSync(`${t.file}.real`, "utf8")).toBe("# location memory\n");

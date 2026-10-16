@@ -1,26 +1,23 @@
-import { slashToLegacy } from "../commands/slash-commands";
+import { parseSlash } from "../commands/slash-commands";
 import { parseMemoryCommand } from "../memory/memory-commands";
 
-/** What an owner message means: a control command, or a plain message with an optional location hint. */
+/** What an owner message means: a slash control command, or a plain message (it goes to the thread's lead). */
 export type MessageCommand =
   | { kind: "stop" }
   /** `/status`: what the thread's task is doing, answered by app code (no model). */
   | { kind: "status" }
   /** `/purge` (owner, thread scoped): empty the trash of this thread's goals now (answered by app code). */
   | { kind: "purge" }
-  /** `forget:` / `compact memory` (see memory-commands.ts): answered by app code, never by the agent. `remember:` is NOT one: it is a plain message. */
+  /** `/forget` / `/compact` (see memory-commands.ts): answered by app code, never by the agent. */
   | { kind: "memory" }
-  /** A plain message (not a control command); it goes to the thread's lead. `location:<name>` is an optional hint. */
-  | { kind: "message"; location?: string; text: string };
+  /** Anything else, `/remember <text>` included (the agent saves the note); it goes to the lead. */
+  | { kind: "message" };
 
-/** Parse a message into one command. The only place that knows the `stop` / `location:` syntax (canonical `/stop`: legacy forms still work). */
+/** Parse a message into one command. Commands are slash commands only: a text such as "stop" is a plain message. */
 export function parseMessageCommand(input: string): MessageCommand {
-  const text = slashToLegacy(input).trim(); // L0: `/stop`, `/status` ... map onto the legacy forms below
-  if (text.toLowerCase() === "stop") return { kind: "stop" };
-  if (text.toLowerCase() === "status") return { kind: "status" };
-  if (text.toLowerCase() === "purge") return { kind: "purge" };
-  if (parseMemoryCommand(text)) return { kind: "memory" };
-  // The optional `location:<name>` hint is stripped from the text.
-  const pin = /^(?:location|repo):(\S+)\s*/i.exec(text);
-  return { kind: "message", location: pin?.[1], text: pin ? text.slice(pin[0].length) : text };
+  const slash = parseSlash(input);
+  if (slash?.name === "stop" || slash?.name === "status" || slash?.name === "purge")
+    return { kind: slash.name };
+  if (parseMemoryCommand(input)) return { kind: "memory" };
+  return { kind: "message" };
 }

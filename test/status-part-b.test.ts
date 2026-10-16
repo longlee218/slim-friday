@@ -109,10 +109,7 @@ const statusHandler = (db: Db, env: ReturnType<typeof makeEnv>) => {
 
 test("/status parses to the status command; with an argument it is a plain message", () => {
   expect(parseMessageCommand("/status")).toEqual({ kind: "status" });
-  expect(parseMessageCommand("/status foo")).toMatchObject({
-    kind: "message",
-    text: "/status foo",
-  });
+  expect(parseMessageCommand("/status foo")).toEqual({ kind: "message" });
 });
 
 test("/status: nothing running -> one line; no model call", async () => {

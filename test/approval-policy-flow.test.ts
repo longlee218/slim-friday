@@ -156,7 +156,7 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
   expect(readdirSync(trash)).toHaveLength(1);
   // Final, so it asks one click first (the plain word `purge` too): a no keeps the trash, a yes empties it.
   ownerAnswer = false;
-  expect(await h.send("purge")).toContain("Cancelled");
+  expect(await h.send("/purge")).toContain("Cancelled");
   expect(readdirSync(trash)).toHaveLength(1);
   expect(confirms.at(-1)).toContain("Empty the trash");
   ownerAnswer = true;
@@ -222,6 +222,6 @@ test("the dispatch lists effect grants: one owner question, No = nothing starts,
 
 test("/purge is a command of its own", () => {
   expect(parseMessageCommand("/purge")).toEqual({ kind: "purge" });
-  expect(parseMessageCommand("purge")).toEqual({ kind: "purge" });
+  expect(parseMessageCommand("purge")).toEqual({ kind: "message" });
   expect(parseMessageCommand("/purge everything").kind).toBe("message");
 });

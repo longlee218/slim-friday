@@ -1,4 +1,4 @@
-import { slashToLegacy } from "../commands/slash-commands";
+import { parseSlash } from "../commands/slash-commands";
 import {
   CHANNEL_NAME,
   isWorkspaceName,
@@ -7,10 +7,6 @@ import {
 } from "../config/workspace-paths";
 import { OPS_CHANNEL_NAMES } from "./discord-setup-config";
 
-/** Prefix of `init-workspace`. */
-const INIT_PREFIX = /^init:workspace:/i;
-/** Prefix of `init-channel` (`init:channel:<space>/<name>`). */
-const CHANNEL_PREFIX = /^init:channel:/i;
 /** Channel names the owner cannot create in a space: they are the ops channel names. */
 const reservedChannels = (): string[] => Object.values(OPS_CHANNEL_NAMES);
 
@@ -23,15 +19,15 @@ export type AdminCommand =
 
 /** Shown for any non-command text in a control channel. */
 const ADMIN_HELP =
-  "Admin commands:\n- `/init-workspace <name>` (legacy: `init:workspace:<name>`): create the workspace folder, a private category `<name>` and `#<name>-agent`.\n- `/init-channel <space>/<name>` (legacy: `init:channel:<space>/<name>`): add a private channel `#<name>` to the space's category.\n- Memory notes: ask in a workspace channel; the root MEMORY.md is edited by hand.\nAny other text here goes to the server manager: ask it to create a space or channel, apply a space kind template or edit a space's persona files. It shows a diff and asks before it writes. Send `stop` to abort its run.";
+  "Admin commands:\n- `/init-workspace <name>`: create the workspace folder, a private category `<name>` and `#<name>-agent`.\n- `/init-channel <space>/<name>`: add a private channel `#<name>` to the space's category.\n- Memory notes: ask in a workspace channel; the root MEMORY.md is edited by hand.\nAny other text here goes to the server manager: ask it to create a space or channel, apply a space kind template or edit a space's persona files. It shows a diff and asks before it writes. Send `/stop` to abort its run.";
 
 /** Shown when a command comes from a place that may not run admin commands. */
 export const ADMIN_ONLY_CONTROL = "Admin commands run only in #ops-control.";
 
 /** True when the text starts like an admin command (so it never goes to the agent, wherever it is typed). */
 export const isAdminText = (text: string): boolean => {
-  const t = slashToLegacy(text).trim();
-  return INIT_PREFIX.test(t) || CHANNEL_PREFIX.test(t);
+  const name = parseSlash(text)?.name;
+  return name === "init-workspace" || name === "init-channel";
 };
 
 /**
@@ -39,10 +35,10 @@ export const isAdminText = (text: string): boolean => {
  * filesystem or Discord call: lowercase letters, digits, hyphens; max 32 chars; not reserved.
  */
 export function parseAdminCommand(text: string): AdminCommand {
-  const t = slashToLegacy(text).trim();
-  if (CHANNEL_PREFIX.test(t)) return parseInitChannel(t.replace(CHANNEL_PREFIX, ""));
-  if (!INIT_PREFIX.test(t)) return { kind: "help", reply: ADMIN_HELP };
-  const name = t.replace(INIT_PREFIX, "");
+  const slash = parseSlash(text);
+  if (slash?.name === "init-channel") return parseInitChannel(slash.arg);
+  if (slash?.name !== "init-workspace") return { kind: "help", reply: ADMIN_HELP };
+  const name = slash.arg;
   if (isWorkspaceName(name)) return { kind: "init_workspace", name };
   const reserved = WORKSPACE_NAME.test(name) && reservedWorkspaces().includes(name);
   return {
@@ -53,7 +49,7 @@ export function parseAdminCommand(text: string): AdminCommand {
   };
 }
 
-/** Parse the `<space>/<name>` of `init:channel:`: both names validated before any filesystem or Discord call. */
+/** Parse the `<space>/<name>` of `/init-channel`: both names validated before any filesystem or Discord call. */
 function parseInitChannel(path: string): AdminCommand {
   const [space = "", name = "", ...rest] = path.split("/");
   const invalid = (reply: string): AdminCommand => ({ kind: "invalid_name", reply });

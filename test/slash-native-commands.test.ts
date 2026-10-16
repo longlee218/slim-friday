@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { SLASH_NAMES, slashToLegacy } from "../src/commands/slash-commands";
+import { parseSlash, SLASH_NAMES } from "../src/commands/slash-commands";
 import { SLASH_DEFINITIONS, slashPayload, slashText } from "../src/commands/slash-definitions";
 import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
 import { createSlashHandler, registerSlashCommands } from "../src/ingress/slash-interaction";
@@ -14,12 +14,9 @@ test("definitions and the SLASH parser list the same commands", () => {
       .map((c) => c.name)
       .sort(),
   ).toEqual([...SLASH_NAMES].sort());
-  // The parser really knows each name (a slash text becomes a legacy text) and nothing else; `/find` keeps its
-  // slash text on purpose (the find handler matches it, no legacy `find:` form exists).
-  for (const n of SLASH_NAMES.filter((n) => n !== "find"))
-    expect(slashToLegacy(`/${n}`)).not.toBe(`/${n}`);
-  expect(slashToLegacy("/find x")).toBe("/find x");
-  expect(slashToLegacy("/bogus")).toBe("/bogus");
+  // The parser really knows each name and nothing else.
+  for (const n of SLASH_NAMES) expect(parseSlash(`/${n}`)?.name).toBe(n);
+  expect(parseSlash("/bogus")).toBeNull();
 });
 
 test("slashText builds the typed text per command", () => {

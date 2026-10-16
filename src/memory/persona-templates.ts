@@ -94,11 +94,10 @@ to MEMORY.pending.md. Bullets are reduced to one plain line (no markup, no role 
 
 Owner commands (type them in a workspace channel; no agent, no quota except where noted):
 - /stop: abort the running task.
-- /remember <text>: sent to the agent as a normal message (same as "remember: <text>"); it saves the note itself.
+- /remember <text>: sent to the agent as a normal message; it saves the note itself.
 - /forget [scope] <text>: remove the one bullet containing the text.
 - /compact [dry-run]: compact memory files over 80% of their cap (keeps a .bak of the old file).
 - /init-workspace <name>: create a workspace (#ops-control only).
-Legacy forms still work: stop, go, forget:/quên:, compact memory/gom nén, init:workspace:.
 The memory reply names the file and chars/cap.
 `;
 

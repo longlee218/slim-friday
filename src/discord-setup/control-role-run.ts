@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { Message } from "discord.js";
 import type { ApprovalGateway } from "../approvals/approval-types";
-import { slashToLegacy } from "../commands/slash-commands";
+import { parseSlash } from "../commands/slash-commands";
 import type { AgentConfig } from "../config/agent-config";
 import { sendReply, startTyping } from "../ingress/discord-send";
 import {
@@ -67,13 +67,13 @@ export function createControlRoleRun(deps: ControlRunDeps): ControlRun {
     if (!role || !approvals || !channel.isSendable()) return false;
     const channelId = channel.id;
     const active = running.get(channelId)?.ac;
-    if (slashToLegacy(prompt).trim().toLowerCase() === "stop") {
+    if (parseSlash(prompt)?.name === "stop") {
       active?.abort();
       await channel.send(active ? "Stopping." : "Nothing is running.");
       return true;
     }
     if (active) {
-      await channel.send("The previous request is still running. Send `stop` to abort it.");
+      await channel.send("The previous request is still running. Send `/stop` to abort it.");
       return true;
     }
     const ac = new AbortController();

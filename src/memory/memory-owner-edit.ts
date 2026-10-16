@@ -10,7 +10,7 @@ import type { MemoryTarget } from "./memory-targets";
 
 /** Storage hard limit (lines): an owner write is refused at this size, never trimmed. */
 export const OWNER_MAX_LINES = 300;
-/** Matches listed in a `forget:` reply. */
+/** Matches listed in a `/forget` reply. */
 const LISTED_MATCHES = 5;
 /** Clip of a listed match. */
 const MATCH_CLIP = 80;
@@ -60,7 +60,7 @@ function dropEmptySections(text: string): string {
 }
 
 /**
- * Owner `forget:`: case-insensitive substring over the bullet lines. One match = removed (and shown), none =
+ * Owner `/forget`: case-insensitive substring over the bullet lines. One match = removed (and shown), none =
  * "not found", several = no change, up to 5 listed so the owner can send a longer needle.
  */
 export function ownerForget(t: MemoryTarget, needle: string): EditResult {

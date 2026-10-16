@@ -22,7 +22,7 @@ async function createSpaceOrChannel(
   channel?: string,
 ): Promise<{ text: string; error: boolean }> {
   const cmd = parseAdminCommand(
-    channel === undefined ? `init:workspace:${space}` : `init:channel:${space}/${channel}`,
+    channel === undefined ? `/init-workspace ${space}` : `/init-channel ${space}/${channel}`,
   );
   if (cmd.kind === "invalid_name" || cmd.kind === "help") return { text: cmd.reply, error: true };
   // The owner confirms with buttons first; a no, a timeout or an error creates nothing (fails closed).

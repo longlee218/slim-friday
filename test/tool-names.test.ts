@@ -28,7 +28,6 @@ test("SDK built-in tool names are the real wire names", () => {
     WEB_FETCH_TOOL_NAME: "WebFetch",
     SKILL_TOOL_NAME: "Skill",
     AGENT_TOOL_NAME: "Agent",
-    LEGACY_AGENT_TOOL_NAME: "Task",
     SEND_MESSAGE_TOOL_NAME: "SendMessage",
     LIST_AGENTS_TOOL_NAME: "ListAgents",
     ENTER_WORKTREE_TOOL_NAME: "EnterWorktree",

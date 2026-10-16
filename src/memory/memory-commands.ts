@@ -1,4 +1,4 @@
-import { slashToLegacy } from "../commands/slash-commands";
+import { parseSlash } from "../commands/slash-commands";
 
 /** Where an owner memory command writes: the default location, a named location, the channel file, the workspace file, or the root file. */
 export type MemoryScope =
@@ -15,18 +15,14 @@ export type MemoryCommand =
   /** Looks like a command but breaks a rule (length, nothing after the scope): `reply` explains. Never reaches the agent. */
   | { kind: "invalid"; reply: string };
 
-/** Length rules for `forget:` (chars after trim). `remember:` is not parsed here: it goes to the agent. */
+/** Length rules for `/forget` (chars after trim). `/remember` is not parsed here: it goes to the agent. */
 const FORGET_MIN = 3;
 const FORGET_MAX = 100;
 
-/** `forget:` / `quên:` + the rest of the message (case-insensitive, unicode-aware). */
-const WRITE_CMD = /^(forget|quên)\s*:\s*([\s\S]*)$/iu;
-/** `compact memory` / `gom nén`, optional `dry-run`. */
-const COMPACT_CMD = /^(?:compact memory|gom nén)(\s+dry-run)?\s*$/iu;
 /** Scope word: only the FIRST word of the text counts (anything later is plain text). */
 const FIRST_WORD = /^(\S+)\s*([\s\S]*)$/u;
-/** `location:<n>`; `repo:<n>` is the pre-v7 alias (parsers only, not the Remember tool scope). */
-const LOCATION_SCOPE = /^(?:location|repo):(.+)$/iu;
+/** `location:<n>` scope word. */
+const LOCATION_SCOPE = /^location:(.+)$/iu;
 
 /** First word and the trimmed rest of a text (both empty for an empty text). */
 export function splitFirstWord(rest: string): { word: string; tail: string } {
@@ -42,10 +38,9 @@ function splitScope(rest: string): { scope: MemoryScope; text: string } {
   const m = FIRST_WORD.exec(rest);
   const word = m?.[1]?.toLowerCase() ?? "";
   const tail = m?.[2]?.trim() ?? "";
-  if (word === "global" || word === "chung") return { scope: { kind: "global" }, text: tail };
-  if (word === "channel" || word === "kenh" || word === "kênh")
-    return { scope: { kind: "channel" }, text: tail };
-  if (word === "workspace" || word === "ws") return { scope: { kind: "workspace" }, text: tail };
+  if (word === "global") return { scope: { kind: "global" }, text: tail };
+  if (word === "channel") return { scope: { kind: "channel" }, text: tail };
+  if (word === "workspace") return { scope: { kind: "workspace" }, text: tail };
   const location = LOCATION_SCOPE.exec(m?.[1] ?? "");
   if (location?.[1]) return { scope: { kind: "location", name: location[1] }, text: tail };
   return { scope: { kind: "default" }, text: rest.trim() };
@@ -59,20 +54,21 @@ export function lengthReply(body: string): string | undefined {
 
 /** Usage line shown for an invalid command. */
 const USAGE =
-  "Usage: `/forget [global|workspace|channel|location:<name>|<location-name>] <text>` (3-100 chars), `/compact [dry-run]`. Legacy forms still work: `forget:`, `compact memory`; Vietnamese: `quên:`, `chung`, `ws`, `kênh`, `gom nén`. To save a note, just ask (`remember: ...`): the agent picks where.";
+  "Usage: `/forget [global|workspace|channel|location:<name>|<location-name>] <text>` (3-100 chars), `/compact [dry-run]`. To save a note, just ask (`/remember <text>`): the agent picks where.";
 
 /**
- * Parse a message as an owner memory command, or null when it is anything else (then it is a normal task).
- * Keywords are case-insensitive, Vietnamese and English; the text is NFC-normalized first (macOS keyboards
- * can send decomposed accents).
+ * Parse a message as an owner memory command (`/forget ...`, `/compact [dry-run]`), or null when it is anything
+ * else (then it is a normal message). The text is NFC-normalized (macOS keyboards can send decomposed accents).
  */
 export function parseMemoryCommand(input: string): MemoryCommand | null {
-  const text = slashToLegacy(input).normalize("NFC").trim(); // `/forget`, `/compact` are the canonical forms
-  const compact = COMPACT_CMD.exec(text);
-  if (compact) return { kind: "compact", dryRun: !!compact[1] };
-  const w = WRITE_CMD.exec(text);
-  if (!w) return null;
-  const { scope, text: body } = splitScope((w[2] ?? "").trim());
+  const slash = parseSlash(input);
+  if (slash?.name === "compact") {
+    // `/compact` takes only the optional `dry-run`; anything else is a plain message.
+    if (slash.arg && slash.arg.toLowerCase() !== "dry-run") return null;
+    return { kind: "compact", dryRun: !!slash.arg };
+  }
+  if (slash?.name !== "forget") return null;
+  const { scope, text: body } = splitScope(slash.arg);
   // Default scope: the first word may be a bare location name stripped later (memory-scope.ts), which only
   // shortens the text. So the max is checked after that step (the handler re-checks); min is safe now.
   const reply = lengthReply(body);

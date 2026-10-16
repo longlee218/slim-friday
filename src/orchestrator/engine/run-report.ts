@@ -12,7 +12,7 @@ import type { RoleRunInput } from "./role-run-types";
 const log = logger.child({ module: "run-report" });
 
 /** The last non-empty line of the form `location: <name>` (optionally a bullet, bold or in backticks). */
-const LOCATION_LINE = /^\s*[-*]?\s*\**(?:location|repo)\**\s*:\s*`?([\w.-]+)`?\s*$/i;
+const LOCATION_LINE = /^\s*[-*]?\s*\**location\**\s*:\s*`?([\w.-]+)`?\s*$/i;
 
 /**
  * Split the final report into text + the location the agent named on its last non-empty line `location: <name>`. The line is removed from the

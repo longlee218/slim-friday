@@ -144,14 +144,13 @@ test("persona: channel file > space file > root file, first non-empty wins", () 
   expect(buildPersonaContext(home, WS, "chat-room").text).toContain("space tone");
 });
 
-test("/forget channel and Vietnamese words parse to the channel scope", () => {
-  for (const w of ["channel", "kenh", "kênh"])
-    expect(parseMemoryCommand(`/forget ${w} old fact`)).toEqual({
-      kind: "forget",
-      scope: { kind: "channel" },
-      needle: "old fact",
-    });
-  expect(parseMemoryCommand("/forget repo:api old fact")).toMatchObject({
+test("/forget channel parses to the channel scope", () => {
+  expect(parseMemoryCommand("/forget channel old fact")).toEqual({
+    kind: "forget",
+    scope: { kind: "channel" },
+    needle: "old fact",
+  });
+  expect(parseMemoryCommand("/forget location:api old fact")).toMatchObject({
     scope: { kind: "location", name: "api" },
   });
 });

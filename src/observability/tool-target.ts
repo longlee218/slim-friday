@@ -6,7 +6,6 @@ import {
   EDIT_TOOL_NAME,
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
-  LEGACY_AGENT_TOOL_NAME,
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
   READ_TOOL_NAME,
@@ -50,7 +49,7 @@ const PLAN_TOOLS: string[] = [
   TASK_LIST_TOOL_NAME,
 ];
 /** Tools that start a subagent or skill. */
-const AGENT_TOOLS: string[] = [AGENT_TOOL_NAME, LEGACY_AGENT_TOOL_NAME, SKILL_TOOL_NAME];
+const AGENT_TOOLS: string[] = [AGENT_TOOL_NAME, SKILL_TOOL_NAME];
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 

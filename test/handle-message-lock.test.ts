@@ -53,7 +53,7 @@ test("stop aborts the worker run and marks its task cancelled", async () => {
   expect(await handle({ ...dev("hi"), notify: sink.notify })).toBeUndefined();
   expect(await sink.first()).toBe("I’m starting on your request.");
   await ready; // the worker's query is waiting on its abort signal
-  expect(await handle(task("stop"))).toContain("stop");
+  expect(await handle(task("/stop"))).toContain("stop");
   await until(() => turnStatus(env) === "cancelled");
   expect(
     env.db
@@ -61,7 +61,7 @@ test("stop aborts the worker run and marks its task cancelled", async () => {
       .get()?.status,
   ).toBe("cancelled");
   // lock released: stop with nothing running
-  expect(await handle(task("stop"))).toBe("Nothing is running.");
+  expect(await handle(task("/stop"))).toBe("Nothing is running.");
 });
 
 test("H1: DB failure before the run does not leave the thread locked", async () => {

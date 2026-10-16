@@ -23,7 +23,6 @@ import {
   AGENT_TOOL_NAME,
   BASH_TOOL_NAME,
   GREP_TOOL_NAME,
-  LEGACY_AGENT_TOOL_NAME,
   LIST_AGENTS_TOOL_NAME,
   READ_TOOL_NAME,
   SEND_MESSAGE_TOOL_NAME,
@@ -166,14 +165,9 @@ test("dev and scout get the worker server when the caller supplies it; the lead 
   expect(Object.keys(mcpServersFor(lead, undefined, supply))).not.toContain(WORKER_MCP_SERVER);
 });
 
-test("depth 1: Agent, Task, SendMessage, ListAgents are denied for the lead and scout, and for any run that turns them off", () => {
+test("depth 1: Agent, SendMessage, ListAgents are denied for the lead and scout, and for any run that turns them off", () => {
   const scope = { readPaths: ["/r"] };
-  const tools = [
-    AGENT_TOOL_NAME,
-    LEGACY_AGENT_TOOL_NAME,
-    SEND_MESSAGE_TOOL_NAME,
-    LIST_AGENTS_TOOL_NAME,
-  ];
+  const tools = [AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME, LIST_AGENTS_TOOL_NAME];
   for (const r of [lead, scout]) {
     for (const t of tools) {
       expect([r.name, t, checkToolCall(t, { prompt: "p" }, guardFor(r, scope)).decision]).toEqual([

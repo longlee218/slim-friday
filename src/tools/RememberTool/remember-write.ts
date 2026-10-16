@@ -33,7 +33,7 @@ const fail = (text: string, result: string): RememberOutcome => ({ text, isError
 
 /** Refusal text for a failed write (the model relays it; `full` tells it what the owner does). */
 const WRITE_ERRORS: Record<string, string> = {
-  full: "memory file is full: ask the owner to run `compact memory`, then try again",
+  full: "memory file is full: ask the owner to run `/compact`, then try again",
   busy: "memory file is busy: try again in a moment",
   symlink: "memory file is a symlink: refused",
   empty: "nothing left to save after cleaning the text",

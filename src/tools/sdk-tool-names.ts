@@ -22,10 +22,9 @@ export const MONITOR_TOOL_NAME = "Monitor";
 export const WEB_SEARCH_TOOL_NAME = "WebSearch";
 export const WEB_FETCH_TOOL_NAME = "WebFetch";
 
-/* Skills and subagents. `Task` is the legacy name of the Agent tool. */
+/* Skills and subagents. */
 export const SKILL_TOOL_NAME = "Skill";
 export const AGENT_TOOL_NAME = "Agent";
-export const LEGACY_AGENT_TOOL_NAME = "Task";
 /** Resumes a named subagent with a new message (spike Q19: `to` = the spawn `name`). */
 export const SEND_MESSAGE_TOOL_NAME = "SendMessage";
 /** Lists the agents SendMessage can reach (SDK alias: the old name was `ListPeers`). */

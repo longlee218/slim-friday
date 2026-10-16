@@ -94,11 +94,3 @@ test("extractLocationMarker: a name outside the workspace or no marker names no 
     text: "see location: api in the text",
   });
 });
-
-test("extractLocationMarker also accepts the old `repo:` marker", () => {
-  const locations = [location("api")];
-  expect(extractLocationMarker("done\nrepo: api", locations)).toEqual({
-    text: "done",
-    location: locations[0],
-  });
-});

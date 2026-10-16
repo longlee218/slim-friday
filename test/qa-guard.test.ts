@@ -8,7 +8,6 @@ import {
   ASK_USER_QUESTION_TOOL_NAME,
   BASH_TOOL_NAME,
   GREP_TOOL_NAME,
-  LEGACY_AGENT_TOOL_NAME,
   READ_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
@@ -55,7 +54,6 @@ test("Agent tool: allowed when the stage lists it (legacy Task name too), else t
   const d = (input: Record<string, unknown>, tool = AGENT_TOOL_NAME, c = ctx) =>
     checkToolCall(tool, input, c).decision;
   expect(d({ prompt: "p" })).toBe("allow");
-  expect(d({ prompt: "p" }, LEGACY_AGENT_TOOL_NAME)).toBe("allow");
   expect(d({ prompt: "p" }, AGENT_TOOL_NAME, { writePaths: [], allowTools: [] })).toBe("ask");
 });
 

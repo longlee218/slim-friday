@@ -38,7 +38,7 @@ test("draining: a new task is refused with the deploy reply and starts no run or
   });
   writeFileSync(join(env.home, DRAIN_FILE), "");
   expect(await handle(msg("what is x?"))).toBe("I’m updating. Please try again shortly.");
-  expect(await handle(msg("stop"))).toBe("Nothing is running.");
+  expect(await handle(msg("/stop"))).toBe("Nothing is running.");
   expect(runs).toBe(0);
   expect(env.db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 0 });
 });

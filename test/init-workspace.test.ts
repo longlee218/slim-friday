@@ -39,31 +39,32 @@ const tmpHome = () => {
 /** A channel entry for `addWorkspaceChannel`. */
 const ch = (id: string, name = "c") => ({ id, name, mode: "task" as const });
 
-const bad = ["../x", "a/b", " a", "a b", "Reelme", "ops", "a".repeat(33), "", "-x", "a.b", "a\nb"];
+const bad = ["../x", "a/b", "a b", "Reelme", "ops", "a".repeat(33), "", "-x", "a.b", "a\nb"];
 test.each(bad)("parseAdminCommand rejects name %j before anything runs", (name) => {
-  const cmd = parseAdminCommand(`init:workspace:${name}`);
+  const cmd = parseAdminCommand(`/init-workspace ${name}`);
   expect(cmd.kind).toBe("invalid_name");
 });
 
 test("parseAdminCommand accepts valid names and gives help for other text", () => {
-  expect(parseAdminCommand("init:workspace:reelme")).toEqual({
+  expect(parseAdminCommand("/init-workspace reelme")).toEqual({
     kind: "init_workspace",
     name: "reelme",
   });
-  expect(parseAdminCommand("  init:workspace:a-1  ")).toEqual({
+  expect(parseAdminCommand("  /init-workspace a-1  ")).toEqual({
     kind: "init_workspace",
     name: "a-1",
   });
-  expect(parseAdminCommand(`init:workspace:${"a".repeat(32)}`).kind).toBe("init_workspace");
+  expect(parseAdminCommand(`/init-workspace ${"a".repeat(32)}`).kind).toBe("init_workspace");
   expect(parseAdminCommand("hello").kind).toBe("help");
-  expect(parseAdminCommand("init:workspace:ops")).toMatchObject({ kind: "invalid_name" });
-  expect((parseAdminCommand("init:workspace:ops") as any).reply).toContain("reserved");
+  expect(parseAdminCommand("/init-workspace ops")).toMatchObject({ kind: "invalid_name" });
+  expect((parseAdminCommand("/init-workspace ops") as any).reply).toContain("reserved");
 });
 
-test("isAdminText detects the prefix only", () => {
-  expect(isAdminText("init:workspace:x")).toBe(true);
-  expect(isAdminText("INIT:WORKSPACE:x")).toBe(true);
-  expect(isAdminText("please init:workspace:x")).toBe(false);
+test("isAdminText detects the slash command only", () => {
+  expect(isAdminText("/init-workspace x")).toBe(true);
+  expect(isAdminText("/INIT-WORKSPACE x")).toBe(true);
+  expect(isAdminText("init:workspace:x")).toBe(false);
+  expect(isAdminText("please /init-workspace x")).toBe(false);
 });
 
 const ok: GateFacts = {

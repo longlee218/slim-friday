@@ -12,7 +12,7 @@ const goalsOfThread = (db: Database, threadId: string): string[] =>
     .map((r) => r.id);
 
 /**
- * `/purge` or a plain `purge` message: empty the trash of THIS thread's goals (never another thread's) and answer in the owner's
+ * `/purge`: empty the trash of THIS thread's goals (never another thread's) and answer in the owner's
  * language. It is final (the audit rows stay), so the owner is asked first with one yes / no click (`confirm`, fail closed: no
  * answer, a stop or no button flow means nothing is emptied).
  */

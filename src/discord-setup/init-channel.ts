@@ -34,7 +34,7 @@ export async function initChannel(deps: InitDeps, space: string, name: string): 
 }
 
 /**
- * `init:channel:<space>/<name>` for VALIDATED names. Refuse-first (no side effects): space must be set up,
+ * `/init-channel <space>/<name>` for VALIDATED names. Refuse-first (no side effects): space must be set up,
  * the name must be new in the space yaml and in the space category. Then create the private channel under
  * the category, append it to workspace.yaml, create its memory dir and set the topic. Never edits or deletes.
  * The category id is not stored: it is the parent of the space's first mapped channel.

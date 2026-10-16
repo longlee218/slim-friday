@@ -197,11 +197,8 @@ test("secret-file deny rules are part of disallowedTools", () => {
 });
 
 test("every declared SDK tool name belongs to exactly one capability (a new constant cannot be forgotten)", () => {
-  // Names that are not capability tools: the legacy alias of Agent, and EnterWorktree (never offered; the guard only checks it).
-  const aliases = new Set<string>([
-    sdkNames.LEGACY_AGENT_TOOL_NAME,
-    sdkNames.ENTER_WORKTREE_TOOL_NAME,
-  ]);
+  // Names that are not capability tools: EnterWorktree (never offered; the guard only checks it).
+  const aliases = new Set<string>([sdkNames.ENTER_WORKTREE_TOOL_NAME]);
   const owners = new Map<string, number>();
   for (const tools of Object.values(CAPABILITY_TOOLS))
     for (const t of tools) owners.set(t, (owners.get(t) ?? 0) + 1);

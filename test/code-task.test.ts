@@ -36,35 +36,22 @@ async function runCodeTask(gw?: ApprovalGateway) {
   return { env, opts: runs[0], reply, location, qa: runs };
 }
 
-test("parseMessageCommand: stop and location: hint; cleanup: is plain text; task: is plain Q&A text", () => {
-  expect(parseMessageCommand(" Stop ")).toEqual({ kind: "stop" });
-  expect(parseMessageCommand("stop it")).toMatchObject({ kind: "message" });
-  expect(parseMessageCommand("cleanup:")).toMatchObject({ kind: "message" });
-  expect(parseMessageCommand("task: add a file")).toEqual({
-    kind: "message",
-    location: undefined,
-    text: "task: add a file",
-  });
-  expect(parseMessageCommand("what is x?")).toEqual({
-    kind: "message",
-    location: undefined,
-    text: "what is x?",
-  });
-  expect(parseMessageCommand("location:api how does auth work?")).toEqual({
-    kind: "message",
-    location: "api",
-    text: "how does auth work?",
-  });
-  expect(parseMessageCommand("task: location:api fix it")).toEqual({
-    kind: "message",
-    location: undefined,
-    text: "task: location:api fix it",
-  });
-});
-
-test("parseMessageCommand: `go` and `go +<usd>` are plain messages (the /go command is gone)", () => {
-  for (const t of ["go", "go +1.5", "/go", "/go +2"])
-    expect(parseMessageCommand(t)).toMatchObject({ kind: "message", text: t });
+test("parseMessageCommand: `/stop` is a command; text forms, `go` and `task:` are plain messages", () => {
+  expect(parseMessageCommand(" /Stop ")).toEqual({ kind: "stop" });
+  for (const t of [
+    "stop",
+    " Stop ",
+    "stop it",
+    "cleanup:",
+    "task: add a file",
+    "what is x?",
+    "location:api how",
+    "go",
+    "go +1.5",
+    "/go",
+    "/go +2",
+  ])
+    expect(parseMessageCommand(t)).toEqual({ kind: "message" });
 });
 
 test("code task (a dispatched worker) runs in default mode, never bypass, in the location with write tools and no allowedTools", async () => {
@@ -145,9 +132,4 @@ test("PreToolUse hook denies dangerous Bash and lets allowlisted Bash run; a too
   // A worker has an envelope: an owner-decided tool is outside it, so even in bypass it is denied.
   expect(feedback.hookSpecificOutput.permissionDecision).toBe("deny");
   expect(await call("git status")).toEqual({ continue: true });
-});
-
-test("parseMessageCommand: the old `repo:` pin still works as an alias of `location:`", () => {
-  expect(parseMessageCommand("repo:api fix it")).toMatchObject({ location: "api", text: "fix it" });
-  expect(parseMessageCommand("location:api fix it")).toMatchObject({ location: "api" });
 });

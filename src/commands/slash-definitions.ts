@@ -74,7 +74,7 @@ export function slashPayload() {
   }));
 }
 
-/** What the user typed, as the `/name arg` text the shared parser (`slashToLegacy`) already understands. */
+/** What the user typed, as the `/name arg` text that `parseSlash` reads back. */
 export function slashText(
   name: string,
   value: (arg: string) => string | number | boolean | null,

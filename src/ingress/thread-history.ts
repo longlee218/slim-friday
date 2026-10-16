@@ -66,7 +66,7 @@ export async function fetchRecent(
 }
 
 /**
- * The thread history for the lead. Skipped for commands (slash or legacy: `/stop` must be instant) and
+ * The thread history for the lead. Skipped for commands (`/stop` must be instant) and
  * raced against FETCH_RECENT_TIMEOUT_MS: a hang or an error is no history, the message still proceeds.
  */
 export const recentFor = (

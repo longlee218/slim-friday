@@ -44,7 +44,7 @@ export interface MemoryRunnerDeps {
   /** Override the SDK query (tests) or the whole compaction model call. */
   queryFn?: QueryFn;
   llm?: CompactLlm;
-  /** `compact memory` takes one slot like a run; forget never does. */
+  /** `/compact` takes one slot like a run; forget never does. */
   limiter?: RunLimiter;
 }
 
@@ -70,7 +70,7 @@ function editReply(r: EditResult, t: MemoryTarget): string {
 export function createMemoryRunner(deps: MemoryRunnerDeps): MemoryRunner {
   const home = deps.config.agentHome;
 
-  /** Files `compact memory` covers for this place. */
+  /** Files `/compact` covers for this place. */
   async function compactReply(
     cmd: Extract<MemoryCommand, { kind: "compact" }>,
     targets: MemoryTarget[],

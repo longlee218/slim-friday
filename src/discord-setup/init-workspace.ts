@@ -14,7 +14,7 @@ import { addWorkspaceChannel, createWorkspaceDir, workspaceState } from "./works
 
 const log = logger.child({ module: "init-workspace" });
 
-/** What `init:workspace` needs: the agent home, the pinned guild and who is who. */
+/** What `/init-workspace` needs: the agent home, the pinned guild and who is who. */
 export interface InitDeps {
   home: string;
   guild: Guild;
@@ -51,7 +51,7 @@ export async function initWorkspace(deps: InitDeps, name: string): Promise<strin
 }
 
 /**
- * `init:workspace:<name>` for a VALIDATED name. Order: refuse bad states and name clashes first (no side
+ * `/init-workspace <name>` for a VALIDATED name. Order: refuse bad states and name clashes first (no side
  * effects), then workspace folder, private category + `#<name>-agent` (create-only), then the new channel id
  * into workspace.yaml. A rerun on a finished workspace creates nothing. Never deletes anything.
  */

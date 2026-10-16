@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ChannelType } from "discord.js";
-import { slashToLegacy } from "../src/commands/slash-commands";
+import { parseSlash } from "../src/commands/slash-commands";
 import { SLASH_DEFINITIONS, slashPayload, slashText } from "../src/commands/slash-definitions";
 import { workspacePaths } from "../src/config/workspace-paths";
 import {
@@ -167,12 +167,7 @@ test("a throw after create names the channel in the reply", async () => {
 });
 
 // --- admin command parsing / slash / topic ---
-test("parse init:channel and the slash form", () => {
-  expect(parseAdminCommand("init:channel:personal/finance")).toEqual({
-    kind: "init_channel",
-    space: "personal",
-    name: "finance",
-  });
+test("parse /init-channel", () => {
   expect(parseAdminCommand("/init-channel personal/finance")).toEqual({
     kind: "init_channel",
     space: "personal",
@@ -188,10 +183,10 @@ test("parse init:channel and the slash form", () => {
     "a/ops-control",
     "a/-x",
   ])
-    expect(parseAdminCommand(`init:channel:${bad}`).kind).toBe("invalid_name");
+    expect(parseAdminCommand(`/init-channel ${bad}`).kind).toBe("invalid_name");
   expect(isAdminText("/init-channel a/b")).toBe(true);
-  expect(isAdminText("init:channel:a/b")).toBe(true);
-  expect(isAdminText("please init:channel:a/b")).toBe(false);
+  expect(isAdminText("init:channel:a/b")).toBe(false);
+  expect(isAdminText("please /init-channel a/b")).toBe(false);
   expect(parseAdminCommand("hello")).toMatchObject({ kind: "help" });
   expect((parseAdminCommand("hello") as any).reply).toContain("/init-channel");
 });
@@ -206,7 +201,10 @@ test("slash definition: one string arg `path`", () => {
   expect(slashText("init-channel", (a) => (a === "path" ? "personal/finance" : null))).toBe(
     "/init-channel personal/finance",
   );
-  expect(slashToLegacy("/init-channel personal/finance")).toBe("init:channel:personal/finance");
+  expect(parseSlash("/init-channel personal/finance")).toEqual({
+    name: "init-channel",
+    arg: "personal/finance",
+  });
 });
 
 test("channelTopic per mode", () => {

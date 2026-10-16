@@ -214,7 +214,7 @@ test("the planner has no write, shell or subagent tool: the SDK tool set and the
   expect(toolsFor(p).sort()).toEqual(["Glob", "Grep", "LSP", "Read", "Skill"]);
   expect(toolOptions(p).tools).not.toContain("Bash");
   const g = guardFor(p, { readPaths: ["/r"] });
-  for (const t of ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit", "Task", "Agent"])
+  for (const t of ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit", "Agent"])
     expect([t, checkToolCall(t, { command: "ls" }, g).decision]).toEqual([t, "deny"]);
   expect(p.sideEffects).toBe("none");
   expect(p.noSubagents).toBe(true);

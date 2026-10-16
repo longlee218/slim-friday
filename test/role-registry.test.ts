@@ -6,7 +6,6 @@ import { dispatchableWorkers, getRole, ROLES } from "../src/roles/role-registry"
 import type { RoleDefinition } from "../src/roles/role-types";
 import {
   AGENT_TOOL_NAME,
-  LEGACY_AGENT_TOOL_NAME,
   LIST_AGENTS_TOOL_NAME,
   SEND_MESSAGE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
@@ -63,10 +62,8 @@ test("guard: every role gets the subagent tools, auto-allowed, even one that lis
   const scope = { readPaths: ["/r"] };
   const dev = guardFor(getRole("developer"), scope);
   expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, dev).decision).toBe("allow");
-  expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, dev).decision).toBe("allow");
   const bare = guardFor(BARE, scope); // lists only `read`: toolsFor adds the subagent tools
   expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("allow");
-  expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("allow");
 });
 
 test("mcp servers come from the role's data only: a bare role and dev get none", () => {

@@ -28,7 +28,7 @@ const log = logger.child({ module: "memory-section-writer" });
 /** Max chars of a note stored by `saveMemoryBullet` / `saveJournalBullet`. */
 export const SAVE_MAX_CHARS = 400;
 
-/** Outcome of a sectioned write: `empty` = nothing left after sanitizing, `duplicate` = already there, `full` = the write would pass the line or char limit (ask the owner for `compact memory`), `busy` = lock timeout. */
+/** Outcome of a sectioned write: `empty` = nothing left after sanitizing, `duplicate` = already there, `full` = the write would pass the line or char limit (ask the owner for `/compact`), `busy` = lock timeout. */
 export type SaveResult = "saved" | "duplicate" | "full" | "empty" | "busy" | "symlink";
 
 /** Where a note goes in a journal file: the `## HH:MM <label>` block. */
@@ -88,7 +88,7 @@ export function saveMemoryBullet(
     (old) => {
       if (hasBullet(old, kind, bullet)) return "duplicate";
       const next = insertBullet(old, kind, bullet);
-      // Never trim saved notes: past the line or char limit the owner runs `compact memory`.
+      // Never trim saved notes: past the line or char limit the owner runs `/compact`.
       return next.trimEnd().split("\n").length > OWNER_MAX_LINES || bodyChars(next) > capChars
         ? "full"
         : next;

@@ -20,7 +20,7 @@ export interface AdminDeps {
   /** Id of the logged-in bot user. */
   botId: () => string | undefined;
   setup: DiscordSetup;
-  /** Owner memory commands typed in #ops-control (global scope and `compact memory` only). */
+  /** Owner memory commands typed in #ops-control (global scope and `/compact` only). */
   memory?: MemoryRunner;
   /** Runs the control-channel role for non-command text; absent = the help text. */
   controlRun?: ControlRun;
@@ -69,7 +69,7 @@ export function createAdminHandler(deps: AdminDeps) {
       logEvent(log, "admin.refused", { channelId: ch.id, reply: gate.reply }, "warn");
       return void (await reply(gate.reply));
     }
-    // `forget: global ...`, `compact memory`: after the same gate as admin commands.
+    // `/forget global ...`, `/compact`: after the same gate as admin commands.
     const memo = await deps.memory?.({ where: "control", channelId: ch.id, text: prompt });
     if (memo != null) return void (await reply(memo));
     const cmd = parseAdminCommand(prompt);
