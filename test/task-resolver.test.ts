@@ -266,7 +266,7 @@ test("changeOwner refuses a non-background target", () => {
 
 test("beginTurn is atomic: a failing task link leaves no turn row", () => {
   const { db } = makeEnv();
-  db.exec("DROP TABLE owned_tasks");
+  db.run("DROP TABLE owned_tasks");
   expect(() => begin(db, "t1", background)).toThrow();
   expect(db.query("SELECT COUNT(*) AS n FROM turns").get()).toEqual({ n: 0 });
 });

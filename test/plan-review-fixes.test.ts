@@ -190,7 +190,7 @@ test("M3: an approved revision is one transaction: a failing item insert leaves 
   const { goalId, plan } = setup(["a", "b"]);
   finishPlanner(goalId);
   approveVersion(db, plan.id, 1);
-  db.exec(
+  db.run(
     "CREATE TRIGGER boom BEFORE INSERT ON owned_tasks WHEN NEW.item_key = 'z' BEGIN SELECT RAISE(ABORT, 'boom'); END;",
   );
   expect(() =>
@@ -224,7 +224,7 @@ test("M3: a revision of a plan whose goal closed is refused and stores no versio
 
 test("M5: reject is one transaction: a failing cancel leaves the plan valid", () => {
   const { goalId, plan } = setup();
-  db.exec(
+  db.run(
     "CREATE TRIGGER boom BEFORE UPDATE ON owned_tasks WHEN NEW.status = 'cancelled' BEGIN SELECT RAISE(ABORT, 'boom'); END;",
   );
   expect(() => rejectVersion(db, plan.id, 1, "no")).toThrow(/boom/);

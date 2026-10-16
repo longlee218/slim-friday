@@ -271,7 +271,7 @@ test("hits: original spelling, redacted label, registry locations only; stale no
   expect(r).not.toContain("old");
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "jlabel" })).text).not.toContain("sk-ant");
   expect(r).not.toContain("may be stale");
-  s.db.exec("DROP TABLE thread_summaries");
+  s.db.run("DROP TABLE thread_summaries");
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "kwux" })).text).toContain(
     "(note: memory index may be stale)",
   );

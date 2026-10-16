@@ -19,8 +19,8 @@ const msgOf = (err: unknown): string => (err instanceof Error ? err.message : St
  */
 export function probeFts5(db: Database): void {
   try {
-    db.exec(`CREATE VIRTUAL TABLE ${FTS_PROBE_TABLE} USING fts5(x, tokenize = '${FTS_TOKENIZER}')`);
-    db.exec(`DROP TABLE ${FTS_PROBE_TABLE}`);
+    db.run(`CREATE VIRTUAL TABLE ${FTS_PROBE_TABLE} USING fts5(x, tokenize = '${FTS_TOKENIZER}')`);
+    db.run(`DROP TABLE ${FTS_PROBE_TABLE}`);
   } catch (err) {
     throw new Error(`${FTS_MISSING_MESSAGE} (${msgOf(err)})`);
   }

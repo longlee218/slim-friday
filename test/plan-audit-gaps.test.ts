@@ -111,7 +111,7 @@ test("materialize is one transaction: a failing item insert rolls back every ite
     { key: "ui", dependsOn: ["api"] },
   ]);
   // A real db fault on the second item (api): SQLite aborts that insert.
-  db.exec(
+  db.run(
     "CREATE TRIGGER boom BEFORE INSERT ON owned_tasks WHEN NEW.item_key = 'api' BEGIN SELECT RAISE(ABORT, 'boom'); END;",
   );
   expect(() => approveVersion(db, plan.id, 1)).toThrow(/boom/);
@@ -122,7 +122,7 @@ test("materialize is one transaction: a failing item insert rolls back every ite
     n: 1,
   });
   // The fault gone, the same approval applies cleanly once (retry is safe).
-  db.exec("DROP TRIGGER boom");
+  db.run("DROP TRIGGER boom");
   expect(approveVersion(db, plan.id, 1)).toMatchObject({
     ok: true,
     created: ["model", "api", "ui"],
