@@ -113,7 +113,7 @@ Worker run (detached; survives the owner message)
 
 | Who | Tools | Rule |
 |---|---|---|
-| `developer`, `scout`, `planner` | `ReportResult` | typed result; no call → code derives the outcome from the run; a changing run with no report waits for the owner |
+| every worker role (`developer`, `scout`, `planner`, roster specialists) | `ReportResult` | typed result; no call → code derives the outcome from the run; a changing run with no report waits for the owner |
 | `planner` | `GetProjectContext`, `GetAgentCapabilities`, `CreatePlan`, `ValidatePlan`, `ProposePlanRevision`, `GetExecutionProgress`, `AnalyzeBlockers` | plan writing and reading; `ProposePlanRevision` is compare-and-set on `baseVersion` |
 | `developer` | `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch` | the only way to do R2/R3 work; each call checks the envelope (see [Guards](#guards)) |
 

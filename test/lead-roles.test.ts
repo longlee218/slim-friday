@@ -53,12 +53,21 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, o
     expect(existsSync(join(PUBLISHER_SKILLS_DIR, n, "SKILL.md"))).toBe(true);
 });
 
-test("dispatchable workers come from role data: dev and scout", () => {
+test("dispatchable workers come from role data: developer, scout and the roster", () => {
   expect(
     dispatchableWorkers()
       .map((r) => r.name)
       .sort(),
-  ).toEqual(["developer", "scout"]);
+  ).toEqual([
+    "designer",
+    "developer",
+    "devops",
+    "hacker",
+    "humanizer-writer",
+    "scout",
+    "solution-architect",
+    "tester",
+  ]);
 });
 
 test("app skills of scout have no sub-agent or missing-CLI instructions", async () => {
@@ -119,16 +128,13 @@ test("no Bash for the lead; the scout may call Bash (the sandbox grants it no wr
   );
 });
 
-test("ReportResult: dev, scout and planner may call it; no other role may; lead tools only for the lead", () => {
+test("ReportResult: every worker role (developer, scout, planner, roster) may call it; no other role may; lead tools only for the lead", () => {
   const scope = { readPaths: ["/r"] };
   const report = mcpToolName(ORCHESTRATION_MCP_SERVER, REPORT_RESULT_TOOL);
   const allowed = (role: string, tool: string) =>
     checkToolCall(tool, {}, guardFor(ROLES[role]!, scope)).decision === "allow";
   for (const name of Object.keys(ROLES)) {
-    expect([name, allowed(name, report)]).toEqual([
-      name,
-      name === "developer" || name === "scout" || name === "planner",
-    ]);
+    expect([name, allowed(name, report)]).toEqual([name, ROLES[name]?.kind === "worker"]);
     for (const t of LEAD_ONLY_TOOLS)
       expect([name, allowed(name, mcpToolName(ORCHESTRATION_MCP_SERVER, t))]).toEqual([
         name,

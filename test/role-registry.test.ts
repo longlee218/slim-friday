@@ -26,13 +26,19 @@ const BARE: RoleDefinition = {
   promptSections: () => [],
 };
 
-test("registry: developer, the control role, the lead, the planner and the scout; unknown role fails", () => {
+test("registry: developer, the roster specialists, the control role, the lead, the planner and the scout; unknown role fails", () => {
   expect(Object.keys(ROLES).sort()).toEqual([
+    "designer",
     "developer",
+    "devops",
     "discord-manager",
+    "hacker",
+    "humanizer-writer",
     "lead",
     "planner",
     "scout",
+    "solution-architect",
+    "tester",
   ]);
   expect(() => getRole("nope")).toThrow("Unknown role");
 });
@@ -49,9 +55,18 @@ test("roles: bypass only for developer, auto for the others that set it, default
   expect(getRole("lead")).toMatchObject({ model: SONNET_MODEL, kind: "lead" });
 });
 
-test("whenToUse: every dispatchable role has one, all different; developer has class tiers", () => {
+test("whenToUse: every dispatchable role has one, all different", () => {
   const roles = dispatchableWorkers();
-  expect(roles.map((r) => r.name).sort()).toEqual(["developer", "scout"]);
+  expect(roles.map((r) => r.name).sort()).toEqual([
+    "designer",
+    "developer",
+    "devops",
+    "hacker",
+    "humanizer-writer",
+    "scout",
+    "solution-architect",
+    "tester",
+  ]);
   for (const r of roles) expect(r.whenToUse.length).toBeGreaterThan(20);
   expect(new Set(roles.map((r) => r.whenToUse)).size).toBe(roles.length);
 });

@@ -1,12 +1,24 @@
+import { DESIGNER_ROLE } from "./builtin/designer-role";
 import { DEVELOPER_ROLE } from "./builtin/developer-role";
+import { DEVOPS_ROLE } from "./builtin/devops-role";
 import { DISCORD_MANAGER_ROLE } from "./builtin/discord-manager-role";
+import { HACKER_ROLE } from "./builtin/hacker-role";
+import { HUMANIZER_WRITER_ROLE } from "./builtin/humanizer-writer-role";
 import { LEAD_ROLE } from "./builtin/lead-role";
 import { PLANNER_ROLE } from "./builtin/planner-role";
 import { SCOUT_ROLE } from "./builtin/scout-role";
+import { SOLUTION_ARCHITECT_ROLE } from "./builtin/solution-architect-role";
+import { TESTER_ROLE } from "./builtin/tester-role";
 import type { RoleDefinition } from "./role-types";
 
 /** Every role of the app, by name. A new role = one file in `builtin/` + one line here. */
 export const ROLES: Readonly<Record<string, RoleDefinition>> = {
+  [DESIGNER_ROLE.name]: DESIGNER_ROLE,
+  [DEVOPS_ROLE.name]: DEVOPS_ROLE,
+  [HACKER_ROLE.name]: HACKER_ROLE,
+  [HUMANIZER_WRITER_ROLE.name]: HUMANIZER_WRITER_ROLE,
+  [SOLUTION_ARCHITECT_ROLE.name]: SOLUTION_ARCHITECT_ROLE,
+  [TESTER_ROLE.name]: TESTER_ROLE,
   [DEVELOPER_ROLE.name]: DEVELOPER_ROLE,
   [DISCORD_MANAGER_ROLE.name]: DISCORD_MANAGER_ROLE,
   [LEAD_ROLE.name]: LEAD_ROLE,
