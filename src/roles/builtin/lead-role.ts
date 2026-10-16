@@ -1,5 +1,17 @@
 import { SONNET_MODEL } from "../../config/model-ids";
-import { LEAD_MCP_SERVER, REQUEST_PLAN_TOOL, TASK_STATUS_TOOL } from "../../mcp/mcp-tool-names";
+import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
+import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
+import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
+import { REMEMBER_TOOL } from "../../mcp/memory/tools/RememberTool/constants";
+import { APPROVE_PLAN_TOOL } from "../../mcp/orchestration/tools/ApprovePlanTool/constants";
+import { ASK_OWNER_TOOL } from "../../mcp/orchestration/tools/AskOwnerTool/constants";
+import { CANCEL_TASK_TOOL } from "../../mcp/orchestration/tools/CancelTaskTool/constants";
+import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
+import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
+import { REQUEST_PLAN_TOOL } from "../../mcp/orchestration/tools/RequestPlanTool/constants";
+import { SET_THREAD_TITLE_TOOL } from "../../mcp/orchestration/tools/SetThreadTitleTool/constants";
+import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
+import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
 import type { RoleDefinition } from "../role-types";
 
 /** The lead asks the owner through its own AskOwner tool, never AskUserQuestion. */
@@ -17,7 +29,7 @@ const CONTRACT = `This run is the lead: the only voice to the owner in this thre
 
 /**
  * The lead: Sonnet. Chosen by the lead runner (not by `entryRole`), reached only through it (`surface: "lead"`), so intent
- * routing never offers it. Its tools are the in-process `lead` server (typed actions; handlers hold the rules).
+ * routing never offers it. Its tools are the `orchestration` server's lead tools (typed actions; handlers hold the rules).
  */
 export const LEAD_ROLE: RoleDefinition = {
   name: "lead",
@@ -25,7 +37,22 @@ export const LEAD_ROLE: RoleDefinition = {
   surface: "lead",
   background: false,
   skills: [],
-  mcpServers: [LEAD_MCP_SERVER],
+  // Memory tools + the lead's typed actions + SetThreadTitle (the `orchestration` server; a worker run never gets these).
+  mcpTools: [
+    REMEMBER_TOOL,
+    MEMORY_SEARCH_TOOL,
+    MEMORY_GET_TOOL,
+    MEMORY_EXPAND_TOOL,
+    DISPATCH_AGENT_TOOL,
+    TASK_STATUS_TOOL,
+    STEER_TASK_TOOL,
+    CANCEL_TASK_TOOL,
+    ASK_OWNER_TOOL,
+    FORWARD_RESULT_TOOL,
+    REQUEST_PLAN_TOOL,
+    APPROVE_PLAN_TOOL,
+    SET_THREAD_TITLE_TOOL,
+  ],
   limits: { maxAsk: MAX_ASK },
   sideEffects: "none",
   capabilities: ["read"],

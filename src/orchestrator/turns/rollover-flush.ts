@@ -1,6 +1,7 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { RecentMessage } from "../../intent/intent-types";
-import { MEMORY_MCP_SERVER, mcpToolName, REMEMBER_TOOL } from "../../mcp/mcp-tool-names";
+import { MEMORY_MCP_SERVER, mcpToolName } from "../../mcp/mcp-tool-names";
+import { REMEMBER_TOOL } from "../../mcp/memory/tools/RememberTool/constants";
 import { type ChatText, extractContext } from "../../memory/extract-context";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { logEvent, logger } from "../../observability/logger";

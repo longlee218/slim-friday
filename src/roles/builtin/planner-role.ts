@@ -1,10 +1,16 @@
 import { SONNET_MODEL } from "../../config/model-ids";
-import {
-  CREATE_PLAN_TOOL,
-  PLANNER_MCP_SERVER,
-  PROPOSE_PLAN_REVISION_TOOL,
-  WORKER_MCP_SERVER,
-} from "../../mcp/mcp-tool-names";
+import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
+import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
+import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
+import { REMEMBER_TOOL } from "../../mcp/memory/tools/RememberTool/constants";
+import { REPORT_RESULT_TOOL } from "../../mcp/orchestration/tools/ReportResultTool/constants";
+import { ANALYZE_BLOCKERS_TOOL } from "../../mcp/plan/tools/AnalyzeBlockersTool/constants";
+import { CREATE_PLAN_TOOL } from "../../mcp/plan/tools/CreatePlanTool/constants";
+import { GET_AGENT_CAPABILITIES_TOOL } from "../../mcp/plan/tools/GetAgentCapabilitiesTool/constants";
+import { GET_EXECUTION_PROGRESS_TOOL } from "../../mcp/plan/tools/GetExecutionProgressTool/constants";
+import { GET_PROJECT_CONTEXT_TOOL } from "../../mcp/plan/tools/GetProjectContextTool/constants";
+import { PROPOSE_PLAN_REVISION_TOOL } from "../../mcp/plan/tools/ProposePlanRevisionTool/constants";
+import { VALIDATE_PLAN_TOOL } from "../../mcp/plan/tools/ValidatePlanTool/constants";
 import type { RoleDefinition } from "../role-types";
 
 /** Owner questions per run: the planner never asks; when it cannot plan it reports NEEDS_CLARIFICATION and the lead asks. */
@@ -37,7 +43,20 @@ export const PLANNER_ROLE: RoleDefinition = {
   limits: { maxAsk: MAX_ASK },
   sideEffects: "none",
   capabilities: ["read", "skills"],
-  mcpServers: [WORKER_MCP_SERVER, PLANNER_MCP_SERVER],
+  mcpTools: [
+    REMEMBER_TOOL,
+    MEMORY_SEARCH_TOOL,
+    MEMORY_GET_TOOL,
+    MEMORY_EXPAND_TOOL,
+    REPORT_RESULT_TOOL,
+    GET_PROJECT_CONTEXT_TOOL,
+    GET_AGENT_CAPABILITIES_TOOL,
+    CREATE_PLAN_TOOL,
+    VALIDATE_PLAN_TOOL,
+    PROPOSE_PLAN_REVISION_TOOL,
+    GET_EXECUTION_PROGRESS_TOOL,
+    ANALYZE_BLOCKERS_TOOL,
+  ],
   noSubagents: true, // depth 1: a worker never spawns subagents
   permissionMode: "auto",
   model: SONNET_MODEL,

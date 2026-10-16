@@ -17,6 +17,7 @@ import {
   TEST_CHANNEL,
 } from "./helpers";
 import { devLeadQuery, noticeSink, workersDone } from "./lead-harness";
+import { isWorkerRun } from "./mcp-run-probe";
 
 /** Env with one workspace `real` whose location/ is a real git clone (a managed clone). */
 async function setup(meta: Record<string, unknown> = {}) {
@@ -37,13 +38,13 @@ async function setup(meta: Record<string, unknown> = {}) {
 }
 
 /**
- * Fake SDK: a worker call (it has the `worker` server) writes and commits b.txt in its cwd and reports; a lead call
+ * Fake SDK: a worker call (it holds ReportResult) writes and commits b.txt in its cwd and reports; a lead call
  * (the announce after the worker ended) just answers. `seen` records the worker calls only.
  */
 function fakeSdk(seen: any[], hold?: Promise<void>) {
   return (a: any) => {
     const o = a.options;
-    const worker = !!o.mcpServers?.worker;
+    const worker = isWorkerRun(o);
     if (worker) seen.push(a);
     return (async function* () {
       if (!worker) {
@@ -110,7 +111,7 @@ test("dev task: ONE detached run in the location's own checkout, bypass permissi
   expect(o.resume).toBeUndefined();
   expect(o.tools).toContain(ASK_USER_QUESTION_TOOL_NAME);
   expect(o.tools).not.toContain("ExitPlanMode");
-  expect(Object.keys(o.mcpServers)).toContain("worker");
+  expect(isWorkerRun(o)).toBe(true);
   expect(Object.keys(o.mcpServers)).not.toContain("git"); // git and gh run in the agent's shell
   expect(env.db.query("SELECT role, location FROM turns WHERE role = 'developer'").get()).toEqual({
     role: "developer",
@@ -148,7 +149,7 @@ test("stop during the dev run cancels the dev task", async () => {
   });
   const send = build(env, ((a: any) =>
     (async function* () {
-      if (!a.options.mcpServers?.worker) {
+      if (!isWorkerRun(a.options)) {
         yield resultMsg({ result: "noted" });
         return;
       }

@@ -54,8 +54,11 @@ export interface RoleDefinition {
   shellMode?: "read";
   /** The lead may dispatch this role as a worker (`DispatchAgent`); LEAD.md lists these roles. Omitted = not dispatchable. */
   dispatchable?: boolean;
-  /** In-process app MCP servers the role gets (names in `APP_MCP_TOOLS`; the caller supplies the instances). Omitted = none. */
-  mcpServers?: string[];
+  /**
+   * Bare names of the in-process MCP tools the role gets (from each tool's `constants.ts`). A run builds only these,
+   * and only when it has the tool's ctx part; the guard denies every other `mcp__*` tool. Omitted = none.
+   */
+  mcpTools?: string[];
   /** Limits of one run: AskUserQuestion calls (enforced in the permission guard). */
   limits: { maxAsk: number };
   /** Fixed model id of the role's runs (a full id, e.g. `claude-sonnet-5-5`; see `config/model-ids.ts`). Changing it is a data edit. */

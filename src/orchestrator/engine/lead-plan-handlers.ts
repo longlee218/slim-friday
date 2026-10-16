@@ -1,4 +1,5 @@
-import { APPROVE_PLAN_TOOL, REQUEST_PLAN_TOOL } from "../../mcp/mcp-tool-names";
+import { APPROVE_PLAN_TOOL } from "../../mcp/orchestration/tools/ApprovePlanTool/constants";
+import { REQUEST_PLAN_TOOL } from "../../mcp/orchestration/tools/RequestPlanTool/constants";
 import { APPROVE_LABEL, REJECT_LABEL, renderPlan } from "../plan/plan-render";
 import type { ApprovePlanInput, RequestPlanInput } from "../plan/plan-schemas";
 import { checkPlanRequest } from "../strategy/plan-policy";

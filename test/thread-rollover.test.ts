@@ -1,11 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
-import {
-  MEMORY_MCP_SERVER,
-  mcpToolName,
-  REMEMBER_TOOL,
-  SET_THREAD_TITLE_TOOL,
-} from "../src/mcp/mcp-tool-names";
+import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
+import { REMEMBER_TOOL } from "../src/mcp/memory/tools/RememberTool/constants";
 import { journalFile } from "../src/memory/daily-journal";
 import { searchIndex } from "../src/memory/index/memory-search";
 import { localDay } from "../src/memory/memory-clock";
@@ -35,6 +31,7 @@ import {
 } from "../src/storage/thread-summary-store";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 import { until } from "./lead-harness";
+import { toolsByServer } from "./mcp-ctx-fixture";
 
 const WINDOW = 200_000;
 const BIG = WINDOW * ROLLOVER_CONTEXT_SHARE; // exactly at the share: rolls
@@ -255,8 +252,9 @@ describe("rollover sequence", () => {
     expect(flush.resume).toBe("sess-main");
     expect(flush.tools).toEqual([]); // no built-in tool
     expect(flush.allowedTools).toEqual([REMEMBER]); // the only tool
-    expect(flush.disallowedTools).toContain(mcpToolName(MEMORY_MCP_SERVER, "MemorySearch"));
-    expect(flush.disallowedTools).toContain(mcpToolName(MEMORY_MCP_SERVER, SET_THREAD_TITLE_TOOL)); // lean runs never see it
+    // The lean role lists only Remember: the other memory tools and SetThreadTitle are not even built.
+    expect(toolsByServer(flush.mcpServers)).toEqual({ [MEMORY_MCP_SERVER]: [REMEMBER_TOOL] });
+    expect(toolsByServer(h.calls[2]!.options.mcpServers)).toEqual({}); // the /compact run has no tool
     expect(flush.hooks.PreCompact).toBeUndefined(); // the flush registers no compact hooks
     expect(flush.hooks.PostCompact).toBeUndefined();
     expect(flush.maxTurns).toBe(4);

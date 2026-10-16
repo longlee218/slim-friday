@@ -2,7 +2,8 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GIT_PUSH_TOOL, MERGE_BRANCH_TOOL } from "../src/mcp/mcp-tool-names";
+import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
+import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
 import type { EffectsCtx, Runner } from "../src/orchestrator/approval/effect-context";
 import {
   ANY,

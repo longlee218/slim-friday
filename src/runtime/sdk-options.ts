@@ -1,8 +1,7 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
 import { type Route, resolveBudget, resolveCompactWindow } from "../config/model-routing";
-import { mcpServersFor } from "../mcp/mcp-servers";
-import { MEMORY_MCP_SERVER, MEMORY_TOOLS, mcpToolName } from "../mcp/mcp-tool-names";
+import { buildServers, mcpToolNamesFor } from "../mcp/mcp-servers";
 import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
 import type { RoleDefinition } from "../roles/role-types";
@@ -61,22 +60,17 @@ function mergeHooks(
 }
 
 /**
- * Option overrides of a lean run: no built-in tool, thinking off, the listed memory tools auto-approved and the other
- * memory tools hidden, own turn cap. (The role's `disallowedTools` stay: they are only secrets and git rules.)
+ * Option overrides of a lean run: no built-in tool, thinking off, the lean role's MCP tools auto-approved (the other
+ * tools are not even built: see `buildServers`), own turn cap. (The role's `disallowedTools` stay: they are only
+ * secrets and git rules.)
  */
-function leanOptions(lean: LeanRun): Partial<Options> {
-  const allowed = lean.memoryTools.map((t) => mcpToolName(MEMORY_MCP_SERVER, t));
+function leanOptions(role: RoleDefinition, lean: LeanRun): Partial<Options> {
   return {
     tools: [],
     thinking: { type: "disabled" },
     maxTurns: lean.maxTurns,
-    allowedTools: allowed,
-    disallowedTools: [
-      ...SECRET_FILE_RULES,
-      ...MEMORY_TOOLS.filter((t) => !lean.memoryTools.includes(t)).map((t) =>
-        mcpToolName(MEMORY_MCP_SERVER, t),
-      ),
-    ],
+    allowedTools: mcpToolNamesFor(role),
+    disallowedTools: [...SECRET_FILE_RULES],
   };
 }
 
@@ -138,7 +132,7 @@ export function buildSdkOptions(
     model: config.model,
     resume: input.resume,
     ...toolOptions(role),
-    mcpServers: mcpServersFor(role, input.memory, input.appServers),
+    mcpServers: buildServers(role, { ...input.appCtx?.(), memory: input.memory }),
     ...(permissionMode && { permissionMode }),
     // The SDK refuses bypassPermissions without this explicit opt-in (the guard hook stays the gate).
     ...(permissionMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),
@@ -173,6 +167,6 @@ export function buildSdkOptions(
     env: sdkEnv(config, process.env, resolveCompactWindow(role), {
       worker: !!guard?.envelope,
     }),
-    ...(input.lean && leanOptions(input.lean)),
+    ...(input.lean && leanOptions(role, input.lean)),
   };
 }

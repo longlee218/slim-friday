@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import * as mcpNames from "../src/mcp/mcp-tool-names";
 import * as sdkNames from "../src/tools/sdk-tool-names";
 
 // Every tool name in src/ must come from an exported constant. This scans src/ for quoted tool names
@@ -12,21 +11,17 @@ import * as sdkNames from "../src/tools/sdk-tool-names";
 
 const SRC = join(import.meta.dir, "..", "src");
 
-/** Files where the literals live (the constants themselves). */
+/** Files where the literals live: the SDK names, the MCP server names and each MCP tool's own leaf `constants.ts`. */
 const CONSTANTS_FILES = [
   /^tools\/sdk-tool-names\.ts$/,
   /^mcp\/mcp-tool-names\.ts$/,
-  /^tools\/[^/]+Tool\/constants\.ts$/,
+  /^mcp\/[^/]+\/tools\/[^/]+Tool\/constants\.ts$/,
 ];
 
-/** Every tool name known to the constants (SDK built-ins, MCP servers + tools). */
-const NAMES = new Set<string>([
-  ...Object.values(sdkNames),
-  ...mcpNames.MEMORY_TOOLS,
-  ...Object.values(mcpNames.APP_MCP_TOOLS).flat(),
-]);
-/** Names of custom tools: every string export of `src/tools/*Tool/constants.ts` (self-maintaining). */
-for (const rel of new Bun.Glob("tools/*Tool/constants.ts").scanSync(SRC)) {
+/** Every tool name known to the constants (SDK built-ins + MCP tools). */
+const NAMES = new Set<string>(Object.values(sdkNames));
+/** Names of MCP tools: every string export of `src/mcp/<server>/tools/*Tool/constants.ts` (self-maintaining). */
+for (const rel of new Bun.Glob("mcp/*/tools/*Tool/constants.ts").scanSync(SRC)) {
   const mod = (await import(join(SRC, rel))) as Record<string, unknown>;
   for (const v of Object.values(mod)) if (typeof v === "string") NAMES.add(v);
 }

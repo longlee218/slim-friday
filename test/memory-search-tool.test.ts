@@ -2,11 +2,14 @@ import { expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createReadBudget } from "../src/mcp/memory/memory-read-shared";
+import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
+import { createMemorySearchTool } from "../src/mcp/memory/tools/MemorySearchTool/memory-search-tool";
+import {
+  formatTrustedToolIssue,
+  TRUSTED_TOOL_ISSUE_CODES,
+} from "../src/mcp/memory/trusted-tool-issue";
 import { openDb } from "../src/storage/db";
-import { createMemorySearchTool } from "../src/tools/MemorySearchTool/memory-search-tool";
-import { createReadBudget } from "../src/tools/memory-read-shared";
-import type { MemoryToolContext } from "../src/tools/memory-tool-context";
-import { formatTrustedToolIssue, TRUSTED_TOOL_ISSUE_CODES } from "../src/tools/trusted-tool-issue";
 
 function setup(over: Partial<MemoryToolContext> = {}, max?: number) {
   const issues: { tool: string; code: string }[] = [];

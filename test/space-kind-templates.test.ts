@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createWorkspaceDir } from "../src/discord-setup/workspace-template";
+import { listSpaces } from "../src/mcp/discord-admin/tools/ListSpacesTool/list-spaces-tool";
 import { SPACE_KIND_FILES, spaceKindFile, spaceKinds } from "../src/memory/persona-templates";
-import { listSpaces } from "../src/tools/ListSpacesTool/list-spaces-tool";
 import { assertTempHome } from "./helpers";
 
 test("kinds are the folders of the templates dir", () => {

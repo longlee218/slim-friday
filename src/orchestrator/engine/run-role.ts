@@ -2,6 +2,7 @@ import type { Route } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
 import { threadLanguage } from "../../ingress/discord-components";
 import { renderUserNotice } from "../../ingress/user-copy";
+import { SET_THREAD_TITLE_TOOL } from "../../mcp/orchestration/tools/SetThreadTitleTool/constants";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
 import { mayHaveWritten } from "../../roles/capability-registry";
@@ -146,8 +147,16 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
           ],
         }),
       }),
-      extraContext: runExtraContext({ db, config, i, s, role, route, hasTitlePort: !!titlePort }),
-      appServers: i.appServers,
+      extraContext: runExtraContext({
+        db,
+        config,
+        i,
+        s,
+        role,
+        route,
+        hasTitlePort: !!titlePort && !!role.mcpTools?.includes(SET_THREAD_TITLE_TOOL),
+      }),
+      appCtx: i.appCtx,
       resume: resumeId,
       route,
       config,

@@ -1,4 +1,4 @@
-import { MERGE_BRANCH_TOOL } from "../../mcp/mcp-tool-names";
+import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 import { askNeeded } from "../approval/ask-policy";
 import { effectRisk } from "../approval/check-envelope";
 import type { EffectGrant } from "../approval/envelope";

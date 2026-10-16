@@ -1,4 +1,4 @@
-import { DELETE_PATHS_TOOL } from "../../mcp/mcp-tool-names";
+import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/constants";
 import type { EffectTool, RiskClass } from "./risk-types";
 
 /* When the owner is asked about a risky action (brainstorm 5.14, "hạn chế hỏi"). Pure table. */

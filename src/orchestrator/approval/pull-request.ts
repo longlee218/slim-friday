@@ -1,5 +1,5 @@
 import { ghDenial } from "../../guardrails/gh-policy";
-import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/mcp-tool-names";
+import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
 import { type Reply, refuse } from "../engine/lead-call";
 import { checkEnvelope, isFallbackDefault } from "./check-envelope";
 import { type EffectsCtx, locationPath, recordEffect, refuseLogged } from "./effect-context";

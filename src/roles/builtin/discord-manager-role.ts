@@ -1,5 +1,7 @@
 import { HAIKU_MODEL } from "../../config/model-ids";
-import { DISCORD_ADMIN_MCP_SERVER } from "../../mcp/mcp-tool-names";
+import { CREATE_SPACE_OR_CHANNEL_TOOL } from "../../mcp/discord-admin/tools/CreateSpaceOrChannelTool/constants";
+import { LIST_SPACES_TOOL } from "../../mcp/discord-admin/tools/ListSpacesTool/constants";
+import { WRITE_SPACE_FILE_TOOL } from "../../mcp/discord-admin/tools/WriteSpaceFileTool/constants";
 import type { RoleDefinition } from "../role-types";
 
 /** Owner questions per run (AskUserQuestion): enough to pick a kind, a name and a confirmation. */
@@ -23,7 +25,7 @@ export const DISCORD_MANAGER_ROLE: RoleDefinition = {
   surface: "control",
   background: false,
   skills: ["discord-server-manager"],
-  mcpServers: [DISCORD_ADMIN_MCP_SERVER],
+  mcpTools: [LIST_SPACES_TOOL, CREATE_SPACE_OR_CHANNEL_TOOL, WRITE_SPACE_FILE_TOOL], // a control run has no memory ctx: no memory tools
   limits: { maxAsk: MAX_ASK },
   model: HAIKU_MODEL,
   thinking: { type: "disabled" }, // a short admin chat: thinking off keeps it cheap

@@ -1,13 +1,9 @@
 import type { GuardrailContext } from "../../guardrails/check-tool-call";
-import {
-  CREATE_PULL_REQUEST_TOOL,
-  DELETE_PATHS_TOOL,
-  EFFECTS_MCP_SERVER,
-  GIT_PUSH_TOOL,
-  MCP_PREFIX,
-  MERGE_BRANCH_TOOL,
-  mcpToolName,
-} from "../../mcp/mcp-tool-names";
+import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
+import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/constants";
+import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
+import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
+import { EFFECTS_MCP_SERVER, MCP_PREFIX, mcpToolName } from "../../mcp/mcp-tool-names";
 import {
   BASH_TOOL_NAME,
   EDIT_TOOL_NAME,

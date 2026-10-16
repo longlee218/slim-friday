@@ -1,4 +1,4 @@
-import { GIT_PUSH_TOOL } from "../../mcp/mcp-tool-names";
+import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
 import { type Reply, refuse } from "../engine/lead-call";
 import { checkEnvelope, grantNamesBranch, isFallbackDefault } from "./check-envelope";
 import {

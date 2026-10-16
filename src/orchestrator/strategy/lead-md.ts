@@ -1,11 +1,9 @@
-import {
-  APPROVE_PLAN_TOOL,
-  ASK_OWNER_TOOL,
-  DISPATCH_AGENT_TOOL,
-  FORWARD_RESULT_TOOL,
-  REQUEST_PLAN_TOOL,
-  TASK_STATUS_TOOL,
-} from "../../mcp/mcp-tool-names";
+import { APPROVE_PLAN_TOOL } from "../../mcp/orchestration/tools/ApprovePlanTool/constants";
+import { ASK_OWNER_TOOL } from "../../mcp/orchestration/tools/AskOwnerTool/constants";
+import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
+import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
+import { REQUEST_PLAN_TOOL } from "../../mcp/orchestration/tools/RequestPlanTool/constants";
+import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
 import { dispatchableWorkers } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import { CHAIN_CAP, DELEGATE_MAX, DISPATCHES_PER_RUN, LEAD_DAILY_BUDGET_USD } from "./caps";

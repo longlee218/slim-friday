@@ -6,7 +6,7 @@ import {
   formatTrustedToolIssue,
   TRUSTED_TOOL_ISSUE_CODES,
   type TrustedToolIssueCode,
-} from "../tools/trusted-tool-issue";
+} from "../mcp/memory/trusted-tool-issue";
 
 /** The closed set of trusted issue codes (defined with the tools that report them). */
 const TRUSTED_ISSUE_CODES = TRUSTED_TOOL_ISSUE_CODES;

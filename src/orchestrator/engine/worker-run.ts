@@ -1,7 +1,9 @@
 import { workspacePaths } from "../../config/workspace-paths";
 import { messageLanguage } from "../../ingress/user-copy";
+import type { ReportSink } from "../../mcp/orchestration/tools/ReportResultTool/report-result-tool";
+import { channelDigestBlock } from "../../memory/channel-digest";
 import { logger, setLogContext } from "../../observability/logger";
-import { getRole } from "../../roles/role-registry";
+import { dispatchableWorkers, getRole } from "../../roles/role-registry";
 import {
   bumpDispatch,
   getItem,
@@ -9,7 +11,7 @@ import {
   type ResultKind,
 } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
-import type { ReportSink } from "../../tools/ReportResultTool/report-result-tool";
+import { channelDigest } from "../../storage/thread-store";
 import { spawnRunner } from "../approval/git-run";
 import { goalLocations, loadEnvelope } from "../approval/load-envelope";
 import { markStartDelivered } from "../events/event-store";
@@ -20,14 +22,13 @@ import { ownerConfirm } from "./owner-confirm";
 import type { RoleRunInput } from "./role-run-types";
 import { runDetached } from "./worker-detached-run";
 import { earlierSteps, emitEndEvent } from "./worker-end-event";
-import { workerServers } from "./worker-servers";
 
 /** Logger of this module. */
 const log = logger.child({ module: "worker-run" });
 
 /**
  * Start one item as a detached worker run: count the dispatch, close its `start` work order, open the turn (the owned
- * task goes `running`) and run with the worker server (`ReportResult`), no subagents, the question relay and a neutral
+ * task goes `running`) and run with its MCP tools (`ReportResult`...), no subagents, the question relay and a neutral
  * message (a worker never posts to Discord). `after` runs when the run ended: end event, goal settle, next item.
  * Takes its global run slot first: returns false (nothing touched, the item stays ready) when the cap is reached.
  */
@@ -93,13 +94,23 @@ export async function startWorker(
       ledger: earlierSteps(db, item),
       noSubagents: true, // depth 1: developer too
       envelope,
-      appServers: workerServers({
-        db,
-        role,
-        sink,
-        ctx,
-        threadId,
-        goalId,
+      // The ctx parts of this worker's MCP tools; its role's `mcpTools` picks which ones it really gets (a worker has no
+      // `lead` part, so it can never hold a lead tool).
+      appCtx: () => ({
+        reportSink: sink,
+        // Plan tools: bound to the goal the planner plans for.
+        plan: {
+          db,
+          threadId,
+          goalId,
+          workers: dispatchableWorkers(),
+          locations: ctx.locations.map((l) => ({ name: l.name, path: l.path })),
+          channelDigest: () =>
+            ctx.channelId && (ctx.channelMode ?? "task") === "task"
+              ? channelDigestBlock(channelDigest(db, ctx.channelId, threadId)).text
+              : "",
+        },
+        // Effect tools: bound to the run's envelope.
         effects: {
           db,
           threadId,

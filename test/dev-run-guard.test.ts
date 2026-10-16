@@ -5,9 +5,9 @@ import { claudePlansDir, workspacePaths } from "../src/config/workspace-paths";
 import {
   EFFECTS_MCP_SERVER,
   MEMORY_MCP_SERVER,
-  REMEMBER_TOOL,
-  WORKER_MCP_SERVER,
+  ORCHESTRATION_MCP_SERVER,
 } from "../src/mcp/mcp-tool-names";
+import { REMEMBER_TOOL } from "../src/mcp/memory/tools/RememberTool/constants";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { setupWorkflow } from "./code-flow-fixture";
 import { resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
@@ -71,11 +71,11 @@ test("the dev run works in the location's own checkout: cwd = location path, scr
 
 test("dev: only the app's MCP servers; a worker's env keeps no owner secret (the SDK also scrubs its tools' env)", async () => {
   const { exec } = await runExec();
-  // Only the app's in-process servers (worker result tool, effect tools, memory);.
+  // Only the app's in-process servers (memory, ReportResult, effect tools).
   expect(Object.keys(exec.mcpServers)).toEqual([
-    WORKER_MCP_SERVER,
-    EFFECTS_MCP_SERVER,
     MEMORY_MCP_SERVER,
+    ORCHESTRATION_MCP_SERVER,
+    EFFECTS_MCP_SERVER,
   ]);
   // A worker runs repo code: no gh / git login of the owner in its env. The effect tools use it in their own subprocess.
   expect(exec.env.GH_TOKEN).toBeUndefined();

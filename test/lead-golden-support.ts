@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { REQUEST_PLAN_TOOL } from "../src/mcp/mcp-tool-names";
+import { REQUEST_PLAN_TOOL } from "../src/mcp/orchestration/tools/RequestPlanTool/constants";
 
 /* Support of the lead golden set: the fixture loader and the scorer that reads the lead's recorded decisions. */
 

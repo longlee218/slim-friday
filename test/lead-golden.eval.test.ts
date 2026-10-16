@@ -4,6 +4,7 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { initMsg, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 import { decisionOf, loadGolden } from "./lead-golden-support";
 import { sleep, until } from "./lead-harness";
+import { isLeadRun } from "./mcp-run-probe";
 
 /*
  * PAID opt-in eval of the lead: runs only with LEAD_EVAL=1 and a real CLAUDE_CODE_OAUTH_TOKEN (never by default).
@@ -27,7 +28,7 @@ describe.skipIf(!live)("lead golden set (real lead, fake workers)", () => {
       const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: token!, TIMEOUT_MS: "90000" });
       // Lead runs go to the real SDK; any other run (worker, planner) is a stub that ends at once.
       const queryFn = (a: { prompt: unknown; options?: { mcpServers?: object } }) =>
-        a.options?.mcpServers && "lead" in a.options.mcpServers
+        isLeadRun(a.options)
           ? query(a as never)
           : (async function* () {
               yield initMsg;

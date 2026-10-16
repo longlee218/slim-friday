@@ -7,19 +7,17 @@ import { HAIKU_MODEL } from "../src/config/model-ids";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createWorkspaceDir } from "../src/discord-setup/workspace-template";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
-import { mcpServersFor } from "../src/mcp/mcp-servers";
-import {
-  APP_MCP_TOOLS,
-  DISCORD_ADMIN_MCP_SERVER,
-  mcpToolName,
-  WRITE_SPACE_FILE_TOOL,
-} from "../src/mcp/mcp-tool-names";
+import { CREATE_SPACE_OR_CHANNEL_TOOL } from "../src/mcp/discord-admin/tools/CreateSpaceOrChannelTool/constants";
+import { createCreateSpaceOrChannelTool } from "../src/mcp/discord-admin/tools/CreateSpaceOrChannelTool/create-space-or-channel-tool";
+import { LIST_SPACES_TOOL } from "../src/mcp/discord-admin/tools/ListSpacesTool/constants";
+import { WRITE_SPACE_FILE_TOOL } from "../src/mcp/discord-admin/tools/WriteSpaceFileTool/constants";
+import { buildServers } from "../src/mcp/mcp-servers";
+import { DISCORD_ADMIN_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { roleScope } from "../src/orchestrator/engine/role-scope";
 import { DISCORD_MANAGER_ROLE } from "../src/roles/builtin/discord-manager-role";
 import { mayHaveWritten, validateRegistry } from "../src/roles/capability-registry";
 import { controlRole, dispatchableWorkers, getRole } from "../src/roles/role-registry";
 import { buildRoleSkills } from "../src/runtime/skills-plugin/role-skills";
-import { createCreateSpaceOrChannelTool } from "../src/tools/CreateSpaceOrChannelTool/create-space-or-channel-tool";
 import {
   BASH_TOOL_NAME,
   READ_TOOL_NAME,
@@ -29,6 +27,7 @@ import {
 import { toolsFor } from "../src/tools/tool-catalog";
 import { fakeGuild } from "./fake-guild";
 import { assertTempHome, makeEnv } from "./helpers";
+import { FULL_CTX, toolsByServer } from "./mcp-ctx-fixture";
 
 const NAME = DISCORD_MANAGER_ROLE.name;
 
@@ -40,7 +39,7 @@ test("role data: control surface, cheap, read + skills + ask only, own limits", 
     model: HAIKU_MODEL,
     thinking: { type: "disabled" },
     capabilities: ["read", "skills", "ask"],
-    mcpServers: [DISCORD_ADMIN_MCP_SERVER],
+    mcpTools: [LIST_SPACES_TOOL, CREATE_SPACE_OR_CHANNEL_TOOL, WRITE_SPACE_FILE_TOOL],
     limits: { maxAsk: 4 },
     sideEffects: "external",
   });
@@ -57,7 +56,7 @@ test("the role is never dispatchable by the lead", () => {
 
 test("the guard allows exactly the role's app tools; other roles and unknown tools are denied", () => {
   const guard = guardFor(DISCORD_MANAGER_ROLE, {});
-  for (const t of APP_MCP_TOOLS[DISCORD_ADMIN_MCP_SERVER] ?? [])
+  for (const t of DISCORD_MANAGER_ROLE.mcpTools ?? [])
     expect(checkToolCall(mcpToolName(DISCORD_ADMIN_MCP_SERVER, t), {}, guard).decision).toBe(
       "allow",
     );
@@ -70,23 +69,18 @@ test("the guard allows exactly the role's app tools; other roles and unknown too
   ).toBe("deny");
 });
 
-test("the admin server is added only when the caller supplies it and the role lists it", () => {
-  const server = { type: "sdk", name: DISCORD_ADMIN_MCP_SERVER, instance: {} } as never;
-  expect(
-    Object.keys(
-      mcpServersFor(DISCORD_MANAGER_ROLE, undefined, () => ({
-        [DISCORD_ADMIN_MCP_SERVER]: server,
-      })),
-    ),
-  ).toEqual([DISCORD_ADMIN_MCP_SERVER]);
-  expect(Object.keys(mcpServersFor(DISCORD_MANAGER_ROLE))).toEqual([]);
-  expect(
-    Object.keys(
-      mcpServersFor(getRole("lead"), undefined, () => ({
-        [DISCORD_ADMIN_MCP_SERVER]: server,
-      })),
-    ),
-  ).not.toContain(DISCORD_ADMIN_MCP_SERVER);
+test("the admin server is built only when the run has the admin ctx and the role lists its tools", () => {
+  expect(toolsByServer(buildServers(DISCORD_MANAGER_ROLE, { admin: FULL_CTX.admin }))).toEqual({
+    [DISCORD_ADMIN_MCP_SERVER]: [
+      CREATE_SPACE_OR_CHANNEL_TOOL,
+      LIST_SPACES_TOOL,
+      WRITE_SPACE_FILE_TOOL,
+    ].sort(),
+  });
+  expect(Object.keys(buildServers(DISCORD_MANAGER_ROLE, {}))).toEqual([]);
+  expect(Object.keys(buildServers(getRole("lead"), { admin: FULL_CTX.admin }))).not.toContain(
+    DISCORD_ADMIN_MCP_SERVER,
+  );
 });
 
 test("its skill ships with the app, loads without a workspace, and no other role gets it", () => {

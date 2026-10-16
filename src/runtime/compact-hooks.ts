@@ -5,6 +5,7 @@ import type {
   PostCompactHookInput,
   PreCompactHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
+import type { MemoryToolContext } from "../mcp/memory/memory-tool-context";
 import { appendJournalBlock, type JournalItem } from "../memory/daily-journal";
 import {
   EXTRACT_SOURCE_CHARS,
@@ -19,7 +20,6 @@ import { readTranscriptTail } from "../memory/transcript-tail";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { bumpCycle, getThreadSummary, saveSummary } from "../storage/thread-summary-store";
-import type { MemoryToolContext } from "../tools/memory-tool-context";
 
 /** Journal block titles; the thread label is appended (the writer cuts the whole label to one short line). */
 const EXTRACT_LABEL = "Extracted Context";

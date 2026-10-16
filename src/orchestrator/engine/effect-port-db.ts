@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { DISPATCH_AGENT_TOOL } from "../../mcp/mcp-tool-names";
+import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
 import { excerpt } from "../../observability/logger";
 import { LEAD_ROLE } from "../../roles/builtin/lead-role";
 import { appendEffect } from "../../storage/effect-log-store";

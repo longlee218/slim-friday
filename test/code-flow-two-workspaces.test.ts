@@ -5,7 +5,7 @@ import { join } from "node:path";
 import {
   EFFECTS_MCP_SERVER,
   MEMORY_MCP_SERVER,
-  WORKER_MCP_SERVER,
+  ORCHESTRATION_MCP_SERVER,
 } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { g, makeLocation } from "./git-fixture";
@@ -84,12 +84,12 @@ test("two workspaces with location `real`: every task runs in the channel's work
   const n = seen.length;
   await handle(msg("also c")); // a new task (no follow-up in a finished task)
   // The lead may also run (it reads the first task's result): pick the second worker call.
-  const second = () => seen.slice(n).find((c) => c.options.mcpServers?.[WORKER_MCP_SERVER]);
+  const second = () => seen.slice(n).find((c) => c.options.mcpServers?.[EFFECTS_MCP_SERVER]);
   await until(() => second() !== undefined);
   expect(second().options.cwd).toContain("/w-b/");
   expect(Object.keys(second().options.mcpServers).sort()).toEqual([
     EFFECTS_MCP_SERVER,
     MEMORY_MCP_SERVER,
-    WORKER_MCP_SERVER,
+    ORCHESTRATION_MCP_SERVER,
   ]); // no git tools, no identity from the app; the effect tools next to ReportResult
 });

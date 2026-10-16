@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { EFFECT_TOOLS } from "../../mcp/mcp-tool-names";
+import { EFFECT_TOOL_NAMES } from "../../mcp/effects/effect-tool-names";
 import { childrenOf } from "../../storage/owned-item-store";
 import { planIdOfGoal, planVersions } from "../../storage/work-plan-store";
 import { docOfRow } from "../plan/plan-doc";
@@ -28,7 +28,7 @@ function storedGrants(db: Database, goalId: string): EffectGrant[] {
     const list = JSON.parse(row.scope) as EffectGrant[];
     return list.filter(
       (g) =>
-        (EFFECT_TOOLS as readonly string[]).includes(g?.tool) &&
+        (EFFECT_TOOL_NAMES as readonly string[]).includes(g?.tool) &&
         typeof g.scope?.location === "string",
     );
   } catch {

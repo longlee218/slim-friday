@@ -1,8 +1,6 @@
-import {
-  CREATE_PULL_REQUEST_TOOL,
-  GIT_PUSH_TOOL,
-  MERGE_BRANCH_TOOL,
-} from "../../mcp/mcp-tool-names";
+import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
+import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
+import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 import type { Envelope as PlanEnvelope, Risk } from "../plan/plan-types";
 import { DEFAULT_BOUNDS, type EffectTool } from "./risk-types";
 

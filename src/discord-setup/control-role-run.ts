@@ -11,8 +11,6 @@ import {
   pinThreadLanguage,
   renderUserNotice,
 } from "../ingress/user-copy";
-import { createDiscordAdminServer } from "../mcp/discord-admin-server";
-import { DISCORD_ADMIN_MCP_SERVER } from "../mcp/mcp-tool-names";
 import { logEvent, logger, runWithLogContext } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { ownerConfirm } from "../orchestrator/engine/owner-confirm";
@@ -115,8 +113,8 @@ export function createControlRoleRun(deps: ControlRunDeps): ControlRun {
               language,
               existing,
               // Built per query() call: an in-process server instance is never shared by two calls.
-              appServers: () => ({
-                [DISCORD_ADMIN_MCP_SERVER]: createDiscordAdminServer({
+              appCtx: () => ({
+                admin: {
                   home: config.agentHome,
                   db,
                   init,
@@ -130,7 +128,7 @@ export function createControlRoleRun(deps: ControlRunDeps): ControlRun {
                       language,
                       signal: ac.signal,
                     }),
-                }),
+                },
               }),
             },
           );

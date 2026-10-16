@@ -4,7 +4,8 @@ import type { AgentConfig } from "../config/agent-config";
 import { ceilingBinds, type Route } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import type { GuardrailContext } from "../guardrails/check-tool-call";
-import type { AppServersFactory } from "../mcp/mcp-servers";
+import type { AppCtxFactory } from "../mcp/manifest-types";
+import type { MemoryToolContext } from "../mcp/memory/memory-tool-context";
 import { logEvent, logger } from "../observability/logger";
 import {
   avgContextTokens,
@@ -14,7 +15,6 @@ import {
   type RunUsage,
 } from "../observability/record-run";
 import type { RoleDefinition } from "../roles/role-types";
-import type { MemoryToolContext } from "../tools/memory-tool-context";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import { createPermissionWatch } from "./permission-watch";
 import type { SteerHook } from "./run-input-channel";
@@ -30,12 +30,10 @@ import type { ToolPermissionInput } from "./tool-permissions";
 export type { QueryFn };
 
 /**
- * A lean run (the rollover's flush and `/compact`): no built-in tool, thinking off, only the listed `memory` tools,
- * its own turn and budget caps (they replace the role's). Omitted = a normal role run.
+ * A lean run (the rollover's flush and `/compact`): no built-in tool, thinking off, only the MCP tools of the (lean)
+ * role's `mcpTools`, its own turn and budget caps (they replace the role's). Omitted = a normal role run.
  */
 export interface LeanRun {
-  /** Memory-server tool names (bare, `Remember`...) the run may call; the other memory tools are hidden. */
-  memoryTools: string[];
   maxTurns: number;
   budgetUsd: number;
 }
@@ -62,10 +60,10 @@ export interface RunAgentInput {
   worktreesDir?: string;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never location content). */
   skillsWorkspace?: string;
-  /** Context of the in-process `memory` server (Remember...): omitted = the run has no memory tools. */
+  /** Context of the memory tools (Remember...) and `SetThreadTitle`: omitted = the run has no memory tools. */
   memory?: MemoryToolContext;
-  /** Builds the app MCP servers by name (the role's `mcpServers` picks them); called per query() call. */
-  appServers?: AppServersFactory;
+  /** Builds the app ctx parts (lead, report sink, plan, effects, admin) of ONE query() call; the role's `mcpTools` picks the tools. */
+  appCtx?: AppCtxFactory;
   /** Per-run facts (internal hint, budget raise, spent so far); omitted = the role defaults. */
   route?: Route;
   /** Existing Claude session id to resume. */

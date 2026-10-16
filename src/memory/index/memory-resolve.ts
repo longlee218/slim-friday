@@ -1,8 +1,8 @@
 import type { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { WORKSPACE_NAME, workspacePaths } from "../../config/workspace-paths";
+import type { MemoryToolContext } from "../../mcp/memory/memory-tool-context";
 import { SUMMARY_MAX_CHARS } from "../../storage/thread-summary-store";
-import type { MemoryToolContext } from "../../tools/memory-tool-context";
 import { channelTarget, locationTarget, rootTarget, workspaceTarget } from "../memory-targets";
 import type { Chunk } from "./memory-chunker";
 import { type FileInfo, readFileChunks } from "./memory-files";

@@ -1,6 +1,4 @@
 import { messageLanguage } from "../../ingress/user-copy";
-import { createLeadServer } from "../../mcp/lead-server";
-import { LEAD_MCP_SERVER } from "../../mcp/mcp-tool-names";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
@@ -83,7 +81,7 @@ async function leadOnce(
       recent: ctx.message.recent, // seeds a fresh session after a rollover
       existing: stored?.kind === "lead" ? stored : null,
       extraSystem: [buildLeadMd()],
-      appServers: () => ({ [LEAD_MCP_SERVER]: createLeadServer(toolCtx) }),
+      appCtx: () => ({ lead: toolCtx }),
     });
     const reply = closeTurn(
       db,

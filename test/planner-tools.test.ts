@@ -4,8 +4,9 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SONNET_MODEL } from "../src/config/model-ids";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
-import { APP_MCP_TOOLS, mcpToolName, PLANNER_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import { createPlannerServer } from "../src/mcp/planner-server";
+import { buildServers } from "../src/mcp/mcp-servers";
+import { mcpToolName, ORCHESTRATION_MCP_SERVER, PLAN_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
 import { createPlanPort } from "../src/orchestrator/engine/effect-port-plan";
 import {
   handleApprovePlan,
@@ -19,6 +20,7 @@ import { buildRoleSkills } from "../src/runtime/skills-plugin/role-skills";
 import { openDb } from "../src/storage/db";
 import { makeEnv } from "./helpers";
 import { FakePort } from "./lead-fake-port";
+import { PLAN_TOOLS } from "./mcp-ctx-fixture";
 
 /* The planner's seven tools through the real MCP server (the handlers the SDK would call), the lead's two plan tools
    over the fake port, the plan policy and the planner role's skills. */
@@ -64,7 +66,7 @@ function setup() {
     locations: [{ name: "location", path: "/tmp/loc" }],
     channelDigest: () => "03-01 earlier thread",
   };
-  const server = createPlannerServer(ctx) as unknown as {
+  const server = buildServers(ROLES.planner!, { plan: ctx })[PLAN_MCP_SERVER] as unknown as {
     instance: {
       _registeredTools: Record<string, { handler: (a: object, e: object) => Promise<any> }>;
     };
@@ -74,11 +76,9 @@ function setup() {
   return { goalId: w.goalId, call, ctx, server };
 }
 
-test("the planner server exposes exactly the seven tools of APP_MCP_TOOLS", () => {
+test("the plan server exposes exactly the seven plan tools", () => {
   const { server } = setup();
-  expect(Object.keys(server.instance._registeredTools).sort()).toEqual(
-    [...(APP_MCP_TOOLS[PLANNER_MCP_SERVER] ?? [])].sort(),
-  );
+  expect(Object.keys(server.instance._registeredTools).sort()).toEqual([...PLAN_TOOLS].sort());
 });
 
 test("GetProjectContext + GetAgentCapabilities: request, locations, digest, roles; another goal is refused", async () => {
@@ -286,13 +286,15 @@ test("planner tools are allowed for the planner only; the planner holds no lead 
   const allowed = (role: string, tool: string) =>
     checkToolCall(tool, {}, guardFor(ROLES[role]!, scope)).decision === "allow";
   for (const name of Object.keys(ROLES)) {
-    for (const t of APP_MCP_TOOLS[PLANNER_MCP_SERVER] ?? [])
-      expect([name, allowed(name, mcpToolName(PLANNER_MCP_SERVER, t))]).toEqual([
+    for (const t of PLAN_TOOLS)
+      expect([name, allowed(name, mcpToolName(PLAN_MCP_SERVER, t))]).toEqual([
         name,
         name === "planner",
       ]);
   }
-  expect(allowed("planner", mcpToolName("lead", "DispatchAgent"))).toBe(false);
+  expect(allowed("planner", mcpToolName(ORCHESTRATION_MCP_SERVER, DISPATCH_AGENT_TOOL))).toBe(
+    false,
+  );
   expect(ROLES.planner!.dispatchable).toBeFalsy();
   expect(ROLES.planner!.sideEffects).toBe("none");
   expect(ROLES.planner!.capabilities).not.toContain("write");

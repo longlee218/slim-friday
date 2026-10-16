@@ -1,9 +1,6 @@
-import {
-  CREATE_PULL_REQUEST_TOOL,
-  EFFECT_TOOLS,
-  EFFECTS_MCP_SERVER,
-  mcpToolName,
-} from "../mcp/mcp-tool-names";
+import { EFFECT_TOOL_NAMES } from "../mcp/effects/effect-tool-names";
+import { CREATE_PULL_REQUEST_TOOL } from "../mcp/effects/tools/CreatePullRequestTool/constants";
+import { EFFECTS_MCP_SERVER, mcpToolName } from "../mcp/mcp-tool-names";
 import { checkEnvelope } from "../orchestrator/approval/check-envelope";
 import { classifyToolCall } from "../orchestrator/approval/classify-tool-call";
 import type { EffectTool } from "../orchestrator/approval/risk-types";
@@ -20,7 +17,7 @@ const OUTSIDE = (why: string): Decision => ({
 
 /** The effect tool a full MCP tool name is, or undefined. */
 const effectToolOf = (name: string): EffectTool | undefined =>
-  EFFECT_TOOLS.find((t) => name === mcpToolName(EFFECTS_MCP_SERVER, t));
+  EFFECT_TOOL_NAMES.find((t) => name === mcpToolName(EFFECTS_MCP_SERVER, t));
 
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 

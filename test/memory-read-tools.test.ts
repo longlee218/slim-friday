@@ -3,24 +3,24 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
-import { mcpServersFor } from "../src/mcp/mcp-servers";
+import { buildServers } from "../src/mcp/mcp-servers";
+import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
+import { MEMORY_READ_MAX_CALLS_PER_RUN } from "../src/mcp/memory/memory-read-shared";
+import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
+import { MEMORY_EXPAND_TOOL } from "../src/mcp/memory/tools/MemoryExpandTool/constants";
+import { MEMORY_GET_TOOL } from "../src/mcp/memory/tools/MemoryGetTool/constants";
 import {
-  MEMORY_EXPAND_TOOL,
-  MEMORY_GET_TOOL,
-  MEMORY_MCP_SERVER,
   MEMORY_SEARCH_TOOL,
-  mcpToolName,
-  REMEMBER_TOOL,
-} from "../src/mcp/mcp-tool-names";
-import { createMemoryServer } from "../src/mcp/memory-server";
+  SEARCH_MAX_LIMIT,
+  SEARCH_RESULT_MAX_CHARS,
+} from "../src/mcp/memory/tools/MemorySearchTool/constants";
+import { REMEMBER_TOOL } from "../src/mcp/memory/tools/RememberTool/constants";
 import { NOT_FOUND } from "../src/memory/index/memory-resolve";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { getRole } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { saveSummary } from "../src/storage/thread-summary-store";
-import { SEARCH_MAX_LIMIT, SEARCH_RESULT_MAX_CHARS } from "../src/tools/MemorySearchTool/constants";
-import { MEMORY_READ_MAX_CALLS_PER_RUN } from "../src/tools/memory-read-shared";
-import type { MemoryToolContext } from "../src/tools/memory-tool-context";
+import { memoryServer } from "./mcp-ctx-fixture";
 
 const NOW = new Date(2026, 9, 13, 9, 5);
 
@@ -36,7 +36,7 @@ function setup(ws = "a") {
     threadLabel: "thread t1",
     now: () => NOW,
   };
-  const server = createMemoryServer(ctx) as unknown as {
+  const server = memoryServer(ctx) as unknown as {
     instance: {
       _registeredTools: Record<
         string,
@@ -222,7 +222,9 @@ test("guard allows the 3 tools, denies unknown memory tools; all roles get the s
       guardFor(getRole("developer"), {}),
     ).decision,
   ).toBe("deny");
-  expect(Object.keys(mcpServersFor(getRole("lead"), s.ctx))).toContain(MEMORY_MCP_SERVER);
+  expect(Object.keys(buildServers(getRole("lead"), { memory: s.ctx }))).toContain(
+    MEMORY_MCP_SERVER,
+  );
   s.put("workspaces/a/memory/2026-10-12.md", "## 14:00 t\n### Facts\n- journalonlyword\n");
   saveSummary(s.db, "t1", "a", "summaryonlyword");
   const p = buildPromptContext({

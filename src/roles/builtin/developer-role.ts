@@ -1,5 +1,13 @@
 import { SONNET_MODEL } from "../../config/model-ids";
-import { EFFECTS_MCP_SERVER, WORKER_MCP_SERVER } from "../../mcp/mcp-tool-names";
+import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
+import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/constants";
+import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
+import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
+import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
+import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
+import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
+import { REMEMBER_TOOL } from "../../mcp/memory/tools/RememberTool/constants";
+import { REPORT_RESULT_TOOL } from "../../mcp/orchestration/tools/ReportResultTool/constants";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition } from "../role-types";
 
@@ -89,7 +97,18 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "A job that changes things or needs a plan the owner approves: implement, fix, refactor, add tests, design or plan a FUTURE change; works in the location and delivers (merge, PR or keep) after the owner chose.",
   background: true,
   dispatchable: true, // the lead may start it as a worker
-  mcpServers: [WORKER_MCP_SERVER, EFFECTS_MCP_SERVER], // ReportResult + the effect tools when dispatched (a run without the servers just lacks them)
+  // Memory tools, ReportResult and the effect tools (a run without the effects ctx just lacks them).
+  mcpTools: [
+    REMEMBER_TOOL,
+    MEMORY_SEARCH_TOOL,
+    MEMORY_GET_TOOL,
+    MEMORY_EXPAND_TOOL,
+    REPORT_RESULT_TOOL,
+    DELETE_PATHS_TOOL,
+    GIT_PUSH_TOOL,
+    CREATE_PULL_REQUEST_TOOL,
+    MERGE_BRANCH_TOOL,
+  ],
   skills: [
     "brainstorming",
     "diagnosing-superpowers",

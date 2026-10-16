@@ -1,18 +1,21 @@
 import { expect, test } from "bun:test";
 import type { ThreadTitlePort } from "../src/ingress/thread-rename";
-import { SET_THREAD_TITLE_TOOL } from "../src/mcp/mcp-tool-names";
-import { createMemoryServer } from "../src/mcp/memory-server";
-import { localDay } from "../src/memory/memory-clock";
-import { openDb } from "../src/storage/db";
-import { adoptThread, getThread, recordBotThread } from "../src/storage/thread-store";
-import type { MemoryToolContext } from "../src/tools/memory-tool-context";
+import { buildServers } from "../src/mcp/mcp-servers";
+import { ORCHESTRATION_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
 import {
   DIGEST_MAX_CHARS,
   SET_THREAD_TITLE_MAX_CALLS_PER_RUN,
+  SET_THREAD_TITLE_TOOL,
   TITLE_MAX_CHARS,
-} from "../src/tools/SetThreadTitleTool/constants";
-import { SET_THREAD_TITLE_DESCRIPTION } from "../src/tools/SetThreadTitleTool/prompt";
-import { createSetThreadTitleTool } from "../src/tools/SetThreadTitleTool/set-thread-title-tool";
+} from "../src/mcp/orchestration/tools/SetThreadTitleTool/constants";
+import { SET_THREAD_TITLE_DESCRIPTION } from "../src/mcp/orchestration/tools/SetThreadTitleTool/prompt";
+import { createSetThreadTitleTool } from "../src/mcp/orchestration/tools/SetThreadTitleTool/set-thread-title-tool";
+import { localDay } from "../src/memory/memory-clock";
+import { getRole } from "../src/roles/role-registry";
+import { openDb } from "../src/storage/db";
+import { adoptThread, getThread, recordBotThread } from "../src/storage/thread-store";
+import { toolsByServer } from "./mcp-ctx-fixture";
 
 const PH = "⏳ 10-14 08:58";
 const CREATED = new Date(2026, 9, 14, 8, 58).getTime();
@@ -111,14 +114,13 @@ test("prompt: greeting-only turn means no call; no secrets", () => {
   expect(SET_THREAD_TITLE_DESCRIPTION).toMatch(/Never include secrets/);
 });
 
-test("registered in the memory server only with ctx.threadTitle", () => {
+test("built for the lead only with ctx.threadTitle; a developer never gets it", () => {
   const s = setup();
-  const names = (c: MemoryToolContext) =>
-    Object.keys(
-      (createMemoryServer(c).instance as unknown as { _registeredTools: object })._registeredTools,
-    );
-  expect(names(s.ctx)).toContain(SET_THREAD_TITLE_TOOL);
-  expect(names({ ...s.ctx, threadTitle: undefined })).not.toContain(SET_THREAD_TITLE_TOOL);
+  const names = (role: string, c: MemoryToolContext) =>
+    toolsByServer(buildServers(getRole(role), { memory: c }))[ORCHESTRATION_MCP_SERVER] ?? [];
+  expect(names("lead", s.ctx)).toContain(SET_THREAD_TITLE_TOOL);
+  expect(names("lead", { ...s.ctx, threadTitle: undefined })).not.toContain(SET_THREAD_TITLE_TOOL);
+  expect(names("developer", s.ctx)).not.toContain(SET_THREAD_TITLE_TOOL);
 });
 
 test("clean strips bidi/zero-width chars and clips by code point (no split surrogate)", async () => {

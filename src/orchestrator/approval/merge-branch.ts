@@ -1,4 +1,4 @@
-import { MERGE_BRANCH_TOOL } from "../../mcp/mcp-tool-names";
+import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 import type { Reply } from "../engine/lead-call";
 import { checkEnvelope, grantNamesBranch } from "./check-envelope";
 import {

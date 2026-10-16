@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { SET_THREAD_TITLE_TOOL } from "../../mcp/mcp-tool-names";
+import { SET_THREAD_TITLE_TOOL } from "../../mcp/orchestration/tools/SetThreadTitleTool/constants";
 import { getThread } from "../../storage/thread-store";
 
 /** The system-context line that asks the agent to title a thread that still carries the bot's placeholder name. */

@@ -6,12 +6,8 @@
  * NOTE: Bash parsing is best effort and can be bypassed (variable tricks, scripts, etc).
  */
 
-import {
-  MCP_PREFIX,
-  MEMORY_MCP_SERVER,
-  MEMORY_TOOLS,
-  mcpServerPrefix,
-} from "../mcp/mcp-tool-names";
+import { mcpToolNamesFor } from "../mcp/mcp-servers";
+import { MCP_PREFIX } from "../mcp/mcp-tool-names";
 import type { DispatchEnvelope } from "../orchestrator/approval/envelope";
 import type { RoleDefinition } from "../roles/role-types";
 import {
@@ -31,7 +27,7 @@ import {
   SEND_MESSAGE_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
-import { appMcpToolsFor, autoAllowedTools, toolsFor } from "../tools/tool-catalog";
+import { autoAllowedTools, toolsFor } from "../tools/tool-catalog";
 import { checkBash, checkWorktreePath } from "./bash-policy";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
 import { envelopeGate } from "./envelope-guard";
@@ -86,7 +82,7 @@ export type GuardScope = Omit<GuardrailContext, "allowTools">;
 export function guardFor(role: RoleDefinition, scope: GuardScope): GuardrailContext {
   return {
     ...scope,
-    allowTools: [...autoAllowedTools(role), ...appMcpToolsFor(role)],
+    allowTools: [...autoAllowedTools(role), ...mcpToolNamesFor(role)],
     shell: toolsFor(role).includes(BASH_TOOL_NAME),
     ...(role.shellMode && { shellMode: role.shellMode }),
     // Depth 1: the role's data wins; a run (a dispatched worker) may also turn subagents off through the scope.
@@ -146,16 +142,11 @@ function checkBase(
     }
     return checkBash(command, ctx);
   }
-  // The app's own memory server: exactly its listed tools (they only write the memory files, by their own rules).
-  const memoryPrefix = mcpServerPrefix(MEMORY_MCP_SERVER);
-  if (toolName.startsWith(memoryPrefix))
-    return MEMORY_TOOLS.includes(toolName.slice(memoryPrefix.length))
-      ? { decision: "allow", reason: "memory tool" }
-      : { decision: "deny", reason: "unknown memory tool" };
-  // An app server a role lists in its data: its tools arrive in `allowTools` (tool-catalog `appMcpToolsFor`).
+  // An app MCP tool: allowed only when the role's `mcpTools` lists it (`guardFor` puts those in `allowTools`); any other
+  // `mcp__*` tool is denied (second lock behind the per-run server build).
   if (toolName.startsWith(MCP_PREFIX))
     return ctx.allowTools?.includes(toolName)
-      ? { decision: "allow", reason: "app MCP tool of this role" }
+      ? { decision: "allow", reason: "MCP tool of this role" }
       : { decision: "deny", reason: "unknown MCP tool" };
   if (ctx.allowTools?.includes(toolName))
     return { decision: "allow", reason: "tool allowed in this mode" };

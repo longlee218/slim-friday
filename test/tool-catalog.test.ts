@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
+import { mcpToolNamesFor } from "../src/mcp/mcp-servers";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
@@ -33,7 +34,6 @@ import {
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import {
-  appMcpToolsFor,
   autoAllowedTools,
   CAPABILITY_TOOLS,
   SECRET_FILE_RULES,
@@ -145,8 +145,8 @@ test("auto-allowed tools are a subset of the role's tools and never include writ
 
 test("guardFor: one builder per role, auto-allowed tools from the catalog", () => {
   const qa = guardFor(qaRole, { readPaths: ["/r"] });
-  // the scout lists the worker server (its ReportResult tool): allowed next to the auto tools
-  expect(qa.allowTools).toEqual([...autoAllowedTools(qaRole), ...appMcpToolsFor(qaRole)]);
+  // the scout lists its MCP tools (ReportResult, memory): allowed next to the auto tools
+  expect(qa.allowTools).toEqual([...autoAllowedTools(qaRole), ...mcpToolNamesFor(qaRole)]);
   expect(qa.writePaths).toBeUndefined(); // a read-only role writes nothing
   const exec = guardFor(dev, {
     writePaths: ["/location", "/ws/worktrees"],
@@ -157,8 +157,8 @@ test("guardFor: one builder per role, auto-allowed tools from the catalog", () =
     writePaths: ["/location", "/ws/worktrees"],
     worktreeDirs: ["/ws/worktrees"],
   });
-  // dev lists the worker server in its data (its ReportResult tool): allowed next to the auto tools
-  expect(exec.allowTools).toEqual([...autoAllowedTools(dev), ...appMcpToolsFor(dev)]);
+  // dev lists its MCP tools in its data (ReportResult, effects, memory): allowed next to the auto tools
+  expect(exec.allowTools).toEqual([...autoAllowedTools(dev), ...mcpToolNamesFor(dev)]);
 });
 
 test("options: tools from the catalog, no allowedTools, strict MCP", () => {

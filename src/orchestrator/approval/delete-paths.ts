@@ -1,4 +1,4 @@
-import { DELETE_PATHS_TOOL } from "../../mcp/mcp-tool-names";
+import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/constants";
 import { clip } from "../../observability/redact";
 import { type Reply, refuse } from "../engine/lead-call";
 import { goalUsage, measurePaths } from "./bounds-usage";

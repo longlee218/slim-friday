@@ -3,6 +3,7 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
 import { devLeadQuery, until } from "./lead-harness";
+import { isWorkerRun } from "./mcp-run-probe";
 
 test("limiter caps at max and frees on release (idempotent)", () => {
   const l = createRunLimiter(2);
@@ -25,7 +26,7 @@ function gatedHandler(env: ReturnType<typeof makeEnv>, limiter = createRunLimite
   const gate: { open?: () => void; entered: number } = { entered: 0 };
   const queryFn = ((a: any) =>
     (async function* () {
-      if (a.options.mcpServers?.worker) {
+      if (isWorkerRun(a.options)) {
         gate.entered++;
         await new Promise<void>((res, rej) => {
           gate.open = res;

@@ -6,7 +6,7 @@ import type { ThreadTitlePort } from "../../ingress/thread-rename";
 import type { OwnerLanguage } from "../../ingress/user-copy";
 import type { RecentMessage } from "../../intent/intent-types";
 import type { Location } from "../../locations/location-registry";
-import type { AppServersFactory } from "../../mcp/mcp-servers";
+import type { AppCtxFactory } from "../../mcp/manifest-types";
 import type { QueryFn } from "../../runtime/run-agent";
 import type { AskQuestion } from "../../runtime/tool-permissions";
 import type { SessionRow } from "../../storage/session-store";
@@ -26,7 +26,7 @@ export interface RoleRunnerDeps {
   stopping?: () => boolean;
   /** Where streaming runs register their input so the owner can steer them. Omitted = string prompts, no steer. */
   steer?: SteerRegistry;
-  /** Renames the thread for `SetThreadTitle` (every role; rollover/lean runs never get it). Omitted = the tool is not offered. */
+  /** Renames the thread for `SetThreadTitle` (lead only: only the lead lists the tool in its `mcpTools`; rollover/lean runs never get it). Omitted = the tool is not offered. */
   threadTitle?: ThreadTitlePort;
 }
 
@@ -53,8 +53,8 @@ export interface RoleRunInput {
   role: string;
   /** Workspace the run belongs to; every location lookup of the flow stays inside it. Absent = a control-channel run (no workspace, no location, no memory). */
   workspace?: string;
-  /** Builds the in-process app MCP servers (by name, see `RoleDefinition.mcpServers`) on every query() call; only the ones the role lists are used. */
-  appServers?: AppServersFactory;
+  /** Builds the app ctx parts of the MCP tools (lead, report sink, plan, effects, admin) on every query() call; the role's `mcpTools` picks the tools. */
+  appCtx?: AppCtxFactory;
   /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
   channel?: string;
   /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */

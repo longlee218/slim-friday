@@ -9,13 +9,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  DELETE_PATHS_TOOL,
-  DISPATCH_AGENT_TOOL,
-  EFFECTS_MCP_SERVER,
-  GIT_PUSH_TOOL,
-  mcpToolName,
-} from "../src/mcp/mcp-tool-names";
+import { DELETE_PATHS_TOOL } from "../src/mcp/effects/tools/DeletePathsTool/constants";
+import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
+import { EFFECTS_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
+import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
 import { parseMessageCommand } from "../src/orchestrator/message-commands";
 import { addLocation, makeEnv } from "./helpers";
 import { leadHarness, until } from "./lead-harness";

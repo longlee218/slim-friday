@@ -1,9 +1,11 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { ApprovalGateway } from "../src/approvals/approval-types";
+import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
 import { OWNER_MESSAGE_LABEL } from "../src/orchestrator/engine/first-prompt-prefix";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
+import { isLeadRun, isPlannerRun, isWorkerRun, toolOf } from "./mcp-run-probe";
 
 /* Harness of the lead tests: the real handler, queue, lead runner and dispatch-ready over a fake `query` that plays the
    lead model and the workers. The fake calls the real MCP tool handlers of the run (the same code the SDK would call). */
@@ -45,12 +47,11 @@ async function promptOf(prompt: unknown): Promise<string> {
 export function scriptedQuery(script: Script, calls: Call[]) {
   return ((a: { prompt: unknown; options: any }) =>
     (async function* (): AsyncGenerator<SDKMessage> {
-      const servers = a.options?.mcpServers ?? {};
-      const kind: Call["kind"] = servers.lead
+      const kind: Call["kind"] = isLeadRun(a.options)
         ? "lead"
-        : servers.planner
+        : isPlannerRun(a.options)
           ? "planner"
-          : servers.worker
+          : isWorkerRun(a.options)
             ? "worker"
             : "other";
       const call: Call = {
@@ -58,11 +59,8 @@ export function scriptedQuery(script: Script, calls: Call[]) {
         prompt: await promptOf(a.prompt),
         options: a.options,
         tool: async (name, args) => {
-          // The tool lives on whichever server of the run holds it (a planner run has `planner` and `worker`; dev also `effects`).
-          const server = [servers.lead, servers.planner, servers.worker, servers.effects].find(
-            (x) => x?.instance._registeredTools[name],
-          );
-          const r = await server.instance._registeredTools[name].handler(args, {});
+          // The tool lives on whichever server of the run holds it (orchestration, plan, effects).
+          const r = await toolOf(a.options, name)!.handler(args, {});
           return JSON.parse(r.content[0].text);
         },
       };
@@ -83,14 +81,14 @@ const DEV_START_NOTICE = "I’m starting on your request.";
 
 /**
  * Wrap a fake `query` for tests that need a developer worker to start from a plain owner message: a lead run (the run
- * with the `lead` server) dispatches the message text to the developer through the real `DispatchAgent` tool (an optional
+ * holding the lead tools) dispatches the message text to the developer through the real `DispatchAgent` tool (an optional
  * leading `location:<name>` becomes the assignment's location; an open goal is superseded) and replies `DEV_START_NOTICE`; an announce run just
  * replies; every other run (the worker) goes to `inner`.
  */
 export function devLeadQuery(inner: unknown) {
   return ((a: { prompt: unknown; options: any }) => {
-    const lead = a.options?.mcpServers?.lead;
-    if (!lead) return (inner as (a: unknown) => AsyncIterable<SDKMessage>)(a);
+    const dispatchTool = toolOf(a.options, DISPATCH_AGENT_TOOL);
+    if (!dispatchTool) return (inner as (a: unknown) => AsyncIterable<SDKMessage>)(a);
     return (async function* (): AsyncGenerator<SDKMessage> {
       const prompt = await promptOf(a.prompt);
       const at = prompt.lastIndexOf(`${OWNER_MESSAGE_LABEL}\n`);
@@ -101,7 +99,7 @@ export function devLeadQuery(inner: unknown) {
         const dispatch = async (supersedes?: string) =>
           JSON.parse(
             (
-              await lead.instance._registeredTools.DispatchAgent.handler(
+              await dispatchTool.handler(
                 {
                   strategy: "DIRECT",
                   intent: "work",

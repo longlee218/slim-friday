@@ -2,12 +2,12 @@ import type { Database } from "bun:sqlite";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../../config/agent-config";
 import type { RecentMessage } from "../../intent/intent-types";
+import type { MemoryToolContext } from "../../mcp/memory/memory-tool-context";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { getRole } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import { type LeanRun, type QueryFn, type RunAgentResult, runAgent } from "../../runtime/run-agent";
 import type { SessionRow } from "../../storage/session-store";
-import type { MemoryToolContext } from "../../tools/memory-tool-context";
 
 /* Shared plumbing of the rollover's model runs (flush, `/compact`): a resumed, lean run of the thread's session. */
 
@@ -58,12 +58,13 @@ export interface RolloverRequest {
   model?: string;
 }
 
-/** The role of a lean run: the same role (model slot, persona), with nothing it could use besides memory tools. */
-function leanRole(name: string): RoleDefinition {
+/** The role of a lean run: the same role (model slot, persona), with nothing it could use besides the given memory tools. */
+function leanRole(name: string, memoryTools: string[]): RoleDefinition {
   return {
     ...getRole(name),
     capabilities: [],
     skills: [],
+    mcpTools: memoryTools,
     permissionMode: undefined,
     streaming: false,
   };
@@ -80,7 +81,11 @@ export async function runLean(
   session: SessionRow,
   o: {
     prompt: string;
-    lean: Omit<LeanRun, "budgetUsd"> & { budgetFloorUsd: number };
+    lean: Omit<LeanRun, "budgetUsd"> & {
+      budgetFloorUsd: number;
+      /** Bare memory tool names the lean run may call (becomes the lean role's `mcpTools`). */
+      memoryTools: string[];
+    };
     timeoutMs: number;
     memory: (base: MemoryToolContext) => MemoryToolContext;
     onMessage?: (msg: SDKMessage) => void;
@@ -91,7 +96,7 @@ export async function runLean(
   const onAbort = () => ac.abort();
   if (d.signal?.aborted) ac.abort();
   else d.signal?.addEventListener("abort", onAbort, { once: true });
-  const { budgetFloorUsd, ...lean } = o.lean;
+  const { budgetFloorUsd, memoryTools, ...lean } = o.lean;
   try {
     const base = buildMemoryToolContext({
       db: d.db,
@@ -102,7 +107,7 @@ export async function runLean(
       trackSummary: true,
     });
     return await runAgent({
-      role: leanRole(req.role),
+      role: leanRole(req.role, memoryTools),
       prompt: o.prompt,
       turnId: req.turnId, // its runs rows join the turn that crossed the threshold
       cwd: session.cwd,

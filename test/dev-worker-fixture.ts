@@ -4,6 +4,7 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { type makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 import { devLeadQuery, leadHarness, workersDone } from "./lead-harness";
+import { isWorkerRun } from "./mcp-run-probe";
 
 /** What a dev worker run exposes to a test: its SDK options and the owner's reply of the start message (the lead's). */
 export interface DevRun {
@@ -25,7 +26,7 @@ export async function runDevWorker(
   const runs: any[] = [];
   const inner = ((a: { options: any }) =>
     (async function* (): AsyncGenerator<SDKMessage> {
-      const isWorker = Boolean(a.options?.mcpServers?.worker);
+      const isWorker = isWorkerRun(a.options);
       if (isWorker) runs.push(a.options);
       if (isWorker) await opts.probe?.(a.options);
       yield resultMsg({ result: "done" });

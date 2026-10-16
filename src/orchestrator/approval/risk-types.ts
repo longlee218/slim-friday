@@ -1,4 +1,4 @@
-import type { EFFECT_TOOLS } from "../../mcp/mcp-tool-names";
+import type { EFFECT_TOOL_NAMES } from "../../mcp/effects/effect-tool-names";
 import type { Risk } from "../plan/plan-types";
 
 /* Shared words of the approval policy (R0-R4). Pure types and constants: no db, no fs. */
@@ -7,7 +7,7 @@ import type { Risk } from "../plan/plan-types";
 export type RiskClass = Risk | "R4";
 
 /** The four effect tools, the only way to do R2/R3 work. */
-export type EffectTool = (typeof EFFECT_TOOLS)[number];
+export type EffectTool = (typeof EFFECT_TOOL_NAMES)[number];
 
 /** Order of the classes, low to high (`maxRisk`, envelope checks). */
 const ORDER: readonly RiskClass[] = ["R0", "R1", "R2", "R3", "R4"];

@@ -1,11 +1,9 @@
-import {
-  ASK_OWNER_TOOL,
-  CANCEL_TASK_TOOL,
-  DISPATCH_AGENT_TOOL,
-  FORWARD_RESULT_TOOL,
-  STEER_TASK_TOOL,
-  TASK_STATUS_TOOL,
-} from "../../mcp/mcp-tool-names";
+import { ASK_OWNER_TOOL } from "../../mcp/orchestration/tools/AskOwnerTool/constants";
+import { CANCEL_TASK_TOOL } from "../../mcp/orchestration/tools/CancelTaskTool/constants";
+import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
+import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
+import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
+import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
 import { checkDispatch, dispatchQuestion } from "../strategy/dispatch-policy";
 import { type LeadToolContext, leadCall, type Reply, refuse } from "./lead-call";
 import type {

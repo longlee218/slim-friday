@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CHANNEL_NAME, workspacePaths } from "../src/config/workspace-paths";
+import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
+import { createRememberTool } from "../src/mcp/memory/tools/RememberTool/remember-tool";
 import { classifyFile } from "../src/memory/index/memory-files";
 import { parseId } from "../src/memory/index/memory-ids";
 import { searchIndex } from "../src/memory/index/memory-search";
@@ -10,8 +12,6 @@ import { buildMemoryContext, CHANNEL_CHARS, readMemoryLayers } from "../src/memo
 import { buildMemoryToolContext } from "../src/memory/memory-context";
 import { buildPersonaContext, ensureHome } from "../src/memory/persona";
 import { openDb } from "../src/storage/db";
-import type { MemoryToolContext } from "../src/tools/memory-tool-context";
-import { createRememberTool } from "../src/tools/RememberTool/remember-tool";
 import { channelLocations, channelOf } from "../src/workspaces/task-workspace";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { clearWorkspaces, makeEnv, outsideDir } from "./helpers";

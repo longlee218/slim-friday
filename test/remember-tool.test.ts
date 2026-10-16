@@ -4,8 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
-import { mcpServersFor } from "../src/mcp/mcp-servers";
-import { MEMORY_MCP_SERVER, mcpToolName, REMEMBER_TOOL } from "../src/mcp/mcp-tool-names";
+import { buildServers } from "../src/mcp/mcp-servers";
+import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
+import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
+import {
+  REMEMBER_MAX_CALLS_PER_RUN,
+  REMEMBER_TOOL,
+} from "../src/mcp/memory/tools/RememberTool/constants";
+import { createRememberTool } from "../src/mcp/memory/tools/RememberTool/remember-tool";
 import { localDay, localHhmm } from "../src/memory/memory-clock";
 import { PERSONA_MAX } from "../src/memory/persona";
 import { DEFAULT_AGENTS } from "../src/memory/persona-templates";
@@ -13,9 +19,6 @@ import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { buildSystemPrompt } from "../src/runtime/system-prompt";
 import { openDb } from "../src/storage/db";
-import type { MemoryToolContext } from "../src/tools/memory-tool-context";
-import { REMEMBER_MAX_CALLS_PER_RUN } from "../src/tools/RememberTool/constants";
-import { createRememberTool } from "../src/tools/RememberTool/remember-tool";
 import { makeEnv, resultMsg } from "./helpers";
 
 // Built from LOCAL parts: the memory clock is local time, so the assertions hold in any host TZ.
@@ -186,21 +189,26 @@ test("a full file gives a tool error that does not mention compaction", async ()
   throw new Error("never full");
 });
 
-test("the guard allows exactly Remember on the memory server", () => {
-  const ctx = {};
+test("the guard allows Remember for a role that lists it, denies any other memory tool", () => {
+  const ctx = guardFor(getRole("developer"), {});
   expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, REMEMBER_TOOL), {}, ctx).decision).toBe(
     "allow",
   );
   expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, "Other"), {}, ctx).decision).toBe("deny");
+  // No role data = no MCP tool: an empty guard denies Remember too.
+  expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, REMEMBER_TOOL), {}, {}).decision).toBe(
+    "deny",
+  );
 });
 
-test("every role gets the memory server when the run brings a context; none without", async () => {
+test("every role with memory tools gets the memory server when the run brings a context; none without", async () => {
   const { ctx } = setup();
   for (const name of ["lead", "developer"] as const) {
-    expect(Object.keys(mcpServersFor(getRole(name), ctx))).toContain(MEMORY_MCP_SERVER);
-    expect(Object.keys(mcpServersFor(getRole(name)))).not.toContain(MEMORY_MCP_SERVER);
+    expect(Object.keys(buildServers(getRole(name), { memory: ctx }))).toContain(MEMORY_MCP_SERVER);
+    expect(Object.keys(buildServers(getRole(name), {}))).not.toContain(MEMORY_MCP_SERVER);
   }
-  expect(Object.keys(mcpServersFor(getRole("lead"), ctx))).toEqual([MEMORY_MCP_SERVER]);
+  // A lead run with only a memory ctx (no rename port): the memory server alone.
+  expect(Object.keys(buildServers(getRole("lead"), { memory: ctx }))).toEqual([MEMORY_MCP_SERVER]);
 });
 
 for (const roleName of ["lead", "developer"] as const)

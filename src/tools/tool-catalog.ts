@@ -1,4 +1,3 @@
-import { APP_MCP_TOOLS, mcpToolName } from "../mcp/mcp-tool-names";
 import type { Capability, RoleDefinition } from "../roles/role-types";
 import {
   AGENT_TOOL_NAME,
@@ -95,12 +94,6 @@ export const toolsFor = (role: RoleDefinition): string[] => [
 /** Tools of a role that need no approval (the guard's `allowTools`). */
 export const autoAllowedTools = (role: RoleDefinition): string[] =>
   toolsFor(role).filter((t) => AUTO_ALLOWED.has(t));
-
-/** Full names of the tools of the app MCP servers a role lists in `mcpServers` (the guard allows exactly these). */
-export const appMcpToolsFor = (role: RoleDefinition): string[] =>
-  (role.mcpServers ?? []).flatMap((server) =>
-    (APP_MCP_TOOLS[server] ?? []).map((tool) => mcpToolName(server, tool)),
-  );
 
 /* ---------------- SDK options ---------------- */
 

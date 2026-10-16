@@ -1,5 +1,9 @@
 import { HAIKU_MODEL } from "../../config/model-ids";
-import { WORKER_MCP_SERVER } from "../../mcp/mcp-tool-names";
+import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
+import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
+import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
+import { REMEMBER_TOOL } from "../../mcp/memory/tools/RememberTool/constants";
+import { REPORT_RESULT_TOOL } from "../../mcp/orchestration/tools/ReportResultTool/constants";
 import type { RoleDefinition } from "../role-types";
 
 /** Owner questions per run: a scout answers from what it finds and never asks. */
@@ -30,7 +34,13 @@ export const SCOUT_ROLE: RoleDefinition = {
   sideEffects: "none",
   capabilities: ["read", "web", "shell", "skills"],
   shellMode: "read", // read-only allowlist: the scout never writes
-  mcpServers: [WORKER_MCP_SERVER],
+  mcpTools: [
+    REMEMBER_TOOL,
+    MEMORY_SEARCH_TOOL,
+    MEMORY_GET_TOOL,
+    MEMORY_EXPAND_TOOL,
+    REPORT_RESULT_TOOL,
+  ],
   noSubagents: true, // depth 1: a worker never spawns subagents
   permissionMode: "auto",
   model: HAIKU_MODEL,

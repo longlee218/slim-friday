@@ -1,26 +1,24 @@
 import { z } from "zod";
-import {
-  CREATE_PULL_REQUEST_TOOL,
-  GIT_PUSH_TOOL,
-  MERGE_BRANCH_TOOL,
-} from "../../mcp/mcp-tool-names";
+import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
+import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
+import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 import {
   OPTION_MAX_CHARS,
   OPTIONS_MAX,
   OPTIONS_MIN,
   QUESTION_MAX_CHARS,
-} from "../../tools/AskOwnerTool/constants";
+} from "../../mcp/orchestration/tools/AskOwnerTool/constants";
 import {
   BRIEF_MAX_CHARS,
   MAX_ASSIGNMENTS,
   REASON_MAX_CHARS,
-} from "../../tools/DispatchAgentTool/constants";
+} from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
 import {
   MAX_REQUESTS,
   REQUEST_MAX_CHARS,
   SUMMARY_MAX_CHARS,
-} from "../../tools/ReportResultTool/constants";
-import { STEER_TEXT_MAX_CHARS } from "../../tools/SteerTaskTool/constants";
+} from "../../mcp/orchestration/tools/ReportResultTool/constants";
+import { STEER_TEXT_MAX_CHARS } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
 import { RESULT_KINDS } from "../strategy/typed-result";
 
 /* Input schemas (zod raw shapes) of the lead's tools and of the worker's ReportResult. The SDK validates a call

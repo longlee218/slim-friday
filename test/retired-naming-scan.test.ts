@@ -138,7 +138,9 @@ test("src and test hold no retired message / turn / task name", () => {
         re.test(f.text) &&
         !(
           name === "storage status type" &&
-          ["mcp-tool-names.ts", "lead-runtime.test.ts"].some((ok) => f.file.endsWith(ok))
+          ["TaskStatusTool/constants.ts", "tool-names.test.ts", "lead-runtime.test.ts"].some((ok) =>
+            f.file.endsWith(ok),
+          )
         )
       )
         hits.push(`${f.file}: ${name}`);

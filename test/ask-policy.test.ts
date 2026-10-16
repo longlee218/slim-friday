@@ -1,10 +1,8 @@
 import { expect, test } from "bun:test";
-import {
-  CREATE_PULL_REQUEST_TOOL,
-  DELETE_PATHS_TOOL,
-  GIT_PUSH_TOOL,
-  MERGE_BRANCH_TOOL,
-} from "../src/mcp/mcp-tool-names";
+import { CREATE_PULL_REQUEST_TOOL } from "../src/mcp/effects/tools/CreatePullRequestTool/constants";
+import { DELETE_PATHS_TOOL } from "../src/mcp/effects/tools/DeletePathsTool/constants";
+import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
+import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
 import { askNeeded, type Strategy } from "../src/orchestrator/approval/ask-policy";
 
 /* Every cell of the 5.14 table. */

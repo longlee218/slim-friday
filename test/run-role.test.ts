@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SONNET_MODEL } from "../src/config/model-ids";
+import { REPORT_RESULT_TOOL } from "../src/mcp/orchestration/tools/ReportResultTool/constants";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { g, makeLocation } from "./git-fixture";
 import {
@@ -15,6 +16,7 @@ import {
   TEST_CHANNEL,
 } from "./helpers";
 import { devLeadQuery, noticeSink, workersDone } from "./lead-harness";
+import { toolOf } from "./mcp-run-probe";
 
 /** Env with one workspace whose location `real` is a real git clone (a managed clone). */
 async function setup() {
@@ -52,7 +54,7 @@ const fakeSdk = (result?: Record<string, unknown>) => (a: any) => {
       "add b",
     );
     // The typed result a worker ends with: what decides the task status.
-    await o.mcpServers.worker.instance._registeredTools.ReportResult.handler(
+    await toolOf(o, REPORT_RESULT_TOOL)!.handler(
       { status: "COMPLETED", summary: "b.txt added" },
       {},
     );

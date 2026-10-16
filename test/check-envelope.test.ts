@@ -1,13 +1,10 @@
 import { expect, test } from "bun:test";
 import { checkToolCall, type GuardrailContext } from "../src/guardrails/check-tool-call";
-import {
-  CREATE_PULL_REQUEST_TOOL,
-  DELETE_PATHS_TOOL,
-  EFFECTS_MCP_SERVER,
-  GIT_PUSH_TOOL,
-  MERGE_BRANCH_TOOL,
-  mcpToolName,
-} from "../src/mcp/mcp-tool-names";
+import { CREATE_PULL_REQUEST_TOOL } from "../src/mcp/effects/tools/CreatePullRequestTool/constants";
+import { DELETE_PATHS_TOOL } from "../src/mcp/effects/tools/DeletePathsTool/constants";
+import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
+import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
+import { EFFECTS_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { checkEnvelope } from "../src/orchestrator/approval/check-envelope";
 import { classifyToolCall } from "../src/orchestrator/approval/classify-tool-call";
 import {

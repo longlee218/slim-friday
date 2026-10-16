@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { REQUEST_PLAN_TOOL } from "../../mcp/mcp-tool-names";
+import { REQUEST_PLAN_TOOL } from "../../mcp/orchestration/tools/RequestPlanTool/constants";
 import { excerpt } from "../../observability/logger";
 import { LEAD_ROLE } from "../../roles/builtin/lead-role";
 import { PLANNER_ROLE } from "../../roles/builtin/planner-role";

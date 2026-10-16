@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { HAIKU_MODEL, SONNET_MODEL } from "../src/config/model-ids";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
-import { mcpServersFor } from "../src/mcp/mcp-servers";
+import { buildServers } from "../src/mcp/mcp-servers";
 import { dispatchableWorkers, getRole, ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import {
@@ -10,8 +10,10 @@ import {
   SEND_MESSAGE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import { CAPABILITY_TOOLS, toolsFor } from "../src/tools/tool-catalog";
+import { FULL_CTX } from "./mcp-ctx-fixture";
 
 /** A minimal role with one capability (the data a role file would give). */
+
 const BARE: RoleDefinition = {
   name: "bare",
   whenToUse: "bare",
@@ -66,9 +68,9 @@ test("guard: every role gets the subagent tools, auto-allowed, even one that lis
   expect(checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("allow");
 });
 
-test("mcp servers come from the role's data only: a bare role and dev get none", () => {
-  expect(mcpServersFor(BARE)).toEqual({});
-  expect(mcpServersFor(getRole("developer"))).toEqual({});
+test("mcp servers come from the role's data only: a bare role gets none, dev none without a ctx", () => {
+  expect(buildServers(BARE, FULL_CTX)).toEqual({});
+  expect(buildServers(getRole("developer"), {})).toEqual({});
 });
 
 test("tools derive from capabilities", () => {

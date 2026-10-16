@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
-import { WORKER_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { ORCHESTRATION_MCP_SERVER } from "../src/mcp/mcp-tool-names";
+import { REPORT_RESULT_TOOL } from "../src/mcp/orchestration/tools/ReportResultTool/constants";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { EDIT_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
@@ -33,7 +34,9 @@ describe.skipIf(!live)("live agent smoke (lead -> scout, Haiku)", () => {
     const { query } = await import("@anthropic-ai/claude-agent-sdk");
     // Wrap the real query to capture the system init tool list of the WORKER runs (the lead has its own tools).
     const queryFn = (a: Parameters<typeof query>[0]) => {
-      const isWorker = WORKER_MCP_SERVER in ((a.options?.mcpServers as object) ?? {});
+      // A worker run is the one whose orchestration server holds ReportResult (the lead's holds the lead tools).
+      const orchestration = (a.options?.mcpServers as any)?.[ORCHESTRATION_MCP_SERVER];
+      const isWorker = !!orchestration?.instance?._registeredTools?.[REPORT_RESULT_TOOL];
       return (async function* () {
         for await (const m of query(a)) {
           if (isWorker && m.type === "system" && (m as any).subtype === "init")
