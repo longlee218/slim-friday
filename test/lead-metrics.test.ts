@@ -1,11 +1,11 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { formatLeadMetrics, leadMetrics } from "../src/observability/lead-metrics";
-import { appendEvent } from "../src/orchestrator/events/event-store";
 import { openDb } from "../src/storage/db";
 import { appendEffect } from "../src/storage/effect-log-store";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
+import { appendEvent } from "../src/storage/thread-event-store";
 
 let db: Database;
 afterEach(() => db?.close());

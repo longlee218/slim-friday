@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
+import { finishTurn, insertTurn } from "../src/storage/run-store";
 import {
   appendEvent,
   listUndelivered,
   markDeliveredIds,
   unclaimStale,
   undeliveredThreads,
-} from "../src/orchestrator/events/event-store";
-import { finishTurn, insertTurn } from "../src/storage/run-store";
+} from "../src/storage/thread-event-store";
 import { makeEnv } from "./helpers";
 
 const ev = (id: string, threadId = "th") => ({

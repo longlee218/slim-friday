@@ -3,7 +3,7 @@ import type { InboundMessage } from "../src/ingress/discord-message-handler";
 import { createLeadIo } from "../src/orchestrator/engine/lead-io";
 import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/engine/lead-runtime";
 import { createLeadSystem } from "../src/orchestrator/engine/lead-system";
-import { appendEvent, listUndelivered } from "../src/orchestrator/events/event-store";
+import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { makeEnv, stubGateway, TEST_CHANNEL } from "./helpers";
 import { type Call, leadHarness, noticeSink, scriptedQuery, sleep, until } from "./lead-harness";
 

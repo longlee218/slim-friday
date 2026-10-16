@@ -21,3 +21,17 @@ export function decideApproval(db: Database, id: string, decision: ApprovalDecis
     id,
   );
 }
+
+/** The turn's newest pending approval (tool name, when it was asked), or undefined. */
+export function pendingApprovalOfTurn(
+  db: Database,
+  turnId: string,
+): { tool: string; since: number } | undefined {
+  return (
+    db
+      .query<{ tool: string; since: number }, [string]>(
+        "SELECT tool, requested_at AS since FROM approvals WHERE turn_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
+      )
+      .get(turnId) ?? undefined
+  );
+}

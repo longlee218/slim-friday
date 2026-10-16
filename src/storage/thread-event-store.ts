@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { EventKind, ThreadEvent } from "./event-types";
+import type { EventKind, ThreadEvent } from "../orchestrator/events/event-types";
 
 /* Outbox of thread events (table `thread_events`). Delivery = claim by a consumer turn, then mark delivered when
    that turn ended. A claim whose turn is gone is released (`unclaimStale`) and read again, flagged. */
@@ -135,4 +135,38 @@ export function markStartDelivered(db: Database, itemId: string): number {
       "UPDATE thread_events SET delivered_at = ?, claimed_by = 'dispatch' WHERE item_id = ? AND kind = 'start' AND delivered_at IS NULL",
     )
     .run(Date.now(), itemId).changes;
+}
+
+/**
+ * Newest event of an item whose kind is in `kinds` (kind + raw JSON payload), or undefined. `kinds` are code
+ * constants, never owner input.
+ */
+export function lastEventOfItem(
+  db: Database,
+  itemId: string,
+  kinds: readonly EventKind[],
+): { kind: string; payload: string } | undefined {
+  const marks = kinds.map((k) => `'${k}'`).join(", ");
+  return (
+    db
+      .query<{ kind: string; payload: string }, [string]>(
+        `SELECT kind, payload FROM thread_events WHERE item_id = ? AND kind IN (${marks}) ORDER BY seq DESC LIMIT 1`,
+      )
+      .get(itemId) ?? undefined
+  );
+}
+
+/**
+ * `start` events after the thread's last `owner_message` (the dispatch chain). A `start` materialized from an
+ * owner-approved plan (`payload.plan`) is not counted.
+ */
+export function countChainStarts(db: Database, threadId: string): number {
+  const row = db
+    .query<{ n: number }, [string, string]>(
+      `SELECT COUNT(*) AS n FROM thread_events
+       WHERE thread_id = ? AND kind = 'start' AND COALESCE(json_extract(payload, '$.plan'), 0) != 1
+         AND seq > COALESCE((SELECT MAX(seq) FROM thread_events WHERE thread_id = ? AND kind = 'owner_message'), 0)`,
+    )
+    .get(threadId, threadId);
+  return row?.n ?? 0;
 }

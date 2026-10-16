@@ -117,3 +117,60 @@ export function countActiveCappedTasks(db: Database): number {
     )
     .get()!.n;
 }
+
+/** The thread's newest turn (any status), or undefined. */
+export function latestTurnOfThread(
+  db: Database,
+  threadId: string,
+): { id: string; role: string; started_at: number; status: string } | undefined {
+  return (
+    db
+      .query<{ id: string; role: string; started_at: number; status: string }, [string]>(
+        "SELECT id, role, started_at, status FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+      )
+      .get(threadId) ?? undefined
+  );
+}
+
+/** The newest turn linked to an owned task, or undefined. */
+export function latestTurnOfTask(
+  db: Database,
+  taskId: string,
+): { id: string; ended_at: number | null; started_at: number } | undefined {
+  return (
+    db
+      .query<{ id: string; ended_at: number | null; started_at: number }, [string]>(
+        "SELECT id, ended_at, started_at FROM turns WHERE owned_task_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+      )
+      .get(taskId) ?? undefined
+  );
+}
+
+/** The thread's newest turn that is running (or waits on an approval), with its role. */
+export function liveTurnOfThread(
+  db: Database,
+  threadId: string,
+): { id: string; role: string } | undefined {
+  return (
+    db
+      .query<{ id: string; role: string }, [string]>(
+        `SELECT id, role FROM turns WHERE thread_id = ? AND status IN ('running', 'waiting_approval')
+         ORDER BY started_at DESC, rowid DESC LIMIT 1`,
+      )
+      .get(threadId) ?? undefined
+  );
+}
+
+/** Turns of the thread that ended `done`, other than `exceptTurnId`, started at or after `since`. */
+export function countDoneTurnsSince(
+  db: Database,
+  threadId: string,
+  exceptTurnId: string,
+  since: number,
+): number | undefined {
+  return db
+    .query<{ n: number }, [string, string, number]>(
+      "SELECT COUNT(*) AS n FROM turns WHERE thread_id = ? AND id != ? AND status = 'done' AND started_at >= ?",
+    )
+    .get(threadId, exceptTurnId, since)?.n;
+}

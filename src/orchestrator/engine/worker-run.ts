@@ -13,8 +13,8 @@ import {
   type ResultKind,
 } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
+import { markStartDelivered } from "../../storage/thread-event-store";
 import { channelDigest } from "../../storage/thread-store";
-import { markStartDelivered } from "../events/event-store";
 import { beginTurn } from "../turns/turn-tracker";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import type { LeadRuntime, LeadThreadCtx } from "./lead-runtime";

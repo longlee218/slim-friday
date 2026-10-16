@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { redactText } from "../../observability/redact";
 import { activeOwnedTask } from "../../storage/owned-task-store";
 import { latestToolCall } from "../../storage/run-metrics-store";
+import { latestTurnOfTask, latestTurnOfThread } from "../../storage/run-store";
 import { deriveThreadState, threadToolApproval } from "../thread/thread-state";
 import { getProgressNote } from "./progress-notes";
 import { type RecentTool, toolFacts } from "./status-tools";
@@ -57,11 +58,7 @@ export function statusFacts(
   threadId: string,
   now = Date.now(),
 ): StatusFacts | undefined {
-  const task = db
-    .query<{ id: string; role: string; started_at: number; status: string }, [string]>(
-      "SELECT id, role, started_at, status FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
-    )
-    .get(threadId);
+  const task = latestTurnOfThread(db, threadId);
   if (task && (task.status === "running" || task.status === "waiting_approval")) {
     const waiting = threadToolApproval(db, threadId);
     const note = getProgressNote(task.id);
@@ -79,11 +76,7 @@ export function statusFacts(
   }
   const owned = activeOwnedTask(db, threadId);
   if (!owned) return undefined;
-  const turn = db
-    .query<{ id: string; ended_at: number | null; started_at: number }, [string]>(
-      "SELECT id, ended_at, started_at FROM turns WHERE owned_task_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
-    )
-    .get(owned.taskId);
+  const turn = latestTurnOfTask(db, owned.taskId);
   return {
     running: false,
     role: owned.ownerAgentId ?? "",

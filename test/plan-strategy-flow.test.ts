@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { listUndelivered } from "../src/orchestrator/events/event-store";
+import { listUndelivered } from "../src/storage/thread-event-store";
 import { leadHarness, until } from "./lead-harness";
 
 /* End to end with a fake query: owner asks something big -> lead RequestPlan -> planner (GetProjectContext, CreatePlan,

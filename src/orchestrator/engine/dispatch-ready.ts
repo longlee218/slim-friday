@@ -2,8 +2,9 @@ import type { Database } from "bun:sqlite";
 import { TASK_BUDGET_USD } from "../../config/model-routing";
 import { logEvent, logger } from "../../observability/logger";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
+import { costOfTasks } from "../../storage/run-metrics-store";
+import { appendEvent, markStartDelivered } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
-import { appendEvent, markStartDelivered } from "../events/event-store";
 import { openGoalIdOf } from "./effect-port-queries";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import type { LeadRuntime } from "./lead-runtime";
@@ -27,14 +28,9 @@ const again = new Set<string>();
 
 /** Cost (USD) of every run of the goal's items so far (the per-goal share of the task budget). */
 function goalSpent(db: Database, items: ItemRow[]): number {
-  if (!items.length) return 0;
-  const marks = items.map(() => "?").join(",");
-  return (
-    db
-      .query<{ c: number }, string[]>(
-        `SELECT COALESCE(SUM(r.cost_usd), 0) AS c FROM runs r JOIN turns t ON t.id = r.turn_id WHERE t.owned_task_id IN (${marks})`,
-      )
-      .get(...items.map((i) => i.id))?.c ?? 0
+  return costOfTasks(
+    db,
+    items.map((i) => i.id),
   );
 }
 

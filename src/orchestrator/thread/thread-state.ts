@@ -1,4 +1,6 @@
 import type { Database } from "bun:sqlite";
+import { pendingApprovalOfTurn } from "../../storage/approval-store";
+import { latestTurnOfThread } from "../../storage/run-store";
 
 /**
  * State of a thread, DERIVED from its rows (no stored state, no new status values):
@@ -14,12 +16,7 @@ export function pendingToolApproval(
   db: Database,
   turnId: string,
 ): { tool: string; since: number } | undefined {
-  const pending = db
-    .query<{ tool: string; since: number }, [string]>(
-      "SELECT tool, requested_at AS since FROM approvals WHERE turn_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
-    )
-    .get(turnId);
-  return pending ?? undefined;
+  return pendingApprovalOfTurn(db, turnId);
 }
 
 /** The thread's latest task waits on a tool approval or question: the pending one (reply of a steer, status snapshot), or undefined. */
@@ -27,11 +24,7 @@ export function threadToolApproval(
   db: Database,
   threadId: string,
 ): { tool: string; since: number } | undefined {
-  const last = db
-    .query<{ id: string; status: string }, [string]>(
-      "SELECT id, status FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
-    )
-    .get(threadId);
+  const last = latestTurnOfThread(db, threadId);
   return last?.status === "waiting_approval" ? pendingToolApproval(db, last.id) : undefined;
 }
 
@@ -42,11 +35,7 @@ function waitingState(db: Database, turnId: string): ThreadState {
 
 /** Derive the state of `threadId` from its latest task (and that task's approvals). */
 export function deriveThreadState(db: Database, threadId: string): ThreadState {
-  const last = db
-    .query<{ id: string; status: string }, [string]>(
-      "SELECT id, status FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
-    )
-    .get(threadId);
+  const last = latestTurnOfThread(db, threadId);
   if (!last) return "idle";
   if (last.status === "running") return "running";
   if (last.status === "waiting_approval") return waitingState(db, last.id);

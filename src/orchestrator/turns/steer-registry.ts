@@ -4,6 +4,7 @@ import { ROLES } from "../../roles/role-registry";
 import type { SteerRun, SteerSink } from "../../runtime/run-input-channel";
 import { ownedTaskOfTurn, runningTurnOfTask, threadOfTask } from "../../storage/owned-task-store";
 import { runMessageSourceId, setRunMessageTarget } from "../../storage/run-message-store";
+import { liveTurnOfThread } from "../../storage/run-store";
 import { createHeldSteers } from "./steer-held";
 import { createSteerStore, type MessageRef } from "./steer-store";
 import type { SteerEvent, SteerOutcome, SteerRegistry } from "./steer-types";
@@ -30,13 +31,7 @@ export function createSteerRegistry(db: Database): SteerRegistry {
   /** taskKey -> steers held until that task's streaming run registers its input (it is starting). */
   const held = createHeldSteers();
   /** The thread's task that is running (or waits on an approval), with its role. */
-  const liveTask = (threadId: string) =>
-    db
-      .query<{ id: string; role: string }, [string]>(
-        `SELECT id, role FROM turns WHERE thread_id = ? AND status IN ('running', 'waiting_approval')
-         ORDER BY started_at DESC, rowid DESC LIMIT 1`,
-      )
-      .get(threadId) ?? undefined;
+  const liveTask = (threadId: string) => liveTurnOfThread(db, threadId);
   /** The running turn of one task (owned task id or turn id), with its role and thread. */
   const liveTurnOfTask = (taskId: string) => runningTurnOfTask(db, taskId);
   /** A running turn is a streaming role (one that reads steers): a message can wait for it. */

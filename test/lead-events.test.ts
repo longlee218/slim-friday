@@ -7,8 +7,8 @@ import {
   settleLeadEvents,
 } from "../src/orchestrator/engine/lead-events";
 import { createQuestionRelay } from "../src/orchestrator/engine/question-relay";
-import { appendEvent, listUndelivered } from "../src/orchestrator/events/event-store";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
+import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { makeEnv } from "./helpers";
 
 /* Announce batching, the news filter, the question relay and the goal settle (db level, no model). */

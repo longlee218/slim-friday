@@ -5,7 +5,6 @@ import { createPlanPort } from "../src/orchestrator/engine/effect-port-plan";
 import { goalCaps, openGoalIdOf } from "../src/orchestrator/engine/effect-port-queries";
 import { handleApprovePlan } from "../src/orchestrator/engine/lead-plan-handlers";
 import { stopThreadTree } from "../src/orchestrator/engine/stop-thread-tree";
-import { appendEvent } from "../src/orchestrator/events/event-store";
 import { toPlanItem } from "../src/orchestrator/plan/plan-doc";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { renderPlan } from "../src/orchestrator/plan/plan-render";
@@ -16,6 +15,7 @@ import { dispatchableWorkers } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { childrenOf } from "../src/storage/owned-item-store";
 import { getOwnedTask } from "../src/storage/owned-task-store";
+import { appendEvent } from "../src/storage/thread-event-store";
 import {
   getPlan,
   hasPendingPlan,

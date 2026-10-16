@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { recoverInFlight } from "../src/orchestrator/engine/recover-in-flight";
-import { appendEvent, listUndelivered } from "../src/orchestrator/events/event-store";
+import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { recordBotThread } from "../src/storage/thread-store";
 import { TEST_CHANNEL } from "./helpers";
 import { leadHarness, until, workersDone } from "./lead-harness";

@@ -1,8 +1,8 @@
 import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { logEvent, logger } from "../../observability/logger";
+import { appendEvent } from "../../storage/thread-event-store";
 import { getThread } from "../../storage/thread-store";
 import { channelLocations, selectWorkspace } from "../../workspaces/task-workspace";
-import { appendEvent } from "../events/event-store";
 import { createAnnouncer } from "./announce";
 import { dispatchReady } from "./dispatch-ready";
 import { createLeadQueue, type LeadQueue } from "./lead-queue";

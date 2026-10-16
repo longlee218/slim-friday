@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { redactClip, redactText } from "../../observability/redact";
+import { toolCallsOfTurn } from "../../storage/run-metrics-store";
 import { BASH_TOOL_NAME } from "../../tools/sdk-tool-names";
 
 /* The tool part of a status: how many tools a turn called and the last few, from `tool_calls` rows only. Of a tool's
@@ -31,15 +32,7 @@ function bashDescription(inputJson: string): string | undefined {
 
 /** Tool calls of a turn (any run, subagents included): total, and the last `RECENT_TOOLS` oldest first. */
 export function toolFacts(db: Database, turnId: string): { count: number; recent: RecentTool[] } {
-  const count =
-    db
-      .query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM tool_calls WHERE turn_id = ?")
-      .get(turnId)?.n ?? 0;
-  const rows = db
-    .query<{ tool: string; input_json: string }, [string, number]>(
-      "SELECT tool, input_json FROM tool_calls WHERE turn_id = ? ORDER BY rowid DESC LIMIT ?",
-    )
-    .all(turnId, RECENT_TOOLS);
+  const { count, rows } = toolCallsOfTurn(db, turnId, RECENT_TOOLS);
   const recent = rows.reverse().map((r) => {
     const description = r.tool === BASH_TOOL_NAME ? bashDescription(r.input_json) : undefined;
     return { tool: redactText(r.tool), ...(description && { description }) };

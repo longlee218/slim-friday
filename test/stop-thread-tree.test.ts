@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { registerTaskRun } from "../src/orchestrator/engine/task-runs";
-import { appendEvent, listUndelivered } from "../src/orchestrator/events/event-store";
 import { stopThread } from "../src/orchestrator/turns/turn-stop";
 import { getOwnedTask, insertOwnedTask } from "../src/storage/owned-task-store";
 import { insertTurn } from "../src/storage/run-store";
+import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { makeEnv } from "./helpers";
 
 /* `/stop` takes the whole tree of the thread down: lead run, queued lead inputs, every task run, unstarted `start` events. */

@@ -1,8 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { logEvent, logger } from "../../observability/logger";
 import { getItem } from "../../storage/owned-item-store";
+import { runningTasks, taskScope } from "../../storage/owned-task-store";
 import { interruptRunningTurns } from "../../storage/run-store";
-import { appendEvent, unclaimStale, undeliveredThreads } from "../events/event-store";
+import { appendEvent, unclaimStale, undeliveredThreads } from "../../storage/thread-event-store";
 
 /** Logger of this module. */
 const log = logger.child({ module: "recover-in-flight" });
@@ -33,19 +34,13 @@ export function recoverInFlight(db: Database): RecoveryReport {
 
 /** The body of `recoverInFlight`, run inside its transaction. */
 function recover(db: Database): RecoveryReport {
-  const running = db
-    .query<{ id: string; threadId: string; version: number }, []>(
-      "SELECT id, thread_id AS threadId, version FROM owned_tasks WHERE status = 'running'",
-    )
-    .all();
+  const running = runningTasks(db);
   interruptRunningTurns(db); // turns -> interrupted, tasks -> waiting_user, pending approvals cancelled
   const unclaimed = unclaimStale(db);
   const recovered: string[] = [];
   for (const t of running) {
     const item = getItem(db, t.id);
-    const scope = db
-      .query<{ scope: string }, [string]>("SELECT scope FROM owned_tasks WHERE id = ?")
-      .get(t.id)?.scope;
+    const scope = taskScope(db, t.id);
     const wrote = appendEvent(db, {
       id: `recovered:${t.id}:${t.version}`,
       threadId: t.threadId,

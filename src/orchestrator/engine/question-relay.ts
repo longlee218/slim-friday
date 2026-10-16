@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../../observability/redact";
 import type { AskQuestion } from "../../runtime/tool-permissions";
-import { appendEvent } from "../events/event-store";
+import { appendEvent } from "../../storage/thread-event-store";
 
 /* Worker question relay: a lead-dispatched worker never asks the owner itself. Its AskUserQuestion becomes a `question`
    event (the lead reads it in an announce run) and the worker waits until the lead answers it (SteerTask) or relays

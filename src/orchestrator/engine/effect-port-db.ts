@@ -3,12 +3,12 @@ import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgent
 import { excerpt } from "../../observability/logger";
 import { GRANT_TOOL, grantRowId } from "../../policy/load-envelope";
 import { LEAD_ROLE } from "../../roles/builtin/lead-role";
-import { appendEffect } from "../../storage/effect-log-store";
+import { appendEffect, effectResult } from "../../storage/effect-log-store";
 import { childrenOf, getItem, goalOf, type ItemRow } from "../../storage/owned-item-store";
 import { insertOwnedTask, threadOfTask } from "../../storage/owned-task-store";
+import { appendEvent } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
-import { appendEvent } from "../events/event-store";
 import type { PolicyEnv } from "../strategy/caps";
 import type {
   DispatchResult,
@@ -141,9 +141,7 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
     })();
 
   return {
-    recall: (key) =>
-      db.query<{ r: string }, [string]>("SELECT result AS r FROM effect_log WHERE id = ?").get(key)
-        ?.r,
+    recall: (key) => effectResult(db, key),
     remember: (key, e) => {
       appendEffect(db, {
         id: key,

@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { recoverInFlight } from "../src/orchestrator/engine/recover-in-flight";
-import { appendEvent, listUndelivered } from "../src/orchestrator/events/event-store";
 import { getOwnedTask, insertOwnedTask, linkTurn } from "../src/storage/owned-task-store";
 import { insertTurn } from "../src/storage/run-store";
+import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { makeEnv } from "./helpers";
 
 /* Boot recovery: a task `running` with no process becomes ONE recovered_after_restart event, not a silent failure. */

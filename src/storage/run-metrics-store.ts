@@ -112,3 +112,46 @@ export function toolInputsOfTurn(db: Database, turnId: string, tool: string): st
     .all(turnId, tool)
     .map((r) => r.input);
 }
+
+/** Cost (USD) of every run of the turns linked to these owned tasks. */
+export function costOfTasks(db: Database, taskIds: readonly string[]): number {
+  if (!taskIds.length) return 0;
+  const marks = taskIds.map(() => "?").join(",");
+  return (
+    db
+      .query<{ c: number }, string[]>(
+        `SELECT COALESCE(SUM(r.cost_usd), 0) AS c FROM runs r JOIN turns t ON t.id = r.turn_id WHERE t.owned_task_id IN (${marks})`,
+      )
+      .get(...taskIds)?.c ?? 0
+  );
+}
+
+/** Cost (USD) of the runs of turns of `role` started at or after `since` (epoch ms). */
+export function costOfRoleSince(db: Database, role: string, since: number): number {
+  return (
+    db
+      .query<{ c: number }, [string, number]>(
+        `SELECT COALESCE(SUM(r.cost_usd), 0) AS c FROM runs r JOIN turns t ON t.id = r.turn_id
+       WHERE t.role = ? AND t.started_at >= ?`,
+      )
+      .get(role, since)?.c ?? 0
+  );
+}
+
+/** Tool calls of a turn: total, and the last `limit` (newest first). */
+export function toolCallsOfTurn(
+  db: Database,
+  turnId: string,
+  limit: number,
+): { count: number; rows: { tool: string; input_json: string }[] } {
+  const count =
+    db
+      .query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM tool_calls WHERE turn_id = ?")
+      .get(turnId)?.n ?? 0;
+  const rows = db
+    .query<{ tool: string; input_json: string }, [string, number]>(
+      "SELECT tool, input_json FROM tool_calls WHERE turn_id = ? ORDER BY rowid DESC LIMIT ?",
+    )
+    .all(turnId, limit);
+  return { count, rows };
+}

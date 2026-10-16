@@ -109,7 +109,8 @@ const TASK_ID_OK = [
   "guard-sdk-tool-catalog.test.ts",
   // owned_task_id: the link column of schema v6 (owned tasks)
   "owned-task-store.ts",
-  "status-snapshot.ts", // `/status` reads the waiting owned task's last turn
+  "run-store.ts", // last turn of an owned task (turns.owned_task_id)
+  "run-metrics-store.ts", // cost of the runs of owned tasks (turns.owned_task_id)
   // thread_events.task_id: the goal / task an outbox event is about (schema v8)
   "event-store.ts",
   "dispatch-ready.ts", // writes the outbox event of a dispatched task

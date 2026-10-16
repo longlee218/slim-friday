@@ -51,3 +51,10 @@ export function effectsOfGoal(db: Database, goalId: string): EffectRow[] {
     )
     .all(goalId);
 }
+
+/** Stored result of an effect key, or undefined when the effect never ran. */
+export function effectResult(db: Database, key: string): string | undefined {
+  return db
+    .query<{ r: string }, [string]>("SELECT result AS r FROM effect_log WHERE id = ?")
+    .get(key)?.r;
+}

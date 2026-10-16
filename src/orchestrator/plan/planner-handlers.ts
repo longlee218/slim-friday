@@ -4,6 +4,7 @@ import { clip, redactText } from "../../observability/redact";
 import { countsTowardCap } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import { childrenOf } from "../../storage/owned-item-store";
+import { taskScope } from "../../storage/owned-task-store";
 import { getPlan, latestPlan, planIdOfGoal } from "../../storage/work-plan-store";
 import { type Reply, refuse } from "../engine/lead-call";
 import { createPlan, type Fail, type PlanEnv, validateStored } from "./plan-lifecycle";
@@ -95,10 +96,11 @@ export const getAgentCapabilities = (c: PlannerCtx): Reply => ({
 /** Store version 1 of the goal's plan; coded errors when the validator refuses it. */
 export function createPlanHandler(c: PlannerCtx, i: CreatePlanInput): Reply {
   if (i.goalId !== c.goalId) return wrongGoal(i.goalId);
-  const goal = c.db
-    .query<{ s: string }, [string]>("SELECT scope AS s FROM owned_tasks WHERE id = ?")
-    .get(c.goalId);
-  const r = createPlan(c.db, { ...i, objective: goal?.s ?? "", env: planEnvOf(c) });
+  const r = createPlan(c.db, {
+    ...i,
+    objective: taskScope(c.db, c.goalId) ?? "",
+    env: planEnvOf(c),
+  });
   return r.ok
     ? { ok: true, planId: r.plan.id, version: r.plan.version, status: r.plan.status }
     : failReply(r);

@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../../observability/redact";
-import { listUndelivered, markDeliveredIds } from "../events/event-store";
+import { listUndelivered, markDeliveredIds } from "../../storage/thread-event-store";
 import type { EventKind, ThreadEvent } from "../events/event-types";
 
 /* Which thread events the lead reads, how they reach its prompt (as DATA) and when they count as delivered. */

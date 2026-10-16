@@ -1,9 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { logEvent, logger, tryLog } from "../../observability/logger";
 import { childrenOf } from "../../storage/owned-item-store";
+import { cancelStartEvents } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
-import { cancelStartEvents } from "../events/event-store";
 import { openGoalIdOf } from "./effect-port-queries";
 import { settleGoal } from "./goal-settle";
 import type { LeadQueue } from "./lead-queue";

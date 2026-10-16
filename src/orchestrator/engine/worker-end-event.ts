@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { ReportSink } from "../../mcp/orchestration/tools/ReportResultTool/report-result-tool";
 import { clip, redactText } from "../../observability/redact";
 import { childrenOf, getItem, type ItemRow } from "../../storage/owned-item-store";
-import { appendEvent } from "../events/event-store";
+import { appendEvent } from "../../storage/thread-event-store";
 import { planReadyOf } from "../plan/plan-ready";
 import { PLANNER_KEY } from "../plan/plan-types";
 

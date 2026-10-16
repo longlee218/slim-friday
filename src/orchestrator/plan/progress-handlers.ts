@@ -1,5 +1,6 @@
 import { clip, redactText } from "../../observability/redact";
 import { childrenOf } from "../../storage/owned-item-store";
+import { lastEventOfItem } from "../../storage/thread-event-store";
 import type { Reply } from "../engine/lead-call";
 import type { GoalInput } from "./plan-schemas";
 import { type PlannerCtx, wrongGoal } from "./planner-handlers";
@@ -33,11 +34,13 @@ export function analyzeBlockers(c: PlannerCtx, i: GoalInput): Reply {
   return {
     ok: true,
     blockers: stuck.map((x) => {
-      const last = c.db
-        .query<{ kind: string; payload: string }, [string]>(
-          "SELECT kind, payload FROM thread_events WHERE item_id = ? AND kind IN ('failure', 'blocked', 'budget_hit', 'timeout', 'question') ORDER BY seq DESC LIMIT 1",
-        )
-        .get(x.id);
+      const last = lastEventOfItem(c.db, x.id, [
+        "failure",
+        "blocked",
+        "budget_hit",
+        "timeout",
+        "question",
+      ]);
       return {
         key: x.itemKey,
         status: x.status,

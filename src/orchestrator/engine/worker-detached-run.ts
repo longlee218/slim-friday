@@ -3,7 +3,7 @@ import type { Location } from "../../locations/location-registry";
 import { getLogContext, logEvent, logger, tryLog } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import type { ResultKind } from "../../storage/owned-item-store";
-import { appendEvent } from "../events/event-store";
+import { appendEvent } from "../../storage/thread-event-store";
 import { closeTurn } from "../turns/turn-result";
 import { failTurn } from "../turns/turn-tracker";
 import type { DispatchDeps, RoleRunInput } from "./role-run-types";

@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { RecentMessage } from "../../ingress/intent-types";
 import { cleanRecent, recentLines } from "../../ingress/recent-messages";
+import { countDoneTurnsSince } from "../../storage/run-store";
 import { getThreadSummary } from "../../storage/thread-summary-store";
 
 /** Headings of the seed blocks (data, never instructions; same wording as the ledger). */
@@ -22,12 +23,8 @@ export function rolloverSeed(
 ): string {
   const row = getThreadSummary(db, threadId);
   if (!row || row.rolled_at <= 0) return "";
-  const seen = db
-    .query<{ n: number }, [string, string, number]>(
-      "SELECT COUNT(*) AS n FROM turns WHERE thread_id = ? AND id != ? AND status = 'done' AND started_at >= ?",
-    )
-    .get(threadId, turnId, row.rolled_at);
-  if (!seen || seen.n > 0) return "";
+  const seen = countDoneTurnsSince(db, threadId, turnId, row.rolled_at);
+  if (seen === undefined || seen > 0) return "";
   const summary = row.summary.trim() ? `${SUMMARY_HEADING}\n${row.summary.trim()}` : "";
   const lines = recentLines(cleanRecent(recent));
   const last = lines.length ? `${RECENT_BLOCK_HEADING}\n${lines.join("\n")}` : "";

@@ -153,3 +153,44 @@ export function runningTurnOfTask(
     .get(taskId, taskId);
   return row ?? undefined;
 }
+
+/** Scope text of a task (goal sentence or item scope), or undefined when the row is missing. */
+export function taskScope(db: Database, id: string): string | undefined {
+  return db
+    .query<{ s: string }, [string]>("SELECT scope AS s FROM owned_tasks WHERE id = ?")
+    .get(id)?.s;
+}
+
+/** Thread and correlation id of a task, or undefined when the row is missing. */
+export function taskOrigin(
+  db: Database,
+  id: string,
+): { threadId: string; correlationId: string } | undefined {
+  return (
+    db
+      .query<{ threadId: string; correlationId: string }, [string]>(
+        "SELECT thread_id AS threadId, correlation_id AS correlationId FROM owned_tasks WHERE id = ?",
+      )
+      .get(id) ?? undefined
+  );
+}
+
+/** Tasks whose status is `running` (id, thread, version). */
+export function runningTasks(db: Database): { id: string; threadId: string; version: number }[] {
+  return db
+    .query<{ id: string; threadId: string; version: number }, []>(
+      "SELECT id, thread_id AS threadId, version FROM owned_tasks WHERE status = 'running'",
+    )
+    .all();
+}
+
+/** Rewrite an item the owner's plan edit changed. Only while it has not started (`pending` / `ready`). */
+export function rewriteNotStartedItem(
+  db: Database,
+  id: string,
+  f: { brief: string; scope: string; location: string | null; dependsOn: string[] },
+): void {
+  db.query(
+    "UPDATE owned_tasks SET brief = ?, scope = ?, location = ?, depends_on = ? WHERE id = ? AND status IN ('pending', 'ready')",
+  ).run(f.brief, f.scope, f.location, JSON.stringify(f.dependsOn), id);
+}

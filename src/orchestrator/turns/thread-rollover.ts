@@ -3,6 +3,7 @@ import { logEvent, logger } from "../../observability/logger";
 import type { RunUsage } from "../../observability/record-run";
 import { errText } from "../../observability/redact";
 import { getRole } from "../../roles/role-registry";
+import { turnRole } from "../../storage/run-store";
 import { deleteSession, getSession } from "../../storage/session-store";
 import {
   getThreadSummary,
@@ -67,12 +68,10 @@ export function requestRollover(
   try {
     const gauges = rolloverGauges(usage);
     if (!gauges) return;
-    const turn = db
-      .query<{ role: string }, [string]>("SELECT role FROM turns WHERE id = ?")
-      .get(ids.turnId);
+    const role = turnRole(db, ids.turnId);
     const session = getSession(db, ids.threadId);
-    if (!turn || !session || getRole(turn.role).background) return;
-    due.set(ids.turnId, { ...ids, role: turn.role, model: usage?.mainModel, ...gauges });
+    if (!role || !session || getRole(role).background) return;
+    due.set(ids.turnId, { ...ids, role, model: usage?.mainModel, ...gauges });
   } catch (err) {
     log.warn({ err: errText(err) }, "rollover request skipped");
   }

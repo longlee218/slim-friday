@@ -93,3 +93,41 @@ export function setTaskResult(
     "UPDATE owned_tasks SET result_path = ?, result_excerpt = ?, result_kind = COALESCE(?, result_kind) WHERE id = ?",
   ).run(r.path, r.excerpt, r.kind ?? null, id);
 }
+
+/** Item statuses that still count as work in progress. */
+const OPEN_ITEM = "('pending', 'ready', 'running', 'waiting_user', 'blocked')";
+
+/**
+ * Id of the thread's newest goal of `ownerRole` (a goal = a row without a parent) with status `open` and at least
+ * one unfinished item (or no item yet), or a plan waiting for the owner created after `pendingPlansSince`.
+ */
+export function openGoalId(
+  db: Database,
+  threadId: string,
+  ownerRole: string,
+  pendingPlansSince: number,
+): string | undefined {
+  return db
+    .query<{ id: string }, [string, string, number]>(
+      `SELECT g.id FROM owned_tasks g
+       WHERE g.thread_id = ? AND g.parent_id IS NULL AND g.owner_role = ? AND g.status = 'open'
+         AND (NOT EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id)
+              OR EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id AND i.status IN ${OPEN_ITEM})
+              OR EXISTS (SELECT 1 FROM work_plans p WHERE p.goal_id = g.id AND p.status IN ('draft', 'valid') AND p.created_at > ?))
+       ORDER BY g.rowid DESC LIMIT 1`,
+    )
+    .get(threadId, ownerRole, pendingPlansSince)?.id;
+}
+
+/** Newest goal of the thread (any status) owned by `ownerRole`, or undefined. */
+export function latestGoalId(
+  db: Database,
+  threadId: string,
+  ownerRole: string,
+): string | undefined {
+  return db
+    .query<{ id: string }, [string, string]>(
+      "SELECT id FROM owned_tasks WHERE thread_id = ? AND parent_id IS NULL AND owner_role = ? ORDER BY rowid DESC LIMIT 1",
+    )
+    .get(threadId, ownerRole)?.id;
+}

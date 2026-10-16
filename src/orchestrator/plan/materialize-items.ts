@@ -1,10 +1,11 @@
 import type { Database } from "bun:sqlite";
+
 import { excerpt } from "../../observability/logger";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
-import { insertOwnedTask } from "../../storage/owned-task-store";
+import { insertOwnedTask, rewriteNotStartedItem, taskOrigin } from "../../storage/owned-task-store";
+import { appendEvent } from "../../storage/thread-event-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
 import { taskRunOf } from "../engine/task-runs";
-import { appendEvent } from "../events/event-store";
 import type { PlanDoc, PlanItem } from "./plan-types";
 
 /* Plan items to owned tasks. Idempotent by goal + key: an item that exists is never created twice, so applying the same
@@ -57,11 +58,7 @@ export function materialize(
     releaseBlocked: boolean;
   },
 ): Applied & { abort: string[] } {
-  const goal = db
-    .query<{ threadId: string; correlationId: string }, [string]>(
-      "SELECT thread_id AS threadId, correlation_id AS correlationId FROM owned_tasks WHERE id = ?",
-    )
-    .get(o.goalId);
+  const goal = taskOrigin(db, o.goalId);
   if (!goal) throw new Error(`goal ${o.goalId} missing`);
   const have = new Map(childrenOf(db, o.goalId).map((i) => [i.itemKey, i] as const));
   const out: Applied & { abort: string[] } = {
@@ -105,15 +102,12 @@ export function materialize(
       });
       out.created.push(it.key);
     } else if (NOT_STARTED.has(cur.status) && changed(cur, it)) {
-      db.query(
-        "UPDATE owned_tasks SET brief = ?, scope = ?, location = ?, depends_on = ? WHERE id = ? AND status IN ('pending', 'ready')",
-      ).run(
-        it.brief,
-        excerpt(it.brief, SCOPE_CHARS),
-        it.location ?? null,
-        JSON.stringify(it.dependsOn),
-        cur.id,
-      );
+      rewriteNotStartedItem(db, cur.id, {
+        brief: it.brief,
+        scope: excerpt(it.brief, SCOPE_CHARS),
+        location: it.location ?? null,
+        dependsOn: it.dependsOn,
+      });
       out.modified.push(it.key);
     }
   }
