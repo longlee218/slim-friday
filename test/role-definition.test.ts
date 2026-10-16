@@ -28,7 +28,6 @@ test("the lead is a foreground role without shell, ask, write or subagents; the 
   expect(SCOUT_ROLE.kind).toBe("worker");
   expect(SCOUT_ROLE.sideEffects).toBe("none");
   for (const c of ["write", "ask"]) expect(SCOUT_ROLE.capabilities).not.toContain(c as never);
-  expect(SCOUT_ROLE.shellMode).toBe("read"); // its shell is the read-only allowlist
 });
 
 test("role data is flat: no stages, gates, handoffs or per-run timeouts in any role", () => {

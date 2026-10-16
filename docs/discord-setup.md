@@ -231,7 +231,7 @@ Expected (not verified live): the lead starts a `developer` run in the location 
 ```
 remove all files in src/
 ```
-Expected (not verified live): the shell gate refuses a raw `rm`. File removal goes through the `DeletePaths` effect tool, which moves files to the trash for 7 days (`/purge` empties it).
+Expected (not verified live): the worker is told to use the `DeletePaths` effect tool for deletes (a raw `rm` inside the granted dirs is not filtered by the app), which moves files to the trash for 7 days (`/purge` empties it).
 
 ### Test 8: Busy limit
 Long runs in several threads at once. The run limiter allows `MAX_CONCURRENT_RUNS` (30, constant) runs; a thread whose run holds it answers from the busy-thread path.
@@ -301,7 +301,7 @@ locations:
 - Skills run whole and unmodified. Their ask steps go through AskUserQuestion (limit 6 per run).
 
 ### What a developer run does
-- Works in its location (its cwd; the workspace `cwd/` when the workspace has none), inside the worker shell gate (allowlist + shape policy) and the SDK OS sandbox (writes only in its granted dirs, network closed). The sandbox is not yet verified live (see the owner checklist).
+- Works in its location (its cwd; the workspace `cwd/` when the workspace has none), inside the SDK OS sandbox (writes only in its granted dirs, network closed). The sandbox was live-probed on 2026-10-16 through direct SDK calls; the full bot path is not yet verified (see the owner checklist).
 - Pushes, PRs and merges go through the effect tools `GitPush`, `CreatePullRequest` and `MergeBranch`, each one logged in `effect_log`. Force push and pushes to `main` are never granted (risk class R4).
 - A PR or merge happens only when the approved plan or the envelope allows it.
 - A reply or a new message after a run goes to the lead, which decides whether it is a new task.
@@ -334,7 +334,7 @@ locations:
 | Run never ends | No run timeout exists | `/stop` |
 | Owner question unanswered | No answer in 10 min | Answer in the thread, or `/stop` |
 | "This action expired." on a button | The bot restarted after the message (clicks are in memory) | Nothing ran. Send the request again |
-| Shell refusal on a legit command | The worker shell gate (allowlist + shape policy) refused it | Rewrite as one allowlisted command, or run it yourself |
+| Shell failure on a legit command | The OS sandbox blocked it (a write outside the granted dirs, network, AGENT_HOME) | Use the effect tool (delete, push, PR, merge) or run it yourself |
 | `gh` not authenticated | No `gh auth login` | Run `gh auth login` |
 | Startup: "AGENT_HOME is inside a registered location" or "inside a git working tree" | `AGENT_HOME` sits in a location or a git working tree | Point `AGENT_HOME` at a real dir outside every location and git working tree |
 | Startup: "is not a Friday baseline database" | The db was made by an older build (no `__drizzle_migrations`) | Reset: see [First start and reset](#first-start-and-reset) |

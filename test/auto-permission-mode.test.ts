@@ -84,19 +84,17 @@ test("auto mode: canUseTool (classifier undecided) still asks the owner via the 
   expect(asked).toEqual(["SomeUnknownTool"]);
 });
 
-test("auto mode: Bash never asks (deny list): an env override or make runs as allow, sudo is denied", async () => {
+test("auto mode: Bash never asks: any line runs as allow (the OS sandbox bounds it)", async () => {
   const guard = guardFor(getRole("developer"), {
     cwd: "/ws/location",
     writePaths: ["/ws/location"],
     readPaths: ["/ws/location"],
   });
-  for (const command of ["PATH=./bin make", "make"]) {
+  for (const command of ["PATH=./bin make", "make", "sudo make"]) {
     const { out, perms } = await pre(true, "Bash", { command }, guard);
     expect(out).toEqual({ continue: true });
     expect(perms.decisions.get("u1")?.decision).toBe("allow");
   }
-  const { out } = await pre(true, "Bash", { command: "sudo make" }, guard);
-  expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
 });
 
 /** Feed fake SDK messages to a watch and collect its log lines. */

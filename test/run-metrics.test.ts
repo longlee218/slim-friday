@@ -186,7 +186,12 @@ describe("run metrics", () => {
 
   test("guard deny and canUseTool deny report the tool_use_id", async () => {
     const seen: string[] = [];
-    const p = { turnId: "T", threadId: "th", guard: {}, onDeny: (id: string) => seen.push(id) };
+    const p = {
+      turnId: "T",
+      threadId: "th",
+      guard: { shell: false },
+      onDeny: (id: string) => seen.push(id),
+    };
     const hook = guardHook(p, new Map(), logger, newSubagentLimit());
     await hook(
       {

@@ -29,7 +29,7 @@ src/
 ├── commands/                native slash definitions and the slash-to-text mapping
 ├── ingress/                 Discord client, message rules, thread placement, attachments, slash interactions
 ├── orchestrator/            the lead, workers, runs, goals, budgets, effects, events, plans, threads, turns
-├── policy/                  tool-call guard, envelope, shell gate, risk classes
+├── policy/                  tool-call guard, envelope, risk classes
 ├── owner-approval/          owner questions and buttons over Discord
 ├── mcp/                     five in-process MCP servers (one folder per tool)
 ├── roles/                   role type, registry, built-in roles, prompt text
@@ -48,7 +48,7 @@ src/
 
 | Dir | Purpose | Key files |
 |-----|---------|-----------|
-| `config/` | env schema (zod), role-independent limits, model ids, paths, skills lock | `agent-config.ts`, `model-ids.ts`, `model-routing.ts` (`TASK_BUDGET_USD` 6.0), `lead-caps.ts`, `process-env.ts`, `child-env-deny.ts`, `workspace-paths.ts`, `skills-lock.ts`, `data/child-env-deny.yaml`, `data/worker-bash-allowlist.yaml` |
+| `config/` | env schema (zod), role-independent limits, model ids, paths, skills lock | `agent-config.ts`, `model-ids.ts`, `model-routing.ts` (`TASK_BUDGET_USD` 6.0), `lead-caps.ts`, `process-env.ts`, `child-env-deny.ts`, `workspace-paths.ts`, `skills-lock.ts`, `data/child-env-deny.yaml` |
 | `commands/` | native slash commands: `/stop`, `/status`, `/purge`, `/find`, `/init-workspace`, `/init-channel` | `slash-definitions.ts`, `slash-commands.ts` |
 | `ingress/` | Discord bot, gates, message handler, thread placement and rename, attachments, receipts, slash interactions | `discord-bot.ts`, `discord-message-handler.ts`, `discord-message-rules.ts`, `thread-placement.ts`, `thread-rename.ts`, `thread-history.ts`, `attachment-text.ts`, `discord-components.ts`, `status-copy.ts` |
 | `orchestrator/` (top) | command entry and service wiring | `handle-message.ts`, `message-commands.ts`, `handler-services.ts`, `handler-types.ts`, `reply.ts` (`Reply`, `refuse`: leaf type) |
@@ -63,7 +63,7 @@ src/
 | `orchestrator/turns/` | turn rows, run limiter (30 runs), steer registry and store, completion, status snapshot | `completion.ts`, `turn-admission.ts`, `turn-tracker.ts`, `run-limiter.ts`, `steer-registry.ts`, `steer-store.ts`, `turn-result.ts`, `turn-stop.ts`, `status-snapshot.ts`, `status-tools.ts`, `progress-notes.ts`, `result-file-save.ts` |
 | `orchestrator/events/` | event types of the thread outbox (`thread_events`) | `event-types.ts` |
 | `orchestrator/thread/` | derived thread state | `thread-state.ts` |
-| `policy/` | the guard: allow / ask / deny per tool call, envelope check, shell gate | `check-tool-call.ts` (single entry point), `classify-tool-call.ts`, `risk-types.ts` (R0-R4), `envelope.ts`, `load-envelope.ts`, `check-envelope.ts`, `envelope-guard.ts`, `shell-gate.ts`, `shell-shape.ts`, `shell-table.ts`, `bash-allowlist.ts`, `shell-paths.ts`, `bash-policy.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `protected-paths.ts`, `ask-policy.ts`, `subagent-limit.ts` (25 files) |
+| `policy/` | the guard: allow / ask / deny per tool call, envelope check | `check-tool-call.ts` (single entry point), `classify-tool-call.ts`, `risk-types.ts` (R0-R4), `envelope.ts`, `load-envelope.ts`, `check-envelope.ts`, `envelope-guard.ts`, `deny-dangerous.ts`, `protected-paths.ts`, `worktree-path.ts`, `ask-policy.ts`, `subagent-limit.ts` |
 | `owner-approval/` | owner questions as Discord buttons and text, with timeouts | `discord-approval.ts`, `approval-buttons.ts`, `approval-interaction.ts`, `approval-text.ts`, `owner-confirm.ts`, `approval-types.ts` |
 | `mcp/` | five in-process MCP servers, manifests, tool-name constants, tool result helper | `manifests.ts` (`ALL_SERVERS`), `manifest-types.ts`, `mcp-servers.ts` (`buildServers(role, ctx)`), `mcp-tool-names.ts`, `tool-names-of-role.ts`, `tool-result.ts`; servers under `memory/`, `orchestration/`, `plan/`, `effects/`, `discord-admin/` |
 | `roles/` | role type, registry, built-in roles, prompt pieces | `role-types.ts`, `role-registry.ts`, `capability-registry.ts`, `typed-result.ts`, `builtin/{lead,planner,scout,developer,discord-manager}-role.ts`, `prompts/` (`lead-md.ts`, `first-prompt-prefix.ts`, `rollover-prompts.ts`, `thread-title-note.ts`) |
@@ -124,9 +124,8 @@ Layers that decide whether a tool call runs (details: [system-architecture.md](s
 - **`policy/check-tool-call.ts`**: the single entry point (pure). Maps a tool call to allow, ask or deny. Wired as the SDK PreToolUse hook and `canUseTool` (`runtime/guard-hook.ts`, `runtime/tool-permissions.ts`).
 - **Risk classes R0-R4** (`policy/risk-types.ts`): R4 (for example force push, push to `main`) is never granted; it asks every time.
 - **Envelope** (`policy/envelope.ts`, `load-envelope.ts`, `check-envelope.ts`): what the owner allowed for one goal's worker runs, built from the DB at every worker start and checked per effect (fail closed). Default bounds (`policy/risk-types.ts` `DEFAULT_BOUNDS`): 200 items and 50 GiB.
-- **Shell gate** (`policy/shell-gate.ts`, `shell-shape.ts`, `shell-table.ts`, `bash-allowlist.ts`, data `config/data/worker-bash-allowlist.yaml`): a worker's shell line must be one simple command with a listed command, subcommand and flags. Anything else is denied with the reason.
-- **SDK sandbox** (`runtime/worker-sandbox.ts`): a dispatched worker's Bash runs in the SDK OS sandbox (writes only in granted dirs, network closed, `allowUnsandboxedCommands: false`). Not verified live.
-- **Older checks still in place**: `bash-policy.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `protected-paths.ts` (AGENT_HOME is denied to every run). These are best-effort text parsers. The phase that would replace the app shell policy with the SDK sandbox alone is pending (see [development-roadmap.md](development-roadmap.md)).
+- **SDK sandbox** (`runtime/worker-sandbox.ts`): a dispatched worker's Bash runs in the SDK OS sandbox (writes only in granted dirs, network closed, `allowUnsandboxedCommands: false`). Live-probed 2026-10-16 with direct SDK calls; the full bot path is not exercised.
+- **File-tool checks**: `deny-dangerous.ts`, `protected-paths.ts`, `worktree-path.ts` (path, secret-name and AGENT_HOME rules for Read/Write/Edit/Glob/Grep/LSP and EnterWorktree). Bash is not parsed: a role with `shell` may call it and the sandbox bounds it.
 - **Permission mode** (`runtime/permission-mode.ts`): a run with an envelope runs in `default`. `auto` needs a real Claude login; without one it falls back to `default`.
 
 ## Effect Tools

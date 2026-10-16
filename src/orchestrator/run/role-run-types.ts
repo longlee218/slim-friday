@@ -79,7 +79,7 @@ export interface RoleRunInput {
   extraSystem?: string[];
   /** Dispatched worker run: no SDK subagent tools even when the role allows them (depth 1, developer included). */
   noSubagents?: boolean;
-  /** Envelope of a dispatched worker: its shell is an allowlist and every tool call is checked against it. Omitted = no envelope. */
+  /** Envelope of a dispatched worker: its shell runs in the OS sandbox and every tool call is checked against it. Omitted = no envelope. */
   envelope?: DispatchEnvelope;
   /** Where the typed question of a worker's AskUserQuestion goes instead of the owner (the run's `code` hook); omitted = the owner's buttons. */
   askRelay?: (questions: AskQuestion[]) => Promise<Record<string, string> | undefined>;

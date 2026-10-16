@@ -3,7 +3,7 @@
  *
  * Writes must land inside an allowed directory; reads must not touch secret files.
  * Paths are resolved with realpath of the nearest existing ancestor, so `..` segments
- * and symlinks cannot escape. Bash parsing is best effort (see bash-policy.ts).
+ * and symlinks cannot escape. The shell is not parsed: the OS sandbox bounds it (worker-sandbox.ts).
  */
 import { basename, isAbsolute, resolve } from "node:path";
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME, NOTEBOOK_EDIT_TOOL_NAME } from "../tools/sdk-tool-names";

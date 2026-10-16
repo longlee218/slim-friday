@@ -248,3 +248,21 @@ test("app git calls: hardening options and a scrubbed env (no GIT_* but the iden
   });
   expect(subprocessEnv(["gh", "pr", "create"], source)).toEqual(source);
 });
+
+test("sandbox: a write grant that contains the agent home (a $HOME location) gets denyWrite on the agent home, around the run's own dirs", () => {
+  const root = realpathSync(tmpRoot("sbx-home-"));
+  const agentHome = join(root, ".friday");
+  const own = join(agentHome, "goals", "g1");
+  mkdirSync(own, { recursive: true });
+  mkdirSync(join(agentHome, "db"), { recursive: true });
+  const sb = workerSandbox({
+    cwd: root,
+    writePaths: [root],
+    readPaths: [root],
+    denyPaths: [agentHome],
+    envelope: defaultEnvelope("g", ["loc"], own),
+  } as never) as { filesystem: { denyWrite?: string[] } };
+  expect(sb.filesystem.denyWrite).toContain(join(agentHome, "db"));
+  expect(sb.filesystem.denyWrite).not.toContain(agentHome);
+  expect(sb.filesystem.denyWrite).not.toContain(own);
+});

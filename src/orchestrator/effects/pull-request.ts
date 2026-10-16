@@ -7,7 +7,6 @@ import {
   recordEffect,
   refuseLogged,
 } from "../../policy/effect-context";
-import { ghDenial } from "../../policy/gh-policy";
 import { type Reply, refuse } from "../reply";
 
 /* CreatePullRequest: `gh pr create` as an argv array. The head is a feature branch the grant covers. */
@@ -46,8 +45,6 @@ export async function createPullRequest(
     "--body",
     body,
   ];
-  const denied = ghDenial(argv.slice(1));
-  if (denied) return refused("DENIED", denied);
   const r = await ctx.run(argv, cwd);
   recordEffect(ctx, {
     tool: CREATE_PULL_REQUEST_TOOL,

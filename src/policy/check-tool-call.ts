@@ -2,8 +2,8 @@
  * Single entry point for tool guardrails: maps (toolName, input) to allow / ask / deny.
  * Pure: no SDK, no Discord, no logging. The caller wires it into PreToolUse / canUseTool.
  *
- * A deny list: Bash never asks (see bash-policy.ts); `ask` is left for unknown tools and a Monitor WebSocket.
- * NOTE: Bash parsing is best effort and can be bypassed (variable tricks, scripts, etc).
+ * Bash is not parsed: a role with the `shell` capability may call them and the OS sandbox of the run
+ * (worker-sandbox.ts: writes only in the granted dirs, no network) bounds them. `ask` is left for unknown tools (Monitor included).
  */
 
 import { MCP_PREFIX } from "../mcp/mcp-tool-names";
@@ -19,7 +19,6 @@ import {
   GREP_TOOL_NAME,
   LIST_AGENTS_TOOL_NAME,
   LSP_TOOL_NAME,
-  MONITOR_TOOL_NAME,
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
   READ_TOOL_NAME,
@@ -27,10 +26,10 @@ import {
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
 import { autoAllowedTools, toolsFor } from "../tools/tool-catalog";
-import { checkBash, checkWorktreePath } from "./bash-policy";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
 import type { DispatchEnvelope } from "./envelope";
 import { envelopeGate } from "./envelope-guard";
+import { checkWorktreePath } from "./worktree-path";
 
 /** Outcome of a guardrail check. `deny` is never approvable; `ask` needs the owner. */
 export type Decision = {
@@ -46,25 +45,23 @@ export type LoggedDecision = { decision: Decision["decision"] | "auto" | "bypass
 
 /** Per-task settings for guardrail checks. */
 export interface GuardrailContext {
-  /** Real path of the run's working dir: relative paths of a Bash line resolve against it. Omitted = relative `rm -r` / worktree paths are denied. */
+  /** Real path of the run's working dir: a relative EnterWorktree / search path resolves against it. */
   cwd?: string;
   /** Real dirs where writes are allowed (the workspace's locations, worktrees dir, scratch, plans dir). */
   writePaths?: string[];
   /** Real dirs Read/Glob/Grep may touch (scratch, plans dir, registered locations). Omitted = no limit. */
   readPaths?: string[];
-  /** Real dirs where `git worktree add` / EnterWorktree may put a worktree (`workspace(ws).worktrees`). Omitted = none allowed. */
+  /** Real dirs where EnterWorktree may put a worktree (`workspace(ws).worktrees`). Omitted = none allowed. */
   worktreeDirs?: string[];
   /** Real dirs no tool may touch, read or write (AGENT_HOME), even inside a registered location. Omitted = none. */
   denyPaths?: string[];
   /** Real dirs under `denyPaths` that stay usable: the run's own scratch, worktrees, `cwd/`, attachments, skill dirs. */
   allowInside?: string[];
-  /** Real dirs of the run's skill plugins (read-only, under the agent home): the only place a worker's shell may run a script from. Omitted = none. */
+  /** Real dirs of the run's skill plugins (read-only, under the agent home): the sandbox lets a shell read them. Omitted = none. */
   skillDirs?: string[];
-  /** False = the role has no shell capability: Bash and Monitor are denied. Omitted (no role known) = allowed. */
+  /** False = the role has no shell capability: Bash is denied. Omitted (no role known) = allowed. */
   shell?: boolean;
-  /** `read` = the shell may run read-only commands only (role data `shellMode`); omitted = the role's deny-list shell. */
-  shellMode?: "read";
-  /** A dispatched worker's envelope: the shell is an allowlist and every call is checked against it (fail closed). Omitted = no envelope (deny-list only). */
+  /** A dispatched worker's envelope: effect tools are checked against it and an `ask` is classified (fail closed). Omitted = no envelope. */
   envelope?: DispatchEnvelope;
   /** False = no SDK subagent tools (Agent, Task, SendMessage, ListAgents): denied. Omitted = allowed. */
   subagents?: boolean;
@@ -84,7 +81,6 @@ export function guardFor(role: RoleDefinition, scope: GuardScope): GuardrailCont
     ...scope,
     allowTools: [...autoAllowedTools(role), ...mcpToolNamesOfRole(role)],
     shell: toolsFor(role).includes(BASH_TOOL_NAME),
-    ...(role.shellMode && { shellMode: role.shellMode }),
     // Depth 1: the role's data wins; a run (a dispatched worker) may also turn subagents off through the scope.
     subagents: role.noSubagents ? false : (scope.subagents ?? true),
   };
@@ -112,7 +108,7 @@ export function checkToolCall(
   return ctx.envelope ? envelopeGate(toolName, input, ctx, d) : d;
 }
 
-/** The role-independent rules of `checkToolCall` (paths, shell, MCP tools): allow / ask / deny without the envelope. */
+/** The role-independent rules of `checkToolCall` (paths, shell capability, MCP tools): allow / ask / deny without the envelope. */
 function checkBase(
   toolName: string,
   input: Record<string, unknown>,
@@ -127,20 +123,18 @@ function checkBase(
   if (toolName === ENTER_WORKTREE_TOOL_NAME)
     return checkWorktreePath(typeof input.path === "string" ? input.path : undefined, ctx.cwd, ctx);
   // A role without the shell capability never runs a shell, whatever the SDK offers (second lock behind `tools`).
-  if ((toolName === BASH_TOOL_NAME || toolName === MONITOR_TOOL_NAME) && ctx.shell === false)
+  if (toolName === BASH_TOOL_NAME && ctx.shell === false)
     return { decision: "deny", reason: "no shell in this role" };
-  // Monitor runs a shell command (same policy as Bash); a WebSocket watch has no command -> owner decides.
-  if (toolName === MONITOR_TOOL_NAME && typeof input.command !== "string")
-    return {
-      decision: "ask",
-      reason: "Monitor without a shell command (WebSocket) needs approval",
-    };
-  if (toolName === BASH_TOOL_NAME || toolName === MONITOR_TOOL_NAME) {
+  // Monitor is not a shell capability of any role (its processes were not probed inside the OS sandbox): it falls to `ask`.
+  if (toolName === BASH_TOOL_NAME) {
     const command = input.command;
     if (typeof command !== "string" || command.trim() === "") {
       return { decision: "deny", reason: "Bash: missing or invalid command" };
     }
-    return checkBash(command, ctx);
+    // Second lock behind the sandbox settings: a command may not ask to run outside the sandbox.
+    if (input.dangerouslyDisableSandbox)
+      return { decision: "deny", reason: "Bash: sandbox opt-out is not allowed" };
+    return { decision: "allow", reason: "shell bounded by the OS sandbox" };
   }
   // An app MCP tool: allowed only when the role's `mcpTools` lists it (`guardFor` puts those in `allowTools`); any other
   // `mcp__*` tool is denied (second lock behind the per-run server build).

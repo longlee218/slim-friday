@@ -83,10 +83,8 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
         seen.deleteOutA = await c.tool(DELETE_PATHS_TOOL, { paths: [outsideA], reason: "r" });
         ownerAnswer = false;
         seen.deleteOutB = await c.tool(DELETE_PATHS_TOOL, { paths: [outsideB], reason: "r" });
-        // Raw shell equivalents and an ungranted GitPush are denied.
-        const sh = await can("Bash", { command: "git push origin feat/x" });
-        seen.bashPush = sh;
-        seen.bashRm = (await can("Bash", { command: "rm -rf node_modules" })).behavior;
+        // The shell is not parsed (the OS sandbox bounds it); an ungranted GitPush tool call is denied.
+        seen.bash = (await can("Bash", { command: "git push origin feat/x" })).behavior;
         seen.toolPush = await can(tool(GIT_PUSH_TOOL), {
           location: "location",
           remote: "origin",
@@ -142,10 +140,8 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
   expect(seen.deleteOutB).toMatchObject({ ok: false, code: "OWNER_DENIED" });
   expect(existsSync(outsideA)).toBe(false);
   expect(existsSync(outsideB)).toBe(true);
-  // Push: denied in the shell (naming the tool), denied as a tool outside the envelope; rm is denied too.
-  expect(seen.bashPush).toMatchObject({ behavior: "deny" });
-  expect((seen.bashPush as { message: string }).message).toContain("GitPush");
-  expect(seen.bashRm).toBe("deny");
+  // Push: the shell call passes the guard (the sandbox has no network); the tool outside the envelope is denied.
+  expect(seen.bash).toBe("allow");
   expect(seen.toolPush).toMatchObject({ behavior: "deny" });
   expect((seen.toolPush as { message: string }).message).toContain("OUT_OF_ENVELOPE");
   // /purge: this thread's trash is emptied now.

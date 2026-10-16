@@ -28,10 +28,10 @@ bun run bootstrap:discord   # create the ops channels
    - Adding or removing a skill is a data change. A skill name in code is a bug.
 4. **Tools are data.** An MCP tool is one folder, one manifest line, and its name in the `mcpTools` of each role that may use it. A tool adapter is thin; the logic lives in a domain module (see [MCP Tools](#mcp-tools)).
 5. **Limits live in the role file.** `MAX_ASK` and `BUDGET_USD` are named constants at the top of `src/roles/builtin/<role>-role.ts`. The task ceiling `TASK_BUDGET_USD` lives only in `src/config/model-routing.ts`. Other run-wide caps are constants in the module that owns them.
-6. **Two guard layers, by run kind.**
+6. **Guard layers, by run kind.**
    - `src/policy/` deny list: every run. It returns allow, ask or deny per tool call; hard denies are never approvable.
-   - Envelope (`src/policy/envelope*.ts`): dispatched workers only. Their shell is default-deny by shape with an exact table (`src/config/data/worker-bash-allowlist.yaml`), and R2/R3 work goes only through the effect tools.
-   - Do not add a shell allowlist for a run that has no envelope.
+   - Envelope (`src/policy/envelope*.ts`): dispatched workers only. R2/R3 work goes only through the effect tools; their Bash is not parsed, the OS sandbox (`src/runtime/worker-sandbox.ts`) bounds it.
+   - Do not add app-side Bash parsing or a shell allowlist: the sandbox is the shell boundary.
 7. **Fail closed for owner decisions.** An owner question with no answer means "do not run". A missing or invalid config refuses startup.
 8. **Layering** (test-enforced):
    - `orchestrator/thread/` never imports `runtime/`.
@@ -62,7 +62,7 @@ Folders under `src/orchestrator/`:
 
 - Rollover (flush, summary, seed) is in `src/session/`, not in the orchestrator.
 - Owned-task state machine and contracts are in `src/tasks/`.
-- Effect tool names are constants in `src/orchestrator/effects/effect-tool-names.ts` (`EFFECT_TOOL_NAMES`). A new effect tool needs: a risk class in `src/policy/classify-tool-call.ts`, a grant rule in `src/policy/check-envelope.ts`, a test in `test/effect-tools-scope.test.ts`, and a line in the shell table if a shell command is the same act (the shell gate names the tool in its denial).
+- Effect tool names are constants in `src/orchestrator/effects/effect-tool-names.ts` (`EFFECT_TOOL_NAMES`). A new effect tool needs: a risk class in `src/policy/classify-tool-call.ts`, a grant rule in `src/policy/check-envelope.ts`, a test in `test/effect-tools-scope.test.ts`, and a line in the developer shell rules (`DEVELOPER_SHELL_RULES`) if a shell command is the same act.
 
 ## Roles
 - One `RoleDefinition` object per file: `src/roles/builtin/<name>-role.ts`. Prompt text sits in the role file or in `src/roles/prompts/` (`lead-md.ts`, `rollover-prompts.ts`).
@@ -159,8 +159,8 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 ## Security and Privacy
 - **No hardcoded secrets.** All config comes from env through the schema.
 - **Redact before logging and before sending to Discord.** Replies, logs, attachments and stored text pass `src/observability/redact.ts`.
-- **Deny list plus envelope.** Hard denies are listed in [system-architecture.md, Guards](system-architecture.md#guards). Keep them narrow. Cover a new rule in `test/bash-policy.test.ts` and `test/deny-dangerous.test.ts`.
+- **Deny list plus envelope.** Hard denies are listed in [system-architecture.md, Guards](system-architecture.md#guards). Keep them narrow. Cover a new rule in `test/deny-dangerous.test.ts`.
 - **Child env deny list.** The agent process never inherits the bot's own secrets (`src/config/data/child-env-deny.yaml`). Workers also lose GitHub tokens and the SSH agent socket.
 - **File modes:** the database, logs and per-run temp files are owner-only (0600 files, 0700 dirs). Result files under `goals/` follow the same rule.
 - **Owner only:** the bot obeys `OWNER_DISCORD_ID` in the pinned guild.
-- **Known limits (accepted):** Bash parsing is best effort for runs without an envelope. A worker's shell is shape-gated and runs in an OS sandbox (not verified live). R1 runners such as `bun run`, `npm run`, `pytest` and `tsc` execute repo code.
+- **Known limits (accepted):** the shell is bounded only by the OS sandbox (live-probed 2026-10-16 through direct SDK calls; the full bot path is not exercised). `.git` hooks and config are writable by design; repo code run by runners (tests, scripts) is not filtered.

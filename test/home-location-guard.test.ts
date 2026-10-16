@@ -76,35 +76,14 @@ for (const role of ["developer", "lead"] as const) {
   });
 }
 
-test("dev: agent home unwritable, Bash reads and writes of it denied, own dirs granted", () => {
+test("dev: agent home unwritable (the shell is bounded by the sandbox), own dirs granted", () => {
   expect(decide("developer", "Write", { file_path: join(agentHome, "data", "x") })).toBe("deny");
-  expect(decide("developer", "Bash", { command: `cat ${join(agentHome, ".env")}` })).toBe("deny");
-  expect(
-    decide("developer", "Bash", { command: `cat ${join(agentHome, "data", "agent.db")}` }),
-  ).toBe("deny");
-  expect(decide("developer", "Bash", { command: `rm -r ${join(agentHome, "x")}` })).toBe("deny");
-  // Relative (cwd = $HOME) and `~` / `$HOME` forms (os.homedir() follows the HOME env).
-  expect(decide("developer", "Bash", { command: "cat .friday/data/agent.db" })).toBe("deny");
-  const prevHome = process.env.HOME;
-  process.env.HOME = home;
-  try {
-    expect(decide("developer", "Bash", { command: "ls ~/.friday/data" })).toBe("deny");
-    expect(decide("developer", "Bash", { command: "echo hi > $HOME/.friday/data/x" })).toBe("deny");
-  } finally {
-    process.env.HOME = prevHome;
-  }
   // The run's scratch and worktrees dir (under AGENT_HOME) stay writable.
   expect(decide("developer", "Write", { file_path: join(ws.task("t1").root, "plan.md") })).toBe(
     "allow",
   );
   expect(
     decide("developer", "Write", { file_path: join(ws.worktrees, "my-computer", "a.ts") }),
-  ).toBe("allow");
-  expect(decide("developer", "Bash", { command: `rm -r ${join(ws.worktrees, "x")}` })).toBe(
-    "allow",
-  );
-  expect(
-    decide("developer", "Bash", { command: `rm -r ${join(home, "proj", "node_modules")}` }),
   ).toBe("allow");
 });
 

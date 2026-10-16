@@ -91,16 +91,13 @@ test("canUseTool: writes only in the workspace; a feedback report is outside a w
   expect(
     (await can(WRITE_TOOL_NAME, { file_path: "/etc/passwd", content: "x" }, {})).behavior,
   ).toBe("deny");
-  expect((await can(BASH_TOOL_NAME, { command: "rm -rf /etc/x" }, {})).behavior).toBe("deny");
   expect(asked).toHaveLength(0); // allow/deny decisions never bother the owner
 
   // Bash never asks. A dispatched worker has an envelope: a tool the guard would ask about (SendFeedback) is unknown
   // = R2 = denied (fail closed), the owner is not bothered.
   expect((await can(BASH_TOOL_NAME, { command: "bun run lint" }, {})).behavior).toBe("allow");
-  expect((await can(BASH_TOOL_NAME, { command: "bun add left-pad" }, {})).behavior).toBe("deny"); // not listed: unknown = R2
-  expect((await can(BASH_TOOL_NAME, { command: "git push origin feat" }, {})).behavior).toBe(
-    "deny",
-  );
+  // The shell is not parsed: the OS sandbox (no network, writes only in the grants) bounds any line.
+  expect((await can(BASH_TOOL_NAME, { command: "bun add left-pad" }, {})).behavior).toBe("allow");
   expect((await can(SEND_FEEDBACK_TOOL_NAME, { type: "bug", title: "t" }, {})).behavior).toBe(
     "deny",
   );
@@ -115,15 +112,13 @@ test("a tool the owner denies becomes a deny the agent can act on", async () => 
   expect(feedback).toMatchObject({ behavior: "deny" });
 });
 
-test("PreToolUse hook denies dangerous Bash and lets allowlisted Bash run; a tool outside the worker envelope is denied even in bypass", async () => {
+test("PreToolUse hook lets Bash run (the sandbox bounds it); a tool outside the worker envelope is denied even in bypass", async () => {
   const { gw } = fakeGateway();
   const { opts } = await runCodeTask(gw);
   const hook = opts.hooks.PreToolUse[0].hooks[0] as (i: any) => Promise<any>;
   const call = (command: string) =>
     hook({ hook_event_name: "PreToolUse", tool_name: BASH_TOOL_NAME, tool_input: { command } });
-  expect((await call("sudo ls")).hookSpecificOutput.permissionDecision).toBe("deny");
   expect(await call("ls notes.txt")).toEqual({ continue: true });
-  expect((await call("less notes.txt")).hookSpecificOutput.permissionDecision).toBe("deny"); // a pager hangs
   const feedback = await hook({
     hook_event_name: "PreToolUse",
     tool_name: SEND_FEEDBACK_TOOL_NAME,

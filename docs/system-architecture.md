@@ -54,7 +54,7 @@ Worker run (detached; survives the owner message)
 | Ingress | `src/ingress/` | Discord client, owner gate and routing rules, thread placement and adoption, attachments, thread history, rename port, user copy |
 | Orchestrator | `src/orchestrator/` | message handling, `lead/`, `worker/`, `run/`, `goal/` (effect port), `plan/`, `strategy/`, `budget/`, `effects/`, `events/`, `thread/`, `turns/` |
 | Session | `src/session/` | thread rollover: flush, summary, seed, scheduler |
-| Policy | `src/policy/` | guard entry point, deny list, envelope, risk classes, shell gate, ask policy, subagent limit |
+| Policy | `src/policy/` | guard entry point, deny list, envelope, risk classes, ask policy, subagent limit |
 | Owner approval | `src/owner-approval/` | Discord buttons, owner questions, owner-confirm |
 | Runtime | `src/runtime/` | SDK run (`run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `run-stream.ts`), guard hook, tool permissions, permission mode, worker sandbox, skill plugins |
 | Roles | `src/roles/` | `RoleDefinition` type, registry, `builtin/` role files, `prompts/` (LEAD.md, rollover prompts, first-prompt prefix) |
@@ -146,7 +146,6 @@ Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per f
 | `model` | Sonnet | Sonnet | Haiku | Sonnet | Haiku |
 | `skills` | `[]` | `plan-work` | `scout`, `docs-seeker` | 15 named skills | `discord-server-manager` |
 | `capabilities` | read | read, skills | read, web, shell, skills | read, write, shell, skills, tasks, mcp, feedback, ask | read, skills, ask |
-| `shellMode` | - | - | `read` (R0 only) | full policy + envelope | - |
 | `mcpTools` | 13 (see below) | 11 | 4 | 8 | 3 |
 | `limits.maxAsk` | 0 | 0 | 0 | 6 | 4 |
 | `budgetUsd` | 0.75 | 0.5 | 0.75 | 4.5 | 0.5 |
@@ -155,7 +154,7 @@ Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per f
 | `noSubagents` | yes | yes | yes | yes | no |
 | `streaming` | - | - | - | yes (owner can steer) | - |
 
-- Fields of `RoleDefinition` (`src/roles/role-types.ts`): `name`, `whenToUse`, `kind`, `skills`, `noSubagents`, `shellMode`, `dispatchable`, `mcpTools`, `limits`, `model`, `thinking`, `budgetUsd`, `streaming`, `permissionMode`, `sideEffects`, `capabilities`, `autoCompactWindow`, `promptSections`.
+- Fields of `RoleDefinition` (`src/roles/role-types.ts`): `name`, `whenToUse`, `kind`, `skills`, `noSubagents`, `dispatchable`, `mcpTools`, `limits`, `model`, `thinking`, `budgetUsd`, `streaming`, `permissionMode`, `sideEffects`, `capabilities`, `autoCompactWindow`, `promptSections`.
 - `kind`: `lead` (the router), `worker` (a detached run that counts toward the task cap and works in a location), `control` (`#ops-control` only). Only a `worker` may own a task.
 - `model` is one fixed full model id per role (`src/config/model-ids.ts`). No tiers, no env pins, no escalation.
 - `limits` and `budgetUsd` are constants at the top of each role file.
@@ -200,7 +199,7 @@ Five in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<se
 |---|---|
 | read | Read, Glob, Grep, LSP |
 | write | Write, Edit, MultiEdit, NotebookEdit (paths checked by the guard) |
-| shell | Bash, Monitor (policy and shell gate) |
+| shell | Bash, Monitor (not parsed: bounded by the OS sandbox of the run) |
 | web | WebSearch, WebFetch |
 | skills | Skill |
 | subagents | Agent, SendMessage, ListAgents (every role except `noSubagents`) |
@@ -215,47 +214,45 @@ Five in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<se
 - Tool names are constants (`sdk-tool-names.ts`, `mcp-tool-names.ts`, each `constants.ts`). A tool-name literal elsewhere in `src/` fails a test.
 
 ## Guards
-Six layers. Each is a separate check; a call must pass every layer that applies to its run.
+Five layers. Each is a separate check; a call must pass every layer that applies to its run.
 
 | # | Layer | Applies to | Code | Decides |
 |---|---|---|---|---|
-| 1 | Deny list | every run | `src/policy/check-tool-call.ts`, `bash-policy.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `paths.ts`, `protected-paths.ts` | allow / ask / deny; hard denies are never approvable |
+| 1 | Deny list | every run | `src/policy/check-tool-call.ts`, `deny-dangerous.ts`, `paths.ts`, `protected-paths.ts`, `worktree-path.ts` | allow / ask / deny for the file tools, EnterWorktree, MCP tools and the shell capability; hard denies are never approvable |
 | 2 | Envelope | worker runs | `src/policy/envelope.ts`, `load-envelope.ts`, `check-envelope.ts`, `classify-tool-call.ts` | risk class, locations, bounds, granted effects; missing or corrupt grant = no grant (fail closed) |
-| 3 | Shell gate | worker shell, scout shell | `src/policy/shell-gate.ts`, `shell-shape.ts`, `shell-table.ts`, `bash-allowlist.ts`, `src/config/data/worker-bash-allowlist.yaml` | default deny by shape, then the exact table; one plain command per call |
-| 4 | Effect tools | developer R2/R3 work | `src/mcp/effects/`, `src/orchestrator/effects/` | delete, push, PR and merge go only through the tool, which writes one `effect_log` row |
-| 5 | OS sandbox | worker Bash | `src/runtime/worker-sandbox.ts` (SDK `sandbox`) | writes only inside grants; network closed; `failIfUnavailable`; `allowUnsandboxedCommands: false`. NOT verified live |
-| 6 | Child env scrub | every run | `src/runtime/sdk-env.ts`, `src/config/data/child-env-deny.yaml` | bot secrets never reach the agent process; workers also lose GitHub tokens and the SSH agent socket |
+| 3 | Effect tools | developer R2/R3 work | `src/mcp/effects/`, `src/orchestrator/effects/` | delete, push, PR and merge go only through the tool, which writes one `effect_log` row |
+| 4 | OS sandbox | worker Bash | `src/runtime/worker-sandbox.ts` (SDK `sandbox`) | the shell boundary: writes only inside grants (`denyWrite` on the cwd of a run without a write grant); network closed; AGENT_HOME and credential dirs unreadable; `failIfUnavailable`; `allowUnsandboxedCommands: false`. Live-probed 2026-10-16 (direct SDK calls); the full bot path is not exercised |
+| 5 | Child env scrub | every run | `src/runtime/sdk-env.ts`, `src/config/data/child-env-deny.yaml` | bot secrets never reach the agent process; workers also lose GitHub tokens and the SSH agent socket |
 
-- Target state: phase 3 replaces layers 1 and 3 for Bash with the SDK sandbox alone (owner gate). Until then both run.
+- The app does not parse Bash. Layer 1 allows Bash and Monitor for a role with the `shell` capability (developer, scout) and denies them for the others; layer 4 bounds what the shell can do. No `disallowedTools` list.
 
 ### Risk classes (`src/policy/risk-types.ts`, `classify-tool-call.ts`)
 
 | Class | Meaning | Examples | Who may do it |
 |---|---|---|---|
-| R0 | read only | Read, Grep, Glob, `git status/log/diff/show` | everyone |
-| R1 | local and reversible inside a granted location | Edit, Write, tests, `git add/commit`, runners | a worker with an envelope |
-| R2 | shared or hard to undo | `DeletePaths` (to trash), `MergeBranch`, `git reset`, `git branch -D` | a worker, through an effect tool or a listed grant |
+| R0 | read only | Read, Grep, Glob | everyone |
+| R1 | local and reversible inside a granted location | Edit, Write | a worker with an envelope |
+| R2 | shared or hard to undo | `DeletePaths` (to trash), `MergeBranch` | a worker, through an effect tool or a listed grant |
 | R3 | external effect | `GitPush`, `CreatePullRequest` | a worker, through the effect tool and its grant |
 | R4 | forbidden to automate | force push, push to a default branch, delete outside the goal's locations | asks the owner at every act; never planned or stored |
 
-- Unknown tool or command → R2.
+- Unknown tool → R2. The shell is not classified: the sandbox bounds it.
 - Default branches for push: `main`, `master`, `develop`, `trunk` and `release*` (`check-envelope.ts`). Pushing to them is R4 when the remote's own default is unknown.
 - Envelope: built at dispatch (DIRECT or DELEGATE: R0 + R1 and trash deletes within `DEFAULT_BOUNDS`, 200 items / 50 GB) or from the approved plan (PLAN: its locations, classes, bounds, budget and `effects` list).
 
 ### Deny list (layer 1)
 - Tools: Bash and Monitor for a role without `shell`; unknown MCP tools; write tools of read-only roles.
-- Bash (`bash-policy.ts`): privilege escalation (`sudo`, `su`, `doas`); secret files as arguments; `rm -r` outside the work dirs; force push, `push --mirror/--all`, push to `main`/`master`; `gh repo delete`, `gh api` DELETE, printing the gh token; a pipe into a shell or interpreter; `git worktree add` outside the space's worktrees dir.
-- Writes (`deny-dangerous.ts`): only inside the run's write paths. Reads outside the read paths and secret files are denied.
+- Shell: Bash and Monitor with a command are allowed for a role with `shell`, whatever the line (empty command: denied). A Monitor WebSocket asks.
+- EnterWorktree (`worktree-path.ts`): only an existing worktree under the worktrees dir.
+- Writes (`deny-dangerous.ts`): only inside the run's write paths. Reads outside the read paths, secret file names, AGENT_HOME and a Glob/Grep root above AGENT_HOME (`protected-paths.ts`) are denied.
 - Bash never asks. Unknown tools ask. `TaskStop` asks (it cannot tell its own tasks from foreign ones).
-- Bash parsing is best effort (accepted): variables, `sh -c`, scripts, `GIT_DIR` and `$(...)` are not fully checked.
 
-### Worker shell gate (layer 3)
-- Default deny by shape: one plain command per call; no pipe, redirect, `;`, `&&`, quote or `$` (quotes are allowed only in `git commit -m`).
-- Then the exact table in `worker-bash-allowlist.yaml`. A `read` shell (scout) allows R0 only; an envelope allows R0 and R1, and listed R2 rows only when the envelope grants R2.
-- A line an effect tool replaces (`rm`, `git push`, `gh pr create`, `git merge`) is denied with the tool's name.
-- Residual risk: runners such as `bun`, `npm`, `pytest`, `tsc` execute repo code. The allowlist cannot close that; the sandbox (layer 5) bounds it. Not verified live.
+### Worker shell (layer 4, the OS sandbox)
+- The shell is a boundary, not a policy: the SDK sandbox allows writes only in the granted dirs, closes the network (so `git push`, `gh`, `curl`, package installs fail), and denies reads of AGENT_HOME and the owner's credential dirs. A run without a write grant (scout) gets `denyWrite` on its cwd.
+- No command filter remains: local `rm`, `git reset`, `git merge` inside the write dirs run. The prompt points the worker to `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch`.
+- Residual risks: `.git` hooks and config are writable by design; repo code run by runners (tests, scripts) is bounded only by the sandbox; `git init` of a new repo in a location is blocked.
 
-### Effect tools (layer 4)
+### Effect tools (layer 3)
 
 | Tool | Class | Rule |
 |---|---|---|

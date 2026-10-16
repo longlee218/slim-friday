@@ -60,8 +60,9 @@ test("scout: read + web + skills; nothing that writes or runs commands; depth 1 
   for (const x of [WRITE_TOOL_NAME, EDIT_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME])
     expect(t).not.toContain(x);
   expect(t).not.toContain(AGENT_TOOL_NAME);
-  // The scout has a read-only shell (role data `shellMode: read`, allowlist in the guard).
-  for (const x of [BASH_TOOL_NAME, MONITOR_TOOL_NAME]) expect(t).toContain(x);
+  // The scout has a read-only shell (no write grant: the sandbox denies writes in its cwd).
+  expect(t).toContain(BASH_TOOL_NAME);
+  expect(t).not.toContain(MONITOR_TOOL_NAME);
 });
 
 test("dev gets the full toolset (no plan-mode tools); a role without `noSubagents` gets Agent and SendMessage", () => {
@@ -136,7 +137,6 @@ test("auto-allowed tools are a subset of the role's tools and never include writ
   for (const t of [
     TASK_STOP_TOOL_NAME,
     SEND_FEEDBACK_TOOL_NAME,
-    MONITOR_TOOL_NAME,
     MULTI_EDIT_TOOL_NAME,
     NOTEBOOK_EDIT_TOOL_NAME,
   ])
@@ -170,8 +170,7 @@ test("options: tools from the catalog, no allowedTools, strict MCP", () => {
     LSP_TOOL_NAME,
     WEB_SEARCH_TOOL_NAME,
     WEB_FETCH_TOOL_NAME,
-    BASH_TOOL_NAME, // read-only shell of the scout (role data `shellMode`)
-    MONITOR_TOOL_NAME,
+    BASH_TOOL_NAME, // read-only shell of the scout (sandboxed, no write grant)
     SKILL_TOOL_NAME,
   ]);
   expect("allowedTools" in o).toBe(false); // would bypass canUseTool
@@ -197,8 +196,9 @@ test("secret-file deny rules are part of disallowedTools", () => {
 });
 
 test("every declared SDK tool name belongs to exactly one capability (a new constant cannot be forgotten)", () => {
-  // Names that are not capability tools: EnterWorktree (never offered; the guard only checks it).
-  const aliases = new Set<string>([sdkNames.ENTER_WORKTREE_TOOL_NAME]);
+  // Names that are not capability tools: EnterWorktree (never offered; the guard only checks it) and Monitor (no role
+  // gets it: its processes were not probed inside the OS sandbox; the guard asks for it).
+  const aliases = new Set<string>([sdkNames.ENTER_WORKTREE_TOOL_NAME, sdkNames.MONITOR_TOOL_NAME]);
   const owners = new Map<string, number>();
   for (const tools of Object.values(CAPABILITY_TOOLS))
     for (const t of tools) owners.set(t, (owners.get(t) ?? 0) + 1);
@@ -222,7 +222,6 @@ test("the scout has no write, feedback or task tools (a read-only shell only); d
   for (const t of [
     MULTI_EDIT_TOOL_NAME,
     NOTEBOOK_EDIT_TOOL_NAME,
-    MONITOR_TOOL_NAME,
     TASK_GET_TOOL_NAME,
     TASK_STOP_TOOL_NAME,
     SEND_FEEDBACK_TOOL_NAME,

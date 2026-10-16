@@ -6,7 +6,7 @@ import type { GuardrailContext } from "../policy/check-tool-call";
 import { isInside, realOrSame } from "../policy/paths";
 
 /* OS-level Bash sandbox of a dispatched worker (SDK `Options.sandbox`: Seatbelt on macOS, bubblewrap on Linux). This is the REAL
-   boundary: the shell gate (policy/shell-*.ts) only narrows the command line. A location the owner registered is
+   boundary: the app does not parse the command line. A location the owner registered is
    trusted: inside a granted dir the worker's processes read and write everything (`.git` hooks and config, and for a location
    equal to the home dir the dotfiles, included). The sandbox bounds what is OUTSIDE the grants: no write outside them, no read of
    the agent home or of a credential dir that no grant covers, no network. NOT live-verified (see the L2c checklist). */
@@ -75,7 +75,19 @@ export function workerSandbox(guard: GuardrailContext | undefined): Options["san
   // The SDK sandbox always lets a process write in its cwd. A run with no write grant covering the cwd (the scout) must not:
   // deny it explicitly (live probe 2026-10-16: without this a read-only worker could create and overwrite files in its cwd).
   const cwd = guard.cwd ? realOrSame(guard.cwd) : undefined;
-  const denyWrite = cwd && !allowWrite.map(realOrSame).some((w) => isInside(w, cwd)) ? [cwd] : [];
+  const writeGrants = allowWrite.map(realOrSame);
+  const denyCwd = cwd && !writeGrants.some((w) => isInside(w, cwd)) ? [cwd] : [];
+  // A write grant that contains the agent home (a `$HOME` location) must not reach it: deny it entry by entry, around the run's
+  // own write dirs that sit inside it (scratch, worktrees, goal dir).
+  const denyAgentHome = agentHome
+    .filter((a) => writeGrants.some((w) => isInside(w, a)))
+    .flatMap((a) =>
+      carve(
+        a,
+        writeGrants.filter((w) => w !== a && isInside(a, w)),
+      ),
+    );
+  const denyWrite = [...new Set([...denyCwd, ...denyAgentHome])];
   return {
     enabled: true,
     failIfUnavailable: true,

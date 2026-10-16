@@ -99,18 +99,12 @@ test("dev guard: writes in the location (.github and the git dir too), the workt
   expect(await write("/etc/friday-x")).toBe("deny");
 });
 
-test("dev guard: `git worktree` is not on the shell list; push and PR are denied in the shell (GitPush / CreatePullRequest do them), main and force too", async () => {
-  const { env, exec } = await runExec();
-  const ws = workspacePaths(env.home).workspace("main");
+test("dev guard: Bash passes the guard (not parsed); the OS sandbox bounds it", async () => {
+  const { exec } = await runExec();
   const bash = async (command: string) => (await exec.canUseTool("Bash", { command }, {})).behavior;
-  const wtDir = realpathSync(ws.worktrees);
-  expect(await bash(`git worktree add ${wtDir}/real/feat`)).toBe("deny"); // unlisted subcommand = unknown = R2
-  expect(await bash("git worktree add ../feat")).toBe("deny");
-  // A worker pushes and opens PRs only through the effect tools: the shell names them in its denial.
-  expect(await bash("git push -u origin friday/x")).toBe("deny");
-  expect(await bash("gh pr create --fill")).toBe("deny");
-  expect(await bash("git push origin main")).toBe("deny");
-  expect(await bash("git push --force origin friday/x")).toBe("deny");
+  expect(await bash("git status")).toBe("allow");
+  expect(await bash("git push -u origin friday/x")).toBe("allow"); // fails at the network, not here
+  expect(await bash("")).toBe("deny"); // an empty command is never a call
 });
 
 test("dev prompt: the one worktree line names <workspace worktrees dir>/<location>/", async () => {

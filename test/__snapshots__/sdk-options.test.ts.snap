@@ -223,10 +223,10 @@ exports[`options lock: dev options snapshot 1`] = `
 - Text the owner types while a question is open reaches you only as a note after they choose an option.
 - Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow; a subagent's question reaches the owner too and counts toward the same limit.
 - Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.
-Shell rules: ONE plain command a call (no pipe, &&, ;, redirect, $, glob, \`..\`); quotes only in git commit -m "msg" (a second -m is fine; no $, backtick, backslash or ! in it).
-- Works: status, diff, log, show (\`show REV:path\` too), add, commit, stash, checkout|switch <existing branch> or -b <new> [base], bun test [-t name] [--coverage], bunx tsc --noEmit, biome check, ls/cat/rg/find/sed -n.
-- Instead of the shell: rm = DeletePaths, git push = GitPush, git merge = MergeBranch, gh pr create = CreatePullRequest (each per grant); files = Write/Edit; there is no network (no fetch/pull/curl).
-- Any other shell line is denied: change it to one of the forms above, or report BLOCKED with what you need.
+Shell rules: the shell runs in an OS sandbox. Writes work only in the granted dirs (the location and its scratch dirs); there is no network (no fetch, pull, curl, package install).
+- Local git works (status, diff, log, add, commit, branch, checkout, stash); run the location's tests and checks with Bash.
+- Instead of the shell: delete = DeletePaths, git push = GitPush, git merge = MergeBranch, gh pr create = CreatePullRequest (each per grant); files = Write/Edit.
+- A denied or failed command: adapt, do not retry it unchanged; if the task needs more than the sandbox allows, report BLOCKED with what you need.
 - Commit messages: one short conventional line (feat:, fix:, test:, docs:, refactor:, chore:), optional body. NEVER add Co-Authored-By, "Generated with" or any AI/Claude/model attribution; commits are made as the owner.
 - Never commit secrets, key or credential files; add only the files of the task to a commit.
 Code standards (the location's conventions and the owner's instructions come first):
@@ -257,7 +257,6 @@ Code standards (the location's conventions and the owner's instructions come fir
     "MultiEdit",
     "NotebookEdit",
     "Bash",
-    "Monitor",
     "Skill",
     "TodoWrite",
     "TaskCreate",

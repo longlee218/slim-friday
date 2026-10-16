@@ -135,17 +135,19 @@ test("the guard: effect tools pass only inside the envelope, unknown tools are d
   expect(
     checkToolCall("SendFeedback", {}, ctx({ ...base, classes: ["R0", "R1", "R2"] })).decision,
   ).toBe("ask");
-  expect(checkToolCall("Bash", { command: "sudo ls" }, ctx(base)).decision).toBe("deny");
+  // Bash: allowed for a role with a shell (the sandbox bounds it), denied without; never classified.
+  expect(checkToolCall("Bash", { command: "ls" }, { ...ctx(base), shell: true }).decision).toBe(
+    "allow",
+  );
+  expect(checkToolCall("Bash", { command: "ls" }, { ...ctx(base), shell: false }).decision).toBe(
+    "deny",
+  );
 });
 
-test("classifyToolCall: reads R0, writes R1, shell by allowlist, effect tools R2 / R3, unknown R2", () => {
-  const c: GuardrailContext = { cwd: "/loc", writePaths: ["/loc"] };
-  expect(classifyToolCall("Read", {}, c)).toBe("R0");
-  expect(classifyToolCall("Edit", {}, c)).toBe("R1");
-  expect(classifyToolCall("Bash", { command: "git log" }, c)).toBe("R0");
-  expect(classifyToolCall("Bash", { command: "rm x" }, c)).toBe("R2");
-  expect(classifyToolCall("Bash", {}, c)).toBe("R2");
-  expect(classifyToolCall(mcpToolName(EFFECTS_MCP_SERVER, DELETE_PATHS_TOOL), {}, c)).toBe("R2");
-  expect(classifyToolCall(mcpToolName(EFFECTS_MCP_SERVER, GIT_PUSH_TOOL), {}, c)).toBe("R3");
-  expect(classifyToolCall("Whatever", {}, c)).toBe("R2");
+test("classifyToolCall: reads R0, writes R1, effect tools R2 / R3, unknown R2", () => {
+  expect(classifyToolCall("Read")).toBe("R0");
+  expect(classifyToolCall("Edit")).toBe("R1");
+  expect(classifyToolCall(mcpToolName(EFFECTS_MCP_SERVER, DELETE_PATHS_TOOL))).toBe("R2");
+  expect(classifyToolCall(mcpToolName(EFFECTS_MCP_SERVER, GIT_PUSH_TOOL))).toBe("R3");
+  expect(classifyToolCall("Whatever")).toBe("R2");
 });

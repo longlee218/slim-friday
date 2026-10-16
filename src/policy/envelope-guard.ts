@@ -49,7 +49,7 @@ export function envelopeGate(
     return v.allow || v.code === "R4" ? d : OUTSIDE(v.reason);
   }
   if (d.decision !== "ask") return d;
-  const risk = classifyToolCall(toolName, input, ctx);
+  const risk = classifyToolCall(toolName);
   return risk !== "R4" && (risk === "R0" || risk === "R1" || env.classes.includes(risk))
     ? d
     : OUTSIDE("this tool is not covered by the plan");

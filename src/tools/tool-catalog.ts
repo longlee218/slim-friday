@@ -9,7 +9,6 @@ import {
   LIST_AGENTS_TOOL_NAME,
   LIST_MCP_RESOURCES_TOOL_NAME,
   LSP_TOOL_NAME,
-  MONITOR_TOOL_NAME,
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
   READ_MCP_RESOURCE_DIR_TOOL_NAME,
@@ -43,7 +42,7 @@ export const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
   // LSP is inert unless the owner installs a code-intelligence plugin: no app code for that.
   read: [READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME, LSP_TOOL_NAME],
   write: [WRITE_TOOL_NAME, EDIT_TOOL_NAME, MULTI_EDIT_TOOL_NAME, NOTEBOOK_EDIT_TOOL_NAME],
-  shell: [BASH_TOOL_NAME, MONITOR_TOOL_NAME],
+  shell: [BASH_TOOL_NAME],
   web: [WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME],
   skills: [SKILL_TOOL_NAME],
   // Agent starts the SDK's built-in subagent; SendMessage resumes one; ListAgents lists the reachable ones (the app

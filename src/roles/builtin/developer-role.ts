@@ -48,11 +48,11 @@ export const DEVELOPER_RUN_FACTS = `- Do not change files before the owner appro
 - Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow; a subagent's question reaches the owner too and counts toward the same limit.
 - Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.`;
 
-/** What the worker's shell accepts and the alternative for what it does not (the gate's denial text says the same). */
-export const DEVELOPER_SHELL_RULES = `Shell rules: ONE plain command a call (no pipe, &&, ;, redirect, $, glob, \`..\`); quotes only in git commit -m "msg" (a second -m is fine; no $, backtick, backslash or ! in it).
-- Works: status, diff, log, show (\`show REV:path\` too), add, commit, stash, checkout|switch <existing branch> or -b <new> [base], bun test [-t name] [--coverage], bunx tsc --noEmit, biome check, ls/cat/rg/find/sed -n.
-- Instead of the shell: rm = DeletePaths, git push = GitPush, git merge = MergeBranch, gh pr create = CreatePullRequest (each per grant); files = Write/Edit; there is no network (no fetch/pull/curl).
-- Any other shell line is denied: change it to one of the forms above, or report BLOCKED with what you need.`;
+/** What the worker's shell is: an OS sandbox, plus the effect tools for what the sandbox blocks. */
+export const DEVELOPER_SHELL_RULES = `Shell rules: the shell runs in an OS sandbox. Writes work only in the granted dirs (the location and its scratch dirs); there is no network (no fetch, pull, curl, package install).
+- Local git works (status, diff, log, add, commit, branch, checkout, stash); run the location's tests and checks with Bash.
+- Instead of the shell: delete = DeletePaths, git push = GitPush, git merge = MergeBranch, gh pr create = CreatePullRequest (each per grant); files = Write/Edit.
+- A denied or failed command: adapt, do not retry it unchanged; if the task needs more than the sandbox allows, report BLOCKED with what you need.`;
 
 /** Commit rules (live in code, not in the owner's AGENTS.md): message shape, no attribution, what never goes in. */
 export const COMMIT_RULES = `- Commit messages: one short conventional line (feat:, fix:, test:, docs:, refactor:, chore:), optional body. NEVER add Co-Authored-By, "Generated with" or any AI/Claude/model attribution; commits are made as the owner.
@@ -68,7 +68,7 @@ export const CODE_STANDARDS = `Code standards (the location's conventions and th
 - Surgical changes: touch only what the request needs; match the surrounding style; do not refactor, reformat or reword adjacent code. Mention unrelated dead code, do not delete it. Remove only the imports and variables your own change made unused. Every changed line traces to the request.
 - Goal-driven: turn the task into a check you can run before coding (a failing test for a bug, tests green before and after for a refactor) and loop until it passes.`;
 
-/** One line: where a git worktree goes (the guard only lets `git worktree add` name a path under it). */
+/** One line: where a git worktree goes (advice to the worker: the OS sandbox only lets it write there). */
 const worktreeRule = (dir: string): string =>
   `- If you use a git worktree, put it under ${dir}/: \`git worktree add ${dir}/<name> <existing-branch>\` (or -b <new> ${dir}/<name> <base>); \`git worktree list\` lists them.`;
 

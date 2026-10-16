@@ -17,11 +17,11 @@ const guard = guardFor(getRole("developer"), {
 });
 
 /** Run the PreToolUse guard hook of an exec-like stage in (in)active bypass mode. */
-async function pre(bypass: boolean, tool: string, input: Record<string, unknown>) {
+async function pre(bypass: boolean, tool: string, input: Record<string, unknown>, g = guard) {
   const perms = buildToolPermissions({
     turnId: "t",
     threadId: "th",
-    guard,
+    guard: g,
     bypassMode: { active: bypass },
   });
   const out: any = await perms.hooks[0]!.hooks[0]!(
@@ -45,11 +45,9 @@ test("bypass: guard deny stays a hard deny and is logged tool.denied", async () 
   expect(cap.lines.some((l) => l.event === "tool.denied")).toBe(true);
 });
 
-test("bypass: hard denies stay (push to main, force push, sudo)", async () => {
-  for (const command of ["git push origin main", "git push --force origin feat", "sudo ls"]) {
-    const { out } = await pre(true, "Bash", { command });
-    expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
-  }
+test("bypass: Bash without a shell capability stays a hard deny", async () => {
+  const { out } = await pre(true, "Bash", { command: "ls" }, guardFor(getRole("lead"), {}));
+  expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
 });
 
 test("bypass: an ask (a tool the guard does not know) runs and is logged bypass", async () => {

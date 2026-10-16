@@ -4,7 +4,7 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 export type Capability =
   | "read" // look at files
   | "write" // change files: Write, Edit, MultiEdit, NotebookEdit (paths limited by the guard)
-  | "shell" // Bash and Monitor (policy + owner approval)
+  | "shell" // Bash (bounded by the OS sandbox of the run)
   | "web" // search / fetch
   | "skills"
   | "subagents" // Agent + SendMessage + ListAgents: the SDK's own built-in subagent; EVERY role gets them (toolsFor)
@@ -46,8 +46,6 @@ export interface RoleDefinition {
   skills?: RoleSkills;
   /** No SDK subagent tools (Agent, SendMessage, ListAgents): not offered and denied by the guard. Lead and workers set it (depth 1). Omitted = allowed. */
   noSubagents?: boolean;
-  /** Shell of a role with the `shell` capability: `read` = read-only commands only (allowlist class R0, fail closed). Omitted = the full shell policy (a worker with an envelope gets the R0 + R1 allowlist). */
-  shellMode?: "read";
   /** The lead may dispatch this role as a worker (`DispatchAgent`); LEAD.md lists these roles. Omitted = not dispatchable. */
   dispatchable?: boolean;
   /**

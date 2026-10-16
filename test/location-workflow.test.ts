@@ -113,7 +113,7 @@ test("dev reads are not path-limited (secret names still are): the location is r
   expect(outside.behavior).toBe("deny");
 });
 
-test("skills of the run: the plugin dir is readable and its publisher scripts run without approval; nothing else opens up", async () => {
+test("skills of the run: the plugin dir is readable and Bash runs its publisher scripts without approval; nothing else opens up", async () => {
   const probed: { [k: string]: unknown }[] = [];
   await runTask({}, ["deploy"], undefined, [], async (o) => {
     const [pub, ws] = o.plugins.map((p: { path: string }) => p.path);
@@ -127,9 +127,6 @@ test("skills of the run: the plugin dir is readable and its publisher scripts ru
       readWorkspace: await decide("Read", { file_path: join(ws, "skills", "deploy", "SKILL.md") }),
       run: await decide("Bash", { command: `${script} ${join(o.cwd, "plan.md")} 1` }),
       runViaBash: await decide("Bash", { command: `bash ${script} ${join(o.cwd, "plan.md")} 1` }),
-      chainedHardDeny: await decide("Bash", {
-        command: `${script} ${join(o.cwd, "plan.md")} 1 && sudo ls`,
-      }),
     });
   });
   expect(probed).toHaveLength(1);
@@ -139,7 +136,6 @@ test("skills of the run: the plugin dir is readable and its publisher scripts ru
       readWorkspace: "allow",
       run: "allow",
       runViaBash: "allow",
-      chainedHardDeny: "deny",
     });
   }
 });
