@@ -1,7 +1,7 @@
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { workspacePaths } from "../../../../config/workspace-paths";
-import { BACKUP_KEEP } from "./constants";
+import { workspacePaths } from "../config/workspace-paths";
+import { BACKUP_KEEP } from "../mcp/discord-admin/tools/WriteSpaceFileTool/constants";
 
 /** Shape of a backup file name: `<file>-<YYYYMMDD>-<HHMMSSmmm>Z` (sorts by time as text). */
 const STAMPED = (file: string) =>

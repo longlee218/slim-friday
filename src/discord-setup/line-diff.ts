@@ -1,4 +1,7 @@
-import { DIFF_CONTEXT_LINES, DIFF_MAX_CELLS } from "./constants";
+import {
+  DIFF_CONTEXT_LINES,
+  DIFF_MAX_CELLS,
+} from "../mcp/discord-admin/tools/WriteSpaceFileTool/constants";
 
 /** One line of the edit script: kept, removed or added. */
 type Op = { t: " " | "-" | "+"; line: string };

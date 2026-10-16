@@ -13,11 +13,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { addWorkspaceChannel, createWorkspaceDir } from "../src/discord-setup/workspace-template";
+import { writeSpaceFile } from "../src/discord-setup/write-space-file";
 import type {
   ConfirmQuestion,
   DiscordAdminContext,
 } from "../src/mcp/discord-admin/discord-admin-context";
-import { writeSpaceFile } from "../src/mcp/discord-admin/tools/WriteSpaceFileTool/write-space-file";
 import { createWriteSpaceFileTool } from "../src/mcp/discord-admin/tools/WriteSpaceFileTool/write-space-file-tool";
 import { searchIndex } from "../src/memory/index/memory-search";
 import { ensureChannelDir } from "../src/memory/persona";

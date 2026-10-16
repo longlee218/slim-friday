@@ -1,22 +1,22 @@
 import { randomUUID } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { CHANNEL_NAME, WORKSPACE_NAME, workspacePaths } from "../../../../config/workspace-paths";
-import { workspaceState } from "../../../../discord-setup/workspace-template";
-import { reindexFile } from "../../../../memory/index/memory-index";
+import { CHANNEL_NAME, WORKSPACE_NAME, workspacePaths } from "../config/workspace-paths";
+import type { DiscordAdminContext } from "../mcp/discord-admin/discord-admin-context";
 import {
-  MemoryBusyError,
-  MemorySymlinkError,
-  withMemoryLock,
-} from "../../../../memory/memory-file-lock";
-import { logEvent, logger } from "../../../../observability/logger";
-import { errText, redactText } from "../../../../observability/redact";
-import { isInside, resolveReal } from "../../../../policy/paths";
-import { loadWorkspaces } from "../../../../workspaces/workspace-registry";
-import type { DiscordAdminContext } from "../../discord-admin-context";
-import { CONTENT_MAX_CHARS, DIFF_MAX_CHARS, SPACE_FILES } from "./constants";
+  CONTENT_MAX_CHARS,
+  DIFF_MAX_CHARS,
+  SPACE_FILES,
+} from "../mcp/discord-admin/tools/WriteSpaceFileTool/constants";
+import { reindexFile } from "../memory/index/memory-index";
+import { MemoryBusyError, MemorySymlinkError, withMemoryLock } from "../memory/memory-file-lock";
+import { logEvent, logger } from "../observability/logger";
+import { errText, redactText } from "../observability/redact";
+import { isInside, resolveReal } from "../policy/paths";
+import { loadWorkspaces } from "../workspaces/workspace-registry";
 import { lineDiff } from "./line-diff";
 import { backupPersonaFile } from "./persona-backup";
+import { workspaceState } from "./workspace-template";
 
 const log = logger.child({ module: "write-space-file" });
 

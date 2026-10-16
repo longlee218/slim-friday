@@ -1,6 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { MEMORY_KINDS } from "../../../../memory/memory-sections";
+import { type MemorySaveOutcome, saveNote } from "../../../../memory/save-note";
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
 import {
@@ -10,7 +11,6 @@ import {
 import { textResult } from "../../../tool-result";
 import type { MemoryToolContext } from "../../memory-tool-context";
 import { MEMORY_SAVE_MAX_CALLS_PER_RUN, MEMORY_SAVE_SCOPES, MEMORY_SAVE_TOOL } from "./constants";
-import { type MemorySaveOutcome, memorySaveNote } from "./memory-save-write";
 import { MEMORY_SAVE_DESCRIPTION } from "./prompt";
 
 /** Logger of this module. */
@@ -57,7 +57,7 @@ export function createMemorySaveTool(ctx: MemoryToolContext) {
               isError: true,
               result: "limit",
             }
-          : memorySaveNote(ctx, args, now);
+          : saveNote(ctx, args, now);
     } catch (err) {
       // Never let a bug escape into the SDK: the model gets a short error, the log gets the class only (never the text).
       log.warn({ err: errText(err).slice(0, 120) }, "remember failed");

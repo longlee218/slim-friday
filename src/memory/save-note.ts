@@ -1,22 +1,18 @@
 import { join } from "node:path";
-import { workspacePaths } from "../../../../config/workspace-paths";
-import {
-  CHANNEL_CHARS,
-  PER_LOCATION_CHARS,
-  WORKSPACE_CHARS,
-} from "../../../../memory/location-memory";
-import { localDay, localHhmm } from "../../../../memory/memory-clock";
-import { saveJournalBullet, saveMemoryBullet } from "../../../../memory/memory-section-writer";
-import { DEFAULT_KIND, KIND_HEADING, type MemoryKind } from "../../../../memory/memory-sections";
-import { channelTarget, locationTarget, workspaceTarget } from "../../../../memory/memory-targets";
-import { PENDING_HEADER } from "../../../../memory/memory-writer";
-import type { MemoryToolContext } from "../../memory-tool-context";
+import { workspacePaths } from "../config/workspace-paths";
+import type { MemoryToolContext } from "../mcp/memory/memory-tool-context";
 import {
   MEMORY_SAVE_MAX_CHARS,
   MEMORY_SAVE_MIN_CHARS,
   MEMORY_SAVE_PENDING_CAP_CHARS,
   type MemorySaveScope,
-} from "./constants";
+} from "../mcp/memory/tools/MemorySaveTool/constants";
+import { CHANNEL_CHARS, PER_LOCATION_CHARS, WORKSPACE_CHARS } from "./location-memory";
+import { localDay, localHhmm } from "./memory-clock";
+import { saveJournalBullet, saveMemoryBullet } from "./memory-section-writer";
+import { DEFAULT_KIND, KIND_HEADING, type MemoryKind } from "./memory-sections";
+import { channelTarget, locationTarget, workspaceTarget } from "./memory-targets";
+import { PENDING_HEADER } from "./memory-writer";
 
 /** Arguments of one `MemorySave` call (already shape-checked by zod). */
 export interface MemorySaveArgs {
@@ -48,11 +44,7 @@ const WRITE_ERRORS: Record<string, string> = {
  * Save one note. `now` is read ONCE by the caller: the file date and the bullet date come from the same instant.
  * Pure of state except the file write; never throws for a bad argument (returns an error outcome).
  */
-export function memorySaveNote(
-  ctx: MemoryToolContext,
-  a: MemorySaveArgs,
-  now: Date,
-): MemorySaveOutcome {
+export function saveNote(ctx: MemoryToolContext, a: MemorySaveArgs, now: Date): MemorySaveOutcome {
   const text = a.text.trim();
   if (text.length < MEMORY_SAVE_MIN_CHARS) return fail("text too short", "too_short");
   if (text.length > MEMORY_SAVE_MAX_CHARS)
