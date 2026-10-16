@@ -5,7 +5,7 @@ import {
   DISPATCH_AGENT_SHAPE,
   FORWARD_RESULT_SHAPE,
   REPORT_RESULT_SHAPE,
-} from "../src/orchestrator/engine/lead-schemas";
+} from "../src/orchestrator/lead/lead-schemas";
 
 const ok = (shape: z.ZodRawShape, v: unknown) => z.object(shape).safeParse(v).success;
 const A = { key: "main", role: "developer", brief: "b" };

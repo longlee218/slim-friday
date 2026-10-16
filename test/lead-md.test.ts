@@ -3,7 +3,7 @@ import {
   buildLeadContextBlock,
   LEAD_DATA_HEADING,
 } from "../src/orchestrator/strategy/lead-context-block";
-import { buildLeadMd } from "../src/orchestrator/strategy/lead-md";
+import { buildLeadMd } from "../src/roles/prompts/lead-md";
 import { ROLES } from "../src/roles/role-registry";
 
 test("LEAD.md lists the dispatchable workers from the registry, the strategies and the caps", () => {

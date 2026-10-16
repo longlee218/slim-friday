@@ -6,8 +6,8 @@ import {
   handleForward,
   handleSteer,
   handleTaskStatus,
-} from "../src/orchestrator/engine/lead-handlers";
-import type { DispatchInput } from "../src/orchestrator/engine/lead-schemas";
+} from "../src/orchestrator/lead/lead-handlers";
+import type { DispatchInput } from "../src/orchestrator/lead/lead-schemas";
 import { FakePort, itemRow, leadCtx } from "./lead-fake-port";
 
 const REQ: DispatchInput = {

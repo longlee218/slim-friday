@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { Client, Interaction } from "discord.js";
 import { renderUserNotice } from "../src/ingress/user-copy";
+import { createDiscordApprovalGateway } from "../src/owner-approval/discord-approval";
 import {
   OWNER_CONFIRM_APPROVAL,
   ownerConfirm,
   ownerConfirmLabels,
-} from "../src/orchestrator/engine/owner-confirm";
-import { createDiscordApprovalGateway } from "../src/owner-approval/discord-approval";
+} from "../src/owner-approval/owner-confirm";
 import { openDb } from "../src/storage/db";
 
 const OWNER = "owner1";

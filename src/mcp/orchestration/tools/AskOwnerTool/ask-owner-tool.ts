@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
-import type { LeadToolContext } from "../../../../orchestrator/engine/lead-call";
-import { handleAskOwner } from "../../../../orchestrator/engine/lead-handlers";
-import { ASK_OWNER_SHAPE } from "../../../../orchestrator/engine/lead-schemas";
+import type { LeadToolContext } from "../../../../orchestrator/lead/lead-call";
+import { handleAskOwner } from "../../../../orchestrator/lead/lead-handlers";
+import { ASK_OWNER_SHAPE } from "../../../../orchestrator/lead/lead-schemas";
 import { runTool } from "../../../tool-result";
 import { ASK_OWNER_TOOL } from "./constants";
 import { ASK_OWNER_DESCRIPTION } from "./prompt";

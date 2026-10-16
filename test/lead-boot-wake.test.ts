@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { recoverInFlight } from "../src/orchestrator/engine/recover-in-flight";
+import { recoverInFlight } from "../src/orchestrator/worker/recover-in-flight";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { recordBotThread } from "../src/storage/thread-store";
 import { TEST_CHANNEL } from "./helpers";

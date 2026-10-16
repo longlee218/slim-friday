@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { BRIEF_MAX_CHARS, REASON_MAX_CHARS } from "../engine/lead-limits";
-import { KEY, TASK_ID } from "../engine/lead-schemas";
+import { BRIEF_MAX_CHARS, REASON_MAX_CHARS } from "../lead/lead-limits";
+import { KEY, TASK_ID } from "../lead/lead-schemas";
 import { DELIVERY_MODES } from "./plan-types";
 
 /* Input schemas (zod raw shapes) of the planner's seven tools and the lead's RequestPlan / ApprovePlan. The SDK

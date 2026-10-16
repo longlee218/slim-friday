@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { createAnnouncer } from "../src/orchestrator/engine/announce";
-import { cancelDependents, settleGoal } from "../src/orchestrator/engine/goal-settle";
 import {
   announceBlock,
+  createAnnouncer,
   pendingNews,
   settleLeadEvents,
-} from "../src/orchestrator/engine/lead-events";
-import { createQuestionRelay } from "../src/orchestrator/engine/question-relay";
+} from "../src/orchestrator/lead/lead-events";
+import { cancelDependents, settleGoal } from "../src/orchestrator/worker/goal-settle";
+import { createQuestionRelay } from "../src/orchestrator/worker/question-relay";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { makeEnv } from "./helpers";

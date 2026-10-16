@@ -1,5 +1,5 @@
 import { clip, redactText } from "../../observability/redact";
-import type { TaskSnapshot } from "../engine/effect-port";
+import type { TaskSnapshot } from "../goal/effect-port";
 
 /* The per-turn data block of a lead run: goal, criteria and the item table from the db. It is DATA: the heading
    says so, and every free-text cell is redacted and clipped (a worker result may hold anything). */

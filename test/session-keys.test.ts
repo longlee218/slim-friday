@@ -1,9 +1,5 @@
 import { expect, test } from "bun:test";
-import {
-  leadSessionKey,
-  sessionKeyOf,
-  taskSessionKey,
-} from "../src/orchestrator/engine/session-keys";
+import { leadSessionKey, sessionKeyOf, taskSessionKey } from "../src/orchestrator/run/session-keys";
 
 test("builders: lead per thread, task per (task, role)", () => {
   expect(leadSessionKey("123")).toBe("lead:discord:123");

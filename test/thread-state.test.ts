@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { OWNER_CONFIRM_APPROVAL } from "../src/orchestrator/engine/owner-confirm";
 import {
   deriveThreadState,
   isIdleLike,
   pendingToolApproval,
 } from "../src/orchestrator/thread/thread-state";
+import { OWNER_CONFIRM_APPROVAL } from "../src/owner-approval/owner-confirm";
 import { insertApproval } from "../src/storage/approval-store";
 import {
   finishTurn,

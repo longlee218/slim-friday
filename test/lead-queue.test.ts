@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createLeadQueue, type LeadInput } from "../src/orchestrator/engine/lead-queue";
+import { createLeadQueue, type LeadInput } from "../src/orchestrator/lead/lead-queue";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 
 /* Lead queue: debounce merge, FIFO, cap, one run per thread, stop. Real timers with tiny delays. */

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { HAIKU_MODEL } from "../src/config/model-ids";
-import { runRole } from "../src/orchestrator/engine/run-role";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { runRole } from "../src/orchestrator/run/run-role";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { insertTurn } from "../src/storage/run-store";

@@ -6,4 +6,4 @@ export {
   BRIEF_MAX_CHARS,
   MAX_ASSIGNMENTS,
   REASON_MAX_CHARS,
-} from "../../../../orchestrator/engine/lead-limits";
+} from "../../../../orchestrator/lead/lead-limits";

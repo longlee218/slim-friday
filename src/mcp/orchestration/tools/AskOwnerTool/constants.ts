@@ -8,4 +8,4 @@ export {
   OPTIONS_MAX,
   OPTIONS_MIN,
   QUESTION_MAX_CHARS,
-} from "../../../../orchestrator/engine/lead-limits";
+} from "../../../../orchestrator/lead/lead-limits";

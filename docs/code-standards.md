@@ -18,7 +18,7 @@ bun run start           # start the bot (reads .env)
 ```
 
 ## Design Rules (the core)
-1. **Code is a generic engine; roles are data.** The engine (`src/orchestrator/engine/`) reads a role's fields (capabilities, `background`, `streaming`, limits, budget), never a role name.
+1. **Code is a generic engine; roles are data.** The engine (`src/orchestrator/{lead,worker,run,goal}/`) reads a role's fields (capabilities, `background`, `streaming`, limits, budget), never a role name.
 2. **One role run = one agent run.** No stages, no plan mode, no gates. How the agent works (brainstorm, plan, ask for approval, implement, deliver) comes from skills and prompt text.
 3. **Skills and subagents are data.**
    - Publisher skills come from `.agents/skills/` and `skills-lock.json`. A role lists them with `skills: "all" | "none"`.
@@ -29,7 +29,7 @@ bun run start           # start the bot (reads .env)
 6. **Fail closed for owner decisions.** An owner question without an answer means "do not run" (owner-confirm, approvals). A missing or invalid config refuses startup.
 7. **Layering.** `thread/` and `dispatch/` never import `runtime/`. `roles/` never imports `orchestrator/`. Tested in `test/engine-layering.test.ts`.
 8. **Lead policy is code constants and typed actions.** Caps live in `src/orchestrator/strategy/caps.ts`; dispatch shape rules in `strategy/dispatch-policy.ts`. Lead tools are typed actions whose handlers check state, caps and CAS. The lead starts only roles with the `dispatchable` data flag. Only background roles own tasks.
-9. **Effects go through the effect port.** Every state change of a lead or effect tool is one atomic write through `engine/effect-port.ts` (`effect_log` row). Handlers never write the db directly. Tests use the fake port.
+9. **Effects go through the effect port.** Every state change of a lead or effect tool is one atomic write through `goal/effect-port.ts` (`effect_log` row). Handlers never write the db directly. Tests use the fake port.
 10. **The planner never dispatches.** A plan is written by the `planner` role, validated by code (`src/orchestrator/plan/validate-plan.ts`), and approved by the owner through `ApprovePlan`. The planner is not `dispatchable`.
 
 ## Orchestrator Layout (lead orchestration)
@@ -38,14 +38,17 @@ Folders under `src/orchestrator/` (file counts at L4):
 | Folder | Files | Holds |
 |---|---|---|
 | top level | `handle-message.ts`, `handler-services.ts`, `message-commands.ts` | ingress to the lead queue, commands, `[role]` direct dispatch |
-| `engine/` | 40 | lead queue and run, lead tools' handlers, worker and dispatch runs, announce, effect port, recovery, budget, location activity, control scope |
-| `strategy/` | 6 | lead policy: `dispatch-policy.ts`, `plan-policy.ts`, `caps.ts`, `lead-md.ts` (LEAD.md built per run), `lead-context-block.ts`, `typed-result.ts` |
+| `lead/` | 12 | lead queue and run, lead tools' handlers, schemas, lead events + announce batching |
+| `worker/` | 9 | worker run, dispatch, question relay, result file, run report, goal settle, recovery |
+| `run/` | 10 | `runTurn`, live-run registry, role run, role scope, session keys, stop tree |
+| `goal/` | 4 | effect port (db, plan, queries) |
+| `strategy/` | 6 | lead policy: `dispatch-policy.ts`, `plan-policy.ts`, `caps.ts`, `lead-context-block.ts` (`lead-md.ts` is in `roles/prompts/`, `typed-result.ts` in `roles/`) |
 | `plan/` | 12 | plan types and schemas, validator, lifecycle and CAS revision, materialize into items, planner handlers, progress and blocker reads |
 | `approval/` | 25 | risk classes, envelope and its check, ask policy, shell gate and tables, effect tools' classify and run (`delete-paths`, `git-push`, `pull-request`, `merge-branch`), trash store and purge |
 | `events/` | 2 | thread outbox (`thread_events`) types and store |
 | `outputs/` | 3 | reply text, outcome validation, delivery evidence |
 | `dispatch/` | 1 | `run-dispatched-task.ts` (worker run wiring) |
-| `thread/`, `turns/` | 1, 20 | thread state, turn rows, run limiter, steer, rollover, status snapshot |
+| `thread/`, `turns/` | 1, 14 | thread state, turn rows, run limiter, steer, status snapshot (rollover is in `src/session/`) |
 
 - Engine reads role data only (test-checked, `test/engine-layering.test.ts`); `roles/` never imports `orchestrator/`.
 - Effect tool names are constants (`EFFECT_TOOLS` in `src/mcp/mcp-tool-names.ts`): `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch`. A new effect tool needs a risk class in `classify-tool-call.ts`, a grant rule in the envelope check, and a test in `test/effect-tools-scope.test.ts`.

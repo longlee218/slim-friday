@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { logEvent, logger } from "../../../../observability/logger";
-import { REPORT_RESULT_SHAPE } from "../../../../orchestrator/engine/lead-schemas";
-import type { ReportSink } from "../../../../orchestrator/engine/report-sink";
+import { REPORT_RESULT_SHAPE } from "../../../../orchestrator/lead/lead-schemas";
+import type { ReportSink } from "../../../../orchestrator/worker/report-sink";
 import { toToolResult } from "../../../tool-result";
 import { REPORT_RESULT_TOOL } from "./constants";
 import { REPORT_RESULT_DESCRIPTION } from "./prompt";

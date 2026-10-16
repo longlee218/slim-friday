@@ -3,7 +3,7 @@ import { logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import { getItem, goalOf, type ResultKind, setTaskResult } from "../../storage/owned-item-store";
 import { getOwnedTask, ownedTaskOfTurn } from "../../storage/owned-task-store";
-import { writeTaskResultFile } from "../engine/result-file";
+import { writeTaskResultFile } from "../worker/result-file";
 
 const log = logger.child({ module: "result-file" });
 

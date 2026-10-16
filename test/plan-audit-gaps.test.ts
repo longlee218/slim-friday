@@ -1,14 +1,14 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
-import { createPlanPort } from "../src/orchestrator/engine/effect-port-plan";
-import { openGoalIdOf } from "../src/orchestrator/engine/effect-port-queries";
-import { settleGoal } from "../src/orchestrator/engine/goal-settle";
-import { handleApprovePlan } from "../src/orchestrator/engine/lead-plan-handlers";
+import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
+import { openGoalIdOf } from "../src/orchestrator/goal/effect-port-queries";
+import { handleApprovePlan } from "../src/orchestrator/lead/lead-plan-handlers";
 import { buildEnvelope, toPlanItem } from "../src/orchestrator/plan/plan-doc";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { type Edit, revisePlan } from "../src/orchestrator/plan/plan-revision";
 import { validatePlan } from "../src/orchestrator/plan/validate-plan";
 import { checkDispatch } from "../src/orchestrator/strategy/dispatch-policy";
+import { settleGoal } from "../src/orchestrator/worker/goal-settle";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { dispatchableWorkers, ROLES } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";

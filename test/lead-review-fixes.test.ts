@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import type { InboundMessage } from "../src/ingress/discord-message-handler";
-import { createLeadIo } from "../src/orchestrator/engine/lead-io";
-import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/engine/lead-runtime";
-import { createLeadSystem } from "../src/orchestrator/engine/lead-system";
+import { createLeadIo } from "../src/orchestrator/lead/lead-io";
+import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/lead/lead-runtime";
+import { createLeadSystem } from "../src/orchestrator/lead/lead-system";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { makeEnv, stubGateway, TEST_CHANNEL } from "./helpers";
 import { type Call, leadHarness, noticeSink, scriptedQuery, sleep, until } from "./lead-harness";

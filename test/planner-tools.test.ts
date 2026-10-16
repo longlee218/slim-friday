@@ -6,11 +6,8 @@ import { SONNET_MODEL } from "../src/config/model-ids";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { mcpToolName, ORCHESTRATION_MCP_SERVER, PLAN_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
-import { createPlanPort } from "../src/orchestrator/engine/effect-port-plan";
-import {
-  handleApprovePlan,
-  handleRequestPlan,
-} from "../src/orchestrator/engine/lead-plan-handlers";
+import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
+import { handleApprovePlan, handleRequestPlan } from "../src/orchestrator/lead/lead-plan-handlers";
 import { renderPlan } from "../src/orchestrator/plan/plan-render";
 import type { PlannerCtx } from "../src/orchestrator/plan/planner-handlers";
 import { checkPlanRequest } from "../src/orchestrator/strategy/plan-policy";

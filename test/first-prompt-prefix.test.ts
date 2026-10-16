@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
 import { HAIKU_MODEL } from "../src/config/model-ids";
 import { DIGEST_HEADING } from "../src/memory/channel-digest";
+import type { RoleRunInput } from "../src/orchestrator/run/role-run-types";
+import { runRole } from "../src/orchestrator/run/run-role";
 import {
   firstPromptPrefix,
   OWNER_MESSAGE_LABEL,
   withPrefix,
-} from "../src/orchestrator/engine/first-prompt-prefix";
-import type { RoleRunInput } from "../src/orchestrator/engine/role-run-types";
-import { runRole } from "../src/orchestrator/engine/run-role";
+} from "../src/roles/prompts/first-prompt-prefix";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { openDb } from "../src/storage/db";

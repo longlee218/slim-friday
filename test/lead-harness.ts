@@ -1,9 +1,9 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
-import { OWNER_MESSAGE_LABEL } from "../src/orchestrator/engine/first-prompt-prefix";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import type { ApprovalGateway } from "../src/owner-approval/approval-types";
+import { OWNER_MESSAGE_LABEL } from "../src/roles/prompts/first-prompt-prefix";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 import { isLeadRun, isPlannerRun, isWorkerRun, toolOf } from "./mcp-run-probe";
 

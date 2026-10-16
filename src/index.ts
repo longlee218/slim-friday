@@ -5,6 +5,7 @@ import { type AgentConfig, loadConfig } from "./config/agent-config";
 import { readProcessEnv } from "./config/process-env";
 import { workspacePaths } from "./config/workspace-paths";
 import { syncChannelTopics } from "./discord-setup/channel-topic";
+import { createControlRoleRun } from "./discord-setup/control-role-run";
 import { opsIds, readDiscordSetup } from "./discord-setup/discord-setup-config";
 import { createOpsLog } from "./discord-setup/ops-log";
 import { warnIfBotAdministrator } from "./discord-setup/ready-checks";
@@ -23,9 +24,9 @@ import { real } from "./locations/location-registry";
 import { ensureHome } from "./memory/persona";
 import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
-import { recoverInFlight } from "./orchestrator/engine/recover-in-flight";
 import { createTurnHandler } from "./orchestrator/handle-message";
 import { createRunLimiter } from "./orchestrator/turns/run-limiter";
+import { recoverInFlight } from "./orchestrator/worker/recover-in-flight";
 import { createDiscordApprovalGateway } from "./owner-approval/discord-approval";
 import { openDb } from "./storage/db";
 import { loadWorkspaces } from "./workspaces/workspace-registry";
@@ -102,11 +103,14 @@ async function main(): Promise<void> {
     ownerId: config.ownerDiscordId!,
     db,
   });
+  // Non-command owner text of #ops-control runs the control-channel role (no workspace); built here so orchestrator never imports discord-setup.
+  const control = createControlRoleRun({ db, config, approvals });
   const handleMessage = createTurnHandler({
     db,
     config,
     approvals,
     limiter: createRunLimiter(),
+    control, // shutdown hooks of the control runner
     threadTitle: createThreadTitlePort(() => botClient),
     // The lead's boot wake has no owner message to answer through: post into the thread by id.
     post: async (threadId, text) => {
@@ -117,7 +121,7 @@ async function main(): Promise<void> {
   const threadsPort = createThreadsPort(db, config.agentHome);
   const { client } = createDiscordBot(
     config,
-    handleMessage,
+    Object.assign(handleMessage, { control }), // the bot reads `control` for #ops-control text
     (i) => approvals.handleInteraction(i),
     setup,
     handleMessage.inline,

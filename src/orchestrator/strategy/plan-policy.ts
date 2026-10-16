@@ -1,10 +1,5 @@
-import {
-  type Caps,
-  CHAIN_CAP,
-  DISPATCHES_PER_RUN,
-  type GoalState,
-  LEAD_DAILY_BUDGET_USD,
-} from "./caps";
+import { CHAIN_CAP, DISPATCHES_PER_RUN, LEAD_DAILY_BUDGET_USD } from "../../config/lead-caps";
+import type { Caps, GoalState } from "./caps";
 
 /* Pure policy of `RequestPlan`: may the lead start a planner now? Same caps as a dispatch (a planner run is one start). */
 

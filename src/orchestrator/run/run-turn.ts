@@ -12,11 +12,11 @@ import {
 import { errText } from "../../observability/redact";
 import type { ResultKind } from "../../storage/owned-item-store";
 import { appendEvent } from "../../storage/thread-event-store";
-import type { DispatchDeps, RoleRunInput } from "../engine/role-run-types";
-import { runRole } from "../engine/run-role";
 import { closeTurn, type FlowResult } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
 import { registerRun } from "./live-runs";
+import type { DispatchDeps, RoleRunInput } from "./role-run-types";
+import { runRole } from "./run-role";
 
 /* The ONE begin / run / close sequence of a turn, for the lead and for a detached worker:
    begin the turn row -> build the run input -> run the role -> close the turn row (a crash marks it failed). */

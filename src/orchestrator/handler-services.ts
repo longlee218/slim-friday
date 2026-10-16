@@ -1,12 +1,14 @@
 import type { Logger } from "pino";
-import { createControlRoleRun } from "../discord-setup/control-role-run";
 import { createFindRunner } from "../memory/find-command-handler";
-import { createLeadSystem } from "./engine/lead-system";
-import type { DispatchDeps } from "./engine/role-run-types";
-import type { TurnHandlerDeps } from "./handle-message";
-import { createRolloverScheduler } from "./turns/rollover-scheduler";
+import { createRolloverScheduler } from "../session/rollover-scheduler";
+import type { ControlHandle, TurnHandlerDeps } from "./handle-message";
+import { createLeadSystem } from "./lead/lead-system";
+import type { DispatchDeps } from "./run/role-run-types";
 import { createSteerRegistry } from "./turns/steer-registry";
 import { createRunTracker } from "./turns/turn-tracker";
+
+/** Control handle of a handler built without a control runner (tests, headless). */
+const NO_CONTROL: ControlHandle = { abortAll: () => undefined, drain: async (ms) => ms };
 
 /** The long-lived services of one turn handler, built once: run tracking, rollovers, lead system, inline command runner, control-channel runner. */
 export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
@@ -36,13 +38,8 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   });
   // `/find` is an inline owner command (answered before any thread or task).
   const inline = createFindRunner({ db, agentHome: config.agentHome });
-  // Non-command owner text in #ops-control runs the control-channel role (no workspace; see discord-setup/control-role-run.ts).
-  const control = createControlRoleRun({
-    db,
-    config,
-    approvals: deps.approvals,
-    queryFn: deps.queryFn,
-  });
+  // The control-channel runner (non-command text of #ops-control) is built by index.ts and injected; none = nothing to stop.
+  const control: ControlHandle = deps.control ?? NO_CONTROL;
   // Shutdown: abort everything; drain rollovers first, then control runs, then the task runs get the time left.
   const shutdown = {
     abortAll: () => {
@@ -53,5 +50,5 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     },
     drain: async (ms: number) => tracker.drain(await control.drain(await rollovers.drain(ms))),
   };
-  return { tracker, rollovers, dispatchDeps, lead, inline, control, shutdown };
+  return { tracker, rollovers, dispatchDeps, lead, inline, shutdown };
 }

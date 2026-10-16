@@ -10,7 +10,7 @@ import {
   type WorkPlanRow,
 } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
-import { cancelSet } from "../engine/effect-port-queries";
+import { cancelSet } from "../goal/effect-port-queries";
 import { type Applied, abortRuns, materialize } from "./materialize-items";
 import {
   buildEnvelope,

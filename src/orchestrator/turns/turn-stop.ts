@@ -1,8 +1,8 @@
 import type { Database } from "bun:sqlite";
 import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
-import type { LeadQueue } from "../engine/lead-queue";
-import { stopThreadTree } from "../engine/stop-thread-tree";
+import type { LeadQueue } from "../lead/lead-queue";
 import { liveRunOf } from "../run/live-runs";
+import { stopThreadTree } from "../run/stop-thread-tree";
 
 /**
  * `stop` (an orchestrator command, never steer): abort the thread's lead run and every worker run at once. The thread's queued tasks

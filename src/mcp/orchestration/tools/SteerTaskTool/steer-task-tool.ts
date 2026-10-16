@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
-import type { LeadToolContext } from "../../../../orchestrator/engine/lead-call";
-import { handleSteer } from "../../../../orchestrator/engine/lead-handlers";
-import { STEER_TASK_SHAPE } from "../../../../orchestrator/engine/lead-schemas";
+import type { LeadToolContext } from "../../../../orchestrator/lead/lead-call";
+import { handleSteer } from "../../../../orchestrator/lead/lead-handlers";
+import { STEER_TASK_SHAPE } from "../../../../orchestrator/lead/lead-schemas";
 import { runTool } from "../../../tool-result";
 import { STEER_TASK_TOOL } from "./constants";
 import { STEER_TASK_DESCRIPTION } from "./prompt";

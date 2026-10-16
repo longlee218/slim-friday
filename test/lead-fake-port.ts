@@ -11,8 +11,8 @@ import type {
   Post,
   SteerReply,
   TaskSnapshot,
-} from "../src/orchestrator/engine/effect-port";
-import type { LeadToolContext } from "../src/orchestrator/engine/lead-call";
+} from "../src/orchestrator/goal/effect-port";
+import type { LeadToolContext } from "../src/orchestrator/lead/lead-call";
 import type { GoalState, PolicyEnv } from "../src/orchestrator/strategy/caps";
 import type { ItemRow } from "../src/storage/owned-item-store";
 

@@ -12,10 +12,10 @@ import {
 } from "../ingress/user-copy";
 import { logEvent, logger, runWithLogContext } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { ownerConfirm } from "../orchestrator/engine/owner-confirm";
-import { runRole } from "../orchestrator/engine/run-role";
+import { runRole } from "../orchestrator/run/run-role";
 import { finishRun, RESUMABLE_OUTCOMES } from "../orchestrator/turns/turn-result";
 import type { ApprovalGateway } from "../owner-approval/approval-types";
+import { ownerConfirm } from "../owner-approval/owner-confirm";
 import { controlRole } from "../roles/role-registry";
 import type { QueryFn } from "../runtime/run-agent";
 import { finishTurn, insertTurn } from "../storage/run-store";

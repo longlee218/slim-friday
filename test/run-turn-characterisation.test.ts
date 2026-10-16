@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
-import { stopThreadTree } from "../src/orchestrator/engine/stop-thread-tree";
 import { liveRunsOf } from "../src/orchestrator/run/live-runs";
+import { stopThreadTree } from "../src/orchestrator/run/stop-thread-tree";
 import { insertTurn } from "../src/storage/run-store";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { BRIEF, makeEnv, resultMsg, stubGateway } from "./helpers";

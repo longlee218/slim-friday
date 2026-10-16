@@ -1,9 +1,9 @@
 import type { SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
 import type { DiscordAdminContext } from "../discord-setup/discord-admin-context";
 import type { MemoryToolContext } from "../memory/memory-tool-context";
-import type { LeadToolContext } from "../orchestrator/engine/lead-call";
-import type { ReportSink } from "../orchestrator/engine/report-sink";
+import type { LeadToolContext } from "../orchestrator/lead/lead-call";
 import type { PlannerCtx } from "../orchestrator/plan/planner-handlers";
+import type { ReportSink } from "../orchestrator/worker/report-sink";
 import type { EffectsCtx } from "../policy/effect-context";
 import type { ReadBudget } from "./memory/memory-read-shared";
 

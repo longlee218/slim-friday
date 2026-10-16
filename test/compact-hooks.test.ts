@@ -13,7 +13,7 @@ import { searchIndex } from "../src/memory/index/memory-search";
 import { syncIndex } from "../src/memory/index/memory-sync";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { mergeSummary } from "../src/memory/summary-merge";
-import { runRole } from "../src/orchestrator/engine/run-role";
+import { runRole } from "../src/orchestrator/run/run-role";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { buildCompactHooks } from "../src/runtime/compact-hooks";

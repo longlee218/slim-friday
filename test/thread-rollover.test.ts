@@ -8,10 +8,10 @@ import { localDay } from "../src/memory/memory-clock";
 import { captureLogs, logger } from "../src/observability/logger";
 import { emptyUsage } from "../src/observability/record-run";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
-import { FLUSH_PROMPT } from "../src/orchestrator/turns/rollover-flush";
-import { BUDGET_CAP_USD, leanBudgetUsd } from "../src/orchestrator/turns/rollover-run";
-import { createRolloverScheduler } from "../src/orchestrator/turns/rollover-scheduler";
-import { rolloverSeed } from "../src/orchestrator/turns/rollover-seed";
+import { FLUSH_PROMPT } from "../src/roles/prompts/rollover-prompts";
+import { BUDGET_CAP_USD, leanBudgetUsd } from "../src/session/rollover-run";
+import { createRolloverScheduler } from "../src/session/rollover-scheduler";
+import { rolloverSeed } from "../src/session/rollover-seed";
 import {
   ROLLOVER_CONTEXT_SHARE,
   requestRollover,
@@ -20,7 +20,7 @@ import {
   WINDOW_FALLBACK_DEFAULT,
   WINDOW_FALLBACK_HAIKU,
   windowOf,
-} from "../src/orchestrator/turns/thread-rollover";
+} from "../src/session/thread-rollover";
 import { insertTurn } from "../src/storage/run-store";
 import { deleteSession, getSession, setSession } from "../src/storage/session-store";
 import {

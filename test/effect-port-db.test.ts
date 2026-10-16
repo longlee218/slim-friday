@@ -1,14 +1,14 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
-import { createDbEffectPort, type PortIo } from "../src/orchestrator/engine/effect-port-db";
+import { createDbEffectPort, type PortIo } from "../src/orchestrator/goal/effect-port-db";
 import {
   handleAskOwner,
   handleCancel,
   handleDispatch,
   handleForward,
   handleTaskStatus,
-} from "../src/orchestrator/engine/lead-handlers";
-import type { DispatchInput } from "../src/orchestrator/engine/lead-schemas";
+} from "../src/orchestrator/lead/lead-handlers";
+import type { DispatchInput } from "../src/orchestrator/lead/lead-schemas";
 import { openDb } from "../src/storage/db";
 import { getOwnedTask } from "../src/storage/owned-task-store";
 import { insertRun } from "../src/storage/run-metrics-store";

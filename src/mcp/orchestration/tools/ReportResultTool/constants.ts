@@ -6,4 +6,4 @@ export {
   MAX_REQUESTS,
   REQUEST_MAX_CHARS,
   SUMMARY_MAX_CHARS,
-} from "../../../../orchestrator/engine/lead-limits";
+} from "../../../../orchestrator/lead/lead-limits";

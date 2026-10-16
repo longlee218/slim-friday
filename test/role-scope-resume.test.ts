@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
-import { roleScope } from "../src/orchestrator/engine/role-scope";
+import { roleScope } from "../src/orchestrator/run/role-scope";
 import { getRole } from "../src/roles/role-registry";
 import { makeEnv, outsideDir } from "./helpers";
 

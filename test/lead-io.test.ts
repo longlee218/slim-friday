@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { createLeadIo } from "../src/orchestrator/engine/lead-io";
-import { createLeadQueue } from "../src/orchestrator/engine/lead-queue";
-import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/engine/lead-runtime";
+import { createLeadIo } from "../src/orchestrator/lead/lead-io";
+import { createLeadQueue } from "../src/orchestrator/lead/lead-queue";
+import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/lead/lead-runtime";
 import { stopThread } from "../src/orchestrator/turns/turn-stop";
 import { makeEnv, stubGateway } from "./helpers";
 
@@ -78,7 +78,7 @@ test("/stop with only a queued lead input: the queue is dropped and the owner is
 test("/stop tree: unstarted items of the open goal are cancelled and the goal settles, so no later pass starts them", async () => {
   const { db } = makeEnv();
   const { insertOwnedTask } = await import("../src/storage/owned-task-store");
-  const { stopThreadTree } = await import("../src/orchestrator/engine/stop-thread-tree");
+  const { stopThreadTree } = await import("../src/orchestrator/run/stop-thread-tree");
   insertOwnedTask(db, {
     id: "g",
     threadId: "t",

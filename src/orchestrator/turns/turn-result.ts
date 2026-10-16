@@ -4,17 +4,17 @@ import type { Location } from "../../locations/location-registry";
 import { excerpt, logEvent, logger } from "../../observability/logger";
 import type { RunOutcome, RunUsage } from "../../observability/record-run";
 import { redactText } from "../../observability/redact";
+import { STATUS_OF_RESULT } from "../../roles/typed-result";
 import type { RunAgentResult } from "../../runtime/run-agent";
+import { requestRollover } from "../../session/thread-rollover";
 import type { ResultKind } from "../../storage/owned-item-store";
 import { ownedTaskOfTurn } from "../../storage/owned-task-store";
 import { finishTurn, setTurnStatus, type TurnStatus, turnStatusOf } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
 import { moveTaskTo, settleTaskAfterTurn } from "../../tasks/task-resolver";
 import { budgetHitReply } from "../budget/budget-hit";
-import { STATUS_OF_RESULT } from "../strategy/typed-result";
 import { saveResultFile } from "./result-file-save";
 import { checkRunOutcome } from "./run-outcome-check";
-import { requestRollover } from "./thread-rollover";
 
 /* The result of a role run, and the bookkeeping that closes a run. */
 

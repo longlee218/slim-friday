@@ -4,9 +4,9 @@ import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { messageLanguage, type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent } from "../../observability/logger";
 import { errText } from "../../observability/redact";
-import type { LeadQueue } from "../engine/lead-queue";
+import type { createRolloverScheduler } from "../../session/rollover-scheduler";
+import type { LeadQueue } from "../lead/lead-queue";
 import { liveRunOf } from "../run/live-runs";
-import type { createRolloverScheduler } from "./rollover-scheduler";
 import type { SteerRegistry } from "./steer-registry";
 import { stopThread } from "./turn-stop";
 

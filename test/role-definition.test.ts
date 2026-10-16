@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { SONNET_MODEL } from "../src/config/model-ids";
-import { extractLocationMarker } from "../src/orchestrator/engine/run-report";
-import { validateRole } from "../src/orchestrator/engine/validate-role";
+import { validateRole } from "../src/orchestrator/run/validate-role";
+import { extractLocationMarker } from "../src/orchestrator/worker/run-report";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";

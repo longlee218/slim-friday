@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import type { Location } from "../src/locations/location-registry";
-import type { DispatchDeps } from "../src/orchestrator/engine/role-run-types";
-import { stopThreadTree } from "../src/orchestrator/engine/stop-thread-tree";
 import { liveRunsOf } from "../src/orchestrator/run/live-runs";
+import type { DispatchDeps } from "../src/orchestrator/run/role-run-types";
 import { runDetached } from "../src/orchestrator/run/run-turn";
+import { stopThreadTree } from "../src/orchestrator/run/stop-thread-tree";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { insertTurn } from "../src/storage/run-store";
 import { listUndelivered } from "../src/storage/thread-event-store";

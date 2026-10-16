@@ -1,10 +1,10 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
-import { createPlanPort } from "../src/orchestrator/engine/effect-port-plan";
-import { openGoalIdOf } from "../src/orchestrator/engine/effect-port-queries";
-import { settleGoal } from "../src/orchestrator/engine/goal-settle";
+import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
+import { openGoalIdOf } from "../src/orchestrator/goal/effect-port-queries";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { type Edit, revisePlan } from "../src/orchestrator/plan/plan-revision";
+import { settleGoal } from "../src/orchestrator/worker/goal-settle";
 import { openDb } from "../src/storage/db";
 import { childrenOf } from "../src/storage/owned-item-store";
 import { getOwnedTask } from "../src/storage/owned-task-store";

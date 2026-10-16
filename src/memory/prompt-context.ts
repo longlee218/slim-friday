@@ -16,7 +16,7 @@ export interface PromptContextInput {
   registry?: string;
   /** Locations (of `workspace`) whose memory is added after the root and workspace memory. */
   memoryLocations: string[];
-  /** Idle thread: the results of the steps it waits for (engine/worker-run.ts), after memory; empty = none. */
+  /** Idle thread: the results of the steps it waits for (orchestrator/worker/worker-run.ts), after memory; empty = none. */
   ledger?: string;
 }
 

@@ -7,16 +7,24 @@ import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/
 import { DRAIN_REPLY, isDraining } from "../lifecycle/drain";
 import { logEvent, logger, runWithLogContext } from "../observability/logger";
 import type { ApprovalGateway } from "../owner-approval/approval-types";
+import { ownerConfirm } from "../owner-approval/owner-confirm";
 import type { QueryFn } from "../runtime/run-agent";
 import { purgeThreadTrash } from "./effects/purge-trash";
-import { ownerConfirm } from "./engine/owner-confirm";
-import type { RecoveryReport } from "./engine/recover-in-flight";
 import { createHandlerServices } from "./handler-services";
 import { parseMessageCommand } from "./message-commands";
 import type { RunLimiter } from "./turns/run-limiter";
 import { statusFacts } from "./turns/status-snapshot";
 import { reportCrash, stopCommand } from "./turns/turn-admission";
 import { turnLogContext } from "./turns/turn-tracker";
+import type { RecoveryReport } from "./worker/recover-in-flight";
+
+/** What the handler needs of the control-channel runner (built by index.ts, so orchestrator never imports discord-setup): the shutdown hooks. */
+export interface ControlHandle {
+  /** Shutdown: abort every control run in flight. */
+  abortAll(): void;
+  /** Shutdown: abort, wait for the runs to end (at most `ms`) and return the time left. */
+  drain(ms: number): Promise<number>;
+}
 
 /** Dependencies of the turn handler. */
 export interface TurnHandlerDeps {
@@ -32,6 +40,8 @@ export interface TurnHandlerDeps {
   threadTitle?: ThreadTitlePort;
   /** Posts into a thread by id: the lead's boot wake (a restart) has no owner message to answer through. Omitted = that wake is skipped. */
   post?: (threadId: string, text: string) => Promise<void>;
+  /** The control-channel runner (see `ControlHandle`); index.ts also gives the same runner to the Discord bot. Omitted = none. */
+  control?: ControlHandle;
   /** Timing knobs of the lead queue (tests shorten the owner debounce and the announce batch). */
   leadTiming?: { debounceMs?: number; announceWindowMs?: number };
 }
@@ -43,8 +53,10 @@ export interface TurnHandlerDeps {
 export function createTurnHandler(deps: TurnHandlerDeps) {
   const { config } = deps;
   const log = logger.child({ module: "handle-message" });
-  const { tracker, rollovers, dispatchDeps, lead, inline, control, shutdown } =
-    createHandlerServices(deps, log);
+  const { tracker, rollovers, dispatchDeps, lead, inline, shutdown } = createHandlerServices(
+    deps,
+    log,
+  );
   /** Handle one message and return the reply text to post (undefined = the lead answers on its own). */
   const run = async (message: InboundMessage): Promise<string | undefined> => {
     const { threadId } = message;
@@ -106,7 +118,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         text === undefined ? undefined : localizeUserCopy(text, messageLanguage(message)),
       );
   handleMessage.inline = inline; // same runner for ingress (inline channel replies, #ops-control)
-  handleMessage.control = control; // non-command text of #ops-control (the control-channel role)
   handleMessage.rollover = (threadId: string) => rollovers.wait(threadId) ?? Promise.resolve(); // tests
   handleMessage.abortAll = shutdown.abortAll;
   handleMessage.drain = shutdown.drain;

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { TASK_BUDGET_USD } from "../src/config/model-routing";
-import { runRole } from "../src/orchestrator/engine/run-role";
+import { runRole } from "../src/orchestrator/run/run-role";
 import { finishRun } from "../src/orchestrator/turns/turn-result";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";

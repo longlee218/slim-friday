@@ -1,16 +1,14 @@
+import {
+  CHAIN_CAP,
+  DELEGATE_MAX,
+  DISPATCHES_PER_RUN,
+  LEAD_DAILY_BUDGET_USD,
+} from "../../config/lead-caps";
 import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 import { askNeeded } from "../../policy/ask-policy";
 import { effectRisk } from "../../policy/check-envelope";
 import type { EffectGrant } from "../../policy/envelope";
-import {
-  type Caps,
-  CHAIN_CAP,
-  DELEGATE_MAX,
-  DISPATCHES_PER_RUN,
-  type GoalState,
-  LEAD_DAILY_BUDGET_USD,
-  type PolicyEnv,
-} from "./caps";
+import type { Caps, GoalState, PolicyEnv } from "./caps";
 
 /* Pure dispatch policy: the lead picked a typed action; this decides whether code allows it. No db, no clock. */
 

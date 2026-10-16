@@ -12,7 +12,7 @@ import { LIST_SPACES_TOOL } from "../src/mcp/discord-admin/tools/ListSpacesTool/
 import { WRITE_SPACE_FILE_TOOL } from "../src/mcp/discord-admin/tools/WriteSpaceFileTool/constants";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { DISCORD_ADMIN_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
-import { roleScope } from "../src/orchestrator/engine/role-scope";
+import { roleScope } from "../src/orchestrator/run/role-scope";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { DISCORD_MANAGER_ROLE } from "../src/roles/builtin/discord-manager-role";
 import { mayHaveWritten, validateRegistry } from "../src/roles/capability-registry";
