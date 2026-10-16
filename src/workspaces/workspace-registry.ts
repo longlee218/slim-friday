@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { z } from "zod";
+import { readProcessEnv } from "../config/process-env";
 import { isWorkspaceName, workspacePaths } from "../config/workspace-paths";
 import { isRealDir, type Location, loadLocations, real } from "../locations/location-registry";
 import { logEvent, logger } from "../observability/logger";
@@ -86,7 +87,8 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
     return out; // no workspaces dir yet
   }
   // $HOME env can differ from os.homedir() / userHome: forbid both.
-  const userHomes = [userHome, ...(process.env.HOME ? [process.env.HOME] : [])];
+  const envHome = readProcessEnv().HOME;
+  const userHomes = [userHome, ...(envHome ? [envHome] : [])];
   const forbidden = [...userHomes, agentHome];
   for (const name of names) {
     const ws = paths.workspace(name);

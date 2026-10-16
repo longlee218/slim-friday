@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { ChannelType, Client, Events, GatewayIntentBits } from "discord.js";
 import { loadConfig } from "../config/agent-config";
+import { readProcessEnv } from "../config/process-env";
 import { errText } from "../observability/redact";
 import {
   type DiscordSetup,
@@ -48,7 +49,7 @@ async function connect(token: string): Promise<Client> {
 /** Entry: `bun run bootstrap:discord [--dry-run]`. Create-only; never deletes or edits anything. */
 async function main(): Promise<number> {
   const dryRun = process.argv.includes("--dry-run");
-  const config = loadConfig(process.env, { requireDiscord: true });
+  const config = loadConfig(readProcessEnv(), { requireDiscord: true });
   const token = config.discordToken ?? "";
   if (!config.discordGuildId) {
     out("DISCORD_GUILD_ID is required.");
@@ -156,7 +157,7 @@ if (import.meta.main) {
   main()
     .then((code) => process.exit(code))
     .catch((err) => {
-      out(`bootstrap failed: ${scrub(errText(err), process.env.DISCORD_TOKEN ?? "")}`);
+      out(`bootstrap failed: ${scrub(errText(err), readProcessEnv().DISCORD_TOKEN ?? "")}`);
       process.exit(1);
     });
 }

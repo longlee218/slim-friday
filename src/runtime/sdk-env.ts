@@ -1,5 +1,6 @@
 import type { AgentConfig } from "../config/agent-config";
 import { isChildEnvDenied, isWorkerEnvDenied } from "../config/child-env-deny";
+import { readProcessEnv } from "../config/process-env";
 
 /** Compaction window var the orchestrator sets (on the deny list: never copied from the owner's shell, like the 3 below). */
 export const AUTO_COMPACT_WINDOW_VAR = "CLAUDE_CODE_AUTO_COMPACT_WINDOW";
@@ -45,7 +46,7 @@ const SUBPROCESS_SCRUB_VAR = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB";
  */
 export function sdkEnv(
   config: AgentConfig,
-  source: Record<string, string | undefined> = process.env,
+  source: Record<string, string | undefined> = readProcessEnv(),
   compactWindow?: number,
   opts: { oneShot?: boolean; worker?: boolean } = {},
 ): Record<string, string | undefined> {

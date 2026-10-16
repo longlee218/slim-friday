@@ -1,3 +1,4 @@
+import { readProcessEnv } from "../../config/process-env";
 import { GIT_HARDEN } from "../../locations/git-cli";
 import { GIT_ISOLATED_ENV, gitIsolationArgs } from "../../locations/git-isolation";
 import { clip } from "../../observability/redact";
@@ -23,7 +24,7 @@ export const hardenedArgv = (cmd: string[]): string[] =>
  */
 export function subprocessEnv(
   cmd: string[],
-  source: Record<string, string | undefined> = process.env,
+  source: Record<string, string | undefined> = readProcessEnv(),
 ): Record<string, string | undefined> {
   if (cmd[0] !== "git") return { ...source };
   return {

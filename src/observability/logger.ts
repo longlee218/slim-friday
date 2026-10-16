@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import pino, { type DestinationStream, type Logger } from "pino";
 import pretty, { type PrettyOptions } from "pino-pretty";
+import { readProcessEnv } from "../config/process-env";
 import { ensureParentDir, workspacePaths } from "../config/workspace-paths";
 import { CONSOLE_IGNORE, consoleMessage } from "./console-format";
 import { rollingFile } from "./log-files";
@@ -102,10 +103,10 @@ export function consolePrettyOptions(): PrettyOptions {
 
 /** Pick the destination: rolled files under AGENT_HOME (+ pretty stdout in dev); stdout JSON otherwise. */
 async function buildSharedLogger(): Promise<Logger> {
-  const level = process.env.LOG_LEVEL ?? "info";
-  const home = process.env.AGENT_HOME;
+  const level = readProcessEnv().LOG_LEVEL ?? "info";
+  const home = readProcessEnv().AGENT_HOME;
   // Under `bun test` (NODE_ENV=test) never write to a file or stderr: lines only reach `captureLogs`.
-  if (process.env.NODE_ENV === "test")
+  if (readProcessEnv().NODE_ENV === "test")
     return createLogger(
       {
         write: (line: string) => {
@@ -115,7 +116,7 @@ async function buildSharedLogger(): Promise<Logger> {
       "debug",
     );
   // Also print to the terminal when run interactively (a TTY) or in dev; background runs (nohup) stay file-only.
-  const toTerminal = process.stdout.isTTY === true || process.env.NODE_ENV === "development";
+  const toTerminal = process.stdout.isTTY === true || readProcessEnv().NODE_ENV === "development";
   if (!home) return createLogger(pino.destination({ fd: 2, sync: true }), level);
   const file = rollingFile(workspacePaths(home).appLog());
   // Open the main file before the first line so early/fatal lines are written synchronously.

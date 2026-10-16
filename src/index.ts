@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { type Client, Events } from "discord.js";
 import pkg from "../package.json";
 import { type AgentConfig, loadConfig } from "./config/agent-config";
+import { readProcessEnv } from "./config/process-env";
 import { workspacePaths } from "./config/workspace-paths";
 import { syncChannelTopics } from "./discord-setup/channel-topic";
 import { opsIds, readDiscordSetup } from "./discord-setup/discord-setup-config";
@@ -42,7 +43,7 @@ async function main(): Promise<void> {
   let config: AgentConfig;
   try {
     // Fail fast before any connection when DISCORD_TOKEN / OWNER_DISCORD_ID are missing or placeholders.
-    config = loadConfig(process.env, { requireDiscord: true });
+    config = loadConfig(readProcessEnv(), { requireDiscord: true });
   } catch (err) {
     return fail(String(err instanceof Error ? err.message : err));
   }
@@ -56,7 +57,7 @@ async function main(): Promise<void> {
 
   // Fail closed: the home (persona, memory, db, logs) must not live inside a location or a git working tree.
   // A location equal to the owner's $HOME is allowed: the guard denies AGENT_HOME to every run instead.
-  const userHomes = [homedir(), process.env.HOME ?? ""].filter(Boolean).map(real);
+  const userHomes = [homedir(), readProcessEnv().HOME ?? ""].filter(Boolean).map(real);
   const misplaced = homePlacementError(
     config.agentHome,
     workspaces.flatMap((w) =>

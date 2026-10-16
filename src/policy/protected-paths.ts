@@ -6,6 +6,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
+import { readProcessEnv } from "../config/process-env";
 import type { GuardrailContext } from "./check-tool-call";
 import { isDeniedPath, isInside, realOrSame, resolveReal } from "./paths";
 
@@ -26,7 +27,7 @@ export const COVERS_PROTECTED_REASON =
 
 /** Expand a leading `~` / `$HOME` / `${HOME}` (the only expansions the guard resolves). */
 export const expandHome = (w: string): string =>
-  w.replace(/^(~|\$HOME|\$\{HOME\})(?=\/|$)/, process.env.HOME || homedir());
+  w.replace(/^(~|\$HOME|\$\{HOME\})(?=\/|$)/, readProcessEnv().HOME || homedir());
 
 /** Denied roots that are NOT wholly granted back by `allowInside`. */
 const liveRoots = (ctx: Ctx): string[] =>
@@ -151,7 +152,7 @@ function afterCd(words: string[], base: Base): Base | undefined {
   if (cmd === "popd") return { dir: undefined, unknown: true };
   if (cmd !== "cd" && cmd !== "pushd") return undefined;
   const target = words.slice(1).find((a) => a !== "--" && !/^-[LPe@]+$/.test(a));
-  if (target === undefined) return { dir: process.env.HOME || homedir(), unknown: false };
+  if (target === undefined) return { dir: readProcessEnv().HOME || homedir(), unknown: false };
   const t = expandHome(target);
   if (t === "-" || EXPANSION.test(t) || GLOB.test(t)) return { dir: undefined, unknown: true };
   if (isAbsolute(t)) return { dir: t, unknown: false };

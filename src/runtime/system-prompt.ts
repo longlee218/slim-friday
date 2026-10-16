@@ -1,4 +1,5 @@
 import { release } from "node:os";
+import { readProcessEnv } from "../config/process-env";
 import type { PromptCtx, RoleDefinition } from "../roles/role-types";
 
 /** Options of the prompt builder (the run-time facts a role words its prompt with). */
@@ -25,7 +26,7 @@ export interface HostInfo {
 export const currentHost = (): HostInfo => ({
   platform: process.platform,
   release: release(),
-  shell: process.env.SHELL,
+  shell: readProcessEnv().SHELL,
 });
 
 /**

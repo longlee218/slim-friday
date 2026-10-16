@@ -1,6 +1,7 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
 import { type Route, resolveBudget, resolveCompactWindow } from "../config/model-routing";
+import { readProcessEnv } from "../config/process-env";
 import { buildServers, mcpToolNamesFor } from "../mcp/mcp-servers";
 import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
@@ -164,7 +165,7 @@ export function buildSdkOptions(
       ...(input.memory?.threadId &&
         buildCompactHooks({ ...input.memory, threadId: input.memory.threadId })),
     },
-    env: sdkEnv(config, process.env, resolveCompactWindow(role), {
+    env: sdkEnv(config, readProcessEnv(), resolveCompactWindow(role), {
       worker: !!guard?.envelope,
     }),
     ...(input.lean && leanOptions(role, input.lean)),

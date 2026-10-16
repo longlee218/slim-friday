@@ -1,5 +1,6 @@
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
+import { readProcessEnv } from "../config/process-env";
 import { type ResultShape, type RunUsage, usageFromResult } from "../observability/record-run";
 import type { QueryFn } from "../runtime/run-agent";
 import { sdkEnv } from "../runtime/sdk-env";
@@ -58,7 +59,7 @@ export function sdkCompactLlm(
           persistSession: false, // the transcript would hold the whole memory text
           settingSources: [],
           abortController: ac,
-          env: sdkEnv({ ...config, model: config.memoryModel }, process.env, undefined, {
+          env: sdkEnv({ ...config, model: config.memoryModel }, readProcessEnv(), undefined, {
             oneShot: true,
           }),
         },

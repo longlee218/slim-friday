@@ -1,6 +1,7 @@
 /* The app's own git calls (push, merge, location refresh) run OUTSIDE the worker's sandbox, so the owner's global and system git
    config must not steer them: a worker that planted a `core.sshCommand`, `credential.helper` or `url.*.insteadOf` in `~/.gitconfig`
    would run code with the bot's rights. The config files are switched off; what the calls still need is passed explicitly. */
+import { readProcessEnv } from "../config/process-env";
 
 /** Env that switches off the owner's global and system git config for one git subprocess. */
 export const GIT_ISOLATED_ENV: Record<string, string> = {
@@ -39,7 +40,9 @@ function ownerIdentityArgs(env: Record<string, string | undefined>): string[] {
  * macOS and the `gh` helper for github.com: the same auth `gh` itself uses) and the owner's commit identity. Nothing else of the
  * global config applies. Hosts that relied on another helper need that helper added here.
  */
-export function gitIsolationArgs(env: Record<string, string | undefined> = process.env): string[] {
+export function gitIsolationArgs(
+  env: Record<string, string | undefined> = readProcessEnv(),
+): string[] {
   return [
     ...["-c", "credential.helper="],
     ...(process.platform === "darwin" ? ["-c", "credential.helper=osxkeychain"] : []),

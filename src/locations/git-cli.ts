@@ -1,3 +1,4 @@
+import { readProcessEnv } from "../config/process-env";
 import { GIT_ISOLATED_ENV, gitIsolationArgs } from "./git-isolation";
 
 /* Plain git CLI helper for the app's few git calls (location refresh). Argv only, no shell, so a
@@ -43,7 +44,7 @@ async function runGit(args: string[], cwd: string): Promise<GitResult> {
     stdout: "pipe",
     stderr: "pipe",
     stdin: "ignore",
-    env: { ...process.env, ...GIT_ISOLATED_ENV, GIT_TERMINAL_PROMPT: "0" }, // never wait for a credential prompt
+    env: { ...readProcessEnv(), ...GIT_ISOLATED_ENV, GIT_TERMINAL_PROMPT: "0" }, // never wait for a credential prompt
     timeout: GIT_TIMEOUT_MS,
     killSignal: "SIGKILL",
   });
