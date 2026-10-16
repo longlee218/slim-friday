@@ -99,7 +99,7 @@ export function loadLocations(
       continue;
     }
     // A location inside AGENT_HOME (db, .env, persona; ws.root = <home>/workspaces/<ws>) would give a developer run write
-    // scope over it. Only this workspace's own `locations/` subtree (migrated managed clones) is allowed.
+    // scope over it. Only this workspace's own `locations/` subtree (managed clones) is allowed.
     if (isInside(real(agentHome), rpath) && !isInside(real(join(wsRoot, "locations")), rpath)) {
       log.warn(
         { workspace: wsName, location: name },

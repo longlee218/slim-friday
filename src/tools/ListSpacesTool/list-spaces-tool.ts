@@ -30,7 +30,6 @@ export function listSpaces(home: string, kind?: string): string {
     : undefined;
   return JSON.stringify({
     spaces,
-    needsMigration: scan.needsMigration,
     kinds: spaceKinds(),
     ...(template && { kind, template }),
   });

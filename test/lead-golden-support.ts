@@ -2,7 +2,6 @@ import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { REQUEST_PLAN_TOOL } from "../src/mcp/mcp-tool-names";
-import { canonicalRoleName } from "../src/roles/role-aliases";
 
 /* Support of the lead golden set: the fixture loader and the scorer that reads the lead's recorded decisions. */
 
@@ -41,7 +40,7 @@ export function decisionOf(db: Database): Pick<GoldenCase, "strategy" | "roles">
       "SELECT owner_role FROM owned_tasks WHERE parent_id IS NOT NULL ORDER BY rowid",
     )
     .all()
-    .map((r) => canonicalRoleName(r.owner_role));
+    .map((r) => r.owner_role);
   if (roles.length === 0) return { strategy: "ANSWER", roles: [] };
   return { strategy: roles.length === 1 ? "DIRECT" : "DELEGATE", roles };
 }

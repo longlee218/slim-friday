@@ -15,7 +15,6 @@ interface Case {
   setup: (env: ReturnType<typeof makeEnv>) => string | undefined | void;
   /** Loaded workspaces as `ws:location,location|ws2`. */
   loaded: string[];
-  legacy?: string[];
   /** Channels per workspace after the scan. */
   channels?: Record<string, string[]>;
 }
@@ -43,17 +42,6 @@ const cases: Case[] = [
     },
     loaded: ["alpha:cli", "shop:api,web"],
     channels: { alpha: [CH1], shop: [] },
-  },
-  {
-    name: "legacy dir (config.yaml, no workspace.yaml) is listed and never loaded",
-    setup: ({ home }) => {
-      addLocation(home, "api", {}, { workspace: "main" });
-      const old = join(home, "workspaces", "oldlocation");
-      mkdirSync(join(old, "location", ".git"), { recursive: true });
-      writeFileSync(join(old, "config.yaml"), `path: ${join(old, "location")}\n`);
-    },
-    loaded: ["main:api"],
-    legacy: ["oldlocation"],
   },
   {
     name: "symlinked workspace dir is skipped",
@@ -158,7 +146,6 @@ test.each(cases)("loadWorkspaces: $name", (c) => {
   expect(
     scan.workspaces.map((w) => `${w.name}:${w.locations.map((r) => r.name).join(",")}`),
   ).toEqual(c.loaded);
-  expect(scan.legacy).toEqual(c.legacy ?? []);
   for (const [ws, channels] of Object.entries(c.channels ?? {}))
     expect(scan.workspaces.find((w) => w.name === ws)?.channels).toEqual(channels);
 });
@@ -166,7 +153,7 @@ test.each(cases)("loadWorkspaces: $name", (c) => {
 test("loadWorkspaces: missing workspaces dir gives an empty scan", () => {
   const env = makeEnv();
   rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
-  expect(loadWorkspaces(env.home)).toEqual({ workspaces: [], legacy: [], needsMigration: [] });
+  expect(loadWorkspaces(env.home)).toEqual({ workspaces: [] });
 });
 
 test("loaded locations carry workspace name, absolute path, description and the computed git flag", () => {
@@ -205,14 +192,14 @@ test("workspace.yaml locations: legacy keys, bad names and duplicates are skippe
   expect(w.locations.map((l) => l.name)).toEqual(["ok"]);
 });
 
-test("channel objects and legacy plain ids are both parsed; skills.extra stays valid", () => {
+test("channel objects are parsed; skills.extra stays valid", () => {
   const env = makeEnv();
   rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
   rawWorkspace(
     env.home,
     "w",
     `channels:
-  - "${CH1}"
+  - {id: "${CH1}", name: w-agent}
   - {id: "${CH2}", name: chat-room, mode: chat, locations: [api]}
 skills:
   extra: [a]
@@ -224,13 +211,4 @@ skills:
     { id: CH1, name: "w-agent", mode: "task" },
     { id: CH2, name: "chat-room", mode: "chat", locations: [] }, // unknown `api`: fail closed, no locations
   ]);
-});
-
-test("a workspace with repos/<n>/repo.yaml is reported in needsMigration", () => {
-  const env = makeEnv();
-  rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
-  rawWorkspace(env.home, "old");
-  mkdirSync(join(env.home, "workspaces", "old", "repos", "api"), { recursive: true });
-  writeFileSync(join(env.home, "workspaces", "old", "repos", "api", "repo.yaml"), "path: /x\n");
-  expect(loadWorkspaces(env.home).needsMigration).toEqual(["old"]);
 });

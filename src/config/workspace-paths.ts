@@ -25,7 +25,7 @@ export function workspacePaths(agentHome: string) {
     memoryPending: join(agentHome, "MEMORY.pending.md"),
     /** Full text of a long owner attachment, per thread (read-only for the lead). */
     attachments: (threadKey: string) => join(agentHome, "tmp", "attachments", threadKey),
-    /** Pre-cutover copies of the home (migration backups). */
+    /** Backups of the home (persona file backups). */
     backups: join(agentHome, "backups"),
     /** Workspaces: each holds several locations (`workspaces/<ws>/locations/<location>/`). */
     workspaces: join(agentHome, "workspaces"),
@@ -37,8 +37,6 @@ export function workspacePaths(agentHome: string) {
         root,
         /** workspace.yaml: description, Discord channels, locations. */
         config: join(root, "workspace.yaml"),
-        /** `config.yaml` of the pre-Step-B per-location dir: only used to recognise a dir that needs migration. */
-        legacyConfig: join(root, "config.yaml"),
         identity: join(root, "IDENTITY.md"),
         soul: join(root, "SOUL.md"),
         agents: join(root, "AGENTS.md"),

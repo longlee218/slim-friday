@@ -1,6 +1,5 @@
 import type { Database } from "bun:sqlite";
 import { redactText } from "../observability/redact";
-import { canonicalRoleName } from "../roles/role-aliases";
 import { countsTowardCap, getRole } from "../roles/role-registry";
 import { reconcileRunningTasks } from "./owned-task-store";
 
@@ -54,7 +53,7 @@ export function turnRole(db: Database, id: string): string | undefined {
   const role = db
     .query<{ role: string }, [string]>("SELECT role FROM turns WHERE id = ?")
     .get(id)?.role;
-  return role === undefined ? undefined : canonicalRoleName(role); // an old-name row reads as the current role
+  return role;
 }
 
 /** Insert a turn row in `running` state. */

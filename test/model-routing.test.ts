@@ -39,10 +39,10 @@ describe("env", () => {
     expect(cfg({ MEMORY_MODEL: "m" }).memoryModel).toBe("m");
   });
   test("BUDGET_<ROLE>_USD and COMPACT_WINDOW_<ROLE> are collected; a bad value names the var", () => {
-    const c = cfg({ BUDGET_DEV_USD: "5", COMPACT_WINDOW_DEV: "200000" });
+    const c = cfg({ BUDGET_DEVELOPER_USD: "5", COMPACT_WINDOW_DEVELOPER: "200000" });
     expect(c.budgetOverrides.developer).toBe(5);
     expect(c.compactOverrides.developer).toBe(200000);
-    expect(() => cfg({ BUDGET_DEV_USD: "abc" })).toThrow("BUDGET_DEV_USD");
+    expect(() => cfg({ BUDGET_DEVELOPER_USD: "abc" })).toThrow("BUDGET_DEVELOPER_USD");
   });
   test("removed MODEL / MODEL_<X> and the old two-part shapes are ignored and reported as deprecated", () => {
     const c = cfg({
@@ -74,7 +74,7 @@ describe("resolveBudget", () => {
     expect(resolveBudget(scout, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(0.75);
   });
   test("env pin; owner raise; the task ceiling limits both", () => {
-    expect(resolveBudget(dev, {}, cfg({ BUDGET_DEV_USD: "4" }))).toBe(4);
+    expect(resolveBudget(dev, {}, cfg({ BUDGET_DEVELOPER_USD: "4" }))).toBe(4);
     expect(resolveBudget(dev, { extraBudgetUsd: 1.0 }, cfg())).toBe(5.5);
     expect(resolveBudget(dev, { extraBudgetUsd: 3 }, cfg())).toBe(6); // TASK_BUDGET_USD
     expect(resolveBudget(dev, { spentUsd: 4 }, cfg())).toBe(2); // what is left of the task ceiling

@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import { canonicalRoleName } from "../roles/role-aliases";
 import type { TaskState } from "../tasks/task-contracts";
 
 /** Statuses of a task that is still the thread's live work (the focus is the newest of these). */
@@ -23,7 +22,7 @@ const COLUMNS = `id, thread_id AS threadId, owner_role AS ownerRole, status, sco
 /** Task as the routing contract wants it (time as ISO string). */
 const toState = (r: Row): TaskState => ({
   taskId: r.id,
-  ownerAgentId: r.ownerRole && canonicalRoleName(r.ownerRole), // an old-name row reads as the current role
+  ownerAgentId: r.ownerRole,
   status: r.status,
   scope: r.scope,
   lastProgressAt: new Date(r.lastProgressAt).toISOString(),
@@ -152,5 +151,5 @@ export function runningTurnOfTask(
          ORDER BY started_at DESC, rowid DESC LIMIT 1`,
     )
     .get(taskId, taskId);
-  return row ? { ...row, role: canonicalRoleName(row.role) } : undefined; // an old-name row reads as the current role
+  return row ?? undefined;
 }

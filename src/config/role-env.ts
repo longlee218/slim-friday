@@ -1,5 +1,3 @@
-import { canonicalRoleName } from "../roles/role-aliases";
-
 /* Env of per-role limits: budgets and compact windows. Errors name variables, never values. */
 
 type Env = Record<string, string | undefined>;
@@ -18,8 +16,8 @@ export interface RoutingEnv {
   deprecated: string[];
 }
 
-/** Role key of an env var name part: lowercased, an old role name (`BUDGET_DEV_USD`) reads as its current one. */
-const roleKey = (part: string): string => canonicalRoleName(part.toLowerCase());
+/** Role key of an env var name part: lowercased. */
+const roleKey = (part: string): string => part.toLowerCase();
 
 const trimmed = (v: string | undefined): string | undefined => v?.trim() || undefined;
 

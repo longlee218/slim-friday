@@ -52,13 +52,7 @@ async function main(): Promise<void> {
   const badRole = registryError();
   if (badRole) return fail(`Invalid role registry: ${badRole}`);
 
-  const { workspaces, needsMigration } = loadWorkspaces(config.agentHome);
-  // The bot refuses these workspaces on every message; say so once at boot.
-  if (needsMigration.length)
-    log.warn(
-      { workspaces: needsMigration },
-      "workspaces need `bun run migrate:locations` before they can be used",
-    );
+  const { workspaces } = loadWorkspaces(config.agentHome);
 
   // Fail closed: the home (persona, memory, db, logs) must not live inside a location or a git working tree.
   // A location equal to the owner's $HOME is allowed: the guard denies AGENT_HOME to every run instead.
@@ -90,7 +84,7 @@ async function main(): Promise<void> {
 
   logDeprecatedConfig(log, config);
 
-  // A v1 db is snapshotted before its first migration; a failed snapshot aborts the start, db untouched.
+  // Opening applies the Drizzle migrations; an old-format db is refused, untouched.
   let db: ReturnType<typeof openDb>;
   try {
     db = openDb(workspacePaths(config.agentHome).dbFile);

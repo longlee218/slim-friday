@@ -50,7 +50,7 @@ async function runInit(deps: InitDeps, space: string, name: string): Promise<str
     );
   let created: string | undefined;
   try {
-    // One source of truth for names: the registry (it also names legacy plain-id channels `<space>-agent`, `-2`...).
+    // One source of truth for names: the registry.
     const ws = loadWorkspaces(deps.home).workspaces.find((w) => w.name === space);
     if (ws?.channelDefs.some((c) => c.name === name))
       return done(

@@ -121,12 +121,6 @@ const TASK_ID_OK = [
  */
 const EXEMPT: string[] = [
   "retired-naming-scan.test.ts",
-  // the Repo -> Location migration reads the legacy `repos/<n>/repo.yaml` layout on purpose
-  "migrate-locations.ts",
-  "migrate-locations-cli.ts",
-  "migrate-locations-backup.ts",
-  "migrate-locations-report.ts",
-  "migrate-locations.test.ts",
   "db-schema.test.ts",
   "live-subagents.spike.test.ts",
 ];
@@ -199,8 +193,7 @@ test("relative markdown links in docs point at existing files", () => {
 });
 
 /**
- * Retired role names (`dev` renamed `developer`; the `assistant` role is gone): no role literal in src outside the one
- * alias map and the frozen legacy storage files. The SDK's own `"assistant"` message type is not a role and stays legal.
+ * Retired role names (`dev` renamed `developer`; the `assistant` role is gone): no role literal in src. The SDK's own `"assistant"` message type is not a role and stays legal.
  */
 const ROLE_NAMES: Record<string, RegExp> = {
   "dev role literal": /["'`]dev["'`]/,
@@ -208,11 +201,10 @@ const ROLE_NAMES: Record<string, RegExp> = {
   "assistant role literal":
     /\bname:\s*["']assistant["']|getRole\(["']assistant["']\)|ASSISTANT_ROLE/,
 };
-const ROLE_NAMES_EXEMPT = ["role-aliases.ts"];
 
-test("src holds no `dev` or `assistant` role name outside the alias map", () => {
+test("src holds no `dev` or `assistant` role name", () => {
   const hits: string[] = [];
-  for (const f of sources("src").filter((x) => !ROLE_NAMES_EXEMPT.some((e) => x.file.endsWith(e))))
+  for (const f of sources("src"))
     for (const [name, re] of Object.entries(ROLE_NAMES))
       if (re.test(f.text)) hits.push(`${f.file}: ${name}`);
   expect(hits).toEqual([]);

@@ -133,12 +133,9 @@ test("addWorkspaceChannel keeps other fields, is idempotent and deterministic", 
   });
 });
 
-test("workspaceState: legacy dir and foreign dirs are recognised", () => {
+test("workspaceState: foreign dirs are recognised", () => {
   const home = tmpHome();
   const paths = workspacePaths(home);
-  mkdirSync(paths.workspace("old").root, { recursive: true });
-  writeFileSync(paths.workspace("old").legacyConfig, "path: /x\n");
-  expect(workspaceState(home, "old")).toEqual({ kind: "legacy" });
   mkdirSync(paths.workspace("empty").root, { recursive: true });
   expect(workspaceState(home, "empty")).toEqual({ kind: "foreign" });
   symlinkSync(tmpdir(), paths.workspace("link").root);
@@ -152,15 +149,12 @@ const noGuild = (home: string) => ({
   ids: { guildId: "1", ownerId: "2", botId: "3" },
 });
 
-test("initWorkspace refuses a legacy dir and a foreign dir without touching Discord or the dir", async () => {
+test("initWorkspace refuses a foreign dir without touching Discord or the dir", async () => {
   const home = tmpHome();
   const paths = workspacePaths(home);
-  mkdirSync(paths.workspace("old").root, { recursive: true });
-  writeFileSync(paths.workspace("old").legacyConfig, "path: /x\n");
-  expect(await initWorkspace(noGuild(home), "old")).toContain("pre-Step-B");
-  expect(existsSync(paths.workspace("old").config)).toBe(false);
   mkdirSync(paths.workspace("odd").root, { recursive: true });
   expect(await initWorkspace(noGuild(home), "odd")).toContain("not a workspace");
+  expect(existsSync(paths.workspace("odd").config)).toBe(false);
 });
 
 test("initWorkspace rerun on a finished workspace says already set up and creates nothing", async () => {

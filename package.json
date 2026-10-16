@@ -6,7 +6,6 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "bootstrap:discord": "bun run src/discord-setup/bootstrap-discord-cli.ts",
-    "migrate:locations": "bun run src/locations/migrate-locations-cli.ts",
     "db:generate": "drizzle-kit generate",
     "metrics:lead": "bun run src/observability/lead-metrics-cli.ts",
     "memory:compact": "bun run src/memory/memory-compact-cli.ts",

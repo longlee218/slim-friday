@@ -4,7 +4,7 @@ import { loadWorkspaces, type Workspace, type WorkspaceChannel } from "./workspa
 
 /** A task that cannot be placed in a workspace: `reason` is logged, `reply` goes to the owner. */
 export interface WorkspaceRefusal {
-  reason: "unmapped_channel" | "needs_migration" | "legacy_layout";
+  reason: "unmapped_channel";
   reply: string;
 }
 
@@ -33,9 +33,7 @@ export const channelLocations = (ws: Workspace, channel: WorkspaceChannel): Loca
 
 /**
  * Scan the workspaces (re-read per task so yaml edits apply at once), create their missing files (never
- * overwrites) and route `channelId` to its workspace. Refuses (reply + reason) when the channel is unmapped,
- * the workspace still has pre-v7 `repos/` (needs `bun run migrate:locations`), or only the pre-Step-B
- * per-repo layout exists (migration pointer). Returns the space and the channel entry (name, mode, locations). A workspace with no location is fine: it works in its `cwd/`.
+ * overwrites) and route `channelId` to its workspace. Refuses (reply + reason) when the channel is unmapped. Returns the space and the channel entry (name, mode, locations). A workspace with no location is fine: it works in its `cwd/`.
  */
 export function selectWorkspace(
   agentHome: string,
@@ -45,18 +43,7 @@ export function selectWorkspace(
   ensureHome(agentHome, scan.workspaces);
   const ws = resolveTaskWorkspace(scan.workspaces, channelId);
   const channel = ws && channelOf(ws, channelId);
-  if (ws && channel) {
-    if (!scan.needsMigration.includes(ws.name)) return { ws, channel };
-    return {
-      reason: "needs_migration",
-      reply: `Workspace ${ws.name} still uses repos/. Stop the bot and run \`bun run migrate:locations\`.`,
-    };
-  }
-  if (scan.legacy.length > 0 && scan.workspaces.length === 0)
-    return {
-      reason: "legacy_layout",
-      reply: "Old workspace layout found: see the cutover runbook (docs/discord-setup.md).",
-    };
+  if (ws && channel) return { ws, channel };
   return {
     reason: "unmapped_channel",
     reply: `This channel is not linked to a workspace. Add its id \`${channelId}\` to \`channels:\` in workspaces/<ws>/workspace.yaml (or run \`/init-workspace <name>\` in #ops-control).`,

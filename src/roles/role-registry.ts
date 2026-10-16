@@ -3,7 +3,6 @@ import { DISCORD_MANAGER_ROLE } from "./builtin/discord-manager-role";
 import { LEAD_ROLE } from "./builtin/lead-role";
 import { PLANNER_ROLE } from "./builtin/planner-role";
 import { SCOUT_ROLE } from "./builtin/scout-role";
-import { canonicalRoleName } from "./role-aliases";
 import type { RoleDefinition } from "./role-types";
 
 /** Every role of the app, by name. A new role = one file in `builtin/` + one line here. */
@@ -27,9 +26,9 @@ export const dispatchableWorkers = (): RoleDefinition[] =>
 export const controlRole = (): RoleDefinition | undefined =>
   Object.values(ROLES).find((r) => r.surface === "control");
 
-/** Role by name (an old stored name reads as its current one); an unknown name is a programming/config error. */
+/** Role by name; an unknown name is a programming/config error. */
 export function getRole(name: string): RoleDefinition {
-  const role = ROLES[canonicalRoleName(name)];
+  const role = ROLES[name];
   if (!role) throw new Error(`Unknown role: ${name}`);
   return role;
 }

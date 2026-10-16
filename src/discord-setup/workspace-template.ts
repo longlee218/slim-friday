@@ -7,8 +7,6 @@ import { workspaceMemoryTemplate } from "../memory/persona-templates";
 /** What `workspaces/<name>` is right now. */
 export type WorkspaceState =
   | { kind: "missing" }
-  /** Pre-Step-B per-location dir (config.yaml, no workspace.yaml): never touched. */
-  | { kind: "legacy" }
   /** A dir that is not a real workspace (symlink, file, or no workspace.yaml). */
   | { kind: "foreign" }
   | { kind: "workspace"; channels: string[] };
@@ -22,8 +20,8 @@ const PERSONA_STUBS: Record<string, string> = {
   "AGENTS.md": "# Agents\n<!-- Optional override of the root AGENTS.md for this workspace. -->\n",
 };
 
-/** A `channels:` entry as written in workspace.yaml: a plain id (legacy) or an object with `id`. */
-type ChannelEntry = string | ({ id: string } & Record<string, unknown>);
+/** A `channels:` entry as written in workspace.yaml: an object with `id`. */
+type ChannelEntry = { id: string } & Record<string, unknown>;
 
 /**
  * The raw `channels:` entries. An unquoted 17-20 digit id is parsed by YAML as a lossy number: never map it to
@@ -32,15 +30,14 @@ type ChannelEntry = string | ({ id: string } & Record<string, unknown>);
 function channelEntries(value: unknown): ChannelEntry[] {
   if (value === undefined || value === null) return [];
   const ok = (c: unknown) =>
-    typeof c === "string" ||
-    (typeof c === "object" && c !== null && typeof (c as { id?: unknown }).id === "string");
+    typeof c === "object" && c !== null && typeof (c as { id?: unknown }).id === "string";
   if (!Array.isArray(value) || !value.every(ok))
-    throw new Error("workspace.yaml channels must be quoted strings or objects with a string id");
+    throw new Error("workspace.yaml channels must be objects with a string id");
   return value as ChannelEntry[];
 }
 
 /** The Discord id of one `channels:` entry. */
-const entryId = (c: ChannelEntry): string => (typeof c === "string" ? c : c.id);
+const entryId = (c: ChannelEntry): string => c.id;
 
 /** Inspect `workspaces/<name>` without changing anything. */
 export function workspaceState(home: string, name: string): WorkspaceState {
@@ -52,7 +49,7 @@ export function workspaceState(home: string, name: string): WorkspaceState {
     return { kind: "missing" };
   }
   if (!st.isDirectory()) return { kind: "foreign" };
-  if (!existsSync(ws.config)) return { kind: existsSync(ws.legacyConfig) ? "legacy" : "foreign" };
+  if (!existsSync(ws.config)) return { kind: "foreign" };
   try {
     const data = (Bun.YAML.parse(readFileSync(ws.config, "utf8")) ?? {}) as { channels?: unknown };
     return { kind: "workspace", channels: channelEntries(data.channels).map(entryId) };
@@ -86,8 +83,7 @@ export interface NewChannel {
 }
 
 /**
- * Append `{id, name, mode}` to `workspace.yaml` `channels` (idempotent by id; refuses a name an object entry already uses; existing entries, legacy plain
- * ids included, are kept as they are). Other fields are kept; the file is re-rendered deterministically, so
+ * Append `{id, name, mode}` to `workspace.yaml` `channels` (idempotent by id; refuses a name an entry already uses; existing entries are kept as they are). Other fields are kept; the file is re-rendered deterministically, so
  * comments in it are lost. Atomic via temp file + rename.
  */
 export function addWorkspaceChannel(home: string, name: string, channel: NewChannel): void {
@@ -95,7 +91,7 @@ export function addWorkspaceChannel(home: string, name: string, channel: NewChan
   const data = (Bun.YAML.parse(readFileSync(config, "utf8")) ?? {}) as Record<string, unknown>;
   const channels = channelEntries(data.channels);
   if (!channels.some((c) => entryId(c) === channel.id)) {
-    if (channels.some((c) => typeof c === "object" && c.name === channel.name))
+    if (channels.some((c) => c.name === channel.name))
       throw new Error(`channel name already used in ${name}: ${channel.name}`);
     channels.push({ ...channel });
   }

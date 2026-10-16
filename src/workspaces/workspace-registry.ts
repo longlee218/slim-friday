@@ -1,6 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
 import { z } from "zod";
 import { isWorkspaceName, workspacePaths } from "../config/workspace-paths";
 import { isInside } from "../guardrails/paths";
@@ -27,34 +26,27 @@ export interface Workspace {
   description: string;
   /** Discord parent-channel ids routed to this workspace (each id belongs to exactly one workspace). */
   channels: string[];
-  /** The same channels with their name, mode and allowed locations (a legacy plain id gets the defaults). */
+  /** The same channels with their name, mode and allowed locations. */
   channelDefs: WorkspaceChannel[];
   /** Valid locations of the workspace. */
   locations: Location[];
 }
 
-/** Result of a scan: loaded workspaces plus pre-Step-B per-location dirs that were found but never loaded. */
+/** Result of a scan: the loaded workspaces. */
 export interface WorkspaceScan {
   workspaces: Workspace[];
-  /** Names of legacy dirs (`config.yaml` and no `workspace.yaml`): a migration is needed. */
-  legacy: string[];
-  /** Workspaces with a pre-v7 `repos/<n>/repo.yaml` (not yet migrated to `locations:`): never loaded silently. */
-  needsMigration: string[];
 }
 
 /** Discord snowflake. */
 const SNOWFLAKE = /^\d{17,20}$/;
 
-/** A channel entry: a plain id (legacy) or `{id, name, mode, locations?}`. */
-const channelSchema = z.union([
-  z.string().regex(SNOWFLAKE),
-  z.object({
-    id: z.string().regex(SNOWFLAKE),
-    name: z.string().trim().min(1),
-    mode: z.enum(["task", "chat"]).default("task"),
-    locations: z.array(z.string()).optional(),
-  }),
-]);
+/** A channel entry: an object `{id, name, mode, locations?}`. */
+const channelSchema = z.object({
+  id: z.string().regex(SNOWFLAKE),
+  name: z.string().trim().min(1),
+  mode: z.enum(["task", "chat"]).default("task"),
+  locations: z.array(z.string()).optional(),
+});
 
 /** Schema of `workspace.yaml`: no `default` key; `locations` entries are validated one by one by the location registry. */
 const workspaceSchema = z.object({
@@ -64,16 +56,6 @@ const workspaceSchema = z.object({
   /** Read by src/runtime/skills-config.ts: kept here so the key stays valid. */
   skills: z.object({ extra: z.unknown().optional() }).passthrough().optional(),
 });
-
-/** True when `ws` still has a pre-v7 `repos/<n>/repo.yaml` (the owner must run the migration). */
-function hasLegacyRepos(wsRoot: string): boolean {
-  const dir = join(wsRoot, "repos");
-  try {
-    return readdirSync(dir).some((n) => existsSync(join(dir, n, "repo.yaml")));
-  } catch {
-    return false; // no repos dir
-  }
-}
 
 /** Warn (not skip) when location paths of different workspaces are equal or nested. */
 function warnOverlap(workspaces: Workspace[]): void {
@@ -96,7 +78,7 @@ function warnOverlap(workspaces: Workspace[]): void {
 export function loadWorkspaces(agentHome: string, userHome = homedir()): WorkspaceScan {
   const log = logger.child({ module: "workspace-registry" });
   const paths = workspacePaths(agentHome);
-  const out: WorkspaceScan = { workspaces: [], legacy: [], needsMigration: [] };
+  const out: WorkspaceScan = { workspaces: [] };
   let names: string[] = [];
   try {
     names = readdirSync(paths.workspaces).sort();
@@ -109,10 +91,7 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
   for (const name of names) {
     const ws = paths.workspace(name);
     if (!isRealDir(ws.root)) continue;
-    if (!existsSync(ws.config)) {
-      if (existsSync(ws.legacyConfig)) out.legacy.push(name); // old layout: listed, never loaded
-      continue;
-    }
+    if (!existsSync(ws.config)) continue;
     if (!isWorkspaceName(name)) {
       log.warn({ name }, "skipped workspace: bad name");
       continue;
@@ -126,7 +105,6 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
         continue;
       }
       const { description = "", channels, locations } = parsed.data;
-      if (hasLegacyRepos(ws.root)) out.needsMigration.push(name);
       const locs = loadLocations(locations, ws, forbidden, userHomes);
       const channelDefs = checkChannels(
         name,

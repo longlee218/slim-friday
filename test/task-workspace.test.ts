@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { captureLogs } from "../src/observability/logger";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { resolveTaskWorkspace, selectWorkspace } from "../src/workspaces/task-workspace";
 import type { Workspace } from "../src/workspaces/workspace-registry";
@@ -47,21 +46,12 @@ test("selectWorkspace: a workspace with 0 locations works (cwd dir)", () => {
   clearWorkspaces(env.home);
   const w = join(env.home, "workspaces", "empty");
   mkdirSync(w, { recursive: true });
-  writeFileSync(join(w, "workspace.yaml"), `channels:\n  - "${TEST_CHANNEL}"\n`);
+  writeFileSync(
+    join(w, "workspace.yaml"),
+    `channels:\n  - {id: "${TEST_CHANNEL}", name: t-agent}\n`,
+  );
   const r = selectWorkspace(env.home, TEST_CHANNEL);
   expect("ws" in r && r.ws.locations).toEqual([]);
-});
-
-test("selectWorkspace: a workspace that still has repos/<n>/repo.yaml needs the migration", () => {
-  const env = makeEnv();
-  clearWorkspaces(env.home);
-  const w = join(env.home, "workspaces", "old");
-  mkdirSync(join(w, "repos", "api"), { recursive: true });
-  writeFileSync(join(w, "repos", "api", "repo.yaml"), "path: /x\n");
-  writeFileSync(join(w, "workspace.yaml"), `channels:\n  - "${TEST_CHANNEL}"\n`);
-  const r = selectWorkspace(env.home, TEST_CHANNEL);
-  expect("reason" in r && r.reason).toBe("needs_migration");
-  expect("reply" in r && r.reply).toContain("bun run migrate:locations");
 });
 
 test("handler: unmapped channel is refused before any task row or agent run", async () => {
@@ -85,27 +75,5 @@ test("handler: unmapped channel is refused before any task row or agent run", as
   expect(reply).toContain("This channel is not linked to a workspace");
   expect(reply).toContain("`100000000000000077`");
   expect(ran).toBe(false);
-  expect(env.db.query("SELECT count(*) AS n FROM turns").get()).toEqual({ n: 0 });
-});
-
-test("handler: mapped channel whose workspace still has repos/ -> migration refusal, logs channelId", async () => {
-  const env = makeEnv();
-  mkdirSync(join(env.home, "workspaces", "main", "repos", "old"), { recursive: true });
-  writeFileSync(join(env.home, "workspaces", "main", "repos", "old", "repo.yaml"), "path: /x\n");
-  const handle = createTurnHandler({ db: env.db, config: env.config });
-  const cap = captureLogs();
-  const reply = await handle({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th",
-    text: "hello",
-  });
-  cap.stop();
-  expect(reply).toContain("bun run migrate:locations");
-  // task.routed carries the routing channel.
-  expect(cap.lines.find((l) => l.event === "task.routed")).toMatchObject({
-    channelId: TEST_CHANNEL,
-  });
   expect(env.db.query("SELECT count(*) AS n FROM turns").get()).toEqual({ n: 0 });
 });

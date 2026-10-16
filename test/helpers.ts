@@ -127,12 +127,15 @@ export function addLocation(
   const { workspace = "main", channels, path, git = true } = opts;
   const ws = workspacePaths(home).workspace(workspace);
   mkdirSync(ws.location(name).root, { recursive: true }); // the memory dir of the location
-  const doc: { channels?: string[]; locations?: unknown[] } = existsSync(ws.config)
+  const doc: { channels?: { id: string; name: string }[]; locations?: unknown[] } = existsSync(
+    ws.config,
+  )
     ? (Bun.YAML.parse(readFileSync(ws.config, "utf8")) ?? {})
     : {};
   if (channels || !existsSync(ws.config)) {
     // `main` is the default test workspace and owns TEST_CHANNEL; any other workspace needs its own channels.
-    doc.channels = channels ?? (workspace === "main" ? [TEST_CHANNEL] : []);
+    const ids = channels ?? (workspace === "main" ? [TEST_CHANNEL] : []);
+    doc.channels = ids.map((id, i) => ({ id, name: `${workspace}-agent${i ? `-${i + 1}` : ""}` }));
   }
   const location = path ?? defaultLocationPath(home, name, workspace);
   mkdirSync(location, { recursive: true });

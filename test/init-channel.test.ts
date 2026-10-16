@@ -118,14 +118,6 @@ test("refuses when the first channel is not in a category named like the space",
   expect(yaml(s.home).channels).toHaveLength(1);
 });
 
-test("refuses a name that collides with a legacy plain-id channel's synthetic name", async () => {
-  const s = setup();
-  const { config } = workspacePaths(s.home).workspace("personal");
-  await Bun.write(config, `channels:\n  - "${FIRST}"\n`);
-  expect(await initChannel(s.deps, "personal", "personal-agent")).toContain("already a channel");
-  expect(s.created).toHaveLength(0);
-});
-
 test("refuses a missing space, a space without channels and a vanished first channel", async () => {
   const s = setup();
   expect(await initChannel(s.deps, "nope", "x")).toContain("missing or not set up");

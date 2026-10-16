@@ -57,12 +57,6 @@ export async function initWorkspace(deps: InitDeps, name: string): Promise<strin
  */
 async function runInit(deps: InitDeps, name: string): Promise<string> {
   const state = workspaceState(deps.home, name);
-  if (state.kind === "legacy")
-    return done(
-      name,
-      "legacy_dir",
-      `workspaces/${name} is a pre-Step-B location folder. Move it away first.`,
-    );
   if (state.kind === "foreign")
     return done(
       name,

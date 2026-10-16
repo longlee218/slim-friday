@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { locationMemoryFile } from "../src/memory/location-memory";
@@ -7,14 +7,7 @@ import { buildPromptContext } from "../src/memory/prompt-context";
 import { locationOfTool } from "../src/observability/tool-hooks";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
-import {
-  CHANNEL_2,
-  clearWorkspaces,
-  makeEnv,
-  resultMsg,
-  TEST_CHANNEL,
-  twoWorkspaces,
-} from "./helpers";
+import { CHANNEL_2, resultMsg, TEST_CHANNEL, twoWorkspaces } from "./helpers";
 import { devLeadQuery, workersDone } from "./lead-harness";
 import { writeLocationNotes } from "./memory-fixture";
 
@@ -155,24 +148,4 @@ test("source has no legacyWorkspace, loadLocationRegistry or TODO(1b) leftovers"
       hits.push(file);
   }
   expect(hits).toEqual([]);
-});
-
-test("legacy dir and no workspace: cutover reply, and the legacy dir is left untouched", async () => {
-  const env = makeEnv();
-  clearWorkspaces(env.home);
-  const old = join(env.home, "workspaces", "oldlocation");
-  mkdirSync(old, { recursive: true });
-  writeFileSync(join(old, "config.yaml"), "path: /x\n");
-  const handle = createTurnHandler({ db: env.db, config: env.config });
-  const reply = await handle({
-    source: "t",
-    channelId: TEST_CHANNEL,
-    userId: "u",
-    threadId: "th",
-    text: "hi",
-  });
-  expect(reply).toBe(
-    "Old workspace layout found: see the cutover runbook (docs/discord-setup.md).",
-  );
-  expect(readdirSync(old)).toEqual(["config.yaml"]); // nothing written into a legacy dir
 });

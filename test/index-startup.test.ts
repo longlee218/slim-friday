@@ -61,7 +61,7 @@ test("exits 1 when a workspace lists channels but DISCORD_GUILD_ID is not set", 
   const home = mkdtempSync(join(tmpdir(), "friday-idx-"));
   const ws = workspacePaths(home).workspace("w");
   mkdirSync(ws.root, { recursive: true });
-  writeFileSync(ws.config, 'channels:\n  - "100000000000000001"\n');
+  writeFileSync(ws.config, 'channels:\n  - {id: "100000000000000001", name: w-agent}\n');
   const r = await runIndex(
     { DISCORD_TOKEN: "fake.discord.token", OWNER_DISCORD_ID: "1", CLAUDE_CODE_OAUTH_TOKEN: "tok" },
     home,

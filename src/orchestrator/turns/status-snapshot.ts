@@ -1,6 +1,5 @@
 import type { Database } from "bun:sqlite";
 import { redactText } from "../../observability/redact";
-import { canonicalRoleName } from "../../roles/role-aliases";
 import { activeOwnedTask } from "../../storage/owned-task-store";
 import { latestToolCall } from "../../storage/run-metrics-store";
 import { deriveThreadState, threadToolApproval } from "../thread/thread-state";
@@ -68,7 +67,7 @@ export function statusFacts(
     const note = getProgressNote(task.id);
     return {
       running: true,
-      role: canonicalRoleName(task.role),
+      role: task.role,
       state: deriveThreadState(db, threadId),
       seconds: secondsSince(task.started_at, now),
       ...withTools(db, task.id),

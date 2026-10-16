@@ -42,7 +42,7 @@ test("decisionOf reads the recorded dispatch: none, one item, two items, a plan 
       itemKey: id,
     });
   };
-  item("i1", "dev"); // an old row reads as developer
+  item("i1", "developer");
   expect(decisionOf(db)).toEqual({ strategy: "DIRECT", roles: ["developer"] });
   item("i2", "scout");
   expect(decisionOf(db)).toEqual({ strategy: "DELEGATE", roles: ["developer", "scout"] });

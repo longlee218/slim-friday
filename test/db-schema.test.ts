@@ -55,7 +55,7 @@ test("task/run/tool_call helpers insert rows", () => {
 
 test("restart cleanup: waiting_approval tasks become interrupted, pending approvals cancelled", () => {
   const { db } = makeEnv();
-  insertTurn(db, { id: "t1", threadId: "th", source: "d", location: "r", role: "dev" });
+  insertTurn(db, { id: "t1", threadId: "th", source: "d", location: "r", role: "developer" });
   setTurnStatus(db, "t1", "waiting_approval");
   db.run(
     "INSERT INTO approvals (id, turn_id, tool, summary, decision, requested_at) VALUES ('a','t1',?,'s','pending',1)",

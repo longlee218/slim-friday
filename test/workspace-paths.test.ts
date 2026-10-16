@@ -42,7 +42,6 @@ test("workspace layout: workspaces/<ws>/locations/<location>/{location.yaml,MEMO
     root: "/h/workspaces/shop/locations/api",
     memory: "/h/workspaces/shop/locations/api/MEMORY.md",
   });
-  expect(workspacePaths("/h").workspace("api").legacyConfig).toBe("/h/workspaces/api/config.yaml");
 });
 
 test("name rules: workspace lowercase-hyphen and not reserved; location allows dots and underscores", () => {

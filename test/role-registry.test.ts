@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { HAIKU_MODEL, SONNET_MODEL } from "../src/config/model-ids";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { mcpServersFor } from "../src/mcp/mcp-servers";
-import { canonicalRoleName } from "../src/roles/role-aliases";
 import { dispatchableWorkers, getRole, ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import {
@@ -89,10 +88,4 @@ test("no role carries a tag or aliases (the role tag is gone)", () => {
     expect("tag" in r).toBe(false);
     expect("aliases" in r).toBe(false);
   }
-});
-
-test("old role name `dev` reads as developer; a stored `dev` row still resolves", () => {
-  expect(canonicalRoleName("dev")).toBe("developer");
-  expect(canonicalRoleName("scout")).toBe("scout");
-  expect(getRole("dev")).toBe(getRole("developer"));
 });
