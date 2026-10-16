@@ -266,3 +266,35 @@ test("sandbox: a write grant that contains the agent home (a $HOME location) get
   expect(sb.filesystem.denyWrite).not.toContain(agentHome);
   expect(sb.filesystem.denyWrite).not.toContain(own);
 });
+
+test("sandbox: sensitive files of a grant (.env, keys/, credentials/) are denied read and write, skipped dirs are not searched", () => {
+  const root = tmpRoot("sbx-sens-");
+  mkdirSync(join(root, "keys"));
+  mkdirSync(join(root, "app", "node_modules"), { recursive: true });
+  writeFileSync(join(root, ".env"), "X=1");
+  writeFileSync(join(root, "app", ".env.local"), "X=1");
+  writeFileSync(join(root, "app", "node_modules", ".env"), "X=1");
+  writeFileSync(join(root, "README.md"), "x");
+  const sb = workerSandbox({
+    cwd: root,
+    writePaths: [root],
+    readPaths: [root],
+    envelope: defaultEnvelope("g", ["loc"], root),
+  } as never) as {
+    filesystem: {
+      denyRead: string[];
+      denyWrite: string[];
+      allowWrite: string[];
+      allowRead: string[];
+    };
+  };
+  const f = sb.filesystem;
+  for (const p of [join(root, ".env"), join(root, "app", ".env.local"), join(root, "keys")]) {
+    expect(f.denyRead).toContain(p);
+    expect(f.denyWrite).toContain(p);
+    expect(f.allowWrite).not.toContain(p);
+  }
+  expect(f.denyRead).not.toContain(join(root, "app", "node_modules", ".env"));
+  expect(f.allowRead).toContain(join(root, "README.md"));
+  expect(f.allowWrite).not.toContain(root);
+});

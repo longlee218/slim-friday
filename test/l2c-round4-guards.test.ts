@@ -56,8 +56,9 @@ test("H3: a granted home dir is fully writable (dotfiles, git dir); a path outsi
   expect(checkToolCall("Write", { file_path: "/etc/x", content: "x" }, ctx).decision).toBe("deny");
   // The sandbox: the home is a grant, so its credential dirs are no longer denied (the location wins); the agent home stays denied.
   const fs = (workerSandbox(ctx) as { filesystem: Record<string, string[]> }).filesystem;
-  expect(fs.allowWrite).toContain(h);
-  expect(fs.denyWrite).toBeUndefined();
+  // A granted home is listed entry by entry around its sensitive files (a real home holds some: ~/.ssh/id_*, .env...).
+  expect(fs.allowWrite.some((p) => p === h || p.startsWith(`${h}/`))).toBe(true);
+  expect(fs.denyWrite ?? []).not.toContain(h); // only its sensitive entries are denied, never the home itself
   expect(fs.denyRead).not.toContain(join(h, ".ssh"));
   expect(fs.denyRead).toContain(home);
 });

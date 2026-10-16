@@ -69,7 +69,7 @@ test("sandbox: a worker run passes sandbox options to query (writes in its dirs 
     network: { allowedDomains: [], strictAllowlist: true },
   });
   const fs = sb?.filesystem as { allowWrite: string[]; denyWrite?: string[]; denyRead: string[] };
-  expect(fs.allowWrite).toContain(env.location);
+  expect(fs.allowWrite).toContain(realpathSync(env.location));
   expect(fs.allowWrite).toContain(scratch); // the goal dir
   expect(fs.denyWrite).toBeUndefined(); // the location is trusted: its git dir is writable too
   expect(fs.denyRead).toContain(home);

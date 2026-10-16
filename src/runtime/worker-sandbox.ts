@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { GuardrailContext } from "../policy/check-tool-call";
 import { isInside, realOrSame } from "../policy/paths";
+import { findSensitive } from "./sensitive-files";
 
 /* OS-level Bash sandbox of a dispatched worker (SDK `Options.sandbox`: Seatbelt on macOS, bubblewrap on Linux). This is the REAL
    boundary: the app does not parse the command line. A location the owner registered is
@@ -76,6 +77,9 @@ export function workerSandbox(guard: GuardrailContext | undefined): Options["san
   // deny it explicitly (live probe 2026-10-16: without this a read-only worker could create and overwrite files in its cwd).
   const cwd = guard.cwd ? realOrSame(guard.cwd) : undefined;
   const writeGrants = allowWrite.map(realOrSame);
+  // Sensitive files of the grants (.env, keys/...): neither readable nor writable, even inside a granted dir.
+  const sensitive = [...new Set(grants.flatMap(findSensitive))];
+  // `sensitive` also goes to denyWrite: the cwd is always writable for the SDK, so the carve of allowWrite alone would not cover it.
   const denyCwd = cwd && !writeGrants.some((w) => isInside(w, cwd)) ? [cwd] : [];
   // A write grant that contains the agent home (a `$HOME` location) must not reach it: deny it entry by entry, around the run's
   // own write dirs that sit inside it (scratch, worktrees, goal dir).
@@ -87,25 +91,30 @@ export function workerSandbox(guard: GuardrailContext | undefined): Options["san
         writeGrants.filter((w) => w !== a && isInside(a, w)),
       ),
     );
-  const denyWrite = [...new Set([...denyCwd, ...denyAgentHome])];
+  const denyWrite = [...new Set([...denyCwd, ...denyAgentHome, ...sensitive])];
   return {
     enabled: true,
     failIfUnavailable: true,
     autoAllowBashIfSandboxed: false,
     allowUnsandboxedCommands: false,
     filesystem: {
-      allowWrite,
+      allowWrite: [...new Set(writeGrants.flatMap((w) => carve(w, sensitive)))],
       ...(denyWrite.length && { denyWrite }),
       denyRead: [
         ...new Set([
           ...agentHome,
+          ...sensitive,
           ...creds,
           ...homes,
           ...(process.platform === "darwin" ? ["/Users"] : []),
         ]),
       ],
       allowRead: [
-        ...new Set([...grants.flatMap((g) => carve(g, agentHome)), ...inner, ...toolchain]),
+        ...new Set([
+          ...grants.flatMap((g) => carve(g, [...agentHome, ...sensitive])),
+          ...inner,
+          ...toolchain,
+        ]),
       ],
     },
     network: { allowedDomains: [], strictAllowlist: true },

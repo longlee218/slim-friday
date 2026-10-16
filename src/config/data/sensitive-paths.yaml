@@ -1,0 +1,23 @@
+# Files and dirs of a granted location that a worker's shell may not read, write or delete (the OS sandbox denies them).
+# Edit this list to add more; matching is case-insensitive, on the basename.
+# Basename globs of sensitive files.
+files:
+  - ".env"
+  - ".env.*"
+  - "*.pem"
+  - "*.key"
+  - "id_rsa*"
+  - "id_ed25519*"
+  - "credentials*"
+# Dir names whose whole content is sensitive.
+dirs:
+  - "keys"
+  - "credentials"
+# Dirs the search never enters (big, generated or git internals).
+skip:
+  - "node_modules"
+  - ".git"
+  - "dist"
+  - "build"
+  - "target"
+  - ".venv"
