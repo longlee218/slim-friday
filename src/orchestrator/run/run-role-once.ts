@@ -10,7 +10,7 @@ import { runAgent } from "../../runtime/run-agent";
 import { setProgressNote } from "../turns/progress-notes";
 import type { askTimeoutControl } from "./ask-timeout-control";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
-import type { RoleScope } from "./role-scope";
+import type { RoleScope } from "./role-scope-types";
 import { runExtraContext } from "./run-extra-context";
 import type { watchRun } from "./run-role-watch";
 

@@ -2,12 +2,11 @@ import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentConfig } from "../../config/agent-config";
 import { claudePlansDir, workspacePaths } from "../../config/workspace-paths";
-import { controlScope } from "../../discord-setup/control-scope";
-import type { Location } from "../../locations/location-registry";
-import type { GuardScope } from "../../policy/check-tool-call";
 import { realOrSame } from "../../policy/paths";
 import type { RoleDefinition } from "../../roles/role-types";
+import { controlScope } from "./control-scope";
 import type { RoleRunInput } from "./role-run-types";
+import type { RoleScope } from "./role-scope-types";
 
 /* Where a role run works and what it may touch, from role DATA (capabilities, background) and the run input. */
 
@@ -20,22 +19,6 @@ function grantedUnderHome(
   return [dirs.cwd, dirs.worktrees, dirs.locations, attached, ...(scratch ? [scratch] : [])].map(
     realOrSame,
   );
-}
-
-/** What `roleScope` decides for one run. */
-export interface RoleScope {
-  /** Working dir of the run (real path for a writing role). */
-  cwd: string;
-  /** Extra dirs the agent may use: the other locations, the thread's attachment copy, scratch and worktrees dirs of a writing role. */
-  additionalDirectories: string[];
-  /** Locations the run is about: the pinned one, else every location it sees. */
-  scope: Location[];
-  /** Claude session to resume, when there is one for this cwd. */
-  sessionId?: string;
-  /** Path rules of the guard. */
-  guard: GuardScope;
-  /** Writing role: where the agent may put a git worktree for the location it runs in. */
-  worktreesDir?: string;
 }
 
 /**

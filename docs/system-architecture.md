@@ -169,7 +169,7 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 | Part | Where | Behaviour |
 |---|---|---|
 | Entry | `src/discord-setup/admin-handler.ts` → `control-role-run.ts` | After the admin gate. One session per control channel (`threadId` = channel id), fresh after 24 h idle. `stop` aborts; a message while running gets "still running". Joined into shutdown (`abortAll`, `drain`) |
-| Scope | `src/orchestrator/engine/control-scope.ts` | cwd `<AGENT_HOME>/tmp/control`; no write path. Per space: reads `workspace.yaml`, the 5 persona/memory files and `channels/` only. AGENT_HOME otherwise denied. No memory tools; root persona only (`run-extra-context.ts`) |
+| Scope | `src/orchestrator/run/control-scope.ts` | cwd `<AGENT_HOME>/tmp/control`; no write path. Per space: reads `workspace.yaml`, the 5 persona/memory files and `channels/` only. AGENT_HOME otherwise denied. No memory tools; root persona only (`run-extra-context.ts`) |
 | Tools | in-process server `discord-admin` (`src/mcp/discord-admin-server.ts`), built per query | `ListSpaces`, `CreateSpaceOrChannel`, `WriteSpaceFile`. No delete or rename tool |
 | Skill | `src/roles/builtin/skills/discord-server-manager/SKILL.md` | App-owned, data only |
 | Restart | `src/lifecycle/resume-interrupted.ts` | An interrupted control run is acknowledged, never offered a Continue button |
@@ -262,7 +262,7 @@ Code: `src/ingress/thread-placement.ts` (placeholder, open, adopt), `threads-por
 | Worker tool | `src/tools/ReportResultTool/`, `src/mcp/mcp-servers.ts` | typed worker result, in-process `worker` server |
 | Roles | `src/roles/` | role type, registry, role aliases (`role-aliases.ts`), `lead-role.ts`, `planner-role.ts`, `scout-role.ts`, `developer-role.ts`, `discord-manager-role.ts` (each role file holds its prompt text) |
 | Lead prompt | `src/orchestrator/strategy/lead-md.ts`, `lead-context-block.ts`, `src/orchestrator/engine/lead-system.ts` | `LEAD.md` (roles, policy, caps) and the per-run data block |
-| Control surface | `src/discord-setup/control-role-run.ts`, `src/orchestrator/engine/control-scope.ts`, `run-extra-context.ts`, `src/mcp/discord-admin-server.ts`, `src/tools/{ListSpaces,CreateSpaceOrChannel,WriteSpaceFile}Tool/`, `src/roles/builtin/skills/` | `#ops-control` role run, no-workspace scope, discord-admin tools, app-owned skills |
+| Control surface | `src/discord-setup/control-role-run.ts`, `src/orchestrator/run/control-scope.ts`, `run-extra-context.ts`, `src/mcp/discord-admin-server.ts`, `src/tools/{ListSpaces,CreateSpaceOrChannel,WriteSpaceFile}Tool/`, `src/roles/builtin/skills/` | `#ops-control` role run, no-workspace scope, discord-admin tools, app-owned skills |
 | Locations and workspaces | `src/locations/`, `src/workspaces/` | location and workspace registries (fail closed), git detection, `git-cli.ts` |
 | Memory | `src/memory/` | persona layers, location and channel memory writers, channel digest, owner commands, compaction |
 | Intent (parked) | `src/intent/jev/`, `src/intent/role-tag.ts`, `routing-message-text.ts`, `recent-messages.ts` | Jev code kept, `JEV_ENABLED = false`, not wired; role-tag parser for `[role]` direct dispatch; message text helper. No classifier and no intent routing exist |

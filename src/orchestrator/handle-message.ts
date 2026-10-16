@@ -1,50 +1,17 @@
-import type { Database } from "bun:sqlite";
-import type { AgentConfig } from "../config/agent-config";
 import type { InboundMessage } from "../ingress/discord-message-handler";
 import { renderStatus } from "../ingress/status-copy";
-import type { ThreadTitlePort } from "../ingress/thread-rename";
 import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/user-copy";
 import { DRAIN_REPLY, isDraining } from "../lifecycle/drain";
 import { logEvent, logger, runWithLogContext } from "../observability/logger";
-import type { ApprovalGateway } from "../owner-approval/approval-types";
 import { ownerConfirm } from "../owner-approval/owner-confirm";
-import type { QueryFn } from "../runtime/run-agent";
 import { purgeThreadTrash } from "./effects/purge-trash";
 import { createHandlerServices } from "./handler-services";
+import type { TurnHandlerDeps } from "./handler-types";
 import { parseMessageCommand } from "./message-commands";
-import type { RunLimiter } from "./turns/run-limiter";
 import { statusFacts } from "./turns/status-snapshot";
 import { reportCrash, stopCommand } from "./turns/turn-admission";
 import { turnLogContext } from "./turns/turn-tracker";
 import type { RecoveryReport } from "./worker/recover-in-flight";
-
-/** What the handler needs of the control-channel runner (built by index.ts, so orchestrator never imports discord-setup): the shutdown hooks. */
-export interface ControlHandle {
-  /** Shutdown: abort every control run in flight. */
-  abortAll(): void;
-  /** Shutdown: abort, wait for the runs to end (at most `ms`) and return the time left. */
-  drain(ms: number): Promise<number>;
-}
-
-/** Dependencies of the turn handler. */
-export interface TurnHandlerDeps {
-  db: Database;
-  config: AgentConfig;
-  /** Override the SDK query (tests). */
-  queryFn?: QueryFn;
-  /** Optional global concurrency cap shared by the lead runs and the worker runs. */
-  limiter?: RunLimiter;
-  /** Owner approval gateway; required for background roles such as developer. */
-  approvals?: ApprovalGateway;
-  /** Renames threads for `SetThreadTitle` (offered to every role run; not rollover runs); omitted = the tool is not offered. */
-  threadTitle?: ThreadTitlePort;
-  /** Posts into a thread by id: the lead's boot wake (a restart) has no owner message to answer through. Omitted = that wake is skipped. */
-  post?: (threadId: string, text: string) => Promise<void>;
-  /** The control-channel runner (see `ControlHandle`); index.ts also gives the same runner to the Discord bot. Omitted = none. */
-  control?: ControlHandle;
-  /** Timing knobs of the lead queue (tests shorten the owner debounce and the announce batch). */
-  leadTiming?: { debounceMs?: number; announceWindowMs?: number };
-}
 
 /**
  * Build `handleMessage`: Discord-free entry. Commands (`/stop`, `/status`, `/purge`) are answered by app code. Every other owner message goes to the thread's lead (queue): the handler

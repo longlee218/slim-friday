@@ -1,10 +1,10 @@
 import { mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentConfig } from "../config/agent-config";
-import { workspacePaths } from "../config/workspace-paths";
-import type { RoleRunInput } from "../orchestrator/run/role-run-types";
-import type { RoleScope } from "../orchestrator/run/role-scope";
-import { realOrSame } from "../policy/paths";
+import type { AgentConfig } from "../../config/agent-config";
+import { workspacePaths } from "../../config/workspace-paths";
+import { realOrSame } from "../../policy/paths";
+import type { RoleRunInput } from "./role-run-types";
+import type { RoleScope } from "./role-scope-types";
 
 /** What the control role may read of one space: its config, its persona/memory files and its channels dir (never tasks, cwd, locations). */
 function spaceGrants(home: string, name: string): string[] {

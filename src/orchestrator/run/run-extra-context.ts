@@ -7,7 +7,7 @@ import { buildPromptContext } from "../../memory/prompt-context";
 import { threadTitleNote } from "../../roles/prompts/thread-title-note";
 import type { RoleDefinition } from "../../roles/role-types";
 import type { RoleRunInput } from "./role-run-types";
-import type { RoleScope } from "./role-scope";
+import type { RoleScope } from "./role-scope-types";
 
 /**
  * The extra prompt context of a role run: persona, locations registry, memory and task ledger of its workspace, then

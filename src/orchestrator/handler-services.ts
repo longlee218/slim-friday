@@ -1,7 +1,7 @@
 import type { Logger } from "pino";
 import { createFindRunner } from "../memory/find-command-handler";
 import { createRolloverScheduler } from "../session/rollover-scheduler";
-import type { ControlHandle, TurnHandlerDeps } from "./handle-message";
+import type { ControlHandle, TurnHandlerDeps } from "./handler-types";
 import { createLeadSystem } from "./lead/lead-system";
 import type { DispatchDeps } from "./run/role-run-types";
 import { createSteerRegistry } from "./turns/steer-registry";
