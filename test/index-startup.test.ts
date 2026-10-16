@@ -49,11 +49,11 @@ test("exits 1 when Discord env is missing", async () => {
   expect((await runIndex({})).code).toBe(1);
 });
 
-test("exits 1 before Discord login when the resolved provider has no credential", async () => {
-  // Real-looking (fake) Discord env, no LLM credential: must stop on the provider check.
+test("exits 1 before Discord login when there is no credential", async () => {
+  // Real-looking (fake) Discord env, no LLM credential: must stop on the credential check.
   const r = await runIndex({ DISCORD_TOKEN: "fake.discord.token", OWNER_DISCORD_ID: "1" });
   expect(r.code).toBe(1);
-  expect(r.log).toContain("No credential for provider anthropic");
+  expect(r.log).toContain("CLAUDE_CODE_OAUTH_TOKEN missing or placeholder");
   expect(r.log).not.toContain("discord login failed");
 });
 

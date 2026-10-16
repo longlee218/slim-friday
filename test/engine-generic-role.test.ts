@@ -17,7 +17,6 @@ const PROBE: RoleDefinition = {
   approvalRequired: false,
   capabilityVersion: "1",
   capabilities: ["read"],
-  gitGroups: ["read"],
   model: "haiku",
   budgetUsd: 0.4,
   promptSections: () => ["probe contract"],

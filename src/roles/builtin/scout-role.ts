@@ -33,7 +33,6 @@ export const SCOUT_ROLE: RoleDefinition = {
   capabilityVersion: "2",
   capabilities: ["read", "web", "shell", "skills"],
   shellMode: "read", // read-only allowlist: the scout never writes
-  gitGroups: [],
   mcpServers: [WORKER_MCP_SERVER],
   noSubagents: true, // depth 1: a worker never spawns subagents
   permissionMode: "auto",

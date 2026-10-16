@@ -36,26 +36,9 @@ const SUBAGENT_LIMIT_ENV = {
 /** Claude Code switch: strip Anthropic and cloud provider credentials from the env of the tools' subprocesses (workers only). */
 export const SUBPROCESS_SCRUB_VAR = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB";
 
-/** OpenRouter's Anthropic-compatible endpoint. */
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api";
-
-/**
- * Model alias variables (Claude Code model-config docs + OpenRouter claude-code guide).
- * All point at the configured model so helper/subagent calls never hit a Claude model id.
- */
-const MODEL_ALIAS_VARS = [
-  "ANTHROPIC_DEFAULT_OPUS_MODEL",
-  "ANTHROPIC_DEFAULT_SONNET_MODEL",
-  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-  "ANTHROPIC_DEFAULT_FABLE_MODEL",
-  "CLAUDE_CODE_SUBAGENT_MODEL",
-] as const;
-
 /**
  * Build the SDK child env: the owner's env passes through (the agent runs as the owner, with the owner's git / gh / ssh
- * auth) minus the bot's own variables (`config/data/child-env-deny.yaml`), then the app-owned ones on top: the resolved
- * provider's credentials (anthropic -> OAuth token when real; openrouter -> base URL, auth token, empty API key,
- * aliases), the subagent limits, the compaction vars (window = `compactWindow` from `resolveCompactWindow`, else the app default;
+ * auth) minus the bot's own variables (`config/data/child-env-deny.yaml`), then the app-owned ones on top: the OAuth token (when real), the subagent limits, the compaction vars (window = `compactWindow` from `resolveCompactWindow`, else the app default;
  * 0 = no window var; percent always) and the cache TTL vars: the ONLY source of these, the same names in the
  * caller env are on the deny list. `opts.worker` (a dispatched worker) drops every secret-like variable too and turns the SDK's
  * subprocess scrub on.
@@ -71,17 +54,9 @@ export function sdkEnv(
   const denied = opts.worker ? isWorkerEnvDenied : isChildEnvDenied;
   for (const [name, value] of Object.entries(source))
     if (value !== undefined && !denied(name)) env[name] = value;
-  if (config.provider === "openrouter") {
-    env.ANTHROPIC_BASE_URL = OPENROUTER_BASE_URL;
-    if (config.hasRealAuth) env.ANTHROPIC_AUTH_TOKEN = config.openrouterApiKey;
-    // Must be present and empty, or Claude Code prefers it over the auth token.
-    env.ANTHROPIC_API_KEY = "";
-    for (const k of MODEL_ALIAS_VARS) env[k] = config.model;
-  } else if (config.hasRealAuth) {
-    env.CLAUDE_CODE_OAUTH_TOKEN = config.oauthToken;
-  }
+  if (config.hasRealAuth) env.CLAUDE_CODE_OAUTH_TOKEN = config.oauthToken;
   Object.assign(env, SUBAGENT_LIMIT_ENV);
-  // The SDK strips the provider credentials above from the env of its Bash tool, hooks and MCP servers: the model call still has them.
+  // The SDK strips the credentials above from the env of its Bash tool, hooks and MCP servers: the model call still has them.
   if (opts.worker) env[SUBPROCESS_SCRUB_VAR] = "1";
   // One-shot calls (intent classifier, memory compaction) are single-turn: no compaction, and a 1h cache write
   // would only cost more than it saves, so they get none of the four vars.

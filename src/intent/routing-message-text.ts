@@ -1,7 +1,7 @@
 import { redactText } from "../observability/redact";
 
-/* The owner message as routing engines see it (Haiku L3, Jev): clipped and redacted. Kept apart from the L3
- * prompt so Jev and ingress do not depend on the classifier prompt. */
+/* The owner message as routing engines see it: clipped and redacted. Kept apart from the L3
+ * prompt so ingress does not depend on the classifier prompt. */
 
 /** Longest owner message sent to the classifier (a pasted log must not buy tokens). */
 const MESSAGE_MAX_CHARS = 2000;
@@ -28,7 +28,7 @@ export function l3MessageText(text: string): string {
 }
 
 /**
- * The message as every routing engine sees it (Haiku L3 and Jev): clipped (`l3MessageText`) AND redacted, so no
- * secret in the owner's text reaches a model or a third party. The one place both engines take the text from.
+ * The message as every routing engine sees it: clipped (`l3MessageText`) AND redacted, so no
+ * secret in the owner's text reaches a model or a third party. The one place engines take the text from.
  */
 export const routingMessageText = (text: string): string => redactText(l3MessageText(text));

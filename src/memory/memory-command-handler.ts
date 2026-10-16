@@ -77,7 +77,7 @@ export function createMemoryRunner(deps: MemoryRunnerDeps): MemoryRunner {
   ): Promise<string> {
     const llm =
       deps.llm ?? (deps.config.hasRealAuth ? sdkCompactLlm(deps.config, deps.queryFn) : undefined);
-    if (!llm) return `No credential for provider ${deps.config.provider}: cannot compact.`;
+    if (!llm) return `CLAUDE_CODE_OAUTH_TOKEN missing or placeholder: cannot compact.`;
     const release = deps.limiter ? deps.limiter.tryAcquire() : () => {};
     if (!release) return "busy, runs active, try compacting again in a minute.";
     try {

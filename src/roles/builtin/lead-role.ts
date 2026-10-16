@@ -32,7 +32,6 @@ export const LEAD_ROLE: RoleDefinition = {
   capabilityVersion: "1",
   capabilities: ["read"],
   noSubagents: true, // depth 1: the lead dispatches through its tools only
-  gitGroups: [],
   permissionMode: "auto",
   model: "sonnet",
   budgetUsd: BUDGET_USD,

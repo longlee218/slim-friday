@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { guardFor } from "../src/guardrails/check-tool-call";
-import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
+import { MEMORY_MCP_SERVER, MEMORY_SEARCH_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { captureLogs } from "../src/observability/logger";
 import { RunRecorder } from "../src/observability/record-run";
 import { buildSubagentHooks } from "../src/observability/subagent-hooks";
@@ -183,17 +183,17 @@ test("parallel tool calls: each toolUseId gets its own start/done pair and durat
   ]);
 });
 
-test("MCP tool (shape: content[] text parts): size from text, target = tool + relative path, no text logged", async () => {
+test("MCP tool (shape: content[] text parts): size from text, no text logged", async () => {
   const { db, paths } = makeEnv();
   const cap = captureLogs();
   const rec = new RunRecorder(db, "r1", "t1", "m", paths.taskLog("t1"));
-  const tool = mcpToolName(GIT_MCP_SERVER, GIT_TOOL.LOG);
+  const tool = mcpToolName(MEMORY_MCP_SERVER, MEMORY_SEARCH_TOOL);
   await buildToolHooks(rec, { roots: ["/ws/location"] }).PostToolUse![0]!.hooks[0]!(
     {
       hook_event_name: "PostToolUse",
       tool_use_id: "m1",
       tool_name: tool,
-      tool_input: { path: "/ws/location/lib" },
+      tool_input: { query: "x" },
       tool_response: { content: [{ type: "text", text: "COMMIT LOG TEXT" }] },
       duration_ms: 3,
     } as never,
@@ -205,7 +205,6 @@ test("MCP tool (shape: content[] text parts): size from text, target = tool + re
   expect(cap.lines[0]).toMatchObject({
     event: "tool.done",
     tool,
-    target: "git_log lib",
     chars: 15,
   });
   expect(JSON.stringify(cap.lines)).not.toContain("COMMIT LOG TEXT");

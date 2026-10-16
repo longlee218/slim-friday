@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { claudePlansDir, workspacePaths } from "../src/config/workspace-paths";
 import {
   EFFECTS_MCP_SERVER,
-  GIT_MCP_SERVER,
   MEMORY_MCP_SERVER,
   REMEMBER_TOOL,
   WORKER_MCP_SERVER,
@@ -65,15 +64,14 @@ test("the dev run works in the location's own checkout: cwd = location path, scr
   expect(env.db.query("SELECT location FROM turns").get()).toEqual({ location: "real" });
 });
 
-test("dev: no git or GitHub MCP server; a worker's env keeps no owner secret (the SDK also scrubs its tools' env)", async () => {
+test("dev: only the app's MCP servers; a worker's env keeps no owner secret (the SDK also scrubs its tools' env)", async () => {
   const { exec } = await runExec();
-  // Only the app's in-process servers (worker result tool, effect tools, memory); no git server (git runs in the shell).
+  // Only the app's in-process servers (worker result tool, effect tools, memory);.
   expect(Object.keys(exec.mcpServers)).toEqual([
     WORKER_MCP_SERVER,
     EFFECTS_MCP_SERVER,
     MEMORY_MCP_SERVER,
   ]);
-  expect(Object.keys(exec.mcpServers)).not.toContain(GIT_MCP_SERVER);
   // A worker runs repo code: no gh / git login of the owner in its env. The effect tools use it in their own subprocess.
   expect(exec.env.GH_TOKEN).toBeUndefined();
   expect(exec.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe("1");

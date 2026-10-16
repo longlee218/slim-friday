@@ -17,7 +17,7 @@ async function main(argv: string[]): Promise<number> {
   const args = parseCompactArgs(argv);
   if ("error" in args) return fail(`${args.error}\n${COMPACT_USAGE}`, 2);
   const config = loadConfig();
-  if (!config.hasRealAuth) return fail(`No credential for provider ${config.provider}`);
+  if (!config.hasRealAuth) return fail(`CLAUDE_CODE_OAUTH_TOKEN missing or placeholder`);
   const { workspaces } = loadWorkspaces(config.agentHome);
   ensureHome(config.agentHome, workspaces);
   const chosen = args.workspace ? workspaces.filter((w) => w.name === args.workspace) : workspaces;

@@ -156,7 +156,7 @@ export function buildSdkOptions(
     maxTurns: MAX_TURNS,
     // Effort (when the orchestrator passes one) sets thinking and scales maxTurns; otherwise SDK defaults.
     ...(effort && effortKnobs(effort)),
-    // Role budget (already capped by MAX_BUDGET_USD in `roleConfig`); omitted on openrouter without the cap.
+    // Role budget (already capped by MAX_BUDGET_USD in `roleConfig`).
     ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
     abortController: input.abortController,
     // Streaming input: the CLI echoes each consumed user message (isReplay): the proof a steer was read (steered-stream.ts).

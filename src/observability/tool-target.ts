@@ -1,5 +1,4 @@
 import { basename, isAbsolute, normalize, relative, sep } from "node:path";
-import { GIT_MCP_SERVER, mcpServerPrefix } from "../mcp/mcp-tool-names";
 import {
   AGENT_TOOL_NAME,
   ASK_USER_QUESTION_TOOL_NAME,
@@ -28,7 +27,6 @@ export type ToolKind =
   | "search"
   | "edit"
   | "command"
-  | "git"
   | "web"
   | "plan"
   | "ask"
@@ -134,11 +132,6 @@ export function describeTool(tool: string, input: unknown, roots: string[] = [])
   if (tool === BASH_TOOL_NAME) {
     const cmd = oneLine(str(i.command) ?? "");
     return done("command", redactClip(cmd, COMMAND_MAX), cmd);
-  }
-  if (tool.startsWith(mcpServerPrefix(GIT_MCP_SERVER))) {
-    const name = tool.slice(mcpServerPrefix(GIT_MCP_SERVER).length);
-    const p = path ? relPath(path, roots) : "";
-    return done("git", p ? `${name} ${p}` : name, name);
   }
   if (tool === WEB_FETCH_TOOL_NAME) return done("web", hostOf(str(i.url) ?? ""));
   if (tool === WEB_SEARCH_TOOL_NAME)

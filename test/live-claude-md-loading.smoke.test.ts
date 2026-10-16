@@ -27,7 +27,6 @@ describe.skipIf(!live)("live CLAUDE.md loading canaries (Claude login)", () => {
   test("reports which canary tokens reach the agent", async () => {
     const env = makeEnv({
       CLAUDE_CODE_OAUTH_TOKEN: key!,
-      LLM_PROVIDER: "anthropic",
       MODEL_DEV: process.env.CANARY_MODEL ?? "claude-sonnet-5-5",
       MODEL_ASSISTANT: process.env.CANARY_MODEL ?? "claude-sonnet-5-5",
       MAX_TURNS: "3",
@@ -53,7 +52,7 @@ describe.skipIf(!live)("live CLAUDE.md loading canaries (Claude login)", () => {
       turnId: "canary1",
       role: getRole("assistant"),
       cwd: location,
-      guard: guardFor(getRole("assistant"), { readPaths: [location], gitReadPaths: [] }),
+      guard: guardFor(getRole("assistant"), { readPaths: [location] }),
       config: env.config,
       db: env.db,
       abortController: new AbortController(),

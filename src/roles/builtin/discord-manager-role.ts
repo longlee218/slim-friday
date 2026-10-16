@@ -31,6 +31,5 @@ export const DISCORD_MANAGER_ROLE: RoleDefinition = {
   approvalRequired: true,
   capabilityVersion: "1",
   capabilities: ["read", "skills", "ask"],
-  gitGroups: [],
   promptSections: () => [CONTRACT],
 };

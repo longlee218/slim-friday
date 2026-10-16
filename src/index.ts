@@ -2,12 +2,7 @@ import { homedir } from "node:os";
 import { type Client, Events } from "discord.js";
 import pkg from "../package.json";
 import { createDiscordApprovalGateway } from "./approvals/discord-approval";
-import {
-  type AgentConfig,
-  loadConfig,
-  logDeprecatedConfig,
-  logProviderSelected,
-} from "./config/agent-config";
+import { type AgentConfig, loadConfig, logDeprecatedConfig } from "./config/agent-config";
 import { workspacePaths } from "./config/workspace-paths";
 import { syncChannelTopics } from "./discord-setup/channel-topic";
 import { opsIds, readDiscordSetup } from "./discord-setup/discord-setup-config";
@@ -54,8 +49,8 @@ async function main(): Promise<void> {
     return fail(String(err instanceof Error ? err.message : err));
   }
 
-  // Fail fast: the resolved provider has no real credential (name only, never a key), or a role definition is invalid.
-  if (!config.hasRealAuth) return fail(`No credential for provider ${config.provider}`);
+  // Fail fast: there is no real credential (name only, never a key), or a role definition is invalid.
+  if (!config.hasRealAuth) return fail(`CLAUDE_CODE_OAUTH_TOKEN missing or placeholder`);
   const badRole = registryError();
   if (badRole) return fail(`Invalid role registry: ${badRole}`);
 
@@ -95,8 +90,6 @@ async function main(): Promise<void> {
   }
   warnOpsChannelsInWorkspaces(workspaces, opsIds(setup), log);
 
-  // Provider and model only; never keys.
-  logProviderSelected(log, config);
   logDeprecatedConfig(log, config);
 
   // A v1 db is snapshotted before its first migration; a failed snapshot aborts the start, db untouched.
@@ -210,7 +203,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   logEvent(log, "app.started", {
-    provider: config.provider,
     model: config.model,
     agentHome: config.agentHome,
     pid: process.pid,

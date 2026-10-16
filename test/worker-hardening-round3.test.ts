@@ -34,7 +34,6 @@ const SECRETS: Record<string, string> = {
   OPENROUTER_API_KEY: "x",
   ANTHROPIC_API_KEY: "x",
   DISCORD_TOKEN: "x",
-  JEV_API_KEY: "x",
   NPM_TOKEN: "x",
   STRIPE_SECRET: "x",
   DB_PASSWORD: "x",

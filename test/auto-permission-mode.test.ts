@@ -11,19 +11,16 @@ import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 const SIG = { signal: new AbortController().signal };
-const cfg = (provider: "anthropic" | "openrouter", hasRealAuth: boolean) =>
-  ({ provider, hasRealAuth }) as AgentConfig;
+const cfg = (hasRealAuth: boolean) => ({ hasRealAuth }) as AgentConfig;
 
-test("resolver: auto only on anthropic with a real login; otherwise fail closed to default", () => {
+test("resolver: auto only with a real login; otherwise fail closed to default", () => {
   const qa = getRole("lead");
-  expect(resolvePermissionMode(qa, cfg("anthropic", true))).toBe("auto");
-  expect(resolvePermissionMode(qa, cfg("anthropic", false))).toBe("default");
-  expect(resolvePermissionMode(qa, cfg("openrouter", true))).toBe("default");
-  expect(resolvePermissionMode(qa, cfg("openrouter", false))).toBe("default");
+  expect(resolvePermissionMode(qa, cfg(true))).toBe("auto");
+  expect(resolvePermissionMode(qa, cfg(false))).toBe("default");
 });
 
-test("resolver: dev stays bypassPermissions on every provider and auth state", () => {
-  for (const c of [cfg("anthropic", true), cfg("openrouter", false)])
+test("resolver: dev stays bypassPermissions in every auth state", () => {
+  for (const c of [cfg(true), cfg(false)])
     expect(resolvePermissionMode(getRole("developer"), c)).toBe("bypassPermissions");
 });
 

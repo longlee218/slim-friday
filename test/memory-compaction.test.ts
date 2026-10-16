@@ -261,11 +261,9 @@ test("sdkCompactLlm: MEMORY_MODEL, no tools, one turn, no settings, no persona; 
   expect(opts.mcpServers).toBeUndefined();
 });
 
-test("MEMORY_MODEL defaults per provider and can be overridden", () => {
+test("MEMORY_MODEL defaults to the haiku tier and can be overridden", () => {
   const base = { AGENT_HOME: "/tmp/x" };
-  expect(loadConfig({ ...base, OPENROUTER_API_KEY: "sk-or-v1-realrealreal" }).memoryModel).toBe(
-    "anthropic/claude-haiku-4.5",
-  );
+  expect(loadConfig(base).memoryModel).toBe(loadConfig(base).models.haiku);
   expect(loadConfig({ ...base, MEMORY_MODEL: "m1" }).memoryModel).toBe("m1");
 });
 

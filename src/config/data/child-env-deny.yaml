@@ -1,6 +1,6 @@
 # Variables of the BOT that the agent's own process (the SDK child and its shell) must NOT inherit.
 # Everything else in the owner's env passes through (PATH, HOME, SSH_AUTH_SOCK, GH_*, git vars, proxies, locale ...).
-# The app sets the provider credentials, subagent limits, compaction and cache TTL vars itself (runtime/sdk-env.ts).
+# The app sets the OAuth credential, subagent limits, compaction and cache TTL vars itself (runtime/sdk-env.ts).
 # A new key of the env schema in config/agent-config.ts must be listed here (exact/prefixes) or in `passthrough`:
 # test/child-env-deny.test.ts fails otherwise.
 
@@ -8,9 +8,6 @@
 exact:
   # agent-config.ts env schema
   - CLAUDE_CODE_OAUTH_TOKEN
-  - OPENROUTER_API_KEY
-  - JEV_API_KEY
-  - LLM_PROVIDER
   - AGENT_HOME
   - LOG_LEVEL
   - DISCORD_TOKEN
@@ -57,10 +54,8 @@ worker:
     - GH_
     - GITHUB_
     - AWS_
-    - OPENROUTER_
     - ANTHROPIC_
     - DISCORD_
-    - JEV_
     - AZURE_
     - GOOGLE_
     - GCP_

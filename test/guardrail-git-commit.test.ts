@@ -3,7 +3,6 @@ import { mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkToolCall } from "../src/guardrails/check-tool-call";
-import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 const ctx = { cwd: "/tmp/wt", writePaths: ["/tmp/wt"] };
@@ -57,57 +56,4 @@ test("cd is not tracked or judged any more: it is allowed anywhere; the segments
   expect(d("cd /etc")).toBe("allow");
   expect(d(`cd ${root} && git push origin main`)).toBe("deny");
   expect(d(`cd ${root} && git push origin feat`)).toBe("allow");
-});
-
-describe("git MCP tools (@cyanheads/git-mcp-server): the assistant's read scope only", () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "gm-")));
-  const other = realpathSync(mkdtempSync(join(tmpdir(), "gm2-")));
-  const c = { writePaths: [], gitReadPaths: [dir] };
-  const d = (tool: string, input: Record<string, unknown> = {}, path = dir) =>
-    checkToolCall(mcpToolName(GIT_MCP_SERVER, tool), { path, ...input }, c).decision;
-
-  test("reads work on registered locations; any other path is denied", () => {
-    for (const t of [GIT_TOOL.STATUS, GIT_TOOL.DIFF, GIT_TOOL.LOG, GIT_TOOL.SHOW, GIT_TOOL.BLAME]) {
-      expect(d(t)).toBe("allow");
-      expect(d(t, {}, other)).toBe("deny");
-    }
-    expect(d(GIT_TOOL.STATUS, {}, "/nonexistent")).toBe("deny");
-    expect(checkToolCall(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.STATUS), {}, c).decision).toBe(
-      "deny",
-    ); // path is mandatory
-  });
-
-  test("mode-based tools: list-like modes are reads, changing modes are denied", () => {
-    expect(d(GIT_TOOL.BRANCH, { mode: "list" })).toBe("allow");
-    expect(d(GIT_TOOL.BRANCH, { mode: "show-current" })).toBe("allow");
-    expect(d(GIT_TOOL.BRANCH, { mode: "create", branchName: "x" })).toBe("deny");
-    expect(d(GIT_TOOL.BRANCH, { mode: "delete", branchName: "x" })).toBe("deny");
-    expect(d(GIT_TOOL.REMOTE, { mode: "get-url", name: "origin" })).toBe("deny");
-    expect(d(GIT_TOOL.TAG, { mode: "list" })).toBe("deny");
-    expect(d(GIT_TOOL.STASH, { mode: "pop" })).toBe("deny");
-  });
-
-  test("every non-read tool is denied, even on a registered location (the dev agent uses the shell)", () => {
-    for (const t of [
-      GIT_TOOL.ADD,
-      GIT_TOOL.COMMIT,
-      GIT_TOOL.CHECKOUT,
-      GIT_TOOL.RESET,
-      GIT_TOOL.PUSH,
-      GIT_TOOL.PULL,
-      GIT_TOOL.FETCH,
-      GIT_TOOL.CLONE,
-      GIT_TOOL.INIT,
-      GIT_TOOL.CLEAN,
-      GIT_TOOL.MERGE,
-      GIT_TOOL.REBASE,
-      GIT_TOOL.CHERRY_PICK,
-      GIT_TOOL.WORKTREE,
-      GIT_TOOL.SET_WORKING_DIR,
-      GIT_TOOL.WRAPUP_INSTRUCTIONS,
-    ]) {
-      expect(d(t, t === GIT_TOOL.WORKTREE ? { mode: "add" } : {})).toBe("deny");
-    }
-    expect(checkToolCall(mcpToolName("evil", "x"), {}, c).decision).toBe("deny");
-  });
 });

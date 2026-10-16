@@ -23,7 +23,6 @@ const BARE: RoleDefinition = {
   approvalRequired: false,
   capabilityVersion: "1",
   capabilities: ["read"],
-  gitGroups: [],
   model: "haiku",
   budgetUsd: 0.5,
   promptSections: () => [],
@@ -69,9 +68,9 @@ test("guard: every role gets the subagent tools, auto-allowed, even one that lis
   expect(checkToolCall(LEGACY_AGENT_TOOL_NAME, { prompt: "p" }, bare).decision).toBe("allow");
 });
 
-test("mcp servers come from the role's gitGroups data only: a bare role and dev get none", () => {
+test("mcp servers come from the role's data only: a bare role and dev get none", () => {
   expect(mcpServersFor(BARE)).toEqual({});
-  expect(mcpServersFor(getRole("developer"))).toEqual({}); // the agent uses git and gh in the shell
+  expect(mcpServersFor(getRole("developer"))).toEqual({});
 });
 
 test("tools derive from capabilities", () => {

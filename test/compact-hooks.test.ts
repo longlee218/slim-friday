@@ -299,7 +299,6 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
     approvalRequired: false,
     capabilityVersion: "1",
     capabilities: ["read"],
-    gitGroups: ["read"],
     model: "haiku",
     budgetUsd: 0.4,
     promptSections: () => ["probe"],

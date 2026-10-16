@@ -63,7 +63,6 @@ export function leanRole(name: string): RoleDefinition {
   return {
     ...getRole(name),
     capabilities: [],
-    gitGroups: [],
     skills: "none",
     permissionMode: undefined,
     streaming: false,

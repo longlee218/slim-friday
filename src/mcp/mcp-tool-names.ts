@@ -13,40 +13,6 @@ export const mcpServerPrefix = (server: string): string => `${MCP_PREFIX}${serve
 export const mcpToolName = (server: string, tool: string): string =>
   `${mcpServerPrefix(server)}${tool}`;
 
-/** Git MCP server (@cyanheads/git-mcp-server 2.15.3), started by the app. */
-export const GIT_MCP_SERVER = "git";
-/** Every tool of the git MCP server (names fixed by that server). */
-export const GIT_TOOL = {
-  STATUS: "git_status",
-  DIFF: "git_diff",
-  LOG: "git_log",
-  SHOW: "git_show",
-  BLAME: "git_blame",
-  ADD: "git_add",
-  COMMIT: "git_commit",
-  CHECKOUT: "git_checkout",
-  RESET: "git_reset",
-  BRANCH: "git_branch",
-  CHANGELOG_ANALYZE: "git_changelog_analyze",
-  CHERRY_PICK: "git_cherry_pick",
-  CLEAN: "git_clean",
-  CLEAR_WORKING_DIR: "git_clear_working_dir",
-  CLONE: "git_clone",
-  FETCH: "git_fetch",
-  INIT: "git_init",
-  MERGE: "git_merge",
-  PULL: "git_pull",
-  PUSH: "git_push",
-  REBASE: "git_rebase",
-  REFLOG: "git_reflog",
-  REMOTE: "git_remote",
-  SET_WORKING_DIR: "git_set_working_dir",
-  STASH: "git_stash",
-  TAG: "git_tag",
-  WORKTREE: "git_worktree",
-  WRAPUP_INSTRUCTIONS: "git_wrapup_instructions",
-} as const;
-
 /** In-process memory server (SDK MCP server of the app, every role). Its tools are listed in `MEMORY_TOOLS`. */
 export const MEMORY_MCP_SERVER = "memory";
 /** Save a durable note (phase 5). */

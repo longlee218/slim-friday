@@ -1,7 +1,12 @@
 import { expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
+import {
+  MEMORY_MCP_SERVER,
+  MEMORY_TOOLS,
+  mcpServerPrefix,
+  mcpToolName,
+} from "../src/mcp/mcp-tool-names";
 import * as sdk from "../src/tools/sdk-tool-names";
 
 // The ONLY test with tool-name literals: it pins the wire contract (SDK / MCP server names) that every
@@ -45,16 +50,17 @@ test("SDK built-in tool names are the real wire names", () => {
 });
 
 test("MCP server and tool names are the real wire names", () => {
-  expect(GIT_MCP_SERVER).toBe("git");
-  expect(Object.keys(GIT_TOOL)).toHaveLength(28);
-  for (const [k, v] of Object.entries<string>(GIT_TOOL)) expect(v).toBe(`git_${k.toLowerCase()}`);
+  expect(MEMORY_MCP_SERVER).toBe("memory");
+  expect([...MEMORY_TOOLS].sort()).toEqual(
+    ["MemoryExpand", "MemoryGet", "MemorySearch", "Remember", "SetThreadTitle"].sort(),
+  );
 });
 
 test("full MCP names: mcp__<server>__<tool>, valid characters", () => {
-  expect(mcpServerPrefix("git")).toBe("mcp__git__");
-  expect(mcpToolName("git", "git_log")).toBe("mcp__git__git_log");
+  expect(mcpServerPrefix("memory")).toBe("mcp__memory__");
+  expect(mcpToolName("memory", "Remember")).toBe("mcp__memory__Remember");
   const valid = /^mcp__[a-zA-Z0-9_-]+__[a-zA-Z0-9_-]+$/;
-  for (const t of Object.values(GIT_TOOL)) expect(mcpToolName("git", t)).toMatch(valid);
+  for (const t of MEMORY_TOOLS) expect(mcpToolName("memory", t)).toMatch(valid);
 });
 
 /** The installed SDK package dir (and the platform packages beside it, which hold the bundled CLI binary). */

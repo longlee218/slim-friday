@@ -129,16 +129,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const config = input.lean
     ? { ...base, limits: { ...base.limits, maxBudgetUsd: input.lean.budgetUsd } }
     : base;
-  // OpenRouter without a real key would only retry on 401 until timeout: fail fast instead.
-  if (config.provider === "openrouter" && !config.hasRealAuth) {
-    log.error("OPENROUTER_API_KEY missing or placeholder");
-    return {
-      text: "Agent error: OpenRouter API key not configured",
-      sessionId: undefined,
-      outcome: "error",
-      usage: emptyUsage(),
-    };
-  }
   const startedAt = Date.now();
   const runId = crypto.randomUUID();
   const recorder = new RunRecorder(
@@ -169,7 +159,6 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     });
     logEvent(log, "run.started", {
       model: config.model,
-      provider: config.provider,
       cwd: input.cwd,
       resume: !!input.resume,
       tools: Array.isArray(options.tools) ? options.tools.length : undefined,

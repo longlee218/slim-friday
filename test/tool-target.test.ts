@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { describeTool } from "../src/observability/tool-target";
 import {
   BASH_TOOL_NAME,
@@ -59,15 +58,6 @@ test("Bash: first 80 chars on one line, secrets masked, short clipped to 40", ()
   expect(d.target).not.toContain("\n");
   expect(d.target.length).toBeLessThanOrEqual(90);
   expect(d.short.length).toBeLessThanOrEqual(45);
-});
-
-test("git MCP tool: name + relative path, kind git", () => {
-  const d = describeTool(
-    mcpToolName(GIT_MCP_SERVER, GIT_TOOL.LOG),
-    { path: "/ws/location/lib" },
-    roots,
-  );
-  expect(d).toMatchObject({ kind: "git", target: "git_log lib" });
 });
 
 test("WebFetch: host only (no path/query secrets)", () => {

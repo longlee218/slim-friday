@@ -14,7 +14,6 @@ const role = (name: string, over: Partial<RoleDefinition> = {}): RoleDefinition 
   approvalRequired: false,
   capabilityVersion: "1",
   capabilities: ["read"],
-  gitGroups: [],
   model: "haiku",
   budgetUsd: 0.5,
   promptSections: () => [],

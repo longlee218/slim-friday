@@ -53,7 +53,7 @@ async function capture(kind: Kind) {
     abortController: new AbortController(),
     queryFn: queryFn as never,
   };
-  const scope = { readPaths: [env.location], gitReadPaths: [env.location], writePaths: [] };
+  const scope = { readPaths: [env.location], writePaths: [] };
   if (kind === "lead") {
     await runAgent({
       ...base,

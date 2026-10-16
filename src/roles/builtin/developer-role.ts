@@ -96,15 +96,12 @@ export const DEVELOPER_ROLE: RoleDefinition = {
   approvalRequired: true,
   capabilityVersion: "3",
   capabilities: CODE_CAPABILITIES,
-  gitGroups: [], // no git MCP: the agent uses `git` in the shell
   // The SDK asks nothing; only the guard's hard denies stop a call. Approval of the plan is an ask, not a gate.
   permissionMode: "bypassPermissions",
   streaming: true, // a background run: the owner can steer it
   model: "sonnet", // Sonnet 5.5 tier
   classTiers: { mechanical: "sonnet", standard: "sonnet", design: "opus" },
   budgetUsd: BUDGET_USD,
-  // OpenRouter: a Claude model follows the ask flow reliably; deepseek-v4-flash did not call the plan tool (live test).
-  openrouterModel: "anthropic/claude-haiku-4.5",
   promptSections: (ctx) => [
     DEVELOPER,
     DEVELOPER_RUN_FACTS,

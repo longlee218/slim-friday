@@ -3,7 +3,6 @@ import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { guardFor } from "../src/guardrails/check-tool-call";
-import { GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { getRole } from "../src/roles/role-registry";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
@@ -57,7 +56,6 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
     ["Glob w2 clone", () => qa(GLOB_TOOL_NAME, { pattern: "*", path: b }, {})],
     ["Grep w2 clone", () => qa(GREP_TOOL_NAME, { pattern: "x", path: b }, {})],
     ["Read via symlink", () => qa(READ_TOOL_NAME, { file_path: join(a, "link.txt") }, {})],
-    ["git MCP on w2", () => qa(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.STATUS), { path: b }, {})],
     ["Read agent.db", () => qa(READ_TOOL_NAME, { file_path: db }, {})],
     [
       "Write w2 worktree",

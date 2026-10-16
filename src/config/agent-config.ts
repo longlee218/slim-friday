@@ -6,20 +6,8 @@ import { type RoutingEnv, readRoutingEnv } from "./role-env";
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
 
-/** Default `model` on the Anthropic path (Haiku tier). Roles resolve their own model (model-routing.ts); this one is the default model slot of the SDK env. */
+/** Default `model` (Haiku tier). Roles resolve their own model (model-routing.ts); this one is the default model slot of the SDK env. */
 const DEFAULT_MODEL = DEFAULT_TIER_MODELS.haiku;
-
-/** Default model on the OpenRouter path (a role's `openrouterModel` or a MODEL_<ROLE> pin wins). */
-const DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash";
-
-/**
- * Default model for owner-triggered memory compaction: tier haiku on Anthropic (MODEL_HAIKU applies), a Haiku
- * id on OpenRouter. Never MODEL.
- */
-const DEFAULT_OPENROUTER_MEMORY_MODEL = "anthropic/claude-haiku-4.5";
-
-/** LLM backend the SDK child talks to. */
-export type LlmProvider = "anthropic" | "openrouter";
 
 /** Secret string: trimmed (no stray newline in auth headers); empty after trim counts as unset. */
 const secret = z
@@ -30,8 +18,6 @@ const secret = z
 /** Raw env schema. Discord vars are optional here; the bot entry enforces them via requireDiscord. */
 const envSchema = z.object({
   CLAUDE_CODE_OAUTH_TOKEN: secret,
-  OPENROUTER_API_KEY: secret,
-  LLM_PROVIDER: z.enum(["anthropic", "openrouter"]).optional(),
   AGENT_HOME: z.string().min(1),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
   DISCORD_TOKEN: secret,
@@ -52,8 +38,6 @@ const envSchema = z.object({
   GIT_AUTHOR: z.string().trim().min(1).optional(), // accepted and IGNORED since Rev 15 (the agent uses the owner's git config)
   MAX_BUDGET_USD: z.coerce.number().positive().optional(),
   TIMEOUT_MS: z.coerce.number().int().positive().default(300_000),
-  // TypeSafe System One (Jev) key, passed explicitly to its client. Placeholder / `sk_` stub = no key (Haiku only).
-  JEV_API_KEY: secret,
 });
 
 /** Names of the env variables the app itself reads: each must be classified in `data/child-env-deny.yaml`. */
@@ -64,13 +48,7 @@ export const ENV_SCHEMA_KEYS: string[] = Object.keys(envSchema.shape);
 export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   /** OAuth token from `claude setup-token`; undefined when missing. Never log. */
   oauthToken: string | undefined;
-  /** OpenRouter API key; undefined when missing. Never log. */
-  openrouterApiKey: string | undefined;
-  /** Resolved backend: OPENROUTER_API_KEY real -> openrouter, else anthropic; LLM_PROVIDER forces. */
-  provider: LlmProvider;
-  /** True when both credentials are real and LLM_PROVIDER is unset (openrouter wins silently). */
-  ambiguousCredentials: boolean;
-  /** True only when the resolved provider's credential exists and is not the REPLACE_ME placeholder. */
+  /** True only when the OAuth token exists and is not the REPLACE_ME placeholder. */
   hasRealAuth: boolean;
   discordToken: string | undefined;
   ownerDiscordId: string | undefined;
@@ -78,7 +56,7 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   discordGuildId: string | undefined;
   agentHome: string;
   logLevel: string;
-  /** OpenRouter default model (every role without its own pin / `openrouterModel`) and the log value. Anthropic roles resolve via `models` (model-routing.ts). */
+  /** Default model slot of the SDK env and the log value. Roles resolve via `models` (model-routing.ts). */
   model: string;
   /** Tier -> model id (env MODEL_HAIKU|SONNET|OPUS). */
   models: Record<ModelTier, string>;
@@ -90,17 +68,9 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   deprecated: string[];
   /** Model of the manual memory compaction call (one cheap call per over-threshold file). */
   memoryModel: string;
-  /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the role budget; OpenRouter: only this). */
+  /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the role budget). */
   limits: { maxBudgetUsd: number | undefined; timeoutMs: number };
-  /** Jev (TypeSafe System One, parked: not wired while the lead is the only router). */
-  intent: {
-    /** Real JEV_API_KEY or undefined (missing / placeholder / `sk_` stub). Never log. */
-    jevApiKey?: string | undefined;
-  };
 }
-
-/** The unfilled value of JEV_API_KEY in the owner's `.env.example`: counts as no key. */
-const JEV_KEY_STUB = "sk_";
 
 /** True when a value is missing or the placeholder. */
 const isPlaceholder = (v: string | undefined): boolean => !v || v === PLACEHOLDER;
@@ -125,33 +95,21 @@ export function loadConfig(
   ) {
     throw new Error("Invalid environment variables: DISCORD_TOKEN, OWNER_DISCORD_ID required");
   }
-  const hasRealOpenrouter = !isPlaceholder(e.OPENROUTER_API_KEY);
-  const hasRealOauth = !isPlaceholder(e.CLAUDE_CODE_OAUTH_TOKEN);
-  const provider: LlmProvider = e.LLM_PROVIDER ?? (hasRealOpenrouter ? "openrouter" : "anthropic");
-  const isOpenrouter = provider === "openrouter";
   const routing = readRoutingEnv(env);
   return {
     ...routing,
     oauthToken: e.CLAUDE_CODE_OAUTH_TOKEN,
-    openrouterApiKey: e.OPENROUTER_API_KEY,
-    provider,
-    ambiguousCredentials: hasRealOpenrouter && hasRealOauth && !e.LLM_PROVIDER,
-    hasRealAuth: isOpenrouter ? hasRealOpenrouter : hasRealOauth,
+    hasRealAuth: !isPlaceholder(e.CLAUDE_CODE_OAUTH_TOKEN),
     discordToken: e.DISCORD_TOKEN,
     ownerDiscordId: e.OWNER_DISCORD_ID,
     discordGuildId: e.DISCORD_GUILD_ID,
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
-    model: isOpenrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL,
-    memoryModel:
-      e.MEMORY_MODEL ?? (isOpenrouter ? DEFAULT_OPENROUTER_MEMORY_MODEL : routing.models.haiku),
+    model: DEFAULT_MODEL,
+    memoryModel: e.MEMORY_MODEL ?? routing.models.haiku,
     limits: {
       maxBudgetUsd: e.MAX_BUDGET_USD,
       timeoutMs: e.TIMEOUT_MS,
-    },
-    intent: {
-      jevApiKey:
-        isPlaceholder(e.JEV_API_KEY) || e.JEV_API_KEY === JEV_KEY_STUB ? undefined : e.JEV_API_KEY,
     },
   };
 }
@@ -164,13 +122,6 @@ export function pickEnv(
   const env: Record<string, string> = {};
   for (const k of keys) if (source[k]) env[k] = source[k]!;
   return env;
-}
-
-/** Log one startup line naming the provider and model, plus a warning when the choice is implicit. Never includes credentials. */
-export function logProviderSelected(log: Logger, config: AgentConfig): void {
-  log.info({ provider: config.provider, model: config.model }, "llm provider selected");
-  if (config.ambiguousCredentials)
-    log.warn("both credentials set; using openrouter (set LLM_PROVIDER=anthropic to change)");
 }
 
 /** Warn once at startup about deprecated env vars (MODEL, the old two-part shapes). Names only. */

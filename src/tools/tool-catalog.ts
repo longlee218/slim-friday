@@ -1,6 +1,5 @@
-import { APP_MCP_TOOLS, GIT_MCP_SERVER, GIT_TOOL, mcpToolName } from "../mcp/mcp-tool-names";
+import { APP_MCP_TOOLS, mcpToolName } from "../mcp/mcp-tool-names";
 import type { Capability, RoleDefinition } from "../roles/role-types";
-import { GIT_GROUPS } from "./git-tool-groups";
 import {
   AGENT_TOOL_NAME,
   ASK_USER_QUESTION_TOOL_NAME,
@@ -34,11 +33,9 @@ import {
   WRITE_TOOL_NAME,
 } from "./sdk-tool-names";
 
-export { GIT_GROUPS };
-
 /**
- * The single place that says WHICH tools exist. WHICH role gets what is data in `src/roles` (capabilities,
- * gitGroups); everything here (SDK options, the guard's auto-allowed list, hidden git tools) is
+ * The single place that says WHICH tools exist. WHICH role gets what is data in `src/roles` (capabilities);
+ * everything here (SDK options, the guard's auto-allowed list) is
  * derived from a role by the functions below. Functions take a RoleDefinition.
  */
 
@@ -105,31 +102,6 @@ export const appMcpToolsFor = (role: RoleDefinition): string[] =>
     (APP_MCP_TOOLS[server] ?? []).map((tool) => mcpToolName(server, tool)),
   );
 
-/* ---------------- git MCP tools (@cyanheads/git-mcp-server 2.15.3) ---------------- */
-
-/**
- * Tools visible in every role that are reads only in some `mode` values (an absent mode is the server's
- * default: list). The guard derives its check from this table: tool -> read-only modes (the git tool's own `mode` argument).
- */
-export const GIT_READ_BY_MODE: Record<string, readonly string[]> = {
-  [GIT_TOOL.BRANCH]: ["list", "show-current"],
-};
-
-/** Every tool of the server. Agents only get the `read` group (+ by-mode reads): the rest is hidden. */
-const ALL_GIT_TOOLS: readonly string[] = Object.values(GIT_TOOL);
-
-/** Git MCP tools a role may see (its groups, plus the by-mode reads, always). */
-export const gitToolsFor = (role: RoleDefinition): string[] => [
-  ...role.gitGroups.flatMap((g) => GIT_GROUPS[g]),
-  ...Object.keys(GIT_READ_BY_MODE),
-];
-
-/** Git MCP tools to hide from a role (`mcp__git__…`): a shorter tool list and a second lock behind the guard. */
-export const hiddenGitTools = (role: RoleDefinition): string[] => {
-  const allowed = new Set<string>(gitToolsFor(role));
-  return ALL_GIT_TOOLS.filter((t) => !allowed.has(t)).map((t) => mcpToolName(GIT_MCP_SERVER, t));
-};
-
 /* ---------------- SDK options ---------------- */
 
 /**
@@ -148,12 +120,12 @@ export const SECRET_FILE_RULES = [
  * SDK options fragment for a role, derived from this catalog. ONLY `tools` restricts the built-in set
  * (we trust the SDK for that, verified per mode with the real SDK); `allowedTools` would auto-approve and
  * bypass canUseTool, so it is never used. `disallowedTools` only carries what `tools` cannot express: the
- * path-scoped secret-file rules and the git MCP tools of other roles.
+ * path-scoped secret-file rules.
  */
 export function toolOptions(role: RoleDefinition) {
   return {
     tools: toolsFor(role),
-    disallowedTools: [...hiddenGitTools(role), ...SECRET_FILE_RULES],
+    disallowedTools: [...SECRET_FILE_RULES],
     // Only the MCP servers we pass in `mcpServers`; ignore account connectors and project .mcp.json.
     strictMcpConfig: true,
   };

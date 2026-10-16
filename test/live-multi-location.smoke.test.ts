@@ -6,19 +6,18 @@ import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { addLocation, clearWorkspaces, makeEnv, TEST_CHANNEL } from "./helpers";
 
 // Live test: verifies the SDK honors `additionalDirectories` (open spike item for phase 02).
-const key = process.env.OPENROUTER_API_KEY;
+const key = process.env.CLAUDE_CODE_OAUTH_TOKEN;
 const live = !!key && key !== PLACEHOLDER;
 if (!live) {
   process.stderr.write(
-    "SKIP live multi-location smoke: OPENROUTER_API_KEY missing or REPLACE_ME\n",
+    "SKIP live multi-location smoke: CLAUDE_CODE_OAUTH_TOKEN missing or REPLACE_ME\n",
   );
 }
 
-describe.skipIf(!live)("live multi-location smoke (OpenRouter)", () => {
+describe.skipIf(!live)("live multi-location smoke (Claude login)", () => {
   test("unpinned run reads a file from a second location via additionalDirectories", async () => {
     const env = makeEnv({
-      OPENROUTER_API_KEY: key!,
-      LLM_PROVIDER: "openrouter",
+      CLAUDE_CODE_OAUTH_TOKEN: key!,
       MAX_TURNS: "8",
       TIMEOUT_MS: "90000",
     });

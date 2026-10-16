@@ -95,7 +95,6 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
       guard: {
         cwd: realOrSame(cwd),
         readPaths: [cwd, ...additionalDirectories].map(realOrSame),
-        gitReadPaths: scope.map((r) => realOrSame(r.path)),
         denyPaths: [realOrSame(config.agentHome)],
         allowInside: grantedUnderHome(dirs, attached),
       },

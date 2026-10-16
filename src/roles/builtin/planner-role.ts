@@ -40,7 +40,6 @@ export const PLANNER_ROLE: RoleDefinition = {
   approvalRequired: false,
   capabilityVersion: "1",
   capabilities: ["read", "skills"],
-  gitGroups: [],
   mcpServers: [WORKER_MCP_SERVER, PLANNER_MCP_SERVER],
   noSubagents: true, // depth 1: a worker never spawns subagents
   permissionMode: "auto",

@@ -7,7 +7,6 @@
  */
 
 import {
-  GIT_MCP_SERVER,
   MCP_PREFIX,
   MEMORY_MCP_SERVER,
   MEMORY_TOOLS,
@@ -37,7 +36,6 @@ import { appMcpToolsFor, autoAllowedTools, toolsFor } from "../tools/tool-catalo
 import { checkBash, checkWorktreePath } from "./bash-policy";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
 import { envelopeGate } from "./envelope-guard";
-import { checkGitMcp } from "./git-mcp-guard";
 
 /** Outcome of a guardrail check. `deny` is never approvable; `ask` needs the owner. */
 export type Decision = {
@@ -61,8 +59,6 @@ export interface GuardrailContext {
   readPaths?: string[];
   /** Real dirs where `git worktree add` / EnterWorktree may put a worktree (`workspace(ws).worktrees`). Omitted = none allowed. */
   worktreeDirs?: string[];
-  /** Real paths of registered locations: git MCP tools (the read-only roles' git tools) may READ these. */
-  gitReadPaths?: string[];
   /** Real dirs no tool may touch, read or write (AGENT_HOME), even inside a registered location. Omitted = none. */
   denyPaths?: string[];
   /** Real dirs under `denyPaths` that stay usable: the run's own scratch, worktrees, `cwd/`, attachments, skill dirs. */
@@ -155,9 +151,6 @@ function checkBase(
       return { decision: "deny", reason: "Bash: missing or invalid command" };
     }
     return checkBash(command, ctx);
-  }
-  if (toolName.startsWith(mcpServerPrefix(GIT_MCP_SERVER))) {
-    return checkGitMcp(toolName.slice(mcpServerPrefix(GIT_MCP_SERVER).length), input, ctx);
   }
   // The app's own memory server: exactly its listed tools (they only write the memory files, by their own rules).
   const memoryPrefix = mcpServerPrefix(MEMORY_MCP_SERVER);

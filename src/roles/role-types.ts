@@ -1,5 +1,4 @@
 import type { ModelTier, TaskClass } from "../config/model-routing";
-import type { GIT_GROUPS } from "../tools/git-tool-groups";
 
 /** A group of tools that belong together; a role lists the groups it may use. */
 export type Capability =
@@ -78,8 +77,6 @@ export interface RoleDefinition {
   model: ModelTier | (string & {});
   /** Tier per task class (mechanical|standard|design) for roles whose model depends on the class. Omitted = `model`. */
   classTiers?: Record<TaskClass, ModelTier>;
-  /** OpenRouter only (tiers are not used there): model of this role unless an env pin or nothing is set. Omitted = the config default. */
-  openrouterModel?: string;
   /** Default budget (USD) of one run (env BUDGET_<ROLE>_USD overrides). */
   budgetUsd: number;
   /**
@@ -103,8 +100,6 @@ export interface RoleDefinition {
   capabilityVersion: string;
   /** Built-in tools (and the guard's auto-allow list) derive from these. */
   capabilities: Capability[];
-  /** Git MCP tool groups the role may use (read-only by-mode tools are always visible). */
-  gitGroups: (keyof typeof GIT_GROUPS)[];
   /**
    * Override of the app default compaction window (tokens, CLAUDE_CODE_AUTO_COMPACT_WINDOW; default
    * `COMPACT_WINDOW_TOKENS` in runtime/sdk-env.ts). Omitted = the app default. The 75% share applies to it.

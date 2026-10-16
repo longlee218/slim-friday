@@ -3,7 +3,6 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkToolCall, type GuardrailContext } from "../src/guardrails/check-tool-call";
-import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix } from "../src/mcp/mcp-tool-names";
 
 /* Phase 1g review fixes: a $HOME location must not reach AGENT_HOME (~/.friday) by search roots, bulk commands,
    globs, cd, ~user or git. */
@@ -128,13 +127,6 @@ test("Bash git: init / add / -C / --git-dir above the agent home are denied; a r
     expect([c, bash(c, sub)]).toEqual([c, "allow"]);
   expect(bash("git status")).toBe("allow");
   expect(bash("git log")).toBe("allow");
-});
-
-test("git MCP read tools: a repo path above the agent home is denied", () => {
-  const g = { ...ctx, gitReadPaths: [home, join(home, "proj")] };
-  const tool = `${mcpServerPrefix(GIT_MCP_SERVER)}${GIT_TOOL.LOG}`;
-  expect(run(tool, { path: home }, g)).toBe("deny");
-  expect(run(tool, { path: join(home, "proj") }, g)).toBe("allow");
 });
 
 test("rm -r with ~ / $HOME forms follows the write paths", () => {

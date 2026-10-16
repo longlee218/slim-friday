@@ -18,11 +18,7 @@ const REDACT_PATHS = [
   "*.env.*",
   "oauthToken",
   "*.oauthToken",
-  "openrouterApiKey",
-  "*.openrouterApiKey",
   "apiKey",
-  "OPENROUTER_API_KEY",
-  "*.OPENROUTER_API_KEY",
   "ANTHROPIC_AUTH_TOKEN",
   "*.ANTHROPIC_AUTH_TOKEN",
 ];

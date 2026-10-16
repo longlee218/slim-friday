@@ -64,7 +64,6 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, a
   expect(scout.capabilities).not.toContain("write");
   expect(scout.capabilities).toContain("shell"); // read-only shell: shellMode `read` limits it to the R0 allowlist
   expect(scout.shellMode).toBe("read");
-  expect(scout.gitGroups).toEqual([]);
   for (const n of scout.appSkills ?? [])
     expect(existsSync(join(APP_SKILLS_DIR, n, "SKILL.md"))).toBe(true);
 });

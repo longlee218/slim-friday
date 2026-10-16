@@ -17,13 +17,7 @@ describe("child env deny list (config/data/child-env-deny.yaml)", () => {
 
   test("the vars named in the phase spec are denied, by exact name and by prefix", () => {
     for (const k of [
-      ...[
-        "CLAUDE_CODE_OAUTH_TOKEN",
-        "OPENROUTER_API_KEY",
-        "LLM_PROVIDER",
-        "AGENT_HOME",
-        "LOG_LEVEL",
-      ],
+      ...["CLAUDE_CODE_OAUTH_TOKEN", "AGENT_HOME", "LOG_LEVEL"],
       ...["DISCORD_TOKEN", "OWNER_DISCORD_ID", "DISCORD_GUILD_ID", "MODEL", "MEMORY_MODEL"],
       ...["GIT_AUTHOR", "MAX_TURNS", "MAX_BUDGET_USD", "TIMEOUT_MS", "MAX_CONCURRENT_RUNS"],
       ...["MODEL_HAIKU", "MODEL_DEV", "BUDGET_DEV_USD", "COMPACT_WINDOW_DEV"],

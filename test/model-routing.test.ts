@@ -105,15 +105,6 @@ describe("resolveModel", () => {
     expect(resolveModel(scout, { tier: "sonnet" }, cfg({ MODEL_SCOUT: "opus" }))).toBe(O);
     expect(resolveModel(dev, { cls: "design" }, cfg({ MODEL_DEV: "claude-x" }))).toBe("claude-x");
   });
-  test("openrouter: tiers unused; env pin > the role's openrouterModel > the one default model", () => {
-    const key = `sk-or-v1-${"a1b2c3d4".repeat(8)}`;
-    const or = cfg({ OPENROUTER_API_KEY: key });
-    expect(resolveModel(scout, { tier: "opus" }, or)).toBe(or.model);
-    expect(resolveModel(dev, { cls: "design" }, or)).toBe("anthropic/claude-haiku-4.5");
-    const pinned = cfg({ OPENROUTER_API_KEY: key, MODEL_DEV: "x/y" });
-    expect(resolveModel(dev, {}, pinned)).toBe("x/y");
-    expect(resolveModel(scout, {}, pinned)).toBe(pinned.model);
-  });
 });
 
 describe("resolveBudget", () => {
@@ -128,11 +119,6 @@ describe("resolveBudget", () => {
     expect(resolveBudget(dev, { extraBudgetUsd: 1.0 }, cfg())).toBe(5.5);
     expect(resolveBudget(dev, { extraBudgetUsd: 3 }, cfg())).toBe(6); // TASK_BUDGET_USD
     expect(resolveBudget(dev, { spentUsd: 4 }, cfg())).toBe(2); // what is left of the task ceiling
-  });
-  test("openrouter: only the global cap", () => {
-    const or = cfg({ OPENROUTER_API_KEY: `sk-or-v1-${"a1b2c3d4".repeat(8)}` });
-    expect(resolveBudget(dev, {}, or)).toBeUndefined();
-    expect(resolveBudget(dev, {}, { ...or, limits: { ...or.limits, maxBudgetUsd: 2 } })).toBe(2);
   });
 });
 

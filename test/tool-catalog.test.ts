@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { guardFor } from "../src/guardrails/check-tool-call";
-import { GIT_MCP_SERVER, GIT_TOOL, mcpServerPrefix, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
@@ -37,10 +36,6 @@ import {
   appMcpToolsFor,
   autoAllowedTools,
   CAPABILITY_TOOLS,
-  GIT_GROUPS,
-  GIT_READ_BY_MODE,
-  gitToolsFor,
-  hiddenGitTools,
   SECRET_FILE_RULES,
   toolOptions,
   toolsFor,
@@ -148,38 +143,8 @@ test("auto-allowed tools are a subset of the role's tools and never include writ
     expect(autoAllowedTools(dev)).not.toContain(t);
 });
 
-/** No built-in role lists the git read group any more; a role that does is built from the scout's data. */
-const gitReader = { ...SCOUT_ROLE, gitGroups: ["read" as const] };
-
-test("git tools: only reads (group read + by-mode reads), hidden = the complement; no role gets add/commit", () => {
-  expect(Object.keys(GIT_GROUPS)).toEqual(["read"]);
-  for (const t of [...GIT_GROUPS.read, ...Object.keys(GIT_READ_BY_MODE)])
-    expect(gitToolsFor(gitReader)).toContain(t);
-  expect(gitToolsFor(dev)).toEqual(Object.keys(GIT_READ_BY_MODE)); // dev lists no git groups
-  for (const m of [...ROLES, gitReader]) {
-    const hidden = hiddenGitTools(m);
-    for (const t of gitToolsFor(m)) expect(hidden).not.toContain(mcpToolName(GIT_MCP_SERVER, t));
-    for (const t of [
-      GIT_TOOL.PUSH,
-      GIT_TOOL.PULL,
-      GIT_TOOL.FETCH,
-      GIT_TOOL.WORKTREE,
-      GIT_TOOL.CLONE,
-      GIT_TOOL.CLEAN,
-      GIT_TOOL.MERGE,
-      GIT_TOOL.REBASE,
-    ]) {
-      expect(hidden).toContain(mcpToolName(GIT_MCP_SERVER, t)); // the app's tools: never offered to agents
-    }
-  }
-  for (const m of ROLES) {
-    expect(hiddenGitTools(m)).toContain(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.COMMIT));
-    expect(hiddenGitTools(m)).toContain(mcpToolName(GIT_MCP_SERVER, GIT_TOOL.ADD));
-  }
-});
-
 test("guardFor: one builder per role, auto-allowed tools from the catalog", () => {
-  const qa = guardFor(qaRole, { readPaths: ["/r"], gitReadPaths: ["/r"] });
+  const qa = guardFor(qaRole, { readPaths: ["/r"] });
   // the scout lists the worker server (its ReportResult tool): allowed next to the auto tools
   expect(qa.allowTools).toEqual([...autoAllowedTools(qaRole), ...appMcpToolsFor(qaRole)]);
   expect(qa.writePaths).toBeUndefined(); // a read-only role writes nothing
@@ -213,14 +178,8 @@ test("options: tools from the catalog, no allowedTools, strict MCP", () => {
   expect(o.strictMcpConfig).toBe(true);
 });
 
-test("disallowedTools only carries what `tools` cannot express: secret-file rules and other roles' git tools", () => {
-  for (const role of ROLES) {
-    for (const d of toolOptions(role).disallowedTools) {
-      expect(SECRET_FILE_RULES.includes(d) || d.startsWith(mcpServerPrefix(GIT_MCP_SERVER))).toBe(
-        true,
-      );
-    }
-  }
+test("disallowedTools only carries what `tools` cannot express: the secret-file rules", () => {
+  for (const role of ROLES) expect(toolOptions(role).disallowedTools).toEqual(SECRET_FILE_RULES);
 });
 
 test("secret-file deny rules are part of disallowedTools", () => {

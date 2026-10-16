@@ -66,13 +66,11 @@ export function safeEffort(route: Route): Effort | undefined {
 export const roleKey = (role: string): string => role.toLowerCase();
 
 /**
- * Model id of a role run. Anthropic path order: env pin (MODEL_<ROLE>) >
+ * Model id of a role run. Order: env pin (MODEL_<ROLE>) >
  * forced tier > effort > the role's `classTiers` > the role's own `model`.
- * OpenRouter: tiers are not used; env pin (used as the model id) > the role's `openrouterModel` > `config.model`.
  */
 export function resolveModel(role: RoleDefinition, route: Route, config: AgentConfig): string {
   const pin = config.modelOverrides[roleKey(role.name)];
-  if (config.provider === "openrouter") return pin ?? role.openrouterModel ?? config.model;
   if (pin) return specToId(pin, config);
   const cls = route.cls ?? "standard";
   // Opus from a forced tier needs the owner's confirmation; else it is capped at the high tier (class table).
@@ -90,10 +88,9 @@ export const ceilingBinds = (limitUsd: number | undefined, spentUsd = 0): boolea
   limitUsd !== undefined && spentUsd > 0 && Math.abs(limitUsd + spentUsd - TASK_BUDGET_USD) < 1e-6;
 
 /**
- * Budget (USD) of a role run, or undefined = no cap. Anthropic: env pin BUDGET_<ROLE>_USD > the role's default
+ * Budget (USD) of a role run, or undefined = no cap. Env pin BUDGET_<ROLE>_USD > the role's default
  * plus any owner raise, limited to what is left of
  * TASK_BUDGET_USD, then capped by MAX_BUDGET_USD.
- * OpenRouter has no role budget (SDK prices cost from Anthropic tables): only MAX_BUDGET_USD applies.
  */
 export function resolveBudget(
   role: RoleDefinition,
@@ -101,7 +98,6 @@ export function resolveBudget(
   config: AgentConfig,
 ): number | undefined {
   const cap = config.limits.maxBudgetUsd;
-  if (config.provider === "openrouter") return cap;
   const pin = config.budgetOverrides[roleKey(role.name)];
   const base = pin ?? role.budgetUsd;
   // Task ceiling: the run gets at most what the task's earlier runs left of TASK_BUDGET_USD. An owner raise
