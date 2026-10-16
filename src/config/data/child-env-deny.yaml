@@ -30,9 +30,9 @@ exact:
 
 # Prefixes.
 prefixes:
-  - MODEL_ # removed model pins (role-env.ts reports them as deprecated)
-  - BUDGET_ # BUDGET_<ROLE>_USD (role-env.ts)
-  - COMPACT_WINDOW_ # COMPACT_WINDOW_<ROLE> (role-env.ts)
+  - MODEL_ # stray model pins from the shell never reach the child
+  - BUDGET_ # stray budget vars from the shell never reach the child
+  - COMPACT_WINDOW_ # the window is set per role by the app only
   - FRIDAY_
   - ANTHROPIC_ # provider vars are set again by the app for the child
 

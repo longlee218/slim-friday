@@ -1,7 +1,5 @@
-import type { Logger } from "pino";
 import { z } from "zod";
 import { HAIKU_MODEL } from "./model-ids";
-import { type RoutingEnv, readRoutingEnv } from "./role-env";
 
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
@@ -44,8 +42,7 @@ const envSchema = z.object({
 export const ENV_SCHEMA_KEYS: string[] = Object.keys(envSchema.shape);
 
 /** Validated, typed config used across the app. Contains secrets: never log it whole. */
-/** `compactOverrides` (env COMPACT_WINDOW_<ROLE>) is declared with the other routing env in role-env.ts. */
-export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
+export interface AgentConfig {
   /** OAuth token from `claude setup-token`; undefined when missing. Never log. */
   oauthToken: string | undefined;
   /** True only when the OAuth token exists and is not the REPLACE_ME placeholder. */
@@ -58,10 +55,6 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   logLevel: string;
   /** Default model slot of the SDK env and the log value. Roles name their own model. */
   model: string;
-  /** `<role>` -> USD (env BUDGET_<ROLE>_USD). */
-  budgetOverrides: Record<string, number>;
-  /** Deprecated env vars that are set (logged once at startup as `config.deprecated`). */
-  deprecated: string[];
   /** Model of the one-shot cheap calls (attachment summary, rollover fallback summary). */
   memoryModel: string;
   /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the role budget). */
@@ -91,9 +84,7 @@ export function loadConfig(
   ) {
     throw new Error("Invalid environment variables: DISCORD_TOKEN, OWNER_DISCORD_ID required");
   }
-  const routing = readRoutingEnv(env);
   return {
-    ...routing,
     oauthToken: e.CLAUDE_CODE_OAUTH_TOKEN,
     hasRealAuth: !isPlaceholder(e.CLAUDE_CODE_OAUTH_TOKEN),
     discordToken: e.DISCORD_TOKEN,
@@ -108,13 +99,4 @@ export function loadConfig(
       timeoutMs: e.TIMEOUT_MS,
     },
   };
-}
-
-/** Warn once at startup about deprecated env vars (MODEL, MODEL_<X>, the old two-part shapes). Names only. */
-export function logDeprecatedConfig(log: Logger, config: AgentConfig): void {
-  if (!config.deprecated.length) return;
-  log.warn(
-    { event: "config.deprecated", vars: config.deprecated },
-    "deprecated env vars are ignored: MODEL and MODEL_<X> (each role has a fixed model); the old names with a second part (BUDGET_<ROLE>_<X>_USD, COMPACT_WINDOW_<ROLE>_<X>) too, use BUDGET_<ROLE>_USD, COMPACT_WINDOW_<ROLE>",
-  );
 }

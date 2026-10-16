@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { type Client, Events } from "discord.js";
 import pkg from "../package.json";
 import { createDiscordApprovalGateway } from "./approvals/discord-approval";
-import { type AgentConfig, loadConfig, logDeprecatedConfig } from "./config/agent-config";
+import { type AgentConfig, loadConfig } from "./config/agent-config";
 import { workspacePaths } from "./config/workspace-paths";
 import { syncChannelTopics } from "./discord-setup/channel-topic";
 import { opsIds, readDiscordSetup } from "./discord-setup/discord-setup-config";
@@ -81,8 +81,6 @@ async function main(): Promise<void> {
     return fail(String(err instanceof Error ? err.message : err));
   }
   warnOpsChannelsInWorkspaces(workspaces, opsIds(setup), log);
-
-  logDeprecatedConfig(log, config);
 
   // Opening applies the Drizzle migrations; an old-format db is refused, untouched.
   let db: ReturnType<typeof openDb>;

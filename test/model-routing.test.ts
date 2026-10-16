@@ -38,32 +38,6 @@ describe("env", () => {
     expect(cfg().memoryModel).toBe(HAIKU_MODEL);
     expect(cfg({ MEMORY_MODEL: "m" }).memoryModel).toBe("m");
   });
-  test("BUDGET_<ROLE>_USD and COMPACT_WINDOW_<ROLE> are collected; a bad value names the var", () => {
-    const c = cfg({ BUDGET_DEVELOPER_USD: "5", COMPACT_WINDOW_DEVELOPER: "200000" });
-    expect(c.budgetOverrides.developer).toBe(5);
-    expect(c.compactOverrides.developer).toBe(200000);
-    expect(() => cfg({ BUDGET_DEVELOPER_USD: "abc" })).toThrow("BUDGET_DEVELOPER_USD");
-  });
-  test("removed MODEL / MODEL_<X> and the old two-part shapes are ignored and reported as deprecated", () => {
-    const c = cfg({
-      MODEL: "m",
-      MODEL_DEV: "opus",
-      MODEL_SONNET: "s",
-      BUDGET_DEV_EXEC_USD: "5",
-      COMPACT_WINDOW_DEV_EXEC: "200000",
-    });
-    expect(c.deprecated.sort()).toEqual([
-      "BUDGET_DEV_EXEC_USD",
-      "COMPACT_WINDOW_DEV_EXEC",
-      "MODEL",
-      "MODEL_DEV",
-      "MODEL_SONNET",
-    ]);
-    expect([c.budgetOverrides, c.compactOverrides]).toEqual([{}, {}]);
-    expect(roleConfig(dev, c).model).toBe(SONNET_MODEL); // the pin did not apply
-    expect(cfg().deprecated).toEqual([]);
-    expect(cfg({ CODE_MODEL: "x" }).deprecated).toEqual([]);
-  });
 });
 
 describe("resolveBudget", () => {
@@ -73,8 +47,7 @@ describe("resolveBudget", () => {
     expect(resolveBudget(dev, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(2);
     expect(resolveBudget(scout, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(0.75);
   });
-  test("env pin; owner raise; the task ceiling limits both", () => {
-    expect(resolveBudget(dev, {}, cfg({ BUDGET_DEVELOPER_USD: "4" }))).toBe(4);
+  test("owner raise; the task ceiling limits both", () => {
     expect(resolveBudget(dev, { extraBudgetUsd: 1.0 }, cfg())).toBe(5.5);
     expect(resolveBudget(dev, { extraBudgetUsd: 3 }, cfg())).toBe(6); // TASK_BUDGET_USD
     expect(resolveBudget(dev, { spentUsd: 4 }, cfg())).toBe(2); // what is left of the task ceiling

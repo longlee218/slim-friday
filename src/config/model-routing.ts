@@ -20,15 +20,12 @@ export interface Route {
 /** Per-task spend ceiling (USD) over the task's runs (re-runs included): a run gets at most what is left of it (owner, Rev 14 addendum 2). */
 export const TASK_BUDGET_USD = 6.0;
 
-/** Env override key of a role: `developer` for BUDGET_DEVELOPER_USD / COMPACT_WINDOW_DEVELOPER (the old `DEV` names still read). */
-const roleKey = (role: string): string => role.toLowerCase();
-
 /** True when a run's budget cap IS what the task's earlier runs left of the ceiling (so a raise cannot help). */
 export const ceilingBinds = (limitUsd: number | undefined, spentUsd = 0): boolean =>
   limitUsd !== undefined && spentUsd > 0 && Math.abs(limitUsd + spentUsd - TASK_BUDGET_USD) < 1e-6;
 
 /**
- * Budget (USD) of a role run, or undefined = no cap. Env pin BUDGET_<ROLE>_USD > the role's default
+ * Budget (USD) of a role run, or undefined = no cap. The role's constant budget
  * plus any owner raise, limited to what is left of
  * TASK_BUDGET_USD, then capped by MAX_BUDGET_USD.
  */
@@ -38,8 +35,7 @@ export function resolveBudget(
   config: AgentConfig,
 ): number | undefined {
   const cap = config.limits.maxBudgetUsd;
-  const pin = config.budgetOverrides[roleKey(role.name)];
-  const base = pin ?? role.budgetUsd;
+  const base = role.budgetUsd;
   // Task ceiling: the run gets at most what the task's earlier runs left of TASK_BUDGET_USD. An extra budget
   // widens the role budget only, never the ceiling (a hard per-task cost cap by design).
   const left = Math.max(0, TASK_BUDGET_USD - (route.spentUsd ?? 0));
@@ -48,11 +44,9 @@ export function resolveBudget(
 }
 
 /**
- * Auto-compact window (tokens) the orchestrator sets for a role run. Env pin COMPACT_WINDOW_<ROLE> (0 = no window
- * var, the SDK default window; the 75% share still applies) > the role's `autoCompactWindow` > the app default
- * `COMPACT_WINDOW_TOKENS`. Never read from the owner's shell by the SDK child: only this value reaches it.
+ * Auto-compact window (tokens) the orchestrator sets for a role run. The role's `autoCompactWindow`, else the app
+ * default `COMPACT_WINDOW_TOKENS`. Never read from the owner's shell by the SDK child: only this value reaches it.
  */
-export function resolveCompactWindow(role: RoleDefinition, config: AgentConfig): number {
-  const pin = config.compactOverrides[roleKey(role.name)];
-  return pin ?? role.autoCompactWindow ?? COMPACT_WINDOW_TOKENS;
+export function resolveCompactWindow(role: RoleDefinition): number {
+  return role.autoCompactWindow ?? COMPACT_WINDOW_TOKENS;
 }

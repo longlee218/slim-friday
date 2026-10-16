@@ -95,31 +95,15 @@ describe("compaction + cache TTL env (set by the app for every role, never inher
     }
   });
 
-  test("COMPACT_WINDOW_<ROLE> overrides; 0 turns it off; garbage fails startup naming the variable", async () => {
-    const role = getRole("lead");
-    const set = makeEnv({ COMPACT_WINDOW_LEAD: "150000" });
-    expect(resolveCompactWindow(role, set.config)).toBe(150_000);
-    expect((await optionsOf(set, "lead")).env[AUTO_COMPACT_WINDOW_VAR]).toBe("150000");
-    const off = makeEnv({ COMPACT_WINDOW_LEAD: "0" });
-    expect(resolveCompactWindow(role, off.config)).toBe(0);
-    const offEnv = (await optionsOf(off, "lead")).env;
-    expect(offEnv[AUTO_COMPACT_WINDOW_VAR]).toBeUndefined();
-    expect(offEnv[AUTOCOMPACT_PCT_VAR]).toBe("75");
-    expect(() => makeEnv({ COMPACT_WINDOW_LEAD: "lots" })).toThrow("COMPACT_WINDOW_LEAD");
-  });
-
-  test("range: 0 or 100000-1000000 only; anything else fails startup naming the variable, not the value", () => {
-    for (const ok of ["0", "100000", "1000000"])
-      expect(() => makeEnv({ COMPACT_WINDOW_LEAD: ok })).not.toThrow();
-    for (const bad of ["5", "99999", "1000001", "1e3", "-1", "150000.5"]) {
-      let msg = "";
-      try {
-        makeEnv({ COMPACT_WINDOW_LEAD: bad });
-      } catch (e) {
-        msg = String(e);
-      }
-      expect(msg).toContain("COMPACT_WINDOW_LEAD");
-      expect(msg).not.toContain(bad);
+  test("the window is role data or the app default; no env var changes it", async () => {
+    for (const name of ["lead", "developer", "scout", "planner", "discord-manager"] as const) {
+      expect(resolveCompactWindow(getRole(name))).toBe(
+        getRole(name).autoCompactWindow ?? COMPACT_WINDOW_TOKENS,
+      );
     }
+    process.env.COMPACT_WINDOW_LEAD = "150000";
+    const e = (await optionsOf(makeEnv(), "lead")).env;
+    delete process.env.COMPACT_WINDOW_LEAD;
+    expect(e[AUTO_COMPACT_WINDOW_VAR]).toBe(String(COMPACT_WINDOW_TOKENS));
   });
 });

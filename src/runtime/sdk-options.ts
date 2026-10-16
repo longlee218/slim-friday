@@ -170,7 +170,7 @@ export function buildSdkOptions(
       ...(input.memory?.threadId &&
         buildCompactHooks({ ...input.memory, threadId: input.memory.threadId })),
     },
-    env: sdkEnv(config, process.env, resolveCompactWindow(role, config), {
+    env: sdkEnv(config, process.env, resolveCompactWindow(role), {
       worker: !!guard?.envelope,
     }),
     ...(input.lean && leanOptions(input.lean)),
