@@ -15,7 +15,7 @@ export interface LeadToolContext {
   threadId: string;
   /** Turn id of this lead run (log field). */
   leadTurnId: string;
-  /** Id of the lead input that triggered the run: an escalation re-run of the same input shares it (idempotency key). */
+  /** Id of the lead input that triggered the run (idempotency key). */
   inputId: string;
   correlationId?: string;
   run: { dispatched: number };

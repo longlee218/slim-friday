@@ -7,8 +7,7 @@ const log = logger.child({ module: "answer-output" });
 
 /**
  * One agent run plus the run supervisor's single recovery. A NON-success first run may be resumed ONCE with a trusted
- * internal hint (`recover` decides; it gets what the task ceiling still leaves). Escalation to a stronger tier belongs
- * to the lead (RequestEscalation), never to a worker answer.
+ * internal hint (`recover` decides; it gets what the task ceiling still leaves).
  */
 export async function answerOutput(a: {
   run: (route: Route | undefined, sessionId?: string) => Promise<RunAgentResult>;
@@ -28,6 +27,6 @@ export async function answerOutput(a: {
     remainingBudgetUsd: TASK_BUDGET_USD - spentUsd,
   });
   if (!hint) return first;
-  logEvent(log, "escalation", { trigger: "supervisor", reason: first.outcome });
+  logEvent(log, "supervisor.rerun", { reason: first.outcome });
   return a.run({ spentUsd, internalHint: hint }, first.sessionId);
 }

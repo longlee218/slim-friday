@@ -1,109 +1,68 @@
 import { describe, expect, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { loadConfig } from "../src/config/agent-config";
-import { effortKnobs, MAX_TURNS } from "../src/config/effort-mapping";
-import {
-  DEFAULT_TIER_MODELS,
-  effortTier,
-  resolveBudget,
-  resolveModel,
-  safeEffort,
-} from "../src/config/model-routing";
-import { getRole } from "../src/roles/role-registry";
+import { HAIKU_MODEL, SONNET_MODEL } from "../src/config/model-ids";
+import { resolveBudget } from "../src/config/model-routing";
+import { getRole, ROLES } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
-import { roleConfig } from "../src/runtime/sdk-options";
+import { MAX_TURNS, roleConfig } from "../src/runtime/sdk-options";
 import { makeEnv, resultMsg } from "./helpers";
 
 const cfg = (extra: Record<string, string> = {}) => loadConfig({ AGENT_HOME: "/h", ...extra });
 const scout = getRole("scout");
 const dev = getRole("developer");
-const H = DEFAULT_TIER_MODELS.haiku;
-const S = DEFAULT_TIER_MODELS.sonnet;
-const O = DEFAULT_TIER_MODELS.opus;
 
-describe("tier defaults and env", () => {
-  test("default ids per tier; MODEL_<TIER> overrides one", () => {
-    expect(cfg().models).toEqual({ haiku: H, sonnet: S, opus: O });
-    expect(cfg({ MODEL_OPUS: "claude-opus-x" }).models).toEqual({
-      haiku: H,
-      sonnet: S,
-      opus: "claude-opus-x",
+describe("fixed role models", () => {
+  test("every role names a full model id (no tier alias)", () => {
+    for (const r of Object.values(ROLES)) expect(r.model).toMatch(/^claude-[a-z]+-\d/);
+  });
+  test("ids per role: lead, planner, developer sonnet; scout and discord-manager haiku", () => {
+    expect(Object.fromEntries(Object.values(ROLES).map((r) => [r.name, r.model]))).toEqual({
+      developer: SONNET_MODEL,
+      "discord-manager": HAIKU_MODEL,
+      lead: SONNET_MODEL,
+      planner: SONNET_MODEL,
+      scout: HAIKU_MODEL,
     });
   });
-  test("compaction model follows the haiku tier on Anthropic; MEMORY_MODEL wins", () => {
-    expect(cfg().memoryModel).toBe(H);
-    expect(cfg({ MODEL_HAIKU: "h2" }).memoryModel).toBe("h2");
-    expect(cfg({ MODEL_HAIKU: "h2", MEMORY_MODEL: "m" }).memoryModel).toBe("m");
+  test("thinking is role data: lead adaptive, discord-manager disabled, the others the SDK default", () => {
+    expect(getRole("lead").thinking).toEqual({ type: "adaptive" });
+    expect(getRole("discord-manager").thinking).toEqual({ type: "disabled" });
+    expect(dev.thinking).toBeUndefined();
+    expect(scout.thinking).toBeUndefined();
   });
-  test("MODEL_<ROLE>, BUDGET_<ROLE>_USD and COMPACT_WINDOW_<ROLE> are collected; bad names the var; tier ids and MODEL_INTENT are no role pins", () => {
-    const c = cfg({
-      MODEL_DEV: "opus",
-      BUDGET_DEV_USD: "5",
-      COMPACT_WINDOW_DEV: "200000",
-      MODEL_INTENT: "x",
-    });
-    expect(c.modelOverrides).toEqual({ developer: "opus" });
+});
+
+describe("env", () => {
+  test("compaction model is the haiku model; MEMORY_MODEL wins", () => {
+    expect(cfg().memoryModel).toBe(HAIKU_MODEL);
+    expect(cfg({ MEMORY_MODEL: "m" }).memoryModel).toBe("m");
+  });
+  test("BUDGET_<ROLE>_USD and COMPACT_WINDOW_<ROLE> are collected; a bad value names the var", () => {
+    const c = cfg({ BUDGET_DEV_USD: "5", COMPACT_WINDOW_DEV: "200000" });
     expect(c.budgetOverrides.developer).toBe(5);
     expect(c.compactOverrides.developer).toBe(200000);
     expect(() => cfg({ BUDGET_DEV_USD: "abc" })).toThrow("BUDGET_DEV_USD");
-    expect(cfg({ MODEL_SONNET: "s" }).modelOverrides).toEqual({});
   });
-  test("old per-stage shapes (MODEL_<ROLE>_<X>, BUDGET_<ROLE>_<X>_USD, COMPACT_WINDOW_<ROLE>_<X>) are ignored and reported as deprecated", () => {
+  test("removed MODEL / MODEL_<X> and the old two-part shapes are ignored and reported as deprecated", () => {
     const c = cfg({
-      MODEL_DEV_PLAN: "opus",
+      MODEL: "m",
+      MODEL_DEV: "opus",
+      MODEL_SONNET: "s",
       BUDGET_DEV_EXEC_USD: "5",
       COMPACT_WINDOW_DEV_EXEC: "200000",
     });
     expect(c.deprecated.sort()).toEqual([
       "BUDGET_DEV_EXEC_USD",
       "COMPACT_WINDOW_DEV_EXEC",
-      "MODEL_DEV_PLAN",
+      "MODEL",
+      "MODEL_DEV",
+      "MODEL_SONNET",
     ]);
-    expect([c.modelOverrides, c.budgetOverrides, c.compactOverrides]).toEqual([{}, {}, {}]);
-    expect(resolveBudget(dev, {}, c)).toBe(4.5); // the old budget did not apply
-  });
-  test("legacy MODEL alias pins no role (Anthropic path): flagged deprecated; MODEL_<ROLE> pins stay", () => {
-    const c = cfg({ MODEL: "m-qa", MODEL_DEV: "sonnet" });
-    expect(c.deprecated).toEqual(["MODEL"]);
-    expect(c.modelOverrides).toEqual({ developer: "sonnet" });
-    expect(resolveModel(scout, {}, c)).toBe(H); // the role's own model, not MODEL
-    expect(resolveModel(dev, {}, c)).toBe(S);
-    expect(cfg({ MODEL: "m-qa", MODEL_SCOUT: "opus" }).modelOverrides.scout).toBe("opus");
+    expect([c.budgetOverrides, c.compactOverrides]).toEqual([{}, {}]);
+    expect(roleConfig(dev, c).model).toBe(SONNET_MODEL); // the pin did not apply
     expect(cfg().deprecated).toEqual([]);
-    // CODE_MODEL is ignored now.
     expect(cfg({ CODE_MODEL: "x" }).deprecated).toEqual([]);
-  });
-});
-
-describe("resolveModel", () => {
-  const c = cfg();
-  test("default map: scout haiku; dev sonnet (opus for design)", () => {
-    expect(resolveModel(scout, {}, c)).toBe(H);
-    expect(resolveModel(dev, { cls: "standard" }, c)).toBe(S);
-    expect(resolveModel(dev, { cls: "mechanical" }, c)).toBe(S);
-    expect(resolveModel(dev, {}, c)).toBe(S); // missing class = standard
-    expect(resolveModel(dev, { cls: "design" }, c)).toBe(O);
-  });
-  test("a role without classTiers keeps its own model for every class; a forced tier and effort beat the class", () => {
-    for (const cls of ["mechanical", "standard", "design"] as const)
-      expect(resolveModel(scout, { cls }, c)).toBe(H);
-    expect(resolveModel(scout, {}, c)).toBe(H);
-    expect(resolveModel(scout, { cls: "design", tier: "haiku" }, c)).toBe(H);
-    expect(resolveModel(scout, { cls: "standard", effort: "medium" }, c)).toBe(S);
-  });
-  test("effort: low haiku, medium sonnet, high by class, max opus", () => {
-    expect(effortTier("low")).toBe("haiku");
-    expect(effortTier("medium")).toBe("sonnet");
-    expect(effortTier("high", "standard")).toBe("sonnet");
-    expect(effortTier("high", "design")).toBe("opus");
-    expect(effortTier("max")).toBe("opus");
-    expect(resolveModel(dev, { cls: "standard", effort: "low" }, c)).toBe(H);
-    expect(resolveModel(scout, { effort: "medium" }, c)).toBe(S);
-  });
-  test("precedence: env pin > forced tier > effort > class", () => {
-    expect(resolveModel(scout, { tier: "sonnet", effort: "low" }, c)).toBe(S);
-    expect(resolveModel(scout, { tier: "sonnet" }, cfg({ MODEL_SCOUT: "opus" }))).toBe(O);
-    expect(resolveModel(dev, { cls: "design" }, cfg({ MODEL_DEV: "claude-x" }))).toBe("claude-x");
   });
 });
 
@@ -122,44 +81,10 @@ describe("resolveBudget", () => {
   });
 });
 
-describe("opus guard (defense in depth)", () => {
-  const c = cfg();
-  test("effort max / tier opus resolve to Opus only with ownerConfirmedMax; else capped at high", () => {
-    expect(resolveModel(scout, { effort: "max" }, c)).toBe(S);
-    expect(resolveModel(scout, { effort: "max", ownerConfirmedMax: true }, c)).toBe(O);
-    expect(resolveModel(scout, { tier: "opus" }, c)).toBe(S);
-    expect(resolveModel(scout, { tier: "opus", ownerConfirmedMax: true }, c)).toBe(O);
-    // design: the cap is the high tier of the class (opus already by the table)
-    expect(resolveModel(dev, { cls: "design", effort: "max" }, c)).toBe(O);
-  });
-  test("table default stays: dev design is opus without the flag", () => {
-    expect(resolveModel(dev, { cls: "design" }, c)).toBe(O);
-  });
-  test("max thinking knobs are capped to high without the flag", () => {
-    expect(safeEffort({ effort: "max" })).toBe("high");
-    expect(safeEffort({ effort: "max", ownerConfirmedMax: true })).toBe("max");
-    expect(safeEffort({})).toBeUndefined();
-  });
-  test("tier lookup ignores prototype keys", () => {
-    expect(resolveModel(scout, {}, cfg({ MODEL_SCOUT: "constructor" }))).toBe("constructor");
-  });
-});
-
-describe("effort knobs", () => {
-  test("thinking and maxTurns per level: MAX_TURNS is an absolute ceiling", () => {
-    expect(effortKnobs("low")).toEqual({ thinking: { type: "disabled" }, maxTurns: 10 });
-    expect(effortKnobs("medium")).toEqual({ thinking: { type: "adaptive" }, maxTurns: 20 });
-    expect(effortKnobs("high")).toEqual({
-      thinking: { type: "enabled", budgetTokens: 16000 },
-      maxTurns: 20,
-    });
-    for (const e of ["low", "medium", "high", "max"] as const)
-      expect(effortKnobs(e).maxTurns).toBeLessThanOrEqual(MAX_TURNS);
-    expect(MAX_TURNS).toBe(20);
-  });
-  test("roleConfig carries model and budget; runAgent options carry effort knobs only when asked", async () => {
-    const sc = roleConfig(dev, cfg(), { cls: "design" });
-    expect([sc.model, sc.limits.maxBudgetUsd]).toEqual([O, 4.5]);
+describe("run options", () => {
+  test("roleConfig carries the role's model and budget; runAgent passes model, thinking and the turn ceiling", async () => {
+    const sc = roleConfig(dev, cfg());
+    expect([sc.model, sc.limits.maxBudgetUsd]).toEqual([SONNET_MODEL, 4.5]);
     const env = makeEnv();
     const seen: Options[] = [];
     const queryFn = (a: { options?: Options }) =>
@@ -167,24 +92,20 @@ describe("effort knobs", () => {
         seen.push(a.options as Options);
         yield resultMsg();
       })();
-    const run = (route?: object) =>
-      runAgent({
+    for (const role of [scout, getRole("discord-manager")])
+      await runAgent({
         prompt: "q",
         turnId: "t",
-        role: scout,
+        role,
         cwd: env.home,
         config: env.config,
         db: env.db,
         abortController: new AbortController(),
         queryFn: queryFn as never,
-        route,
       });
-    await run();
-    await run({ effort: "high", tier: "sonnet" });
     expect("thinking" in seen[0]!).toBe(false);
-    expect(seen[0]!.model).toBe(H);
-    expect(seen[1]!.thinking).toEqual({ type: "enabled", budgetTokens: 16000 });
-    expect(seen[1]!.maxTurns).toBe(MAX_TURNS); // ceiling, even for effort high
-    expect(seen[1]!.model).toBe(S);
+    expect(seen[0]!.model).toBe(HAIKU_MODEL);
+    expect(seen[0]!.maxTurns).toBe(MAX_TURNS);
+    expect(seen[1]!.thinking).toEqual({ type: "disabled" });
   });
 });

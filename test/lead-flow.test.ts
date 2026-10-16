@@ -156,19 +156,3 @@ test("a worker question becomes an event; SteerTask answers it and the worker co
   await until(() => answers.length === 1);
   expect(answers[0]).toEqual({ "Which dir?": "b" });
 });
-
-test("a role tag starts the worker directly, without the lead model; the worker text is not posted", async () => {
-  const h = leadHarness(async (c) => {
-    if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
-      return "worker answer";
-    }
-    return "lead should not run";
-  });
-  expect(await h.send("[dev] add b.txt with two")).toBeUndefined(); // the queue posts the notice
-  await until(() => h.posts.some((p) => p.includes("starting"))); // the fixed start notice, from app code
-  await workersDone(h.env.db);
-  expect(h.ofKind("lead")).toHaveLength(0);
-  expect(h.ofKind("worker")).toHaveLength(1);
-  expect(h.posts.filter((p) => p.includes("worker answer"))).toHaveLength(0);
-});

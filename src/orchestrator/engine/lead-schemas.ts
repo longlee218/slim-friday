@@ -76,10 +76,6 @@ export const ASK_OWNER_SHAPE = {
   workerAskId: z.string().min(1).max(80).optional(),
 };
 export const FORWARD_RESULT_SHAPE = { taskId: TASK_ID, mode: z.enum(["verbatim", "summary"]) };
-export const REQUEST_ESCALATION_SHAPE = {
-  to: z.enum(["high", "opus"]),
-  reason: z.string().min(1).max(REASON_MAX_CHARS),
-};
 
 /** A follow-up the worker asks for next to its result. */
 export const WORKER_REQUEST = z.object({
@@ -99,5 +95,4 @@ export type SteerInput = z.infer<z.ZodObject<typeof STEER_TASK_SHAPE>>;
 export type CancelInput = z.infer<z.ZodObject<typeof CANCEL_TASK_SHAPE>>;
 export type AskOwnerInput = z.infer<z.ZodObject<typeof ASK_OWNER_SHAPE>>;
 export type ForwardInput = z.infer<z.ZodObject<typeof FORWARD_RESULT_SHAPE>>;
-export type EscalationInput = z.infer<z.ZodObject<typeof REQUEST_ESCALATION_SHAPE>>;
 export type ReportInput = z.infer<z.ZodObject<typeof REPORT_RESULT_SHAPE>>;

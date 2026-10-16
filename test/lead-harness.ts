@@ -1,5 +1,6 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { ApprovalGateway } from "../src/approvals/approval-types";
+import { OWNER_MESSAGE_LABEL } from "../src/orchestrator/engine/first-prompt-prefix";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
@@ -75,6 +76,53 @@ export function scriptedQuery(script: Script, calls: Call[]) {
         total_cost_usd: o.cost ?? 0.001,
       });
     })()) as never;
+}
+
+/** Fixed lead reply of `devLeadQuery` (the owner sees it as the start notice of the worker). */
+export const DEV_START_NOTICE = "I’m starting on your request.";
+
+/**
+ * Wrap a fake `query` for tests that need a developer worker to start from a plain owner message: a lead run (the run
+ * with the `lead` server) dispatches the message text to the developer through the real `DispatchAgent` tool (an optional
+ * leading `location:<name>` becomes the assignment's location; an open goal is superseded) and replies `DEV_START_NOTICE`; an announce run just
+ * replies; every other run (the worker) goes to `inner`.
+ */
+export function devLeadQuery(inner: unknown) {
+  return ((a: { prompt: unknown; options: any }) => {
+    const lead = a.options?.mcpServers?.lead;
+    if (!lead) return (inner as (a: unknown) => AsyncIterable<SDKMessage>)(a);
+    return (async function* (): AsyncGenerator<SDKMessage> {
+      const prompt = await promptOf(a.prompt);
+      const at = prompt.lastIndexOf(`${OWNER_MESSAGE_LABEL}\n`);
+      if (at >= 0) {
+        let brief = prompt.slice(at + OWNER_MESSAGE_LABEL.length + 1).trim();
+        const pin = /^location:(\S+)\s*/.exec(brief);
+        if (pin) brief = brief.slice(pin[0].length);
+        const dispatch = async (supersedes?: string) =>
+          JSON.parse(
+            (
+              await lead.instance._registeredTools.DispatchAgent.handler(
+                {
+                  strategy: "DIRECT",
+                  intent: "work",
+                  reason: "test",
+                  ...(supersedes && { supersedes }),
+                  assignments: [
+                    { key: "main", role: "developer", brief, location: pin?.[1], dependsOn: [] },
+                  ],
+                },
+                {},
+              )
+            ).content[0].text,
+          );
+        const first = await dispatch();
+        // An open goal of the thread is replaced, like the owner starting new work.
+        const open = first.code === "GOAL_OPEN" && /Goal (\S+) is open/.exec(first.message);
+        if (open) await dispatch(open[1]);
+      }
+      yield resultMsg({ result: DEV_START_NOTICE, session_id: undefined }); // no lead session is stored
+    })();
+  }) as never;
 }
 
 /** Build the handler and a fake query driven by `script`. */

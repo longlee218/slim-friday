@@ -149,28 +149,6 @@ test("M3: a failed announce run is retried once, then dropped with ONE notice (n
   expect(listUndelivered(h.env.db, "t1")).toEqual([]); // the news is closed, no endless retry
 }, 15_000);
 
-test("M2: a role tag waits behind the thread's running lead run (one run per thread)", async () => {
-  let release!: () => void;
-  const gate = new Promise<void>((r) => (release = r));
-  const h = leadHarness(async (c) => {
-    if (c.kind === "lead") {
-      await gate;
-      return "slow lead";
-    }
-    await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
-    return "";
-  });
-  await h.send("think about it");
-  await until(() => h.ofKind("lead").length === 1); // the lead run is in flight
-  await h.send("[dev] do it");
-  await sleep(150);
-  expect(h.ofKind("worker")).toHaveLength(0); // queued behind the lead run, not racing it
-  release();
-  await until(() => h.ofKind("worker").length === 1);
-  expect(h.posts[0]).toBe("slow lead");
-  expect(h.posts.some((p) => p.includes("starting"))).toBe(true);
-});
-
 test("a lead run that answers with tool calls only posts nothing (no `did not finish` notice) and still marks the message visible", async () => {
   const h = leadHarness(async () => "");
   let visible = 0;

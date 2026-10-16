@@ -5,7 +5,6 @@ import { createAskOwnerTool } from "../tools/AskOwnerTool/ask-owner-tool";
 import { createCancelTaskTool } from "../tools/CancelTaskTool/cancel-task-tool";
 import { createDispatchAgentTool } from "../tools/DispatchAgentTool/dispatch-agent-tool";
 import { createForwardResultTool } from "../tools/ForwardResultTool/forward-result-tool";
-import { createRequestEscalationTool } from "../tools/RequestEscalationTool/request-escalation-tool";
 import { createRequestPlanTool } from "../tools/RequestPlanTool/request-plan-tool";
 import { createSteerTaskTool } from "../tools/SteerTaskTool/steer-task-tool";
 import { createTaskStatusTool } from "../tools/TaskStatusTool/task-status-tool";
@@ -25,7 +24,6 @@ export function createLeadServer(ctx: LeadToolContext) {
       createCancelTaskTool(ctx),
       createAskOwnerTool(ctx),
       createForwardResultTool(ctx),
-      createRequestEscalationTool(ctx),
       createRequestPlanTool(ctx),
       createApprovePlanTool(ctx),
     ],

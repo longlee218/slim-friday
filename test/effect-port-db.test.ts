@@ -200,13 +200,6 @@ test("steer without a pending question maps the registry result; none = ended", 
   expect(port.steer(port.state().items[0]?.id as string, "x")).toBe("ended");
 });
 
-test("escalation is granted once and readable by the runner", () => {
-  const { port } = setup();
-  expect(port.requestEscalation("opus", "hard")).toBe(true);
-  expect(port.requestEscalation("high", "again")).toBe(false);
-  expect(port.escalation()).toEqual({ to: "opus", reason: "hard" });
-});
-
 /** Two items with the same key: the second insert hits the unique (goal, item key) index and throws. */
 const DUP_ITEMS = [
   { key: "a", role: "developer", brief: "x", dependsOn: [], status: "ready" as const },
@@ -284,7 +277,7 @@ test("the status tool is a read: fresh after a cancel, and it leaves no audit ro
   expect(count("SELECT COUNT(*) AS n FROM thread_events") - events).toBe(1);
 });
 
-test("an escalation re-run of the same input does not post or ask twice; a refused dispatch is not replayed", async () => {
+test("a re-run of the same lead input (a retry) does not post or ask twice; a refused dispatch is not replayed", async () => {
   const posts: unknown[] = [];
   let asks = 0;
   const { port, ctx } = setup({

@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { SONNET_MODEL } from "../src/config/model-ids";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { APP_MCP_TOOLS, mcpToolName, PLANNER_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { createPlannerServer } from "../src/mcp/planner-server";
@@ -295,5 +296,5 @@ test("planner tools are allowed for the planner only; the planner holds no lead 
   expect(ROLES.planner!.dispatchable).toBeFalsy();
   expect(ROLES.planner!.sideEffects).toBe("none");
   expect(ROLES.planner!.capabilities).not.toContain("write");
-  expect(ROLES.planner!.model).toBe("sonnet");
+  expect(ROLES.planner!.model).toBe(SONNET_MODEL);
 });

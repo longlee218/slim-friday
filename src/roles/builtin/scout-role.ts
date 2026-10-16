@@ -1,3 +1,4 @@
+import { HAIKU_MODEL } from "../../config/model-ids";
 import { WORKER_MCP_SERVER } from "../../mcp/mcp-tool-names";
 import type { RoleDefinition } from "../role-types";
 
@@ -27,16 +28,13 @@ export const SCOUT_ROLE: RoleDefinition = {
   skills: "none",
   appSkills: ["scout", "docs-seeker"],
   limits: { maxAsk: MAX_ASK },
-  locationScope: "all",
   sideEffects: "none",
-  approvalRequired: false,
-  capabilityVersion: "2",
   capabilities: ["read", "web", "shell", "skills"],
   shellMode: "read", // read-only allowlist: the scout never writes
   mcpServers: [WORKER_MCP_SERVER],
   noSubagents: true, // depth 1: a worker never spawns subagents
   permissionMode: "auto",
-  model: "haiku",
+  model: HAIKU_MODEL,
   budgetUsd: BUDGET_USD,
   promptSections: () => [CONTRACT],
 };

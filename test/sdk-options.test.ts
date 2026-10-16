@@ -1,9 +1,10 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import { MAX_TURNS } from "../src/config/effort-mapping";
+import { SONNET_MODEL } from "../src/config/model-ids";
 import { guardFor } from "../src/guardrails/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
+import { MAX_TURNS } from "../src/runtime/sdk-options";
 import { SEND_MESSAGE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv, resultMsg } from "./helpers";
 
@@ -16,8 +17,6 @@ type Kind = "lead" | "dev";
 
 /** Config limits are fixed so timeout and budget assertions are exact. */
 const ENV = {
-  MODEL_LEAD: "model-lead",
-  MODEL_DEV: "model-code",
   CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test", // real Anthropic login: the lead may use auto mode
   MAX_BUDGET_USD: "3",
 };
@@ -133,8 +132,8 @@ test("options lock: tools, mcp servers, permission mode per role", async () => {
 test("options lock: model and limits per role, no run timeout", async () => {
   const lead = await capture("lead");
   const dev = await capture("dev");
-  expect(lead.o.model).toBe("model-lead");
-  expect(dev.o.model).toBe("model-code");
+  expect(lead.o.model).toBe(SONNET_MODEL);
+  expect(dev.o.model).toBe(SONNET_MODEL);
   for (const r of [lead, dev]) expect(r.o.maxTurns).toBe(MAX_TURNS);
   // Per-role budget (lead 0.75, dev 4.5) capped by MAX_BUDGET_USD=3.
   expect(lead.o.maxBudgetUsd).toBe(0.75);

@@ -28,15 +28,15 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-import { workersDone } from "./lead-harness";
+import { devLeadQuery, workersDone } from "./lead-harness";
 
-/** A `[dev]` message: starts a detached dev worker (the only run a plain handler call makes without the lead). */
+/** A message the fake lead dispatches to a detached dev worker. */
 const task = (text: string, threadId: string) => ({
   source: "test",
   channelId: TEST_CHANNEL,
   userId: "u",
   threadId,
-  text: `[dev] ${text}`,
+  text,
 });
 /** Handler over a fake query; the worker runs detached, so tests wait with `workersDone`. */
 const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
@@ -45,7 +45,8 @@ const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
     config: env.config,
     approvals: stubGateway(),
     limiter: createRunLimiter(10),
-    queryFn: queryFn as never,
+    queryFn: devLeadQuery(queryFn),
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 
@@ -61,11 +62,13 @@ test("a line from a module logger deep in a worker run carries sessionKey/thread
   await handle(task("location:location what is alpha", "th1"));
   await workersDone(env.db);
   cap.stop();
-  const started = cap.lines.find((l) => l.event === "run.started")!;
+  const started = cap.lines.find((l) => l.event === "run.started" && l.mode === "developer")!;
   expect(started).toMatchObject({ threadId: "th1", location: "location", mode: "developer" });
   expect(started.sessionKey).toMatch(/^task:.+:developer$/);
   // Every run line has the same ids, none passed by hand.
-  for (const l of cap.lines.filter((l) => String(l.event).startsWith("run."))) {
+  for (const l of cap.lines.filter(
+    (l) => String(l.event).startsWith("run.") && l.mode === "developer",
+  )) {
     expect(l.sessionKey).toBe(started.sessionKey);
     expect(l.traceId).toBe(started.traceId);
   }
@@ -125,9 +128,11 @@ test("context survives into SDK callbacks (hooks, timers): tool lines carry the 
   // The guard-denied Read logs tool.denied (+ tool.start from the recording hook if it ran); the Glob logs tool.done.
   const calls = cap.lines.filter((l) => l.event === "tool.done" || l.event === "tool.denied");
   expect(calls.map((c) => c.event).sort()).toEqual(["tool.denied", "tool.done"]);
-  const started = cap.lines.find((l) => l.event === "task.started")!;
+  const started = cap.lines.find((l) => l.event === "task.started" && l.type === "developer")!;
   expect(started.type).toBe("developer"); // the log type is the role name
-  const sessionKey = cap.lines.find((l) => l.event === "run.started")!.sessionKey;
+  const sessionKey = cap.lines.find(
+    (l) => l.event === "run.started" && l.mode === "developer",
+  )!.sessionKey;
   for (const c of calls)
     expect(c).toMatchObject({ sessionKey, threadId: "th1", mode: "developer" });
   expect(calls.find((c) => c.event === "tool.denied")!.reason).toBeTruthy();
@@ -151,11 +156,20 @@ test("two concurrent tasks do not mix contexts", async () => {
   await workersDone(env.db);
   cap.stop();
   const byThread = (t: string) =>
-    new Set(cap.lines.filter((l) => l.threadId === t && l.sessionKey).map((l) => l.sessionKey));
+    new Set(
+      cap.lines
+        .filter(
+          (l) =>
+            l.threadId === t && String(l.sessionKey).startsWith("task:") && l.mode === "developer",
+        )
+        .map((l) => l.sessionKey),
+    );
   expect(byThread("th1").size).toBe(1);
   expect(byThread("th2").size).toBe(1);
   expect([...byThread("th1")][0]).not.toBe([...byThread("th2")][0]);
-  expect(cap.lines.filter((l) => l.event === "run.finished").length).toBe(2);
+  expect(cap.lines.filter((l) => l.event === "run.finished" && l.mode === "developer").length).toBe(
+    2,
+  );
 });
 
 test("approval decided by a click outside the task context still logs the task's ids", async () => {
@@ -241,7 +255,7 @@ async function runUnpinned(env: ReturnType<typeof makeEnv>, file?: string) {
   await handle(task("hi there", "th-unpinned"));
   await workersDone(env.db);
   cap.stop();
-  return cap.lines;
+  return cap.lines.filter((l) => l.mode !== "lead"); // the worker's lines (the fake lead logs too)
 }
 
 test("one workspace with one location: unpinned worker lines carry the location", async () => {

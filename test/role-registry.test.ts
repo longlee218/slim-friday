@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
+import { HAIKU_MODEL, SONNET_MODEL } from "../src/config/model-ids";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
-import { leadingRoleTag } from "../src/intent/role-tag";
 import { mcpServersFor } from "../src/mcp/mcp-servers";
 import { canonicalRoleName } from "../src/roles/role-aliases";
 import { dispatchableWorkers, getRole, ROLES } from "../src/roles/role-registry";
@@ -20,10 +20,8 @@ const BARE: RoleDefinition = {
   background: false,
   limits: { maxAsk: 0 },
   sideEffects: "none",
-  approvalRequired: false,
-  capabilityVersion: "1",
   capabilities: ["read"],
-  model: "haiku",
+  model: HAIKU_MODEL,
   budgetUsd: 0.5,
   promptSections: () => [],
 };
@@ -43,8 +41,12 @@ test("roles: bypass only for developer, auto for the others that set it, default
   expect(getRole("developer").permissionMode).toBe("bypassPermissions");
   expect(getRole("lead").permissionMode).toBe("auto");
   expect(getRole("scout").permissionMode).toBe("auto");
-  expect(getRole("developer")).toMatchObject({ model: "sonnet", budgetUsd: 4.5, background: true });
-  expect(getRole("lead")).toMatchObject({ model: "sonnet", background: false });
+  expect(getRole("developer")).toMatchObject({
+    model: SONNET_MODEL,
+    budgetUsd: 4.5,
+    background: true,
+  });
+  expect(getRole("lead")).toMatchObject({ model: SONNET_MODEL, background: false });
 });
 
 test("whenToUse: every dispatchable role has one, all different; developer has class tiers", () => {
@@ -82,21 +84,15 @@ test("tools derive from capabilities", () => {
   ]);
 });
 
-test("role tags: developer = [developer], unique across roles", () => {
-  expect(ROLES.developer?.tag).toBe("[developer]");
-  const tags = Object.values(ROLES).flatMap((r) => (r.tag ? [r.tag.toLowerCase()] : []));
-  expect(new Set(tags).size).toBe(tags.length);
-  expect("aliases" in (ROLES.developer ?? {})).toBe(false); // natural-language aliases are gone
+test("no role carries a tag or aliases (the role tag is gone)", () => {
+  for (const r of Object.values(ROLES)) {
+    expect("tag" in r).toBe(false);
+    expect("aliases" in r).toBe(false);
+  }
 });
 
-test("old role name `dev` reads as developer; the `[dev]` tag still starts the developer", () => {
+test("old role name `dev` reads as developer; a stored `dev` row still resolves", () => {
   expect(canonicalRoleName("dev")).toBe("developer");
   expect(canonicalRoleName("scout")).toBe("scout");
   expect(getRole("dev")).toBe(getRole("developer"));
-  const roles = Object.values(ROLES);
-  expect(leadingRoleTag("[dev] fix it", roles)).toEqual({ role: "developer", rest: "fix it" });
-  expect(leadingRoleTag("[Developer] fix it", roles)).toEqual({
-    role: "developer",
-    rest: "fix it",
-  });
 });

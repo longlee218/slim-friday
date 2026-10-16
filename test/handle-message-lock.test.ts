@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-import { noticeSink, until, workersDone } from "./lead-harness";
+import { devLeadQuery, noticeSink, until, workersDone } from "./lead-harness";
 
-/** A `[dev]` message: starts a detached dev worker (the handler returns the start notice, never the worker's text). */
+/** A message the fake lead dispatches to a detached dev worker (the lead posts the start notice, never the worker's text). */
 const task = (text: string, threadId = "th1") => ({
   source: "test",
   language: "en" as const,
@@ -13,7 +13,7 @@ const task = (text: string, threadId = "th1") => ({
   threadId,
   text,
 });
-const dev = (brief: string, threadId = "th1") => task(`[dev] ${brief}`, threadId);
+const dev = (brief: string, threadId = "th1") => task(brief, threadId);
 
 /** Handler over a fake query; workers run detached, so tests wait with `workersDone`. */
 const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
@@ -22,7 +22,8 @@ const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
     config: env.config,
     approvals: stubGateway(),
     limiter: createRunLimiter(10),
-    queryFn: queryFn as never,
+    queryFn: devLeadQuery(queryFn),
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
 const turnStatus = (env: ReturnType<typeof makeEnv>) =>
   env.db.query<{ status: string }, []>("SELECT status FROM turns WHERE role = 'developer'").get()
@@ -133,7 +134,8 @@ test("M3: drain times out on a stuck run and marks its task interrupted", async 
   void handle(dev("hi", "th5"));
   await Bun.sleep(50);
   await handle.drain(100);
-  expect(env.db.query<{ status: string }, []>("SELECT status FROM turns").get()?.status).toBe(
-    "interrupted",
-  );
+  expect(
+    env.db.query<{ status: string }, []>("SELECT status FROM turns WHERE role = 'developer'").get()
+      ?.status,
+  ).toBe("interrupted");
 });

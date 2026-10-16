@@ -1,3 +1,4 @@
+import { HAIKU_MODEL } from "../../config/model-ids";
 import { DISCORD_ADMIN_MCP_SERVER } from "../../mcp/mcp-tool-names";
 import type { RoleDefinition } from "../role-types";
 
@@ -25,11 +26,10 @@ export const DISCORD_MANAGER_ROLE: RoleDefinition = {
   appSkills: ["discord-server-manager"],
   mcpServers: [DISCORD_ADMIN_MCP_SERVER],
   limits: { maxAsk: MAX_ASK },
-  model: "haiku",
+  model: HAIKU_MODEL,
+  thinking: { type: "disabled" }, // a short admin chat: thinking off keeps it cheap
   budgetUsd: BUDGET_USD,
   sideEffects: "external",
-  approvalRequired: true,
-  capabilityVersion: "1",
   capabilities: ["read", "skills", "ask"],
   promptSections: () => [CONTRACT],
 };

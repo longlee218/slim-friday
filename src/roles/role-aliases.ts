@@ -7,9 +7,3 @@ const ROLE_ALIASES: Readonly<Record<string, string>> = { dev: "developer" };
 /** Current role name for a stored or typed one (an unknown name passes through unchanged). */
 export const canonicalRoleName = (name: string): string =>
   Object.hasOwn(ROLE_ALIASES, name) ? (ROLE_ALIASES[name] as string) : name;
-
-/** Old names that now mean `role`, for the role tag router (`[dev]` still starts the developer). */
-export const aliasesOf = (role: string): string[] =>
-  Object.entries(ROLE_ALIASES)
-    .filter(([, to]) => to === role)
-    .map(([from]) => from);

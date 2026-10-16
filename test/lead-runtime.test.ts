@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { leadHarness, until } from "./lead-harness";
 
-/* Lead runtime pieces over the fake query: dispatch-ready (order, breaker), typed results, escalation, announce skips. */
+/* Lead runtime pieces over the fake query: dispatch-ready (order, breaker), typed results, announce skips. */
 
 const step = (key: string, dependsOn: string[] = [], role = "scout") => ({
   key,
@@ -113,25 +113,6 @@ test("circuit breaker: an item already dispatched 3 times fails instead of start
   await until(() => announced.includes("failure"));
   expect(h.ofKind("worker")).toHaveLength(0);
   expect(row(h, "a")?.status).toBe("failed");
-});
-
-test("RequestEscalation re-runs the same input once on the stronger tier; a dispatch made twice has one effect", async () => {
-  let runs = 0;
-  const h = leadHarness(async (c) => {
-    if (c.kind === "worker") return "done";
-    if (!c.prompt.includes("Owner message:")) return "";
-    runs++;
-    if (runs === 1) await c.tool("RequestEscalation", { to: "high", reason: "hard" });
-    await dispatch(c, [step("a")]);
-    return `answer ${runs}`;
-  });
-  await h.send("hard one");
-  await until(() => h.posts.includes("answer 2"));
-  expect(h.posts).not.toContain("answer 1"); // the first run's reply is replaced by the re-run's
-  expect(runs).toBe(2);
-  expect(
-    h.env.db.query("SELECT COUNT(*) AS n FROM owned_tasks WHERE parent_id IS NULL").get(),
-  ).toEqual({ n: 1 });
 });
 
 test("the lead's own records are never announced back to it", async () => {

@@ -113,7 +113,6 @@ export function createControlRoleRun(deps: ControlRunDeps): ControlRun {
               locations: [],
               ac,
               language,
-              route: { effort: "low" }, // admin chat: the cheap tier, thinking off
               existing,
               // Built per query() call: an in-process server instance is never shared by two calls.
               appServers: () => ({

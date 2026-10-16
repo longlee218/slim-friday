@@ -1,4 +1,3 @@
-import { MAX_TURNS } from "../../config/effort-mapping";
 import type { Route } from "../../config/model-routing";
 import { guardFor } from "../../guardrails/check-tool-call";
 import { threadLanguage } from "../../ingress/discord-components";
@@ -10,6 +9,7 @@ import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
 import { createRunSupervisor, recoverOnce } from "../../runtime/run-supervisor";
+import { MAX_TURNS } from "../../runtime/sdk-options";
 import { ownedTaskOfTurn } from "../../storage/owned-task-store";
 import { answerOutput } from "../outputs/answer-output";
 import { clearProgressNote, setProgressNote } from "../turns/progress-notes";

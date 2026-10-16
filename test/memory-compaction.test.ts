@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { loadConfig } from "../src/config/agent-config";
+import { HAIKU_MODEL } from "../src/config/model-ids";
 import { createMemoryRunner } from "../src/memory/memory-command-handler";
 import { type CompactLlm, compactFile, sdkCompactLlm } from "../src/memory/memory-compaction";
 import { parseCompacted } from "../src/memory/memory-compaction-prompt";
@@ -261,9 +262,9 @@ test("sdkCompactLlm: MEMORY_MODEL, no tools, one turn, no settings, no persona; 
   expect(opts.mcpServers).toBeUndefined();
 });
 
-test("MEMORY_MODEL defaults to the haiku tier and can be overridden", () => {
+test("MEMORY_MODEL defaults to the haiku model and can be overridden", () => {
   const base = { AGENT_HOME: "/tmp/x" };
-  expect(loadConfig(base).memoryModel).toBe(loadConfig(base).models.haiku);
+  expect(loadConfig(base).memoryModel).toBe(HAIKU_MODEL);
   expect(loadConfig({ ...base, MEMORY_MODEL: "m1" }).memoryModel).toBe("m1");
 });
 

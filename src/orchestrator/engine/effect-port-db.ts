@@ -53,16 +53,9 @@ export interface PortDeps {
   now?: () => number;
 }
 
-/** The port plus what the lead runner reads after the run. */
-export interface DbEffectPort extends EffectPort {
-  /** The escalation the lead asked for in this run, or undefined. */
-  escalation(): { to: "high" | "opus"; reason: string } | undefined;
-}
-
 /** Create the db-backed port of one lead run on one thread. */
-export function createDbEffectPort(d: PortDeps): DbEffectPort {
+export function createDbEffectPort(d: PortDeps): EffectPort {
   const { db, threadId } = d;
-  let escalation: { to: "high" | "opus"; reason: string } | undefined;
   const mine = (id: string): boolean => threadOfTask(db, id) === threadId;
 
   /** Move the whole cancel set to `cancelled` (CAS: an ended task keeps its status); returns the set to abort. */
@@ -200,11 +193,5 @@ export function createDbEffectPort(d: PortDeps): DbEffectPort {
     },
     askOwner: (q) => d.io.askOwner(q),
     post: (p) => d.io.post(p),
-    requestEscalation: (to, reason) => {
-      if (escalation) return false;
-      escalation = { to, reason };
-      return true;
-    },
-    escalation: () => escalation,
   };
 }

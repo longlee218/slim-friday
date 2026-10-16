@@ -142,6 +142,4 @@ export interface EffectPort {
   askOwner(q: OwnerQuestion): Promise<OwnerAnswer>;
   /** Post to the owner. */
   post(p: Post): Promise<void>;
-  /** Ask for one re-run of this lead input on a stronger tier; false = refused (already asked this run). */
-  requestEscalation(to: "high" | "opus", reason: string): boolean;
 }

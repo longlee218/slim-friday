@@ -1,4 +1,4 @@
-import type { ModelTier, TaskClass } from "../config/model-routing";
+import type { Options } from "@anthropic-ai/claude-agent-sdk";
 
 /** A group of tools that belong together; a role lists the groups it may use. */
 export type Capability =
@@ -34,35 +34,22 @@ export type RoleSkills = "all" | "none" | string[];
 export interface RoleDefinition {
   /** Role name: the registry key and the log `mode` value. */
   name: string;
-  /** Mutually exclusive wording; the intent layer reads it from the registry (P1.4c). */
+  /** Mutually exclusive wording; the lead's LEAD.md, the planner and the outcome check read it from the registry. */
   whenToUse: string;
-  /**
-   * Explicit role tag (`[developer]`): a message that STARTS with it goes to this role (intent layer L1) and the tag is
-   * stripped from the brief. Case-insensitive, unique across roles (startup error otherwise); omitted = no tag.
-   */
-  tag?: string;
   /**
    * Background role: a task. Its run counts toward the concurrent task cap, takes a start notice, is queued behind a
    * busy thread, and works in a location; the owner steers it. Not background = a short foreground answer (plus the side lane).
    */
   background: boolean;
-  /** Extra context the role's runs get. Omitted = none. */
-  context?: {
-    /** On an idle thread the run sees the thread's task ledger (earlier tasks). */
-    ledger?: boolean;
-  };
-  /** Locations the run sees: `all` = every location of the workspace; `candidates` = the workspace locations or the one the owner named. Omitted = `candidates`. */
-  locationScope?: "all" | "candidates";
   /** Publisher skills the role gets (see `RoleSkills`). Omitted = `none`. */
   skills?: RoleSkills;
   /** App-owned skills (dir names under `src/roles/builtin/skills/`) this role gets and no other role does. Omitted = none. */
   appSkills?: string[];
   /**
-   * Where the role runs: `space` (default) = in a space channel, offered to intent routing; `control` = only in the
-   * owner's #ops-control channel, never routed to from a space channel, and run with no workspace; `lead` = reached only
-   * through the lead (the lead itself, or a worker it dispatches): never offered to intent routing.
+   * Where the role runs: `control` = only in the owner's #ops-control channel, with no workspace; `lead` = reached only
+   * through the lead (the lead itself, or a worker it dispatches). Omitted = neither.
    */
-  surface?: "space" | "control" | "lead";
+  surface?: "control" | "lead";
   /** No SDK subagent tools (Agent, SendMessage, ListAgents): not offered and denied by the guard. Lead and workers set it (depth 1). Omitted = allowed. */
   noSubagents?: boolean;
   /** Shell of a role with the `shell` capability: `read` = read-only commands only (allowlist class R0, fail closed). Omitted = the full shell policy (a worker with an envelope gets the R0 + R1 allowlist). */
@@ -73,10 +60,10 @@ export interface RoleDefinition {
   mcpServers?: string[];
   /** Limits of one run: AskUserQuestion calls (enforced in the permission guard). */
   limits: { maxAsk: number };
-  /** Default model: a tier name (`haiku|sonnet|opus`) or an explicit model id. Class and effort may override it. */
-  model: ModelTier | (string & {});
-  /** Tier per task class (mechanical|standard|design) for roles whose model depends on the class. Omitted = `model`. */
-  classTiers?: Record<TaskClass, ModelTier>;
+  /** Fixed model id of the role's runs (a full id, e.g. `claude-sonnet-5-5`; see `config/model-ids.ts`). Changing it is a data edit. */
+  model: string;
+  /** Fixed SDK thinking config of the role's runs (`{ type: "adaptive" }`, `{ type: "disabled" }`, ...). Omitted = the SDK default. */
+  thinking?: Options["thinking"];
   /** Default budget (USD) of one run (env BUDGET_<ROLE>_USD overrides). */
   budgetUsd: number;
   /**
@@ -91,13 +78,9 @@ export interface RoleDefinition {
   permissionMode?: "auto" | "bypassPermissions";
   /**
    * What the role may change: `none` (answers only), `location` (files / git of a checkout), `external` (outside systems).
-   * Routing data: scales how sure the router must be before it picks the role. Authorization stays in the guards.
+   * Data for the lead, the planner and the outcome check. Authorization stays in the guards.
    */
   sideEffects: "none" | "location" | "external";
-  /** The role needs the Discord approval flow to run; routing and reroute skip it when approvals are unavailable. */
-  approvalRequired: boolean;
-  /** Bump when the role's routing / capability data changes; logged with the routing decision. */
-  capabilityVersion: string;
   /** Built-in tools (and the guard's auto-allow list) derive from these. */
   capabilities: Capability[];
   /**

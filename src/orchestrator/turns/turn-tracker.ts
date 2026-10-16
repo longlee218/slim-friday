@@ -1,7 +1,6 @@
 // A turn is one handled message; the turn of a background role is a task (Rev 11).
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
-import type { TaskClass } from "../../config/model-routing";
 import { getLogContext, logEvent, setLogContext, tryLog } from "../../observability/logger";
 import { getRole } from "../../roles/role-registry";
 import { finishTurn, insertTurn, interruptRunningTurns } from "../../storage/run-store";
@@ -122,7 +121,6 @@ export function beginTurn(
   t: {
     location: string;
     brief?: string;
-    cls?: TaskClass;
     proposalId?: string;
     role: string;
     parentTurnId?: string;
@@ -140,7 +138,6 @@ export function beginTurn(
       source: ids.source,
       location: t.location,
       brief: t.brief,
-      cls: t.cls,
       proposalId: t.proposalId,
       role: t.role,
       parentTurnId: t.parentTurnId,

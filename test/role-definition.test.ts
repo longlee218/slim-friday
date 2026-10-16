@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { SONNET_MODEL } from "../src/config/model-ids";
 import { extractLocationMarker } from "../src/orchestrator/engine/run-report";
 import { validateRole } from "../src/orchestrator/engine/validate-role";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
@@ -23,11 +24,7 @@ test("dev is a background role: one run, bypass from the first token, no plan co
   expect(DEVELOPER_ROLE.budgetUsd).toBe(4.5);
   expect(DEVELOPER_ROLE.capabilities).toContain("ask");
   expect(DEVELOPER_ROLE.capabilities).not.toContain("planControl" as never);
-  expect(DEVELOPER_ROLE.classTiers).toEqual({
-    mechanical: "sonnet",
-    standard: "sonnet",
-    design: "opus",
-  });
+  expect(DEVELOPER_ROLE.model).toBe(SONNET_MODEL);
   expect(DEVELOPER_ROLE.skills).toBe("all");
   expect(turnTypeOf(DEVELOPER_ROLE)).toBe("code");
 });

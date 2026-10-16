@@ -26,7 +26,6 @@ export class FakePort implements EffectPort {
   cancelled: string[] = [];
   steered: { taskId: string; text: string }[] = [];
   asked: OwnerQuestion[] = [];
-  escalations: string[] = [];
   /** Test-set reads. */
   goalState: GoalState = { items: [] };
   capsNow = { chainCount: 0, leadSpentTodayUsd: 0 };
@@ -84,10 +83,6 @@ export class FakePort implements EffectPort {
   cancel = (taskId: string) => (this.cancelled.push(taskId), [taskId]);
   askOwner = async (q: OwnerQuestion) => (this.asked.push(q), this.answer);
   post = async (p: Post) => void this.posts.push(p);
-  requestEscalation = (to: string) => {
-    this.escalations.push(to);
-    return this.escalations.length === 1;
-  };
 }
 
 /** One item row with defaults. */
@@ -107,7 +102,7 @@ export const itemRow = (over: Partial<ItemRow> = {}): ItemRow => ({
   ...over,
 });
 
-/** A lead tool context over a fake port; `inputId` = the lead input (shared by an escalation re-run), `leadTurnId` = this run. */
+/** A lead tool context over a fake port; `inputId` = the lead input, `leadTurnId` = this run. */
 export const leadCtx = (
   port: FakePort,
   inputId = "in1",

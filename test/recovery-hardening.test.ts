@@ -16,15 +16,15 @@ import {
 } from "../src/storage/run-store";
 import { getSession, setSession } from "../src/storage/session-store";
 import { fakeQuery, initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-import { workersDone } from "./lead-harness";
+import { devLeadQuery, workersDone } from "./lead-harness";
 
-/** A `[dev]` message: starts a detached dev worker. */
+/** A message the fake lead dispatches to a detached dev worker. */
 const task = (text: string, threadId = "th1") => ({
   source: "test",
   channelId: TEST_CHANNEL,
   userId: "u",
   threadId,
-  text: `[dev] ${text}`,
+  text,
 });
 /** Handler over a fake query; the worker runs detached, so tests wait with `workersDone`. */
 const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
@@ -33,7 +33,8 @@ const devHandler = (env: ReturnType<typeof makeEnv>, queryFn: unknown) =>
     config: env.config,
     approvals: stubGateway(),
     limiter: createRunLimiter(10),
-    queryFn: queryFn as never,
+    queryFn: devLeadQuery(queryFn),
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
 
 /** Run the agent against a fake query and return its result. */
@@ -59,7 +60,9 @@ test("session id is recorded on the task row at init; `sessions` keeps the previ
   await devHandler(env, q)(task("hi"));
   await workersDone(env.db);
   const row = env.db
-    .query<{ session_id: string; session_cwd: string }, []>("SELECT * FROM turns")
+    .query<{ session_id: string; session_cwd: string }, []>(
+      "SELECT * FROM turns WHERE role = 'developer'",
+    )
     .get();
   expect(row).toMatchObject({ session_id: "sess-1", session_cwd: realpathSync(env.location) });
   expect(getSession(env.db, "th1")?.session_id).toBe("GOOD");

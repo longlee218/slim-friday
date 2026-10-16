@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test";
+import { HAIKU_MODEL } from "../src/config/model-ids";
 import { runRole } from "../src/orchestrator/engine/run-role";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { insertTurn } from "../src/storage/run-store";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-import { workersDone } from "./lead-harness";
+import { devLeadQuery, workersDone } from "./lead-harness";
 
 /** A role invented in the test: data only, no engine code behind it (read-only, foreground). */
 const PROBE: RoleDefinition = {
@@ -14,10 +15,8 @@ const PROBE: RoleDefinition = {
   background: false,
   limits: { maxAsk: 3 },
   sideEffects: "none",
-  approvalRequired: false,
-  capabilityVersion: "1",
   capabilities: ["read"],
-  model: "haiku",
+  model: HAIKU_MODEL,
   budgetUsd: 0.4,
   promptSections: () => ["probe contract"],
 };
@@ -73,7 +72,7 @@ test("a role that is only data runs through the role runner: one agent run, its 
   expect(seen[0].systemPrompt.append).toContain("probe contract");
   // No permission layer gateway for a role without the ask capability: a question is a deny.
   expect(env.db.query("SELECT model, outcome FROM runs").all()).toEqual([
-    { model: env.config.models.haiku, outcome: "success" },
+    { model: HAIKU_MODEL, outcome: "success" },
   ]);
 });
 
@@ -92,16 +91,23 @@ test("a dev worker is a role run by the same engine: its turn leaves a runs row"
       yield initMsg;
       yield resultMsg();
     })();
-  await createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never })({
+  await createTurnHandler({
+    db: env.db,
+    config: env.config,
+    queryFn: devLeadQuery(queryFn),
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+  })({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th-dev",
-    text: "[dev] where is x?",
+    text: "where is x?",
   });
   await workersDone(env.db);
   const task = env.db
-    .query<{ id: string; role: string }, [string]>("SELECT id, role FROM turns WHERE thread_id = ?")
+    .query<{ id: string; role: string }, [string]>(
+      "SELECT id, role FROM turns WHERE thread_id = ? AND role != 'lead'",
+    )
     .get("th-dev");
   expect(task?.role).toBe("developer");
   expect(env.db.query("SELECT outcome FROM runs WHERE turn_id = ?").all(task?.id ?? "")).toEqual([

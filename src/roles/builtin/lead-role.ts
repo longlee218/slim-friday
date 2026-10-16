@@ -1,3 +1,4 @@
+import { SONNET_MODEL } from "../../config/model-ids";
 import { LEAD_MCP_SERVER, REQUEST_PLAN_TOOL, TASK_STATUS_TOOL } from "../../mcp/mcp-tool-names";
 import type { RoleDefinition } from "../role-types";
 
@@ -26,14 +27,12 @@ export const LEAD_ROLE: RoleDefinition = {
   skills: "none",
   mcpServers: [LEAD_MCP_SERVER],
   limits: { maxAsk: MAX_ASK },
-  locationScope: "all",
   sideEffects: "none",
-  approvalRequired: false,
-  capabilityVersion: "1",
   capabilities: ["read"],
   noSubagents: true, // depth 1: the lead dispatches through its tools only
   permissionMode: "auto",
-  model: "sonnet",
+  model: SONNET_MODEL,
+  thinking: { type: "adaptive" }, // the model decides how long to think (a short routing turn)
   budgetUsd: BUDGET_USD,
   promptSections: () => [CONTRACT],
 };

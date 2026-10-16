@@ -5,7 +5,6 @@ import {
   DISPATCH_AGENT_SHAPE,
   FORWARD_RESULT_SHAPE,
   REPORT_RESULT_SHAPE,
-  REQUEST_ESCALATION_SHAPE,
 } from "../src/orchestrator/engine/lead-schemas";
 
 const ok = (shape: z.ZodRawShape, v: unknown) => z.object(shape).safeParse(v).success;
@@ -28,12 +27,11 @@ test("DispatchAgent: rejects bad strategy, empty / too many assignments, bad key
   expect(ok(DISPATCH_AGENT_SHAPE, { ...D, intent: "" })).toBe(false);
 });
 
-test("AskOwner needs 2-4 options; Forward and Escalation take only their enums", () => {
+test("AskOwner needs 2-4 options; Forward takes only its enums", () => {
   expect(ok(ASK_OWNER_SHAPE, { question: "q", options: ["a"] })).toBe(false);
   expect(ok(ASK_OWNER_SHAPE, { question: "q", options: ["a", "b", "c", "d", "e"] })).toBe(false);
   expect(ok(ASK_OWNER_SHAPE, { question: "q", options: ["a", "b"] })).toBe(true);
   expect(ok(FORWARD_RESULT_SHAPE, { taskId: "t", mode: "raw" })).toBe(false);
-  expect(ok(REQUEST_ESCALATION_SHAPE, { to: "max", reason: "r" })).toBe(false);
 });
 
 test("ReportResult: the five statuses only, summary required, requests optional and capped", () => {

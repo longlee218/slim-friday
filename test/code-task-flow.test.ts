@@ -17,7 +17,7 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-import { noticeSink, until, workersDone } from "./lead-harness";
+import { devLeadQuery, noticeSink, until, workersDone } from "./lead-harness";
 
 /** Env with one workspace `real` whose location/ is a real git clone (a managed clone). */
 async function setup(meta: Record<string, unknown> = {}) {
@@ -77,7 +77,7 @@ function build(env: ReturnType<typeof makeEnv>, queryFn: unknown) {
     db: env.db,
     config: env.config,
     approvals: stubGateway(),
-    queryFn: queryFn as never,
+    queryFn: devLeadQuery(queryFn),
     leadTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   return async (text: string, extra: object = {}) => {
@@ -135,7 +135,7 @@ test("location.yaml gitAuthor / githubAccount are accepted and ignored: a locati
   addLocation(env.home, "real", { githubAccount: "someone-else" }, { path: clone }); // no gitAuthor, an unused account
   const seen: any[] = [];
   const send = build(env, fakeSdk(seen));
-  await send("[dev] please change x");
+  await send("please change x");
   await workersDone(env.db);
   expect(seen).toHaveLength(1);
   expect(seen[0].options.cwd).toBe(realpathSync(clone));

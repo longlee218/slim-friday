@@ -3,7 +3,6 @@ import {
   CANCEL_TASK_TOOL,
   DISPATCH_AGENT_TOOL,
   FORWARD_RESULT_TOOL,
-  REQUEST_ESCALATION_TOOL,
   STEER_TASK_TOOL,
   TASK_STATUS_TOOL,
 } from "../../mcp/mcp-tool-names";
@@ -13,13 +12,12 @@ import type {
   AskOwnerInput,
   CancelInput,
   DispatchInput,
-  EscalationInput,
   ForwardInput,
   SteerInput,
   TaskStatusInput,
 } from "./lead-schemas";
 
-/* The lead's seven tool handlers. Pure over the `EffectPort` in the context: they check state, caps and ownership,
+/* The lead's six tool handlers. Pure over the `EffectPort` in the context: they check state, caps and ownership,
    then act through the port. Each call goes through `leadCall` (idempotent, logged, one thread event at least). */
 
 /** Statuses of a task that ended: nothing can steer or cancel it any more. */
@@ -133,16 +131,4 @@ export const handleForward = (ctx: LeadToolContext, input: ForwardInput): Promis
       verbatim ? { filePath: item.resultPath as string } : { text: item.resultExcerpt as string },
     );
     return { reply: { ok: true, posted: input.mode }, itemId: item.id };
-  });
-
-/** RequestEscalation: one stronger-tier re-run of this input; a second ask in the run is refused. */
-export const handleEscalation = (ctx: LeadToolContext, input: EscalationInput): Promise<Reply> =>
-  leadCall(ctx, REQUEST_ESCALATION_TOOL, input, () => {
-    const granted = ctx.port.requestEscalation(input.to, input.reason);
-    return {
-      reply: granted
-        ? { ok: true, to: input.to }
-        : refuse("ESCALATION_USED", "An escalation was already requested in this run."),
-      events: [{ kind: "lead_decision", payload: { to: input.to, reason: input.reason, granted } }],
-    };
   });

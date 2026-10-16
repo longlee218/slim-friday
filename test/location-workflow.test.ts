@@ -23,7 +23,7 @@ async function runTask(
   prep?.(clone);
   /** Plugin dir listing while the run lives (the app removes the dir when the run ends). */
   let pluginFiles: string[] = [];
-  const { runs } = await runDevWorker(env, "[dev] change it", {
+  const { runs } = await runDevWorker(env, "change it", {
     probe: async (o) => {
       const pdir = o.plugins?.at(-1)?.path; // the workspace plugin is built last
       if (pdir) pluginFiles = (readdirSync(pdir, { recursive: true }) as string[]).sort();

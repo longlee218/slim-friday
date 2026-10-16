@@ -13,6 +13,4 @@ test("a bad role definition makes validateRegistry throw and registryError repor
   const bad = { ...ROLES.scout!, name: "other" };
   expect(() => validateRegistry({ scout: bad })).toThrow(/Registry key scout/);
   expect(registryError({ scout: bad })).toMatch(/Registry key scout/);
-  const noApproval = { ...ROLES.developer!, background: true, approvalRequired: false };
-  expect(() => validateRegistry({ developer: noApproval })).toThrow(/approvalRequired/);
 });

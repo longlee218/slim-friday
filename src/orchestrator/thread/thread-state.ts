@@ -1,17 +1,15 @@
 import type { Database } from "bun:sqlite";
-import { OWNER_CONFIRM_APPROVAL } from "../engine/owner-confirm";
 
 /**
  * State of a thread, DERIVED from its rows (no stored state, no new status values):
  * - `idle`: no task, or the last one was cancelled / failed / timed out / interrupted
  * - `running`: a task runs
- * - `awaiting_owner`: the task waits on the owner: a tool-call approval or an AskUserQuestion (the plan approval is one); steers still apply
- * - `awaiting_confirmation`: the task waits on an owner-confirm yes/no (effort `max`, an Opus escalation)
+ * - `awaiting_owner`: the task waits on the owner: a tool-call approval, a yes/no confirm or an AskUserQuestion (the plan approval is one); steers still apply
  * - `done`: the last task finished; folds to `idle` (see `isIdleLike`) and the thread ledger describes it
  */
-export type ThreadState = "idle" | "running" | "awaiting_owner" | "awaiting_confirmation" | "done";
+export type ThreadState = "idle" | "running" | "awaiting_owner" | "done";
 
-/** The task's pending approval of a TOOL call or question (not an owner-confirm), or undefined: tool name and when it was asked. */
+/** The task's pending approval of a tool call, confirm or question, or undefined: tool name and when it was asked. */
 export function pendingToolApproval(
   db: Database,
   turnId: string,
@@ -21,7 +19,7 @@ export function pendingToolApproval(
       "SELECT tool, requested_at AS since FROM approvals WHERE turn_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
     )
     .get(turnId);
-  return pending && pending.tool !== OWNER_CONFIRM_APPROVAL ? pending : undefined;
+  return pending ?? undefined;
 }
 
 /** The thread's latest task waits on a tool approval or question: the pending one (reply of a steer, status snapshot), or undefined. */
@@ -37,15 +35,9 @@ export function threadToolApproval(
   return last?.status === "waiting_approval" ? pendingToolApproval(db, last.id) : undefined;
 }
 
-/** State of a task parked in `waiting_approval`: by its pending approval (an owner-confirm, or any other question to the owner). */
+/** State of a task parked in `waiting_approval`: `awaiting_owner` while an approval is pending, else `running` (the decision just landed). */
 function waitingState(db: Database, turnId: string): ThreadState {
-  const pending = db
-    .query<{ tool: string }, [string]>(
-      "SELECT tool FROM approvals WHERE turn_id = ? AND decision = 'pending' ORDER BY requested_at DESC, rowid DESC LIMIT 1",
-    )
-    .get(turnId);
-  if (!pending) return "running"; // no pending row: the decision just landed
-  return pending.tool === OWNER_CONFIRM_APPROVAL ? "awaiting_confirmation" : "awaiting_owner";
+  return pendingToolApproval(db, turnId) ? "awaiting_owner" : "running";
 }
 
 /** Derive the state of `threadId` from its latest task (and that task's approvals). */

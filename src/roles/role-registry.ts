@@ -23,12 +23,6 @@ export const countsTowardCap = (r: RoleDefinition): boolean =>
 export const dispatchableWorkers = (): RoleDefinition[] =>
   Object.values(ROLES).filter((r) => r.dispatchable);
 
-/** True for a role that runs in space channels (the default surface); a `control` role is never routed to from one. */
-export const isSpaceRole = (r: RoleDefinition): boolean => (r.surface ?? "space") === "space";
-
-/** Roles of the space surface: the only ones intent routing, dispatch and reroute may offer. */
-export const spaceRoles = (): RoleDefinition[] => Object.values(ROLES).filter(isSpaceRole);
-
 /** The role of the control channel (#ops-control), found by its `surface` data; undefined when none is registered. */
 export const controlRole = (): RoleDefinition | undefined =>
   Object.values(ROLES).find((r) => r.surface === "control");

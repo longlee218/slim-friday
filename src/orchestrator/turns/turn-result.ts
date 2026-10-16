@@ -44,7 +44,7 @@ export interface FlowResult
   skipThreadSession?: true;
   /** The session is the lead's (stored with `kind='lead'` and the run's model): set by the lead runner only. */
   sessionKind?: "lead";
-  /** Model of an escalated re-run (the first run's model is then not the one that answered). */
+  /** Model that answered, when the runner knows it (stored with the session). */
   model?: string;
   /** Set by the role runner: the failure qualifies for `failed_resumable` (its session is kept). */
   resumable?: ResumeReason;

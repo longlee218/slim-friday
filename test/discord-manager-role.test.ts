@@ -3,10 +3,10 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ChannelType } from "discord.js";
+import { HAIKU_MODEL } from "../src/config/model-ids";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createWorkspaceDir } from "../src/discord-setup/workspace-template";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
-import { leadingRoleTag } from "../src/intent/role-tag";
 import { mcpServersFor } from "../src/mcp/mcp-servers";
 import {
   APP_MCP_TOOLS,
@@ -17,7 +17,7 @@ import {
 import { roleScope } from "../src/orchestrator/engine/role-scope";
 import { DISCORD_MANAGER_ROLE } from "../src/roles/builtin/discord-manager-role";
 import { mayHaveWritten, validateRegistry } from "../src/roles/capability-registry";
-import { controlRole, dispatchableWorkers, getRole, spaceRoles } from "../src/roles/role-registry";
+import { controlRole, dispatchableWorkers, getRole } from "../src/roles/role-registry";
 import { buildRoleSkills } from "../src/runtime/skills-plugin/role-skills";
 import { createCreateSpaceOrChannelTool } from "../src/tools/CreateSpaceOrChannelTool/create-space-or-channel-tool";
 import {
@@ -37,21 +37,20 @@ test("role data: control surface, cheap, read + skills + ask only, own limits", 
   expect(DISCORD_MANAGER_ROLE).toMatchObject({
     surface: "control",
     background: false,
-    model: "haiku",
+    model: HAIKU_MODEL,
+    thinking: { type: "disabled" },
     capabilities: ["read", "skills", "ask"],
     mcpServers: [DISCORD_ADMIN_MCP_SERVER],
     limits: { maxAsk: 4 },
     sideEffects: "external",
-    approvalRequired: true,
   });
   const tools = toolsFor(DISCORD_MANAGER_ROLE);
   for (const t of [WRITE_TOOL_NAME, BASH_TOOL_NAME, WEB_FETCH_TOOL_NAME])
     expect(tools).not.toContain(t);
 });
 
-test("the role is never offered to a space channel: dispatch, role tags", () => {
+test("the role is never dispatchable by the lead", () => {
   expect(dispatchableWorkers().map((r) => r.name)).not.toContain(NAME);
-  expect(spaceRoles().map((r) => r.name)).not.toContain(NAME);
   // The registry still knows it (the control runner finds it by `surface`).
   expect(getRole(NAME)).toBe(DISCORD_MANAGER_ROLE);
 });
@@ -216,13 +215,6 @@ test("a role that may cause external side effects is never re-run automatically"
   expect(mayHaveWritten(getRole("lead"))).toBe(false);
 });
 
-test("tag paths use the space roles; a control role with a tag is rejected", () => {
-  const tagged = { ...DISCORD_MANAGER_ROLE, tag: "dm" };
-  expect(() => validateRegistry({ [tagged.name]: tagged })).toThrow(
-    /control role cannot have a tag/,
-  );
+test("the registry validates", () => {
   expect(() => validateRegistry()).not.toThrow();
-  // the tag router is built from space roles only
-  expect(leadingRoleTag("[dev] fix it", spaceRoles())?.rest).toBe("fix it");
-  expect(leadingRoleTag(`[${NAME}] make a space`, spaceRoles())).toBeUndefined();
 });

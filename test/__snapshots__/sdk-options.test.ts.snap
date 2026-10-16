@@ -73,7 +73,7 @@ exports[`options lock: lead options snapshot 1`] = `
   "maxBudgetUsd": 0.75,
   "maxTurns": 20,
   "mcpServers": {},
-  "model": "model-lead",
+  "model": "claude-sonnet-5-5",
   "permissionMode": "auto",
   "settingSources": [],
   "skills": [],
@@ -94,6 +94,9 @@ exports[`options lock: lead options snapshot 1`] = `
 ,
     "preset": "claude_code",
     "type": "preset",
+  },
+  "thinking": {
+    "type": "adaptive",
   },
   "tools": [
     "Read",
@@ -178,7 +181,7 @@ exports[`options lock: dev options snapshot 1`] = `
   "maxBudgetUsd": 3,
   "maxTurns": 20,
   "mcpServers": {},
-  "model": "model-code",
+  "model": "claude-sonnet-5-5",
   "permissionMode": "bypassPermissions",
   "settingSources": [],
   "skills": [],

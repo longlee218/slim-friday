@@ -66,7 +66,7 @@ export interface RunAgentInput {
   memory?: MemoryToolContext;
   /** Builds the app MCP servers by name (the role's `mcpServers` picks them); called per query() call. */
   appServers?: AppServersFactory;
-  /** Routing facts (class, effort, forced tier, escalation); omitted = the role defaults. */
+  /** Per-run facts (internal hint, budget raise, spent so far); omitted = the role defaults. */
   route?: Route;
   /** Existing Claude session id to resume. */
   resume?: string;

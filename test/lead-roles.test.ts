@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { HAIKU_MODEL, SONNET_MODEL } from "../src/config/model-ids";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { createLeadServer } from "../src/mcp/lead-server";
 import { mcpServersFor } from "../src/mcp/mcp-servers";
@@ -13,12 +14,7 @@ import {
   WORKER_MCP_SERVER,
 } from "../src/mcp/mcp-tool-names";
 import { createWorkerServer } from "../src/mcp/worker-server";
-import {
-  countsTowardCap,
-  dispatchableWorkers,
-  isSpaceRole,
-  ROLES,
-} from "../src/roles/role-registry";
+import { countsTowardCap, dispatchableWorkers, ROLES } from "../src/roles/role-registry";
 import { APP_SKILLS_DIR } from "../src/runtime/skills-plugin/app-skills";
 import { openDb } from "../src/storage/db";
 import { countActiveCappedTasks, insertTurn } from "../src/storage/run-store";
@@ -41,7 +37,7 @@ const scout = ROLES.scout!;
 
 test("lead role is data: Sonnet entry role of the lead surface, no skills, only the lead server", () => {
   expect(lead).toMatchObject({
-    model: "sonnet",
+    model: SONNET_MODEL,
     background: false,
     skills: "none",
     surface: "lead",
@@ -54,7 +50,7 @@ test("lead role is data: Sonnet entry role of the lead surface, no skills, only 
 
 test("scout role is data: Haiku, read + search, no side effects, dispatchable, app skills", () => {
   expect(scout).toMatchObject({
-    model: "haiku",
+    model: HAIKU_MODEL,
     sideEffects: "none",
     dispatchable: true,
     skills: "none",
@@ -66,11 +62,6 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, a
   expect(scout.shellMode).toBe("read");
   for (const n of scout.appSkills ?? [])
     expect(existsSync(join(APP_SKILLS_DIR, n, "SKILL.md"))).toBe(true);
-});
-
-test("lead and scout are not space roles; dev is", () => {
-  expect(isSpaceRole(lead) || isSpaceRole(scout)).toBe(false);
-  expect(isSpaceRole(ROLES.developer!)).toBe(true);
 });
 
 test("dispatchable workers come from role data: dev and scout", () => {

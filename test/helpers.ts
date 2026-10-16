@@ -181,12 +181,12 @@ export function readLogLines(base: string): Record<string, unknown>[] {
   }
 }
 
-/** A valid brief of a dev task (the owner's message, tagged so L3 routes it to the dev role). */
+/** A valid brief of a dev task (the owner's message). */
 export const BRIEF =
   "Add b.txt containing two. Findings: a.txt:1 holds one. Acceptance: file exists.";
 
-/** `BRIEF` as the owner would type it to open a dev task. */
-export const DEV_REQUEST = `[developer] ${BRIEF}`;
+/** `BRIEF` as the owner would type it to open a dev task (a fake lead dispatches it to the developer). */
+export const DEV_REQUEST = BRIEF;
 
 /** Channel mapped to `w2` (w1 owns TEST_CHANNEL). */
 export const CHANNEL_2 = "200000000000000002";

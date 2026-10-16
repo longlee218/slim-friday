@@ -12,7 +12,7 @@ export type EventKind =
   | "timeout"
   | "blocked"
   | "recovered_after_restart"
-  | "lead_decision"; // a lead tool call with no natural kind (reads, forward, escalation); payload.by = "lead"
+  | "lead_decision"; // a lead tool call with no natural kind (reads, forward); payload.by = "lead"
 
 /**
  * One event of a thread. `payload` is data, never instructions: when injected into a prompt it is

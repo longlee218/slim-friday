@@ -15,7 +15,7 @@ import {
   TEST_CHANNEL,
   twoWorkspaces,
 } from "./helpers";
-import { workersDone } from "./lead-harness";
+import { devLeadQuery, workersDone } from "./lead-harness";
 import { writeLocationNotes } from "./memory-fixture";
 
 /** Full prompt context text of a run in `ws` over location `api`. */
@@ -69,13 +69,18 @@ test("a real dev run prompt contains no pending-file text and no other workspace
       yield resultMsg();
     })();
   };
-  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    queryFn: devLeadQuery(queryFn),
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+  });
   await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th",
-    text: "[developer] hello",
+    text: "hello",
   });
   await workersDone(env.db);
   expect(prompt).not.toContain("PENDING_MARK");
@@ -93,13 +98,18 @@ test("a message from w2's channel gets w2's memory and not w1's", async () => {
       yield resultMsg();
     })();
   };
-  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    queryFn: devLeadQuery(queryFn),
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+  });
   await handle({
     source: "t",
     channelId: CHANNEL_2,
     userId: "u",
     threadId: "th",
-    text: "[developer] hello",
+    text: "hello",
   });
   await workersDone(env.db);
   expect(prompt).toContain("W2_MARK");
@@ -111,17 +121,19 @@ test("no CLAUDE.md is created under the home by ensureHome or a handler run", as
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,
-    queryFn: ((_a: unknown) =>
+    queryFn: devLeadQuery((_a: unknown) =>
       (async function* () {
         yield resultMsg();
-      })()) as never,
+      })(),
+    ),
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
   await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th",
-    text: "[developer] hello",
+    text: "hello",
   });
   await workersDone(env.db);
   const found = readdirSync(env.home, { recursive: true, withFileTypes: true })

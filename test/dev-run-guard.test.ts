@@ -11,7 +11,7 @@ import {
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { setupWorkflow } from "./code-flow-fixture";
 import { resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-import { workersDone } from "./lead-harness";
+import { devLeadQuery, workersDone } from "./lead-harness";
 
 // Dev run options (Rev 15 phases 3 and 5): the run works in the location's own checkout (no clone), with the guard
 // scope of the spec, no git or GitHub MCP, the owner's env passed through, and the one worktree line.
@@ -32,19 +32,20 @@ async function runExec() {
     db: env.db,
     config: env.config,
     approvals: stubGateway(),
-    queryFn: ((a: any) => {
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+    queryFn: devLeadQuery((a: any) => {
       seen.push(a.options);
       return (async function* () {
         yield resultMsg({ result: "done\n\nlocation: real" });
       })();
-    }) as never,
+    }),
   });
   await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th1",
-    text: "[dev] change x",
+    text: "change x",
   });
   await workersDone(env.db); // the worker runs detached
   expect(seen).toHaveLength(1); // one run
@@ -55,13 +56,17 @@ test("the dev run works in the location's own checkout: cwd = location path, scr
   const { env, clone, exec } = await runExec();
   const ws = workspacePaths(env.home).workspace("main");
   expect(exec.cwd).toBe(clone);
-  const taskId = (env.db.query("SELECT id FROM turns").get() as { id: string }).id;
+  const taskId = (
+    env.db.query("SELECT id FROM turns WHERE role = 'developer'").get() as { id: string }
+  ).id;
   expect(exec.additionalDirectories).toEqual([
     realpathSync(ws.task(taskId).root),
     realpathSync(ws.worktrees),
   ]);
   // No plan file: the location is on the turn row, named by the run's final `location:` line.
-  expect(env.db.query("SELECT location FROM turns").get()).toEqual({ location: "real" });
+  expect(env.db.query("SELECT location FROM turns WHERE role = 'developer'").get()).toEqual({
+    location: "real",
+  });
 });
 
 test("dev: only the app's MCP servers; a worker's env keeps no owner secret (the SDK also scrubs its tools' env)", async () => {

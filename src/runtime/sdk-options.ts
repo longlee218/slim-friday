@@ -1,13 +1,6 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
-import { effortKnobs, MAX_TURNS } from "../config/effort-mapping";
-import {
-  type Route,
-  resolveBudget,
-  resolveCompactWindow,
-  resolveModel,
-  safeEffort,
-} from "../config/model-routing";
+import { type Route, resolveBudget, resolveCompactWindow } from "../config/model-routing";
 import { mcpServersFor } from "../mcp/mcp-servers";
 import { MEMORY_MCP_SERVER, MEMORY_TOOLS, mcpToolName } from "../mcp/mcp-tool-names";
 import type { RunRecorder } from "../observability/record-run";
@@ -23,8 +16,11 @@ import { buildSystemPrompt } from "./system-prompt";
 import { buildToolPermissions } from "./tool-permissions";
 import { workerSandbox } from "./worker-sandbox";
 
+/** Agent loops (SDK turns) one run may take: an absolute ceiling for every role (owner-set). */
+export const MAX_TURNS = 20;
+
 /**
- * Config of the role run: `model` and `limits.maxBudgetUsd` replaced by the role's own (tier routing and
+ * Config of the role run: `model` and `limits.maxBudgetUsd` replaced by the role's own (its fixed model and
  * per-role budget, see model-routing.ts), so everything downstream (SDK env, runs row, options) reads one place.
  */
 export function roleConfig(
@@ -34,7 +30,7 @@ export function roleConfig(
 ): AgentConfig {
   return {
     ...config,
-    model: resolveModel(role, route, config),
+    model: role.model,
     limits: { ...config.limits, maxBudgetUsd: resolveBudget(role, route, config) },
   };
 }
@@ -103,7 +99,6 @@ export function buildSdkOptions(
   },
 ): Options {
   const { config, skills: sk } = deps;
-  const effort = input.route && safeEffort(input.route);
   // Every run goes through the permission layer when it has a guard (a run without a gateway: ask = deny).
   // This run's plugin dirs (and only them) become READABLE so skills can open their bundled files.
   // Skill plugin dirs may sit under the denied AGENT_HOME: the run's own ones stay usable (`allowInside`), even
@@ -154,8 +149,8 @@ export function buildSdkOptions(
     skills: sk.skills,
     ...(sk.plugins && { plugins: sk.plugins }),
     maxTurns: MAX_TURNS,
-    // Effort (when the orchestrator passes one) sets thinking and scales maxTurns; otherwise SDK defaults.
-    ...(effort && effortKnobs(effort)),
+    // The role's fixed thinking config; omitted = the SDK default.
+    ...(role.thinking && { thinking: role.thinking }),
     // Role budget (already capped by MAX_BUDGET_USD in `roleConfig`).
     ...(config.limits.maxBudgetUsd !== undefined && { maxBudgetUsd: config.limits.maxBudgetUsd }),
     abortController: input.abortController,

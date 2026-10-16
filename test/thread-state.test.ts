@@ -48,12 +48,11 @@ test("awaiting_owner: the run waits on an AskUserQuestion (the plan approval is 
   expect(pendingToolApproval(db, "t1")?.tool).toBe(ASK_USER_QUESTION_TOOL_NAME);
 });
 
-test("awaiting_confirmation: an owner-confirm yes/no is the one gate state, never a tool approval", () => {
+test("an owner-confirm yes/no is a plain pending approval: awaiting_owner", () => {
   const db = task("waiting_approval");
   pending(db, OWNER_CONFIRM_APPROVAL);
-  expect(deriveThreadState(db, "th")).toBe("awaiting_confirmation");
-  expect(isIdleLike("awaiting_confirmation")).toBe(false);
-  expect(pendingToolApproval(db, "t1")).toBeUndefined();
+  expect(deriveThreadState(db, "th")).toBe("awaiting_owner");
+  expect(isIdleLike("awaiting_owner")).toBe(false);
 });
 
 test("no delivery gate any more: a pending approval labelled CreatePR (old row) is a plain tool approval", () => {

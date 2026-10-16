@@ -1,3 +1,4 @@
+import { SONNET_MODEL } from "../../config/model-ids";
 import { EFFECTS_MCP_SERVER, WORKER_MCP_SERVER } from "../../mcp/mcp-tool-names";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition } from "../role-types";
@@ -86,21 +87,17 @@ export const DEVELOPER_ROLE: RoleDefinition = {
   name: "developer",
   whenToUse:
     "A job that changes things or needs a plan the owner approves: implement, fix, refactor, add tests, design or plan a FUTURE change; works in the location and delivers (merge, PR or keep) after the owner chose.",
-  tag: "[developer]",
   background: true,
   dispatchable: true, // the lead may start it as a worker
   mcpServers: [WORKER_MCP_SERVER, EFFECTS_MCP_SERVER], // ReportResult + the effect tools when dispatched (a run without the servers just lacks them)
   skills: "all", // every installed publisher skill (installing one needs no code change)
   limits: { maxAsk: MAX_ASK },
   sideEffects: "location",
-  approvalRequired: true,
-  capabilityVersion: "3",
   capabilities: CODE_CAPABILITIES,
   // The SDK asks nothing; only the guard's hard denies stop a call. Approval of the plan is an ask, not a gate.
   permissionMode: "bypassPermissions",
   streaming: true, // a background run: the owner can steer it
-  model: "sonnet", // Sonnet 5.5 tier
-  classTiers: { mechanical: "sonnet", standard: "sonnet", design: "opus" },
+  model: SONNET_MODEL,
   budgetUsd: BUDGET_USD,
   promptSections: (ctx) => [
     DEVELOPER,

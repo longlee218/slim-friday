@@ -1,6 +1,4 @@
-import type { Route } from "../../config/model-routing";
-import { resolveModel } from "../../config/model-routing";
-import { messageLanguage, renderUserNotice } from "../../ingress/user-copy";
+import { messageLanguage } from "../../ingress/user-copy";
 import { createLeadServer } from "../../mcp/lead-server";
 import { LEAD_MCP_SERVER } from "../../mcp/mcp-tool-names";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
@@ -11,7 +9,6 @@ import { buildLeadContextBlock } from "../strategy/lead-context-block";
 import { buildLeadMd } from "../strategy/lead-md";
 import { closeTurn } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
-import { directDispatch } from "./direct-dispatch";
 import { dispatchReady } from "./dispatch-ready";
 import { createDbEffectPort } from "./effect-port-db";
 import { OWNER_MESSAGE_LABEL } from "./first-prompt-prefix";
@@ -20,33 +17,27 @@ import { announceBlock, pendingNews, settleLeadEvents } from "./lead-events";
 import { createLeadIo } from "./lead-io";
 import type { LeadInput } from "./lead-queue";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "./lead-runtime";
-import { ownerConfirm } from "./owner-confirm";
 import { runRole } from "./run-role";
 
 /** Logger of this module. */
 const log = logger.child({ module: "lead-run" });
 
-/** Effort of a lead run: routing is a short turn, so `medium` (Sonnet) for owner messages and announces alike. */
-const BASE_ROUTE: Route = { effort: "medium" };
-
 /** What one lead model run gives back. */
 interface LeadOnce {
-  /** Turn row of the run (the approval row of an Opus confirm hangs on it). */
+  /** Turn row of the run. */
   turnId: string;
   reply: string;
   outcome: string;
-  /** The escalation the lead asked for, when any. */
-  escalation?: { to: "high" | "opus"; reason: string };
 }
 
 /** Run the lead model once on `text`: one turn row, the lead's tools over a fresh port, the session stored as the lead's. */
 async function leadOnce(
   rt: LeadRuntime,
   ctx: LeadThreadCtx,
-  o: { threadId: string; inputId: string; text: string; route: Route; ac: AbortController },
+  o: { threadId: string; inputId: string; text: string; ac: AbortController },
 ): Promise<LeadOnce> {
   const { deps } = rt;
-  const { db, config } = deps;
+  const { db } = deps;
   const { threadId } = o;
   const turnId = crypto.randomUUID();
   setLogContext({ taskId: turnId, mode: "lead" });
@@ -88,7 +79,6 @@ async function leadOnce(
       channelId: ctx.channelId,
       locations: [], // neutral cwd: the lead routes, it reads no location
       ac: o.ac,
-      route: o.route,
       language,
       recent: ctx.message.recent, // seeds a fresh session after a rollover
       existing: stored?.kind === "lead" ? stored : null,
@@ -98,35 +88,14 @@ async function leadOnce(
     const reply = closeTurn(
       db,
       { turnId, threadId },
-      { ...res, sessionKind: "lead", model: res.model ?? resolveModel(role, o.route, config) },
+      { ...res, sessionKind: "lead", model: res.model ?? role.model },
       { language, stopping: deps.stopping(), t0, location: "*" },
     );
-    return { turnId, reply, outcome: res.outcome, escalation: port.escalation() };
+    return { turnId, reply, outcome: res.outcome };
   } catch (err) {
     failTurn(db, log, turnId);
     throw err;
   }
-}
-
-/** Route of the escalated re-run, or undefined when the owner declined Opus. High = Sonnet with a large thinking budget. */
-async function escalatedRoute(
-  rt: LeadRuntime,
-  threadId: string,
-  turnId: string,
-  to: "high" | "opus",
-  language: ReturnType<typeof messageLanguage>,
-  ac: AbortController,
-): Promise<Route | undefined> {
-  if (to === "high") return { effort: "high" };
-  const ok = await ownerConfirm(rt.deps.approvals, {
-    kind: "escalate_opus",
-    turnId,
-    threadId,
-    summary: renderUserNotice({ kind: "label", state: "escalate-opus" }, language),
-    language,
-    signal: ac.signal,
-  });
-  return ok ? { tier: "opus", effort: "high", ownerConfirmedMax: true } : undefined;
 }
 
 /** Failed runs allowed per announce batch (key = its event ids): past it the news is dropped and the owner told once. */
@@ -134,10 +103,8 @@ export const ANNOUNCE_ATTEMPTS = 2;
 const failedBatches = new Map<string, number>();
 
 /**
- * One lead input end to end: wait for the thread's rollover, budget guard, the lead run (an escalation re-runs the same
- * input ONCE on the stronger tier, Opus only after the owner's OK), post the reply, close the events it consumed, start
- * the workers it queued, then let the rollover start (after the reply, never before). A role-tag input (`direct`) skips
- * the model. A failed run posts a fixed notice and starts nothing; a failed announce is retried once, then dropped with
+ * One lead input end to end: wait for the thread's rollover, budget guard, the lead run, post the reply, close the
+ * events it consumed, start the workers it queued, then let the rollover start (after the reply, never before). A failed run posts a fixed notice and starts nothing; a failed announce is retried once, then dropped with
  * one notice. Never throws (the queue logs a throw, but a post must not hide it).
  */
 export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> {
@@ -163,10 +130,6 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
   let consumed = false; // the news counts as read only when the lead run succeeded
   let retry = false;
   try {
-    if (input.kind === "direct") {
-      if (input.direct) await post(await directDispatch(rt, ctx, input.direct));
-      return;
-    }
     const news = input.kind === "announce" ? pendingNews(db, threadId) : [];
     if (input.kind === "announce" && !news.length) return; // nothing new (another run already read it)
     announced = news.map((e) => e.id);
@@ -181,22 +144,8 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
       input.kind === "announce"
         ? announceBlock(news)
         : `${OWNER_MESSAGE_LABEL}\n${input.text ?? ""}`;
-    let out = await leadOnce(rt, ctx, { threadId, inputId, text, route: BASE_ROUTE, ac });
+    const out = await leadOnce(rt, ctx, { threadId, inputId, text, ac });
     turns.push(out.turnId);
-    if (out.escalation && !ac.signal.aborted) {
-      const route = await escalatedRoute(
-        rt,
-        threadId,
-        out.turnId,
-        out.escalation.to,
-        messageLanguage(ctx.message),
-        ac,
-      );
-      if (route) {
-        out = await leadOnce(rt, ctx, { threadId, inputId, text, route, ac });
-        turns.push(out.turnId);
-      }
-    }
     if (out.outcome === "aborted") return; // `/stop`: the owner knows
     if (out.outcome === "error") retry = await failed(post, input, announced);
     else if (out.reply.trim()) await post(out.reply);

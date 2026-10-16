@@ -13,7 +13,7 @@ import {
   WRITE_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import { resultMsg, TEST_CHANNEL, twoWorkspaces } from "./helpers";
-import { workersDone } from "./lead-harness";
+import { devLeadQuery, workersDone } from "./lead-harness";
 
 /** Isolation cases: a w1 run (real guard, fake query) must be denied every reach into w2 or the home data. */
 test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or agent.db", async () => {
@@ -31,14 +31,19 @@ test("w1 run cannot reach w2 clone, w2 worktree, git path, symlink escape or age
       yield resultMsg();
     })();
   };
-  // A tagged message starts a dev worker (detached): its canUseTool is the run's real permission layer.
-  const handle = createTurnHandler({ db: env.db, config: env.config, queryFn: queryFn as never });
+  // A message the fake lead dispatches to a dev worker (detached): its canUseTool is the run's real permission layer.
+  const handle = createTurnHandler({
+    db: env.db,
+    config: env.config,
+    queryFn: devLeadQuery(queryFn),
+    leadTiming: { debounceMs: 10, announceWindowMs: 20 },
+  });
   await handle({
     source: "t",
     channelId: TEST_CHANNEL,
     userId: "u",
     threadId: "th",
-    text: "[developer] hello",
+    text: "hello",
   });
   await workersDone(env.db);
   const qa = can!;

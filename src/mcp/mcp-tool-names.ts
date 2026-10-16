@@ -56,8 +56,6 @@ export const CANCEL_TASK_TOOL = "CancelTask";
 export const ASK_OWNER_TOOL = "AskOwner";
 /** Post a finished item's result to the owner (verbatim file or excerpt). */
 export const FORWARD_RESULT_TOOL = "ForwardResult";
-/** Ask for one re-run of this lead input on a stronger tier. */
-export const REQUEST_ESCALATION_TOOL = "RequestEscalation";
 /** Open (or reuse) a goal and start the planner on it; the lead never plans itself. */
 export const REQUEST_PLAN_TOOL = "RequestPlan";
 /** Ask the owner to approve a valid plan once; yes starts its items. */
@@ -116,7 +114,6 @@ export const APP_MCP_TOOLS: Readonly<Record<string, readonly string[]>> = {
     CANCEL_TASK_TOOL,
     ASK_OWNER_TOOL,
     FORWARD_RESULT_TOOL,
-    REQUEST_ESCALATION_TOOL,
     REQUEST_PLAN_TOOL,
     APPROVE_PLAN_TOOL,
   ],

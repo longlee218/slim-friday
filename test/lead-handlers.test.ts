@@ -3,7 +3,6 @@ import {
   handleAskOwner,
   handleCancel,
   handleDispatch,
-  handleEscalation,
   handleForward,
   handleSteer,
   handleTaskStatus,
@@ -77,7 +76,7 @@ test("idempotent: the same call twice in one lead turn is one effect, the stored
   expect(port.goals).toHaveLength(2);
 });
 
-test("idempotent: steer, cancel, forward, escalation act once per key", async () => {
+test("idempotent: steer, cancel, forward act once per key", async () => {
   const port = new FakePort();
   port.rows.set("t1", itemRow({ resultPath: "/r.md", resultExcerpt: "x" }));
   const ctx = leadCtx(port);
@@ -85,14 +84,8 @@ test("idempotent: steer, cancel, forward, escalation act once per key", async ()
     await handleSteer(ctx, { taskId: "t1", text: "hi" });
     await handleCancel(ctx, { taskId: "t1", reason: "r" });
     await handleForward(ctx, { taskId: "t1", mode: "verbatim" });
-    await handleEscalation(ctx, { to: "high", reason: "r" });
   }
-  expect([
-    port.steered.length,
-    port.cancelled.length,
-    port.posts.length,
-    port.escalations.length,
-  ]).toEqual([1, 1, 1, 1]);
+  expect([port.steered.length, port.cancelled.length, port.posts.length]).toEqual([1, 1, 1]);
 });
 
 test("task status: facts, or BAD_TASK for a task of another thread", async () => {
@@ -153,16 +146,5 @@ test("forward: verbatim posts the file, summary the excerpt, no result is refuse
   expect(port.posts).toEqual([{ filePath: "/r.md" }, { text: "short" }]);
   expect(await handleForward(leadCtx(port), { taskId: "t2", mode: "summary" })).toMatchObject({
     code: "NO_RESULT",
-  });
-});
-
-test("escalation: first granted, second in the run refused", async () => {
-  const port = new FakePort();
-  expect(await handleEscalation(leadCtx(port), { to: "high", reason: "a" })).toEqual({
-    ok: true,
-    to: "high",
-  });
-  expect(await handleEscalation(leadCtx(port), { to: "opus", reason: "b" })).toMatchObject({
-    code: "ESCALATION_USED",
   });
 });

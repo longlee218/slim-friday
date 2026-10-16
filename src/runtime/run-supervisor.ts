@@ -51,7 +51,7 @@ export function createRunSupervisor(o: { maxTurns: number; alreadyRecovered: boo
   let steer: RunControlSnapshot["steer"];
   let stopped = false;
   let guardDenied = false;
-  /** A result said the turn ceiling was hit (the effort-scaled ceiling is only known to the SDK). */
+  /** A result said the turn ceiling was hit (the ceiling is only known to the SDK). */
   let turnLimitHit = false;
   /** A recovery was requested (or the slot was already spent): never ask again. */
   let spent = o.alreadyRecovered;

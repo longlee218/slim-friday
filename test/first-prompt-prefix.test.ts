@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { HAIKU_MODEL } from "../src/config/model-ids";
 import { DIGEST_HEADING } from "../src/memory/channel-digest";
 import {
   firstPromptPrefix,
@@ -66,10 +67,8 @@ const PROBE: RoleDefinition = {
   background: false,
   limits: { maxAsk: 3 },
   sideEffects: "none",
-  approvalRequired: false,
-  capabilityVersion: "1",
   capabilities: ["read"],
-  model: "haiku",
+  model: HAIKU_MODEL,
   budgetUsd: 0.4,
   promptSections: () => ["probe contract"],
 };

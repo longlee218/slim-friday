@@ -1,3 +1,4 @@
+import { SONNET_MODEL } from "../../config/model-ids";
 import {
   CREATE_PLAN_TOOL,
   PLANNER_MCP_SERVER,
@@ -35,15 +36,12 @@ export const PLANNER_ROLE: RoleDefinition = {
   skills: "none",
   appSkills: ["plan-work"],
   limits: { maxAsk: MAX_ASK },
-  locationScope: "all",
   sideEffects: "none",
-  approvalRequired: false,
-  capabilityVersion: "1",
   capabilities: ["read", "skills"],
   mcpServers: [WORKER_MCP_SERVER, PLANNER_MCP_SERVER],
   noSubagents: true, // depth 1: a worker never spawns subagents
   permissionMode: "auto",
-  model: "sonnet",
+  model: SONNET_MODEL,
   budgetUsd: BUDGET_USD,
   promptSections: () => [CONTRACT],
 };

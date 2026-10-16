@@ -6,10 +6,8 @@ import type { MessageReactionPort } from "../ingress/message-reaction";
 import { renderStatus } from "../ingress/status-copy";
 import type { ThreadTitlePort } from "../ingress/thread-rename";
 import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/user-copy";
-import { leadingRoleTag } from "../intent/role-tag";
 import { DRAIN_REPLY, isDraining } from "../lifecycle/drain";
 import { logEvent, logger, runWithLogContext } from "../observability/logger";
-import { dispatchableWorkers } from "../roles/role-registry";
 import type { QueryFn } from "../runtime/run-agent";
 import { purgeThreadTrash } from "./approval/purge-trash";
 import { ownerConfirm } from "./engine/owner-confirm";
@@ -43,8 +41,7 @@ export interface TurnHandlerDeps {
 }
 
 /**
- * Build `handleMessage`: Discord-free entry. Commands (`/stop`, `/status`, memory) are answered by app code. A role tag
- * (`[developer] ...`) starts that worker directly. Every other owner message goes to the thread's lead (queue): the handler
+ * Build `handleMessage`: Discord-free entry. Commands (`/stop`, `/status`, memory) are answered by app code. Every other owner message goes to the thread's lead (queue): the handler
  * returns nothing and the lead posts its own reply, so the owner hears one voice.
  */
 export function createTurnHandler(deps: TurnHandlerDeps) {
@@ -56,7 +53,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
   const run = async (message: InboundMessage): Promise<string | undefined> => {
     const { threadId } = message;
     const parsed = parseMessageCommand(message.text);
-    const t0 = Date.now();
     logEvent(log, "task.routed", { kind: parsed.kind });
     if (parsed.kind === "memory") return (await memory(message)) ?? ""; // owner memory command: no agent
     if (parsed.kind === "stop") {
@@ -94,24 +90,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     }
     const ctx = lead.remember(message);
     if ("refusal" in ctx) return ctx.refusal;
-    // An explicit role tag is the escape that never needs the lead model.
-    const tag =
-      parsed.kind === "message" ? leadingRoleTag(parsed.text, dispatchableWorkers()) : undefined;
-    if (tag) {
-      logEvent(log, "intent.layer", { layer: "L1", role: tag.role, ms: Date.now() - t0 });
-      lead.queue.push({
-        threadId,
-        kind: "direct",
-        messageIds: [],
-        direct: {
-          role: tag.role,
-          brief: tag.rest,
-          location: parsed.kind === "message" ? parsed.location : undefined,
-          messageId: message.messageId,
-        },
-      });
-      return undefined; // the queue posts the start notice
-    }
     lead.submit(message);
     return undefined;
   };

@@ -66,7 +66,6 @@ export function leanRole(name: string): RoleDefinition {
     skills: "none",
     permissionMode: undefined,
     streaming: false,
-    context: undefined,
   };
 }
 

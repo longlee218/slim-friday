@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import type { TaskClass } from "../config/model-routing";
 import { redactText } from "../observability/redact";
 import { canonicalRoleName } from "../roles/role-aliases";
 import { countsTowardCap, getRole, turnTypeOf } from "../roles/role-registry";
@@ -70,8 +69,6 @@ export function insertTurn(
     role: string;
     /** Task text of a dispatched task; stored redacted. */
     brief?: string;
-    /** Task class (owner prefix / proposal); null = standard. */
-    cls?: TaskClass;
     /** Proposal this task was started from. */
     proposalId?: string;
     /** Turn that proposed this one, and how many hand-overs deep it is (0 = owner-started). */
@@ -84,8 +81,8 @@ export function insertTurn(
   // Only background roles that change something count against the concurrency cap (see `countActiveCappedTasks`).
   const role = getRole(t.role);
   db.query(
-    `INSERT INTO turns (id, thread_id, source, location, type, status, started_at, brief, class, proposal_id, counts_toward_cap, role, kind, parent_turn_id, hop)
-     VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO turns (id, thread_id, source, location, type, status, started_at, brief, proposal_id, counts_toward_cap, role, kind, parent_turn_id, hop)
+     VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     t.id,
     t.threadId,
@@ -94,7 +91,6 @@ export function insertTurn(
     turnTypeOf(role),
     Date.now(),
     t.brief === undefined ? null : redactText(t.brief),
-    t.cls ?? null,
     t.proposalId ?? null,
     countsTowardCap(role) ? 1 : 0,
     role.name,

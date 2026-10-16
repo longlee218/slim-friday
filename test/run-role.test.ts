@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { SONNET_MODEL } from "../src/config/model-ids";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { g, makeLocation } from "./git-fixture";
 import {
@@ -13,7 +14,7 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-import { noticeSink, workersDone } from "./lead-harness";
+import { devLeadQuery, noticeSink, workersDone } from "./lead-harness";
 
 /** Env with one workspace whose location `real` is a real git clone (a managed clone). */
 async function setup() {
@@ -76,7 +77,7 @@ const handler = (env: Awaited<ReturnType<typeof setup>>, result?: Record<string,
     db: env.db,
     config: env.config,
     approvals: stubGateway(),
-    queryFn: fakeSdk(result) as never,
+    queryFn: devLeadQuery(fakeSdk(result)),
     leadTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
 
@@ -101,7 +102,7 @@ const runsOf = (env: Awaited<ReturnType<typeof setup>>, turnId: string) =>
 
 test("one dev run: ONE runs row with model and cost; the worker's text is not returned; location from the marker", async () => {
   const env = await setup();
-  const reply = await send(handler(env), env, "[dev] please add b.txt");
+  const reply = await send(handler(env), env, "please add b.txt");
   expect(reply).toContain("starting"); // the fixed start notice, not the worker's report
   const [t] = codeTask(env);
   expect(t).toMatchObject({
@@ -114,10 +115,12 @@ test("one dev run: ONE runs row with model and cost; the worker's text is not re
   });
   const runs = runsOf(env, t.id);
   expect(runs).toHaveLength(1);
-  expect(runs[0].model).toBe(env.config.models.sonnet);
+  expect(runs[0].model).toBe(SONNET_MODEL);
   expect(runs[0].cost_usd).toBeCloseTo(0.25);
   // The dev session is the turn row's, never the thread's.
-  expect(env.db.query("SELECT session_id FROM sessions").get()).toBeNull();
+  expect(
+    env.db.query("SELECT session_id FROM sessions WHERE COALESCE(kind, '') != 'lead'").get(),
+  ).toBeNull();
   expect(t.session_id).toBe("sess-dev");
   // The typed result of the owned task carries the report; the marker line is the app's, not the owner's.
   const task = env.db.query<any, []>("SELECT * FROM owned_tasks WHERE parent_id IS NOT NULL").get();
@@ -128,7 +131,7 @@ test("one dev run: ONE runs row with model and cost; the worker's text is not re
 test("a final report without a valid `location:` marker keeps the location of the row", async () => {
   const env = await setup();
   const handle = handler(env, { result: "done\n\nlocation: nope", total_cost_usd: 0.1 });
-  await send(handle, env, "[dev] please add b.txt");
+  await send(handle, env, "please add b.txt");
   // One registered location: the sole location is the run's location even without a valid marker.
   expect(codeTask(env)[0].location).toBe("real");
 });
@@ -142,19 +145,21 @@ test("dev on its budget: the run row keeps the cost and outcome, the task is not
     total_cost_usd: 3.2,
     session_id: "sess-dev",
   });
-  await send(handle, env, "[dev] please add b.txt");
+  await send(handle, env, "please add b.txt");
   const t = codeTask(env)[0];
   expect(runsOf(env, t.id)[0]).toMatchObject({ outcome: "max_budget" });
   expect(runsOf(env, t.id)[0].cost_usd).toBeCloseTo(3.2);
   expect(t.status).not.toBe("done");
-  expect(env.db.query("SELECT session_id FROM sessions").get()).toBeNull();
+  expect(
+    env.db.query("SELECT session_id FROM sessions WHERE COALESCE(kind, '') != 'lead'").get(),
+  ).toBeNull();
 });
 
 test("a second dev message in the thread is a new task with its own run", async () => {
   const env = await setup();
   const handle = handler(env);
-  await send(handle, env, "[dev] please add b.txt");
-  await send(handle, env, "[dev] also add c");
+  await send(handle, env, "please add b.txt");
+  await send(handle, env, "also add c");
   const tasks = codeTask(env);
   expect(tasks).toHaveLength(2);
   expect(runsOf(env, tasks[1].id)).toHaveLength(1);
@@ -171,7 +176,7 @@ test("partial background result: a dev run that hits its turn limit is NOT re-ru
       session_id: "sess-dev",
     }),
     env,
-    "[dev] please add b.txt",
+    "please add b.txt",
   );
   expect(codeTask(env)).toHaveLength(1);
   expect(runsOf(env, codeTask(env)[0].id)).toHaveLength(1); // no second run

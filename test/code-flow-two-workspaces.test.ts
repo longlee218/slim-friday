@@ -18,7 +18,7 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-import { until, workersDone } from "./lead-harness";
+import { devLeadQuery, until, workersDone } from "./lead-harness";
 
 /** Adds a managed clone `real` to workspace `ws` with the given commit author. */
 async function addCloneLocation(home: string, ws: string, author: string, channels: string[] = []) {
@@ -68,10 +68,10 @@ async function started() {
     db: env.db,
     config: env.config,
     approvals: stubGateway(),
-    queryFn: fakeSdk(seen) as never,
+    queryFn: devLeadQuery(fakeSdk(seen)),
     leadTiming: { debounceMs: 10, announceWindowMs: 20 },
   });
-  await handle(msg("[dev] add b"));
+  await handle(msg("add b"));
   await workersDone(env.db);
   return { env, seen, handle };
 }
@@ -82,7 +82,7 @@ test("two workspaces with location `real`: every task runs in the channel's work
   // An alphabetically earlier workspace gains the same location name after the first task.
   await addCloneLocation(env.home, "w-a", "Aye <aye@example.com>");
   const n = seen.length;
-  await handle(msg("[dev] also c")); // a new task (no follow-up in a finished task)
+  await handle(msg("also c")); // a new task (no follow-up in a finished task)
   // The lead may also run (it reads the first task's result): pick the second worker call.
   const second = () => seen.slice(n).find((c) => c.options.mcpServers?.[WORKER_MCP_SERVER]);
   await until(() => second() !== undefined);

@@ -10,6 +10,7 @@ import {
 } from "../src/tools/sdk-tool-names";
 import { runDevWorker } from "./dev-worker-fixture";
 import { addLocation, clearWorkspaces, DEV_REQUEST, makeEnv, stubGateway } from "./helpers";
+import { devLeadQuery } from "./lead-harness";
 
 /** Fake gateway: records requests and answers with a scripted decision. */
 function fakeGateway(approved = true) {
@@ -25,7 +26,7 @@ function fakeGateway(approved = true) {
 }
 
 /**
- * Run one `[dev]` message (the role tag starts a dev worker directly); capture the SDK options of its run.
+ * Run one dev message (a fake lead dispatches it to a dev worker); capture the SDK options of its run.
  * `gw` answers the owner-decided tools of the run.
  */
 async function runCodeTask(gw?: ApprovalGateway) {
@@ -100,8 +101,12 @@ test("code task (a dispatched worker) runs in default mode, never bypass, in the
     "Do not change files before the owner approved your plan",
   );
   // The run keeps its session on the task row, never in the thread's session table.
-  expect(env.db.query("SELECT cwd FROM sessions").all()).toEqual([]);
-  expect(env.db.query("SELECT type FROM turns").all()).toEqual([{ type: "code" }]);
+  expect(env.db.query("SELECT cwd FROM sessions WHERE COALESCE(kind, '') != 'lead'").all()).toEqual(
+    [],
+  );
+  expect(env.db.query("SELECT type FROM turns WHERE role = 'developer'").all()).toEqual([
+    { type: "code" },
+  ]);
 });
 
 test("canUseTool: writes only in the workspace; a feedback report is outside a worker envelope", async () => {

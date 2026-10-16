@@ -63,7 +63,7 @@ export type UserNotice =
   /** Short labels and gate questions; never matched back by text (a bare "No" must not be replaced). */
   | {
       kind: "label";
-      state: "yes-run" | "no" | "reply-attached" | "max-effort" | "escalate-opus" | "max-declined";
+      state: "yes-run" | "no" | "reply-attached";
     }
   | {
       kind: "decision";
@@ -357,18 +357,6 @@ function render(event: UserNotice, language: OwnerLanguage): string {
         "yes-run": ["Có, chạy đi", "Yes, run it"],
         no: ["Không", "No"],
         "reply-attached": ["[đã đính kèm toàn bộ câu trả lời]", "[full reply attached]"],
-        "max-effort": [
-          "Việc này cần mức nỗ lực tối đa (Opus, chi phí gấp khoảng 5 lần). Chạy theo cách đó chứ?",
-          "That asks for max effort (Opus, about 5x the cost). Run it that way?",
-        ],
-        "max-declined": [
-          "Chưa xác nhận mức nỗ lực tối đa: đã chạy ở mức cao.",
-          "Max effort not confirmed: ran at high.",
-        ],
-        "escalate-opus": [
-          "Mô hình rẻ hơn chưa trả lời tốt việc này. Chạy lại bằng Opus (chi phí gấp khoảng 5 lần) chứ?",
-          "The cheaper model could not answer this well. Re-run it on Opus (about 5x the cost)?",
-        ],
       } as const;
       return say(copy[event.state][0], copy[event.state][1]);
     }

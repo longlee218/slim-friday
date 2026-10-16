@@ -44,7 +44,7 @@ export interface RoleRunInput {
   onStarted?: () => void;
   /** Owner's conversation language (pinned by ingress); absent = the thread's pinned language. */
   language?: OwnerLanguage;
-  /** Marks the first visible response posted (an Opus-escalation question is one). */
+  /** Marks the first visible response posted (a question to the owner is one). */
   onVisible?: () => void | Promise<void>;
   turnId: string;
   threadId: string;
@@ -61,11 +61,11 @@ export interface RoleRunInput {
   channelMode?: "task" | "chat";
   /** Discord channel id the run started in (the thread's parent): stamped on thread rows `SetThreadTitle` creates. */
   channelId?: string;
-  /** Locations the run may use (the role's `locationScope` decided which). */
+  /** Locations the run may use. */
   locations: Location[];
   /** The task's abort controller (`stop`, shutdown). */
   ac: AbortController;
-  /** Class, effort and `go +<usd>` raise of this run (model + budget routing). */
+  /** Internal hint, `go +<usd>` raise and spent-so-far of this run (budget routing). */
   route?: Route;
   /** The location the thread is pinned to, when any. */
   pinned?: Location;

@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { HAIKU_MODEL } from "../src/config/model-ids";
 import { appendJournalBlock, journalFile, pruneJournals } from "../src/memory/daily-journal";
 import {
   EXTRACT_ITEM_CHARS,
@@ -296,10 +297,8 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
     background: false,
     limits: { maxAsk: 3 },
     sideEffects: "none",
-    approvalRequired: false,
-    capabilityVersion: "1",
     capabilities: ["read"],
-    model: "haiku",
+    model: HAIKU_MODEL,
     budgetUsd: 0.4,
     promptSections: () => ["probe"],
   };

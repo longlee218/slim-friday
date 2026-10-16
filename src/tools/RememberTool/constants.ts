@@ -13,7 +13,7 @@ export const REMEMBER_MIN_CHARS = 3;
 export const REMEMBER_PENDING_CAP_CHARS = Number.POSITIVE_INFINITY;
 /**
  * `Remember` calls allowed per SDK query: the counter lives in the server built for ONE `runAgent` call, so a
- * resume or an escalation re-run starts again at 0, and the run's subagents share the count. The next call is refused.
+ * resume starts again at 0, and the run's subagents share the count. The next call is refused.
  */
 export const REMEMBER_MAX_CALLS_PER_RUN = 20;
 

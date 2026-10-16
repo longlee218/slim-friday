@@ -1,13 +1,13 @@
 import type { Logger } from "pino";
 import { z } from "zod";
-import { DEFAULT_TIER_MODELS, type ModelTier } from "./model-routing";
+import { HAIKU_MODEL } from "./model-ids";
 import { type RoutingEnv, readRoutingEnv } from "./role-env";
 
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
 
-/** Default `model` (Haiku tier). Roles resolve their own model (model-routing.ts); this one is the default model slot of the SDK env. */
-const DEFAULT_MODEL = DEFAULT_TIER_MODELS.haiku;
+/** Default `model` (Haiku). Each role names its own model (`RoleDefinition.model`); this one is the default model slot of the SDK env. */
+const DEFAULT_MODEL = HAIKU_MODEL;
 
 /** Secret string: trimmed (no stray newline in auth headers); empty after trim counts as unset. */
 const secret = z
@@ -56,12 +56,8 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   discordGuildId: string | undefined;
   agentHome: string;
   logLevel: string;
-  /** Default model slot of the SDK env and the log value. Roles resolve via `models` (model-routing.ts). */
+  /** Default model slot of the SDK env and the log value. Roles name their own model. */
   model: string;
-  /** Tier -> model id (env MODEL_HAIKU|SONNET|OPUS). */
-  models: Record<ModelTier, string>;
-  /** `<role>` -> tier or id (env MODEL_<ROLE>). */
-  modelOverrides: Record<string, string>;
   /** `<role>` -> USD (env BUDGET_<ROLE>_USD). */
   budgetOverrides: Record<string, number>;
   /** Deprecated env vars that are set (logged once at startup as `config.deprecated`). */
@@ -106,7 +102,7 @@ export function loadConfig(
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
     model: DEFAULT_MODEL,
-    memoryModel: e.MEMORY_MODEL ?? routing.models.haiku,
+    memoryModel: e.MEMORY_MODEL ?? HAIKU_MODEL,
     limits: {
       maxBudgetUsd: e.MAX_BUDGET_USD,
       timeoutMs: e.TIMEOUT_MS,
@@ -124,11 +120,11 @@ export function pickEnv(
   return env;
 }
 
-/** Warn once at startup about deprecated env vars (MODEL, the old two-part shapes). Names only. */
+/** Warn once at startup about deprecated env vars (MODEL, MODEL_<X>, the old two-part shapes). Names only. */
 export function logDeprecatedConfig(log: Logger, config: AgentConfig): void {
   if (!config.deprecated.length) return;
   log.warn(
     { event: "config.deprecated", vars: config.deprecated },
-    "deprecated env vars: MODEL is no longer used (use MODEL_<ROLE> / MODEL_<TIER>); the old names with a second part (MODEL_<ROLE>_<X>, BUDGET_<ROLE>_<X>_USD, COMPACT_WINDOW_<ROLE>_<X>) are ignored, use MODEL_<ROLE>, BUDGET_<ROLE>_USD, COMPACT_WINDOW_<ROLE>",
+    "deprecated env vars are ignored: MODEL and MODEL_<X> (each role has a fixed model); the old names with a second part (BUDGET_<ROLE>_<X>_USD, COMPACT_WINDOW_<ROLE>_<X>) too, use BUDGET_<ROLE>_USD, COMPACT_WINDOW_<ROLE>",
   );
 }
