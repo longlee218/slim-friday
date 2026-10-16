@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { captureLogs } from "../src/observability/logger";
-import { loadWorkspaces } from "../src/workspaces/workspace-registry";
+import { loadWorkspaces, warnOverlap } from "../src/workspaces/workspace-registry";
 import { addLocation, makeEnv, outsideDir } from "./helpers";
 
 /** Write a bare `workspace.yaml` (no locations) for a workspace dir name. */
@@ -55,17 +55,20 @@ test("location names starting with digit are valid", () => {
   expect(scan.workspaces[0]!.locations.map((r) => r.name)).toEqual(["7days-client"]);
 });
 
-test("duplicate channel and overlapping locations are logged as warnings", () => {
+test("duplicate channel is logged by the scan; overlapping locations only by warnOverlap (startup)", () => {
   const env = makeEnv();
   rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
   const shared = fakeGit(join(outsideDir(), "shared"));
   addLocation(env.home, "a", {}, { workspace: "one", channels: [CH1], path: shared });
   addLocation(env.home, "b", {}, { workspace: "two", channels: [CH1], path: shared });
   const cap = captureLogs();
-  loadWorkspaces(env.home);
+  const { workspaces } = loadWorkspaces(env.home);
+  const scanEvents = cap.lines.map((l) => l.event);
+  warnOverlap(workspaces);
   cap.stop();
   const events = cap.lines.map((l) => l.event);
-  expect(events).toContain("channel.duplicate");
+  expect(scanEvents).toContain("channel.duplicate");
+  expect(scanEvents).not.toContain("location.overlap"); // a re-scan per message stays quiet
   expect(events).toContain("location.overlap");
   expect(cap.lines.find((l) => l.event === "location.overlap")).toMatchObject({
     a: "one/a",

@@ -58,8 +58,11 @@ const workspaceSchema = z.object({
   skills: z.object({ extra: z.unknown().optional() }).passthrough().optional(),
 });
 
-/** Warn (not skip) when location paths of different workspaces are equal or nested. */
-function warnOverlap(workspaces: Workspace[]): void {
+/**
+ * Warn (not skip) when location paths of different workspaces are equal or nested. Called once at startup (index.ts),
+ * not by `loadWorkspaces`: the registry is re-scanned on every message and the warning would repeat each time.
+ */
+export function warnOverlap(workspaces: Workspace[]): void {
   const all = workspaces.flatMap((w) => w.locations.map((r) => ({ r, p: real(r.path) })));
   for (const [i, a] of all.entries()) {
     for (const b of all.slice(i + 1)) {
@@ -126,6 +129,5 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
     }
   }
   dropDuplicateChannels(out.workspaces);
-  warnOverlap(out.workspaces);
   return out;
 }

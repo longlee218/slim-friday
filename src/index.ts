@@ -29,7 +29,7 @@ import { createRunLimiter } from "./orchestrator/turns/run-limiter";
 import { recoverInFlight } from "./orchestrator/worker/recover-in-flight";
 import { createDiscordApprovalGateway } from "./owner-approval/discord-approval";
 import { openDb } from "./storage/db";
-import { loadWorkspaces } from "./workspaces/workspace-registry";
+import { loadWorkspaces, warnOverlap } from "./workspaces/workspace-registry";
 
 const log = logger.child({ module: "index" });
 
@@ -55,6 +55,7 @@ async function main(): Promise<void> {
   if (badRole) return fail(`Invalid role registry: ${badRole}`);
 
   const { workspaces } = loadWorkspaces(config.agentHome);
+  warnOverlap(workspaces); // once per start: later scans stay quiet
 
   // Fail closed: the home (persona, memory, db, logs) must not live inside a location or a git working tree.
   // A location equal to the owner's $HOME is allowed: the guard denies AGENT_HOME to every run instead.
