@@ -12,28 +12,28 @@ import { channelTarget, locationTarget, workspaceTarget } from "../../../../memo
 import { PENDING_HEADER } from "../../../../memory/memory-writer";
 import type { MemoryToolContext } from "../../memory-tool-context";
 import {
-  REMEMBER_MAX_CHARS,
-  REMEMBER_MIN_CHARS,
-  REMEMBER_PENDING_CAP_CHARS,
-  type RememberScope,
+  MEMORY_SAVE_MAX_CHARS,
+  MEMORY_SAVE_MIN_CHARS,
+  MEMORY_SAVE_PENDING_CAP_CHARS,
+  type MemorySaveScope,
 } from "./constants";
 
-/** Arguments of one `Remember` call (already shape-checked by zod). */
-export interface RememberArgs {
+/** Arguments of one `MemorySave` call (already shape-checked by zod). */
+export interface MemorySaveArgs {
   text: string;
-  scope: RememberScope;
+  scope: MemorySaveScope;
   location?: string;
   kind?: MemoryKind;
 }
 
 /** Outcome: the text the model reads, whether it is an error, and the short result word for the log. */
-export interface RememberOutcome {
+export interface MemorySaveOutcome {
   text: string;
   isError: boolean;
   result: string;
 }
 
-const fail = (text: string, result: string): RememberOutcome => ({ text, isError: true, result });
+const fail = (text: string, result: string): MemorySaveOutcome => ({ text, isError: true, result });
 
 /** Refusal text for a failed write (the model relays it; `full` tells it what the owner does). */
 const WRITE_ERRORS: Record<string, string> = {
@@ -47,11 +47,15 @@ const WRITE_ERRORS: Record<string, string> = {
  * Save one note. `now` is read ONCE by the caller: the file date and the bullet date come from the same instant.
  * Pure of state except the file write; never throws for a bad argument (returns an error outcome).
  */
-export function rememberNote(ctx: MemoryToolContext, a: RememberArgs, now: Date): RememberOutcome {
+export function memorySaveNote(
+  ctx: MemoryToolContext,
+  a: MemorySaveArgs,
+  now: Date,
+): MemorySaveOutcome {
   const text = a.text.trim();
-  if (text.length < REMEMBER_MIN_CHARS) return fail("text too short", "too_short");
-  if (text.length > REMEMBER_MAX_CHARS)
-    return fail(`text too long (max ${REMEMBER_MAX_CHARS} chars): shorten it`, "too_long");
+  if (text.length < MEMORY_SAVE_MIN_CHARS) return fail("text too short", "too_short");
+  if (text.length > MEMORY_SAVE_MAX_CHARS)
+    return fail(`text too long (max ${MEMORY_SAVE_MAX_CHARS} chars): shorten it`, "too_long");
   const kind = a.kind ?? DEFAULT_KIND;
   if (kind === "open" && a.scope !== "journal")
     return fail("kind open is only for scope journal", "bad_kind");
@@ -112,7 +116,7 @@ export function rememberNote(ctx: MemoryToolContext, a: RememberArgs, now: Date)
           kind,
           origin + text,
           date,
-          REMEMBER_PENDING_CAP_CHARS,
+          MEMORY_SAVE_PENDING_CAP_CHARS,
           fields,
         );
       break;

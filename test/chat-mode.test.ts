@@ -241,7 +241,7 @@ test("turns: the second chat message resumes the first session (sessions.thread_
   expect(calls[0]?.prompt).toEndWith("Owner message:\nhello");
   expect(calls[0]?.prompt).not.toContain(DIGEST_HEADING); // no channel digest in a chat channel
   const tools = memoryTools(calls[0]?.options);
-  expect(tools).toContain("Remember"); // the probe sees the memory server's tools
+  expect(tools).toContain("MemorySave"); // the probe sees the memory server's tools
   expect(tools).not.toContain("SetThreadTitle");
 });
 

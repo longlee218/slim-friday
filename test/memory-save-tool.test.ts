@@ -8,10 +8,10 @@ import { buildServers } from "../src/mcp/mcp-servers";
 import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
 import {
-  REMEMBER_MAX_CALLS_PER_RUN,
-  REMEMBER_TOOL,
-} from "../src/mcp/memory/tools/RememberTool/constants";
-import { createRememberTool } from "../src/mcp/memory/tools/RememberTool/remember-tool";
+  MEMORY_SAVE_MAX_CALLS_PER_RUN,
+  MEMORY_SAVE_TOOL,
+} from "../src/mcp/memory/tools/MemorySaveTool/constants";
+import { createMemorySaveTool } from "../src/mcp/memory/tools/MemorySaveTool/memory-save-tool";
 import { localDay, localHhmm } from "../src/memory/memory-clock";
 import { PERSONA_MAX } from "../src/memory/persona";
 import { DEFAULT_AGENTS } from "../src/memory/persona-templates";
@@ -39,7 +39,7 @@ function setup() {
     now: () => NOW,
     onSaved: (p) => saved.push(p),
   };
-  const tool = createRememberTool(ctx);
+  const tool = createMemorySaveTool(ctx);
   const call = async (args: Record<string, unknown>) => {
     const r = await tool.handler(args as never, {});
     return { text: (r.content[0] as { text: string }).text, isError: !!r.isError };
@@ -86,7 +86,7 @@ test("global goes to MEMORY.pending.md, root MEMORY.md is never touched", async 
 test("global stamp names the run's single location; the queue has a line cap and its own full message", async () => {
   const s = setup();
   s.ctx.location = "api";
-  const t = createRememberTool(s.ctx);
+  const t = createMemorySaveTool(s.ctx);
   const call = (text: string) => t.handler({ text, scope: "global" } as never, {});
   await call("first queued note");
   expect(readFileSync(join(s.home, "MEMORY.pending.md"), "utf8")).toContain(
@@ -123,11 +123,11 @@ test("known refusals carry a trusted code and are reported through onIssue", asy
     "invalid_input: text too short",
   );
   const full = setup();
-  for (let i = 0; i < REMEMBER_MAX_CALLS_PER_RUN; i++)
+  for (let i = 0; i < MEMORY_SAVE_MAX_CALLS_PER_RUN; i++)
     await full.call({ text: `note number ${i}`, scope: "workspace" });
   const over = await full.call({ text: "one more", scope: "workspace" });
   expect(over.text).toStartWith("limit:");
-  expect(full.issues.at(-1)).toEqual({ tool: "Remember", code: "limit" });
+  expect(full.issues.at(-1)).toEqual({ tool: "MemorySave", code: "limit" });
 });
 
 test("bad location, path tricks and open outside journal are refused without writing", async () => {
@@ -164,13 +164,13 @@ test("repeat and normalized repeat -> already saved; secrets stored redacted; ma
 test("the 21st call of a run is refused; calls in parallel all land", async () => {
   const s = setup();
   const res = await Promise.all(
-    Array.from({ length: REMEMBER_MAX_CALLS_PER_RUN }, (_, i) =>
+    Array.from({ length: MEMORY_SAVE_MAX_CALLS_PER_RUN }, (_, i) =>
       s.call({ text: `note number ${i}`, scope: "workspace" }),
     ),
   );
   expect(res.every((r) => !r.isError)).toBe(true);
   const f = readFileSync(join(s.ws, "MEMORY.md"), "utf8");
-  expect(f.match(/^- note number/gm)?.length).toBe(REMEMBER_MAX_CALLS_PER_RUN);
+  expect(f.match(/^- note number/gm)?.length).toBe(MEMORY_SAVE_MAX_CALLS_PER_RUN);
   const over = await s.call({ text: "one more", scope: "workspace" });
   expect(over.isError).toBe(true);
   expect(over.text).toContain("limit");
@@ -189,14 +189,14 @@ test("a full file gives a tool error that does not mention compaction", async ()
   throw new Error("never full");
 });
 
-test("the guard allows Remember for a role that lists it, denies any other memory tool", () => {
-  const ctx = guardFor(getRole("developer"), {});
-  expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, REMEMBER_TOOL), {}, ctx).decision).toBe(
+test("the guard allows MemorySave for a role that lists it, denies any other memory tool", () => {
+  const ctx = guardFor(getRole("lead"), {});
+  expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, MEMORY_SAVE_TOOL), {}, ctx).decision).toBe(
     "allow",
   );
   expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, "Other"), {}, ctx).decision).toBe("deny");
-  // No role data = no MCP tool: an empty guard denies Remember too.
-  expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, REMEMBER_TOOL), {}, {}).decision).toBe(
+  // No role data = no MCP tool: an empty guard denies MemorySave too.
+  expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, MEMORY_SAVE_TOOL), {}, {}).decision).toBe(
     "deny",
   );
 });
@@ -237,8 +237,9 @@ for (const roleName of ["lead", "developer"] as const)
     expect(server.instance).toBeDefined();
     expect(options?.strictMcpConfig).toBe(true);
     const g = guardFor(getRole(roleName), {});
-    expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, REMEMBER_TOOL), {}, g).decision).toBe(
-      "allow",
+    // Owner rule: only the lead may call MemorySave; a worker's guard denies it.
+    expect(checkToolCall(mcpToolName(MEMORY_MCP_SERVER, MEMORY_SAVE_TOOL), {}, g).decision).toBe(
+      roleName === "lead" ? "allow" : "deny",
     );
   });
 
@@ -249,7 +250,7 @@ test("DEFAULT_AGENTS has the Memory + Privacy text within the persona cap; no ro
   for (const name of ["lead", "developer"] as const) {
     const p = JSON.stringify(buildSystemPrompt("", getRole(name)));
     // No role prompt names the tool: every role relies on the AGENTS.md rule.
-    expect(p.includes(REMEMBER_TOOL)).toBe(false);
+    expect(p.includes(MEMORY_SAVE_TOOL)).toBe(false);
     expect(p).not.toContain("THIS turn");
   }
 });
@@ -266,7 +267,7 @@ test("near midnight the journal file date and the bullet date agree (23:30 and 0
   ] as const) {
     const s = setup();
     s.ctx.now = () => new Date(2026, 9, d, h, m);
-    const t = createRememberTool(s.ctx);
+    const t = createMemorySaveTool(s.ctx);
     await t.handler({ text: "late note", scope: "journal" } as never, {});
     const f = readFileSync(join(s.ws, "memory", `${day}.md`), "utf8");
     expect(f).toContain(`## ${hhmm} thread abc123`);

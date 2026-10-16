@@ -10,11 +10,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deletePaths } from "../src/orchestrator/approval/delete-paths";
+import { deletePaths } from "../src/mcp/effects/delete-paths";
+import { moveToTrash } from "../src/mcp/effects/trash-store";
 import { type EffectsCtx, safeText } from "../src/orchestrator/approval/effect-context";
 import { defaultEnvelope } from "../src/orchestrator/approval/envelope";
 import { goalLocations } from "../src/orchestrator/approval/load-envelope";
-import { moveToTrash } from "../src/orchestrator/approval/trash-store";
 import { MAX_WALK_MS, treeTotals } from "../src/orchestrator/approval/tree-totals";
 import { openDb } from "../src/storage/db";
 import { effectsOfGoal } from "../src/storage/effect-log-store";

@@ -80,7 +80,7 @@ function replaceRows(
 }
 
 /**
- * Re-index ONE file from its current content (what `Remember` calls after a write). Paths that are not an
+ * Re-index ONE file from its current content (what `MemorySave` calls after a write). Paths that are not an
  * indexable memory file (MEMORY.pending.md...) are refused ("skipped"); a vanished, symlinked or oversized
  * file is purged ("removed").
  */

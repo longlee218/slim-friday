@@ -49,7 +49,7 @@ test("dev: follow-up, memory contract, shell git and delivery by the agent", () 
   expect(text).toContain("pure question");
   expect(text).not.toContain("Memory:"); // no report section is parsed any more
   expect(text).not.toContain("[global]");
-  expect(text).not.toContain("Remember (scope location;"); // location memory rule lives in AGENTS.md
+  expect(text).not.toContain("MemorySave (scope location;"); // location memory rule lives in AGENTS.md
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).not.toContain("git_commit"); // no git MCP for the dev agent
   expect(text).toContain("`git` in the shell");

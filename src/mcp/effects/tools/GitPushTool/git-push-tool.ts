@@ -1,8 +1,8 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { EffectsCtx } from "../../../../orchestrator/approval/effect-context";
-import { gitPush } from "../../../../orchestrator/approval/git-push";
 import { runTool } from "../../../orchestration/lead-tool-result";
+import { gitPush } from "../../git-push";
 import { GIT_PUSH_TOOL, NAME_MAX_CHARS } from "./constants";
 import { GIT_PUSH_DESCRIPTION } from "./prompt";
 

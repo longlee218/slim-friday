@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CHANNEL_NAME, workspacePaths } from "../src/config/workspace-paths";
 import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
-import { createRememberTool } from "../src/mcp/memory/tools/RememberTool/remember-tool";
+import { createMemorySaveTool } from "../src/mcp/memory/tools/MemorySaveTool/memory-save-tool";
 import { classifyFile } from "../src/memory/index/memory-files";
 import { parseId } from "../src/memory/index/memory-ids";
 import { searchIndex } from "../src/memory/index/memory-search";
@@ -142,7 +142,7 @@ test("persona: channel file > space file > root file, first non-empty wins", () 
   expect(buildPersonaContext(home, WS, "chat-room").text).toContain("space tone");
 });
 
-test("Remember scope channel writes the run's channel file; no channel = error", async () => {
+test("MemorySave scope channel writes the run's channel file; no channel = error", async () => {
   const { home, paths } = space();
   const ctx: MemoryToolContext = {
     db: openDb(":memory:"),
@@ -153,7 +153,7 @@ test("Remember scope channel writes the run's channel file; no channel = error",
     threadLabel: "thread x",
   };
   const call = async (c: MemoryToolContext) => {
-    const r = await createRememberTool(c).handler(
+    const r = await createMemorySaveTool(c).handler(
       { text: "pays on friday", scope: "channel" } as never,
       {},
     );

@@ -1,12 +1,17 @@
-import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/constants";
 import { clip } from "../../observability/redact";
-import { type Reply, refuse } from "../engine/lead-call";
-import { goalUsage, measurePaths } from "./bounds-usage";
-import { checkEnvelope } from "./check-envelope";
+import { goalUsage, measurePaths } from "../../orchestrator/approval/bounds-usage";
+import { checkEnvelope } from "../../orchestrator/approval/check-envelope";
+import {
+  type EffectsCtx,
+  recordEffect,
+  refuseLogged,
+  safeText,
+} from "../../orchestrator/approval/effect-context";
+import { TRASH_TTL_MS } from "../../orchestrator/approval/risk-types";
+import { type Reply, refuse } from "../../orchestrator/engine/lead-call";
 import { classifyPath, type PathKind, stillSame } from "./delete-paths-classify";
-import { type EffectsCtx, recordEffect, refuseLogged, safeText } from "./effect-context";
 import { containsNestedGit } from "./nested-git";
-import { TRASH_TTL_MS } from "./risk-types";
+import { DELETE_PATHS_TOOL } from "./tools/DeletePathsTool/constants";
 import { moveToTrash } from "./trash-store";
 
 /* DeletePaths: move paths to the trash (restorable for 7 days). Fails closed: a path that cannot be resolved, a symlink

@@ -66,7 +66,7 @@ test("MCP server and tool names are the real wire names", () => {
   ]).toEqual(["memory", "orchestration", "plan", "effects", "discord-admin"]);
   // Every tool the app can build, by server, with all ctx parts present and a role that lists every tool.
   expect(toolsByServer(buildServers(ALL_ROLE, FULL_CTX))).toEqual({
-    memory: ["MemoryExpand", "MemoryGet", "MemorySearch", "Remember"],
+    memory: ["MemoryExpand", "MemoryGet", "MemorySave", "MemorySearch"],
     orchestration: [
       "ApprovePlan",
       "AskOwner",
@@ -95,7 +95,7 @@ test("MCP server and tool names are the real wire names", () => {
 
 test("full MCP names: mcp__<server>__<tool>, valid characters", () => {
   expect(mcpServerPrefix("memory")).toBe("mcp__memory__");
-  expect(mcpToolName("memory", "Remember")).toBe("mcp__memory__Remember");
+  expect(mcpToolName("memory", "MemorySave")).toBe("mcp__memory__MemorySave");
   const valid = /^mcp__[a-zA-Z0-9_-]+__[a-zA-Z0-9_-]+$/;
   for (const [server, tools] of Object.entries(toolsByServer(buildServers(ALL_ROLE, FULL_CTX))))
     for (const t of tools) expect(mcpToolName(server, t)).toMatch(valid);

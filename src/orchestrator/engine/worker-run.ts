@@ -1,5 +1,6 @@
 import { workspacePaths } from "../../config/workspace-paths";
 import { messageLanguage } from "../../ingress/user-copy";
+import { spawnRunner } from "../../mcp/effects/git-run";
 import type { ReportSink } from "../../mcp/orchestration/tools/ReportResultTool/report-result-tool";
 import { channelDigestBlock } from "../../memory/channel-digest";
 import { logger, setLogContext } from "../../observability/logger";
@@ -12,7 +13,6 @@ import {
 } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import { channelDigest } from "../../storage/thread-store";
-import { spawnRunner } from "../approval/git-run";
 import { goalLocations, loadEnvelope } from "../approval/load-envelope";
 import { markStartDelivered } from "../events/event-store";
 import { beginTurn } from "../turns/turn-tracker";

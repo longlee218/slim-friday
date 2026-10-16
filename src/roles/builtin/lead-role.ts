@@ -1,8 +1,8 @@
 import { SONNET_MODEL } from "../../config/model-ids";
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
+import { MEMORY_SAVE_TOOL } from "../../mcp/memory/tools/MemorySaveTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
-import { REMEMBER_TOOL } from "../../mcp/memory/tools/RememberTool/constants";
 import { APPROVE_PLAN_TOOL } from "../../mcp/orchestration/tools/ApprovePlanTool/constants";
 import { ASK_OWNER_TOOL } from "../../mcp/orchestration/tools/AskOwnerTool/constants";
 import { CANCEL_TASK_TOOL } from "../../mcp/orchestration/tools/CancelTaskTool/constants";
@@ -39,7 +39,7 @@ export const LEAD_ROLE: RoleDefinition = {
   skills: [],
   // Memory tools + the lead's typed actions + SetThreadTitle (the `orchestration` server; a worker run never gets these).
   mcpTools: [
-    REMEMBER_TOOL,
+    MEMORY_SAVE_TOOL,
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,

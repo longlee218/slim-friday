@@ -2,7 +2,6 @@ import { SONNET_MODEL } from "../../config/model-ids";
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
-import { REMEMBER_TOOL } from "../../mcp/memory/tools/RememberTool/constants";
 import { REPORT_RESULT_TOOL } from "../../mcp/orchestration/tools/ReportResultTool/constants";
 import { ANALYZE_BLOCKERS_TOOL } from "../../mcp/plan/tools/AnalyzeBlockersTool/constants";
 import { CREATE_PLAN_TOOL } from "../../mcp/plan/tools/CreatePlanTool/constants";
@@ -44,7 +43,6 @@ export const PLANNER_ROLE: RoleDefinition = {
   sideEffects: "none",
   capabilities: ["read", "skills"],
   mcpTools: [
-    REMEMBER_TOOL,
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,

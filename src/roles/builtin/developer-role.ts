@@ -6,7 +6,6 @@ import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/const
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
-import { REMEMBER_TOOL } from "../../mcp/memory/tools/RememberTool/constants";
 import { REPORT_RESULT_TOOL } from "../../mcp/orchestration/tools/ReportResultTool/constants";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition } from "../role-types";
@@ -97,9 +96,8 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "A job that changes things or needs a plan the owner approves: implement, fix, refactor, add tests, design or plan a FUTURE change; works in the location and delivers (merge, PR or keep) after the owner chose.",
   background: true,
   dispatchable: true, // the lead may start it as a worker
-  // Memory tools, ReportResult and the effect tools (a run without the effects ctx just lacks them).
+  // Memory read tools (the lead alone saves), ReportResult and the effect tools (a run without the effects ctx just lacks them).
   mcpTools: [
-    REMEMBER_TOOL,
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,

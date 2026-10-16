@@ -1,7 +1,7 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { RecentMessage } from "../../intent/intent-types";
 import { MEMORY_MCP_SERVER, mcpToolName } from "../../mcp/mcp-tool-names";
-import { REMEMBER_TOOL } from "../../mcp/memory/tools/RememberTool/constants";
+import { MEMORY_SAVE_TOOL } from "../../mcp/memory/tools/MemorySaveTool/constants";
 import { type ChatText, extractContext } from "../../memory/extract-context";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { logEvent, logger } from "../../observability/logger";
@@ -10,12 +10,12 @@ import { journalExtract } from "../../runtime/compact-hooks";
 import type { SessionRow } from "../../storage/session-store";
 import { type RolloverDeps, type RolloverRequest, runLean } from "./rollover-run";
 
-/* Memory flush before the thread's session is dropped: an LLM run that saves durable memories with `Remember`,
+/* Memory flush before the thread's session is dropped: an LLM run that saves durable memories with `MemorySave`,
    or, when it fails / saves nothing, the no-LLM extract of the phase 8 journal block. */
 
 /** Prompt of the flush run (a resumed run of the thread's session: it already holds the whole conversation). */
 export const FLUSH_PROMPT =
-  "Before this conversation is reset: capture durable memories with the Remember tool " +
+  "Before this conversation is reset: capture durable memories with the MemorySave tool " +
   "(scope journal for decisions, facts, preferences and open items of this thread; scope location or workspace only when " +
   "clearly durable). If there is nothing to store, reply NO_REPLY.";
 /** The flush reply that means "nothing worth storing". */
@@ -28,9 +28,9 @@ const FLUSH_BUDGET_USD = 0.2;
 const EXTRACT_HISTORY_MESSAGES = 10;
 
 const log = logger.child({ module: "rollover-flush" });
-const REMEMBER_FULL_NAME = mcpToolName(MEMORY_MCP_SERVER, REMEMBER_TOOL);
+const MEMORY_SAVE_FULL_NAME = mcpToolName(MEMORY_MCP_SERVER, MEMORY_SAVE_TOOL);
 
-/** Counts the `Remember` calls of a stream that came back without an error (tool_use id -> its tool_result). */
+/** Counts the `MemorySave` calls of a stream that came back without an error (tool_use id -> its tool_result). */
 function rememberCounter() {
   const calls = new Set<string>();
   let ok = 0;
@@ -39,7 +39,7 @@ function rememberCounter() {
       const content = (msg as { message?: { content?: unknown } }).message?.content;
       if (!Array.isArray(content)) return;
       for (const b of content) {
-        if (b?.type === "tool_use" && b.name === REMEMBER_FULL_NAME) calls.add(b.id);
+        if (b?.type === "tool_use" && b.name === MEMORY_SAVE_FULL_NAME) calls.add(b.id);
         else if (b?.type === "tool_result" && calls.delete(b.tool_use_id) && b.is_error !== true)
           ok++;
       }
@@ -77,8 +77,8 @@ async function flushByExtract(
 }
 
 /**
- * Flush the thread's memory: the LLM run first (tools: only `Remember`, NO compaction hooks because its memory
- * context carries no thread id); an error, timeout, `NO_REPLY` or zero successful `Remember` calls falls back to the
+ * Flush the thread's memory: the LLM run first (tools: only `MemorySave`, NO compaction hooks because its memory
+ * context carries no thread id); an error, timeout, `NO_REPLY` or zero successful `MemorySave` calls falls back to the
  * extract (one cheap pass, no model). Logs `memory.flush {mode, remembered, ms}` (counts only). Never throws.
  */
 export async function flushMemory(
@@ -95,7 +95,7 @@ export async function flushMemory(
     const res = await runLean(d, req, session, {
       prompt: FLUSH_PROMPT,
       lean: {
-        memoryTools: [REMEMBER_TOOL],
+        memoryTools: [MEMORY_SAVE_TOOL],
         maxTurns: FLUSH_MAX_TURNS,
         budgetFloorUsd: FLUSH_BUDGET_USD,
       },

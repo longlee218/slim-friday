@@ -116,7 +116,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       cwd: s.cwd,
       additionalDirectories: s.additionalDirectories,
       worktreesDir: s.worktreesDir,
-      // In-process memory tools (Remember...): location names are read from the registry only when a tool needs them.
+      // In-process memory tools (MemorySave...): location names are read from the registry only when a tool needs them.
       memory:
         i.workspace === undefined
           ? undefined // a control-channel run has no workspace: no memory tools

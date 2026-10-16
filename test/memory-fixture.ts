@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { locationMemoryFile } from "../src/memory/location-memory";
 
-/** Test fixture: a location MEMORY.md holding `bullets` under one dated section (what a `Remember` call leaves behind). */
+/** Test fixture: a location MEMORY.md holding `bullets` under one dated section (what a `MemorySave` call leaves behind). */
 export function writeLocationNotes(
   home: string,
   ws: string,

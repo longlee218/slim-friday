@@ -5,17 +5,17 @@ import { logEvent, logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
 import type { MemoryToolContext } from "../../memory-tool-context";
 import { formatTrustedToolIssue, type TrustedToolIssueCode } from "../../trusted-tool-issue";
-import { REMEMBER_MAX_CALLS_PER_RUN, REMEMBER_SCOPES, REMEMBER_TOOL } from "./constants";
-import { REMEMBER_DESCRIPTION } from "./prompt";
-import { type RememberOutcome, rememberNote } from "./remember-write";
+import { MEMORY_SAVE_MAX_CALLS_PER_RUN, MEMORY_SAVE_SCOPES, MEMORY_SAVE_TOOL } from "./constants";
+import { type MemorySaveOutcome, memorySaveNote } from "./memory-save-write";
+import { MEMORY_SAVE_DESCRIPTION } from "./prompt";
 
 /** Logger of this module. */
-const log = logger.child({ module: "remember-tool" });
+const log = logger.child({ module: "memory-save-tool" });
 
 /** Input of the tool (the model sees this schema). Text length is checked in the handler, so the refusal is a readable tool error. */
 const SHAPE = {
   text: z.string().describe("The note: one short plain sentence."),
-  scope: z.enum(REMEMBER_SCOPES),
+  scope: z.enum(MEMORY_SAVE_SCOPES),
   location: z
     .string()
     .optional()
@@ -37,23 +37,23 @@ const ISSUE_OF: Record<string, TrustedToolIssueCode> = {
 };
 
 /**
- * The `Remember` tool of ONE run: it counts its own calls (REMEMBER_MAX_CALLS_PER_RUN), so build it once per run.
- * Logs `memory.remember {scope, kind, chars, result}`; the text is never logged.
+ * The `MemorySave` tool of ONE run: it counts its own calls (MEMORY_SAVE_MAX_CALLS_PER_RUN), so build it once per run.
+ * Logs `memory.save {scope, kind, chars, result}`; the text is never logged.
  */
-export function createRememberTool(ctx: MemoryToolContext) {
+export function createMemorySaveTool(ctx: MemoryToolContext) {
   let calls = 0;
-  return tool(REMEMBER_TOOL, REMEMBER_DESCRIPTION, SHAPE, async (args) => {
-    let out: RememberOutcome;
+  return tool(MEMORY_SAVE_TOOL, MEMORY_SAVE_DESCRIPTION, SHAPE, async (args) => {
+    let out: MemorySaveOutcome;
     try {
       const now = (ctx.now ?? (() => new Date()))(); // one clock read per call
       out =
-        ++calls > REMEMBER_MAX_CALLS_PER_RUN
+        ++calls > MEMORY_SAVE_MAX_CALLS_PER_RUN
           ? {
-              text: `at most ${REMEMBER_MAX_CALLS_PER_RUN} saves per run`,
+              text: `at most ${MEMORY_SAVE_MAX_CALLS_PER_RUN} saves per run`,
               isError: true,
               result: "limit",
             }
-          : rememberNote(ctx, args, now);
+          : memorySaveNote(ctx, args, now);
     } catch (err) {
       // Never let a bug escape into the SDK: the model gets a short error, the log gets the class only (never the text).
       log.warn({ err: errText(err).slice(0, 120) }, "remember failed");
@@ -65,13 +65,13 @@ export function createRememberTool(ctx: MemoryToolContext) {
       const known = ISSUE_OF[out.result];
       // Only a KNOWN outcome is reported to the supervisor; an unknown failure stays `unavailable` for the model but
       // never counts toward a recovery.
-      if (known) ctx.onIssue?.({ tool: REMEMBER_TOOL, code: known });
+      if (known) ctx.onIssue?.({ tool: MEMORY_SAVE_TOOL, code: known });
       out = {
         ...out,
         text: formatTrustedToolIssue(known ?? "unavailable", known ? out.text : undefined),
       };
     }
-    logEvent(log, "memory.remember", {
+    logEvent(log, "memory.save", {
       scope: args.scope,
       kind: args.kind,
       chars: args.text.length,

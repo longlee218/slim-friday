@@ -1,8 +1,13 @@
 import { expect, test } from "bun:test";
 import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { buildServers, mcpToolNamesFor } from "../src/mcp/mcp-servers";
-import { mcpToolName, ORCHESTRATION_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import { REMEMBER_TOOL } from "../src/mcp/memory/tools/RememberTool/constants";
+import {
+  MEMORY_MCP_SERVER,
+  mcpToolName,
+  ORCHESTRATION_MCP_SERVER,
+} from "../src/mcp/mcp-tool-names";
+import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constants";
+import { MEMORY_SEARCH_TOOL } from "../src/mcp/memory/tools/MemorySearchTool/constants";
 import { ASK_OWNER_TOOL } from "../src/mcp/orchestration/tools/AskOwnerTool/constants";
 import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
 import { REPORT_RESULT_TOOL } from "../src/mcp/orchestration/tools/ReportResultTool/constants";
@@ -37,7 +42,7 @@ test("a tool whose ctx part the run lacks is not built (mcpTools ∩ ctx)", () =
   // No effects part: the effect tools drop out, memory + ReportResult stay.
   const noEffects = held(buildServers(dev, { ...FULL_CTX, effects: undefined }));
   expect(noEffects).toContain(REPORT_RESULT_TOOL);
-  expect(noEffects).toContain(REMEMBER_TOOL);
+  expect(noEffects).toContain(MEMORY_SEARCH_TOOL);
   expect(noEffects.length).toBe((dev.mcpTools?.length ?? 0) - 4);
   // No memory, no sink, no effects: nothing at all.
   expect(buildServers(dev, {})).toEqual({});
@@ -63,6 +68,22 @@ test("worker roles never hold a lead tool, even when the run (wrongly) brings a 
     expect(toolsByServer(buildServers(role, workerCtx))[ORCHESTRATION_MCP_SERVER]).toEqual([
       REPORT_RESULT_TOOL,
     ]);
+});
+
+test("owner rule: only the lead saves memory; workers keep the read tools, the guard denies MemorySave", () => {
+  const save = mcpToolName(MEMORY_MCP_SERVER, MEMORY_SAVE_TOOL);
+  for (const role of WORKERS) {
+    expect([role.name, held(buildServers(role, FULL_CTX)).includes(MEMORY_SAVE_TOOL)]).toEqual([
+      role.name,
+      false,
+    ]);
+    expect([role.name, role.mcpTools?.includes(MEMORY_SEARCH_TOOL)]).toEqual([role.name, true]);
+    expect([role.name, checkToolCall(save, {}, guardFor(role, {})).decision]).toEqual([
+      role.name,
+      "deny",
+    ]);
+  }
+  expect(checkToolCall(save, {}, guardFor(getRole("lead"), {})).decision).toBe("allow");
 });
 
 test("a lead run holds the lead tools and no ReportResult", () => {

@@ -1,15 +1,19 @@
-import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
-import { type Reply, refuse } from "../engine/lead-call";
-import { checkEnvelope, grantNamesBranch, isFallbackDefault } from "./check-envelope";
+import {
+  checkEnvelope,
+  grantNamesBranch,
+  isFallbackDefault,
+} from "../../orchestrator/approval/check-envelope";
 import {
   type EffectsCtx,
   locationPath,
   recordEffect,
   refuseLogged,
   safeText,
-} from "./effect-context";
+} from "../../orchestrator/approval/effect-context";
+import { type Reply, refuse } from "../../orchestrator/engine/lead-call";
 import { isPlainRef } from "./git-run";
 import { checkRemote } from "./remote-pin";
+import { GIT_PUSH_TOOL } from "./tools/GitPushTool/constants";
 
 /* GitPush: push one local branch, never forced. Inside the grant a feature branch runs; a default branch is R4 (asks at every
    act, grant or not). The remote's URL must be a plain network URL and stay the one first used for the goal. */

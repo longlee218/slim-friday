@@ -55,7 +55,7 @@ export interface RoleRunInput {
   workspace?: string;
   /** Builds the app ctx parts of the MCP tools (lead, report sink, plan, effects, admin) on every query() call; the role's `mcpTools` picks the tools. */
   appCtx?: AppCtxFactory;
-  /** Channel (yaml name) the run started in: persona, memory and `Remember` scope `channel`. */
+  /** Channel (yaml name) the run started in: persona, memory and `MemorySave` scope `channel`. */
   channel?: string;
   /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */
   channelMode?: "task" | "chat";

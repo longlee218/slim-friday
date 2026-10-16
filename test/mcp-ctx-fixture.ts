@@ -66,9 +66,9 @@ export function toolsByServer(servers: Record<string, unknown>): Record<string, 
   );
 }
 
-/** The `memory` server of a developer run with this memory ctx (the way a real run builds it). */
+/** The `memory` server of a lead run (the only role that holds MemorySave) with this memory ctx. */
 export const memoryServer = (memory: NonNullable<RunCtx["memory"]>) =>
-  buildServers(getRole("developer"), { memory })[MEMORY_MCP_SERVER] as never;
+  buildServers(getRole("lead"), { memory })[MEMORY_MCP_SERVER] as never;
 
 /** The seven tools of the `plan` server (only the planner may hold them). */
 export const PLAN_TOOLS = [

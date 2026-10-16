@@ -2,6 +2,8 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gitPush } from "../src/mcp/effects/git-push";
+import { mergeBranch } from "../src/mcp/effects/merge-branch";
 import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
 import type { EffectsCtx, Runner } from "../src/orchestrator/approval/effect-context";
@@ -11,8 +13,6 @@ import {
   type EffectGrant,
   envelopeWithGrants,
 } from "../src/orchestrator/approval/envelope";
-import { gitPush } from "../src/orchestrator/approval/git-push";
-import { mergeBranch } from "../src/orchestrator/approval/merge-branch";
 import { openDb } from "../src/storage/db";
 import { effectsOfGoal } from "../src/storage/effect-log-store";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";

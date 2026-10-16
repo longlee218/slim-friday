@@ -74,7 +74,7 @@ Folders under `src/orchestrator/` (file counts at L4):
 
 - Banned by `test/retired-naming-scan.test.ts` in `src/` and `test/`: the `Repo` type, `loadRepos`, the `repo-registry` path. Exempt: the migration module and the frozen legacy storage files.
 - Retired, not scanned (keep out of new code): `repos/`, `repo.yaml`, `refresh-repo`, `isManagedClone`, `REPO_NAME`, `no_repos`, `repoScope`, `sideEffects: "repo"`, `testCommand`, `defaultBranch`, `githubAccount`, `gitAuthor`. Only the migration module reads the legacy file.
-- Kept aliases: `repo:<name>` (thread pin, developer report line, `/forget` parser only). Remember tool scopes (`REMEMBER_SCOPES`): `location | channel | workspace | global | journal`; no `repo:` scope.
+- Kept aliases: `repo:<name>` (thread pin, developer report line, `/forget` parser only). MemorySave tool scopes (`MEMORY_SAVE_SCOPES`): `location | channel | workspace | global | journal`; no `repo:` scope.
 
 ## Scan Rules (test-enforced)
 These rules are checked by tests that scan `src/` on every run. A violation fails `bun test`.
@@ -99,16 +99,18 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 
 **Organize by domain** (`src/<domain>/...`), not by technical layer: `orchestrator/`, `intent/`, `guardrails/`, `runtime/`, `roles/`, `storage/`, `memory/`, `workspaces/`, `locations/`, `lifecycle/`, `discord-setup/`, `ingress/`, `approvals/`, `config/`, `tools/`, `mcp/`, `observability/`.
 
-**Custom tools** (in-process SDK MCP server `memory`, built per run by `src/mcp/memory-server.ts`, run context `src/tools/memory-tool-context.ts`; the tool list is `MEMORY_TOOLS` in `src/mcp/mcp-tool-names.ts`):
+**Custom tools** (in-process SDK MCP servers, five by purpose: `memory`, `orchestration`, `plan`, `effects`, `discord-admin`; built per run by `buildServers(role, runCtx)` in `src/mcp/mcp-servers.ts`; each server's manifest is `src/mcp/<server>/server.ts`, all manifests are listed in `src/mcp/manifests.ts`):
 
 | Tool | Folder | Who gets it |
 |---|---|---|
-| `Remember` | `src/tools/RememberTool/` | every role run; the rollover flush run lists only this tool |
-| `MemorySearch`, `MemoryGet`, `MemoryExpand` | `src/tools/MemorySearchTool/`, `MemoryGetTool/`, `MemoryExpandTool/` | every role run (read-only); lean runs list only what they need |
-| `SetThreadTitle` | `src/tools/SetThreadTitleTool/` | every role run with a rename port (none in a chat channel); not in lean runs; max 2 calls per run |
+| `MemorySave` | `src/mcp/memory/tools/MemorySaveTool/` | lead role only (owner rule); the rollover flush run lists only this tool |
+| `MemorySearch`, `MemoryGet`, `MemoryExpand` | `src/mcp/memory/tools/MemorySearchTool/`, `MemoryGetTool/`, `MemoryExpandTool/` | roles that list them in `mcpTools` (read-only); lean runs list only what they need |
+| `SetThreadTitle` | `src/mcp/orchestration/tools/SetThreadTitleTool/` | lead role with a rename port (none in a chat channel); not in lean runs; max 2 calls per run |
 
-- Folder `src/tools/<Name>Tool/` (PascalCase folder, kebab-case files: `constants.ts`, `prompt.ts`, `<name>-tool.ts`). Tool names are PascalCase constants in `sdk-tool-names.ts` or `mcp-tool-names.ts`.
-- Adding a tool: folder, name constant, entry in `MEMORY_TOOLS`, registration in `memory-server.ts`. Tests: `test/set-thread-title-tool.test.ts`, `test/tool-catalog.test.ts`.
+- Folder `src/mcp/<server>/tools/<Name>Tool/` (PascalCase folder, kebab-case files: `constants.ts` = leaf with `<NAME>_TOOL`, `prompt.ts`, `<name>-tool.ts`). Tool names are PascalCase constants in that `constants.ts` (or `sdk-tool-names.ts` for SDK built-ins); `test/tool-name-literals.test.ts` rejects the same literal anywhere else in `src/`.
+- Adding a tool: the folder, one manifest line in the server's `server.ts`, and the name in the `mcpTools` of each role that may use it (a role holds only what it lists; the guard denies the rest). Role data imports `constants.ts` only.
+- Effect implementation (git, trash, delete classify) lives in `src/mcp/effects/`; the envelope and risk classes stay in `src/orchestrator/approval/`.
+- Tests: `test/mcp-isolation.test.ts`, `test/tool-names.test.ts`, `test/tool-catalog.test.ts`.
 
 **Role files:** `src/roles/builtin/<name>-role.ts` exports one `RoleDefinition` object. Prompt text lives in `<name>-prompts.ts` next to it.
 

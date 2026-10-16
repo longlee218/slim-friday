@@ -10,8 +10,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { deletePaths } from "../src/mcp/effects/delete-paths";
 import { createDeletePathsTool } from "../src/mcp/effects/tools/DeletePathsTool/delete-paths-tool";
-import { deletePaths } from "../src/orchestrator/approval/delete-paths";
 import type { EffectsCtx } from "../src/orchestrator/approval/effect-context";
 import { defaultEnvelope } from "../src/orchestrator/approval/envelope";
 import { openDb } from "../src/storage/db";

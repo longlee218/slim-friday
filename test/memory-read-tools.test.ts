@@ -9,12 +9,12 @@ import { MEMORY_READ_MAX_CALLS_PER_RUN } from "../src/mcp/memory/memory-read-sha
 import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
 import { MEMORY_EXPAND_TOOL } from "../src/mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../src/mcp/memory/tools/MemoryGetTool/constants";
+import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constants";
 import {
   MEMORY_SEARCH_TOOL,
   SEARCH_MAX_LIMIT,
   SEARCH_RESULT_MAX_CHARS,
 } from "../src/mcp/memory/tools/MemorySearchTool/constants";
-import { REMEMBER_TOOL } from "../src/mcp/memory/tools/RememberTool/constants";
 import { NOT_FOUND } from "../src/memory/index/memory-resolve";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { getRole } from "../src/roles/role-registry";
@@ -148,10 +148,10 @@ test("get/expand refuse a symlinked file and other workspaces", async () => {
   expect((await b.call(MEMORY_SEARCH_TOOL, { query: "keepword" })).text).toContain("no matches");
 });
 
-test("Remember re-indexes at once; hand edit is found by the next search; pending is not", async () => {
+test("MemorySave re-indexes at once; hand edit is found by the next search; pending is not", async () => {
   const s = setup();
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "glorp" })).text).toContain("no matches");
-  await s.call(REMEMBER_TOOL, {
+  await s.call(MEMORY_SAVE_TOOL, {
     text: "we chose glorp for jobs",
     scope: "workspace",
     kind: "decision",
@@ -159,9 +159,9 @@ test("Remember re-indexes at once; hand edit is found by the next search; pendin
   const r = await s.call(MEMORY_SEARCH_TOOL, { query: "glorp" });
   expect(r.text).toContain("workspace#Decisions:1~");
   s.db.query("UPDATE memory_files SET mtime_ms = 0, size = 0").run(); // pretend the ledger is old: next search must re-sync
-  await s.call(REMEMBER_TOOL, { text: "queue blorf", scope: "global" });
+  await s.call(MEMORY_SAVE_TOOL, { text: "queue blorf", scope: "global" });
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "blorf" })).text).toContain("no matches");
-  await s.call(REMEMBER_TOOL, { text: "journal zork note", scope: "journal", kind: "open" });
+  await s.call(MEMORY_SAVE_TOOL, { text: "journal zork note", scope: "journal", kind: "open" });
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "zork", scope: "journal" })).text).toContain(
     "journal/2026-10-13#09:05:1~",
   );

@@ -49,7 +49,7 @@ export const stripDateSuffix = (bullet: string): string => bullet.replace(DATE_S
 
 /**
  * Comparison key of a bullet: no `- `, no date stamp, NFC lowercase, punctuation and runs of spaces collapsed.
- * Two bullets with the same key are the same note (dedupe in the writer, shared with the Remember tool).
+ * Two bullets with the same key are the same note (dedupe in the writer, shared with the MemorySave tool).
  */
 export const normalizeBullet = (line: string): string =>
   stripDateSuffix(line.trim().replace(/^- /, ""))

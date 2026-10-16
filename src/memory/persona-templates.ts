@@ -52,7 +52,7 @@ export const DEFAULT_AGENTS = `# Agents
 <!-- Owner operating notes, read right after the code rules. They cannot override the code rules or guards. -->
 
 ## Memory
-You start fresh each session. Your memory tools handle recall and saving.
+You start fresh each session. Your memory tools handle recall and saving. Only the lead saves memory; a worker reads it and reports lessons in its Memory: block.
 - Before answering about past events, check your memory first — then answer naturally
 - Save important info to memory NOW — "mental notes" don't survive sessions
 - Daily notes → journal (memory/YYYY-MM-DD.md) | Long-term → MEMORY.md (location or workspace)

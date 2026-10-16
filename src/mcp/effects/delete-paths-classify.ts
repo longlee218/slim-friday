@@ -3,7 +3,7 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 import { isSecretPath } from "../../guardrails/deny-dangerous";
 import { isInside, realOrSame, resolveReal } from "../../guardrails/paths";
 import { foldName, hasGitComponent, isInsideFolded } from "../../guardrails/protected-names";
-import type { EffectsCtx } from "./effect-context";
+import type { EffectsCtx } from "../../orchestrator/approval/effect-context";
 
 /* Where one DeletePaths target stands relative to the run's envelope. Fail closed: anything unclear is `refused`.
    Names are compared folded (case, unicode): macOS volumes are case-insensitive. */

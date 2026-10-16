@@ -11,8 +11,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sweepTrash } from "../src/lifecycle/trash-sweeper";
-import { purgeThreadTrash } from "../src/orchestrator/approval/purge-trash";
-import { moveToTrash } from "../src/orchestrator/approval/trash-store";
+import { purgeThreadTrash } from "../src/mcp/effects/purge-trash";
+import { moveToTrash } from "../src/mcp/effects/trash-store";
 import { openDb } from "../src/storage/db";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
 

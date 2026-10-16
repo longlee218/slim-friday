@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
-import { REMEMBER_TOOL } from "../src/mcp/memory/tools/RememberTool/constants";
+import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constants";
 import { journalFile } from "../src/memory/daily-journal";
 import { searchIndex } from "../src/memory/index/memory-search";
 import { localDay } from "../src/memory/memory-clock";
@@ -35,7 +35,7 @@ import { toolsByServer } from "./mcp-ctx-fixture";
 
 const WINDOW = 200_000;
 const BIG = WINDOW * ROLLOVER_CONTEXT_SHARE; // exactly at the share: rolls
-const REMEMBER = mcpToolName(MEMORY_MCP_SERVER, REMEMBER_TOOL);
+const MEMORY_SAVE = mcpToolName(MEMORY_MCP_SERVER, MEMORY_SAVE_TOOL);
 
 type Mode = {
   flush: "remember" | "noreply" | "throw";
@@ -93,7 +93,7 @@ function harness(over: Partial<Mode> = {}) {
             type: "assistant",
             message: {
               id: "f1",
-              content: [{ type: "tool_use", id: "tu1", name: REMEMBER, input: {} }],
+              content: [{ type: "tool_use", id: "tu1", name: MEMORY_SAVE, input: {} }],
             },
           } as never;
           yield {
@@ -251,9 +251,9 @@ describe("rollover sequence", () => {
     const flush = h.calls[1]!.options;
     expect(flush.resume).toBe("sess-main");
     expect(flush.tools).toEqual([]); // no built-in tool
-    expect(flush.allowedTools).toEqual([REMEMBER]); // the only tool
-    // The lean role lists only Remember: the other memory tools and SetThreadTitle are not even built.
-    expect(toolsByServer(flush.mcpServers)).toEqual({ [MEMORY_MCP_SERVER]: [REMEMBER_TOOL] });
+    expect(flush.allowedTools).toEqual([MEMORY_SAVE]); // the only tool
+    // The lean role lists only MemorySave: the other memory tools and SetThreadTitle are not even built.
+    expect(toolsByServer(flush.mcpServers)).toEqual({ [MEMORY_MCP_SERVER]: [MEMORY_SAVE_TOOL] });
     expect(toolsByServer(h.calls[2]!.options.mcpServers)).toEqual({}); // the /compact run has no tool
     expect(flush.hooks.PreCompact).toBeUndefined(); // the flush registers no compact hooks
     expect(flush.hooks.PostCompact).toBeUndefined();
@@ -283,7 +283,7 @@ describe("rollover sequence", () => {
   });
 
   for (const flush of ["noreply", "throw"] as const) {
-    test(`flush ${flush} with no Remember write -> extractive journal block`, async () => {
+    test(`flush ${flush} with no MemorySave write -> extractive journal block`, async () => {
       const h = harness({ flush });
       await h.send("hi", { history });
       await h.handle.rollover("th1");

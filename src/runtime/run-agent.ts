@@ -60,7 +60,7 @@ export interface RunAgentInput {
   worktreesDir?: string;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never location content). */
   skillsWorkspace?: string;
-  /** Context of the memory tools (Remember...) and `SetThreadTitle`: omitted = the run has no memory tools. */
+  /** Context of the memory tools (MemorySave...) and `SetThreadTitle`: omitted = the run has no memory tools. */
   memory?: MemoryToolContext;
   /** Builds the app ctx parts (lead, report sink, plan, effects, admin) of ONE query() call; the role's `mcpTools` picks the tools. */
   appCtx?: AppCtxFactory;
@@ -75,7 +75,7 @@ export interface RunAgentInput {
    * denial. Observation only; it never changes the run.
    */
   onControlEvent?: (event: RunControlEvent) => void;
-  /** Sees every stream message of a plain (non-steered) run: the rollover flush counts its `Remember` results. */
+  /** Sees every stream message of a plain (non-steered) run: the rollover flush counts its `MemorySave` results. */
   onMessage?: (msg: SDKMessage) => void;
   /** Called with each assistant text of the run (the status snapshot's progress note); observation only. */
   onProgress?: (text: string) => void;

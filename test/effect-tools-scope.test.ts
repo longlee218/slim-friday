@@ -2,6 +2,10 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gitPush } from "../src/mcp/effects/git-push";
+import { spawnRunner } from "../src/mcp/effects/git-run";
+import { mergeBranch } from "../src/mcp/effects/merge-branch";
+import { createPullRequest } from "../src/mcp/effects/pull-request";
 import { CREATE_PULL_REQUEST_TOOL } from "../src/mcp/effects/tools/CreatePullRequestTool/constants";
 import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
@@ -12,10 +16,6 @@ import {
   type EffectGrant,
   envelopeWithGrants,
 } from "../src/orchestrator/approval/envelope";
-import { gitPush } from "../src/orchestrator/approval/git-push";
-import { spawnRunner } from "../src/orchestrator/approval/git-run";
-import { mergeBranch } from "../src/orchestrator/approval/merge-branch";
-import { createPullRequest } from "../src/orchestrator/approval/pull-request";
 import { openDb } from "../src/storage/db";
 import { effectsOfGoal } from "../src/storage/effect-log-store";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";

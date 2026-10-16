@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdirSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { claudePlansDir, workspacePaths } from "../src/config/workspace-paths";
 import {
@@ -7,7 +7,7 @@ import {
   MEMORY_MCP_SERVER,
   ORCHESTRATION_MCP_SERVER,
 } from "../src/mcp/mcp-tool-names";
-import { REMEMBER_TOOL } from "../src/mcp/memory/tools/RememberTool/constants";
+import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constants";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { setupWorkflow } from "./code-flow-fixture";
 import { resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
@@ -121,27 +121,10 @@ test("dev prompt: the one worktree line names <workspace worktrees dir>/<locatio
   expect(exec.systemPrompt.append).toContain("Merge, push or PR only after the owner chose it.");
 });
 
-test("wiring: Remember through the run's real memory server lands in the run's workspace/location", async () => {
-  const { env, exec } = await runExec();
-  // Test-only: `_registeredTools` is an undocumented MCP SDK internal (no public call API on the instance); may break on SDK upgrades.
-  // The registered tool of the in-process server the role runner built (context closure of run-role.ts).
-  const tool = exec.mcpServers[MEMORY_MCP_SERVER].instance._registeredTools[REMEMBER_TOOL];
-  const ok = await tool.handler(
-    { text: "uses bun test", scope: "location", location: "real", kind: "fact" },
-    {},
-  );
-  expect(ok.isError).toBeUndefined();
-  expect(ok.content[0].text).toBe("saved to location/real (Facts)");
-  const file = workspacePaths(env.home).workspace("main").location("real").memory;
-  expect(readFileSync(file, "utf8")).toContain("- uses bun test (");
-  // A location outside this workspace's registry is refused (locationNames comes from the registry).
-  const bad = await tool.handler({ text: "x note", scope: "location", location: "other" }, {});
-  expect(bad.isError).toBe(true);
-  expect(bad.content[0].text).toContain("real");
-  const j = await tool.handler({ text: "journal note", scope: "journal" }, {});
-  expect(j.isError).toBeUndefined();
-  const jf = readdirSync(join(workspacePaths(env.home).workspace("main").root, "memory"))[0]!;
-  expect(
-    readFileSync(join(workspacePaths(env.home).workspace("main").root, "memory", jf), "utf8"),
-  ).toMatch(/## \d\d:\d\d thread /);
+test("wiring: the developer run's real memory server is read-only (owner rule: only the lead saves)", async () => {
+  const { exec } = await runExec();
+  // Test-only: `_registeredTools` is an undocumented MCP SDK internal (no public list call on the instance).
+  const held = Object.keys(exec.mcpServers[MEMORY_MCP_SERVER].instance._registeredTools);
+  expect(held).not.toContain(MEMORY_SAVE_TOOL);
+  expect(held.length).toBeGreaterThan(0);
 });

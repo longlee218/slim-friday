@@ -1,9 +1,14 @@
 import { ghDenial } from "../../guardrails/gh-policy";
-import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
-import { type Reply, refuse } from "../engine/lead-call";
-import { checkEnvelope, isFallbackDefault } from "./check-envelope";
-import { type EffectsCtx, locationPath, recordEffect, refuseLogged } from "./effect-context";
+import { checkEnvelope, isFallbackDefault } from "../../orchestrator/approval/check-envelope";
+import {
+  type EffectsCtx,
+  locationPath,
+  recordEffect,
+  refuseLogged,
+} from "../../orchestrator/approval/effect-context";
+import { type Reply, refuse } from "../../orchestrator/engine/lead-call";
 import { isPlainRef } from "./git-run";
+import { CREATE_PULL_REQUEST_TOOL } from "./tools/CreatePullRequestTool/constants";
 
 /* CreatePullRequest: `gh pr create` as an argv array. The head is a feature branch the grant covers. */
 

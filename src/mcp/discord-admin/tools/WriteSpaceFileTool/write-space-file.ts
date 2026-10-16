@@ -152,7 +152,7 @@ export async function writeSpaceFile(
   // The owner took time to answer: the path is checked again right before the write.
   const again = resolveTarget(ctx.home, a);
   if (typeof again === "string") return refuse(again);
-  // Under the memory file lock (the same lock `Remember` and the owner memory commands take), so no other writer can
+  // Under the memory file lock (the same lock `MemorySave` and the owner memory commands take), so no other writer can
   // slip in between the lost-update check and the rename.
   const failed = lockedWrite(ctx, a, again.path, old);
   if (failed) return refuse(failed);

@@ -1,7 +1,7 @@
 import { GIT_HARDEN } from "../../locations/git-cli";
 import { GIT_ISOLATED_ENV, gitIsolationArgs } from "../../locations/git-isolation";
 import { clip } from "../../observability/redact";
-import type { Runner } from "./effect-context";
+import type { Runner } from "../../orchestrator/approval/effect-context";
 
 /* Shared bits of the git / gh effect tools: the process runner and name checks. */
 

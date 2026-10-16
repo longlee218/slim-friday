@@ -35,7 +35,7 @@ export function extractLocationMarker(
 /**
  * Close a background run. A failure is returned as is (the lead re-dispatches the goal). A success names its location on the last `location:` line (validated against the workspace locations): the turn row, the
  * log context follow it. No valid marker = no location: the ledger shows `*`. A `Memory:` block in the report is plain text
- * (lessons are saved by the agent during the run with its memory tool).
+ * (the lead decides what to save with MemorySave; a worker cannot).
  */
 export function closeBackgroundRun(
   d: { db: Database; config: AgentConfig },

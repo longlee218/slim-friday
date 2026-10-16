@@ -1,14 +1,14 @@
-import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
-import type { Reply } from "../engine/lead-call";
-import { checkEnvelope, grantNamesBranch } from "./check-envelope";
+import { checkEnvelope, grantNamesBranch } from "../../orchestrator/approval/check-envelope";
 import {
   type EffectsCtx,
   locationPath,
   recordEffect,
   refuseLogged,
   safeText,
-} from "./effect-context";
+} from "../../orchestrator/approval/effect-context";
+import type { Reply } from "../../orchestrator/engine/lead-call";
 import { isPlainRef } from "./git-run";
+import { MERGE_BRANCH_TOOL } from "./tools/MergeBranchTool/constants";
 
 /* MergeBranch: a local merge of `from` into the checked-out branch `into` (R2). `into` must be covered by a grant. */
 

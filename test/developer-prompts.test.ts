@@ -58,7 +58,7 @@ test("dev: one contract, approval before changes by ask, design request invokes 
   expect(text).toContain("Merge, push or PR only after the owner chose it.");
   expect(text).toContain("by absolute path from the skill's base directory");
   expect(text).not.toContain("Memory:");
-  expect(text).not.toContain("Remember (scope location;"); // location memory rule lives in AGENTS.md
+  expect(text).not.toContain("MemorySave (scope location;"); // location memory rule lives in AGENTS.md
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).toContain("add only the files of the task to a commit");
   expect(text).toContain("Surgical changes");

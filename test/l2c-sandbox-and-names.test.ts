@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { checkToolCall, type GuardrailContext, guardFor } from "../src/guardrails/check-tool-call";
 import { foldName } from "../src/guardrails/protected-names";
-import { deletePaths } from "../src/orchestrator/approval/delete-paths";
+import { deletePaths } from "../src/mcp/effects/delete-paths";
 import type { EffectsCtx } from "../src/orchestrator/approval/effect-context";
 import { defaultEnvelope } from "../src/orchestrator/approval/envelope";
 import { getRole } from "../src/roles/role-registry";
