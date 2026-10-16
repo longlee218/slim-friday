@@ -6,7 +6,7 @@ Last updated: 2026-10-16 (Drizzle baseline, slash-only commands). Architecture: 
 - Discord account with admin access to a private test server
 - `claude setup-token` completed (OAuth token for Claude auth; Anthropic is the only LLM provider)
 - `.env` in the project root (copy from `.env.example`)
-- `gh` CLI logged in (`gh auth login`) and `git` configured for the owner: the dev agent commits, pushes and opens PRs with them
+- `gh` CLI logged in (`gh auth login`) and `git` configured for the owner: the developer role commits, pushes and opens PRs with them (through the effect tools)
 
 ## Step 1: Create the Discord application
 1. Go to https://discord.com/developers/applications and click "New Application"
@@ -37,10 +37,12 @@ CLAUDE_CODE_OAUTH_TOKEN=<from_claude_setup_token>
 AGENT_HOME=/absolute/path/to/agent-home   # real dir outside every location, e.g. /Users/<you>/.friday
 LOG_LEVEL=info
 # Optional:
-# BUDGET_DEVELOPER_USD=4.5            # run budget of the developer role (BUDGET_<ROLE>_USD)
+# MAX_BUDGET_USD=<usd>                # global cap on every run (min with the role budget); unset = role budgets only
+# MEMORY_MODEL=<model id>             # model of the cheap one-shot calls (attachment and rollover summaries)
 ```
 - Full variable list: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-variables-and-limits).
-- Removed: `MODEL`, `MODEL_<ROLE>_<STAGE>`, `MAX_CONCURRENT_RUNS`, `MAX_TURNS`, `GIT_AUTHOR`, the OpenRouter variables. A set value is ignored and warned at start.
+- Budgets and models per role are constants in `src/roles/builtin/*-role.ts`; no env var sets them.
+- Removed: `MODEL`, `MODEL_<ROLE>_<STAGE>`, `BUDGET_<ROLE>_USD`, `MAX_CONCURRENT_RUNS`, `MAX_TURNS`, `LLM_PROVIDER` and the removed provider's key. The app no longer reads them (startup does not warn). `GIT_AUTHOR` is accepted and ignored: commits use your git config.
 
 ### Link a channel to a workspace
 Each Discord channel maps to exactly one workspace; the bot refuses messages from unmapped channels.
@@ -66,7 +68,7 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
 ```
 guild (DISCORD_GUILD_ID)
 ├─ ops            (private category)
-│   ├─ #ops-control     admin commands (/init-workspace, /init-channel); other text runs the server manager (phase 3), never a space run
+│   ├─ #ops-control     admin commands (/init-workspace, /init-channel); other text runs the server manager (`discord-manager`), never a space run
 │   ├─ #ops-log         one line on start / shutdown / uncaught error
 │   ├─ #ops-health      reserved (no producer yet)
 │   └─ #ops-analytics   reserved (no producer yet)
@@ -215,35 +217,21 @@ Ask for a secret in a location file. Expected: the reply masks the value.
 ### Test 5: Stop
 While a long answer runs: `/stop`. Expected: the run stops and the reply confirms. Queued tasks of the thread are kept.
 
-### Test 6: Dev task
+### Test 6: Developer task
 ```
-[dev] add a greeting function to src/hello.ts
+add a greeting function to src/hello.ts (in the app location)
 ```
-Expected:
-- The intent layer routes it to the dev role. The notice `Starting dev: <brief>` appears.
-- The agent reads the location, then asks you to approve its plan with buttons (AskUserQuestion). The long plan arrives as `AskUserQuestion-detail.txt` with a short question.
-- After approval it edits the location checkout, runs the tests it chooses, commits, and asks how to finish (merge, PR or keep).
-- A question with no tag and a clear change request also routes to dev. A message on an idle thread with low confidence is answered by the assistant instead.
+Expected (not verified live): the lead starts a `developer` run in the location and reports the result. Big or branching requests go to the planner, and the lead asks you once to approve the whole plan.
 
-**While a task runs**
-- A reaction appears on your message at once; the reply follows.
-- A supplement ("also keep it small") is pushed into the running agent. The reply says `received, the agent takes it at its next step`. It is read after the current tool calls finish; it does not interrupt them. `/stop` interrupts.
-- Separate work (a new dev request) is queued. The reply says `received, it runs after the current task`. At most 3 are queued per thread.
-- A question for the assistant is answered at once, next to the task. It does not join the thread conversation later.
-- A typed message while the agent waits for your answer to a question: it is saved as a note and delivered after you choose an option. A typed "yes" does not answer the question; use the buttons.
-- `/stop` keeps the queue; the queued tasks run after the stop. The reply says how many are queued.
-- Plain words can stop or replace the work, but only when they are explicit and clear: "dừng lại" / "stop that" stops it (like `/stop`, the queue is kept); "bỏ việc này, làm PDF thay vào đó" / "drop this and make a PDF instead" replaces it. A replacement answers at once that it is stopping, waits for the old run to end, then handles your message once as a new request; the old run's result is never posted and the older queued work starts after the new request. Unclear wording never stops anything (the bot asks, or treats it as a supplement). Work already done (files written, commits) is not undone; a tool that was not yet started when you stopped is denied.
-- If the run ends before the agent read a supplement, the bot posts `Not delivered to the agent ... send again:` with your text.
-- Your messages are stored (secrets masked, 2000 chars) for 14 days.
+**While a task runs** (lead behaviour, not verified live)
+- Messages in a thread go to the lead, which answers, asks, or dispatches work. `/stop` stops the whole task tree; `/status` shows what is running.
+- Typed answers to a worker's question reach the worker through the lead. Buttons are used for owner questions.
 
-**Owner-confirm buttons**
-- A request with effort `max`, or an assistant answer ending in `ESCALATE: opus`, first asks "Run it?" with [Yes, run it] [No] (10 min). No answer, "No", or a click after a restart never runs Opus.
-
-### Test 7: Hard deny
+### Test 7: Destructive command
 ```
 remove all files in src/
 ```
-Expected: the guard denies the command at once, before any approval question. The agent is told the reason and should adapt rather than retry the same call.
+Expected (not verified live): the shell gate refuses a raw `rm`. File removal goes through the `DeletePaths` effect tool, which moves files to the trash for 7 days (`/purge` empties it).
 
 ### Test 8: Busy limit
 Long runs in several threads at once. The run limiter allows `MAX_CONCURRENT_RUNS` (30, constant) runs; a thread whose run holds it answers from the busy-thread path.
@@ -265,12 +253,12 @@ Text forms (`stop`, `go`, `init:workspace:`, `remember:`, `compact memory`, ...)
 - Buttons of a dead process answer "This action expired."
 
 ### Attachments
-A message over 2000 chars arrives as `message.txt`. The bot reads text attachments (`.txt`, `.md`, `text/*`; at most 2 files, 64 KB total) as data. A short file is passed whole. A longer one is summarized; the full redacted text is saved under `$AGENT_HOME/tmp/attachments/<thread id>/` for the assistant. Other types, oversize files and failed downloads get a one-line notice.
+A message over 2000 chars arrives as `message.txt`. The bot reads text attachments (`.txt`, `.md`, `text/*`; at most 2 files, 64 KB total) as data. A short file is passed whole. A longer one is summarized; the full redacted text is saved under `$AGENT_HOME/tmp/attachments/<thread id>/` for the lead. Other types, oversize files and failed downloads get a one-line notice.
 
 ### Deploy: drain
 Set `FRIDAY_DRAIN=1` or `touch $AGENT_HOME/DRAIN` before a deploy. New tasks get "deploying, retry in a minute"; running tasks finish. Restart, then remove the flag. Tasks still running at restart are cut short; the owner is told, and a new request starts them again.
 
-## Dev task setup
+## Developer task setup
 
 ### Register a location
 Locations live inside a workspace, listed in `workspace.yaml`. Create the workspace with `/init-workspace <ws>`, then add each location by hand:
@@ -278,15 +266,17 @@ Locations live inside a workspace, listed in `workspace.yaml`. Create the worksp
 ```yaml
 # workspaces/<ws>/workspace.yaml
 channels:
-  - "123456789012345678"
+  - id: "123456789012345678"
+    name: "<ws>-notes"
+    mode: task
 locations:
   - name: app                          # letters, digits, _ . -; 1-64 chars; unique in the workspace
     path: /absolute/path/to/checkout   # any directory, git or not; relative paths resolve from workspaces/<ws>/
     description: "Main application"    # one line; the agent uses it to pick a location
 ```
-- `git` is detected (a `.git` is present), not configured. A dev run delivers through git only in a git location.
-- A path that is missing, not a directory, or is or contains `$HOME` / `AGENT_HOME`, or is inside `AGENT_HOME` (outside that workspace's `locations/`), is skipped with a warning. The other locations still load.
-- No `access`, `testCommand`, `defaultBranch`, `githubAccount` or `gitAuthor`. Writes follow the dev role's capability; the agent uses your git config and gh login.
+- `git` is detected (a `.git` is present), not configured. Git effects (push, PR, merge) work only in a git location.
+- A path that is missing or not a directory, that contains `$HOME` or `AGENT_HOME`, or that is inside `AGENT_HOME` (outside that workspace's `locations/`), is skipped with a warning. A location equal to `$HOME` is allowed (the run is then guarded). The other locations still load.
+- No `access`, `testCommand`, `defaultBranch`, `githubAccount` or `gitAuthor`. A granted location is full read/write for its developer run (owner decision); the agent uses your git config and gh login.
 - A workspace with no location works in `workspaces/<ws>/cwd/`.
 
 ### Workspace skills
@@ -301,25 +291,25 @@ locations:
 
 | File | Key | Values | Default |
 |---|---|---|---|
-| `workspace.yaml` | `skills.extra` | also load `workspaces/<ws>/skills/` | `true` |
+| `workspace.yaml` | `skills.extra` | also load `workspaces/<ws>/skills/` | not loaded unless set to `true` |
 
 - A workspace cannot be named after a publisher skill plugin (`superpowers` is reserved).
 
 ### Publisher skills
 - The publisher's skills (Superpowers, pinned by `skills-lock.json`) live in the app's `.agents/skills/`.
-- The dev role gets every installed publisher skill (`skills: "all"`). The assistant gets none. There is no per-workspace or per-location switch.
+- Each role lists the publisher skills it uses by name in its role data (`skills`): developer, scout, planner and discord-manager list theirs; the lead has none. There is no per-workspace or per-location switch.
 - Skills run whole and unmodified. Their ask steps go through AskUserQuestion (limit 6 per run).
 
-### What the dev run does
-- Works in its location (its cwd; the workspace `cwd/` when the workspace has none). Writes are limited to the location(s), the workspace worktrees dir, the task scratch dir and the plans dir.
-- Commits and pushes feature branches as the owner. `git push --force`, direct pushes to `main` or `master`, `gh repo delete` and `gh api` DELETE are refused by the shell guard.
-- Opens the PR and merges only after the owner chose it (AskUserQuestion).
-- A reply or a new `[dev]` message after a run is a NEW task.
-- The per-run budget is 4.5 USD (`BUDGET_DEVELOPER_USD`). Resume and `/go +<usd>` are gone: a run that stops is ended, and a new request starts a new task.
+### What a developer run does
+- Works in its location (its cwd; the workspace `cwd/` when the workspace has none), inside the worker shell gate (allowlist + shape policy) and the SDK OS sandbox (writes only in its granted dirs, network closed). The sandbox is not yet verified live (see the owner checklist).
+- Pushes, PRs and merges go through the effect tools `GitPush`, `CreatePullRequest` and `MergeBranch`, each one logged in `effect_log`. Force push and pushes to `main` are never granted (risk class R4).
+- A PR or merge happens only when the approved plan or the envelope allows it.
+- A reply or a new message after a run goes to the lead, which decides whether it is a new task.
+- The per-run budget is 4.5 USD (constant in the developer role; the task ceiling is 6.0 USD). Resume and `/go +<usd>` are gone: a run that stops is ended, and a new request starts a new task.
 - No run timeout exists. Stop a run with `/stop`.
 
 ### Known limits
-- Two dev tasks in one location share one working tree.
+- Two developer tasks in one location share one working tree.
 - Clone directories under `locations/<name>/worktrees/` are never removed by the app. Delete them by hand when sure.
 
 ## Troubleshooting
@@ -342,9 +332,9 @@ locations:
 | Error replies, no answer | `CLAUDE_CODE_OAUTH_TOKEN` invalid or unset | Run `claude setup-token`, set the variable |
 | "still working..." on every message | A run holds the thread | Wait, or `/stop` |
 | Run never ends | No run timeout exists | `/stop` |
-| Plan question "Awaiting clarification" | No answer in 10 min | Ask again in a new message, or `/stop` |
+| Owner question unanswered | No answer in 10 min | Answer in the thread, or `/stop` |
 | "This action expired." on a button | The bot restarted after the message (clicks are in memory) | Nothing ran. Send the request again |
-| Hard deny message on a legit command | The deny list matched (best-effort parser) | Rewrite as simple commands, or run it yourself |
+| Shell refusal on a legit command | The worker shell gate (allowlist + shape policy) refused it | Rewrite as one allowlisted command, or run it yourself |
 | `gh` not authenticated | No `gh auth login` | Run `gh auth login` |
 | Startup: "AGENT_HOME is inside a registered location" or "inside a git working tree" | `AGENT_HOME` sits in a location or a git working tree | Point `AGENT_HOME` at a real dir outside every location and git working tree |
 | Startup: "is not a Friday baseline database" | The db was made by an older build (no `__drizzle_migrations`) | Reset: see [First start and reset](#first-start-and-reset) |
@@ -352,7 +342,7 @@ locations:
 
 ## Logs
 - App log: `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days; lines carry `workspace`)
-- Per task: `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (deleted after 30 days)
+- Per run: `$AGENT_HOME/logs/tasks/<taskId>.jsonl` (retention not verified)
 - Example: `tail -f "$AGENT_HOME"/logs/app.$(date +%F).*.jsonl | jq 'select(.workspace=="<ws>")'`
 
 ## Session persistence
@@ -364,18 +354,17 @@ locations:
 | Layer | File | Written by | Injected |
 |---|---|---|---|
 | Global | `$AGENT_HOME/MEMORY.md` | you only | newest 5000 chars |
-| Workspace (space) | `$AGENT_HOME/workspaces/<ws>/MEMORY.md` | you, and the agent (`workspace` scope) | newest 5000 chars |
-| Channel | `$AGENT_HOME/workspaces/<ws>/channels/<name>/MEMORY.md` | you, and the agent (`channel` scope) | newest 3000 chars, only in that channel |
-| Location | `$AGENT_HOME/workspaces/<ws>/locations/<name>/MEMORY.md` | the agent and you | newest 8000 chars per location, 16000 for all locations of the workspace |
+| Workspace (space) | `$AGENT_HOME/workspaces/<ws>/MEMORY.md` | you, and the lead (`workspace` scope) | newest 5000 chars |
+| Channel | `$AGENT_HOME/workspaces/<ws>/channels/<name>/MEMORY.md` | you, and the lead (`channel` scope) | newest 3000 chars, only in that channel |
+| Location | `$AGENT_HOME/workspaces/<ws>/locations/<name>/MEMORY.md` | the lead (`location` scope) and you | newest 8000 chars per location, 16000 for all locations of the workspace |
 
 - Order in the prompt: root, space, channel, location.
 - An entry needs a `## <topic>` heading to count. A template-only file injects nothing.
-- **Agent writes** (Remember tool, scope picked by the agent): `location`, `channel`, `workspace`, `global` (queued in `MEMORY.pending.md`), `journal` (`memory/<date>.md`). A run with no channel (e.g. a rollover) gets `no_channel` for scope `channel`.
-- After a dev run, the agent's `Memory:` bullets go to the location's file (dated, redacted, 200 chars each; the prompt asks for at most 3, the writer keeps at most 5).
-- `[global]` bullets (max 2) go to `$AGENT_HOME/MEMORY.pending.md`. **Never injected.** Copy trusted facts into `MEMORY.md` by hand.
+- **Agent writes** (`MemorySave` tool, lead only; scope picked by the lead): `location`, `channel`, `workspace`, `global` (queued in `MEMORY.pending.md`), `journal` (`memory/<date>.md`). A run with no channel (e.g. a rollover) is told to use scope `workspace`.
+- A worker's report may carry a `Memory:` block; it is plain text. The lead decides what to save with `MemorySave`; workers cannot write memory.
+- `global` notes go to `$AGENT_HOME/MEMORY.pending.md`. **Never injected.** Copy trusted facts into `MEMORY.md` by hand.
 - The agent never writes the root `MEMORY.md`.
-
-- At 300 lines the write is refused (`file full`). There is no owner command or script to compact memory: edit the file by hand.
+- Each file takes at most 300 lines; a write past that is refused. There is no owner command or script to compact memory: edit the file by hand.
 
 **Files the bot never creates:** `CLAUDE.md` and `CLAUDE.local.md`. The SDK loads no CLAUDE.md. Put the facts an agent needs in the location's `description` and its `MEMORY.md`.
 

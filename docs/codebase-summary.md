@@ -1,161 +1,189 @@
 # Codebase Summary
 
-Last updated: 2026-10-16 (HEAD `ac3011d`, branch `feat/space-channel-location`: lead orchestration L0-L4 with the planner role, the approval envelope, the worker shell gate and the effect tools). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
+Last updated: 2026-10-16 (HEAD `fe1a5d7`, branch `feat/space-channel-location`, after cleanup phases 1, 2, 4, 5, 5c, 6). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
 
 ## Overview
-- **Friday**: Discord-driven personal agent on the Claude Agent SDK. The owner posts in a thread → the thread's **lead** (Sonnet) answers simple messages itself or dispatches typed work.
-- **lead**: one session per thread (`lead:discord:{threadId}`). Tools: DispatchAgent, TaskStatus, SteerTask, CancelTask, AskOwner, ForwardResult, RequestEscalation, RequestPlan, ApprovePlan. No shell, no write tools.
-- **planner**: Sonnet, read-only, background. Reached only through the lead's `RequestPlan`; writes plan rows (`CreatePlan`, `ValidatePlan`, `ProposePlanRevision`).
-- **developer** (tag `[developer]`, old `[dev]` still accepted): dispatched worker (Sonnet). Works in one of the workspace's locations, asks the owner through AskUserQuestion, and delivers through the effect tools (`GitPush`, `CreatePullRequest`, `MergeBranch`, `DeletePaths`), each checked against its approved envelope.
-- **scout**: dispatched worker (Haiku). Read-only search and web lookups. Reports through `ReportResult`.
-- **discord-manager**: control channel (`#ops-control`) role. Space and channel setup, create-only.
-- **Stack:** Bun, TypeScript, discord.js, Claude Agent SDK, SQLite (`bun:sqlite`), zod, pino.
-- **Size:** 413 `.ts` files, about 30,700 lines under `src/` (2026-10-16; `find src -name '*.ts'`). 226 `.ts` files under `test/`.
+- **Friday**: Discord-driven general workflow agent on the Claude Agent SDK. The owner posts in a thread; the thread's **lead** (Sonnet) is the only router: it answers, asks, or dispatches typed work.
+- **Roles** (data in `src/roles/builtin/*-role.ts`):
+
+| Role | Kind | Model | Budget (USD) | Job |
+|---|---|---|---|---|
+| `lead` | lead | Sonnet | 0.75 per run | Answers, asks the owner, dispatches workers, starts the planner, reports results |
+| `planner` | worker | Sonnet | 0.5 | Read-only; writes a plan that code validates and the owner approves once |
+| `scout` | worker | Haiku | 0.75 | Read-only search and lookups |
+| `developer` | worker | Sonnet | 4.5 | Works in a granted location; delivers through effect tools |
+| `discord-manager` | control | Haiku | 0.5 | `#ops-control` free text: spaces, channels, persona files |
+
+- **Stack:** Bun, TypeScript, discord.js, Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`), SQLite (`bun:sqlite`) with Drizzle ORM, zod, pino.
+- **Size (2026-10-16):** 401 `.ts` files, about 27,000 lines under `src/`; 215 `.ts` files under `test/`.
+- **Counts that change:** `bun test` total is in [CLAUDE.md](../CLAUDE.md) and the latest entry of [project-changelog.md](project-changelog.md).
 
 ## Source Layout (`src/`)
 
-Rule: lead code lives under `src/orchestrator/{engine,events,strategy,approval,plan,turns,...}/`. There is no `src/orchestration/`.
+Rule: files are grouped by domain. Lead code lives in `src/orchestrator/lead/`, worker code in `src/orchestrator/worker/`, shared run code in `src/orchestrator/run/`.
+
+```
+src/
+├── index.ts                 bot entry: config, DB, startup, trash sweeper, lead wake, shutdown
+├── config/                  env schema, role-independent constants, paths, data yaml
+├── commands/                native slash definitions and the slash-to-text mapping
+├── ingress/                 Discord client, message rules, thread placement, attachments, slash interactions
+├── orchestrator/            the lead, workers, runs, goals, budgets, effects, events, plans, threads, turns
+├── policy/                  tool-call guard, envelope, shell gate, risk classes
+├── owner-approval/          owner questions and buttons over Discord
+├── mcp/                     five in-process MCP servers (one folder per tool)
+├── roles/                   role type, registry, built-in roles, prompt text
+├── runtime/                 SDK run: options, sandbox, hooks, streaming, skills plugins
+├── session/                 thread rollover (flush, summary, seed, scheduler)
+├── memory/                  memory files, persona layers, index, channel digest
+├── storage/                 SQLite db, Drizzle schema and migrations, stores
+├── workspaces/              space (workspace) registry, channels, task workspace
+├── locations/               location registry, git detection and git CLI
+├── discord-setup/           ops channels, /init-workspace, /init-channel, control-channel run, bootstrap CLI
+├── lifecycle/               startup, drain, shutdown, trash sweep, home and registry checks
+├── tasks/                   item states and task contracts
+├── tools/                   SDK tool names and tool catalog (no tool code)
+└── observability/           logger, hooks, redaction, run records, lead metrics
+```
 
 | Dir | Purpose | Key files |
 |-----|---------|-----------|
-| `index.ts` | bot entry: config, DB, startup, trash sweeper, lead wake, shutdown | - |
-| `ingress/` | Discord client, message rules, thread placement and adoption, rename port, attachments, slash interactions | `discord-bot.ts`, `discord-message-handler.ts`, `discord-message-rules.ts`, `thread-placement.ts`, `threads-port.ts`, `thread-rename.ts`, `thread-history.ts`, `attachment-text.ts`, `message-reaction.ts`, `status-copy.ts` (`/status` text) |
-| `commands/` | native slash definitions and mapping to text forms | `slash-definitions.ts`, `slash-commands.ts` |
-| `intent/` | role tag parser for direct dispatch; Jev code kept but parked | `role-tag.ts`, `routing-message-text.ts`, `recent-messages.ts`, `strip-markers.ts`, `intent-types.ts`, `jev/` |
-| `intent/jev/` | Jev (TypeSafe System One) client and proposer. Not wired (no caller outside the module) | `jev-proposer.ts`, `jev-client.ts`, `jev-bands.ts`, `jev-constants.ts`, `route-proposer.ts`, `jev-state.ts`, `jev-questions.ts`, `jev-answer-schema.ts` |
-| `orchestrator/` (top) | command handling, lead queue entry, service wiring | `handle-message.ts` (commands, role-tag direct dispatch, queues the lead), `handler-services.ts`, `message-commands.ts` |
-| `orchestrator/engine/` | the lead run, its tool handlers, worker start and run, announce, effect port, recovery (40 files) | `lead-queue.ts` (debounce 800 ms), `lead-run.ts`, `lead-runtime.ts`, `lead-call.ts`, `lead-io.ts`, `lead-handlers.ts`, `lead-plan-handlers.ts`, `lead-schemas.ts`, `lead-system.ts`, `lead-events.ts`, `lead-budget.ts`, `question-relay.ts` (AskOwner), `dispatch-ready.ts` (starts ready items, one at a time per thread), `worker-run.ts` (loads the envelope at every start), `worker-servers.ts`, `direct-dispatch.ts` (role tag), `announce.ts` (2 s batch), `goal-settle.ts`, `result-file.ts` (`goals/<goalId>/<itemKey>.md`), `effect-port.ts` + `effect-port-db.ts` + `effect-port-plan.ts` + `effect-port-queries.ts`, `run-role.ts` (one role run, marks write locations), `location-activity.ts`, `role-run-types.ts`, `recover-in-flight.ts` (boot), `stop-thread-tree.ts`, `session-keys.ts` (`lead:` and `task:` keys), `first-prompt-prefix.ts`, `owner-confirm.ts`, `thread-title-note.ts`, `validate-role.ts` |
-| `orchestrator/approval/` | envelope (what a worker may do), effect tools' checks and work, shell gate, trash | `envelope.ts`, `load-envelope.ts`, `check-envelope.ts`, `classify-tool-call.ts`, `ask-policy.ts`, `effect-context.ts`, `delete-paths.ts`, `delete-paths-classify.ts`, `git-push.ts`, `git-run.ts`, `merge-branch.ts`, `pull-request.ts`, `remote-pin.ts`, `nested-git.ts`, `tree-totals.ts`, `bounds-usage.ts`, `risk-types.ts`, `trash-store.ts`, `purge-trash.ts`, shell gate: `shell-gate.ts`, `shell-shape.ts`, `shell-table.ts`, `shell-paths.ts`, `shell-git-extras.ts`, `bash-allowlist.ts` (25 files) |
-| `orchestrator/plan/` | plan documents, validation, revision, owner approval, planner and progress handlers | `plan-doc.ts`, `plan-schemas.ts`, `plan-types.ts`, `validate-plan.ts`, `plan-revision.ts`, `plan-lifecycle.ts`, `plan-ready.ts`, `plan-render.ts`, `materialize-items.ts`, `planner-handlers.ts`, `progress-handlers.ts` (12 files) |
-| `orchestrator/strategy/` | lead policy data and checks | `dispatch-policy.ts` (DIRECT / DELEGATE shape checks), `plan-policy.ts`, `caps.ts` (`CHAIN_CAP` 3, `DELEGATE_MAX` 3, `DISPATCHES_PER_RUN` 1, `LEAD_DAILY_BUDGET_USD` 3), `lead-md.ts` (`LEAD.md`, built from dispatchable roles), `lead-context-block.ts`, `typed-result.ts` |
-| `orchestrator/events/` | thread outbox: append, claim, deliver, redeliver | `event-store.ts`, `event-types.ts` |
-| `orchestrator/dispatch/` | run of one dispatched task (detached) | `run-dispatched-task.ts` |
-| `orchestrator/thread/` | derived thread state (idle, running, awaiting owner) | `thread-state.ts` |
-| `orchestrator/turns/completion.ts` | completion = `ReportResult` + `effect_log` rows: expected effects come from the approved plan's `effects` list, judged on the goal's last item | `completion.ts`, `turn-result.ts` |
-| `orchestrator/turns/` | turn tracking, run limiter (30), steer registry and store, rollover (flush, summary, seed, scheduler), status snapshot, progress notes | `turn-tracker.ts`, `turn-admission.ts`, `run-limiter.ts`, `steer-registry.ts`, `steer-store.ts`, `thread-rollover.ts`, `rollover-*.ts`, `status-snapshot.ts`, `status-tools.ts`, `progress-notes.ts` (in memory), `result-file-save.ts`, `run-outcome-check.ts` (20 files) |
-| `tasks/` | owned task contracts, resolver and state machine | `task-state-machine.ts` (item states), `task-contracts.ts`, `task-resolver.ts` |
-| `roles/` | role type, registry, built-in roles and their prompts | `role-types.ts`, `role-registry.ts` (`dispatchableWorkers()`), `role-aliases.ts` (`dev` → `developer`), `capability-registry.ts`, `builtin/lead-role.ts`, `builtin/planner-role.ts`, `builtin/scout-role.ts`, `builtin/developer-role.ts`, `builtin/discord-manager-role.ts`, `builtin/skills/` (app skills: `scout`, `docs-seeker`, `plan-work`, `discord-server-manager`) |
-| `runtime/` | SDK run: query loop, hooks, permissions, sandbox, env, streaming, skills plugins | `run-agent.ts`, `run-supervisor.ts`, `sdk-options.ts`, `sdk-env.ts`, `system-prompt.ts`, `tool-permissions.ts`, `guard-hook.ts`, `permission-mode.ts`, `permission-watch.ts`, `worker-sandbox.ts` (OS sandbox of a worker run), `sandbox-errors.ts`, `ask-limit.ts`, `run-stream.ts`, `steered-stream.ts`, `run-input-channel.ts`, `run-errors.ts`, `compact-hooks.ts`, `skills-config.ts`, `skills-plugin/` |
-| `guardrails/` | deny-list guard: allow / ask / deny per tool call, and the worker envelope gate | `check-tool-call.ts`, `envelope-guard.ts`, `bash-policy.ts`, `bash-parser.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `git-mcp-guard.ts`, `paths.ts`, `protected-paths.ts`, `protected-names.ts`, `subagent-limit.ts` |
-| `approvals/` | owner questions and buttons over Discord | `discord-approval.ts`, `approval-buttons.ts`, `approval-types.ts` |
-| `tools/` | tool names, catalog, and in-process tools (one folder each, PascalCase) | `sdk-tool-names.ts`, `tool-catalog.ts`, `lead-tool-result.ts`; lead: `DispatchAgentTool/`, `TaskStatusTool/`, `SteerTaskTool/`, `CancelTaskTool/`, `AskOwnerTool/`, `ForwardResultTool/`, `RequestEscalationTool/`, `RequestPlanTool/`, `ApprovePlanTool/`; planner: `CreatePlanTool/`, `ValidatePlanTool/`, `ProposePlanRevisionTool/`, `AnalyzeBlockersTool/`, `GetAgentCapabilitiesTool/`, `GetExecutionProgressTool/`, `GetProjectContextTool/`; effects: `DeletePathsTool/`, `GitPushTool/`, `CreatePullRequestTool/`, `MergeBranchTool/`; worker: `ReportResultTool/`; memory: `RememberTool/`, `MemorySearchTool/`, `MemoryGetTool/`, `MemoryExpandTool/`, `SetThreadTitleTool/`; control: `ListSpacesTool/`, `CreateSpaceOrChannelTool/`, `WriteSpaceFileTool/` |
-| `mcp/` | in-process MCP servers and the git MCP client | `mcp-tool-names.ts` (all MCP names, `APP_MCP_TOOLS`, `EFFECT_TOOLS`), `mcp-servers.ts`, `lead-server.ts`, `planner-server.ts`, `effects-server.ts`, `worker-server.ts`, `memory-server.ts`, `discord-admin-server.ts`, `git-mcp.ts` |
-| `storage/` | SQLite stores and migrations (v2 → v8) | `db.ts`, `migrate.ts` (`SCHEMA_VERSION` 8), `owned-task-store.ts`, `owned-item-store.ts`, `work-plan-store.ts`, `effect-log-store.ts`, `session-store.ts`, `run-store.ts`, `run-metrics-store.ts`, `approval-store.ts`, `thread-store.ts`, `thread-summary-store.ts`, `run-message-store.ts`, `migrate-v8-*.ts`, `migrate-v7-*.ts`, `migrate-v6-owned-tasks.ts`, `migrate-v5-*.ts`, `legacy-*.ts` (frozen) |
-| `config/` | env schema, model routing, role env pins, paths, skills lock | `agent-config.ts`, `model-routing.ts`, `role-env.ts`, `effort-mapping.ts`, `skills-lock.ts`, `workspace-paths.ts`, `child-env-deny.ts`, `data/child-env-deny.yaml`, `data/worker-bash-allowlist.yaml` |
-| `locations/` | location registry, git detection, git CLI | `location-registry.ts`, `git-cli.ts` |
-| `workspaces/` | space registry with its channels and locations | `workspace-registry.ts`, `channel-checks.ts`, `task-workspace.ts` |
-| `memory/` | persona layers, memory reads and writes, owner commands, compaction, channel digest, `/find` | `persona.ts`, `prompt-context.ts`, `channel-digest.ts`, `find-command-handler.ts`, `location-memory.ts`, `memory-writer.ts`, `memory-commands.ts`, `memory-compaction*.ts`, `index/` (search index) |
-| `discord-setup/` | `discord.yaml`, private channels, `/init-workspace`, `/init-channel`, control-channel role run, channel topic, bootstrap CLI | `admin-handler.ts`, `control-role-run.ts`, `init-workspace.ts`, `init-channel.ts`, `channel-topic.ts`, `bootstrap-discord-cli.ts`, `ops-log.ts`, `ready-checks.ts`, `templates/` |
-| `lifecycle/` | startup hygiene, drain, shutdown, interrupted-run recovery, trash sweep, home placement, registry check | `startup.ts`, `drain.ts`, `shutdown.ts`, `resume-interrupted.ts`, `trash-sweeper.ts`, `registry-check.ts`, `home-placement-check.ts` |
-| `observability/` | pino logger, tool and subagent hooks, redaction, usage lines, log files, lead metrics | `logger.ts`, `tool-hooks.ts`, `subagent-hooks.ts`, `redact.ts`, `record-run.ts`, `log-files.ts`, `lead-metrics.ts`, `lead-metrics-cli.ts` |
+| `config/` | env schema (zod), role-independent limits, model ids, paths, skills lock | `agent-config.ts`, `model-ids.ts`, `model-routing.ts` (`TASK_BUDGET_USD` 6.0), `lead-caps.ts`, `process-env.ts`, `child-env-deny.ts`, `workspace-paths.ts`, `skills-lock.ts`, `data/child-env-deny.yaml`, `data/worker-bash-allowlist.yaml` |
+| `commands/` | native slash commands: `/stop`, `/status`, `/purge`, `/find`, `/init-workspace`, `/init-channel` | `slash-definitions.ts`, `slash-commands.ts` |
+| `ingress/` | Discord bot, gates, message handler, thread placement and rename, attachments, receipts, slash interactions | `discord-bot.ts`, `discord-message-handler.ts`, `discord-message-rules.ts`, `thread-placement.ts`, `thread-rename.ts`, `thread-history.ts`, `attachment-text.ts`, `discord-components.ts`, `status-copy.ts` |
+| `orchestrator/` (top) | command entry and service wiring | `handle-message.ts`, `message-commands.ts`, `handler-services.ts`, `handler-types.ts`, `reply.ts` (`Reply`, `refuse`: leaf type) |
+| `orchestrator/lead/` | the lead run: queue, runtime, tool handlers, plan handlers, announce and question relay | `lead-run.ts`, `lead-queue.ts` (debounce 800 ms), `lead-runtime.ts`, `lead-call.ts`, `lead-io.ts`, `lead-handlers.ts`, `lead-plan-handlers.ts`, `lead-schemas.ts`, `lead-system.ts`, `lead-events.ts`, `lead-limits.ts` |
+| `orchestrator/worker/` | detached worker runs: start, report, settle, recover | `worker-run.ts`, `dispatch-ready.ts` (one item at a time per thread), `run-report.ts`, `report-sink.ts`, `result-file.ts`, `goal-settle.ts`, `question-relay.ts`, `recover-in-flight.ts`, `worker-end-event.ts` |
+| `orchestrator/run/` | one role run: begin, run, close; live-run registry; stop; role scope | `run-turn.ts` (the one begin/run/close sequence), `run-role.ts`, `run-role-once.ts`, `answer-output.ts` (one recovery retry), `live-runs.ts`, `stop-thread-tree.ts`, `role-scope.ts`, `control-scope.ts`, `session-keys.ts` |
+| `orchestrator/goal/` | the effect port the lead's tools act through, and its DB and plan adapters | `effect-port.ts`, `effect-port-db.ts`, `effect-port-plan.ts`, `effect-port-queries.ts` (`snapshotOf` for `/status`) |
+| `orchestrator/effects/` | effect implementations: delete (trash), git push, PR, merge, purge | `delete-paths.ts`, `delete-paths-classify.ts`, `git-push.ts`, `pull-request.ts`, `merge-branch.ts`, `nested-git.ts`, `remote-pin.ts`, `trash-store.ts`, `purge-trash.ts`, `effect-tool-names.ts` |
+| `orchestrator/plan/` | plan documents, validation, revision, approval, materialising items | `plan-doc.ts`, `plan-schemas.ts`, `validate-plan.ts`, `plan-revision.ts`, `plan-lifecycle.ts`, `plan-ready.ts`, `materialize-items.ts`, `planner-handlers.ts`, `progress-handlers.ts`, `envelope-diff.ts` |
+| `orchestrator/strategy/` | lead routing checks: DIRECT / DELEGATE / PLAN shape | `dispatch-policy.ts`, `plan-policy.ts`, `caps.ts`, `lead-context-block.ts` |
+| `orchestrator/budget/` | run budget and task or goal budget (`TASK_BUDGET_USD`) | `task-budget.ts`, `lead-budget.ts`, `budget-hit.ts` |
+| `orchestrator/turns/` | turn rows, run limiter (30 runs), steer registry and store, completion, status snapshot | `completion.ts`, `turn-admission.ts`, `turn-tracker.ts`, `run-limiter.ts`, `steer-registry.ts`, `steer-store.ts`, `turn-result.ts`, `turn-stop.ts`, `status-snapshot.ts`, `status-tools.ts`, `progress-notes.ts`, `result-file-save.ts` |
+| `orchestrator/events/` | event types of the thread outbox (`thread_events`) | `event-types.ts` |
+| `orchestrator/thread/` | derived thread state | `thread-state.ts` |
+| `policy/` | the guard: allow / ask / deny per tool call, envelope check, shell gate | `check-tool-call.ts` (single entry point), `classify-tool-call.ts`, `risk-types.ts` (R0-R4), `envelope.ts`, `load-envelope.ts`, `check-envelope.ts`, `envelope-guard.ts`, `shell-gate.ts`, `shell-shape.ts`, `shell-table.ts`, `bash-allowlist.ts`, `shell-paths.ts`, `bash-policy.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `protected-paths.ts`, `ask-policy.ts`, `subagent-limit.ts` (25 files) |
+| `owner-approval/` | owner questions as Discord buttons and text, with timeouts | `discord-approval.ts`, `approval-buttons.ts`, `approval-interaction.ts`, `approval-text.ts`, `owner-confirm.ts`, `approval-types.ts` |
+| `mcp/` | five in-process MCP servers, manifests, tool-name constants, tool result helper | `manifests.ts` (`ALL_SERVERS`), `manifest-types.ts`, `mcp-servers.ts` (`buildServers(role, ctx)`), `mcp-tool-names.ts`, `tool-names-of-role.ts`, `tool-result.ts`; servers under `memory/`, `orchestration/`, `plan/`, `effects/`, `discord-admin/` |
+| `roles/` | role type, registry, built-in roles, prompt pieces | `role-types.ts`, `role-registry.ts`, `capability-registry.ts`, `typed-result.ts`, `builtin/{lead,planner,scout,developer,discord-manager}-role.ts`, `prompts/` (`lead-md.ts`, `first-prompt-prefix.ts`, `rollover-prompts.ts`, `thread-title-note.ts`) |
+| `runtime/` | SDK run: options, env, sandbox, guard hook, permission mode, streaming, skills plugins | `run-agent.ts`, `run-supervisor.ts`, `sdk-options.ts`, `sdk-env.ts`, `worker-sandbox.ts` (SDK OS sandbox of a worker), `guard-hook.ts`, `tool-permissions.ts`, `permission-mode.ts`, `permission-watch.ts`, `run-stream.ts`, `steered-stream.ts`, `system-prompt.ts`, `skills-plugin/` (`publisher-skills.ts`, `role-skills.ts`, `run-skills.ts`, `plugin-builder.ts`) |
+| `session/` | thread rollover: when a finished run's context is over the window share, flush memory, summarise, seed a new session | `thread-rollover.ts`, `rollover-run.ts`, `rollover-flush.ts`, `rollover-summary.ts`, `rollover-seed.ts`, `rollover-scheduler.ts` |
+| `memory/` | memory files, persona layers, section writer, index, channel digest | `location-memory.ts` (layer caps), `memory-section-writer.ts` (300-line cap), `memory-writer.ts`, `save-note.ts` (`MemorySave` write path), `persona.ts`, `persona-templates.ts`, `channel-digest.ts`, `find-command-handler.ts`, `daily-journal.ts`, `index/` (FTS index) |
+| `storage/` | SQLite open, Drizzle schema and baseline migration, stores | `db.ts`, `fts-probe.ts`, `schema/` (10 files), `migrations/` (`0000_baseline.sql`, `0001_memory_fts.sql`), 12 `*-store.ts` files |
+| `workspaces/` | space registry, channel checks, `/init-workspace` target | `workspace-registry.ts`, `channel-checks.ts`, `list-spaces.ts`, `task-workspace.ts` |
+| `locations/` | location registry, git detection, git CLI, isolation | `location-registry.ts`, `git-cli.ts`, `git-run.ts`, `git-isolation.ts` |
+| `discord-setup/` | `discord.yaml`, private channel overwrites, admin commands, control-channel run, persona backups | `admin-handler.ts`, `init-workspace.ts`, `init-channel.ts`, `control-role-run.ts`, `write-space-file.ts`, `line-diff.ts`, `persona-backup.ts`, `channel-topic.ts`, `bootstrap-discord-cli.ts`, `templates/` |
+| `lifecycle/` | startup, drain, shutdown, trash sweep, home and registry checks | `startup.ts`, `drain.ts` (`FRIDAY_DRAIN=1` or `DRAIN` file), `shutdown.ts`, `trash-sweeper.ts`, `home-placement-check.ts`, `registry-check.ts` |
+| `tasks/` | item state machine and task contracts | `task-state-machine.ts`, `task-contracts.ts`, `task-resolver.ts` |
+| `tools/` | SDK tool names and the tool catalog | `sdk-tool-names.ts`, `tool-catalog.ts` |
+| `observability/` | logger, hooks, redaction, run records, log files, lead metrics | `logger.ts`, `tool-hooks.ts`, `subagent-hooks.ts`, `redact.ts`, `record-run.ts`, `log-files.ts`, `lead-metrics.ts`, `lead-metrics-cli.ts` |
 
 ## Request Flow (short)
+
 ```
 Discord message (owner, mapped channel or its thread)
   └─ ingress: gates, attachments, thread placement
      └─ orchestrator/handle-message
-        ├─ L0 commands (/stop, /status, /go, /remember, /forget, /compact, /find, Resume)
-        ├─ role tag ([developer] or [dev]) → direct dispatch (engine/direct-dispatch.ts)
-        └─ everything else → engine/lead-queue (debounce 800 ms, one lead run per thread)
-           └─ engine/lead-run → lead tools (DispatchAgent, TaskStatus, SteerTask, CancelTask, AskOwner, ForwardResult, RequestEscalation, RequestPlan, ApprovePlan)
-              ├─ RequestPlan → planner run (read-only) → plan rows → owner approves (ApprovePlan) → the approved plan is the envelope
-              ├─ DispatchAgent → strategy/dispatch-policy → owned_tasks rows → engine/dispatch-ready
-              │   └─ detached worker run (engine/worker-run → dispatch/run-dispatched-task → run-role → runtime/run-agent)
-              │      ├─ effect tools (mcp/effects-server) → approval/ checks → effect_log, owner confirm when outside the envelope
-              │      └─ ReportResult → engine/result-file (goals/<goalId>/) → events/event-store (thread_events)
-              │         └─ engine/announce (2 s) → lead queue → lead run reports to the owner
-              └─ reply posted by the lead (the only owner-facing text)
+        ├─ slash commands (/stop, /status, /purge, /find, /init-*) → their handlers
+        ├─ #ops-control free text → control run (discord-manager)
+        └─ everything else → lead queue (debounce 800 ms, one lead run per thread)
+           └─ lead run (orchestrator/lead) → orchestration tools
+              ├─ RequestPlan → planner run (read-only) → plan validated by code → ApprovePlan (owner, once)
+              ├─ DispatchAgent → strategy checks → owned_tasks rows → dispatch-ready (one item at a time per thread)
+              │   └─ detached worker run (orchestrator/worker → run-turn → runtime/run-agent)
+              │      ├─ effect tools (mcp/effects) → policy envelope checks → effect_log rows
+              │      └─ ReportResult → result file (goals/<goalId>/) → thread_events
+              │         └─ announce batch (2 s) → lead wake → lead tells the owner
+              └─ lead reply (the only owner-facing text of a thread)
 ```
 
 ## Roles (data)
-- Defined in `src/roles/builtin/*.ts` as `RoleDefinition` objects, registered one line each in `role-registry.ts`. The engine reads only the data (test-checked: no role-name literals in the engine).
-- Built-in roles: `lead` (kind `lead`), `planner` (kind `worker`, not dispatchable), `scout` (kind `worker`, dispatchable), `developer` (kind `worker`, dispatchable, tag `[developer]`), `discord-manager` (kind `control`).
-- Old stored names are read through `role-aliases.ts` (`dev` → `developer`); `[dev]` still starts the developer.
+- A role is a `RoleDefinition` object in `src/roles/builtin/`, registered in `role-registry.ts`. Fields include `name`, `kind` (`lead`, `worker`, `control`), `model` (a fixed id from `config/model-ids.ts`), `thinking`, `budgetUsd`, `limits.maxAsk`, `skills` (publisher skill names), `mcpTools` (tool names), `permissionMode`, `noSubagents`.
+- Tiers, role tags, escalation and per-role env pins are removed. A role's model and budget are constants in its file.
+- Developer prompt pieces (`developer-role.ts`): role text, run facts, commit rules, code standards, skills rule. The lead's contract is `roles/prompts/lead-md.ts`.
 - Fields and values: [system-architecture.md, Role Model](system-architecture.md#role-model).
-- Developer prompt pieces are in `developer-role.ts` (role text, run facts, commit rules, code standards, the `location:` report line, the skills rule). The lead's contract and worker lines come from `lead-role.ts` and `strategy/lead-md.ts`.
-- Config files for roles: closed for now (owner, 2026-10-12); roles stay TypeScript objects.
+
+## MCP Servers and Tools
+Five in-process servers (`src/mcp/mcp-servers.ts`). A run gets only the tools its role lists in `mcpTools` and whose run context exists; a tool missing its context is not built. Each tool is one folder `src/mcp/<server>/tools/<Name>Tool/` (`constants.ts`, `prompt.ts`, `<name>-tool.ts`).
+
+| Server | Tools | Who gets it |
+|---|---|---|
+| `memory` | `MemorySave`, `MemorySearch`, `MemoryGet`, `MemoryExpand` | `MemorySave`: lead only. Search, get and expand: lead, scout, developer, planner |
+| `orchestration` | `DispatchAgent`, `TaskStatus`, `SteerTask`, `CancelTask`, `AskOwner`, `ForwardResult`, `RequestPlan`, `ApprovePlan`, `SetThreadTitle`, `ReportResult` | lead: all but `ReportResult`; workers (`scout`, `developer`, `planner`): `ReportResult` |
+| `plan` | `GetProjectContext`, `GetAgentCapabilities`, `CreatePlan`, `ValidatePlan`, `ProposePlanRevision`, `GetExecutionProgress`, `AnalyzeBlockers` | planner |
+| `effects` | `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch` | developer |
+| `discord-admin` | `ListSpaces`, `CreateSpaceOrChannel`, `WriteSpaceFile` | discord-manager |
+
+- Tool names are constants: `mcp/*/tools/*/constants.ts` and `tools/sdk-tool-names.ts`. A scan test rejects other string literals of tool names in `src/`.
+- Tool logic stays in domain modules outside `src/mcp` (`orchestrator/effects`, `memory/`, `discord-setup/`, `ingress/thread-rename.ts`). `orchestrator/` and `policy/` import nothing from `src/mcp` except constants (layering test).
+- Adding a tool: one folder, one line in its server manifest, one entry in the role's `mcpTools`.
 
 ## Guardrails, Envelope and Permissions
-- **`check-tool-call.ts`**: one entry point. Routes by tool name to file checks (`deny-dangerous.ts`), Bash (`bash-policy.ts`), git MCP (`git-mcp-guard.ts`), or the auto-allow list. A run with an envelope also passes through `envelope-guard.ts`. `noSubagents` removes the subagents capability.
-- **Envelope** (`orchestrator/approval/envelope.ts`, `load-envelope.ts`): rebuilt from the db at every worker start (approved plan, dispatch grants, or the default). `check-envelope.ts` decides allow / ask / deny per effect.
-- **Shell gate** (`orchestrator/approval/shell-*.ts`, `bash-allowlist.ts`, data `config/data/worker-bash-allowlist.yaml`): default deny by command shape; a line must be one simple command of plain words, its command and subcommand listed, and every flag listed. The OS sandbox (`runtime/worker-sandbox.ts`) limits writes to the run's dirs and turns network off; its live behavior is not yet verified.
-- **`protected-paths.ts`, `protected-names.ts`**: AGENT_HOME (`denyPaths`, granted dirs as `allowInside`) for every run; names compared case- and unicode-folded. Best effort for Bash.
-- **`bash-policy.ts`**: denies privilege escalation, secret files as arguments, `rm -r` outside work dirs, force push / push to main or master / push --mirror, pipes into shells, worktrees outside the workspace dir. Parsing is best effort.
-- **`gh-policy.ts`**: denies `gh repo delete`, `gh api` DELETE, printing the gh token. Other `gh` runs.
-- **`subagent-limit.ts`**: at most 50 subagents in flight per run.
-- **`tool-permissions.ts`**: wires the guard as PreToolUse and `canUseTool`; enforces `limits.maxAsk` through `runtime/ask-limit.ts`.
-- **`permission-mode.ts`**: a run with an envelope (every dispatched worker) is always `default`. Without one: the role's mode, where `auto` falls back to `default` unless the Anthropic path has a real login. Lead, planner and scout use `auto`; developer data says `bypassPermissions` but is overridden by its envelope. `permission-watch.ts` tracks the mode the SDK actually reports.
+Layers that decide whether a tool call runs (details: [system-architecture.md](system-architecture.md)):
+- **`policy/check-tool-call.ts`**: the single entry point (pure). Maps a tool call to allow, ask or deny. Wired as the SDK PreToolUse hook and `canUseTool` (`runtime/guard-hook.ts`, `runtime/tool-permissions.ts`).
+- **Risk classes R0-R4** (`policy/risk-types.ts`): R4 (for example force push, push to `main`) is never granted; it asks every time.
+- **Envelope** (`policy/envelope.ts`, `load-envelope.ts`, `check-envelope.ts`): what the owner allowed for one goal's worker runs, built from the DB at every worker start and checked per effect (fail closed). Default bounds (`policy/risk-types.ts` `DEFAULT_BOUNDS`): 200 items and 50 GiB.
+- **Shell gate** (`policy/shell-gate.ts`, `shell-shape.ts`, `shell-table.ts`, `bash-allowlist.ts`, data `config/data/worker-bash-allowlist.yaml`): a worker's shell line must be one simple command with a listed command, subcommand and flags. Anything else is denied with the reason.
+- **SDK sandbox** (`runtime/worker-sandbox.ts`): a dispatched worker's Bash runs in the SDK OS sandbox (writes only in granted dirs, network closed, `allowUnsandboxedCommands: false`). Not verified live.
+- **Older checks still in place**: `bash-policy.ts`, `deny-dangerous.ts`, `gh-policy.ts`, `protected-paths.ts` (AGENT_HOME is denied to every run). These are best-effort text parsers. The phase that would replace the app shell policy with the SDK sandbox alone is pending (see [development-roadmap.md](development-roadmap.md)).
+- **Permission mode** (`runtime/permission-mode.ts`): a run with an envelope runs in `default`. `auto` needs a real Claude login; without one it falls back to `default`.
 
 ## Effect Tools
-- `mcp/effects-server.ts` (one per worker run, bound to its goal, item and envelope). Its four tools are the only path to delete, push, open a PR or merge: `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch` (`EFFECT_TOOLS`).
-- Deletes go to the trash (`orchestrator/approval/trash-store.ts`); `lifecycle/trash-sweeper.ts` purges entries older than 7 days at boot and every 6 h.
-- Every effect is written to `effect_log` (`effect-log-store.ts`). Writes are atomic (`engine/effect-port-db.ts`).
+- `mcp/effects/`: the four tools are the only path to delete, push, open a PR or merge. Each is bound to its goal, item and envelope.
+- Deletes move files to the trash `<AGENT_HOME>/trash/<goalId>/`. `lifecycle/trash-sweeper.ts` purges entries older than 7 days at boot and every 6 hours. `/purge` empties one thread's goals on a yes.
+- Every effect writes one `effect_log` row (`storage/effect-log-store.ts`), written through the effect port (`orchestrator/goal/effect-port-db.ts`).
+- Implementations live in `orchestrator/effects/`.
 
 ## Skills
-- **Publisher skills** (`.agents/skills/`, pinned by `skills-lock.json`): loaded whole and unmodified. A role takes them with `skills: "all"` (developer), `"none"` (lead, planner, scout, discord-manager), or an explicit name array (`RoleSkills`). Built per run by `runtime/skills-plugin/`.
-- **App skills** (`src/roles/builtin/skills/`): data only, given to the role that lists them (`appSkills`): `scout` and `docs-seeker` (scout), `plan-work` (planner), `discord-server-manager` (discord-manager).
-- **Workspace skills** (`workspaces/<ws>/skills/`): owner-curated, one plugin per run when `skills.extra` is true (`skills-config.ts`).
+- **Publisher skills** (`.agents/skills/`, 19 dirs, pinned by `skills-lock.json`, `friday` local entries for 4 of them): loaded whole and unmodified. `runtime/skills-plugin/` builds a plugin per run from the names in the role's `skills` list (`string[]`; empty = none).
+- Role lists (`skills` in role data): developer = 15 publisher skills (brainstorming, debugging, TDD, worktrees, code review, writing-plans, and others, listed in `developer-role.ts`); scout = `scout`, `docs-seeker`; planner = `plan-work`; discord-manager = `discord-server-manager`; lead = none.
+- **Workspace skills** (`workspaces/<ws>/skills/`): owner-curated, one plugin per run when `skills.extra` is `true` in `workspace.yaml`.
 - A location's `.claude/skills`, hooks and `.mcp.json` are never read.
-- Adding or removing a publisher skill is a lock and directory change; no code change (test-checked).
-
-## Tools
-- `src/tools/tool-catalog.ts`: capability → built-in tool names (`CAPABILITY_TOOLS`), `toolsFor(role)`, `autoAllowedTools`, `appMcpToolsFor(role)`, `SECRET_FILE_RULES`, `toolOptions`.
-- Names are constants in `sdk-tool-names.ts` and `mcp-tool-names.ts`. String literals of tool names in `src/` fail a scan test.
-- In-process MCP servers (`src/mcp/`): `lead` (lead only), `planner` (planner only), `effects` (worker, four effect tools), `worker` (`ReportResult`, dispatched workers), `memory` (every role run: `Remember`, `MemorySearch`, `MemoryGet`, `MemoryExpand`, `SetThreadTitle`; `SetThreadTitle` only in runs with a rename port), `discord-admin` (control role). A role lists its servers in `mcpServers`; the guard allows exactly `APP_MCP_TOOLS`.
-- Each custom tool lives in `src/tools/<Name>Tool/` (constants.ts, prompt.ts, `<name>-tool.ts`).
+- Adding a skill = a directory in `.agents/skills/`, a lock entry and a role name. No code change.
 
 ## Storage
-- `src/storage/db.ts`: opens `$AGENT_HOME/data/agent.db` (WAL), runs migrations, owner-only file mode.
-- Schema (Drizzle baseline): `sessions` (`location`, `model`, `generation`, `kind`), `turns`, `runs`, `tool_calls`, `approvals`, `run_messages`, `owned_tasks` (goal and item columns), `work_plans`, `thread_events`, `effect_log`, `threads`, `memory_files`, `thread_summaries`. Details: [system-architecture.md, Storage Schema](system-architecture.md#storage-schema).
-- Migrations: `src/storage/migrations/` (`0000_baseline.sql` generated, `0001_memory_fts.sql` hand-written FTS5). No upgrade path from older versions.
-- Stores: `owned-task-store.ts` (goals and tasks), `owned-item-store.ts` (items), `work-plan-store.ts`, `effect-log-store.ts`, `session-store.ts` (keys `lead:` / `task:`), `run-store.ts`, `run-metrics-store.ts`, `approval-store.ts`, `run-message-store.ts`, `thread-store.ts` (`threads`: record, adopt, `saveTitle`, `channelDigest`, `searchThreads`), `thread-summary-store.ts`. Event outbox: `orchestrator/events/event-store.ts`.
-
-## Observability and Lead Metrics
-- `observability/lead-metrics.ts`: decisions, refusals, envelope blocks and cost per day, read from the db.
-- `bun run metrics:lead` (`observability/lead-metrics-cli.ts`): prints the report for a number of days.
+- `storage/db.ts`: opens `<AGENT_HOME>/data/agent.db` in WAL mode, owner-only, runs the Drizzle migrations. A db that has tables but no `__drizzle_migrations` is refused. No upgrade path.
+- Schema (`storage/schema/*.ts`, baseline `0000_baseline.sql`): `threads`, `sessions`, `turns`, `runs`, `run_messages`, `tool_calls`, `approvals`, `owned_tasks`, `work_plans`, `thread_events`, `effect_log`, `thread_summaries`, `memory_files`. Plus the FTS5 virtual table `memory_fts` (`0001_memory_fts.sql`, hand-written; the memory indexer writes its rows).
+- `work_plans` keeps the plan's `effects` list (comma-joined effect tool names) in place of the old delivery mode.
+- Stores (`storage/*-store.ts`): `owned-task-store`, `owned-item-store`, `work-plan-store`, `effect-log-store`, `session-store`, `run-store`, `run-metrics-store`, `run-message-store`, `approval-store`, `thread-store`, `thread-summary-store`, `thread-event-store`.
+- SQL lives only in `storage/` (scan test: no `db.query(` or `db.run(` under `src/orchestrator/`).
+- Details: [system-architecture.md, Storage Schema](system-architecture.md#storage-schema).
 
 ## Memory and Persona
-- Root files in `$AGENT_HOME` (AGENTS, IDENTITY, SOUL, USER, MEMORY, BOOTSTRAP, MEMORY.pending.md) and per-workspace and per-location overrides. `ensureHome` creates them if missing and never overwrites.
-- `memory/prompt-context.ts` builds the worker context order and logs `prompt.context` counts. The lead's data block comes from `engine/lead-system.ts`.
-- `memory/persona.ts`: persona per file (channel > space > root); `ensureChannelDir` creates `channels/<name>/MEMORY.md`.
-- `memory/location-memory.ts`: memory layers root → space → channel → location.
-- `memory/memory-writer.ts` and `sanitize-bullet.ts`: `Memory:` bullets go to the location's memory; Remember tool scopes (`location | channel | workspace | global | journal`); `[global]` bullets go to `MEMORY.pending.md` (never injected).
-- `memory/memory-commands.ts`, `memory-command-handler.ts`, `memory-owner-edit.ts`: `/remember`, `/forget`, `/compact`.
-- `memory/memory-compaction*.ts`: manual compaction with `MEMORY_MODEL`, derivability check, `.bak` backup (`bun run memory:compact`).
+- Root files in `$AGENT_HOME` (`MEMORY.md`, `MEMORY.pending.md`, persona files) and per-space, per-channel and per-location `MEMORY.md` files. `ensureHome` creates missing files and never overwrites.
+- `memory/location-memory.ts`: prompt caps per layer (root 5000, space 5000, channel 3000, location 8000, all locations 16000 chars).
+- `MemorySave` (lead only) writes scopes `location | channel | workspace | global | journal`. `global` goes to `MEMORY.pending.md`, which is never injected. A written `MEMORY.md` is re-indexed at once.
+- `memory/channel-digest.ts` and `/find`: thread titles and digests of a space, searched in the FTS index.
 
-## Discord Setup
-- `discord-setup/`: `discord.yaml` (ops channel ids, control channels), private channel overwrites (create-only), `/init-workspace` and `/init-channel` (admin, `#ops-control` only), control-channel role run, `bun run bootstrap:discord [--dry-run]`.
-- Setup steps: [discord-setup.md](discord-setup.md).
+## Discord Setup and Control Channel
+- `discord-setup/`: `discord.yaml` (ops channel ids, control channels), private channel overwrites (create-only), `/init-workspace` and `/init-channel` (`#ops-control` only), the `discord-manager` control run (`control-role-run.ts`, one session per channel), persona file backups (newest 10 per file).
+- `bun run bootstrap:discord [--dry-run]` creates the ops channels.
+- Steps: [discord-setup.md](discord-setup.md).
 
 ## Configuration
-- `config/agent-config.ts`: env schema (zod). Provider selection (`LLM_PROVIDER`, OpenRouter key wins over OAuth), `DISCORD_GUILD_ID`, `JEV_API_KEY` (parsed, not used by routing), `MAX_BUDGET_USD`, `TIMEOUT_MS` (memory compaction only), `GIT_AUTHOR` (ignored). No `INTENT_*` keys.
-- `config/model-routing.ts`: tiers (`MODEL_HAIKU|SONNET|OPUS`), `TASK_BUDGET_USD` (6.0), budget and model resolution.
-- `config/role-env.ts`: `MODEL_<ROLE>`, `BUDGET_<ROLE>_USD`, `COMPACT_WINDOW_<ROLE>`; old two-part names are ignored with a warning; `MODEL` is removed.
-- `config/effort-mapping.ts`: `MAX_TURNS` ceiling (20) and effort scaling.
-- `config/child-env-deny.ts` + `data/child-env-deny.yaml`: env names the SDK child must not inherit. A new schema key must be listed here (test-checked).
-- Full env table: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-variables-and-limits).
+- `config/agent-config.ts` (zod) reads the env schema: `CLAUDE_CODE_OAUTH_TOKEN`, `AGENT_HOME`, `LOG_LEVEL`, `DISCORD_TOKEN`, `OWNER_DISCORD_ID`, `DISCORD_GUILD_ID`, `MEMORY_MODEL`, `MAX_BUDGET_USD`, `TIMEOUT_MS`. `GIT_AUTHOR` is accepted and ignored. Unknown keys are not read.
+- Only `config/` reads `process.env` (scan test `no-process-env-outside-config`). `process-env.ts` is the one reader it allows.
+- Per-role model, budget and ask limit are constants in each role file. `TASK_BUDGET_USD` (6.0) in `config/model-routing.ts` caps the task over its runs. Lead caps (`CHAIN_CAP`, `DELEGATE_MAX`, `DISPATCHES_PER_RUN`, `LEAD_DAILY_BUDGET_USD`) are in `config/lead-caps.ts`.
+- `config/child-env-deny.ts` + `data/child-env-deny.yaml`: env names the SDK child must not inherit. A new schema key must be listed there (test-checked).
+- Env table: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-variables-and-limits).
 
 ## Lifecycle
-- `lifecycle/startup.ts`: task log retention (30 days), stale plugin sweep, held-task expiry (14 days), attachment copy cleanup, `run_messages` purge (14 days).
-- `lifecycle/trash-sweeper.ts`: trash purge at boot and every 6 h (`index.ts`).
-- `lifecycle/registry-check.ts`: startup validation of the role and capability registry.
-- Boot: `orchestrator/engine/recover-in-flight.ts` recovers in-flight goal items; `index.ts` wakes the lead of every thread with undelivered events.
-- `lifecycle/resume-interrupted.ts`: interrupted runs get a Resume button at start.
-- `lifecycle/drain.ts`: `FRIDAY_DRAIN=1` or a `DRAIN` file refuses new work.
-- `lifecycle/shutdown.ts`: graceful shutdown; pending questions cancelled.
-- `lifecycle/home-placement-check.ts`: startup refuses an `AGENT_HOME` inside a location or git working tree.
+- `lifecycle/startup.ts`: boot checks and hygiene. `index.ts` starts the trash sweeper, the lead wake for threads with undelivered events, and slash registration.
+- `orchestrator/worker/recover-in-flight.ts`: recovers in-flight goal items after a restart.
+- `lifecycle/drain.ts`: drain mode refuses new work (`FRIDAY_DRAIN=1` or a `DRAIN` file in `AGENT_HOME`).
+- `lifecycle/shutdown.ts`: graceful shutdown; pending questions are cancelled.
+- `lifecycle/home-placement-check.ts`: refuses an `AGENT_HOME` inside a location or a git working tree.
+- `lifecycle/registry-check.ts`: validates the role registry at start.
 
 ## Tests
-- `test/`: 226 `.ts` files, `bun test`. Lead tests: `lead-flow`, `lead-runtime`, `lead-io`, `lead-events`, `lead-boot-wake`, `lead-review-fixes` (harness: `lead-harness.ts`). Plan and approval tests: `plan-*`, `planner-tools`, `approval-*`, `l2c-*`, `trash-*`, `worker-shell-*`.
-- Lead golden set: `lead-golden.test.ts` (shape only, no API call, about 20 cases); `lead-golden.eval.test.ts` is the paid run, needs `LEAD_EVAL=1` and a real `CLAUDE_CODE_OAUTH_TOKEN`; cases in `lead-golden-support.ts`.
+- `test/`: 215 `.ts` files, `bun test`. Gate and counts: [CLAUDE.md](../CLAUDE.md).
+- Layering and scan tests: `engine-layering` (no import cycle into the engine), `mcp-layering` (orchestrator and policy import no `src/mcp` code except constants), `no-sql-in-orchestrator`, `no-process-env-outside-config`, `tool-name-literals`, `role-limits-declared-in-role-files`, `retired-naming-scan` (also checks the living docs and their relative links), `child-env-deny`, `db-schema-baseline`.
+- Lead golden set: `lead-golden.test.ts` (shape only, no API call). `lead-golden.eval.test.ts` is paid: it needs `LEAD_EVAL=1` and a real token.
 - Live smokes and golden sets skip without credentials.
-- Scan tests enforce: no skill or subagent names in `src/`, no `stage` concept, tool names from constants (`tool-name-literals`), role limits only in role files (`role-limits-declared-in-role-files`), engine layering (`engine-layering`), retired names absent (`retired-naming-scan`, `role-leftover-scan`), child env classified (`child-env-deny`).
-- Commands: `bun test`, `bunx tsc --noEmit`, `bun run lint`, `bun run format`, `bun run start`, `bun run metrics:lead`.
-- Current counts: [CLAUDE.md](../CLAUDE.md) and [project-changelog.md](project-changelog.md).
 
 ## Known Limits
-- No run timeout exists. Only memory compaction has a time limit. A hung run holds its slot until `/stop`.
-- Bash and guard parsing are best effort. Dispatched developer runs use `default` mode (envelope gate and owner asks), not bypass; the bypass flag in role data applies only to a run without an envelope.
-- Two dispatched tasks in different threads on one location share one working tree: nothing blocks it (`workActiveIn` in `location-activity.ts` is defined but not called). Within one thread, items run one at a time.
-- Jev routing is parked: its code and tests remain, nothing calls it.
-- Live behavior not yet verified: lead flow end to end, planner and plan approval, effect tools with owner confirm, the worker OS sandbox, restart with undelivered events, `ReportResult` without a call, AskUserQuestion, SDK subagent tools, resumed-session cost, golden sets.
+- No run timeout exists; `/stop` is the only stop. Memory summary calls have their own timeouts.
+- Bash and guard parsing are best effort. The worker OS sandbox is not verified live.
+- Two developer tasks on one location share one working tree.
+- Lead orchestration end to end, planner and plan approval, the effect tools and the worker sandbox are not verified live (see [CLAUDE.md](../CLAUDE.md) Known issues).
