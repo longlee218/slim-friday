@@ -90,7 +90,23 @@ export const DEVELOPER_ROLE: RoleDefinition = {
   background: true,
   dispatchable: true, // the lead may start it as a worker
   mcpServers: [WORKER_MCP_SERVER, EFFECTS_MCP_SERVER], // ReportResult + the effect tools when dispatched (a run without the servers just lacks them)
-  skills: "all", // every installed publisher skill (installing one needs no code change)
+  skills: [
+    "brainstorming",
+    "diagnosing-superpowers",
+    "dispatching-parallel-agents",
+    "executing-plans",
+    "finishing-a-development-branch",
+    "receiving-code-review",
+    "requesting-code-review",
+    "subagent-driven-development",
+    "systematic-debugging",
+    "test-driven-development",
+    "using-git-worktrees",
+    "using-superpowers",
+    "verification-before-completion",
+    "writing-plans",
+    "writing-skills",
+  ], // explicit list: a new skill is added here (data)
   limits: { maxAsk: MAX_ASK },
   sideEffects: "location",
   capabilities: CODE_CAPABILITIES,

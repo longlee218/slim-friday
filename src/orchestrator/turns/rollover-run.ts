@@ -63,7 +63,7 @@ function leanRole(name: string): RoleDefinition {
   return {
     ...getRole(name),
     capabilities: [],
-    skills: "none",
+    skills: [],
     permissionMode: undefined,
     streaming: false,
   };

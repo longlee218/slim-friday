@@ -6,7 +6,9 @@ import { setupWorkflow } from "./code-flow-fixture";
 import { runDevWorker } from "./dev-worker-fixture";
 
 /** Skills the dev role gets: every installed publisher skill, as the lock lists them (no names here). */
-const SP = Object.entries(readSkillsLock()).map(([k, e]) => `${e.source.split("/").pop()}:${k}`);
+const SP = Object.entries(readSkillsLock())
+  .filter(([, e]) => !e.source.endsWith("/friday")) // the friday source holds the other roles' skills
+  .map(([k, e]) => `${e.source.split("/").pop()}:${k}`);
 /** The skills of a dev run as sorted names: the installed ones plus the given workspace ones. */
 const withSet = (...ws: string[]) => [...SP, ...ws].sort();
 

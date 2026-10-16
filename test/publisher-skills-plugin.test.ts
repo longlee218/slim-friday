@@ -7,10 +7,7 @@ import { captureLogs } from "../src/observability/logger";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { removeTree } from "../src/runtime/skills-plugin/plugin-copy";
-import {
-  PUBLISHER_CAPS,
-  PUBLISHER_SKILLS_DIR,
-} from "../src/runtime/skills-plugin/publisher-skills";
+import { PUBLISHER_SKILLS_DIR } from "../src/runtime/skills-plugin/publisher-skills";
 import { buildRoleSkills } from "../src/runtime/skills-plugin/role-skills";
 import { buildRunSkills } from "../src/runtime/skills-plugin/run-skills";
 import { readSkillsLock, skillDirHash } from "./skills-lock-hash";
@@ -27,9 +24,9 @@ afterAll(() => {
 
 /** Installed publisher skills as the lock lists them (names and plugin come from data, never from this test). */
 const LOCK = readSkillsLock();
-const INSTALLED = Object.entries(LOCK.skills).map(
-  ([name, e]) => `${e.source.split("/").pop()}:${name}`,
-);
+/** The developer's set: every locked skill except the friday source (the other roles' own skills). */
+const PUBLISHER = Object.entries(LOCK.skills).filter(([, e]) => !e.source.endsWith("/friday"));
+const INSTALLED = PUBLISHER.map(([name, e]) => `${e.source.split("/").pop()}:${name}`);
 
 /** A home whose workspace `main` has the given extra yaml and an empty own skills dir. */
 function homeWith(yaml = ""): string {
@@ -47,24 +44,9 @@ function files(dir: string, rel = ""): string[] {
   );
 }
 
-/** Build the run's skills for the dev role (cleanup is the caller's). */
-const dev = (home: string) => buildRunSkills({ agentHome: home, workspace: "main", skills: "all" });
-
-/** A fixture publisher dir: one skill with the given extra files. */
-function _fixture(extra: (skillDir: string) => void, name = "alpha"): string {
-  const src = join(tmp(), "skills");
-  mkdirSync(join(src, name), { recursive: true });
-  writeFileSync(join(src, name, "SKILL.md"), `---\nname: ${name}\ndescription: d\n---\nbody\n`);
-  extra(join(src, name));
-  return src;
-}
-const _spec = (srcDir: string, allow?: string[]) => ({
-  name: "fx",
-  kind: "publisher" as const,
-  srcDir,
-  allow,
-  caps: PUBLISHER_CAPS,
-});
+/** Build the run's skills with every locked skill listed (cleanup is the caller's). */
+const dev = (home: string) =>
+  buildRunSkills({ agentHome: home, workspace: "main", skills: PUBLISHER.map(([n]) => n) });
 
 test("the real publisher plugin lists every locked skill as <plugin>:<name> and copies each skill whole and unmodified", () => {
   expect(INSTALLED.length).toBeGreaterThan(10);
@@ -72,7 +54,7 @@ test("the real publisher plugin lists every locked skill as <plugin>:<name> and 
   expect([...r.skills].sort()).toEqual([...INSTALLED].sort());
   const root = r.dirs[0] as string;
   // Whole: the copy of every skill hashes to what skills-lock.json pins.
-  for (const [name, e] of Object.entries(LOCK.skills))
+  for (const [name, e] of PUBLISHER)
     expect([name, skillDirHash(join(root, "skills", name))]).toEqual([name, e.computedHash]);
   // Exec bits kept: every file of the copy has the exec bits of its source, and some scripts are executable.
   const copied = files(root).filter((f) => f.startsWith("skills/"));
@@ -118,7 +100,7 @@ test("a new skill in a publisher dir (dir + lock entry) is listed for dev with n
   const r = buildRunSkills({
     agentHome: homeWith(),
     workspace: "main",
-    skills: "all",
+    skills: [newSkill, other, "locked-but-missing"],
     publisherDir: src,
     lockFile,
   });
@@ -127,11 +109,11 @@ test("a new skill in a publisher dir (dir + lock entry) is listed for dev with n
   expect(r.plugins).toHaveLength(2); // one plugin per source; the workspace dir has no skills
   expect(logs.lines.some((l) => l.msg === "skill is in the lock but not on disk")).toBe(true);
   r.cleanup();
-  // The same dir for a role with `none`: nothing loads.
+  // The same dir for a role with `[]`: nothing loads.
   const none = buildRunSkills({
     agentHome: homeWith(),
     workspace: "main",
-    skills: "none",
+    skills: [],
     publisherDir: src,
     lockFile,
   });
@@ -147,7 +129,7 @@ test("a dir the lock does not list is never loaded", () => {
   const r = buildRunSkills({
     agentHome: homeWith(),
     workspace: "main",
-    skills: "all",
+    skills: ["unlisted"],
     publisherDir: src,
     lockFile,
   });
@@ -162,13 +144,16 @@ test("publisher plugin: only the manifest dir and skills/ at its root (no hooks,
   r.cleanup();
 });
 
-test("a role with `none`, or a stage without a workspace, gets no publisher skills", () => {
+test("a role with `[]` gets no publisher skills; a run without a workspace still gets the listed ones, no workspace dir", () => {
   const home = homeWith();
-  const none = buildRunSkills({ agentHome: home, workspace: "main", skills: "none" });
+  const none = buildRunSkills({ agentHome: home, workspace: "main", skills: [] });
   expect(none.skills).toEqual([]);
   expect(none.plugins).toBeUndefined();
-  const noWs = buildRunSkills({ agentHome: home, workspace: undefined, skills: "all" });
-  expect(noWs.skills).toEqual([]);
+  const noWsNone = buildRunSkills({ agentHome: home, workspace: undefined, skills: [] });
+  expect(noWsNone.skills).toEqual([]);
+  const noWs = buildRunSkills({ agentHome: home, workspace: undefined, skills: ["scout"] });
+  expect(noWs.skills).toEqual(["friday:scout"]);
+  noWs.cleanup();
   expect(existsSync(join(home, "tmp")) ? readdirSync(join(home, "tmp")) : []).toEqual([]);
 });
 
@@ -185,12 +170,12 @@ test("the workspace dir (extra) gets its own plugin next to the publisher one; s
   r.cleanup();
   expect(readdirSync(join(home, "tmp"))).toEqual([]);
   expect(dev(homeWith("skills:\n  extra: false\n")).skills).toHaveLength(INSTALLED.length);
-  const only = buildRunSkills({ agentHome: home, workspace: "main", skills: "none" });
+  const only = buildRunSkills({ agentHome: home, workspace: "main", skills: [] });
   expect(only.skills).toEqual(["main:mine"]);
   only.cleanup();
 });
 
-test("dev loads every installed skill, the lead none; a role without `skills` loads none", () => {
+test("dev loads the publisher skills (the lock minus the friday source), the lead none; a role without `skills` loads none", () => {
   const names = (role: RoleDefinition) => {
     const r = buildRoleSkills(role, "main", homeWith());
     r.cleanup();

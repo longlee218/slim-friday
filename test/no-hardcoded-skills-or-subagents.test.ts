@@ -11,7 +11,10 @@ import { readSkillsLock } from "../src/config/skills-lock";
 
 const SRC = join(import.meta.dir, "..", "src");
 
-const lock = readSkillsLock();
+// The `friday` source holds the app's own role skills (scout, plan-work, ...): role names in code, not installs.
+const lock = Object.fromEntries(
+  Object.entries(readSkillsLock()).filter(([, e]) => !e.source.endsWith("/friday")),
+);
 const BANNED = new Set<string>([
   ...Object.keys(lock),
   ...Object.values(lock).map((e) => e.source.split("/").pop() as string),
@@ -59,9 +62,7 @@ test("no skill, plugin or subagent name in src/", async () => {
 test("a role file may name skills only inside `skills: [...]`; a banned name anywhere else still fails", () => {
   const role = "roles/builtin/x-role.ts";
   const name = "superpowers";
-  expect(scan(role, `export const R = {\n  skills: ["${name}"],\n  appSkills: [],\n};`)).toEqual(
-    [],
-  );
+  expect(scan(role, `export const R = {\n  skills: ["${name}"],\n  other: [],\n};`)).toEqual([]);
   expect(scan(role, `skills: [\n  "${name}",\n],\n`)).toEqual([]);
   expect(scan(role, `skills: ["a"],\nconst CONTRACT = "use ${name}";`)).toHaveLength(1);
   expect(scan(role, `// ${name}\nskills: []`)).toHaveLength(1);

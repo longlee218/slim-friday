@@ -20,11 +20,11 @@ export interface PromptCtx {
 }
 
 /**
- * Publisher skills of a role: `all` = every installed publisher skill (the skills lock + dirs on disk decide, no names in
- * code), `none` = the workspace's own curated skills only, a list = exactly those installed skills (a name not installed
- * is skipped). Widening or narrowing a role is a data edit.
+ * Skills of a role: bare names of installed skills (`.agents/skills/<name>`, pinned by the skills lock); exactly those
+ * load (a name not installed is skipped). `[]` = none of them (the workspace's curated skills still load). Widening or
+ * narrowing a role is a data edit.
  */
-export type RoleSkills = "all" | "none" | string[];
+export type RoleSkills = string[];
 
 /**
  * A named job the agent can do. ONE role run = ONE agent run: what it may do (tools, git, prompt, limits) is flat data
@@ -41,10 +41,8 @@ export interface RoleDefinition {
    * busy thread, and works in a location; the owner steers it. Not background = a short foreground answer (plus the side lane).
    */
   background: boolean;
-  /** Publisher skills the role gets (see `RoleSkills`). Omitted = `none`. */
+  /** Skills the role gets (see `RoleSkills`). Omitted = `[]`. */
   skills?: RoleSkills;
-  /** App-owned skills (dir names under `src/roles/builtin/skills/`) this role gets and no other role does. Omitted = none. */
-  appSkills?: string[];
   /**
    * Where the role runs: `control` = only in the owner's #ops-control channel, with no workspace; `lead` = reached only
    * through the lead (the lead itself, or a worker it dispatches). Omitted = neither.

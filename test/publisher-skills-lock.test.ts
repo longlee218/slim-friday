@@ -3,7 +3,7 @@ import { existsSync, lstatSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readSkillsLock as readSkillsLock2 } from "../src/config/skills-lock";
-import { reservedWorkspaces } from "../src/config/workspace-paths";
+import { isWorkspaceName, reservedWorkspaces } from "../src/config/workspace-paths";
 import { captureLogs } from "../src/observability/logger";
 import { ROLES } from "../src/roles/role-registry";
 import { PUBLISHER_SKILLS_DIR } from "../src/runtime/skills-plugin/publisher-skills";
@@ -31,13 +31,23 @@ test("every skill dir hashes to the computedHash the lock pins (paths and bytes)
     ]);
 });
 
-test("roles pick publisher skills by `all`/`none` or a data list, never by a name in code", () => {
+test("roles pick skills by a data list of installed names", () => {
   for (const role of Object.values(ROLES))
-    expect(
-      ["all", "none", undefined].includes(role.skills as never) || Array.isArray(role.skills),
-    ).toBe(true);
-  expect(ROLES.developer?.skills).toBe("all");
-  expect(ROLES.lead?.skills).toBe("none");
+    for (const n of role.skills ?? []) expect(Object.keys(lock.skills)).toContain(n);
+  expect(ROLES.lead?.skills).toEqual([]);
+});
+
+test("the four app skills are locked under the friday source, so their qualified names stay friday:<skill>", () => {
+  const friday = Object.entries(lock.skills)
+    .filter(([, e]) => e.source.endsWith("/friday"))
+    .map(([n]) => n)
+    .sort();
+  expect(friday).toEqual(["discord-server-manager", "docs-seeker", "plan-work", "scout"]);
+});
+
+test("workspace name `friday` stays reserved (its plugin name comes from the lock)", () => {
+  expect(reservedWorkspaces()).toContain("friday");
+  expect(isWorkspaceName("friday")).toBe(false);
 });
 
 test("every plugin name of the lock is a reserved workspace name (it would clash with <ws>:<skill>)", () => {

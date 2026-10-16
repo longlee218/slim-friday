@@ -183,8 +183,30 @@ exports[`options lock: dev options snapshot 1`] = `
   "mcpServers": {},
   "model": "claude-sonnet-5-5",
   "permissionMode": "bypassPermissions",
+  "plugins": [
+    {
+      "path": "/private<home>/tmp/plugin-<id>",
+      "type": "local",
+    },
+  ],
   "settingSources": [],
-  "skills": [],
+  "skills": [
+    "superpowers:using-git-worktrees",
+    "superpowers:test-driven-development",
+    "superpowers:systematic-debugging",
+    "superpowers:using-superpowers",
+    "superpowers:dispatching-parallel-agents",
+    "superpowers:executing-plans",
+    "superpowers:finishing-a-development-branch",
+    "superpowers:brainstorming",
+    "superpowers:diagnosing-superpowers",
+    "superpowers:writing-plans",
+    "superpowers:requesting-code-review",
+    "superpowers:receiving-code-review",
+    "superpowers:writing-skills",
+    "superpowers:verification-before-completion",
+    "superpowers:subagent-driven-development",
+  ],
   "strictMcpConfig": true,
   "systemPrompt": {
     "append": 

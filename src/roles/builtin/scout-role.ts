@@ -16,7 +16,7 @@ const CONTRACT = `This run is a scout: a read-only research worker dispatched by
 
 /**
  * The scout: Haiku, read + search tools, no side effects. Reached only through the lead (`surface: "lead"`,
- * `dispatchable`); the lead sends read-only "where / how is X" and lookup jobs here. Skills are app-owned (appSkills).
+ * `dispatchable`); the lead sends read-only "where / how is X" and lookup jobs here. Skills are its own list (`skills`).
  */
 export const SCOUT_ROLE: RoleDefinition = {
   name: "scout",
@@ -25,8 +25,7 @@ export const SCOUT_ROLE: RoleDefinition = {
   surface: "lead",
   dispatchable: true,
   background: true,
-  skills: "none",
-  appSkills: ["scout", "docs-seeker"],
+  skills: ["scout", "docs-seeker"],
   limits: { maxAsk: MAX_ASK },
   sideEffects: "none",
   capabilities: ["read", "web", "shell", "skills"],

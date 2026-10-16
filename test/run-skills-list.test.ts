@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
+import { captureLogs } from "../src/observability/logger";
 import { removeTree } from "../src/runtime/skills-plugin/plugin-copy";
 import { buildRunSkills } from "../src/runtime/skills-plugin/run-skills";
 import { readSkillsLock } from "./skills-lock-hash";
@@ -47,4 +48,14 @@ test("a list of unknown names loads no publisher skill", () => {
   } finally {
     r.cleanup();
   }
+});
+
+test("a listed name that no plugin has is warned about", () => {
+  const logs = captureLogs();
+  const r = buildRunSkills({ agentHome: home(), workspace: "main", skills: ["no-such-skill"] });
+  logs.stop();
+  r.cleanup();
+  expect(logs.lines.find((l) => l.event === "skills.listed_not_installed")).toMatchObject({
+    skills: ["no-such-skill"],
+  });
 });

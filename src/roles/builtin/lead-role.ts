@@ -24,7 +24,7 @@ export const LEAD_ROLE: RoleDefinition = {
   whenToUse: "Routes the owner's messages to specialist workers and reports their results.",
   surface: "lead",
   background: false,
-  skills: "none",
+  skills: [],
   mcpServers: [LEAD_MCP_SERVER],
   limits: { maxAsk: MAX_ASK },
   sideEffects: "none",

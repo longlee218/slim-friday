@@ -88,15 +88,12 @@ export function workspacePaths(agentHome: string) {
 
 /** Workspace dir name = Discord category + `#<ws>-agent`: lowercase letters, digits, hyphens only. */
 export const WORKSPACE_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
-/** Plugin name of the app-owned role skills (`<name>:<skill>`); reserved, so no workspace can be named like it. */
-export const APP_SKILLS_PLUGIN = "friday";
 let reserved: string[] | undefined;
 /**
  * Workspace names that cannot be used: `ops` is the ops category; every publisher plugin name (from the skills lock,
  * read once on first use: lazy, so this module never needs the logger while it loads) would clash with `<ws>:<skill>`.
  */
-export const reservedWorkspaces = (): string[] =>
-  (reserved ??= ["ops", APP_SKILLS_PLUGIN, ...publisherPluginNames()]);
+export const reservedWorkspaces = (): string[] => (reserved ??= ["ops", ...publisherPluginNames()]);
 /** Location dir name; also the `location:` pin and a request's `location` value. */
 export const LOCATION_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 

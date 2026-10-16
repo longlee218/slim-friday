@@ -15,7 +15,7 @@ import {
 } from "../src/mcp/mcp-tool-names";
 import { createWorkerServer } from "../src/mcp/worker-server";
 import { countsTowardCap, dispatchableWorkers, ROLES } from "../src/roles/role-registry";
-import { APP_SKILLS_DIR } from "../src/runtime/skills-plugin/app-skills";
+import { PUBLISHER_SKILLS_DIR } from "../src/runtime/skills-plugin/publisher-skills";
 import { openDb } from "../src/storage/db";
 import { countActiveCappedTasks, insertTurn } from "../src/storage/run-store";
 import { createReportResultTool } from "../src/tools/ReportResultTool/report-result-tool";
@@ -38,29 +38,27 @@ test("lead role is data: Sonnet entry role of the lead surface, no skills, only 
   expect(lead).toMatchObject({
     model: SONNET_MODEL,
     background: false,
-    skills: "none",
+    skills: [],
     surface: "lead",
   });
   expect(lead.mcpServers).toEqual([LEAD_MCP_SERVER]);
-  expect(lead.appSkills).toBeUndefined();
   expect(lead.capabilities).not.toContain("write");
   expect(lead.capabilities).not.toContain("shell"); // no Bash at all in L2a
 });
 
-test("scout role is data: Haiku, read + search, no side effects, dispatchable, app skills", () => {
+test("scout role is data: Haiku, read + search, no side effects, dispatchable, own skills", () => {
   expect(scout).toMatchObject({
     model: HAIKU_MODEL,
     sideEffects: "none",
     dispatchable: true,
-    skills: "none",
+    skills: ["scout", "docs-seeker"],
   });
-  expect(scout.appSkills).toEqual(["scout", "docs-seeker"]);
   expect(scout.capabilities).toEqual(expect.arrayContaining(["read", "web"]));
   expect(scout.capabilities).not.toContain("write");
   expect(scout.capabilities).toContain("shell"); // read-only shell: shellMode `read` limits it to the R0 allowlist
   expect(scout.shellMode).toBe("read");
-  for (const n of scout.appSkills ?? [])
-    expect(existsSync(join(APP_SKILLS_DIR, n, "SKILL.md"))).toBe(true);
+  for (const n of scout.skills ?? [])
+    expect(existsSync(join(PUBLISHER_SKILLS_DIR, n, "SKILL.md"))).toBe(true);
 });
 
 test("dispatchable workers come from role data: dev and scout", () => {
@@ -72,8 +70,8 @@ test("dispatchable workers come from role data: dev and scout", () => {
 });
 
 test("app skills of scout have no sub-agent or missing-CLI instructions", async () => {
-  for (const n of scout.appSkills ?? []) {
-    const text = await Bun.file(join(APP_SKILLS_DIR, n, "SKILL.md")).text();
+  for (const n of scout.skills ?? []) {
+    const text = await Bun.file(join(PUBLISHER_SKILLS_DIR, n, "SKILL.md")).text();
     expect(text.split("\n").length).toBeLessThan(40);
     expect(text).not.toMatch(/subagent|Explore|Gemini|node scripts|\.claude\//i);
   }
