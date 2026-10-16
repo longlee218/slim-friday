@@ -4,7 +4,7 @@ import type { AgentConfig } from "../config/agent-config";
 import { ceilingBinds, type Route } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
 import type { AppCtxFactory } from "../mcp/manifest-types";
-import type { MemoryToolContext } from "../mcp/memory/memory-tool-context";
+import type { MemoryToolContext } from "../memory/memory-tool-context";
 import { logEvent, logger } from "../observability/logger";
 import {
   avgContextTokens,

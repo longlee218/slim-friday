@@ -1,12 +1,12 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { parseAdminCommand } from "../../../../discord-setup/admin-command";
+import type { DiscordAdminContext } from "../../../../discord-setup/discord-admin-context";
 import { initChannel } from "../../../../discord-setup/init-channel";
 import { initWorkspace } from "../../../../discord-setup/init-workspace";
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
 import { textResult } from "../../../tool-result";
-import type { DiscordAdminContext } from "../../discord-admin-context";
 import { CREATE_SPACE_OR_CHANNEL_TOOL } from "./constants";
 import { CREATE_SPACE_OR_CHANNEL_DESCRIPTION } from "./prompt";
 

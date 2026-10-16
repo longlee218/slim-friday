@@ -5,7 +5,6 @@ import type {
   PostCompactHookInput,
   PreCompactHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { MemoryToolContext } from "../mcp/memory/memory-tool-context";
 import { appendJournalBlock, type JournalItem } from "../memory/daily-journal";
 import {
   EXTRACT_SOURCE_CHARS,
@@ -15,6 +14,7 @@ import {
 } from "../memory/extract-context";
 import { indexSummary, reindexFile } from "../memory/index/memory-index";
 import { safely } from "../memory/index/safely";
+import type { MemoryToolContext } from "../memory/memory-tool-context";
 import { mergeSummary } from "../memory/summary-merge";
 import { readTranscriptTail } from "../memory/transcript-tail";
 import { logEvent, logger } from "../observability/logger";

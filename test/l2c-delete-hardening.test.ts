@@ -10,8 +10,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deletePaths } from "../src/mcp/effects/delete-paths";
-import { moveToTrash } from "../src/mcp/effects/trash-store";
+import { deletePaths } from "../src/orchestrator/effects/delete-paths";
+import { moveToTrash } from "../src/orchestrator/effects/trash-store";
 import { type EffectsCtx, safeText } from "../src/policy/effect-context";
 import { defaultEnvelope } from "../src/policy/envelope";
 import { goalLocations } from "../src/policy/load-envelope";

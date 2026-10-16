@@ -3,8 +3,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createReadBudget } from "../src/mcp/memory/memory-read-shared";
-import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
 import { createMemorySearchTool } from "../src/mcp/memory/tools/MemorySearchTool/memory-search-tool";
+import type { MemoryToolContext } from "../src/memory/memory-tool-context";
 import {
   formatTrustedToolIssue,
   TRUSTED_TOOL_ISSUE_CODES,

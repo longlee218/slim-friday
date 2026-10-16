@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { MEMORY_READ_MAX_CALLS_PER_RUN } from "../src/mcp/memory/memory-read-shared";
-import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
 import { MEMORY_EXPAND_TOOL } from "../src/mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../src/mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constants";
@@ -15,6 +14,7 @@ import {
   SEARCH_RESULT_MAX_CHARS,
 } from "../src/mcp/memory/tools/MemorySearchTool/constants";
 import { NOT_FOUND } from "../src/memory/index/memory-resolve";
+import type { MemoryToolContext } from "../src/memory/memory-tool-context";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";

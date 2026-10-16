@@ -6,8 +6,8 @@
  * NOTE: Bash parsing is best effort and can be bypassed (variable tricks, scripts, etc).
  */
 
-import { mcpToolNamesFor } from "../mcp/mcp-servers";
 import { MCP_PREFIX } from "../mcp/mcp-tool-names";
+import { mcpToolNamesOfRole } from "../mcp/tool-names-of-role";
 import type { RoleDefinition } from "../roles/role-types";
 import {
   AGENT_TOOL_NAME,
@@ -82,7 +82,7 @@ export type GuardScope = Omit<GuardrailContext, "allowTools">;
 export function guardFor(role: RoleDefinition, scope: GuardScope): GuardrailContext {
   return {
     ...scope,
-    allowTools: [...autoAllowedTools(role), ...mcpToolNamesFor(role)],
+    allowTools: [...autoAllowedTools(role), ...mcpToolNamesOfRole(role)],
     shell: toolsFor(role).includes(BASH_TOOL_NAME),
     ...(role.shellMode && { shellMode: role.shellMode }),
     // Depth 1: the role's data wins; a run (a dispatched worker) may also turn subagents off through the scope.

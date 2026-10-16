@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { ThreadTitlePort } from "../ingress/thread-rename";
-import type { MemoryToolContext } from "../mcp/memory/memory-tool-context";
 import { loadWorkspaces } from "../workspaces/workspace-registry";
+import type { MemoryToolContext } from "./memory-tool-context";
 
 /**
  * The memory context of one run (tools + compaction hooks): one builder for the role runner and the rollover runs.

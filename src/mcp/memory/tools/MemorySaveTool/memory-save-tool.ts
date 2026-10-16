@@ -1,6 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { MEMORY_KINDS } from "../../../../memory/memory-sections";
+import type { MemoryToolContext } from "../../../../memory/memory-tool-context";
 import { type MemorySaveOutcome, saveNote } from "../../../../memory/save-note";
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
@@ -9,7 +10,6 @@ import {
   type TrustedToolIssueCode,
 } from "../../../../runtime/trusted-tool-issue";
 import { textResult } from "../../../tool-result";
-import type { MemoryToolContext } from "../../memory-tool-context";
 import { MEMORY_SAVE_MAX_CALLS_PER_RUN, MEMORY_SAVE_SCOPES, MEMORY_SAVE_TOOL } from "./constants";
 import { MEMORY_SAVE_DESCRIPTION } from "./prompt";
 

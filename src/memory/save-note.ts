@@ -1,6 +1,5 @@
 import { join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
-import type { MemoryToolContext } from "../mcp/memory/memory-tool-context";
 import {
   MEMORY_SAVE_MAX_CHARS,
   MEMORY_SAVE_MIN_CHARS,
@@ -12,6 +11,7 @@ import { localDay, localHhmm } from "./memory-clock";
 import { saveJournalBullet, saveMemoryBullet } from "./memory-section-writer";
 import { DEFAULT_KIND, KIND_HEADING, type MemoryKind } from "./memory-sections";
 import { channelTarget, locationTarget, workspaceTarget } from "./memory-targets";
+import type { MemoryToolContext } from "./memory-tool-context";
 import { PENDING_HEADER } from "./memory-writer";
 
 /** Arguments of one `MemorySave` call (already shape-checked by zod). */

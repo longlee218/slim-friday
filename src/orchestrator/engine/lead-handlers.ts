@@ -4,8 +4,9 @@ import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgent
 import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
 import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
 import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
+import { type Reply, refuse } from "../reply";
 import { checkDispatch, dispatchQuestion } from "../strategy/dispatch-policy";
-import { type LeadToolContext, leadCall, type Reply, refuse } from "./lead-call";
+import { type LeadToolContext, leadCall } from "./lead-call";
 import type {
   AskOwnerInput,
   CancelInput,

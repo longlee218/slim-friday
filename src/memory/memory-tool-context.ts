@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
-import type { ThreadTitlePort } from "../../ingress/thread-rename";
-import type { TrustedToolIssueCode } from "../../runtime/trusted-tool-issue";
+import type { ThreadTitlePort } from "../ingress/thread-rename";
+import type { TrustedToolIssueCode } from "../runtime/trusted-tool-issue";
 /**
  * What the tools of the in-process `memory` server need to know about the run they belong to. Built per run by
  * the role runner; the read tools (search/get/expand) read the same object.

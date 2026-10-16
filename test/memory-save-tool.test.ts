@@ -5,13 +5,13 @@ import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
-import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
 import {
   MEMORY_SAVE_MAX_CALLS_PER_RUN,
   MEMORY_SAVE_TOOL,
 } from "../src/mcp/memory/tools/MemorySaveTool/constants";
 import { createMemorySaveTool } from "../src/mcp/memory/tools/MemorySaveTool/memory-save-tool";
 import { localDay, localHhmm } from "../src/memory/memory-clock";
+import type { MemoryToolContext } from "../src/memory/memory-tool-context";
 import { PERSONA_MAX } from "../src/memory/persona";
 import { DEFAULT_AGENTS } from "../src/memory/persona-templates";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";

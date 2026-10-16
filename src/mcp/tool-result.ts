@@ -1,6 +1,6 @@
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import type { Reply } from "../orchestrator/engine/lead-call";
+import type { Reply } from "../orchestrator/reply";
 
 const log = logger.child({ module: "lead-tool" });
 

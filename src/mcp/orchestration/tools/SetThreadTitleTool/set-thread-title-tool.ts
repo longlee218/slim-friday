@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { applyThreadTitle } from "../../../../ingress/thread-rename";
-import type { MemoryToolContext } from "../../../memory/memory-tool-context";
+import type { MemoryToolContext } from "../../../../memory/memory-tool-context";
 import { textResult } from "../../../tool-result";
 import { SET_THREAD_TITLE_MAX_CALLS_PER_RUN, SET_THREAD_TITLE_TOOL } from "./constants";
 import { SET_THREAD_TITLE_DESCRIPTION } from "./prompt";

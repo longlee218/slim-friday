@@ -4,6 +4,7 @@ import { type Hit, searchIndex } from "../../../../memory/index/memory-search";
 import { syncIndex } from "../../../../memory/index/memory-sync";
 import { safely } from "../../../../memory/index/safely";
 import { MEMORY_KINDS } from "../../../../memory/memory-sections";
+import type { MemoryToolContext } from "../../../../memory/memory-tool-context";
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText, redactText } from "../../../../observability/redact";
 import {
@@ -12,7 +13,6 @@ import {
 } from "../../../../runtime/trusted-tool-issue";
 import { textResult } from "../../../tool-result";
 import { READ_LIMIT_TEXT, type ReadBudget } from "../../memory-read-shared";
-import type { MemoryToolContext } from "../../memory-tool-context";
 import {
   MEMORY_SEARCH_TOOL,
   SEARCH_DEFAULT_LIMIT,

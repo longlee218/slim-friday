@@ -2,8 +2,9 @@ import { APPROVE_PLAN_TOOL } from "../../mcp/orchestration/tools/ApprovePlanTool
 import { REQUEST_PLAN_TOOL } from "../../mcp/orchestration/tools/RequestPlanTool/constants";
 import { APPROVE_LABEL, REJECT_LABEL, renderPlan } from "../plan/plan-render";
 import type { ApprovePlanInput, RequestPlanInput } from "../plan/plan-schemas";
+import { type Reply, refuse } from "../reply";
 import { checkPlanRequest } from "../strategy/plan-policy";
-import { type LeadToolContext, leadCall, type Reply, refuse } from "./lead-call";
+import { type LeadToolContext, leadCall } from "./lead-call";
 
 /* The lead's two plan tools. The lead never plans: RequestPlan starts the planner, ApprovePlan asks the owner ONCE about
    the finished plan (the approved plan is the envelope the run stays inside). Same wrapper as the other lead tools. */

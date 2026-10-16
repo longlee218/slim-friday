@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import { deletePaths } from "../src/mcp/effects/delete-paths";
+import { deletePaths } from "../src/orchestrator/effects/delete-paths";
 import { checkToolCall, type GuardrailContext, guardFor } from "../src/policy/check-tool-call";
 import type { EffectsCtx } from "../src/policy/effect-context";
 import { defaultEnvelope } from "../src/policy/envelope";

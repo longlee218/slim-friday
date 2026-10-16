@@ -131,3 +131,12 @@ export function latestGoalId(
     )
     .get(threadId, ownerRole)?.id;
 }
+
+/** Ids of the goals of a thread (owned tasks without a parent). */
+export const goalIdsOfThread = (db: Database, threadId: string): string[] =>
+  db
+    .query<{ id: string }, [string]>(
+      "SELECT id FROM owned_tasks WHERE thread_id = ? AND parent_id IS NULL",
+    )
+    .all(threadId)
+    .map((r) => r.id);

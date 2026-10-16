@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { EFFECT_TOOL_NAMES } from "../mcp/effects/effect-tool-names";
+import { EFFECT_TOOL_NAMES } from "../orchestrator/effects/effect-tool-names";
 import { docOfRow } from "../orchestrator/plan/plan-doc";
 import { effectScope } from "../storage/effect-log-store";
 import { childrenOf } from "../storage/owned-item-store";

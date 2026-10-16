@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import type { ThreadTitlePort } from "../src/ingress/thread-rename";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { ORCHESTRATION_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
 import {
   DIGEST_MAX_CHARS,
   SET_THREAD_TITLE_MAX_CALLS_PER_RUN,
@@ -12,6 +11,7 @@ import {
 import { SET_THREAD_TITLE_DESCRIPTION } from "../src/mcp/orchestration/tools/SetThreadTitleTool/prompt";
 import { createSetThreadTitleTool } from "../src/mcp/orchestration/tools/SetThreadTitleTool/set-thread-title-tool";
 import { localDay } from "../src/memory/memory-clock";
+import type { MemoryToolContext } from "../src/memory/memory-tool-context";
 import { getRole } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { adoptThread, getThread, recordBotThread } from "../src/storage/thread-store";

@@ -6,7 +6,7 @@ import type { RoleDefinition } from "../../roles/role-types";
 import { childrenOf } from "../../storage/owned-item-store";
 import { taskScope } from "../../storage/owned-task-store";
 import { getPlan, latestPlan, planIdOfGoal } from "../../storage/work-plan-store";
-import { type Reply, refuse } from "../engine/lead-call";
+import { type Reply, refuse } from "../reply";
 import { createPlan, type Fail, type PlanEnv, validateStored } from "./plan-lifecycle";
 import { revisePlan } from "./plan-revision";
 import type {

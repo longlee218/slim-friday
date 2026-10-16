@@ -1,7 +1,7 @@
 import { clip, redactText } from "../../observability/redact";
 import { childrenOf } from "../../storage/owned-item-store";
 import { lastEventOfItem } from "../../storage/thread-event-store";
-import type { Reply } from "../engine/lead-call";
+import type { Reply } from "../reply";
 import type { GoalInput } from "./plan-schemas";
 import { type PlannerCtx, wrongGoal } from "./planner-handlers";
 

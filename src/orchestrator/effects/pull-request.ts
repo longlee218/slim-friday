@@ -1,5 +1,5 @@
 import { isPlainRef } from "../../locations/git-run";
-import { type Reply, refuse } from "../../orchestrator/engine/lead-call";
+import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
 import { checkEnvelope, isFallbackDefault } from "../../policy/check-envelope";
 import {
   type EffectsCtx,
@@ -8,7 +8,7 @@ import {
   refuseLogged,
 } from "../../policy/effect-context";
 import { ghDenial } from "../../policy/gh-policy";
-import { CREATE_PULL_REQUEST_TOOL } from "./tools/CreatePullRequestTool/constants";
+import { type Reply, refuse } from "../reply";
 
 /* CreatePullRequest: `gh pr create` as an argv array. The head is a feature branch the grant covers. */
 

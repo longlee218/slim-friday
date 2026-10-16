@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, rmdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { trashRoot } from "../mcp/effects/trash-store";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { trashRoot } from "../orchestrator/effects/trash-store";
 import { TRASH_TTL_MS } from "../policy/risk-types";
 
 /* The trash of `DeletePaths` keeps an entry 7 days (`<trash>/<goalId>/<epoch ms>-<random>/`); this sweeper removes the older ones.

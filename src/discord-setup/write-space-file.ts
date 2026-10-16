@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { CHANNEL_NAME, WORKSPACE_NAME, workspacePaths } from "../config/workspace-paths";
-import type { DiscordAdminContext } from "../mcp/discord-admin/discord-admin-context";
 import {
   CONTENT_MAX_CHARS,
   DIFF_MAX_CHARS,
@@ -14,6 +13,7 @@ import { logEvent, logger } from "../observability/logger";
 import { errText, redactText } from "../observability/redact";
 import { isInside, resolveReal } from "../policy/paths";
 import { loadWorkspaces } from "../workspaces/workspace-registry";
+import type { DiscordAdminContext } from "./discord-admin-context";
 import { lineDiff } from "./line-diff";
 import { backupPersonaFile } from "./persona-backup";
 import { workspaceState } from "./workspace-template";

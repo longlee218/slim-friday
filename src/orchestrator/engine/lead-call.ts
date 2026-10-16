@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { logEvent, logger } from "../../observability/logger";
 import type { EventKind } from "../events/event-types";
+import type { Reply } from "../reply";
 import type { EffectPort } from "./effect-port";
 
 /* Wrapper of every lead tool call: idempotency, the `lead.decision` log line and the thread event. The handlers
@@ -20,14 +21,6 @@ export interface LeadToolContext {
   correlationId?: string;
   run: { dispatched: number };
 }
-
-/** A tool reply: facts on success, a code + message on refusal. */
-export type Reply =
-  | { ok: true; [k: string]: unknown }
-  | { ok: false; code: string; message: string };
-
-/** A coded refusal. */
-export const refuse = (code: string, message: string): Reply => ({ ok: false, code, message });
 
 /** What a handler returns: the reply plus the events and audit ids to record. */
 export interface Outcome {

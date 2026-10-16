@@ -1,5 +1,5 @@
 import { isPlainRef } from "../../locations/git-run";
-import type { Reply } from "../../orchestrator/engine/lead-call";
+import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 import { checkEnvelope, grantNamesBranch } from "../../policy/check-envelope";
 import {
   type EffectsCtx,
@@ -8,7 +8,7 @@ import {
   refuseLogged,
   safeText,
 } from "../../policy/effect-context";
-import { MERGE_BRANCH_TOOL } from "./tools/MergeBranchTool/constants";
+import type { Reply } from "../reply";
 
 /* MergeBranch: a local merge of `from` into the checked-out branch `into` (R2). `into` must be covered by a grant. */
 

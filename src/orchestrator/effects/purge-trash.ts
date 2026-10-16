@@ -1,15 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { OwnerLanguage } from "../../ingress/user-copy";
+import { goalIdsOfThread } from "../../storage/owned-item-store";
 import { purgeGoalTrash } from "./trash-store";
-
-/** Ids of the goals of a thread (owned tasks without a parent). */
-const goalsOfThread = (db: Database, threadId: string): string[] =>
-  db
-    .query<{ id: string }, [string]>(
-      "SELECT id FROM owned_tasks WHERE thread_id = ? AND parent_id IS NULL",
-    )
-    .all(threadId)
-    .map((r) => r.id);
 
 /**
  * `/purge`: empty the trash of THIS thread's goals (never another thread's) and answer in the owner's
@@ -23,7 +15,7 @@ export async function purgeThreadTrash(
   language: OwnerLanguage,
   confirm: (summary: string) => Promise<boolean>,
 ): Promise<string> {
-  const goals = goalsOfThread(db, threadId);
+  const goals = goalIdsOfThread(db, threadId);
   const ask =
     language === "vi"
       ? "Dọn sạch thùng rác của thread này? Không thể hoàn tác."

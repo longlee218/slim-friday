@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { InitDeps } from "../../discord-setup/init-workspace";
+import type { InitDeps } from "./init-workspace";
 
 /** What the question to the owner (before a write) carries. */
 export interface ConfirmQuestion {
