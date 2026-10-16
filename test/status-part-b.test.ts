@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { parseMessageCommand } from "../src/orchestrator/message-commands";
 import {
@@ -14,6 +14,9 @@ import { insertOwnedTask, linkTurn } from "../src/storage/owned-task-store";
 import { insertToolCall } from "../src/storage/run-metrics-store";
 import { finishTurn, insertTurn } from "../src/storage/run-store";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
+import { liveWorker, settleAllLive } from "./live-run-helper";
+
+afterEach(settleAllLive);
 
 type Db = ReturnType<typeof makeEnv>["db"];
 
@@ -173,6 +176,7 @@ function receiptEnv() {
   const refs: { ref?: string; text: string }[] = [];
   const sink: SteerSink = { push: (text, ref) => (refs.push({ ref, text }), "queued") };
   const hook = reg.hook("th");
+  liveWorker("t1");
   hook.register(sink, { runId: "r1", turnId: "t1" });
   const events: unknown[] = [];
   reg.subscribe("th", "t1", (e) => events.push(e));

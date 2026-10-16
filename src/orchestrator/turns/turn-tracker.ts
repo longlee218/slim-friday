@@ -5,7 +5,7 @@ import { getLogContext, logEvent, setLogContext, tryLog } from "../../observabil
 import { getRole } from "../../roles/role-registry";
 import { finishTurn, insertTurn, interruptRunningTurns } from "../../storage/run-store";
 import { attachTurnToTask, settleTaskAfterTurn } from "../../tasks/task-resolver";
-import { abortAllTaskRuns, pendingTaskRuns } from "../engine/task-runs";
+import { abortAllRuns, pendingRuns } from "../run/live-runs";
 
 /** Log-context fields every line of a call carries: a fresh trace id, its thread and its routing channel. */
 export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
@@ -14,8 +14,8 @@ export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
   channelId: t.channelId,
 });
 
-/** Tracks calls in flight and the active runs, so shutdown can abort and await them. */
-export function createRunTracker(db: Database, log: Logger, active: Map<string, AbortController>) {
+/** Tracks calls in flight and the live runs (run/live-runs.ts), so shutdown can abort and await them. */
+export function createRunTracker(db: Database, log: Logger) {
   /** Promises of calls in flight. */
   const inflight = new Set<Promise<string | undefined>>();
   /** Set once shutdown aborts the runs: those tasks are `interrupted` (resumable), not user-cancelled. */
@@ -24,8 +24,7 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
   /** Abort every active run (graceful shutdown). */
   const abortAll = () => {
     stopping = true;
-    for (const ac of active.values()) ac.abort();
-    abortAllTaskRuns(); // detached task runs hold no thread: they are aborted (and drained) too
+    abortAllRuns(); // lead and detached worker runs
   };
 
   return {
@@ -47,7 +46,7 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
       const timeout = new Promise<void>((r) => {
         timer = setTimeout(r, timeoutMs);
       });
-      await Promise.race([Promise.allSettled([...inflight, ...pendingTaskRuns()]), timeout]);
+      await Promise.race([Promise.allSettled([...inflight, ...pendingRuns()]), timeout]);
       clearTimeout(timer);
       tryLog(log, "interruptRunningTurns failed", () => interruptRunningTurns(db));
     },

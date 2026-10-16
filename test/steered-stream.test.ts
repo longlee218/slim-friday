@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import type { Options, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { RunRecorder } from "../src/observability/record-run";
 import { createSteerRegistry } from "../src/orchestrator/turns/steer-registry";
@@ -7,6 +7,9 @@ import type { QueryFn } from "../src/runtime/run-stream";
 import { consumeSteered } from "../src/runtime/steered-stream";
 import { listRunMessages } from "../src/storage/run-message-store";
 import { initMsg, makeEnv, resultMsg } from "./helpers";
+import { liveWorker, settleAllLive } from "./live-run-helper";
+
+afterEach(settleAllLive);
 
 /* Step 7 of the agent loop (Rev 11) with a fake CLI: echo tracking, the wait for an unread steer at `result`
    (bounded), the silence timer, the dropped fate and the resume of a message that arrived after the input
@@ -30,6 +33,7 @@ function setup(
 ) {
   const env = makeEnv();
   const reg = createSteerRegistry(env.db);
+  liveWorker("t1");
   const calls: { first: string; options: Options }[] = [];
   const run: QueryFn = (a) =>
     (async function* () {
@@ -259,6 +263,7 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
     const ac = new AbortController();
     const env = makeEnv();
     const reg = createSteerRegistry(env.db);
+    liveWorker("t1");
     const pulled: string[] = [];
     const run: QueryFn = (a) =>
       (async function* () {

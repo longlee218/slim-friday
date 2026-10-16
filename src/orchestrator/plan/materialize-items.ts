@@ -5,7 +5,7 @@ import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { insertOwnedTask, rewriteNotStartedItem, taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
-import { taskRunOf } from "../engine/task-runs";
+import { runOfTask } from "../run/live-runs";
 import type { PlanDoc, PlanItem } from "./plan-types";
 
 /* Plan items to owned tasks. Idempotent by goal + key: an item that exists is never created twice, so applying the same
@@ -129,7 +129,7 @@ export function materialize(
 
 /** Abort the live runs of cancelled items (after the transaction committed). */
 export const abortRuns = (ids: readonly string[]): void => {
-  for (const id of ids) taskRunOf(id)?.ac.abort();
+  for (const id of ids) runOfTask(id)?.ac.abort();
 };
 
 /** True when the stored item differs from the plan item in what a worker would see. */

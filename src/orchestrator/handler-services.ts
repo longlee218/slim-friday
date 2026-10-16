@@ -11,9 +11,7 @@ import { createRunTracker } from "./turns/turn-tracker";
 /** The long-lived services of one turn handler, built once: run tracking, rollovers, lead system, inline command runner, control-channel runner. */
 export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   const { db, config } = deps;
-  /** threadId -> controller of the active foreground run (the thread's lead run). */
-  const active = new Map<string, AbortController>();
-  const tracker = createRunTracker(db, log, active);
+  const tracker = createRunTracker(db, log);
   /** Post-reply work (memory flush, summary, rollover): holds the thread; see rollover-scheduler.ts. */
   const rollovers = createRolloverScheduler({ db, config, queryFn: deps.queryFn, log });
   /** What a role run needs; nothing in it changes per message. */
@@ -30,7 +28,6 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   // The lead: the only path of an owner message after the commands (queue, runner, workers, announce).
   const lead = createLeadSystem({
     deps: dispatchDeps,
-    active,
     post: deps.post,
     ...deps.leadTiming,
     track: (run) => void tracker.track(run.then(() => undefined)),
@@ -56,5 +53,5 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     },
     drain: async (ms: number) => tracker.drain(await control.drain(await rollovers.drain(ms))),
   };
-  return { active, tracker, rollovers, dispatchDeps, lead, inline, control, shutdown };
+  return { tracker, rollovers, dispatchDeps, lead, inline, control, shutdown };
 }

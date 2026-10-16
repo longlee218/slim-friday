@@ -2,9 +2,10 @@ import type { Database } from "bun:sqlite";
 import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import type { LeadQueue } from "../engine/lead-queue";
 import { stopThreadTree } from "../engine/stop-thread-tree";
+import { liveRunOf } from "../run/live-runs";
 
 /**
- * `stop` (an orchestrator command, never steer): abort the thread's active run at once. The thread's queued tasks
+ * `stop` (an orchestrator command, never steer): abort the thread's lead run and every worker run at once. The thread's queued tasks
  * are KEPT: they start, in order, once the stopped run has ended (a stop cancels the running work, not the
  * owner's other requests). The run's input channel closes on that abort (nothing more is yielded). The rest of the
  * thread's tree goes down too: queued lead inputs, every detached task run (rows `cancelled`), unstarted `start` events.
@@ -13,13 +14,11 @@ export function stopThread(
   db: Database,
   threadId: string,
   language: OwnerLanguage,
-  running?: AbortController,
   leadQueue?: Pick<LeadQueue, "stop" | "busy">,
 ): string {
   // A queued or debouncing lead input counts as work too: it is dropped below.
-  if (!running && !leadQueue?.busy(threadId))
+  if (!liveRunOf(threadId) && !leadQueue?.busy(threadId))
     return renderUserNotice({ kind: "stop", active: false }, language);
-  running?.abort();
   stopThreadTree(db, threadId, leadQueue);
   return renderUserNotice({ kind: "stop", active: true }, language);
 }

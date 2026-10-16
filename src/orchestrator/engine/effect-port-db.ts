@@ -9,6 +9,7 @@ import { insertOwnedTask, threadOfTask } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
+import { runOfTask } from "../run/live-runs";
 import type { PolicyEnv } from "../strategy/caps";
 import type {
   DispatchResult,
@@ -27,7 +28,6 @@ import {
   pendingQuestionOf,
   snapshotOf,
 } from "./effect-port-queries";
-import { taskRunOf } from "./task-runs";
 
 /* The real EffectPort: db reads and writes are here; the IO that needs Discord or a live run is injected. */
 
@@ -66,7 +66,7 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
     return { all, moved: all.filter((id) => moveTaskTo(db, id, "cancelled")) };
   };
   const abortRuns = (ids: string[]): void => {
-    for (const id of ids) taskRunOf(id)?.ac.abort();
+    for (const id of ids) runOfTask(id)?.ac.abort();
   };
 
   /** The dispatch transaction (see `EffectPort.dispatch`); returns what to abort after the commit. */

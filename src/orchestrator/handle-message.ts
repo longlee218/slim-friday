@@ -11,7 +11,6 @@ import type { ApprovalGateway } from "../owner-approval/approval-types";
 import type { QueryFn } from "../runtime/run-agent";
 import { ownerConfirm } from "./engine/owner-confirm";
 import type { RecoveryReport } from "./engine/recover-in-flight";
-import { liveRunOf } from "./engine/task-runs";
 import { createHandlerServices } from "./handler-services";
 import { parseMessageCommand } from "./message-commands";
 import type { RunLimiter } from "./turns/run-limiter";
@@ -44,7 +43,7 @@ export interface TurnHandlerDeps {
 export function createTurnHandler(deps: TurnHandlerDeps) {
   const { config } = deps;
   const log = logger.child({ module: "handle-message" });
-  const { active, tracker, rollovers, dispatchDeps, lead, inline, control, shutdown } =
+  const { tracker, rollovers, dispatchDeps, lead, inline, control, shutdown } =
     createHandlerServices(deps, log);
   /** Handle one message and return the reply text to post (undefined = the lead answers on its own). */
   const run = async (message: InboundMessage): Promise<string | undefined> => {
@@ -55,7 +54,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       return stopCommand({
         db: deps.db,
         message,
-        running: liveRunOf(active, threadId), // the lead run, else the thread's newest task run
         leadQueue: { stop: lead.stopThread, busy: lead.queue.busy },
         rollovers,
         steer: dispatchDeps.steer,

@@ -3,6 +3,7 @@ import { logEvent, logger, setLogContext } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
 import { getSession } from "../../storage/session-store";
+import { registerRun } from "../run/live-runs";
 import { buildLeadContextBlock } from "../strategy/lead-context-block";
 import { buildLeadMd } from "../strategy/lead-md";
 import { closeTurn } from "../turns/turn-result";
@@ -123,7 +124,7 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
   };
   const turns: string[] = []; // turn rows of this input: their rollover starts after the reply
   const ac = new AbortController();
-  const settleActive = rt.registerActive?.(threadId, ac);
+  const settleActive = registerRun({ kind: "lead", threadId, role: "lead", ac });
   let announced: string[] = [];
   let consumed = false; // the news counts as read only when the lead run succeeded
   let retry = false;
@@ -154,7 +155,7 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
     retry = await failed(post, input, announced);
     consumed = !retry;
   } finally {
-    settleActive?.();
+    settleActive();
     settleLeadEvents(db, threadId, consumed ? announced : []);
     if (consumed) failedBatches.delete(announced.join(","));
     for (const turnId of turns) rt.afterRun?.(ctx.message, turnId, ctx.workspace); // only now: the reply is out

@@ -1,9 +1,12 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { createSteerRegistry } from "../src/orchestrator/turns/steer-registry";
 import type { SteerSink } from "../src/runtime/run-input-channel";
 import { listRunMessages } from "../src/storage/run-message-store";
 import { finishTurn, insertTurn } from "../src/storage/run-store";
 import { makeEnv } from "./helpers";
+import { liveWorker, settleAllLive } from "./live-run-helper";
+
+afterEach(settleAllLive);
 
 /* Steer registry while a streaming run is starting (Rev 11 review, H-c): a steer is held until the run registers its input. */
 
@@ -32,6 +35,7 @@ test("while a streaming run is starting a steer is HELD and goes into its input,
   expect(reg.steerTask("t1", "first").result).toBe("held");
   expect(reg.steerTask("t1", "second").result).toBe("held");
   const pushed: string[] = [];
+  liveWorker("t1");
   reg.hook("th").register(sink(pushed), { runId: "r1", turnId: "t1" }); // the run opens its input
   expect(pushed).toEqual(["first", "second"]);
   expect(listRunMessages(env.db, "th").map((r) => [r.content, r.status, r.taskId])).toEqual([
@@ -55,6 +59,7 @@ test("a steer into a registered run is queued with the run's id and the task's i
   const reg = createSteerRegistry(env.db);
   dev(env.db);
   const pushed: string[] = [];
+  liveWorker("t1");
   reg.hook("th").register(sink(pushed), { runId: "r1", turnId: "t1" });
   expect(reg.steerTask("t1", "a")).toEqual({ result: "queued" });
   expect(reg.steerTask("t1", "b")).toEqual({ result: "queued" });

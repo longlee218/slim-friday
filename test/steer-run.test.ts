@@ -1,9 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { createSteerRegistry } from "../src/orchestrator/turns/steer-registry";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { initMsg, makeEnv, resultMsg } from "./helpers";
+import { liveWorker, settleAllLive } from "./live-run-helper";
+
+afterEach(settleAllLive);
 
 /** What a fake `query` saw: the user messages it pulled from the prompt and the options it was given. */
 interface Probe {
@@ -36,6 +39,7 @@ function go(
   hook: any,
   ac: AbortController,
 ) {
+  liveWorker("T"); // a streaming run is registered before its sink attaches
   return runAgent({
     prompt: "task prompt",
     turnId: "T",

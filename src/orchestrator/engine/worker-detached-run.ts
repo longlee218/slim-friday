@@ -4,11 +4,11 @@ import { getLogContext, logEvent, logger, tryLog } from "../../observability/log
 import { errText } from "../../observability/redact";
 import type { ResultKind } from "../../storage/owned-item-store";
 import { appendEvent } from "../../storage/thread-event-store";
+import { registerRun } from "../run/live-runs";
 import { closeTurn } from "../turns/turn-result";
 import { failTurn } from "../turns/turn-tracker";
 import type { DispatchDeps, RoleRunInput } from "./role-run-types";
 import { runRole } from "./run-role";
-import { registerTaskRun } from "./task-runs";
 
 /** Logger of this module. */
 const log = logger.child({ module: "worker-detached-run" });
@@ -37,7 +37,7 @@ export function runDetached(deps: DispatchDeps, input: RoleRunInput, o: Detached
   const { db, config } = deps;
   const { turnId, threadId, role, ac } = input;
   const t0 = Date.now();
-  const settle = registerTaskRun(o.taskId, { threadId, turnId, role, ac });
+  const settle = registerRun({ kind: "worker", taskId: o.taskId, threadId, turnId, role, ac });
   void (async () => {
     try {
       const res = await runRole(deps, input).catch((err: unknown) => {

@@ -5,6 +5,7 @@ import type { SteerRun, SteerSink } from "../../runtime/run-input-channel";
 import { ownedTaskOfTurn, runningTurnOfTask, threadOfTask } from "../../storage/owned-task-store";
 import { runMessageSourceId, setRunMessageTarget } from "../../storage/run-message-store";
 import { liveTurnOfThread } from "../../storage/run-store";
+import { attachSink, runOfTask, steerRunOfThread } from "../run/live-runs";
 import { createHeldSteers } from "./steer-held";
 import { createSteerStore, type MessageRef } from "./steer-store";
 import type { SteerEvent, SteerOutcome, SteerRegistry } from "./steer-types";
@@ -12,8 +13,8 @@ import type { SteerEvent, SteerOutcome, SteerRegistry } from "./steer-types";
 export type { SteerRegistry } from "./steer-types";
 
 /* Which run can take a steer right now, and the audit of every message that arrives while a run
-   works (`run_messages`). A streaming run registers its input sink here, keyed by its TASK (owned task id, else
-   turn id), and unregisters when it ends; a thread can hold several tasks. Callers only see `steerTask(task, text)`,
+   works (`run_messages`). A streaming run attaches its input sink to its entry of the live-run registry
+   (run/live-runs.ts) and detaches it when it ends; a thread can hold several tasks. Callers only see `steerTask(task, text)`,
    `record(...)`, `subscribe(...)` and `hook(...)`; they never touch the runtime. */
 
 /** Logger of this module (task fields come from the log context). */
@@ -23,11 +24,6 @@ const log = logger.child({ module: "steer-registry" });
 export function createSteerRegistry(db: Database): SteerRegistry {
   /** Task key of a turn: its owned task id, else the turn id (a turn without a task is its own key). */
   const taskKey = (turnId: string): string => ownedTaskOfTurn(db, turnId) ?? turnId;
-  /** taskKey -> input of the task's registered run; insertion order = registration order. */
-  const sinks = new Map<string, { sink: SteerSink; run: SteerRun; threadId: string }>();
-  /** Newest registered run of a thread, or undefined. */
-  const sinkOf = (threadId: string) =>
-    [...sinks.values()].filter((e) => e.threadId === threadId).at(-1);
   /** taskKey -> steers held until that task's streaming run registers its input (it is starting). */
   const held = createHeldSteers();
   /** The thread's task that is running (or waits on an approval), with its role. */
@@ -59,7 +55,7 @@ export function createSteerRegistry(db: Database): SteerRegistry {
         );
   };
   const { finalize, store } = createSteerStore(db, log, {
-    runOf: (threadId) => sinkOf(threadId)?.run,
+    runOf: steerRunOfThread,
     liveTurnId: (threadId) => liveTask(threadId)?.id,
   });
   /**
@@ -111,7 +107,7 @@ export function createSteerRegistry(db: Database): SteerRegistry {
         register(sink, run) {
           runTurn = run.turnId;
           const key = taskKey(run.turnId);
-          sinks.set(key, { sink, run, threadId });
+          const detach = attachSink(run.turnId, sink, run); // the live-run registry holds the sink
           // Steers held while the run was starting go into its input, in arrival order.
           for (const w of held.take(key)) {
             const res = sink.push(w.text, w.ref);
@@ -125,10 +121,7 @@ export function createSteerRegistry(db: Database): SteerRegistry {
               finalize(w.ref, "dropped");
             }
           }
-          // Only remove our own entry: a later run may already have registered its sink.
-          return () => {
-            if (sinks.get(key)?.sink === sink) sinks.delete(key);
-          };
+          return detach;
         },
         settle(steer, fate) {
           finalize(steer.ref, fate);
@@ -139,9 +132,10 @@ export function createSteerRegistry(db: Database): SteerRegistry {
     },
     steerTask(taskId, text, messageId) {
       const key = taskKey(taskId); // a turn id is accepted too
-      const entry = sinks.get(key);
+      const liveRun = runOfTask(key) ?? runOfTask(taskId);
+      const entry = liveRun?.steer;
       const live = liveTurnOfTask(key);
-      const threadId = entry?.threadId ?? live?.threadId ?? threadOfTask(db, key);
+      const threadId = liveRun?.threadId ?? live?.threadId ?? threadOfTask(db, key);
       if (!threadId) return { result: "none" };
       return deliver(
         { threadId, messageId },

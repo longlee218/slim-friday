@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
 import type { Location } from "../src/locations/location-registry";
 import type { DispatchDeps } from "../src/orchestrator/engine/role-run-types";
-import { liveTasksOf } from "../src/orchestrator/engine/task-runs";
+import { stopThreadTree } from "../src/orchestrator/engine/stop-thread-tree";
 import { runDetached } from "../src/orchestrator/engine/worker-detached-run";
+import { liveRunsOf } from "../src/orchestrator/run/live-runs";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { insertTurn } from "../src/storage/run-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
@@ -88,11 +89,11 @@ test("detach: returns at once, the run is registered while it works, slot + regi
     },
     "dd-th",
   );
-  expect(liveTasksOf("dd-th")).toHaveLength(1); // running, thread lock not needed
+  expect(liveRunsOf("dd-th")).toHaveLength(1); // running, thread lock not needed
   expect(limiter.active()).toBe(1); // its own slot
   release();
   await until(() => limiter.active() === 0);
-  expect(liveTasksOf("dd-th")).toHaveLength(0);
+  expect(liveRunsOf("dd-th")).toHaveLength(0);
   expect(env.db.query("SELECT status FROM turns").all()).toEqual([{ status: "done" }]);
 });
 
@@ -118,7 +119,7 @@ async function crashedRun(threadId: string, dropEvents: boolean) {
 test("a crash of the detached run appends a `failure` event and frees the slot", async () => {
   const { env, limiter } = await crashedRun("dd-th4", false);
   expect(listUndelivered(env.db, "dd-th4").map((e) => e.kind)).toEqual(["failure"]);
-  expect(liveTasksOf("dd-th4")).toHaveLength(0);
+  expect(liveRunsOf("dd-th4")).toHaveLength(0);
   expect(limiter.active()).toBe(0);
 });
 
@@ -130,6 +131,33 @@ test("M1: when the failure event cannot be appended either, nothing rejects unha
   await sleep(50);
   process.off("unhandledRejection", onUnhandled);
   expect(unhandled).toEqual([]);
-  expect(liveTasksOf("dd-th5")).toHaveLength(0);
+  expect(liveRunsOf("dd-th5")).toHaveLength(0);
   expect(limiter.active()).toBe(0);
+});
+
+test("/stop (stopThreadTree) ends a running detached worker: its query sees the abort, slot + registry freed", async () => {
+  const { env, locations } = setup();
+  let sawAbort = false;
+  const limiter = start(
+    env,
+    locations,
+    {
+      queryFn: ((p: { options: { abortController: AbortController } }) =>
+        (async function* () {
+          const signal = p.options.abortController.signal;
+          await new Promise<void>((res) => {
+            if (signal.aborted) res();
+            signal.addEventListener("abort", () => res());
+          });
+          sawAbort = signal.aborted;
+          yield resultMsg();
+        })()) as never,
+    },
+    "dd-stop",
+  );
+  expect(liveRunsOf("dd-stop")).toHaveLength(1);
+  stopThreadTree(env.db, "dd-stop");
+  await until(() => limiter.active() === 0);
+  expect(sawAbort).toBe(true);
+  expect(liveRunsOf("dd-stop")).toHaveLength(0);
 });

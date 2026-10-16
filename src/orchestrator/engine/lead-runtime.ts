@@ -30,8 +30,6 @@ export interface LeadRuntime {
   hold?(threadId: string): Promise<void>;
   /** The run's reply is posted: the thread's rollover work (flush, summary) may start. */
   afterRun?(message: InboundMessage, turnId: string, workspace: string): void;
-  /** Register a lead run as the thread's foreground run (`/stop` aborts it); returns its settle function. */
-  registerActive?(threadId: string, ac: AbortController): () => void;
 }
 
 /** Post text into the thread; a failure is returned to the caller as a rejected promise. */

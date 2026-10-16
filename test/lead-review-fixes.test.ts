@@ -25,7 +25,6 @@ function system(
       queryFn: scriptedQuery(script, calls),
       stopping: () => false,
     },
-    active: new Map(),
     debounceMs: 10,
     announceWindowMs: 30,
     ...o,

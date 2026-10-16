@@ -37,8 +37,6 @@ export interface LeadSystem {
  */
 export function createLeadSystem(o: {
   deps: DispatchDeps;
-  /** Controller registry of foreground runs: `/stop` finds the lead run through it. */
-  active: Map<string, AbortController>;
   post?: (threadId: string, text: string) => Promise<void>;
   /** Keep a lead run in the shutdown drain. */
   track?: (run: Promise<void>) => void;
@@ -84,12 +82,6 @@ export function createLeadSystem(o: {
     relay,
     afterRun: o.afterRun,
     hold: o.hold,
-    registerActive: (threadId, ac) => {
-      o.active.set(threadId, ac);
-      return () => {
-        if (o.active.get(threadId) === ac) o.active.delete(threadId);
-      };
-    },
   };
   const queue = createLeadQueue({
     run: (input) => {

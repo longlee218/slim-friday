@@ -68,7 +68,7 @@ test("/stop with only a queued lead input: the queue is dropped and the owner is
   const queue = createLeadQueue({ run: async (i) => void ran.push(i.threadId), debounceMs: 50 });
   queue.push({ threadId: "t", kind: "owner", messageIds: ["m"], text: "hi" }); // debouncing
   expect(queue.busy("t")).toBe(true);
-  const reply = stopThread(db, "t", "en", undefined, queue);
+  const reply = stopThread(db, "t", "en", queue);
   expect(reply.length).toBeGreaterThan(0);
   await new Promise((r) => setTimeout(r, 120));
   expect(ran).toEqual([]);
