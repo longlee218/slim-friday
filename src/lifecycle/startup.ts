@@ -13,10 +13,10 @@ import { purgeRunMessages } from "../storage/run-message-store";
 import { setTurnStatus } from "../storage/run-store";
 
 /** Raw per-task logs older than this are deleted at startup. */
-export const LOG_RETENTION_DAYS = 30;
+const LOG_RETENTION_DAYS = 30;
 
 /** A `failed_resumable` task nobody continued for this long loses its saved plan and becomes `failed`. */
-export const HELD_TASK_DAYS = 14;
+const HELD_TASK_DAYS = 14;
 
 /** Task ids are uuids: only such an id is turned into a path. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -47,7 +47,7 @@ export function cleanupTaskLogs(agentHome: string, now = Date.now()): number {
 }
 
 /**
- * Held tasks (`failed_resumable`, rows from before `/go` was removed) older than the retention expire by age: the task scratch dir is
+ * Held tasks (`failed_resumable`, legacy rows) older than the retention expire by age: the task scratch dir is
  * removed and the task becomes `failed`. Returns the expired task ids.
  */
 export function expireHeldTasks(

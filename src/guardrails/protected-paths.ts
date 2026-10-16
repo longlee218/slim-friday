@@ -33,7 +33,7 @@ const liveRoots = (ctx: Ctx): string[] =>
   (ctx.denyPaths ?? []).filter((d) => !(ctx.allowInside ?? []).some((a) => isInside(a, d)));
 
 /** True when the real path of `dir` is an ancestor-or-equal of a denied root (a search from it would cover it). */
-export function containsDenied(dir: string, ctx: Ctx): boolean {
+function containsDenied(dir: string, ctx: Ctx): boolean {
   const real = realOrSame(dir);
   return liveRoots(ctx).some((d) => isInside(real, d));
 }
@@ -146,7 +146,7 @@ export function segmentTouchesProtected(words: string[], ctx: Ctx, base: Base): 
 }
 
 /** The base after `cd` / `pushd` / `popd` in `words`; undefined when the command is none of them. */
-export function afterCd(words: string[], base: Base): Base | undefined {
+function afterCd(words: string[], base: Base): Base | undefined {
   const cmd = basename(words[0] ?? "");
   if (cmd === "popd") return { dir: undefined, unknown: true };
   if (cmd !== "cd" && cmd !== "pushd") return undefined;

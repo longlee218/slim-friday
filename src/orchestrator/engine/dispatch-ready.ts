@@ -13,10 +13,10 @@ import { startWorker } from "./worker-run";
 const log = logger.child({ module: "dispatch-ready" });
 
 /** Circuit breaker: an item dispatched this many times fails instead of starting again. */
-export const MAX_DISPATCHES_PER_ITEM = 3;
+const MAX_DISPATCHES_PER_ITEM = 3;
 
 /** Wait (ms) before a pass retries an item the run cap deferred (any worker ending retries earlier). */
-export const BUSY_RETRY_MS = 3000;
+const BUSY_RETRY_MS = 3000;
 
 /** Threads whose ready item the run cap deferred, with their retry timer. */
 const deferred = new Map<string, ReturnType<typeof setTimeout>>();

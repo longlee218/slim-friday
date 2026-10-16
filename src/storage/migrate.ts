@@ -4,9 +4,6 @@ import { join } from "node:path";
 import { restrictFile } from "../config/workspace-paths";
 import { logEvent, logger } from "../observability/logger";
 
-/** Current schema version (`meta.schema_version` is the only version marker). */
-export const SCHEMA_VERSION = 8;
-
 const log = logger.child({ module: "db-migrate" });
 
 /** True when the table exists. */

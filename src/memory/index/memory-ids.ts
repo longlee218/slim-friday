@@ -40,7 +40,9 @@ export const hash6 = (text: string): string =>
 export const makeId = (prefix: string, token: string, n: number, hash: string): string =>
   `${prefix}#${token}:${n}~${hash}`;
 
-export { summaryHitId };
+{
+  summaryHitId;
+}
 
 export type ParsedId =
   | {

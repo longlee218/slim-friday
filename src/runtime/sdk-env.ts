@@ -34,7 +34,7 @@ const SUBAGENT_LIMIT_ENV = {
 } as const;
 
 /** Claude Code switch: strip Anthropic and cloud provider credentials from the env of the tools' subprocesses (workers only). */
-export const SUBPROCESS_SCRUB_VAR = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB";
+const SUBPROCESS_SCRUB_VAR = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB";
 
 /**
  * Build the SDK child env: the owner's env passes through (the agent runs as the owner, with the owner's git / gh / ssh
@@ -58,7 +58,7 @@ export function sdkEnv(
   Object.assign(env, SUBAGENT_LIMIT_ENV);
   // The SDK strips the credentials above from the env of its Bash tool, hooks and MCP servers: the model call still has them.
   if (opts.worker) env[SUBPROCESS_SCRUB_VAR] = "1";
-  // One-shot calls (intent classifier, memory compaction) are single-turn: no compaction, and a 1h cache write
+  // One-shot calls (memory compaction) are single-turn: no compaction, and a 1h cache write
   // would only cost more than it saves, so they get none of the four vars.
   if (opts.oneShot) return env;
   const window = compactWindow ?? COMPACT_WINDOW_TOKENS;

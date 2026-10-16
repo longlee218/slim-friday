@@ -17,7 +17,7 @@ import { consumeStream, type StreamResult } from "./run-stream";
    still unread at the end is settled `dropped`: the owner is told. */
 
 /** How long a held `result` waits for the CLI to say anything (an echo or a new turn) before the input is ended. */
-export const STEER_RESULT_GRACE_MS = 20_000;
+const STEER_RESULT_GRACE_MS = 20_000;
 
 /** Text of an echoed (replayed) user message, or undefined for any other stream message. */
 function echoText(m: SDKMessage): string | undefined {

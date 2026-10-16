@@ -2,7 +2,7 @@ import { closeSync, fstatSync, lstatSync, openSync, readSync } from "node:fs";
 import type { ChatText } from "./extract-context";
 
 /** Bytes read from the end of a transcript file (the file can be megabytes; only the newest part matters). */
-export const TRANSCRIPT_TAIL_BYTES = 262_144;
+const TRANSCRIPT_TAIL_BYTES = 262_144;
 
 /** Text injected by the harness, not said by anyone (system reminders, slash-command echoes, task notices). */
 const INJECTED = /^\s*<(?:system-reminder|command-|local-command|task-notification)/;

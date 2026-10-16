@@ -46,7 +46,7 @@ export interface Outcome {
 }
 
 /** Idempotency key: thread + lead input + tool + a hash of the arguments (the same call twice is one effect). */
-export const callKey = (threadId: string, inputId: string, tool: string, args: unknown): string =>
+const callKey = (threadId: string, inputId: string, tool: string, args: unknown): string =>
   `${threadId}:${inputId}:${tool}:${createHash("sha256").update(JSON.stringify(args)).digest("hex").slice(0, 16)}`;
 
 /** Options of one call. */

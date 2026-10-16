@@ -7,7 +7,7 @@ import type { QueryFn } from "../../runtime/run-agent";
 import { runRollover, takeRollover } from "./thread-rollover";
 
 /** Total time a rollover may take (flush + summary + roll); past it the rollover is aborted and the session is kept. */
-export const ROLLOVER_TOTAL_TIMEOUT_MS = 300_000;
+const ROLLOVER_TOTAL_TIMEOUT_MS = 300_000;
 
 /**
  * Per-thread lock of the work that follows a posted reply (memory flush, summary, rollover). The thread's next

@@ -23,7 +23,7 @@ export interface Location {
 export type WorkspaceDirs = ReturnType<WorkspacePaths["workspace"]>;
 
 /** One `locations:` entry of `workspace.yaml`: exactly these three keys, no legacy keys accepted. */
-export const locationEntrySchema = z
+const locationEntrySchema = z
   .object({
     name: z.string().trim(),
     path: z.string().trim().min(1),

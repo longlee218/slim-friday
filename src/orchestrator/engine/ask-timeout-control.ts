@@ -4,7 +4,7 @@ import type { FlowResult } from "../turns/turn-result";
 /* The one control a role run needs besides its abort signal: what happens when the owner does not answer in time. */
 
 /** Reply when the owner did not answer in time: the questions with their defaults, no guessing. */
-export function awaitingText(questions: AskQuestion[]): string {
+function awaitingText(questions: AskQuestion[]): string {
   const lines = questions.map((q) => {
     // The first option is the default; its label usually ends with "(default)": show it once.
     const def = q.options[0]?.label.replace(/\s*\(default\)\s*$/i, "");

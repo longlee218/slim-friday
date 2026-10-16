@@ -20,7 +20,7 @@ export const BOT_ALLOW = [...OWNER_ALLOW, P.CreatePublicThreads, P.EmbedLinks];
  * Guild-level permissions the bot needs to create private channels: Manage Channels + Manage Roles (set
  * overwrites), and every permission it grants itself (a bot cannot grant what it does not hold).
  */
-export const REQUIRED_BOT_PERMISSIONS = {
+const REQUIRED_BOT_PERMISSIONS = {
   ManageChannels: P.ManageChannels,
   ManageRoles: P.ManageRoles,
   ViewChannel: P.ViewChannel,

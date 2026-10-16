@@ -11,7 +11,7 @@ import { trashRoot } from "../orchestrator/approval/trash-store";
 const log = logger.child({ module: "trash-sweeper" });
 
 /** How often the sweeper runs after the boot sweep. */
-export const SWEEP_EVERY_MS = 6 * 3_600_000;
+const SWEEP_EVERY_MS = 6 * 3_600_000;
 
 /** Entry dirs are named `<creation time epoch ms>-<random>` (older ones: the time alone): only such a name is ever removed. */
 const ENTRY_NAME = /^\d{10,}(-[0-9a-f]{8})?$/;

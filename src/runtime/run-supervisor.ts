@@ -9,7 +9,7 @@ import {
 } from "../tools/trusted-tool-issue";
 
 /** The closed set of trusted issue codes (defined with the tools that report them). */
-export const TRUSTED_ISSUE_CODES = TRUSTED_TOOL_ISSUE_CODES;
+const TRUSTED_ISSUE_CODES = TRUSTED_TOOL_ISSUE_CODES;
 export type TrustedIssueCode = TrustedToolIssueCode;
 
 /** Same trusted issue this many times in one run counts as repeated (a single failure is not a trigger). */
@@ -115,7 +115,7 @@ export function createRunSupervisor(o: { maxTurns: number; alreadyRecovered: boo
 }
 
 /** A recovery needs at least this much of the task ceiling left (USD): less would stop at once. */
-export const MIN_RECOVERY_BUDGET_USD = 0.1;
+const MIN_RECOVERY_BUDGET_USD = 0.1;
 
 /** Outcomes after which nothing is recovered: the work is done, or the owner / the service ended it. */
 const FINAL_OUTCOMES: ReadonlySet<string> = new Set(["success", "aborted", "quota", "max_budget"]);

@@ -89,7 +89,7 @@ const send = async (
 ) => {
   const sink = noticeSink();
   const out = await h({ ...msg(text), notify: sink.notify });
-  const reply = out ?? (await sink.first()); // a role tag answers through the lead queue
+  const reply = out ?? (await sink.first()); // the lead queue answers
   await workersDone(env.db);
   return reply;
 };

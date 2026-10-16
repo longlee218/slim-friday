@@ -85,7 +85,7 @@ export function latestToolCall(
 }
 
 /**
- * USD a task has cost so far: its own runs plus the runs of the tasks it resumes. A continuation (interrupt Resume, `/go`)
+ * USD a task has cost so far: its own runs plus the runs of the tasks it resumes. A continuation (an interrupt resume)
  * is a new turn row of kind `resume` whose `parent_turn_id` is the task it continues; the chain is followed up while the
  * child is a `resume`, so `TASK_BUDGET_USD` is a ceiling over the whole task, not over one run.
  */

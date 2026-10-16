@@ -6,7 +6,7 @@ import type { LeadInput } from "./lead-queue";
    batched: one timer per thread, and when it fires ONE announce input is queued (the run reads all the news then). */
 
 /** Quiet window (ms) that batches the news of a thread into one lead run. */
-export const ANNOUNCE_WINDOW_MS = 2000;
+const ANNOUNCE_WINDOW_MS = 2000;
 
 /** The announcer: `notify` after an event was appended; `stopAll` at shutdown. */
 export interface Announcer {

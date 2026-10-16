@@ -18,13 +18,13 @@ export const FLUSH_PROMPT =
   "(scope journal for decisions, facts, preferences and open items of this thread; scope location or workspace only when " +
   "clearly durable). If there is nothing to store, reply NO_REPLY.";
 /** The flush reply that means "nothing worth storing". */
-export const FLUSH_NO_REPLY = "NO_REPLY";
+const FLUSH_NO_REPLY = "NO_REPLY";
 /** Caps of the flush run (the budget is a FLOOR: it grows with the context, see `leanBudgetUsd`). */
-export const FLUSH_MAX_TURNS = 4;
-export const FLUSH_TIMEOUT_MS = 60_000;
-export const FLUSH_BUDGET_USD = 0.2;
+const FLUSH_MAX_TURNS = 4;
+const FLUSH_TIMEOUT_MS = 60_000;
+const FLUSH_BUDGET_USD = 0.2;
 /** Messages of the thread the extract fallback reads (with the previous summary). */
-export const EXTRACT_HISTORY_MESSAGES = 10;
+const EXTRACT_HISTORY_MESSAGES = 10;
 
 const log = logger.child({ module: "rollover-flush" });
 const REMEMBER_FULL_NAME = mcpToolName(MEMORY_MCP_SERVER, REMEMBER_TOOL);

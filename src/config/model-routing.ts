@@ -11,7 +11,7 @@ export interface Route {
    * fallback re-run's "previous attempt failed" note and the run supervisor's recovery hint. It goes into the system context.
    */
   internalHint?: string;
-  /** Owner raised the budget (`go +<usd>`, parsed in P1.4): added to the role budget. */
+  /** Extra budget (USD) added to the role budget. */
   extraBudgetUsd?: number;
   /** USD the task's earlier runs (itself and the runs it resumes) already cost; the task ceiling `TASK_BUDGET_USD` is shared with them. */
   spentUsd?: number;
@@ -21,7 +21,7 @@ export interface Route {
 export const TASK_BUDGET_USD = 6.0;
 
 /** Env override key of a role: `developer` for BUDGET_DEVELOPER_USD / COMPACT_WINDOW_DEVELOPER (the old `DEV` names still read). */
-export const roleKey = (role: string): string => role.toLowerCase();
+const roleKey = (role: string): string => role.toLowerCase();
 
 /** True when a run's budget cap IS what the task's earlier runs left of the ceiling (so a raise cannot help). */
 export const ceilingBinds = (limitUsd: number | undefined, spentUsd = 0): boolean =>
@@ -40,8 +40,8 @@ export function resolveBudget(
   const cap = config.limits.maxBudgetUsd;
   const pin = config.budgetOverrides[roleKey(role.name)];
   const base = pin ?? role.budgetUsd;
-  // Task ceiling: the run gets at most what the task's earlier runs left of TASK_BUDGET_USD. An owner raise
-  // (`go +usd`) widens the role budget only, never the ceiling (a hard per-task cost cap by design).
+  // Task ceiling: the run gets at most what the task's earlier runs left of TASK_BUDGET_USD. An extra budget
+  // widens the role budget only, never the ceiling (a hard per-task cost cap by design).
   const left = Math.max(0, TASK_BUDGET_USD - (route.spentUsd ?? 0));
   const total = Math.min(base + (route.extraBudgetUsd ?? 0), left);
   return cap === undefined ? total : Math.min(total, cap);

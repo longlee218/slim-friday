@@ -8,7 +8,7 @@ import { canonicalRoleName } from "../src/roles/role-aliases";
 
 /** Strategies a case may expect (ANSWER = the lead dispatched nothing). */
 export const STRATEGIES = ["ANSWER", "DIRECT", "DELEGATE", "PLAN"] as const;
-export type GoldenStrategy = (typeof STRATEGIES)[number];
+type GoldenStrategy = (typeof STRATEGIES)[number];
 
 /** One owner message and what the lead must decide. */
 export interface GoldenCase {

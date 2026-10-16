@@ -10,7 +10,7 @@ export const CHUNK_MAX = 1900;
 /** Replies longer than this are truncated. */
 export const REPLY_CAP = 6000;
 /** Replies longer than this, or mainly a diff, go out as an attachment with a short head. */
-export const ATTACH_MIN = 6000;
+const ATTACH_MIN = 6000;
 /** Size of the inline head sent before the attachment. */
 export const HEAD_MAX = 1500;
 
@@ -180,7 +180,7 @@ export interface ReportLink {
 }
 
 /** Discord allows 5 buttons per row; reports offer at most three links. */
-export const LINKS_MAX = 3;
+const LINKS_MAX = 3;
 /** Discord caps a button label at 80 chars. */
 const LINK_LABEL_MAX = 80;
 

@@ -32,7 +32,7 @@ export function makeEnv(extra: Record<string, string> = {}) {
     ...extra,
   });
   // One workspace by default: `location`, a fake git dir OUTSIDE AGENT_HOME (the registry refuses a location inside
-  // it; not a managed clone, so Q&A tests never touch the git MCP server). Code-task tests replace it via addLocation().
+  // it; not a managed clone, so Q&A tests never touch git). Code-task tests replace it via addLocation().
   const location = join(mkdtempSync(join(tmpdir(), "friday-test-loc-")), "location");
   mkdirSync(join(location, ".git"), { recursive: true });
   addLocation(home, "location", {}, { path: location });

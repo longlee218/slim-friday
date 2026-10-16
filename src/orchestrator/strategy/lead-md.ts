@@ -13,13 +13,13 @@ import { CHAIN_CAP, DELEGATE_MAX, DISPATCHES_PER_RUN, LEAD_DAILY_BUDGET_USD } fr
 /* LEAD.md: the lead's working rules, built per run from the role registry (never a hand-kept list of roles). */
 
 /** One row of the strategy table: when the lead picks it (data, edited here only). */
-export interface StrategyRow {
+interface StrategyRow {
   strategy: string;
   when: string;
 }
 
 /** Strategy policy table of the lead. */
-export const STRATEGY_POLICY: readonly StrategyRow[] = [
+const STRATEGY_POLICY: readonly StrategyRow[] = [
   { strategy: "ANSWER", when: "greeting, small talk, or a status question the data block answers" },
   { strategy: "DIRECT", when: "one specialist covers the job: one assignment" },
   {

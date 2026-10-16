@@ -65,7 +65,7 @@ export interface RoleRunInput {
   locations: Location[];
   /** The task's abort controller (`stop`, shutdown). */
   ac: AbortController;
-  /** Internal hint, `go +<usd>` raise and spent-so-far of this run (budget routing). */
+  /** Internal hint, extra budget and spent-so-far of this run (budget routing). */
   route?: Route;
   /** The location the thread is pinned to, when any. */
   pinned?: Location;

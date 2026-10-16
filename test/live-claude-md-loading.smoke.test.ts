@@ -11,8 +11,7 @@ import { makeEnv } from "./helpers";
 // Live check: with settingSources [] the SDK must load NONE of the CLAUDE.md / CLAUDE.local.md files around a
 // managed-clone cwd (`p/ws/location`). Canaries: A=p/CLAUDE.md B=p/ws/CLAUDE.md C=p/ws/CLAUDE.local.md
 // D=location/CLAUDE.md E=location/CLAUDE.local.md F=location/.claude/CLAUDE.md. Expected result: "none loaded".
-// OPT-IN: runs only with RUN_CANARY=1 AND a real CLAUDE_CODE_OAUTH_TOKEN (the owner's Claude login, like
-// test/intent-eval.live.test.ts), so a plain `bun test` skips it. Command:
+// OPT-IN: runs only with RUN_CANARY=1 AND a real CLAUDE_CODE_OAUTH_TOKEN (the owner's Claude login), so a plain `bun test` skips it. Command:
 //   RUN_CANARY=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/live-claude-md-loading.smoke.test.ts
 // Model: CANARY_MODEL, else claude-sonnet-5-5.
 const key = process.env.CLAUDE_CODE_OAUTH_TOKEN;

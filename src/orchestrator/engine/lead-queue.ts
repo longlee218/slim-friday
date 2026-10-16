@@ -24,7 +24,7 @@ export interface LeadInput {
 }
 
 /** Slot source: the global run limiter (`tryAcquire` returns a release function, or null when full). */
-export interface LeadSlots {
+interface LeadSlots {
   tryAcquire(): (() => void) | null;
 }
 

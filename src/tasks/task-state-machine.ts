@@ -10,7 +10,7 @@ type Status = TaskState["status"];
  * Allowed moves, one row per state (data). A terminal state (completed / failed / cancelled) has no exit.
  * Item flow: pending -> ready -> running -> waiting_user | blocked | completed | failed | cancelled.
  */
-export const TRANSITIONS: Readonly<Record<Status, readonly Status[]>> = {
+const TRANSITIONS: Readonly<Record<Status, readonly Status[]>> = {
   open: ["running", "waiting_user", "cancelled", "failed"],
   pending: ["ready", "running", "blocked", "cancelled", "failed"],
   ready: ["running", "blocked", "cancelled", "failed"],

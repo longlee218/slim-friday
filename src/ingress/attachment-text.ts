@@ -1,4 +1,3 @@
-import { ATTACHMENT_BLOCK_START } from "../intent/routing-message-text";
 import { redactText } from "../observability/redact";
 
 /* Text attachments of an owner message (Discord turns a message > 2000 chars into `message.txt`). The files are
@@ -12,9 +11,11 @@ export const ATTACHMENT_MAX_BYTES = 64 * 1024;
 /** A file longer than this (chars) is summarized, not passed whole; also the size of the fallback head. */
 export const ATTACHMENT_INLINE_GATE_CHARS = 2000;
 /** Time allowed for one download. */
-export const ATTACHMENT_FETCH_TIMEOUT_MS = 10_000;
+const ATTACHMENT_FETCH_TIMEOUT_MS = 10_000;
 /** Only these hosts (https) are fetched: Discord's CDN. Anything else in an attachment url is refused. */
-export const ATTACHMENT_HOSTS: readonly string[] = ["cdn.discordapp.com", "media.discordapp.net"];
+const ATTACHMENT_HOSTS: readonly string[] = ["cdn.discordapp.com", "media.discordapp.net"];
+/** First line of an attachment block appended to the owner message. */
+const ATTACHMENT_BLOCK_START = "Attached file ";
 /** Longest file name shown in the block. */
 const NAME_MAX = 80;
 /** Extensions read as text when the content type does not say so. */
@@ -30,7 +31,7 @@ export interface AttachmentFacts {
 }
 
 /** `fetch` (injectable for tests). */
-export type FetchFn = (
+type FetchFn = (
   url: string,
   init?: { signal?: AbortSignal; redirect?: "error" },
 ) => Promise<Response>;
@@ -61,7 +62,7 @@ const safeName = (name: string): string =>
 const notice = (name: string, why: string): string =>
   `${ATTACHMENT_BLOCK_START}${safeName(name)} was not read: ${why}.`;
 
-/** Fenced body; a ``` inside is broken so it cannot close the fence (the intent layers skip fenced text). */
+/** Fenced body; a ``` inside is broken so it cannot close the fence. */
 const fenced = (body: string): string =>
   `\`\`\`text\n${body.replaceAll("```", "``​`").trimEnd()}\n\`\`\``;
 

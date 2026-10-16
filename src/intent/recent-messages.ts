@@ -4,7 +4,7 @@ import type { RecentMessage } from "./intent-types";
 /** Messages of the thread L3 sees. */
 export const RECENT_COUNT = 4;
 /** Longest text of one recent message. */
-export const RECENT_CHARS = 300;
+const RECENT_CHARS = 300;
 /** The last RECENT_COUNT messages (`count` / `chars` override: the rollover reads more), redacted and clipped (whoever filled the list, nothing unclean goes on). */
 export function cleanRecent(
   list: readonly RecentMessage[] | undefined,

@@ -14,7 +14,7 @@ export type TurnStatus =
   /** Cut short by a restart/shutdown; the thread gets a Resume offer, then the row becomes cancelled. */
   | "interrupted"
   | "timeout"
-  /** A background run that failed with its session saved (budget, transient error); no longer written (`/go` is gone), old rows are expired at startup. */
+  /** A background run that failed with its session saved (budget, transient error); no longer written, old rows are expired at startup. */
   | "failed_resumable";
 
 /** Change a turn's status without ending it (no-op when the row is missing). */

@@ -12,7 +12,7 @@ import type { ItemDraft } from "../strategy/dispatch-policy";
 export type SteerReply = "queued" | "held" | "full" | "ended" | "answered";
 
 /** One item as the status tool shows it (facts from the db). */
-export interface ItemFacts {
+interface ItemFacts {
   id: string;
   key: string | null;
   status: string;

@@ -6,7 +6,7 @@ import type { EffectsCtx } from "./effect-context";
    change. A worker that rewrites `remote.<name>.url` (it cannot through the shell, but a script can) is refused at the next push. */
 
 /** Row id and tool of the pin in `effect_log`. */
-export const REMOTE_PIN_TOOL = "RemotePin";
+const REMOTE_PIN_TOOL = "RemotePin";
 const pinId = (ctx: EffectsCtx, location: string, remote: string): string =>
   `remote:${ctx.goalId}:${location}:${remote}`;
 

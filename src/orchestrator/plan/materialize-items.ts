@@ -16,7 +16,7 @@ const NOT_STARTED = new Set(["pending", "ready"]);
 const ENDED = new Set(["completed", "failed", "cancelled"]);
 
 /** Plan items in dependency order (a dependency before its dependents; the plan was validated acyclic). */
-export function topoOrder(items: readonly PlanItem[]): PlanItem[] {
+function topoOrder(items: readonly PlanItem[]): PlanItem[] {
   const out: PlanItem[] = [];
   const done = new Set<string>();
   const own = new Set(items.map((i) => i.key));

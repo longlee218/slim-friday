@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 /** Test-only: run a command and collect its result (fixtures are built with the plain git CLI). */
-export async function runCmd(
+async function runCmd(
   cmd: string[],
   cwd: string,
 ): Promise<{ code: number; stdout: string; stderr: string }> {

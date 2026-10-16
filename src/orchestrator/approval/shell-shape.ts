@@ -14,7 +14,7 @@ const MSG_BAD_SINGLE = /['$`\\!]/;
 /** Printable ASCII only (no control char, no newline, no unicode). */
 const PRINTABLE = /^[ -~]*$/;
 /** Word that stands for the lifted commit message. */
-export const MSG_WORD = "MSG";
+const MSG_WORD = "MSG";
 
 /** The words of one allowed line. */
 export interface Shaped {

@@ -24,9 +24,9 @@ export const CHOICE_PREFIX = "choice";
 /** Value of the "Enter answer" button; the modal and the select use their own values. */
 export const ENTER_VALUE = "a";
 /** Value of the select menu (the picked option index arrives in `values`). */
-export const SELECT_VALUE = "s";
+const SELECT_VALUE = "s";
 /** Value of the modal submit. */
-export const MODAL_VALUE = "m";
+const MODAL_VALUE = "m";
 /** A typed answer settles the request as `text:<answer>`; option picks settle as their index. */
 export const TYPED_PREFIX = "text:";
 

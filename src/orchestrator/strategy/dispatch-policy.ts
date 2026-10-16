@@ -26,7 +26,7 @@ export interface Assignment {
 }
 
 /** One action the lead asks the owner to allow for the goal (DeletePaths needs none: the trash is restorable within bounds). */
-export interface GrantReq {
+interface GrantReq {
   tool: EffectGrant["tool"];
   location: string;
   /** GitPush / CreatePullRequest: the one branch. */
@@ -46,7 +46,7 @@ export interface DispatchReq {
 }
 
 /** Refusal codes, checked in this order. */
-export type RefusalCode =
+type RefusalCode =
   | "ONE_PER_RUN"
   | "BUDGET"
   | "CHAIN_CAP"

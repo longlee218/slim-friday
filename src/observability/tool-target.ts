@@ -22,16 +22,7 @@ import {
 import { redactClip, redactText } from "./redact";
 
 /** Coarse class of a tool call (phase 3 counters). */
-export type ToolKind =
-  | "read"
-  | "search"
-  | "edit"
-  | "command"
-  | "web"
-  | "plan"
-  | "ask"
-  | "agent"
-  | "other";
+type ToolKind = "read" | "search" | "edit" | "command" | "web" | "plan" | "ask" | "agent" | "other";
 
 /** Human description of one tool call: `target` for logs, `short` for the Discord status line. */
 export interface ToolDescription {

@@ -9,8 +9,7 @@ import { createHeldSteers } from "./steer-held";
 import { createSteerStore, type MessageRef } from "./steer-store";
 import type { SteerEvent, SteerOutcome, SteerRegistry } from "./steer-types";
 
-export type { SteerEvent, SteerOutcome, SteerRegistry, SteerResult } from "./steer-types";
-export type { MessageRef };
+export type { SteerRegistry } from "./steer-types";
 
 /* Which run can take a steer right now, and the audit of every message that arrives while a run
    works (`run_messages`). A streaming run registers its input sink here, keyed by its TASK (owned task id, else

@@ -8,7 +8,7 @@ import { type SaveResult, saveJournalBullet } from "./memory-section-writer";
 import { type MemoryKind, normalizeBullet } from "./memory-sections";
 
 /** Day files older than this many days are deleted at startup. */
-export const JOURNAL_RETENTION_DAYS = 30;
+const JOURNAL_RETENTION_DAYS = 30;
 
 const log = logger.child({ module: "daily-journal" });
 const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.md$/;

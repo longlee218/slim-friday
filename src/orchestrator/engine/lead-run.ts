@@ -99,7 +99,7 @@ async function leadOnce(
 }
 
 /** Failed runs allowed per announce batch (key = its event ids): past it the news is dropped and the owner told once. */
-export const ANNOUNCE_ATTEMPTS = 2;
+const ANNOUNCE_ATTEMPTS = 2;
 const failedBatches = new Map<string, number>();
 
 /**

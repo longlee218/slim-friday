@@ -8,16 +8,16 @@ import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import type { AttachmentDeps } from "./attachment-text";
 
-/* Summary + saved copy of a long attachment (the cheap tier reads it once; the intent layer and the agent work
+/* Summary + saved copy of a long attachment (the cheap tier reads it once; the lead and the agent work
    from the summary). The model call is the memory compaction's `sdkCompactLlm`: no tools, thinking off, one turn. */
 
 /** Logger of this module. */
 const log = logger.child({ module: "attachment-summary" });
 
 /** Summary clipped to this many chars (the model is asked for less). */
-export const SUMMARY_MAX_CHARS = 1500;
+const SUMMARY_MAX_CHARS = 1500;
 /** Limits of the summary call: small budget, short deadline, no retry (the fallback is the file head). */
-export const SUMMARY_LIMITS = { budgetUsd: 0.05, deadlineMs: 25_000, attempts: 1 };
+const SUMMARY_LIMITS = { budgetUsd: 0.05, deadlineMs: 25_000, attempts: 1 };
 
 const MARK_START = "<<<FILE";
 const MARK_END = "FILE>>>";

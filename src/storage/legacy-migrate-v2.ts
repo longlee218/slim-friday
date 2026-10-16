@@ -72,7 +72,7 @@ const V2_COLUMNS: Record<string, Array<[name: string, ddl: string]>> = {
     ["counts_toward_cap", "INTEGER NOT NULL DEFAULT 1"],
     ["class", "TEXT"],
   ],
-  // Effort resolved when the request was queued, so queue -> start keeps it (P1.4b).
+  // Effort resolved when the request was queued, so queue -> start keeps it.
   proposals: [["effort", "TEXT"]],
   // Task a message was meant for, and whether it changed work after the owner approved the plan (ledger line).
   run_messages: [

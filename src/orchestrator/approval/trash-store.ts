@@ -12,7 +12,7 @@ const GOAL_ID = /^[A-Za-z0-9-]{1,80}$/;
 export const trashRoot = (home: string): string => join(home, "trash");
 
 /** One moved path: where it was and where it is now. */
-export interface TrashEntry {
+interface TrashEntry {
   from: string;
   to: string;
 }

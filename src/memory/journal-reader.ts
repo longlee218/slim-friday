@@ -7,7 +7,7 @@ import { KIND_HEADING, MEMORY_KINDS, type MemoryKind, stripDateSuffix } from "./
 import { sanitizeBullet } from "./sanitize-bullet";
 
 /** Journal day files read by the memory compaction (newest first). */
-export const JOURNAL_COMPACT_DAYS = 7;
+const JOURNAL_COMPACT_DAYS = 7;
 /** Chars of journal notes sent to the model; the newest days are kept first when cutting. */
 export const JOURNAL_PROMPT_CHARS = 8000;
 /** Chars of one journal note after the re-sanitize at read (the writer already limits it to 400). */
@@ -15,7 +15,7 @@ const NOTE_MAX_CHARS = 300;
 const DAY_FILE = /^(\d{4}-\d{2}-\d{2})\.md$/;
 
 /** One note of a journal day: its kind (`###` subsection) and its sanitized text (no date stamp). */
-export interface JournalNote {
+interface JournalNote {
   kind: MemoryKind;
   text: string;
 }
@@ -48,7 +48,7 @@ function notesOf(text: string): JournalNote[] {
  * notes of each. Text is re-sanitized here (the writer already redacted it; this is the second guard). Days
  * without notes are left out. A missing journal gives [].
  */
-export function readRecentJournal(
+function readRecentJournal(
   home: string,
   workspace: string,
   days: number = JOURNAL_COMPACT_DAYS,

@@ -34,13 +34,13 @@ export function isSecretPath(p: string): boolean {
 }
 
 /** Reason of a path under `ctx.denyPaths` (AGENT_HOME): never echoes the path. */
-export const DENIED_PATH_REASON = "access to the agent home is blocked";
+const DENIED_PATH_REASON = "access to the agent home is blocked";
 
 /**
  * True when the real path of `value` (relative ones against `ctx.cwd`) is inside `ctx.denyPaths` and outside
  * `ctx.allowInside`. An unresolvable path is not denied here (the tool fails on it; write/read checks still apply).
  */
-export function touchesDeniedPath(
+function touchesDeniedPath(
   value: string,
   ctx?: Pick<GuardrailContext, "denyPaths" | "allowInside" | "cwd">,
 ): boolean {

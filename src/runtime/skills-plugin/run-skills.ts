@@ -10,7 +10,7 @@ import {
 } from "./publisher-skills";
 
 /** Caps of the owner-curated workspace dir: per skill 100 entries / 2 MB, whole dir 300 entries / 5 MB. */
-export const WORKSPACE_CAPS = {
+const WORKSPACE_CAPS = {
   skill: { files: 100, bytes: 2 * 1024 * 1024 },
   total: { files: 300, bytes: 5 * 1024 * 1024 },
 };

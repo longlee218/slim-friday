@@ -9,7 +9,7 @@ export const SUMMARY_MAX_CHARS = 8000;
  * `summary/<threadId>`: one row per thread, replaced on save, deleted by path only (never path + workspace).
  * The search-hit id may carry `@<cycle>` so a stale hit can be detected.
  */
-export const SUMMARY_PATH_PREFIX = "summary/";
+const SUMMARY_PATH_PREFIX = "summary/";
 export const summaryPath = (threadId: string): string => `${SUMMARY_PATH_PREFIX}${threadId}`;
 export const summaryHitId = (threadId: string, cycle: number): string =>
   `${summaryPath(threadId)}@${cycle}`;

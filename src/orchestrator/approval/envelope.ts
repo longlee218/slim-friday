@@ -28,7 +28,7 @@ export interface EffectGrant {
 }
 
 /** Limits of a goal's deferred destructive scope. */
-export interface Bounds {
+interface Bounds {
   maxItems: number;
   maxBytes: number;
 }

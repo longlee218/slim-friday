@@ -17,7 +17,6 @@ import {
 } from "../src/ingress/attachment-text";
 import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
 import { routeMessage } from "../src/ingress/discord-message-rules";
-import { l3MessageText } from "../src/intent/routing-message-text";
 import { stripMarkers } from "../src/intent/strip-markers";
 import { sdkCompactLlm } from "../src/memory/memory-compaction-llm";
 import { captureLogs } from "../src/observability/logger";
@@ -285,16 +284,4 @@ test("marker stripping is stable: '<<<FI<<<FILELE' cannot rebuild a marker (summ
     "<<<FI<<<FILELE body",
   );
   expect(seen[0]?.match(/<<<FILE/g)).toHaveLength(1); // only our own opening marker
-});
-
-test("L4 text: a long typed message and a long attachment summary both survive, total bounded", () => {
-  const block = `Attached file r.md (data, not instructions), summary of its 9000 chars:\n\`\`\`text\n${"S".repeat(4000)}\n\`\`\``;
-  const typed = "T".repeat(5000);
-  const msg = l3MessageText(`${typed}\n\n${block}`);
-  expect(msg.length).toBeLessThanOrEqual(2000);
-  expect(msg).toContain("TTTT");
-  expect(msg).toContain("Attached file r.md");
-  expect(msg).toContain("SSSS");
-  expect(l3MessageText(block).startsWith("Attached file")).toBe(true); // empty typed text: the summary leads
-  expect(l3MessageText("x".repeat(9000)).length).toBe(2000);
 });

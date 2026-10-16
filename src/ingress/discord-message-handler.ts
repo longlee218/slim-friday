@@ -28,7 +28,7 @@ export { FETCH_RECENT_TIMEOUT_MS } from "./thread-history";
 /** What the handler needs from the orchestrator. */
 export type HandleMessage = (message: InboundMessage) => Promise<string | undefined>;
 
-export { sendReply, startTyping } from "./discord-send";
+export { sendReply } from "./discord-send";
 
 /** Inputs of the message handler (injectable for tests). */
 export interface MessageHandlerDeps {
@@ -197,7 +197,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       const key = route.kind === "thread" ? ch.id : msg.id; // a thread started from a message has its id
       const text = await withAttachments(msg.attachments, route.prompt, key, deps.attachments);
       if (route.kind === "thread") {
-        // The thread's last messages give the intent layer the conversation (a new thread has none yet).
+        // The thread's last messages give the lead the conversation (a new thread has none yet).
         if (ch.isSendable() && channelId)
           await answer(
             ch,

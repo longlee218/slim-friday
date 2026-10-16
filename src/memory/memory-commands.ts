@@ -16,8 +16,8 @@ export type MemoryCommand =
   | { kind: "invalid"; reply: string };
 
 /** Length rules for `forget:` (chars after trim). `remember:` is not parsed here: it goes to the agent. */
-export const FORGET_MIN = 3;
-export const FORGET_MAX = 100;
+const FORGET_MIN = 3;
+const FORGET_MAX = 100;
 
 /** `forget:` / `quên:` + the rest of the message (case-insensitive, unicode-aware). */
 const WRITE_CMD = /^(forget|quên)\s*:\s*([\s\S]*)$/iu;

@@ -79,7 +79,7 @@ export function scriptedQuery(script: Script, calls: Call[]) {
 }
 
 /** Fixed lead reply of `devLeadQuery` (the owner sees it as the start notice of the worker). */
-export const DEV_START_NOTICE = "I’m starting on your request.";
+const DEV_START_NOTICE = "I’m starting on your request.";
 
 /**
  * Wrap a fake `query` for tests that need a developer worker to start from a plain owner message: a lead run (the run
@@ -162,7 +162,7 @@ export function leadHarness(
   return { env, handle, send, calls, posts, ofKind };
 }
 
-/** A `notify` sink for a message sent straight to `handle`: `first()` waits for the first thing the app posted (the start notice of a role tag). */
+/** A `notify` sink for a message sent straight to `handle`: `first()` waits for the first thing the app posted (the start notice of a dispatch). */
 export function noticeSink() {
   const posts: string[] = [];
   return {

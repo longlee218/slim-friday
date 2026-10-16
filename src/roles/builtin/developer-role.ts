@@ -64,7 +64,7 @@ export const CODE_STANDARDS = `Code standards (the location's conventions and th
 - Goal-driven: turn the task into a check you can run before coding (a failing test for a bug, tests green before and after for a refactor) and loop until it passes.`;
 
 /** One line: where a git worktree goes (the guard only lets `git worktree add` name a path under it). */
-export const worktreeRule = (dir: string): string =>
+const worktreeRule = (dir: string): string =>
   `- If you use a git worktree, put it under ${dir}/: \`git worktree add ${dir}/<name> <existing-branch>\` (or -b <new> ${dir}/<name> <base>); \`git worktree list\` lists them.`;
 
 /** Capabilities of a code task: the guard narrows what a call may do. */

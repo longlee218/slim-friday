@@ -38,7 +38,7 @@ const TEXT_CHARS = 2000;
 const EXCERPT_CHARS = 300;
 
 /** Validator facts from the run's registries. */
-export const planEnvOf = (c: PlannerCtx): PlanEnv => ({
+const planEnvOf = (c: PlannerCtx): PlanEnv => ({
   workerRoles: c.workers.map((w) => w.name),
   locations: c.locations.map((l) => l.name),
   goalBudgetUsd: TASK_BUDGET_USD,

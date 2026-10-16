@@ -11,7 +11,7 @@ const RENAMED_TABLES = ["turns", "sessions", "proposals"] as const;
  * Threads: one row per Discord thread the agent knows. `origin` = `bot` (created by the agent) | `adopted`
  * (an existing thread the agent took over). `workspace` is '' until the thread is routed.
  */
-export const THREADS_DDL = `CREATE TABLE threads (
+const THREADS_DDL = `CREATE TABLE threads (
   thread_id TEXT PRIMARY KEY,
   channel_id TEXT NOT NULL,
   workspace TEXT NOT NULL DEFAULT '',
@@ -24,7 +24,7 @@ export const THREADS_DDL = `CREATE TABLE threads (
 )`;
 
 /** Channel listing: the newest threads of a channel. */
-export const THREADS_INDEX_DDL =
+const THREADS_INDEX_DDL =
   "CREATE INDEX threads_channel_updated ON threads (channel_id, updated_at)";
 
 /** Error text without nested "Error:" prefixes. */

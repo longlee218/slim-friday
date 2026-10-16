@@ -110,16 +110,6 @@ export function loadConfig(
   };
 }
 
-/** Copy the listed vars that are set (non-empty) from `source`: the one env allowlist helper. */
-export function pickEnv(
-  keys: readonly string[],
-  source: Record<string, string | undefined> = process.env,
-): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const k of keys) if (source[k]) env[k] = source[k]!;
-  return env;
-}
-
 /** Warn once at startup about deprecated env vars (MODEL, MODEL_<X>, the old two-part shapes). Names only. */
 export function logDeprecatedConfig(log: Logger, config: AgentConfig): void {
   if (!config.deprecated.length) return;

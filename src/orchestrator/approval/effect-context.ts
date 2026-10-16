@@ -11,7 +11,7 @@ import type { DispatchEnvelope } from "./envelope";
 export type Runner = (cmd: string[], cwd: string) => Promise<{ code: number; out: string }>;
 
 /** A registered location of the workspace. */
-export interface EffectLocation {
+interface EffectLocation {
   name: string;
   path: string;
 }

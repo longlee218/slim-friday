@@ -9,7 +9,7 @@ import {
 /* Pure policy of `RequestPlan`: may the lead start a planner now? Same caps as a dispatch (a planner run is one start). */
 
 /** Refusal codes, checked in this order. */
-export type PlanRequestRefusal = "ONE_PER_RUN" | "BUDGET" | "CHAIN_CAP" | "GOAL_OPEN" | "BAD_TASK";
+type PlanRequestRefusal = "ONE_PER_RUN" | "BUDGET" | "CHAIN_CAP" | "GOAL_OPEN" | "BAD_TASK";
 
 /** The policy answer. */
 export type PlanRequestCheck =

@@ -4,7 +4,7 @@ import { toolInputsOfTurn } from "../../storage/run-metrics-store";
 import { BASH_TOOL_NAME } from "../../tools/sdk-tool-names";
 
 /** Counts of the delivery actions a run did, by kind. */
-export type DeliveryActions = {
+type DeliveryActions = {
   commit: number;
   push: number;
   branch_create: number;

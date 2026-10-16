@@ -3,7 +3,7 @@ import { canonicalRoleName } from "../roles/role-aliases";
 import type { TaskState } from "../tasks/task-contracts";
 
 /** Statuses of a task that is still the thread's live work (the focus is the newest of these). */
-export const LIVE_STATUSES = ["open", "waiting_user", "running"] as const;
+const LIVE_STATUSES = ["open", "waiting_user", "running"] as const;
 
 /** Row of `owned_tasks` as the code sees it (same shape as the routing contract, `ownerAgentId` = owner role). */
 type Row = {

@@ -1,7 +1,7 @@
 import { SUMMARY_MAX_CHARS } from "../storage/thread-summary-store";
 
 /** Max chars of the previous summary kept in a merge (its newest end). */
-export const SUMMARY_PREV_KEEP_CHARS = 2500;
+const SUMMARY_PREV_KEEP_CHARS = 2500;
 /** Share of the previous summary's distinctive words that must reappear in the new one to call it "already covered". */
 const COVERED_SHARE = 0.6;
 /** Words shorter than this are ignored by the coverage check. */

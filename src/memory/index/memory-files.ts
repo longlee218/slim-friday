@@ -58,7 +58,7 @@ export function classifyFile(home: string, file: string): FileInfo | null {
 }
 
 /** Prefix of the ids of a file's entries. */
-export function idPrefix(info: FileInfo): string {
+function idPrefix(info: FileInfo): string {
   if (info.source === "location") return `location/${info.location}`;
   if (info.source === "channel") return `channel/${info.channel}`;
   if (info.source === "journal") return `journal/${info.date}`;

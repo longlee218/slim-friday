@@ -18,10 +18,10 @@ export const MAX_STEER_HOLDS = 2;
 export const MAX_LATE_RESUMES = 1;
 
 /** Text compared for an echo: trimmed, whitespace runs collapsed (the CLI may re-wrap what the owner typed). */
-export const normalizeEcho = (t: string): string => t.trim().replace(/\s+/g, " ");
+const normalizeEcho = (t: string): string => t.trim().replace(/\s+/g, " ");
 
 /** What `push` did: queued for the model, kept for a resume (input already ended), refused (cap) or refused (closed for good). */
-export type PushResult = "queued" | "late" | "full" | "closed";
+type PushResult = "queued" | "late" | "full" | "closed";
 
 /** One pushed steer: `ref` is the caller's id of it (its `run_messages` row), `text` the message. */
 export interface Steer {

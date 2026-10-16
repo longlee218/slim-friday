@@ -1,7 +1,7 @@
 import { MEMORY_SECTION_HEADINGS } from "./memory-sections";
 
 /** Share of the cap given to the header / owner prose / non-kind sections together; kind sections split the rest. */
-export const OTHER_SHARE = 0.4;
+const OTHER_SHARE = 0.4;
 /** Marker line shown under a kind heading whose older bullets were cut. */
 const CUT_MARKER = "...";
 

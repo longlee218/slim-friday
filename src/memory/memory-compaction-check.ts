@@ -36,7 +36,7 @@ export function inputGroups(raw: string): InputGroups {
  * `nonDerivable`, compared without the date stamp) or a date stamp that no source bullet of the text carries
  * (a model must not invent or refresh dates).
  */
-export function poolOffenders(input: string[], output: string[]): string[] {
+function poolOffenders(input: string[], output: string[]): string[] {
   const inText = input.map(stripDateSuffix);
   const bad = new Set(nonDerivable(inText, output.map(stripDateSuffix)));
   return output.filter((o) => {

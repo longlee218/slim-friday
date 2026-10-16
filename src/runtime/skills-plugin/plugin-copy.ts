@@ -14,7 +14,7 @@ import { logger } from "../../observability/logger";
 export const log = logger.child({ module: "skills-plugin" });
 
 /** Entry/byte limits of one copy walk. `files` counts every entry (files AND directories, empty ones included). */
-export interface Caps {
+interface Caps {
   files: number;
   bytes: number;
 }
@@ -43,7 +43,7 @@ const SKIP_DIRS = new Set(["node_modules", ".git"]);
  */
 const SKIP_NAMES = new Set([".claude", ".claude-plugin", "hooks", "hooks.json", ".mcp.json"]);
 /** Largest single file copied; a bigger one fails its skill (it is skipped alone, with a warn). */
-export const MAX_FILE_BYTES = 1024 * 1024;
+const MAX_FILE_BYTES = 1024 * 1024;
 /** A usable skill name (the frontmatter name is only trusted when it looks like this). */
 const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 

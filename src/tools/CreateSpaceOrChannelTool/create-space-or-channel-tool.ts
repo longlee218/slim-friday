@@ -16,7 +16,7 @@ const log = logger.child({ module: "create-space-or-channel-tool" });
  * through the command parser first (same format, reserved-name and length rules), then `initWorkspace` / `initChannel`
  * (create-only, private overwrites, same refusals), after the owner confirmed. Returns `{ text, error }`; the text is the command's own reply.
  */
-export async function createSpaceOrChannel(
+async function createSpaceOrChannel(
   ctx: DiscordAdminContext,
   space: string,
   channel?: string,

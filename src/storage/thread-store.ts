@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 
 /** Who made the thread: the bot (from a message or slash command) or the owner (adopted on first mention). */
-export type ThreadOrigin = "bot" | "adopted";
+type ThreadOrigin = "bot" | "adopted";
 
 /** Row of `threads`. `placeholder` is the name the bot gave; `title`/`digest` come from SetThreadTitle. */
 export interface ThreadRow {
@@ -102,7 +102,7 @@ export function channelDigest(
 }
 
 /** Most recent titled rows `searchThreads` scans (the match runs in JS, so the scan is bounded). */
-export const SEARCH_SCAN_LIMIT = 500;
+const SEARCH_SCAN_LIMIT = 500;
 
 /** NFC + lower case (Vietnamese locale), so "hóa" matches "HÓA" and decomposed accents match composed ones. */
 const fold = (s: string): string => s.normalize("NFC").toLocaleLowerCase("vi");

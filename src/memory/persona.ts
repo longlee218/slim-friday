@@ -17,7 +17,7 @@ import {
 /** Max chars read from one persona file (4 files => at most 24000 chars of persona). */
 export const PERSONA_MAX = 6000;
 /** Marker appended to a persona file that was cut at PERSONA_MAX. */
-export const TRUNCATED_MARK = "\n...(truncated)";
+const TRUNCATED_MARK = "\n...(truncated)";
 
 /**
  * Write `text` to `file` only when the file does not exist yet. The parent folder is created first: a location

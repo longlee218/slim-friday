@@ -11,7 +11,7 @@ const log = logger.child({ module: "find-command-handler" });
 const FIND_COMMAND = /^\/find(?:\s+([\s\S]*))?$/i;
 
 /** Most threads one `/find` lists. */
-export const FIND_LIMIT = 10;
+const FIND_LIMIT = 10;
 
 /** Reply of `/find` with no keyword. */
 export const FIND_USAGE =

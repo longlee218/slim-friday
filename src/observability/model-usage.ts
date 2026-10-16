@@ -1,5 +1,5 @@
 /** Tokens and cost of one model within a run (all agents: main and subagents). */
-export interface ModelUsageEntry {
+interface ModelUsageEntry {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;

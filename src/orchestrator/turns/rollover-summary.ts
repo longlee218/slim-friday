@@ -12,14 +12,14 @@ import { type RolloverDeps, type RolloverRequest, runLean } from "./rollover-run
    stores it as is), or one Haiku call over the previous summary + the last messages. */
 
 /** Caps of the `/compact` run (the budget is a FLOOR: it grows with the context, see `leanBudgetUsd`). */
-export const COMPACT_MAX_TURNS = 2;
-export const COMPACT_TIMEOUT_MS = 120_000;
-export const COMPACT_BUDGET_USD = 0.5;
+const COMPACT_MAX_TURNS = 2;
+const COMPACT_TIMEOUT_MS = 120_000;
+const COMPACT_BUDGET_USD = 0.5;
 /** Caps of the Haiku fallback call (one attempt). */
-export const HAIKU_TIMEOUT_MS = 60_000;
-export const HAIKU_BUDGET_USD = 0.05;
+const HAIKU_TIMEOUT_MS = 60_000;
+const HAIKU_BUDGET_USD = 0.05;
 /** Messages of the thread the Haiku fallback reads (with the previous summary). */
-export const SUMMARY_HISTORY_MESSAGES = 10;
+const SUMMARY_HISTORY_MESSAGES = 10;
 
 const log = logger.child({ module: "rollover-summary" });
 
@@ -27,7 +27,7 @@ const MERGE_RULES =
   "Merge it with this conversation. Keep decisions, open tasks, names and paths; drop chit-chat.";
 
 /** `/compact` instructions: the previous summary rides in the instruction text (the SDK sees only the transcript). */
-export const compactPrompt = (previous: string): string =>
+const compactPrompt = (previous: string): string =>
   previous
     ? `/compact Existing context: ${previous}\n\n${MERGE_RULES}`
     : `/compact Summarize this conversation. Keep decisions, open tasks, names and paths; drop chit-chat.`;

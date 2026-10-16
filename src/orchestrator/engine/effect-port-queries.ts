@@ -70,7 +70,7 @@ export function pendingQuestionOf(db: Database, itemId: string): string | undefi
 }
 
 /** Newest goal of the thread (any status), or undefined. Goals are the lead's rows without a parent. */
-export function latestGoalId(db: Database, threadId: string): string | undefined {
+function latestGoalId(db: Database, threadId: string): string | undefined {
   return db
     .query<{ id: string }, [string, string]>(
       "SELECT id FROM owned_tasks WHERE thread_id = ? AND parent_id IS NULL AND owner_role = ? ORDER BY rowid DESC LIMIT 1",

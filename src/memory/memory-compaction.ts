@@ -43,7 +43,7 @@ const log = logger.child({ module: "memory-compaction" });
 export const COMPACT_THRESHOLD = 0.8;
 
 /** Size of a file before / after. */
-export interface Sizes {
+interface Sizes {
   chars: number;
   bullets: number;
 }

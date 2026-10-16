@@ -14,14 +14,14 @@ import { LEAD_ROLE } from "../roles/builtin/lead-role";
 const LEAD_CALL_SCOPE = "lead tool call";
 
 /** A count of something per tool (and per code when it has one). */
-export interface ToolCount {
+interface ToolCount {
   tool: string;
   code?: string;
   count: number;
 }
 
 /** Spend of one local day. */
-export interface DayCost {
+interface DayCost {
   day: string;
   totalUsd: number;
   leadUsd: number;
@@ -37,7 +37,7 @@ export interface LeadMetrics {
 }
 
 /** Successful lead tool calls since `sinceMs`, by tool. */
-export function leadDecisions(db: Database, sinceMs: number): ToolCount[] {
+function leadDecisions(db: Database, sinceMs: number): ToolCount[] {
   return db
     .query<ToolCount, [string, number]>(
       `SELECT tool, COUNT(*) AS count FROM effect_log
@@ -47,7 +47,7 @@ export function leadDecisions(db: Database, sinceMs: number): ToolCount[] {
 }
 
 /** Refused lead tool calls since `sinceMs`, by tool and refusal code (events carry `by: "lead"` and `tool`). */
-export function leadRefusals(db: Database, sinceMs: number): ToolCount[] {
+function leadRefusals(db: Database, sinceMs: number): ToolCount[] {
   return db
     .query<ToolCount, [number]>(
       `SELECT json_extract(payload, '$.tool') AS tool, json_extract(payload, '$.code') AS code, COUNT(*) AS count
@@ -59,7 +59,7 @@ export function leadRefusals(db: Database, sinceMs: number): ToolCount[] {
 }
 
 /** Effect-tool calls the envelope refused or the owner denied since `sinceMs`, by tool and code. */
-export function envelopeBlocks(db: Database, sinceMs: number): ToolCount[] {
+function envelopeBlocks(db: Database, sinceMs: number): ToolCount[] {
   return db
     .query<ToolCount, [string, number]>(
       `SELECT tool, json_extract(result, '$.code') AS code, COUNT(*) AS count FROM effect_log
@@ -71,7 +71,7 @@ export function envelopeBlocks(db: Database, sinceMs: number): ToolCount[] {
 }
 
 /** Cost per local day since `sinceMs` (all roles, and the lead's share), newest day first. */
-export function costPerDay(db: Database, sinceMs: number): DayCost[] {
+function costPerDay(db: Database, sinceMs: number): DayCost[] {
   return db
     .query<DayCost, [string, number]>(
       `SELECT date(t.started_at / 1000, 'unixepoch', 'localtime') AS day,

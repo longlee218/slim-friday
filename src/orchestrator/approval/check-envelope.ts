@@ -6,7 +6,7 @@ import type { EffectTool, RiskClass } from "./risk-types";
    names, the tool calls it again with the measured items and bytes. */
 
 /** Branch names treated as a default branch when the remote's own default is unknown: the push asks the owner at every act (R4). */
-export const DEFAULT_BRANCHES: readonly string[] = ["main", "master", "develop", "trunk"];
+const DEFAULT_BRANCHES: readonly string[] = ["main", "master", "develop", "trunk"];
 
 /** True for a name in the fallback list or a `release*` branch. */
 export const isFallbackDefault = (branch: string): boolean =>

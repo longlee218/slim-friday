@@ -91,7 +91,7 @@ function build(env: ReturnType<typeof makeEnv>, queryFn: unknown) {
       notify: sink.notify,
       ...extra,
     });
-    return out ?? sink.first(); // a role tag answers through the lead queue, with the start notice
+    return out ?? sink.first(); // the lead queue answers, with the start notice
   };
 }
 

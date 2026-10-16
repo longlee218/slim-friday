@@ -7,10 +7,10 @@ import { BASH_TOOL_NAME } from "../../tools/sdk-tool-names";
    tool shows its name alone, so no path, command or file content can leak through a status. */
 
 /** Number of recent tools listed. */
-export const RECENT_TOOLS = 5;
+const RECENT_TOOLS = 5;
 
 /** Longest Bash description shown (chars, after redaction). */
-export const TOOL_DESCRIPTION_MAX = 80;
+const TOOL_DESCRIPTION_MAX = 80;
 
 /** One recent tool: its name and, for Bash, the redacted description. */
 export interface RecentTool {

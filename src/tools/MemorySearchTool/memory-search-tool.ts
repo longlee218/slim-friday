@@ -44,7 +44,7 @@ const hitText = (h: Hit, i: number): string => {
 };
 
 /** Hits as one text capped at SEARCH_RESULT_MAX_CHARS (whole hits only). */
-export function formatHits(hits: Hit[]): string {
+function formatHits(hits: Hit[]): string {
   const out = [HEADER];
   let used = HEADER.length;
   for (const [i, h] of hits.entries()) {

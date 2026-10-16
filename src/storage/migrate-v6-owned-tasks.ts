@@ -8,7 +8,7 @@ const log = logger.child({ module: "db-migrate" });
  * Owned tasks: one row per piece of background work with ONE owner role (`owner_role` is always a background
  * role). `version` is the compare-and-set counter; `correlation_id` = trace id of the message that opened it.
  */
-export const OWNED_TASKS_DDL = `CREATE TABLE owned_tasks (
+const OWNED_TASKS_DDL = `CREATE TABLE owned_tasks (
   id TEXT PRIMARY KEY,
   thread_id TEXT NOT NULL,
   owner_role TEXT,
@@ -21,11 +21,11 @@ export const OWNED_TASKS_DDL = `CREATE TABLE owned_tasks (
 )`;
 
 /** Focus lookup: the newest open task of a thread. */
-export const OWNED_TASKS_INDEX_DDL =
+const OWNED_TASKS_INDEX_DDL =
   "CREATE INDEX owned_tasks_thread_progress ON owned_tasks (thread_id, last_progress_at)";
 
 /** Link from a turn to the owned task it works on (null for foreground and side-lane turns). */
-export const TURNS_OWNED_TASK_DDL = "ALTER TABLE turns ADD COLUMN owned_task_id TEXT";
+const TURNS_OWNED_TASK_DDL = "ALTER TABLE turns ADD COLUMN owned_task_id TEXT";
 
 /** Error text without nested "Error:" prefixes. */
 const msgOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));

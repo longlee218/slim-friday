@@ -8,7 +8,7 @@ import type { MessageRef } from "./steer-store";
  * What a steer did: `queued` for the running run (also: kept for a resume), `held` until the task's streaming run has
  * registered its input (it is starting), `full` (too many pending), or `none` (no run can take it).
  */
-export type SteerResult = "queued" | "held" | "full" | "none";
+type SteerResult = "queued" | "held" | "full" | "none";
 
 /** A steer and what the registry did with it. */
 export interface SteerOutcome {

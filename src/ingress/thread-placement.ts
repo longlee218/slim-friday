@@ -5,7 +5,7 @@ import { errText } from "../observability/redact";
 import type { Route } from "./discord-message-rules";
 
 /** Prefix of a placeholder thread name: "the agent has not named this thread yet". */
-export const PLACEHOLDER_PREFIX = "⏳";
+const PLACEHOLDER_PREFIX = "⏳";
 
 /** Neutral thread name `⏳ MM-DD HH:MM` (local time); the agent renames it once it knows the topic. */
 export function placeholderName(now: Date = new Date()): string {
@@ -30,7 +30,7 @@ const log = logger.child({ module: "thread-placement" });
  * True only for a REAL owner message that @mentions the bot (`<@id>` in the text). A slash command is a
  * synthetic message whose `mentions.has` is always true, so it never adopts a thread.
  */
-export function mayAdopt(
+function mayAdopt(
   msg: { author: { id: string }; content: string },
   ownerId: string,
   botId: string,

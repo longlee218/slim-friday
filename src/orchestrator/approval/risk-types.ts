@@ -20,6 +20,6 @@ export const maxRisk = (a: RiskClass, b: RiskClass): RiskClass =>
 export const DEFAULT_BOUNDS = { maxItems: 200, maxBytes: 50 * 1024 ** 3 } as const;
 
 /** Days a trashed path is kept before the sweeper removes it. */
-export const TRASH_DAYS = 7;
+const TRASH_DAYS = 7;
 /** Milliseconds of `TRASH_DAYS`. */
 export const TRASH_TTL_MS = TRASH_DAYS * 86_400_000;

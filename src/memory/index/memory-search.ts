@@ -4,10 +4,10 @@ import { buildMatch, queryTerms } from "./fold-text";
 import type { Source } from "./memory-ids";
 
 /** Query limits (named constants, one place). */
-export const SEARCH_MAX_QUERY_CHARS = 200;
-export const SEARCH_MAX_TERMS = 12;
+const SEARCH_MAX_QUERY_CHARS = 200;
+const SEARCH_MAX_TERMS = 12;
 /** Length of a snippet, in characters (the FTS5 token window is wider; the text is clipped after). */
-export const SNIPPET_CHARS = 200;
+const SNIPPET_CHARS = 200;
 const SNIPPET_TOKENS = 32;
 /** Longest shown section / block label. */
 const LABEL_CHARS = 80;

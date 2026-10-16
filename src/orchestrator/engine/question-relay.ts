@@ -8,7 +8,7 @@ import { appendEvent } from "../events/event-store";
    it to the owner (AskOwner). The wait is bounded; nobody answering ends the run's ask like an owner timeout. */
 
 /** Longest wait (ms) for an answer before the worker's ask fails. */
-export const RELAY_WAIT_MS = 30 * 60_000;
+const RELAY_WAIT_MS = 30 * 60_000;
 
 /** Chars of a question kept in the event. */
 const QUESTION_CHARS = 600;

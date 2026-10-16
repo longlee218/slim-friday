@@ -16,7 +16,7 @@ export interface InboundMessage {
   language?: OwnerLanguage;
   /** Id of the ingress message (Discord message id); stored with messages that arrive while a run works. */
   messageId?: string;
-  /** The last messages of the thread before this one (owner and bot, redacted, clipped), oldest first; for the intent layer. Absent = none. */
+  /** The last messages of the thread before this one (owner and bot, redacted, clipped), oldest first; for the lead. Absent = none. */
   recent?: RecentMessage[];
   /** Resolves once the ingress posted this turn's reply (or gave up): the rollover work waits for it. Absent = no wait. */
   replied?: Promise<void>;

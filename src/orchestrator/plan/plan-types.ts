@@ -2,7 +2,7 @@
    approves it once, and the approved plan IS the envelope the run stays inside. */
 
 /** Risk classes of an item (R4 is never planned: it needs the owner at the moment of the act). */
-export const RISKS = ["R0", "R1", "R2", "R3"] as const;
+const RISKS = ["R0", "R1", "R2", "R3"] as const;
 export type Risk = (typeof RISKS)[number];
 
 /** How the finished work is handed over. */
@@ -57,7 +57,7 @@ export interface PlanDoc {
 }
 
 /** Coded validation errors. */
-export type PlanErrorCode =
+type PlanErrorCode =
   | "NO_ITEMS"
   | "TOO_MANY_ITEMS"
   | "TOO_BIG"

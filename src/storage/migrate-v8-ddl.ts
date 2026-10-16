@@ -5,7 +5,7 @@
  */
 
 /** New `owned_tasks` columns: a goal (parent_id null) owns items; item key is unique within its goal. */
-export const OWNED_TASKS_V8_DDL: readonly string[] = [
+const OWNED_TASKS_V8_DDL: readonly string[] = [
   // null = goal (root); otherwise the id of the goal this item belongs to.
   "ALTER TABLE owned_tasks ADD COLUMN parent_id TEXT",
   // Unique within the goal, e.g. "main", "design".
@@ -31,7 +31,7 @@ export const OWNED_TASKS_V8_DDL: readonly string[] = [
 ];
 
 /** Versioned work plan of a goal; status draft | valid | approved | superseded | rejected. */
-export const WORK_PLANS_DDL = `CREATE TABLE work_plans (
+const WORK_PLANS_DDL = `CREATE TABLE work_plans (
   id TEXT NOT NULL,
   version INTEGER NOT NULL,
   goal_id TEXT NOT NULL,
@@ -50,7 +50,7 @@ export const WORK_PLANS_DDL = `CREATE TABLE work_plans (
 )`;
 
 /** Event outbox of a thread: `id` makes an append idempotent, `seq` is the FIFO order. */
-export const THREAD_EVENTS_DDL = `CREATE TABLE thread_events (
+const THREAD_EVENTS_DDL = `CREATE TABLE thread_events (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
   id TEXT NOT NULL UNIQUE,
   thread_id TEXT NOT NULL,
@@ -67,11 +67,11 @@ export const THREAD_EVENTS_DDL = `CREATE TABLE thread_events (
 )`;
 
 /** Consumer lookup: the undelivered events of a thread in order. */
-export const THREAD_EVENTS_INDEX_DDL =
+const THREAD_EVENTS_INDEX_DDL =
   "CREATE INDEX thread_events_pending ON thread_events (thread_id, delivered_at, seq)";
 
 /** Audit of every side effect a grant allowed (who granted it, scope, result, undo hint). */
-export const EFFECT_LOG_DDL = `CREATE TABLE effect_log (
+const EFFECT_LOG_DDL = `CREATE TABLE effect_log (
   id TEXT PRIMARY KEY,
   thread_id TEXT NOT NULL,
   goal_id TEXT,
@@ -86,7 +86,7 @@ export const EFFECT_LOG_DDL = `CREATE TABLE effect_log (
 )`;
 
 /** New `sessions` columns: model that owns the session, rollover generation, session kind (role | lead). */
-export const SESSIONS_V8_DDL: readonly string[] = [
+const SESSIONS_V8_DDL: readonly string[] = [
   "ALTER TABLE sessions ADD COLUMN model TEXT",
   "ALTER TABLE sessions ADD COLUMN generation INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'role'",

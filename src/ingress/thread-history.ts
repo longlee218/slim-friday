@@ -6,8 +6,8 @@ import { parseMessageCommand } from "../orchestrator/message-commands";
 export const FETCH_RECENT_TIMEOUT_MS = 1500;
 /** Messages fetched: a little more than shown, because the current message and foreign authors are skipped. */
 const FETCH_EXTRA = 2;
-/** Longest text of one message of the rollover history (summary / extract input; the intent layer's own is shorter). */
-export const HISTORY_CHARS = 1000;
+/** Longest text of one message of the rollover history (summary / extract input). */
+const HISTORY_CHARS = 1000;
 
 /** The part of a Discord message the history needs (a real `Message` fits; tests pass plain objects). */
 export interface HistoryMessage {
@@ -23,11 +23,11 @@ export interface HistoryChannel {
   messages: { fetch(options: { limit: number }): Promise<{ values(): Iterable<HistoryMessage> }> };
 }
 
-/** Marker for an attachment: the file content never reaches the intent layer through the history. */
+/** Marker for an attachment: the file content never reaches the model through the history. */
 const FILE_MARKER = "[file]";
 
 /**
- * The thread's last messages before the current one, oldest first, as intent-layer DATA: owner and bot only
+ * The thread's last messages before the current one, oldest first, as DATA: owner and bot only
  * (anyone else is skipped), redacted and clipped, attachments as a `[file]` marker, empty messages (embeds,
  * buttons) dropped. Pure; `fetchRecent` feeds it.
  */
@@ -50,7 +50,7 @@ export function toRecent(
   return cleanRecent(rows, count, chars);
 }
 
-/** Read the thread history from Discord. Never throws: a failed fetch is no history (the intent layer still works). */
+/** Read the thread history from Discord. Never throws: a failed fetch is no history (the run still works). */
 export async function fetchRecent(
   channel: HistoryChannel,
   p: { currentId: string; ownerId: string; botId: string },
@@ -66,7 +66,7 @@ export async function fetchRecent(
 }
 
 /**
- * The thread history for the intent layer. Skipped for commands (slash or legacy: `/stop` must be instant) and
+ * The thread history for the lead. Skipped for commands (slash or legacy: `/stop` must be instant) and
  * raced against FETCH_RECENT_TIMEOUT_MS: a hang or an error is no history, the message still proceeds.
  */
 export const recentFor = (

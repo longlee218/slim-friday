@@ -14,7 +14,7 @@ function sources(dir: string): { file: string; text: string }[] {
 }
 
 /**
- * Names of the retired Q&A handoff (the assistant never proposes a change: the intent layer routes it).
+ * Names of the retired Q&A handoff (the assistant never proposes a change: the lead routes it).
  * Built from parts so this file does not contain them. History lives in docs/project-changelog.md only.
  */
 const RETIRED: Record<string, RegExp> = {

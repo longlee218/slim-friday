@@ -27,17 +27,17 @@ export const GIT_HARDEN: readonly string[] = [
 ];
 
 /** Hard stop of one git call. */
-export const GIT_TIMEOUT_MS = 120_000;
+const GIT_TIMEOUT_MS = 120_000;
 
 /** Result of one git call. */
-export interface GitResult {
+interface GitResult {
   code: number;
   stdout: string;
   stderr: string;
 }
 
 /** Run `git <args>` in `cwd` (a directory that exists). Never throws on a non-zero exit; see `gitOut`. */
-export async function runGit(args: string[], cwd: string): Promise<GitResult> {
+async function runGit(args: string[], cwd: string): Promise<GitResult> {
   const proc = Bun.spawn(["git", ...GIT_HARDEN, ...gitIsolationArgs(), ...args], {
     cwd,
     stdout: "pipe",
@@ -55,7 +55,7 @@ export async function runGit(args: string[], cwd: string): Promise<GitResult> {
 }
 
 /** `runGit` that returns trimmed stdout and throws (message = first stderr line) on a non-zero exit. */
-export async function gitOut(args: string[], cwd: string): Promise<string> {
+async function gitOut(args: string[], cwd: string): Promise<string> {
   const r = await runGit(args, cwd);
   if (r.code !== 0) {
     const line = r.stderr.trim().split("\n")[0] || `exit ${r.code}`;

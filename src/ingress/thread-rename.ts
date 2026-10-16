@@ -18,7 +18,7 @@ export interface ThreadTitlePort {
 const log = logger.child({ module: "thread-rename" });
 
 /** Longest wait for Discord to rename (a rate-limited `setName` is queued, not rejected): then give up. */
-export const RENAME_TIMEOUT_MS = 5000;
+const RENAME_TIMEOUT_MS = 5000;
 
 /** Build the port over a lazily-read client (the client is created after the turn handler). Never throws. */
 export function createThreadTitlePort(

@@ -32,7 +32,7 @@ export const KEY = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/);
 export const TASK_ID = z.string().min(1).max(80);
 
 /** One worker assignment. */
-export const ASSIGNMENT = z.object({
+const ASSIGNMENT = z.object({
   key: KEY.describe("Unique within this dispatch, e.g. main"),
   role: z.string().min(1).max(40).describe("Worker role name from the roster"),
   brief: z.string().min(1).max(BRIEF_MAX_CHARS).describe("What the worker must do, self-contained"),
@@ -41,7 +41,7 @@ export const ASSIGNMENT = z.object({
 });
 
 /** One effect action the workers need beyond the default envelope; the owner is asked once at dispatch. */
-export const EFFECT_GRANT = z.object({
+const EFFECT_GRANT = z.object({
   tool: z.enum([GIT_PUSH_TOOL, CREATE_PULL_REQUEST_TOOL, MERGE_BRANCH_TOOL]),
   location: z.string().min(1).max(80),
   branch: z.string().min(1).max(100).optional().describe("GitPush / CreatePullRequest: the branch"),
@@ -78,7 +78,7 @@ export const ASK_OWNER_SHAPE = {
 export const FORWARD_RESULT_SHAPE = { taskId: TASK_ID, mode: z.enum(["verbatim", "summary"]) };
 
 /** A follow-up the worker asks for next to its result. */
-export const WORKER_REQUEST = z.object({
+const WORKER_REQUEST = z.object({
   kind: z.enum(["question", "capability", "plan"]),
   text: z.string().min(1).max(REQUEST_MAX_CHARS),
 });

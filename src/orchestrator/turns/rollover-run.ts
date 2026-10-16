@@ -31,7 +31,7 @@ const PRICE_PER_MTOK_USD = { haiku: 1.25, sonnet: 3.75, opus: 18.75 } as const;
 /** Tier when the model is unknown or none of the above: the middle one. */
 const PRICE_DEFAULT_TIER = "sonnet";
 /** Budget = context cost x this factor (reads the context once, plus a few calls and the output). */
-export const BUDGET_FACTOR = 2;
+const BUDGET_FACTOR = 2;
 /** Hard upper cap of one rollover step (USD): a runaway context cannot spend more. */
 export const BUDGET_CAP_USD = 3;
 
@@ -59,7 +59,7 @@ export interface RolloverRequest {
 }
 
 /** The role of a lean run: the same role (model slot, persona), with nothing it could use besides memory tools. */
-export function leanRole(name: string): RoleDefinition {
+function leanRole(name: string): RoleDefinition {
   return {
     ...getRole(name),
     capabilities: [],

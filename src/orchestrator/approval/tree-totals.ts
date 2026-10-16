@@ -4,7 +4,7 @@ import { join } from "node:path";
 /* Size of a path tree, walked without following symlinks and with hard caps, so a huge or hostile tree never stalls a call. */
 
 /** Most files and dirs one walk visits. */
-export const MAX_WALK_FILES = 100_000;
+const MAX_WALK_FILES = 100_000;
 /** Longest one walk may take (ms). */
 export const MAX_WALK_MS = 2_000;
 
