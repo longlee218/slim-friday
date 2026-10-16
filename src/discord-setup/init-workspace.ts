@@ -52,7 +52,7 @@ export async function initWorkspace(deps: InitDeps, name: string): Promise<strin
 
 /**
  * `/init-workspace <name>` for a VALIDATED name. Order: refuse bad states and name clashes first (no side
- * effects), then workspace folder, private category + `#<name>-agent` (create-only), then the new channel id
+ * effects), then workspace folder, private category + `#<name>` (create-only; the channel keeps the space name), then the new channel id
  * into workspace.yaml. A rerun on a finished workspace creates nothing. Never deletes anything.
  */
 async function runInit(deps: InitDeps, name: string): Promise<string> {
@@ -70,7 +70,6 @@ async function runInit(deps: InitDeps, name: string): Promise<string> {
       `\`${name}\` is already set up (channel <#${state.channels[0]}>). Nothing created.`,
     );
 
-  const channelName = `${name}-agent`;
   let created: CreateResult | undefined;
   let category: CreateResult | undefined;
   try {
@@ -78,19 +77,19 @@ async function runInit(deps: InitDeps, name: string): Promise<string> {
     const existing = await listGuildChannels(deps.guild);
     if (findExisting(existing, name, ChannelType.GuildCategory))
       return done(name, "category_exists", existsReply(`Category \`${name}\``));
-    if (findExisting(existing, channelName, ChannelType.GuildText))
-      return done(name, "channel_exists", existsReply(`Channel \`#${channelName}\``));
+    if (findExisting(existing, name, ChannelType.GuildText))
+      return done(name, "channel_exists", existsReply(`Channel \`#${name}\``));
 
     if (state.kind === "missing") createWorkspaceDir(deps.home, name);
     category = await createPrivate(deps.guild, existing, { name, kind: "category" }, deps.ids);
     created = await createPrivate(
       deps.guild,
       existing,
-      { name: channelName, kind: "text", parentId: category.id },
+      { name, kind: "text", parentId: category.id },
       deps.ids,
     );
-    addWorkspaceChannel(deps.home, name, { id: created.id, name: channelName, mode: "task" });
-    ensureChannelDir(deps.home, name, channelName);
+    addWorkspaceChannel(deps.home, name, { id: created.id, name, mode: "task" });
+    ensureChannelDir(deps.home, name, name);
     await setChannelTopic(deps.guild, created.id, "task");
     return done(
       name,

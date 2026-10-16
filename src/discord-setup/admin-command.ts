@@ -19,7 +19,7 @@ export type AdminCommand =
 
 /** Shown for any non-command text in a control channel. */
 const ADMIN_HELP =
-  "Admin commands:\n- `/init-workspace <name>`: create the workspace folder, a private category `<name>` and `#<name>-agent`.\n- `/init-channel <space>/<name>`: add a private channel `#<name>` to the space's category.\n- Memory notes: ask in a workspace channel; the root MEMORY.md is edited by hand.\nAny other text here goes to the server manager: ask it to create a space or channel, apply a space kind template or edit a space's persona files. It shows a diff and asks before it writes. Send `/stop` to abort its run.";
+  "Admin commands:\n- `/init-workspace <name>`: create the workspace folder, a private category `<name>` and a channel `#<name>`.\n- `/init-channel <space>/<name>`: add a private channel `#<name>` to the space's category.\n- Memory notes: ask in a workspace channel; the root MEMORY.md is edited by hand.\nAny other text here goes to the server manager: ask it to create a space or channel, apply a space kind template or edit a space's persona files. It shows a diff and asks before it writes. Send `/stop` to abort its run.";
 
 /** Shown when a command comes from a place that may not run admin commands. */
 export const ADMIN_ONLY_CONTROL = "Admin commands run only in #ops-control.";

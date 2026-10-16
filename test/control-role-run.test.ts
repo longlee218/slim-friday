@@ -137,7 +137,7 @@ test("end to end: owner text in #ops-control runs the role with no workspace; as
   // The ask relay posts into the control channel (threadId = channel id).
   expect(s.log.asks[0]).toMatchObject({ threadId: CTRL, question: "Create study space english?" });
   // The space was created through the create-only code path.
-  expect(s.g.created.map((c) => c.name)).toEqual(["english", "english-agent"]);
+  expect(s.g.created.map((c) => c.name)).toEqual(["english", "english"]);
   // The write asked the owner with the diff, then wrote.
   expect(s.log.confirms[0]).toMatchObject({ threadId: CTRL, summary: "Create space english" });
   expect(s.log.confirms[1]).toMatchObject({ threadId: CTRL });

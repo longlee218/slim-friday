@@ -73,12 +73,12 @@ guild (DISCORD_GUILD_ID)
 │   ├─ #ops-health      reserved (no producer yet)
 │   └─ #ops-analytics   reserved (no producer yet)
 ├─ <space>        (private category = one space = one workspace; N channels)
-│   ├─ #<space>-agent   the first channel, created by /init-workspace (mode task)
+│   ├─ #<space>         the first channel, created by /init-workspace (mode task)
 │   ├─ #<name>          more channels, created by /init-channel <space>/<name> (mode task)
 │   └─ ...each id listed in workspaces/<space>/workspace.yaml `channels:`
 └─ ...your other channels (untouched)
 ```
-- `/init-channel` puts the new channel under the category of the space's first channel (the category id is not stored). Its name is checked within that category only; `/init-workspace` checks its category and `#<name>-agent` guild-wide. Refused (nothing changed) unless the category is named like the space (case-insensitive) and the space is not `ops`. A same-named channel in another category is never adopted: a new channel is created.
+- `/init-channel` puts the new channel under the category of the space's first channel (the category id is not stored). Its name is checked within that category only; `/init-workspace` checks its category and `#<name>` guild-wide. Refused (nothing changed) unless the category is named like the space (case-insensitive) and the space is not `ops`. A same-named channel in another category is never adopted: a new channel is created.
 - "Private" = exactly three overwrites: `@everyone` denied View Channel; the owner allowed View Channel, Send Messages, Send Messages in Threads, Read Message History, Attach Files; the bot allowed the same plus Create Public Threads and Embed Links. Any extra overwrite makes the channel not private: the bot refuses admin commands there.
 - The guild owner and anyone with Administrator still see private channels.
 - The bot warns on every start (`discord.bot_administrator`) when it holds Administrator.
@@ -116,7 +116,7 @@ controlChannels:   # default: [ops.control]
 Type in `#ops-control` (no mention needed).
 - Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops` or a publisher skill name (reserved).
 - Gate: you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else: not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
-- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `locations/`, `cwd/`, `skills/`, `MEMORY.md`, persona stubs). (2) private category `<name>` and `#<name>-agent`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
+- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `locations/`, `cwd/`, `skills/`, `MEMORY.md`, persona stubs). (2) private category `<name>` and the channel `#<name>`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
 - Rerun on a finished workspace: "already set up". If creation fails midway, the reply names what exists.
 - No turn row, no agent. Logs `admin.init_workspace`.
 
@@ -151,10 +151,10 @@ Type in `#ops-control`. One string argument (`path`).
 ## Manual live check (owner)
 1. `bun run bootstrap:discord --dry-run`, then without `--dry-run`: items appear; `discord.yaml` written.
 2. Restart: `#ops-log` shows the start line; no `discord.bot_administrator` warning.
-3. `/init-workspace <ws>` in `#ops-control`: category and `#<ws>-agent` appear; `workspace.yaml` lists the id.
+3. `/init-workspace <ws>` in `#ops-control`: category and `#<ws>` appear; `workspace.yaml` lists the id.
 4. A second Discord account (not owner or admin) cannot see the ops or workspace channels.
-5. `/init-workspace <ws>` typed in `#<ws>-agent` is refused; same text in a thread too.
-6. A question in `#<ws>-agent` is answered. A mention in `#ops-log` is ignored.
+5. `/init-workspace <ws>` typed in `#<ws>` is refused; same text in a thread too.
+6. A question in `#<ws>` is answered. A mention in `#ops-log` is ignored.
 7. Ctrl-C: `#ops-log` shows `[shutdown] SIGINT`.
 8. Conversation check (pending: needs a Discord test guild + owner; not yet run live). In a thread, send a greeting, a request that takes more than ~2 s, a message while work runs, a question with options, and a request for a long Markdown report. Expected:
    - A quick reply needs no reaction. A slow one gets a temporary 👀 on your message that is removed once Friday replies; typing stops after the reply.
@@ -245,7 +245,7 @@ Text forms (`stop`, `go`, `init:workspace:`, `remember:`, `compact memory`, ...)
 | `/status` | owner's thread or channel | what the running or waiting task is doing; no model call |
 | `/purge` | owner's thread or channel | asks yes/no, then empties the trash of this thread's goals |
 | `/find <keywords>` | space channel | lists threads of the space by title or digest |
-| `/init-workspace <name>` | `#ops-control` only | create the workspace, private category and `#<name>-agent` |
+| `/init-workspace <name>` | `#ops-control` only | create the workspace, private category and `#<name>` |
 | `/init-channel <space>/<name>` | `#ops-control` only | add a private `#<name>` to the space's category (see Add a channel) |
 
 - Non-command text in `#ops-control` goes to the server manager (see above).

@@ -224,9 +224,9 @@ test("initWorkspace success: first channel is an object, channel dir exists, top
   expect(text.parent).toBe(category.id);
   const paths = workspacePaths(home).workspace("shop");
   expect((Bun.YAML.parse(readFileSync(paths.config, "utf8")) as any).channels).toEqual([
-    { id: text.id, name: "shop-agent", mode: "task" },
+    { id: text.id, name: "shop", mode: "task" },
   ]);
-  expect(existsSync(paths.channel("shop-agent").memory)).toBe(true);
+  expect(existsSync(paths.channel("shop").memory)).toBe(true);
   expect(g.topics[text.id]).toBe(TASK_TOPIC);
   expect(workspaceState(home, "shop")).toEqual({ kind: "workspace", channels: [text.id] });
 });
