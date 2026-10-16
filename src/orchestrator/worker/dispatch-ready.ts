@@ -1,4 +1,5 @@
 import { logEvent, logger } from "../../observability/logger";
+import { findRole } from "../../roles/role-registry";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { appendEvent, markStartDelivered } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
@@ -6,6 +7,7 @@ import { GOAL_BUDGET_USD, goalOverBudget } from "../budget/task-budget";
 import { openGoalIdOf } from "../goal/effect-port-queries";
 import type { LeadRuntime } from "../lead/lead-runtime";
 import { cancelDependents, settleGoal } from "./goal-settle";
+import { pickDispatchable, type RoleCaps } from "./scheduler";
 import { startWorker } from "./worker-run";
 
 /** Logger of this module. */
@@ -67,7 +69,20 @@ function wakeDeferred(rt: LeadRuntime): void {
   }
 }
 
-/** One pass: promote waiting items, start the next ready one (never two at once), settle the goal when all ended. */
+/** Scheduler view of a role: its own concurrency limit and whether it changes files (data of the role). */
+const roleCaps = (name: string | null): RoleCaps => {
+  const role = name ? findRole(name) : undefined;
+  // At least 1: a limit of 0 would strand the goal (nothing running, so no worker end wakes the pass).
+  return {
+    concurrency: role?.concurrency === undefined ? undefined : Math.max(1, role.concurrency),
+    writer: role?.sideEffects === "location",
+  };
+};
+
+/**
+ * One pass: promote waiting items, fail the ones the engine will not start (breaker, budget), start the items the scheduler
+ * picks (independent items run in parallel), settle the goal when all ended.
+ */
 async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
   const { db } = rt.deps;
   const ctx = rt.ctxOf(threadId);
@@ -75,7 +90,6 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
   if (!ctx || !goalId) return;
   for (;;) {
     let items = childrenOf(db, goalId);
-    if (items.some((i) => i.status === "running")) return; // sequential: the running item's end calls us again
     // A pending item whose dependencies all completed is ready.
     for (const it of items)
       if (
@@ -84,34 +98,44 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
       )
         moveTaskTo(db, it.id, "ready");
     items = childrenOf(db, goalId);
-    const next = items.find((i) => i.status === "ready");
-    if (!next) {
+    const ready = items.filter((i) => i.status === "ready");
+    // Refused items first (a failed one cancels its dependents, so the list is read again).
+    const overBudget = goalOverBudget(db, items);
+    const refused = ready.find((i) => i.dispatchCount >= MAX_DISPATCHES_PER_ITEM || overBudget);
+    if (refused) {
+      if (refused.dispatchCount >= MAX_DISPATCHES_PER_ITEM)
+        failItem(rt, threadId, refused, "failure", `dispatched ${refused.dispatchCount} times`);
+      else failItem(rt, threadId, refused, "budget_hit", `goal budget $${GOAL_BUDGET_USD} used`);
+      rt.announce(threadId); // a failed item is news
+      continue;
+    }
+    if (!ready.length) {
       settleGoal(db, goalId);
       return;
     }
-    if (next.dispatchCount >= MAX_DISPATCHES_PER_ITEM) {
-      failItem(rt, threadId, next, "failure", `dispatched ${next.dispatchCount} times`);
-    } else if (goalOverBudget(db, items)) {
-      failItem(rt, threadId, next, "budget_hit", `goal budget $${GOAL_BUDGET_USD} used`);
-    } else {
+    for (const next of pickDispatchable(items, roleCaps)) {
+      // A start that throws (bad role data, db error) fails that item only: the other picks still start.
       const started = await startWorker(rt, ctx, threadId, next, () => {
         rt.announce(threadId);
         void dispatchReady(rt, threadId);
         wakeDeferred(rt);
+      }).catch((err: unknown) => {
+        failItem(rt, threadId, next, "failure", `start failed: ${String(err)}`);
+        return true;
       });
       if (!started) {
         // Run cap reached: the item stays ready and is retried on the next worker end or after a short wait.
         logEvent(log, "dispatch.deferred", { itemId: next.id, reason: "run_limit" }, "warn");
         deferRetry(rt, threadId);
+        break;
       }
-      return; // started: it is running now; deferred: it waits
     }
-    rt.announce(threadId); // a failed item is news
+    return; // started items run now; the others wait for a worker end
   }
 }
 
 /**
- * Start the work the lead queued: the next ready item of the thread's open goal, in dependency order, one at a time.
+ * Start the work the lead queued: the ready items of the thread's open goal that the caps allow (see scheduler.ts), in order.
  * Called after a lead run and after each worker ends. Calls that overlap on one thread run one pass after another.
  */
 export async function dispatchReady(rt: LeadRuntime, threadId: string): Promise<void> {

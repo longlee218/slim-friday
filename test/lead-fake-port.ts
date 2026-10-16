@@ -94,6 +94,7 @@ export const itemRow = (over: Partial<ItemRow> = {}): ItemRow => ({
   dependsOn: [],
   attempt: 0,
   dispatchCount: 1,
+  ownerRole: null,
   location: null,
   brief: null,
   resultKind: null,

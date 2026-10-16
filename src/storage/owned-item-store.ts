@@ -24,6 +24,8 @@ export interface ItemRow {
   attempt: number;
   /** How many times the item was dispatched (circuit breaker input). */
   dispatchCount: number;
+  /** Role that runs the item (`owned_tasks.owner_role`). */
+  ownerRole: string | null;
   /** Location name the item works in; null = not chosen. */
   location: string | null;
   /** Brief given to the worker; null = none. */
@@ -40,7 +42,7 @@ export interface ItemRow {
 type Raw = Omit<ItemRow, "dependsOn"> & { dependsOn: string };
 
 const COLUMNS = `id, parent_id AS parentId, item_key AS itemKey, status, depends_on AS dependsOn, attempt,
-  dispatch_count AS dispatchCount, location, brief, result_kind AS resultKind, result_path AS resultPath,
+  dispatch_count AS dispatchCount, owner_role AS ownerRole, location, brief, result_kind AS resultKind, result_path AS resultPath,
   result_excerpt AS resultExcerpt`;
 
 /** Raw row to item (JSON `depends_on` parsed; a corrupt value reads as no dependency). */

@@ -122,7 +122,7 @@ Worker run (detached; survives the owner message)
 - Item states (`src/tasks/task-state-machine.ts`): `pending → ready → running → waiting_user | blocked | completed | failed | cancelled`. `open` is the start of a standalone task. `completed`, `failed` and `cancelled` are terminal.
 - `attempt` and `dispatch_count` count runs. An item dispatched 3 times (`MAX_DISPATCHES_PER_ITEM`) fails instead of starting again.
 - Plans (`work_plans`, versioned): `MAX_ITEMS` 8 per plan, `MAX_REVISIONS` 3. The validator rejects cycles, unknown or non-dispatchable roles, locations outside the space, and over-budget items.
-- PLAN execution is sequential (topological order). Parallel items are L5.
+- PLAN execution runs independent items in parallel (L5 scheduler, `orchestrator/worker/scheduler.ts`): FIFO by creation order, at most 2 running per thread, per-role `concurrency` (role data), one writer (`sideEffects: "location"`) per location, 30 global runs; a dependent item starts when its dependencies completed.
 
 ### Dispatch and result flow
 1. The lead calls `DispatchAgent`. The policy checks the shape; goal and item rows are written through the effect port.

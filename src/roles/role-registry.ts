@@ -26,6 +26,9 @@ export const dispatchableWorkers = (): RoleDefinition[] =>
 export const controlRole = (): RoleDefinition | undefined =>
   Object.values(ROLES).find((r) => r.kind === "control");
 
+/** Role by name, or undefined when none is registered. */
+export const findRole = (name: string): RoleDefinition | undefined => ROLES[name];
+
 /** Role by name; an unknown name is a programming/config error. */
 export function getRole(name: string): RoleDefinition {
   const role = ROLES[name];

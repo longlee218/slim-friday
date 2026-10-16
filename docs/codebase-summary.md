@@ -53,7 +53,7 @@ src/
 | `ingress/` | Discord bot, gates, message handler, thread placement and rename, attachments, receipts, slash interactions | `discord-bot.ts`, `discord-message-handler.ts`, `discord-message-rules.ts`, `thread-placement.ts`, `thread-rename.ts`, `thread-history.ts`, `attachment-text.ts`, `discord-components.ts`, `status-copy.ts` |
 | `orchestrator/` (top) | command entry and service wiring | `handle-message.ts`, `message-commands.ts`, `handler-services.ts`, `handler-types.ts`, `reply.ts` (`Reply`, `refuse`: leaf type) |
 | `orchestrator/lead/` | the lead run: queue, runtime, tool handlers, plan handlers, announce and question relay | `lead-run.ts`, `lead-queue.ts` (debounce 800 ms), `lead-runtime.ts`, `lead-call.ts`, `lead-io.ts`, `lead-handlers.ts`, `lead-plan-handlers.ts`, `lead-schemas.ts`, `lead-system.ts`, `lead-events.ts`, `lead-limits.ts` |
-| `orchestrator/worker/` | detached worker runs: start, report, settle, recover | `worker-run.ts`, `dispatch-ready.ts` (one item at a time per thread), `run-report.ts`, `report-sink.ts`, `result-file.ts`, `goal-settle.ts`, `question-relay.ts`, `recover-in-flight.ts`, `worker-end-event.ts` |
+| `orchestrator/worker/` | detached worker runs: start, report, settle, recover | `worker-run.ts`, `dispatch-ready.ts` (the effectful pass), `scheduler.ts` (pure `pickDispatchable`: caps), `run-report.ts`, `report-sink.ts`, `result-file.ts`, `goal-settle.ts`, `question-relay.ts`, `recover-in-flight.ts`, `worker-end-event.ts` |
 | `orchestrator/run/` | one role run: begin, run, close; live-run registry; stop; role scope | `run-turn.ts` (the one begin/run/close sequence), `run-role.ts`, `run-role-once.ts`, `answer-output.ts` (one recovery retry), `live-runs.ts`, `stop-thread-tree.ts`, `role-scope.ts`, `control-scope.ts`, `session-keys.ts` |
 | `orchestrator/goal/` | the effect port the lead's tools act through, and its DB and plan adapters | `effect-port.ts`, `effect-port-db.ts`, `effect-port-plan.ts`, `effect-port-queries.ts` (`snapshotOf` for `/status`) |
 | `orchestrator/effects/` | effect implementations: delete (trash), git push, PR, merge, purge | `delete-paths.ts`, `delete-paths-classify.ts`, `git-push.ts`, `pull-request.ts`, `merge-branch.ts`, `nested-git.ts`, `remote-pin.ts`, `trash-store.ts`, `purge-trash.ts`, `effect-tool-names.ts` |
@@ -90,7 +90,7 @@ Discord message (owner, mapped channel or its thread)
         └─ everything else → lead queue (debounce 800 ms, one lead run per thread)
            └─ lead run (orchestrator/lead) → orchestration tools
               ├─ RequestPlan → planner run (read-only) → plan validated by code → ApprovePlan (owner, once)
-              ├─ DispatchAgent → strategy checks → owned_tasks rows → dispatch-ready (one item at a time per thread)
+              ├─ DispatchAgent → strategy checks → owned_tasks rows → dispatch-ready (scheduler: up to 2 items per thread in parallel)
               │   └─ detached worker run (orchestrator/worker → run-turn → runtime/run-agent)
               │      ├─ effect tools (mcp/effects) → policy envelope checks → effect_log rows
               │      └─ ReportResult → result file (goals/<goalId>/) → thread_events
