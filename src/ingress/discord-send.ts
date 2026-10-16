@@ -8,7 +8,8 @@ import {
   SAFE_MENTIONS,
   safeLinks,
 } from "./discord-message-rules";
-import type { OwnerLanguage } from "./user-copy";
+import { PACE_TOTAL_MAX_MS, pauseMs } from "./reply-bubbles";
+import { type OwnerLanguage, renderUserNotice } from "./user-copy";
 
 /** Temporary receipt on an accepted message whose first visible reply is delayed. */
 export const BUSY_ACK_EMOJI = "👀";
@@ -16,28 +17,55 @@ export const BUSY_ACK_EMOJI = "👀";
 /** Typing indicator lasts ~10s on Discord; refresh a bit earlier. */
 const TYPING_REFRESH_MS = 8000;
 
-/** Send a (possibly long) reply as redacted, chunked, non-pinging messages; a very long one or a diff as head + file. */
+/** Pause before the next bubble so a multi-part reply reads like a person typing. */
+type Delay = (ms: number) => Promise<void>;
+
+/**
+ * Send a reply as redacted, non-pinging messages, one per paragraph, with a short "typing" pause between them
+ * (total pause capped). A long reply or a diff is sent as short bubbles + a file: `reply.md` rides in a report
+ * message (the last bubble is its summary), `changes.diff` is attached to the last bubble.
+ * `visible` runs once, after the first message has landed. `delay` is injectable for tests.
+ */
 export async function sendReply(
   channel: SendableChannels,
   text: string,
   language: OwnerLanguage,
   visible?: () => Promise<void>,
+  delay: Delay = Bun.sleep,
 ): Promise<void> {
-  const { chunks, file } = prepareOutput(text, language);
-  // A long Markdown reply is a structured report: summary + file component (+ link buttons).
-  if (file?.name === "reply.md") {
-    await sendReport(channel, { summary: chunks[0]!, markdown: file.content });
-    await visible?.();
-    return;
-  }
-  for (const [i, chunk] of chunks.entries()) {
-    const files =
-      file && i === chunks.length - 1
-        ? [new AttachmentBuilder(Buffer.from(file.content), { name: file.name })]
-        : [];
-    await channel.send({ content: chunk, files, allowedMentions: SAFE_MENTIONS });
+  const { bubbles, file } = prepareOutput(text, language);
+  const asReport = file?.name === "reply.md";
+  let spent = 0; // total pause so far
+  for (const [i, bubble] of bubbles.entries()) {
+    if (i > 0) {
+      const ms = Math.min(pauseMs(bubble.length), PACE_TOTAL_MAX_MS - spent);
+      if (ms > 0) {
+        channel.sendTyping().catch(() => {});
+        await delay(ms);
+        spent += ms;
+      }
+    }
+    const last = i === bubbles.length - 1;
+    if (asReport && last) await sendReport(channel, { summary: bubble, markdown: file.content });
+    else {
+      const files =
+        file && last ? [new AttachmentBuilder(Buffer.from(file.content), { name: file.name })] : [];
+      await channel.send({ content: bubble, files, allowedMentions: SAFE_MENTIONS });
+    }
     if (i === 0) await visible?.();
   }
+}
+
+/** Post a finished result as an attached `reply.md` with a short label (the lead adds its own summary). */
+export async function sendResultFile(
+  channel: SendableChannels,
+  text: string,
+  language: OwnerLanguage,
+  visible?: () => Promise<void>,
+): Promise<void> {
+  const summary = renderUserNotice({ kind: "label", state: "full-result" }, language);
+  await sendReport(channel, { summary, markdown: text });
+  await visible?.();
 }
 
 /** A components-v2 text display holds up to 4000 chars; stay below. */

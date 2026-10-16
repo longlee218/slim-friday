@@ -5,7 +5,7 @@ import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { type AttachmentDeps, withAttachments } from "./attachment-text";
 import { routeMessage, SAFE_MENTIONS } from "./discord-message-rules";
-import { BUSY_ACK_EMOJI, sendReply, startTyping } from "./discord-send";
+import { BUSY_ACK_EMOJI, sendReply, sendResultFile, startTyping } from "./discord-send";
 import type { InboundMessage } from "./inbound-message";
 import { replyToInlineCommand } from "./inline-command-ingress";
 import type { RecentMessage } from "./intent-types";
@@ -97,14 +97,17 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         replied,
         history: (limit) =>
           historyOf(channel as unknown as HistoryChannel, deps.ownerId, deps.botId(), limit),
-        notify: (m) => {
+        notify: (m, opts) => {
           if (shown) {
             stopTyping();
             stopTyping = startTyping(channel);
           }
           // A caught send failure ends this composing phase too; background work must not refresh typing.
           const stopNotificationTyping = stopTyping;
-          return sendReply(channel, m, language, visible).finally(stopNotificationTyping);
+          const sent = opts?.asFile
+            ? sendResultFile(channel, m, language, visible)
+            : sendReply(channel, m, language, visible);
+          return sent.finally(stopNotificationTyping);
         },
       });
       started?.();

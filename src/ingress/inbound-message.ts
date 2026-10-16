@@ -24,6 +24,9 @@ export interface InboundMessage {
   history?: (limit: number) => Promise<RecentMessage[]>;
   /** Marks the first visible response as posted (settles the 👀 receipt, stops typing): called after a successful question post. */
   visible?: () => Promise<void>;
-  /** Posts a message into the thread while the turn still runs (a dispatched plan waits for approval). */
-  notify?: (text: string) => Promise<void>;
+  /**
+   * Posts a message into the thread while the turn still runs (a dispatched plan waits for approval).
+   * `asFile`: the text is a finished result, posted as an attached file with a short label, never inline.
+   */
+  notify?: (text: string, opts?: { asFile?: boolean }) => Promise<void>;
 }

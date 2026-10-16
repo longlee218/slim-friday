@@ -49,7 +49,7 @@ export type UserNotice =
   /** Short labels and gate questions; never matched back by text (a bare "No" must not be replaced). */
   | {
       kind: "label";
-      state: "yes-run" | "no" | "reply-attached";
+      state: "yes-run" | "no" | "reply-attached" | "full-result";
     }
   | {
       kind: "decision";
@@ -302,6 +302,7 @@ function render(event: UserNotice, language: OwnerLanguage): string {
         "yes-run": ["Có, chạy đi", "Yes, run it"],
         no: ["Không", "No"],
         "reply-attached": ["[đã đính kèm toàn bộ câu trả lời]", "[full reply attached]"],
+        "full-result": ["Kết quả đầy đủ", "Full result"],
       } as const;
       return say(copy[event.state][0], copy[event.state][1]);
     }

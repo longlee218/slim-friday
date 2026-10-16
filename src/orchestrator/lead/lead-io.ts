@@ -50,7 +50,8 @@ export function createLeadIo(
     post: async (p) => {
       try {
         const text = p.filePath ? readFileSync(p.filePath, "utf8") : (p.text ?? "");
-        if (text.trim() && !ac.aborted) await postTo(ctx, text);
+        // A result file is posted as a file (the lead summarizes it in its own words), never as inline text.
+        if (text.trim() && !ac.aborted) await postTo(ctx, text, { asFile: !!p.filePath });
       } catch (err) {
         logEvent(log, "lead.post_failed", { threadId, err: errText(err) }, "warn");
       }

@@ -419,7 +419,9 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 - Not verified live: whether the SDK `total_cost_usd` accumulates across a resumed session.
 
 ## Output
-- Replies are split at 1900 chars (`CHUNK_MAX`). Longer replies are sent as a head (≤ 1500 chars) plus `reply.md`; a diff goes as `changes.diff`.
+- A reply is sent like a chat: one Discord message per paragraph (at most 4, `MAX_BUBBLES`), with a typing pause of 0.8-2 s between them (6 s in total, `src/ingress/reply-bubbles.ts`). Each message is still split at 1900 chars (`CHUNK_MAX`).
+- Text after a line `---` (outside a code fence), or a reply over 800 chars (`ATTACH_MIN`), with a table, or with a code block over 10 lines, goes out as `reply.md` in a report message: the chat part (or the first paragraph, cut at 1500 chars) stays as messages, the full text is the file. A diff goes as a head + `changes.diff`.
+- `ForwardResult verbatim` always posts the result file as `reply.md` with a short label (`notify(text, { asFile })`); the lead then writes its own 1-3 line summary.
 - All text is redacted before it reaches Discord, logs or stored text (`src/observability/redact.ts`).
 - Quota, rate-limit, billing and overload errors are classified from SDK signals (`src/runtime/run-errors.ts`). No automatic retry: the owner decides.
 
@@ -485,6 +487,7 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 | Run message retention | 14 days | `src/storage/run-message-store.ts` |
 | Log retention | app 14 days; task logs 30 days | `src/observability/log-files.ts`, `src/lifecycle/startup.ts` |
 | Reply chunk / head | 1900 / 1500 chars | `src/ingress/discord-message-rules.ts` |
+| Reply bubbles / attach above | 4 / 800 chars | `src/ingress/reply-bubbles.ts` |
 
 ### Lead metrics
 - `bun run metrics:lead [--days N]` (default 7) opens the database read-only and prints decisions (successful lead tool calls by tool), refusals (by code), envelope blocks (by code) and cost per day.

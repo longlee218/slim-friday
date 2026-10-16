@@ -33,5 +33,8 @@ export interface LeadRuntime {
 }
 
 /** Post text into the thread; a failure is returned to the caller as a rejected promise. */
-export const postTo = (ctx: LeadThreadCtx, text: string): Promise<void> =>
-  ctx.message.notify ? ctx.message.notify(text) : Promise.resolve();
+export const postTo = (
+  ctx: LeadThreadCtx,
+  text: string,
+  opts?: { asFile?: boolean },
+): Promise<void> => (ctx.message.notify ? ctx.message.notify(text, opts) : Promise.resolve());

@@ -1,5 +1,6 @@
 import { isAdminText } from "../discord-setup/admin-command";
 import { clip, redactText } from "../observability/redact";
+import { needsFile, paragraphs, splitReply, toBubbles } from "./reply-bubbles";
 import { type OwnerLanguage, renderUserNotice } from "./user-copy";
 
 /** Mention policy for every outgoing message: nothing can ping (@everyone, @here, roles, users). */
@@ -9,8 +10,6 @@ export const SAFE_MENTIONS = { parse: [] as never[], repliedUser: false };
 export const CHUNK_MAX = 1900;
 /** Replies longer than this are truncated. */
 export const REPLY_CAP = 6000;
-/** Replies longer than this, or mainly a diff, go out as an attachment with a short head. */
-const ATTACH_MIN = 6000;
 /** Size of the inline head sent before the attachment. */
 export const HEAD_MAX = 1500;
 
@@ -148,29 +147,51 @@ function isMainlyDiff(text: string): boolean {
   return inDiff > text.length / 2;
 }
 
+/** `text` with an open ``` fence closed (a cut text must not swallow the rest of the message). */
+function closeFence(text: string): string {
+  return (text.match(/^\s*```/gm) ?? []).length % 2 === 1 ? `${text}\n\`\`\`` : text;
+}
+
 /** First ~HEAD_MAX chars, cut on a line boundary, with an open ``` fence closed. */
 function headOf(text: string, language: OwnerLanguage): string {
   const cut = text.slice(0, HEAD_MAX);
   const head = cut.length < text.length ? cut.slice(0, Math.max(cut.lastIndexOf("\n"), 1)) : cut;
-  const open = (head.match(/^\s*```/gm) ?? []).length % 2 === 1;
-  return `${head}${open ? "\n```" : ""}\n\n${renderUserNotice({ kind: "label", state: "reply-attached" }, language)}`;
+  return `${closeFence(head)}\n\n${renderUserNotice({ kind: "label", state: "reply-attached" }, language)}`;
+}
+
+/** The paragraphs as redacted, capped chat messages, never empty (Discord rejects an empty message). */
+function bubblesOf(text: string): string[] {
+  const bubbles = toBubbles(text)
+    .flatMap(prepareReply)
+    .filter((b) => b !== "(no answer)");
+  return bubbles.length ? bubbles : ["(no answer)"];
 }
 
 /**
- * What to send for a reply: chunks, plus a file when the reply is long (> ATTACH_MIN) or mainly a diff
- * (head + `changes.diff` / `reply.md`). Everything is redacted, including the file content.
+ * What to send for a reply, redacted: chat bubbles (one per paragraph, at most MAX_BUBBLES) plus an optional file.
+ * - text after a `---` line, or a long / table / long-code reply: bubbles = the chat part (or the first paragraph) and
+ *   the full text as `reply.md`;
+ * - mainly a diff: a head + `changes.diff`;
+ * - otherwise bubbles only.
  */
 export function prepareOutput(
   text: string,
   language: OwnerLanguage,
-): { chunks: string[]; file?: OutputFile } {
+): { bubbles: string[]; file?: OutputFile } {
   const safe = redactText(text);
-  const diff = isMainlyDiff(safe);
-  if (safe.length <= ATTACH_MIN && !diff) return { chunks: prepareReply(safe) };
-  return {
-    chunks: [headOf(safe, language)],
-    file: { name: diff ? "changes.diff" : "reply.md", content: safe },
+  if (isMainlyDiff(safe))
+    return { bubbles: [headOf(safe, language)], file: { name: "changes.diff", content: safe } };
+  const { chat, detail, split } = splitReply(safe);
+  const asFile = (chatText: string, content: string) => {
+    // No chat part to show: fall back to the first paragraph. Either way the chat part is cut at HEAD_MAX, so it
+    // stays within MAX_BUBBLES messages of at most CHUNK_MAX chars (and an open fence is closed).
+    const head = closeFence(clip(chatText || (paragraphs(content)[0] ?? ""), HEAD_MAX));
+    return { bubbles: bubblesOf(head), file: { name: "reply.md" as const, content } };
   };
+  if (split && detail) return asFile(chat, `${chat}\n\n${detail}`.trim());
+  // Without a usable `---`, a long reply shows only its first paragraph; the rest is in the file.
+  if (needsFile(safe)) return asFile(split ? chat : "", split ? chat : safe);
+  return { bubbles: bubblesOf(chat) };
 }
 
 /** A link offered as a Discord link button. */

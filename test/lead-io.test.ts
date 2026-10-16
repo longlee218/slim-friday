@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { createLeadIo } from "../src/orchestrator/lead/lead-io";
 import { createLeadQueue } from "../src/orchestrator/lead/lead-queue";
 import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/lead/lead-runtime";
@@ -105,4 +107,23 @@ test("/stop tree: unstarted items of the open goal are cancelled and the goal se
   const status = (id: string) =>
     (db.query("SELECT status FROM owned_tasks WHERE id = ?").get(id) as any).status;
   expect([status("a"), status("b"), status("g")]).toEqual(["cancelled", "cancelled", "cancelled"]);
+});
+
+test("post: a result file is posted with asFile, plain text is not", async () => {
+  const calls: [string, boolean | undefined][] = [];
+  const ctx = {
+    message: {
+      notify: async (t: string, o?: { asFile?: boolean }) => void calls.push([t, o?.asFile]),
+    },
+  } as unknown as LeadThreadCtx;
+  const s = setup();
+  const io = createLeadIo(s.rt, ctx, "t", "turn", new AbortController().signal);
+  const file = join(s.env.home, "result.md");
+  writeFileSync(file, "full result");
+  await io.post({ filePath: file });
+  await io.post({ text: "excerpt" });
+  expect(calls).toEqual([
+    ["full result", true],
+    ["excerpt", false],
+  ]);
 });
