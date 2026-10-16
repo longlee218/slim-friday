@@ -3,7 +3,7 @@ import {
   getAgentCapabilities,
   type PlannerCtx,
 } from "../../../../orchestrator/plan/planner-handlers";
-import { runTool } from "../../../orchestration/lead-tool-result";
+import { runTool } from "../../../tool-result";
 import { GET_AGENT_CAPABILITIES_TOOL } from "./constants";
 import { GET_AGENT_CAPABILITIES_DESCRIPTION } from "./prompt";
 

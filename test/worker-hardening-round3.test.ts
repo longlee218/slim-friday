@@ -6,7 +6,7 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { isWorkerEnvDenied } from "../src/config/child-env-deny";
 import { GIT_HARDEN } from "../src/locations/git-cli";
 import { GIT_ISOLATED_ENV } from "../src/locations/git-isolation";
-import { hardenedArgv, subprocessEnv } from "../src/mcp/effects/git-run";
+import { hardenedArgv, subprocessEnv } from "../src/locations/git-run";
 import { checkToolCall, type GuardrailContext, guardFor } from "../src/policy/check-tool-call";
 import { defaultEnvelope } from "../src/policy/envelope";
 import { getRole } from "../src/roles/role-registry";

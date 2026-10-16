@@ -3,8 +3,12 @@ import { z } from "zod";
 import { MEMORY_KINDS } from "../../../../memory/memory-sections";
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
+import {
+  formatTrustedToolIssue,
+  type TrustedToolIssueCode,
+} from "../../../../runtime/trusted-tool-issue";
+import { textResult } from "../../../tool-result";
 import type { MemoryToolContext } from "../../memory-tool-context";
-import { formatTrustedToolIssue, type TrustedToolIssueCode } from "../../trusted-tool-issue";
 import { MEMORY_SAVE_MAX_CALLS_PER_RUN, MEMORY_SAVE_SCOPES, MEMORY_SAVE_TOOL } from "./constants";
 import { type MemorySaveOutcome, memorySaveNote } from "./memory-save-write";
 import { MEMORY_SAVE_DESCRIPTION } from "./prompt";
@@ -77,9 +81,6 @@ export function createMemorySaveTool(ctx: MemoryToolContext) {
       chars: args.text.length,
       result: out.result,
     });
-    return {
-      content: [{ type: "text" as const, text: out.text }],
-      ...(out.isError && { isError: true }),
-    };
+    return textResult(out.text, out.isError);
   });
 }

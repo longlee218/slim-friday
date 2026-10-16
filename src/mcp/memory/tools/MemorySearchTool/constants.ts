@@ -1,4 +1,4 @@
-import { SOURCES } from "../../../../memory/index/memory-ids";
+import { SOURCES } from "../../../../memory/memory-limits";
 
 /** Keyword search over saved memory (read-only). */
 export const MEMORY_SEARCH_TOOL = "MemorySearch";

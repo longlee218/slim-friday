@@ -1,4 +1,4 @@
-import { SAVE_MAX_CHARS } from "../../../../memory/memory-section-writer";
+import { SAVE_MAX_CHARS } from "../../../../memory/memory-limits";
 
 /** Save a durable note (phase 5). */
 export const MEMORY_SAVE_TOOL = "MemorySave";

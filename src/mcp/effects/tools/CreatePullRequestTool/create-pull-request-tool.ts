@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { EffectsCtx } from "../../../../policy/effect-context";
-import { runTool } from "../../../orchestration/lead-tool-result";
+import { runTool } from "../../../tool-result";
 import { createPullRequest } from "../../pull-request";
 import {
   BODY_MAX_CHARS,
@@ -11,6 +11,7 @@ import {
 } from "./constants";
 import { CREATE_PULL_REQUEST_DESCRIPTION } from "./prompt";
 
+/** Input of the tool (the model sees this schema); limits come from `constants.ts`. */
 const SHAPE = {
   location: z.string().min(1).max(NAME_MAX_CHARS),
   base: z.string().min(1).max(NAME_MAX_CHARS),

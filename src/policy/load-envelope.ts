@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { EFFECT_TOOL_NAMES } from "../mcp/effects/effect-tool-names";
 import { docOfRow } from "../orchestrator/plan/plan-doc";
+import { effectScope } from "../storage/effect-log-store";
 import { childrenOf } from "../storage/owned-item-store";
 import { planIdOfGoal, planVersions } from "../storage/work-plan-store";
 import {
@@ -20,12 +21,10 @@ export const grantRowId = (goalId: string): string => `grant:${goalId}`;
 
 /** Grants of a goal's dispatch row; a missing or corrupt row reads as no grants (fail closed: fewer permissions). */
 function storedGrants(db: Database, goalId: string): EffectGrant[] {
-  const row = db
-    .query<{ scope: string }, [string]>("SELECT scope FROM effect_log WHERE id = ?")
-    .get(grantRowId(goalId));
-  if (!row) return [];
+  const scope = effectScope(db, grantRowId(goalId));
+  if (scope === undefined) return [];
   try {
-    const list = JSON.parse(row.scope) as EffectGrant[];
+    const list = JSON.parse(scope) as EffectGrant[];
     return list.filter(
       (g) =>
         (EFFECT_TOOL_NAMES as readonly string[]).includes(g?.tool) &&

@@ -8,7 +8,7 @@ import { createMemorySearchTool } from "../src/mcp/memory/tools/MemorySearchTool
 import {
   formatTrustedToolIssue,
   TRUSTED_TOOL_ISSUE_CODES,
-} from "../src/mcp/memory/trusted-tool-issue";
+} from "../src/runtime/trusted-tool-issue";
 import { openDb } from "../src/storage/db";
 
 function setup(over: Partial<MemoryToolContext> = {}, max?: number) {

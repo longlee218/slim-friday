@@ -1,11 +1,12 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { EffectsCtx } from "../../../../policy/effect-context";
-import { runTool } from "../../../orchestration/lead-tool-result";
+import { runTool } from "../../../tool-result";
 import { deletePaths } from "../../delete-paths";
 import { DELETE_PATHS_TOOL, MAX_PATHS, PATH_MAX_CHARS, REASON_MAX_CHARS } from "./constants";
 import { DELETE_PATHS_DESCRIPTION } from "./prompt";
 
+/** Input of the tool (the model sees this schema); limits come from `constants.ts`. */
 const SHAPE = {
   paths: z.array(z.string().min(1).max(PATH_MAX_CHARS)).min(1).max(MAX_PATHS),
   reason: z.string().min(1).max(REASON_MAX_CHARS),

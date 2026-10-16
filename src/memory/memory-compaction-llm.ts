@@ -19,7 +19,7 @@ const MAX_ATTEMPTS = 2;
 const CALL_BUDGET_USD = 0.05;
 
 /** Thrown when the per-attempt deadline fires (so it is not reported as "aborted by user"). */
-export class CallTimeoutError extends Error {}
+class CallTimeoutError extends Error {}
 
 /**
  * The real model call: Claude Agent SDK `query` with no tools, one turn, no settings, no persona, no

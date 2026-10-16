@@ -1,7 +1,6 @@
 import { workspacePaths } from "../../config/workspace-paths";
 import { messageLanguage } from "../../ingress/user-copy";
-import { spawnRunner } from "../../mcp/effects/git-run";
-import type { ReportSink } from "../../mcp/orchestration/tools/ReportResultTool/report-result-tool";
+import { spawnRunner } from "../../locations/git-run";
 import { channelDigestBlock } from "../../memory/channel-digest";
 import { logger, setLogContext } from "../../observability/logger";
 import { goalLocations, loadEnvelope } from "../../policy/load-envelope";
@@ -19,6 +18,7 @@ import { beginTurn } from "../turns/turn-tracker";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import type { LeadRuntime, LeadThreadCtx } from "./lead-runtime";
 import { ownerConfirm } from "./owner-confirm";
+import type { ReportSink } from "./report-sink";
 import type { RoleRunInput } from "./role-run-types";
 import { runDetached } from "./worker-detached-run";
 import { earlierSteps, emitEndEvent } from "./worker-end-event";

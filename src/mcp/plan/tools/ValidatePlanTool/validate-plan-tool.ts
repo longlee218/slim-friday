@@ -4,7 +4,7 @@ import {
   type PlannerCtx,
   validatePlanHandler,
 } from "../../../../orchestrator/plan/planner-handlers";
-import { runTool } from "../../../orchestration/lead-tool-result";
+import { runTool } from "../../../tool-result";
 import { VALIDATE_PLAN_TOOL } from "./constants";
 import { VALIDATE_PLAN_DESCRIPTION } from "./prompt";
 

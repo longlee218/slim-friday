@@ -1,8 +1,8 @@
-import { readProcessEnv } from "../../config/process-env";
-import { GIT_HARDEN } from "../../locations/git-cli";
-import { GIT_ISOLATED_ENV, gitIsolationArgs } from "../../locations/git-isolation";
-import { clip } from "../../observability/redact";
-import type { Runner } from "../../policy/effect-context";
+import { readProcessEnv } from "../config/process-env";
+import { clip } from "../observability/redact";
+import type { Runner } from "../policy/effect-context";
+import { GIT_HARDEN } from "./git-cli";
+import { GIT_ISOLATED_ENV, gitIsolationArgs } from "./git-isolation";
 
 /* Shared bits of the git / gh effect tools: the process runner and name checks. */
 

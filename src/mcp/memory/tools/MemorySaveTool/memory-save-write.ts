@@ -33,6 +33,7 @@ export interface MemorySaveOutcome {
   result: string;
 }
 
+/** Refused write: the short text (becomes the detail of a trusted issue) and the result code `ISSUE_OF` maps. */
 const fail = (text: string, result: string): MemorySaveOutcome => ({ text, isError: true, result });
 
 /** Refusal text for a failed write (the model relays it; `full` tells it what the owner does). */

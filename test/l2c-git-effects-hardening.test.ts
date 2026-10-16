@@ -9,7 +9,7 @@ import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/cons
 import type { EffectsCtx, Runner } from "../src/policy/effect-context";
 import { ANY, defaultEnvelope, type EffectGrant, envelopeWithGrants } from "../src/policy/envelope";
 import { openDb } from "../src/storage/db";
-import { effectsOfGoal } from "../src/storage/effect-log-store";
+import { effectsOfGoal, REMOTE_PIN_TOOL } from "../src/storage/effect-log-store";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";
 
 afterAll(cleanupTmp);
@@ -91,7 +91,7 @@ test("push: ext:: and file remotes are refused; a remote whose URL changed after
   url = "https://evil.example/x.git";
   expect(await gitPush(s.ctx, push("feat/x"))).toMatchObject({ code: "REMOTE_CHANGED" });
   expect(s.calls.filter((c) => c.startsWith("git push"))).toHaveLength(1);
-  const pin = effectsOfGoal(s.ctx.db, "g1").find((r) => r.tool === "RemotePin");
+  const pin = effectsOfGoal(s.ctx.db, "g1").find((r) => r.tool === REMOTE_PIN_TOOL);
   expect(pin?.scope).not.toContain("github"); // a hash, never the URL (it may hold credentials)
 });
 

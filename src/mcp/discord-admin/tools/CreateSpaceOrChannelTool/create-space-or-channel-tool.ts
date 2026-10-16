@@ -5,6 +5,7 @@ import { initChannel } from "../../../../discord-setup/init-channel";
 import { initWorkspace } from "../../../../discord-setup/init-workspace";
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
+import { textResult } from "../../../tool-result";
 import type { DiscordAdminContext } from "../../discord-admin-context";
 import { CREATE_SPACE_OR_CHANNEL_TOOL } from "./constants";
 import { CREATE_SPACE_OR_CHANNEL_DESCRIPTION } from "./prompt";
@@ -60,16 +61,10 @@ export function createCreateSpaceOrChannelTool(ctx: DiscordAdminContext) {
     async ({ space, channel }) => {
       try {
         const r = await createSpaceOrChannel(ctx, space, channel);
-        return {
-          content: [{ type: "text" as const, text: r.text }],
-          ...(r.error && { isError: true }),
-        };
+        return textResult(r.text, r.error);
       } catch (err) {
         log.warn({ err: errText(err) }, "create space or channel failed");
-        return {
-          content: [{ type: "text" as const, text: "creation failed (see logs)" }],
-          isError: true,
-        };
+        return textResult("creation failed (see logs)", true);
       }
     },
   );

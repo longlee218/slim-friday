@@ -1,11 +1,11 @@
 import type { SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
 import type { LeadToolContext } from "../orchestrator/engine/lead-call";
+import type { ReportSink } from "../orchestrator/engine/report-sink";
 import type { PlannerCtx } from "../orchestrator/plan/planner-handlers";
 import type { EffectsCtx } from "../policy/effect-context";
 import type { DiscordAdminContext } from "./discord-admin/discord-admin-context";
 import type { ReadBudget } from "./memory/memory-read-shared";
 import type { MemoryToolContext } from "./memory/memory-tool-context";
-import type { ReportSink } from "./orchestration/tools/ReportResultTool/report-result-tool";
 
 /**
  * Everything a run can bring to its MCP tools, as optional parts. A tool reads the part it needs; a run without that

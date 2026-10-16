@@ -4,7 +4,7 @@ import {
   type PlannerCtx,
   proposeRevisionHandler,
 } from "../../../../orchestrator/plan/planner-handlers";
-import { runTool } from "../../../orchestration/lead-tool-result";
+import { runTool } from "../../../tool-result";
 import { PROPOSE_PLAN_REVISION_TOOL } from "./constants";
 import { PROPOSE_PLAN_REVISION_DESCRIPTION } from "./prompt";
 

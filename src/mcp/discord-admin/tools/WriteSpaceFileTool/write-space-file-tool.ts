@@ -2,6 +2,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
+import { textResult } from "../../../tool-result";
 import type { DiscordAdminContext } from "../../discord-admin-context";
 import { WRITE_SPACE_FILE_TOOL } from "./constants";
 import { WRITE_SPACE_FILE_DESCRIPTION } from "./prompt";
@@ -23,16 +24,10 @@ export function createWriteSpaceFileTool(ctx: DiscordAdminContext) {
     async (args) => {
       try {
         const r = await writeSpaceFile(ctx, args);
-        return {
-          content: [{ type: "text" as const, text: r.text }],
-          ...(r.error && { isError: true }),
-        };
+        return textResult(r.text, r.error);
       } catch (err) {
         log.warn({ err: errText(err) }, "write space file failed");
-        return {
-          content: [{ type: "text" as const, text: "write failed (see logs)" }],
-          isError: true,
-        };
+        return textResult("write failed (see logs)", true);
       }
     },
   );

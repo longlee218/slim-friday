@@ -7,6 +7,7 @@ import {
   withMemoryLock,
   writeAtomic,
 } from "./memory-file-lock";
+import { SAVE_MAX_CHARS } from "./memory-limits";
 import {
   formatBullet,
   hasBullet,
@@ -29,9 +30,6 @@ const bodyChars = (text: string): number => text.trim().length;
 
 /** Logger of this module. */
 const log = logger.child({ module: "memory-section-writer" });
-
-/** Max chars of a note stored by `saveMemoryBullet` / `saveJournalBullet`. */
-export const SAVE_MAX_CHARS = 400;
 
 /** Outcome of a sectioned write: `empty` = nothing left after sanitizing, `duplicate` = already there, `full` = the write would pass the line or char limit, `busy` = lock timeout. */
 export type SaveResult = "saved" | "duplicate" | "full" | "empty" | "busy" | "symlink";

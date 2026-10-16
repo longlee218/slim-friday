@@ -58,3 +58,12 @@ export function effectResult(db: Database, key: string): string | undefined {
     .query<{ r: string }, [string]>("SELECT result AS r FROM effect_log WHERE id = ?")
     .get(key)?.r;
 }
+
+/** Audit tool name of the row that pins a goal's push remote (its `scope` is the URL hash). */
+export const REMOTE_PIN_TOOL = "RemotePin";
+
+/** `scope` of an effect row by id (a remote pin's URL hash, a dispatch's stored grants), or undefined when no such row. */
+export function effectScope(db: Database, id: string): string | undefined {
+  return db.query<{ scope: string }, [string]>("SELECT scope FROM effect_log WHERE id = ?").get(id)
+    ?.scope;
+}

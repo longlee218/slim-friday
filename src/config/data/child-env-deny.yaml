@@ -42,7 +42,7 @@ passthrough: []
 # Extra denies for a dispatched WORKER's process: its Bash tool inherits the SDK child's env, and a worker runs repo code. The
 # app's own provider credentials are added AFTER this filter (runtime/sdk-env.ts) and the SDK strips them from the tools' env
 # (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1, set for workers). git / gh auth never reaches a worker: the effect tools use it in their own
-# subprocess (mcp/effects/git-run.ts).
+# subprocess (locations/git-run.ts).
 worker:
   exact:
     - GH_TOKEN

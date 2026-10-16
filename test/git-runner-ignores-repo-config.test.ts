@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { spawnRunner } from "../src/mcp/effects/git-run";
+import { spawnRunner } from "../src/locations/git-run";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";
 
 afterAll(() => {

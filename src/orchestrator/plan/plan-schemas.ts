@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-  BRIEF_MAX_CHARS,
-  REASON_MAX_CHARS,
-} from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
+import { BRIEF_MAX_CHARS, REASON_MAX_CHARS } from "../engine/lead-limits";
 import { KEY, TASK_ID } from "../engine/lead-schemas";
 import { DELIVERY_MODES } from "./plan-types";
 

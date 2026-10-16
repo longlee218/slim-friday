@@ -4,7 +4,8 @@ import { NOT_FOUND, resolveEntry } from "../../../../memory/index/memory-resolve
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
 import { SUMMARY_MAX_CHARS } from "../../../../storage/thread-summary-store";
-import { READ_LIMIT_TEXT, type ReadBudget, safeClip, textResult } from "../../memory-read-shared";
+import { textResult } from "../../../tool-result";
+import { READ_LIMIT_TEXT, type ReadBudget, safeClip } from "../../memory-read-shared";
 import type { MemoryToolContext } from "../../memory-tool-context";
 import { GET_MAX_CHARS, MEMORY_GET_TOOL } from "./constants";
 import { MEMORY_GET_DESCRIPTION } from "./prompt";

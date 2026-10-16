@@ -5,6 +5,7 @@ import { logEvent, logger } from "../../../../observability/logger";
 import { errText, redactText } from "../../../../observability/redact";
 import { getThread, saveTitle } from "../../../../storage/thread-store";
 import type { MemoryToolContext } from "../../../memory/memory-tool-context";
+import { textResult } from "../../../tool-result";
 import {
   DIGEST_MAX_CHARS,
   DIGEST_MIN_CHARS,
@@ -38,12 +39,6 @@ function clean(text: string, max: number): string {
   return Array.from(line).slice(0, max).join("").trim(); // by code point: never splits a surrogate pair
 }
 
-/** Short tool result (never an error: a failed rename still stored the title). */
-const reply = (text: string, isError = false) => ({
-  content: [{ type: "text" as const, text }],
-  ...(isError && { isError: true }),
-});
-
 /**
  * The `SetThreadTitle` tool of ONE run (counts its own calls, so build it once per run). Always stores title +
  * digest; renames the thread only while its live name is still the bot's placeholder (adopted threads have none).
@@ -53,16 +48,16 @@ export function createSetThreadTitleTool(ctx: MemoryToolContext) {
   let calls = 0;
   return tool(SET_THREAD_TITLE_TOOL, SET_THREAD_TITLE_DESCRIPTION, SHAPE, async (args) => {
     const { threadId, threadTitle } = ctx;
-    if (!threadId || !threadTitle) return reply("this run has no thread", true);
+    if (!threadId || !threadTitle) return textResult("this run has no thread", true);
     if (++calls > SET_THREAD_TITLE_MAX_CALLS_PER_RUN)
-      return reply(
+      return textResult(
         `limit reached: at most ${SET_THREAD_TITLE_MAX_CALLS_PER_RUN} calls per run`,
         true,
       );
     const title = clean(args.title, TITLE_MAX_CHARS);
     const digest = clean(args.digest, DIGEST_MAX_CHARS);
     if (title.length < TITLE_MIN_CHARS || digest.length < DIGEST_MIN_CHARS)
-      return reply("title and digest must not be empty", true);
+      return textResult("title and digest must not be empty", true);
     let result: "renamed" | "kept" | "failed" = "failed";
     try {
       saveTitle(ctx.db, threadId, title, digest, Date.now(), ctx.channelId, ctx.workspace);
@@ -77,7 +72,7 @@ export function createSetThreadTitleTool(ctx: MemoryToolContext) {
       log.warn({ err: errText(err) }, "set thread title failed");
     }
     logEvent(log, "thread.titled", { renamed: result === "renamed", chars: title.length });
-    return reply(
+    return textResult(
       result === "renamed"
         ? "saved; thread renamed"
         : result === "kept"

@@ -96,7 +96,7 @@ function reclaim(lock: string): void {
 }
 
 /** True when `file` exists and is a symlink. */
-export function isSymlink(file: string): boolean {
+function isSymlink(file: string): boolean {
   try {
     return lstatSync(file).isSymbolicLink();
   } catch {

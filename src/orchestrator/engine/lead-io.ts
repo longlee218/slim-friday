@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { ASK_OWNER_TIMEOUT_MS } from "../../mcp/orchestration/tools/AskOwnerTool/constants";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import type { OwnerAnswer } from "./effect-port";
 import type { PortIo } from "./effect-port-db";
+import { ASK_OWNER_TIMEOUT_MS } from "./lead-limits";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "./lead-runtime";
 
 /** Logger of this module. */

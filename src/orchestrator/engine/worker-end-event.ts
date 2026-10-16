@@ -1,10 +1,10 @@
 import type { Database } from "bun:sqlite";
-import type { ReportSink } from "../../mcp/orchestration/tools/ReportResultTool/report-result-tool";
 import { clip, redactText } from "../../observability/redact";
 import { childrenOf, getItem, type ItemRow } from "../../storage/owned-item-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { planReadyOf } from "../plan/plan-ready";
 import { PLANNER_KEY } from "../plan/plan-types";
+import type { ReportSink } from "./report-sink";
 
 /** Chars of an earlier step's excerpt handed to the next worker. */
 const STEP_CHARS = 600;

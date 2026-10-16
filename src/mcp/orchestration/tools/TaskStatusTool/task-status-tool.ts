@@ -2,7 +2,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import type { LeadToolContext } from "../../../../orchestrator/engine/lead-call";
 import { handleTaskStatus } from "../../../../orchestrator/engine/lead-handlers";
 import { TASK_STATUS_SHAPE } from "../../../../orchestrator/engine/lead-schemas";
-import { runTool } from "../../lead-tool-result";
+import { runTool } from "../../../tool-result";
 import { TASK_STATUS_TOOL } from "./constants";
 import { TASK_STATUS_DESCRIPTION } from "./prompt";
 

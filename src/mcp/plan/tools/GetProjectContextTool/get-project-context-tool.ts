@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { GOAL_SHAPE } from "../../../../orchestrator/plan/plan-schemas";
 import { getProjectContext, type PlannerCtx } from "../../../../orchestrator/plan/planner-handlers";
-import { runTool } from "../../../orchestration/lead-tool-result";
+import { runTool } from "../../../tool-result";
 import { GET_PROJECT_CONTEXT_TOOL } from "./constants";
 import { GET_PROJECT_CONTEXT_DESCRIPTION } from "./prompt";
 

@@ -9,6 +9,7 @@ export interface ReadBudget {
   take(): boolean;
 }
 
+/** Build the per-run counter shared by the three read tools (one server build = one budget). */
 export function createReadBudget(max = MEMORY_READ_MAX_CALLS_PER_RUN): ReadBudget {
   let calls = 0;
   return { take: () => ++calls <= max };
@@ -16,12 +17,6 @@ export function createReadBudget(max = MEMORY_READ_MAX_CALLS_PER_RUN): ReadBudge
 
 /** Text the model reads for a refused call over the cap. */
 export const READ_LIMIT_TEXT = `limit reached: at most ${MEMORY_READ_MAX_CALLS_PER_RUN} memory reads per run`;
-
-/** Tool result with one text block. */
-export const textResult = (text: string, isError = false) => ({
-  content: [{ type: "text" as const, text }],
-  ...(isError && { isError: true as const }),
-});
 
 /** Marker appended to a clipped text. */
 const TRUNCATED = "\n(truncated)";

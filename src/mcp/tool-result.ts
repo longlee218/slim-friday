@@ -1,8 +1,14 @@
-import { logger } from "../../observability/logger";
-import { errText } from "../../observability/redact";
-import type { Reply } from "../../orchestrator/engine/lead-call";
+import { logger } from "../observability/logger";
+import { errText } from "../observability/redact";
+import type { Reply } from "../orchestrator/engine/lead-call";
 
 const log = logger.child({ module: "lead-tool" });
+
+/** Tool result with one text block; `isError` marks a refused or failed call. */
+export const textResult = (text: string, isError = false) => ({
+  content: [{ type: "text" as const, text }],
+  ...(isError && { isError: true as const }),
+});
 
 /** MCP tool result: the reply as JSON text; a coded refusal sets `isError`. */
 export const toToolResult = (reply: Reply) => ({

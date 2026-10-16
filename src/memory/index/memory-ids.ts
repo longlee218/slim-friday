@@ -14,9 +14,7 @@ import { MEMORY_SECTION_HEADINGS, normalizeBullet } from "../memory-sections";
  * h = first 6 hex of sha1 of the normalized text (journal: of the block label + body, so an edited block no longer resolves).
  */
 
-/** Sources of a memory entry (the `scope` values of MemorySearch). */
-export const SOURCES = ["root", "workspace", "channel", "location", "journal", "summary"] as const;
-export type Source = (typeof SOURCES)[number];
+export type { Source } from "../memory-limits";
 
 /** Section tokens other than the kind headings. */
 export const OTHER_TOKEN = "Other";

@@ -1,12 +1,11 @@
 import { createHash } from "node:crypto";
 import type { EffectsCtx } from "../../policy/effect-context";
-import { appendEffect } from "../../storage/effect-log-store";
+import { appendEffect, effectScope, REMOTE_PIN_TOOL } from "../../storage/effect-log-store";
 
 /* The remote a goal pushes to is pinned: its (push) URL must be a plain network URL and, once recorded for the goal, must not
    change. A worker that rewrites `remote.<name>.url` (it cannot through the shell, but a script can) is refused at the next push. */
 
-/** Row id and tool of the pin in `effect_log`. */
-const REMOTE_PIN_TOOL = "RemotePin";
+/** Row id of the pin in `effect_log` (its tool name is `REMOTE_PIN_TOOL`). */
 const pinId = (ctx: EffectsCtx, location: string, remote: string): string =>
   `remote:${ctx.goalId}:${location}:${remote}`;
 
@@ -37,16 +36,14 @@ export async function checkRemote(
     };
   const hash = createHash("sha256").update(url).digest("hex").slice(0, 32);
   const id = pinId(ctx, location, remote);
-  const row = ctx.db
-    .query<{ scope: string }, [string]>("SELECT scope FROM effect_log WHERE id = ?")
-    .get(id);
-  if (row && row.scope !== hash)
+  const pinned = effectScope(ctx.db, id);
+  if (pinned !== undefined && pinned !== hash)
     return {
       ok: false,
       code: "REMOTE_CHANGED",
       message: "The remote's URL changed since it was first used for this goal.",
     };
-  if (!row)
+  if (pinned === undefined)
     appendEffect(ctx.db, {
       id,
       threadId: ctx.threadId,

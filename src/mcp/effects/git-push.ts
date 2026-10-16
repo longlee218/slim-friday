@@ -1,3 +1,4 @@
+import { isPlainRef } from "../../locations/git-run";
 import { type Reply, refuse } from "../../orchestrator/engine/lead-call";
 import { checkEnvelope, grantNamesBranch, isFallbackDefault } from "../../policy/check-envelope";
 import {
@@ -7,7 +8,6 @@ import {
   refuseLogged,
   safeText,
 } from "../../policy/effect-context";
-import { isPlainRef } from "./git-run";
 import { checkRemote } from "./remote-pin";
 import { GIT_PUSH_TOOL } from "./tools/GitPushTool/constants";
 

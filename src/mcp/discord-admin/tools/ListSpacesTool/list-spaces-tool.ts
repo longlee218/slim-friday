@@ -6,6 +6,7 @@ import { SPACE_KIND_FILES, spaceKindFile, spaceKinds } from "../../../../memory/
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
 import { loadWorkspaces } from "../../../../workspaces/workspace-registry";
+import { textResult } from "../../../tool-result";
 import type { DiscordAdminContext } from "../../discord-admin-context";
 import { SPACE_FILES } from "../WriteSpaceFileTool/constants";
 import { LIST_SPACES_TOOL } from "./constants";
@@ -44,13 +45,10 @@ export function createListSpacesTool(ctx: DiscordAdminContext) {
     async ({ kind }) => {
       try {
         logEvent(log, "space.listed", { kind: kind ?? null });
-        return { content: [{ type: "text" as const, text: listSpaces(ctx.home, kind) }] };
+        return textResult(listSpaces(ctx.home, kind));
       } catch (err) {
         log.warn({ err: errText(err) }, "list spaces failed");
-        return {
-          content: [{ type: "text" as const, text: "could not list spaces" }],
-          isError: true,
-        };
+        return textResult("could not list spaces", true);
       }
     },
   );

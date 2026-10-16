@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { CREATE_PLAN_SHAPE } from "../../../../orchestrator/plan/plan-schemas";
 import { createPlanHandler, type PlannerCtx } from "../../../../orchestrator/plan/planner-handlers";
-import { runTool } from "../../../orchestration/lead-tool-result";
+import { runTool } from "../../../tool-result";
 import { CREATE_PLAN_TOOL } from "./constants";
 import { CREATE_PLAN_DESCRIPTION } from "./prompt";
 

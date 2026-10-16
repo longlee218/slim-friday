@@ -6,9 +6,13 @@ import { safely } from "../../../../memory/index/safely";
 import { MEMORY_KINDS } from "../../../../memory/memory-sections";
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText, redactText } from "../../../../observability/redact";
-import { READ_LIMIT_TEXT, type ReadBudget, textResult } from "../../memory-read-shared";
+import {
+  formatTrustedToolIssue,
+  type TrustedToolIssueCode,
+} from "../../../../runtime/trusted-tool-issue";
+import { textResult } from "../../../tool-result";
+import { READ_LIMIT_TEXT, type ReadBudget } from "../../memory-read-shared";
 import type { MemoryToolContext } from "../../memory-tool-context";
-import { formatTrustedToolIssue, type TrustedToolIssueCode } from "../../trusted-tool-issue";
 import {
   MEMORY_SEARCH_TOOL,
   SEARCH_DEFAULT_LIMIT,
