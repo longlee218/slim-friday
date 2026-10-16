@@ -12,9 +12,7 @@ export type TurnStatus =
   | "cancelled"
   /** Cut short by a restart/shutdown; the thread gets a Resume offer, then the row becomes cancelled. */
   | "interrupted"
-  | "timeout"
-  /** A background run that failed with its session saved (budget, transient error); no longer written, old rows are expired at startup. */
-  | "failed_resumable";
+  | "timeout";
 
 /** Change a turn's status without ending it (no-op when the row is missing). */
 export function setTurnStatus(db: Database, id: string, status: TurnStatus): void {
@@ -173,4 +171,14 @@ export function countDoneTurnsSince(
       "SELECT COUNT(*) AS n FROM turns WHERE thread_id = ? AND id != ? AND status = 'done' AND started_at >= ?",
     )
     .get(threadId, exceptTurnId, since)?.n;
+}
+
+/** Brief of the newest turn of a thread; undefined when the thread has no turn or the turn has no brief. */
+export function latestBriefOfThread(db: Database, threadId: string): string | undefined {
+  const row = db
+    .query<{ brief: string | null }, [string]>(
+      "SELECT brief FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
+    )
+    .get(threadId);
+  return row?.brief ?? undefined;
 }

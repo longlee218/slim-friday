@@ -2,20 +2,25 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { Glob } from "bun";
 
-/** Raw SQL and direct db access live in src/storage/*-store.ts; the orchestrator calls those functions. */
+/** Raw SQL and direct db access live in src/storage/*-store.ts; every other module calls those functions. */
 const FORBIDDEN: RegExp[] = [
   /\.(query|prepare)\s*[<(]/, // bun:sqlite statements (also `.query<Row, [string]>(`)
   /\bdb\s*\.\s*(exec|run|select|insert|update|delete)\s*[<(]/, // direct db handle use, drizzle included
   /["'`]\s*(SELECT|INSERT|UPDATE|DELETE)\b/, // a SQL statement string
 ];
 
-/** Files that may keep a hit (none: every hit moved to storage). Add `path: reason` only with a comment. */
-const ALLOW: Record<string, string> = {};
+/** Directories that may hold SQL: the storage layer and the FTS index module (documented exception). */
+const EXEMPT_DIRS = ["src/storage/", "src/memory/index/"];
 
-test("no raw SQL or direct db access under src/orchestrator", () => {
+/** Files that may keep a hit: `path: reason`. */
+const ALLOW: Record<string, string> = {
+  "src/mcp/mcp-servers.ts": "`manifest.prepare(ctx)` is an MCP manifest hook, not bun:sqlite",
+};
+
+test("no raw SQL or direct db access in src/ outside src/storage and src/memory/index", () => {
   const offenders: string[] = [];
-  for (const file of new Glob("src/orchestrator/**/*.ts").scanSync(".")) {
-    if (file in ALLOW) continue;
+  for (const file of new Glob("src/**/*.ts").scanSync(".")) {
+    if (EXEMPT_DIRS.some((d) => file.startsWith(d)) || file in ALLOW) continue;
     // Whole-line `//` and ` * ` comments may mention SQL words; code never does.
     const code = readFileSync(file, "utf8")
       .split("\n")

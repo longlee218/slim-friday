@@ -12,7 +12,7 @@ export const turns = sqliteTable(
     source: text().notNull(),
     /** Location name, or "*" until a background task names one. */
     location: text().notNull(),
-    /** running, waiting_approval, done, failed, cancelled, interrupted, timeout, failed_resumable. */
+    /** running, waiting_approval, done, failed, cancelled, interrupted, timeout. */
     status: text().notNull(),
     /** Epoch ms the turn started. */
     started_at: integer().notNull(),

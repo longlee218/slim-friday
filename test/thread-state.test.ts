@@ -72,10 +72,6 @@ test("awaiting_owner: a pending tool approval is not a gate; the decision lands 
   expect(pendingToolApproval(db, "t1")).toBeUndefined();
 });
 
-test("failed_resumable folds to idle for routing, like failed", () => {
-  expect(deriveThreadState(task("failed_resumable"), "th")).toBe("idle");
-});
-
 test("waiting with no pending approval row (the decision just landed) is running; no role or stage is consulted", () => {
   expect(deriveThreadState(task("waiting_approval"), "th")).toBe("running");
   const ghost = task("waiting_approval");

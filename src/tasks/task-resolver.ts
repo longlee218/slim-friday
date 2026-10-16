@@ -128,7 +128,6 @@ export function attachTurnToTask(
 /** Task status for a final turn status (only background turns are linked). */
 const STATUS_OF_TURN: Readonly<Record<string, TaskState["status"]>> = {
   done: "completed",
-  failed_resumable: "waiting_user",
   interrupted: "waiting_user",
   failed: "failed",
   timeout: "failed",

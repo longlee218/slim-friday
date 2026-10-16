@@ -1,7 +1,10 @@
 /* Fixed model ids: a role names one of these in its `model` (a data edit to change it); no tiers, no env pins. */
 
-/** Cheap, fast model: the scout, the control role and the one-shot summary calls. */
-export const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+/** Cheap, fast model of the Haiku roles (scout, discord-manager) and every other Haiku task run. */
+export const HAIKU_MODEL = "claude-haiku-5-5";
+
+/** Cheap model of the one-shot summary and compaction calls (rollover and attachment summaries, memory compaction); default of `MEMORY_MODEL`. */
+export const HAIKU_SUMMARY_MODEL = "claude-haiku-4-5-20251001";
 
 /** Default working model: the lead, the planner and the developer. */
 export const SONNET_MODEL = "claude-sonnet-5-5";

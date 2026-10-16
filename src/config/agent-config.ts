@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { HAIKU_MODEL } from "./model-ids";
+import { HAIKU_MODEL, HAIKU_SUMMARY_MODEL } from "./model-ids";
 
 /** Placeholder value used in .env.example; never a real credential. */
 export const PLACEHOLDER = "REPLACE_ME";
@@ -93,7 +93,7 @@ export function loadConfig(
     agentHome: e.AGENT_HOME,
     logLevel: e.LOG_LEVEL,
     model: DEFAULT_MODEL,
-    memoryModel: e.MEMORY_MODEL ?? HAIKU_MODEL,
+    memoryModel: e.MEMORY_MODEL ?? HAIKU_SUMMARY_MODEL,
     limits: {
       maxBudgetUsd: e.MAX_BUDGET_USD,
       timeoutMs: e.TIMEOUT_MS,

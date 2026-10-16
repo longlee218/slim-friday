@@ -11,6 +11,7 @@ import {
   TextInputStyle,
 } from "discord.js";
 import { clip } from "../observability/redact";
+import { latestBriefOfThread } from "../storage/run-store";
 import type { ReportLink } from "./discord-message-rules";
 import {
   languageOf,
@@ -122,12 +123,7 @@ export function buildAnswerModal(id: string, language: OwnerLanguage): ModalBuil
 export function threadLanguage(db: Database, threadId: string): OwnerLanguage {
   const pinned = pinnedThreadLanguage(threadId);
   if (pinned) return pinned;
-  const last = db
-    .query<{ brief: string | null }, [string]>(
-      "SELECT brief FROM turns WHERE thread_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1",
-    )
-    .get(threadId);
-  return languageOf(last?.brief ?? "");
+  return languageOf(latestBriefOfThread(db, threadId) ?? "");
 }
 
 /** Row of link buttons (they navigate, never send an interaction); undefined when there is no link. */

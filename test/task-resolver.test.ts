@@ -93,8 +93,8 @@ test("a named ownedTaskId links the turn to that task and moves a held one back 
   const { db } = makeEnv();
   begin(db, "t1", background);
   const taskId = ownedTaskOfTurn(db, "t1")!;
-  finishTurn(db, "t1", "failed_resumable");
-  settleTaskAfterTurn(db, "t1", "failed_resumable");
+  finishTurn(db, "t1", "interrupted");
+  settleTaskAfterTurn(db, "t1", "interrupted");
   expect(getOwnedTask(db, taskId)?.status).toBe("waiting_user");
   begin(db, "t2", background, { ownedTaskId: taskId });
   expect(ownedTaskOfTurn(db, "t2")).toBe(taskId);
@@ -116,7 +116,6 @@ test("turn end settles the task: done / waiting / failed / cancelled; unlinked t
   const { db } = makeEnv();
   const cases: [string, TaskState["status"]][] = [
     ["done", "completed"],
-    ["failed_resumable", "waiting_user"],
     ["interrupted", "waiting_user"],
     ["failed", "failed"],
     ["timeout", "failed"],

@@ -15,15 +15,7 @@ export type UserNotice =
   | { kind: "outcome"; outcome: string; resetsAt?: number }
   | {
       kind: "failure";
-      cause?:
-        | "busy"
-        | "budget"
-        | "location"
-        | "resume"
-        | "approval"
-        | "expired"
-        | "drain"
-        | "ceiling";
+      cause?: "busy" | "budget" | "location" | "approval" | "expired" | "drain" | "ceiling";
       /** Valid location names, listed back to the owner for `cause: "location"` (names are not secrets). */
       names?: string[];
     }
@@ -31,10 +23,6 @@ export type UserNotice =
       kind: "note";
       state:
         | "no-delivery"
-        | "resume-task-lost"
-        | "resume-cleared"
-        | "cannot-resume"
-        | "stale-resume"
         | "empty-text"
         | "stop-in-thread"
         | "status-in-thread"
@@ -239,10 +227,6 @@ function render(event: UserNotice, language: OwnerLanguage): string {
           "Không tìm thấy nơi làm việc bạn chọn. Bạn hãy kiểm tra tên hoặc chọn lại nơi làm việc.",
           "I could not find the location you selected. Please check its name or choose another location.",
         ],
-        resume: [
-          "Không còn dữ liệu để tiếp tục việc này. Bạn hãy gửi lại yêu cầu để bắt đầu lại.",
-          "The saved work is no longer available to continue. Please send the request again to restart.",
-        ],
         approval: [
           "Chưa bắt đầu vì cần bật chức năng phê duyệt trên Discord.",
           "Nothing started because Discord approvals need to be enabled.",
@@ -276,22 +260,6 @@ function render(event: UserNotice, language: OwnerLanguage): string {
         "no-delivery": [
           "Lưu ý: lần chạy này chưa có commit, push hay PR nào.",
           "Note: nothing was committed, pushed or opened as a PR in this run.",
-        ],
-        "resume-task-lost": [
-          "Không tiếp tục được phiên làm việc trước. Bạn hãy gửi lại yêu cầu để bắt đầu lại.",
-          "Could not resume the task's session; start the task again.",
-        ],
-        "resume-cleared": [
-          "Không tiếp tục được phiên trước nên đã xóa nó. Bạn hãy gửi lại tin nhắn.",
-          "Could not resume the previous session; it was cleared. Please send your message again.",
-        ],
-        "cannot-resume": [
-          "Không thể tiếp tục: chưa có phiên nào được lưu cho cuộc trò chuyện này. Bạn hãy gửi lại yêu cầu.",
-          "Cannot resume: no saved session for this thread. Start the task again.",
-        ],
-        "stale-resume": [
-          "Lệnh tiếp tục này đã cũ: cuộc trò chuyện đã đi tiếp.",
-          "This Resume is out of date: the thread has moved on.",
         ],
         "empty-text": ["Bạn hãy gửi kèm nội dung yêu cầu.", "Send a message with the task."],
         "stop-in-thread": [

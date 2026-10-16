@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { loadConfig } from "../src/config/agent-config";
-import { HAIKU_MODEL, SONNET_MODEL } from "../src/config/model-ids";
+import { HAIKU_MODEL, HAIKU_SUMMARY_MODEL, SONNET_MODEL } from "../src/config/model-ids";
 import { resolveBudget } from "../src/config/model-routing";
 import { getRole, ROLES } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
@@ -34,8 +34,8 @@ describe("fixed role models", () => {
 });
 
 describe("env", () => {
-  test("compaction model is the haiku model; MEMORY_MODEL wins", () => {
-    expect(cfg().memoryModel).toBe(HAIKU_MODEL);
+  test("compaction model is the haiku summary model; MEMORY_MODEL wins", () => {
+    expect(cfg().memoryModel).toBe(HAIKU_SUMMARY_MODEL);
     expect(cfg({ MEMORY_MODEL: "m" }).memoryModel).toBe("m");
   });
 });

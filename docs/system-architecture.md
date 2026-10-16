@@ -313,7 +313,7 @@ Six layers. Each is a separate check; a call must pass every layer that applies 
 | `memory_files` | `memory.ts` | index of memory files (path, space, mtime, size) |
 | `memory_fts` | `0001_memory_fts.sql` | FTS5 full-text index of memory |
 
-- Turn status values are declared in `src/storage/schema/turns.ts`. `failed_resumable` is still in the type; no code writes it.
+- Turn status values are declared in `src/storage/schema/turns.ts`.
 
 ### Logs and files
 - `$AGENT_HOME/logs/app.<date>.<n>.jsonl`: all app events, owner-only, 14 days.
@@ -428,7 +428,6 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 ## Startup and Lifecycle
 - Boot (`src/index.ts`): the home placement and registry checks run, the database opens, then hygiene (`src/lifecycle/startup.ts`):
   - delete task logs older than 30 days; sweep stale plugin dirs;
-  - expire held `failed_resumable` turns older than 14 days (their scratch dir is removed; the task becomes `failed`);
   - remove old attachment copies; purge `run_messages` older than 14 days; prune journals; sync the memory index.
 - Trash sweeper: at boot, then every 6 hours (`src/lifecycle/trash-sweeper.ts`).
 - Recovery: in-flight items and lead wake-ups (see [Restart](#restart)).
@@ -447,7 +446,7 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 | `AGENT_HOME` | yes | absolute path outside every location, e.g. `/Users/<you>/.friday` |
 | `CLAUDE_CODE_OAUTH_TOKEN` | yes for runs | from `claude setup-token`; the only provider credential; placeholder = unset |
 | `LOG_LEVEL` | no | default `info` |
-| `MEMORY_MODEL` | no | model of the cheap one-shot calls (memory compaction, attachment summary); default `claude-haiku-4-5-20251001` |
+| `MEMORY_MODEL` | no | model of the cheap one-shot calls (memory compaction, attachment summary); default `claude-haiku-4-5-20251001` (`HAIKU_SUMMARY_MODEL`) |
 | `MAX_BUDGET_USD` | no | optional global cap on every run |
 | `TIMEOUT_MS` | no | parsed (default 300000) but no code path reads it; see [Not Built Yet](#not-built-yet) |
 | `GIT_AUTHOR` | no | accepted and ignored |
@@ -506,4 +505,4 @@ Source of truth: [lead orchestration plan](../plans/261015-1538-lead-supervisor-
 
 - Done but not verified live: lead queue and announce, planner and plan approval, approval envelope and effect tools, OS sandbox, restart with undelivered events, `ReportResult` without a call, rollover effect.
 - Known gaps: two developer tasks in one location share one working tree; the thread does not pin the last task's location.
-- Known code leftovers (owner decision needed): `TIMEOUT_MS` is parsed but unused; `failed_resumable` is still a status type and startup expiry query; `HAIKU_MODEL` is `claude-haiku-4-5-20251001` (the cleanup plan names `claude-haiku-5-5` as the fixed id).
+- Known code leftovers (owner decision needed): `TIMEOUT_MS` is parsed but unused.
