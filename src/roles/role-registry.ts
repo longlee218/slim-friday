@@ -33,10 +33,3 @@ export function getRole(name: string): RoleDefinition {
   if (!role) throw new Error(`Unknown role: ${name}`);
   return role;
 }
-
-/**
- * Legacy `turns.type` column value of a role's task ("qa" | "code"), derived from role data: a background role is
- * "code". The column stays for old rows (additive schema); nothing reads it back.
- */
-export const turnTypeOf = (role: RoleDefinition): "qa" | "code" =>
-  role.background ? "code" : "qa";

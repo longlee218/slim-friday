@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
+import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupTaskLogs } from "../src/lifecycle/startup";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
@@ -54,11 +54,9 @@ test("session id is recorded on the task row at init; `sessions` keeps the previ
   await devHandler(env, q)(task("hi"));
   await workersDone(env.db);
   const row = env.db
-    .query<{ session_id: string; session_cwd: string }, []>(
-      "SELECT * FROM turns WHERE role = 'developer'",
-    )
+    .query<{ session_id: string }, []>("SELECT * FROM turns WHERE role = 'developer'")
     .get();
-  expect(row).toMatchObject({ session_id: "sess-1", session_cwd: realpathSync(env.location) });
+  expect(row).toMatchObject({ session_id: "sess-1" });
   expect(getSession(env.db, "th1")?.session_id).toBe("GOOD");
 });
 

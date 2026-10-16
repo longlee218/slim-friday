@@ -9,6 +9,7 @@
     "ignoreUnknown": false,
     "includes": [
       "src/**",
+      "!src/storage/migrations",
       "test/**",
       "package.json",
       "tsconfig.json",

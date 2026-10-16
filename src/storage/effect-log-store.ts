@@ -16,8 +16,6 @@ export interface EffectRow {
   result: string;
   /** How to undo it, when known. */
   undo?: string;
-  /** Epoch ms the grant stops being valid. */
-  expiresAt?: number;
   createdAt: number;
 }
 
@@ -26,7 +24,7 @@ export function appendEffect(db: Database, e: Omit<EffectRow, "createdAt">): boo
   const res = db
     .query(
       `INSERT OR IGNORE INTO effect_log (id, thread_id, goal_id, item_id, tool, scope, granted_by, result, undo,
-         expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       e.id,
@@ -38,7 +36,6 @@ export function appendEffect(db: Database, e: Omit<EffectRow, "createdAt">): boo
       e.grantedBy,
       e.result,
       e.undo ?? null,
-      e.expiresAt ?? null,
       Date.now(),
     );
   return res.changes === 1;
@@ -49,7 +46,7 @@ export function effectsOfGoal(db: Database, goalId: string): EffectRow[] {
   return db
     .query<EffectRow, [string]>(
       `SELECT id, thread_id AS threadId, goal_id AS goalId, item_id AS itemId, tool, scope,
-         granted_by AS grantedBy, result, undo, expires_at AS expiresAt, created_at AS createdAt
+         granted_by AS grantedBy, result, undo, created_at AS createdAt
        FROM effect_log WHERE goal_id = ? ORDER BY created_at, rowid`,
     )
     .all(goalId);

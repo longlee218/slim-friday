@@ -5,7 +5,7 @@ import { validateRole } from "../src/orchestrator/engine/validate-role";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
-import { ROLES, turnTypeOf } from "../src/roles/role-registry";
+import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 
 const location = (name: string) => ({
@@ -26,7 +26,6 @@ test("dev is a background role: one run, bypass from the first token, no plan co
   expect(DEVELOPER_ROLE.capabilities).not.toContain("planControl" as never);
   expect(DEVELOPER_ROLE.model).toBe(SONNET_MODEL);
   expect(DEVELOPER_ROLE.skills).toBe("all");
-  expect(turnTypeOf(DEVELOPER_ROLE)).toBe("code");
 });
 
 test("the lead is a foreground role without shell, ask, write or subagents; the scout is a read-only background worker", () => {
@@ -35,7 +34,6 @@ test("the lead is a foreground role without shell, ask, write or subagents; the 
     expect(LEAD_ROLE.capabilities).not.toContain(c as never);
   expect(LEAD_ROLE.noSubagents).toBe(true);
   expect(LEAD_ROLE.permissionMode).toBe("auto");
-  expect(turnTypeOf(LEAD_ROLE)).toBe("qa");
   expect(SCOUT_ROLE.background).toBe(true);
   expect(SCOUT_ROLE.sideEffects).toBe("none");
   for (const c of ["write", "ask"]) expect(SCOUT_ROLE.capabilities).not.toContain(c as never);

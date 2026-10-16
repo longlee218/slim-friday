@@ -64,7 +64,6 @@ test("inside the location: moved to the trash, no question, audit row with undo 
   expect(s.asked).toEqual([]);
   const [row] = effectsOfGoal(s.ctx.db, "goal-1");
   expect(row).toMatchObject({ tool: "DeletePaths", grantedBy: "envelope", itemId: "item-1" });
-  expect(row?.expiresAt).toBe(1_000_000_000_000 + 7 * 86_400_000);
   const undo = JSON.parse(row?.undo ?? "{}") as { restore: { from: string; to: string }[] };
   expect(undo.restore[0]?.from).toBe(f);
   expect(undo.restore[0]?.to.startsWith(join(s.home, "trash", "goal-1", "1000000000000"))).toBe(

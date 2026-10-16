@@ -96,6 +96,9 @@ const RETIRED: Record<string, RegExp> = { ...SYMBOLS, ...SQL, ...REPO_CONCEPT };
  */
 const TASK_ID = j("task", "_id");
 const TASK_ID_OK = [
+  "turns.ts", // schema: turns.owned_task_id
+  "events.ts", // schema: thread_events.task_id, run_messages.task_id
+  "db-schema-baseline.test.ts",
   "worktree-store.ts",
   "files-changed.ts",
   "run-message-store.ts",
@@ -107,10 +110,7 @@ const TASK_ID_OK = [
   // owned_task_id: the link column of schema v6 (owned tasks)
   "owned-task-store.ts",
   "status-snapshot.ts", // `/status` reads the waiting owned task's last turn
-  "migrate-v6-owned-tasks.ts",
-  "db-migrate-v6.test.ts",
   // thread_events.task_id: the goal / task an outbox event is about (schema v8)
-  "migrate-v8-ddl.ts",
   "event-store.ts",
   "dispatch-ready.ts", // writes the outbox event of a dispatched task
 ];
@@ -121,18 +121,12 @@ const TASK_ID_OK = [
  */
 const EXEMPT: string[] = [
   "retired-naming-scan.test.ts",
-  "legacy-schema.ts",
-  "legacy-migrate-v2.ts",
-  "migrate-v3-turns.ts",
   // the Repo -> Location migration reads the legacy `repos/<n>/repo.yaml` layout on purpose
   "migrate-locations.ts",
   "migrate-locations-cli.ts",
   "migrate-locations-backup.ts",
   "migrate-locations-report.ts",
   "migrate-locations.test.ts",
-  "db-migrate-v3.test.ts",
-  "db-migrate-v4.test.ts",
-  "db-migrate.test.ts",
   "db-schema.test.ts",
   "live-subagents.spike.test.ts",
 ];
@@ -214,12 +208,7 @@ const ROLE_NAMES: Record<string, RegExp> = {
   "assistant role literal":
     /\bname:\s*["']assistant["']|getRole\(["']assistant["']\)|ASSISTANT_ROLE/,
 };
-const ROLE_NAMES_EXEMPT = [
-  "role-aliases.ts",
-  "legacy-migrate-v2.ts",
-  "legacy-schema.ts",
-  "migrate-v3-turns.ts",
-];
+const ROLE_NAMES_EXEMPT = ["role-aliases.ts"];
 
 test("src holds no `dev` or `assistant` role name outside the alias map", () => {
   const hits: string[] = [];

@@ -110,7 +110,6 @@ export async function deletePaths(
     }),
     // Restore = move each `to` back to `from` (the manifest of this entry).
     undo: JSON.stringify({ restore: move.entries }),
-    expiresAt: now + TRASH_TTL_MS,
     owner: ownerAsked,
   });
   if (move.error === "CHANGED")

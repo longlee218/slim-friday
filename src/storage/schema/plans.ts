@@ -1,0 +1,37 @@
+import { integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+/** A versioned work plan (strategy, body, acceptance, envelope) with its approval state. */
+export const work_plans = sqliteTable(
+  "work_plans",
+  {
+    /** Plan id. */
+    id: text().notNull(),
+    /** Plan version (a revision bumps it). */
+    version: integer().notNull(),
+    /** Goal the plan belongs to. */
+    goal_id: text().notNull(),
+    /** Plan status. */
+    status: text().notNull(),
+    /** Strategy name. */
+    strategy: text().notNull(),
+    /** One-line objective. */
+    objective: text().notNull(),
+    /** Plan body (items). */
+    body: text().notNull(),
+    /** JSON acceptance criteria. */
+    acceptance: text().notNull().default("[]"),
+    /** JSON envelope (roles, locations, risk classes). */
+    envelope: text().notNull().default("{}"),
+    /** Budget in USD. */
+    budget_usd: real(),
+    /** Delivery mode. */
+    delivery_mode: text(),
+    /** Reason of the last decision. */
+    reason: text(),
+    /** Epoch ms created. */
+    created_at: integer().notNull(),
+    /** Epoch ms approved. */
+    approved_at: integer(),
+  },
+  (t) => [primaryKey({ columns: [t.id, t.version] })],
+);

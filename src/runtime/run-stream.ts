@@ -128,7 +128,7 @@ export async function consumeStream(p: {
       // successful finish, so a failed run never replaces the thread's good session). Resume reads it.
       if (m.type === "system" && m.subtype === "init" && m.session_id) {
         const sid = m.session_id;
-        tryLog(log, "early session save failed", () => setTurnSession(p.db, p.turnId, sid, p.cwd));
+        tryLog(log, "early session save failed", () => setTurnSession(p.db, p.turnId, sid));
       }
       const ext = m as unknown as { error?: string; rate_limit_info?: { status?: string } };
       // A later assistant message without `error` means the SDK retry worked: forget the old error.

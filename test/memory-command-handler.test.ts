@@ -101,12 +101,12 @@ test("in a thread the default location is the latest task's location", async () 
   writeLocationNotes(env.home, "main", "location", ["thread default"]);
   env.db
     .query(
-      "INSERT INTO turns (id, thread_id, source, location, type, status, started_at) VALUES ('t1','th1','discord','web','qa','done',1)",
+      "INSERT INTO turns (id, thread_id, source, location, status, started_at, role) VALUES ('t1','th1','discord','web','done',1,'lead')",
     )
     .run();
   env.db
     .query(
-      "INSERT INTO turns (id, thread_id, source, location, type, status, started_at) VALUES ('t2','th1','discord','*','qa','done',2)",
+      "INSERT INTO turns (id, thread_id, source, location, status, started_at, role) VALUES ('t2','th1','discord','*','done',2,'lead')",
     )
     .run();
   await ask("forget: thread default", { threadId: "th1" });

@@ -76,7 +76,7 @@ test("link + lookup of a turn's task", () => {
   insertTurn(db, { id: "t1", threadId: "th", source: "x", location: "*", role: "developer" });
   expect(ownedTaskOfTurn(db, "t1")).toBeUndefined();
   linkTurn(db, "t1", "a");
-  setTurnSession(db, "t1", "sess", "/cwd");
+  setTurnSession(db, "t1", "sess");
   expect(ownedTaskOfTurn(db, "t1")).toBe("a");
 });
 

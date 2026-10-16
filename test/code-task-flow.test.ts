@@ -161,7 +161,7 @@ test("stop during the dev run cancels the dev task", async () => {
   await started;
   expect(await send("stop")).toBe("I’m stopping the current work.");
   await workersDone(env.db);
-  expect(env.db.query("SELECT type, status FROM turns WHERE role = 'developer'").all()).toEqual([
-    { type: "code", status: "cancelled" },
+  expect(env.db.query("SELECT status FROM turns WHERE role = 'developer'").all()).toEqual([
+    { status: "cancelled" },
   ]);
 });

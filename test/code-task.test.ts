@@ -88,9 +88,9 @@ test("code task (a dispatched worker) runs in default mode, never bypass, in the
   expect(env.db.query("SELECT cwd FROM sessions WHERE COALESCE(kind, '') != 'lead'").all()).toEqual(
     [],
   );
-  expect(env.db.query("SELECT type FROM turns WHERE role = 'developer'").all()).toEqual([
-    { type: "code" },
-  ]);
+  expect(
+    env.db.query("SELECT counts_toward_cap FROM turns WHERE role = 'developer'").all(),
+  ).toEqual([{ counts_toward_cap: 1 }]);
 });
 
 test("canUseTool: writes only in the workspace; a feedback report is outside a worker envelope", async () => {

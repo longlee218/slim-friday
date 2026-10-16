@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { redactText } from "../observability/redact";
 import { canonicalRoleName } from "../roles/role-aliases";
-import { countsTowardCap, getRole, turnTypeOf } from "../roles/role-registry";
+import { countsTowardCap, getRole } from "../roles/role-registry";
 import { reconcileRunningTasks } from "./owned-task-store";
 
 /** Final status of a turn row. */
@@ -27,9 +27,9 @@ export function setTurnLocation(db: Database, id: string, location: string): voi
   db.query("UPDATE turns SET location = ? WHERE id = ?").run(location, id);
 }
 
-/** Record the Claude session of a turn (reported at `system/init`) and the cwd it runs in. */
-export function setTurnSession(db: Database, id: string, sessionId: string, cwd: string): void {
-  db.query("UPDATE turns SET session_id = ?, session_cwd = ? WHERE id = ?").run(sessionId, cwd, id);
+/** Record the Claude session of a turn (reported at `system/init`). */
+export function setTurnSession(db: Database, id: string, sessionId: string): void {
+  db.query("UPDATE turns SET session_id = ? WHERE id = ?").run(sessionId, id);
 }
 
 /** Claude session a turn recorded at `system/init`, or undefined (not started yet / no row). */
@@ -65,7 +65,7 @@ export function insertTurn(
     threadId: string;
     source: string;
     location: string;
-    /** Role that runs it: `type` and the cap flag are derived from its data (never from a type argument). */
+    /** Role that runs it: the cap flag is derived from its data. */
     role: string;
     /** Task text of a dispatched task; stored redacted. */
     brief?: string;
@@ -76,14 +76,13 @@ export function insertTurn(
   // Only background roles that change something count against the concurrency cap (see `countActiveCappedTasks`).
   const role = getRole(t.role);
   db.query(
-    `INSERT INTO turns (id, thread_id, source, location, type, status, started_at, brief, counts_toward_cap, role, kind, hop)
-     VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, 'single', ?)`,
+    `INSERT INTO turns (id, thread_id, source, location, status, started_at, brief, counts_toward_cap, role, kind, hop)
+     VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, 'single', ?)`,
   ).run(
     t.id,
     t.threadId,
     t.source,
     t.location,
-    turnTypeOf(role),
     Date.now(),
     t.brief === undefined ? null : redactText(t.brief),
     countsTowardCap(role) ? 1 : 0,

@@ -46,7 +46,6 @@ export function recordEffect(
     scope: string;
     result: string;
     undo?: string;
-    expiresAt?: number;
     owner?: boolean;
   },
 ): void {
@@ -60,7 +59,6 @@ export function recordEffect(
     grantedBy: e.owner ? "owner" : ctx.envelope.grantedBy,
     result: e.result,
     ...(e.undo && { undo: e.undo }),
-    ...(e.expiresAt && { expiresAt: e.expiresAt }),
   });
 }
 

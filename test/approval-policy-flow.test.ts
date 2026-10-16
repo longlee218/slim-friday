@@ -129,13 +129,12 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
   expect(existsSync(inside)).toBe(false);
   const rows = h.env.db
     .query(
-      "SELECT tool, granted_by AS by, expires_at AS exp, undo FROM effect_log WHERE tool = ? AND expires_at IS NOT NULL",
+      "SELECT tool, granted_by AS by, undo FROM effect_log WHERE tool = ? AND undo IS NOT NULL",
     )
-    .all(DELETE_PATHS_TOOL) as { by: string; exp: number; undo: string }[];
-  expect(rows).toHaveLength(2); // moves only: the denied third call left a refusal row without an expiry
+    .all(DELETE_PATHS_TOOL) as { by: string; undo: string }[];
+  expect(rows).toHaveLength(2); // moves only: the denied third call left a refusal row without an undo
   expect(rows[0]?.by).toMatch(/^plan:[0-9a-f-]{36}@v1$/);
   expect(rows[1]?.by).toBe("owner");
-  expect(rows[0]?.exp).toBeGreaterThan(Date.now() + 6 * 86_400_000);
   const moved = (JSON.parse(rows[0]?.undo ?? "{}") as { restore: { from: string; to: string }[] })
     .restore[0];
   expect(moved?.from).toBe(`${realpathSync(env.location)}/old.txt`);
