@@ -22,10 +22,14 @@ import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 /** Discord channel id mapped to the default test workspace `main` (and carried by every test InboundMessage). */
 export const TEST_CHANNEL = "100000000000000001";
 
+/** Temp dirs made by makeEnv; `test/cleanup-temp-dirs.ts` (bunfig preload) removes them after each test file. */
+export const tempDirs: string[] = [];
+
 /** Create a fresh temp AGENT_HOME, real config and real SQLite db. */
 export function makeEnv(extra: Record<string, string> = {}) {
   const home = mkdtempSync(join(tmpdir(), "friday-test-"));
   assertTempHome(home);
+  tempDirs.push(home);
   const config = loadConfig({
     AGENT_HOME: home,
     TIMEOUT_MS: "5000",
@@ -33,7 +37,9 @@ export function makeEnv(extra: Record<string, string> = {}) {
   });
   // One workspace by default: `location`, a fake git dir OUTSIDE AGENT_HOME (the registry refuses a location inside
   // it; not a managed clone, so Q&A tests never touch git). Code-task tests replace it via addLocation().
-  const location = join(mkdtempSync(join(tmpdir(), "friday-test-loc-")), "location");
+  const locationRoot = mkdtempSync(join(tmpdir(), "friday-test-loc-"));
+  tempDirs.push(locationRoot);
+  const location = join(locationRoot, "location");
   mkdirSync(join(location, ".git"), { recursive: true });
   addLocation(home, "location", {}, { path: location });
   const db = openDb(workspacePaths(home).dbFile);
