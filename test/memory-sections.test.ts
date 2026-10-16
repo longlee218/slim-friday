@@ -3,12 +3,6 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { capMemory } from "../src/memory/memory-cap";
-import { type CompactLlm, compactTargets } from "../src/memory/memory-compaction";
-import {
-  buildCompacted,
-  compactionSystem,
-  parseCompacted,
-} from "../src/memory/memory-compaction-prompt";
 import { saveJournalBullet, saveMemoryBullet } from "../src/memory/memory-section-writer";
 import {
   formatBullet,
@@ -17,8 +11,6 @@ import {
   insertJournalEntry,
   normalizeBullet,
 } from "../src/memory/memory-sections";
-import type { MemoryTarget } from "../src/memory/memory-targets";
-import { emptyUsage } from "../src/observability/record-run";
 
 const b = (t: string, d = "2026-10-13") => formatBullet(t, d);
 const tmp = () => join(mkdtempSync(join(tmpdir(), "sections-")), "MEMORY.md");
@@ -156,58 +148,6 @@ test("writer: new file uses the header; secrets redacted; journal merges in one 
   expect(jt).toContain("### Open\n- todo x (2026-10-13)\n- todo y (2026-10-13)\n");
 });
 
-test("compaction parse: known headings kept, others rejected; build keeps sections", () => {
-  expect(parseCompacted("## Notes\n- a b c").ok).toBe(false);
-  const p = parseCompacted(
-    "- loose one\n## Decisions\n- d one\n## Facts\n- f one\n## Decisions\n- d two",
-  );
-  expect(p.ok && p.groups?.map((g) => [g.heading, g.bullets.length])).toEqual([
-    ["", 1],
-    ["Decisions", 2],
-    ["Facts", 1],
-  ]);
-  if (!p.ok) throw new Error("x");
-  const out = buildCompacted(
-    "# t\n\nTpl.\n\n## 2026-02-02 x\n- one\n",
-    "# t\n",
-    p.bullets,
-    "2026-10-13",
-    p.groups,
-  );
-  expect(out.text).toBe(
-    "# t\n\nTpl.\n\n## compacted 2026-02-02..2026-02-02\n- loose one\n\n## Decisions\n- d one\n- d two\n\n## Facts\n- f one\n",
-  );
-  expect(compactionSystem(8000)).toContain('"## Decisions"');
-});
-
-test("compaction end to end on a sectioned file keeps sections and merges across dates", async () => {
-  const f = tmp();
-  const dec = Array.from(
-    { length: 60 },
-    (_, i) =>
-      `- the deploy pipeline step number ${i} uses cache folder alpha${i} (2026-10-0${(i % 9) + 1})`,
-  );
-  const fact = Array.from(
-    { length: 60 },
-    (_, i) => `- the service port detail ${i} lives in config zeta${i} (2026-09-01)`,
-  );
-  writeFileSync(
-    f,
-    `# r memory\n\nIntro.\n\n## Decisions\n${dec.join("\n")}\n\n## Facts\n${fact.join("\n")}\n`,
-  );
-  const t: MemoryTarget = { file: f, label: "r", cap: 8000, template: "# r memory\n" };
-  const llm: CompactLlm = async () => ({
-    text: `## Decisions\n${dec.slice(0, 5).join("\n")}\n## Facts\n${fact.slice(0, 3).join("\n")}`,
-    usage: emptyUsage(),
-  });
-  const res = await compactTargets([t], llm, { dryRun: false });
-  expect(res[0]?.status).toBe("compacted");
-  const after = readFileSync(f, "utf8");
-  expect(after).toContain("## Decisions\n- the deploy pipeline step number 0");
-  expect(after).toContain("## Facts\n- the service port detail 0");
-  expect(after).not.toContain("## compacted");
-});
-
 const ln = (n: number, tag: string) => `- ${tag} note number ${n} with some filler words`;
 const many = (n: number, tag: string) => Array.from({ length: n }, (_, i) => ln(i, tag)).join("\n");
 
@@ -279,54 +219,4 @@ test("writer: refuses past the line limit or the char cap with 'full'", () => {
 test("dedupe: an empty normalized key never matches", () => {
   const t = "## Facts\n- !!! (2026-01-01)\n";
   expect(hasBullet(t, "fact", "- ??? (2026-02-02)")).toBe(false);
-});
-
-function bigSectioned(): { f: string; t: MemoryTarget; dec: string[]; fact: string[] } {
-  const f = tmp();
-  const dec = Array.from(
-    { length: 60 },
-    (_, i) =>
-      `- the deploy pipeline step number ${i} uses cache folder alpha${i} (2026-10-0${(i % 9) + 1})`,
-  );
-  const fact = Array.from(
-    { length: 60 },
-    (_, i) => `- the service port detail ${i} lives in config zeta${i} (2026-09-01)`,
-  );
-  writeFileSync(
-    f,
-    `# r memory\n\n## Decisions\n${dec.join("\n")}\n\n## Facts\n${fact.join("\n")}\n`,
-  );
-  return { f, t: { file: f, label: "r", cap: 8000, template: "# r memory\n" }, dec, fact };
-}
-const stubLlm =
-  (text: string): CompactLlm =>
-  async () => ({ text, usage: emptyUsage() });
-
-test("compaction aborts when kind sections come back flat", async () => {
-  const { t, dec } = bigSectioned();
-  const res = await compactTargets([t], stubLlm(dec.slice(0, 5).join("\n")), { dryRun: false });
-  expect(res[0]?.status).toBe("aborted");
-});
-
-test("compaction aborts when a bullet moves to another section", async () => {
-  const { t, dec, fact } = bigSectioned();
-  const res = await compactTargets(
-    [t],
-    stubLlm(`## Decisions\n${dec.slice(0, 3).join("\n")}\n## Facts\n${dec[5]}\n${fact[0]}`),
-    { dryRun: true },
-  );
-  expect(res[0]?.status).toBe("aborted");
-});
-
-test("compaction aborts on an invented or refreshed date", async () => {
-  const { t, dec } = bigSectioned();
-  const bad = dec[0]?.replace("(2026-10-01)", "(2026-12-24)");
-  const res = await compactTargets([t], stubLlm(`## Decisions\n${bad}\n${dec[1]}`), {
-    dryRun: true,
-  });
-  expect(res[0]?.status).toBe("aborted");
-  const ok = await compactTargets([t], stubLlm(`## Decisions\n${dec[0]}\n${dec[1]}`), {
-    dryRun: true,
-  });
-  expect(ok[0]?.status).toBe("dry-run");
 });

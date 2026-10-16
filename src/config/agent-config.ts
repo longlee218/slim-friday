@@ -62,7 +62,7 @@ export interface AgentConfig extends Pick<RoutingEnv, "compactOverrides"> {
   budgetOverrides: Record<string, number>;
   /** Deprecated env vars that are set (logged once at startup as `config.deprecated`). */
   deprecated: string[];
-  /** Model of the manual memory compaction call (one cheap call per over-threshold file). */
+  /** Model of the one-shot cheap calls (attachment summary, rollover fallback summary). */
   memoryModel: string;
   /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the role budget). */
   limits: { maxBudgetUsd: number | undefined; timeoutMs: number };

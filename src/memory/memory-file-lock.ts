@@ -119,7 +119,7 @@ export interface LockOptions {
 
 /**
  * Run `fn` while holding `<file>.lock` (one lock per memory file, used by every writer: agent appends,
- * pending appends, owner commands, compaction commit). Stale locks are reclaimed (holder PID dead or lock older
+ * pending appends, owner file writes). Stale locks are reclaimed (holder PID dead or lock older
  * than 10 min; an empty lock under 2 s old counts as live). Waits up to 5 s, then throws MemoryBusyError. The wait is
  * a synchronous sleep (blocks the event loop up to 5 s; writers are rare and the critical sections are tiny).
  * Refuses a symlinked memory file (MemorySymlinkError). Released in `finally`. `fn` must be synchronous

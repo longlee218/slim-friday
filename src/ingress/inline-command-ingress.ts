@@ -1,26 +1,23 @@
 import type { Message } from "discord.js";
-import type { MemoryRunner, MemoryWhere } from "../memory/memory-command-handler";
+import type { InlineRunner } from "../memory/find-command-handler";
 import { sendReply } from "./discord-message-handler";
 import { languageOf } from "./user-copy";
 
 /**
- * Run `text` as an owner memory command and reply inline in the message's own channel or thread (no thread is
- * created, no task row, no agent). Returns false when the text is not a memory command (nothing was sent).
+ * Run `text` as an inline owner command (`/find`) and reply in the message's own channel or thread (no thread is
+ * created, no task row, no agent). Returns false when the text is not an inline command (nothing was sent).
  * Owner and guild checks already ran in routing.
  */
-export async function replyToMemoryCommand(
-  runner: MemoryRunner,
+export async function replyToInlineCommand(
+  runner: InlineRunner,
   msg: Message,
-  where: MemoryWhere,
   text: string,
   visible?: () => Promise<void>,
 ): Promise<boolean> {
   const ch = msg.channel;
   const reply = await runner({
-    where,
     // Routing key: threads never change parent, so the parent channel is the stable workspace key.
     channelId: ch.isThread() ? (ch.parentId ?? ch.id) : ch.id,
-    threadId: ch.isThread() ? ch.id : undefined,
     text,
   });
   if (reply === null) return false;

@@ -6,8 +6,7 @@ import {
   DIGEST_BLOCK_MAX_CHARS,
   DIGEST_HEADING,
 } from "../src/memory/channel-digest";
-import { FIND_NONE, FIND_USAGE, withFindCommand } from "../src/memory/find-command-handler";
-import { createMemoryRunner } from "../src/memory/memory-command-handler";
+import { createFindRunner, FIND_NONE, FIND_USAGE } from "../src/memory/find-command-handler";
 import { openDb } from "../src/storage/db";
 import {
   channelDigest,
@@ -139,17 +138,13 @@ function findHarness() {
   const env = makeEnv();
   addLocation(env.home, "location", {}, { channels: [TEST_CHANNEL, "300000000000000003"] });
   addLocation(env.home, "api", {}, { workspace: "w2", channels: [CHANNEL_2] });
-  const run = withFindCommand(createMemoryRunner({ db: env.db, config: env.config }), {
-    db: env.db,
-    agentHome: env.home,
-  });
-  const ask = (text: string, channelId = TEST_CHANNEL) =>
-    run({ where: "workspace", channelId, text });
+  const run = createFindRunner({ db: env.db, agentHome: env.home });
+  const ask = (text: string, channelId = TEST_CHANNEL) => run({ channelId, text });
   return { env, ask, run };
 }
 
 test("/find lists matching threads of the space (all its channels), newest first, scope = space", async () => {
-  const { env, ask, run } = findHarness();
+  const { env, ask } = findHarness();
   titled(env.db, "t1", TEST_CHANNEL, "Invoice export", Date.UTC(2026, 9, 10, 12));
   titled(env.db, "t2", "300000000000000003", "Invoice import", Date.UTC(2026, 9, 12, 12));
   titled(env.db, "t3", CHANNEL_2, "Invoice of another space", Date.UTC(2026, 9, 13, 12));
@@ -164,10 +159,8 @@ test("/find lists matching threads of the space (all its channels), newest first
   expect(await ask("/find nothing-here")).toBe(FIND_NONE);
   expect(await ask("/find")).toBe(FIND_USAGE);
   expect(await ask("/find 100%")).toBe(FIND_NONE); // `%` is literal
-  // not a find command: passes to the memory runner (null = a normal task)
+  // not a find command: null = a normal task)
   expect(await ask("what does the find command do?")).toBeNull();
-  // an ops channel is refused by the wrapped runner, never searched
-  expect(await run({ where: "ops", channelId: "x", text: "/find invoice" })).toBeNull();
 });
 
 test("find handler: another space's rows (same channel id) never leak into the results", async () => {

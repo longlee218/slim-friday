@@ -121,7 +121,7 @@ async function main(): Promise<void> {
     handleMessage,
     (i) => approvals.handleInteraction(i),
     setup,
-    handleMessage.memory,
+    handleMessage.inline,
     threadsPort,
   );
   botClient = client;

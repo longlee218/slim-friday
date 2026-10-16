@@ -7,9 +7,7 @@ import { parseId } from "../src/memory/index/memory-ids";
 import { searchIndex } from "../src/memory/index/memory-search";
 import { syncAll } from "../src/memory/index/memory-sync";
 import { buildMemoryContext, CHANNEL_CHARS, readMemoryLayers } from "../src/memory/location-memory";
-import { parseMemoryCommand } from "../src/memory/memory-commands";
 import { buildMemoryToolContext } from "../src/memory/memory-context";
-import { resolveMemoryTarget } from "../src/memory/memory-scope";
 import { buildPersonaContext, ensureHome } from "../src/memory/persona";
 import { openDb } from "../src/storage/db";
 import type { MemoryToolContext } from "../src/tools/memory-tool-context";
@@ -142,25 +140,6 @@ test("persona: channel file > space file > root file, first non-empty wins", () 
   expect(text).not.toContain("space tone");
   // Another channel keeps the space file.
   expect(buildPersonaContext(home, WS, "chat-room").text).toContain("space tone");
-});
-
-test("/forget channel parses to the channel scope", () => {
-  expect(parseMemoryCommand("/forget channel old fact")).toEqual({
-    kind: "forget",
-    scope: { kind: "channel" },
-    needle: "old fact",
-  });
-  expect(parseMemoryCommand("/forget location:api old fact")).toMatchObject({
-    scope: { kind: "location", name: "api" },
-  });
-});
-
-test("scope channel resolves to the channel file; without a channel it replies", () => {
-  const { home, ws, paths } = space();
-  const base = { db: openDb(":memory:"), home, ws, place: "workspace" as const };
-  const t = resolveMemoryTarget({ ...base, channel: "finance" }, { kind: "channel" });
-  expect("file" in t && t.file).toBe(paths.channel("finance").memory);
-  expect("reply" in resolveMemoryTarget(base, { kind: "channel" })).toBe(true);
 });
 
 test("Remember scope channel writes the run's channel file; no channel = error", async () => {

@@ -14,8 +14,6 @@ import {
 } from "../src/mcp/mcp-tool-names";
 import { createMemoryServer } from "../src/mcp/memory-server";
 import { NOT_FOUND } from "../src/memory/index/memory-resolve";
-import { ownerForget } from "../src/memory/memory-owner-edit";
-import { locationTarget } from "../src/memory/memory-targets";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { getRole } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
@@ -277,14 +275,14 @@ test("hits: original spelling, redacted label, registry locations only; stale no
   );
 });
 
-test("forget (owner command) removes the bullet from search on the next call (mtime sync)", async () => {
+test("an edited file drops the removed bullet from search on the next call (mtime sync)", async () => {
   const s = setup();
   s.put(
     "workspaces/a/locations/api/MEMORY.md",
     "# api\n\n## Facts\n- zebra stripes are black and white\n- giraffe necks are long\n",
   );
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "zebra" })).text).toContain("zebra");
-  expect(ownerForget(locationTarget(s.home, "a", "api"), "zebra stripes").ok).toBe(true);
+  s.put("workspaces/a/locations/api/MEMORY.md", "# api\n\n## Facts\n- giraffe necks are long\n");
   const after = await s.call(MEMORY_SEARCH_TOOL, { query: "zebra" });
   expect(after.text).not.toContain("zebra stripes");
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "giraffe" })).text).toContain("giraffe");

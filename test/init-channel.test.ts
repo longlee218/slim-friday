@@ -191,10 +191,9 @@ test("parse /init-channel", () => {
   expect((parseAdminCommand("hello") as any).reply).toContain("/init-channel");
 });
 
-test("slash definition: one string arg `path`", () => {
+test("slash definition: one required arg `path`", () => {
   expect(SLASH_DEFINITIONS["init-channel"].arg).toMatchObject({
     name: "path",
-    kind: "string",
     required: true,
   });
   expect(slashPayload().find((c) => c.name === "init-channel")?.options).toHaveLength(1);

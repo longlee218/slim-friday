@@ -1,6 +1,6 @@
 import type { Message } from "discord.js";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
-import type { MemoryRunner } from "../memory/memory-command-handler";
+import type { InlineRunner } from "../memory/find-command-handler";
 import { logEvent, logger } from "../observability/logger";
 import { adminGate, parseAdminCommand } from "./admin-command";
 import type { ControlRun } from "./control-role-run";
@@ -20,8 +20,8 @@ export interface AdminDeps {
   /** Id of the logged-in bot user. */
   botId: () => string | undefined;
   setup: DiscordSetup;
-  /** Owner memory commands typed in #ops-control (global scope and `/compact` only). */
-  memory?: MemoryRunner;
+  /** Inline owner commands (`/find`) typed in #ops-control. */
+  inline?: InlineRunner;
   /** Runs the control-channel role for non-command text; absent = the help text. */
   controlRun?: ControlRun;
 }
@@ -69,9 +69,9 @@ export function createAdminHandler(deps: AdminDeps) {
       logEvent(log, "admin.refused", { channelId: ch.id, reply: gate.reply }, "warn");
       return void (await reply(gate.reply));
     }
-    // `/forget global ...`, `/compact`: after the same gate as admin commands.
-    const memo = await deps.memory?.({ where: "control", channelId: ch.id, text: prompt });
-    if (memo != null) return void (await reply(memo));
+    // `/find`: after the same gate as admin commands.
+    const found = await deps.inline?.({ channelId: ch.id, text: prompt });
+    if (found != null) return void (await reply(found));
     const cmd = parseAdminCommand(prompt);
     const init = {
       home: deps.home,

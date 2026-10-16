@@ -58,7 +58,7 @@ export function sdkEnv(
   Object.assign(env, SUBAGENT_LIMIT_ENV);
   // The SDK strips the credentials above from the env of its Bash tool, hooks and MCP servers: the model call still has them.
   if (opts.worker) env[SUBPROCESS_SCRUB_VAR] = "1";
-  // One-shot calls (memory compaction) are single-turn: no compaction, and a 1h cache write
+  // One-shot calls (attachment and summary calls) are single-turn: no compaction, and a 1h cache write
   // would only cost more than it saves, so they get none of the four vars.
   if (opts.oneShot) return env;
   const window = compactWindow ?? COMPACT_WINDOW_TOKENS;

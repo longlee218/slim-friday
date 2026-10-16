@@ -22,9 +22,7 @@ test("definitions and the SLASH parser list the same commands", () => {
 test("slashText builds the typed text per command", () => {
   const v = (m: Record<string, string | boolean>) => (a: string) => m[a] ?? null;
   expect(slashText("stop", v({}))).toBe("/stop");
-  expect(slashText("remember", v({ text: "tabs" }))).toBe("/remember tabs");
-  expect(slashText("compact", v({ "dry-run": true }))).toBe("/compact dry-run");
-  expect(slashText("compact", v({ "dry-run": false }))).toBe("/compact");
+  expect(slashText("find", v({ keywords: "invoice" }))).toBe("/find invoice");
   expect(slashText("init-workspace", v({ name: "acme" }))).toBe("/init-workspace acme");
   expect(slashText("constructor", v({}))).toBeNull();
 });
@@ -82,7 +80,7 @@ function fakeInteraction(
   return { i, log, sent };
 }
 
-function setup(memory?: any) {
+function setup(inline?: any) {
   const messages: InboundMessage[] = [];
   const onMessage = createMessageHandler({
     ownerId: OWNER,
@@ -92,7 +90,7 @@ function setup(memory?: any) {
       messages.push(message);
       return "ok";
     },
-    memory,
+    inline,
   });
   return { messages, handle: createSlashHandler({ ownerId: OWNER, onMessage }) };
 }
@@ -115,11 +113,11 @@ test("non-owner gets an ephemeral refusal and nothing runs", async () => {
   expect(log[0]).toStartWith("reply:Bạn không có quyền dùng lệnh này.");
 });
 
-test("memory command is answered inline, not run as a task", async () => {
+test("inline command is answered inline, not run as a task", async () => {
   const { messages, handle } = setup(async (r: any) =>
-    r.text.startsWith("/forget") ? "saved" : null,
+    r.text.startsWith("/find") ? "saved" : null,
   );
-  const { i, sent } = fakeInteraction("forget", OWNER, { text: "tabs" });
+  const { i, sent } = fakeInteraction("find", OWNER, { keywords: "tabs" });
   await handle(i);
   expect(messages).toEqual([]);
   expect(sent[0].content).toBe("saved");

@@ -94,11 +94,7 @@ to MEMORY.pending.md. Bullets are reduced to one plain line (no markup, no role 
 
 Owner commands (type them in a workspace channel; no agent, no quota except where noted):
 - /stop: abort the running task.
-- /remember <text>: sent to the agent as a normal message; it saves the note itself.
-- /forget [scope] <text>: remove the one bullet containing the text.
-- /compact [dry-run]: compact memory files over 80% of their cap (keeps a .bak of the old file).
 - /init-workspace <name>: create a workspace (#ops-control only).
-The memory reply names the file and chars/cap.
 `;
 
 /** Workspace memory template (owner-written; a header only: it counts as empty until the first "## " entry). */
@@ -107,8 +103,8 @@ export const workspaceMemoryTemplate = (ws: string) =>
 
 /** Per-location memory template (a header only: it counts as empty until the first entry). */
 export const memoryTemplate = (name: string) =>
-  `# ${name} memory\n\nLessons the Friday agent keeps about this location, in sections by kind (Decisions, Facts, Preferences, Lessons). Kind sections are never dropped; size is kept down by compact memory, and a full file refuses new notes. Dated legacy sections are trimmed at 300 lines.\n`;
+  `# ${name} memory\n\nLessons the Friday agent keeps about this location, in sections by kind (Decisions, Facts, Preferences, Lessons). Kind sections are never dropped, and a full file refuses new notes. Dated legacy sections are trimmed at 300 lines.\n`;
 
 /** Per-channel memory template (a header only: it counts as empty until the first entry). */
 export const channelMemoryTemplate = (name: string) =>
-  `# ${name} channel memory\n\nNotes the Friday agent keeps about this channel's topic, in sections by kind (Decisions, Facts, Preferences, Lessons). Only runs started in this channel read it. Size is kept down by compact memory, and a full file refuses new notes.\n`;
+  `# ${name} channel memory\n\nNotes the Friday agent keeps about this channel's topic, in sections by kind (Decisions, Facts, Preferences, Lessons). Only runs started in this channel read it. A full file refuses new notes.\n`;

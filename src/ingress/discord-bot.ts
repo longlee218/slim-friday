@@ -3,7 +3,7 @@ import type { AgentConfig } from "../config/agent-config";
 import { createAdminHandler } from "../discord-setup/admin-handler";
 import type { ControlRun } from "../discord-setup/control-role-run";
 import { type DiscordSetup, EMPTY_SETUP } from "../discord-setup/discord-setup-config";
-import type { MemoryRunner } from "../memory/memory-command-handler";
+import type { InlineRunner } from "../memory/find-command-handler";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { createAttachmentDeps } from "./attachment-summary";
@@ -28,7 +28,7 @@ export function createDiscordBot(
   handleMessage: HandleMessage & { control?: ControlRun },
   handleInteraction?: (i: Interaction) => Promise<void>,
   setup: DiscordSetup = EMPTY_SETUP,
-  memory?: MemoryRunner,
+  inline?: InlineRunner,
   threads?: ThreadsPort,
 ) {
   const log = logger.child({ module: "discord-bot" });
@@ -39,7 +39,7 @@ export function createDiscordBot(
     guildId: config.discordGuildId,
     handleMessage,
     setup,
-    memory,
+    inline,
     threads,
     attachments: createAttachmentDeps(config),
     // Admin commands (/init-workspace) run outside the turn handler, behind their own gate.
@@ -49,7 +49,7 @@ export function createDiscordBot(
       ownerId: config.ownerDiscordId ?? "",
       botId: () => client.user?.id,
       setup,
-      memory,
+      inline,
       controlRun: handleMessage.control, // non-command owner text in #ops-control -> the control-channel role
     }),
   });

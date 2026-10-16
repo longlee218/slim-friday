@@ -30,7 +30,7 @@ export const KIND_HEADING: Record<MemoryKind, string> = {
 /** Kinds allowed in a MEMORY.md (everything but `open`), in the order sections are listed. */
 export const MEMORY_FILE_KINDS: readonly MemoryKind[] = MEMORY_KINDS.filter((k) => k !== "open");
 
-/** Headings of a MEMORY.md kind section, in canonical order (compaction output uses them). */
+/** Headings of a MEMORY.md kind section, in canonical order. */
 export const MEMORY_SECTION_HEADINGS: readonly string[] = MEMORY_FILE_KINDS.map(
   (k) => KIND_HEADING[k],
 );
@@ -44,7 +44,7 @@ const ENDS_H3 = /^#{1,3} /;
 /** `- <text> (YYYY-MM-DD)`: the bullet line stored in every file of this format. */
 export const formatBullet = (text: string, date: string): string => `- ${text} (${date})`;
 
-/** The bullet without its trailing date stamp (used to compare a bullet across dates and in compaction). */
+/** The bullet without its trailing date stamp (used to compare a bullet across dates). */
 export const stripDateSuffix = (bullet: string): string => bullet.replace(DATE_SUFFIX, "");
 
 /**

@@ -7,7 +7,7 @@ export const REMEMBER_MAX_CHARS = SAVE_MAX_CHARS;
 /** Shortest note accepted (chars, after trim). */
 export const REMEMBER_MIN_CHARS = 3;
 /**
- * `MEMORY.pending.md` (the global review queue) is never injected and never compacted, so it has no char cap:
+ * `MEMORY.pending.md` (the global review queue) is never injected, so it has no char cap:
  * only the writer's line cap (OWNER_MAX_LINES = 300) applies.
  */
 export const REMEMBER_PENDING_CAP_CHARS = Number.POSITIVE_INFINITY;

@@ -38,20 +38,19 @@ export interface TurnHandlerDeps {
 }
 
 /**
- * Build `handleMessage`: Discord-free entry. Commands (`/stop`, `/status`, memory) are answered by app code. Every other owner message goes to the thread's lead (queue): the handler
+ * Build `handleMessage`: Discord-free entry. Commands (`/stop`, `/status`, `/purge`) are answered by app code. Every other owner message goes to the thread's lead (queue): the handler
  * returns nothing and the lead posts its own reply, so the owner hears one voice.
  */
 export function createTurnHandler(deps: TurnHandlerDeps) {
   const { config } = deps;
   const log = logger.child({ module: "handle-message" });
-  const { active, tracker, rollovers, dispatchDeps, lead, memory, control, shutdown } =
+  const { active, tracker, rollovers, dispatchDeps, lead, inline, control, shutdown } =
     createHandlerServices(deps, log);
   /** Handle one message and return the reply text to post (undefined = the lead answers on its own). */
   const run = async (message: InboundMessage): Promise<string | undefined> => {
     const { threadId } = message;
     const parsed = parseMessageCommand(message.text);
     logEvent(log, "task.routed", { kind: parsed.kind });
-    if (parsed.kind === "memory") return (await memory(message)) ?? ""; // owner memory command: no agent
     if (parsed.kind === "stop") {
       return stopCommand({
         db: deps.db,
@@ -108,7 +107,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
       .then((text) =>
         text === undefined ? undefined : localizeUserCopy(text, messageLanguage(message)),
       );
-  handleMessage.memory = memory; // same runner for ingress (inline channel replies, #ops-control)
+  handleMessage.inline = inline; // same runner for ingress (inline channel replies, #ops-control)
   handleMessage.control = control; // non-command text of #ops-control (the control-channel role)
   handleMessage.rollover = (threadId: string) => rollovers.wait(threadId) ?? Promise.resolve(); // tests
   handleMessage.abortAll = shutdown.abortAll;

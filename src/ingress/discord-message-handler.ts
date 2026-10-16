@@ -1,14 +1,14 @@
 import type { Message, SendableChannels } from "discord.js";
 import { type DiscordSetup, EMPTY_SETUP, opsIds } from "../discord-setup/discord-setup-config";
 import type { RecentMessage } from "../intent/intent-types";
-import type { MemoryRunner } from "../memory/memory-command-handler";
+import type { InlineRunner } from "../memory/find-command-handler";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { type AttachmentDeps, withAttachments } from "./attachment-text";
-import { routeMessage, SAFE_MENTIONS, stripMention } from "./discord-message-rules";
+import { routeMessage, SAFE_MENTIONS } from "./discord-message-rules";
 import { BUSY_ACK_EMOJI, sendReply, startTyping } from "./discord-send";
 import type { InboundMessage } from "./inbound-message";
-import { replyToMemoryCommand } from "./memory-ingress";
+import { replyToInlineCommand } from "./inline-command-ingress";
 import { createMessageReceipt } from "./message-receipt";
 import { type HistoryChannel, historyOf, recentFor } from "./thread-history";
 import { threadOnlyNote } from "./thread-only-commands";
@@ -43,8 +43,8 @@ export interface MessageHandlerDeps {
   setup?: DiscordSetup;
   /** Admin handling for messages routed as `control` (gate + commands); never the agent. */
   admin?: (msg: Message, prompt: string) => Promise<void>;
-  /** Owner memory commands (`/forget`, `/compact`): answered inline before any thread or task is created. */
-  memory?: MemoryRunner;
+  /** Inline owner commands (`/find`): answered before any thread or task is created. */
+  inline?: InlineRunner;
   /** Ports of the attachment reader (summary, saved copy, fetch); tests inject fakes. */
   attachments?: AttachmentDeps;
   /** Thread persistence and channel lookup (placeholder rows, adoption). Absent: no rows, no adoption. */
@@ -150,11 +150,6 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       // Strangers' and bots' messages are noise (debug); the owner's ignored ones are worth seeing.
       const stranger = route.reason === "bot" || route.reason === "not_owner";
       logEvent(log, "message.ignored", { reason: route.reason }, stranger ? "debug" : "info");
-      // A memory command in a non-control ops channel is refused with a reply (nothing is executed).
-      if (route.reason === "ops_channel" && deps.memory)
-        await replyToMemoryCommand(deps.memory, msg, "ops", stripMention(msg.content, botId)).catch(
-          (err) => log.error({ err: errText(err) }, "memory refusal failed"),
-        );
       return;
     }
     if (route.kind === "control") {
@@ -187,10 +182,10 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
     const turn = route.kind === "thread" ? takeTurn(ch.id) : undefined;
     try {
       await turn?.wait;
-      // Memory commands never reach the agent: answered in place (thread or channel), no thread, no task row.
+      // Inline commands never reach the agent: answered in place (thread or channel), no thread, no task row.
       if (
-        deps.memory &&
-        (await replyToMemoryCommand(deps.memory, msg, "workspace", route.prompt, receipt.visible))
+        deps.inline &&
+        (await replyToInlineCommand(deps.inline, msg, route.prompt, receipt.visible))
       )
         return;
       // Text attachments (a message > 2000 chars arrives as message.txt) join the agent's text as a DATA block.

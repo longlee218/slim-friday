@@ -141,7 +141,7 @@ async function threadRun(content: string, fetch: () => Promise<unknown>) {
 }
 
 test("commands never wait for or call the history fetch", async () => {
-  for (const c of ["/stop", "/status", "/forget a long note here"]) {
+  for (const c of ["/stop", "/status", "/purge"]) {
     const r = await threadRun(c, () => new Promise(() => {}));
     expect(r.fetched).toBe(0);
     expect(r.ms).toBeLessThan(500);

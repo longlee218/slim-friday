@@ -1,7 +1,6 @@
 import type { Logger } from "pino";
 import { createControlRoleRun } from "../discord-setup/control-role-run";
-import { withFindCommand } from "../memory/find-command-handler";
-import { createMemoryRunner } from "../memory/memory-command-handler";
+import { createFindRunner } from "../memory/find-command-handler";
 import { createLeadSystem } from "./engine/lead-system";
 import type { DispatchDeps } from "./engine/role-run-types";
 import type { TurnHandlerDeps } from "./handle-message";
@@ -9,7 +8,7 @@ import { createRolloverScheduler } from "./turns/rollover-scheduler";
 import { createSteerRegistry } from "./turns/steer-registry";
 import { createRunTracker } from "./turns/turn-tracker";
 
-/** The long-lived services of one turn handler, built once: run tracking, rollovers, lead system, memory runner, control-channel runner. */
+/** The long-lived services of one turn handler, built once: run tracking, rollovers, lead system, inline command runner, control-channel runner. */
 export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   const { db, config } = deps;
   /** threadId -> controller of the active foreground run (the thread's lead run). */
@@ -38,11 +37,8 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     afterRun: (message, turnId, workspace) => rollovers.schedule(message, turnId, workspace),
     hold: async (threadId) => void (await rollovers.wait(threadId)),
   });
-  // `/find` rides the same inline owner-command path as the memory commands (answered before any thread or task).
-  const memory = withFindCommand(
-    createMemoryRunner({ db, config, queryFn: deps.queryFn, limiter: deps.limiter }),
-    { db, agentHome: config.agentHome },
-  );
+  // `/find` is an inline owner command (answered before any thread or task).
+  const inline = createFindRunner({ db, agentHome: config.agentHome });
   // Non-command owner text in #ops-control runs the control-channel role (no workspace; see discord-setup/control-role-run.ts).
   const control = createControlRoleRun({
     db,
@@ -60,5 +56,5 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     },
     drain: async (ms: number) => tracker.drain(await control.drain(await rollovers.drain(ms))),
   };
-  return { active, tracker, rollovers, dispatchDeps, lead, memory, control, shutdown };
+  return { active, tracker, rollovers, dispatchDeps, lead, inline, control, shutdown };
 }

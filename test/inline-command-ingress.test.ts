@@ -3,7 +3,7 @@ import { OverwriteType } from "discord.js";
 import { createAdminHandler } from "../src/discord-setup/admin-handler";
 import { privateOverwrites } from "../src/discord-setup/private-channels";
 import { createMessageHandler } from "../src/ingress/discord-message-handler";
-import type { MemoryRequest } from "../src/memory/memory-command-handler";
+import type { InlineRequest } from "../src/memory/find-command-handler";
 
 const OWNER = "111";
 const BOT = "999";
@@ -47,18 +47,18 @@ function msg(channel: any, content: string) {
 }
 
 function handler() {
-  const asked: MemoryRequest[] = [];
+  const asked: InlineRequest[] = [];
   const messages: any[] = [];
-  const memory = async (r: MemoryRequest) => {
+  const inline = async (r: InlineRequest) => {
     asked.push(r);
-    return /^(remember|compact)/.test(r.text) ? `done ${r.where}` : null;
+    return /^\/find/.test(r.text) ? "found" : null;
   };
   const onMessage = createMessageHandler({
     ownerId: OWNER,
     botId: () => BOT,
     guildId: "G1",
     setup,
-    memory,
+    inline,
     handleMessage: async (message) => {
       messages.push(message);
       return "answer";
@@ -70,26 +70,21 @@ function handler() {
 test("command in a channel: inline reply, no thread, no task", async () => {
   const { onMessage, asked, messages } = handler();
   const c = chan("500000000000000001");
-  const x = msg(c, `<@${BOT}> remember: use bun`);
+  const x = msg(c, `<@${BOT}> /find use bun`);
   await onMessage(x.m);
   expect(x.threads).toEqual([]);
   expect(messages).toEqual([]);
-  expect(c.sent[0].content).toBe("done workspace");
-  expect(asked[0]).toMatchObject({
-    where: "workspace",
-    channelId: "500000000000000001",
-    threadId: undefined,
-    text: "remember: use bun",
-  });
+  expect(c.sent[0].content).toBe("found");
+  expect(asked[0]).toMatchObject({ channelId: "500000000000000001", text: "/find use bun" });
 });
 
-test("command in a thread: replies in the thread, channelId is the parent, threadId set", async () => {
+test("command in a thread: replies in the thread, channelId is the parent", async () => {
   const { onMessage, asked, messages } = handler();
   const t = chan("thr9", { thread: true, parentId: "500000000000000001" });
-  await onMessage(msg(t, "remember: x y z").m);
+  await onMessage(msg(t, "/find x y z").m);
   expect(messages).toEqual([]);
-  expect(t.sent[0].content).toBe("done workspace");
-  expect(asked[0]).toMatchObject({ channelId: "500000000000000001", threadId: "thr9" });
+  expect(t.sent[0].content).toBe("found");
+  expect(asked[0]).toMatchObject({ channelId: "500000000000000001" });
 });
 
 test("non-command still goes to the task layer", async () => {
@@ -99,27 +94,27 @@ test("non-command still goes to the task layer", async () => {
   expect(messages).toHaveLength(1);
 });
 
-test("command in a non-control ops channel is refused through the runner as 'ops' (no task)", async () => {
+test("command in a non-control ops channel is ignored (no runner call, no task)", async () => {
   const { onMessage, asked, messages } = handler();
   const c = chan(OPS);
-  await onMessage(msg(c, "remember: global abc").m);
+  await onMessage(msg(c, "/find abc").m);
   expect(messages).toEqual([]);
-  expect(asked[0]).toMatchObject({ where: "ops" });
-  expect(c.sent[0].content).toBe("done ops");
+  expect(asked).toEqual([]);
+  expect(c.sent).toEqual([]);
 });
 
-test("control channel: the admin handler runs memory commands behind its gate", async () => {
+test("control channel: the admin handler runs inline commands behind its gate", async () => {
   const ids = { guildId: "G1", ownerId: OWNER, botId: BOT };
-  const asked: MemoryRequest[] = [];
+  const asked: InlineRequest[] = [];
   const admin = createAdminHandler({
     home: "/nonexistent",
     guildId: "G1",
     ownerId: OWNER,
     botId: () => BOT,
     setup,
-    memory: async (r) => {
+    inline: async (r) => {
       asked.push(r);
-      return /^remember/.test(r.text) ? "stored" : null;
+      return /^\/find/.test(r.text) ? "stored" : null;
     },
   });
   const overwrites = (list: any[]) => ({
@@ -131,17 +126,17 @@ test("control channel: the admin handler runs memory commands behind its gate", 
     ),
   });
   const priv = chan(CTRL, { overwrites: overwrites(privateOverwrites(ids)) });
-  const ok = msg(priv, "remember: global ok ok");
-  await admin(ok.m, "remember: global ok ok");
+  const ok = msg(priv, "/find ok ok");
+  await admin(ok.m, "/find ok ok");
   expect(ok.replies[0].content).toBe("stored");
-  expect(asked[0]).toMatchObject({ where: "control", text: "remember: global ok ok" });
-  // not private -> refused before the memory runner
+  expect(asked[0]).toMatchObject({ channelId: CTRL, text: "/find ok ok" });
+  // not private -> refused before the runner
   asked.length = 0;
   const open = chan(CTRL, {
     overwrites: overwrites([{ id: "G1", type: OverwriteType.Role, allow: 0n, deny: 0n }]),
   });
-  const bad = msg(open, "remember: global ok ok");
-  await admin(bad.m, "remember: global ok ok");
+  const bad = msg(open, "/find ok ok");
+  await admin(bad.m, "/find ok ok");
   expect(asked).toEqual([]);
   expect(bad.replies[0].content).toContain("not private");
 });

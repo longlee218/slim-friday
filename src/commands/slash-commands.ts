@@ -1,14 +1,11 @@
 /**
  * The owner commands are slash commands only. A slash interaction reaches the handler as the text `/name arg`
  * (built by `slashText` in slash-definitions.ts) and `parseSlash` is the ONE place that reads it back; every
- * command parser (message, memory, admin, find) starts from its result. No plain-text command exists: a message
+ * command parser (message, admin, find) starts from its result. No plain-text command exists: a message
  * such as "stop" is an ordinary message for the lead.
  *
  *   /stop, /status, /purge   no argument (app code answers, no model)
  *   /find <keywords>         answered by the find handler, no model
- *   /remember <text>         NOT an app command: a plain message for the agent, which saves the note
- *   /forget <text>           memory command (app code)
- *   /compact [dry-run]       memory command (app code)
  *   /init-workspace <name>   ops control channel only
  *   /init-channel <space>/<name>  ops control channel only
  */
@@ -18,9 +15,6 @@ export const SLASH_NAMES = [
   "status",
   "purge",
   "find",
-  "remember",
-  "forget",
-  "compact",
   "init-workspace",
   "init-channel",
 ] as const;
