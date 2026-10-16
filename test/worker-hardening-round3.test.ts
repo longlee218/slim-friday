@@ -92,6 +92,15 @@ test("sandbox: network closed (strictAllowlist), writes only in the grants (no p
   );
 });
 
+test("sandbox: a run with no write grant covering its cwd (the scout) gets an explicit denyWrite on the cwd", () => {
+  const sb = workerSandbox({ ...ctx, cwd: loc, writePaths: [], worktreeDirs: [] }) as {
+    filesystem: any;
+  };
+  expect(sb.filesystem.denyWrite).toEqual([realpathSync(loc)]);
+  const dev = workerSandbox({ ...ctx, cwd: loc, writePaths: [loc] }) as { filesystem: any };
+  expect(dev.filesystem.denyWrite).toBeUndefined();
+});
+
 /** One worker run over a fake query: the options it passed and what it threw. */
 async function workerRun(thrown?: Error) {
   const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test" });

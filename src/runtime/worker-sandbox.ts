@@ -72,6 +72,10 @@ export function workerSandbox(guard: GuardrailContext | undefined): Options["san
   const toolchain = homes
     .flatMap((h) => [...TOOLCHAIN_HOME, ...GIT_READ_HOME].map((n) => join(h, n)))
     .filter((p) => existsSync(p));
+  // The SDK sandbox always lets a process write in its cwd. A run with no write grant covering the cwd (the scout) must not:
+  // deny it explicitly (live probe 2026-10-16: without this a read-only worker could create and overwrite files in its cwd).
+  const cwd = guard.cwd ? realOrSame(guard.cwd) : undefined;
+  const denyWrite = cwd && !allowWrite.map(realOrSame).some((w) => isInside(w, cwd)) ? [cwd] : [];
   return {
     enabled: true,
     failIfUnavailable: true,
@@ -79,6 +83,7 @@ export function workerSandbox(guard: GuardrailContext | undefined): Options["san
     allowUnsandboxedCommands: false,
     filesystem: {
       allowWrite,
+      ...(denyWrite.length && { denyWrite }),
       denyRead: [
         ...new Set([
           ...agentHome,

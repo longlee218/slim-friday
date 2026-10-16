@@ -59,7 +59,7 @@ test("sandbox: a worker run passes sandbox options to query (writes in its dirs 
     abortController: new AbortController(),
     queryFn: queryFn as never,
     role,
-    guard: guardFor(role, { ...ctx, cwd: env.home, writePaths: [env.location] }),
+    guard: guardFor(role, { ...ctx, cwd: env.location, writePaths: [env.location] }),
     code: { threadId: "th", gateway: undefined },
   });
   const sb = options?.sandbox as { [k: string]: unknown } | undefined;
