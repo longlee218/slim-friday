@@ -39,7 +39,7 @@ export interface Entry {
 
 /** The parsed table. */
 const TABLE = Bun.YAML.parse(
-  readFileSync(join(import.meta.dir, "../../config/data/worker-bash-allowlist.yaml"), "utf8"),
+  readFileSync(join(import.meta.dir, "../config/data/worker-bash-allowlist.yaml"), "utf8"),
 ) as { commands: Record<string, Entry> };
 
 /** Value shapes of a flag: a count, a plain word, a branch name, a commit message word (never a path unless `path`). */

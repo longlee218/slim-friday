@@ -1,7 +1,7 @@
-import type { ApprovalGateway } from "../../approvals/approval-types";
 import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
+import type { ApprovalGateway } from "../../owner-approval/approval-types";
 
 /* The owner-confirm gate: a yes/no with buttons before a costly or risky step (a worker's effect, a Discord admin
    write). It FAILS CLOSED: anything but a click on "yes" (no button flow, no answer in time, a

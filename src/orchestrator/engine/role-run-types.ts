@@ -1,16 +1,16 @@
 import type { Database } from "bun:sqlite";
-import type { ApprovalGateway } from "../../approvals/approval-types";
 import type { AgentConfig } from "../../config/agent-config";
 import type { Route } from "../../config/model-routing";
+import type { RecentMessage } from "../../ingress/intent-types";
 import type { ThreadTitlePort } from "../../ingress/thread-rename";
 import type { OwnerLanguage } from "../../ingress/user-copy";
-import type { RecentMessage } from "../../intent/intent-types";
 import type { Location } from "../../locations/location-registry";
 import type { AppCtxFactory } from "../../mcp/manifest-types";
+import type { ApprovalGateway } from "../../owner-approval/approval-types";
+import type { DispatchEnvelope } from "../../policy/envelope";
 import type { QueryFn } from "../../runtime/run-agent";
 import type { AskQuestion } from "../../runtime/tool-permissions";
 import type { SessionRow } from "../../storage/session-store";
-import type { DispatchEnvelope } from "../approval/envelope";
 import type { RunLimiter } from "../turns/run-limiter";
 import type { SteerRegistry } from "../turns/steer-registry";
 

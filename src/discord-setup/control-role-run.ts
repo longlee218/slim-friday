@@ -1,6 +1,5 @@
 import type { Database } from "bun:sqlite";
 import type { Message } from "discord.js";
-import type { ApprovalGateway } from "../approvals/approval-types";
 import { parseSlash } from "../commands/slash-commands";
 import type { AgentConfig } from "../config/agent-config";
 import { sendReply, startTyping } from "../ingress/discord-send";
@@ -16,6 +15,7 @@ import { errText } from "../observability/redact";
 import { ownerConfirm } from "../orchestrator/engine/owner-confirm";
 import { runRole } from "../orchestrator/engine/run-role";
 import { finishRun, RESUMABLE_OUTCOMES } from "../orchestrator/turns/turn-result";
+import type { ApprovalGateway } from "../owner-approval/approval-types";
 import { controlRole } from "../roles/role-registry";
 import type { QueryFn } from "../runtime/run-agent";
 import { finishTurn, insertTurn } from "../storage/run-store";

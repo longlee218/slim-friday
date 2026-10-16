@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
-import type { ApprovalGateway, ApprovalRequest } from "../src/approvals/approval-types";
 import { parseMessageCommand } from "../src/orchestrator/message-commands";
+import type { ApprovalGateway, ApprovalRequest } from "../src/owner-approval/approval-types";
 import {
   BASH_TOOL_NAME,
   SEND_FEEDBACK_TOOL_NAME,

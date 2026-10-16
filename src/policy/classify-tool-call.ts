@@ -1,9 +1,8 @@
-import type { GuardrailContext } from "../../guardrails/check-tool-call";
-import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
-import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/constants";
-import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
-import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
-import { EFFECTS_MCP_SERVER, MCP_PREFIX, mcpToolName } from "../../mcp/mcp-tool-names";
+import { CREATE_PULL_REQUEST_TOOL } from "../mcp/effects/tools/CreatePullRequestTool/constants";
+import { DELETE_PATHS_TOOL } from "../mcp/effects/tools/DeletePathsTool/constants";
+import { GIT_PUSH_TOOL } from "../mcp/effects/tools/GitPushTool/constants";
+import { MERGE_BRANCH_TOOL } from "../mcp/effects/tools/MergeBranchTool/constants";
+import { EFFECTS_MCP_SERVER, MCP_PREFIX, mcpToolName } from "../mcp/mcp-tool-names";
 import {
   BASH_TOOL_NAME,
   EDIT_TOOL_NAME,
@@ -15,8 +14,9 @@ import {
   NOTEBOOK_EDIT_TOOL_NAME,
   READ_TOOL_NAME,
   WRITE_TOOL_NAME,
-} from "../../tools/sdk-tool-names";
+} from "../tools/sdk-tool-names";
 import { classifyBash } from "./bash-allowlist";
+import type { GuardrailContext } from "./check-tool-call";
 import type { RiskClass } from "./risk-types";
 
 /* Risk class (R0-R4) of one tool call. Pure and deterministic: tool name + input -> class. Unknown -> R2.

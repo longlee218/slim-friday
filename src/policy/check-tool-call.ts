@@ -8,7 +8,6 @@
 
 import { mcpToolNamesFor } from "../mcp/mcp-servers";
 import { MCP_PREFIX } from "../mcp/mcp-tool-names";
-import type { DispatchEnvelope } from "../orchestrator/approval/envelope";
 import type { RoleDefinition } from "../roles/role-types";
 import {
   AGENT_TOOL_NAME,
@@ -30,6 +29,7 @@ import {
 import { autoAllowedTools, toolsFor } from "../tools/tool-catalog";
 import { checkBash, checkWorktreePath } from "./bash-policy";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
+import type { DispatchEnvelope } from "./envelope";
 import { envelopeGate } from "./envelope-guard";
 
 /** Outcome of a guardrail check. `deny` is never approvable; `ask` needs the owner. */

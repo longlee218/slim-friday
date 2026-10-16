@@ -2,8 +2,8 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { GuardrailContext } from "../src/guardrails/check-tool-call";
-import { classifyBash } from "../src/orchestrator/approval/bash-allowlist";
+import { classifyBash } from "../src/policy/bash-allowlist";
+import type { GuardrailContext } from "../src/policy/check-tool-call";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";
 
 afterAll(cleanupTmp);

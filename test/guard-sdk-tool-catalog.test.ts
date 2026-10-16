@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
+import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import {
   BASH_TOOL_NAME,

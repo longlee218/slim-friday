@@ -3,7 +3,6 @@ import { type SDKMessage, query as sdkQuery } from "@anthropic-ai/claude-agent-s
 import type { AgentConfig } from "../config/agent-config";
 import { ceilingBinds, type Route } from "../config/model-routing";
 import { workspacePaths } from "../config/workspace-paths";
-import type { GuardrailContext } from "../guardrails/check-tool-call";
 import type { AppCtxFactory } from "../mcp/manifest-types";
 import type { MemoryToolContext } from "../mcp/memory/memory-tool-context";
 import { logEvent, logger } from "../observability/logger";
@@ -14,6 +13,7 @@ import {
   RunRecorder,
   type RunUsage,
 } from "../observability/record-run";
+import type { GuardrailContext } from "../policy/check-tool-call";
 import type { RoleDefinition } from "../roles/role-types";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
 import { createPermissionWatch } from "./permission-watch";

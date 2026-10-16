@@ -2,8 +2,8 @@ import { existsSync, lstatSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import { LOCATION_NAME, type WorkspacePaths } from "../config/workspace-paths";
-import { isInside } from "../guardrails/paths";
 import { logger } from "../observability/logger";
+import { isInside } from "../policy/paths";
 
 /** One registered location (a directory, git or not) the agent may work in or answer questions about. */
 export interface Location {

@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../src/config/agent-config";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { loadLocations } from "../src/locations/location-registry";
 import { roleScope } from "../src/orchestrator/engine/role-scope";
+import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 
 /** Fake owner $HOME holding AGENT_HOME (`.friday`) and a project; the location is the whole $HOME. */

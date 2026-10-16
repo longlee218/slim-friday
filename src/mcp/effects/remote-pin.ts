@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { EffectsCtx } from "../../orchestrator/approval/effect-context";
+import type { EffectsCtx } from "../../policy/effect-context";
 import { appendEffect } from "../../storage/effect-log-store";
 
 /* The remote a goal pushes to is pinned: its (push) URL must be a plain network URL and, once recorded for the goal, must not

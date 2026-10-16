@@ -4,8 +4,8 @@ import {
   FETCH_RECENT_TIMEOUT_MS,
   type InboundMessage,
 } from "../src/ingress/discord-message-handler";
+import { cleanRecent } from "../src/ingress/recent-messages";
 import { fetchRecent, type HistoryMessage, toRecent } from "../src/ingress/thread-history";
-import { cleanRecent } from "../src/intent/recent-messages";
 
 const P = { currentId: "cur", ownerId: "o", botId: "b" };
 const m = (id: string, author: string, content: string, ts: number, files = 0): HistoryMessage => ({

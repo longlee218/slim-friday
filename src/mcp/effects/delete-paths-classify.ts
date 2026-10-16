@@ -1,9 +1,9 @@
 import { lstatSync, readdirSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
-import { isSecretPath } from "../../guardrails/deny-dangerous";
-import { isInside, realOrSame, resolveReal } from "../../guardrails/paths";
-import { foldName, hasGitComponent, isInsideFolded } from "../../guardrails/protected-names";
-import type { EffectsCtx } from "../../orchestrator/approval/effect-context";
+import { isSecretPath } from "../../policy/deny-dangerous";
+import type { EffectsCtx } from "../../policy/effect-context";
+import { isInside, realOrSame, resolveReal } from "../../policy/paths";
+import { foldName, hasGitComponent, isInsideFolded } from "../../policy/protected-names";
 
 /* Where one DeletePaths target stands relative to the run's envelope. Fail closed: anything unclear is `refused`.
    Names are compared folded (case, unicode): macOS volumes are case-insensitive. */

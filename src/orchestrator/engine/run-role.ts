@@ -1,10 +1,10 @@
 import type { Route } from "../../config/model-routing";
-import { guardFor } from "../../guardrails/check-tool-call";
 import { threadLanguage } from "../../ingress/discord-components";
 import { renderUserNotice } from "../../ingress/user-copy";
 import { SET_THREAD_TITLE_TOOL } from "../../mcp/orchestration/tools/SetThreadTitleTool/constants";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { logEvent, logger, setLogContext } from "../../observability/logger";
+import { guardFor } from "../../policy/check-tool-call";
 import { mayHaveWritten } from "../../roles/capability-registry";
 import { getRole } from "../../roles/role-registry";
 import { newAskLimit } from "../../runtime/ask-limit";

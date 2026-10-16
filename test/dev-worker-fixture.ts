@@ -1,7 +1,7 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
+import type { ApprovalGateway } from "../src/owner-approval/approval-types";
 import { type makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 import { devLeadQuery, leadHarness, workersDone } from "./lead-harness";
 import { isWorkerRun } from "./mcp-run-probe";

@@ -2,8 +2,8 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkToolCall, type GuardrailContext } from "../src/guardrails/check-tool-call";
-import { defaultEnvelope } from "../src/orchestrator/approval/envelope";
+import { checkToolCall, type GuardrailContext } from "../src/policy/check-tool-call";
+import { defaultEnvelope } from "../src/policy/envelope";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";
 
 afterAll(cleanupTmp);

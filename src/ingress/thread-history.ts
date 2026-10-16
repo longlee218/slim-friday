@@ -1,6 +1,6 @@
-import type { RecentMessage } from "../intent/intent-types";
-import { cleanRecent, RECENT_COUNT } from "../intent/recent-messages";
 import { parseMessageCommand } from "../orchestrator/message-commands";
+import type { RecentMessage } from "./intent-types";
+import { cleanRecent, RECENT_COUNT } from "./recent-messages";
 
 /** Longest wait (ms) for the thread history; the message then goes on without it. */
 export const FETCH_RECENT_TIMEOUT_MS = 1500;

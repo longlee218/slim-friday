@@ -1,5 +1,5 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { RecentMessage } from "../../intent/intent-types";
+import type { RecentMessage } from "../../ingress/intent-types";
 import { MEMORY_MCP_SERVER, mcpToolName } from "../../mcp/mcp-tool-names";
 import { MEMORY_SAVE_TOOL } from "../../mcp/memory/tools/MemorySaveTool/constants";
 import { type ChatText, extractContext } from "../../memory/extract-context";

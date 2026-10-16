@@ -1,15 +1,15 @@
 import type { HookCallback, HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-sdk";
 import type { Logger } from "pino";
-import { checkToolCall, type LoggedDecision } from "../guardrails/check-tool-call";
+import { logEvent } from "../observability/logger";
+import { agentIdentity } from "../observability/subagent-hooks";
+import { describeTool } from "../observability/tool-target";
+import { checkToolCall, type LoggedDecision } from "../policy/check-tool-call";
 import {
   gateSpawn,
   isSpawnCall,
   type SubagentLimit,
   spawnFinished,
-} from "../guardrails/subagent-limit";
-import { logEvent } from "../observability/logger";
-import { agentIdentity } from "../observability/subagent-hooks";
-import { describeTool } from "../observability/tool-target";
+} from "../policy/subagent-limit";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../tools/sdk-tool-names";
 import { RUN_STOPPED_REASON, type ToolPermissionInput } from "./tool-permissions";
 

@@ -1,5 +1,5 @@
 import { francAll } from "franc-min";
-import type { RecentMessage } from "../intent/intent-types";
+import type { RecentMessage } from "./intent-types";
 
 /** The two conversation languages supported by application notices. */
 export type OwnerLanguage = "vi" | "en";

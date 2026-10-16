@@ -1,14 +1,9 @@
 import { clip } from "../../observability/redact";
-import { goalUsage, measurePaths } from "../../orchestrator/approval/bounds-usage";
-import { checkEnvelope } from "../../orchestrator/approval/check-envelope";
-import {
-  type EffectsCtx,
-  recordEffect,
-  refuseLogged,
-  safeText,
-} from "../../orchestrator/approval/effect-context";
-import { TRASH_TTL_MS } from "../../orchestrator/approval/risk-types";
 import { type Reply, refuse } from "../../orchestrator/engine/lead-call";
+import { goalUsage, measurePaths } from "../../policy/bounds-usage";
+import { checkEnvelope } from "../../policy/check-envelope";
+import { type EffectsCtx, recordEffect, refuseLogged, safeText } from "../../policy/effect-context";
+import { TRASH_TTL_MS } from "../../policy/risk-types";
 import { classifyPath, type PathKind, stillSame } from "./delete-paths-classify";
 import { containsNestedGit } from "./nested-git";
 import { DELETE_PATHS_TOOL } from "./tools/DeletePathsTool/constants";

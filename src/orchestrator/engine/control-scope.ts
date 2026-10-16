@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentConfig } from "../../config/agent-config";
 import { workspacePaths } from "../../config/workspace-paths";
-import { realOrSame } from "../../guardrails/paths";
+import { realOrSame } from "../../policy/paths";
 import type { RoleRunInput } from "./role-run-types";
 import type { RoleScope } from "./role-scope";
 

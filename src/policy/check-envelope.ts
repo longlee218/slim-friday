@@ -1,6 +1,6 @@
-import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/constants";
-import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
-import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
+import { DELETE_PATHS_TOOL } from "../mcp/effects/tools/DeletePathsTool/constants";
+import { GIT_PUSH_TOOL } from "../mcp/effects/tools/GitPushTool/constants";
+import { MERGE_BRANCH_TOOL } from "../mcp/effects/tools/MergeBranchTool/constants";
 import { ANY, type DispatchEnvelope } from "./envelope";
 import type { EffectTool, RiskClass } from "./risk-types";
 

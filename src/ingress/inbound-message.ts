@@ -1,4 +1,4 @@
-import type { RecentMessage } from "../intent/intent-types";
+import type { RecentMessage } from "./intent-types";
 import type { OwnerLanguage } from "./user-copy";
 
 /** A unit of work arriving from any ingress (Discord, tests). */

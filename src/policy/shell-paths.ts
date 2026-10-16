@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
-import type { GuardrailContext } from "../../guardrails/check-tool-call";
-import { isInside, realOrSame, resolveReal } from "../../guardrails/paths";
+import type { GuardrailContext } from "./check-tool-call";
+import { isInside, realOrSame, resolveReal } from "./paths";
 
 /* Path operands of the worker shell: a plain word, no `..`, resolved (symlinks and case included) inside the dirs granted to the
    run (a granted dir is fully readable and writable, `.git` included). `/tmp` is not a root: the run's scratch dir (the goal dir under the agent home) is. Pure. */

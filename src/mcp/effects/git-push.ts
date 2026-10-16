@@ -1,16 +1,12 @@
-import {
-  checkEnvelope,
-  grantNamesBranch,
-  isFallbackDefault,
-} from "../../orchestrator/approval/check-envelope";
+import { type Reply, refuse } from "../../orchestrator/engine/lead-call";
+import { checkEnvelope, grantNamesBranch, isFallbackDefault } from "../../policy/check-envelope";
 import {
   type EffectsCtx,
   locationPath,
   recordEffect,
   refuseLogged,
   safeText,
-} from "../../orchestrator/approval/effect-context";
-import { type Reply, refuse } from "../../orchestrator/engine/lead-call";
+} from "../../policy/effect-context";
 import { isPlainRef } from "./git-run";
 import { checkRemote } from "./remote-pin";
 import { GIT_PUSH_TOOL } from "./tools/GitPushTool/constants";

@@ -1,10 +1,10 @@
 import { EFFECT_TOOL_NAMES } from "../mcp/effects/effect-tool-names";
 import { CREATE_PULL_REQUEST_TOOL } from "../mcp/effects/tools/CreatePullRequestTool/constants";
 import { EFFECTS_MCP_SERVER, mcpToolName } from "../mcp/mcp-tool-names";
-import { checkEnvelope } from "../orchestrator/approval/check-envelope";
-import { classifyToolCall } from "../orchestrator/approval/classify-tool-call";
-import type { EffectTool } from "../orchestrator/approval/risk-types";
+import { checkEnvelope } from "./check-envelope";
 import type { Decision, GuardrailContext } from "./check-tool-call";
+import { classifyToolCall } from "./classify-tool-call";
+import type { EffectTool } from "./risk-types";
 
 /* The envelope gate of `checkToolCall`: a worker run with an envelope. Fail closed: what the envelope does not cover is
    denied with `OUT_OF_ENVELOPE`, and the worker reports BLOCKED so the lead can ask for an amendment. */

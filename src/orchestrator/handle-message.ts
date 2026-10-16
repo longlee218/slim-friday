@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
 import type { InboundMessage } from "../ingress/discord-message-handler";
 import { renderStatus } from "../ingress/status-copy";
@@ -8,6 +7,7 @@ import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/
 import { DRAIN_REPLY, isDraining } from "../lifecycle/drain";
 import { purgeThreadTrash } from "../mcp/effects/purge-trash";
 import { logEvent, logger, runWithLogContext } from "../observability/logger";
+import type { ApprovalGateway } from "../owner-approval/approval-types";
 import type { QueryFn } from "../runtime/run-agent";
 import { ownerConfirm } from "./engine/owner-confirm";
 import type { RecoveryReport } from "./engine/recover-in-flight";

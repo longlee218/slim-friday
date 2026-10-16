@@ -25,7 +25,7 @@ bun run start           # start the bot (reads .env)
    - Subagents are the SDK built-in `Agent` tool. The app defines no subagent types.
    - Adding or removing a skill is a data change. A code change for it is a bug.
 4. **Limits live as named constants in the role file.** Role limits (`MAX_ASK`, `BUDGET_USD`) are declared at the top of `src/roles/builtin/<role>-role.ts`. The task ceiling `TASK_BUDGET_USD` lives only in `src/config/model-routing.ts`. Other run-wide caps are constants in their owning module.
-5. **Two guards, by run kind.** `src/guardrails/` is a deny-list for every run: it decides allow / ask / deny per tool call, and hard denies are never approvable. A dispatched worker also has an envelope (`src/orchestrator/approval/`): its shell is default-deny by shape with an exact table (`src/config/data/worker-bash-allowlist.yaml`), and R2/R3 work goes only through the effect tools. Do not add an allowlist for the shell of a run without an envelope.
+5. **Two guards, by run kind.** `src/policy/` is a deny-list for every run: it decides allow / ask / deny per tool call, and hard denies are never approvable. A dispatched worker also has an envelope (also `src/policy/`): its shell is default-deny by shape with an exact table (`src/config/data/worker-bash-allowlist.yaml`), and R2/R3 work goes only through the effect tools. Do not add an allowlist for the shell of a run without an envelope.
 6. **Fail closed for owner decisions.** An owner question without an answer means "do not run" (owner-confirm, approvals). A missing or invalid config refuses startup.
 7. **Layering.** `thread/` and `dispatch/` never import `runtime/`. `roles/` never imports `orchestrator/`. Tested in `test/engine-layering.test.ts`.
 8. **Lead policy is code constants and typed actions.** Caps live in `src/orchestrator/strategy/caps.ts`; dispatch shape rules in `strategy/dispatch-policy.ts`. Lead tools are typed actions whose handlers check state, caps and CAS. The lead starts only roles with the `dispatchable` data flag. Only background roles own tasks.
@@ -97,7 +97,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 
 **Naming:** kebab-case `.ts` files; the name states the purpose (`discord-message-handler.ts`, not `message.ts`). Files stay under about 200 lines; split by domain.
 
-**Organize by domain** (`src/<domain>/...`), not by technical layer: `orchestrator/`, `intent/`, `guardrails/`, `runtime/`, `roles/`, `storage/`, `memory/`, `workspaces/`, `locations/`, `lifecycle/`, `discord-setup/`, `ingress/`, `approvals/`, `config/`, `tools/`, `mcp/`, `observability/`.
+**Organize by domain** (`src/<domain>/...`), not by technical layer: `orchestrator/`, `runtime/`, `roles/`, `storage/`, `memory/`, `workspaces/`, `locations/`, `lifecycle/`, `discord-setup/`, `ingress/`, `policy/`, `owner-approval/`, `config/`, `tools/`, `mcp/`, `observability/`.
 
 **Custom tools** (in-process SDK MCP servers, five by purpose: `memory`, `orchestration`, `plan`, `effects`, `discord-admin`; built per run by `buildServers(role, runCtx)` in `src/mcp/mcp-servers.ts`; each server's manifest is `src/mcp/<server>/server.ts`, all manifests are listed in `src/mcp/manifests.ts`):
 
@@ -109,7 +109,7 @@ These rules are checked by tests that scan `src/` on every run. A violation fail
 
 - Folder `src/mcp/<server>/tools/<Name>Tool/` (PascalCase folder, kebab-case files: `constants.ts` = leaf with `<NAME>_TOOL`, `prompt.ts`, `<name>-tool.ts`). Tool names are PascalCase constants in that `constants.ts` (or `sdk-tool-names.ts` for SDK built-ins); `test/tool-name-literals.test.ts` rejects the same literal anywhere else in `src/`.
 - Adding a tool: the folder, one manifest line in the server's `server.ts`, and the name in the `mcpTools` of each role that may use it (a role holds only what it lists; the guard denies the rest). Role data imports `constants.ts` only.
-- Effect implementation (git, trash, delete classify) lives in `src/mcp/effects/`; the envelope and risk classes stay in `src/orchestrator/approval/`.
+- Effect implementation (git, trash, delete classify) lives in `src/mcp/effects/`; the envelope and risk classes stay in `src/policy/`.
 - Tests: `test/mcp-isolation.test.ts`, `test/tool-names.test.ts`, `test/tool-catalog.test.ts`.
 
 **Role files:** `src/roles/builtin/<name>-role.ts` exports one `RoleDefinition` object. Prompt text lives in `<name>-prompts.ts` next to it.

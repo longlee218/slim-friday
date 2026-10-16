@@ -1,7 +1,7 @@
 import type { SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
-import type { EffectsCtx } from "../orchestrator/approval/effect-context";
 import type { LeadToolContext } from "../orchestrator/engine/lead-call";
 import type { PlannerCtx } from "../orchestrator/plan/planner-handlers";
+import type { EffectsCtx } from "../policy/effect-context";
 import type { DiscordAdminContext } from "./discord-admin/discord-admin-context";
 import type { ReadBudget } from "./memory/memory-read-shared";
 import type { MemoryToolContext } from "./memory/memory-tool-context";

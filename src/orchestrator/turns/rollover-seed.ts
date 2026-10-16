@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
-import type { RecentMessage } from "../../intent/intent-types";
-import { cleanRecent, recentLines } from "../../intent/recent-messages";
+import type { RecentMessage } from "../../ingress/intent-types";
+import { cleanRecent, recentLines } from "../../ingress/recent-messages";
 import { getThreadSummary } from "../../storage/thread-summary-store";
 
 /** Headings of the seed blocks (data, never instructions; same wording as the ledger). */

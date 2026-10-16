@@ -11,7 +11,6 @@
  * short and never echo command text, so secrets are not leaked to the agent.
  */
 import { basename, isAbsolute, resolve } from "node:path";
-import { allowlistGate } from "../orchestrator/approval/shell-gate";
 import { parseCommand, type Segment } from "./bash-parser";
 import type { Decision, GuardrailContext } from "./check-tool-call";
 import { isSecretPath } from "./deny-dangerous";
@@ -24,6 +23,7 @@ import {
   gitReachesProtected,
   segmentTouchesProtected,
 } from "./protected-paths";
+import { allowlistGate } from "./shell-gate";
 
 const allow = (reason: string): Decision => ({ decision: "allow", reason });
 const deny = (reason: string): Decision => ({ decision: "deny", reason });

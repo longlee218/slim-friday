@@ -1,7 +1,6 @@
 import { homedir } from "node:os";
 import { type Client, Events } from "discord.js";
 import pkg from "../package.json";
-import { createDiscordApprovalGateway } from "./approvals/discord-approval";
 import { type AgentConfig, loadConfig } from "./config/agent-config";
 import { workspacePaths } from "./config/workspace-paths";
 import { syncChannelTopics } from "./discord-setup/channel-topic";
@@ -26,6 +25,7 @@ import { errText } from "./observability/redact";
 import { recoverInFlight } from "./orchestrator/engine/recover-in-flight";
 import { createTurnHandler } from "./orchestrator/handle-message";
 import { createRunLimiter } from "./orchestrator/turns/run-limiter";
+import { createDiscordApprovalGateway } from "./owner-approval/discord-approval";
 import { openDb } from "./storage/db";
 import { loadWorkspaces } from "./workspaces/workspace-registry";
 

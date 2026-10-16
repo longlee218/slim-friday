@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PLACEHOLDER } from "../src/config/agent-config";
-import { guardFor } from "../src/guardrails/check-tool-call";
+import { guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { makeEnv } from "./helpers";

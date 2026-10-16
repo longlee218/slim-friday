@@ -1,6 +1,5 @@
 import type { Message, SendableChannels } from "discord.js";
 import { type DiscordSetup, EMPTY_SETUP, opsIds } from "../discord-setup/discord-setup-config";
-import type { RecentMessage } from "../intent/intent-types";
 import type { InlineRunner } from "../memory/find-command-handler";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
@@ -9,6 +8,7 @@ import { routeMessage, SAFE_MENTIONS } from "./discord-message-rules";
 import { BUSY_ACK_EMOJI, sendReply, startTyping } from "./discord-send";
 import type { InboundMessage } from "./inbound-message";
 import { replyToInlineCommand } from "./inline-command-ingress";
+import type { RecentMessage } from "./intent-types";
 import { createMessageReceipt } from "./message-receipt";
 import { type HistoryChannel, historyOf, recentFor } from "./thread-history";
 import { threadOnlyNote } from "./thread-only-commands";

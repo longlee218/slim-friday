@@ -2,7 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkToolCall, type GuardrailContext } from "../src/guardrails/check-tool-call";
+import { checkToolCall, type GuardrailContext } from "../src/policy/check-tool-call";
 
 /* Phase 1g review fixes: a $HOME location must not reach AGENT_HOME (~/.friday) by search roots, bulk commands,
    globs, cd, ~user or git. */

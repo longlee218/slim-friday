@@ -1,4 +1,4 @@
-# Shell commands a worker may run. DEFAULT DENY BY SHAPE (orchestrator/approval/shell-shape.ts + shell-table.ts):
+# Shell commands a worker may run. DEFAULT DENY BY SHAPE (policy/shell-shape.ts + shell-table.ts):
 # a line is allowed only when it is ONE simple command made of plain words (no operator, redirect, quote, expansion or
 # non-ASCII char; the one exception is `git commit -m "<text>"`), its command and subcommand are listed here, EVERY flag is
 # listed (an unknown flag, an attached value like -n5 or an abbreviated long flag makes the line unknown) and every path

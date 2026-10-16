@@ -2,11 +2,11 @@ import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs
 import { join } from "node:path";
 import type { AgentConfig } from "../config/agent-config";
 import { workspacePaths } from "../config/workspace-paths";
-import { stripMarkers } from "../intent/strip-markers";
 import { sdkCompactLlm } from "../memory/memory-compaction-llm";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import type { AttachmentDeps } from "./attachment-text";
+import { stripMarkers } from "./strip-markers";
 
 /* Summary + saved copy of a long attachment (the cheap tier reads it once; the lead and the agent work
    from the summary). The model call is the memory compaction's `sdkCompactLlm`: no tools, thinking off, one turn. */

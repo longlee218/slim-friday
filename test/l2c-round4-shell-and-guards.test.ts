@@ -3,8 +3,8 @@ import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { isChildEnvDenied, isWorkerEnvDenied } from "../src/config/child-env-deny";
-import { checkToolCall, type GuardrailContext } from "../src/guardrails/check-tool-call";
-import { defaultEnvelope } from "../src/orchestrator/approval/envelope";
+import { checkToolCall, type GuardrailContext } from "../src/policy/check-tool-call";
+import { defaultEnvelope } from "../src/policy/envelope";
 import { carve, workerSandbox } from "../src/runtime/worker-sandbox";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";
 

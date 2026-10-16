@@ -1,5 +1,5 @@
-import type { Decision, GuardrailContext } from "../../guardrails/check-tool-call";
 import { classifyBash } from "./bash-allowlist";
+import type { Decision, GuardrailContext } from "./check-tool-call";
 import { maxRisk } from "./risk-types";
 
 /** What a denied unknown line tells the worker: what works, so it picks the alternative instead of retrying. */

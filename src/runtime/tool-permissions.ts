@@ -1,13 +1,13 @@
 import type { CanUseTool, HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-sdk";
-import type { ApprovalGateway } from "../approvals/approval-types";
+import { logger } from "../observability/logger";
+import { clip, errText } from "../observability/redact";
+import type { ApprovalGateway } from "../owner-approval/approval-types";
 import {
   checkToolCall,
   type GuardrailContext,
   type LoggedDecision,
-} from "../guardrails/check-tool-call";
-import { newSubagentLimit } from "../guardrails/subagent-limit";
-import { logger } from "../observability/logger";
-import { clip, errText } from "../observability/redact";
+} from "../policy/check-tool-call";
+import { newSubagentLimit } from "../policy/subagent-limit";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../tools/sdk-tool-names";
 import { type AskLimit, askLimitDenial, newAskLimit } from "./ask-limit";
 import { guardHook, subagentPostHooks } from "./guard-hook";

@@ -3,7 +3,6 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import type { MemoryToolContext } from "../src/mcp/memory/memory-tool-context";
@@ -15,6 +14,7 @@ import { createMemorySaveTool } from "../src/mcp/memory/tools/MemorySaveTool/mem
 import { localDay, localHhmm } from "../src/memory/memory-clock";
 import { PERSONA_MAX } from "../src/memory/persona";
 import { DEFAULT_AGENTS } from "../src/memory/persona-templates";
+import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { buildSystemPrompt } from "../src/runtime/system-prompt";

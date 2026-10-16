@@ -2,11 +2,11 @@ import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import type { GuardrailContext } from "../guardrails/check-tool-call";
-import { isInside, realOrSame } from "../guardrails/paths";
+import type { GuardrailContext } from "../policy/check-tool-call";
+import { isInside, realOrSame } from "../policy/paths";
 
 /* OS-level Bash sandbox of a dispatched worker (SDK `Options.sandbox`: Seatbelt on macOS, bubblewrap on Linux). This is the REAL
-   boundary: the shell gate (orchestrator/approval/shell-*.ts) only narrows the command line. A location the owner registered is
+   boundary: the shell gate (policy/shell-*.ts) only narrows the command line. A location the owner registered is
    trusted: inside a granted dir the worker's processes read and write everything (`.git` hooks and config, and for a location
    equal to the home dir the dotfiles, included). The sandbox bounds what is OUTSIDE the grants: no write outside them, no read of
    the agent home or of a credential dir that no grant covers, no network. NOT live-verified (see the L2c checklist). */

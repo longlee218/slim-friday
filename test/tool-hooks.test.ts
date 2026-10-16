@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { guardFor } from "../src/guardrails/check-tool-call";
 import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { MEMORY_SEARCH_TOOL } from "../src/mcp/memory/tools/MemorySearchTool/constants";
 import { captureLogs } from "../src/observability/logger";
 import { RunRecorder } from "../src/observability/record-run";
 import { buildSubagentHooks } from "../src/observability/subagent-hooks";
 import { buildToolHooks } from "../src/observability/tool-hooks";
+import { guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import { EDIT_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";

@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
-import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/constants";
-import { effectsOfGoal } from "../../storage/effect-log-store";
+import { DELETE_PATHS_TOOL } from "../mcp/effects/tools/DeletePathsTool/constants";
+import { effectsOfGoal } from "../storage/effect-log-store";
 import type { BoundsUsage } from "./check-envelope";
 import { treeTotals } from "./tree-totals";
 

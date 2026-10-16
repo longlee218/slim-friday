@@ -1,6 +1,6 @@
 import { isAbsolute } from "node:path";
-import type { GuardrailContext } from "../../guardrails/check-tool-call";
-import { isInside, realOrSame } from "../../guardrails/paths";
+import type { GuardrailContext } from "./check-tool-call";
+import { isInside, realOrSame } from "./paths";
 import type { RiskClass } from "./risk-types";
 import { gitPaths, revWordsOk } from "./shell-git-extras";
 import { cwdGranted, pathGranted, readRoots, writeRoots } from "./shell-paths";

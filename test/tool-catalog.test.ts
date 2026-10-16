@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { guardFor } from "../src/guardrails/check-tool-call";
 import { mcpToolNamesFor } from "../src/mcp/mcp-servers";
+import { guardFor } from "../src/policy/check-tool-call";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";

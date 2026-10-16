@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Client, Interaction } from "discord.js";
-import { createDiscordApprovalGateway } from "../src/approvals/discord-approval";
+import { createDiscordApprovalGateway } from "../src/owner-approval/discord-approval";
 import { openDb } from "../src/storage/db";
 import { insertTurn } from "../src/storage/run-store";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";

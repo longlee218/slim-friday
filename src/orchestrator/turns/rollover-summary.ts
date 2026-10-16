@@ -1,5 +1,5 @@
-import type { RecentMessage } from "../../intent/intent-types";
-import { recentLines } from "../../intent/recent-messages";
+import type { RecentMessage } from "../../ingress/intent-types";
+import { recentLines } from "../../ingress/recent-messages";
 import { sdkCompactLlm } from "../../memory/memory-compaction-llm";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";

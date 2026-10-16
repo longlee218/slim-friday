@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { parseCommand } from "../../guardrails/bash-parser";
+import { parseCommand } from "../../policy/bash-parser";
 import { toolInputsOfTurn } from "../../storage/run-metrics-store";
 import { BASH_TOOL_NAME } from "../../tools/sdk-tool-names";
 

@@ -1,8 +1,8 @@
 import type { Database } from "bun:sqlite";
-import { EFFECT_TOOL_NAMES } from "../../mcp/effects/effect-tool-names";
-import { childrenOf } from "../../storage/owned-item-store";
-import { planIdOfGoal, planVersions } from "../../storage/work-plan-store";
-import { docOfRow } from "../plan/plan-doc";
+import { EFFECT_TOOL_NAMES } from "../mcp/effects/effect-tool-names";
+import { docOfRow } from "../orchestrator/plan/plan-doc";
+import { childrenOf } from "../storage/owned-item-store";
+import { planIdOfGoal, planVersions } from "../storage/work-plan-store";
 import {
   type DispatchEnvelope,
   defaultEnvelope,

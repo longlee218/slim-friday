@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { Logger } from "pino";
-import { guardFor } from "../src/guardrails/check-tool-call";
-import { newSubagentLimit } from "../src/guardrails/subagent-limit";
+import { guardFor } from "../src/policy/check-tool-call";
+import { newSubagentLimit } from "../src/policy/subagent-limit";
 import { getRole } from "../src/roles/role-registry";
 import { guardHook, subagentPostHooks } from "../src/runtime/guard-hook";
 import { AGENT_TOOL_NAME } from "../src/tools/sdk-tool-names";

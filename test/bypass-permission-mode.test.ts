@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import { guardFor } from "../src/guardrails/check-tool-call";
 import { captureLogs } from "../src/observability/logger";
+import { guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { createPermissionWatch } from "../src/runtime/permission-watch";
 import { runAgent } from "../src/runtime/run-agent";

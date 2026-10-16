@@ -1,7 +1,7 @@
 import { lstatSync } from "node:fs";
 import { resolve } from "node:path";
-import type { GuardrailContext } from "../../guardrails/check-tool-call";
-import { isInside, realOrSame } from "../../guardrails/paths";
+import type { GuardrailContext } from "./check-tool-call";
+import { isInside, realOrSame } from "./paths";
 
 /* The few git rules a table row cannot say: they look at the disk (a word that is also a file) or at the run's dirs. Pure
    apart from `lstat`. Each returns the path operands the caller must still resolve inside the grants, or undefined = unknown. */

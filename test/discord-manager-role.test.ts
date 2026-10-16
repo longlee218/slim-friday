@@ -6,7 +6,6 @@ import { ChannelType } from "discord.js";
 import { HAIKU_MODEL } from "../src/config/model-ids";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { createWorkspaceDir } from "../src/discord-setup/workspace-template";
-import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { CREATE_SPACE_OR_CHANNEL_TOOL } from "../src/mcp/discord-admin/tools/CreateSpaceOrChannelTool/constants";
 import { createCreateSpaceOrChannelTool } from "../src/mcp/discord-admin/tools/CreateSpaceOrChannelTool/create-space-or-channel-tool";
 import { LIST_SPACES_TOOL } from "../src/mcp/discord-admin/tools/ListSpacesTool/constants";
@@ -14,6 +13,7 @@ import { WRITE_SPACE_FILE_TOOL } from "../src/mcp/discord-admin/tools/WriteSpace
 import { buildServers } from "../src/mcp/mcp-servers";
 import { DISCORD_ADMIN_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { roleScope } from "../src/orchestrator/engine/role-scope";
+import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { DISCORD_MANAGER_ROLE } from "../src/roles/builtin/discord-manager-role";
 import { mayHaveWritten, validateRegistry } from "../src/roles/capability-registry";
 import { controlRole, dispatchableWorkers, getRole } from "../src/roles/role-registry";

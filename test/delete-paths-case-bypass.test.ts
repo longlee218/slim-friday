@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deletePaths } from "../src/mcp/effects/delete-paths";
-import type { EffectsCtx } from "../src/orchestrator/approval/effect-context";
-import { defaultEnvelope } from "../src/orchestrator/approval/envelope";
+import type { EffectsCtx } from "../src/policy/effect-context";
+import { defaultEnvelope } from "../src/policy/envelope";
 import { openDb } from "../src/storage/db";
 
 /* DeletePaths on a case-insensitive volume (macOS APFS default). realpath canonicalizes the case of EXISTING parents,

@@ -1,7 +1,7 @@
 import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
-import { askNeeded } from "../approval/ask-policy";
-import { effectRisk } from "../approval/check-envelope";
-import type { EffectGrant } from "../approval/envelope";
+import { askNeeded } from "../../policy/ask-policy";
+import { effectRisk } from "../../policy/check-envelope";
+import type { EffectGrant } from "../../policy/envelope";
 import {
   type Caps,
   CHAIN_CAP,

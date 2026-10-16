@@ -4,6 +4,7 @@ import { spawnRunner } from "../../mcp/effects/git-run";
 import type { ReportSink } from "../../mcp/orchestration/tools/ReportResultTool/report-result-tool";
 import { channelDigestBlock } from "../../memory/channel-digest";
 import { logger, setLogContext } from "../../observability/logger";
+import { goalLocations, loadEnvelope } from "../../policy/load-envelope";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
 import {
   bumpDispatch,
@@ -13,7 +14,6 @@ import {
 } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import { channelDigest } from "../../storage/thread-store";
-import { goalLocations, loadEnvelope } from "../approval/load-envelope";
 import { markStartDelivered } from "../events/event-store";
 import { beginTurn } from "../turns/turn-tracker";
 import { cancelDependents, settleGoal } from "./goal-settle";

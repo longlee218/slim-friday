@@ -1,6 +1,6 @@
 import type { PermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
-import type { GuardrailContext } from "../guardrails/check-tool-call";
+import type { GuardrailContext } from "../policy/check-tool-call";
 import type { RoleDefinition } from "../roles/role-types";
 
 /**

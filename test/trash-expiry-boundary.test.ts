@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sweepTrash } from "../src/lifecycle/trash-sweeper";
 import { moveToTrash } from "../src/mcp/effects/trash-store";
-import { TRASH_TTL_MS } from "../src/orchestrator/approval/risk-types";
+import { TRASH_TTL_MS } from "../src/policy/risk-types";
 
 /* Expiry edge of the trash: an entry is kept up to exactly 7 days old and removed one millisecond later. Injected clock. */
 

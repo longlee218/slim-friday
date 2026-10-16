@@ -6,18 +6,8 @@ import {
   type Client,
   type Interaction,
   type MessageActionRowComponentBuilder,
-  MessageFlags,
 } from "discord.js";
-import {
-  ANSWER_FIELD,
-  buildAnswerModal,
-  buildChoiceRows,
-  CHOICE_PREFIX,
-  choiceLayout,
-  ENTER_VALUE,
-  TYPED_PREFIX,
-  threadLanguage,
-} from "../ingress/discord-components";
+import { buildChoiceRows, TYPED_PREFIX, threadLanguage } from "../ingress/discord-components";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
 import { type OwnerLanguage, renderUserNotice } from "../ingress/user-copy";
 import { logEvent, logger, runWithLogContext, tryLog } from "../observability/logger";
@@ -30,21 +20,11 @@ import {
   buildButtonRows,
   cancelPending,
   type Pending,
-  settleClick,
-  settledLine,
   toResult,
 } from "./approval-buttons";
+import { handleApprovalInteraction } from "./approval-interaction";
+import { buildChoicePrompt, SUMMARY_MAX } from "./approval-text";
 import type { ApprovalGateway, ApprovalRequest, ApprovalResult } from "./approval-types";
-
-/** Inline summary cap; longer text goes in the attachment. */
-const SUMMARY_MAX = 1500;
-
-/** Chars of a long question kept inline as the stem above the buttons (the full text is the attachment). */
-const STEM_MAX = 300;
-
-/** Short stem of a long question: its first lines, cut, and a pointer to the attachment. */
-const questionStem = (q: string, language: OwnerLanguage): string =>
-  `${clip(q.trim(), STEM_MAX)}\n\n${renderUserNotice({ kind: "approval", state: "full-text" }, language)}`;
 
 /** Dependencies of the gateway. */
 export interface ApprovalGatewayDeps {
@@ -185,44 +165,20 @@ export function createDiscordApprovalGateway(
     return toResult(value, denyReason);
   }
 
-  /** Reply only the owner sees (wrong user, expired request). */
-  const whisper = (
-    i: { reply: (o: { content: string; flags: MessageFlags.Ephemeral }) => Promise<unknown> },
-    state: "owner-only" | "expired",
-    language: OwnerLanguage,
-  ) =>
-    i.reply({
-      content: renderUserNotice({ kind: "approval", state }, language),
-      flags: MessageFlags.Ephemeral,
-    });
-
   return {
     request: (req) => decide(req, undefined, "owner denied"),
     confirm: (req, labels) => decide(req, labels, "owner declined"),
 
     async askChoice(a) {
       const language = threadLanguage(db, a.threadId);
-      const layout = choiceLayout(a.options);
-      // A question longer than a Discord message (a plan to approve) goes out as an attachment under a short stem.
-      const long = a.question.length > SUMMARY_MAX;
-      // Options that do not fit a button row or a select menu are listed in the attachment; the owner types the answer.
-      const listed = layout === "modal" && a.options.length > 0;
-      const detail = [
-        long ? a.question : "",
-        listed ? a.options.map((o) => `- ${o}`).join("\n") : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
-      const base = long ? questionStem(a.question, language) : a.question;
+      const { layout, text, detail } = buildChoicePrompt(a.question, a.options, language);
       const value = await ask({
         turnId: a.turnId,
         threadId: a.threadId,
         tool: ASK_USER_QUESTION_TOOL_NAME,
         prefix: "choice",
-        text: listed
-          ? `${base}\n\n${renderUserNotice({ kind: "approval", state: "options-in-file" }, language)}`
-          : base,
-        detail: detail || undefined,
+        text,
+        detail,
         labels: a.options,
         rows: (id) => buildChoiceRows(id, a.options, layout, language),
         language,
@@ -234,52 +190,6 @@ export function createDiscordApprovalGateway(
 
     cancelTurn: (turnId) => cancelPending(pending, turnId),
 
-    async handleInteraction(i) {
-      try {
-        // Short-circuit order: a button never asks the other type guards.
-        if (!(i.isButton() || i.isStringSelectMenu() || i.isModalSubmit())) return;
-        const isModal = !i.isButton() && !i.isStringSelectMenu();
-        const [prefix, id, value] = i.customId.split(":");
-        if ((prefix !== "appr" && prefix !== CHOICE_PREFIX) || !id || value === undefined) return;
-        // Approve/deny stay explicit buttons; selects and modals belong to questions only.
-        if (prefix === "appr" && !i.isButton()) return;
-        const language = threadLanguage(db, i.channelId ?? "");
-        // Validate owner and pending id before anything mutates.
-        if (i.user.id !== ownerId) return void (await whisper(i, "owner-only", language));
-        const p = pending.get(id);
-        if (!p) return void (await whisper(i, "expired", language));
-
-        // "Enter answer": the modal is the response (it must open within Discord's deadline); nothing settles yet.
-        if (i.isButton() && prefix === CHOICE_PREFIX && value === ENTER_VALUE) {
-          await i.showModal(buildAnswerModal(id, p.language));
-          return;
-        }
-        // The answer: an option index (button, select) or the typed text (modal).
-        const answer = i.isButton()
-          ? value
-          : i.isStringSelectMenu()
-            ? i.values[0]
-            : `${TYPED_PREFIX}${i.fields.getTextInputValue(ANSWER_FIELD).trim()}`;
-        if (answer === undefined || answer === TYPED_PREFIX) {
-          if (isModal) await i.deferUpdate(); // blank answer: keep the question open
-          return;
-        }
-        pending.delete(id);
-        clearTimeout(p.timer); // the timeout must not fire while the ack is in flight
-        const line = settledLine(p, prefix, answer);
-        // ACK first (3 s deadline), then the slower persistence and resolving the waiter.
-        try {
-          if (isModal && !i.isFromMessage())
-            await i.reply({ content: line, flags: MessageFlags.Ephemeral });
-          else await i.update({ content: `${p.content}\n\n${line}`, components: [] });
-        } catch (err) {
-          log.warn({ err: errText(err) }, "approval ack failed");
-          void p.edit(`${p.content}\n\n${line}`);
-        }
-        settleClick(p, prefix, answer);
-      } catch (err) {
-        log.warn({ err: errText(err) }, "approval interaction failed");
-      }
-    },
+    handleInteraction: (i) => handleApprovalInteraction(i, { db, ownerId, pending, log }),
   };
 }

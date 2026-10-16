@@ -1,9 +1,9 @@
 import type { Database } from "bun:sqlite";
-import { realOrSame } from "../../guardrails/paths";
-import { clip } from "../../observability/redact";
-import { appendEffect } from "../../storage/effect-log-store";
-import { type Reply, refuse } from "../engine/lead-call";
+import { clip } from "../observability/redact";
+import { type Reply, refuse } from "../orchestrator/engine/lead-call";
+import { appendEffect } from "../storage/effect-log-store";
 import type { DispatchEnvelope } from "./envelope";
+import { realOrSame } from "./paths";
 
 /* What the four effect tools need of the run they serve (built per worker run, never shared). */
 

@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { buildServers, mcpToolNamesFor } from "../src/mcp/mcp-servers";
 import {
   MEMORY_MCP_SERVER,
@@ -13,6 +12,7 @@ import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgen
 import { REPORT_RESULT_TOOL } from "../src/mcp/orchestration/tools/ReportResultTool/constants";
 import { SET_THREAD_TITLE_TOOL } from "../src/mcp/orchestration/tools/SetThreadTitleTool/constants";
 import { STEER_TASK_TOOL } from "../src/mcp/orchestration/tools/SteerTaskTool/constants";
+import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { getRole, ROLES } from "../src/roles/role-registry";
 import { ALL_TOOL_NAMES, FULL_CTX, LEAD_ONLY_TOOLS, toolsByServer } from "./mcp-ctx-fixture";
 

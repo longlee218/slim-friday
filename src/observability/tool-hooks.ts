@@ -1,7 +1,7 @@
 import type { HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-sdk";
-import type { LoggedDecision } from "../guardrails/check-tool-call";
-import { READ_ONLY_REASON } from "../guardrails/deny-dangerous";
-import { isInside, resolveReal } from "../guardrails/paths";
+import type { LoggedDecision } from "../policy/check-tool-call";
+import { READ_ONLY_REASON } from "../policy/deny-dangerous";
+import { isInside, resolveReal } from "../policy/paths";
 import { BASH_TOOL_NAME } from "../tools/sdk-tool-names";
 import { loadWorkspaces } from "../workspaces/workspace-registry";
 import { getLogContext, logEvent, logger, setLogContext, tryLog } from "./logger";

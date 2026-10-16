@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { guardFor } from "../src/guardrails/check-tool-call";
+import { guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { newAskLimit } from "../src/runtime/ask-limit";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";

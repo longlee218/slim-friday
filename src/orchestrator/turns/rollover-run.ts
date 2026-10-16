@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../../config/agent-config";
-import type { RecentMessage } from "../../intent/intent-types";
+import type { RecentMessage } from "../../ingress/intent-types";
 import type { MemoryToolContext } from "../../mcp/memory/memory-tool-context";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { getRole } from "../../roles/role-registry";

@@ -17,7 +17,7 @@ import {
 } from "../src/ingress/attachment-text";
 import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
 import { routeMessage } from "../src/ingress/discord-message-rules";
-import { stripMarkers } from "../src/intent/strip-markers";
+import { stripMarkers } from "../src/ingress/strip-markers";
 import { sdkCompactLlm } from "../src/memory/memory-compaction-llm";
 import { captureLogs } from "../src/observability/logger";
 import { makeEnv, resultMsg } from "./helpers";

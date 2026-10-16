@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { newSubagentLimit } from "../src/guardrails/subagent-limit";
 import { captureLogs, logger } from "../src/observability/logger";
 import { contextWindowFor, mergeModelUsage } from "../src/observability/model-usage";
 import {
@@ -9,6 +8,7 @@ import {
   usageFromResult,
 } from "../src/observability/record-run";
 import { createRunGauges } from "../src/observability/run-gauges";
+import { newSubagentLimit } from "../src/policy/subagent-limit";
 import { getRole } from "../src/roles/role-registry";
 import { guardHook } from "../src/runtime/guard-hook";
 import { runAgent } from "../src/runtime/run-agent";

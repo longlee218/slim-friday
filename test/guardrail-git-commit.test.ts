@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkToolCall } from "../src/guardrails/check-tool-call";
+import { checkToolCall } from "../src/policy/check-tool-call";
 import { BASH_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 const ctx = { cwd: "/tmp/wt", writePaths: ["/tmp/wt"] };

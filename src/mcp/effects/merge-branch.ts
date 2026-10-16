@@ -1,12 +1,12 @@
-import { checkEnvelope, grantNamesBranch } from "../../orchestrator/approval/check-envelope";
+import type { Reply } from "../../orchestrator/engine/lead-call";
+import { checkEnvelope, grantNamesBranch } from "../../policy/check-envelope";
 import {
   type EffectsCtx,
   locationPath,
   recordEffect,
   refuseLogged,
   safeText,
-} from "../../orchestrator/approval/effect-context";
-import type { Reply } from "../../orchestrator/engine/lead-call";
+} from "../../policy/effect-context";
 import { isPlainRef } from "./git-run";
 import { MERGE_BRANCH_TOOL } from "./tools/MergeBranchTool/constants";
 

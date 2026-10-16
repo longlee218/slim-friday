@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { guardFor } from "../src/guardrails/check-tool-call";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { buildToolPermissions } from "../src/runtime/tool-permissions";
 import {

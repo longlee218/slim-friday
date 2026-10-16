@@ -2,9 +2,9 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkToolCall, type GuardrailContext } from "../src/guardrails/check-tool-call";
-import { classifyBash } from "../src/orchestrator/approval/bash-allowlist";
-import { defaultEnvelope } from "../src/orchestrator/approval/envelope";
+import { classifyBash } from "../src/policy/bash-allowlist";
+import { checkToolCall, type GuardrailContext } from "../src/policy/check-tool-call";
+import { defaultEnvelope } from "../src/policy/envelope";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";
 
 afterAll(cleanupTmp);

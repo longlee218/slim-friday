@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { MEMORY_READ_MAX_CALLS_PER_RUN } from "../src/mcp/memory/memory-read-shared";
@@ -17,6 +16,7 @@ import {
 } from "../src/mcp/memory/tools/MemorySearchTool/constants";
 import { NOT_FOUND } from "../src/memory/index/memory-resolve";
 import { buildPromptContext } from "../src/memory/prompt-context";
+import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { saveSummary } from "../src/storage/thread-summary-store";

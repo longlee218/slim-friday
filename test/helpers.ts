@@ -11,10 +11,10 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join, sep } from "node:path";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { ApprovalGateway } from "../src/approvals/approval-types";
 import { loadConfig } from "../src/config/agent-config";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { ensureHome } from "../src/memory/persona";
+import type { ApprovalGateway } from "../src/owner-approval/approval-types";
 import { openDb } from "../src/storage/db";
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME, READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";

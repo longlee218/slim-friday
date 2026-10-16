@@ -9,13 +9,8 @@ import { createPullRequest } from "../src/mcp/effects/pull-request";
 import { CREATE_PULL_REQUEST_TOOL } from "../src/mcp/effects/tools/CreatePullRequestTool/constants";
 import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
-import type { EffectsCtx, Runner } from "../src/orchestrator/approval/effect-context";
-import {
-  ANY,
-  defaultEnvelope,
-  type EffectGrant,
-  envelopeWithGrants,
-} from "../src/orchestrator/approval/envelope";
+import type { EffectsCtx, Runner } from "../src/policy/effect-context";
+import { ANY, defaultEnvelope, type EffectGrant, envelopeWithGrants } from "../src/policy/envelope";
 import { openDb } from "../src/storage/db";
 import { effectsOfGoal } from "../src/storage/effect-log-store";
 import { cleanupTmp, tmpRoot } from "./tmp-dirs";

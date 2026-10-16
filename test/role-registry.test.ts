@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { HAIKU_MODEL, SONNET_MODEL } from "../src/config/model-ids";
-import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { buildServers } from "../src/mcp/mcp-servers";
+import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { dispatchableWorkers, getRole, ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import {

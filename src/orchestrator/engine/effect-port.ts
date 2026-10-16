@@ -1,5 +1,5 @@
+import type { EffectGrant } from "../../policy/envelope";
 import type { ItemRow, ResultKind } from "../../storage/owned-item-store";
-import type { EffectGrant } from "../approval/envelope";
 import type { EventKind } from "../events/event-types";
 import type { PlanDoc, PlanStatusView } from "../plan/plan-types";
 import type { Caps, GoalState, PolicyEnv } from "../strategy/caps";

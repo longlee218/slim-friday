@@ -3,7 +3,6 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SONNET_MODEL } from "../src/config/model-ids";
-import { checkToolCall, guardFor } from "../src/guardrails/check-tool-call";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { mcpToolName, ORCHESTRATION_MCP_SERVER, PLAN_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
@@ -15,6 +14,7 @@ import {
 import { renderPlan } from "../src/orchestrator/plan/plan-render";
 import type { PlannerCtx } from "../src/orchestrator/plan/planner-handlers";
 import { checkPlanRequest } from "../src/orchestrator/strategy/plan-policy";
+import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { ROLES } from "../src/roles/role-registry";
 import { buildRoleSkills } from "../src/runtime/skills-plugin/role-skills";
 import { openDb } from "../src/storage/db";

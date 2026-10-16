@@ -2,10 +2,10 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { z } from "zod";
 import { isWorkspaceName, workspacePaths } from "../config/workspace-paths";
-import { isInside } from "../guardrails/paths";
 import { isRealDir, type Location, loadLocations, real } from "../locations/location-registry";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { isInside } from "../policy/paths";
 import { checkChannels, dropDuplicateChannels } from "./channel-checks";
 
 /** One channel of a workspace: `mode` task (default) or chat; `locations` limits the location names it may use. */

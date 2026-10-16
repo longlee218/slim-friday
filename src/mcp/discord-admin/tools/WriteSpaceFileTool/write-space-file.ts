@@ -3,7 +3,6 @@ import { lstatSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSyn
 import { dirname, join } from "node:path";
 import { CHANNEL_NAME, WORKSPACE_NAME, workspacePaths } from "../../../../config/workspace-paths";
 import { workspaceState } from "../../../../discord-setup/workspace-template";
-import { isInside, resolveReal } from "../../../../guardrails/paths";
 import { reindexFile } from "../../../../memory/index/memory-index";
 import {
   MemoryBusyError,
@@ -12,6 +11,7 @@ import {
 } from "../../../../memory/memory-file-lock";
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText, redactText } from "../../../../observability/redact";
+import { isInside, resolveReal } from "../../../../policy/paths";
 import { loadWorkspaces } from "../../../../workspaces/workspace-registry";
 import type { DiscordAdminContext } from "../../discord-admin-context";
 import { CONTENT_MAX_CHARS, DIFF_MAX_CHARS, SPACE_FILES } from "./constants";

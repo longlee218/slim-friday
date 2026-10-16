@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { checkToolCall } from "../src/guardrails/check-tool-call";
+import { checkToolCall } from "../src/policy/check-tool-call";
 import {
   AGENT_TOOL_NAME,
   ASK_USER_QUESTION_TOOL_NAME,
@@ -72,7 +72,7 @@ test("lead with several locations uses the neutral cwd and lists no CLAUDE.md hi
 
 /* Interrupt-steer plan, Task 3: the abort fence only denies new tools; it never undoes a finished one. */
 import { existsSync } from "node:fs";
-import { guardFor } from "../src/guardrails/check-tool-call";
+import { guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { buildToolPermissions, RUN_STOPPED_REASON } from "../src/runtime/tool-permissions";
 

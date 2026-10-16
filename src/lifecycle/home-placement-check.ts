@@ -1,6 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { isInside } from "../guardrails/paths";
+import { isInside } from "../policy/paths";
 
 /** Name of the marker that makes a directory a git working tree root. */
 const GIT_MARKER = ".git";
