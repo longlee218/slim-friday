@@ -64,7 +64,7 @@ test("withPrefix labels the owner text after the DATA blocks; no prefix = the te
 const PROBE: RoleDefinition = {
   name: "prefix-probe",
   whenToUse: "test only",
-  background: false,
+  kind: "lead",
   limits: { maxAsk: 3 },
   sideEffects: "none",
   capabilities: ["read"],

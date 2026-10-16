@@ -60,7 +60,7 @@ export function agentRunOnce(p: OnceParts) {
               locationNames: i.locations.map((r) => r.name), // channel subset: memory tools cannot reach other locations
               location: i.locations.length === 1 ? i.locations[0]?.name : undefined,
               threadId: i.threadId,
-              trackSummary: !role.background,
+              trackSummary: role.kind !== "worker",
               threadTitle: titlePort,
               onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),
             }),

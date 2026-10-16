@@ -72,19 +72,23 @@ export const envelopeWithGrants = (
 });
 
 /**
- * Envelope of an approved plan: its risk classes, locations and bounds, and the effect tools its risk classes and delivery
- * mode imply (R3 or `pr` = push + PR; `merge` = merge into any branch) on every location of the plan.
+ * Envelope of an approved plan: its risk classes, locations and bounds, and the effect tools its risk classes and `effects`
+ * list imply (R3 = push + PR; MergeBranch = merge into any branch) on every location of the plan.
  */
 export function envelopeFromPlan(
   base: DispatchEnvelope,
   plan: PlanEnvelope,
   ref: { planId: string; version: number },
 ): DispatchEnvelope {
-  const external = plan.riskClasses.includes("R3") || plan.deliveryMode === "pr";
-  const tools: EffectTool[] = [
-    ...(external ? [GIT_PUSH_TOOL, CREATE_PULL_REQUEST_TOOL] : []),
-    ...(plan.deliveryMode === "merge" ? [MERGE_BRANCH_TOOL] : []),
-  ] as EffectTool[];
+  // R3 always implies push + PR; the plan's own `effects` list adds what it names.
+  const tools = [
+    ...new Set<EffectTool>([
+      ...(plan.riskClasses.includes("R3")
+        ? ([GIT_PUSH_TOOL, CREATE_PULL_REQUEST_TOOL] as EffectTool[])
+        : []),
+      ...plan.effects,
+    ]),
+  ];
   return {
     ...base,
     locations: plan.locations,

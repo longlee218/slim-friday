@@ -12,7 +12,7 @@ import { devLeadQuery, workersDone } from "./lead-harness";
 const PROBE: RoleDefinition = {
   name: "probe-reviewer",
   whenToUse: "test only",
-  background: false,
+  kind: "lead",
   limits: { maxAsk: 3 },
   sideEffects: "none",
   capabilities: ["read"],

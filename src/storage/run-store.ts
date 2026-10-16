@@ -21,7 +21,7 @@ export function setTurnStatus(db: Database, id: string, status: TurnStatus): voi
   db.query("UPDATE turns SET status = ? WHERE id = ?").run(status, id);
 }
 
-/** Record the location a turn works in once it is known (a background task starts with "*" until its final `location:` marker names one). */
+/** Record the location a turn works in once it is known (a background task starts with "*" until it works in one). */
 export function setTurnLocation(db: Database, id: string, location: string): void {
   db.query("UPDATE turns SET location = ? WHERE id = ?").run(location, id);
 }

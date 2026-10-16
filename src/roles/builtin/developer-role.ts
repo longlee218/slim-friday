@@ -17,8 +17,7 @@ const BUDGET_USD = 4.5;
 
 /**
  * Prompt text of the developer role. Skills are declared in the role data and listed by the SDK, so these texts state
- * only the facts of the run; they never restate or reword a skill step. Parsed markers stay verbatim: `location:`
- * (last line of the report). Each section stays within the 1200 char budget (test/developer-prompts.test.ts).
+ * only the facts of the run; they never restate or reword a skill step. Each section stays within the 1200 char budget (test/developer-prompts.test.ts).
  */
 
 /**
@@ -38,8 +37,7 @@ export const DEVELOPER = `This run is a code task in the location's own checkout
 - A request to research, design or improve with no explicit change and no defect or target named: invoke the listed skill whose description matches first; the deliverable may be a design or plan with no code change. Then do not edit or commit; put the result in your reply and say no code change was needed.
 - A follow-up message may be a pure question: answer it without editing when no change is asked.
 - Run the location's tests with Bash when it has some (README, package scripts).
-- When done, reply with the outcome first: what changed and whether it is verified, as a short summary.
-- The very last line of your final reply is exactly "location: <name>" naming the location you worked in (names are listed below, or the one you run in).`;
+- When done, reply with the outcome first: what changed and whether it is verified, as a short summary.`;
 
 /** Run facts that a skill text cannot know: approval before changes, checkout, delivery by the agent, skill scripts, precedence. */
 export const DEVELOPER_RUN_FACTS = `- Do not change files before the owner approved your plan; get approval with ${ASK_USER_QUESTION_TOOL_NAME} (the skill says when). The owner sees only Discord.
@@ -94,7 +92,7 @@ export const DEVELOPER_ROLE: RoleDefinition = {
   name: "developer",
   whenToUse:
     "A job that changes things or needs a plan the owner approves: implement, fix, refactor, add tests, design or plan a FUTURE change; works in the location and delivers (merge, PR or keep) after the owner chose.",
-  background: true,
+  kind: "worker",
   dispatchable: true, // the lead may start it as a worker
   // Memory read tools (the lead alone saves), ReportResult and the effect tools (a run without the effects ctx just lacks them).
   mcpTools: [

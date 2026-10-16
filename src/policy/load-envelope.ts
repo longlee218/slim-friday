@@ -3,7 +3,7 @@ import { EFFECT_TOOL_NAMES } from "../orchestrator/effects/effect-tool-names";
 import { docOfRow } from "../orchestrator/plan/plan-doc";
 import { effectScope } from "../storage/effect-log-store";
 import { childrenOf } from "../storage/owned-item-store";
-import { planIdOfGoal, planVersions } from "../storage/work-plan-store";
+import { newestApprovedVersion } from "../storage/work-plan-store";
 import {
   type DispatchEnvelope,
   defaultEnvelope,
@@ -46,15 +46,10 @@ export function loadEnvelope(
   goalDir: string,
 ): DispatchEnvelope {
   const base = defaultEnvelope(goalId, locations, goalDir);
-  const planId = planIdOfGoal(db, goalId);
-  const approved = planId
-    ? planVersions(db, planId)
-        .filter((r) => r.status === "approved")
-        .pop()
-    : undefined;
-  if (planId && approved)
+  const approved = newestApprovedVersion(db, goalId);
+  if (approved)
     return envelopeFromPlan(base, docOfRow(approved).envelope, {
-      planId,
+      planId: approved.id,
       version: approved.version,
     });
   return envelopeWithGrants(base, storedGrants(db, goalId));

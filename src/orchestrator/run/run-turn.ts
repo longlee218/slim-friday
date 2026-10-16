@@ -1,6 +1,5 @@
 import type { Logger } from "pino";
 import type { OwnerLanguage } from "../../ingress/user-copy";
-import type { Location } from "../../locations/location-registry";
 import {
   getLogContext,
   type LogContext,
@@ -12,6 +11,7 @@ import {
 import { errText } from "../../observability/redact";
 import type { ResultKind } from "../../storage/owned-item-store";
 import { appendEvent } from "../../storage/thread-event-store";
+import type { DeliveryExpectation } from "../turns/completion";
 import { closeTurn, type FlowResult } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
 import { registerRun } from "./live-runs";
@@ -41,7 +41,8 @@ export interface DetachedOpts {
   /** Owned task of the run (log + registry + failure event). */
   taskId: string;
   location: string;
-  locations: Location[];
+  /** Delivery effects the worker's envelope grants (its COMPLETED report is checked against the effect log). */
+  delivery?: DeliveryExpectation;
   /** Global run slot already taken by the caller: freed when the run ends. */
   slot: () => void;
   /** Typed result the worker reported (read after the run ends): it decides the task status over the derived one. */
@@ -103,7 +104,7 @@ export function runDetached(deps: DispatchDeps, input: RoleRunInput, o: Detached
           stopping: deps.stopping(),
           t0,
           location: getLogContext().location ?? o.location, // tool hooks move an unpinned task to the location it worked in
-          locations: o.locations,
+          ...(o.delivery && { delivery: o.delivery }),
           agentHome: config.agentHome,
           resultKind: o.resultKind(),
         }),

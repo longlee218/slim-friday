@@ -25,7 +25,7 @@ import {
   otherKeys,
   type PlanEnv,
 } from "./plan-lifecycle";
-import type { DeliveryMode, PlanDoc } from "./plan-types";
+import type { DeliveryEffect, PlanDoc } from "./plan-types";
 import { validatePlan } from "./validate-plan";
 
 /* Plan revision: a new version from add / cancel / modify, compare-and-set on the base version. History is kept. */
@@ -48,7 +48,7 @@ export interface Edit {
   }[];
   envelope?: EnvelopeInput | undefined;
   budgetUsd?: number | undefined;
-  deliveryMode?: DeliveryMode | undefined;
+  effects?: DeliveryEffect[] | undefined;
 }
 
 /** Outcome of a revision. `status` approved = applied now (envelope did not grow); valid = the owner must approve it. */
@@ -105,7 +105,7 @@ export function revisePlan(
       a.edit.envelope ?? oldEnv,
       items,
       a.edit.budgetUsd ?? oldEnv.budgetUsd,
-      a.edit.deliveryMode ?? oldEnv.deliveryMode,
+      a.edit.effects ?? oldEnv.effects,
     ),
   };
   const errors = validatePlan(doc, {

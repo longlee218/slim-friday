@@ -40,15 +40,14 @@ Folders under `src/orchestrator/` (file counts at L4):
 | top level | `handle-message.ts`, `handler-services.ts`, `message-commands.ts` | ingress to the lead queue, commands, `[role]` direct dispatch |
 | `lead/` | 12 | lead queue and run, lead tools' handlers, schemas, lead events + announce batching |
 | `worker/` | 9 | worker run, dispatch, question relay, result file, run report, goal settle, recovery |
-| `run/` | 10 | `runTurn`, live-run registry, role run, role scope, session keys, stop tree |
+| `run/` | 11 | `runTurn`, `answer-output.ts` (one run + one recovery), live-run registry, role run, role scope, session keys, stop tree |
 | `goal/` | 4 | effect port (db, plan, queries) |
 | `strategy/` | 6 | lead policy: `dispatch-policy.ts`, `plan-policy.ts`, `caps.ts`, `lead-context-block.ts` (`lead-md.ts` is in `roles/prompts/`, `typed-result.ts` in `roles/`) |
 | `plan/` | 12 | plan types and schemas, validator, lifecycle and CAS revision, materialize into items, planner handlers, progress and blocker reads |
 | `approval/` | 25 | risk classes, envelope and its check, ask policy, shell gate and tables, effect tools' classify and run (`delete-paths`, `git-push`, `pull-request`, `merge-branch`), trash store and purge |
 | `events/` | 2 | thread outbox (`thread_events`) types and store |
-| `outputs/` | 3 | reply text, outcome validation, delivery evidence |
 | `dispatch/` | 1 | `run-dispatched-task.ts` (worker run wiring) |
-| `thread/`, `turns/` | 1, 14 | thread state, turn rows, run limiter, steer, status snapshot (rollover is in `src/session/`) |
+| `thread/`, `turns/` | 1, 14 | thread state, turn rows, `completion.ts` (typed `ReportResult` + `effect_log`), run limiter, steer, status snapshot (rollover is in `src/session/`) |
 
 - Engine reads role data only (test-checked, `test/engine-layering.test.ts`); `roles/` never imports `orchestrator/`.
 - Effect tool names are constants (`EFFECT_TOOLS` in `src/mcp/mcp-tool-names.ts`): `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch`. A new effect tool needs a risk class in `classify-tool-call.ts`, a grant rule in the envelope check, and a test in `test/effect-tools-scope.test.ts`.
@@ -60,7 +59,7 @@ Folders under `src/orchestrator/` (file counts at L4):
 - Env names follow the same key: `MODEL_DEV`, `BUDGET_DEV_USD`, `COMPACT_WINDOW_DEV` read as `developer`. Old names must not appear in new code, docs or prompts except in this alias table and in the docs' history notes.
 
 ## Roles, App Skills and Custom Tools (phase 3)
-- **Role fields (data):** `surface` (`space` default, or `control`: only `#ops-control`, never routed to); `appSkills` (dirs under `src/roles/builtin/skills/`, this role only); `mcpServers` (in-process app servers, names in `mcp-tool-names.ts`; the caller supplies them per query, and their tools need `allowTools`). A new control skill or space kind is a folder, never code.
+- **Role fields (data):** `kind` (`lead`, `worker` or `control`: `control` runs only in `#ops-control`, never routed to; `worker` = a detached run); `appSkills` (dirs under `src/roles/builtin/skills/`, this role only); `mcpServers` (in-process app servers, names in `mcp-tool-names.ts`; the caller supplies them per query, and their tools need `allowTools`). A new control skill or space kind is a folder, never code.
 - **Discord admin tools** (`src/tools/ListSpacesTool/`, `CreateSpaceOrChannelTool/`, `WriteSpaceFileTool/`): names are constants (`LIST_SPACES_TOOL`, `CREATE_SPACE_OR_CHANNEL_TOOL`, `WRITE_SPACE_FILE_TOOL`). Create-only: no delete or rename tool may be added without an owner decision.
 - **Write guards:** `WriteSpaceFile` takes a fixed file set (`SPACE_FILES`), never a path from model text; every write needs an owner confirm (no answer = no write); a backup comes before every replace. Keep the 6000-char content and 16000-char diff caps in the tool's `constants.ts`.
 - **Templates:** `src/discord-setup/templates/space-kinds/<kind>/`; kinds are the folder names (`spaceKinds()`), no kind list in code.

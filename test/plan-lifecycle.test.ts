@@ -42,7 +42,7 @@ function setup(items = [item("a"), item("b", { dependsOn: ["a"] })]) {
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
     budgetUsd: 3,
-    deliveryMode: "keep",
+    effects: [],
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
@@ -61,7 +61,7 @@ test("create stores version 1 valid; a second plan for the goal is refused", () 
     acceptanceCriteria: [],
     envelope: ENVELOPE,
     budgetUsd: 1,
-    deliveryMode: "keep",
+    effects: [],
     env: ENV,
   });
   expect(again).toMatchObject({ ok: false, code: "PLAN_EXISTS" });
@@ -78,7 +78,7 @@ test("a plan that fails validation is not stored", () => {
     acceptanceCriteria: [],
     envelope: ENVELOPE,
     budgetUsd: 1,
-    deliveryMode: "keep",
+    effects: [],
     env: ENV,
   });
   expect(r).toMatchObject({ ok: false, code: "INVALID" });
@@ -260,7 +260,7 @@ test("NEEDS_PLANNING items are released (cancelled) by the first approval; finis
     acceptanceCriteria: [],
     envelope: ENVELOPE,
     budgetUsd: 2,
-    deliveryMode: "keep",
+    effects: [],
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);

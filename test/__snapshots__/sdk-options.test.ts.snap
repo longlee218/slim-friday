@@ -216,7 +216,6 @@ exports[`options lock: dev options snapshot 1`] = `
 - A follow-up message may be a pure question: answer it without editing when no change is asked.
 - Run the location's tests with Bash when it has some (README, package scripts).
 - When done, reply with the outcome first: what changed and whether it is verified, as a short summary.
-- The very last line of your final reply is exactly "location: <name>" naming the location you worked in (names are listed below, or the one you run in).
 - Do not change files before the owner approved your plan; get approval with AskUserQuestion (the skill says when). The owner sees only Discord.
 - You work in the owner's checkout with \`git\` in the shell; the shell rules are in the next section.
 - If the location has no .git, skip git delivery: leave the changes in place and say so in your reply.

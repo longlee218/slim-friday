@@ -53,7 +53,7 @@ test("dev: one contract, approval before changes by ask, design request invokes 
   expect(text).toContain("invoke the listed skill whose description matches first");
   expect(text).toContain("the location's own checkout");
   expect(text).toContain("Do not change files before the owner approved your plan");
-  expect(text).toContain('"location: <name>"');
+  expect(text).not.toContain('"location: <name>"'); // no location marker line any more
   expect(text).toContain("`git` in the shell");
   expect(text).toContain("Merge, push or PR only after the owner chose it.");
   expect(text).toContain("by absolute path from the skill's base directory");

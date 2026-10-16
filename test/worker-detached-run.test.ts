@@ -57,7 +57,6 @@ function start(
       language: "en",
       taskId: turnId,
       location: locations[0]!.name,
-      locations,
       slot: limiter.tryAcquire() as () => void,
       resultKind: () => undefined,
       onSettled: () => {},

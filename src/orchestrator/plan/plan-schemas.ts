@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { BRIEF_MAX_CHARS, REASON_MAX_CHARS } from "../lead/lead-limits";
 import { KEY, TASK_ID } from "../lead/lead-schemas";
-import { DELIVERY_MODES } from "./plan-types";
+import { DELIVERY_EFFECT_TOOLS } from "./plan-types";
 
 /* Input schemas (zod raw shapes) of the planner's seven tools and the lead's RequestPlan / ApprovePlan. The SDK
    validates a call against them before any handler runs; the handler input types are inferred from the same shapes. */
@@ -35,7 +35,12 @@ const ENVELOPE = z.object({
   }),
 });
 
-const DELIVERY = z.enum(DELIVERY_MODES);
+const EFFECTS = z
+  .array(z.enum(DELIVERY_EFFECT_TOOLS))
+  .max(DELIVERY_EFFECT_TOOLS.length)
+  .describe(
+    "Delivery effect tools the plan grants (GitPush, CreatePullRequest, MergeBranch); [] = keep the work local",
+  );
 const VERSION = z.number().int().min(1);
 const PLAN_ID = z.string().min(1).max(80);
 
@@ -46,7 +51,7 @@ export const CREATE_PLAN_SHAPE = {
   acceptanceCriteria: z.array(z.string().min(1).max(300)).max(10),
   envelope: ENVELOPE,
   budgetUsd: z.number().positive().max(1000),
-  deliveryMode: DELIVERY,
+  effects: EFFECTS,
 };
 export const VALIDATE_PLAN_SHAPE = { planId: PLAN_ID, version: VERSION };
 export const PROPOSE_REVISION_SHAPE = {
@@ -74,7 +79,7 @@ export const PROPOSE_REVISION_SHAPE = {
   reason: z.string().min(1).max(REASON_MAX_CHARS),
   envelope: ENVELOPE.optional().describe("Full replacement; omit to keep the approved one"),
   budgetUsd: z.number().positive().max(1000).optional(),
-  deliveryMode: DELIVERY.optional(),
+  effects: EFFECTS.optional(),
 };
 export const REQUEST_PLAN_SHAPE = {
   objective: z.string().min(1).max(2000).describe("What the owner wants, in the owner's terms"),

@@ -34,11 +34,11 @@ export function runExtraContext(p: {
     agentHome: config.agentHome,
     workspace: i.workspace,
     channel: i.channel,
-    // A background role always sees its location(s) with their test command; a pinned foreground role needs no list.
+    // A worker role always sees its location(s) with their test command; a pinned non-worker role needs no list.
     registry:
-      i.pinned && !role.background
+      i.pinned && role.kind !== "worker"
         ? ""
-        : buildLocationsContext(i.workspace, s.scope, role.background),
+        : buildLocationsContext(i.workspace, s.scope, role.kind === "worker"),
     memoryLocations: s.scope.map((r) => r.name),
     ledger: i.ledger,
   }).concat(hint, threadTitleNote(db, i.threadId, p.hasTitlePort), i.extraSystem ?? []);

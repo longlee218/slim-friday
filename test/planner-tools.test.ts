@@ -3,12 +3,15 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SONNET_MODEL } from "../src/config/model-ids";
+import { CREATE_PULL_REQUEST_TOOL } from "../src/mcp/effects/tools/CreatePullRequestTool/constants";
+import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { mcpToolName, ORCHESTRATION_MCP_SERVER, PLAN_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { handleApprovePlan, handleRequestPlan } from "../src/orchestrator/lead/lead-plan-handlers";
 import { renderPlan } from "../src/orchestrator/plan/plan-render";
+import type { DeliveryEffect } from "../src/orchestrator/plan/plan-types";
 import type { PlannerCtx } from "../src/orchestrator/plan/planner-handlers";
 import { checkPlanRequest } from "../src/orchestrator/strategy/plan-policy";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
@@ -42,7 +45,7 @@ const PLAN = (goalId: string, over: Record<string, unknown> = {}) => ({
     bounds: { maxItems: 8, maxGb: 1 },
   },
   budgetUsd: 3,
-  deliveryMode: "keep",
+  effects: [],
   ...over,
 });
 
@@ -199,7 +202,7 @@ function view(status = "valid") {
       riskClasses: ["R1" as const],
       bounds: { maxItems: 8, maxGb: 1 },
       budgetUsd: 3,
-      deliveryMode: "pr" as const,
+      effects: [GIT_PUSH_TOOL, CREATE_PULL_REQUEST_TOOL] as DeliveryEffect[],
     },
   };
   return { planId: "p1", version: 1, status, goalId: "g1", objective: "build it", doc };
@@ -216,7 +219,7 @@ test("ApprovePlan: one question with the whole plan; yes approves, no rejects, t
   });
   expect(port.asked).toHaveLength(1);
   expect(port.asked[0]!.question).toContain("Plan v1: build it");
-  expect(port.asked[0]!.question).toContain("delivery: pr");
+  expect(port.asked[0]!.question).toContain("delivery: GitPush, CreatePullRequest");
   expect(port.asked[0]!.options).toEqual(["Approve plan", "Reject plan"]);
   port.answer = { answer: "Reject plan", timedOut: false };
   expect(

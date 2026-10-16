@@ -1,6 +1,7 @@
 import type { WorkPlanRow } from "../../storage/work-plan-store";
 import {
-  type DeliveryMode,
+  DELIVERY_EFFECT_TOOLS,
+  type DeliveryEffect,
   type Envelope,
   normalizeRisk,
   type PlanDoc,
@@ -39,12 +40,12 @@ export const toPlanItem = (i: ItemInput): PlanItem => ({
   ...(i.deferredScope && { deferredScope: true }),
 });
 
-/** Build the envelope: the planner's limits + the roles the items use (derived) + budget and delivery mode. */
+/** Build the envelope: the planner's limits + the roles the items use (derived) + budget and delivery effects (deduped, sorted). */
 export function buildEnvelope(
   e: EnvelopeInput,
   items: readonly PlanItem[],
   budgetUsd: number,
-  deliveryMode: DeliveryMode,
+  effects: readonly DeliveryEffect[],
 ): Envelope {
   return {
     roles: [...new Set(items.map((i) => i.role))].sort(),
@@ -52,7 +53,7 @@ export function buildEnvelope(
     riskClasses: [...new Set(e.riskClasses.map(normalizeRisk))].sort() as Risk[],
     bounds: e.bounds,
     budgetUsd,
-    deliveryMode,
+    effects: [...new Set(effects)].sort(),
   };
 }
 
@@ -63,7 +64,8 @@ export function rowFieldsOf(doc: PlanDoc) {
     acceptance: JSON.stringify(doc.acceptanceCriteria),
     envelope: JSON.stringify(doc.envelope),
     budgetUsd: doc.envelope.budgetUsd,
-    deliveryMode: doc.envelope.deliveryMode,
+    // The `effects` column holds the comma-joined effect tools.
+    effects: doc.envelope.effects.join(",") || null,
   };
 }
 
@@ -76,16 +78,23 @@ export function docOfRow(r: WorkPlanRow): PlanDoc {
       return fallback;
     }
   };
+  const env = parse<Envelope>(r.envelope, {
+    roles: [],
+    locations: [],
+    riskClasses: [],
+    bounds: { maxItems: 0, maxGb: 0 },
+    budgetUsd: 0,
+    effects: [],
+  });
   return {
     items: parse<{ items?: PlanItem[] }>(r.body, {}).items ?? [],
     acceptanceCriteria: parse<string[]>(r.acceptance, []),
-    envelope: parse<Envelope>(r.envelope, {
-      roles: [],
-      locations: [],
-      riskClasses: [],
-      bounds: { maxItems: 0, maxGb: 0 },
-      budgetUsd: 0,
-      deliveryMode: "keep",
-    }),
+    // A stored `effects` list is filtered through the allowlist: a missing, corrupt or unknown entry grants nothing.
+    envelope: {
+      ...env,
+      effects: Array.isArray(env.effects)
+        ? env.effects.filter((t) => (DELIVERY_EFFECT_TOOLS as readonly unknown[]).includes(t))
+        : [],
+    },
   };
 }

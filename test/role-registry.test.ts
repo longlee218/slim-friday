@@ -17,7 +17,7 @@ import { FULL_CTX } from "./mcp-ctx-fixture";
 const BARE: RoleDefinition = {
   name: "bare",
   whenToUse: "bare",
-  background: false,
+  kind: "lead",
   limits: { maxAsk: 0 },
   sideEffects: "none",
   capabilities: ["read"],
@@ -44,9 +44,9 @@ test("roles: bypass only for developer, auto for the others that set it, default
   expect(getRole("developer")).toMatchObject({
     model: SONNET_MODEL,
     budgetUsd: 4.5,
-    background: true,
+    kind: "worker",
   });
-  expect(getRole("lead")).toMatchObject({ model: SONNET_MODEL, background: false });
+  expect(getRole("lead")).toMatchObject({ model: SONNET_MODEL, kind: "lead" });
 });
 
 test("whenToUse: every dispatchable role has one, all different; developer has class tiers", () => {

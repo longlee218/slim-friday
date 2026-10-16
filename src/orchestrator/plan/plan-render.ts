@@ -29,7 +29,7 @@ export function renderPlan(p: { version: number; objective: string; doc: PlanDoc
     ...(doc.acceptanceCriteria.length
       ? ["Done when:", ...doc.acceptanceCriteria.map((c) => `- ${c}`)]
       : []),
-    `Limits: roles ${e.roles.join(", ") || "-"}; locations ${e.locations.join(", ") || "-"}; risk ${e.riskClasses.join(", ")}; at most ${e.bounds.maxItems} steps and ${e.bounds.maxGb} GB; budget $${e.budgetUsd}; delivery: ${e.deliveryMode}.`,
+    `Limits: roles ${e.roles.join(", ") || "-"}; locations ${e.locations.join(", ") || "-"}; risk ${e.riskClasses.join(", ")}; at most ${e.bounds.maxItems} steps and ${e.bounds.maxGb} GB; budget $${e.budgetUsd}; delivery: ${e.effects.join(", ") || "keep"}.`,
     "Approving runs the whole plan inside these limits without asking again.",
   ].join("\n");
 }

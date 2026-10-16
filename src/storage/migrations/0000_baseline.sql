@@ -91,7 +91,7 @@ CREATE TABLE `work_plans` (
 	`acceptance` text DEFAULT '[]' NOT NULL,
 	`envelope` text DEFAULT '{}' NOT NULL,
 	`budget_usd` real,
-	`delivery_mode` text,
+	`effects` text,
 	`reason` text,
 	`created_at` integer NOT NULL,
 	`approved_at` integer,

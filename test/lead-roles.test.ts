@@ -28,12 +28,11 @@ import { FULL_CTX, LEAD_ONLY_TOOLS, toolsByServer } from "./mcp-ctx-fixture";
 const lead = ROLES.lead!;
 const scout = ROLES.scout!;
 
-test("lead role is data: Sonnet entry role of the lead surface, no skills, only lead tools", () => {
+test("lead role is data: Sonnet entry role of kind lead, no skills, only lead tools", () => {
   expect(lead).toMatchObject({
     model: SONNET_MODEL,
-    background: false,
+    kind: "lead",
     skills: [],
-    surface: "lead",
   });
   for (const t of LEAD_ONLY_TOOLS) expect(lead.mcpTools).toContain(t);
   expect(lead.capabilities).not.toContain("write");

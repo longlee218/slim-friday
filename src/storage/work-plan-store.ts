@@ -25,8 +25,8 @@ export interface WorkPlanRow {
   envelope: string;
   /** Budget cap for the whole plan, USD; null = none set. */
   budgetUsd: number | null;
-  /** How the result is handed over (merge / pr / keep); null = not decided. */
-  deliveryMode: string | null;
+  /** Comma-joined delivery effect tools the plan promises (GitPush, ...); null = none. */
+  effects: string | null;
   /** Why the version was rejected or superseded; null otherwise. */
   reason: string | null;
   /** Epoch ms the version was stored. */
@@ -36,7 +36,7 @@ export interface WorkPlanRow {
 }
 
 const COLUMNS = `id, version, goal_id AS goalId, status, strategy, objective, body, acceptance, envelope,
-  budget_usd AS budgetUsd, delivery_mode AS deliveryMode, reason, created_at AS createdAt,
+  budget_usd AS budgetUsd, effects, reason, created_at AS createdAt,
   approved_at AS approvedAt`;
 
 /** Insert a new plan version (`version` = previous latest + 1, 1 for the first). Returns the stored row. */
@@ -49,7 +49,7 @@ export function insertPlanVersion(
     const next = (latestPlan(db, p.id)?.version ?? 0) + 1;
     db.query(
       `INSERT INTO work_plans (id, version, goal_id, status, strategy, objective, body, acceptance, envelope,
-       budget_usd, delivery_mode, reason, created_at)
+       budget_usd, effects, reason, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.id,
@@ -62,7 +62,7 @@ export function insertPlanVersion(
       p.acceptance,
       p.envelope,
       p.budgetUsd,
-      p.deliveryMode,
+      p.effects,
       p.reason,
       Date.now(),
     );
@@ -131,6 +131,16 @@ export function planIdOfGoal(db: Database, goalId: string): string | undefined {
       "SELECT id FROM work_plans WHERE goal_id = ? ORDER BY created_at DESC, version DESC LIMIT 1",
     )
     .get(goalId)?.id;
+}
+
+/** Newest APPROVED version of a goal's plan, or undefined (no plan, or none approved yet). */
+export function newestApprovedVersion(db: Database, goalId: string): WorkPlanRow | undefined {
+  const planId = planIdOfGoal(db, goalId);
+  return planId
+    ? planVersions(db, planId)
+        .filter((r) => r.status === "approved")
+        .pop()
+    : undefined;
 }
 
 /** A `draft` / `valid` version older than this (ms) no longer holds its goal open: the owner never answered. */

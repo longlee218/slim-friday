@@ -31,11 +31,11 @@ test("no identity or tone words in any mode", () => {
   }
 });
 
-test("dev: one run contract: approval before changes by ask, no plan mode, the final location line", () => {
+test("dev: one run contract: approval before changes by ask, no plan mode", () => {
   const text = rules(dev);
   expect(text).toContain("Do not change files before the owner approved your plan");
   expect(text).toContain(`get approval with ${ASK_USER_QUESTION_TOOL_NAME}`);
-  expect(text).toContain('"location: <name>"');
+  expect(text).not.toContain('"location: <name>"'); // no location marker line any more
   expect(text).not.toMatch(/plan mode|ExitPlanMode|execute stage|plan stage|Need:/);
   expect(text).toContain("do not retry");
 });

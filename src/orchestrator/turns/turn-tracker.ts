@@ -1,4 +1,4 @@
-// A turn is one handled message; the turn of a background role is a task (Rev 11).
+// A turn is one handled message; the turn of a worker role is a task (Rev 11).
 import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
 import { getLogContext, logEvent, setLogContext, tryLog } from "../../observability/logger";
@@ -68,7 +68,7 @@ export function beginTurn(
     brief?: string;
     role: string;
     hop?: number;
-    /** Owned task this turn continues (background roles only; a foreground role never links). */
+    /** Owned task this turn continues (worker roles only; a non-worker role never links). */
     ownedTaskId?: string;
   },
 ): void {
@@ -83,8 +83,8 @@ export function beginTurn(
       role: t.role,
       hop: t.hop,
     });
-    // Only a background role works on an owned task: foreground answers (and the side lane) never link.
-    if (getRole(t.role).background)
+    // Only a worker role works on an owned task: non-worker answers (and the side lane) never link.
+    if (getRole(t.role).kind === "worker")
       attachTurnToTask(db, {
         turnId: ids.turnId,
         threadId: ids.threadId,

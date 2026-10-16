@@ -39,7 +39,7 @@ test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run 
             bounds: { maxItems: 8, maxGb: 1 },
           },
           budgetUsd: 4,
-          deliveryMode: "keep",
+          effects: [],
         });
         expect(made).toMatchObject({ ok: true, version: 1, status: "valid" });
         expect((await c.tool("ValidatePlan", { planId: made.planId, version: 1 })).valid).toBe(
@@ -125,7 +125,7 @@ test("owner rejects the plan -> no item runs, the goal is cancelled, the lead sa
             bounds: { maxItems: 2, maxGb: 1 },
           },
           budgetUsd: 1,
-          deliveryMode: "keep",
+          effects: [],
         });
         await c.tool("ReportResult", { status: "COMPLETED", summary: `plan ${made.planId}` });
         return "planned";

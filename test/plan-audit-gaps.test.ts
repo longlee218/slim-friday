@@ -59,7 +59,7 @@ function setup(raw: Record<string, unknown>[] = [{ key: "a" }, { key: "b", depen
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
     budgetUsd: 3,
-    deliveryMode: "keep",
+    effects: [],
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
@@ -183,7 +183,7 @@ test("the planner cannot be a plan role: the registry and the validator refuse i
       { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 8, maxGb: 1 } },
       [item("a", { role })],
       1,
-      "keep",
+      [],
     ),
   });
   const ctx = {

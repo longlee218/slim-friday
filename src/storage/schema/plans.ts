@@ -24,8 +24,8 @@ export const work_plans = sqliteTable(
     envelope: text().notNull().default("{}"),
     /** Budget in USD. */
     budget_usd: real(),
-    /** Delivery mode. */
-    delivery_mode: text(),
+    /** Comma-joined delivery effect tools the plan promises. */
+    effects: text(),
     /** Reason of the last decision. */
     reason: text(),
     /** Epoch ms created. */

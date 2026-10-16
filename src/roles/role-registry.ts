@@ -16,15 +16,15 @@ export const ROLES: Readonly<Record<string, RoleDefinition>> = {
 
 /** A task of this role counts toward the concurrent task cap: it runs in the background AND may change something (a read-only scout does not). */
 export const countsTowardCap = (r: RoleDefinition): boolean =>
-  r.background && r.sideEffects !== "none";
+  r.kind === "worker" && r.sideEffects !== "none";
 
-/** Roles the lead may dispatch as workers (`dispatchable` data flag), whatever their surface. */
+/** Roles the lead may dispatch as workers (`dispatchable` data flag), whatever their kind. */
 export const dispatchableWorkers = (): RoleDefinition[] =>
   Object.values(ROLES).filter((r) => r.dispatchable);
 
-/** The role of the control channel (#ops-control), found by its `surface` data; undefined when none is registered. */
+/** The role of the control channel (#ops-control), found by its `kind` data; undefined when none is registered. */
 export const controlRole = (): RoleDefinition | undefined =>
-  Object.values(ROLES).find((r) => r.surface === "control");
+  Object.values(ROLES).find((r) => r.kind === "control");
 
 /** Role by name; an unknown name is a programming/config error. */
 export function getRole(name: string): RoleDefinition {

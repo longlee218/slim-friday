@@ -8,7 +8,7 @@ export type Capability =
   | "web" // search / fetch
   | "skills"
   | "subagents" // Agent + SendMessage + ListAgents: the SDK's own built-in subagent; EVERY role gets them (toolsFor)
-  | "tasks" // progress tracking; TaskStop (stops a background task) needs the owner
+  | "tasks" // progress tracking; TaskStop (stops a worker task) needs the owner
   | "mcp" // MCP resource reads (+ refresh of the app's own MCP servers)
   | "feedback" // SendFeedback: sends a report to Anthropic, always owner-approved
   | "ask"; // AskUserQuestion: answered by the owner through Discord buttons
@@ -34,20 +34,16 @@ export type RoleSkills = string[];
 export interface RoleDefinition {
   /** Role name: the registry key and the log `mode` value. */
   name: string;
-  /** Mutually exclusive wording; the lead's LEAD.md, the planner and the outcome check read it from the registry. */
+  /** Mutually exclusive wording; the lead's LEAD.md, the lead and the planner read it from the registry. */
   whenToUse: string;
   /**
-   * Background role: a task. Its run counts toward the concurrent task cap, takes a start notice, is queued behind a
-   * busy thread, and works in a location; the owner steers it. Not background = a short foreground answer (plus the side lane).
+   * What the role is. `worker` = a detached task: its run counts toward the concurrent task cap, takes a start notice,
+   * is queued behind a busy thread, works in a location, and the owner steers it. `lead` = the thread's router (a short
+   * foreground answer, reached only through the lead runner). `control` = the #ops-control role (no workspace).
    */
-  background: boolean;
+  kind: "lead" | "worker" | "control";
   /** Skills the role gets (see `RoleSkills`). Omitted = `[]`. */
   skills?: RoleSkills;
-  /**
-   * Where the role runs: `control` = only in the owner's #ops-control channel, with no workspace; `lead` = reached only
-   * through the lead (the lead itself, or a worker it dispatches). Omitted = neither.
-   */
-  surface?: "control" | "lead";
   /** No SDK subagent tools (Agent, SendMessage, ListAgents): not offered and denied by the guard. Lead and workers set it (depth 1). Omitted = allowed. */
   noSubagents?: boolean;
   /** Shell of a role with the `shell` capability: `read` = read-only commands only (allowlist class R0, fail closed). Omitted = the full shell policy (a worker with an envelope gets the R0 + R1 allowlist). */

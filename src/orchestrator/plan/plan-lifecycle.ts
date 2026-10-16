@@ -20,7 +20,7 @@ import {
   rowFieldsOf,
   toPlanItem,
 } from "./plan-doc";
-import type { DeliveryMode, PlanCtx, PlanDoc, PlanError } from "./plan-types";
+import type { DeliveryEffect, PlanCtx, PlanDoc, PlanError } from "./plan-types";
 import { validatePlan } from "./validate-plan";
 
 /* Plan lifecycle over the db: create, revise (compare-and-set on the base version), approve, reject. Every version is
@@ -68,7 +68,7 @@ export function createPlan(
     acceptanceCriteria: string[];
     envelope: EnvelopeInput;
     budgetUsd: number;
-    deliveryMode: DeliveryMode;
+    effects: DeliveryEffect[];
     env: PlanEnv;
   },
 ): ({ ok: true } & { plan: WorkPlanRow }) | Fail {
@@ -78,7 +78,7 @@ export function createPlan(
   const doc: PlanDoc = {
     items,
     acceptanceCriteria: a.acceptanceCriteria,
-    envelope: buildEnvelope(a.envelope, items, a.budgetUsd, a.deliveryMode),
+    envelope: buildEnvelope(a.envelope, items, a.budgetUsd, a.effects),
   };
   const errors = validatePlan(doc, {
     ...a.env,

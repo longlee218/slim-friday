@@ -30,7 +30,7 @@ async function setup() {
 }
 
 /**
- * The dev worker edits, commits and ends with the report + `location: real` marker; or ends on `result` (budget, error).
+ * The dev worker edits, commits and ends with the report; or ends on `result` (budget, error).
  * No plan approval here: a worker's ask is relayed to the lead (covered by lead-flow).
  */
 const fakeSdk = (result?: Record<string, unknown>) => (a: any) => {
@@ -59,7 +59,7 @@ const fakeSdk = (result?: Record<string, unknown>) => (a: any) => {
       {},
     );
     yield resultMsg({
-      result: "done: b.txt added\n\nlocation: real",
+      result: "done: b.txt added",
       session_id: "sess-dev",
       total_cost_usd: 0.25,
     });
@@ -102,7 +102,7 @@ const codeTask = (env: Awaited<ReturnType<typeof setup>>) =>
 const runsOf = (env: Awaited<ReturnType<typeof setup>>, turnId: string) =>
   env.db.query<any, [string]>("SELECT * FROM runs WHERE turn_id = ?").all(turnId);
 
-test("one dev run: ONE runs row with model and cost; the worker's text is not returned; location from the marker", async () => {
+test("one dev run: ONE runs row with model and cost; the worker's text is not returned; location from the run (no marker)", async () => {
   const env = await setup();
   const reply = await send(handler(env), env, "please add b.txt");
   expect(reply).toContain("starting"); // the fixed start notice, not the worker's report
@@ -124,18 +124,9 @@ test("one dev run: ONE runs row with model and cost; the worker's text is not re
     env.db.query("SELECT session_id FROM sessions WHERE COALESCE(kind, '') != 'lead'").get(),
   ).toBeNull();
   expect(t.session_id).toBe("sess-dev");
-  // The typed result of the owned task carries the report; the marker line is the app's, not the owner's.
+  // The typed result of the owned task settles it; no `location:` line is parsed out of the report any more.
   const task = env.db.query<any, []>("SELECT * FROM owned_tasks WHERE parent_id IS NOT NULL").get();
   expect(task?.status).toBe("completed");
-  expect(task?.result_excerpt ?? "").not.toContain("location: real");
-});
-
-test("a final report without a valid `location:` marker keeps the location of the row", async () => {
-  const env = await setup();
-  const handle = handler(env, { result: "done\n\nlocation: nope", total_cost_usd: 0.1 });
-  await send(handle, env, "please add b.txt");
-  // One registered location: the sole location is the run's location even without a valid marker.
-  expect(codeTask(env)[0].location).toBe("real");
 });
 
 test("dev on its budget: the run row keeps the cost and outcome, the task is not done", async () => {

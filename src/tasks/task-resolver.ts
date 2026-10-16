@@ -55,7 +55,7 @@ export function changeOwner(
   traceId: string,
 ): boolean {
   // Only a background role may own a task.
-  if (!getRole(to).background) {
+  if (getRole(to).kind !== "worker") {
     log.warn({ ownedTaskId: task.taskId, to }, "task.owner_change_refused");
     return false;
   }

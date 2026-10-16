@@ -1,20 +1,26 @@
 import type { Database } from "bun:sqlite";
 import { localizeUserCopy, type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
-import type { Location } from "../../locations/location-registry";
 import { excerpt, logEvent, logger } from "../../observability/logger";
 import type { RunOutcome, RunUsage } from "../../observability/record-run";
 import { redactText } from "../../observability/redact";
+import { ROLES } from "../../roles/role-registry";
 import { STATUS_OF_RESULT } from "../../roles/typed-result";
 import type { RunAgentResult } from "../../runtime/run-agent";
 import { requestRollover } from "../../session/thread-rollover";
 import type { ResultKind } from "../../storage/owned-item-store";
 import { ownedTaskOfTurn } from "../../storage/owned-task-store";
-import { finishTurn, setTurnStatus, type TurnStatus, turnStatusOf } from "../../storage/run-store";
+import {
+  finishTurn,
+  setTurnStatus,
+  type TurnStatus,
+  turnRole,
+  turnStatusOf,
+} from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
 import { moveTaskTo, settleTaskAfterTurn } from "../../tasks/task-resolver";
 import { budgetHitReply } from "../budget/budget-hit";
+import { type DeliveryExpectation, missingEffects } from "./completion";
 import { saveResultFile } from "./result-file-save";
-import { checkRunOutcome } from "./run-outcome-check";
 
 /* The result of a role run, and the bookkeeping that closes a run. */
 
@@ -40,7 +46,7 @@ export interface FlowResult
   location?: string;
   /** Save the session although the outcome is not success/limit (a run stopped to await the owner's reply). */
   keepSession?: boolean;
-  /** Do not save this run's session as the thread's (a background run in the location itself: a later lead message in the thread must not resume it). */
+  /** Do not save this run's session as the thread's (a worker run in the location itself: a later lead message in the thread must not resume it). */
   skipThreadSession?: true;
   /** The session is the lead's (stored with `kind='lead'` and the run's model): set by the lead runner only. */
   sessionKind?: "lead";
@@ -133,26 +139,36 @@ export function closeTurn(
     stopping: boolean;
     t0: number;
     location: string;
-    locations?: Location[];
     language: OwnerLanguage;
     /** AGENT_HOME: where the result file of a task run goes (absent = no file). */
     agentHome?: string;
     /** Typed result the worker reported: it settles the task (over the derived status) when the turn ended `done`. */
     resultKind?: ResultKind;
+    /** Delivery effects the approved plan promised (workers): a COMPLETED report of the goal's last item without their `effect_log` rows is not delivered. */
+    delivery?: DeliveryExpectation;
   },
 ): string {
   let reply = finishRun(db, ids, res, o.language);
   if (o.stopping && res.outcome === "aborted") setTurnStatus(db, ids.turnId, "interrupted");
   const status = turnStatusOf(db, ids.turnId);
-  // Rule-based result of the run (logged `execution.outcome`): see `checkRunOutcome`.
-  const check = checkRunOutcome(db, ids.turnId, res, status, o.locations);
-  if (check.undelivered)
-    reply = `${reply}\n\n${renderUserNotice({ kind: "note", state: "no-delivery" }, o.language)}`;
-  // The owned task follows the turn's final status (no-op for a turn that owns none).
+  // Completion = the typed report + the effect log. COMPLETED on the goal's last item while a delivery effect the approved
+  // plan promised left no (successful) row: reported, NOT delivered: the reply carries one neutral line, the task stays completed.
   const taskId = ownedTaskOfTurn(db, ids.turnId);
+  const missing =
+    status === "done" && o.resultKind === "COMPLETED" && o.delivery
+      ? missingEffects(db, o.delivery, taskId)
+      : [];
+  if (missing.length > 0) {
+    logEvent(log, "execution.undelivered", { tools: missing });
+    reply = `${reply}\n\n${renderUserNotice({ kind: "note", state: "no-delivery" }, o.language)}`;
+  }
+  // The owned task follows the typed result; a `done` run of a role that changes things with no typed report is not a
+  // completion: the task waits for the owner (no reply note).
+  const role = ROLES[turnRole(db, ids.turnId) ?? ""];
+  const noReport = status === "done" && !o.resultKind && !!role && role.sideEffects !== "none";
   if (o.resultKind && status === "done" && taskId)
     moveTaskTo(db, taskId, STATUS_OF_RESULT[o.resultKind]);
-  else settleTaskAfterTurn(db, ids.turnId, status, check.undelivered || check.parkTask);
+  else settleTaskAfterTurn(db, ids.turnId, status, noReport);
   if (o.agentHome)
     saveResultFile(db, o.agentHome, ids.turnId, status, res.outcome, reply, o.resultKind);
   logEvent(log, "task.finished", {

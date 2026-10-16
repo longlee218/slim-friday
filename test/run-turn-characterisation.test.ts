@@ -138,7 +138,6 @@ test("worker whose close step throws: turn stays running or failed as before, `f
       language: "en",
       taskId: "ch-turn",
       location: locations[0]!.name,
-      locations,
       slot: () => {},
       resultKind: () => undefined,
       onSettled: () => {

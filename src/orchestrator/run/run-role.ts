@@ -6,10 +6,10 @@ import { titlePortFor } from "../../roles/prompts/thread-title-note";
 import { getRole } from "../../roles/role-registry";
 import { ownedTaskOfTurn } from "../../storage/owned-task-store";
 import { ceilingRefusal, withSpent } from "../budget/task-budget";
-import { answerOutput } from "../outputs/answer-output";
 import { clearProgressNote } from "../turns/progress-notes";
 import { type FlowResult, failResult } from "../turns/turn-result";
 import { closeBackgroundRun } from "../worker/run-report";
+import { answerOutput } from "./answer-output";
 import { askTimeoutControl, awaitingResult } from "./ask-timeout-control";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 import { roleScope } from "./role-scope";
@@ -21,10 +21,9 @@ import { validateRole } from "./validate-role";
 export type { RoleRunInput, RoleRunnerDeps };
 
 /**
- * Run a role: ONE agent run, whatever the role. The engine reads only role DATA (capabilities, `background`, `streaming`,
+ * Run a role: ONE agent run, whatever the role. The engine reads only role DATA (capabilities, `kind`, `streaming`,
  * limits), never a role name: cwd and paths come from `roleScope`, the budget from the task ceiling, the questions from
  * the role's ask limit. How the agent works (plan, approval by AskUserQuestion, delivery) is its skills and context.
- * A background role's report ends with `location: <name>`: that names the task's location (and its memory).
  */
 export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<FlowResult> {
   const { db, config, approvals } = deps;
@@ -55,13 +54,13 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   const stop = ceilingRefusal(i.route, language); // task ceiling already used up: refuse, never start with budget 0
   if (stop) return failResult(stop);
   const known =
-    i.pinned ?? (role.background && i.locations.length === 1 ? i.locations[0] : undefined);
+    i.pinned ?? (role.kind === "worker" && i.locations.length === 1 ? i.locations[0] : undefined);
   if (known) setLogContext({ location: known.name });
   let awaiting: string | undefined;
   const ctl = askTimeoutControl(i.ac.signal, (t) => (awaiting = t));
   const watch = watchRun(deps, i, role, () => awaiting);
   // A fresh session (never while one lives) opens with the rollover seed + the channel digest, in its first user prompt.
-  const prefix = s.sessionId ? "" : firstPromptPrefix(db, i, !role.background);
+  const prefix = s.sessionId ? "" : firstPromptPrefix(db, i, role.kind !== "worker");
   const titlePort = titlePortFor(i, deps.threadTitle); // none in a chat channel; gates the tool and its note
   const runOnce = agentRunOnce({
     deps,
@@ -83,14 +82,14 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
     clearProgressNote(i.turnId);
   });
   watch.afterRetry(res);
-  // A background run's session is the turn row's only: saved as the thread's, the lead would resume it.
+  // A worker run's session is the turn row's only: saved as the thread's, the lead would resume it.
   const base: FlowResult = {
     ...res,
     cwd: s.cwd,
     location: known?.name ?? "*",
-    ...(role.background && { skipThreadSession: true as const }),
+    ...(role.kind === "worker" && { skipThreadSession: true as const }),
   };
   if (awaiting) return awaitingResult(base, awaiting);
-  if (!role.background) return base;
+  if (role.kind !== "worker") return base;
   return closeBackgroundRun({ db, config }, i, base);
 }

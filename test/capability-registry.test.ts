@@ -9,7 +9,7 @@ import type { Capability, RoleDefinition } from "../src/roles/role-types";
 const role = (name: string, over: Partial<RoleDefinition> = {}): RoleDefinition => ({
   name,
   whenToUse: `use ${name}`,
-  background: false,
+  kind: "lead",
   limits: { maxAsk: 0 },
   sideEffects: "none",
   capabilities: ["read"],

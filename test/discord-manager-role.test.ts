@@ -31,11 +31,10 @@ import { FULL_CTX, toolsByServer } from "./mcp-ctx-fixture";
 
 const NAME = DISCORD_MANAGER_ROLE.name;
 
-test("role data: control surface, cheap, read + skills + ask only, own limits", () => {
+test("role data: control kind, cheap, read + skills + ask only, own limits", () => {
   expect(controlRole()).toBe(DISCORD_MANAGER_ROLE);
   expect(DISCORD_MANAGER_ROLE).toMatchObject({
-    surface: "control",
-    background: false,
+    kind: "control",
     model: HAIKU_MODEL,
     thinking: { type: "disabled" },
     capabilities: ["read", "skills", "ask"],
@@ -50,7 +49,7 @@ test("role data: control surface, cheap, read + skills + ask only, own limits", 
 
 test("the role is never dispatchable by the lead", () => {
   expect(dispatchableWorkers().map((r) => r.name)).not.toContain(NAME);
-  // The registry still knows it (the control runner finds it by `surface`).
+  // The registry still knows it (the control runner finds it by `kind`).
   expect(getRole(NAME)).toBe(DISCORD_MANAGER_ROLE);
 });
 

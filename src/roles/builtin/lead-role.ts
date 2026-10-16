@@ -28,14 +28,13 @@ const CONTRACT = `This run is the lead: the only voice to the owner in this thre
 - You have read and memory tools and your lead tools; no shell, you cannot change files.`;
 
 /**
- * The lead: Sonnet. Chosen by the lead runner (not by `entryRole`), reached only through it (`surface: "lead"`), so intent
+ * The lead: Sonnet. Chosen by the lead runner (not by `entryRole`), reached only through it (`kind: "lead"`), so intent
  * routing never offers it. Its tools are the `orchestration` server's lead tools (typed actions; handlers hold the rules).
  */
 export const LEAD_ROLE: RoleDefinition = {
   name: "lead",
   whenToUse: "Routes the owner's messages to specialist workers and reports their results.",
-  surface: "lead",
-  background: false,
+  kind: "lead",
   skills: [],
   // Memory tools + the lead's typed actions + SetThreadTitle (the `orchestration` server; a worker run never gets these).
   mcpTools: [

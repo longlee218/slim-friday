@@ -58,7 +58,7 @@ function setup(raw: string[] = ["a", "b", "c"]) {
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
     budgetUsd: 3,
-    deliveryMode: "keep",
+    effects: [],
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
@@ -102,7 +102,7 @@ test("H2: the rendered plan carries each brief, the objective and the criteria i
         riskClasses: ["R1"],
         bounds: { maxItems: 8, maxGb: 1 },
         budgetUsd: 1,
-        deliveryMode: "keep",
+        effects: [],
       },
     },
   });

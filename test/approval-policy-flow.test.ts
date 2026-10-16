@@ -66,7 +66,7 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
             bounds: { maxItems: 4, maxGb: 1 },
           },
           budgetUsd: 2,
-          deliveryMode: "keep",
+          effects: [],
         });
         await c.tool("ReportResult", { status: "COMPLETED", summary: `plan ${made.planId} v1` });
         return "planned";

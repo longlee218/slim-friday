@@ -1,6 +1,4 @@
 import { expect, test } from "bun:test";
-import { completesTask } from "../src/orchestrator/outputs/outcome-validator";
-import { ROLES } from "../src/roles/role-registry";
 import { appendEffect, effectsOfGoal } from "../src/storage/effect-log-store";
 import {
   bumpDispatch,
@@ -69,7 +67,7 @@ test("work plans: versions count up, CAS status moves once", () => {
     acceptance: "[]",
     envelope: "{}",
     budgetUsd: 1,
-    deliveryMode: null,
+    effects: null,
     reason: null,
   };
   expect(insertPlanVersion(db, p).version).toBe(1);
@@ -112,15 +110,6 @@ test("sessions: model + kind stored; a new row after a roll takes the thread's c
   bumpCycle(db, "th", "ws");
   setSession(db, { threadId: "th", sessionId: "s2", location: "r", cwd: "/r" });
   expect(getSession(db, "th")).toMatchObject({ generation: 1, kind: "role" });
-});
-
-test("completesTask: evidence or a no-side-effect role", () => {
-  const dev = Object.values(ROLES).find((r) => r.sideEffects === "location")!;
-  const none = Object.values(ROLES).find((r) => r.sideEffects === "none")!;
-  const ev = (any: boolean) => ({ any, artifacts: [], actions: {} }) as never;
-  expect(completesTask(dev, ev(false))).toBe(false);
-  expect(completesTask(dev, ev(true))).toBe(true);
-  expect(completesTask(none, ev(false))).toBe(true);
 });
 
 test("sessions: an update without kind / model keeps the stored ones", () => {

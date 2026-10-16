@@ -44,7 +44,7 @@ test("a key with path characters cannot leave the goals dir", () => {
 
 test("closeTurn writes the file and stores path + excerpt on the task row", () => {
   const { db, home } = makeEnv();
-  const role = Object.values(ROLES).find((r) => r.background)!.name;
+  const role = Object.values(ROLES).find((r) => r.kind === "worker")!.name;
   beginTurn(
     db,
     logger,

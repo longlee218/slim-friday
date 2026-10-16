@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
 import { envelopeGrew } from "../src/orchestrator/plan/envelope-diff";
 import { buildEnvelope, toPlanItem } from "../src/orchestrator/plan/plan-doc";
 import { normalizeRisk, type PlanCtx, type PlanDoc } from "../src/orchestrator/plan/plan-types";
@@ -24,7 +25,7 @@ const doc = (items: ReturnType<typeof item>[], env: Record<string, unknown> = {}
       { locations: ["repo"], riskClasses: ["R0", "R1", "R2"], bounds: { maxItems: 8, maxGb: 1 } },
       items,
       3,
-      "keep",
+      [],
     ),
     ...env,
   },
@@ -82,5 +83,5 @@ test("envelopeGrew: only a wider ask is growth", () => {
   expect(envelopeGrew(base, { ...base, roles: ["developer", "scout"] })).toBe(true);
   expect(envelopeGrew(base, { ...base, bounds: { maxItems: 9, maxGb: 1 } })).toBe(true);
   expect(envelopeGrew(base, { ...base, budgetUsd: 4 })).toBe(true);
-  expect(envelopeGrew(base, { ...base, deliveryMode: "merge" })).toBe(true);
+  expect(envelopeGrew(base, { ...base, effects: [MERGE_BRANCH_TOOL] })).toBe(true);
 });

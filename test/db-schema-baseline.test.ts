@@ -161,7 +161,7 @@ const EXPECTED: Record<string, string[]> = {
     "acceptance",
     "envelope",
     "budget_usd",
-    "delivery_mode",
+    "effects",
     "reason",
     "created_at",
     "approved_at",

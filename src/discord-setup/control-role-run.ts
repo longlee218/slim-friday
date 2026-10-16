@@ -47,7 +47,7 @@ export interface ControlRun {
 export const CONTROL_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Run the control-channel role (found by its `surface` data, never by name) for the owner's non-command text in
+ * Run the control-channel role (found by its `kind` data, never by name) for the owner's non-command text in
  * #ops-control. The caller already passed the admin gate (owner, pinned guild, control channel, live privacy). One
  * session per control channel (`threadId` = channel id, like a `chat` channel), inline replies, no workspace. One run
  * at a time per channel; `stop` aborts it. The discord-admin server is built per run with the guild and the

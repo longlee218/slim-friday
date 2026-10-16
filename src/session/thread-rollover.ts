@@ -70,7 +70,7 @@ export function requestRollover(
     if (!gauges) return;
     const role = turnRole(db, ids.turnId);
     const session = getSession(db, ids.threadId);
-    if (!role || !session || getRole(role).background) return;
+    if (!role || !session || getRole(role).kind === "worker") return;
     due.set(ids.turnId, { ...ids, role, model: usage?.mainModel, ...gauges });
   } catch (err) {
     log.warn({ err: errText(err) }, "rollover request skipped");
@@ -93,7 +93,7 @@ export function takeRollover(turnId: string, workspace: string): RolloverRequest
 export async function runRollover(d: RolloverDeps, req: RolloverRequest): Promise<void> {
   try {
     const session = getSession(d.db, req.threadId);
-    if (!session || getRole(req.role).background) return;
+    if (!session || getRole(req.role).kind === "worker") return;
     // Shutdown / `/stop` / the total time cap abort the rollover: stop between steps, never roll half-way.
     const aborted = () => d.signal?.aborted === true;
     const previous = getThreadSummary(d.db, req.threadId)?.summary ?? "";

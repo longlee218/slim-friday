@@ -18,6 +18,7 @@ import { channelDigest } from "../../storage/thread-store";
 import type { LeadRuntime, LeadThreadCtx } from "../lead/lead-runtime";
 import type { RoleRunInput } from "../run/role-run-types";
 import { runTurn } from "../run/run-turn";
+import { expectedDelivery } from "../turns/completion";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import type { ReportSink } from "./report-sink";
 import { earlierSteps, emitEndEvent } from "./worker-end-event";
@@ -142,7 +143,7 @@ export async function startWorker(
             language,
             taskId: item.id,
             location,
-            locations: ctx.locations,
+            delivery: expectedDelivery(db, role, goalId),
             slot,
             resultKind: () => sink.report?.status as ResultKind | undefined, // the schema enum is RESULT_KINDS
             onSettled: () => {

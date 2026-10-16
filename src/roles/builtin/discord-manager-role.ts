@@ -22,8 +22,7 @@ export const DISCORD_MANAGER_ROLE: RoleDefinition = {
   name: "discord-manager",
   whenToUse:
     "Set up the Discord server: create a space or channel, apply a space kind template, edit persona files. Control channel only.",
-  surface: "control",
-  background: false,
+  kind: "control",
   skills: ["discord-server-manager"],
   mcpTools: [LIST_SPACES_TOOL, CREATE_SPACE_OR_CHANNEL_TOOL, WRITE_SPACE_FILE_TOOL], // a control run has no memory ctx: no memory tools
   limits: { maxAsk: MAX_ASK },

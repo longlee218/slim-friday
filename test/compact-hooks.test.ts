@@ -294,7 +294,7 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
   const probe: RoleDefinition = {
     name: "probe-hooks",
     whenToUse: "test only",
-    background: false,
+    kind: "lead",
     limits: { maxAsk: 3 },
     sideEffects: "none",
     capabilities: ["read"],

@@ -605,8 +605,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "delivery_mode": {
-          "name": "delivery_mode",
+        "effects": {
+          "name": "effects",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

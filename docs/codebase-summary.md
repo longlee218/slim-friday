@@ -31,7 +31,7 @@ Rule: lead code lives under `src/orchestrator/{engine,events,strategy,approval,p
 | `orchestrator/events/` | thread outbox: append, claim, deliver, redeliver | `event-store.ts`, `event-types.ts` |
 | `orchestrator/dispatch/` | run of one dispatched task (detached) | `run-dispatched-task.ts` |
 | `orchestrator/thread/` | derived thread state (idle, running, awaiting owner) | `thread-state.ts` |
-| `orchestrator/outputs/` | reply text, outcome validation, delivery evidence for developer runs | `answer-output.ts`, `outcome-validator.ts`, `delivery-evidence.ts` |
+| `orchestrator/turns/completion.ts` | completion = `ReportResult` + `effect_log` rows: expected effects come from the approved plan's `effects` list, judged on the goal's last item | `completion.ts`, `turn-result.ts` |
 | `orchestrator/turns/` | turn tracking, run limiter (30), steer registry and store, rollover (flush, summary, seed, scheduler), status snapshot, progress notes | `turn-tracker.ts`, `turn-admission.ts`, `run-limiter.ts`, `steer-registry.ts`, `steer-store.ts`, `thread-rollover.ts`, `rollover-*.ts`, `status-snapshot.ts`, `status-tools.ts`, `progress-notes.ts` (in memory), `result-file-save.ts`, `run-outcome-check.ts` (20 files) |
 | `tasks/` | owned task contracts, resolver and state machine | `task-state-machine.ts` (item states), `task-contracts.ts`, `task-resolver.ts` |
 | `roles/` | role type, registry, built-in roles and their prompts | `role-types.ts`, `role-registry.ts` (`dispatchableWorkers()`), `role-aliases.ts` (`dev` → `developer`), `capability-registry.ts`, `builtin/lead-role.ts`, `builtin/planner-role.ts`, `builtin/scout-role.ts`, `builtin/developer-role.ts`, `builtin/discord-manager-role.ts`, `builtin/skills/` (app skills: `scout`, `docs-seeker`, `plan-work`, `discord-server-manager`) |
@@ -69,7 +69,7 @@ Discord message (owner, mapped channel or its thread)
 
 ## Roles (data)
 - Defined in `src/roles/builtin/*.ts` as `RoleDefinition` objects, registered one line each in `role-registry.ts`. The engine reads only the data (test-checked: no role-name literals in the engine).
-- Built-in roles: `lead` (surface `lead`), `planner` (surface `lead`, not dispatchable), `scout` (surface `lead`, dispatchable), `developer` (dispatchable, tag `[developer]`), `discord-manager` (surface `control`).
+- Built-in roles: `lead` (kind `lead`), `planner` (kind `worker`, not dispatchable), `scout` (kind `worker`, dispatchable), `developer` (kind `worker`, dispatchable, tag `[developer]`), `discord-manager` (kind `control`).
 - Old stored names are read through `role-aliases.ts` (`dev` → `developer`); `[dev]` still starts the developer.
 - Fields and values: [system-architecture.md, Role Model](system-architecture.md#role-model).
 - Developer prompt pieces are in `developer-role.ts` (role text, run facts, commit rules, code standards, the `location:` report line, the skills rule). The lead's contract and worker lines come from `lead-role.ts` and `strategy/lead-md.ts`.

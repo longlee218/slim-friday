@@ -1,3 +1,7 @@
+import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
+import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
+import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
+
 /* Types and limits of a work plan. A plan is DATA: the planner writes it through its tools, code validates it, the owner
    approves it once, and the approved plan IS the envelope the run stays inside. */
 
@@ -5,9 +9,13 @@
 const RISKS = ["R0", "R1", "R2", "R3"] as const;
 export type Risk = (typeof RISKS)[number];
 
-/** How the finished work is handed over. */
-export const DELIVERY_MODES = ["merge", "pr", "keep"] as const;
-export type DeliveryMode = (typeof DELIVERY_MODES)[number];
+/** Effect tools a plan may grant for handing the finished work over (push + PR, or merge); none listed = keep it local. */
+export const DELIVERY_EFFECT_TOOLS = [
+  GIT_PUSH_TOOL,
+  CREATE_PULL_REQUEST_TOOL,
+  MERGE_BRANCH_TOOL,
+] as const;
+export type DeliveryEffect = (typeof DELIVERY_EFFECT_TOOLS)[number];
 
 /** Most items one plan may hold. */
 export const MAX_ITEMS = 8;
@@ -46,7 +54,8 @@ export interface Envelope {
   riskClasses: Risk[];
   bounds: { maxItems: number; maxGb: number };
   budgetUsd: number;
-  deliveryMode: DeliveryMode;
+  /** Delivery effect tools the plan grants on its locations (the envelope `effects`); empty = nothing leaves the location. */
+  effects: DeliveryEffect[];
 }
 
 /** The content of one plan version. */

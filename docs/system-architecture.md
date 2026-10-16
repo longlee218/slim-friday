@@ -5,7 +5,7 @@ Last updated: 2026-10-16 (lead orchestration L0-L2c committed, L4 in the working
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite).
 - The owner posts in a thread → the thread's **lead** (Sonnet) answers simple questions itself, dispatches typed work to workers, or starts a **planner** for a big request.
-- Workers: `developer` (background change in one of the workspace's locations, owner-approved plan, delivers through effect tools), `scout` (read-only search, Haiku, read-only shell gate, web tools) and `planner` (read-only, writes a plan the code validates). Workers run detached and report through `ReportResult`.
+- Workers: `developer` (worker: change in one of the workspace's locations, owner-approved plan, delivers through effect tools), `scout` (read-only search, Haiku, read-only shell gate, web tools) and `planner` (read-only, writes a plan the code validates). Workers run detached and report through `ReportResult`.
 - Results come back to the lead in a short batch. The lead is the only voice to the owner.
 - Code decides routing, caps, budgets and guards. Roles, prompts and skills decide HOW the work is done.
 
@@ -136,11 +136,10 @@ Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-type
 
 | Field | `lead` | `planner` | `scout` | `developer` |
 |---|---|---|---|---|
-| `surface` | `lead` | `lead` | `lead` | `space` (default) |
+| `kind` | `lead` | `worker` | `worker` | `worker` |
 | `tag` | - | - | - | `[developer]` (old `[dev]` still works) |
 | `dispatchable` | no | no | yes | yes |
 | `model` | sonnet | sonnet | haiku | sonnet |
-| `background` | no | yes | yes | yes |
 | `skills` | none | none (`appSkills`: `plan-work`) | none (`appSkills`: `scout`, `docs-seeker`) | all (publisher) |
 | `capabilities` | read | read, skills | read, web, shell (read-only gate), skills | read, write, shell, skills, tasks, mcp, feedback, ask |
 | `mcpServers` | `lead` | `worker`, `planner` | `worker` | `worker`, `effects` |
@@ -150,14 +149,14 @@ Roles are DATA in `src/roles/builtin/` (`RoleDefinition` in `src/roles/role-type
 | `noSubagents` | yes | yes | yes | yes (set by the worker runner) |
 | `sideEffects` | none | none | none | location |
 
-- Control role `discord-manager` (`surface: control`) is not a lead worker; see [Control Channel](#control-channel-phase-3).
+- Control role `discord-manager` (`kind: control`) is not a lead worker; see [Control Channel](#control-channel-phase-3).
 - `dev` is renamed `developer` (L4). Old stored rows (`owner_role = 'dev'`), `MODEL_DEV`, `BUDGET_DEV_USD` and `COMPACT_WINDOW_DEV` read as `developer` through `src/roles/role-aliases.ts`. `MODEL_DEVELOPER` works too.
 - The planner is not dispatchable: `DispatchAgent` cannot start it, and a plan cannot list it.
 - `noSubagents` removes the subagents capability (`check-tool-call.ts`); see [Skills and Subagents](#skills-and-subagents).
 - Adding a role or skill is a data change. Role files stay flat TypeScript objects (roles as separate config files: closed, owner 2026-10-12).
 
 ### Role fields (data)
-- `surface`: `lead` (only reached through the lead), `control` (`#ops-control` only) or `space` (default; unused after L2a).
+- `kind`: `lead` (the router, reached through the lead runner), `worker` (a detached run: task cap, start notice, location, steer) or `control` (`#ops-control` only).
 - `appSkills`: dirs under `src/roles/builtin/skills/`; only the listed role gets them.
 - `mcpServers`: in-process app servers (names in `mcp-tool-names.ts`). The guard allows their tools only when listed in `allowTools` (`appMcpToolsFor`).
 - `mayHaveWritten(role)` (write capability or `sideEffects: external`): such a run is never re-run automatically after a result.
@@ -248,7 +247,7 @@ Code: `src/ingress/thread-placement.ts` (placeholder, open, adopt), `threads-por
 | Events | `src/orchestrator/events/` | thread outbox (`thread_events`) |
 | Workers | `src/orchestrator/engine/worker-run.ts`, `dispatch-ready.ts`, `src/orchestrator/dispatch/run-dispatched-task.ts`, `engine/task-runs.ts` | detached worker runs, run-to-task link, stop tree |
 | Role engine | `src/orchestrator/engine/run-role.ts`, `role-scope.ts`, `budget.ts`, `owner-confirm.ts`, `validate-role.ts` | one run per role: scope, ask gate, budget, outcome |
-| Outputs | `src/orchestrator/outputs/answer-output.ts`, `outcome-validator.ts`, `delivery-evidence.ts` | reply text, outcome (`success` / `partial` / `failed`), delivery evidence for developer |
+| Completion | `src/orchestrator/turns/completion.ts`, `turn-result.ts`, `src/orchestrator/run/answer-output.ts` | reply text; completion = typed `ReportResult` + `effect_log`: a COMPLETED report of a goal's last item without the effect rows the approved plan's `effects` list promised gets one neutral note; a DIRECT goal expects none; a worker that changes things and sent no report waits for the owner |
 | Planner | `src/orchestrator/plan/`, `src/mcp/planner-server.ts`, `src/tools/{GetProjectContext,GetAgentCapabilities,CreatePlan,ValidatePlan,ProposePlanRevision,GetExecutionProgress,AnalyzeBlockers,RequestPlan,ApprovePlan}Tool/` | plan types, validator, lifecycle, materialize; planner tools in the `planner` server; lead `RequestPlan` / `ApprovePlan` |
 | Approval | `src/orchestrator/approval/`, `src/tools/{DeletePaths,GitPush,CreatePullRequest,MergeBranch}Tool/`, `src/runtime/worker-sandbox.ts` | risk classes, envelope, shell gate, effect tools, trash (see [Approval Policy](#approval-policy-l2c)) |
 | Turn tracking | `src/orchestrator/turns/` | turn rows, run limiter (30 concurrent), steer registry and store, session compaction, status snapshot, rollover |
@@ -294,7 +293,7 @@ Code: `src/orchestrator/approval/` (25 files), `src/tools/{DeletePaths,GitPush,C
 | R3 | external effect | `GitPush`, `CreatePullRequest` | a worker, only through the effect tool and its grant |
 | R4 | forbidden to automate (force push, push to main, delete outside the goal's locations) | never planned or granted | asks the owner at every act, never stored |
 
-**Envelope** (`envelope.ts`, `load-envelope.ts`): built at dispatch (DIRECT / DELEGATE: default envelope = R0 + R1 and `DeletePaths` to the trash within the default bounds, `DEFAULT_BOUNDS` 200 items / 50 GB) or from the approved plan (PLAN: the plan's locations, risk classes, bounds, budget and delivery mode). Checked on every tool call of a worker; a missing or corrupt grant row reads as no grants (fail closed). Refusals carry a code; the lead sees them as refusals.
+**Envelope** (`envelope.ts`, `load-envelope.ts`): built at dispatch (DIRECT / DELEGATE: default envelope = R0 + R1 and `DeletePaths` to the trash within the default bounds, `DEFAULT_BOUNDS` 200 items / 50 GB) or from the approved plan (PLAN: the plan's locations, risk classes, bounds, budget and `effects` list). Checked on every tool call of a worker; a missing or corrupt grant row reads as no grants (fail closed). Refusals carry a code; the lead sees them as refusals.
 
 **Worker shell gate** (`shell-gate.ts`, `shell-shape.ts`, `shell-table.ts`, `bash-allowlist.ts`): default-deny by SHAPE, then the exact table in `worker-bash-allowlist.yaml`. One plain command at a time: no pipe, redirect, `;`, `&&`, quote or `$`. A line an effect tool replaces (`rm`, `git push`, `gh pr create`, `git merge`) is denied with the name of the tool. A `read` shell mode (scout) allows R0 only. The deny list in [Approval & Guardrails](#approval--guardrails) still runs first; its hard denies are never approvable.
 
@@ -364,7 +363,7 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 - Open question (not verified live): whether the SDK `total_cost_usd` of a resumed session accumulates.
 
 ### Resume
-- A background run that fails after work (budget, transient error) with its session saved ends `failed_resumable`. `/go` continues.
+- A worker run that fails after work (budget, transient error) with its session saved ends `failed_resumable`. `/go` continues.
 - `/go` resumes the thread's LAST task: a new turn row with `kind = resume` and `parent_turn_id`, same session and cwd. The cwd must still be a location of the workspace, or the workspace's neutral `cwd/` dir.
 - If the SDK says the session is gone (`RESUME_FAILED`): the owner is told to start the task again.
 - A restart while a run is active: its turns become `interrupted`, pending questions are cancelled, the thread gets a Resume button. Worker items of a goal are recovered by `recover-in-flight.ts` (see [Restart](#restart)).
@@ -429,7 +428,7 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 | `tool_calls` | id, run_id, turn_id, tool_name, input_redacted, output_redacted, duration_ms, agent_id | one row per tool call (NULL `agent_id` = main agent) |
 | `approvals` | id, turn_id, tool, decision, requested_at | owner questions and owner-confirm buttons |
 | `owned_tasks` | id, thread_id, owner_role, status, scope, version, correlation_id, created_at, last_progress_at; v8: `parent_id`, `item_key`, `depends_on` (JSON), `attempt`, `dispatch_count`, `location`, `brief`, `ready_at`, `result_kind`, `result_path`, `result_excerpt`, `plan_id`, `plan_version` | goals (root rows) and their items. Unique `(parent_id, item_key)` per goal. Old `owner_role` = `dev` rows are read as `developer` (never rewritten) |
-| `work_plans` | id, version (PK), goal_id, status, strategy, objective, body, acceptance, envelope, budget_usd, delivery_mode, reason, created_at, approved_at | versioned plan of a goal (written by the planner, L2b) |
+| `work_plans` | id, version (PK), goal_id, status, strategy, objective, body, acceptance, envelope, budget_usd, effects, reason, created_at, approved_at | versioned plan of a goal (written by the planner, L2b) |
 | `thread_events` | seq (PK, FIFO), id (UNIQUE = idempotency key), thread_id, task_id, item_id, kind, payload, correlation_id, causation_id, created_at, claimed_by, delivered_at, redelivered | the event outbox: worker results and news for the lead. Index `thread_events_pending` (thread_id, delivered_at, seq) |
 | `effect_log` | id, thread_id, goal_id, item_id, tool, scope, granted_by, result, undo, expires_at, created_at | audit of every effect tool call and lead tool call that changed state (filled by the effect port; `scope` = `lead tool call` for lead calls). Read by `metrics:lead` |
 | `threads` | thread_id (PK), channel_id, workspace, origin, placeholder, title, digest, created_at, updated_at | one row per Discord thread the agent knows (v7) |
