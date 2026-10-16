@@ -10,7 +10,7 @@ import { ownedTaskOfTurn } from "../../storage/owned-task-store";
 import { finishTurn, setTurnStatus, type TurnStatus, turnStatusOf } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
 import { moveTaskTo, settleTaskAfterTurn } from "../../tasks/task-resolver";
-import { budgetHitReply } from "../engine/budget";
+import { budgetHitReply } from "../budget/budget-hit";
 import { STATUS_OF_RESULT } from "../strategy/typed-result";
 import { saveResultFile } from "./result-file-save";
 import { checkRunOutcome } from "./run-outcome-check";

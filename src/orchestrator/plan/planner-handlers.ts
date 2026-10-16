@@ -1,11 +1,11 @@
 import type { Database } from "bun:sqlite";
-import { TASK_BUDGET_USD } from "../../config/model-routing";
 import { clip, redactText } from "../../observability/redact";
 import { countsTowardCap } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import { childrenOf } from "../../storage/owned-item-store";
 import { taskScope } from "../../storage/owned-task-store";
 import { getPlan, latestPlan, planIdOfGoal } from "../../storage/work-plan-store";
+import { GOAL_BUDGET_USD } from "../budget/task-budget";
 import { type Reply, refuse } from "../reply";
 import { createPlan, type Fail, type PlanEnv, validateStored } from "./plan-lifecycle";
 import { revisePlan } from "./plan-revision";
@@ -42,7 +42,7 @@ const EXCERPT_CHARS = 300;
 const planEnvOf = (c: PlannerCtx): PlanEnv => ({
   workerRoles: c.workers.map((w) => w.name),
   locations: c.locations.map((l) => l.name),
-  goalBudgetUsd: TASK_BUDGET_USD,
+  goalBudgetUsd: GOAL_BUDGET_USD,
 });
 
 /** A lifecycle refusal as a tool reply (the validator's list goes into the message). */

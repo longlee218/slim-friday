@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { BUDGET_SUMMARY_MAX, budgetHitMessage } from "../src/orchestrator/engine/budget";
+import { BUDGET_SUMMARY_MAX, budgetHitMessage } from "../src/orchestrator/budget/budget-hit";
 
 // Budget-hit message parts.
 

@@ -1,0 +1,211 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`lead run ends ok: one done lead turn, one success run, session kept 1`] = `
+{
+  "events": [
+    {
+      "kind": "owner_message",
+    },
+  ],
+  "runs": [
+    {
+      "cost": 0.001,
+      "outcome": "success",
+    },
+  ],
+  "tasks": [],
+  "turns": [
+    {
+      "hop": 0,
+      "kind": "single",
+      "location": "*",
+      "role": "lead",
+      "sess": 1,
+      "source": "discord",
+      "status": "done",
+    },
+  ],
+}
+`;
+
+exports[`lead run errors: its turn row is closed, the owner gets the fixed notice 1`] = `
+{
+  "events": [
+    {
+      "kind": "owner_message",
+    },
+  ],
+  "runs": [
+    {
+      "cost": 0,
+      "outcome": "error",
+    },
+  ],
+  "tasks": [],
+  "turns": [
+    {
+      "hop": 0,
+      "kind": "single",
+      "location": "*",
+      "role": "lead",
+      "sess": 1,
+      "source": "discord",
+      "status": "failed",
+    },
+  ],
+}
+`;
+
+exports[`worker run ends ok: worker turn done + task completed + end event 1`] = `
+{
+  "events": [
+    {
+      "kind": "owner_message",
+    },
+    {
+      "kind": "start",
+    },
+    {
+      "kind": "result",
+    },
+  ],
+  "runs": [
+    {
+      "cost": 0.001,
+      "outcome": "success",
+    },
+    {
+      "cost": 0.001,
+      "outcome": "success",
+    },
+    {
+      "cost": 0.001,
+      "outcome": "success",
+    },
+  ],
+  "tasks": [
+    {
+      "kind": null,
+      "owner": "lead",
+      "status": "completed",
+    },
+    {
+      "kind": "COMPLETED",
+      "owner": "scout",
+      "status": "completed",
+    },
+  ],
+  "turns": [
+    {
+      "hop": 0,
+      "kind": "single",
+      "location": "*",
+      "role": "lead",
+      "sess": 1,
+      "source": "discord",
+      "status": "done",
+    },
+    {
+      "hop": 1,
+      "kind": "single",
+      "location": "location",
+      "role": "scout",
+      "sess": 1,
+      "source": "discord",
+      "status": "done",
+    },
+    {
+      "hop": 0,
+      "kind": "single",
+      "location": "*",
+      "role": "lead",
+      "sess": 1,
+      "source": "discord",
+      "status": "done",
+    },
+  ],
+}
+`;
+
+exports[`worker aborted by /stop: its query sees the abort, rows closed, registry empty 1`] = `
+{
+  "events": [
+    {
+      "kind": "owner_message",
+    },
+    {
+      "kind": "start",
+    },
+  ],
+  "runs": [
+    {
+      "cost": 0.001,
+      "outcome": "success",
+    },
+    {
+      "cost": 0.001,
+      "outcome": "success",
+    },
+  ],
+  "tasks": [
+    {
+      "kind": null,
+      "owner": "lead",
+      "status": "cancelled",
+    },
+    {
+      "kind": null,
+      "owner": "scout",
+      "status": "cancelled",
+    },
+  ],
+  "turns": [
+    {
+      "hop": 0,
+      "kind": "single",
+      "location": "*",
+      "role": "lead",
+      "sess": 1,
+      "source": "discord",
+      "status": "done",
+    },
+    {
+      "hop": 1,
+      "kind": "single",
+      "location": "location",
+      "role": "scout",
+      "sess": 1,
+      "source": "discord",
+      "status": "done",
+    },
+  ],
+}
+`;
+
+exports[`worker whose close step throws: turn stays running or failed as before, \`failure\` event, registry empty 1`] = `
+{
+  "events": [
+    {
+      "kind": "failure",
+    },
+  ],
+  "runs": [
+    {
+      "cost": 0.0012,
+      "outcome": "success",
+    },
+  ],
+  "tasks": [],
+  "turns": [
+    {
+      "hop": 0,
+      "kind": "single",
+      "location": "location",
+      "role": "developer",
+      "sess": 0,
+      "source": "t",
+      "status": "running",
+    },
+  ],
+}
+`;

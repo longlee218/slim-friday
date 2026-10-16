@@ -1,100 +1,87 @@
 import { messageLanguage } from "../../ingress/user-copy";
-import { logEvent, logger, setLogContext } from "../../observability/logger";
+import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
 import { getSession } from "../../storage/session-store";
+import { LEAD_BUDGET_NOTICE, LEAD_FAILED_NOTICE, leadOverBudget } from "../budget/lead-budget";
 import { registerRun } from "../run/live-runs";
+import { type LeadTurnResult, runTurn } from "../run/run-turn";
 import { buildLeadContextBlock } from "../strategy/lead-context-block";
 import { buildLeadMd } from "../strategy/lead-md";
-import { closeTurn } from "../turns/turn-result";
-import { beginTurn, failTurn } from "../turns/turn-tracker";
 import { dispatchReady } from "./dispatch-ready";
 import { createDbEffectPort } from "./effect-port-db";
 import { OWNER_MESSAGE_LABEL } from "./first-prompt-prefix";
-import { LEAD_BUDGET_NOTICE, LEAD_FAILED_NOTICE, leadOverBudget } from "./lead-budget";
 import { announceBlock, pendingNews, settleLeadEvents } from "./lead-events";
 import { createLeadIo } from "./lead-io";
 import type { LeadInput } from "./lead-queue";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "./lead-runtime";
-import { runRole } from "./run-role";
 
 /** Logger of this module. */
 const log = logger.child({ module: "lead-run" });
 
-/** What one lead model run gives back. */
-interface LeadOnce {
-  /** Turn row of the run. */
-  turnId: string;
-  reply: string;
-  outcome: string;
-}
-
 /** Run the lead model once on `text`: one turn row, the lead's tools over a fresh port, the session stored as the lead's. */
-async function leadOnce(
+function leadOnce(
   rt: LeadRuntime,
   ctx: LeadThreadCtx,
   o: { threadId: string; inputId: string; text: string; ac: AbortController },
-): Promise<LeadOnce> {
+): Promise<LeadTurnResult> {
   const { deps } = rt;
   const { db } = deps;
   const { threadId } = o;
   const turnId = crypto.randomUUID();
-  setLogContext({ taskId: turnId, mode: "lead" });
-  beginTurn(
-    db,
-    log,
-    { turnId, threadId, source: ctx.message.source },
-    { location: "*", role: "lead", brief: o.text },
-  );
-  const port = createDbEffectPort({
-    db,
-    threadId,
-    env: {
-      workerRoles: dispatchableWorkers().map((r) => r.name),
-      locations: ctx.locations.map((l) => l.name),
+  return runTurn("lead", deps, {
+    begin: {
+      log,
+      context: { taskId: turnId, mode: "lead" },
+      ids: { turnId, threadId, source: ctx.message.source },
+      turn: { location: "*", role: "lead", brief: o.text },
     },
-    io: createLeadIo(rt, ctx, threadId, turnId, o.ac.signal),
+    // Built after the turn row exists: the lead's tools over a fresh port, the stored session, the run input.
+    build: () => {
+      const port = createDbEffectPort({
+        db,
+        threadId,
+        env: {
+          workerRoles: dispatchableWorkers().map((r) => r.name),
+          locations: ctx.locations.map((l) => l.name),
+        },
+        io: createLeadIo(rt, ctx, threadId, turnId, o.ac.signal),
+      });
+      const toolCtx = {
+        port,
+        threadId,
+        leadTurnId: turnId,
+        inputId: o.inputId,
+        run: { dispatched: 0 },
+      };
+      const role = getRole("lead");
+      const language = messageLanguage(ctx.message);
+      const stored = getSession(db, threadId);
+      return {
+        input: {
+          turnId,
+          threadId,
+          text: `${buildLeadContextBlock(port.snapshot() ?? { items: [] })}\n\n${o.text}`,
+          role: "lead",
+          workspace: ctx.workspace,
+          channel: ctx.channel,
+          channelMode: ctx.channelMode,
+          channelId: ctx.channelId,
+          locations: [], // neutral cwd: the lead routes, it reads no location
+          ac: o.ac,
+          language,
+          recent: ctx.message.recent, // seeds a fresh session after a rollover
+          existing: stored?.kind === "lead" ? stored : null,
+          extraSystem: [buildLeadMd()],
+          appCtx: () => ({ lead: toolCtx }),
+        },
+        close: (res, t0) => ({
+          res: { ...res, sessionKind: "lead", model: res.model ?? role.model },
+          opts: { language, stopping: deps.stopping(), t0, location: "*" },
+        }),
+      };
+    },
   });
-  const toolCtx = {
-    port,
-    threadId,
-    leadTurnId: turnId,
-    inputId: o.inputId,
-    run: { dispatched: 0 },
-  };
-  const role = getRole("lead");
-  const language = messageLanguage(ctx.message);
-  const stored = getSession(db, threadId);
-  const t0 = Date.now();
-  try {
-    const res = await runRole(deps, {
-      turnId,
-      threadId,
-      text: `${buildLeadContextBlock(port.snapshot() ?? { items: [] })}\n\n${o.text}`,
-      role: "lead",
-      workspace: ctx.workspace,
-      channel: ctx.channel,
-      channelMode: ctx.channelMode,
-      channelId: ctx.channelId,
-      locations: [], // neutral cwd: the lead routes, it reads no location
-      ac: o.ac,
-      language,
-      recent: ctx.message.recent, // seeds a fresh session after a rollover
-      existing: stored?.kind === "lead" ? stored : null,
-      extraSystem: [buildLeadMd()],
-      appCtx: () => ({ lead: toolCtx }),
-    });
-    const reply = closeTurn(
-      db,
-      { turnId, threadId },
-      { ...res, sessionKind: "lead", model: res.model ?? role.model },
-      { language, stopping: deps.stopping(), t0, location: "*" },
-    );
-    return { turnId, reply, outcome: res.outcome };
-  } catch (err) {
-    failTurn(db, log, turnId);
-    throw err;
-  }
 }
 
 /** Failed runs allowed per announce batch (key = its event ids): past it the news is dropped and the owner told once. */

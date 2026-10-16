@@ -1,10 +1,8 @@
-import type { Database } from "bun:sqlite";
-import { TASK_BUDGET_USD } from "../../config/model-routing";
 import { logEvent, logger } from "../../observability/logger";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
-import { costOfTasks } from "../../storage/run-metrics-store";
 import { appendEvent, markStartDelivered } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
+import { GOAL_BUDGET_USD, goalOverBudget } from "../budget/task-budget";
 import { openGoalIdOf } from "./effect-port-queries";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import type { LeadRuntime } from "./lead-runtime";
@@ -25,14 +23,6 @@ const deferred = new Map<string, ReturnType<typeof setTimeout>>();
 /** Threads with a pass in progress, and the ones asked again meanwhile (one pass per thread at a time). */
 const passing = new Set<string>();
 const again = new Set<string>();
-
-/** Cost (USD) of every run of the goal's items so far (the per-goal share of the task budget). */
-function goalSpent(db: Database, items: ItemRow[]): number {
-  return costOfTasks(
-    db,
-    items.map((i) => i.id),
-  );
-}
 
 /** Fail an item the engine will not start (breaker, budget): the work order closes, dependents are cancelled, the lead is told. */
 function failItem(
@@ -101,8 +91,8 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
     }
     if (next.dispatchCount >= MAX_DISPATCHES_PER_ITEM) {
       failItem(rt, threadId, next, "failure", `dispatched ${next.dispatchCount} times`);
-    } else if (goalSpent(db, items) >= TASK_BUDGET_USD) {
-      failItem(rt, threadId, next, "budget_hit", `goal budget $${TASK_BUDGET_USD} used`);
+    } else if (goalOverBudget(db, items)) {
+      failItem(rt, threadId, next, "budget_hit", `goal budget $${GOAL_BUDGET_USD} used`);
     } else {
       const started = await startWorker(rt, ctx, threadId, next, () => {
         rt.announce(threadId);

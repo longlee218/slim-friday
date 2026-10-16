@@ -1,6 +1,7 @@
-import { type Route, TASK_BUDGET_USD } from "../../config/model-routing";
+import type { Route } from "../../config/model-routing";
 import { logEvent, logger } from "../../observability/logger";
 import type { RunAgentResult } from "../../runtime/run-agent";
+import { remainingUsd } from "../budget/task-budget";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "answer-output" });
@@ -24,7 +25,7 @@ export async function answerOutput(a: {
   const spentUsd = (a.route?.spentUsd ?? 0) + first.usage.costUsd;
   const hint = a.recover(first, {
     alreadyReran: false,
-    remainingBudgetUsd: TASK_BUDGET_USD - spentUsd,
+    remainingBudgetUsd: remainingUsd(spentUsd),
   });
   if (!hint) return first;
   logEvent(log, "supervisor.rerun", { reason: first.outcome });

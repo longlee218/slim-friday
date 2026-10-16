@@ -1,35 +1,24 @@
-import type { Route } from "../../config/model-routing";
 import { threadLanguage } from "../../ingress/discord-components";
 import { renderUserNotice } from "../../ingress/user-copy";
-import { SET_THREAD_TITLE_TOOL } from "../../mcp/orchestration/tools/SetThreadTitleTool/constants";
-import { buildMemoryToolContext } from "../../memory/memory-context";
-import { logEvent, logger, setLogContext } from "../../observability/logger";
-import { guardFor } from "../../policy/check-tool-call";
-import { mayHaveWritten } from "../../roles/capability-registry";
+import { setLogContext } from "../../observability/logger";
 import { getRole } from "../../roles/role-registry";
-import { newAskLimit } from "../../runtime/ask-limit";
-import { runAgent } from "../../runtime/run-agent";
-import { createRunSupervisor, recoverOnce } from "../../runtime/run-supervisor";
-import { MAX_TURNS } from "../../runtime/sdk-options";
 import { ownedTaskOfTurn } from "../../storage/owned-task-store";
+import { ceilingRefusal, withSpent } from "../budget/task-budget";
 import { answerOutput } from "../outputs/answer-output";
-import { clearProgressNote, setProgressNote } from "../turns/progress-notes";
+import { clearProgressNote } from "../turns/progress-notes";
 import { type FlowResult, failResult } from "../turns/turn-result";
 import { askTimeoutControl, awaitingResult } from "./ask-timeout-control";
-import { ceilingRefusal, withSpent } from "./budget";
-import { firstPromptPrefix, withPrefix } from "./first-prompt-prefix";
+import { firstPromptPrefix } from "./first-prompt-prefix";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 import { roleScope } from "./role-scope";
-import { runExtraContext } from "./run-extra-context";
 import { closeBackgroundRun } from "./run-report";
+import { agentRunOnce } from "./run-role-once";
+import { watchRun } from "./run-role-watch";
 import { sessionKeyOf } from "./session-keys";
 import { titlePortFor } from "./thread-title-note";
 import { validateRole } from "./validate-role";
 
 export type { RoleRunInput, RoleRunnerDeps };
-
-/** Logger of this module (task fields come from the log context). */
-const log = logger.child({ module: "run-role" });
 
 /**
  * Run a role: ONE agent run, whatever the role. The engine reads only role DATA (capabilities, `background`, `streaming`,
@@ -70,155 +59,30 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   if (known) setLogContext({ location: known.name });
   let awaiting: string | undefined;
   const ctl = askTimeoutControl(i.ac.signal, (t) => (awaiting = t));
-  // ONE supervisor per owner message: it counts turns, trusted tool issues and guard denials, follows the owner steers
-  // of THIS run (SDK-confirmed states only) and an owner stop. It only decides; the retry itself is answerOutput's.
-  const supervisor = createRunSupervisor({ maxTurns: MAX_TURNS, alreadyRecovered: false });
-  /** Audit line of a supervisor action: the technical reason, state words and numbers only (no owner text, no hint). */
-  const audit = (action: string, reason: string) => {
-    const s = supervisor.snapshot();
-    logEvent(log, "run.control", {
-      action,
-      reason,
-      turnId: i.turnId,
-      turns: s.turns,
-      issues: Object.values(s.issues).reduce((a, b) => a + (b ?? 0), 0),
-      guardDenied: s.guardDenied,
-      ...(s.steer && { steer: s.steer }),
-    });
-  };
-  /** The last result the supervisor saw (a retry produces a second one). */
-  let observed: unknown;
-  const observeResult = (result: { outcome: string; sessionId?: string }) => {
-    observed = result;
-    return supervisor.observe({
-      kind: "run_result",
-      outcome: result.outcome,
-      resumable: !!result.sessionId,
-    });
-  };
-  const unwatchSteer = deps.steer?.subscribe(i.threadId, i.turnId, (e) =>
-    supervisor.observe({ kind: "owner_steer_state", state: e.state }),
-  );
-  i.ac.signal.addEventListener("abort", () => supervisor.observe({ kind: "owner_stop" }), {
-    once: true,
-  });
+  const watch = watchRun(deps, i, role, () => awaiting);
   // A fresh session (never while one lives) opens with the rollover seed + the channel digest, in its first user prompt.
   const prefix = s.sessionId ? "" : firstPromptPrefix(db, i, !role.background);
   const titlePort = titlePortFor(i, deps.threadTitle); // none in a chat channel; gates the tool and its note
-  const runOnce = (r?: Route, resumeId?: string) => {
-    const route = i.route || r ? { ...i.route, ...r } : undefined;
-    const done = runAgent({
-      role,
-      // The owner's text (behind the fresh-session prefix; a resume or re-run adds none); internal notes go to extraContext.
-      prompt: resumeId ? i.text : withPrefix(prefix, i.text),
-      steer: role.streaming ? deps.steer?.hook(i.threadId) : undefined,
-      turnId: i.turnId,
-      cwd: s.cwd,
-      additionalDirectories: s.additionalDirectories,
-      worktreesDir: s.worktreesDir,
-      // In-process memory tools (MemorySave...): location names are read from the registry only when a tool needs them.
-      memory:
-        i.workspace === undefined
-          ? undefined // a control-channel run has no workspace: no memory tools
-          : buildMemoryToolContext({
-              db,
-              home: config.agentHome,
-              workspace: i.workspace,
-              channel: i.channel,
-              channelId: i.channelId,
-              locationNames: i.locations.map((r) => r.name), // channel subset: memory tools cannot reach other locations
-              location: i.locations.length === 1 ? i.locations[0]?.name : undefined,
-              threadId: i.threadId,
-              trackSummary: !role.background,
-              threadTitle: titlePort,
-              onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),
-            }),
-      onControlEvent: (e) => supervisor.observe(e),
-      onProgress: (text) => setProgressNote(i.turnId, text),
-      skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
-      guard: guardFor(role, {
-        ...s.guard,
-        ...(i.noSubagents && { subagents: false }),
-        ...(i.envelope && {
-          envelope: i.envelope,
-          // A worker reads only what it was granted (locations, goal dir, worktrees, attachments, skill dirs): never ~/.ssh, ~/.aws ...
-          readPaths: s.guard.readPaths ?? [
-            ...new Set([...(s.guard.writePaths ?? []), ...(s.guard.allowInside ?? [])]),
-          ],
-        }),
-      }),
-      extraContext: runExtraContext({
-        db,
-        config,
-        i,
-        s,
-        role,
-        route,
-        hasTitlePort: !!titlePort && !!role.mcpTools?.includes(SET_THREAD_TITLE_TOOL),
-      }),
-      appCtx: i.appCtx,
-      resume: resumeId,
-      route,
-      config,
-      db,
-      abortController: ctl.ac,
-      queryFn: deps.queryFn,
-      // The owner's buttons exist for a role with the ask capability; without it every `ask` is a deny.
-      code: role.capabilities.includes("ask")
-        ? {
-            threadId: i.threadId,
-            gateway: approvals,
-            askLimit: newAskLimit(role.limits.maxAsk),
-            onAskTimeout: ctl.onAskTimeout,
-            askRelay: i.askRelay,
-          }
-        : undefined,
-    });
-    return done;
-  };
+  const runOnce = agentRunOnce({
+    deps,
+    i,
+    s,
+    role,
+    prefix,
+    titlePort,
+    supervisor: watch.supervisor,
+    ctl,
+  });
   const res = await answerOutput({
     run: runOnce,
     resume: s.sessionId,
     route: i.route,
-    // Post-result boundary: a role that may have partly written (files, or an external side effect) is never re-run automatically.
-    recover: (result, c) => {
-      const decision = observeResult(result);
-      const d = recoverOnce({
-        result,
-        snapshot: supervisor.snapshot(),
-        alreadyReran: c.alreadyReran,
-        remainingBudgetUsd: c.remainingBudgetUsd,
-        uncertainPartialWrite: mayHaveWritten(role),
-        approvalWaiting: !!awaiting,
-      });
-      if (d.kind === "resume") {
-        audit("recover", decision.kind === "recover_after_result" ? decision.reason : "turn_limit");
-        return d.hint;
-      }
-      if (decision.kind === "recover_after_result") {
-        // The supervisor wanted a recovery but a guard of the selector said no: say which one.
-        audit(
-          "recover_suppressed",
-          mayHaveWritten(role)
-            ? "uncertain_partial_write"
-            : awaiting
-              ? "approval_waiting"
-              : !result.sessionId
-                ? "no_session"
-                : "no_budget",
-        );
-      } else if (decision.kind === "report_incomplete") audit("report_incomplete", decision.reason);
-      return undefined;
-    },
+    recover: watch.recover,
   }).finally(() => {
-    unwatchSteer?.();
+    watch.unwatchSteer?.();
     clearProgressNote(i.turnId);
   });
-  // A retry produced a second result: the supervisor sees it too (a failed retry is reported as exhausted).
-  if (res.outcome !== "success" && observed !== undefined && observed !== res) {
-    const d = observeResult(res);
-    if (d.kind === "report_incomplete") audit("report_incomplete", d.reason);
-  }
+  watch.afterRetry(res);
   // A background run's session is the turn row's only: saved as the thread's, the lead would resume it.
   const base: FlowResult = {
     ...res,
