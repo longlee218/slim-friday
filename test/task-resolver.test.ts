@@ -33,7 +33,7 @@ const begin = (
   db: ReturnType<typeof makeEnv>["db"],
   id: string,
   role: string,
-  extra: { resume?: boolean; parentTurnId?: string; ownedTaskId?: string; threadId?: string } = {},
+  extra: { ownedTaskId?: string; threadId?: string } = {},
 ) =>
   beginTurn(
     db,
@@ -89,27 +89,25 @@ test("topic switch opens a second task; the first stays unchanged; newest is the
   expect(activeOwnedTask(db, "th")?.taskId).toBe(second);
 });
 
-test("resume reuses the parent's task; a named ownedTaskId links to it", () => {
+test("a named ownedTaskId links the turn to that task and moves a held one back to running", () => {
   const { db } = makeEnv();
   begin(db, "t1", background);
   const taskId = ownedTaskOfTurn(db, "t1")!;
   finishTurn(db, "t1", "failed_resumable");
   settleTaskAfterTurn(db, "t1", "failed_resumable");
   expect(getOwnedTask(db, taskId)?.status).toBe("waiting_user");
-  begin(db, "t2", background, { resume: true, parentTurnId: "t1" });
+  begin(db, "t2", background, { ownedTaskId: taskId });
   expect(ownedTaskOfTurn(db, "t2")).toBe(taskId);
   expect(getOwnedTask(db, taskId)?.status).toBe("running");
-  begin(db, "t3", background, { ownedTaskId: taskId });
-  expect(ownedTaskOfTurn(db, "t3")).toBe(taskId);
   expect(db.query("SELECT COUNT(*) AS n FROM owned_tasks").get()).toEqual({ n: 1 });
 });
 
-test("a finished task is not reopened by a resume: a new task opens", () => {
+test("a finished task is not reopened by a named ownedTaskId: a new task opens", () => {
   const { db } = makeEnv();
   begin(db, "t1", background);
   const taskId = ownedTaskOfTurn(db, "t1")!;
   settleTaskAfterTurn(db, "t1", "done");
-  begin(db, "t2", background, { resume: true, parentTurnId: "t1" });
+  begin(db, "t2", background, { ownedTaskId: taskId });
   expect(ownedTaskOfTurn(db, "t2")).not.toBe(taskId);
   expect(getOwnedTask(db, taskId)?.status).toBe("completed");
 });

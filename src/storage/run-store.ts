@@ -14,7 +14,7 @@ export type TurnStatus =
   /** Cut short by a restart/shutdown; the thread gets a Resume offer, then the row becomes cancelled. */
   | "interrupted"
   | "timeout"
-  /** A background run that failed with its session saved (budget, transient error): `/go` continues that session (Rev 12). */
+  /** A background run that failed with its session saved (budget, transient error); no longer written (`/go` is gone), old rows are expired at startup. */
   | "failed_resumable";
 
 /** Change a turn's status without ending it (no-op when the row is missing). */
@@ -69,20 +69,15 @@ export function insertTurn(
     role: string;
     /** Task text of a dispatched task; stored redacted. */
     brief?: string;
-    /** Proposal this task was started from. */
-    proposalId?: string;
-    /** Turn that proposed this one, and how many hand-overs deep it is (0 = owner-started). */
-    parentTurnId?: string;
+    /** How many hand-overs deep the task is (0 = owner-started). */
     hop?: number;
-    /** The task continues a `failed_resumable` or interrupted one (kind `resume`, `parentTurnId` = that task): its budget ceiling is shared. */
-    resume?: boolean;
   },
 ): void {
   // Only background roles that change something count against the concurrency cap (see `countActiveCappedTasks`).
   const role = getRole(t.role);
   db.query(
-    `INSERT INTO turns (id, thread_id, source, location, type, status, started_at, brief, proposal_id, counts_toward_cap, role, kind, parent_turn_id, hop)
-     VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO turns (id, thread_id, source, location, type, status, started_at, brief, counts_toward_cap, role, kind, hop)
+     VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, 'single', ?)`,
   ).run(
     t.id,
     t.threadId,
@@ -91,12 +86,8 @@ export function insertTurn(
     turnTypeOf(role),
     Date.now(),
     t.brief === undefined ? null : redactText(t.brief),
-    t.proposalId ?? null,
     countsTowardCap(role) ? 1 : 0,
     role.name,
-    // `kind` is NOT NULL (default 'staged' before v4): a role run is one run, `single`; a continuation is `resume`.
-    t.resume ? "resume" : "single",
-    t.parentTurnId ?? null,
     t.hop ?? 0,
   );
 }
@@ -118,23 +109,6 @@ export function interruptRunningTurns(db: Database): void {
   db.query(
     "UPDATE approvals SET decision = 'cancelled', decided_at = ? WHERE decision = 'pending'",
   ).run(now);
-}
-
-/** Threads that have an interrupted task (each needs one Resume notice). */
-export function listInterruptedThreads(db: Database): string[] {
-  return db
-    .query<{ thread_id: string }, []>(
-      "SELECT DISTINCT thread_id FROM turns WHERE status = 'interrupted'",
-    )
-    .all()
-    .map((r) => r.thread_id);
-}
-
-/** The thread was told: its interrupted tasks become plain `cancelled` (no repeat notice next start). */
-export function ackInterrupted(db: Database, threadId: string): void {
-  db.query(
-    "UPDATE turns SET status = 'cancelled' WHERE status = 'interrupted' AND thread_id = ?",
-  ).run(threadId);
 }
 
 /** Number of cap-counted tasks currently running or waiting for approval (concurrency cap). */

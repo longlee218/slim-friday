@@ -10,10 +10,10 @@ export function awaitingText(questions: AskQuestion[]): string {
     const def = q.options[0]?.label.replace(/\s*\(default\)\s*$/i, "");
     return `- ${q.question}${def ? ` (default: ${def})` : ""}`;
   });
-  return `Awaiting clarification:\n${lines.join("\n")}\nSend \`/go\` to continue, or start a new request.`;
+  return `Awaiting clarification:\n${lines.join("\n")}\nSend a new request to continue.`;
 }
 
-/** The run stopped because the questions timed out: reply with them. The session is kept for `/go` (Resume); a typed reply is a NEW request, it does not resume the run. */
+/** The run stopped because the questions timed out: reply with them. The session is kept; a typed reply is a NEW request, it does not resume the run. */
 export const awaitingResult = (res: FlowResult, text: string): FlowResult => ({
   ...res,
   text,

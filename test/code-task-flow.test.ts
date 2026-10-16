@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { workActiveIn } from "../src/orchestrator/engine/location-activity";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { g, makeLocation } from "./git-fixture";
@@ -17,7 +16,7 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-import { devLeadQuery, noticeSink, until, workersDone } from "./lead-harness";
+import { devLeadQuery, noticeSink, workersDone } from "./lead-harness";
 
 /** Env with one workspace `real` whose location/ is a real git clone (a managed clone). */
 async function setup(meta: Record<string, unknown> = {}) {
@@ -165,18 +164,4 @@ test("stop during the dev run cancels the dev task", async () => {
   expect(env.db.query("SELECT type, status FROM turns WHERE role = 'developer'").all()).toEqual([
     { type: "code", status: "cancelled" },
   ]);
-});
-
-test("the location counts as busy during the dev run and is released when it ends", async () => {
-  const { env, clone } = await setup();
-  let go!: () => void;
-  const hold = new Promise<void>((r) => {
-    go = r;
-  });
-  const send = build(env, fakeSdk([], hold));
-  await send(DEV_REQUEST);
-  await until(() => workActiveIn(clone));
-  go();
-  await workersDone(env.db);
-  await until(() => !workActiveIn(clone));
 });

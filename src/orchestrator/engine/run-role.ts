@@ -17,7 +17,6 @@ import { type FlowResult, failResult } from "../turns/turn-result";
 import { askTimeoutControl, awaitingResult } from "./ask-timeout-control";
 import { ceilingRefusal, withSpent } from "./budget";
 import { firstPromptPrefix, withPrefix } from "./first-prompt-prefix";
-import { markWorking } from "./location-activity";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 import { roleScope } from "./role-scope";
 import { runExtraContext } from "./run-extra-context";
@@ -104,7 +103,6 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   });
   // A fresh session (never while one lives) opens with the rollover seed + the channel digest, in its first user prompt.
   const prefix = s.sessionId ? "" : firstPromptPrefix(db, i, !role.background);
-  const release = role.capabilities.includes("write") ? markWorking(s.cwd) : undefined;
   const titlePort = titlePortFor(i, deps.threadTitle); // none in a chat channel; gates the tool and its note
   const runOnce = (r?: Route, resumeId?: string) => {
     const route = i.route || r ? { ...i.route, ...r } : undefined;
@@ -204,7 +202,6 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
       return undefined;
     },
   }).finally(() => {
-    release?.();
     unwatchSteer?.();
     clearProgressNote(i.turnId);
   });

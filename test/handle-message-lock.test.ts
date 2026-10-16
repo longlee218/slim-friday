@@ -84,7 +84,7 @@ const failQuery = (_a: any) =>
     yield resultMsg({ subtype: "error_during_execution", is_error: true, errors: ["boom"] });
   })();
 
-test("M4: a success outcome finishes the worker turn; a resumable error fails the turn and holds its task", async () => {
+test("M4: a success outcome finishes the worker turn; an error fails the turn and its task", async () => {
   const ok = makeEnv();
   await devHandler(ok, okQuery)(dev("a", "ok"));
   await workersDone(ok.db);
@@ -92,12 +92,12 @@ test("M4: a success outcome finishes the worker turn; a resumable error fails th
   const bad = makeEnv();
   await devHandler(bad, failQuery)(dev("a", "bad"));
   await workersDone(bad.db);
-  expect(turnStatus(bad)).toStartWith("failed"); // failed_resumable: the run left a session
+  expect(turnStatus(bad)).toBe("failed");
   expect(
     bad.db
       .query<{ status: string }, []>("SELECT status FROM owned_tasks WHERE status != 'open'")
       .get()?.status,
-  ).toBe("waiting_user"); // resumable failure: the task is held for the owner
+  ).toBe("failed"); // the lead is told and re-dispatches
 });
 
 test("M2: finishTurn failure in the catch path does not throw", async () => {

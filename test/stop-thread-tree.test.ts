@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { registerTaskRun } from "../src/orchestrator/engine/task-runs";
-import { appendEvent, claimBatch, listUndelivered } from "../src/orchestrator/events/event-store";
+import { appendEvent, listUndelivered } from "../src/orchestrator/events/event-store";
 import { stopThread } from "../src/orchestrator/turns/turn-stop";
 import { getOwnedTask, insertOwnedTask } from "../src/storage/owned-task-store";
 import { insertTurn } from "../src/storage/run-store";
@@ -66,7 +66,8 @@ test("L4: a start event claimed by a live consumer is kept; an unclaimed one is 
     role: "developer",
   }); // running
   appendEvent(env.db, { id: "lc-1", threadId: "lc-th", kind: "start", payload: {} });
-  claimBatch(env.db, "lc-th", "lc-turn");
+  // lc-1 is claimed by the consumer turn that is still running
+  env.db.query("UPDATE thread_events SET claimed_by = ? WHERE id = ?").run("lc-turn", "lc-1");
   appendEvent(env.db, { id: "lc-2", threadId: "lc-th", kind: "start", payload: {} });
   stopThread(env.db, "lc-th", "en", new AbortController());
   expect(listUndelivered(env.db, "lc-th").map((e) => e.id)).toEqual(["lc-1"]);

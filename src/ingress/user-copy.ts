@@ -12,7 +12,7 @@ export type UserNotice =
   | { kind: "clarification"; pending?: boolean }
   | { kind: "stop"; active: boolean }
   | { kind: "replacement" }
-  | { kind: "outcome"; outcome: string; resumable?: boolean; resetsAt?: number }
+  | { kind: "outcome"; outcome: string; resetsAt?: number }
   | {
       kind: "failure";
       cause?:
@@ -23,8 +23,7 @@ export type UserNotice =
         | "approval"
         | "expired"
         | "drain"
-        | "ceiling"
-        | "owner";
+        | "ceiling";
       /** Valid location names, listed back to the owner for `cause: "location"` (names are not secrets). */
       names?: string[];
     }
@@ -36,7 +35,6 @@ export type UserNotice =
         | "resume-cleared"
         | "cannot-resume"
         | "stale-resume"
-        | "budget-stop"
         | "empty-text"
         | "stop-in-thread"
         | "status-in-thread"
@@ -67,17 +65,7 @@ export type UserNotice =
     }
   | {
       kind: "decision";
-      state:
-        | "confirm"
-        | "gate"
-        | "none"
-        | "dropped"
-        | "kept"
-        | "resume"
-        | "restart"
-        | "resuming"
-        | "decline-busy"
-        | "undelivered";
+      state: "confirm" | "gate" | "none" | "dropped" | "decline-busy";
     };
 
 /** Digits, yes/no and slash commands say nothing about the language: they inherit the conversation's. */
@@ -235,13 +223,7 @@ function render(event: UserNotice, language: OwnerLanguage): string {
               ` You can try again after ${new Date(event.resetsAt).toISOString()}.`,
             )
           : "";
-      return (
-        text +
-        reset +
-        (event.resumable
-          ? `\n${renderUserNotice({ kind: "decision", state: "resume" }, language)}`
-          : "")
-      );
+      return text + reset;
     }
     case "failure": {
       const copy = {
@@ -273,7 +255,6 @@ function render(event: UserNotice, language: OwnerLanguage): string {
           "Chưa bắt đầu vì việc này đã dùng hết giới hạn chi phí và không thể tăng thêm. Bạn hãy gửi một yêu cầu mới.",
           "Nothing started because this work has used up its spending limit, which cannot be raised. Please send a new request.",
         ],
-        owner: ["Chỉ chủ sở hữu mới có thể tiếp tục việc này.", "Only the owner can resume."],
         drain: [
           "Mình đang cập nhật. Bạn hãy thử lại sau một lát.",
           "I’m updating. Please try again shortly.",
@@ -311,10 +292,6 @@ function render(event: UserNotice, language: OwnerLanguage): string {
         "stale-resume": [
           "Lệnh tiếp tục này đã cũ: cuộc trò chuyện đã đi tiếp.",
           "This Resume is out of date: the thread has moved on.",
-        ],
-        "budget-stop": [
-          "Việc này đã dừng vì chạm giới hạn chi phí. Bạn gửi `/go +<usd>` để tiếp tục với thêm chi phí.",
-          "That task stopped on its budget. Reply `/go +<usd>` to continue with more budget.",
         ],
         "empty-text": ["Bạn hãy gửi kèm nội dung yêu cầu.", "Send a message with the task."],
         "stop-in-thread": [
@@ -379,26 +356,9 @@ function render(event: UserNotice, language: OwnerLanguage): string {
           "There is no question waiting for your answer.",
         ],
         dropped: ["Đã bỏ yêu cầu này.", "Dropped this request."],
-        kept: [
-          "Đã giữ lại. Bạn có thể gửi `/go` khi muốn tiếp tục.",
-          "Kept it. Send `/go` when you want to continue.",
-        ],
-        resume: [
-          "Bạn muốn tiếp tục từ chỗ đã dừng chứ? Trả lời đồng ý hoặc gửi `/go`.",
-          "Would you like to continue from where it stopped? Reply yes or send `/go`.",
-        ],
-        restart: [
-          "Friday đã khởi động lại khi việc còn dang dở. Bấm Tiếp tục để làm tiếp.",
-          "Friday restarted while the work was unfinished. Press Continue to carry on.",
-        ],
-        resuming: ["Mình đang tiếp tục xử lý.", "I’m continuing the work."],
         "decline-busy": [
           "Mình vẫn đang xử lý việc hiện tại. Bạn hãy trả lời lại sau khi việc đó kết thúc.",
           "I’m still handling the current work. Please answer again after it ends.",
-        ],
-        undelivered: [
-          "Các bổ sung sau chưa được chuyển hay áp dụng vì việc đã kết thúc. Bạn hãy gửi lại:",
-          "These updates were not delivered or applied before the work ended. Please send them again:",
         ],
       } as const;
       return say(copy[event.state][0], copy[event.state][1]);
@@ -420,7 +380,7 @@ export function renderUserNotice(event: UserNotice, language: OwnerLanguage): st
     event.kind === "approval" ||
     event.kind === "choice" ||
     event.kind === "label" ||
-    (event.kind === "outcome" && (event.resetsAt || event.resumable));
+    (event.kind === "outcome" && event.resetsAt);
   if (language === "en" && !dynamic) ENGLISH_NOTICES.set(text, event);
   return text;
 }

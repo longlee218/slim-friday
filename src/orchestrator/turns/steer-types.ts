@@ -25,16 +25,8 @@ export interface SteerEvent {
 export interface SteerRegistry {
   /** Hook for the role runner: a run of `threadId` registers its sink through it. */
   hook(threadId: string): SteerHook;
-  /** Task ids of `threadId` whose run has registered its input (a steer can be pushed), oldest first. */
-  liveTasksOf(threadId: string): string[];
-  /** Steer ONE task (by owned task id, else turn id): same outcomes as `steer`, never reaches another task of the thread. */
+  /** Steer ONE task (by owned task id, else turn id): `queued`, `held`, `full` or `none`; never reaches another task of the thread. */
   steerTask(taskId: string, text: string, messageId?: string): SteerOutcome;
-  /** A run of `threadId` is registered right now (a steer can be pushed). */
-  canSteer(threadId: string): boolean;
-  /** A steer can be taken now (a sink is registered) or soon (the thread's running task is a streaming role that has not registered yet). */
-  canTake(threadId: string): boolean;
-  /** Store the message, then push it into the thread's running run, or hold it until the run registers. Logs `task.steer {len}` (never the body). */
-  steer(m: MessageRef, text: string): SteerOutcome;
   /** Store a message that arrived while a run works and was handled elsewhere (queue, stop). Never throws. */
   record(m: MessageRef, text: string, kind: RunMessageKind, status?: RunMessageStatus): void;
   /**
@@ -43,6 +35,4 @@ export interface SteerRegistry {
    * delivered to this subscriber. Returns the unsubscribe function. A throwing subscriber is ignored.
    */
   subscribe(threadId: string, turnId: string, onState: (event: SteerEvent) => void): () => void;
-  /** The notice for steers the run never read, held ones included (`""` when none), and forget them. */
-  undeliveredNotice(threadId: string): string;
 }

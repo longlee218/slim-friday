@@ -26,15 +26,5 @@ export function createHeldSteers() {
       held.delete(key);
       return items;
     },
-    /** Remove and return the steers of `threadId` whose task key is not `keep(key)` (the call ended; those never found a run). */
-    takeAbandoned(threadId: string, keep: (key: string) => boolean): HeldSteer[] {
-      const out: HeldSteer[] = [];
-      for (const [key, h] of [...held]) {
-        if (h.threadId !== threadId || keep(key)) continue;
-        out.push(...h.items);
-        held.delete(key);
-      }
-      return out;
-    },
   };
 }

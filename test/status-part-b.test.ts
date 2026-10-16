@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { STEER_READ_EMOJI } from "../src/ingress/message-reaction";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { parseMessageCommand } from "../src/orchestrator/message-commands";
 import {
@@ -160,10 +159,10 @@ test("/status: no running task but a waiting owned task -> its last state", asyn
   expect(h.calls()).toBe(0);
 });
 
-// ---- step 7b: delivered receipt ---------------------------------------------------------------------
+// ---- step 7b: delivered state ----------------------------------------------------------------------
 
-/** Registry with a fake reaction port and a sink that remembers the row ref of each push. */
-function receiptEnv(failReact = false) {
+/** Registry with a sink that remembers the row ref of each push, and a subscriber on the run's turn. */
+function receiptEnv() {
   const env = makeEnv();
   insertTurn(env.db, {
     id: "t1",
@@ -173,46 +172,29 @@ function receiptEnv(failReact = false) {
     role: "developer",
     brief: "x",
   });
-  const reacted: [string, string, string][] = [];
-  const reg = createSteerRegistry(env.db, {
-    react: async (thread, message, emoji) => {
-      reacted.push([thread, message, emoji]);
-      if (failReact) throw new Error("no permission");
-      return true;
-    },
-  });
+  const reg = createSteerRegistry(env.db);
   const refs: { ref?: string; text: string }[] = [];
   const sink: SteerSink = { push: (text, ref) => (refs.push({ ref, text }), "queued") };
   const hook = reg.hook("th");
   hook.register(sink, { runId: "r1", turnId: "t1" });
   const events: unknown[] = [];
   reg.subscribe("th", "t1", (e) => events.push(e));
-  return { reg, hook, refs, reacted, events };
+  return { reg, hook, refs, events };
 }
 
-test("delivered steer: 👀 on the owner's own message id; the event carries it", async () => {
+test("delivered steer: the event carries the owner's own message id", () => {
   const r = receiptEnv();
-  r.reg.steer({ threadId: "th", messageId: "m-owner-1" }, "first");
-  r.reg.steer({ threadId: "th", messageId: "m-owner-2" }, "second");
+  r.reg.steerTask("t1", "first", "m-owner-1");
+  r.reg.steerTask("t1", "second", "m-owner-2");
   r.hook.settle(r.refs[1] as never, "delivered"); // only the second was read
-  await Promise.resolve();
-  expect(r.reacted).toEqual([["th", "m-owner-2", STEER_READ_EMOJI]]);
   expect(r.events).toContainEqual({ state: "delivered", messageId: "m-owner-2" });
+  expect(r.events).not.toContainEqual({ state: "delivered", messageId: "m-owner-1" });
 });
 
-test("unread steer: no 👀, dropped notice unchanged", async () => {
+test("unread steer: a dropped event, never delivered", () => {
   const r = receiptEnv();
-  r.reg.steer({ threadId: "th", messageId: "m-owner-1" }, "never read");
+  r.reg.steerTask("t1", "never read", "m-owner-1");
   r.hook.settle(r.refs[0] as never, "dropped");
-  await Promise.resolve();
-  expect(r.reacted).toEqual([]);
-  expect(r.reg.undeliveredNotice("th")).toContain("never read");
-});
-
-test("a failing reaction never throws into the run", async () => {
-  const r = receiptEnv(true);
-  r.reg.steer({ threadId: "th", messageId: "m1" }, "x");
-  expect(() => r.hook.settle(r.refs[0] as never, "delivered")).not.toThrow();
-  await Promise.resolve();
-  expect(r.reacted).toHaveLength(1);
+  expect(r.events).toContainEqual({ state: "dropped", messageId: "m-owner-1" });
+  expect(r.events.some((e) => (e as { state: string }).state === "delivered")).toBe(false);
 });

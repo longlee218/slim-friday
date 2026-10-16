@@ -26,9 +26,9 @@ test('engine knows no role names: no "developer" / "lead" string literal under o
   expect(hits).toEqual([]);
 });
 
-test("thread/ and dispatch/ never import runtime/", () => {
-  const files = [...sources("src/orchestrator/thread"), ...sources("src/orchestrator/dispatch")];
-  expect(files.length).toBeGreaterThan(1);
+test("thread/ never imports runtime/", () => {
+  const files = sources("src/orchestrator/thread");
+  expect(files.length).toBeGreaterThan(0);
   const bad = files.filter((f) => imports(f.text).some((s) => /(^|\/)runtime\//.test(s)));
   expect(bad.map((f) => f.file)).toEqual([]);
 });
@@ -37,15 +37,6 @@ test("src/roles/** never imports src/orchestrator/**", () => {
   const files = sources("src/roles");
   expect(files.length).toBeGreaterThan(3);
   const bad = files.filter((f) => imports(f.text).some((s) => /(^|\/)orchestrator\//.test(s)));
-  expect(bad.map((f) => f.file)).toEqual([]);
-});
-
-test("engine/ imports dispatch/ only in worker-run.ts (the detached worker glue); the rest gets ports in", () => {
-  const files = sources("src/orchestrator/engine");
-  expect(files.length).toBeGreaterThan(5);
-  const bad = files
-    .filter((f) => !f.file.endsWith("worker-run.ts"))
-    .filter((f) => imports(f.text).some((s) => /(^|\/)dispatch(\/|$)/.test(s)));
   expect(bad.map((f) => f.file)).toEqual([]);
 });
 

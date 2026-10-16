@@ -2,7 +2,6 @@ import type { Database } from "bun:sqlite";
 import type { ApprovalGateway } from "../approvals/approval-types";
 import type { AgentConfig } from "../config/agent-config";
 import type { InboundMessage } from "../ingress/discord-message-handler";
-import type { MessageReactionPort } from "../ingress/message-reaction";
 import { renderStatus } from "../ingress/status-copy";
 import type { ThreadTitlePort } from "../ingress/thread-rename";
 import { localizeUserCopy, messageLanguage, renderUserNotice } from "../ingress/user-copy";
@@ -32,8 +31,6 @@ export interface TurnHandlerDeps {
   approvals?: ApprovalGateway;
   /** Renames threads for `SetThreadTitle` (offered to every role run; not rollover runs); omitted = the tool is not offered. */
   threadTitle?: ThreadTitlePort;
-  /** Reacts on the owner message of a steer the agent has read (the delivered receipt); omitted = no reaction. */
-  messageReaction?: MessageReactionPort;
   /** Posts into a thread by id: the lead's boot wake (a restart) has no owner message to answer through. Omitted = that wake is skipped. */
   post?: (threadId: string, text: string) => Promise<void>;
   /** Timing knobs of the lead queue (tests shorten the owner debounce and the announce batch). */

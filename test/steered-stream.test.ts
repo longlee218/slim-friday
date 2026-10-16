@@ -9,10 +9,9 @@ import { listRunMessages } from "../src/storage/run-message-store";
 import { initMsg, makeEnv, resultMsg } from "./helpers";
 
 /* Step 7 of the agent loop (Rev 11) with a fake CLI: echo tracking, the wait for an unread steer at `result`
-   (bounded), the silence timer, the undelivered notice and the resume of a message that arrived after the input
+   (bounded), the silence timer, the dropped fate and the resume of a message that arrived after the input
    ended. The fake consumes the input iterable like the SDK does and echoes what it consumed. */
 
-const TH = { threadId: "th" };
 type Iter = AsyncIterator<{ message: { content: unknown } }>;
 
 /** The CLI's echo of a consumed user message (`replay-user-messages`). */
@@ -62,7 +61,7 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
     const s = setup([
       async function* (it) {
         yield initMsg;
-        expect(s.reg.steer(TH, "late one").result).toBe("queued"); // after the last turn, before the result
+        expect(s.reg.steerTask("t1", "late one").result).toBe("queued"); // after the last turn, before the result
         yield resultMsg({ result: "first answer" });
         const m = await it.next(); // the CLI keeps reading the open input
         expect(m.value?.message.content).toBe("late one");
@@ -79,8 +78,6 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
       kind: "steer",
       status: "delivered",
     });
-    expect(s.reg.undeliveredNotice("th")).toBe("");
-    expect(s.reg.canSteer("th")).toBe(false);
   });
 
   test("nothing pending at `result`: the input closes at once (no wait)", async () => {
@@ -96,14 +93,14 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
     expect(ended).toBe(true);
   });
 
-  test("bound: MAX_STEER_HOLDS results are waited for, the next one closes; the unread steer is dropped and the owner is told", async () => {
+  test("bound: MAX_STEER_HOLDS results are waited for, the next one closes; the unread steer is dropped", async () => {
     expect(MAX_STEER_HOLDS).toBe(2);
     let resultsSent = 0;
     let closedAfter = -1;
     const s = setup([
       async function* (it) {
         yield initMsg;
-        s.reg.steer(TH, "never echoed").result;
+        s.reg.steerTask("t1", "never echoed").result;
         yield resultMsg({ result: "r1" }); // held (1)
         await it.next(); // pulls the steer; the CLI never echoes it
         const open = it.next(); // blocks while the input is open
@@ -121,10 +118,7 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
     expect(closedAfter).toBe(3); // not at result 1 or 2
     expect(res.text).toBe("r3");
     expect(listRunMessages(s.env.db, "th")[0]).toMatchObject({ status: "dropped" });
-    const notice = s.reg.undeliveredNotice("th");
-    expect(notice).toContain("not delivered");
-    expect(notice).toContain("never echoed");
-    expect(s.reg.undeliveredNotice("th")).toBe(""); // told once
+    expect(listRunMessages(s.env.db, "th")[0]).toMatchObject({ content: "never echoed" });
   });
 
   test("silence: a held result whose echo never comes does not hang the run (the input ends after the grace time)", async () => {
@@ -132,7 +126,7 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
     const s = setup([
       async function* (it) {
         yield initMsg;
-        s.reg.steer(TH, "lost echo").result;
+        s.reg.steerTask("t1", "lost echo").result;
         yield resultMsg({ result: "only result" });
         await it.next(); // the steer
         ended = (await it.next()).done; // nothing more is said: the grace timer ends the input
@@ -151,12 +145,11 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
       async function* () {
         yield initMsg;
         yield resultMsg({ result: "done 1", session_id: "sess-A" }); // nothing pending: input closes
-        expect(s.reg.steer(TH, "after the end").result).toBe("queued"); // the stream is still open: kept as late
+        expect(s.reg.steerTask("t1", "after the end").result).toBe("queued"); // the stream is still open: kept as late
       },
       async function* (_it, first) {
         yield { ...(initMsg as object), session_id: "sess-A" } as SDKMessage;
         expect(first).toBe("after the end");
-        expect(s.reg.canSteer("th")).toBe(true); // the resumed round takes steers too
         yield resultMsg({ result: "done 2", session_id: "sess-A" });
       },
     ]);
@@ -171,8 +164,6 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
       kind: "steer",
       status: "delivered",
     });
-    expect(s.reg.undeliveredNotice("th")).toBe("");
-    expect(s.reg.canSteer("th")).toBe(false);
   });
 
   test("M-f: late messages are delivered only once the resumed run succeeded; a failed resume tells the owner", async () => {
@@ -180,7 +171,7 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
       async function* () {
         yield initMsg;
         yield resultMsg({ result: "done 1", session_id: "sess-A" });
-        s.reg.steer(TH, "after the end");
+        s.reg.steerTask("t1", "after the end");
       },
       async function* () {
         yield { ...(initMsg as object), session_id: "sess-A" } as SDKMessage;
@@ -192,26 +183,24 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
     await s.go();
     expect(s.calls).toHaveLength(2);
     expect(listRunMessages(s.env.db, "th")[0]?.status).toBe("dropped");
-    expect(s.reg.undeliveredNotice("th")).toContain("after the end");
   });
 
-  test("a late resume happens once: a message that arrives during the resumed round is not resumed again, the owner is told", async () => {
+  test("a late resume happens once: a message that arrives during the resumed round is not resumed again", async () => {
     const s = setup([
       async function* () {
         yield initMsg;
         yield resultMsg({ result: "done 1", session_id: "sess-A" });
-        s.reg.steer(TH, "late one");
+        s.reg.steerTask("t1", "late one");
       },
       async function* () {
         yield { ...(initMsg as object), session_id: "sess-A" } as SDKMessage;
         yield resultMsg({ result: "done 2", session_id: "sess-A" });
-        s.reg.steer(TH, "late two"); // arrives after the resumed round's input ended too
+        s.reg.steerTask("t1", "late two"); // arrives after the resumed round's input ended too
       },
     ]);
     await s.go();
     expect(s.calls).toHaveLength(2); // MAX_LATE_RESUMES = 1: no third round
     expect(listRunMessages(s.env.db, "th").map((r) => r.status)).toEqual(["delivered", "dropped"]);
-    expect(s.reg.undeliveredNotice("th")).toContain("late two");
   });
 
   test("the silence timer is re-armed by a stream message: a CLI that talks and then stops does not hang the run", async () => {
@@ -219,7 +208,7 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
     const s = setup([
       async function* (it) {
         yield initMsg;
-        s.reg.steer(TH, "x");
+        s.reg.steerTask("t1", "x");
         yield resultMsg({ result: "r1" }); // held: the timer runs
         await it.next(); // the steer
         await sleep(15);
@@ -255,7 +244,7 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
         async function* () {
           yield initMsg;
           yield resultMsg({ result: "done", total_cost_usd: 0.01 });
-          s.reg.steer(TH, "too late for the budget").result;
+          s.reg.steerTask("t1", "too late for the budget").result;
         },
       ],
       { budget: 0.005 }, // already spent (the fake reports 0.01)
@@ -263,7 +252,6 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
     const res = await s.go();
     expect(s.calls).toHaveLength(1);
     expect(res.text).toBe("done");
-    expect(s.reg.undeliveredNotice("th")).toContain("too late for the budget");
     expect(listRunMessages(s.env.db, "th")[0]?.status).toBe("dropped");
   });
 
@@ -277,7 +265,7 @@ describe("step 7: keep the input open while a pushed steer was not echoed", () =
         const it = (a.prompt as AsyncIterable<never>)[Symbol.asyncIterator]() as Iter;
         pulled.push((await it.next()).value?.message.content as string);
         yield initMsg;
-        reg.steer(TH, "queued then stopped").result;
+        reg.steerTask("t1", "queued then stopped").result;
         ac.abort();
         expect((await it.next()).done).toBe(true);
         await sleep(1);
@@ -324,7 +312,7 @@ describe("interrupt-steer Task 3: delivery stays truthful across tool batches", 
     const s = setup([
       async function* (it) {
         yield initMsg;
-        expect(s.reg.steer(TH, "add a Mermaid diagram").result).toBe("queued");
+        expect(s.reg.steerTask("t1", "add a Mermaid diagram").result).toBe("queued");
         for (const m of toolBatch("a")) yield m; // tool batch 1: the steer is NOT delivered by merely being pushed
         for (const m of toolBatch("b")) yield m; // tool batch 2
         expect(listRunMessages(s.env.db, "th")[0]).toMatchObject({ status: "pending" });
@@ -335,14 +323,13 @@ describe("interrupt-steer Task 3: delivery stays truthful across tool batches", 
     ]);
     await s.go();
     expect(listRunMessages(s.env.db, "th")[0]).toMatchObject({ status: "delivered" });
-    expect(s.reg.undeliveredNotice("th")).toBe("");
   });
 
   test("a steer accepted during a tool batch but never replayed ends as dropped and is reported, never applied", async () => {
     const s = setup([
       async function* (it) {
         yield initMsg;
-        s.reg.steer(TH, "make it a table");
+        s.reg.steerTask("t1", "make it a table");
         for (const m of toolBatch("a")) yield m;
         await it.next(); // pulled, never echoed
         yield resultMsg({ result: "r1" });
@@ -352,7 +339,6 @@ describe("interrupt-steer Task 3: delivery stays truthful across tool batches", 
     ]);
     await s.go();
     expect(listRunMessages(s.env.db, "th")[0]).toMatchObject({ status: "dropped" });
-    expect(s.reg.undeliveredNotice("th")).toContain("make it a table");
   });
 });
 
@@ -363,7 +349,7 @@ describe("run supervisor: steer states are published to the target run only", ()
     const s = setup([
       async function* (it) {
         yield initMsg;
-        expect(s.reg.steer(TH, "also keep it small").result).toBe("queued");
+        expect(s.reg.steerTask("t1", "also keep it small").result).toBe("queued");
         expect(mine).toEqual(["queued"]); // pushed, NOT delivered
         await it.next();
         expect(mine).toEqual(["queued"]);
@@ -377,7 +363,7 @@ describe("run supervisor: steer states are published to the target run only", ()
     expect(mine).toEqual(["queued", "delivered"]);
     expect(other).toEqual([]);
     off();
-    s.reg.steer(TH, "after unsubscribe");
+    s.reg.steerTask("t1", "after unsubscribe");
     expect(mine).toEqual(["queued", "delivered"]);
   });
 
@@ -386,7 +372,7 @@ describe("run supervisor: steer states are published to the target run only", ()
     const s = setup([
       async function* (it) {
         yield initMsg;
-        s.reg.steer(TH, "never echoed");
+        s.reg.steerTask("t1", "never echoed");
         await it.next();
         yield resultMsg({ result: "r1" });
         yield resultMsg({ result: "r2" });

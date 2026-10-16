@@ -7,7 +7,6 @@
  *   /status                  -> status   (answered by app code, no model)
  *   /purge                   -> purge    (empties the trash of this thread's goals, answered by app code)
  *   /find <keywords>         -> unchanged (answered by the find handler, no model; a plain "find: x" is NOT a command)
- *   /go [+usd]               -> go [+usd]
  *   /remember <text>         -> remember: <text>      (NOT an app command: a plain message for the agent, which saves the note)
  *   /forget <text>           -> forget: <text>
  *   /compact [dry-run]       -> compact memory [dry-run]
@@ -20,7 +19,6 @@ export const SLASH_NAMES = [
   "status",
   "purge",
   "find",
-  "go",
   "remember",
   "forget",
   "compact",
@@ -37,8 +35,8 @@ export function slashToLegacy(input: string): string {
   const m = SLASH.exec(text);
   if (!m) return input;
   const arg = (m[2] ?? "").trim();
-  // Parity with the legacy parsers: `stop` / `go [+usd]` / `compact memory [dry-run]` accept NOTHING else, so
-  // "/go to the store" or "/stop now" are not commands and keep their ORIGINAL text (a plain message).
+  // Parity with the legacy parsers: `stop` / `compact memory [dry-run]` accept NOTHING else, so
+  // "/stop now" are not commands and keep their ORIGINAL text (a plain message).
   switch ((m[1] ?? "").toLowerCase()) {
     case "stop":
       return arg ? input : "stop";
@@ -48,8 +46,6 @@ export function slashToLegacy(input: string): string {
       return arg ? input : "purge";
     case "find":
       return input; // not mapped: only the slash form is a command (the find handler matches `/find <keywords>`)
-    case "go":
-      return !arg || /^\+\d+(\.\d+)?$/.test(arg) ? `go${arg ? ` ${arg}` : ""}` : input;
     case "remember":
       // No parser takes it: the message goes to the agent as ordinary text (see memory-commands.ts).
       return `remember: ${arg}`;

@@ -83,6 +83,6 @@ export interface RoleRunInput {
   envelope?: DispatchEnvelope;
   /** Where the typed question of a worker's AskUserQuestion goes instead of the owner (the run's `code` hook); omitted = the owner's buttons. */
   askRelay?: (questions: AskQuestion[]) => Promise<Record<string, string> | undefined>;
-  /** Continue this saved session in its cwd (interrupt Resume, `/go`): the task's own, never the thread's. */
+  /** Continue this saved session in its cwd (an interrupted task): the task's own, never the thread's. */
   resume?: { sessionId: string; cwd: string };
 }

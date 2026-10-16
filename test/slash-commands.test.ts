@@ -8,7 +8,7 @@ import { parseMessageCommand } from "../src/orchestrator/message-commands";
 
 test("slashToLegacy maps each canonical form and leaves everything else alone", () => {
   expect(slashToLegacy("/stop")).toBe("stop");
-  expect(slashToLegacy("  /GO +1.5 ")).toBe("go +1.5");
+  expect(slashToLegacy("  /STATUS ")).toBe("status");
   expect(slashToLegacy("/cleanup abc123")).toBe("/cleanup abc123"); // removed in Rev 15: plain text now
   // /remember maps to the plain `remember:` text, which no app parser takes (the agent gets it as a message)
   expect(slashToLegacy("/remember global tabs not spaces")).toBe(
@@ -18,28 +18,26 @@ test("slashToLegacy maps each canonical form and leaves everything else alone", 
   expect(slashToLegacy("/find invoice csv")).toBe("/find invoice csv"); // no legacy text: "find: x" is a plain message
   expect(slashToLegacy("/compact dry-run")).toBe("compact memory dry-run");
   expect(slashToLegacy("/init-workspace shop")).toBe("init:workspace:shop");
-  // not commands (legacy parity: stop / go [+usd] / compact [dry-run] take nothing else): ORIGINAL text kept
-  for (const t of ["/go to the store and fix x", "/stop now", "/go +abc", "/compact now"])
-    expect(slashToLegacy(t)).toBe(t);
+  // not commands (legacy parity: stop / compact [dry-run] take nothing else): ORIGINAL text kept
+  for (const t of ["/stop now", "/status now", "/compact now"]) expect(slashToLegacy(t)).toBe(t);
   expect(parseMessageCommand("/stop now")).toEqual({
     kind: "message",
     location: undefined,
     text: "/stop now",
   });
-  for (const t of ["stop", "hello /stop", "/unknown x", "/stopper", "see /go", "http://x/stop"])
+  for (const t of ["stop", "hello /stop", "/unknown x", "/stopper", "see /stop", "http://x/stop"])
     expect(slashToLegacy(t)).toBe(t);
 });
 
 test("task commands: slash and legacy forms parse the same", () => {
   const same: [string, string][] = [
     ["/stop", "stop"],
-    ["/go", "go"],
-    ["/go +2", "go +2"],
+    ["/status", "status"],
   ];
   for (const [slash, legacy] of same)
     expect(parseMessageCommand(slash)).toEqual(parseMessageCommand(legacy));
   expect(parseMessageCommand("/stop")).toEqual({ kind: "stop" });
-  expect(parseMessageCommand("/go +2")).toEqual({ kind: "go", extraBudgetUsd: 2 });
+  expect(parseMessageCommand("/go +2")).toMatchObject({ kind: "message" }); // /go is gone: plain text
   expect(parseMessageCommand("/cleanup t-1")).toMatchObject({ kind: "message" }); // no such command any more
   expect(parseMessageCommand("/forget global x y z")).toEqual({ kind: "memory" });
   expect(parseMessageCommand("/compact")).toEqual({ kind: "memory" });

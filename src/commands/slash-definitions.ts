@@ -8,8 +8,6 @@ interface SlashArg {
   required: boolean;
   /** "flag": a boolean that, when true, contributes the option name as the text (e.g. `dry-run`). */
   kind: "string" | "flag";
-  /** "usd" values become the legacy `+<usd>` form (`5` and `+5` both work). */
-  plus?: boolean;
 }
 
 /** One native slash command: name comes from the key of SLASH_DEFINITIONS (typed, so none can be missing). */
@@ -26,16 +24,6 @@ export const SLASH_DEFINITIONS: Record<SlashName, SlashDefinition> = {
   find: {
     description: "Find threads of this space by keywords",
     arg: { name: "keywords", description: "Words to look for", required: true, kind: "string" },
-  },
-  go: {
-    description: "Start the approved run, optionally raising the budget",
-    arg: {
-      name: "usd",
-      description: "Extra budget in USD",
-      required: false,
-      kind: "string",
-      plus: true,
-    },
   },
   remember: {
     description: "Ask the agent to save a memory note",
@@ -98,5 +86,5 @@ export function slashText(
   if (!arg || v === null || v === false || v === "") return `/${name}`;
   if (arg.kind === "flag") return `/${name} ${arg.name}`;
   const s = String(v).trim();
-  return `/${name} ${arg.plus ? `+${s.replace(/^\+/, "")}` : s}`;
+  return `/${name} ${s}`;
 }

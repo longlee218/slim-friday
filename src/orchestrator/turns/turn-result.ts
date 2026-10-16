@@ -46,8 +46,6 @@ export interface FlowResult
   sessionKind?: "lead";
   /** Model that answered, when the runner knows it (stored with the session). */
   model?: string;
-  /** Set by the role runner: the failure qualifies for `failed_resumable` (its session is kept). */
-  resumable?: ResumeReason;
 }
 
 /** A run that did not start or failed before any agent result: reply text, no session. */
@@ -58,23 +56,6 @@ export const failResult = (text: string, outcome: "error" | "aborted" = "error")
   // The text is a verified refusal of the app (not an SDK exception): the owner may read it.
   refusal: outcome === "error" ? true : undefined,
 });
-
-/** Why a background run stopped but can be continued: label shown to the owner (the key is the reason). */
-export const RESUMABLE = {
-  budget: "budget limit reached",
-  error: "agent error",
-} as const;
-export type ResumeReason = keyof typeof RESUMABLE;
-
-/** Which failures qualify for `failed_resumable`, first match wins: one row per reason. Anything else stays `failed`. */
-const RESUMABLE_WHEN: ReadonlyArray<readonly [ResumeReason, (r: FlowResult) => boolean]> = [
-  ["budget", (r) => r.outcome === "max_budget"],
-  ["error", (r) => r.outcome === "error"],
-];
-
-/** The reason a failed run can be resumed, or undefined (stop, restart, timeout and quota do not qualify). */
-export const resumeReasonOf = (r: FlowResult): ResumeReason | undefined =>
-  RESUMABLE_WHEN.find(([, when]) => when(r))?.[0];
 
 /** Map run outcome to the task status stored in db. */
 const TURN_STATUS: Record<string, TurnStatus> = {
@@ -119,18 +100,14 @@ export function finishRun(
     // Context over the share of the model window: the handler rolls the thread after the reply is posted.
     if (res.outcome === "success") requestRollover(db, ids, res.usage);
   }
-  finishTurn(
-    db,
-    ids.turnId,
-    res.resumable ? "failed_resumable" : (TURN_STATUS[res.outcome] ?? "failed"),
-  );
+  finishTurn(db, ids.turnId, TURN_STATUS[res.outcome] ?? "failed");
   if (res.outcome === "max_budget") return budgetHitReply(res, language);
   // A lead run may answer with tool calls only (it dispatched, forwarded, or has nothing to add): say nothing then.
   if (res.sessionKind === "lead" && res.outcome === "success" && !res.text.trim()) return "";
   // Unknown failure text may be an SDK exception. Keep it in the audit/log path, never guess a cause from it.
   const unknownError = res.outcome === "error" && !res.refusal;
   if (unknownError) logEvent(log, "run.failed", { reason: "error", detail: redactText(res.text) });
-  const text = unknownError
+  return unknownError
     ? renderUserNotice({ kind: "failure" }, language)
     : redactText(
         localizeUserCopy(
@@ -142,9 +119,6 @@ export function finishRun(
           language,
         ),
       );
-  return res.resumable
-    ? `${text}\n${renderUserNotice({ kind: "decision", state: "resume" }, language)}`
-    : text;
 }
 
 /**

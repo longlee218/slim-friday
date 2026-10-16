@@ -17,7 +17,7 @@ export interface Route {
   spentUsd?: number;
 }
 
-/** Per-task spend ceiling (USD) over the task's runs (resumes and `/go +usd` re-runs included): a run gets at most what is left of it (owner, Rev 14 addendum 2). */
+/** Per-task spend ceiling (USD) over the task's runs (re-runs included): a run gets at most what is left of it (owner, Rev 14 addendum 2). */
 export const TASK_BUDGET_USD = 6.0;
 
 /** Env override key of a role: `developer` for BUDGET_DEVELOPER_USD / COMPACT_WINDOW_DEVELOPER (the old `DEV` names still read). */

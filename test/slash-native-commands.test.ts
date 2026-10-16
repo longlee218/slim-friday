@@ -25,9 +25,6 @@ test("definitions and the SLASH parser list the same commands", () => {
 test("slashText builds the typed text per command", () => {
   const v = (m: Record<string, string | boolean>) => (a: string) => m[a] ?? null;
   expect(slashText("stop", v({}))).toBe("/stop");
-  expect(slashText("go", v({}))).toBe("/go");
-  expect(slashText("go", v({ usd: "5" }))).toBe("/go +5");
-  expect(slashText("go", v({ usd: "+2.5" }))).toBe("/go +2.5");
   expect(slashText("remember", v({ text: "tabs" }))).toBe("/remember tabs");
   expect(slashText("compact", v({ "dry-run": true }))).toBe("/compact dry-run");
   expect(slashText("compact", v({ "dry-run": false }))).toBe("/compact");
@@ -110,12 +107,6 @@ test("owner /stop in a thread reaches the task handler as the slash text", async
   expect(messages.map((message) => message.text)).toEqual(["/stop"]);
   expect(sent[0].content).toBe("ok");
   expect(log).toEqual(["defer", "delete"]);
-});
-
-test("owner /go 5 keeps the +usd form", async () => {
-  const { messages, handle } = setup();
-  await handle(fakeInteraction("go", OWNER, { usd: "5" }).i);
-  expect(messages[0]?.text).toBe("/go +5");
 });
 
 test("non-owner gets an ephemeral refusal and nothing runs", async () => {

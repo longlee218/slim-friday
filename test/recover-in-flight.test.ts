@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { recoverInFlight } from "../src/orchestrator/engine/recover-in-flight";
-import { appendEvent, claimBatch, listUndelivered } from "../src/orchestrator/events/event-store";
+import { appendEvent, listUndelivered } from "../src/orchestrator/events/event-store";
 import { getOwnedTask, insertOwnedTask, linkTurn } from "../src/storage/owned-task-store";
 import { insertTurn } from "../src/storage/run-store";
 import { makeEnv } from "./helpers";
@@ -34,7 +34,7 @@ test("running task at boot -> one recovered_after_restart event, task waits for 
     role: "developer",
   });
   appendEvent(env.db, { id: "rc-e1", threadId: "rc-th", kind: "result", payload: {} });
-  expect(claimBatch(env.db, "rc-th", "rc-lead")).toHaveLength(1);
+  env.db.query("UPDATE thread_events SET claimed_by = ? WHERE id = ?").run("rc-lead", "rc-e1");
 
   const report = recoverInFlight(env.db);
 

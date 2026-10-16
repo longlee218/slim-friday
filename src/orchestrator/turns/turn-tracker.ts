@@ -5,7 +5,7 @@ import { getLogContext, logEvent, setLogContext, tryLog } from "../../observabil
 import { getRole } from "../../roles/role-registry";
 import { finishTurn, insertTurn, interruptRunningTurns } from "../../storage/run-store";
 import { attachTurnToTask, settleTaskAfterTurn } from "../../tasks/task-resolver";
-import { abortAllTaskRuns, pendingTaskRuns, taskRunSettled } from "../engine/task-runs";
+import { abortAllTaskRuns, pendingTaskRuns } from "../engine/task-runs";
 
 /** Log-context fields every line of a call carries: a fresh trace id, its thread and its routing channel. */
 export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
@@ -18,10 +18,6 @@ export const turnLogContext = (t: { threadId: string; channelId: string }) => ({
 export function createRunTracker(db: Database, log: Logger, active: Map<string, AbortController>) {
   /** Promises of calls in flight. */
   const inflight = new Set<Promise<string | undefined>>();
-  /** controller -> promise that resolves when the run that owned it has fully ended (cleanup included). */
-  const settled = new WeakMap<AbortController, Promise<void>>();
-  /** threadId -> promise of a replacement in progress: ordinary messages wait for it before looking at `active`. */
-  const reservations = new Map<string, { promise: Promise<void>; cancelled: boolean }>();
   /** Set once shutdown aborts the runs: those tasks are `interrupted` (resumable), not user-cancelled. */
   let stopping = false;
 
@@ -34,56 +30,6 @@ export function createRunTracker(db: Database, log: Logger, active: Map<string, 
 
   return {
     isStopping: () => stopping,
-    /**
-     * Make `controller` the thread's active one and return the function the run calls in `finally` when it has
-     * ended. `sameRunAs` = a fresh controller of the SAME run (the queue after `/stop`): it settles with that run.
-     */
-    registerActive(
-      threadId: string,
-      controller: AbortController,
-      sameRunAs?: AbortController,
-    ): () => void {
-      active.set(threadId, controller);
-      const shared = sameRunAs && settled.get(sameRunAs);
-      if (shared) {
-        settled.set(controller, shared);
-        return () => {};
-      }
-      let settle!: () => void;
-      settled.set(
-        controller,
-        new Promise<void>((r) => {
-          settle = r;
-        }),
-      );
-      return settle;
-    },
-    /** Resolves when the run that owned this exact controller has ended (already ended / unknown = now). */
-    activeSettled: (_threadId: string, controller: AbortController): Promise<void> =>
-      settled.get(controller) ?? taskRunSettled(controller) ?? Promise.resolve(),
-    /** Hold the thread for a replacement: later ordinary messages wait on `waitReplacement` until `release`. */
-    reserveReplacement(threadId: string): { release: () => void; isCancelled: () => boolean } {
-      let release!: () => void;
-      const entry = { promise: undefined as unknown as Promise<void>, cancelled: false };
-      entry.promise = new Promise<void>((r) => {
-        release = () => {
-          if (reservations.get(threadId) === entry) reservations.delete(threadId);
-          r();
-        };
-      });
-      reservations.set(threadId, entry);
-      return { release, isCancelled: () => entry.cancelled };
-    },
-    /** `/stop` while a replacement is pending: that replacement must not start. True when one was pending. */
-    cancelReplacement(threadId: string): boolean {
-      const entry = reservations.get(threadId);
-      if (entry) entry.cancelled = true;
-      return !!entry;
-    },
-    /** Wait until no replacement holds the thread (the replacement itself never calls this). */
-    async waitReplacement(threadId: string): Promise<void> {
-      for (let e = reservations.get(threadId); e; e = reservations.get(threadId)) await e.promise;
-    },
     abortAll,
     /** Keep the call in the in-flight set until it settles (`run` never rejects). */
     track(p: Promise<string | undefined>): Promise<string | undefined> {
@@ -121,11 +67,8 @@ export function beginTurn(
   t: {
     location: string;
     brief?: string;
-    proposalId?: string;
     role: string;
-    parentTurnId?: string;
     hop?: number;
-    resume?: boolean;
     /** Owned task this turn continues (background roles only; a foreground role never links). */
     ownedTaskId?: string;
   },
@@ -138,11 +81,8 @@ export function beginTurn(
       source: ids.source,
       location: t.location,
       brief: t.brief,
-      proposalId: t.proposalId,
       role: t.role,
-      parentTurnId: t.parentTurnId,
       hop: t.hop,
-      resume: t.resume,
     });
     // Only a background role works on an owned task: foreground answers (and the side lane) never link.
     if (getRole(t.role).background)
@@ -153,7 +93,6 @@ export function beginTurn(
         scope: t.brief ?? "",
         traceId: getLogContext().traceId ?? crypto.randomUUID(),
         ownedTaskId: t.ownedTaskId,
-        resumeOf: t.resume ? t.parentTurnId : undefined,
       });
   })();
   const logLocation = t.location === "*" && ids.single ? ids.single : t.location;

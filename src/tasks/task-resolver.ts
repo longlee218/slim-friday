@@ -101,10 +101,9 @@ export function attachTurnToTask(
     scope: string;
     traceId: string;
     ownedTaskId?: string;
-    resumeOf?: string;
   },
 ): string {
-  const existing = t.ownedTaskId ?? (t.resumeOf ? ownedTaskOfTurn(db, t.resumeOf) : undefined);
+  const existing = t.ownedTaskId;
   const task = existing ? getOwnedTask(db, existing) : undefined;
   // A task of another thread is never adopted.
   if (task && threadOfTask(db, task.taskId) !== t.threadId)

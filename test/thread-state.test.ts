@@ -10,7 +10,6 @@ import {
   finishTurn,
   insertTurn,
   interruptRunningTurns,
-  listInterruptedThreads,
   setTurnStatus,
 } from "../src/storage/run-store";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
@@ -112,7 +111,6 @@ test("restart while awaiting a tool approval (owner decision 6): interrupted + R
   expect(db.query("SELECT decision FROM approvals WHERE id = 'ap1'").get()).toEqual({
     decision: "cancelled",
   });
-  expect(listInterruptedThreads(db)).toEqual(["th"]); // the thread gets its Resume notice
   expect(deriveThreadState(db, "th")).toBe("idle");
   expect(pendingToolApproval(db, "t1")).toBeUndefined();
 });

@@ -1,13 +1,10 @@
 import type { Database } from "bun:sqlite";
-import type { MessageReactionPort } from "../../ingress/message-reaction";
-import { STEER_READ_EMOJI } from "../../ingress/message-reaction";
 import { logEvent, logger, tryLog } from "../../observability/logger";
 import { canonicalRoleName } from "../../roles/role-aliases";
 import { ROLES } from "../../roles/role-registry";
 import type { SteerRun, SteerSink } from "../../runtime/run-input-channel";
 import { ownedTaskOfTurn, runningTurnOfTask, threadOfTask } from "../../storage/owned-task-store";
 import { runMessageSourceId, setRunMessageTarget } from "../../storage/run-message-store";
-import { taskRunOf } from "../engine/task-runs";
 import { createHeldSteers } from "./steer-held";
 import { createSteerStore, type MessageRef } from "./steer-store";
 import type { SteerEvent, SteerOutcome, SteerRegistry } from "./steer-types";
@@ -17,14 +14,14 @@ export type { MessageRef };
 
 /* Which run can take a steer right now, and the audit of every message that arrives while a run
    works (`run_messages`). A streaming run registers its input sink here, keyed by its TASK (owned task id, else
-   turn id), and unregisters when it ends; a thread can hold several tasks, the thread's next owner message goes to the newest. The thread table (thread/route-by-intent.ts) only sees
-   `steer(task, text)`, `record(...)` and `canSteer(...)`; it never touches the runtime. */
+   turn id), and unregisters when it ends; a thread can hold several tasks. Callers only see `steerTask(task, text)`,
+   `record(...)`, `subscribe(...)` and `hook(...)`; they never touch the runtime. */
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "steer-registry" });
 
 /** Build an empty registry over `db` (the `run_messages` table). */
-export function createSteerRegistry(db: Database, reactions?: MessageReactionPort): SteerRegistry {
+export function createSteerRegistry(db: Database): SteerRegistry {
   /** Task key of a turn: its owned task id, else the turn id (a turn without a task is its own key). */
   const taskKey = (turnId: string): string => ownedTaskOfTurn(db, turnId) ?? turnId;
   /** taskKey -> input of the task's registered run; insertion order = registration order. */
@@ -47,7 +44,6 @@ export function createSteerRegistry(db: Database, reactions?: MessageReactionPor
   /** A running turn is a streaming role (one that reads steers): a message can wait for it. */
   const streams = (t: { role: string } | undefined): boolean =>
     !!(t && ROLES[canonicalRoleName(t.role)]?.streaming);
-  const canHold = (threadId: string): boolean => streams(liveTask(threadId));
   /** threadId -> observers of the run supervisor, each bound to one target turn. */
   const watchers = new Map<
     string,
@@ -70,7 +66,7 @@ export function createSteerRegistry(db: Database, reactions?: MessageReactionPor
           w.onState({ state, ...(messageId && { messageId }) }),
         );
   };
-  const { finalize, drop, store, takeNotice } = createSteerStore(db, log, {
+  const { finalize, store } = createSteerStore(db, log, {
     runOf: (threadId) => sinkOf(threadId)?.run,
     liveTurnId: (threadId) => liveTask(threadId)?.id,
   });
@@ -135,7 +131,6 @@ export function createSteerRegistry(db: Database, reactions?: MessageReactionPor
                 );
             } else {
               finalize(w.ref, "dropped");
-              drop(threadId, w.text);
             }
           }
           // Only remove our own entry: a later run may already have registered its sink.
@@ -145,26 +140,10 @@ export function createSteerRegistry(db: Database, reactions?: MessageReactionPor
         },
         settle(steer, fate) {
           finalize(steer.ref, fate);
-          if (fate === "dropped") drop(threadId, steer.text);
           const messageId = steer.ref ? runMessageSourceId(db, steer.ref) : undefined;
-          // The agent read it (SDK replay): a quiet receipt on the owner's message. A failure is logged by the port, never thrown.
-          if (fate === "delivered" && messageId && reactions)
-            void reactions.react(threadId, messageId, STEER_READ_EMOJI).catch(() => undefined);
           publish(threadId, runTurn, fate, messageId); // `delivered` only here: the SDK replay (or a verified resume) settled it
         },
       };
-    },
-    liveTasksOf: (threadId) =>
-      [...sinks.entries()].filter(([, e]) => e.threadId === threadId).map(([k]) => k),
-    canSteer: (threadId) => !!sinkOf(threadId),
-    canTake: (threadId) => !!sinkOf(threadId) || canHold(threadId),
-    steer(m, text) {
-      const live = liveTask(m.threadId);
-      // The target is the running task; its OWN sink (never another task's) takes the steer. No running turn row at
-      // all (a bare sink): the thread's newest sink.
-      const key = live && taskKey(live.id);
-      const entry = key ? sinks.get(key) : sinkOf(m.threadId);
-      return deliver(m, text, entry, live && streams(live) ? key : undefined, live?.id);
     },
     steerTask(taskId, text, messageId) {
       const key = taskKey(taskId); // a turn id is accepted too
@@ -181,14 +160,5 @@ export function createSteerRegistry(db: Database, reactions?: MessageReactionPor
       );
     },
     record: (m, text, kind, status = "delivered") => void store(m, text, kind, status),
-    undeliveredNotice(threadId) {
-      // Steers still held when the call ends never found a run to read them, except those of a live detached task
-      // (its run has not registered its input yet and will take them).
-      for (const w of held.takeAbandoned(threadId, (key) => !!taskRunOf(key))) {
-        finalize(w.ref, "dropped");
-        drop(threadId, w.text);
-      }
-      return takeNotice(threadId);
-    },
   };
 }

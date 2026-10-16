@@ -29,7 +29,7 @@ function devTask(env: ReturnType<typeof makeEnv>, taskId: string, turnId: string
   linkTurn(env.db, turnId, taskId);
 }
 
-test("steerTask reaches only its task; steer(thread) goes to the newest; liveTasksOf lists both", () => {
+test("steerTask reaches only its task", () => {
   const env = makeEnv();
   const reg = createSteerRegistry(env.db);
   devTask(env, "task-a", "turn-a");
@@ -38,11 +38,10 @@ test("steerTask reaches only its task; steer(thread) goes to the newest; liveTas
   const b: string[] = [];
   reg.hook("th").register(sink(a), { runId: "ra", turnId: "turn-a" });
   reg.hook("th").register(sink(b), { runId: "rb", turnId: "turn-b" });
-  expect(reg.liveTasksOf("th")).toEqual(["task-a", "task-b"]);
 
   expect(reg.steerTask("task-a", "for a").result).toBe("queued");
   expect(reg.steerTask("task-b", "for b").result).toBe("queued");
-  expect(reg.steer({ threadId: "th" }, "newest").result).toBe("queued");
+  expect(reg.steerTask("task-b", "newest").result).toBe("queued");
   expect(a).toEqual(["for a"]);
   expect(b).toEqual(["for b", "newest"]);
   expect(reg.steerTask("task-unknown", "x").result).toBe("none");
@@ -62,7 +61,7 @@ test("a steer held for one task goes only into that task's input when it registe
   expect(c).toEqual(["wait for c"]);
 });
 
-test("H1: undeliveredNotice keeps the held steers of a live detached task, drops those of a task with no live run", () => {
+test("H1: a steer held for a task goes into its input when the run registers (a live detached task keeps it)", () => {
   const env = makeEnv();
   const reg = createSteerRegistry(env.db);
   devTask(env, "task-e", "turn-e");
@@ -73,25 +72,20 @@ test("H1: undeliveredNotice keeps the held steers of a live detached task, drops
     role: "developer",
     ac: new AbortController(),
   });
-  expect(reg.undeliveredNotice("th")).toBe(""); // live detached run: the steer survives
   const got: string[] = [];
   reg.hook("th").register(sink(got), { runId: "re", turnId: "turn-e" });
   expect(got).toEqual(["keep me"]);
   settle();
-  expect(reg.steerTask("task-e", "orphan").result).toBe("queued"); // sink is registered
-  devTask(env, "task-f", "turn-f");
-  reg.steerTask("task-f", "lost");
-  expect(reg.undeliveredNotice("th")).toContain("lost"); // no live run: dropped and told
 });
 
-test("H2: steer(thread) goes to the running task's own sink, never to an older task's (A registered, B newer still starting)", () => {
+test("H2: steerTask goes to the task's own sink, never to an older task's (A registered, B newer still starting)", () => {
   const env = makeEnv();
   const reg = createSteerRegistry(env.db);
   devTask(env, "task-g", "turn-g");
   const a: string[] = [];
   reg.hook("th").register(sink(a), { runId: "rg", turnId: "turn-g" });
   devTask(env, "task-h", "turn-h"); // newer, its run has not registered yet
-  expect(reg.steer({ threadId: "th" }, "for the newest").result).toBe("held");
+  expect(reg.steerTask("task-h", "for the newest").result).toBe("held");
   expect(a).toEqual([]);
   const b: string[] = [];
   reg.hook("th").register(sink(b), { runId: "rh", turnId: "turn-h" });

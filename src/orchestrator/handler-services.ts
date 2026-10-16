@@ -26,7 +26,7 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     stopping: tracker.isStopping,
     limiter: deps.limiter,
     threadTitle: deps.threadTitle,
-    steer: createSteerRegistry(db, deps.messageReaction), // streaming roles take the owner's messages while they run
+    steer: createSteerRegistry(db), // streaming roles take the owner's messages while they run
   };
   // The lead: the only path of an owner message after the commands (queue, runner, workers, announce).
   const lead = createLeadSystem({

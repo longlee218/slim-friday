@@ -7,13 +7,7 @@ import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import { finishRun } from "../src/orchestrator/turns/turn-result";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
-import {
-  ackInterrupted,
-  insertTurn,
-  interruptRunningTurns,
-  listInterruptedThreads,
-  setTurnStatus,
-} from "../src/storage/run-store";
+import { insertTurn, interruptRunningTurns, setTurnStatus } from "../src/storage/run-store";
 import { getSession, setSession } from "../src/storage/session-store";
 import { fakeQuery, initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 import { devLeadQuery, workersDone } from "./lead-harness";
@@ -81,7 +75,7 @@ test("quota/error runs never replace the stored session either", async () => {
   expect(getSession(env.db, "th1")?.session_id).toBe("GOOD");
 });
 
-test("restart marks running tasks interrupted; ack makes them cancelled (one notice)", () => {
+test("restart marks running tasks interrupted", () => {
   const { db } = makeEnv();
   insertTurn(db, { id: "a", threadId: "th", source: "d", location: "r", role: "lead" });
   insertTurn(db, { id: "b", threadId: "th", source: "d", location: "r", role: "developer" });
@@ -89,11 +83,8 @@ test("restart marks running tasks interrupted; ack makes them cancelled (one not
   insertTurn(db, { id: "c", threadId: "other", source: "d", location: "r", role: "lead" });
   setTurnStatus(db, "c", "done");
   interruptRunningTurns(db);
-  expect(listInterruptedThreads(db)).toEqual(["th"]);
-  ackInterrupted(db, "th");
-  expect(listInterruptedThreads(db)).toEqual([]);
   const st = db.query<{ status: string }, []>("SELECT status FROM turns WHERE id='a'").get();
-  expect(st?.status).toBe("cancelled");
+  expect(st?.status).toBe("interrupted");
 });
 
 // ---- Quota / error classification ----

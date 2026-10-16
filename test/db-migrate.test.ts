@@ -154,14 +154,13 @@ test("cap query counts code tasks only (counts_toward_cap), not Q&A", () => {
     source: "s",
     location: "r",
     role: "dev",
-    proposalId: "p1",
   });
   expect(countActiveCappedTasks(db)).toBe(2);
   expect(
     db.query("SELECT class, proposal_id, counts_toward_cap FROM turns WHERE id = 'c2'").get(),
   ).toEqual({
     class: null, // no longer written (phase 2 drops the column)
-    proposal_id: "p1",
+    proposal_id: null, // no longer written (phase 2 drops the column)
     counts_toward_cap: 1,
   });
 });

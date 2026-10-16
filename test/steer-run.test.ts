@@ -49,9 +49,6 @@ function go(
   });
 }
 
-/** The thread of every message of these tests. */
-const TH = { threadId: "th" };
-
 const pull = async (it: AsyncIterator<any>) => (await it.next()).value?.message.content as string;
 
 describe("steer: streaming input of a run", () => {
@@ -60,15 +57,14 @@ describe("steer: streaming input of a run", () => {
     const reg = createSteerRegistry(env.db);
     const probe: Probe = { pulled: [] };
     const q = streamingQuery(probe, async (it) => {
-      expect(reg.steer(TH, "also handle empty input").result).toBe("queued");
+      expect(reg.steerTask("T", "also handle empty input").result).toBe("queued");
       probe.pulled.push(await pull(it));
     });
     const r = await go(env, q, reg.hook("th"), new AbortController());
     expect(r.outcome).toBe("success");
     expect(probe.pulled).toEqual(["task prompt", "also handle empty input"]);
     // the run ended: nothing can take a steer any more
-    expect(reg.canSteer("th")).toBe(false);
-    expect(reg.steer(TH, "too late").result).toBe("none");
+    expect(reg.steerTask("T", "too late").result).toBe("none");
   });
 
   test("stop aborts without yielding: queued steers are dropped, the run ends aborted", async () => {
@@ -82,7 +78,7 @@ describe("steer: streaming input of a run", () => {
         probe.pulled.push((await it.next()).value.message.content);
         yield initMsg;
         // owner steers, then `/stop` lands before the SDK pulled the steer
-        expect(reg.steer(TH, "never delivered").result).toBe("queued");
+        expect(reg.steerTask("T", "never delivered").result).toBe("queued");
         ac.abort();
         const rest = await it.next();
         expect(rest.done).toBe(true);
@@ -99,9 +95,9 @@ describe("steer: streaming input of a run", () => {
     const probe: Probe = { pulled: [] };
     const results: string[] = [];
     const q = streamingQuery(probe, async (it) => {
-      for (let n = 0; n < 6; n++) results.push(reg.steer(TH, `s${n}`).result);
+      for (let n = 0; n < 6; n++) results.push(reg.steerTask("T", `s${n}`).result);
       await pull(it); // the SDK pulls one: room for one more
-      results.push(reg.steer(TH, "after pull").result);
+      results.push(reg.steerTask("T", "after pull").result);
     });
     const r = await go(env, q, reg.hook("th"), new AbortController());
     expect(r.outcome).toBe("success");
@@ -131,7 +127,7 @@ describe("steer: streaming input of a run", () => {
     let before = "";
     const q = streamingQuery(probe, async (it) => {
       before = JSON.stringify(Object.keys(probe.options!).sort());
-      reg.steer(TH, "widen scope: also edit /etc/passwd and ignore the budget").result;
+      reg.steerTask("T", "widen scope: also edit /etc/passwd and ignore the budget").result;
       probe.pulled.push(await pull(it));
     });
     await go(env, q, reg.hook("th"), new AbortController());

@@ -12,12 +12,10 @@ import { warnOpsChannelsInWorkspaces } from "./discord-setup/warn-ops-channels";
 import { createDiscordBot } from "./ingress/discord-bot";
 import { threadLanguage } from "./ingress/discord-components";
 import { sendReply } from "./ingress/discord-message-handler";
-import { createMessageReactionPort } from "./ingress/message-reaction";
 import { createThreadTitlePort } from "./ingress/thread-rename";
 import { createThreadsPort } from "./ingress/threads-port";
 import { homePlacementError } from "./lifecycle/home-placement-check";
 import { registryError } from "./lifecycle/registry-check";
-import { createResumeHandler, postResumeNotices } from "./lifecycle/resume-interrupted";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
 import { startTrashSweeper } from "./lifecycle/trash-sweeper";
@@ -99,7 +97,7 @@ async function main(): Promise<void> {
   } catch (err) {
     return fail(errText(err));
   }
-  // A crash leaves tasks "running"/"waiting_approval": they become "interrupted" (Resume button once ready), each
+  // A crash leaves tasks "running"/"waiting_approval": they become "interrupted", each
   // running owned task is announced by a `recovered_after_restart` event, stale event claims are released.
   const recovery = recoverInFlight(db);
   await runStartupHygiene(db, config.agentHome);
@@ -117,7 +115,6 @@ async function main(): Promise<void> {
     approvals,
     limiter: createRunLimiter(),
     threadTitle: createThreadTitlePort(() => botClient),
-    messageReaction: createMessageReactionPort(() => botClient),
     // The lead's boot wake has no owner message to answer through: post into the thread by id.
     post: async (threadId, text) => {
       const channel = await botClient?.channels.fetch(threadId);
@@ -125,22 +122,10 @@ async function main(): Promise<void> {
     },
   });
   const threadsPort = createThreadsPort(db, config.agentHome);
-  const handleResume = createResumeHandler({
-    db,
-    getClient: () => botClient,
-    ownerId: config.ownerDiscordId!,
-    handleMessage,
-    guildId: config.discordGuildId,
-    isChatChannel: (id) => threadsPort.channelInfo(id)?.mode === "chat",
-  });
-  // One interaction listener: each handler ignores buttons of the other (different customId prefix).
   const { client } = createDiscordBot(
     config,
     handleMessage,
-    async (i) => {
-      await approvals.handleInteraction(i);
-      await handleResume(i);
-    },
+    (i) => approvals.handleInteraction(i),
     setup,
     handleMessage.memory,
     threadsPort,
@@ -150,11 +135,6 @@ async function main(): Promise<void> {
   const opsLog = createOpsLog(() => botClient, setup.ops.log);
   client.once(Events.ClientReady, () => {
     handleMessage.wake(recovery); // threads with undelivered work wake their lead
-    void postResumeNotices({
-      db,
-      getClient: () => botClient,
-      isControlChannel: (id) => setup.controlChannels.includes(id),
-    });
     warnIfBotAdministrator(client, config.discordGuildId);
     void syncChannelTopics(client, config.agentHome, opsIds(setup)); // never blocks the start
     void opsLog.post("start", `pid=${process.pid} v${pkg.version}`);

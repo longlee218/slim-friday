@@ -2,9 +2,8 @@ import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
 import type { Location } from "../../locations/location-registry";
 import { logger, setLogContext, tryLog } from "../../observability/logger";
-import { RESUME_FAILED } from "../../runtime/run-errors";
 import { setTurnLocation } from "../../storage/run-store";
-import { type FlowResult, resumeReasonOf } from "../turns/turn-result";
+import type { FlowResult } from "../turns/turn-result";
 import type { RoleRunInput } from "./role-run-types";
 
 /* What the app reads from the END of a background run's report (`location: <name>`) and how a failure is tagged. */
@@ -34,8 +33,7 @@ export function extractLocationMarker(
 }
 
 /**
- * Close a background run. A failure that kept its session (budget, error) is tagged resumable: `/go` continues that
- * session. A success names its location on the last `location:` line (validated against the workspace locations): the turn row, the
+ * Close a background run. A failure is returned as is (the lead re-dispatches the goal). A success names its location on the last `location:` line (validated against the workspace locations): the turn row, the
  * log context follow it. No valid marker = no location: the ledger shows `*`. A `Memory:` block in the report is plain text
  * (lessons are saved by the agent during the run with its memory tool).
  */
@@ -44,12 +42,7 @@ export function closeBackgroundRun(
   i: RoleRunInput,
   res: FlowResult,
 ): FlowResult {
-  if (res.outcome !== "success") {
-    // A failed RESUME (the session transcript is gone) is never resumable: a `/go` would fail the same way.
-    const resumeFailed = res.outcome === "error" && RESUME_FAILED.test(res.text);
-    const reason = res.sessionId && !resumeFailed ? resumeReasonOf(res) : undefined;
-    return reason ? { ...res, resumable: reason } : res;
-  }
+  if (res.outcome !== "success") return res;
   const marked = extractLocationMarker(res.text, i.locations);
   const location = marked.location ?? i.locations.find((r) => r.name === res.location);
   if (location) {

@@ -47,8 +47,8 @@ export function cleanupTaskLogs(agentHome: string, now = Date.now()): number {
 }
 
 /**
- * Held tasks (`failed_resumable`, waiting for a `/go`) older than the retention expire by age: the task scratch dir is
- * removed and the task becomes `failed`, so `/go` has nothing to continue. Returns the expired task ids.
+ * Held tasks (`failed_resumable`, rows from before `/go` was removed) older than the retention expire by age: the task scratch dir is
+ * removed and the task becomes `failed`. Returns the expired task ids.
  */
 export function expireHeldTasks(
   db: Database,

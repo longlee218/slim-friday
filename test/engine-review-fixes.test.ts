@@ -7,6 +7,11 @@ import { insertTurn } from "../src/storage/run-store";
 import { addLocation, clearWorkspaces, makeEnv, resultMsg, stubGateway } from "./helpers";
 
 /** One finished run row of `turnId` that cost `costUsd`. */
+/** Turn `id` continues `parent` (kind `resume`): the task ceiling is shared along that chain. `insertTurn` no longer writes it. */
+function asResume(db: ReturnType<typeof makeEnv>["db"], id: string, parent: string): void {
+  db.query("UPDATE turns SET kind = 'resume', parent_turn_id = ? WHERE id = ?").run(parent, id);
+}
+
 const spend = (db: ReturnType<typeof makeEnv>["db"], turnId: string, costUsd: number) =>
   insertRun(db, {
     id: crypto.randomUUID(),
@@ -70,18 +75,16 @@ test("task ceiling: a run gets only what the task and the runs it resumes left o
     source: "t",
     location: "location",
     role: "developer",
-    resume: true,
-    parentTurnId: "t1",
   });
+  asResume(env.db, "t2", "t1");
   insertTurn(env.db, {
     id: "t3",
     threadId: "th",
     source: "t",
     location: "location",
     role: "developer",
-    resume: true,
-    parentTurnId: "t2",
   });
+  asResume(env.db, "t3", "t2");
   // An unrelated task of the same thread does not count.
   insertTurn(env.db, {
     id: "other",
@@ -96,10 +99,10 @@ test("task ceiling: a run gets only what the task and the runs it resumes left o
   const { res, seen } = await runDev(env, "t3");
   expect(res.outcome).toBe("success");
   expect(seen[0].maxBudgetUsd).toBeCloseTo(0.5);
-  expect(res.ceilingBound).toBe(true); // the cap IS the ceiling: `/go +usd` cannot help
+  expect(res.ceilingBound).toBe(true); // the cap IS the ceiling: the raise is impossible
 });
 
-test("task ceiling used up: the run is refused before it starts, `/go +usd` cannot lift it", async () => {
+test("task ceiling used up: the run is refused before it starts, it cannot be raised", async () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
   addLocation(env.home, "location");
@@ -116,14 +119,12 @@ test("task ceiling used up: the run is refused before it starts, `/go +usd` cann
     source: "t",
     location: "location",
     role: "developer",
-    resume: true,
-    parentTurnId: "t1",
   });
+  asResume(env.db, "t2", "t1");
   spend(env.db, "t1", TASK_BUDGET_USD);
   const { res, seen } = await runDev(env, "t2");
   expect(res.outcome).toBe("error");
   expect(res.text).toContain("cannot be raised");
-  expect(res.text).not.toContain("/go +");
   expect(res.refusal).toBe(true); // a verified refusal: finishRun shows it instead of the generic failure
   expect(seen).toHaveLength(0);
   // the owner reads that copy (localized), not the generic "try again"
@@ -149,8 +150,8 @@ test("a task that is not a resume starts at zero spent (an earlier task of the t
     source: "t",
     location: "location",
     role: "developer",
-    parentTurnId: "t1",
-  }); // a proposal hop, not a resume
+  });
+  env.db.query("UPDATE turns SET parent_turn_id = ? WHERE id = ?").run("t1", "t2"); // a hop, not a resume
   spend(env.db, "t1", 5.9);
   const { seen } = await runDev(env, "t2");
   expect(seen[0].maxBudgetUsd).toBe(4.5);

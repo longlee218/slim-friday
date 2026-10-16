@@ -7,13 +7,7 @@ import {
   createControlRoleRun,
 } from "../src/discord-setup/control-role-run";
 import { privateOverwrites } from "../src/discord-setup/private-channels";
-import { postResumeNotices } from "../src/lifecycle/resume-interrupted";
 import { DISCORD_ADMIN_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import {
-  insertTurn,
-  interruptRunningTurns,
-  listInterruptedThreads,
-} from "../src/storage/run-store";
 import { getSession } from "../src/storage/session-store";
 import {
   ASK_USER_QUESTION_TOOL_NAME,
@@ -253,44 +247,7 @@ test("shutdown: abortAll aborts a running control run; its turn is cancelled and
   expect(await left).toBeGreaterThan(0);
   const turn = s.env.db.query<any, []>("SELECT status FROM turns").get();
   expect(turn?.status).toBe("cancelled");
-  expect(listInterruptedThreads(s.env.db)).toEqual([]);
   p.release();
-});
-
-test("restart: an interrupted control turn is closed without a Continue button", async () => {
-  const s = setup();
-  insertTurn(s.env.db, {
-    id: "t1",
-    threadId: CTRL,
-    source: "discord",
-    location: "*",
-    role: "lead",
-  });
-  insertTurn(s.env.db, {
-    id: "t2",
-    threadId: "T9",
-    source: "discord",
-    location: "*",
-    role: "lead",
-  });
-  interruptRunningTurns(s.env.db);
-  const sent: string[] = [];
-  const client: any = {
-    channels: {
-      fetch: async (id: string) => ({
-        isSendable: () => true,
-        send: async () => void sent.push(id),
-      }),
-    },
-  };
-  const n = await postResumeNotices({
-    db: s.env.db,
-    getClient: () => client,
-    isControlChannel: (id) => id === CTRL,
-  });
-  expect(n).toBe(1);
-  expect(sent).toEqual(["T9"]);
-  expect(listInterruptedThreads(s.env.db)).toEqual([]);
 });
 
 test("a control session idle for over 24h is not resumed; a fresh one is", async () => {

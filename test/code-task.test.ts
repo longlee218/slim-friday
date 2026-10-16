@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { ApprovalGateway, ApprovalRequest } from "../src/approvals/approval-types";
-import { parseMessageCommand, RESUME_PROMPT } from "../src/orchestrator/message-commands";
+import { parseMessageCommand } from "../src/orchestrator/message-commands";
 import {
   BASH_TOOL_NAME,
   SEND_FEEDBACK_TOOL_NAME,
@@ -10,7 +10,6 @@ import {
 } from "../src/tools/sdk-tool-names";
 import { runDevWorker } from "./dev-worker-fixture";
 import { addLocation, clearWorkspaces, DEV_REQUEST, makeEnv, stubGateway } from "./helpers";
-import { devLeadQuery } from "./lead-harness";
 
 /** Fake gateway: records requests and answers with a scripted decision. */
 function fakeGateway(approved = true) {
@@ -63,24 +62,9 @@ test("parseMessageCommand: stop and location: hint; cleanup: is plain text; task
   });
 });
 
-test("parseMessageCommand: go, go +<usd>; invalid raises are plain messages; Resume prompt unchanged", () => {
-  expect(parseMessageCommand("go")).toEqual({ kind: "go" });
-  expect(parseMessageCommand(" GO ")).toEqual({ kind: "go" });
-  expect(parseMessageCommand("go +1.5")).toEqual({ kind: "go", extraBudgetUsd: 1.5 });
-  expect(parseMessageCommand("go +2")).toEqual({ kind: "go", extraBudgetUsd: 2 });
-  for (const bad of [
-    "go +0",
-    `go +${"9".repeat(400)}`,
-    "go +1000.5",
-    "go -1",
-    "go +abc",
-    "go 1.5",
-    "go +1.5 now",
-    "go ahead",
-    "go+1",
-  ])
-    expect(parseMessageCommand(bad)).toMatchObject({ kind: "message", text: bad });
-  expect(parseMessageCommand(RESUME_PROMPT)).toEqual({ kind: "resume" });
+test("parseMessageCommand: `go` and `go +<usd>` are plain messages (the /go command is gone)", () => {
+  for (const t of ["go", "go +1.5", "/go", "/go +2"])
+    expect(parseMessageCommand(t)).toMatchObject({ kind: "message", text: t });
 });
 
 test("code task (a dispatched worker) runs in default mode, never bypass, in the location with write tools and no allowedTools", async () => {

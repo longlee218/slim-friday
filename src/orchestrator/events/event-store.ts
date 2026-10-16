@@ -64,41 +64,6 @@ export function appendEvent(
 }
 
 /**
- * Claim every unclaimed, undelivered event of a thread for `consumerTurnId` and return them in `seq` order
- * (FIFO per thread). ONE consumer per thread: while an undelivered row is claimed by another turn, nothing is
- * claimed (returns []). One transaction: two consumers never get the same row.
- */
-export function claimBatch(db: Database, threadId: string, consumerTurnId: string): ThreadEvent[] {
-  return db.transaction(() => {
-    const other = db
-      .query<{ n: number }, [string, string]>(
-        `SELECT COUNT(*) AS n FROM thread_events
-         WHERE thread_id = ? AND delivered_at IS NULL AND claimed_by IS NOT NULL AND claimed_by != ?`,
-      )
-      .get(threadId, consumerTurnId);
-    if (other && other.n > 0) return [];
-    db.query(
-      "UPDATE thread_events SET claimed_by = ? WHERE thread_id = ? AND delivered_at IS NULL AND claimed_by IS NULL",
-    ).run(consumerTurnId, threadId);
-    return db
-      .query<Raw, [string, string]>(
-        `SELECT ${COLUMNS} FROM thread_events WHERE thread_id = ? AND claimed_by = ? AND delivered_at IS NULL ORDER BY seq`,
-      )
-      .all(threadId, consumerTurnId)
-      .map(toEvent);
-  })();
-}
-
-/** The consuming turn ended: its claimed events are delivered. Returns how many. */
-export function markDelivered(db: Database, consumerTurnId: string): number {
-  return db
-    .query(
-      "UPDATE thread_events SET delivered_at = ? WHERE claimed_by = ? AND delivered_at IS NULL",
-    )
-    .run(Date.now(), consumerTurnId).changes;
-}
-
-/**
  * Release the claims of turns that are gone (crash / restart): a claim is stale when its turn is missing or no
  * longer `running` / `waiting_approval` in `turns`. The events become claimable again, flagged `redelivered`.
  * Safe at boot (no turn is alive then) and at any time. Returns how many rows were released.
