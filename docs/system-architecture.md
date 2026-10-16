@@ -1,6 +1,6 @@
 # Friday Agent System Architecture
 
-Last updated: 2026-10-16 (lead orchestration L0-L2c committed, L4 in the working tree, not verified live: schema v8, detached worker runs, lead queue, planner and PLAN strategy, approval envelope R0-R4, effect tools, `developer` role. L5 next, see [Planned, Not Built](#planned-not-built)).
+Last updated: 2026-10-16 (lead orchestration L0-L2c committed, L4 in the working tree, not verified live: Drizzle baseline (v8 content), detached worker runs, lead queue, planner and PLAN strategy, approval envelope R0-R4, effect tools, `developer` role. L5 next, see [Planned, Not Built](#planned-not-built)).
 
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite).
@@ -263,7 +263,7 @@ Code: `src/ingress/thread-placement.ts` (placeholder, open, adopt), `threads-por
 | Roles | `src/roles/` | role type, registry, role aliases (`role-aliases.ts`), `lead-role.ts`, `planner-role.ts`, `scout-role.ts`, `developer-role.ts`, `discord-manager-role.ts` (each role file holds its prompt text) |
 | Lead prompt | `src/orchestrator/strategy/lead-md.ts`, `lead-context-block.ts`, `src/orchestrator/engine/lead-system.ts` | `LEAD.md` (roles, policy, caps) and the per-run data block |
 | Control surface | `src/discord-setup/control-role-run.ts`, `src/orchestrator/engine/control-scope.ts`, `run-extra-context.ts`, `src/mcp/discord-admin-server.ts`, `src/tools/{ListSpaces,CreateSpaceOrChannel,WriteSpaceFile}Tool/`, `src/roles/builtin/skills/` | `#ops-control` role run, no-workspace scope, discord-admin tools, app-owned skills |
-| Locations and workspaces | `src/locations/`, `src/workspaces/` | location and workspace registries (fail closed), git detection, `git-cli.ts`, migration CLI `migrate:locations` |
+| Locations and workspaces | `src/locations/`, `src/workspaces/` | location and workspace registries (fail closed), git detection, `git-cli.ts` |
 | Memory | `src/memory/` | persona layers, location and channel memory writers, channel digest, owner commands, compaction |
 | Intent (parked) | `src/intent/jev/`, `src/intent/role-tag.ts`, `routing-message-text.ts`, `recent-messages.ts` | Jev code kept, `JEV_ENABLED = false`, not wired; role-tag parser for `[role]` direct dispatch; message text helper. No classifier and no intent routing exist |
 | Storage | `src/storage/` | `db.ts`, stores, schema migrations v2 → v8 |
@@ -418,7 +418,7 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 
 ## Storage Schema
 
-**DB:** `$AGENT_HOME/data/agent.db` (SQLite, WAL). Current schema version: 8 (`meta.schema_version`, `SCHEMA_VERSION` in `src/storage/migrate.ts`).
+**DB:** `$AGENT_HOME/data/agent.db` (SQLite, WAL). Schema: one Drizzle baseline (`src/storage/schema/`; SQL in `src/storage/migrations/`; log table `__drizzle_migrations`).
 
 | Table | Key columns | Purpose |
 |---|---|---|
@@ -438,14 +438,7 @@ tool call → PreToolUse guard (deny = stop; ask = bypass or owner, per mode)
 | `proposals` | (v1-v7 columns) | kept by migration, no code writes it since L2a (the proposal flow is removed) |
 
 ### Schema history
-
-Owner steps: [owner-checklist-schema-v8.md](owner-checklist-schema-v8.md) (v7 → v8). Earlier: [v7](owner-checklist-schema-v7.md), [v6](owner-checklist-schema-v6.md), [v4](owner-checklist-schema-v4.md), [v3](owner-checklist-schema-v3.md).
-- **v7 → v8 (additive, `src/storage/migrate-v8-lead-orchestration.ts`):** `owned_tasks` item and goal columns and unique index; new `work_plans`, `thread_events` (+ index), `effect_log`; `sessions` gets `model`, `generation`, `kind`. One transaction. Snapshot `friday-v7-<ts>.db` first. Rollback: restore the v7 snapshot and check out `5ad840f` (an older binary cannot open a v8 db).
-- **v6 → v7 (rename + additive):** `turns`, `sessions`, `proposals` column `repo` renamed to `location`; creates `threads`. Snapshot `friday-v6-<ts>.db` first.
-- **v5 → v6 (additive):** creates `owned_tasks`, adds `turns.owned_task_id`. Snapshot `friday-v5-<ts>.db`.
-- **v3 → v4 (drop):** drops tables `stages`, `worktrees`; columns `runs.stage_idx`, `run_messages.after_plan`, `proposals.base`.
-- **v2 → v3 (rename):** `tasks` → `turns`; `task_id` → `turn_id`. Snapshot first: `VACUUM INTO <AGENT_HOME>/db-backups/friday-v2-<ts>.db`.
-- Legacy DDL (`legacy-schema.ts`, `legacy-migrate-v2.ts`, `migrate-v3-turns.ts`) is frozen and runs only below v3.
+- One baseline. Older versions (v2-v8) have no upgrade path and no backup: an older db is refused at start. Reset: [First start and reset](discord-setup.md#first-start-and-reset).
 
 **Logs:**
 - `$AGENT_HOME/logs/app.<date>.<n>.jsonl`: all app events (pino-roll, 14 days). Task lines carry `workspace`, `location`, `taskId`, `threadId`, `mode`.
@@ -473,7 +466,6 @@ $AGENT_HOME/                       (real directory outside every location and gi
 ├── data/agent.db                  SQLite (WAL)
 ├── goals/<goalId>/<itemKey>.md    result file of each finished item (0700 dir, 0600 file)
 ├── logs/app.*.jsonl, logs/tasks/<taskId>.jsonl
-├── db-backups/                    friday-v*-<ts>.db snapshots
 ├── tmp/                           per-run skill plugins, attachment copies, control scratch (swept at startup)
 ├── trash/<goalId>/                DeletePaths trash, kept 7 days; `/purge` empties a thread's goals
 └── workspaces/<ws>/
@@ -517,7 +509,6 @@ A **location** is a directory the owner registers in a workspace. It replaces th
 - Dropped legacy fields (`defaultBranch`, `testCommand`, `githubAccount`, `gitAuthor`, `workflow`) are not read.
 - No managed clone, no fetch, no pull: the app never refreshes a location.
 - A workspace with zero locations is valid: its runs work in `workspaces/<ws>/cwd/`.
-- A workspace that still has `repos/<n>/repo.yaml` is not loaded (`needs_migration`). Run `bun run migrate:locations` (bot stopped; dry run unless `--apply`; backup first to `$AGENT_HOME/backups/locations-<ts>/`). Steps: [owner-checklist-schema-v7.md](owner-checklist-schema-v7.md).
 - **Channels:** an entry is a plain id (legacy) or `{id, name, mode: task|chat, locations?}`.
 - **Memory layer:** `workspaces/<ws>/locations/<name>/MEMORY.md`, memory source `location`.
 

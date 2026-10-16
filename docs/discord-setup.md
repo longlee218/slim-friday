@@ -1,10 +1,10 @@
 # Discord Setup Guide
 
-Last updated: 2026-10-12 (Rev 15). Architecture: [system-architecture.md](system-architecture.md). Roadmap: [development-roadmap.md](development-roadmap.md).
+Last updated: 2026-10-16 (Drizzle baseline, slash-only commands). Architecture: [system-architecture.md](system-architecture.md). Roadmap: [development-roadmap.md](development-roadmap.md).
 
 ## Prerequisites
 - Discord account with admin access to a private test server
-- `claude setup-token` completed (OAuth token for Claude auth), or an OpenRouter key
+- `claude setup-token` completed (OAuth token for Claude auth; Anthropic is the only LLM provider)
 - `.env` in the project root (copy from `.env.example`)
 - `gh` CLI logged in (`gh auth login`) and `git` configured for the owner: the dev agent commits, pushes and opens PRs with them
 
@@ -37,14 +37,10 @@ CLAUDE_CODE_OAUTH_TOKEN=<from_claude_setup_token>
 AGENT_HOME=/absolute/path/to/agent-home   # real dir outside every location, e.g. /Users/<you>/.friday
 LOG_LEVEL=info
 # Optional:
-# OPENROUTER_API_KEY=<key>            # use OpenRouter instead of Anthropic
-# LLM_PROVIDER=openrouter             # force a provider when both credentials are set
-# MODEL_DEV=sonnet                    # pin the dev role's model (MODEL_<ROLE>)
-# BUDGET_DEV_USD=4.5                  # run budget of the dev role
+# BUDGET_DEVELOPER_USD=4.5            # run budget of the developer role (BUDGET_<ROLE>_USD)
 ```
 - Full variable list: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-variables-and-limits).
-- Removed: `MODEL`, `MODEL_<ROLE>_<STAGE>`, `MAX_CONCURRENT_RUNS`, `MAX_TURNS`, `GIT_AUTHOR`. A set value is ignored and warned at start.
-- On OpenRouter the dev role uses `anthropic/claude-haiku-4.5` by default (the approval question flow needs a Claude model).
+- Removed: `MODEL`, `MODEL_<ROLE>_<STAGE>`, `MAX_CONCURRENT_RUNS`, `MAX_TURNS`, `GIT_AUTHOR`, the OpenRouter variables. A set value is ignored and warned at start.
 
 ### Link a channel to a workspace
 Each Discord channel maps to exactly one workspace; the bot refuses messages from unmapped channels.
@@ -52,8 +48,7 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
 2. Add it to `$AGENT_HOME/workspaces/<ws>/workspace.yaml`:
    ```yaml
    channels:
-     - "123456789012345678"           # plain id (legacy): channel <ws>-agent, then <ws>-agent-2, -3... for further plain ids
-     - id: "234567890123456789"       # object form
+     - id: "234567890123456789"       # quoted id (plain ids are no longer accepted)
        name: "<ws>-notes"             # lowercase letters, digits, hyphens; unique in the space; names the memory dir
        mode: task                     # task | chat (chat: the owner writes without @Friday, answers come inline in the channel, no threads; topic synced on start: only an empty or bot-made topic is replaced, an owner-edited one is kept)
        locations: [app]               # optional subset of the space's locations
@@ -61,7 +56,7 @@ Each Discord channel maps to exactly one workspace; the bot refuses messages fro
    - `locations`: absent = every location of the space; present = exactly the listed known names. Unknown names warn (`channel.unknown_location`) and are ignored. `locations: []` or all-unknown = no location: the run works in the workspace `cwd/`.
    - An invalid `name` drops that entry. A `name` used again in the same space: the first entry is kept, later ones are dropped (warn `channel.bad_name`).
    - Prefer `/init-channel` for new channels: it creates the Discord channel and writes this entry for you.
-   - Risk: renaming the channel in Discord is safe. The yaml `name` is the key and memory stays under `channels/<name>/`; only the display changes. Rewriting `workspace.yaml` (by `/init-channel` or `migrate:locations`) drops its comments; unrelated keys are kept.
+   - Risk: renaming the channel in Discord is safe. The yaml `name` is the key and memory stays under `channels/<name>/`; only the display changes. Rewriting `workspace.yaml` (by `/init-channel`) drops its comments; unrelated keys are kept.
 3. Set `DISCORD_GUILD_ID` in `.env` and restart (startup refuses without it once a workspace has `channels`).
 - A channel id listed by two workspaces is dropped from both (warning `channel.duplicate`).
 - The guild pin is read at startup only: adding the first `channels:` or changing `DISCORD_GUILD_ID` needs a restart.
@@ -109,14 +104,14 @@ controlChannels:   # default: [ops.control]
 
 ## Native slash commands
 - On every start the bot overwrites its application commands (`src/commands/slash-definitions.ts`): guild commands when `DISCORD_GUILD_ID` is set (instant), else global (can take up to an hour).
-- The picker lists: `/stop`, `/status` (phase 1f: the running task or the waiting one, no model call; re-register by restarting the bot), `/find <keywords>` (phase 1d: threads of this space whose title or digest has every keyword, no model call; re-register by restarting the bot), `/go [usd]`, `/remember <text>`, `/forget <text>`, `/compact [dry-run]`, `/init-workspace <name>`, `/init-channel <space>/<name>`.
+- The picker lists: `/stop`, `/status` (the running task or the waiting one, no model call), `/purge` (empties the trash of this thread's goals, asks yes/no), `/find <keywords>` (threads of this space whose title or digest has every keyword, no model call), `/init-workspace <name>`, `/init-channel <space>/<name>`.
 - `/cleanup` is removed. The picker is replaced at the next start; old entries may linger until then.
 - A pick runs as the owner's `/name arg` message through the same gates. A non-owner gets "Not allowed."
 - A failed registration is logged (`slash command registration failed`) and does not block startup.
 - Not live-tested: the picker behavior in Discord and whether a slash in a channel opens a thread correctly.
 
 ## Add a workspace: `/init-workspace <name>`
-Type in `#ops-control` (no mention needed). Legacy form: `init:workspace:<name>`.
+Type in `#ops-control` (no mention needed).
 - Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops` or a publisher skill name (reserved).
 - Gate: you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else: not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
 - Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `locations/`, `cwd/`, `skills/`, `MEMORY.md`, persona stubs). (2) private category `<name>` and `#<name>-agent`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
@@ -124,7 +119,7 @@ Type in `#ops-control` (no mention needed). Legacy form: `init:workspace:<name>`
 - No turn row, no agent. Logs `admin.init_workspace`.
 
 ## Add a channel: `/init-channel <space>/<name>`
-Type in `#ops-control`. Legacy form: `init:channel:<space>/<name>`. One string argument (`path`).
+Type in `#ops-control`. One string argument (`path`).
 - Names: `<name>` lowercase letters, digits, hyphens; 1-64 chars; not an ops channel name (reserved). `<space>` must be a set-up workspace.
 - Gate: same as `/init-workspace` (owner, pinned guild, control channel, private now). Typed elsewhere: refused, not sent to the agent.
 - Refused with no side effect: space missing or not set up; `<name>` already in the space's `channels:`; `#<name>` already in the space's category ("rename or delete it by hand").
@@ -168,6 +163,32 @@ Type in `#ops-control`. Legacy form: `init:channel:<space>/<name>`. One string a
 
 **Important:** never commit `.env` with real values. `.env.example` has placeholders only.
 
+## First start and reset
+The store is one SQLite file, `<AGENT_HOME>/data/agent.db`, built from the Drizzle baseline (`src/storage/migrations/`). There is no upgrade path from older versions and no backup: an older database is refused, so the owner starts over.
+
+### Reset (once, before the first start on this build)
+1. Stop the bot: `launchctl bootout gui/$(id -u)/com.friday.agent`, or stop `bun run start`. `pgrep -f src/index.ts` prints nothing.
+2. Check `echo "$AGENT_HOME"` (a real directory outside every location), then delete it: `rm -rf "$AGENT_HOME"`. This removes `data/agent.db` with its `-wal` and `-shm`, the workspaces, memory, logs and `discord.yaml`. Nothing is carried over: copy by hand anything you want to keep first.
+3. Start: `bun run start`, or `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.friday.agent.plist`.
+
+### What the first start creates
+- `data/agent.db` in WAL mode, owner-only, with every table, the FTS5 `memory_fts` index and Drizzle's `__drizzle_migrations` log. A later start on the same db is a no-op.
+- The slash commands, re-registered (overwritten) on every start: see [Native slash commands](#native-slash-commands).
+- Without `discord.yaml` there are no ops channels and no admin commands. Run `bun run bootstrap:discord` (it refuses names that already exist: rename or delete the old channels by hand first), then `/init-workspace` again.
+
+### The refusal
+- Start prints `database <file> is not a Friday baseline database: stop the bot, delete it and <AGENT_HOME> (see docs/discord-setup.md) and start again`.
+- Meaning: the db has tables but no `__drizzle_migrations`. It was made by an older build or is a foreign file. Nothing is migrated. Do the reset above.
+
+### Still not verified live (owner steps)
+- [ ] Worker shell sandbox (Seatbelt): one worker runs `bun test`; `cat ~/.claude/settings.json`, `ls ~/.ssh` and a write outside its granted dirs all fail.
+- [ ] `CreatePullRequest` opens a PR with your real `gh` login; `GitPush` pushes to a real remote.
+- [ ] `DeletePaths` on a location on another volume (copy, then remove; slow for large trees).
+- [ ] `/purge` asks one yes/no question and empties the trash; `"No"` keeps it.
+- [ ] Live smoke, real token: `CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/live-agent.smoke.test.ts`.
+- [ ] Lead golden set, paid, report not a gate: `LEAD_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/lead-golden.eval.test.ts` (`LEAD_EVAL_MIN`, default 0.8).
+- [ ] `bun run metrics:lead [--days N]` against the real db (read-only; the bot may run).
+
 ## Start the bot
 ```bash
 bun run start
@@ -192,7 +213,7 @@ Another Discord user posts in the channel or thread. Expected: no reply.
 Ask for a secret in a location file. Expected: the reply masks the value.
 
 ### Test 5: Stop
-While a long answer runs: `/stop` (or `stop`). Expected: the run stops and the reply confirms. Queued tasks of the thread are kept.
+While a long answer runs: `/stop`. Expected: the run stops and the reply confirms. Queued tasks of the thread are kept.
 
 ### Test 6: Dev task
 ```
@@ -227,30 +248,27 @@ Expected: the guard denies the command at once, before any approval question. Th
 ### Test 8: Busy limit
 Long runs in several threads at once. The run limiter allows `MAX_CONCURRENT_RUNS` (30, constant) runs; a thread whose run holds it answers from the busy-thread path.
 
-## Command grammar (thread scoped)
-Canonical forms are slash commands. Legacy text forms keep working this release.
+## Commands (slash only)
+Text forms (`stop`, `go`, `init:workspace:`, `remember:`, `compact memory`, ...) and the Resume button are gone.
 
-| Message (canonical) | Legacy form | Effect |
+| Command | Where | Effect |
 |---|---|---|
-| `/stop` | `stop` | stop the run of this thread; queued tasks are kept |
-| `/go` | `go` | start this thread's pending proposal (after a restart: "Proposal not started; reply `go`"), else resume an interrupted or failed-resumable task. With nothing to resume it is an ordinary message |
-| `/go +<usd>` | `go +<usd>` | resume with `<usd>` more budget, e.g. `/go +1.5` (must be > 0). Budget stops offer this; the task ceiling (6.0 USD over all resumes) still applies |
-| `/remember [scope] <text>`, `/forget [scope] <text>`, `/compact [dry-run]` | `remember:` / `nhớ:`, `forget:` / `quên:`, `compact memory` / `gom nén` | owner memory (see Memory) |
-| `/init-workspace <name>` (ops control channel only) | `init:workspace:<name>` | create the workspace, private category and `#<name>-agent` |
-| `/init-channel <space>/<name>` (ops control channel only) | `init:channel:<space>/<name>` | add a private `#<name>` to the space's category (see Add a channel) |
-| Any other text (ops control channel only) | - | the server manager (see Server manager); `stop` aborts its run |
-| `[dev]` / `[ask]` at the very start of the message | - | force the role (dev: works in its location; ask: read-only answer). Case-insensitive; the tag is removed from the request. A tag anywhere else, or a plain word like "dev", does nothing |
-| `location:<name>` prefix | `repo:<name>` (alias) | pins the thread to a location of the workspace |
+| `/stop` | owner's thread or channel | stop the run; queued tasks are kept |
+| `/status` | owner's thread or channel | what the running or waiting task is doing; no model call |
+| `/purge` | owner's thread or channel | asks yes/no, then empties the trash of this thread's goals |
+| `/find <keywords>` | space channel | lists threads of the space by title or digest |
+| `/init-workspace <name>` | `#ops-control` only | create the workspace, private category and `#<name>-agent` |
+| `/init-channel <space>/<name>` | `#ops-control` only | add a private `#<name>` to the space's category (see Add a channel) |
 
-- Without a tag, one small Haiku call reads your message with the last 4 messages of the thread and picks the role. There are no word lists.
-- A natural reply to a pending yes/no question is read by the same call: `yes` starts the task, `no` makes the assistant answer your message.
-- Buttons of a dead process answer "This action expired." The Resume button keeps working after a restart.
+- Non-command text in `#ops-control` goes to the server manager (see above).
+- Other text in a thread is a request to the lead; no tags or keywords are needed.
+- Buttons of a dead process answer "This action expired."
 
 ### Attachments
 A message over 2000 chars arrives as `message.txt`. The bot reads text attachments (`.txt`, `.md`, `text/*`; at most 2 files, 64 KB total) as data. A short file is passed whole. A longer one is summarized; the full redacted text is saved under `$AGENT_HOME/tmp/attachments/<thread id>/` for the assistant. Other types, oversize files and failed downloads get a one-line notice.
 
 ### Deploy: drain
-Set `FRIDAY_DRAIN=1` or `touch $AGENT_HOME/DRAIN` before a deploy. New tasks get "deploying, retry in a minute"; running tasks finish. Restart, then remove the flag. Tasks still running at restart become `interrupted` and get a Resume button.
+Set `FRIDAY_DRAIN=1` or `touch $AGENT_HOME/DRAIN` before a deploy. New tasks get "deploying, retry in a minute"; running tasks finish. Restart, then remove the flag. Tasks still running at restart are cut short; the owner is told, and a new request starts them again.
 
 ## Dev task setup
 
@@ -270,7 +288,6 @@ locations:
 - A path that is missing, not a directory, or is or contains `$HOME` / `AGENT_HOME`, or is inside `AGENT_HOME` (outside that workspace's `locations/`), is skipped with a warning. The other locations still load.
 - No `access`, `testCommand`, `defaultBranch`, `githubAccount` or `gitAuthor`. Writes follow the dev role's capability; the agent uses your git config and gh login.
 - A workspace with no location works in `workspaces/<ws>/cwd/`.
-- Upgrading from `repos/<name>/repo.yaml`: run `bun run migrate:locations` ([owner checklist v7](owner-checklist-schema-v7.md)). Until then the bot refuses that workspace and says so.
 
 ### Workspace skills
 - Friday never loads a location's `.claude/skills`. Put skills in the workspace dir; every run of that workspace gets them:
@@ -298,18 +315,14 @@ locations:
 - Commits and pushes feature branches as the owner. `git push --force`, direct pushes to `main` or `master`, `gh repo delete` and `gh api` DELETE are refused by the shell guard.
 - Opens the PR and merges only after the owner chose it (AskUserQuestion).
 - A reply or a new `[dev]` message after a run is a NEW task.
-- If a run fails after work (budget, transient error), the task is kept as resumable. `/go` continues the same session; a budget stop needs `/go +<usd>`.
-- The per-run budget is 4.5 USD; the task ceiling for all its resumes is 6.0 USD.
+- The per-run budget is 4.5 USD (`BUDGET_DEVELOPER_USD`). Resume and `/go +<usd>` are gone: a run that stops is ended, and a new request starts a new task.
 - No run timeout exists. Stop a run with `/stop`.
 
 ### Known limits
 - Two dev tasks in one location share one working tree.
-- Old pre-Rev 15 clone directories under `workspaces/<ws>/repos/<name>/worktrees/` (or `locations/<name>/worktrees/` after the v7 move) are never removed by the app. Delete them by hand when sure.
-- A task that was waiting at the old "Create PR" or result button before Rev 15 is not resumed by the app: its saved session ran in an old clone directory, which is not a registered location, so Resume and `/go` are refused (`cannot_resume`). Check the work in the old clone by hand, then start a new request.
+- Clone directories under `locations/<name>/worktrees/` are never removed by the app. Delete them by hand when sure.
 
 ## Troubleshooting
-
-After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v4.md).
 
 | Symptom | Cause | Fix |
 |---|---|---|
@@ -317,7 +330,6 @@ After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v
 | Messages refused in a thread (`wrong_workspace`) | The thread's location is not in the channel's workspace | Re-link the channel, or start a new thread |
 | Bot ignores every message (`other_guild`) | `DISCORD_GUILD_ID` is not this server | Fix `DISCORD_GUILD_ID` in `.env`, restart |
 | Bot exits at start: "DISCORD_GUILD_ID required" | A workspace lists `channels` but no guild is pinned | Set `DISCORD_GUILD_ID` |
-| "Workspace <ws> still uses repos/. Stop the bot and run `bun run migrate:locations`." (`needs_migration`) | The workspace still has `repos/<name>/repo.yaml` (pre-v7 layout) | Stop the bot, run the migration: [owner checklist v7](owner-checklist-schema-v7.md) |
 | Bot exits at start naming `discord.yaml` | Invalid YAML or a bad id | Fix or delete `$AGENT_HOME/discord.yaml` (fail closed) |
 | "Admin commands run only in #ops-control." | `/init-workspace` typed elsewhere | Type it in `#ops-control` |
 | "This control channel is not private" | Extra overwrites on the control channel | Leave only @everyone (denied), the owner and the bot |
@@ -330,13 +342,12 @@ After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v
 | Error replies, no answer | `CLAUDE_CODE_OAUTH_TOKEN` invalid or unset | Run `claude setup-token`, set the variable |
 | "still working..." on every message | A run holds the thread | Wait, or `/stop` |
 | Run never ends | No run timeout exists | `/stop` |
-| Plan question "Awaiting clarification" | No answer in 10 min | `/go` continues the task; a typed reply starts a new one |
+| Plan question "Awaiting clarification" | No answer in 10 min | Ask again in a new message, or `/stop` |
 | "This action expired." on a button | The bot restarted after the message (clicks are in memory) | Nothing ran. Send the request again |
 | Hard deny message on a legit command | The deny list matched (best-effort parser) | Rewrite as simple commands, or run it yourself |
 | `gh` not authenticated | No `gh auth login` | Run `gh auth login` |
 | Startup: "AGENT_HOME is inside a registered location" or "inside a git working tree" | `AGENT_HOME` sits in a location or a git working tree | Point `AGENT_HOME` at a real dir outside every location and git working tree |
-| Startup: "db snapshot failed" | `db-backups/` not writable or disk full; nothing migrated | Fix the dir or space, start again |
-| Old DB after an upgrade | Schema v2 → v3 writes `db-backups/friday-v2-<ts>.db`; v3 → v4 writes no backup. An older binary cannot open v3 or v4 | Stop the bot, restore the backup over `data/agent.db`, delete `-wal` and `-shm`. Steps: [owner-checklist-schema-v3.md](owner-checklist-schema-v3.md) |
+| Startup: "is not a Friday baseline database" | The db was made by an older build (no `__drizzle_migrations`) | Reset: see [First start and reset](#first-start-and-reset) |
 | Log level too high | Missing detail | Set `LOG_LEVEL=debug` in `.env` |
 
 ## Logs
@@ -364,17 +375,7 @@ After an upgrade, follow [owner-checklist-schema-v4.md](owner-checklist-schema-v
 - `[global]` bullets (max 2) go to `$AGENT_HOME/MEMORY.pending.md`. **Never injected.** Copy trusted facts into `MEMORY.md` by hand.
 - The agent never writes the root `MEMORY.md`.
 
-**Owner commands** (type in `#<ws>-agent` or its threads; in `#ops-control` global only; you only, pinned guild):
-
-| Command | Effect |
-|---|---|
-| `remember: <text>` / `nhớ: <text>` | a plain message to the agent, which saves the note and picks the scope (location, channel, workspace or global) |
-| `forget: [scope] <text>` / `quên: ...` | removes the one bullet containing `<text>`; scope `channel` (Vietnamese `kenh`, `kênh`) = this channel's file; none = not found; several = nothing changes |
-| `compact memory [dry-run]` / `gom nén [dry-run]` | compacts files above 80% of their cap |
-
-- At 300 lines the write is refused (`file full`). Run `compact memory` first.
-
-**Compaction:** `compact memory` in chat, or `bun run memory:compact [--dry-run] [--workspace <ws>] [--global]`. One cheap model call per file above 80% of its cap (`MEMORY_MODEL`). Run `--dry-run` first. The previous version is kept as `MEMORY.md.bak`. Output is checked: bullets only, within the cap, same numbers and negations as the input, else the file is left untouched. `MEMORY.pending.md` is never touched. A `dry-run` still calls the model (only for files over 80%).
+- At 300 lines the write is refused (`file full`). There is no owner command or script to compact memory: edit the file by hand.
 
 **Files the bot never creates:** `CLAUDE.md` and `CLAUDE.local.md`. The SDK loads no CLAUDE.md. Put the facts an agent needs in the location's `description` and its `MEMORY.md`.
 
@@ -391,7 +392,6 @@ tail -f ~/.friday/logs/launchd.err.log ~/.friday/logs/launchd.out.log
 - Settings come from `.env` in the repo root (bun loads it from the working directory).
 - Mac sleep pauses the bot; it reconnects on wake.
 - Never run two instances: stop `bun run start` before `launchctl bootstrap`.
-- After a restart, threads whose task was cut short get a **Resume** button.
 
 ## Next steps
 - Open items and phases: [development-roadmap.md](development-roadmap.md).
