@@ -63,7 +63,7 @@ test("lead with several locations uses the neutral cwd and lists no CLAUDE.md hi
     writeFileSync(join(b, "CLAUDE.md"), "rules");
   });
   expect(opts.cwd).toBe(workspacePaths(env.home).workspace("main").cwd);
-  const prompt = opts.systemPrompt.append as string;
+  const prompt = JSON.stringify(opts.systemPrompt);
   expect(prompt).not.toContain("CLAUDE.md");
   expect(prompt).not.toContain("first]");
   expect(opts.settingSources).toEqual([]);

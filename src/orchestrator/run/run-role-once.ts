@@ -28,6 +28,9 @@ interface OnceParts {
   ctl: ReturnType<typeof askTimeoutControl>;
 }
 
+/** The supervisor's note of a re-run (already labelled "Internal note") as a prompt head; "" when there is none. */
+const rerunNote = (hint?: string): string => (hint ? `${hint}\n\n` : "");
+
 /**
  * The function that makes ONE agent call of the run (the first run, or the supervisor's single recovery re-run with a
  * `Route` hint and a resume id): prompt, tools, guard, extra context and the owner's buttons all come from the role
@@ -40,8 +43,11 @@ export function agentRunOnce(p: OnceParts) {
     const route = i.route || r ? { ...i.route, ...r } : undefined;
     return runAgent({
       role,
-      // The owner's text (behind the fresh-session prefix; a resume or re-run adds none); internal notes go to extraContext.
-      prompt: resumeId ? i.text : withPrefix(prefix, i.text),
+      // The owner's text (behind the fresh-session prefix; a resume or re-run adds none). The supervisor's re-run note
+      // heads the prompt: it is about this attempt, so it belongs in the turn, not in the role's standing system prompt.
+      prompt: `${rerunNote(route?.internalHint)}${
+        resumeId ? i.text : withPrefix(prefix, i.text, role.kind !== "lead")
+      }`,
       steer: role.streaming ? deps.steer?.hook(i.threadId) : undefined,
       turnId: i.turnId,
       cwd: s.cwd,
@@ -84,7 +90,6 @@ export function agentRunOnce(p: OnceParts) {
         i,
         s,
         role,
-        route,
         hasTitlePort: !!titlePort && !!role.mcpTools?.includes(SET_THREAD_TITLE_TOOL),
       }),
       appCtx: i.appCtx,

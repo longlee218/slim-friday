@@ -9,10 +9,10 @@ import {
   DEVELOPER_SHELL_RULES,
 } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
-import { buildSystemPrompt } from "../src/runtime/system-prompt";
+import { buildSystemPrompt, systemPromptText } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
-const rules = (role: typeof DEVELOPER_ROLE) => buildSystemPrompt("", role).append;
+const rules = (role: typeof DEVELOPER_ROLE) => systemPromptText(buildSystemPrompt("", role));
 /** Run contract budget per section (prompt-standard.md), before interpolation of context. */
 const SECTION_BUDGET = 1200;
 

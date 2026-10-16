@@ -1,9 +1,7 @@
+import { MAX_RUNNING_PER_THREAD } from "../../config/lead-caps";
 import type { ItemRow } from "../../storage/owned-item-store";
 
 /* Pure part of the dispatch scheduler: which ready items of a goal may start now. No I/O, same input = same pick. */
-
-/** Most items of one thread running at once. */
-export const MAX_RUNNING_PER_THREAD = 2;
 
 /** What the scheduler needs to know about a role (data of the role registry, injected so this stays pure). */
 export interface RoleCaps {

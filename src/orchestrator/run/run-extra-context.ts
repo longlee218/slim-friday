@@ -1,6 +1,5 @@
 import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
-import type { Route } from "../../config/model-routing";
 import { buildLocationsContext } from "../../locations/location-registry";
 import { buildPersonaContext } from "../../memory/persona";
 import { buildPromptContext } from "../../memory/prompt-context";
@@ -10,9 +9,10 @@ import type { RoleRunInput } from "./role-run-types";
 import type { RoleScope } from "./role-scope-types";
 
 /**
- * The extra prompt context of a role run: persona, locations registry, memory and task ledger of its workspace, then
- * the router's internal hint and the thread-title note. A run with no workspace (the control channel) gets the root
- * persona files only: no memory layers, no locations, no ledger.
+ * The extra prompt context of a role run (after the role's rules and COMMON):
+ * - lead: AGENTS, TEAM, IDENTITY, SOUL, USER, memory (root, workspace, channel), then the thread-title note;
+ * - worker: locations registry, its locations' memory, task ledger (no persona: the lead speaks to the owner);
+ * - no workspace (the control channel): the root persona files only.
  */
 export function runExtraContext(p: {
   db: Database;
@@ -20,26 +20,21 @@ export function runExtraContext(p: {
   i: RoleRunInput;
   s: RoleScope;
   role: RoleDefinition;
-  route?: Route;
   /** The run can rename its thread (the `SetThreadTitle` tool is registered). */
   hasTitlePort: boolean;
 }): string[] {
-  const { db, config, i, s, role, route } = p;
-  const hint = route?.internalHint
-    ? [`Internal note (not from the owner):\n${route.internalHint}`]
-    : [];
+  const { db, config, i, s, role } = p;
   if (i.workspace === undefined)
-    return [buildPersonaContext(config.agentHome).text, ...hint].filter(Boolean);
+    return [buildPersonaContext(config.agentHome).text].filter(Boolean);
+  const worker = role.kind === "worker";
   return buildPromptContext({
     agentHome: config.agentHome,
     workspace: i.workspace,
     channel: i.channel,
-    // A worker role always sees its location(s) with their test command; a pinned non-worker role needs no list.
-    registry:
-      i.pinned && role.kind !== "worker"
-        ? ""
-        : buildLocationsContext(i.workspace, s.scope, role.kind === "worker"),
+    kind: worker ? "worker" : "lead",
+    team: i.team,
+    registry: worker ? buildLocationsContext(i.workspace, s.scope, true) : "",
     memoryLocations: s.scope.map((r) => r.name),
     ledger: i.ledger,
-  }).concat(hint, threadTitleNote(db, i.threadId, p.hasTitlePort), i.extraSystem ?? []);
+  }).concat(threadTitleNote(db, i.threadId, p.hasTitlePort));
 }

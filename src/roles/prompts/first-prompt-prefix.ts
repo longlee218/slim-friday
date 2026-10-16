@@ -36,6 +36,9 @@ export function firstPromptPrefix(db: Database, i: FirstPromptInput, seedAllowed
 /** Closing line between the DATA blocks of the prefix and the owner's own text. */
 export const OWNER_MESSAGE_LABEL = "Owner message:";
 
-/** The prompt of a run: the owner's text, behind the one-time prefix when there is one. Never stored anywhere else. */
-export const withPrefix = (prefix: string, text: string): string =>
-  prefix ? `${prefix}\n\n${OWNER_MESSAGE_LABEL}\n${text}` : text;
+/**
+ * The prompt of a run: the owner's text, behind the one-time prefix when there is one. Never stored anywhere else.
+ * `label` false = the text already carries its own `Owner message:` line (the lead's input), so none is added.
+ */
+export const withPrefix = (prefix: string, text: string, label = true): string =>
+  prefix ? `${prefix}\n\n${label ? `${OWNER_MESSAGE_LABEL}\n` : ""}${text}` : text;

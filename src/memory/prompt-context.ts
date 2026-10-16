@@ -12,7 +12,14 @@ export interface PromptContextInput {
   workspace: string;
   /** Channel (yaml `name`) the run started in: its persona files and memory sit between the workspace's and the locations'. */
   channel?: string;
-  /** Registry block (qa unpinned, plan). */
+  /**
+   * `lead`: persona (AGENTS, TEAM, IDENTITY, SOUL, USER) and the shared memory (root, workspace, channel).
+   * `worker`: no persona and no shared memory; the registry, its locations' memory and the ledger only.
+   */
+  kind: "lead" | "worker";
+  /** The lead's TEAM.md (roster, locations, how to delegate), placed after AGENTS.md. */
+  team?: string;
+  /** Registry block of a worker: its locations with their test command. */
   registry?: string;
   /** Locations (of `workspace`) whose memory is added after the root and workspace memory. */
   memoryLocations: string[];
@@ -22,18 +29,22 @@ export interface PromptContextInput {
 
 /**
  * The one place that orders the prompt context of a run:
- * AGENTS, IDENTITY, SOUL, USER -> registry -> memory (root, workspace, channel, locations) -> earlier-steps block (worker).
+ * lead: AGENTS, TEAM, IDENTITY, SOUL, USER -> memory (root, workspace, channel, locations);
+ * worker: registry -> memory (its locations) -> earlier-steps block.
  * No location CLAUDE.md anywhere: the SDK loads no settings (settingSources []) and nothing here injects one.
  * Logs one `prompt.context` event with the chars of each layer (counts only, never content).
  * BOOTSTRAP.md is an owner guide and is never injected.
  */
 export function buildPromptContext(i: PromptContextInput): string[] {
-  const persona = buildPersonaContext(i.agentHome, i.workspace, i.channel);
-  const registry = i.registry ?? "";
-  const memory = buildMemoryContext(i.agentHome, i.workspace, i.channel, i.memoryLocations);
-  const ledger = i.ledger ?? "";
+  const lead = i.kind === "lead";
+  const persona = lead
+    ? buildPersonaContext(i.agentHome, i.workspace, i.channel, i.team)
+    : { text: "", truncated: false };
+  const registry = lead ? "" : (i.registry ?? "");
+  const memory = buildMemoryContext(i.agentHome, i.workspace, i.channel, i.memoryLocations, lead);
+  const ledger = lead ? "" : (i.ledger ?? "");
   const blocks = [persona.text, registry, memory, ledger];
-  const layers = readMemoryLayers(i.agentHome, i.workspace, i.channel, i.memoryLocations);
+  const layers = readMemoryLayers(i.agentHome, i.workspace, i.channel, i.memoryLocations, lead);
   // Silent truncation made visible: layers cut at read, locations skipped by the locations total (names only).
   if (layers.overCap.length) logEvent(log, "memory.truncated", { files: layers.overCap }, "warn");
   if (layers.skippedLocations.length)

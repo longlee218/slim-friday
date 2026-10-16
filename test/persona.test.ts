@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { buildPersonaContext, ensureHome } from "../src/memory/persona";
+import { buildPersonaContext, cutMiddle, ensureHome } from "../src/memory/persona";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { addLocation, clearWorkspaces, makeEnv } from "./helpers";
 
@@ -87,29 +87,30 @@ test("persona: workspace files replace root per file; templates and comments inj
   expect(en).toContain("Concise, direct"); // empty workspace SOUL -> root SOUL
 });
 
-test("persona: order is AGENTS, IDENTITY, SOUL, USER; a file over 6000 chars is cut and flagged", () => {
+test("persona: order is AGENTS, IDENTITY, SOUL, USER; a file over 8000 chars is cut in the middle and flagged", () => {
   const env = makeEnv();
   ensureHome(env.home, []);
   const p = workspacePaths(env.home);
   writeFileSync(p.agents, "# Agents\n- AGENTS_MARK\n");
-  writeFileSync(p.user, `# User\n- USER_MARK\n${"x".repeat(7000)}`);
+  writeFileSync(p.user, `# User\n- USER_MARK\n${"x\n".repeat(5000)}- USER_TAIL\n`);
   const r = buildPersonaContext(env.home);
   const at = (m: string) => r.text.indexOf(m);
   expect(at("AGENTS_MARK")).toBeLessThan(at("Name: Friday"));
   expect(at("Name: Friday")).toBeLessThan(at("# Soul"));
   expect(at("# Soul")).toBeLessThan(at("USER_MARK"));
-  // Legend declares the order, then one `## <FILE>.md` heading per file in the same order.
-  expect(r.text.startsWith("# Project Context")).toBe(true);
+  // No legend: one `## <FILE>.md` heading per file in the order.
+  expect(r.text.startsWith("## AGENTS.md")).toBe(true);
   const heads = ["## AGENTS.md", "## IDENTITY.md", "## SOUL.md", "## USER.md"].map(at);
   expect(heads.every((h) => h >= 0)).toBe(true);
   expect(heads).toEqual([...heads].sort((a, b) => a - b));
-  expect(at("- AGENTS.md:")).toBeLessThan(at("- IDENTITY.md:"));
   expect(r.truncated).toBe(true);
-  expect(r.text).toContain("(truncated)");
+  expect(r.text).toContain("chars cut from the middle of USER.md; keep it shorter");
+  expect(r.text).toContain("USER_TAIL"); // the tail is kept
+
   expect(buildPersonaContext(env.home).text).not.toContain("BOOTSTRAP");
 });
 
-test("persona: the legend and headings list only the files that have content", () => {
+test("persona: headings list only the files that have content", () => {
   const env = makeEnv();
   ensureHome(env.home, []);
   const p = workspacePaths(env.home);
@@ -118,9 +119,24 @@ test("persona: the legend and headings list only the files that have content", (
   writeFileSync(p.user, "<!-- nothing -->");
   writeFileSync(p.agents, "# Agents\n"); // an emptied AGENTS.md (the default one carries the commit rule)
   const { text } = buildPersonaContext(env.home);
-  expect(text).toContain("- SOUL.md:");
   expect(text).toContain("## SOUL.md");
   for (const f of ["AGENTS.md", "IDENTITY.md", "USER.md"]) expect(text).not.toContain(f);
   writeFileSync(p.soul, "<!-- nothing -->");
   expect(buildPersonaContext(env.home).text).toBe("");
+});
+
+test("cutMiddle: 70% head and 30% tail on line borders, marker in between; short text unchanged", () => {
+  expect(cutMiddle("short", 100, "A.md")).toBe("short");
+  const body = Array.from({ length: 100 }, (_, n) => `line ${n}`).join("\n");
+  const out = cutMiddle(body, 400, "A.md");
+  const [head, tail] = out.split(
+    /\n\[\.\.\. \d+ chars cut from the middle of A\.md; keep it shorter \.\.\.\]\n/,
+  );
+  expect(head?.startsWith("line 0\n")).toBe(true);
+  expect(tail?.endsWith("line 99")).toBe(true);
+  expect(head!.length).toBeLessThanOrEqual(280);
+  expect(tail!.length).toBeLessThanOrEqual(120);
+  expect(head!.endsWith("\n") || tail!.startsWith("\n")).toBe(false); // whole lines on both sides
+  expect(body).toContain(`${head}\n`);
+  expect(body).toContain(`\n${tail}`);
 });

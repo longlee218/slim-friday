@@ -12,6 +12,7 @@ export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
   mcpTools: [...SPECIALIST_BASE.mcpTools],
   name: "humanizer-writer",
+  basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
     "Prose for people: docs, README, release notes, posts, emails; writes or edits documents in a natural voice from the facts in the brief and earlier results.",
   sideEffects: "location",

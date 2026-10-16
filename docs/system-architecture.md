@@ -34,7 +34,7 @@ Discord message
  ├─ commands, no model: /stop, /status, /purge; /find <keywords> (inline)
  └─ every other owner message → lead queue (src/orchestrator/lead/lead-queue.ts)
       debounce 800 ms; one lead run per thread; global run limiter 30
-      lead run (lead/lead-run.ts): LEAD.md + data block + lead tools
+      lead run (lead/lead-run.ts): AGENTS.md + TEAM.md + persona + data block + lead tools
         answers itself | DispatchAgent | RequestPlan → ApprovePlan | TaskStatus | SteerTask
         | CancelTask | AskOwner | ForwardResult | SetThreadTitle
         → detached worker run (developer, scout) or planner run
@@ -57,7 +57,7 @@ Worker run (detached; survives the owner message)
 | Policy | `src/policy/` | guard entry point, deny list, envelope, risk classes, ask policy, subagent limit |
 | Owner approval | `src/owner-approval/` | Discord buttons, owner questions, owner-confirm |
 | Runtime | `src/runtime/` | SDK run (`run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `run-stream.ts`), guard hook, tool permissions, permission mode, worker sandbox, skill plugins |
-| Roles | `src/roles/` | `RoleDefinition` type, registry, `builtin/` role files, `prompts/` (LEAD.md, rollover prompts, first-prompt prefix) |
+| Roles | `src/roles/` | `RoleDefinition` type, registry, `builtin/` role files, `prompts/` (TEAM.md, rollover prompts, first-prompt prefix) |
 | MCP | `src/mcp/` | five in-process servers, tool adapters, per-run server build, guard allow list |
 | Tools | `src/tools/` | SDK built-in tool names (`sdk-tool-names.ts`) and the capability catalog (`tool-catalog.ts`) |
 | Storage | `src/storage/` | Drizzle schema (`schema/`), migrations, stores (`*-store.ts`) |
@@ -76,7 +76,7 @@ Worker run (detached; survives the owner message)
 | Part | Files | Role |
 |---|---|---|
 | Queue | `lead/lead-queue.ts` | per-thread FIFO; debounce 800 ms; cap (oldest dropped); one run per thread |
-| Lead run | `lead/lead-run.ts`, `lead-runtime.ts`, `lead-call.ts`, `lead-io.ts`, `lead-system.ts`, `roles/prompts/lead-md.ts` | one turn row per input; lead tools over the effect port; LEAD.md (roles, strategy, rules) built per run |
+| Lead run | `lead/lead-run.ts`, `lead-runtime.ts`, `lead-call.ts`, `lead-io.ts`, `lead-system.ts`, `roles/prompts/team-md.ts` | one turn row per input; lead tools over the effect port; TEAM.md (members, locations, strategy, limits) built per run |
 | Lead tools | `lead/lead-handlers.ts`, `lead-plan-handlers.ts`, `lead-schemas.ts` | typed actions; handlers check state, caps and compare-and-set |
 | Strategy | `strategy/dispatch-policy.ts`, `strategy/plan-policy.ts`, `config/lead-caps.ts` | ANSWER, DIRECT (one worker), DELEGATE (chain of up to 3), PLAN; `NEEDS_PLAN` refusal for a bigger shape |
 | Dispatch | `worker/dispatch-ready.ts`, `worker/worker-run.ts`, `run/run-turn.ts` (`runTurn("worker")`) | start ready items whose dependencies completed; detached run |
@@ -107,7 +107,7 @@ Worker run (detached; survives the owner message)
 
 - Lead role data: `MAX_ASK` 0, `BUDGET_USD` 0.75, `noSubagents`, `capabilities: read` (no shell, no write).
 - Worker results, planner results and events are DATA in the lead's prompt, never instructions.
-- The lead has no resume tool. "go" or "continue" re-dispatches the role with a self-contained brief (rule in `roles/prompts/lead-md.ts`). The old session is not resumed.
+- The lead has no resume tool. "go" or "continue" re-dispatches the role with a self-contained brief (rule in `roles/prompts/team-md.ts`). The old session is not resumed.
 
 ### Worker and planner tools
 
@@ -320,10 +320,11 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 
 ## Memory and Persona
 - Root files in `$AGENT_HOME`: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md` (persona, owner-written), `MEMORY.md` (owner-written), `BOOTSTRAP.md` (never injected), `MEMORY.pending.md` (review queue of `global` notes; never injected).
-- Persona per file: the first non-empty of channel, space, root (`buildPersonaContext`). Each persona file is read up to 6000 chars.
+- Persona per file: the first non-empty of channel, space, root (`buildPersonaContext`). Each persona file is read up to 8000 chars; a longer one is cut in the middle (70% head, 30% tail, at line borders) with a marker naming the file.
 - Memory caps (chars): root 5000, space 5000, channel 3000, each location 8000, all locations of a space 16000.
 - Writers: `MemorySave` (lead only; 400 chars per note, 20 calls per run). Scopes: `location`, `channel`, `workspace`, `global` (→ `MEMORY.pending.md`), `journal` (→ `memory/<date>.md`). Writes re-index the file at once.
-- Lead prompt: `LEAD.md` + the per-run data block. Worker prompt: role sections, common safety rules, the persona files, and memory layers in order root → space → channel → location.
+- System prompt base (`RoleDefinition.basePrompt`): `custom` (our text alone; the SDK adds only its billing header and one identity line) for the roles that write no code (lead, planner, scout, solution-architect, designer, humanizer-writer, hacker); the SDK `claude_code` preset plus our text for developer, tester, devops, discord-manager. Every run sets `settings` `autoMemoryEnabled: false`, `includeGitInstructions: false`, `attribution` empty (no SDK file memory, no Co-Authored-By reminder). Platform, shell and OS come from the SDK's own environment block.
+- Order (`buildSystemPrompt` + `runExtraContext`): role contract, COMMON safety, then per kind. Lead: `## AGENTS.md`, `## TEAM.md` (built per run: members, the channel's locations, strategy, limits), `## IDENTITY.md`, `## SOUL.md`, `## USER.md`, memory (root, space, channel), thread-title note. Worker: locations registry, its locations' memory, task ledger (no persona, no root/space/channel memory). Control (`discord-manager`, no space): root persona files. The user prompt carries the rollover seed and channel digest (fresh session), the lead's data block and the owner message; a supervisor re-run gets its internal note at the head of its prompt (a resumed session keeps its first system prompt).
 - Channel memory (`channels/<name>/MEMORY.md`) is read only by runs in that channel.
 - The app never reads or creates `CLAUDE.md` or `CLAUDE.local.md`.
 
@@ -477,7 +478,7 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 | Rename timeout | 5 s | `src/ingress/thread-rename.ts` |
 | `MEMORY_SAVE_MAX_CALLS_PER_RUN` / note size | 20 / 400 chars | `src/mcp/memory/tools/MemorySaveTool/constants.ts`, `src/memory/memory-limits.ts` |
 | Memory caps | root 5000, space 5000, channel 3000, location 8000, all locations 16000 | `src/memory/location-memory.ts` |
-| `PERSONA_MAX` | 6000 chars | `src/memory/persona.ts` |
+| `PERSONA_MAX` | 8000 chars | `src/memory/persona.ts` |
 | `WriteSpaceFile` limits | content 6000, diff 16000, backups 10 | `src/mcp/discord-admin/tools/WriteSpaceFileTool/constants.ts` |
 | Compaction window / share | 1,000,000 tokens / 75% | `src/runtime/sdk-env.ts` |
 | Control session age | 24 h | `src/discord-setup/control-role-run.ts` |

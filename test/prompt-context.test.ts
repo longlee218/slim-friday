@@ -24,23 +24,29 @@ function setup() {
   return { env, p };
 }
 
-test("block order: persona, registry, memory (root, workspace, location); BOOTSTRAP never", () => {
+test("lead order: AGENTS, TEAM, persona, memory (root, workspace, location); no registry, no ledger; BOOTSTRAP never", () => {
   const { env } = setup();
   const logs = captureLogs();
   const out = buildPromptContext({
     agentHome: env.home,
     workspace: "main",
+    kind: "lead",
+    team: "TEAM_MARK",
     registry: "REGISTRY_MARK",
+    ledger: "LEDGER_MARK",
     memoryLocations: ["api"],
   });
   logs.stop();
   const all = out.join("\n\n");
   const at = (m: string) => all.indexOf(m);
-  expect(at("AGENTS_MARK")).toBeLessThan(at("REGISTRY_MARK"));
-  expect(at("REGISTRY_MARK")).toBeLessThan(at("ROOT_MARK"));
+  expect(at("AGENTS_MARK")).toBeLessThan(at("TEAM_MARK"));
+  expect(at("TEAM_MARK")).toBeLessThan(at("ROOT_MARK"));
   expect(at("ROOT_MARK")).toBeLessThan(at("WSLAYER_MARK"));
   expect(at("WSLAYER_MARK")).toBeLessThan(at("LOCATION_MARK"));
+  expect(all).not.toContain("REGISTRY_MARK");
+  expect(all).not.toContain("LEDGER_MARK");
   expect(all).not.toContain("Bootstrap");
+  expect(all).not.toContain("# Project Context"); // no legend
   // One size event, counts only.
   const ev = logs.lines.filter((l) => l.event === "prompt.context");
   expect(ev).toHaveLength(1);
@@ -50,10 +56,33 @@ test("block order: persona, registry, memory (root, workspace, location); BOOTST
   expect(JSON.stringify(ev[0])).not.toContain("AGENTS_MARK");
 });
 
+test("worker: registry, its location memory, ledger; no persona, no root or workspace memory", () => {
+  const { env } = setup();
+  const all = buildPromptContext({
+    agentHome: env.home,
+    workspace: "main",
+    kind: "worker",
+    team: "TEAM_MARK",
+    registry: "REGISTRY_MARK",
+    ledger: "LEDGER_MARK",
+    memoryLocations: ["api"],
+  }).join("\n\n");
+  const at = (m: string) => all.indexOf(m);
+  expect(at("REGISTRY_MARK")).toBeLessThan(at("LOCATION_MARK"));
+  expect(at("LOCATION_MARK")).toBeLessThan(at("LEDGER_MARK"));
+  for (const m of ["AGENTS_MARK", "TEAM_MARK", "ROOT_MARK", "WSLAYER_MARK"])
+    expect(all).not.toContain(m);
+});
+
 test("empty blocks dropped; no CLAUDE.md fields in the size event", () => {
   const { env } = setup();
   const logs = captureLogs();
-  const out = buildPromptContext({ agentHome: env.home, workspace: "main", memoryLocations: [] });
+  const out = buildPromptContext({
+    agentHome: env.home,
+    workspace: "main",
+    kind: "worker",
+    memoryLocations: [],
+  });
   logs.stop();
   expect(out.every(Boolean)).toBe(true);
   const ev = logs.lines.find((l) => l.event === "prompt.context")!;

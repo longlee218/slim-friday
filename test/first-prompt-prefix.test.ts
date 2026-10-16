@@ -122,5 +122,9 @@ test("a recovery re-run that resumes the first session gets no second prefix", a
   ]);
   expect(calls).toHaveLength(2);
   expect(calls[0]?.prompt).toContain(DIGEST_HEADING);
-  expect(calls[1]).toEqual({ prompt: "hard question", resume: "s0" });
+  // The supervisor's note heads the re-run prompt (a resumed session keeps its first system prompt); no digest again.
+  expect(calls[1]?.resume).toBe("s0");
+  expect(calls[1]?.prompt).toStartWith("Internal note (not from the owner): the previous attempt");
+  expect(calls[1]?.prompt).toEndWith("\n\nhard question");
+  expect(calls[1]?.prompt).not.toContain(DIGEST_HEADING);
 });

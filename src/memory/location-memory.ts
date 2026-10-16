@@ -72,12 +72,16 @@ export interface MemoryLayers {
   skippedLocations: string[];
 }
 
-/** Read the layers (root, workspace, channel, locations) for workspace `ws`. Pure: callers log what was cut. */
+/**
+ * Read the layers (root, workspace, channel, locations) for workspace `ws`. `shared` false = locations only (a worker:
+ * the root, workspace and channel notes are the lead's). Pure: callers log what was cut.
+ */
 export function readMemoryLayers(
   agentHome: string,
   ws: string,
   channel: string | undefined,
   locations: string[],
+  shared = true,
 ): MemoryLayers {
   let total = 0;
   const out: MemoryLayers["locations"] = [];
@@ -100,11 +104,12 @@ export function readMemoryLayers(
   }
   const paths = workspacePaths(agentHome);
   return {
-    root: layer("root", paths.memory, ROOT_CHARS),
-    workspace: layer("workspace", paths.workspace(ws).memory, WORKSPACE_CHARS),
-    channel: channel
-      ? layer("channel", channelMemoryFile(agentHome, ws, channel), CHANNEL_CHARS)
-      : "",
+    root: shared ? layer("root", paths.memory, ROOT_CHARS) : "",
+    workspace: shared ? layer("workspace", paths.workspace(ws).memory, WORKSPACE_CHARS) : "",
+    channel:
+      shared && channel
+        ? layer("channel", channelMemoryFile(agentHome, ws, channel), CHANNEL_CHARS)
+        : "",
     locations: out,
     overCap,
     skippedLocations,
@@ -113,15 +118,16 @@ export function readMemoryLayers(
 
 /**
  * Prompt block: `### global` (root), `### workspace <ws>`, `### channel <name>`, then `### <location>` for each location.
- * Empty when there is none.
+ * Empty when there is none. `shared` as in `readMemoryLayers`.
  */
 export function buildMemoryContext(
   agentHome: string,
   ws: string,
   channel: string | undefined,
   locations: string[],
+  shared = true,
 ): string {
-  const l = readMemoryLayers(agentHome, ws, channel, locations);
+  const l = readMemoryLayers(agentHome, ws, channel, locations, shared);
   const parts = [
     l.root && `### global\n${l.root}`,
     l.workspace && `### workspace ${ws}\n${l.workspace}`,

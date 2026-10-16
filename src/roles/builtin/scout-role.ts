@@ -23,6 +23,7 @@ const CONTRACT = `This run is a scout: a read-only research worker dispatched by
  */
 export const SCOUT_ROLE: RoleDefinition = {
   name: "scout",
+  basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
     "Read-only research: where or how something is done in a location, which files touch X, a library's current docs, general or web questions. Changes nothing.",
   kind: "worker",

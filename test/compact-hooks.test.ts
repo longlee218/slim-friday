@@ -262,6 +262,7 @@ test("journal: hook text is never injected into a prompt; the line limit stops a
   const prompt = buildPromptContext({
     agentHome: s.home,
     workspace: "a",
+    kind: "lead",
     registry: "",
     memoryLocations: [],
   });

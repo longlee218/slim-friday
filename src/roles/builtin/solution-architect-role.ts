@@ -12,6 +12,7 @@ export const SOLUTION_ARCHITECT_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
   mcpTools: [...SPECIALIST_BASE.mcpTools],
   name: "solution-architect",
+  basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
     "Design before building: compare approaches, choose one, define components, interfaces, data and risks for a feature or system; reads code and docs, writes no files.",
   sideEffects: "none",

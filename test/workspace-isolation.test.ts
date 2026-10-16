@@ -13,7 +13,12 @@ import { writeLocationNotes } from "./memory-fixture";
 
 /** Full prompt context text of a run in `ws` over location `api`. */
 const promptOf = (home: string, ws: string) =>
-  buildPromptContext({ agentHome: home, workspace: ws, memoryLocations: ["api"] }).join("\n\n");
+  buildPromptContext({
+    agentHome: home,
+    workspace: ws,
+    kind: "lead",
+    memoryLocations: ["api"],
+  }).join("\n\n");
 
 test("same location name in two workspaces: lookups stay inside the workspace", () => {
   const { env, a, b, scan } = twoWorkspaces();

@@ -12,6 +12,7 @@ export const DESIGNER_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
   mcpTools: [...SPECIALIST_BASE.mcpTools],
   name: "designer",
+  basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
     "Design of a user interface or experience: screens, layout, components, copy, states and accessibility; writes design notes or UI files in the location.",
   sideEffects: "location",

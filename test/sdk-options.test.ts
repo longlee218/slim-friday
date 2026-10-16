@@ -78,9 +78,7 @@ function normalize(o: Options, home: string) {
   const json = JSON.stringify(rest, (_k, v) => (typeof v === "function" ? "[fn]" : v), 2)
     .replaceAll(home, "<home>")
     // A plugin copy dir has a random suffix per run.
-    .replace(/plugin-[A-Za-z0-9]+/g, "plugin-<id>")
-    // The OS line of the prompt depends on the machine running the test.
-    .replace(/- Host: [^"\\]*\./, "- Host: <os>.");
+    .replace(/plugin-[A-Za-z0-9]+/g, "plugin-<id>");
   return {
     ...JSON.parse(json),
     cwd: cwd === home ? "<home>" : cwd,

@@ -34,7 +34,7 @@ export type RoleSkills = string[];
 export interface RoleDefinition {
   /** Role name: the registry key and the log `mode` value. */
   name: string;
-  /** Mutually exclusive wording; the lead's LEAD.md, the lead and the planner read it from the registry. */
+  /** Mutually exclusive wording; the lead's TEAM.md, the lead and the planner read it from the registry. */
   whenToUse: string;
   /**
    * What the role is. `worker` = a detached task: its run counts toward the concurrent task cap, takes a start notice,
@@ -46,7 +46,7 @@ export interface RoleDefinition {
   skills?: RoleSkills;
   /** No SDK subagent tools (Agent, SendMessage, ListAgents): not offered and denied by the guard. Lead and workers set it (depth 1). Omitted = allowed. */
   noSubagents?: boolean;
-  /** The lead may dispatch this role as a worker (`DispatchAgent`); LEAD.md lists these roles. Omitted = not dispatchable. */
+  /** The lead may dispatch this role as a worker (`DispatchAgent`); TEAM.md lists these roles. Omitted = not dispatchable. */
   dispatchable?: boolean;
   /**
    * Bare names of the in-process MCP tools the role gets (from each tool's `constants.ts`). A run builds only these,
@@ -78,6 +78,11 @@ export interface RoleDefinition {
   sideEffects: "none" | "location" | "external";
   /** Most runs of this role at once in one thread (the scheduler). Omitted = no limit of its own (the thread cap still applies). */
   concurrency?: number;
+  /**
+   * Base of the role's system prompt: `custom` = our text alone (a role that writes no code: the SDK's coding, terminal and
+   * file-memory guidance would compete with it); omitted = the SDK `claude_code` preset with our text appended (a coding role).
+   */
+  basePrompt?: "custom";
   /** Built-in tools (and the guard's auto-allow list) derive from these. */
   capabilities: Capability[];
   /**

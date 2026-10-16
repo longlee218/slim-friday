@@ -2,7 +2,7 @@ import { messageLanguage } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import { OWNER_MESSAGE_LABEL } from "../../roles/prompts/first-prompt-prefix";
-import { buildLeadMd } from "../../roles/prompts/lead-md";
+import { buildTeamMd } from "../../roles/prompts/team-md";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
 import { getSession } from "../../storage/session-store";
 import { LEAD_BUDGET_NOTICE, LEAD_FAILED_NOTICE, leadOverBudget } from "../budget/lead-budget";
@@ -72,7 +72,7 @@ function leadOnce(
           language,
           recent: ctx.message.recent, // seeds a fresh session after a rollover
           existing: stored?.kind === "lead" ? stored : null,
-          extraSystem: [buildLeadMd()],
+          team: buildTeamMd({ locations: ctx.locations }),
           appCtx: () => ({ lead: toolCtx }),
         },
         close: (res, t0) => ({

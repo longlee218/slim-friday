@@ -47,7 +47,7 @@ test("scout: one plugin with the workspace skills (plus the app's); location ski
   expect(opts.skills.some((n: string) => n.includes("sk-"))).toBe(false);
   expect(opts.plugins).toHaveLength(2); // workspace plugin + the app-owned skills
   expect(opts.settingSources).toEqual([]);
-  expect(opts.systemPrompt.append).not.toContain("CLAUDE_BODY_MARK");
+  expect(JSON.stringify(opts.systemPrompt)).not.toContain("CLAUDE_BODY_MARK");
   expect(pluginFiles.some((f) => /sk-[ab]|hooks|mcp/.test(f))).toBe(false);
   expect(pluginDirs.every((d) => !existsSync(d))).toBe(true); // removed after the run
 });

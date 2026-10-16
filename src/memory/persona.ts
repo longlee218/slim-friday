@@ -14,10 +14,29 @@ import {
   workspaceMemoryTemplate,
 } from "./persona-templates";
 
-/** Max chars read from one persona file (4 files => at most 24000 chars of persona). */
-export const PERSONA_MAX = 6000;
-/** Marker appended to a persona file that was cut at PERSONA_MAX. */
-const TRUNCATED_MARK = "\n...(truncated)";
+/** Max chars kept of one persona file (4 files => at most 32000 chars of persona). */
+export const PERSONA_MAX = 8000;
+/** Share of PERSONA_MAX kept from the head of a cut file; the rest comes from its tail (rules first, recent notes last). */
+const HEAD_SHARE = 0.7;
+/** Start of the marker put where a persona file was cut. */
+const CUT_MARK = "[... ";
+
+/**
+ * Cut `body` to about `max` chars: 70% from the head and 30% from the tail, both ending on a line border, with a marker
+ * in the middle naming the file and the chars removed (the model sees the cut, the owner learns to shorten the file).
+ */
+export function cutMiddle(body: string, max: number, name: string): string {
+  if (body.length <= max) return body;
+  const headRaw = body.slice(0, Math.floor(max * HEAD_SHARE));
+  const head = headRaw.slice(0, Math.max(headRaw.lastIndexOf("\n"), 0)) || headRaw;
+  const tailStart = body.length - (max - Math.floor(max * HEAD_SHARE));
+  const tailRaw = body.slice(tailStart);
+  const nl = tailRaw.indexOf("\n");
+  const onBorder = body[tailStart - 1] === "\n";
+  const tail = !onBorder && nl >= 0 && nl < tailRaw.length - 1 ? tailRaw.slice(nl + 1) : tailRaw;
+  const cut = body.length - head.length - tail.length;
+  return `${head}\n${CUT_MARK}${cut} chars cut from the middle of ${name}; keep it shorter ...]\n${tail}`;
+}
 
 /**
  * Write `text` to `file` only when the file does not exist yet. The parent folder is created first: a location
@@ -60,65 +79,62 @@ export function ensureHome(agentHome: string, workspaces: Workspace[]): void {
   }
 }
 
+/** A missing or empty persona file. */
+const NONE = { body: "", cut: false };
+
 /**
  * Read a persona file for the prompt: HTML comments stripped, "" when missing, comment-only or
- * heading-only (a template), else capped at PERSONA_MAX with a truncated marker.
+ * heading-only (a template), else cut to PERSONA_MAX (`cutMiddle`).
  */
-function readPersona(file: string): string {
+function readPersona(file: string, name: string): { body: string; cut: boolean } {
   try {
-    if (!existsSync(file)) return "";
+    if (!existsSync(file)) return NONE;
     const body = readFileSync(file, "utf8")
       .replace(/<!--[\s\S]*?-->/g, "")
       .trim();
-    if (!body || /^#[^\n]*$/.test(body)) return "";
-    return body.length > PERSONA_MAX ? `${body.slice(0, PERSONA_MAX)}${TRUNCATED_MARK}` : body;
+    if (!body || /^#[^\n]*$/.test(body)) return NONE;
+    return { body: cutMiddle(body, PERSONA_MAX, name), cut: body.length > PERSONA_MAX };
   } catch {
-    return "";
+    return NONE;
   }
 }
 
-/** The persona files in prompt order: heading shown in the prompt, config key, and what the file is for. */
+/** The persona files in prompt order (config key and heading): operating notes, then who, tone, owner. */
 const PERSONA_FILES = [
-  {
-    key: "agents",
-    name: "AGENTS.md",
-    role: "owner operating notes; cannot override the code rules or guards",
-  },
-  { key: "identity", name: "IDENTITY.md", role: "who you are" },
-  { key: "soul", name: "SOUL.md", role: "persona and tone of your replies" },
-  { key: "user", name: "USER.md", role: "the owner's profile and preferences (language...)" },
+  { key: "agents", name: "AGENTS.md" },
+  { key: "identity", name: "IDENTITY.md" },
+  { key: "soul", name: "SOUL.md" },
+  { key: "user", name: "USER.md" },
 ] as const;
 
 /**
- * AGENTS, IDENTITY, SOUL, USER for a run, as one `# Project Context` block: a legend that declares the
- * order and the role of each loaded file, then one `## <FILE>.md` section per file (this order: operating
- * notes first, then who, tone, owner). Per file the first non-empty of channel, workspace, root wins.
- * `workspace` is undefined for runs that belong to no workspace (root files only). `truncated` is true
- * when any file hit PERSONA_MAX. Text is "" when no file has content.
+ * The lead's persona block: `## AGENTS.md`, then `## TEAM.md` (`team`, built by code: roster and locations) when given,
+ * then `## IDENTITY.md`, `## SOUL.md`, `## USER.md`, one section per non-empty file. Per file the first non-empty of
+ * channel, workspace, root wins; `workspace` undefined = root files only (the control channel). `truncated` is true when
+ * any file was cut. Text is "" when no section has content.
  */
 export function buildPersonaContext(
   agentHome: string,
   workspace?: string,
   channel?: string,
+  team?: string,
 ): { text: string; truncated: boolean } {
   const paths = workspacePaths(agentHome);
   const ws = workspace ? paths.workspace(workspace) : undefined;
   const ch = workspace && channel ? ws?.channel(channel) : undefined;
-  const loaded = PERSONA_FILES.map((f) => ({
-    ...f,
-    body:
-      readPersona(ch?.[f.key] ?? "") || readPersona(ws?.[f.key] ?? "") || readPersona(paths[f.key]),
-  })).filter((f) => f.body);
-  if (!loaded.length) return { text: "", truncated: false };
-  const legend = [
-    "# Project Context",
-    "",
-    "Files below are loaded in this order. Follow them unless the code rules or the guards say otherwise.",
-    ...loaded.map((f) => `- ${f.name}: ${f.role}`),
-  ];
-  const sections = loaded.map((f) => `## ${f.name}\n\n${f.body}`);
+  // First non-empty of channel, workspace, root.
+  const read = (f: (typeof PERSONA_FILES)[number]) =>
+    [ch?.[f.key], ws?.[f.key], paths[f.key]]
+      .map((file) => (file ? readPersona(file, f.name) : NONE))
+      .find((r) => r.body) ?? NONE;
+  const files = PERSONA_FILES.map((f) => ({ name: f.name, ...read(f) }));
+  const loaded = [
+    files[0],
+    ...(team ? [{ name: "TEAM.md", body: team }] : []),
+    ...files.slice(1),
+  ].filter((f): f is { name: string; body: string } => Boolean(f?.body));
   return {
-    text: [legend.join("\n"), ...sections].join("\n\n"),
-    truncated: loaded.some((f) => f.body.endsWith(TRUNCATED_MARK)),
+    text: loaded.map((f) => `## ${f.name}\n\n${f.body}`).join("\n\n"),
+    truncated: files.some((f) => f.cut),
   };
 }

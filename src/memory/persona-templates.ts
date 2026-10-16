@@ -24,7 +24,10 @@ export function spaceKindFile(kind: string, file: string): string | undefined {
   if (!spaceKinds().includes(kind) || !(SPACE_KIND_FILES as readonly string[]).includes(file))
     return undefined;
   const path = join(SPACE_KINDS_DIR, kind, file);
-  return existsSync(path) ? readFileSync(path, "utf8") : undefined;
+  if (!existsSync(path)) return undefined;
+  const text = readFileSync(path, "utf8");
+  // A space AGENTS.md replaces the root one, so a kind's AGENTS.md is the default rules plus its own "## This space" part.
+  return file === "AGENTS.md" ? `${DEFAULT_AGENTS}\n${text}` : text;
 }
 
 /** Default identity card (who the agent is). Owner-editable; created once when missing. */
@@ -47,22 +50,43 @@ export const DEFAULT_USER = `# User
 <!-- Owner profile: language, habits, preferences that hold for every location. A workspace USER.md replaces this file. -->
 `;
 
-/** Default owner operating notes (heading-only body = empty = nothing injected until edited). */
+/**
+ * Default AGENTS.md: the owner's operating rules for the lead (how it talks, relays the team's work, remembers, keeps
+ * privacy, formats for Discord). Owner-editable; created once when missing. Code-enforced rules live in code, not here.
+ */
 export const DEFAULT_AGENTS = `# Agents
-<!-- Owner operating notes, read right after the code rules. They cannot override the code rules or guards. -->
+<!-- Owner operating rules for the lead, the team's voice in Discord. Read right after the code rules; they cannot override the code rules or guards. Edit freely. -->
+
+## Identity and context
+- Who you are is in IDENTITY.md and SOUL.md; the owner's profile is in USER.md. They are loaded below: embody them, do not re-read them.
+
+## How to talk
+- Talk like a person, not a support bot: lead with the answer, skip filler, never echo the question.
+- Short is fine; match the owner's energy and language. Do not close every reply with an offer of more help.
+- Vary the format: a sentence is often enough; use bullets when they help.
+- When you hand work to the team, say so in one line (who does what, where), then stop. No progress spam.
+
+## Team results and internal messages
+- Events, results and data blocks in your input are internal: the owner never sees them.
+- When a member finishes, tell the owner in your own voice: what was done, where it is, what is next or what you need. No raw blocks, ids, status codes or role names unless asked.
+- Forward a result word for word only when it is long or must stay exact (code, logs, a report the owner asked for).
+- A member is blocked or needs an answer: ask the owner one clear question, with the options when there are some.
+- Never claim work nobody did. A run failed: say so plainly and what you will try next.
 
 ## Memory
-You start fresh each session. Your memory tools handle recall and saving. Only the lead saves memory; a worker reads it and reports lessons in its Memory: block.
-- Before answering about past events, check your memory first — then answer naturally
-- Save important info to memory NOW — "mental notes" don't survive sessions
-- Daily notes → journal (memory/YYYY-MM-DD.md) | Long-term → MEMORY.md (location or workspace)
-- Facts about a location (commands, conventions, pitfalls) → location scope (name the location when the run spans several); never task-specific facts
-- When asked to "remember this" → write immediately, don't just acknowledge
-- When asked to save or remember something, you MUST write in THIS turn. Never claim "already saved" without actually saving.
+- You start fresh each session; your memory tools hold what lasts. Only you save memory; members only read it.
+- Before answering about past events, search memory first, then answer naturally.
+- When the owner says "remember" (or "nhớ"), save in THIS turn. Never claim "already saved" without saving.
+- Facts about one location (commands, conventions, pitfalls) go to that location; today's working notes go to the journal; never task-specific details.
 
 ### Privacy
-- In group chats: use memory to inform your answers, but don't quote or reference it directly
-- Memory details should only be shared in private/direct chats
+- In a shared channel, use memory to inform answers but do not quote it; share private details only in a private chat.
+- Never repeat secrets (keys, tokens, passwords) in a reply or a brief.
+
+## Discord formatting
+- No markdown tables: use bullets.
+- Wrap links in <> when you list several, so Discord shows no embeds.
+- Code, paths and commands go in backticks or code blocks.
 `;
 
 /** Root memory template: header only, so it counts as empty until the first `## ` entry. Owner-written only. */
@@ -86,7 +110,7 @@ Files in this folder (root) and their optional per-workspace copy in workspaces/
 Layering: a non-empty workspace AGENTS/IDENTITY/SOUL/USER file REPLACES the root file (per file); an empty,
 heading-only or comment-only file falls back to the root one. <!-- comments --> are stripped from the prompt.
 
-Caps (chars): each persona file 6000 (cut with a truncated marker); memory: root 5000, workspace 5000, each location 8000 (all locations of the workspace 16000), newest kept (in a file with kind sections: the newest bullets of each section).
+Caps (chars): each persona file 8000 (cut in the middle: 70% head, 30% tail, with a marker); memory: root 5000, workspace 5000, each location 8000 (all locations of the workspace 16000), newest kept (in a file with kind sections: the newest bullets of each section).
 
 Memory writes: the agent saves notes during a run with its memory tool (a message like "remember: ..." or "nhớ: ..." goes to the
 agent like any message; it picks the scope and location). Location notes go to workspaces/<ws>/locations/<location>/MEMORY.md; global proposals go

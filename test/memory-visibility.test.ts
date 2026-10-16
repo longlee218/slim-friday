@@ -7,7 +7,7 @@ import { addLocation, makeEnv } from "./helpers";
 
 const WS = "main";
 const ctx = (home: string, locations: string[]) =>
-  buildPromptContext({ agentHome: home, workspace: WS, memoryLocations: locations });
+  buildPromptContext({ agentHome: home, workspace: WS, kind: "lead", memoryLocations: locations });
 
 /** A location memory of `chars` body chars with at least one section. */
 const fill = (home: string, location: string, chars: number) =>

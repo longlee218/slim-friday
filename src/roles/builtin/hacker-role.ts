@@ -12,6 +12,7 @@ export const HACKER_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
   mcpTools: [...SPECIALIST_BASE.mcpTools],
   name: "hacker",
+  basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
     "Defensive security review of code in a location: vulnerabilities, unsafe patterns, secrets in code, risky dependencies; read-only, reports findings with severity.",
   sideEffects: "none",

@@ -154,6 +154,13 @@ export function buildSdkOptions(
     // No filesystem settings in any run: no location (or ancestor) CLAUDE.md, no location hooks/settings. Friday's
     // persona, AGENTS.md and memory are the only instructions.
     settingSources: [],
+    // SDK context that competes with ours: its file memory (MemorySave is the app's), its commit / PR instructions and the
+    // Co-Authored-By attribution reminder (commits are made as the owner). Verified by a capture of the real request.
+    settings: {
+      autoMemoryEnabled: false,
+      includeGitInstructions: false,
+      attribution: { commit: "", pr: "" },
+    },
     // A dispatched worker's shell runs in an OS sandbox (writes only in its dirs, no network); see worker-sandbox.ts.
     ...(sandbox && { sandbox }),
     systemPrompt: buildSystemPrompt((input.extraContext ?? []).filter(Boolean).join("\n\n"), role, {

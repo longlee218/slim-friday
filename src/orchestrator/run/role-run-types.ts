@@ -75,8 +75,8 @@ export interface RoleRunInput {
   recent?: RecentMessage[];
   /** Task ledger of the thread (idle thread only); empty = none. */
   ledger?: string;
-  /** Extra system-context blocks of this run (the lead's LEAD.md); appended after the persona / memory context. */
-  extraSystem?: string[];
+  /** The lead's TEAM.md (roster, locations, how to delegate): placed after AGENTS.md in its persona block. */
+  team?: string;
   /** Dispatched worker run: no SDK subagent tools even when the role allows them (depth 1, developer included). */
   noSubagents?: boolean;
   /** Envelope of a dispatched worker: its shell runs in the OS sandbox and every tool call is checked against it. Omitted = no envelope. */
