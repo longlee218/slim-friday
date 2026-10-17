@@ -28,7 +28,7 @@ export class FakePort implements EffectPort {
   asked: OwnerQuestion[] = [];
   /** Test-set reads. */
   goalState: GoalState = { items: [] };
-  capsNow = { chainCount: 0, leadSpentTodayUsd: 0 };
+  capsNow = { chainCount: 0 };
   envNow: PolicyEnv = { workerRoles: ["developer", "scout"], locations: ["repo"] };
   rows = new Map<string, ItemRow>();
   steerReply: SteerReply = "queued";

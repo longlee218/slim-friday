@@ -126,18 +126,6 @@ export function costOfTasks(db: Database, taskIds: readonly string[]): number {
   );
 }
 
-/** Cost (USD) of the runs of turns of `role` started at or after `since` (epoch ms). */
-export function costOfRoleSince(db: Database, role: string, since: number): number {
-  return (
-    db
-      .query<{ c: number }, [string, number]>(
-        `SELECT COALESCE(SUM(r.cost_usd), 0) AS c FROM runs r JOIN turns t ON t.id = r.turn_id
-       WHERE t.role = ? AND t.started_at >= ?`,
-      )
-      .get(role, since)?.c ?? 0
-  );
-}
-
 /** Tool calls of a turn: total, and the last `limit` (newest first). */
 export function toolCallsOfTurn(
   db: Database,

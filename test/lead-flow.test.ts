@@ -106,14 +106,48 @@ test("the 4th chained dispatch without an owner message is refused CHAIN_CAP", a
   expect(h.ofKind("worker")).toHaveLength(3);
 });
 
-test("lead over $3/day -> fixed notice, no lead run, no dispatch", async () => {
-  const h = leadHarness(async (c) => ({ text: "first", cost: 3.5 }));
-  await h.send("one");
-  await until(() => h.posts.includes("first"));
-  await h.send("two");
-  await until(() => h.posts.some((p) => p.includes("daily budget")));
-  expect(h.ofKind("lead")).toHaveLength(1);
-  expect(h.ofKind("worker")).toHaveLength(0);
+test("no daily lead budget: 31 costly lead runs in a day block neither a message nor a dispatch", async () => {
+  let n = 0;
+  const h = leadHarness(async (c) => {
+    if (c.kind === "worker") {
+      await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
+      return "done";
+    }
+    if (c.prompt.includes("final ask")) {
+      const r = await dispatch(c, [a("late")]);
+      return r.ok ? "dispatched" : `refused ${r.code}`;
+    }
+    return { text: `reply ${++n}`, cost: 0.5 }; // 31 x 0.5 = $15.5, far above the old $3/day
+  });
+  for (let i = 1; i <= 31; i++) {
+    await h.send(`msg ${i}`);
+    await until(() => h.posts.includes(`reply ${i}`));
+  }
+  await h.send("final ask");
+  await until(() => h.posts.includes("dispatched"));
+  expect(h.ofKind("lead")).toHaveLength(32);
+  expect(h.ofKind("worker")).toHaveLength(1);
+});
+
+test("an announce run that hits the per-run budget tells the owner and keeps the news pending", async () => {
+  const h = leadHarness(async (c) => {
+    if (c.kind === "worker") {
+      await c.tool("ReportResult", { status: "COMPLETED", summary: "found it" });
+      return "done";
+    }
+    if (c.prompt.includes("Task events")) return { text: "half way", cost: 1, maxBudget: true };
+    if (c.prompt.includes("Owner message:\ngo")) {
+      await dispatch(c, [a("w")]);
+      return "on it";
+    }
+    return "hello again";
+  });
+  await h.send("go");
+  await until(() => h.posts.some((p) => p.includes("spending limit")));
+  const news = listUndelivered(h.env.db, "t1").filter((e) => e.kind === "result");
+  expect(news).toHaveLength(1); // the worker result is not lost: the next announce re-reads it
+  await h.send("anything new?"); // the lead is not blocked after a budget stop
+  await until(() => h.posts.includes("hello again"));
 });
 
 test("a lead run that errors posts the fixed notice and starts nothing", async () => {

@@ -16,8 +16,6 @@ export interface Caps {
   chainCount: number;
   /** Dispatches this lead run already made. */
   dispatchedThisRun: number;
-  /** Cost (USD) of today's lead runs. */
-  leadSpentTodayUsd: number;
 }
 
 /** Facts from the registries the policy needs (never taken from model text). */

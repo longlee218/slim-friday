@@ -2,7 +2,6 @@ import {
   CHAIN_CAP,
   DELEGATE_MAX,
   DISPATCHES_PER_RUN,
-  LEAD_DAILY_BUDGET_USD,
   MAX_RUNNING_PER_THREAD,
 } from "../../config/lead-caps";
 import type { Location } from "../../locations/location-registry";
@@ -89,7 +88,7 @@ export function buildTeamMd(i: TeamMdInput = {}): string {
     "",
     "## Limits (code enforces them; a refusal carries a code)",
     `- ${DISPATCHES_PER_RUN} dispatch per run; members start after your run ends. One open goal per thread: replace it with supersedes.`,
-    `- At most ${CHAIN_CAP} chained starts without a new owner message. Lead budget $${LEAD_DAILY_BUDGET_USD}/day.`,
+    `- At most ${CHAIN_CAP} chained starts without a new owner message.`,
     `- ${DISPATCH_AGENT_TOOL} refused: fix the request once, or tell the owner why; do not retry the same call.`,
   ].join("\n");
 }

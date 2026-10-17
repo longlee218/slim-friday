@@ -90,7 +90,7 @@ Worker run (detached; survives the owner message)
 | Effects | `goal/effect-port*.ts`, `effects/`, `storage/effect-log-store.ts`, table `effect_log` | the only write path for lead and effect tool state changes (one atomic write) |
 | Failure policy | `runtime/failure-class.ts`, `worker/failure-policy.ts`, `worker/resume-prompt.ts`, `worker/resume-backoff.ts` | transient failure → same session resumed (cap 2, backoff); real failure → item held; see [Failure classes](#failure-classes-and-auto-resume) |
 | Recovery | `worker/recover-in-flight.ts`, `index.ts` | boot: running goal items resume or are held; a lead of a thread with undelivered events is woken |
-| Budget | `budget/lead-budget.ts`, `budget/task-budget.ts` | lead daily cap; task ceiling (see [Budgets](#budgets)) |
+| Budget | `budget/lead-budget.ts`, `budget/task-budget.ts` | lead runs have no daily cap; task ceiling (see [Budgets](#budgets)) |
 | Metrics | `observability/lead-metrics.ts`, `lead-metrics-cli.ts` | read-only `bun run metrics:lead [--days N]` (see below) |
 
 ### Lead tools (role `lead`, `mcpTools`)
@@ -435,7 +435,7 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 
 ## Budgets
 - Role run budget: `budgetUsd` in the role file.
-- Lead daily cap: `LEAD_DAILY_BUDGET_USD` = 3 (sum of today's lead runs). Past the cap the lead stays silent with a notice; `/status` still works.
+- No daily lead budget: the lead is never blocked by the day's spend. Cost per day is monitored with `bun run metrics:lead`. A lead run that hits its own budget (`budgetUsd`, `max_budget`) posts the budget-stop reply; the announced news of that run stays undelivered (pending), so a worker result is not lost, and the next input still starts a lead run.
 - Task ceiling: `TASK_BUDGET_USD` = 6.0 (`src/config/model-routing.ts`), summed over all runs of one task. A run starts with `min(role budget, ceiling left)`; a spent ceiling refuses the start.
 - Optional global cap `MAX_BUDGET_USD` (env) is applied as a minimum on every run.
 - A budget stop replies with spent and limit and the last summary. A stop caused by the ceiling says the limit cannot be raised. No command raises a budget.
@@ -483,7 +483,6 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 |---|---|---|
 | `MAX_ASK` (per run) | lead 0, planner 0, scout 0, developer 6, discord-manager 4 | role files |
 | `budgetUsd` | lead 0.75, planner 0.5, scout 0.75, developer 4.5, discord-manager 0.5 | role files |
-| `LEAD_DAILY_BUDGET_USD` | 3 | `src/config/lead-caps.ts` |
 | `CHAIN_CAP` / `DELEGATE_MAX` / `DISPATCHES_PER_RUN` | 3 / 3 / 1 | `src/config/lead-caps.ts` |
 | `MAX_DISPATCHES_PER_ITEM` | 3 | `src/orchestrator/worker/dispatch-ready.ts` |
 | `TASK_BUDGET_USD` | 6.0 | `src/config/model-routing.ts` |

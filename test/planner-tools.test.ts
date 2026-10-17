@@ -183,12 +183,9 @@ test("RequestPlan: starts the planner; one per run; open goal needs goalId; bad 
   });
 });
 
-test("RequestPlan: daily budget and chain cap refuse before any write", () => {
-  const caps = { chainCount: 0, leadSpentTodayUsd: 3, dispatchedThisRun: 0 };
-  expect(checkPlanRequest({ items: [] }, {}, caps)).toMatchObject({ code: "BUDGET" });
-  expect(
-    checkPlanRequest({ items: [] }, {}, { ...caps, leadSpentTodayUsd: 0, chainCount: 3 }),
-  ).toMatchObject({ code: "CHAIN_CAP" });
+test("RequestPlan: chain cap refuses before any write", () => {
+  const caps = { chainCount: 3, dispatchedThisRun: 0 };
+  expect(checkPlanRequest({ items: [] }, {}, caps)).toMatchObject({ code: "CHAIN_CAP" });
 });
 
 /** A plan view for the fake port. */

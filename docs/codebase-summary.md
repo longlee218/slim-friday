@@ -59,7 +59,7 @@ src/
 | `orchestrator/effects/` | effect implementations: delete (trash), git push, PR, merge, purge | `delete-paths.ts`, `delete-paths-classify.ts`, `git-push.ts`, `pull-request.ts`, `merge-branch.ts`, `nested-git.ts`, `remote-pin.ts`, `trash-store.ts`, `purge-trash.ts`, `effect-tool-names.ts` |
 | `orchestrator/plan/` | plan documents, validation, revision, approval, materialising items | `plan-doc.ts`, `plan-schemas.ts`, `validate-plan.ts`, `plan-revision.ts`, `plan-lifecycle.ts`, `plan-ready.ts`, `materialize-items.ts`, `planner-handlers.ts`, `progress-handlers.ts`, `envelope-diff.ts` |
 | `orchestrator/strategy/` | lead routing checks: DIRECT / DELEGATE / PLAN shape | `dispatch-policy.ts`, `plan-policy.ts`, `caps.ts`, `lead-context-block.ts` |
-| `orchestrator/budget/` | run budget and task or goal budget (`TASK_BUDGET_USD`) | `task-budget.ts`, `lead-budget.ts`, `budget-hit.ts` |
+| `orchestrator/budget/` | run budget and task or goal budget (`TASK_BUDGET_USD`) | `task-budget.ts`, `lead-budget.ts` (failed-run notice), `budget-hit.ts` |
 | `orchestrator/turns/` | turn rows, run limiter (30 runs), steer registry and store, completion, status snapshot | `completion.ts`, `turn-admission.ts`, `turn-tracker.ts`, `run-limiter.ts`, `steer-registry.ts`, `steer-store.ts`, `turn-result.ts`, `turn-stop.ts`, `status-snapshot.ts`, `status-tools.ts`, `progress-notes.ts`, `result-file-save.ts` |
 | `orchestrator/events/` | event types of the thread outbox (`thread_events`) | `event-types.ts` |
 | `orchestrator/thread/` | derived thread state | `thread-state.ts` |
@@ -163,7 +163,7 @@ Layers that decide whether a tool call runs (details: [system-architecture.md](s
 ## Configuration
 - `config/agent-config.ts` (zod) reads the env schema: `CLAUDE_CODE_OAUTH_TOKEN`, `AGENT_HOME`, `LOG_LEVEL`, `DISCORD_TOKEN`, `OWNER_DISCORD_ID`, `DISCORD_GUILD_ID`, `MEMORY_MODEL` (default `HAIKU_SUMMARY_MODEL`, `claude-haiku-4-5-20251001`; the Haiku roles use `HAIKU_MODEL`, `claude-haiku-5-5`), `MAX_BUDGET_USD`, `TIMEOUT_MS`. `GIT_AUTHOR` is accepted and ignored. Unknown keys are not read.
 - Only `config/` reads `process.env` (scan test `no-process-env-outside-config`). `process-env.ts` is the one reader it allows.
-- Per-role model, budget and ask limit are constants in each role file. `TASK_BUDGET_USD` (6.0) in `config/model-routing.ts` caps the task over its runs. Lead caps (`CHAIN_CAP`, `DELEGATE_MAX`, `DISPATCHES_PER_RUN`, `LEAD_DAILY_BUDGET_USD`) are in `config/lead-caps.ts`.
+- Per-role model, budget and ask limit are constants in each role file. `TASK_BUDGET_USD` (6.0) in `config/model-routing.ts` caps the task over its runs. Lead caps (`CHAIN_CAP`, `DELEGATE_MAX`, `DISPATCHES_PER_RUN`, `MAX_RUNNING_PER_THREAD`) are in `config/lead-caps.ts`; the lead has no daily budget.
 - `config/child-env-deny.ts` + `data/child-env-deny.yaml`: env names the SDK child must not inherit. A new schema key must be listed there (test-checked).
 - Env table: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-variables-and-limits).
 

@@ -29,7 +29,7 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).toContain("one writer per location");
   expect(md).toContain("At most 3 chained starts");
   expect(md).toContain("1 dispatch per run");
-  expect(md).toContain("$3/day");
+  expect(md).not.toContain("/day"); // no daily budget is told to the lead
   expect(md).toContain("RetryTask"); // a held failure: retry with a note, or cancel
   expect(md).toContain("resumed by code in the same session");
   expect(md).toContain("Never put secrets in a brief");

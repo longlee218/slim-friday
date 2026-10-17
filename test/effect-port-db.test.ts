@@ -121,39 +121,6 @@ test("chain cap counts start events after the last owner message", async () => {
   expect(port.caps().chainCount).toBe(0);
 });
 
-test("lead budget sums today's lead runs only", () => {
-  const { port } = setup();
-  const run = (id: string, role: string, cost: number) => {
-    insertTurn(db, { id, threadId: TH, source: "s", location: "repo", role });
-    insertRun(db, {
-      id: `r-${id}`,
-      turnId: id,
-      model: "m",
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheCreationTokens: 0,
-      costUsd: cost,
-      turns: 1,
-      durationMs: 1,
-      outcome: "success",
-      compactions: 0,
-    });
-  };
-  run("t1", "lead", 1.25);
-  run("t2", "lead", 0.5);
-  run("t3", "developer", 9);
-  expect(port.caps().leadSpentTodayUsd).toBeCloseTo(1.75);
-  const tomorrow = createDbEffectPort({
-    db,
-    threadId: TH,
-    env: ENV,
-    io: {} as PortIo,
-    now: () => Date.now() + 2 * 86_400_000,
-  });
-  expect(tomorrow.caps().leadSpentTodayUsd).toBe(0);
-});
-
 test("cancel an item cancels its dependents; an item of another thread is invisible", async () => {
   const { port, ctx } = setup();
   await handleDispatch(ctx(), req());

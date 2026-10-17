@@ -38,7 +38,7 @@ test("dispatch: a second DIFFERENT dispatch in the same run is refused ONE_PER_R
 
 test("dispatch refusal: coded, writes a lead_decision event and no goal", async () => {
   const port = new FakePort();
-  port.capsNow = { chainCount: 3, leadSpentTodayUsd: 0 };
+  port.capsNow = { chainCount: 3 };
   const r = await handleDispatch(leadCtx(port), REQ);
   expect(r).toMatchObject({ ok: false, code: "CHAIN_CAP" });
   expect(port.goals).toEqual([]);

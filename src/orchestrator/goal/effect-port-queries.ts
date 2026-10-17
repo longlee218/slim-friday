@@ -9,7 +9,6 @@ import {
   openGoalId,
 } from "../../storage/owned-item-store";
 import { taskScope } from "../../storage/owned-task-store";
-import { costOfRoleSince } from "../../storage/run-metrics-store";
 import { countChainStarts, lastEventOfItem } from "../../storage/thread-event-store";
 import { PENDING_PLAN_MAX_AGE_MS } from "../../storage/work-plan-store";
 import type { Caps } from "../strategy/caps";
@@ -26,23 +25,12 @@ export function openGoalIdOf(db: Database, threadId: string, now = Date.now()): 
   return openGoalId(db, threadId, LEAD_ROLE.name, now - PENDING_PLAN_MAX_AGE_MS);
 }
 
-/** Start of the local day of `now` (epoch ms): "today" of the daily lead budget. */
-const startOfDay = (now: number): number => new Date(now).setHours(0, 0, 0, 0);
-
 /**
- * Cap counters from the db: `start` events after the thread's last `owner_message` (the chain), and the cost of
- * today's lead runs (runs of turns whose role is `lead`). A `start` materialized from an owner-approved plan
+ * Cap counters from the db: `start` events after the thread's last `owner_message` (the chain). A `start` materialized from an owner-approved plan
  * (`payload.plan`) is not counted: the owner already agreed to the whole plan, so its items are no chain.
  */
-export function goalCaps(
-  db: Database,
-  threadId: string,
-  now: number,
-): Omit<Caps, "dispatchedThisRun"> {
-  return {
-    chainCount: countChainStarts(db, threadId),
-    leadSpentTodayUsd: costOfRoleSince(db, LEAD_ROLE.name, startOfDay(now)),
-  };
+export function goalCaps(db: Database, threadId: string): Omit<Caps, "dispatchedThisRun"> {
+  return { chainCount: countChainStarts(db, threadId) };
 }
 
 /** The question a worker waits on (its newest `question` event of the item with no `answer` after it), redacted. */

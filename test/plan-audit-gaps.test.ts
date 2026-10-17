@@ -196,7 +196,7 @@ test("the planner cannot be a plan role: the registry and the validator refuse i
   for (const role of ["planner", "lead"])
     expect(validatePlan(doc(role), ctx).map((e) => e.code)).toEqual(["UNKNOWN_ROLE"]);
   const state = { items: [] };
-  const caps = { chainCount: 0, dispatchedThisRun: 0, leadSpentTodayUsd: 0 };
+  const caps = { chainCount: 0, dispatchedThisRun: 0 };
   const dispatch = checkDispatch(
     state,
     {

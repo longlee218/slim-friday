@@ -5,7 +5,7 @@ import { OWNER_MESSAGE_LABEL } from "../../roles/prompts/first-prompt-prefix";
 import { buildTeamMd } from "../../roles/prompts/team-md";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
 import { getSession } from "../../storage/session-store";
-import { LEAD_BUDGET_NOTICE, LEAD_FAILED_NOTICE, leadOverBudget } from "../budget/lead-budget";
+import { LEAD_FAILED_NOTICE } from "../budget/lead-budget";
 import { createDbEffectPort } from "../goal/effect-port-db";
 import { registerRun } from "../run/live-runs";
 import { type LeadTurnResult, runTurn } from "../run/run-turn";
@@ -110,7 +110,7 @@ const ANNOUNCE_ATTEMPTS = 2;
 const failedBatches = new Map<string, number>();
 
 /**
- * One lead input end to end: wait for the thread's rollover, budget guard, the lead run, post the reply, close the
+ * One lead input end to end: wait for the thread's rollover, the lead run, post the reply, close the
  * events it consumed, start the workers it queued, then let the rollover start (after the reply, never before). A failed run posts a fixed notice and starts nothing; a failed announce is retried once, then dropped with
  * one notice. Never throws (the queue logs a throw, but a post must not hide it).
  */
@@ -134,18 +134,12 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
   const ac = new AbortController();
   const settleActive = registerRun({ kind: "lead", threadId, role: "lead", ac });
   let announced: string[] = [];
-  let consumed = false; // the news counts as read only when the lead run succeeded
+  let consumed = false; // the news counts as read only when the lead run succeeded (a `max_budget` stop leaves it pending)
   let retry = false;
   try {
     const news = input.kind === "announce" ? pendingNews(db, threadId) : [];
     if (input.kind === "announce" && !news.length) return; // nothing new (another run already read it)
     announced = news.map((e) => e.id);
-    if (leadOverBudget(db, threadId)) {
-      logEvent(log, "lead.budget_exceeded", { threadId, kind: input.kind }, "warn");
-      await post(LEAD_BUDGET_NOTICE);
-      consumed = true;
-      return; // no model run, no dispatch
-    }
     const inputId = crypto.randomUUID();
     const text =
       input.kind === "announce"

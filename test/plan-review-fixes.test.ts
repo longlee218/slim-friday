@@ -73,7 +73,7 @@ const finishPlanner = (goalId: string) => {
 test("H1: starts of an approved plan are not chained; the planner start and a plain start are", () => {
   const { goalId, plan } = setup();
   expect(approveVersion(db, plan.id, 1)).toMatchObject({ ok: true, created: ["a", "b", "c"] });
-  const caps = goalCaps(db, "t", Date.now());
+  const caps = goalCaps(db, "t");
   expect(caps.chainCount).toBe(1); // the planner's start only
   expect(
     checkPlanRequest(
@@ -84,7 +84,7 @@ test("H1: starts of an approved plan are not chained; the planner start and a pl
   ).toEqual({ ok: true });
   for (let n = 0; n < CHAIN_CAP - 1; n++)
     appendEvent(db, { id: `d${n}`, threadId: "t", kind: "start", payload: { key: `x${n}` } });
-  expect(goalCaps(db, "t", Date.now()).chainCount).toBe(CHAIN_CAP); // plain starts still count
+  expect(goalCaps(db, "t").chainCount).toBe(CHAIN_CAP); // plain starts still count
 });
 
 test("H2: the rendered plan carries each brief, the objective and the criteria in full", () => {

@@ -50,8 +50,6 @@ export interface PortDeps {
   /** Registry facts for the dispatch policy (dispatchable roles, workspace locations). */
   env: PolicyEnv;
   io: PortIo;
-  /** Clock (tests pass a fixed one): "today" for the daily lead budget. */
-  now?: () => number;
 }
 
 /** Create the db-backed port of one lead run on one thread. */
@@ -162,7 +160,7 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
         items: openGoalId ? childrenOf(db, openGoalId) : [],
       };
     },
-    caps: () => goalCaps(db, threadId, (d.now ?? Date.now)()),
+    caps: () => goalCaps(db, threadId),
     env: () => d.env,
     snapshot: (taskId) => (taskId && !mine(taskId) ? undefined : snapshotOf(db, threadId, taskId)),
     item: (taskId): ItemRow | undefined => (mine(taskId) ? getItem(db, taskId) : undefined),

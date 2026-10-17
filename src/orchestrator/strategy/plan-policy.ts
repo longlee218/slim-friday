@@ -1,10 +1,10 @@
-import { CHAIN_CAP, DISPATCHES_PER_RUN, LEAD_DAILY_BUDGET_USD } from "../../config/lead-caps";
+import { CHAIN_CAP, DISPATCHES_PER_RUN } from "../../config/lead-caps";
 import type { Caps, GoalState } from "./caps";
 
 /* Pure policy of `RequestPlan`: may the lead start a planner now? Same caps as a dispatch (a planner run is one start). */
 
 /** Refusal codes, checked in this order. */
-type PlanRequestRefusal = "ONE_PER_RUN" | "BUDGET" | "CHAIN_CAP" | "GOAL_OPEN" | "BAD_TASK";
+type PlanRequestRefusal = "ONE_PER_RUN" | "CHAIN_CAP" | "GOAL_OPEN" | "BAD_TASK";
 
 /** The policy answer. */
 export type PlanRequestCheck =
@@ -28,8 +28,6 @@ export function checkPlanRequest(
 ): PlanRequestCheck {
   if (caps.dispatchedThisRun >= DISPATCHES_PER_RUN)
     return refuse("ONE_PER_RUN", "One dispatch or plan request per lead run: wait for the result.");
-  if (caps.leadSpentTodayUsd >= LEAD_DAILY_BUDGET_USD)
-    return refuse("BUDGET", "The lead's daily budget is spent: nothing more is started today.");
   if (req.goalId && req.goalId !== state.openGoalId)
     return refuse("BAD_TASK", `Goal ${req.goalId} is not this thread's open goal.`);
   if (!req.goalId && state.openGoalId)

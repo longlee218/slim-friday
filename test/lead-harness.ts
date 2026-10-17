@@ -19,8 +19,10 @@ export interface Call {
   tool: (name: string, args: object) => Promise<any>;
 }
 
-/** What the script returns: the final text of the run and an optional cost. */
-export type Script = (c: Call) => Promise<string | { text: string; cost?: number }> | string;
+/** What the script returns: the final text of the run, an optional cost, and `maxBudget` to end the run as a budget stop. */
+export type Script = (
+  c: Call,
+) => Promise<string | { text: string; cost?: number; maxBudget?: boolean }> | string;
 
 /** Sleep helper. */
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -77,6 +79,7 @@ export function scriptedQuery(script: Script, calls: Call[], sessionOf?: Session
         result: o.text,
         session_id: sid ?? `sess-${kind}-${calls.length}`,
         total_cost_usd: o.cost ?? 0.001,
+        ...(o.maxBudget && { subtype: "error_max_budget_usd", is_error: true, errors: ["budget"] }),
       });
     })()) as never;
 }

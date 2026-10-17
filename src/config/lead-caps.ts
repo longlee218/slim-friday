@@ -9,8 +9,5 @@ export const DELEGATE_MAX = 3;
 /** Most dispatches in ONE lead run. */
 export const DISPATCHES_PER_RUN = 1;
 
-/** Lead budget per day, USD (sum of the cost of today's lead runs). */
-export const LEAD_DAILY_BUDGET_USD = 3;
-
 /** Most items of one thread running at once (the dispatch scheduler). */
 export const MAX_RUNNING_PER_THREAD = 2;

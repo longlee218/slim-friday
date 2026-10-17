@@ -8,7 +8,7 @@ import {
 } from "../src/orchestrator/strategy/dispatch-policy";
 
 const ENV: PolicyEnv = { workerRoles: ["developer", "scout"], locations: ["repo"] };
-const CAPS: Caps = { chainCount: 0, dispatchedThisRun: 0, leadSpentTodayUsd: 0 };
+const CAPS: Caps = { chainCount: 0, dispatchedThisRun: 0 };
 const IDLE: GoalState = { items: [] };
 const a = (key: string, dependsOn: string[] = [], over: Partial<Assignment> = {}): Assignment => ({
   key,
@@ -37,7 +37,6 @@ test("every refusal code and the accepted shapes", () => {
   const table: [string, string, DispatchReq, Partial<Caps>, GoalState][] = [
     ["ok", "ok", direct(), {}, IDLE],
     ["one per run", "ONE_PER_RUN", direct(), { dispatchedThisRun: 1 }, IDLE],
-    ["budget spent", "BUDGET", direct(), { leadSpentTodayUsd: 3 }, IDLE],
     ["chain cap, full", "CHAIN_CAP", direct(), { chainCount: 3 }, IDLE],
     ["chain 2 used + 1 ok", "ok", direct(), { chainCount: 2 }, IDLE],
     [
@@ -113,14 +112,11 @@ test("every refusal code and the accepted shapes", () => {
     expect([name, run(req, caps, state)]).toEqual([name, want]);
 });
 
-test("rule order: one-per-run, budget, goal open, then chain cap last (after the shape rules)", () => {
+test("rule order: one-per-run, goal open, then chain cap last (after the shape rules)", () => {
   const open: GoalState = { openGoalId: "g1", items: [] };
-  const all = { dispatchedThisRun: 1, leadSpentTodayUsd: 9, chainCount: 9 };
+  const all = { dispatchedThisRun: 1, chainCount: 9 };
   expect(run(direct(), all, open)).toBe("ONE_PER_RUN");
-  expect(run(direct(), { ...all, dispatchedThisRun: 0 }, open)).toBe("BUDGET");
-  expect(run(direct(), { ...all, dispatchedThisRun: 0, leadSpentTodayUsd: 0 }, open)).toBe(
-    "GOAL_OPEN",
-  );
+  expect(run(direct(), { ...all, dispatchedThisRun: 0 }, open)).toBe("GOAL_OPEN");
   expect(run(direct(), { chainCount: 9 })).toBe("CHAIN_CAP");
   // a too-big request answers NEEDS_PLAN even when the chain is also full
   expect(run(delegate([a("a"), a("b"), a("c"), a("d")]), { chainCount: 9 })).toBe("NEEDS_PLAN");

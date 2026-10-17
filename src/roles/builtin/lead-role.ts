@@ -18,7 +18,7 @@ import type { RoleDefinition } from "../role-types";
 
 /** The lead asks the owner through its own AskOwner tool, never AskUserQuestion. */
 const MAX_ASK = 0;
-/** Budget (USD) of one lead run (a short routing turn); the daily lead cap is `LEAD_DAILY_BUDGET_USD`. */
+/** Budget (USD) of one lead run (a short routing turn). There is no daily lead budget. */
 const BUDGET_USD = 0.75;
 
 /**

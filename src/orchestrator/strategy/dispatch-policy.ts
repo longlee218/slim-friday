@@ -1,9 +1,4 @@
-import {
-  CHAIN_CAP,
-  DELEGATE_MAX,
-  DISPATCHES_PER_RUN,
-  LEAD_DAILY_BUDGET_USD,
-} from "../../config/lead-caps";
+import { CHAIN_CAP, DELEGATE_MAX, DISPATCHES_PER_RUN } from "../../config/lead-caps";
 import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 import { askNeeded } from "../../policy/ask-policy";
 import { effectRisk } from "../../policy/check-envelope";
@@ -46,7 +41,6 @@ export interface DispatchReq {
 /** Refusal codes, checked in this order. */
 type RefusalCode =
   | "ONE_PER_RUN"
-  | "BUDGET"
   | "CHAIN_CAP"
   | "GOAL_OPEN"
   | "BAD_TASK"
@@ -119,8 +113,6 @@ export function checkDispatch(
       "ONE_PER_RUN",
       "One dispatch per lead run: wait for the result, then dispatch again.",
     );
-  if (caps.leadSpentTodayUsd >= LEAD_DAILY_BUDGET_USD)
-    return refuse("BUDGET", "The lead's daily budget is spent: nothing more is dispatched today.");
   if (state.openGoalId && req.supersedes !== state.openGoalId)
     return refuse(
       "GOAL_OPEN",
