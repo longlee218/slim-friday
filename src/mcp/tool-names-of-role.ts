@@ -27,6 +27,7 @@ import { REGISTER_LOCATION_TOOL } from "./orchestration/tools/RegisterLocationTo
 import { REPORT_PROGRESS_TOOL } from "./orchestration/tools/ReportProgressTool/constants";
 import { REPORT_RESULT_TOOL } from "./orchestration/tools/ReportResultTool/constants";
 import { REQUEST_PLAN_TOOL } from "./orchestration/tools/RequestPlanTool/constants";
+import { RETRY_TASK_TOOL } from "./orchestration/tools/RetryTaskTool/constants";
 import { SET_THREAD_TITLE_TOOL } from "./orchestration/tools/SetThreadTitleTool/constants";
 import { STEER_TASK_TOOL } from "./orchestration/tools/SteerTaskTool/constants";
 import { TASK_STATUS_TOOL } from "./orchestration/tools/TaskStatusTool/constants";
@@ -64,6 +65,7 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
   [REPORT_PROGRESS_TOOL]: ORCHESTRATION_MCP_SERVER,
   [REPORT_RESULT_TOOL]: ORCHESTRATION_MCP_SERVER,
   [REQUEST_PLAN_TOOL]: ORCHESTRATION_MCP_SERVER,
+  [RETRY_TASK_TOOL]: ORCHESTRATION_MCP_SERVER,
   [SET_THREAD_TITLE_TOOL]: ORCHESTRATION_MCP_SERVER,
   [STEER_TASK_TOOL]: ORCHESTRATION_MCP_SERVER,
   [TASK_STATUS_TOOL]: ORCHESTRATION_MCP_SERVER,

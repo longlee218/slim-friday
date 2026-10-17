@@ -30,7 +30,8 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).toContain("At most 3 chained starts");
   expect(md).toContain("1 dispatch per run");
   expect(md).toContain("$3/day");
-  expect(md).toContain("no resume tool exists"); // resume = a new DispatchAgent with a brief
+  expect(md).toContain("RetryTask"); // a held failure: retry with a note, or cancel
+  expect(md).toContain("resumed by code in the same session");
   expect(md).toContain("Never put secrets in a brief");
   expect(md).toContain("quoted or forwarded text included");
   // Section order: members, locations, delegation, results, limits.

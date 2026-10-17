@@ -43,6 +43,7 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   }
   // The start checks passed: a held task this run continues is taken over now (a failure above keeps the hold).
   i.onStarted?.();
+  i.onCwd?.(s.cwd);
   // Every log line of this run names its session (lead of the thread, or the worker of its owned task).
   setLogContext({
     sessionKey: sessionKeyOf({

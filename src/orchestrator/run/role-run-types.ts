@@ -40,6 +40,8 @@ export interface DispatchDeps extends RoleRunnerDeps {
 
 /** One role run: a fresh message, a dispatched task, or the continuation of one (`resume`). */
 export interface RoleRunInput {
+  /** Called with the cwd the run works in, once its scope is built (a worker records it: a resume must use the same cwd). */
+  onCwd?: (cwd: string) => void;
   /** Called once the run's start checks passed (role valid, location reachable): the caller drops what this run continues. */
   onStarted?: () => void;
   /** Owner's conversation language (pinned by ingress); absent = the thread's pinned language. */
@@ -83,6 +85,9 @@ export interface RoleRunInput {
   envelope?: DispatchEnvelope;
   /** Where the typed question of a worker's AskUserQuestion goes instead of the owner (the run's `code` hook); omitted = the owner's buttons. */
   askRelay?: (questions: AskQuestion[]) => Promise<Record<string, string> | undefined>;
-  /** Continue this saved session in its cwd (an interrupted task): the task's own, never the thread's. */
-  resume?: { sessionId: string; cwd: string };
+  /**
+   * Continue this saved session (an interrupted task): the task's own, never the thread's. `cwd` absent = a worker's
+   * deterministic cwd (its pinned location), which is where its session was keyed.
+   */
+  resume?: { sessionId: string; cwd?: string };
 }

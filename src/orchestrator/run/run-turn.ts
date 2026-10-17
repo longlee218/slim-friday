@@ -47,6 +47,8 @@ export interface DetachedOpts {
   slot: () => void;
   /** Typed result the worker reported (read after the run ends): it decides the task status over the derived one. */
   resultKind: () => ResultKind | undefined;
+  /** Goal-item failure policy (see `closeTurn`): a failed run resumes or holds its item instead of failing it. */
+  failurePolicy?: (res: FlowResult, status: string) => boolean;
   /** Called last, once the run ended and its slot is free (end event, goal settle, next item). */
   onSettled: () => void;
 }
@@ -107,6 +109,7 @@ export function runDetached(deps: DispatchDeps, input: RoleRunInput, o: Detached
           ...(o.delivery && { delivery: o.delivery }),
           agentHome: config.agentHome,
           resultKind: o.resultKind(),
+          ...(o.failurePolicy && { failurePolicy: o.failurePolicy }),
         }),
       );
     } catch (err) {

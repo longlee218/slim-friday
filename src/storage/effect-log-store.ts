@@ -67,3 +67,38 @@ export function effectScope(db: Database, id: string): string | undefined {
   return db.query<{ scope: string }, [string]>("SELECT scope FROM effect_log WHERE id = ?").get(id)
     ?.scope;
 }
+
+/** Effects an item's runs recorded, oldest first (the resume prompt lists them: what the interrupted run already did). */
+export function effectsOfItem(db: Database, itemId: string): EffectRow[] {
+  return db
+    .query<EffectRow, [string]>(
+      `SELECT id, thread_id AS threadId, goal_id AS goalId, item_id AS itemId, tool, scope,
+         granted_by AS grantedBy, result, undo, created_at AS createdAt
+       FROM effect_log WHERE item_id = ? ORDER BY created_at, rowid`,
+    )
+    .all(itemId);
+}
+
+/** Audit tool name of the row that records the cwd a worker turn ran in (a resume must use the same cwd; `scope` = the path). */
+export const RUN_CWD_TOOL = "RunCwd";
+
+/** Record the cwd of a worker turn (one row per turn; a repeat is a no-op). */
+export function recordRunCwd(
+  db: Database,
+  r: { turnId: string; threadId: string; goalId: string; itemId: string; cwd: string },
+): void {
+  appendEffect(db, {
+    id: `cwd:${r.turnId}`,
+    threadId: r.threadId,
+    goalId: r.goalId,
+    itemId: r.itemId,
+    tool: RUN_CWD_TOOL,
+    scope: r.cwd,
+    grantedBy: "role",
+    result: "recorded",
+  });
+}
+
+/** The cwd a turn ran in, or undefined when none was recorded (the run died before its scope was built). */
+export const runCwdOfTurn = (db: Database, turnId: string): string | undefined =>
+  effectScope(db, `cwd:${turnId}`);

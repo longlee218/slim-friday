@@ -43,8 +43,11 @@ async function promptOf(prompt: unknown): Promise<string> {
   return first.value?.message.content ?? "";
 }
 
+/** Names the session of a run (its options, call number): `options.resume` = the session being resumed. */
+export type SessionOf = (options: any, n: number) => string | undefined;
+
 /** A fake `query` that plays the lead model and the workers from `script`; every model call is recorded in `calls`. */
-export function scriptedQuery(script: Script, calls: Call[]) {
+export function scriptedQuery(script: Script, calls: Call[], sessionOf?: SessionOf) {
   return ((a: { prompt: unknown; options: any }) =>
     (async function* (): AsyncGenerator<SDKMessage> {
       const kind: Call["kind"] = isLeadRun(a.options)
@@ -65,12 +68,14 @@ export function scriptedQuery(script: Script, calls: Call[]) {
         },
       };
       calls.push(call);
-      yield initMsg;
+      // A test that tracks sessions (resume) names the run's session; the default is the fixed one of `initMsg`.
+      const sid = sessionOf?.(a.options, calls.length);
+      yield sid ? ({ ...initMsg, session_id: sid } as SDKMessage) : initMsg;
       const out = await script(call);
       const o = typeof out === "string" ? { text: out } : out;
       yield resultMsg({
         result: o.text,
-        session_id: `sess-${kind}-${calls.length}`,
+        session_id: sid ?? `sess-${kind}-${calls.length}`,
         total_cost_usd: o.cost ?? 0.001,
       });
     })()) as never;
@@ -128,10 +133,11 @@ export function leadHarness(
   script: Script,
   env = makeEnv(),
   approvals: Partial<ApprovalGateway> = {},
+  sessionOf?: SessionOf,
 ) {
   const calls: Call[] = [];
   const posts: string[] = [];
-  const queryFn = scriptedQuery(script, calls);
+  const queryFn = scriptedQuery(script, calls, sessionOf);
   const handle = createTurnHandler({
     db: env.db,
     config: env.config,

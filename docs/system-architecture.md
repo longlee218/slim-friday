@@ -38,7 +38,7 @@ Discord message
       debounce 800 ms; one lead run per thread; global run limiter 30
       lead run (lead/lead-run.ts): AGENTS.md + TEAM.md + persona + data block + lead tools
         answers itself | DispatchAgent | RequestPlan → ApprovePlan | TaskStatus | SteerTask
-        | CancelTask | AskOwner | ForwardResult | SetThreadTitle
+        | CancelTask | RetryTask | AskOwner | ForwardResult | SetThreadTitle
         → detached worker run (developer, scout) or planner run
         → the lead posts the reply (the only owner-facing voice)
 
@@ -83,12 +83,13 @@ Worker run (detached; survives the owner message)
 | Strategy | `strategy/dispatch-policy.ts`, `strategy/plan-policy.ts`, `config/lead-caps.ts` | ANSWER, DIRECT (one worker), DELEGATE (chain of up to 3), PLAN; `NEEDS_PLAN` refusal for a bigger shape |
 | Dispatch | `worker/dispatch-ready.ts`, `worker/worker-run.ts`, `run/run-turn.ts` (`runTurn("worker")`) | start ready items whose dependencies completed; detached run |
 | Results | `worker/result-file.ts`, `worker/report-sink.ts`, `mcp/orchestration/tools/ReportResultTool/` | result file per finished item; excerpt ≤ 600 chars |
-| Goal settle | `worker/goal-settle.ts` | all items ended → goal `completed` or `failed`; a failed item cancels its dependents |
+| Goal settle | `worker/goal-settle.ts` | all items ended → goal `completed` or `failed`; an item that can never run (breaker, budget) cancels its dependents; a held item does not (see [Failure classes](#failure-classes-and-auto-resume)) |
 | Outbox | `events/event-types.ts`, `storage/thread-event-store.ts`, table `thread_events` | append (idempotent by `id`), claim per lead run, mark delivered, redeliver after a crash |
 | Announce | `lead/lead-events.ts` (2 s window), `lead/lead-run.ts` (2 attempts) | worker events batched into one lead run |
 | Planner | `plan/` (12 files), `mcp/plan/` | versioned plan; code validates it; the owner approves the whole plan once; approved items become goal items |
 | Effects | `goal/effect-port*.ts`, `effects/`, `storage/effect-log-store.ts`, table `effect_log` | the only write path for lead and effect tool state changes (one atomic write) |
-| Recovery | `worker/recover-in-flight.ts`, `index.ts` | boot: in-flight items recovered; a lead of a thread with undelivered events is woken |
+| Failure policy | `runtime/failure-class.ts`, `worker/failure-policy.ts`, `worker/resume-prompt.ts`, `worker/resume-backoff.ts` | transient failure → same session resumed (cap 2, backoff); real failure → item held; see [Failure classes](#failure-classes-and-auto-resume) |
+| Recovery | `worker/recover-in-flight.ts`, `index.ts` | boot: running goal items resume or are held; a lead of a thread with undelivered events is woken |
 | Budget | `budget/lead-budget.ts`, `budget/task-budget.ts` | lead daily cap; task ceiling (see [Budgets](#budgets)) |
 | Metrics | `observability/lead-metrics.ts`, `lead-metrics-cli.ts` | read-only `bun run metrics:lead [--days N]` (see below) |
 
@@ -101,7 +102,8 @@ Worker run (detached; survives the owner message)
 | `ApprovePlan` | owner approves a valid plan (`planId`, `version`) | the plan must be `valid`; one yes for the whole plan |
 | `TaskStatus` | read goal and task state | facts come from the store |
 | `SteerTask` | send an owner answer or note to a running worker | task-keyed; not an interrupt |
-| `CancelTask` | cancel a task and its waiting dependents | the state machine decides what is allowed |
+| `CancelTask` | cancel a task and its waiting dependents; on a held item: the item fails, dependents are cancelled, the goal settles `failed` | the state machine decides what is allowed |
+| `RetryTask` | re-queue a held (failed) item with a note | `taskId` + `note`; refused `ENDED`, `NOT_HELD`, `BREAKER` (dispatched 3 times), `OVER_BUDGET` (goal budget used); resets `attempt`, clears the held marker, records a `retry` event |
 | `AskOwner` | ask the owner a question | the lead's only owner question tool |
 | `ForwardResult` | post a finished item's result to the thread | verbatim result file or its excerpt |
 | `SetThreadTitle` | rename the thread once | ≤ 2 calls per run; only with a rename port |
@@ -110,7 +112,7 @@ Worker run (detached; survives the owner message)
 
 - Lead role data: `MAX_ASK` 0, `BUDGET_USD` 0.75, `noSubagents`, `capabilities: read` (no shell, no write).
 - Worker results, planner results and events are DATA in the lead's prompt, never instructions.
-- The lead has no resume tool. "go" or "continue" re-dispatches the role with a self-contained brief (rule in `roles/prompts/team-md.ts`). The old session is not resumed.
+- Transient failures resume by code (the lead does nothing). A held item is the lead's decision: `RetryTask` (same session, with a note) or `CancelTask`. For a task that already ended, "go" or "continue" re-dispatches the role with a self-contained brief (rule in `roles/prompts/team-md.ts`).
 
 ### Worker and planner tools
 
@@ -123,8 +125,9 @@ Worker run (detached; survives the owner message)
 
 ### Goal and item model
 - A **goal** is a root `owned_tasks` row (`parent_id` NULL). Its **items** are child rows (`parent_id` = goal, unique `item_key` per goal, `depends_on` list).
-- Item states (`src/tasks/task-state-machine.ts`): `pending → ready → running → waiting_user | blocked | completed | failed | cancelled`. `open` is the start of a standalone task. `completed`, `failed` and `cancelled` are terminal.
-- `attempt` and `dispatch_count` count runs. An item dispatched 3 times (`MAX_DISPATCHES_PER_ITEM`) fails instead of starting again.
+- Item states (`src/tasks/task-state-machine.ts`): `pending → ready → running → waiting_user | blocked | completed | failed | cancelled`, plus `running → ready` (automatic resume). `open` is the start of a standalone task. `completed`, `failed` and `cancelled` are terminal.
+- **Held item** = `blocked` with `result_kind` FAILED: it failed for a reason the lead must decide on. It is not terminal: its dependents stay `pending` and the goal stays `open` until `RetryTask` or `CancelTask`.
+- `attempt` counts automatic resumes of the current dispatch (reset by `RetryTask`); `dispatch_count` counts first starts and `RetryTask` (automatic resumes do not count). An item dispatched 3 times (`MAX_DISPATCHES_PER_ITEM`) fails instead of starting again.
 - Plans (`work_plans`, versioned): `MAX_ITEMS` 8 per plan, `MAX_REVISIONS` 3. The validator rejects cycles, unknown or non-dispatchable roles, locations outside the space, and over-budget items.
 - PLAN execution runs independent items in parallel (L5 scheduler, `orchestrator/worker/scheduler.ts`): FIFO by creation order, at most 2 running per thread, per-role `concurrency` (role data), one writer (`sideEffects: "location"`) per location, 30 global runs; a dependent item starts when its dependencies completed.
 
@@ -134,17 +137,25 @@ Worker run (detached; survives the owner message)
 3. The worker calls `ReportResult`. Code writes `<AGENT_HOME>/goals/<goalId>/<itemKey>.md` (dir 0700, file 0600) and appends a `thread_events` row.
 4. The announcer waits 2 s for more events; one lead run reads them.
 5. The lead reports to the owner, starts the next step, or asks the owner (`AskOwner`).
-6. The goal settles when every item has ended.
+6. The goal settles when every item has ended. A failed run goes through the failure policy first (see [Failure classes](#failure-classes-and-auto-resume)): resumed or held, never silently lost.
+
+### Failure classes and auto-resume
+- `closeTurn` runs the failure policy (`worker/failure-policy.ts`) for a goal item whose run did not deliver (a standalone task and the owner's `/stop` are unchanged). The pure classifier `runtime/failure-class.ts` reads the outcome, the raw error text (the stream marks `transient` before it blanks the text), `abortCause` and the shutdown flag.
+- **Transient**: API overload / 5xx / rate limit without a usage window / dropped connection, a watchdog abort (`stale`), a shutdown abort (SIGTERM), a crash (boot), a failed resume. The item goes `running → ready`, `attempt + 1`, and starts again after a linear backoff of `attempt × 2 s` (in memory, `worker/resume-backoff.ts`; `dispatch-ready` skips it and retries). Cap `AUTO_RESUME_CAP` 2 per dispatch (`config/resilience-caps.ts`); a resume is not a new dispatch.
+- A success result flagged `is_error` that carries a transient API error counts as a failed run (outcome `error`, transient). The 3-dispatch breaker never stops a resume (`attempt > 0`): a transient failure at dispatch 3 gets its capped resumes, then a hold. `/stop` also cancels held items of the open goal (and their dependents), so the goal settles.
+- **Real**: worker reported FAILED, run error, `max_budget`, `max_turns`, quota with a usage window, cap exhausted. The item is **held** (`blocked`, result FAILED) with a `failure` event (`class`, `cause`, `attempt`); dependents wait. The lead decides: `RetryTask` or `CancelTask`.
+- **Resume start** (`worker/resume-prompt.ts`): the next start resumes the SDK session of the item's newest turn (`turns.session_id`, cwd recomputed from the location) with a fixed prompt ("You were interrupted. The last tool call may or may not have run. Verify state ... before repeating any step.") plus the item's `effect_log` rows and the lead's retry note, both as DATA. The cwd of the resumed run is the one the session's turn ran in (an `effect_log` bookkeeping row `RunCwd`, `scope` = path, written when the run's scope is built; never recomputed from the item's location, which may have changed). No session, or a failed resume (it clears the session) → the brief again with one line "A previous attempt was interrupted.". Effect tools are repeat-safe (non-forced push is a no-op, merge reports up to date, a second PR is refused, delete finds nothing).
 
 ### Restart
-- On boot, in-flight items are recovered from the store and each thread with undelivered events gets its lead woken. Undelivered `thread_events` rows stay until a lead run delivers them.
+- On boot, `recoverInFlight` runs in one transaction. Goal items that were `running` go back to `ready` with `attempt + 1` (auto-resume; the boot wake calls `dispatch-ready`, which resumes the session), or are held when `AUTO_RESUME_CAP` is used up (`failure` event, cause `resume_cap:crash`). Other running tasks wait for the owner. Each recovered task gets one `recovered_after_restart` event (`autoResumed` for goal items); each thread with undelivered events gets its lead woken. Undelivered `thread_events` rows stay until a lead run delivers them.
+- SIGTERM: the abort is classed transient, so the item is `ready`; `dispatch-ready` starts nothing while the process stops. At boot `recoverInFlight` also reports the threads that hold a `ready` goal item (`readyThreads`); the boot wake runs the dispatch pass for them (no lead run, no owner message), so the item resumes. A run still alive at the drain timeout is interrupted as before (`waiting_user`).
 - A crash leaves running turns; they become `interrupted`.
 - Low-config setup (channel auto-adopt, `RegisterLocation`) needs no restart: `workspace.yaml` is re-read per message. Only the guild pin (first `channels:`, `DISCORD_GUILD_ID`) is read at startup.
 
 ### Watchdog
 - Every live worker run carries `lastActivityAt` (`live-runs.ts`): set at run start, on every tool start (the guard's `onGuardDecision` observer, worker runs only) and on `ReportProgress` (`worker/run-activity.ts`). The db stamp `owned_tasks.last_progress_at` follows at most once per 60 s (no schema change, no version bump).
-- `worker/resilience-sweeper.ts` ticks every 60 s (`config/resilience-caps.ts`; timer `unref()`, stopped in `LeadSystem.stopAll`). `worker/watchdog.ts` `pickStale` (pure) takes worker runs idle for more than `STALE_AFTER_MS` (15 min; a role may set `staleAfterMs`). A stale run gets `abortCause = "stale"`, is aborted, and a `timeout` event (`stale:<itemId>:<dispatchCount>`) wakes the lead. Detection is within threshold + one tick. For now the aborted run ends as a cancelled run; auto-resume is a later phase.
-- A run waiting by design is skipped: the question relay wait (≤ 30 min) and the owner confirm of an effect open a counted wait (`waitingCount`, try/finally; the last close counts as activity). The watchdog also skips a run already aborted, and appends no `timeout` event for an item that already ended; `touchProgress` never writes a final task. An owner tool approval (canUseTool) does not set it: the tool start just before it is a heartbeat and the approval times out after 10 min, below the threshold.
+- `worker/resilience-sweeper.ts` ticks every 60 s (`config/resilience-caps.ts`; timer `unref()`, stopped in `LeadSystem.stopAll`). `worker/watchdog.ts` `pickStale` (pure) takes worker runs idle for more than `STALE_AFTER_MS` (15 min; a role may set `staleAfterMs`). A stale run gets `abortCause = "stale"` and is aborted; no event is written (the lead does nothing while code resumes the item; a held item's `failure` event, cause `resume_cap:stale`, is what reaches the lead). Detection is within threshold + one tick. The failure policy consumes the abort as a transient failure: the item resumes its session (see above).
+- A run waiting by design is skipped: the question relay wait (≤ 30 min) and the owner confirm of an effect open a counted wait (`waitingCount`, try/finally; the last close counts as activity). The watchdog also skips a run already aborted; `touchProgress` never writes a final task. An owner tool approval (canUseTool) does not set it: the tool start just before it is a heartbeat and the approval times out after 10 min, below the threshold.
 
 ## Role Model
 Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per file (`src/roles/role-types.ts`). The engine reads only that data, never a role name (test-enforced).
@@ -176,7 +187,7 @@ Five in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<se
 | Server (name) | Tools | Roles (role `mcpTools`) |
 |---|---|---|
 | `memory` | `MemorySave`, `MemorySearch`, `MemoryGet`, `MemoryExpand` | `MemorySave`: lead only. The three read tools: lead, planner, scout, developer |
-| `orchestration` | `DispatchAgent`, `TaskStatus`, `SteerTask`, `CancelTask`, `AskOwner`, `ForwardResult`, `RequestPlan`, `ApprovePlan`, `SetThreadTitle`, `ReportResult`, `ReportProgress` | lead (the first nine); `ReportResult`, `ReportProgress`: every worker role |
+| `orchestration` | `DispatchAgent`, `TaskStatus`, `SteerTask`, `CancelTask`, `RetryTask`, `AskOwner`, `ForwardResult`, `RequestPlan`, `ApprovePlan`, `RegisterLocation`, `SetThreadTitle`, `ReportResult`, `ReportProgress` | lead (all but the last two); `ReportResult`, `ReportProgress`: every worker role |
 | `plan` | `GetProjectContext`, `GetAgentCapabilities`, `CreatePlan`, `ValidatePlan`, `ProposePlanRevision`, `GetExecutionProgress`, `AnalyzeBlockers` | planner |
 | `effects` | `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch` | developer |
 | `discord-admin` | `ListSpaces`, `CreateSpaceOrChannel`, `WriteSpaceFile` | discord-manager |
@@ -235,6 +246,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 | 5 | Child env scrub | every run | `src/runtime/sdk-env.ts`, `src/config/data/child-env-deny.yaml` | bot secrets never reach the agent process; workers also lose GitHub tokens and the SSH agent socket |
 
 - **RegisterLocation** (config, not an effect): outside the per-goal envelope. Guards in order: owner turn (`NOT_OWNER_TURN`), path token in the owner text (`PATH_NOT_IN_MESSAGE`, `src/orchestrator/lead/owner-path-match.ts`), one per run (`LIMIT`), `inspectLocation` path and credential rules (`BAD_PATH`, `src/workspaces/location-candidate.ts`), Yes/No question via the lead `AskOwner` port (`OWNER_DENIED`; the question is not an owner-confirm kind), then one locked write with a reload check (`WRITE_FAILED`, `src/workspaces/register-location.ts`). Audit row in `effect_log` (`granted_by` owner) on success only; a refusal writes a `lead_decision` event.
+- **Resume and the guards**: a resumed or retried run is a new start of the same item: the envelope is rebuilt from the db (approved plan, dispatch grants), so a resume cannot widen a grant; layers 1, 3 and 4 apply as on any run; R4 effects still ask the owner at every act. `RetryTask` is lead-only (a worker has no `lead` ctx part); the retry note and the effect rows reach the resumed run as redacted, clipped DATA.
 - The app does not parse Bash. Layer 1 allows Bash and Monitor for a role with the `shell` capability (developer, scout) and denies them for the others; layer 4 bounds what the shell can do. No `disallowedTools` list.
 
 ### Risk classes (`src/policy/risk-types.ts`, `classify-tool-call.ts`)

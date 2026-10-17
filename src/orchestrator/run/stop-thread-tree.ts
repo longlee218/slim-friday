@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { logEvent, logger, tryLog } from "../../observability/logger";
-import { childrenOf } from "../../storage/owned-item-store";
+import { childrenOf, isHeld } from "../../storage/owned-item-store";
 import { cancelStartEvents } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
@@ -32,7 +32,8 @@ export function stopThreadTree(
     // Items of the open goal that never started (`pending` / `ready`) would start on the next dispatch pass: cancel them too.
     if (goalId) {
       for (const it of childrenOf(db, goalId))
-        if (it.status === "pending" || it.status === "ready") moveTaskTo(db, it.id, "cancelled");
+        if (it.status === "pending" || it.status === "ready" || isHeld(it))
+          moveTaskTo(db, it.id, "cancelled"); // a held failure is given up too: its dependents are cancelled above, the goal settles
       closePendingPlans(db, goalId, "stopped"); // a later "approve" of the open plan question must create nothing
       settleGoal(db, goalId);
     }

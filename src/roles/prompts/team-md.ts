@@ -12,6 +12,7 @@ import { CANCEL_TASK_TOOL } from "../../mcp/orchestration/tools/CancelTaskTool/c
 import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
 import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
 import { REQUEST_PLAN_TOOL } from "../../mcp/orchestration/tools/RequestPlanTool/constants";
+import { RETRY_TASK_TOOL } from "../../mcp/orchestration/tools/RetryTaskTool/constants";
 import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
 import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
 import { dispatchableWorkers } from "../role-registry";
@@ -79,7 +80,7 @@ export function buildTeamMd(i: TeamMdInput = {}): string {
     "- A brief is all the member knows: goal sentence, what is already done, what to deliver, the location by name. Never put secrets in a brief.",
     `- Plans: ${REQUEST_PLAN_TOOL} starts the planner (inside the open goal when one exists: its finished items stay). When its result carries a plan (id + version), call ${APPROVE_PLAN_TOOL}: the owner approves the whole plan once. Only a wider envelope asks again.`,
     `- Change running work with ${STEER_TASK_TOOL}; stop it with ${CANCEL_TASK_TOOL}. Ask the owner with ${ASK_OWNER_TOOL}.`,
-    `- Resume ("go", "continue") of a failed or interrupted task: no resume tool exists. Read the goal and the item's result excerpt, then call ${DISPATCH_AGENT_TOOL} again with the same role and a self-contained brief; say the work restarts.`,
+    `- Transient failures (API overload, crash, restart, stale run) are resumed by code in the same session (up to 2 times): do nothing for them (a recovered_after_restart event with autoResumed true is one). A failure event that carries a class and cause means the item is held: its dependents wait and the goal stays open. Read the cause, then call ${RETRY_TASK_TOOL} with a note on what to fix (the worker resumes its session and verifies state first) or ${CANCEL_TASK_TOOL} to give up (the goal fails). A task that ended (completed, failed, cancelled): "go" or "continue" means ${DISPATCH_AGENT_TOOL} again with the same role and a self-contained brief; say the work restarts.`,
     "",
     "## Results",
     `- Facts about goals and tasks come from the data block or ${TASK_STATUS_TOOL}, never from memory of earlier turns.`,

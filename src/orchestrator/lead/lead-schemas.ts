@@ -65,6 +65,10 @@ export const CANCEL_TASK_SHAPE = {
   taskId: TASK_ID,
   reason: z.string().min(1).max(REASON_MAX_CHARS),
 };
+export const RETRY_TASK_SHAPE = {
+  taskId: TASK_ID,
+  note: z.string().min(1).max(STEER_TEXT_MAX_CHARS).describe("What to fix or change on the retry"),
+};
 export const ASK_OWNER_SHAPE = {
   question: z.string().min(1).max(QUESTION_MAX_CHARS),
   options: z.array(z.string().min(1).max(OPTION_MAX_CHARS)).min(OPTIONS_MIN).max(OPTIONS_MAX),
@@ -102,6 +106,7 @@ export type DispatchInput = z.infer<z.ZodObject<typeof DISPATCH_AGENT_SHAPE>>;
 export type TaskStatusInput = z.infer<z.ZodObject<typeof TASK_STATUS_SHAPE>>;
 export type SteerInput = z.infer<z.ZodObject<typeof STEER_TASK_SHAPE>>;
 export type CancelInput = z.infer<z.ZodObject<typeof CANCEL_TASK_SHAPE>>;
+export type RetryInput = z.infer<z.ZodObject<typeof RETRY_TASK_SHAPE>>;
 export type AskOwnerInput = z.infer<z.ZodObject<typeof ASK_OWNER_SHAPE>>;
 export type RegisterLocationInput = z.infer<z.ZodObject<typeof REGISTER_LOCATION_SHAPE>>;
 export type ForwardInput = z.infer<z.ZodObject<typeof FORWARD_RESULT_SHAPE>>;

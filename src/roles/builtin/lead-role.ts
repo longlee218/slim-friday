@@ -10,6 +10,7 @@ import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgent
 import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
 import { REGISTER_LOCATION_TOOL } from "../../mcp/orchestration/tools/RegisterLocationTool/constants";
 import { REQUEST_PLAN_TOOL } from "../../mcp/orchestration/tools/RequestPlanTool/constants";
+import { RETRY_TASK_TOOL } from "../../mcp/orchestration/tools/RetryTaskTool/constants";
 import { SET_THREAD_TITLE_TOOL } from "../../mcp/orchestration/tools/SetThreadTitleTool/constants";
 import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
 import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
@@ -51,6 +52,7 @@ export const LEAD_ROLE: RoleDefinition = {
     TASK_STATUS_TOOL,
     STEER_TASK_TOOL,
     CANCEL_TASK_TOOL,
+    RETRY_TASK_TOOL,
     ASK_OWNER_TOOL,
     FORWARD_RESULT_TOOL,
     REQUEST_PLAN_TOOL,

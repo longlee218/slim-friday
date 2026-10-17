@@ -77,6 +77,7 @@ test("MCP server and tool names are the real wire names", () => {
       "ReportProgress",
       "ReportResult",
       "RequestPlan",
+      "RetryTask",
       "SetThreadTitle",
       "SteerTask",
       "TaskStatus",

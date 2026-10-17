@@ -18,6 +18,8 @@ import { REPORT_RESULT_TOOL } from "./tools/ReportResultTool/constants";
 import { createReportResultTool } from "./tools/ReportResultTool/report-result-tool";
 import { REQUEST_PLAN_TOOL } from "./tools/RequestPlanTool/constants";
 import { createRequestPlanTool } from "./tools/RequestPlanTool/request-plan-tool";
+import { RETRY_TASK_TOOL } from "./tools/RetryTaskTool/constants";
+import { createRetryTaskTool } from "./tools/RetryTaskTool/retry-task-tool";
 import { SET_THREAD_TITLE_TOOL } from "./tools/SetThreadTitleTool/constants";
 import { createSetThreadTitleTool } from "./tools/SetThreadTitleTool/set-thread-title-tool";
 import { STEER_TASK_TOOL } from "./tools/SteerTaskTool/constants";
@@ -37,6 +39,7 @@ export const ORCHESTRATION_SERVER: McpServerManifest = {
     { name: TASK_STATUS_TOOL, create: (c) => c.lead && createTaskStatusTool(c.lead) },
     { name: STEER_TASK_TOOL, create: (c) => c.lead && createSteerTaskTool(c.lead) },
     { name: CANCEL_TASK_TOOL, create: (c) => c.lead && createCancelTaskTool(c.lead) },
+    { name: RETRY_TASK_TOOL, create: (c) => c.lead && createRetryTaskTool(c.lead) },
     { name: ASK_OWNER_TOOL, create: (c) => c.lead && createAskOwnerTool(c.lead) },
     { name: REGISTER_LOCATION_TOOL, create: (c) => c.lead && createRegisterLocationTool(c.lead) },
     { name: FORWARD_RESULT_TOOL, create: (c) => c.lead && createForwardResultTool(c.lead) },

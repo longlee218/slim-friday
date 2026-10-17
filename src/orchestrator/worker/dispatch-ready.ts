@@ -1,3 +1,4 @@
+import { MAX_DISPATCHES_PER_ITEM } from "../../config/resilience-caps";
 import { logEvent, logger } from "../../observability/logger";
 import { findRole } from "../../roles/role-registry";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
@@ -7,14 +8,12 @@ import { GOAL_BUDGET_USD, goalOverBudget } from "../budget/task-budget";
 import { openGoalIdOf } from "../goal/effect-port-queries";
 import type { LeadRuntime } from "../lead/lead-runtime";
 import { cancelDependents, settleGoal } from "./goal-settle";
+import { clearHold, waitMs } from "./resume-backoff";
 import { pickDispatchable, type RoleCaps } from "./scheduler";
 import { startWorker } from "./worker-run";
 
 /** Logger of this module. */
 const log = logger.child({ module: "dispatch-ready" });
-
-/** Circuit breaker: an item dispatched this many times fails instead of starting again. */
-const MAX_DISPATCHES_PER_ITEM = 3;
 
 /** Wait (ms) before a pass retries an item the run cap deferred (any worker ending retries earlier). */
 const BUSY_RETRY_MS = 3000;
@@ -49,13 +48,13 @@ function failItem(
   logEvent(log, "dispatch.refused", { itemId: it.id, kind, reason }, "warn");
 }
 
-/** Retry the thread's pass once after `BUSY_RETRY_MS` (one timer per thread; it never keeps the process alive). */
-function deferRetry(rt: LeadRuntime, threadId: string): void {
+/** Retry the thread's pass once after `ms` (default `BUSY_RETRY_MS`; one timer per thread; it never keeps the process alive). */
+function deferRetry(rt: LeadRuntime, threadId: string, ms = BUSY_RETRY_MS): void {
   if (deferred.has(threadId)) return;
   const t = setTimeout(() => {
     deferred.delete(threadId);
     void dispatchReady(rt, threadId);
-  }, BUSY_RETRY_MS);
+  }, ms);
   t.unref();
   deferred.set(threadId, t);
 }
@@ -88,6 +87,7 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
   const ctx = rt.ctxOf(threadId);
   const goalId = openGoalIdOf(db, threadId);
   if (!ctx || !goalId) return;
+  if (rt.deps.stopping()) return; // shutdown: an item resumed by the abort starts at the next boot, not now
   for (;;) {
     let items = childrenOf(db, goalId);
     // A pending item whose dependencies all completed is ready.
@@ -98,12 +98,16 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
       )
         moveTaskTo(db, it.id, "ready");
     items = childrenOf(db, goalId);
+    for (const it of items) if (it.status !== "ready") clearHold(it.id); // a cancelled / ended item keeps no backoff entry
     const ready = items.filter((i) => i.status === "ready");
     // Refused items first (a failed one cancels its dependents, so the list is read again).
     const overBudget = goalOverBudget(db, items);
-    const refused = ready.find((i) => i.dispatchCount >= MAX_DISPATCHES_PER_ITEM || overBudget);
+    // The breaker stops a re-dispatch loop, never an automatic resume (`attempt > 0`): a transient failure at the third
+    // dispatch still gets its capped resumes and then a hold for the lead, not a terminal failure.
+    const tripped = (i: ItemRow) => i.attempt === 0 && i.dispatchCount >= MAX_DISPATCHES_PER_ITEM;
+    const refused = ready.find((i) => tripped(i) || overBudget);
     if (refused) {
-      if (refused.dispatchCount >= MAX_DISPATCHES_PER_ITEM)
+      if (tripped(refused))
         failItem(rt, threadId, refused, "failure", `dispatched ${refused.dispatchCount} times`);
       else failItem(rt, threadId, refused, "budget_hit", `goal budget $${GOAL_BUDGET_USD} used`);
       rt.announce(threadId); // a failed item is news
@@ -114,6 +118,12 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
       return;
     }
     for (const next of pickDispatchable(items, roleCaps)) {
+      // An item waiting out its resume backoff keeps its place (and its location) and is tried again when due.
+      const wait = waitMs(next.id);
+      if (wait > 0) {
+        deferRetry(rt, threadId, wait);
+        continue;
+      }
       // A start that throws (bad role data, db error) fails that item only: the other picks still start.
       const started = await startWorker(rt, ctx, threadId, next, () => {
         rt.announce(threadId);

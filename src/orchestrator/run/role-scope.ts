@@ -23,8 +23,8 @@ function grantedUnderHome(
 
 /**
  * Pick cwd, extra dirs, session and guard paths.
- * cwd: an explicit `resume` keeps its own; a worker role works in the pinned location, else the sole location, else the
- * first registry location (the rest are `additionalDirectories`); a non-worker role keeps the thread's stored cwd when it
+ * cwd: an explicit `resume.cwd` keeps its own; a worker role (also one resumed without `resume.cwd`) works in the pinned
+ * location, else the sole location, else the first registry location (the rest are `additionalDirectories`); a non-worker role keeps the thread's stored cwd when it
  * is still valid, else the pinned location, the sole location, or the neutral workspace dir over several locations. Claude sessions
  * are keyed by cwd, so a session is resumed only when its cwd is the run's.
  * A role with the `write` capability may write in every location of the workspace, the worktrees dir, the task scratch
@@ -39,7 +39,7 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
   const scope = pinned ? [pinned] : locations;
   let cwd: string;
   let sessionId: string | undefined;
-  if (i.resume) {
+  if (i.resume?.cwd) {
     // A worker role resumes only inside a registered location or the workspace's neutral `cwd/` (a zero-location
     // workspace works there); an old session whose cwd was a plan scratch dir must not run as developer.
     const resumeCwd = realOrSame(i.resume.cwd);
@@ -56,6 +56,7 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
     cwd =
       pinned?.path ??
       (role.capabilities.includes("write") ? (locations[0]?.path ?? dirs.cwd) : dirs.cwd);
+    sessionId = i.resume?.sessionId; // a resumed item: same computed cwd as its first run
   } else {
     const stored = i.existing;
     const storedOk =

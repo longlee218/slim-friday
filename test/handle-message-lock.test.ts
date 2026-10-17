@@ -84,7 +84,7 @@ const failQuery = (_a: any) =>
     yield resultMsg({ subtype: "error_during_execution", is_error: true, errors: ["boom"] });
   })();
 
-test("M4: a success outcome finishes the worker turn; an error fails the turn and its task", async () => {
+test("M4: a success outcome finishes the worker turn; an error fails the turn and holds its task", async () => {
   const ok = makeEnv();
   await devHandler(ok, okQuery)(dev("a", "ok"));
   await workersDone(ok.db);
@@ -97,7 +97,7 @@ test("M4: a success outcome finishes the worker turn; an error fails the turn an
     bad.db
       .query<{ status: string }, []>("SELECT status FROM owned_tasks WHERE status != 'open'")
       .get()?.status,
-  ).toBe("failed"); // the lead is told and re-dispatches
+  ).toBe("blocked"); // held (result FAILED): the lead is told and retries or cancels
 });
 
 test("M2: finishTurn failure in the catch path does not throw", async () => {

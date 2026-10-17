@@ -99,23 +99,22 @@ test("the roster runs a DAG: tester and hacker overlap, everything else follows 
   ]);
 });
 
-test("a failing tester fails the goal: its dependent `docs` is cancelled, the hacker's result stays, the lead is told", async () => {
+test("a failing tester is held: its dependent `docs` waits, the hacker's result stays, the goal stays open, the lead is told", async () => {
   const h = scenario(async (key) => (key === "test" ? "FAILED" : "COMPLETED"), /FAILED|failure/);
   await h.send("build a todo app");
-  await until(
-    () =>
-      (h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").get() as any)
-        ?.status === "failed",
-    20000,
-  );
+  await until(() => h.posts.includes("Final report."), 20000);
   const rows = h.env.db
     .query("SELECT item_key AS k, status FROM owned_tasks WHERE parent_id IS NOT NULL")
     .all() as { k: string; status: string }[];
   const by = Object.fromEntries(rows.map((r) => [r.k, r.status]));
   expect(by).toMatchObject({
-    test: "failed",
-    docs: "cancelled",
+    test: "blocked",
+    docs: "pending",
     audit: "completed",
     build: "completed",
   });
+  // Held, not decided: the goal is still open until the lead retries or cancels.
+  expect(
+    (h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").get() as any)?.status,
+  ).toBe("open");
 });

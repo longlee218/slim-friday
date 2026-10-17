@@ -20,9 +20,9 @@ import type {
    then act through the port. Each call goes through `leadCall` (idempotent, logged, one thread event at least). */
 
 /** Statuses of a task that ended: nothing can steer or cancel it any more. */
-const ENDED = new Set(["completed", "failed", "cancelled"]);
+export const ENDED = new Set(["completed", "failed", "cancelled"]);
 const BAD_TASK = "BAD_TASK";
-const badTask = (id: string): Reply => refuse(BAD_TASK, `Task ${id} is not in this thread.`);
+export const badTask = (id: string): Reply => refuse(BAD_TASK, `Task ${id} is not in this thread.`);
 
 /** DispatchAgent: check the policy, then one port transaction writes goal, items, `start` events and the audit row. */
 export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Promise<Reply> =>

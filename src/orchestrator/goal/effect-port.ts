@@ -151,6 +151,12 @@ export interface EffectPort {
   steer(taskId: string, text: string): SteerReply;
   /** Cancel a task and its dependents, abort live runs. Returns the cancelled ids. */
   cancel(taskId: string, reason: string): string[];
+  /**
+   * Re-queue a held item (blocked after a failure): `ready`, fresh resume budget, the held marker (result kind) cleared, a
+   * `retry` event with the note. `not_held` when it is not held any more; `over_budget` when the goal already used its budget
+   * (the next pass would refuse the item), nothing changes.
+   */
+  retry(taskId: string, note: string): "ok" | "not_held" | "over_budget";
   /** Ask the owner with buttons; resolves with the answer or a timeout. */
   askOwner(q: OwnerQuestion): Promise<OwnerAnswer>;
   /** Post to the owner. */

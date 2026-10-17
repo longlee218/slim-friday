@@ -1,18 +1,12 @@
 import { STALE_AFTER_MS } from "../../config/resilience-caps";
 import { logEvent, logger } from "../../observability/logger";
-import { errText } from "../../observability/redact";
 import { getRole } from "../../roles/role-registry";
-import { getItem } from "../../storage/owned-item-store";
-import { appendEvent } from "../../storage/thread-event-store";
 import type { LeadRuntime } from "../lead/lead-runtime";
 import { type LiveRun, liveWorkers } from "../run/live-runs";
 
 /* The watchdog: a worker run with no sign of life (tool start, ReportProgress, run start) for longer than its threshold
-   is stuck; it is aborted (cause `stale`) and the lead gets a `timeout` event. A run waiting on the owner or the lead by
-   design is never stale. What happens after the abort (auto-resume) is a later phase. */
-
-/** Item statuses that are final: no `timeout` event for them. */
-const ENDED = new Set(["completed", "failed", "cancelled"]);
+   is stuck; it is aborted (cause `stale`). A run waiting on the owner or the lead by
+   design is never stale. The failure policy (failure-policy.ts) reads the abort as a transient failure: the item resumes. */
 
 /** Logger of this module. */
 const log = logger.child({ module: "watchdog" });
@@ -46,11 +40,12 @@ function staleAfterOfRole(run: LiveRun): number {
 }
 
 /**
- * One sweep: abort every stale worker run and append one `timeout` event per task and dispatch (the id makes a repeat a
- * no-op), then wake the lead. Returns the aborted runs. Never throws (a db error is logged, the abort still happened).
+ * One sweep: abort every stale worker run (cause `stale`). No event here: the failure policy resumes the item (the lead does
+ * nothing) and, only when the resumes are used up, the held item's `failure` event tells the lead. Returns the aborted runs.
  */
 export function sweepStale(
-  rt: LeadRuntime,
+  _rt: LeadRuntime, // kept for the sweeper's call shape
+
   now = Date.now(),
   staleAfterOf: (run: LiveRun) => number = staleAfterOfRole,
 ): LiveRun[] {
@@ -65,22 +60,6 @@ export function sweepStale(
       { taskId: run.taskId, threadId: run.threadId, role: run.role, idleMinutes },
       "warn",
     );
-    try {
-      const item = run.taskId ? getItem(rt.deps.db, run.taskId) : undefined;
-      // An item that already ended is news to nobody (the run only had not settled yet).
-      if (!item || ENDED.has(item.status)) continue;
-      appendEvent(rt.deps.db, {
-        id: `stale:${item.id}:${item.dispatchCount}`,
-        threadId: run.threadId,
-        taskId: item.parentId ?? item.id,
-        itemId: item.id,
-        kind: "timeout",
-        payload: { key: item.itemKey, reason: "no activity", idleMinutes },
-      });
-      rt.announce(run.threadId);
-    } catch (err) {
-      logEvent(log, "watchdog.event_failed", { taskId: run.taskId, err: errText(err) }, "error");
-    }
   }
   return stale;
 }

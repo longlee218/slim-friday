@@ -6,6 +6,7 @@ import { logger } from "../../observability/logger";
 import { ownerConfirm } from "../../owner-approval/owner-confirm";
 import { goalLocations, loadEnvelope } from "../../policy/load-envelope";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
+import { recordRunCwd } from "../../storage/effect-log-store";
 import {
   bumpDispatch,
   getItem,
@@ -19,8 +20,10 @@ import type { LeadRuntime, LeadThreadCtx } from "../lead/lead-runtime";
 import type { RoleRunInput } from "../run/role-run-types";
 import { runTurn } from "../run/run-turn";
 import { expectedDelivery } from "../turns/completion";
+import { type FailureVerdict, workerFailurePolicy } from "./failure-policy";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import type { ReportSink } from "./report-sink";
+import { startInput } from "./resume-prompt";
 import { setProgress, withWaiting } from "./run-activity";
 import { earlierSteps, emitEndEvent } from "./worker-end-event";
 
@@ -47,7 +50,9 @@ export async function startWorker(
   try {
     const goalId = item.parentId ?? item.id;
     const role = getRole(getOwnedTask(db, item.id)?.ownerAgentId ?? "");
-    bumpDispatch(db, item.id);
+    // A first start or a lead retry sends the brief (or the resume prompt); an automatic resume is no new dispatch.
+    const start = startInput(db, item);
+    if (!start.auto) bumpDispatch(db, item.id);
     markStartDelivered(db, item.id);
     const turnId = crypto.randomUUID();
     const location = item.location ?? "*";
@@ -67,6 +72,7 @@ export async function startWorker(
       // Built after the turn row exists (as before): a throw here gives the slot back, the row stays.
       build: () => {
         const sink: ReportSink = {};
+        const verdict: { current?: FailureVerdict } = {}; // what the failure policy did, for the end event
         // The envelope is rebuilt from the db at every start (approved plan, dispatch grants or the default): never kept only in memory.
         const language = messageLanguage(ctx.message);
         const envelope = loadEnvelope(
@@ -84,7 +90,9 @@ export async function startWorker(
         const input: RoleRunInput = {
           turnId,
           threadId,
-          text: item.brief ?? "",
+          text: start.text,
+          ...(start.resume && { resume: start.resume }), // same SDK session, same cwd as its first run
+          onCwd: (cwd) => recordRunCwd(db, { turnId, threadId, goalId, itemId: item.id, cwd }),
           language,
           role: role.name,
           workspace: ctx.workspace,
@@ -152,9 +160,19 @@ export async function startWorker(
             delivery: expectedDelivery(db, role, goalId),
             slot,
             resultKind: () => sink.report?.status as ResultKind | undefined, // the schema enum is RESULT_KINDS
+            failurePolicy: workerFailurePolicy({
+              db,
+              itemId: item.id,
+              turnId,
+              resultKind: () => sink.report?.status as ResultKind | undefined,
+              stopping: rt.deps.stopping,
+              verdict,
+            }),
             onSettled: () => {
-              emitEndEvent(db, threadId, item.id, turnId, sink.report);
-              if (getItem(db, item.id)?.status === "failed") cancelDependents(db, item.id); // they can never start
+              emitEndEvent(db, threadId, item.id, turnId, sink.report, verdict.current);
+              // A held item (blocked) keeps its dependents waiting for the lead; only an item that truly failed
+              // (a crash of the run itself, no retry possible) cancels them: they can never start.
+              if (getItem(db, item.id)?.status === "failed") cancelDependents(db, item.id);
               settleGoal(db, goalId);
               after();
             },

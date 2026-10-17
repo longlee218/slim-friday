@@ -89,6 +89,11 @@ export class FakePort implements EffectPort {
   appendEvent = (e: NewEvent) => (this.events.push(e), true);
   steer = (taskId: string, text: string) => (this.steered.push({ taskId, text }), this.steerReply);
   cancel = (taskId: string) => (this.cancelled.push(taskId), [taskId]);
+  retried: { taskId: string; note: string }[] = [];
+  retry = (taskId: string, note: string) => {
+    this.retried.push({ taskId, note });
+    return "ok" as const;
+  };
   askOwner = async (q: OwnerQuestion) => (this.asked.push(q), this.answer);
   post = async (p: Post) => void this.posts.push(p);
 }

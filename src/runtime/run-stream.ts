@@ -16,6 +16,7 @@ import { errText, redactText } from "../observability/redact";
 import { createRunGauges } from "../observability/run-gauges";
 import { createTurnUsage } from "../observability/turn-usage";
 import { setTurnSession } from "../storage/run-store";
+import { isTransientError } from "./failure-class";
 import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
 import { isSandboxFailure } from "./sandbox-errors";
 
@@ -44,6 +45,8 @@ export interface StreamResult {
   lastText?: string;
   /** The raw error text when the run failed because the required OS sandbox could not start (see sandbox-errors.ts). */
   sandboxFailure?: string;
+  /** The failure named a transient provider / network error (read before the text is blanked): the worker policy resumes it. */
+  transient?: true;
 }
 
 /** Text blocks of an assistant message, joined; empty when it only called tools. */
@@ -101,6 +104,8 @@ export async function consumeStream(p: {
   let lastText: string | undefined;
   /** Raw error text when the required sandbox could not start. */
   let sandboxFailure: string | undefined;
+  /** A transient provider / network error was seen (see failure-class.ts). */
+  let transient = false;
   const turns = createTurnUsage(); // one `llm.turn` line per distinct model call
   const gauges = createRunGauges(recorder.denied); // context peak/last, tool errors vs guard denials
   try {
@@ -165,6 +170,8 @@ export async function consumeStream(p: {
         if (outcome === "error" || (outcome === "success" && r.is_error)) {
           const errors = outcome === "error" ? text : (r.result ?? "");
           if (isSandboxFailure(errors)) sandboxFailure = errors;
+          transient = !rejected && isTransientError(errors); // before the text is blanked below
+          if (transient && outcome === "success") outcome = "error"; // success + is_error + API error = a failed run
           if (isQuotaFailure({ subtype: r.subtype, errors, assistantError, rejected })) {
             outcome = "quota";
             text = "";
@@ -185,6 +192,7 @@ export async function consumeStream(p: {
     // A limit can also surface only as a thrown error (no result message).
     if (outcome === "error" && !ac.signal.aborted) {
       const errors = errText(err);
+      transient = !rejected && isTransientError(errors);
       if (isQuotaFailure({ errors, assistantError, rejected })) {
         outcome = "quota";
         text = "";
@@ -211,5 +219,6 @@ export async function consumeStream(p: {
     resetsAt,
     lastText,
     ...(sandboxFailure && { sandboxFailure }),
+    ...(transient && outcome !== "success" && { transient: true as const }),
   };
 }

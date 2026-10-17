@@ -142,3 +142,48 @@ export const goalIdsOfThread = (db: Database, threadId: string): string[] =>
     )
     .all(threadId)
     .map((r) => r.id);
+
+/** Count one automatic resume of an item (the retry number `attempt`); returns the new count. */
+export function bumpAttempt(db: Database, id: string): number {
+  db.query("UPDATE owned_tasks SET attempt = attempt + 1 WHERE id = ?").run(id);
+  return getItem(db, id)?.attempt ?? 0;
+}
+
+/** Give an item a fresh automatic-resume budget (the lead's `RetryTask`). */
+export function resetAttempt(db: Database, id: string): void {
+  db.query("UPDATE owned_tasks SET attempt = 0 WHERE id = ?").run(id);
+}
+
+/** Record the typed result kind of an item without touching its result file (a failure that had no typed report). */
+export function setResultKind(db: Database, id: string, kind: ResultKind): void {
+  db.query("UPDATE owned_tasks SET result_kind = ? WHERE id = ?").run(kind, id);
+}
+
+/** Goal items (children) whose status is `running`: at boot no process runs them, so they are resumed or held. */
+export function runningGoalItems(db: Database): ItemRow[] {
+  return db
+    .query<Raw, []>(
+      `SELECT ${COLUMNS} FROM owned_tasks WHERE parent_id IS NOT NULL AND status = 'running' ORDER BY rowid`,
+    )
+    .all()
+    .map(toItem);
+}
+
+/** A held item: it failed (typed FAILED or a failed run) and waits for the lead's `RetryTask` or `CancelTask`. */
+export const isHeld = (it: Pick<ItemRow, "status" | "resultKind">): boolean =>
+  it.status === "blocked" && it.resultKind === "FAILED";
+
+/** Clear the typed result kind (a retried item is no longer held: `isHeld` must not read the old FAILED). */
+export function clearResultKind(db: Database, id: string): void {
+  db.query("UPDATE owned_tasks SET result_kind = NULL WHERE id = ?").run(id);
+}
+
+/** Threads with a goal item waiting in `ready` (resumed by shutdown or boot, or just queued): boot dispatches them. */
+export function threadsWithReadyItems(db: Database): string[] {
+  return db
+    .query<{ t: string }, []>(
+      "SELECT DISTINCT thread_id AS t FROM owned_tasks WHERE parent_id IS NOT NULL AND status = 'ready'",
+    )
+    .all()
+    .map((r) => r.t);
+}

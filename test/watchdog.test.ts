@@ -10,7 +10,7 @@ import { openDb } from "../src/storage/db";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 
-/* The watchdog: pure pick (idle > threshold, skips waiting and lead), the sweep (abort cause, one timeout event, wake). */
+/* The watchdog: pure pick (idle > threshold, skips waiting and lead), the sweep (abort cause, no event: the failure policy resumes the item). */
 
 let db: Database;
 const settles: (() => void)[] = [];
@@ -78,7 +78,7 @@ function setup(id: string) {
   return { ac, rt, woken };
 }
 
-test("sweepStale: aborts a stale run (cause stale), appends one timeout event, wakes the lead; a second sweep adds nothing", () => {
+test("sweepStale: aborts a stale run (cause stale) with no timeout event and no wake: the policy resumes it; a second sweep adds nothing", () => {
   const { ac, rt, woken } = setup("wd-1");
   const t = Date.now() + STALE_AFTER_MS + 1000;
   expect(sweepStale(rt, t - 2000)).toHaveLength(0); // still fresh
@@ -86,12 +86,9 @@ test("sweepStale: aborts a stale run (cause stale), appends one timeout event, w
   expect(hit).toHaveLength(1);
   expect(ac.signal.aborted).toBe(true);
   expect(hit[0]?.abortCause).toBe("stale");
-  const events = listUndelivered(db, "th1").filter((e) => e.kind === "timeout");
-  expect(events).toHaveLength(1);
-  expect(events[0]?.itemId).toBe("wd-1");
-  expect(woken).toEqual(["th1"]);
+  expect(listUndelivered(db, "th1")).toHaveLength(0); // the lead does nothing: code resumes the item
+  expect(woken).toEqual([]);
   expect(sweepStale(rt, t + 1000)).toHaveLength(0);
-  expect(listUndelivered(db, "th1").filter((e) => e.kind === "timeout")).toHaveLength(1);
 });
 
 test("a run that touches stays alive; a waiting run is skipped until it leaves the wait", () => {
@@ -129,7 +126,7 @@ test("the sweeper timer is unref'd and stoppable", () => {
   stop(); // idempotent
 });
 
-test("sweepStale appends no timeout event for an item that already ended (the run had not settled yet)", () => {
+test("sweepStale appends no event for an item that already ended (the run had not settled yet)", () => {
   for (const status of ["completed", "failed", "cancelled"]) {
     const id = `wd-end-${status}`;
     const { ac, rt, woken } = setup(id);

@@ -139,6 +139,9 @@ export function createLeadSystem(o: {
         queue.push({ threadId, kind: "announce", messageIds: [] });
         void dispatchReady(rt, threadId); // work orders the crash left unstarted
       }
+      // Items waiting in `ready` (boot resume, or the shutdown abort's resume) start without any owner message or lead run.
+      for (const threadId of report.readyThreads)
+        if (!report.threads.includes(threadId)) void dispatchReady(rt, threadId);
     },
     stopThread(threadId) {
       queue.stop(threadId);

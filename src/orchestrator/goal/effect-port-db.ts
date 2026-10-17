@@ -28,6 +28,7 @@ import {
   pendingQuestionOf,
   snapshotOf,
 } from "./effect-port-queries";
+import { cancelHeld, createRetryPort } from "./effect-port-retry";
 
 /* The real EffectPort: db reads and writes are here; the IO that needs Discord or a live run is injected. */
 
@@ -178,6 +179,7 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
       return { ok: true, goalId: w.goalId, itemIds: w.itemIds };
     },
     ...createPlanPort(db, threadId, d.correlationId),
+    ...createRetryPort(db, threadId),
     appendEvent: (e) => appendEvent(db, { ...e, threadId }),
     steer: (taskId, text): SteerReply => {
       if (pendingQuestionOf(db, taskId) && d.io.answerPending?.(taskId, text)) return "answered";
@@ -185,6 +187,8 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
       return r === "none" ? "ended" : r;
     },
     cancel: (taskId) => {
+      const held = cancelHeld(db, taskId); // a held failure the lead gives up: failed + dependents cancelled
+      if (held) return held;
       const { all, moved } = markCancelled(taskId);
       abortRuns(all);
       return moved;

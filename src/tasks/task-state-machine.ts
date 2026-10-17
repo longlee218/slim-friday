@@ -8,13 +8,15 @@ type Status = TaskState["status"];
 
 /**
  * Allowed moves, one row per state (data). A terminal state (completed / failed / cancelled) has no exit.
- * Item flow: pending -> ready -> running -> waiting_user | blocked | completed | failed | cancelled.
+ * Item flow: pending -> ready -> running -> waiting_user | blocked | completed | failed | cancelled; a transient failure
+ * goes running -> ready again, a failed goal item waits `blocked` (held) for the lead's retry or cancel.
  */
 const TRANSITIONS: Readonly<Record<Status, readonly Status[]>> = {
   open: ["running", "waiting_user", "cancelled", "failed"],
   pending: ["ready", "running", "blocked", "cancelled", "failed"],
   ready: ["running", "blocked", "cancelled", "failed"],
-  running: ["waiting_user", "blocked", "completed", "failed", "cancelled"],
+  // running -> ready: an interrupted goal item is resumed automatically (same session, see failure-policy.ts).
+  running: ["ready", "waiting_user", "blocked", "completed", "failed", "cancelled"],
   // A waiting task is continued (running), or the owner drops it.
   waiting_user: ["running", "ready", "completed", "failed", "cancelled"],
   // Blocked (e.g. NEEDS_PLANNING) is released back to the queue, or dropped.

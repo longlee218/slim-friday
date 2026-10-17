@@ -36,6 +36,7 @@ export interface FlowResult
     | "ceilingBound"
     | "lastText"
     | "spentBeforeUsd"
+    | "transient"
   > {
   /** The text is a verified refusal of the app (not an SDK exception), so the owner may read it. */
   refusal?: true;
@@ -146,6 +147,8 @@ export function closeTurn(
     resultKind?: ResultKind;
     /** Delivery effects the approved plan promised (workers): a COMPLETED report of the goal's last item without their `effect_log` rows is not delivered. */
     delivery?: DeliveryExpectation;
+    /** Goal-item failure policy (workers): returns true when it moved the item itself (resume or hold), so the normal settle is skipped. */
+    failurePolicy?: (res: FlowResult, status: string) => boolean;
   },
 ): string {
   let reply = finishRun(db, ids, res, o.language);
@@ -166,7 +169,9 @@ export function closeTurn(
   // completion: the task waits for the owner (no reply note).
   const role = ROLES[turnRole(db, ids.turnId) ?? ""];
   const noReport = status === "done" && !o.resultKind && !!role && role.sideEffects !== "none";
-  if (o.resultKind && status === "done" && taskId)
+  if (o.failurePolicy?.(res, status)) {
+    // Resumed or held by the failure policy: the task is already moved.
+  } else if (o.resultKind && status === "done" && taskId)
     moveTaskTo(db, taskId, STATUS_OF_RESULT[o.resultKind]);
   else settleTaskAfterTurn(db, ids.turnId, status, noReport);
   if (o.agentHome)

@@ -115,6 +115,8 @@ export interface RunAgentResult {
   resetsAt?: number;
   /** Last thing the assistant said (text of its last message with text); the budget-hit message shows it. */
   lastText?: string;
+  /** The failure was a transient provider / network error (see failure-class.ts). */
+  transient?: true;
 }
 
 /** Logger of this module (task fields come from the log context). */
@@ -191,7 +193,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     recorder.finish(res.outcome, res.usage);
     recorder.close();
   }
-  const { text, sessionId, outcome, usage, resetsAt, lastText } = res;
+  const { text, sessionId, outcome, usage, resetsAt, lastText, transient } = res;
   // `usage` is the main agent's tokens; `costUsd` is the total cost (all agents); `modelUsage` splits both per model.
   // Context metrics (sizes only): peak/last context, tool errors, compactions come from `usage`; `maxTurnsHit` = turn ceiling.
   logEvent(log, "run.finished", {
@@ -208,6 +210,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     usage,
     resetsAt,
     lastText,
+    ...(transient && { transient }),
     budgetUsd: config.limits.maxBudgetUsd,
     ceilingBound: ceilingBinds(config.limits.maxBudgetUsd, input.route?.spentUsd),
     spentBeforeUsd: input.route?.spentUsd,
