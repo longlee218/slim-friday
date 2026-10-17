@@ -28,6 +28,8 @@ Last updated: 2026-10-16 (cleanup phases 1-6 and 5c done; phase 3 SDK sandbox pe
 Discord message
  ├─ ingress (src/ingress/discord-message-rules.ts, routeMessage)
  │    ignored: bot, non-owner, DM, other guild, empty, ops channel (not control), no mention outside a bot/adopted/chat thread
+│    owner @mention in an unmapped text channel under a space category → channel auto-adopt (src/ingress/channel-adoption.ts):
+│         private → mapped (`{id, name, mode: task}`) + one notice; not private / ambiguous → one refusal; then routing continues
  │    control channel or admin text → admin handler (src/discord-setup/admin-handler.ts)
  │         /init-workspace, /init-channel; other text → discord-manager run
  │    thread, chat channel or mention → handle-message (src/orchestrator/handle-message.ts)
@@ -103,6 +105,7 @@ Worker run (detached; survives the owner message)
 | `AskOwner` | ask the owner a question | the lead's only owner question tool |
 | `ForwardResult` | post a finished item's result to the thread | verbatim result file or its excerpt |
 | `SetThreadTitle` | rename the thread once | ≤ 2 calls per run; only with a rename port |
+| `RegisterLocation` | register the directory the owner named as a location of the space and link this channel | owner turn only, path written in the owner's message, 1 per run; asks Yes/No every call; never a stored grant (see [Guards](#guards)) |
 | `MemorySave` | save a durable note | lead only (see [Memory and Persona](#memory-and-persona)) |
 
 - Lead role data: `MAX_ASK` 0, `BUDGET_USD` 0.75, `noSubagents`, `capabilities: read` (no shell, no write).
@@ -136,6 +139,7 @@ Worker run (detached; survives the owner message)
 ### Restart
 - On boot, in-flight items are recovered from the store and each thread with undelivered events gets its lead woken. Undelivered `thread_events` rows stay until a lead run delivers them.
 - A crash leaves running turns; they become `interrupted`.
+- Low-config setup (channel auto-adopt, `RegisterLocation`) needs no restart: `workspace.yaml` is re-read per message. Only the guild pin (first `channels:`, `DISCORD_GUILD_ID`) is read at startup.
 
 ### Watchdog
 - Every live worker run carries `lastActivityAt` (`live-runs.ts`): set at run start, on every tool start (the guard's `onGuardDecision` observer, worker runs only) and on `ReportProgress` (`worker/run-activity.ts`). The db stamp `owned_tasks.last_progress_at` follows at most once per 60 s (no schema change, no version bump).
@@ -230,6 +234,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 | 4 | OS sandbox | worker Bash | `src/runtime/worker-sandbox.ts` (SDK `sandbox`) | the shell boundary: writes only inside grants (`denyWrite` on the cwd of a run without a write grant); network closed; AGENT_HOME and credential dirs unreadable; `failIfUnavailable`; `allowUnsandboxedCommands: false`. Live-probed 2026-10-16 (direct SDK calls); the full bot path is not exercised |
 | 5 | Child env scrub | every run | `src/runtime/sdk-env.ts`, `src/config/data/child-env-deny.yaml` | bot secrets never reach the agent process; workers also lose GitHub tokens and the SSH agent socket |
 
+- **RegisterLocation** (config, not an effect): outside the per-goal envelope. Guards in order: owner turn (`NOT_OWNER_TURN`), path token in the owner text (`PATH_NOT_IN_MESSAGE`, `src/orchestrator/lead/owner-path-match.ts`), one per run (`LIMIT`), `inspectLocation` path and credential rules (`BAD_PATH`, `src/workspaces/location-candidate.ts`), Yes/No question via the lead `AskOwner` port (`OWNER_DENIED`; the question is not an owner-confirm kind), then one locked write with a reload check (`WRITE_FAILED`, `src/workspaces/register-location.ts`). Audit row in `effect_log` (`granted_by` owner) on success only; a refusal writes a `lead_decision` event.
 - The app does not parse Bash. Layer 1 allows Bash and Monitor for a role with the `shell` capability (developer, scout) and denies them for the others; layer 4 bounds what the shell can do. No `disallowedTools` list.
 
 ### Risk classes (`src/policy/risk-types.ts`, `classify-tool-call.ts`)
