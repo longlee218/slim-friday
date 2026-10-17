@@ -30,6 +30,15 @@ test("file under goals/<goal>/<item>.md: mode 0600, redacted, excerpt capped", (
   expect(excerpt).not.toContain(secret);
 });
 
+test("the heading is the worker's title (one line, redacted); no title = Result <key>", () => {
+  const { home } = makeEnv();
+  const base = { itemKey: "main", turnStatus: "done", outcome: "success", reply: "r" };
+  const a = writeTaskResultFile(home, { ...base, goalId: "g1", title: "Giáo án\n8 tuần" });
+  expect(readFileSync(a.path, "utf8").startsWith("# Giáo án 8 tuần\n")).toBe(true);
+  const b = writeTaskResultFile(home, { ...base, goalId: "g2", title: "  " });
+  expect(readFileSync(b.path, "utf8").startsWith("# Result main\n")).toBe(true);
+});
+
 test("a key with path characters cannot leave the goals dir", () => {
   const { home } = makeEnv();
   const { path } = writeTaskResultFile(home, {

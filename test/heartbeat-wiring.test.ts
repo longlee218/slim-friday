@@ -54,7 +54,7 @@ test("a worker run: a tool start stamps the live run, ReportProgress records per
       after = run.lastActivityAt;
       await c.tool("ReportProgress", { percent: 50, note: "half way" });
       expect(run.progress).toMatchObject({ percent: 50, note: "half way" });
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
     if (c.prompt.includes("Owner message:")) {

@@ -9,7 +9,6 @@ import {
   MAX_REQUESTS,
   OPTION_MAX_CHARS,
   OPTIONS_MAX,
-  OPTIONS_MIN,
   PATH_MAX_CHARS,
   PROGRESS_NOTE_MAX_CHARS,
   QUESTION_MAX_CHARS,
@@ -69,9 +68,16 @@ export const RETRY_TASK_SHAPE = {
   taskId: TASK_ID,
   note: z.string().min(1).max(STEER_TEXT_MAX_CHARS).describe("What to fix or change on the retry"),
 };
+/** How `AskOwner` collects the answer: Yes/No buttons, a pick among options, or typed text. */
+export const ASK_KINDS = ["yesno", "select", "text"] as const;
 export const ASK_OWNER_SHAPE = {
   question: z.string().min(1).max(QUESTION_MAX_CHARS),
-  options: z.array(z.string().min(1).max(OPTION_MAX_CHARS)).min(OPTIONS_MIN).max(OPTIONS_MAX),
+  kind: z
+    .enum(ASK_KINDS)
+    .describe(
+      "yesno: Yes/No buttons, no options. select: 2-25 options. text: the owner types the answer, no options.",
+    ),
+  options: z.array(z.string().min(1).max(OPTION_MAX_CHARS)).max(OPTIONS_MAX).optional(),
   taskId: TASK_ID.optional(),
   workerAskId: z.string().min(1).max(80).optional(),
 };
@@ -90,6 +96,10 @@ const WORKER_REQUEST = z.object({
   text: z.string().min(1).max(REQUEST_MAX_CHARS),
 });
 export const REPORT_RESULT_SHAPE = {
+  title: z
+    .string()
+    .min(1)
+    .describe("Title of the result: it names the result file (no length cap)"),
   status: z.enum(RESULT_KINDS as [string, ...string[]]),
   summary: z.string().min(1).max(REPORT_SUMMARY_MAX_CHARS),
   requests: z.array(WORKER_REQUEST).max(MAX_REQUESTS).optional(),

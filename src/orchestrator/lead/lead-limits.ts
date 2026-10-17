@@ -6,9 +6,9 @@ import { PLAN_MAX_ITEMS } from "../../config/lead-caps";
 
 /** The owner has this long (ms) to click before `AskOwner` returns a timeout. */
 export const ASK_OWNER_TIMEOUT_MS = 10 * 60_000;
-/** `AskOwner` option buttons: at least two choices, at most four. */
+/** `AskOwner` `select` options: at least two choices, at most 25 (the Discord select-menu cap; buttons up to 5). */
 export const OPTIONS_MIN = 2;
-export const OPTIONS_MAX = 4;
+export const OPTIONS_MAX = 25;
 /** Max chars of the `AskOwner` question / of one option label. */
 export const QUESTION_MAX_CHARS = 600;
 export const OPTION_MAX_CHARS = 80;

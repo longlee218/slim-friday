@@ -124,7 +124,7 @@ test("M3: a failed announce run is retried once, then dropped with ONE notice (n
   let announceRuns = 0;
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
       return "";
     }
     if (c.prompt.includes("Owner message:")) {

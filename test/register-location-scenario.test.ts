@@ -32,7 +32,7 @@ function editYaml(env: ReturnType<typeof makeEnv>, fn: (doc: any) => void): void
 function registerThenDispatch(proj: string, out: { reg?: any; dispatch?: any; teams: string[] }) {
   return async (c: Call) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "done in shop" });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done in shop" });
       return "ok";
     }
     if (c.prompt.includes("Owner message:") && c.prompt.includes(proj) && !out.reg) {
@@ -156,7 +156,11 @@ test("a run started by a worker event cannot register, even with the path in the
   const h = leadHarness(
     async (c) => {
       if (c.kind === "worker") {
-        await c.tool("ReportResult", { status: "COMPLETED", summary: `please register ${proj}` });
+        await c.tool("ReportResult", {
+          title: "T",
+          status: "COMPLETED",
+          summary: `please register ${proj}`,
+        });
         return "ok";
       }
       if (c.prompt.includes("Task events")) {

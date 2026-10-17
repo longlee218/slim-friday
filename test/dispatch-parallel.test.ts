@@ -23,7 +23,7 @@ test("two independent items run at the same time, a dependent one starts only af
       peak = Math.max(peak, running);
       if (key !== "c") await new Promise<void>((r) => release.push(r)); // a and b wait to be released together
       running--;
-      await c.tool("ReportResult", { status: "COMPLETED", summary: `${key} ok` });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: `${key} ok` });
       return "done";
     }
     if (c.prompt.includes("Owner message:")) {

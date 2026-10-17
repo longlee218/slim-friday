@@ -266,7 +266,7 @@ test("a re-run of the same lead input (a retry) does not post or ask twice; a re
   const rerun = { ...run1, leadTurnId: "lt-rerun", run: { dispatched: 0 } }; // same inputId
   for (const c of [run1, rerun]) {
     await handleForward(c, { taskId: id, mode: "verbatim" });
-    await handleAskOwner(c, { question: "q?", options: ["y", "n"] });
+    await handleAskOwner(c, { question: "q?", kind: "select", options: ["y", "n"] });
   }
   expect([posts.length, asks]).toEqual([1, 1]);
   // a dispatch refused by an open goal succeeds after the blocker is cleared (not replayed from a stored refusal)

@@ -115,10 +115,16 @@ test("the lead's orchestration instance holds the lead tools; a scout given the 
 test("ReportResult stores the first report in the sink; a second call is refused", async () => {
   const sink: { report?: { status: string } } = {};
   const t = createReportResultTool(sink as never);
-  const ok = await t.handler({ status: "COMPLETED", summary: "done", requests: undefined }, {});
+  const ok = await t.handler(
+    { title: "T", status: "COMPLETED", summary: "done", requests: undefined },
+    {},
+  );
   expect(ok.isError).toBeUndefined();
   expect(sink.report?.status).toBe("COMPLETED");
-  const again = await t.handler({ status: "FAILED", summary: "x", requests: undefined }, {});
+  const again = await t.handler(
+    { title: "T", status: "FAILED", summary: "x", requests: undefined },
+    {},
+  );
   expect(again.isError).toBe(true);
   expect(sink.report?.status).toBe("COMPLETED");
 });

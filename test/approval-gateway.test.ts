@@ -152,6 +152,37 @@ describe("discord approval gateway", () => {
     ).toBeUndefined();
   });
 
+  test("askChoice yesno: buttons wear the localized approval labels, the answer is the option text", async () => {
+    for (const [brief, labels] of [
+      [EN_BRIEF, ["Approve", "Deny"]],
+      [VI_BRIEF, ["Duyệt", "Từ chối"]],
+    ] as const) {
+      const s = setup(5000, true, brief);
+      const p = s.gw.askChoice({
+        turnId: "t1",
+        threadId: "th",
+        question: "ok?",
+        options: ["Yes", "No"],
+        yesno: true,
+      });
+      await s.tick();
+      const row = s.sent[0].components[0].toJSON();
+      expect(row.components.map((c: any) => c.label)).toEqual(labels);
+      await s.click(s.ids()[1]).run();
+      expect(await p).toBe("No");
+    }
+  });
+
+  test("askChoice with no options is one typed answer (modal), returned as typed", async () => {
+    const s = setup();
+    const p = s.gw.askChoice({ turnId: "t1", threadId: "th", question: "name?", options: [] });
+    await s.tick();
+    expect(s.ids()).toHaveLength(1); // only the "Enter answer" button
+    expect(s.sent[0].components).toHaveLength(1);
+    s.gw.cancelTurn("t1");
+    expect(await p).toBeUndefined();
+  });
+
   test("a long question (a plan to approve) goes out as an attachment under a short stem; a short one stays inline", async () => {
     const s = setup();
     const plan = `Plan: ${"step. ".repeat(600)} token=${FAKE_TOKEN}`; // far over one Discord message

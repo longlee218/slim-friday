@@ -9,6 +9,12 @@ export const RESULT_EXCERPT_CHARS = 600;
 const segment = (s: string): string =>
   s.replace(/[^A-Za-z0-9._-]/g, "_").replace(/^\.+/, "_") || "_";
 
+/** A model title as one redacted heading line (whitespace collapsed), or undefined when blank. */
+const titleOf = (t?: string): string | undefined =>
+  redactText(t ?? "")
+    .replace(/\s+/g, " ")
+    .trim() || undefined;
+
 /** What the file records about the run (header lines). */
 export interface TaskResultInput {
   goalId: string;
@@ -18,6 +24,8 @@ export interface TaskResultInput {
   outcome: string;
   /** Task status the run settled to. */
   taskStatus?: string;
+  /** The worker's title of the result (heading and file name); absent = `Result <itemKey>`. */
+  title?: string;
   /** Reply text; redacted again here, whatever the caller did. */
   reply: string;
 }
@@ -40,7 +48,7 @@ export function writeTaskResultFile(
   const path = join(dir, `${key}.md`);
   const body = redactText(r.reply);
   const header = [
-    `# Result ${key}`,
+    `# ${titleOf(r.title) ?? `Result ${key}`}`,
     "",
     `- turn: ${r.turnStatus}`,
     `- outcome: ${r.outcome}`,

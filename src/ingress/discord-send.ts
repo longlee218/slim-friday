@@ -1,7 +1,9 @@
 import { AttachmentBuilder, MessageFlags, type SendableChannels } from "discord.js";
 import { clip, redactText } from "../observability/redact";
+import { attachmentName } from "./attachment-name";
 import { buildReportComponents } from "./discord-components";
 import {
+  closeFence,
   markdownLinks,
   prepareOutput,
   type ReportLink,
@@ -22,8 +24,9 @@ type Delay = (ms: number) => Promise<void>;
 
 /**
  * Send a reply as redacted, non-pinging messages, one per paragraph, with a short "typing" pause between them
- * (total pause capped). A long reply or a diff is sent as short bubbles + a file: `reply.md` rides in a report
- * message (the last bubble is its summary), `changes.diff` is attached to the last bubble.
+ * (total pause capped). A mid-length reply (or one with a table) is one inline report message. A long reply or a
+ * diff is sent as short bubbles + a titled file: the `.md` rides in a report message (the last bubble is its summary),
+ * a `.diff` is attached to the last bubble.
  * `visible` runs once, after the first message has landed. `delay` is injectable for tests.
  */
 export async function sendReply(
@@ -33,8 +36,13 @@ export async function sendReply(
   visible?: () => Promise<void>,
   delay: Delay = Bun.sleep,
 ): Promise<void> {
-  const { bubbles, file } = prepareOutput(text, language);
-  const asReport = file?.name === "reply.md";
+  const { bubbles, file, report } = prepareOutput(text, language);
+  if (report !== undefined) {
+    await sendReport(channel, { summary: report });
+    await visible?.();
+    return;
+  }
+  const asReport = !!file && !file.name.endsWith(".diff");
   let spent = 0; // total pause so far
   for (const [i, bubble] of bubbles.entries()) {
     if (i > 0) {
@@ -46,7 +54,12 @@ export async function sendReply(
       }
     }
     const last = i === bubbles.length - 1;
-    if (asReport && last) await sendReport(channel, { summary: bubble, markdown: file.content });
+    if (asReport && last)
+      await sendReport(channel, {
+        summary: bubble,
+        markdown: file.content,
+        fileName: file.name,
+      });
     else {
       const files =
         file && last ? [new AttachmentBuilder(Buffer.from(file.content), { name: file.name })] : [];
@@ -56,22 +69,21 @@ export async function sendReply(
   }
 }
 
-/** Post a finished result as an attached `reply.md` with a short label (the lead adds its own summary). */
+/** Post a finished result as an attached file (`fileName`: from its title) with a short label (the lead adds its own summary). */
 export async function sendResultFile(
   channel: SendableChannels,
   text: string,
   language: OwnerLanguage,
   visible?: () => Promise<void>,
+  fileName?: string,
 ): Promise<void> {
   const summary = renderUserNotice({ kind: "label", state: "full-result" }, language);
-  await sendReport(channel, { summary, markdown: text });
+  await sendReport(channel, { summary, markdown: text, fileName });
   await visible?.();
 }
 
 /** A components-v2 text display holds up to 4000 chars; stay below. */
 const SUMMARY_MAX = 3900;
-/** Name of the attached Markdown report. */
-const REPORT_FILE = "reply.md";
 
 /**
  * Send a structured report as one components-v2 message (no `content`/`embeds`, no pings): redacted
@@ -81,21 +93,23 @@ const REPORT_FILE = "reply.md";
  */
 export async function sendReport(
   channel: SendableChannels,
-  report: { summary: string; markdown?: string; links?: ReportLink[] },
+  report: { summary: string; markdown?: string; fileName?: string; links?: ReportLink[] },
 ): Promise<void> {
+  const fileName = report.fileName ?? attachmentName(undefined, "md"); // the attached Markdown's name
   const markdown = report.markdown === undefined ? undefined : redactText(report.markdown);
-  const summary = clip(redactText(report.summary), SUMMARY_MAX) || "-";
+  // Redaction can lengthen the text, so clip after it; a cut inline report must not leave a code fence open.
+  const summary = closeFence(clip(redactText(report.summary), SUMMARY_MAX)) || "-";
   const links = safeLinks([...(report.links ?? []), ...markdownLinks(markdown ?? summary)]);
   await channel.send({
     components: buildReportComponents(
       summary,
-      markdown === undefined ? undefined : REPORT_FILE,
+      markdown === undefined ? undefined : fileName,
       links,
     ),
     files:
       markdown === undefined
         ? []
-        : [new AttachmentBuilder(Buffer.from(markdown), { name: REPORT_FILE })],
+        : [new AttachmentBuilder(Buffer.from(markdown), { name: fileName })],
     flags: MessageFlags.IsComponentsV2,
     allowedMentions: SAFE_MENTIONS,
   });

@@ -65,7 +65,7 @@ test("SIGTERM: the abort leaves the item ready (nothing restarts while stopping)
   const h2 = leadHarness(
     async (c) => {
       if (c.kind === "worker") {
-        await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
+        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
         return "ok";
       }
       return "";
@@ -116,7 +116,7 @@ test("resume uses the cwd of the turn that owns the session, even when the item'
   const second = leadHarness(
     async (c) => {
       if (c.kind === "worker") {
-        await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
+        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
         return "ok";
       }
       return "";
@@ -137,7 +137,7 @@ test("resume uses the cwd of the turn that owns the session, even when the item'
 test("/stop with a held item: it and its dependents are cancelled and the goal settles cancelled", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "FAILED", summary: "broke" });
+      await c.tool("ReportResult", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
     }
     if (c.prompt.includes("Owner message:")) {

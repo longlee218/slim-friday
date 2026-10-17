@@ -59,7 +59,7 @@ async function crashScenario(iter: number, crashes: number) {
             await new Promise<void>((r) => release.push(r)); // the process dies here (until the test ends)
             return "late";
           }
-          await c.tool("ReportResult", { status: "COMPLETED", summary: "done" });
+          await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done" });
           return "worker done";
         }
         if (c.prompt.includes("Owner message:")) {

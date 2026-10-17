@@ -1,6 +1,8 @@
 import { isAdminText } from "../discord-setup/admin-command";
 import { clip, redactText } from "../observability/redact";
-import { needsFile, paragraphs, splitReply, toBubbles } from "./reply-bubbles";
+import { attachmentName, headingTitle } from "./attachment-name";
+import { INLINE_MAX, wrapTables } from "./inline-report";
+import { needsFile, needsReport, paragraphs, splitReply, toBubbles } from "./reply-bubbles";
 import { type OwnerLanguage, renderUserNotice } from "./user-copy";
 
 /** Mention policy for every outgoing message: nothing can ping (@everyone, @here, roles, users). */
@@ -136,7 +138,8 @@ export function prepareReply(text: string): string[] {
 
 /** A reply sent as a head message plus one redacted file. */
 export interface OutputFile {
-  name: "reply.md" | "changes.diff";
+  /** Attachment name: the model's title made filesystem-safe (`attachment-name.ts`), or `reply.md` / `changes.diff`. */
+  name: string;
   content: string;
 }
 
@@ -148,7 +151,7 @@ function isMainlyDiff(text: string): boolean {
 }
 
 /** `text` with an open ``` fence closed (a cut text must not swallow the rest of the message). */
-function closeFence(text: string): string {
+export function closeFence(text: string): string {
   return (text.match(/^\s*```/gm) ?? []).length % 2 === 1 ? `${text}\n\`\`\`` : text;
 }
 
@@ -168,29 +171,40 @@ function bubblesOf(text: string): string[] {
 }
 
 /**
- * What to send for a reply, redacted: chat bubbles (one per paragraph, at most MAX_BUBBLES) plus an optional file.
- * - text after a `---` line, or a long / table / long-code reply: bubbles = the chat part (or the first paragraph) and
- *   the full text as `reply.md`;
- * - mainly a diff: a head + `changes.diff`;
+ * What to send for a reply, redacted: chat bubbles (one per paragraph, at most MAX_BUBBLES) plus an optional file, or
+ * one inline `report` (Markdown, small tables wrapped in a code block) with no bubbles and no file.
+ * - text after a `---` line, or a reply over INLINE_MAX / with a long code block: bubbles = the chat part (or the first
+ *   paragraph) and the full text as a file named after the model's `# <title>` heading;
+ * - mainly a diff: a head + a `.diff` file;
+ * - over ATTACH_MIN chars or with a table (and short enough): the inline report;
  * - otherwise bubbles only.
  */
 export function prepareOutput(
   text: string,
   language: OwnerLanguage,
-): { bubbles: string[]; file?: OutputFile } {
+): { bubbles: string[]; file?: OutputFile; report?: string } {
   const safe = redactText(text);
-  if (isMainlyDiff(safe))
-    return { bubbles: [headOf(safe, language)], file: { name: "changes.diff", content: safe } };
+  if (isMainlyDiff(safe)) {
+    const prefix = `${new Date().toISOString().slice(0, 10)}-`;
+    const name = attachmentName(headingTitle(safe), "diff", { fallback: "changes", prefix });
+    return { bubbles: [headOf(safe, language)], file: { name, content: safe } };
+  }
   const { chat, detail, split } = splitReply(safe);
-  const asFile = (chatText: string, content: string) => {
+  const asFile = (chatText: string, content: string, title?: string) => {
     // No chat part to show: fall back to the first paragraph. Either way the chat part is cut at HEAD_MAX, so it
     // stays within MAX_BUBBLES messages of at most CHUNK_MAX chars (and an open fence is closed).
     const head = closeFence(clip(chatText || (paragraphs(content)[0] ?? ""), HEAD_MAX));
-    return { bubbles: bubblesOf(head), file: { name: "reply.md" as const, content } };
+    return { bubbles: bubblesOf(head), file: { name: attachmentName(title, "md"), content } };
   };
-  if (split && detail) return asFile(chat, `${chat}\n\n${detail}`.trim());
+  if (split && detail) return asFile(chat, `${chat}\n\n${detail}`.trim(), headingTitle(detail));
   // Without a usable `---`, a long reply shows only its first paragraph; the rest is in the file.
-  if (needsFile(safe)) return asFile(split ? chat : "", split ? chat : safe);
+  const body = split ? chat : safe;
+  if (!needsFile(safe) && needsReport(body)) {
+    const report = wrapTables(body); // the wrap adds a few chars: re-check the inline limit
+    if (report.length <= INLINE_MAX) return { bubbles: [], report };
+  }
+  if (needsFile(safe) || needsReport(body))
+    return asFile(split ? chat : "", body, headingTitle(body));
   return { bubbles: bubblesOf(chat) };
 }
 

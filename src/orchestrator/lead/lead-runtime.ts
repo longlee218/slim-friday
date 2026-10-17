@@ -38,5 +38,5 @@ export interface LeadRuntime {
 export const postTo = (
   ctx: LeadThreadCtx,
   text: string,
-  opts?: { asFile?: boolean },
+  opts?: { asFile?: boolean; fileName?: string },
 ): Promise<void> => (ctx.message.notify ? ctx.message.notify(text, opts) : Promise.resolve());

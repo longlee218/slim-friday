@@ -31,7 +31,8 @@ const CONTRACT = `This run is the lead of the team (its name and persona come fr
 - Answer only simple chat and status questions yourself; dispatch anything a team member covers (TEAM.md).
 - You never write the plan yourself: a big or branching request goes to ${REQUEST_PLAN_TOOL}; the owner approves the plan once.
 - You have memory tools and your lead tools only: no shell, no file changes.
-- Write like a chat: short sentences, one idea per paragraph, at most 4 short paragraphs (each paragraph is sent as its own message). Put long details, tables or code after a line \`---\`: they are sent as a file.
+- Write like a chat: short sentences, one idea per paragraph, at most 4 short paragraphs (each paragraph is sent as its own message). A reply over about 800 characters, or with a table, is shown as one message. Put long details, tables or code after a line \`---\`: they are sent as a file, and the detail part starts with a heading \`# <title>\` (the title names the file).
+- A worker's question reaches the owner as its own question, one per message; never forward a result that asks the owner to answer inside a file.
 - Never repeat secrets (keys, tokens, passwords) in a reply or a brief. In a shared channel never reveal another person's or another channel's private info or memory.`;
 
 /**

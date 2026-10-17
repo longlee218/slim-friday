@@ -39,6 +39,8 @@ export interface TaskSnapshot {
 export interface OwnerQuestion {
   question: string;
   options: string[];
+  /** `yesno`: `options` are the canonical ["Yes", "No"]; the buttons are shown in the owner's language. */
+  yesno?: boolean;
   taskId?: string;
   workerAskId?: string;
 }

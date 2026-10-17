@@ -30,7 +30,11 @@ test("a worker that reports NEEDS_PLANNING wakes the lead, which asks for a plan
       return "planner stopped";
     }
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "NEEDS_PLANNING", summary: "too big for one run" });
+      await c.tool("ReportResult", {
+        title: "T",
+        status: "NEEDS_PLANNING",
+        summary: "too big for one run",
+      });
       return "needs a plan";
     }
     if (c.prompt.includes("Owner message:\nrewrite everything")) {

@@ -105,7 +105,7 @@ Worker run (detached; survives the owner message)
 | `SteerTask` | send an owner answer or note to a running worker | task-keyed; not an interrupt |
 | `CancelTask` | cancel a task and its waiting dependents; on a held item: the item fails, dependents are cancelled, the goal settles `failed` | the state machine decides what is allowed |
 | `RetryTask` | re-queue a held (failed) item with a note | `taskId` + `note`; refused `ENDED`, `NOT_HELD`, `BREAKER` (dispatched 3 times), `OVER_BUDGET` (goal budget used); resets `attempt`, clears the held marker, records a `retry` event |
-| `AskOwner` | ask the owner a question | the lead's only owner question tool |
+| `AskOwner` | ask the owner one typed question | `kind`: `yesno` (localized buttons, answer Yes/No), `select` (2-25 options: buttons up to 5, select menu above, plus a type-answer button), `text` (modal); options that do not fit the kind: `BAD_OPTIONS`; several questions = several calls (`askQuestion`, `lead-handlers.ts`) |
 | `ForwardResult` | post a finished item's result to the thread | verbatim result file or its excerpt |
 | `SetThreadTitle` | rename the thread once | ≤ 2 calls per run; only with a rename port |
 | `RegisterLocation` | register the directory the owner named as a location of the space and link this channel | owner turn only, path written in the owner's message, 1 per run; asks Yes/No every call; never a stored grant (see [Guards](#guards)) |
@@ -319,7 +319,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 ## Owner Approvals
 - **Plan:** `ApprovePlan` asks once for the whole plan (Discord buttons). No plan mode and no plan file.
 - **Worker questions:** `AskUserQuestion` (developer only, cap 6 per run) → `canUseTool` → buttons (`src/owner-approval/discord-approval.ts`). A long question goes out as `<tool>-detail.txt`. No answer in 10 minutes: the run stops and the owner is told.
-- **Lead questions:** `AskOwner`. A worker waits a bounded time (see [limits](limits-and-stop-conditions.md)) for its answer to come back through the lead (`question-relay.ts`).
+- **Lead questions:** `AskOwner` (typed: yes/no, select, text; the control comes from `choiceLayout`). A worker question goes in `ReportResult.requests`, never in the summary; the lead asks it as its own question. A worker waits a bounded time (see [limits](limits-and-stop-conditions.md)) for its answer to come back through the lead (`question-relay.ts`).
 - **Owner-confirm buttons** (`src/owner-approval/owner-confirm.ts`): `effect` (a worker's R4 or over-bound act), `purge_trash` (`/purge`), `write_space_file`, `create_space_or_channel` (control). No answer or a timeout means "do not run".
 - Text the owner types while a question is open is a note only after the owner chooses an option.
 
@@ -454,8 +454,10 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 
 ## Output
 - A reply is sent like a chat: one Discord message per paragraph (at most 4, `MAX_BUBBLES`), with a typing pause of 0.8-2 s between them (6 s in total, `src/ingress/reply-bubbles.ts`). Each message is still split at 1900 chars (`CHUNK_MAX`).
-- Text after a line `---` (outside a code fence), or a reply over 800 chars (`ATTACH_MIN`), with a table, or with a code block over 10 lines, goes out as `reply.md` in a report message: the chat part (or the first paragraph, cut at 1500 chars) stays as messages, the full text is the file. A diff goes as a head + `changes.diff`.
-- `ForwardResult verbatim` always posts the result file as `reply.md` with a short label (`notify(text, { asFile })`); the lead then writes its own 1-3 line summary.
+- A reply over 800 chars (`ATTACH_MIN`) or with a table, up to 3900 chars (`INLINE_MAX`), is shown inline as ONE components-v2 report message, no file; a table up to 80 chars wide is wrapped in a code block (`src/ingress/inline-report.ts`).
+- Text after a line `---` (outside a code fence), a reply over 3900 chars, or a code block over 10 lines goes out as a file in a report message: the chat part (or the first paragraph, cut at 1500 chars) stays as messages, the full text is the file. A diff goes as a head + `<date>-<title>.diff`.
+- File names come from the model's title, never from code: a worker's `ReportResult.title` (the result file heading `# <title>`) and the `# <title>` heading that opens the lead's detail part. Code only makes it filesystem-safe (`src/ingress/attachment-name.ts`: accents folded, unsafe chars to `-`, no length cap; over 255 bytes or no title falls back to `reply.<ext>` / `changes.diff`).
+- `ForwardResult verbatim` always posts the result file, named after its title, with a short label (`notify(text, { asFile, fileName })`); the lead then writes its own 1-3 line summary.
 - All text is redacted before it reaches Discord, logs or stored text (`src/observability/redact.ts`).
 - Quota, rate-limit, billing and overload errors are classified from SDK signals (`src/runtime/run-errors.ts`). No automatic retry: the owner decides.
 

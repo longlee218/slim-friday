@@ -41,10 +41,10 @@ test("worker FAILED: dependents stay pending, goal stays open; RetryTask resumes
         const key =
           /do (\w+)/.exec(c.prompt)?.[1] ?? (c.prompt.includes(RESUME_PROMPT) ? "a" : "?");
         if (key === "a" && !c.prompt.includes(RESUME_PROMPT)) {
-          await c.tool("ReportResult", { status: "FAILED", summary: "broke" });
+          await c.tool("ReportResult", { title: "T", status: "FAILED", summary: "broke" });
           return "failed";
         }
-        await c.tool("ReportResult", { status: "COMPLETED", summary: `${key} ok` });
+        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: `${key} ok` });
         return "ok";
       }
       if (c.prompt.includes("Owner message:")) {
@@ -80,7 +80,7 @@ test("worker FAILED: dependents stay pending, goal stays open; RetryTask resumes
 test("held item: dependents are not started and the goal is not settled while the lead has not decided", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "FAILED", summary: "broke" });
+      await c.tool("ReportResult", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
     }
     if (c.prompt.includes("Owner message:")) {
@@ -104,7 +104,7 @@ test("overload: the same session is resumed after the backoff, no failure event 
     async (c) => {
       if (c.kind === "worker") {
         if (n++ === 0) throw new Error("API Error: 529 overloaded_error");
-        await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
+        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
         return "ok";
       }
       if (c.prompt.includes("Owner message:")) {
@@ -161,7 +161,7 @@ test("start + 2 RetryTask, then a transient failure: the breaker does not kill t
     if (c.kind === "worker") {
       // Runs 1 and 2 report FAILED (the lead retries them); from run 3 (dispatch 3) the API is overloaded.
       if (++runs <= 2) {
-        await c.tool("ReportResult", { status: "FAILED", summary: "broke" });
+        await c.tool("ReportResult", { title: "T", status: "FAILED", summary: "broke" });
         return "failed";
       }
       throw new Error("API Error: 529 overloaded_error");

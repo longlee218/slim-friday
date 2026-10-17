@@ -19,6 +19,7 @@ export function saveResultFile(
   outcome: string,
   reply: string,
   kind?: ResultKind,
+  title?: string,
 ): void {
   try {
     const taskId = ownedTaskOfTurn(db, turnId);
@@ -30,6 +31,7 @@ export function saveResultFile(
       turnStatus,
       outcome,
       taskStatus: getOwnedTask(db, taskId)?.status,
+      title,
       reply,
     });
     setTaskResult(db, taskId, { ...written, ...(kind && { kind }) });

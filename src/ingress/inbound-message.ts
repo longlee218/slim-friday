@@ -26,7 +26,8 @@ export interface InboundMessage {
   visible?: () => Promise<void>;
   /**
    * Posts a message into the thread while the turn still runs (a dispatched plan waits for approval).
-   * `asFile`: the text is a finished result, posted as an attached file with a short label, never inline.
+   * `asFile`: the text is a finished result, posted as an attached file with a short label, never inline;
+   * `fileName`: that file's name (from the result's title).
    */
-  notify?: (text: string, opts?: { asFile?: boolean }) => Promise<void>;
+  notify?: (text: string, opts?: { asFile?: boolean; fileName?: string }) => Promise<void>;
 }

@@ -1,8 +1,10 @@
-/** Replies longer than this (chars), or with a table or a long code block, go out as a `reply.md` attachment. */
+import { INLINE_MAX } from "./inline-report";
+
+/** Replies longer than this (chars), or with a table, are shown as one inline report message instead of chat bubbles. */
 export const ATTACH_MIN = 800;
 /** A reply is sent as at most this many chat messages (extra paragraphs are joined into the last one). */
 export const MAX_BUBBLES = 4;
-/** A fenced code block with more lines than this counts as "long": the reply becomes an attachment. */
+/** A fenced code block with more lines than this counts as "long": the reply becomes a titled attachment. */
 export const CODE_LINES_MAX = 10;
 /** Typing pause before a bubble: BASE + PER_CHAR * chars, clamped to [MIN, MAX]. */
 const PAUSE_BASE_MS = 400;
@@ -70,13 +72,16 @@ const TABLE = /^\s*\|.*\|\s*\n\s*\|?[\s:|-]*-{3}[\s:|-]*$/m;
 /** A fenced code block (an unclosed one runs to the end); group 1 is its body. */
 const CODE_BLOCK = /```[^\n]*\n([\s\S]*?)(?:```|$)/g;
 
-/** True when the reply is too long or too structured for chat: long text, a table, or a long code block. */
+/** True when the reply is too long for one inline message (over INLINE_MAX) or has a long code block: it needs a file. */
 export function needsFile(text: string): boolean {
-  if (text.length > ATTACH_MIN || TABLE.test(text)) return true;
+  if (text.length > INLINE_MAX) return true;
   for (const m of text.matchAll(CODE_BLOCK))
     if (m[1]!.trimEnd().split("\n").length > CODE_LINES_MAX) return true;
   return false;
 }
+
+/** True when the reply is too long or too structured for chat bubbles: over ATTACH_MIN chars or a table (shown inline). */
+export const needsReport = (text: string): boolean => text.length > ATTACH_MIN || TABLE.test(text);
 
 /** How long to show "typing" before a bubble of `chars` characters (about a second of "typing" for a sentence). */
 export function pauseMs(chars: number): number {

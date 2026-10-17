@@ -171,7 +171,13 @@ export function createDiscordApprovalGateway(
 
     async askChoice(a) {
       const language = threadLanguage(db, a.threadId);
-      const { layout, text, detail } = buildChoicePrompt(a.question, a.options, language);
+      // Yes/No buttons wear the localized approval labels; the answer value stays the option text.
+      const shown = a.yesno
+        ? (["approve", "deny"] as const).map((state) =>
+            renderUserNotice({ kind: "approval", state }, language),
+          )
+        : a.options;
+      const { layout, text, detail } = buildChoicePrompt(a.question, shown, language);
       const value = await ask({
         turnId: a.turnId,
         threadId: a.threadId,
@@ -179,8 +185,8 @@ export function createDiscordApprovalGateway(
         prefix: "choice",
         text,
         detail,
-        labels: a.options,
-        rows: (id) => buildChoiceRows(id, a.options, layout, language),
+        labels: shown,
+        rows: (id) => buildChoiceRows(id, shown, layout, language),
         language,
       });
       if (value === undefined || value === "no-channel" || value === "cancelled") return undefined;

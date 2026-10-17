@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { attachmentName, headingTitle } from "../../ingress/attachment-name";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import type { OwnerAnswer } from "../goal/effect-port";
@@ -35,7 +36,13 @@ export function createLeadIo(
         ac.addEventListener("abort", () => r(undefined), { once: true });
       });
       const answer = await Promise.race([
-        deps.approvals.askChoice({ turnId, threadId, question: q.question, options: q.options }),
+        deps.approvals.askChoice({
+          turnId,
+          threadId,
+          question: q.question,
+          options: q.options,
+          yesno: q.yesno,
+        }),
         limit,
       ]).finally(() => clearTimeout(timer));
       if (answer === undefined) {
@@ -50,8 +57,13 @@ export function createLeadIo(
     post: async (p) => {
       try {
         const text = p.filePath ? readFileSync(p.filePath, "utf8") : (p.text ?? "");
-        // A result file is posted as a file (the lead summarizes it in its own words), never as inline text.
-        if (text.trim() && !ac.aborted) await postTo(ctx, text, { asFile: !!p.filePath });
+        // A result file is posted as a file (the lead summarizes it in its own words), never as inline text; its
+        // name is its `# <title>` heading made filesystem-safe.
+        if (text.trim() && !ac.aborted)
+          await postTo(ctx, text, {
+            asFile: !!p.filePath,
+            ...(p.filePath && { fileName: attachmentName(headingTitle(text), "md") }),
+          });
       } catch (err) {
         logEvent(log, "lead.post_failed", { threadId, err: errText(err) }, "warn");
       }

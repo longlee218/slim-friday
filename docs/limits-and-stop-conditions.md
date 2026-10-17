@@ -172,7 +172,7 @@ All in `src/orchestrator/lead/lead-limits.ts` (zod shapes and the relay enforce 
 
 | Name | Scope | Value | At the limit |
 |---|---|---|---|
-| `OPTIONS_MIN` / `OPTIONS_MAX` | `AskOwner` | <!-- limit:OPTIONS_MIN=2 -->2 / <!-- limit:OPTIONS_MAX=4 -->4 buttons | schema rejects |
+| `OPTIONS_MIN` / `OPTIONS_MAX` | `AskOwner` `select` | <!-- limit:OPTIONS_MIN=2 -->2 / <!-- limit:OPTIONS_MAX=25 -->25 options (buttons up to 5, select menu above; `yesno` and `text` take none) | schema / handler `BAD_OPTIONS` |
 | `QUESTION_MAX_CHARS` | `AskOwner` | <!-- limit:QUESTION_MAX_CHARS=600 -->600 chars | schema rejects |
 | `OPTION_MAX_CHARS` | `AskOwner` | <!-- limit:OPTION_MAX_CHARS=80 -->80 chars | schema rejects |
 | `PATH_MAX_CHARS` | `RegisterLocation` | <!-- limit:PATH_MAX_CHARS=1024 -->1024 chars | schema rejects |
@@ -194,14 +194,17 @@ All in `src/orchestrator/lead/lead-limits.ts` (zod shapes and the relay enforce 
 
 ## Discord Output
 
-Informational (files `ingress/discord-message-rules.ts`, `ingress/reply-bubbles.ts`).
+Informational (files `ingress/discord-message-rules.ts`, `ingress/reply-bubbles.ts`, `ingress/inline-report.ts`, `ingress/attachment-name.ts`). Not scanned by the drift test (no marker).
 
 | Name | Value | At the limit |
 |---|---|---|
 | `CHUNK_MAX` | 1900 chars | message split |
 | `HEAD_MAX` | 1500 chars | chat part cut, full text goes as a file |
-| `MAX_BUBBLES` | 4 messages | rest goes to `reply.md` |
-| `ATTACH_MIN` | 800 chars | reply becomes `reply.md` (also a table, or code over 10 lines, or text after `---`) |
+| `MAX_BUBBLES` | 4 messages | extra paragraphs are joined into the last bubble |
+| `ATTACH_MIN` | 800 chars | reply (or a reply with a table) becomes one inline report message, no file |
+| `INLINE_MAX` | 3900 chars | longer reply, code over 10 lines, or text after `---` becomes a file named from its `# <title>` |
+| `TABLE_WRAP_WIDTH` | 80 chars | a table up to this wide is wrapped in a code block; a wider one is left as is |
+| File name | 255 bytes (OS) | title slug refused, name falls back to `reply.<ext>` (never cut) |
 | `REPLY_CAP` | 6000 chars | reply cut with `[output truncated]` (`ingress/discord-message-rules.ts`) |
 | Attachments | 2 files, 64 KB per message (`ATTACHMENT_MAX_FILES`, `ATTACHMENT_MAX_BYTES`, `ingress/attachment-text.ts`) | extra files and bytes are skipped with a notice |
 | Typing pause | 0.8-2 s per bubble, 6 s in total | - |

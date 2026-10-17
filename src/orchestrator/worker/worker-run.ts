@@ -170,6 +170,7 @@ export async function startWorker(
             delivery: expectedDelivery(db, role, goalId),
             slot,
             resultKind: () => sink.report?.status as ResultKind | undefined, // the schema enum is RESULT_KINDS
+            resultTitle: () => sink.report?.title,
             failurePolicy: workerFailurePolicy({
               db,
               itemId: item.id,

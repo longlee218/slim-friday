@@ -10,7 +10,7 @@ const ITEM = /task=([0-9a-f-]{36})/;
 test("DIRECT -> worker -> ReportResult -> announce -> ForwardResult, then a follow-up answered from the result file", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "deleted 2 dirs" });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "deleted 2 dirs" });
       return "Deleted node_modules and dist in location.";
     }
     if (c.prompt.includes("Owner message:\nclean node_modules")) {
@@ -101,7 +101,7 @@ test("the chained dispatch past CHAIN_CAP without an owner message is refused CH
   let n = 0;
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
     const r = await dispatch(c, [a(`k${++n}`)]);
@@ -118,7 +118,7 @@ test("no daily lead budget: 31 costly lead runs in a day block neither a message
   let n = 0;
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
     if (c.prompt.includes("final ask")) {
@@ -140,7 +140,7 @@ test("no daily lead budget: 31 costly lead runs in a day block neither a message
 test("an announce run that hits the per-run budget tells the owner and keeps the news pending", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "found it" });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "found it" });
       return "done";
     }
     if (c.prompt.includes("Task events")) return { text: "half way", cost: 1, maxBudget: true };
@@ -178,7 +178,7 @@ test("a worker question becomes an event; SteerTask answers it and the worker co
         {},
       );
       answers.push(r.updatedInput?.answers);
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "used b" });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "used b" });
       return "done with b";
     }
     if (c.prompt.includes("Owner message:\nstart")) {

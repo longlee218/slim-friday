@@ -28,7 +28,7 @@ test("a chain starts the second item only after the first completed, in order; t
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
       order.push(c.prompt);
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
       return `result of ${c.prompt}`;
     }
     if (c.prompt.includes("Owner message:")) {
@@ -52,7 +52,7 @@ test("a failed first item is held: its dependents wait, the goal stays open and 
   let announced = "";
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "FAILED", summary: "broke" });
+      await c.tool("ReportResult", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
     }
     if (c.prompt.includes("Owner message:")) {
@@ -78,7 +78,7 @@ test("typed results: BLOCKED -> blocked + `blocked` event; no report -> derived 
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
       if (c.prompt === "do a")
-        await c.tool("ReportResult", { status: "BLOCKED", summary: "need a key" });
+        await c.tool("ReportResult", { title: "T", status: "BLOCKED", summary: "need a key" });
       return "worker text";
     }
     if (c.prompt.includes("Owner message:")) {

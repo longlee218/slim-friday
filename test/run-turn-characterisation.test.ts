@@ -58,7 +58,7 @@ test("lead run errors: its turn row is closed, the owner gets the fixed notice",
 test("worker run ends ok: worker turn done + task completed + end event", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { status: "COMPLETED", summary: "ok" });
+      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
     if (c.prompt.includes("Owner message:")) {

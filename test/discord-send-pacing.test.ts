@@ -65,4 +65,7 @@ test("sendResultFile: one report message with the localized label, visible once"
   await sendResultFile(channel, "full result", "vi", async () => void log.push("visible"));
   expect(log).toEqual(["report", "visible"]);
   expect(JSON.stringify(sent[0])).toContain("Kết quả đầy đủ");
+  expect((sent[0] as { files: { name: string }[] }).files[0]!.name).toBe("reply.md");
+  await sendResultFile(channel, "x", "vi", undefined, "giao-an.md");
+  expect((sent[1] as { files: { name: string }[] }).files[0]!.name).toBe("giao-an.md");
 });

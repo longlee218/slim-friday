@@ -166,7 +166,7 @@ test("prepareOutput: more than 4 paragraphs are joined into the last bubble", ()
   expect(out.bubbles).toEqual(["a", "b", "c", "d\n\ne\n\nf"]);
 });
 
-test("prepareOutput: text after `---` goes to reply.md, chat part stays as bubbles, secrets redacted", () => {
+test("prepareOutput: text after `---` goes to a file (title from its heading), chat part stays as bubbles, secrets redacted", () => {
   const key = `ghp_${"a".repeat(36)}`;
   const out = prepareOutput(`Xong rồi.\n\nChi tiết bên dưới.\n---\n## Detail\n${key}`, "en");
   expect(out.bubbles).toEqual(["Xong rồi.", "Chi tiết bên dưới."]);
@@ -181,17 +181,15 @@ test("prepareOutput: a `---` inside a code fence is not a separator", () => {
   expect(out.file).toBeUndefined();
 });
 
-test("prepareOutput: long reply without `---` = first paragraph (cut) + full reply.md", () => {
-  const long = `${"x".repeat(900)}\n\nsecond paragraph`;
+test("prepareOutput: long reply without `---` = first paragraph (cut) + full file", () => {
+  const long = `${"x".repeat(4000)}\n\nsecond paragraph`;
   const out = prepareOutput(long, "en");
   expect(out.file).toEqual({ name: "reply.md", content: long });
   expect(out.bubbles).toHaveLength(1);
   expect(out.bubbles[0]!.length).toBeLessThanOrEqual(HEAD_MAX);
 });
 
-test("prepareOutput: a table or a long code block becomes a file, a short code block stays inline", () => {
-  const table = "Kết quả:\n\n| a | b |\n|---|---|\n| 1 | 2 |";
-  expect(prepareOutput(table, "en").file?.name).toBe("reply.md");
+test("prepareOutput: a long code block becomes a file, a short code block stays inline", () => {
   const longCode = `Code:\n\n\`\`\`ts\n${"x();\n".repeat(12)}\`\`\``;
   expect(prepareOutput(longCode, "en").file?.name).toBe("reply.md");
   const shortCode = "Chạy:\n\n```sh\nbun test\n```";
@@ -201,7 +199,10 @@ test("prepareOutput: a table or a long code block becomes a file, a short code b
 test("prepareOutput: mainly-diff reply goes to changes.diff, head closes the open fence", () => {
   const diff = `\`\`\`diff\n${"+added line\n".repeat(200)}\`\`\``;
   const out = prepareOutput(`Here is the change:\n${diff}`, "en");
-  expect(out.file?.name).toBe("changes.diff");
+  expect(out.file?.name).toBe("changes.diff"); // no title: fallback name
+  expect(prepareOutput(`# Sửa lỗi\n${diff}`, "en").file?.name).toMatch(
+    /^\d{4}-\d\d-\d\d-sua-loi\.diff$/,
+  );
   const head = out.bubbles[0]!;
   expect((head.match(/```/g) ?? []).length % 2).toBe(0);
   expect(head).toContain("[full reply attached]");
@@ -339,4 +340,31 @@ test("prepareOutput: the chat part is cut at HEAD_MAX (at most 4 bubbles) and an
   const big = prepareOutput(wide, "en");
   expect(big.bubbles.length).toBeLessThanOrEqual(4);
   for (const b of big.bubbles) expect(b.length).toBeLessThanOrEqual(CHUNK_MAX);
+});
+
+test("prepareOutput: a titled detail names the file; no `# ` heading falls back to reply.md", () => {
+  const out = prepareOutput("Xong.\n---\n# Giáo án 8 tuần Kiều Seal\nbody", "en");
+  expect(out.file?.name).toBe("giao-an-8-tuan-kieu-seal.md");
+  expect(prepareOutput("Xong.\n---\nno heading", "en").file?.name).toBe("reply.md");
+});
+
+test("prepareOutput: a mid-length reply or a table is ONE inline report, no bubbles, no file", () => {
+  const list = `Danh sách:\n\n${"- một mục dài một chút\n".repeat(50)}`.trim(); // ~1.2 KB
+  const out = prepareOutput(list, "en");
+  expect(out.report).toBe(list);
+  expect(out.bubbles).toEqual([]);
+  expect(out.file).toBeUndefined();
+  const table = "Kết quả:\n\n| a | b |\n|---|---|\n| 1 | 2 |";
+  expect(prepareOutput(table, "en").report).toBe(
+    "Kết quả:\n\n```\n| a | b |\n|---|---|\n| 1 | 2 |\n```",
+  );
+});
+
+test("prepareOutput: threshold edges (800 chat, 3900 inline)", () => {
+  expect(prepareOutput("x".repeat(800), "en").report).toBeUndefined();
+  expect(prepareOutput("x".repeat(801), "en").report).toBeDefined();
+  expect(prepareOutput("x".repeat(3900), "en").report).toBeDefined();
+  const over = prepareOutput("x".repeat(3901), "en");
+  expect(over.report).toBeUndefined();
+  expect(over.file?.name).toBe("reply.md");
 });

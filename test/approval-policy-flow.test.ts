@@ -68,13 +68,17 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
           budgetUsd: 2,
           effects: [],
         });
-        await c.tool("ReportResult", { status: "COMPLETED", summary: `plan ${made.planId} v1` });
+        await c.tool("ReportResult", {
+          title: "T",
+          status: "COMPLETED",
+          summary: `plan ${made.planId} v1`,
+        });
         return "planned";
       }
       if (c.kind === "worker") {
         if (c.prompt.includes("Acceptance criteria:")) {
           // The code-appended verify run: it only reports (the checks below belong to the cleanup item).
-          await c.tool("ReportResult", { status: "COMPLETED", summary: "verified" });
+          await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "verified" });
           return "worker done";
         }
         const can = (t: string, input: object) => c.options.canUseTool(t, input, {});
@@ -95,7 +99,7 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
           remote: "origin",
           branch: "feat/x",
         });
-        await c.tool("ReportResult", { status: "COMPLETED", summary: "removed" });
+        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "removed" });
         return "worker done";
       }
       if (c.prompt.includes("Owner message:\ncleanup")) {

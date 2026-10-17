@@ -46,7 +46,11 @@ test("45 items over 3 waves: one owner approval, waves start by code, ONE verify
             effects: [],
           });
           expect(made).toMatchObject({ ok: true, status: "valid" });
-          await c.tool("ReportResult", { status: "COMPLETED", summary: `plan ${made.planId} v1` });
+          await c.tool("ReportResult", {
+            title: "T",
+            status: "COMPLETED",
+            summary: `plan ${made.planId} v1`,
+          });
           return "planned";
         }
         // A wave planner: reads the deferred scope, proposes ONE revision inside the approved envelope.
@@ -63,12 +67,16 @@ test("45 items over 3 waves: one owner approval, waves start by code, ONE verify
           reason: `wave ${n}`,
         });
         expect(r).toMatchObject({ ok: true, status: "approved" }); // no owner question
-        await c.tool("ReportResult", { status: "COMPLETED", summary: `wave ${n} planned` });
+        await c.tool("ReportResult", {
+          title: "T",
+          status: "COMPLETED",
+          summary: `wave ${n} planned`,
+        });
         return "wave planned";
       }
       if (c.kind === "worker") {
         order.push(/^do ([\w-]+)/m.exec(c.prompt)?.[1] ?? "verify");
-        await c.tool("ReportResult", { status: "COMPLETED", summary: "done" });
+        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done" });
         return "worker done";
       }
       if (c.prompt.includes("Owner message:")) {

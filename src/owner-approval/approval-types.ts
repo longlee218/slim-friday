@@ -32,5 +32,7 @@ export interface ApprovalGateway {
     threadId: string;
     question: string;
     options: string[];
+    /** Show the two options as the localized approve/deny labels; the result is still the option text. */
+    yesno?: boolean;
   }): Promise<string | undefined>;
 }

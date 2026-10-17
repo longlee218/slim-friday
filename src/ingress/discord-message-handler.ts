@@ -108,7 +108,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
           // A caught send failure ends this composing phase too; background work must not refresh typing.
           const stopNotificationTyping = stopTyping;
           const sent = opts?.asFile
-            ? sendResultFile(channel, m, language, visible)
+            ? sendResultFile(channel, m, language, visible, opts.fileName)
             : sendReply(channel, m, language, visible);
           return sent.finally(stopNotificationTyping);
         },

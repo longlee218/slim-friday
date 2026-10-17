@@ -128,7 +128,7 @@ test("cancel: ended task refused, live task cancelled with a cancel event", asyn
 
 test("ask owner: answer returned, TIMEOUT coded, foreign task refused; question event written", async () => {
   const port = new FakePort();
-  const q = { question: "ok?", options: ["yes", "no"] };
+  const q = { question: "ok?", kind: "select" as const, options: ["yes", "no"] };
   expect(await handleAskOwner(leadCtx(port), q)).toEqual({ ok: true, answer: "yes" });
   expect(port.events[0]?.kind).toBe("question");
   port.answer = { timedOut: true };
@@ -136,6 +136,38 @@ test("ask owner: answer returned, TIMEOUT coded, foreign task refused; question 
   expect(await handleAskOwner(leadCtx(port, "lt3"), { ...q, taskId: "nope" })).toMatchObject({
     code: "BAD_TASK",
   });
+});
+
+test("ask owner: kind maps to port options; options that do not fit the kind are BAD_OPTIONS", async () => {
+  const port = new FakePort();
+  const asked: unknown[] = [];
+  port.askOwner = async (q) => {
+    asked.push(q);
+    return { answer: "x", timedOut: false };
+  };
+  let n = 0;
+  const call = (input: Parameters<typeof handleAskOwner>[1]) =>
+    handleAskOwner(leadCtx(port, `lt-k${n++}`), input);
+  await call({ question: "q", kind: "yesno" });
+  await call({ question: "q", kind: "text" });
+  await call({ question: "q", kind: "select", options: ["a", "b", "c", "d", "e", "f"] });
+  expect(asked).toMatchObject([
+    { options: ["Yes", "No"], yesno: true },
+    { options: [], yesno: false },
+    { options: ["a", "b", "c", "d", "e", "f"] },
+  ]);
+  const bad = (i: Parameters<typeof handleAskOwner>[1]) => call(i);
+  expect(await bad({ question: "q", kind: "yesno", options: ["a"] })).toMatchObject({
+    code: "BAD_OPTIONS",
+  });
+  expect(await bad({ question: "q", kind: "text", options: ["a", "b"] })).toMatchObject({
+    code: "BAD_OPTIONS",
+  });
+  expect(await bad({ question: "q", kind: "select" })).toMatchObject({ code: "BAD_OPTIONS" });
+  expect(await bad({ question: "q", kind: "select", options: ["a"] })).toMatchObject({
+    code: "BAD_OPTIONS",
+  });
+  expect(asked.length).toBe(3);
 });
 
 test("forward: verbatim posts the file, summary the excerpt, no result is refused", async () => {

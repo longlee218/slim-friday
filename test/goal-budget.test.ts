@@ -130,14 +130,18 @@ test("budget_hit: a plan goal stops starting items at its plan budget ($4), and 
           budgetUsd: 4,
           effects: [],
         });
-        await c.tool("ReportResult", { status: "COMPLETED", summary: `plan ${made.planId}` });
+        await c.tool("ReportResult", {
+          title: "T",
+          status: "COMPLETED",
+          summary: `plan ${made.planId}`,
+        });
         return "planned";
       }
       if (c.kind === "worker") {
         const key = /do (\w+)/.exec(c.prompt)?.[1] as string;
         started.push(key);
         caps[key] = c.options.maxBudgetUsd;
-        await c.tool("ReportResult", { status: "COMPLETED", summary: "done" });
+        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done" });
         return { text: "ok", cost: 5 }; // over the whole $4 plan budget
       }
       if (c.prompt.includes("Owner message:")) {

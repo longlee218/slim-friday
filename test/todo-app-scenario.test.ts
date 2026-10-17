@@ -47,7 +47,11 @@ function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, fina
           effects: [],
         });
         expect(made).toMatchObject({ ok: true, status: "valid" });
-        await c.tool("ReportResult", { status: "COMPLETED", summary: `plan ${made.planId} v1` });
+        await c.tool("ReportResult", {
+          title: "T",
+          status: "COMPLETED",
+          summary: `plan ${made.planId} v1`,
+        });
         return "planned";
       }
       if (c.kind === "worker") {
@@ -56,7 +60,7 @@ function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, fina
           /^do (\w+)/m.exec(c.prompt)?.[1] ??
           (c.prompt.includes("Acceptance criteria:") ? "verify" : "fix");
         const status = await worker(key);
-        await c.tool("ReportResult", { status, summary: `${key} ${status}` });
+        await c.tool("ReportResult", { title: "T", status, summary: `${key} ${status}` });
         return "worker done";
       }
       if (c.prompt.includes("Owner message:\nbuild a todo app")) {

@@ -219,7 +219,7 @@ Type in `#ops-control`. One string argument (`path`).
    - Replies use your language (Vietnamese or English) and show no internal ids or task wording.
    - A message sent while work runs is acknowledged as received, never as already read or applied.
    - A question with options shows buttons (a select menu for 6 to 25 options, an Enter answer button for typed text). After you answer, the message shows `Đã chọn: <label>` / `Chose: <label>` with the controls removed.
-   - A long report arrives as a summary plus an attached `reply.md` (Mermaid code stays as source) and link buttons for public `http(s)` links only.
+   - A long report arrives as a summary plus an attached file named after its title (Mermaid code stays as source) and link buttons for public `http(s)` links only.
 
 **Important:** never commit `.env` with real values. `.env.example` has placeholders only.
 
@@ -266,6 +266,13 @@ Run in a Discord test guild with the space `demo` (`/init-workspace demo`) and `
    Pass: no Yes/No question for `/tmp`; the app log has no accepted `RegisterLocation` (`lead.decision` with `ok: false` and `NOT_OWNER_TURN`/`PATH_NOT_IN_MESSAGE`, or no such line).
 7. **Refusals.** In the thread send, one per message: `work in ~/.ssh`, `work in /`, `work in <AGENT_HOME>`.
    Pass: each gets a refusal (`BAD_PATH`; reason `credential directory` when `~/.ssh` exists, `covers the home dir`, `inside AGENT_HOME`); no buttons; `lead.decision` with `ok: false`.
+
+### Typed owner questions: owner live checklist
+Phase 2 of `plans/261017-2310-artifact-system/` (not verified live).
+1. Ask the lead something that needs a yes/no decision. Pass: two localized buttons (Approve/Deny, or Duyệt/Từ chối), the lead gets Yes/No.
+2. Ask for a choice among 8 options. Pass: a select menu plus an "Enter answer" button; the pick or typed text reaches the lead.
+3. Ask something that needs a free answer. Pass: one "Enter answer" button, a modal, the typed text reaches the lead.
+4. Replay a scout job that has several questions for you. Pass: one message per question with the right control; no "answer inside the file".
 
 ### Limits, pools and subagents: owner live checklist
 Run once after the limits work is merged (plan `plans/261017-1805-limits-and-stop-conditions/`, phases 1-4: not verified live). Values: [limits-and-stop-conditions.md](limits-and-stop-conditions.md); `/limits` shows the live ones. Items 2, 6, 7, 9 and 10 spend real budget (estimate $30-80): run them once. Record pass/fail, the RAM figure and the daily cost in the changelog entry.

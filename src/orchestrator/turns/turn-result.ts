@@ -145,6 +145,8 @@ export function closeTurn(
     agentHome?: string;
     /** Typed result the worker reported: it settles the task (over the derived status) when the turn ended `done`. */
     resultKind?: ResultKind;
+    /** Title the worker gave its result (the result file's heading). */
+    resultTitle?: string;
     /** Delivery effects the approved plan promised (workers): a COMPLETED report of the goal's last item without their `effect_log` rows is not delivered. */
     delivery?: DeliveryExpectation;
     /** Goal-item failure policy (workers): returns true when it moved the item itself (resume or hold), so the normal settle is skipped. */
@@ -175,7 +177,16 @@ export function closeTurn(
     moveTaskTo(db, taskId, STATUS_OF_RESULT[o.resultKind]);
   else settleTaskAfterTurn(db, ids.turnId, status, noReport);
   if (o.agentHome)
-    saveResultFile(db, o.agentHome, ids.turnId, status, res.outcome, reply, o.resultKind);
+    saveResultFile(
+      db,
+      o.agentHome,
+      ids.turnId,
+      status,
+      res.outcome,
+      reply,
+      o.resultKind,
+      o.resultTitle,
+    );
   logEvent(log, "task.finished", {
     location: res.location && res.location !== "*" ? res.location : o.location,
     outcome: res.outcome,

@@ -45,12 +45,16 @@ test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run 
         expect((await c.tool("ValidatePlan", { planId: made.planId, version: 1 })).valid).toBe(
           true,
         );
-        await c.tool("ReportResult", { status: "COMPLETED", summary: `plan ${made.planId} v1` });
+        await c.tool("ReportResult", {
+          title: "T",
+          status: "COMPLETED",
+          summary: `plan ${made.planId} v1`,
+        });
         return "planned";
       }
       if (c.kind === "worker") {
         order.push(/^do (\w+)/m.exec(c.prompt)?.[1] ?? "verify"); // the code-appended verify has no `do <key>` brief
-        await c.tool("ReportResult", { status: "COMPLETED", summary: "done" });
+        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done" });
         return "worker done";
       }
       if (c.prompt.includes("Owner message:\nbuild a todo app")) {
@@ -128,7 +132,11 @@ test("owner rejects the plan -> no item runs, the goal is cancelled, the lead sa
           budgetUsd: 1,
           effects: [],
         });
-        await c.tool("ReportResult", { status: "COMPLETED", summary: `plan ${made.planId}` });
+        await c.tool("ReportResult", {
+          title: "T",
+          status: "COMPLETED",
+          summary: `plan ${made.planId}`,
+        });
         return "planned";
       }
       if (c.kind === "worker") throw new Error("no item may run");

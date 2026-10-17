@@ -4,9 +4,11 @@ import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgent
 import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
 import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
 import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
+import type { OwnerQuestion } from "../goal/effect-port";
 import { type Reply, refuse } from "../reply";
 import { checkDispatch, dispatchQuestion } from "../strategy/dispatch-policy";
 import { type LeadToolContext, leadCall } from "./lead-call";
+import { OPTIONS_MAX, OPTIONS_MIN } from "./lead-limits";
 import type {
   AskOwnerInput,
   CancelInput,
@@ -106,11 +108,35 @@ export const handleCancel = (ctx: LeadToolContext, input: CancelInput): Promise<
     };
   });
 
-/** AskOwner: button question; the reply carries the answer, or the code TIMEOUT. */
+/** Options of a `yesno` question: canonical values (the buttons are localized at the Discord edge). */
+const YES_NO = ["Yes", "No"];
+
+/** Map a typed `AskOwner` input to the port question; a string is the refusal message (options do not fit the kind). */
+export function askQuestion(input: AskOwnerInput): OwnerQuestion | string {
+  const { kind, question, taskId, workerAskId } = input;
+  const given = input.options ?? [];
+  if (kind === "select") {
+    if (given.length < OPTIONS_MIN || given.length > OPTIONS_MAX)
+      return `select needs ${OPTIONS_MIN}-${OPTIONS_MAX} options.`;
+    return { question, options: given, taskId, workerAskId };
+  }
+  if (given.length) return `${kind} takes no options.`;
+  return {
+    question,
+    options: kind === "yesno" ? YES_NO : [],
+    yesno: kind === "yesno",
+    taskId,
+    workerAskId,
+  };
+}
+
+/** AskOwner: a yes/no, select or typed question; the reply carries the answer, or the code TIMEOUT. */
 export const handleAskOwner = (ctx: LeadToolContext, input: AskOwnerInput): Promise<Reply> =>
   leadCall(ctx, ASK_OWNER_TOOL, input, async () => {
     if (input.taskId && !ctx.port.item(input.taskId)) return { reply: badTask(input.taskId) };
-    const a = await ctx.port.askOwner(input);
+    const q = askQuestion(input);
+    if (typeof q === "string") return { reply: refuse("BAD_OPTIONS", q) };
+    const a = await ctx.port.askOwner(q);
     const payload = { question: input.question, answered: !a.timedOut };
     const events = [{ kind: "question" as const, payload }];
     if (a.timedOut || a.answer === undefined)
