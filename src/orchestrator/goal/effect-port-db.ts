@@ -9,6 +9,7 @@ import { insertOwnedTask, threadOfTask } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
+import { closeIdleGoals } from "../plan/plan-waves";
 import { runOfTask } from "../run/live-runs";
 import type { PolicyEnv } from "../strategy/caps";
 import type {
@@ -72,6 +73,7 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
   const writeDispatch = (x: DispatchWrite) =>
     db.transaction(() => {
       const old = x.supersedes ? markCancelled(x.supersedes) : { all: [], moved: [] };
+      closeIdleGoals(db, threadId); // a new goal supersedes an old idle wave goal of the thread
       const goalId = crypto.randomUUID();
       const correlationId = d.correlationId ?? goalId;
       insertOwnedTask(db, {

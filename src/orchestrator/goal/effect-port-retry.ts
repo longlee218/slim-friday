@@ -1,12 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { redactClip } from "../../observability/redact";
-import {
-  childrenOf,
-  clearResultKind,
-  getItem,
-  isHeld,
-  resetAttempt,
-} from "../../storage/owned-item-store";
+import { clearResultKind, getItem, isHeld, resetAttempt } from "../../storage/owned-item-store";
 import { latestTurnOfTask } from "../../storage/run-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
@@ -27,7 +21,7 @@ export function createRetryPort(db: Database, threadId: string): Pick<EffectPort
       db.transaction(() => {
         const it = getItem(db, taskId);
         if (!it || !isHeld(it)) return "not_held";
-        if (goalOverBudget(db, childrenOf(db, it.parentId ?? it.id))) return "over_budget";
+        if (goalOverBudget(db, it.parentId ?? it.id)) return "over_budget";
         if (!moveTaskTo(db, taskId, "ready")) return "not_held";
         resetAttempt(db, taskId);
         clearResultKind(db, taskId); // no longer held: `isHeld` must not read the old FAILED

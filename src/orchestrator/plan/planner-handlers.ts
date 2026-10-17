@@ -1,12 +1,18 @@
 import type { Database } from "bun:sqlite";
+import { PLAN_GOAL_BUDGET_MAX_USD } from "../../config/model-routing";
 import { clip, redactText } from "../../observability/redact";
 import { countsTowardCap } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import { childrenOf } from "../../storage/owned-item-store";
 import { taskScope } from "../../storage/owned-task-store";
-import { getPlan, latestPlan, planIdOfGoal } from "../../storage/work-plan-store";
-import { GOAL_BUDGET_USD } from "../budget/task-budget";
+import {
+  getPlan,
+  latestPlan,
+  newestApprovedVersion,
+  planIdOfGoal,
+} from "../../storage/work-plan-store";
 import { type Reply, refuse } from "../reply";
+import { docOfRow } from "./plan-doc";
 import { createPlan, type Fail, type PlanEnv, validateStored } from "./plan-lifecycle";
 import { revisePlan } from "./plan-revision";
 import type {
@@ -42,7 +48,7 @@ const EXCERPT_CHARS = 300;
 const planEnvOf = (c: PlannerCtx): PlanEnv => ({
   workerRoles: c.workers.map((w) => w.name),
   locations: c.locations.map((l) => l.name),
-  goalBudgetUsd: GOAL_BUDGET_USD,
+  goalBudgetUsd: PLAN_GOAL_BUDGET_MAX_USD, // a plan's own budget is what the goal gets, up to this ceiling (`goalBudgetOf`)
 });
 
 /** A lifecycle refusal as a tool reply (the validator's list goes into the message). */
@@ -56,6 +62,14 @@ export const wrongGoal = (id: string): Reply =>
 function ownPlan(c: PlannerCtx, planId: string, version: number) {
   const row = getPlan(c.db, planId, version);
   return row && row.goalId === c.goalId ? row : undefined;
+}
+
+/** Deferred items of the goal's newest approved plan: key, role and a clipped brief. */
+function deferredOf(db: Database, goalId: string) {
+  const row = newestApprovedVersion(db, goalId);
+  return (row ? docOfRow(row).items : [])
+    .filter((i) => i.deferredScope)
+    .map((i) => ({ key: i.key, role: i.role, brief: clip(redactText(i.brief), EXCERPT_CHARS) }));
 }
 
 /** Objective, findings, locations, channel digest, finished items and the plan so far. */
@@ -78,6 +92,8 @@ export function getProjectContext(c: PlannerCtx, i: GoalInput): Reply {
         excerpt: clip(redactText(x.resultExcerpt ?? ""), EXCERPT_CHARS),
       })),
     plan: plan && { planId: plan.id, version: plan.version, status: plan.status },
+    // Scope the approved plan left for a later wave (data): a wave planner activates some of it.
+    deferredItems: deferredOf(c.db, c.goalId),
   };
 }
 

@@ -6,8 +6,8 @@ import { insertOwnedTask, rewriteNotStartedItem, taskOrigin } from "../../storag
 import { appendEvent } from "../../storage/thread-event-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
 import { runOfTask } from "../run/live-runs";
-import { ensureVerify } from "./goal-verify";
 import type { PlanDoc, PlanItem } from "./plan-types";
+import { ensureVerify } from "./verify-ensure";
 
 /* Plan items to owned tasks. Idempotent by goal + key: an item that exists is never created twice, so applying the same
    approved version again changes nothing. Dispatch-ready then runs them (sequential, topo order, in L2). */
@@ -130,6 +130,7 @@ export function materialize(
     goalId: o.goalId,
     criteria: o.doc.acceptanceCriteria,
     hasDeferred: o.doc.items.some((i) => i.deferredScope),
+    created: out.created,
   });
   return out;
 }

@@ -18,7 +18,12 @@ export const LIMIT_GROUPS = {
     "LEAD_QUEUE_PER_THREAD",
     "LEAD_DEBOUNCE_MS",
   ],
-  budgets: ["TASK_BUDGET_USD", "GOAL_BUDGET_USD", "MIN_RECOVERY_BUDGET_USD"],
+  budgets: [
+    "TASK_BUDGET_USD",
+    "GOAL_BUDGET_USD",
+    "PLAN_GOAL_BUDGET_MAX_USD",
+    "MIN_RECOVERY_BUDGET_USD",
+  ],
   stops: [
     "ITEM_MAX_AGE_MS",
     "STALE_AFTER_MS",
@@ -37,6 +42,7 @@ export const LIMIT_GROUPS = {
     "PLAN_MAX_ITEMS",
     "PLAN_MAX_CRITERIA",
     "PLAN_MAX_REVISIONS",
+    "MAX_WAVES",
     "CHAIN_CAP",
     "DELEGATE_MAX",
     "DISPATCHES_PER_RUN",

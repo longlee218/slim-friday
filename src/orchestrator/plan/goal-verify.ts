@@ -1,80 +1,27 @@
 import type { Database } from "bun:sqlite";
 
 import { MAX_FIX_LOOPS } from "../../config/resilience-caps";
-import { excerpt } from "../../observability/logger";
 import { clip, redactText } from "../../observability/redact";
-import { findRole } from "../../roles/role-registry";
 import { childrenOf, getItem, type ItemRow, isHeld } from "../../storage/owned-item-store";
-import { rewriteNotStartedItem, taskOrigin, taskScope } from "../../storage/owned-task-store";
+import { taskOrigin, taskScope } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
-import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
+import { moveTaskTo } from "../../tasks/task-resolver";
 import { goalOverBudget } from "../budget/task-budget";
 import type { FailureVerdict } from "../worker/failure-policy";
-import { FIX_KEY, isReservedKey, PLANNER_KEY, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
+import { FIX_KEY, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
+import { fixesAt, insertItem, isVerifyKey, isWriter, nextNumber, numberOf } from "./verify-items";
 
-import { fixLoops, insertItem, isVerifyKey, numberOf, verifyBrief } from "./verify-items";
-
-/* Goal verify and the capped fix loop. A PLAN goal with acceptance criteria gets a code-appended `verify-1` item (tester)
-   that waits for every item of the goal. A verify the tester ran and reported FAILED supersedes itself: the code appends
-   `fix-N` (role and location of the goal's last writer) and `verify-(N+1)` behind it, at most MAX_FIX_LOOPS times; the next
-   failed verify stays held for the lead (code VERIFY_LOOP_CAP). The loop count is derived from the keys: no schema. */
+/* The capped fix loop (verify-ensure.ts appends the verify items). A verify the tester ran and reported FAILED supersedes
+   itself: the code appends `fix-N` (role and location of the location's last writer) and the next `verify-M` behind it, at
+   most MAX_FIX_LOOPS times PER LOCATION; the next failed verify of that location stays held for the lead (code
+   VERIFY_LOOP_CAP). Numbers are one growing sequence per kind, the loop count is the fix items of the location: no schema. */
 
 /** Chars of the failed verify's excerpt carried into the fix brief. */
 const FAILED_CHECKS_CHARS = 600;
 
-/** The goal's last item that changes code in a location (a fix goes back to the same role and place): a writer role with a
-    shell, never the verify role itself (the tester only changes test files). */
-function lastWriter(items: readonly ItemRow[]): ItemRow | undefined {
-  return items.findLast((i) => {
-    const role = i.ownerRole ? findRole(i.ownerRole) : undefined;
-    return (
-      !!i.location &&
-      role?.name !== VERIFY_ROLE &&
-      role?.sideEffects === "location" &&
-      role.capabilities.includes("shell") &&
-      !isReservedKey(i.itemKey ?? PLANNER_KEY)
-    );
-  });
-}
-
-/** Location the verify runs in: the last location any plan item works in. */
-const lastLocation = (items: readonly ItemRow[]): string | null =>
-  items.findLast((i) => i.location && !isReservedKey(i.itemKey ?? PLANNER_KEY))?.location ?? null;
-
-/**
- * Append (or refresh) the goal's `verify-1`, in the caller's transaction. Skipped without criteria or while the plan still
- * defers scope. It waits for every live item of the goal; before any fix loop a not-started verify follows plan revisions
- * (new dependencies, new criteria).
- */
-export function ensureVerify(
-  db: Database,
-  a: { goalId: string; criteria: readonly string[]; hasDeferred: boolean },
-): void {
-  if (!a.criteria.length || a.hasDeferred) return;
-  const items = childrenOf(db, a.goalId);
-  const deps = items
-    .filter((i) => i.itemKey && !isReservedKey(i.itemKey) && i.status !== "cancelled")
-    .map((i) => i.itemKey as string);
-  if (!deps.length) return;
-  const brief = verifyBrief(taskScope(db, a.goalId) ?? "the goal", a.criteria);
-  const location = lastLocation(items);
-  const first = items.find((i) => numberOf(i.itemKey, VERIFY_KEY) === 1);
-  if (!first)
-    insertItem(db, a.goalId, {
-      key: `${VERIFY_KEY}-1`,
-      role: VERIFY_ROLE,
-      brief,
-      location,
-      dependsOn: deps,
-    });
-  else if (!fixLoops(items.map((i) => i.itemKey)) && ["pending", "ready"].includes(first.status))
-    rewriteNotStartedItem(db, first.id, {
-      brief,
-      scope: excerpt(brief, SCOPE_CHARS),
-      location,
-      dependsOn: deps,
-    });
-}
+/** The goal's last writer item in `location` (any location when the verify has none): a fix goes back to the same role and place. */
+const lastWriter = (items: readonly ItemRow[], location: string | null): ItemRow | undefined =>
+  items.findLast((i) => isWriter(i) && (!location || i.location === location));
 
 /** A `failure` event with a code, so the lead sees why the loop stopped. */
 function stopEvent(db: Database, it: ItemRow, code: string, cause: string): false {
@@ -91,11 +38,12 @@ function stopEvent(db: Database, it: ItemRow, code: string, cause: string): fals
 
 /**
  * A goal item just ended its run. When it is a verify the tester ran and reported FAILED (the failure policy held it with
- * cause `worker_failed`; a verify that crashed or hit its budget is an ordinary hold for the lead), start the next loop:
- * verify -> cancelled (superseded), `fix-N` ready, `verify-(N+1)` waiting for the fix. N = the failed verify's number, so
- * the keys make a repeated call (after a restart) a no-op. Returns true when it started a loop. No loop at the cap, no loop without a writer to fix, no loop
- * without goal budget: the verify stays held and a `failure` event says why.
- * Call it BEFORE the end event: a superseded verify is cancelled and raises none.
+ * cause `worker_failed`; a verify that crashed or hit its budget is an ordinary hold for the lead), start the next loop for
+ * ITS location: verify -> cancelled (superseded), `fix-N` ready, `verify-M` waiting for the fix (N and M = the next free
+ * numbers). A newer verify of the same location (a plan revision added one) covers it: it is cancelled and no loop starts.
+ * The cancel moves the item out of `blocked`, so a repeated call (after a restart) is a no-op. Returns true when it started
+ * a loop. No loop at the cap, without a writer to fix, or without goal budget: the verify stays held and a `failure` event
+ * says why. Call it BEFORE the end event: a superseded verify is cancelled and raises none.
  */
 export function afterVerify(
   db: Database,
@@ -107,21 +55,34 @@ export function afterVerify(
   if (!it?.parentId || !isVerifyKey(it.itemKey) || !isHeld(it)) return false;
   if (verdict?.cause !== "worker_failed") return false;
   const n = numberOf(it.itemKey, VERIFY_KEY) as number;
-  const items = childrenOf(db, it.parentId);
-  if (items.some((i) => i.itemKey === `${FIX_KEY}-${n}`)) return false; // this loop already started
-  if (n > MAX_FIX_LOOPS)
+  const goalId = it.parentId;
+  const items = childrenOf(db, goalId);
+  const newer = items.some(
+    (i) =>
+      (i.location ?? null) === (it.location ?? null) && (numberOf(i.itemKey, VERIFY_KEY) ?? 0) > n,
+  );
+  if (newer) {
+    moveTaskTo(db, it.id, "cancelled");
+    return false;
+  }
+  if (
+    fixesAt(
+      items.map((i) => ({ key: i.itemKey, location: i.location })),
+      it.location,
+    ) >= MAX_FIX_LOOPS
+  )
     return stopEvent(db, it, "VERIFY_LOOP_CAP", `verify failed after ${MAX_FIX_LOOPS} fix loops`);
-  if (goalOverBudget(db, items)) return stopEvent(db, it, "OVER_BUDGET", "budget");
-  const writer = lastWriter(items);
+  if (goalOverBudget(db, goalId)) return stopEvent(db, it, "OVER_BUDGET", "budget");
+  const writer = lastWriter(items, it.location);
   // A writer whose location left the workspace cannot be fixed in: the lead decides.
   if (!writer?.ownerRole || (locations && !locations.some((l) => l.name === writer.location)))
     return stopEvent(db, it, "NO_WRITER", "no item of the goal changes files");
-  const goalId = it.parentId;
   const failed = clip(redactText(it.resultExcerpt ?? ""), FAILED_CHECKS_CHARS);
+  const fixKey = `${FIX_KEY}-${nextNumber(items, FIX_KEY)}`;
   return db.transaction(() => {
     if (!moveTaskTo(db, it.id, "cancelled")) return false; // not held any more: the lead decided first
     insertItem(db, goalId, {
-      key: `${FIX_KEY}-${n}`,
+      key: fixKey,
       role: writer.ownerRole as string,
       location: writer.location,
       dependsOn: [],
@@ -135,10 +96,10 @@ export function afterVerify(
       ].join("\n"),
     });
     insertItem(db, goalId, {
-      key: `${VERIFY_KEY}-${n + 1}`,
+      key: `${VERIFY_KEY}-${nextNumber(items, VERIFY_KEY)}`,
       role: VERIFY_ROLE,
       location: it.location,
-      dependsOn: [`${FIX_KEY}-${n}`],
+      dependsOn: [fixKey],
       brief: it.brief ?? "", // the same criteria
     });
     return true;

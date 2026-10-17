@@ -3,7 +3,7 @@ import type { DigestFacts, DigestItem } from "../../ingress/digest-copy";
 import { clip, redactClip } from "../../observability/redact";
 import { lastProgressOfItems } from "../../storage/check-in-store";
 import { childrenOf, isHeld } from "../../storage/owned-item-store";
-import { GOAL_BUDGET_USD, goalSpent } from "../budget/task-budget";
+import { goalBudgetOf, goalSpent } from "../budget/task-budget";
 import { progressOf } from "./run-activity";
 
 /* Facts of one check-in digest, built from the db and the live runs (no model). Text is redacted and clipped here;
@@ -49,7 +49,7 @@ export function digestFacts(
     done: all.length - items.length,
     total: all.length,
     spentUsd: goalSpent(db, all),
-    budgetUsd: GOAL_BUDGET_USD,
+    budgetUsd: goalBudgetOf(db, goalId),
   };
 }
 

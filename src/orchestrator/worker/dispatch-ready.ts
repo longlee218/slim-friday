@@ -5,9 +5,10 @@ import { findRole } from "../../roles/role-registry";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { appendEvent, markStartDelivered } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
-import { GOAL_BUDGET_USD, goalOverBudget } from "../budget/task-budget";
+import { goalBudgetOf, goalOverBudget } from "../budget/task-budget";
 import { openGoalIdOf } from "../goal/effect-port-queries";
 import type { LeadRuntime } from "../lead/lead-runtime";
+import { startNextWave, waveGoalOf } from "../plan/plan-waves";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import { clearHold, waitMs } from "./resume-backoff";
 import { pickDispatchable, type RoleCaps } from "./scheduler";
@@ -80,7 +81,8 @@ const roleCaps = (name: string | null): RoleCaps => {
 async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
   const { db } = rt.deps;
   const ctx = rt.ctxOf(threadId);
-  const goalId = openGoalIdOf(db, threadId);
+  // A goal whose last wave ended with deferred scope has no live item (so it is not "open"): the next wave starts it again.
+  const goalId = openGoalIdOf(db, threadId) ?? waveGoalOf(db, threadId);
   if (!ctx || !goalId) return;
   if (rt.deps.stopping()) return; // shutdown: an item resumed by the abort starts at the next boot, not now
   for (;;) {
@@ -100,7 +102,7 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
       }
     const ready = items.filter((i) => i.status === "ready");
     // Refused items first (a failed one cancels its dependents, so the list is read again).
-    const overBudget = goalOverBudget(db, items);
+    const overBudget = goalOverBudget(db, goalId);
     // The breaker stops a re-dispatch loop, never an automatic resume (`attempt > 0`): a transient failure at the third
     // dispatch still gets its capped resumes and then a hold for the lead, not a terminal failure.
     const tripped = (i: ItemRow) => i.attempt === 0 && i.dispatchCount >= MAX_DISPATCHES_PER_ITEM;
@@ -108,11 +110,20 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
     if (refused) {
       if (tripped(refused))
         failItem(rt, threadId, refused, "failure", `dispatched ${refused.dispatchCount} times`);
-      else failItem(rt, threadId, refused, "budget_hit", `goal budget $${GOAL_BUDGET_USD} used`);
+      else
+        failItem(
+          rt,
+          threadId,
+          refused,
+          "budget_hit",
+          `goal budget $${goalBudgetOf(db, goalId)} used`,
+        );
       rt.announce(threadId); // a failed item is news
       continue;
     }
     if (!ready.length) {
+      // Rolling waves: the wave is done and scope is deferred: code inserts the next planner, which is then ready.
+      if (startNextWave(db, goalId)) continue;
       settleGoal(db, goalId);
       return;
     }

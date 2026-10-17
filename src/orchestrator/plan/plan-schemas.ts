@@ -29,7 +29,12 @@ const PLAN_ITEM = z.object({
     .min(1)
     .max(8)
     .describe("R0 read-only, R1 local reversible, R2 shared or hard to undo, R3 external"),
-  deferredScope: z.boolean().optional().describe("Named but left for a later plan"),
+  deferredScope: z
+    .boolean()
+    .optional()
+    .describe(
+      "Named but left for a later wave (a goal larger than one plan): not run until a revision activates it",
+    ),
 });
 
 /** The limits the run must stay inside once the owner approves them. */
@@ -77,6 +82,10 @@ export const PROPOSE_REVISION_SHAPE = {
           .max(PLAN_MAX_ITEMS - 1)
           .optional(),
         risk: z.string().min(1).max(8).optional(),
+        deferredScope: z
+          .boolean()
+          .optional()
+          .describe("false activates a deferred item (its wave starts); true defers it again"),
       }),
     )
     .max(PLAN_MAX_ITEMS)

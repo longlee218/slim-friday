@@ -12,6 +12,7 @@ import { runningTasks, taskScope, threadOfTask } from "../../storage/owned-task-
 import { interruptRunningTurns } from "../../storage/run-store";
 import { appendEvent, unclaimStale, undeliveredThreads } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
+import { wavePendingThreads } from "../plan/plan-waves";
 
 /** Logger of this module. */
 const log = logger.child({ module: "recover-in-flight" });
@@ -31,6 +32,8 @@ export interface RecoveryReport {
   threads: string[];
   /** Threads with a goal item in `ready` (boot-resumed, or resumed by the shutdown abort): the dispatch pass runs for them, no lead run. */
   readyThreads: string[];
+  /** Threads whose goal finished a wave with deferred scope and no planner yet (a restart hit between the two): the next wave starts. */
+  waveThreads: string[];
 }
 
 /**
@@ -75,6 +78,7 @@ function recover(db: Database): RecoveryReport {
     unclaimed,
     threads: undeliveredThreads(db),
     readyThreads: threadsWithReadyItems(db),
+    waveThreads: wavePendingThreads(db),
   };
 }
 

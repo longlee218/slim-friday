@@ -27,6 +27,10 @@ export const FIX_KEY = "fix";
 /** Role that runs the verify item (Haiku; it has the `shell` capability, so it can run the checks). */
 export const VERIFY_ROLE = "tester";
 
+/** Error text of a plan budget that is not above what the goal already spent (validator and approval; the planner prompt says the same). */
+export const budgetSpentMessage = (budgetUsd: number, spentUsd: number): string =>
+  `Budget $${budgetUsd} must be above what the goal already spent ($${spentUsd.toFixed(2)}: the planner and earlier items count). Raise budgetUsd.`;
+
 /** What a plan item key may not look like (named in the validator error): planner items and the code-made `verify-N` / `fix-N`. */
 export const RESERVED_KEY_PATTERN = "planner*, verify-N, fix-N";
 const CODE_KEY = new RegExp(`^(${VERIFY_KEY}|${FIX_KEY})-\\d+$`);
@@ -109,6 +113,8 @@ export interface PlanCtx {
   deadKeys?: readonly string[];
   /** Revisions already made (0 for a new plan). */
   revisions: number;
+  /** USD the goal already spent (the planner and earlier items): the plan budget must exceed it (default 0). */
+  spentUsd?: number;
 }
 
 /** Id, version and lifecycle status of a stored plan version. */

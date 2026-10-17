@@ -10,6 +10,7 @@ import {
   type WorkPlanRow,
 } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
+import { spentOf } from "../budget/task-budget";
 import { cancelSet } from "../goal/effect-port-queries";
 import { type Applied, abortRuns, materialize } from "./materialize-items";
 import {
@@ -20,7 +21,13 @@ import {
   rowFieldsOf,
   toPlanItem,
 } from "./plan-doc";
-import type { DeliveryEffect, PlanCtx, PlanDoc, PlanError } from "./plan-types";
+import {
+  budgetSpentMessage,
+  type DeliveryEffect,
+  type PlanCtx,
+  type PlanDoc,
+  type PlanError,
+} from "./plan-types";
 import { validatePlan } from "./validate-plan";
 
 /* Plan lifecycle over the db: create, revise (compare-and-set on the base version), approve, reject. Every version is
@@ -85,6 +92,7 @@ export function createPlan(
     existingKeys: otherKeys(db, a.goalId, []),
     deadKeys: deadKeys(db, a.goalId),
     revisions: 0,
+    spentUsd: spentOf(db, a.goalId),
   });
   if (errors.length) return invalid(errors);
   const plan = insertPlanVersion(db, {
@@ -108,6 +116,7 @@ export function validateStored(db: Database, row: WorkPlanRow, env: PlanEnv): Pl
     existingKeys: otherKeys(db, row.goalId, keys),
     deadKeys: deadKeys(db, row.goalId),
     revisions: row.version - 1,
+    spentUsd: spentOf(db, row.goalId),
   });
 }
 
@@ -125,6 +134,9 @@ export function applyApproval(
   if (!row) return fail("NO_PLAN", `Plan ${planId} v${version} not found.`);
   if (getOwnedTask(db, row.goalId)?.status !== "open")
     return fail("GOAL_CLOSED", `Goal ${row.goalId} is no longer open: the plan cannot start.`);
+  // The goal may have spent on since the plan was stored: a budget at or below the spend could never start an item.
+  if (row.budgetUsd !== null && row.budgetUsd <= spentOf(db, row.goalId))
+    return fail("BUDGET", budgetSpentMessage(row.budgetUsd, spentOf(db, row.goalId)));
   if (!casPlanStatus(db, planId, version, "valid", "approved"))
     return fail("PLAN_NOT_VALID", `Plan v${version} is ${row.status}, not valid.`);
   const prev = planVersions(db, planId).filter(

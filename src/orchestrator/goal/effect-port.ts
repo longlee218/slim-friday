@@ -15,6 +15,8 @@ export type SteerReply = "queued" | "held" | "full" | "ended" | "answered";
 interface ItemFacts {
   id: string;
   key: string | null;
+  /** Location the item works in (the verify fix cap is per location); absent = none. */
+  location?: string | undefined;
   status: string;
   /** Question the worker waits on, redacted; undefined = none. */
   pendingQuestion?: string;

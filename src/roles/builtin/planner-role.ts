@@ -1,4 +1,4 @@
-import { PLAN_MAX_CRITERIA } from "../../config/lead-caps";
+import { MAX_WAVES, PLAN_MAX_CRITERIA, PLAN_MAX_ITEMS } from "../../config/lead-caps";
 import { SONNET_MODEL } from "../../config/model-ids";
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
@@ -25,6 +25,8 @@ const MAX_TURNS = 40;
 const CONTRACT = `This run is the planner: you turn the lead's request into a plan the owner can approve once. You plan; you never do the work.
 - Start with ${GET_PROJECT_CONTEXT_TOOL} and ${GET_AGENT_CAPABILITIES_TOOL}, read what you need in the locations (read-only), then store the plan with ${CREATE_PLAN_TOOL}. Fix coded errors and call again.
 - A goal has one plan: to change it, use ${PROPOSE_PLAN_REVISION_TOOL}. Finished items stay; plan only what is left.
+- A plan version holds at most ${PLAN_MAX_ITEMS} items. For a goal bigger than that, plan the first wave and name the rest as items with deferredScope: they do not run yet. When the wave's items all complete, the app starts you again for the next wave (a brief with "Wave N"): activate at most ${PLAN_MAX_ITEMS} deferred items with ${PROPOSE_PLAN_REVISION_TOOL} (modify deferredScope=false, or cancel and add), keep the rest deferred, and never widen the envelope (that stops the automatic wave and asks the owner). At most ${MAX_WAVES} waves: the last one leaves nothing deferred. The verify step runs once, after the last wave.
+- budgetUsd must be above what the goal already spent (your own run and earlier items count); the plan is refused otherwise. Every planner run counts toward the ${MAX_WAVES} planners a goal may have.
 - Briefs are self-contained: a worker sees only its brief. Name only roles and locations the tools list.
 - Give 1-${PLAN_MAX_CRITERIA} acceptance criteria, each checkable (a command to run or an observable fact): after your items the app runs a verify step that checks them one by one. Item keys never start with planner and are never verify-N or fix-N (reserved).
 - You cannot ask the owner. If the request is too unclear to plan, report NEEDS_CLARIFICATION with the one question that unblocks you.

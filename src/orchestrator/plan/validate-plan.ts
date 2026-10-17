@@ -1,5 +1,6 @@
 import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../../config/lead-caps";
 import {
+  budgetSpentMessage,
   isReservedKey,
   type PlanCtx,
   type PlanDoc,
@@ -44,6 +45,8 @@ export function validatePlan(doc: PlanDoc, ctx: PlanCtx): PlanError[] {
     );
   if (env.budgetUsd > ctx.goalBudgetUsd)
     add("BUDGET", `Budget $${env.budgetUsd} is over the goal budget $${ctx.goalBudgetUsd}.`);
+  if (env.budgetUsd <= (ctx.spentUsd ?? 0))
+    add("BUDGET", budgetSpentMessage(env.budgetUsd, ctx.spentUsd ?? 0));
   for (const l of env.locations)
     if (!ctx.locations.includes(l))
       add("BAD_LOCATION", `Envelope location ${l} is not in this workspace.`);

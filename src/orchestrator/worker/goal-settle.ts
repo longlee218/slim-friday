@@ -1,8 +1,10 @@
 import type { Database } from "bun:sqlite";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
+import { getOwnedTask } from "../../storage/owned-task-store";
 import { hasPendingPlan } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { cancelSet } from "../goal/effect-port-queries";
+import { noteWaveHold, waveOutlook } from "../plan/plan-waves";
 import { supersededVerifyIds } from "../plan/verify-items";
 
 /* Goal bookkeeping: items that can never run are cancelled, a goal whose items all ended gets its final status. */
@@ -17,13 +19,19 @@ export function cancelDependents(db: Database, itemId: string): void {
 
 /**
  * When every item of the goal ended, settle the goal row: all completed = `completed`, any failed = `failed`, else
- * `cancelled`; a verify that a newer verify replaced is left out (the newest verify decides). (A goal row starts `open`; the state machine has no `open -> completed`, so it passes through `running`.)
+ * `cancelled`; a verify that a newer verify of the same location replaced is left out (the newest verify of each location
+ * decides). While the approved plan still defers scope the goal does not settle: the next wave is due (`ready`), or the
+ * wave cap was hit (`capped`) or the wave planner left no approved revision (`stalled`): one `failure` event tells the lead, the goal is held. (A goal row starts `open`; the state machine has no `open -> completed`, so it passes through `running`.)
  * Returns the items read.
  */
 export function settleGoal(db: Database, goalId: string): ItemRow[] {
   const items = childrenOf(db, goalId);
   if (!items.length || !items.every((i) => TERMINAL.has(i.status))) return items;
   if (hasPendingPlan(db, goalId)) return items; // the planner ended, the plan waits for the owner: the goal goes on
+  if (getOwnedTask(db, goalId)?.status !== "open") return items; // closed already (stopped, cancelled)
+  const wave = waveOutlook(db, goalId);
+  if (wave === "capped" || wave === "stalled") noteWaveHold(db, goalId, wave);
+  if (wave === "ready" || wave === "capped" || wave === "stalled") return items;
   const old = supersededVerifyIds(items);
   const deciding = items.filter((i) => !old.has(i.id));
   const final = deciding.every((i) => i.status === "completed")
