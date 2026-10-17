@@ -4,7 +4,7 @@ Single source of every limit and stop condition of the app. Other docs link here
 
 - Value cells hold a raw `<!-- limit:NAME=VALUE -->` marker (ms, USD, bytes, counts) and a human form. `test/limits-doc-drift.test.ts` compares each marker with the code: every exported number of the limit files and every role field must have a marker, and a marker must match the code value.
 - Rows without a marker are informational and NOT drift-checked: the Model column of the roles table, retention, approval click, Discord output, memory caps, other tools' limits and one-shot budgets. Every marked value is checked, and the test also fails when the doc has fewer markers than the code has limits.
-- A `/limits` command (shows these values read from code) is planned (phase 5 of the limits plan).
+- `/limits [role]` (owner only, private reply, `limits.md` file when long) shows these values read from code at runtime (`collectLimits` in `src/config/limits-report.ts`, the same scan as the drift test) plus the live pool state. Owner live checklist: [discord-setup.md](discord-setup.md#limits-pools-and-subagents-owner-live-checklist).
 - Limit files: `src/config/lead-caps.ts`, `src/config/run-caps.ts`, `src/config/resilience-caps.ts`, `src/config/model-routing.ts`, `src/orchestrator/lead/lead-limits.ts`, and the role files in `src/roles/builtin/`. Pools are code constants, no env.
 
 ## Definitions

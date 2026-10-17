@@ -267,6 +267,36 @@ Run in a Discord test guild with the space `demo` (`/init-workspace demo`) and `
 7. **Refusals.** In the thread send, one per message: `work in ~/.ssh`, `work in /`, `work in <AGENT_HOME>`.
    Pass: each gets a refusal (`BAD_PATH`; reason `credential directory` when `~/.ssh` exists, `covers the home dir`, `inside AGENT_HOME`); no buttons; `lead.decision` with `ok: false`.
 
+### Limits, pools and subagents: owner live checklist
+Run once after the limits work is merged (plan `plans/261017-1805-limits-and-stop-conditions/`, phases 1-4: not verified live). Values: [limits-and-stop-conditions.md](limits-and-stop-conditions.md); `/limits` shows the live ones. Items 2, 6, 7, 9 and 10 spend real budget (estimate $30-80): run them once. Record pass/fail, the RAM figure and the daily cost in the changelog entry.
+
+0. **`/limits`.** Run `/limits`, then `/limits developer`.
+   Pass: private reply (only you see it) with pools, every role, budgets, stop conditions, the subagent allowlist and live state; the message body holds pools and live state and the full text is the attached `limits.md`; values equal the limits doc; the slot counters (lead used/waiting, worker used, ready items waiting) move while items run (repeat it during item 1 or 3). Not verified live: the command registration with Discord (the picker shows `role` choices).
+1. **Lead pool.** Post in 6 threads within a few seconds.
+   Pass: 5 answer, the 6th shows the queued notice once, then answers. Log event `lead.pool_full`.
+2. **Lead not blocked by workers.** Start long work in 4 threads (4 items each), then post in a 5th thread.
+   Pass: the lead answers at once.
+3. **Worker slot wait.** Fill the worker pool (3 threads x 4 items), or lower `WORKER_POOL_MAX` in a local branch (never commit it). The next ready item waits.
+   Pass: after about 60 s the lead posts a "waiting for a worker slot" note (`slot_wait` event); `/limits` shows worker slots used N/N and "ready items waiting for a slot" above 0.
+4. **Per-role turns.** Dispatch the developer on a multi-step task.
+   Pass: the run is allowed 150 turns, a lead run 30 (`/limits` role lines; the run log shows the cap).
+5. **Budgets.** After a day of use: `bun run metrics:lead --days 1`.
+   Pass: lead cost per run stays within the lead budget; note cost per run and per day (no daily cap exists).
+6. **Goal cap.** A plan with 2 developer items.
+   Pass: the second item's run budget is at most what the goal has left (log field `budget`).
+7. **Big plan.** Ask for a plan of 15-20 items.
+   Pass: the planner writes it, the approval message renders (message or file) and you can approve it.
+8. **Question relay.** Leave a worker question unanswered for more than 30 min.
+   Pass: it still waits (up to the relay wait); answering through the lead resumes the worker.
+9. **Subagents.** A developer run spawns up to 3 in parallel (the 4th is denied, log). `discord-manager`, lead, planner, scout and the specialists have no `Agent` tool. Allowlist check: ask the developer to have a subagent read a file (allowed), run a Bash command (allowed, sandboxed: a write outside the grant fails), call `ReportResult`, `GitPush` and a memory tool (each denied: `tool.denied` log with `agentId`); the parent's own `ReportResult` still works.
+   Pass: all as listed. Also note: one extra claude process per subagent or not (`ps`), the run cost stops at the run budget, any subagent failure caused by the missing `TodoWrite` / `ToolSearch`. Repeat after every SDK bump.
+10. **RSS under load.** With the pools busy (5 leads + 10 workers, at least 2 developers with subagents), sample every 30 s for 10 min: `ps -axo pid,rss,command | rg -i claude`, summed over the children of the bot pid (`pgrep -P <bot pid>`); also `vm_stat` free + inactive.
+   Pass: record peak and average MB per process. Raise `WORKER_POOL_MAX` (`src/config/run-caps.ts`, then the limits doc row; the drift test enforces both) only when peak bot RSS is at most about 5 GB AND free + inactive stays at least about 1.5 GB at peak; new pool = floor(5 GB / peak MB per worker) - 5 (leads) - 1 (control). Lower it when swap grows or free + inactive drops under 1 GB.
+11. **Stop while queued.** `/stop` in a thread that waits for a lead slot (during item 1).
+   Pass: the wait is cancelled, no late answer.
+12. **Item age.** Not a live 8 h wait: on a local branch set `ITEM_MAX_AGE_MS` to 10 min (never commit it) and start a long developer item.
+   Pass: the item is aborted and held with cause `item_age` (log `item.age_exceeded`, no auto-resume); the lead offers `RetryTask` / `CancelTask`; `RetryTask` runs with a fresh clock; a bot restart mid-item keeps the clock.
+
 ## Start the bot
 ```bash
 bun run start

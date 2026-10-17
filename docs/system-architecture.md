@@ -33,7 +33,7 @@ Discord message
  │    control channel or admin text → admin handler (src/discord-setup/admin-handler.ts)
  │         /init-workspace, /init-channel; other text → discord-manager run
  │    thread, chat channel or mention → handle-message (src/orchestrator/handle-message.ts)
- ├─ commands, no model: /stop, /status, /purge; /find <keywords> (inline)
+ ├─ commands, no model: /stop, /status, /purge; /find <keywords> (inline); /limits (private reply, answered in the slash handler before the message path)
  └─ every other owner message → lead queue (src/orchestrator/lead/lead-queue.ts)
       debounce and lead pool: see [limits](limits-and-stop-conditions.md); one lead run per thread; worker pool: see [limits](limits-and-stop-conditions.md)
       lead run (lead/lead-run.ts): AGENTS.md + TEAM.md + persona + data block + lead tools
@@ -46,7 +46,8 @@ Worker run (detached; survives the owner message)
  └─ ReportResult → result file goals/<goalId>/<itemKey>.md + thread_events row
     → announce (2 s quiet window) → lead run reads the events → lead tells the owner
 ```
-- Slash commands (the only command form): `/stop`, `/status`, `/purge`, `/find <keywords>`, `/init-workspace <name>`, `/init-channel <space>/<name>`.
+- Slash commands (the only command form): `/stop`, `/status`, `/purge`, `/limits [role]`, `/find <keywords>`, `/init-workspace <name>`, `/init-channel <space>/<name>`.
+- `/limits [role]` (owner only): `slash-interaction.ts` answers it itself with an ephemeral reply (a file `limits.md` when the text is over one message). Text: `ingress/limits-copy.ts` from `collectLimits()` (`config/limits-report.ts`, the scan the drift test uses) and the role registry; live state from `orchestrator/turns/limits-live.ts` (lead limiter `active()`/`waiting()`, worker limiter `active()`, `deferredCount()` of `worker/slot-wait.ts` for ready items waiting for a slot, running items per thread via `storage/running-items-store.ts`). No model, no thread needed. Not verified live.
 - There are no role tags and no intent classifier. Every non-command message goes to the lead.
 
 ## Components

@@ -10,6 +10,7 @@ import { createAttachmentDeps } from "./attachment-summary";
 import { createChannelAdopter } from "./channel-adoption";
 import { createMessageHandler, type HandleMessage } from "./discord-message-handler";
 import { SAFE_MENTIONS } from "./discord-message-rules";
+import type { LimitsView } from "./limits-copy";
 import { createSlashHandler, registerSlashCommands } from "./slash-interaction";
 import type { ThreadsPort } from "./thread-placement";
 
@@ -26,7 +27,7 @@ export const CLIENT_OPTIONS = {
 /** Build the Discord bot (not connected until `login`). */
 export function createDiscordBot(
   config: AgentConfig,
-  handleMessage: HandleMessage & { control?: ControlRun },
+  handleMessage: HandleMessage & { control?: ControlRun; limits?: LimitsView },
   handleInteraction?: (i: Interaction) => Promise<void>,
   setup: DiscordSetup = EMPTY_SETUP,
   inline?: InlineRunner,
@@ -68,7 +69,11 @@ export function createDiscordBot(
   // Button clicks (approvals); the handler never throws, void keeps the listener sync.
   if (handleInteraction) client.on(Events.InteractionCreate, (i) => void handleInteraction(i));
   // Native slash commands: same owner/guild/channel rules as a message (they run through `onMessage`).
-  const onSlash = createSlashHandler({ ownerId: config.ownerDiscordId!, onMessage });
+  const onSlash = createSlashHandler({
+    ownerId: config.ownerDiscordId!,
+    onMessage,
+    limits: handleMessage.limits,
+  });
   client.on(Events.InteractionCreate, (i) => void onSlash(i));
   client.on(Events.ClientReady, (c) => {
     log.info({ bot: c.user.tag }, "discord ready");

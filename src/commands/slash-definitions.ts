@@ -1,3 +1,4 @@
+import { ROLES } from "../roles/role-registry";
 import type { SlashName } from "./slash-commands";
 
 /** The one optional/required argument of a native slash command (all commands take at most one). */
@@ -6,6 +7,8 @@ interface SlashArg {
   name: string;
   description: string;
   required: boolean;
+  /** Fixed values the Discord picker offers (the value typed is then one of them). */
+  choices?: string[];
 }
 
 /** One native slash command: name comes from the key of SLASH_DEFINITIONS (typed, so none can be missing). */
@@ -19,6 +22,15 @@ export const SLASH_DEFINITIONS: Record<SlashName, SlashDefinition> = {
   stop: { description: "Stop the run of this thread" },
   status: { description: "Show what the running task is doing" },
   purge: { description: "Empty the trash of this thread's goals now" },
+  limits: {
+    description: "Show every limit, budget and stop condition (private reply)",
+    arg: {
+      name: "role",
+      description: "One role only (default: all)",
+      required: false,
+      choices: Object.keys(ROLES),
+    },
+  },
   find: {
     description: "Find threads of this space by keywords",
     arg: { name: "keywords", description: "Words to look for", required: true },
@@ -49,6 +61,9 @@ export function slashPayload() {
             name: def.arg.name,
             description: def.arg.description,
             required: def.arg.required,
+            ...(def.arg.choices && {
+              choices: def.arg.choices.map((c) => ({ name: c, value: c })),
+            }),
           },
         ]
       : [],

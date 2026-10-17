@@ -26,6 +26,7 @@ import { ensureHome } from "./memory/persona";
 import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
 import { createTurnHandler } from "./orchestrator/handle-message";
+import { createLimitsView } from "./orchestrator/turns/limits-live";
 import { createRunLimiter } from "./orchestrator/turns/run-limiter";
 import { recoverInFlight } from "./orchestrator/worker/recover-in-flight";
 import { createDiscordApprovalGateway } from "./owner-approval/discord-approval";
@@ -107,12 +108,14 @@ async function main(): Promise<void> {
   });
   // Non-command owner text of #ops-control runs the control-channel role (no workspace); built here so orchestrator never imports discord-setup.
   const control = createControlRoleRun({ db, config, approvals });
+  const limiter = createRunLimiter(WORKER_POOL_MAX);
+  const leadPool = createRunLimiter(LEAD_POOL_MAX, LEAD_WAITING_MAX);
   const handleMessage = createTurnHandler({
     db,
     config,
     approvals,
-    limiter: createRunLimiter(WORKER_POOL_MAX),
-    leadPool: createRunLimiter(LEAD_POOL_MAX, LEAD_WAITING_MAX),
+    limiter,
+    leadPool,
     control, // shutdown hooks of the control runner
     threadTitle: createThreadTitlePort(() => botClient),
     // The lead's boot wake has no owner message to answer through: post into the thread by id.
@@ -124,7 +127,7 @@ async function main(): Promise<void> {
   const threadsPort = createThreadsPort(db, config.agentHome);
   const { client } = createDiscordBot(
     config,
-    Object.assign(handleMessage, { control }), // the bot reads `control` for #ops-control text
+    Object.assign(handleMessage, { control, limits: createLimitsView(db, limiter, leadPool) }), // the bot reads `control` (#ops-control text) and `limits` (/limits)
     (i) => approvals.handleInteraction(i),
     setup,
     handleMessage.inline,

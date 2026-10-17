@@ -5,6 +5,7 @@
  * such as "stop" is an ordinary message for the lead.
  *
  *   /stop, /status, /purge   no argument (app code answers, no model)
+ *   /limits [role]           every limit of the code (owner only, private reply, no model)
  *   /find <keywords>         answered by the find handler, no model
  *   /init-workspace <name>   ops control channel only
  *   /init-channel <space>/<name>  ops control channel only
@@ -14,6 +15,7 @@ export const SLASH_NAMES = [
   "stop",
   "status",
   "purge",
+  "limits",
   "find",
   "init-workspace",
   "init-channel",

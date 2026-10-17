@@ -36,3 +36,6 @@ export function noteDeferred(rt: LeadRuntime, threadId: string, item: ItemRow, n
 
 /** The item started or is not ready any more: forget its wait. */
 export const clearSlotWait = (itemId: string): void => void since.delete(itemId);
+
+/** Ready items the full pool keeps waiting right now (`/limits` live state; counts items seen by a dispatch pass, in memory). */
+export const deferredCount = (): number => since.size;

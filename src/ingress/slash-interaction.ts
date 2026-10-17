@@ -1,14 +1,17 @@
 import {
+  AttachmentBuilder,
   type ChatInputCommandInteraction,
   type Client,
   Collection,
   type Message,
   MessageFlags,
 } from "discord.js";
+import { parseSlash } from "../commands/slash-commands";
 import { slashPayload, slashText } from "../commands/slash-definitions";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import { SAFE_MENTIONS } from "./discord-message-rules";
+import { CHUNK_MAX, SAFE_MENTIONS } from "./discord-message-rules";
+import type { LimitsText, LimitsView } from "./limits-copy";
 import { languageOf, type OwnerLanguage, renderUserNotice } from "./user-copy";
 
 const log = logger.child({ module: "slash-interaction" });
@@ -64,10 +67,33 @@ function asMessage(
   } as unknown as Message;
 }
 
+/**
+ * `/limits`: a private (ephemeral) reply. A text over one Discord message goes out as the file `limits.md`, with the
+ * head (pools + live state) as the message body.
+ */
+async function replyLimits(i: ChatInputCommandInteraction, r: LimitsText): Promise<void> {
+  if (r.text.length <= CHUNK_MAX) {
+    await i.reply({
+      content: r.text,
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: SAFE_MENTIONS,
+    });
+    return;
+  }
+  await i.reply({
+    content: r.head.slice(0, CHUNK_MAX),
+    files: [new AttachmentBuilder(Buffer.from(r.text), { name: "limits.md" })],
+    flags: MessageFlags.Ephemeral,
+    allowedMentions: SAFE_MENTIONS,
+  });
+}
+
 /** Build the `interactionCreate` listener for slash commands (other interaction kinds are ignored). */
 export function createSlashHandler(deps: {
   ownerId: string;
   onMessage: (msg: Message) => Promise<void>;
+  /** Builds the `/limits` text (app code, no model); without it `/limits` is not handled here. */
+  limits?: LimitsView;
 }) {
   return async function handleSlash(i: { isChatInputCommand(): boolean }): Promise<void> {
     if (!i.isChatInputCommand()) return;
@@ -87,6 +113,23 @@ export function createSlashHandler(deps: {
           content: renderUserNotice({ kind: "note", state: "not-allowed" }, language),
           flags: MessageFlags.Ephemeral,
         });
+        return;
+      }
+      // `/limits` needs no thread or channel: answered privately by app code, before the message path.
+      const parsed = parseSlash(text);
+      if (parsed?.name === "limits" && deps.limits) {
+        try {
+          await replyLimits(cmd, await deps.limits(parsed.arg || undefined, language));
+        } catch (err) {
+          // Nothing was replied yet (the view is built before the one reply): a short private notice, never a thrown error.
+          log.error({ err: errText(err) }, "limits reply failed");
+          await cmd
+            .reply({
+              content: renderUserNotice({ kind: "failure" }, language),
+              flags: MessageFlags.Ephemeral,
+            })
+            .catch(() => undefined);
+        }
         return;
       }
       // The channel is not cached (rare): the message path cannot run without it.

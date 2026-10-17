@@ -1,43 +1,10 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { ROLES } from "../src/roles/role-registry";
+import { collectLimits } from "../src/config/limits-report";
 
 /* Drift check: every limit in code must have a `<!-- limit:NAME=VALUE -->` marker in docs/limits-and-stop-conditions.md
    with the same value, and every marker must match a code value. Code side = exported numbers of the limit files plus
-   the numeric fields of every role. */
-
-/** Limit files: every `typeof number` export is a limit. */
-const LIMIT_MODULES = [
-  "../src/config/lead-caps",
-  "../src/config/run-caps",
-  "../src/config/resilience-caps",
-  "../src/config/model-routing",
-  "../src/orchestrator/lead/lead-limits",
-  "../src/orchestrator/budget/task-budget",
-  "../src/runtime/run-supervisor",
-];
-
-/** Every limit of the code as name -> value (also asserts that exported names are unique across the files). */
-async function collectCodeLimits(): Promise<Map<string, number>> {
-  const out = new Map<string, number>();
-  for (const path of LIMIT_MODULES) {
-    const mod = (await import(path)) as Record<string, unknown>;
-    for (const [name, v] of Object.entries(mod)) {
-      if (typeof v !== "number") continue;
-      expect(out.has(name), `exported limit name used twice: ${name}`).toBe(false);
-      out.set(name, v);
-    }
-  }
-  for (const r of Object.values(ROLES)) {
-    out.set(`role.${r.name}.maxTurns`, r.limits.maxTurns);
-    out.set(`role.${r.name}.budgetUsd`, r.budgetUsd);
-    out.set(`role.${r.name}.maxAsk`, r.limits.maxAsk);
-    out.set(`role.${r.name}.subagents.parallel`, r.subagents.parallel);
-    out.set(`role.${r.name}.subagents.depth`, r.subagents.depth);
-    out.set(`role.${r.name}.subagents.enabled`, r.noSubagents ? 0 : 1);
-  }
-  return out;
-}
+   the numeric fields of every role (the scan is `collectLimits` in src/config/limits-report.ts). */
 
 /** Markers of the doc as a list (duplicates kept so the test can report them). */
 function docMarkers(): { name: string; value: number }[] {
@@ -49,7 +16,7 @@ function docMarkers(): { name: string; value: number }[] {
 }
 
 test("the limits doc and the code agree on every limit", async () => {
-  const code = await collectCodeLimits();
+  const code = await collectLimits();
   const markers = docMarkers();
   const problems: string[] = [];
   const seen = new Set<string>();
