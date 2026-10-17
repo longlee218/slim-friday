@@ -8,9 +8,16 @@ import { lastEventOfItem } from "../../storage/thread-event-store";
 /* What a worker start sends: the item's brief on a first start, or the fixed resume prompt (same SDK session) after an
    interruption or a lead retry. A session that cannot be resumed falls back to the brief plus one line. */
 
-/** Prompt of a resumed run (fixed text; the model verifies state before repeating a step). */
+/**
+ * Prompt of a resumed run (fixed text; the model verifies state before repeating a step). The second sentence is
+ * load-bearing: the SDK gives a tool call cut by an abort or restart an error result that reads like a refusal
+ * ("interrupted", "rejected by the user"). A live run once reported its web searches as "denied by the user" after a
+ * restart and the lead relayed that false claim to the owner; a real denial is logged and named by the app instead.
+ */
 export const RESUME_PROMPT =
-  "You were interrupted. The last tool call may or may not have run. Verify state (git status, files, effect log) before repeating any step.";
+  "You were interrupted. The last tool call may or may not have run. Verify state (git status, files, effect log) before repeating any step. " +
+  "A tool call that shows an interrupted, aborted or rejected result was cut by the restart: nobody denied it. Run it again. " +
+  "Report a tool as blocked or denied only when a fresh call of it returns an explicit permission error.";
 
 /** Line added to the brief when there is no session to resume (never started far enough, or the resume failed). */
 export const FALLBACK_LINE = "A previous attempt was interrupted.";
