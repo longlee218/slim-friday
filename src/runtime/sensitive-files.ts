@@ -13,11 +13,12 @@ const SKIP = new Set(SENSITIVE_PATHS.skip.map((d) => d.toLowerCase()));
 
 /**
  * Sensitive files and dirs (see `data/sensitive-paths.yaml`) inside `root`: a matching file, or a matching dir as a whole.
- * Skipped dirs (node_modules, .git...) are not entered. Bounded by depth and entry count.
+ * Skipped dirs (node_modules, .git...) are not entered. Bounded by depth and entry count; `truncated` is true when the entry cap cut the search short (the rest of the tree is not covered).
  */
-export function findSensitive(root: string): string[] {
+export function findSensitiveScan(root: string): { found: string[]; truncated: boolean } {
   const found: string[] = [];
   let seen = 0;
+  let truncated = false;
   const walk = (dir: string, depth: number): void => {
     let kids: Dirent[];
     try {
@@ -26,7 +27,10 @@ export function findSensitive(root: string): string[] {
       return;
     }
     for (const k of kids) {
-      if (++seen > MAX_ENTRIES) return;
+      if (++seen > MAX_ENTRIES) {
+        truncated = true;
+        return;
+      }
       const name = k.name.toLowerCase();
       const p = join(dir, k.name);
       if (k.isDirectory()) {
@@ -36,5 +40,8 @@ export function findSensitive(root: string): string[] {
     }
   };
   walk(root, 0);
-  return found;
+  return { found, truncated };
 }
+
+/** Sensitive paths inside `root` (see `findSensitiveScan`); for callers that do not care whether the search was cut short. */
+export const findSensitive = (root: string): string[] => findSensitiveScan(root).found;

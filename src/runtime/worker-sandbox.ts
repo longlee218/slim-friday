@@ -2,6 +2,7 @@ import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import { SECRET_HOME } from "../config/sensitive-paths";
 import type { GuardrailContext } from "../policy/check-tool-call";
 import { isInside, realOrSame } from "../policy/paths";
 import { findSensitive } from "./sensitive-files";
@@ -12,11 +13,6 @@ import { findSensitive } from "./sensitive-files";
    equal to the home dir the dotfiles, included). The sandbox bounds what is OUTSIDE the grants: no write outside them, no read of
    the agent home or of a credential dir that no grant covers, no network. NOT live-verified (see the L2c checklist). */
 
-/** Credential and history entries of the owner's home. Unreadable unless a granted dir covers the entry (then the grant wins). */
-const SECRET_HOME = [
-  ...[".claude", ".npmrc", ".netrc", ".docker", ".kube", ".gnupg", ".ssh", ".aws"],
-  ...[".zsh_history", ".bash_history", "Library/Keychains", ".config/gh"],
-];
 /** Toolchain dirs of the home that a worker's `bun` / `cargo` / `node` needs to read (only those that exist are listed). Not secret. */
 const TOOLCHAIN_HOME = [".bun", ".cargo", ".rustup", ".nvm", ".volta", ".deno", ".asdf", ".pyenv"];
 /** Git's global config: readable (the commit identity lives there). */

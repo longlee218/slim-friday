@@ -15,3 +15,12 @@ interface SensitivePaths {
 export const SENSITIVE_PATHS: SensitivePaths = Bun.YAML.parse(
   readFileSync(join(import.meta.dir, "data", "sensitive-paths.yaml"), "utf8"),
 ) as SensitivePaths;
+
+/**
+ * Credential and history entries of the owner's home (relative to it). Unreadable to a worker unless a granted dir covers
+ * the entry (the grant wins), and never accepted as a registered location. One list for both rules.
+ */
+export const SECRET_HOME = [
+  ...[".claude", ".npmrc", ".netrc", ".docker", ".kube", ".gnupg", ".ssh", ".aws"],
+  ...[".zsh_history", ".bash_history", "Library/Keychains", ".config/gh"],
+];

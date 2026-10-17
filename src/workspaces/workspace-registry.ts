@@ -74,6 +74,19 @@ export function warnOverlap(workspaces: Workspace[]): void {
 }
 
 /**
+ * The owner's home dirs (`userHome` and env `$HOME`, which can differ) and the paths no location may cover (those homes +
+ * AGENT_HOME). Shared by `loadWorkspaces` and the register flow so both apply the same rules.
+ */
+export function homeGuards(
+  agentHome: string,
+  userHome: string,
+): { userHomes: string[]; forbidden: string[] } {
+  const envHome = readProcessEnv().HOME;
+  const userHomes = [userHome, ...(envHome ? [envHome] : [])];
+  return { userHomes, forbidden: [...userHomes, agentHome] };
+}
+
+/**
  * Scan `AGENT_HOME/workspaces/*`. A dir counts as a workspace when it is a real dir (not a symlink) with a
  * valid name and a valid `workspace.yaml`; anything else is warned about and skipped (fail closed).
  * Locations must be real directories that do not strictly cover `userHome` (the owner's $HOME) or AGENT_HOME;
@@ -89,10 +102,7 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
   } catch {
     return out; // no workspaces dir yet
   }
-  // $HOME env can differ from os.homedir() / userHome: forbid both.
-  const envHome = readProcessEnv().HOME;
-  const userHomes = [userHome, ...(envHome ? [envHome] : [])];
-  const forbidden = [...userHomes, agentHome];
+  const { userHomes, forbidden } = homeGuards(agentHome, userHome);
   for (const name of names) {
     const ws = paths.workspace(name);
     if (!isRealDir(ws.root)) continue;

@@ -53,6 +53,36 @@ export function isRealDir(p: string): boolean {
 }
 
 /**
+ * Why `path` (absolute, may be a symlink) cannot be a location of the workspace rooted at `wsRoot`, or undefined when it can.
+ * The one rule set of `loadLocations` and of the register flow: a missing / non-directory path; a path that is/contains one of
+ * `forbidden` (the owner's $HOME, AGENT_HOME) unless it EQUALS one of `userHomes`; a path inside AGENT_HOME (db, .env, persona
+ * would fall under a developer run's write scope) except this workspace's own `locations/` subtree (managed clones).
+ * `wsRoot` = `<home>/workspaces/<ws>`, so AGENT_HOME is two levels up.
+ */
+export function locationPathError(
+  path: string,
+  wsRoot: string,
+  forbidden: string[],
+  userHomes: string[],
+): string | undefined {
+  let isDir = false;
+  try {
+    isDir = statSync(path).isDirectory();
+  } catch {
+    // missing path: handled below
+  }
+  if (!isDir) return "path is not a directory";
+  const rpath = real(path);
+  const isUserHome = userHomes.some((h) => real(h) === rpath);
+  if (!isUserHome && forbidden.some((f) => isInside(rpath, real(f))))
+    return "path covers the home dir";
+  const agentHome = dirname(dirname(wsRoot));
+  if (isInside(real(agentHome), rpath) && !isInside(real(join(wsRoot, "locations")), rpath))
+    return "path is inside AGENT_HOME";
+  return undefined;
+}
+
+/**
  * Locations of one workspace from its raw `locations:` entries. An entry with a bad shape or name, a path that
  * is missing or not a directory, a path that is/contains one of `forbidden` (the owner's $HOME, AGENT_HOME) or
  * a name already taken is logged and skipped. A path EQUAL to one of `userHomes` is the exception: the owner may
@@ -67,7 +97,6 @@ export function loadLocations(
 ): Location[] {
   const wsName = basename(ws.root);
   const wsRoot = ws.root;
-  const agentHome = dirname(dirname(wsRoot));
   const log = logger.child({ module: "location-registry" });
   const out: Location[] = [];
   for (const raw of entries) {
@@ -78,33 +107,14 @@ export function loadLocations(
     }
     const { name, description } = parsed.data;
     const path = resolve(wsRoot, parsed.data.path);
-    if (out.some((l) => l.name === name)) {
+    // Case-insensitive: on a case-insensitive FS (macOS) `Shop` and `shop` are one memory dir.
+    if (out.some((l) => l.name.toLowerCase() === name.toLowerCase())) {
       log.warn({ workspace: wsName, location: name }, "skipped location: duplicate name");
       continue;
     }
-    let isDir = false;
-    try {
-      isDir = statSync(path).isDirectory();
-    } catch {
-      // missing path: handled below
-    }
-    if (!isDir) {
-      log.warn({ workspace: wsName, location: name }, "skipped location: path is not a directory");
-      continue;
-    }
-    const rpath = real(path);
-    const isUserHome = userHomes.some((h) => real(h) === rpath);
-    if (!isUserHome && forbidden.some((f) => isInside(rpath, real(f)))) {
-      log.warn({ workspace: wsName, location: name }, "skipped location: path covers the home dir");
-      continue;
-    }
-    // A location inside AGENT_HOME (db, .env, persona; ws.root = <home>/workspaces/<ws>) would give a developer run write
-    // scope over it. Only this workspace's own `locations/` subtree (managed clones) is allowed.
-    if (isInside(real(agentHome), rpath) && !isInside(real(join(wsRoot, "locations")), rpath)) {
-      log.warn(
-        { workspace: wsName, location: name },
-        "skipped location: path is inside AGENT_HOME",
-      );
+    const problem = locationPathError(path, wsRoot, forbidden, userHomes);
+    if (problem) {
+      log.warn({ workspace: wsName, location: name }, `skipped location: ${problem}`);
       continue;
     }
     out.push({ name, workspace: wsName, path, description, git: isGitLocation(path) });

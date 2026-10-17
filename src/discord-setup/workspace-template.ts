@@ -1,8 +1,12 @@
-import { randomUUID } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import { workspaceMemoryTemplate } from "../memory/persona-templates";
+import {
+  type ChannelEntry,
+  channelEntries,
+  updateWorkspaceYaml,
+} from "../workspaces/workspace-yaml-write";
 
 /** What `workspaces/<name>` is right now. */
 export type WorkspaceState =
@@ -19,22 +23,6 @@ const PERSONA_STUBS: Record<string, string> = {
   "USER.md": "# User\n<!-- Optional override of the root USER.md for this workspace. -->\n",
   "AGENTS.md": "# Agents\n<!-- Optional override of the root AGENTS.md for this workspace. -->\n",
 };
-
-/** A `channels:` entry as written in workspace.yaml: an object with `id`. */
-type ChannelEntry = { id: string } & Record<string, unknown>;
-
-/**
- * The raw `channels:` entries. An unquoted 17-20 digit id is parsed by YAML as a lossy number: never map it to
- * a (wrong) string, throw instead so the workspace is treated as not safe to touch.
- */
-function channelEntries(value: unknown): ChannelEntry[] {
-  if (value === undefined || value === null) return [];
-  const ok = (c: unknown) =>
-    typeof c === "object" && c !== null && typeof (c as { id?: unknown }).id === "string";
-  if (!Array.isArray(value) || !value.every(ok))
-    throw new Error("workspace.yaml channels must be objects with a string id");
-  return value as ChannelEntry[];
-}
 
 /** The Discord id of one `channels:` entry. */
 const entryId = (c: ChannelEntry): string => c.id;
@@ -84,18 +72,17 @@ export interface NewChannel {
 
 /**
  * Append `{id, name, mode}` to `workspace.yaml` `channels` (idempotent by id; refuses a name an entry already uses; existing entries are kept as they are). Other fields are kept; the file is re-rendered deterministically, so
- * comments in it are lost. Atomic via temp file + rename.
+ * comments in it are lost. Runs under the shared yaml lock (`updateWorkspaceYaml`): atomic via temp file + rename.
  */
 export function addWorkspaceChannel(home: string, name: string, channel: NewChannel): void {
-  const { config } = workspacePaths(home).workspace(name);
-  const data = (Bun.YAML.parse(readFileSync(config, "utf8")) ?? {}) as Record<string, unknown>;
-  const channels = channelEntries(data.channels);
-  if (!channels.some((c) => entryId(c) === channel.id)) {
-    if (channels.some((c) => c.name === channel.name))
-      throw new Error(`channel name already used in ${name}: ${channel.name}`);
-    channels.push({ ...channel });
-  }
-  const tmp = `${config}.${process.pid}.${randomUUID()}.tmp`; // unique: never follows a pre-planted file
-  writeFileSync(tmp, Bun.YAML.stringify({ ...data, channels }, null, 2), { mode: 0o600 });
-  renameSync(tmp, config);
+  updateWorkspaceYaml(home, name, (data) => {
+    const channels: ChannelEntry[] = channelEntries(data.channels);
+    if (!channels.some((c) => entryId(c) === channel.id)) {
+      if (channels.some((c) => c.name === channel.name))
+        throw new Error(`channel name already used in ${name}: ${channel.name}`);
+      channels.push({ ...channel });
+    }
+    data.channels = channels;
+    return undefined;
+  });
 }
