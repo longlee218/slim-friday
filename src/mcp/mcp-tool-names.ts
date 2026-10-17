@@ -22,6 +22,8 @@ export const ORCHESTRATION_MCP_SERVER = "orchestration";
 export const PLAN_MCP_SERVER = "plan";
 /** Effects server: the only way to delete, push, open a PR or merge. */
 export const EFFECTS_MCP_SERVER = "effects";
+/** Artifacts server: save, read, list and search the titled documents of the run's channel. */
+export const ARTIFACTS_MCP_SERVER = "artifacts";
 /** Discord admin server: the control-channel role's space tools. */
 export const DISCORD_ADMIN_MCP_SERVER = "discord-admin";
 

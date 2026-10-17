@@ -20,18 +20,22 @@ export interface ArtifactRow {
   producerRole: string | null;
   version: number;
   size: number;
+  /** For a repo artifact: mtime (epoch ms) of the file snapshot the index was built from; null for a store file. */
+  sourceMtime: number | null;
   createdAt: number;
 }
 
 /** Columns of `artifacts` as `ArtifactRow` fields. */
-const COLUMNS = `id, workspace, channel, goal_id AS goalId, task_id AS taskId, thread_id AS threadId, title, name, kind,
-  origin, path, location, producer_role AS producerRole, version, size, created_at AS createdAt`;
+export const COLUMNS = `id, workspace, channel, goal_id AS goalId, task_id AS taskId, thread_id AS threadId, title, name, kind,
+  origin, path, location, producer_role AS producerRole, version, size, source_mtime AS sourceMtime,
+  created_at AS createdAt`;
 
 /** Record one artifact (a new version is a new row; nothing is overwritten). */
 export function insertArtifact(db: Database, a: ArtifactRow): void {
   db.query(
     `INSERT INTO artifacts (id, workspace, channel, goal_id, task_id, thread_id, title, name, kind, origin, path,
-       location, producer_role, version, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       location, producer_role, version, size, source_mtime, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     a.id,
     a.workspace,
@@ -48,6 +52,7 @@ export function insertArtifact(db: Database, a: ArtifactRow): void {
     a.producerRole,
     a.version,
     a.size,
+    a.sourceMtime,
     a.createdAt,
   );
 }
@@ -127,13 +132,35 @@ export interface FtsHit {
  */
 export function ftsSearch(
   db: Database,
-  q: { match: string; workspace: string; channel?: string; limit: number; snippetTokens: number },
+  q: {
+    match: string;
+    workspace: string;
+    channel?: string;
+    /** Lookup filters on the artifact row; `since` is epoch ms (created at or after). */
+    goalId?: string;
+    threadId?: string;
+    since?: number;
+    limit: number;
+    snippetTokens: number;
+  },
 ): FtsHit[] {
   const where = ["artifacts_fts MATCH ?", "artifacts_fts.workspace = ?"];
   const params: (string | number)[] = [q.match, q.workspace];
   if (q.channel !== undefined) {
     where.push("artifacts_fts.channel = ?");
     params.push(q.channel);
+  }
+  if (q.goalId !== undefined) {
+    where.push("a.goal_id = ?");
+    params.push(q.goalId);
+  }
+  if (q.threadId !== undefined) {
+    where.push("a.thread_id = ?");
+    params.push(q.threadId);
+  }
+  if (q.since !== undefined) {
+    where.push("a.created_at >= ?");
+    params.push(q.since);
   }
   params.push(q.limit);
   return db

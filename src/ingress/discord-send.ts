@@ -76,9 +76,10 @@ export async function sendResultFile(
   language: OwnerLanguage,
   visible?: () => Promise<void>,
   fileName?: string,
+  links?: ReportLink[],
 ): Promise<void> {
   const summary = renderUserNotice({ kind: "label", state: "full-result" }, language);
-  await sendReport(channel, { summary, markdown: text, fileName });
+  await sendReport(channel, { summary, markdown: text, fileName, links });
   await visible?.();
 }
 

@@ -10,6 +10,7 @@ import { REPORT_PROGRESS_TOOL } from "../../mcp/orchestration/tools/ReportProgre
 import { REPORT_RESULT_TOOL } from "../../mcp/orchestration/tools/ReportResultTool/constants";
 import { AGENT_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition } from "../role-types";
+import { ARTIFACT_TOOLS } from "./artifact-tools";
 
 /** Owner questions (the ask tool) one run may make. Wired: ask guard + prompt text. */
 const MAX_ASK = 6;
@@ -106,6 +107,7 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,
+    ...ARTIFACT_TOOLS,
     REPORT_RESULT_TOOL,
     REPORT_PROGRESS_TOOL,
     DELETE_PATHS_TOOL,

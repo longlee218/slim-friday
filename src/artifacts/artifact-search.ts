@@ -30,7 +30,15 @@ export interface ArtifactHit {
 export function searchArtifacts(
   db: Database,
   workspace: string,
-  q: { query: string; channel?: string; limit: number },
+  q: {
+    query: string;
+    channel?: string;
+    /** Lookup filters; `since` is epoch ms. */
+    goalId?: string;
+    threadId?: string;
+    since?: number;
+    limit: number;
+  },
 ): { hits: ArtifactHit[]; terms: number } {
   const terms = queryTerms(q.query, SEARCH_MAX_QUERY_CHARS, SEARCH_MAX_TERMS);
   if (terms.length === 0) return { hits: [], terms: 0 };
@@ -39,6 +47,9 @@ export function searchArtifacts(
     match: buildMatch(terms),
     workspace,
     ...(q.channel !== undefined && { channel: q.channel }),
+    ...(q.goalId !== undefined && { goalId: q.goalId }),
+    ...(q.threadId !== undefined && { threadId: q.threadId }),
+    ...(q.since !== undefined && { since: q.since }),
     limit: q.limit * 4,
     snippetTokens: SNIPPET_TOKENS,
   });

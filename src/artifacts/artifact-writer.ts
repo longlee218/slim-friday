@@ -1,13 +1,14 @@
 import type { Database } from "bun:sqlite";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { CHANNEL_NAME, WORKSPACE_NAME, workspacePaths } from "../config/workspace-paths";
 import { attachmentName } from "../ingress/attachment-name";
 import { redactText } from "../observability/redact";
 import { insertArtifact, latestVersion } from "../storage/artifact-store";
 import { indexArtifact } from "./artifact-index";
 import { type ArtifactKind, isIndexedKind } from "./artifact-kinds";
-import { writeFileAtomic } from "./safe-write";
+import { writeFileExclusive } from "./safe-write";
+
+/** Most file names tried for one save (each taken name moves to the next version). */
+const MAX_VERSION_TRIES = 1000;
 
 /** What a producer gives for one artifact. */
 export interface ArtifactInput {
@@ -58,15 +59,24 @@ export function writeArtifact(
   assertScope(a.workspace, a.channel);
   const ws = workspacePaths(agentHome).workspace(a.workspace);
   const dir = a.channel ? ws.channel(a.channel).artifacts : ws.artifacts;
-  const { stem, ext } = splitName(a.title, a.kind, a.fallbackName);
+  const { stem, ext } = splitName(
+    redactText(a.title ?? "").trim() || undefined,
+    a.kind,
+    a.fallbackName,
+  );
   const name = `${stem}.${ext}`;
   const channel = a.channel ?? "";
   let version = latestVersion(db, a.workspace, channel, name) + 1;
   const fileOf = (v: number) => `${stem}${v > 1 ? `-v${v}` : ""}.${ext}`;
-  // A file already on disk (db and disk can differ) is never overwritten: take the next free version.
-  while (existsSync(join(dir, fileOf(version)))) version++;
   const body = redactText(a.body);
-  const path = writeFileAtomic(dir, fileOf(version), body);
+  // A file already on disk (db and disk can differ, two saves can race) is never overwritten: the exclusive publish
+  // fails on a taken name and the next version is tried (bounded).
+  let path: string | null = null;
+  for (let i = 0; i < MAX_VERSION_TRIES && path === null; i++) {
+    path = writeFileExclusive(dir, fileOf(version), body);
+    if (path === null) version++;
+  }
+  if (path === null) throw new Error(`no free file name for artifact ${name}`);
   const id = crypto.randomUUID();
   insertArtifact(db, {
     id,
@@ -84,6 +94,7 @@ export function writeArtifact(
     producerRole: a.producerRole ?? null,
     version,
     size: Buffer.byteLength(body),
+    sourceMtime: null,
     createdAt: Date.now(),
   });
   if (isIndexedKind(a.kind)) indexArtifact(db, { id, workspace: a.workspace, channel }, body);

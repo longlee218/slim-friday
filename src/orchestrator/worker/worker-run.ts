@@ -119,6 +119,19 @@ export async function startWorker(
           // `lead` part, so it can never hold a lead tool).
           appCtx: () => ({
             reportSink: sink,
+            // Artifact tools: the run's channel scope; a developer may report docs of its granted location.
+            artifacts: {
+              db,
+              home: rt.deps.config.agentHome,
+              workspace: ctx.workspace,
+              ...(ctx.channel && { channel: ctx.channel }),
+              threadId,
+              goalId,
+              taskId: item.id,
+              role: role.name,
+              locations: ctx.locations.map((l) => ({ name: l.name, path: l.path })),
+              ...(pinned && { granted: { name: pinned.name, path: pinned.path } }),
+            },
             // ReportProgress: recorded on this task's live run (percent, note, heartbeat).
             progress: (p) => setProgress(db, item.id, p),
             // Plan tools: bound to the goal the planner plans for.
@@ -185,7 +198,15 @@ export async function startWorker(
             }),
             onSettled: () => {
               afterVerify(db, item.id, verdict.current, ctx.locations); // fix loop, before the end event
-              emitEndEvent(db, threadId, item.id, turnId, sink.report, verdict.current);
+              emitEndEvent(
+                db,
+                threadId,
+                item.id,
+                turnId,
+                sink.report,
+                verdict.current,
+                sink.artifactIds,
+              );
               // A held item (blocked) keeps its dependents waiting for the lead; only an item that truly failed
               // (a crash of the run itself, no retry possible) cancels them: they can never start.
               if (getItem(db, item.id)?.status === "failed") cancelDependents(db, item.id);

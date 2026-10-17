@@ -81,6 +81,7 @@ export function buildTeamMd(i: TeamMdInput = {}): string {
     ...STRATEGY_POLICY.map((s) => `- ${s.strategy}: ${s.when}`),
     `- Up to ${MAX_RUNNING_PER_THREAD} items run at once in this thread; only one writer per location at a time (the others wait).`,
     "- A brief is all the member knows: goal sentence, what is already done, what to deliver, the location by name. Never put secrets in a brief.",
+    "- When earlier work saved a document, give its artifact id in the brief instead of pasting the text: the member reads it by id.",
     `- Plans: ${REQUEST_PLAN_TOOL} starts the planner (inside the open goal when one exists: its finished items stay). When its result carries a plan (id + version), call ${APPROVE_PLAN_TOOL}: the owner approves the whole plan once. Only a wider envelope asks again.`,
     `- Items may wait for a free worker slot (a slot_wait event: news only, nothing to do). An item older than ${ITEM_MAX_AGE_HOURS} h is held with cause item_age: ${RETRY_TASK_TOOL} gives it a fresh ${ITEM_MAX_AGE_HOURS} h, or ${CANCEL_TASK_TOOL}.`,
     `- Change running work with ${STEER_TASK_TOOL}; stop it with ${CANCEL_TASK_TOOL}. Ask the owner with ${ASK_OWNER_TOOL}.`,

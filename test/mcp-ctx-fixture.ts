@@ -46,6 +46,7 @@ export const FULL_CTX: RunCtx = {
     threadId: "t1",
     threadTitle: { rename: async () => "kept" } as never,
   },
+  artifacts: { db: new Database(":memory:"), home: "/nowhere", workspace: "w", locations: [] },
   lead: {} as never,
   reportSink: {},
   progress: () => {},

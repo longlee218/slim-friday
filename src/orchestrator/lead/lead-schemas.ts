@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REPORT_ARTIFACTS_MAX } from "../../artifacts/artifact-limits";
 import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
 import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
@@ -95,6 +96,8 @@ const WORKER_REQUEST = z.object({
   kind: z.enum(["question", "capability", "plan"]),
   text: z.string().min(1).max(REQUEST_MAX_CHARS),
 });
+/** A doc a developer wrote in its granted location, named for the report (checked and registered by code). */
+const ARTIFACT_DOC = z.object({ title: z.string().min(1), path: z.string().min(1) });
 export const REPORT_RESULT_SHAPE = {
   title: z
     .string()
@@ -103,6 +106,13 @@ export const REPORT_RESULT_SHAPE = {
   status: z.enum(RESULT_KINDS as [string, ...string[]]),
   summary: z.string().min(1).max(REPORT_SUMMARY_MAX_CHARS),
   requests: z.array(WORKER_REQUEST).max(MAX_REQUESTS).optional(),
+  artifacts: z
+    .array(z.union([z.object({ id: z.string().min(1) }), ARTIFACT_DOC]))
+    .max(REPORT_ARTIFACTS_MAX)
+    .optional()
+    .describe(
+      "Artifacts of this result: the id of one you saved, or {title, path} of a doc you wrote in your location (path relative to it)",
+    ),
 };
 
 /** A worker's `ReportProgress` input: how far along (whole percent) and what it is doing now. */

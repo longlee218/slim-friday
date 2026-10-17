@@ -56,7 +56,7 @@ export const ORCHESTRATION_SERVER: McpServerManifest = {
     },
     {
       name: REPORT_RESULT_TOOL,
-      create: (c) => c.reportSink && createReportResultTool(c.reportSink),
+      create: (c) => c.reportSink && createReportResultTool(c.reportSink, c.artifacts),
     },
   ],
 };

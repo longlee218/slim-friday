@@ -268,6 +268,19 @@ Run in a Discord test guild with the space `demo` (`/init-workspace demo`) and `
 7. **Refusals.** In the thread send, one per message: `work in ~/.ssh`, `work in /`, `work in <AGENT_HOME>`.
    Pass: each gets a refusal (`BAD_PATH`; reason `credential directory` when `~/.ssh` exists, `covers the home dir`, `inside AGENT_HOME`); no buttons; `lead.decision` with `ok: false`.
 
+### Artifact viewer (Cloudflare Tunnel): setup and owner live checklist
+The viewer is OFF until both `VIEWER_SECRET` and `VIEWER_BASE_URL` are set. It listens on `127.0.0.1` only; the tunnel is the only way in.
+1. Secret: `openssl rand -hex 32` -> `VIEWER_SECRET` in `.env` (>= 32 bytes; a shorter one refuses the start).
+2. Tunnel: `cloudflared tunnel login`, `cloudflared tunnel create friday-viewer`, route a hostname (`cloudflared tunnel route dns friday-viewer viewer.<your-domain>`), then in `~/.cloudflared/config.yml`: `ingress: [{hostname: viewer.<your-domain>, service: http://127.0.0.1:8787}, {service: http_status:404}]`; run `cloudflared tunnel run friday-viewer` (or install it as a service). The service port must equal `VIEWER_PORT` (default 8787).
+3. `.env`: `VIEWER_BASE_URL=https://viewer.<your-domain>`, optional `VIEWER_PORT`, `VIEWER_LINK_TTL_MS` (default 7 days). Restart the bot.
+4. Optional extra layer: a Cloudflare Access policy on the hostname (a link then also needs your login). Links already carry an expiring HMAC.
+- [ ] Start log shows `viewer started`; `curl -i http://127.0.0.1:8787/a/x` answers 404 with `Cache-Control: no-store`.
+- [ ] A `ForwardResult verbatim` post shows an "Open" button; it opens the rendered doc on your phone over the tunnel hostname.
+- [ ] Edit `s` or `e` in the URL: 404. Wait past the TTL (or set `VIEWER_LINK_TTL_MS=60000`): 404.
+- [ ] An `html` artifact runs its own script but cannot reach out (no network call in devtools) or read the page cookies.
+- [ ] Delete the artifact row (revoke): its old link answers 404.
+- [ ] Stop the bot: the port closes.
+
 ### Typed owner questions: owner live checklist
 Phase 2 of `plans/261017-2310-artifact-system/` (not verified live).
 1. Ask the lead something that needs a yes/no decision. Pass: two localized buttons (Approve/Deny, or Duyệt/Từ chối), the lead gets Yes/No.

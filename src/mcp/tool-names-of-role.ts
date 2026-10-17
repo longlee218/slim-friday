@@ -1,4 +1,8 @@
 import type { RoleDefinition } from "../roles/role-types";
+import { LIST_ARTIFACTS_TOOL } from "./artifacts/tools/ListArtifactsTool/constants";
+import { READ_ARTIFACT_TOOL } from "./artifacts/tools/ReadArtifactTool/constants";
+import { SAVE_ARTIFACT_TOOL } from "./artifacts/tools/SaveArtifactTool/constants";
+import { SEARCH_ARTIFACTS_TOOL } from "./artifacts/tools/SearchArtifactsTool/constants";
 import { CREATE_SPACE_OR_CHANNEL_TOOL } from "./discord-admin/tools/CreateSpaceOrChannelTool/constants";
 import { LIST_SPACES_TOOL } from "./discord-admin/tools/ListSpacesTool/constants";
 import { WRITE_SPACE_FILE_TOOL } from "./discord-admin/tools/WriteSpaceFileTool/constants";
@@ -14,6 +18,7 @@ import { FIRECRAWL_SCRAPE_TOOL } from "./firecrawl/tools/FirecrawlScrapeTool/con
 import { FIRECRAWL_SEARCH_PAPERS_TOOL } from "./firecrawl/tools/FirecrawlSearchPapersTool/constants";
 import { FIRECRAWL_SEARCH_TOOL } from "./firecrawl/tools/FirecrawlSearchTool/constants";
 import {
+  ARTIFACTS_MCP_SERVER,
   DISCORD_ADMIN_MCP_SERVER,
   EFFECTS_MCP_SERVER,
   FIRECRAWL_MCP_SERVER,
@@ -53,6 +58,10 @@ import { VALIDATE_PLAN_TOOL } from "./plan/tools/ValidatePlanTool/constants";
  * the server manifests exactly.
  */
 export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
+  [LIST_ARTIFACTS_TOOL]: ARTIFACTS_MCP_SERVER,
+  [READ_ARTIFACT_TOOL]: ARTIFACTS_MCP_SERVER,
+  [SAVE_ARTIFACT_TOOL]: ARTIFACTS_MCP_SERVER,
+  [SEARCH_ARTIFACTS_TOOL]: ARTIFACTS_MCP_SERVER,
   [CREATE_SPACE_OR_CHANNEL_TOOL]: DISCORD_ADMIN_MCP_SERVER,
   [LIST_SPACES_TOOL]: DISCORD_ADMIN_MCP_SERVER,
   [WRITE_SPACE_FILE_TOOL]: DISCORD_ADMIN_MCP_SERVER,

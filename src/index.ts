@@ -31,6 +31,8 @@ import { createRunLimiter } from "./orchestrator/turns/run-limiter";
 import { recoverInFlight } from "./orchestrator/worker/recover-in-flight";
 import { createDiscordApprovalGateway } from "./owner-approval/discord-approval";
 import { openDb } from "./storage/db";
+import { appRoots } from "./viewer/viewer-roots";
+import { startViewer } from "./viewer/viewer-server";
 import { loadWorkspaces, warnOverlap } from "./workspaces/workspace-registry";
 
 const log = logger.child({ module: "index" });
@@ -98,6 +100,15 @@ async function main(): Promise<void> {
   // running owned task is announced by a `recovered_after_restart` event, stale event claims are released.
   const recovery = recoverInFlight(db);
   await runStartupHygiene(db, config.agentHome);
+  // The artifact viewer (read-only, 127.0.0.1) runs only when VIEWER_SECRET and VIEWER_BASE_URL are set; a taken port is fatal.
+  let viewer: ReturnType<typeof startViewer> | undefined;
+  if (config.viewer) {
+    try {
+      viewer = startViewer({ db, config: config.viewer, roots: appRoots(config.agentHome) });
+    } catch (err) {
+      return fail(`viewer failed to start: ${errText(err)}`);
+    }
+  }
   startTrashSweeper(config.agentHome); // boot sweep + every 6h: trash entries past 7 days go
   // Client is created after the handler, so the gateway looks it up lazily.
   let botClient: Client | undefined;
@@ -152,7 +163,10 @@ async function main(): Promise<void> {
       await opsLog.post("shutdown", closeReason);
       await client.destroy();
     },
-    closeDb: () => db.close(),
+    closeDb: () => {
+      viewer?.stop();
+      db.close();
+    },
     log: (m) => {
       closeReason = m.replace(/^shutting down: /, "");
       logEvent(log, "app.shutdown", { reason: m });

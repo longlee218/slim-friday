@@ -36,6 +36,8 @@ export const artifacts = sqliteTable(
     version: integer().notNull().default(1),
     /** Body size in bytes. */
     size: integer().notNull(),
+    /** For a repo artifact: mtime (epoch ms) of the file snapshot the index was built from; null for a store file. */
+    source_mtime: integer(),
     /** Epoch ms created. */
     created_at: integer().notNull(),
   },

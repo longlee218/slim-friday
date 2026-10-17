@@ -116,13 +116,13 @@ test("ReportResult stores the first report in the sink; a second call is refused
   const sink: { report?: { status: string } } = {};
   const t = createReportResultTool(sink as never);
   const ok = await t.handler(
-    { title: "T", status: "COMPLETED", summary: "done", requests: undefined },
+    { title: "T", status: "COMPLETED", summary: "done", requests: undefined, artifacts: undefined },
     {},
   );
   expect(ok.isError).toBeUndefined();
   expect(sink.report?.status).toBe("COMPLETED");
   const again = await t.handler(
-    { title: "T", status: "FAILED", summary: "x", requests: undefined },
+    { title: "T", status: "FAILED", summary: "x", requests: undefined, artifacts: undefined },
     {},
   );
   expect(again.isError).toBe(true);

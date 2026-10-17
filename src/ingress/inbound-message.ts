@@ -1,3 +1,4 @@
+import type { ReportLink } from "./discord-message-rules";
 import type { RecentMessage } from "./intent-types";
 import type { OwnerLanguage } from "./user-copy";
 
@@ -27,7 +28,10 @@ export interface InboundMessage {
   /**
    * Posts a message into the thread while the turn still runs (a dispatched plan waits for approval).
    * `asFile`: the text is a finished result, posted as an attached file with a short label, never inline;
-   * `fileName`: that file's name (from the result's title).
+   * `fileName`: that file's name (from the result's title); `links`: link buttons of the file's message (the viewer's "Open").
    */
-  notify?: (text: string, opts?: { asFile?: boolean; fileName?: string }) => Promise<void>;
+  notify?: (
+    text: string,
+    opts?: { asFile?: boolean; fileName?: string; links?: ReportLink[] },
+  ) => Promise<void>;
 }

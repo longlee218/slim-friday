@@ -1,4 +1,4 @@
-import { lstatSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { linkSync, lstatSync, mkdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** A path segment that cannot climb out of its dir (ids and keys may come from model output). */
@@ -18,4 +18,26 @@ export function writeFileAtomic(dir: string, name: string, content: string): str
   writeFileSync(tmp, content, { mode: 0o600, flag: "wx" });
   renameSync(tmp, path);
   return path;
+}
+
+/**
+ * Like `writeFileAtomic`, but never replaces: the temp file is hard-linked to `<dir>/<name>` (the link fails when the name
+ * exists, also for a name another save took a moment ago) and the temp name is removed. Returns the path, or null when
+ * the name is taken (the caller picks another).
+ */
+export function writeFileExclusive(dir: string, name: string, content: string): string | null {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (lstatSync(dir).isSymbolicLink()) throw new Error(`dir is a symlink: ${dir}`);
+  const path = join(dir, name);
+  const tmp = join(dir, `.${pathSegment(name)}.${crypto.randomUUID()}.tmp`);
+  writeFileSync(tmp, content, { mode: 0o600, flag: "wx" });
+  try {
+    linkSync(tmp, path);
+    return path;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EEXIST") return null;
+    throw err;
+  } finally {
+    unlinkSync(tmp);
+  }
 }

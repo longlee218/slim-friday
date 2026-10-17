@@ -3,6 +3,7 @@ import { mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { claudePlansDir, workspacePaths } from "../src/config/workspace-paths";
 import {
+  ARTIFACTS_MCP_SERVER,
   EFFECTS_MCP_SERVER,
   MEMORY_MCP_SERVER,
   ORCHESTRATION_MCP_SERVER,
@@ -74,6 +75,7 @@ test("dev: only the app's MCP servers; a worker's env keeps no owner secret (the
   // Only the app's in-process servers (memory, ReportResult, effect tools).
   expect(Object.keys(exec.mcpServers)).toEqual([
     MEMORY_MCP_SERVER,
+    ARTIFACTS_MCP_SERVER,
     ORCHESTRATION_MCP_SERVER,
     EFFECTS_MCP_SERVER,
   ]);

@@ -194,12 +194,28 @@ All in `src/orchestrator/lead/lead-limits.ts` (zod shapes and the relay enforce 
 
 ## Artifacts
 
-Files: `artifacts/artifact-limits.ts`. An artifact body has no size cap (the owner decided); only its search index rows are sized.
+Files: `artifacts/artifact-limits.ts`. An artifact body has no size cap (the owner decided; `SaveArtifact` takes any length); only its search index rows and the result of one read, search or list call are sized.
 
 | Name | Value | At the limit |
 |---|---|---|
 | `ARTIFACT_CHUNK_CHARS` | <!-- limit:ARTIFACT_CHUNK_CHARS=2000 -->2000 chars per FTS row | the body is split at paragraph borders, a longer paragraph in fixed windows; one hit per artifact |
+| `ARTIFACT_READ_PAGE_CHARS` | <!-- limit:ARTIFACT_READ_PAGE_CHARS=8000 -->8000 chars per `ReadArtifact` page | bounds one tool result, not the artifact: the result names the next `offset` until the end |
+| `ARTIFACT_SEARCH_DEFAULT_LIMIT` | <!-- limit:ARTIFACT_SEARCH_DEFAULT_LIMIT=8 -->8 hits | `SearchArtifacts` without a `limit` |
+| `ARTIFACT_SEARCH_MAX_LIMIT` | <!-- limit:ARTIFACT_SEARCH_MAX_LIMIT=20 -->20 hits | a larger `limit` is cut |
+| `ARTIFACT_LIST_MAX` | <!-- limit:ARTIFACT_LIST_MAX=50 -->50 rows | `ListArtifacts` returns the newest 50; narrow with `goalId`, `threadId` |
+| `REPORT_ARTIFACTS_MAX` | <!-- limit:REPORT_ARTIFACTS_MAX=10 -->10 refs | the `ReportResult.artifacts` list is refused (schema) |
+| `REPORT_REPO_DOC_MAX_BYTES` | <!-- limit:REPORT_REPO_DOC_MAX_BYTES=2000000 -->2000000 bytes | a repo file over it is refused when reported, and read as metadata only (`SaveArtifact` stays uncapped) |
 | Search query / terms | 200 chars / 12 terms (shared with memory search, `memory/index/memory-search.ts`, not drift-checked) | query clipped, extra terms dropped |
+
+## Viewer
+
+Files: `config/viewer-config.ts`, `viewer/`. The viewer is OFF unless `VIEWER_SECRET` and `VIEWER_BASE_URL` are set (`.env.example`).
+
+| Name | Value | At the limit |
+|---|---|---|
+| `VIEWER_SECRET_MIN_BYTES` | <!-- limit:VIEWER_SECRET_MIN_BYTES=32 -->32 bytes | a shorter `VIEWER_SECRET` refuses the start (`Invalid environment variables: VIEWER_SECRET`) |
+| `VIEWER_LINK_TTL_DEFAULT_MS` | <!-- limit:VIEWER_LINK_TTL_DEFAULT_MS=604800000 -->604800000 ms (7 days) | a signed link older than its `VIEWER_LINK_TTL_MS` answers 404; the "Open" button of a newer post is a fresh link |
+| Default port | 8787 (`VIEWER_PORT`, not drift-checked) | 127.0.0.1 only; a taken port refuses the start |
 
 ## Discord Output
 

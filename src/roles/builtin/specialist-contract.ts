@@ -5,6 +5,7 @@ import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/cons
 import { REPORT_PROGRESS_TOOL } from "../../mcp/orchestration/tools/ReportProgressTool/constants";
 import { REPORT_RESULT_TOOL } from "../../mcp/orchestration/tools/ReportResultTool/constants";
 import type { RoleDefinition } from "../role-types";
+import { ARTIFACT_TOOLS } from "./artifact-tools";
 
 /* Shared by the roster specialists (solution-architect, designer, tester, devops, humanizer-writer, hacker): one worker
    contract and the fields they all set, so each role file holds only what differs (job, tools, skills, budget). */
@@ -35,6 +36,7 @@ export const SPECIALIST_BASE = {
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,
+    ...ARTIFACT_TOOLS,
     REPORT_RESULT_TOOL,
     REPORT_PROGRESS_TOOL,
   ],

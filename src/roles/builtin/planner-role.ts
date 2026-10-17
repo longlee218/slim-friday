@@ -13,6 +13,7 @@ import { GET_PROJECT_CONTEXT_TOOL } from "../../mcp/plan/tools/GetProjectContext
 import { PROPOSE_PLAN_REVISION_TOOL } from "../../mcp/plan/tools/ProposePlanRevisionTool/constants";
 import { VALIDATE_PLAN_TOOL } from "../../mcp/plan/tools/ValidatePlanTool/constants";
 import type { RoleDefinition } from "../role-types";
+import { ARTIFACT_TOOLS } from "./artifact-tools";
 
 /** Owner questions per run: the planner never asks; when it cannot plan it reports NEEDS_CLARIFICATION and the lead asks. */
 const MAX_ASK = 0;
@@ -55,6 +56,7 @@ export const PLANNER_ROLE: RoleDefinition = {
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,
+    ...ARTIFACT_TOOLS,
     REPORT_RESULT_TOOL,
     REPORT_PROGRESS_TOOL,
     GET_PROJECT_CONTEXT_TOOL,

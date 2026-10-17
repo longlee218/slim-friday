@@ -94,7 +94,19 @@ function leadOnce(
           recent: ctx.message.recent, // seeds a fresh session after a rollover
           existing: stored?.kind === "lead" ? stored : null,
           team: buildTeamMd({ locations: ctx.locations }),
-          appCtx: () => ({ lead: toolCtx }),
+          appCtx: () => ({
+            lead: toolCtx,
+            // Artifact tools: the lead reads and saves in its own channel.
+            artifacts: {
+              db,
+              home: deps.config.agentHome,
+              workspace: ctx.workspace,
+              ...(ctx.channel && { channel: ctx.channel }),
+              threadId,
+              role: "lead",
+              locations: ctx.locations.map((l) => ({ name: l.name, path: l.path })),
+            },
+          }),
         },
         close: (res, t0) => ({
           res: { ...res, sessionKind: "lead", model: res.model ?? role.model },

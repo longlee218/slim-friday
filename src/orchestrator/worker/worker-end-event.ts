@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../../observability/redact";
+import { getArtifact } from "../../storage/artifact-store";
 import { childrenOf, getItem, type ItemRow, isHeld } from "../../storage/owned-item-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { planReadyOf } from "../plan/plan-ready";
@@ -25,6 +26,13 @@ export function earlierSteps(db: Database, item: ItemRow): string {
   ].join("\n");
 }
 
+/** Id and title of the artifacts a report named (an id the db does not know is left out). */
+const artifactsOf = (db: Database, ids: string[]) =>
+  ids.flatMap((id) => {
+    const a = getArtifact(db, id);
+    return a ? [{ id, title: a.title }] : [];
+  });
+
 /**
  * The end event of a worker run, from the task's settled status: completed = `result`, failed = `failure`, blocked =
  * `blocked` (a held item, blocked with result FAILED, is a `failure`: payload `class`, `cause`, `attempt`), waiting on
@@ -38,6 +46,7 @@ export function emitEndEvent(
   turnId: string,
   report?: ReportSink["report"],
   verdict?: FailureVerdict,
+  artifactIds: string[] = [],
 ): void {
   const it = getItem(db, itemId);
   if (!it) return;
@@ -66,6 +75,8 @@ export function emitEndEvent(
       resultKind: it.resultKind,
       excerpt: it.resultExcerpt,
       path: it.resultPath,
+      // Artifacts the report names (id + title): the lead passes the ids on in briefs.
+      ...(artifactIds.length && { artifacts: artifactsOf(db, artifactIds) }),
       ...(verdict?.action === "hold" && {
         class: verdict.class,
         cause: verdict.cause,

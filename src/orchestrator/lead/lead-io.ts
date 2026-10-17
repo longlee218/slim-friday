@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { attachmentName, headingTitle } from "../../ingress/attachment-name";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
+import { artifactIdByPath } from "../../storage/artifact-path-store";
+import { openLinks } from "../../viewer/signed-link";
 import type { OwnerAnswer } from "../goal/effect-port";
 import type { PortIo } from "../goal/effect-port-db";
 import { ASK_OWNER_TIMEOUT_MS } from "./lead-limits";
@@ -62,7 +64,11 @@ export function createLeadIo(
         if (text.trim() && !ac.aborted)
           await postTo(ctx, text, {
             asFile: !!p.filePath,
-            ...(p.filePath && { fileName: attachmentName(headingTitle(text), "md") }),
+            ...(p.filePath && {
+              fileName: attachmentName(headingTitle(text), "md"),
+              // The artifact of that file opens in the viewer (no links when the viewer is off or the file is no artifact).
+              links: openLinks(deps.config.viewer, artifactIdByPath(deps.db, p.filePath)),
+            }),
           });
       } catch (err) {
         logEvent(log, "lead.post_failed", { threadId, err: errText(err) }, "warn");

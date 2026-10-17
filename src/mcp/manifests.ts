@@ -1,3 +1,4 @@
+import { ARTIFACTS_SERVER } from "./artifacts/server";
 import { DISCORD_ADMIN_SERVER } from "./discord-admin/server";
 import { EFFECTS_SERVER } from "./effects/server";
 import { FIRECRAWL_SERVER } from "./firecrawl/server";
@@ -12,6 +13,7 @@ import { PLAN_SERVER } from "./plan/server";
  */
 export const ALL_SERVERS: readonly McpServerManifest[] = [
   MEMORY_SERVER,
+  ARTIFACTS_SERVER,
   ORCHESTRATION_SERVER,
   PLAN_SERVER,
   EFFECTS_SERVER,

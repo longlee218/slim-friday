@@ -61,7 +61,7 @@ Worker run (detached; survives the owner message)
 | Owner approval | `src/owner-approval/` | Discord buttons, owner questions, owner-confirm |
 | Runtime | `src/runtime/` | SDK run (`run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `run-stream.ts`), guard hook, tool permissions, permission mode, worker sandbox, skill plugins |
 | Roles | `src/roles/` | `RoleDefinition` type, registry, `builtin/` role files, `prompts/` (TEAM.md, rollover prompts, first-prompt prefix) |
-| MCP | `src/mcp/` | five in-process servers, tool adapters, per-run server build, guard allow list |
+| MCP | `src/mcp/` | six in-process servers, tool adapters, per-run server build, guard allow list |
 | Tools | `src/tools/` | SDK built-in tool names (`sdk-tool-names.ts`) and the capability catalog (`tool-catalog.ts`) |
 | Storage | `src/storage/` | Drizzle schema (`schema/`), migrations, stores (`*-store.ts`) |
 | Memory | `src/memory/` | persona and memory files, memory writers, index (FTS), channel digest, `/find` |
@@ -138,7 +138,7 @@ Worker run (detached; survives the owner message)
 ### Dispatch and result flow
 1. The lead calls `DispatchAgent`. The policy checks the shape; goal and item rows are written through the effect port.
 2. `dispatch-ready` starts each item whose dependencies completed. The worker run is detached.
-3. The worker calls `ReportResult`. Code stores the result as an artifact of the run's workspace channel (`workspaces/<ws>/channels/<channel>/artifacts/<title-slug>[-vN].md`, dir 0700, file 0600; `owned_tasks.result_path` keeps its path) and appends a `thread_events` row.
+3. The worker calls `ReportResult` (a scout or planner saved its full report with `SaveArtifact` first; the report's `artifacts` ids reach the lead in the end event). Code stores the result as an artifact of the run's workspace channel (`workspaces/<ws>/channels/<channel>/artifacts/<title-slug>[-vN].md`, dir 0700, file 0600; `owned_tasks.result_path` keeps its path) and appends a `thread_events` row.
 4. The announcer waits 2 s for more events; one lead run reads them.
 5. The lead reports to the owner, starts the next step, or asks the owner (`AskOwner`).
 6. The goal settles when every item has ended. A failed run goes through the failure policy first (see [Failure classes](#failure-classes-and-auto-resume)): resumed or held, never silently lost.
@@ -177,7 +177,7 @@ Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per f
 | `model` | Sonnet | Sonnet | Haiku | Sonnet | Haiku |
 | `skills` | `[]` | `plan-work` | `scout`, `docs-seeker`, `firecrawl-deep-research`, `firecrawl-research-papers`, `firecrawl-market-research` | 15 named skills | `discord-server-manager` |
 | `capabilities` | read | read, skills | read, web, shell, skills | read, write, shell, skills, tasks, mcp, feedback, ask | read, skills, ask |
-| `mcpTools` | 13 (see below) | 12 | 5 | 9 | 3 |
+| `mcpTools` | 17 (see below) | 16 | 9 | 13 | 3 |
 | `limits.maxAsk`, `limits.maxTurns`, `budgetUsd` | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) |
 | `permissionMode` | auto | auto | auto | bypassPermissions (a worker with an envelope runs in `default`) | - |
 | `sideEffects` | none | none | none | location | external |
@@ -191,12 +191,13 @@ Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per f
 - Adding or changing a role is a TypeScript edit in its role file. Config-as-files for roles is closed (owner decision, 2026-10-12).
 
 ## MCP Servers and Tools
-Five in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<server>/server.ts` and tools in `src/mcp/<server>/tools/<Name>Tool/`.
+Six in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<server>/server.ts` and tools in `src/mcp/<server>/tools/<Name>Tool/`.
 
 | Server (name) | Tools | Roles (role `mcpTools`) |
 |---|---|---|
 | `memory` | `MemorySave`, `MemorySearch`, `MemoryGet`, `MemoryExpand` | `MemorySave`: lead only. The three read tools: lead, planner, scout, developer |
-| `orchestration` | `DispatchAgent`, `TaskStatus`, `SteerTask`, `CancelTask`, `RetryTask`, `AskOwner`, `ForwardResult`, `RequestPlan`, `ApprovePlan`, `RegisterLocation`, `SetThreadTitle`, `ReportResult`, `ReportProgress` | lead (all but the last two); `ReportResult`, `ReportProgress`: every worker role |
+| `artifacts` | `SaveArtifact`, `ReadArtifact`, `ListArtifacts`, `SearchArtifacts` | lead, planner, scout, developer, roster specialists (`roles/builtin/artifact-tools.ts`). A run sees only the artifacts of its own workspace channel (the boundary of channel memory); `SaveArtifact` writes through the artifact writer in code (no size cap), so a read-only worker stays read-only on disk; `ReadArtifact` pages the text (the page bounds one tool result, not the artifact); a repo artifact is re-indexed on read when its file mtime changed |
+| `orchestration` | `DispatchAgent`, `TaskStatus`, `SteerTask`, `CancelTask`, `RetryTask`, `AskOwner`, `ForwardResult`, `RequestPlan`, `ApprovePlan`, `RegisterLocation`, `SetThreadTitle`, `ReportResult`, `ReportProgress` | lead (all but the last two); `ReportResult`, `ReportProgress`: every worker role. `ReportResult.artifacts` (max 10): ids of `SaveArtifact` outputs or `{title, path}` of a doc the worker wrote in its granted location (registered as a repo artifact; an escape, a sensitive file or a foreign id is refused in the tool result, the report is not stored) |
 | `plan` | `GetProjectContext`, `GetAgentCapabilities`, `CreatePlan`, `ValidatePlan`, `ProposePlanRevision`, `GetExecutionProgress`, `AnalyzeBlockers` | planner |
 | `effects` | `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch` | developer |
 | `discord-admin` | `ListSpaces`, `CreateSpaceOrChannel`, `WriteSpaceFile` | discord-manager |
@@ -348,6 +349,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 | `artifacts_fts` | `0003_artifacts_fts.sql` | FTS5 index of text artifacts (`md`, `txt`, `csv`; chunks of 2000 chars; accents folded like memory) |
 
 - Artifacts (`src/artifacts/`, `storage/artifact-store.ts`): owned by the workspace channel, not the goal. `writeArtifact` writes `channels/<channel>/artifacts/<title-slug>[-vN].<ext>` (workspace-level `artifacts/` when the run has no channel; no workspace = no write), redacted, atomic (`safe-write.ts`, shared symlink refusal), no size cap. The same name in a channel gives `-v2`; older files stay. `registerRepoArtifact` references a file of a granted location (never copied): real path inside the location, symlink escape and sensitive files (`isSensitivePath`) refused. `searchArtifacts` is scoped to the run's workspace (and channel). `html` and `diff` are stored, not indexed.
+- Viewer (`src/viewer/`, `config/viewer-config.ts`, not verified live): a read-only `Bun.serve` on `127.0.0.1:<VIEWER_PORT>` behind a Cloudflare Tunnel, started with the bot and stopped on shutdown; OFF unless `VIEWER_SECRET` and `VIEWER_BASE_URL` are set. One route, `GET /a/<artifactId>?e=<expiry epoch s>&s=<HMAC-SHA256(secret, id|e)>`: no path in the URL, constant-time compare, expired, forged, unknown, deleted, non-GET and every other path answer the same 404 ("Not found"). Every response: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`, nosniff, no framing. `md` renders through Bun's built-in markdown renderer with a callback for every node (all text and raw HTML escaped, links http(s)/mailto/anchor only, images only inline `data:`), light/dark page, TOC from the headings; `html` runs in `<iframe sandbox="allow-scripts" srcdoc>` (never `allow-same-origin`; the inner CSP `default-src 'none'; style-src/script-src 'unsafe-inline'; img-src data:` has no `connect-src`, so it cannot call out; a srcdoc frame inherits the wrapper's policy, so the wrapper header carries the same plus `frame-src 'self'`); `diff`, `csv`, `txt` are an escaped `<pre>`. A `repo` artifact re-runs the path check on every read (relative, real path inside the location, not AGENT_HOME, not sensitive, a file). `ForwardResult verbatim` adds an "Open" link button (fresh signed link, `lead-io.ts` -> `ReportLink`) when the viewer is on. Revoke: delete the artifact row (404); no command.
 
 - Turn status values are declared in `src/storage/schema/turns.ts`.
 
@@ -488,6 +490,8 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 | `LOG_LEVEL` | no | default `info` |
 | `MEMORY_MODEL` | no | model of the cheap one-shot calls (memory compaction, attachment summary); default `claude-haiku-4-5-20251001` (`HAIKU_SUMMARY_MODEL`) |
 | `MAX_BUDGET_USD` | no | optional global cap on every run |
+| `VIEWER_SECRET`, `VIEWER_BASE_URL` | no | the artifact viewer is ON only with both: HMAC key of the signed links (>= 32 bytes) and the tunnel's public address; denied to every agent process |
+| `VIEWER_PORT`, `VIEWER_LINK_TTL_MS` | no | loopback port (default 8787) and link life (default 7 days) |
 | `TIMEOUT_MS` | no | deadline cap (default 300000 ms) of the memory compaction one-shot only (`memory-compaction-llm.ts`); runs have no timeout |
 | `GIT_AUTHOR` | no | accepted and ignored |
 

@@ -26,6 +26,7 @@ function setup() {
     kind: "md" as const,
     location: { name: "location", path: root },
     relPath,
+    home: env.home,
   });
   return { ...env, input };
 }

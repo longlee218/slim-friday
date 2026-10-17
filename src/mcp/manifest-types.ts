@@ -1,4 +1,5 @@
 import type { McpHttpServerConfig, SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
+import type { ArtifactToolCtx } from "../artifacts/artifact-access";
 import type { DiscordAdminContext } from "../discord-setup/discord-admin-context";
 import type { MemoryToolContext } from "../memory/memory-tool-context";
 import type { LeadToolContext } from "../orchestrator/lead/lead-call";
@@ -26,6 +27,8 @@ export interface RunCtx {
   effects?: EffectsCtx;
   /** Discord admin tools: the control-channel run. */
   admin?: DiscordAdminContext;
+  /** Artifact tools (and the artifact refs of `ReportResult`): the run's channel scope. Absent = no artifact tools. */
+  artifacts?: ArtifactToolCtx;
   /** Per-server-instance read cap shared by the memory read tools (set by the memory manifest's `prepare`). */
   readBudget?: ReadBudget;
 }

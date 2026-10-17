@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { writeArtifact } from "../src/artifacts/artifact-writer";
+import type { ViewerConfig } from "../src/config/viewer-config";
 import { createLeadIo } from "../src/orchestrator/lead/lead-io";
 import { createLeadQueue } from "../src/orchestrator/lead/lead-queue";
 import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/lead/lead-runtime";
@@ -9,7 +11,7 @@ import { makeEnv, stubGateway } from "./helpers";
 
 /* The IO of a lead run: owner buttons (10 min wait), relay of the answer to a waiting worker, posts, `/stop` and the queue. */
 
-function setup(over: Parameters<typeof stubGateway>[0] = {}) {
+function setup(over: Parameters<typeof stubGateway>[0] = {}, viewer?: ViewerConfig) {
   const env = makeEnv();
   const posts: string[] = [];
   const answered: [string, string][] = [];
@@ -17,7 +19,7 @@ function setup(over: Parameters<typeof stubGateway>[0] = {}) {
     message: { notify: async (t: string) => void posts.push(t) },
   } as unknown as LeadThreadCtx;
   const rt = {
-    deps: { approvals: stubGateway(over) },
+    deps: { approvals: stubGateway(over), db: env.db, config: { viewer } },
     relay: { answer: (id: string, t: string) => (answered.push([id, t]), true) },
   } as unknown as LeadRuntime;
   return { env, posts, answered, ctx, rt };
@@ -126,4 +128,44 @@ test("post: a result file is posted with asFile, plain text is not", async () =>
     ["full result", true],
     ["excerpt", false],
   ]);
+});
+
+test("post: a result file that is an artifact carries the viewer's Open link when the viewer is on", async () => {
+  const cfg: ViewerConfig = {
+    port: 1,
+    baseUrl: "https://v.example.com",
+    secret: "k".repeat(32),
+    linkTtlMs: 1000,
+  };
+  const sent: { links?: { label: string; url: string }[] }[] = [];
+  const ctx = {
+    message: {
+      notify: async (_t: string, o?: { links?: { label: string; url: string }[] }) =>
+        void sent.push(o ?? {}),
+    },
+  } as unknown as LeadThreadCtx;
+  const on = setup({}, cfg);
+  const a = writeArtifact(on.env.db, on.env.home, {
+    workspace: "main",
+    title: "Plan",
+    kind: "md",
+    body: "# Plan",
+  });
+  await createLeadIo(on.rt, ctx, "t", "turn", new AbortController().signal).post({
+    filePath: a.path,
+  });
+  expect(sent[0]?.links?.[0]?.label).toBe("Open");
+  expect(sent[0]?.links?.[0]?.url).toContain(`https://v.example.com/a/${a.id}?e=`);
+  // Viewer off: no link.
+  const off = setup();
+  const b = writeArtifact(off.env.db, off.env.home, {
+    workspace: "main",
+    title: "Plan",
+    kind: "md",
+    body: "# Plan",
+  });
+  await createLeadIo(off.rt, ctx, "t", "turn", new AbortController().signal).post({
+    filePath: b.path,
+  });
+  expect(sent[1]?.links).toEqual([]);
 });
