@@ -30,6 +30,10 @@ export type UserNotice =
         | "channel-unavailable";
     }
   | { kind: "ask-after-location"; name?: string }
+  /** An owner-made channel was just mapped to a space (auto-adopt). */
+  | { kind: "channel-adopted"; space: string; name: string }
+  /** Auto-adopt refused: the channel is not private, two spaces claim its category, or it could not be written. */
+  | { kind: "channel-adopt-refused"; reason: "not-private" | "ambiguous" | "name-taken" | "failed" }
   | {
       kind: "approval";
       state:
@@ -255,6 +259,32 @@ function render(event: UserNotice, language: OwnerLanguage): string {
         `Bạn gửi câu hỏi sau "location:${event.name}" nhé.`,
         `Send your question after "location:${event.name}".`,
       );
+    case "channel-adopted":
+      return say(
+        `Đã liên kết #${event.name} với space ${event.space} (mode task). Gửi một đường dẫn để thêm nơi làm việc.`,
+        `Linked #${event.name} to space ${event.space} (mode task). Say a path to add a working location.`,
+      );
+    case "channel-adopt-refused": {
+      const copy = {
+        "not-private": [
+          "Chưa liên kết kênh này vì kênh không riêng tư. Hãy đặt kênh đồng bộ quyền với category (chỉ bạn và bot xem được) rồi @mention lại.",
+          "I did not link this channel because it is not private. Sync its permissions with the category (only you and the bot can see it), then mention me again.",
+        ],
+        ambiguous: [
+          "Chưa liên kết kênh này vì category khớp nhiều space. Hãy kiểm tra cấu hình space.",
+          "I did not link this channel because its category matches more than one space. Check the space setup.",
+        ],
+        "name-taken": [
+          "Chưa liên kết kênh này vì đã có quá nhiều kênh trùng tên. Hãy đổi tên kênh rồi @mention lại.",
+          "I did not link this channel because too many channels already use this name. Rename it and mention me again.",
+        ],
+        failed: [
+          "Chưa liên kết được kênh này (xem log). Hãy thử lại hoặc dùng /init-channel.",
+          "I could not link this channel (see the logs). Try again or use /init-channel.",
+        ],
+      } as const;
+      return say(copy[event.reason][0], copy[event.reason][1]);
+    }
     case "note": {
       const copy = {
         "no-delivery": [

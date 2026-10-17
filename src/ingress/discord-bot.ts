@@ -2,11 +2,12 @@ import { Client, Events, GatewayIntentBits, type Interaction } from "discord.js"
 import type { AgentConfig } from "../config/agent-config";
 import { createAdminHandler } from "../discord-setup/admin-handler";
 import type { ControlRun } from "../discord-setup/control-role-run";
-import { type DiscordSetup, EMPTY_SETUP } from "../discord-setup/discord-setup-config";
+import { type DiscordSetup, EMPTY_SETUP, opsIds } from "../discord-setup/discord-setup-config";
 import type { InlineRunner } from "../memory/find-command-handler";
 import { logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { createAttachmentDeps } from "./attachment-summary";
+import { createChannelAdopter } from "./channel-adoption";
 import { createMessageHandler, type HandleMessage } from "./discord-message-handler";
 import { SAFE_MENTIONS } from "./discord-message-rules";
 import { createSlashHandler, registerSlashCommands } from "./slash-interaction";
@@ -41,6 +42,13 @@ export function createDiscordBot(
     setup,
     inline,
     threads,
+    adoptChannel: createChannelAdopter({
+      home: config.agentHome,
+      ownerId: config.ownerDiscordId ?? "",
+      guildId: config.discordGuildId,
+      botId: () => client.user?.id,
+      ops: opsIds(setup),
+    }),
     attachments: createAttachmentDeps(config),
     // Admin commands (/init-workspace) run outside the turn handler, behind their own gate.
     admin: createAdminHandler({

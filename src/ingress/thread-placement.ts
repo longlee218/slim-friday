@@ -30,7 +30,7 @@ const log = logger.child({ module: "thread-placement" });
  * True only for a REAL owner message that @mentions the bot (`<@id>` in the text). A slash command is a
  * synthetic message whose `mentions.has` is always true, so it never adopts a thread.
  */
-function mayAdopt(
+export function mayAdopt(
   msg: { author: { id: string }; content: string },
   ownerId: string,
   botId: string,

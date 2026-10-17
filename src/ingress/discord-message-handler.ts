@@ -4,6 +4,7 @@ import type { InlineRunner } from "../memory/find-command-handler";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { type AttachmentDeps, withAttachments } from "./attachment-text";
+import type { ChannelAdopter } from "./channel-adoption";
 import { routeMessage, SAFE_MENTIONS } from "./discord-message-rules";
 import { BUSY_ACK_EMOJI, sendReply, sendResultFile, startTyping } from "./discord-send";
 import type { InboundMessage } from "./inbound-message";
@@ -49,6 +50,8 @@ export interface MessageHandlerDeps {
   attachments?: AttachmentDeps;
   /** Thread persistence and channel lookup (placeholder rows, adoption). Absent: no rows, no adoption. */
   threads?: ThreadsPort;
+  /** Auto-adopt of an owner-made channel on its first @mention (replies on its own). Absent: no adoption. */
+  adoptChannel?: ChannelAdopter;
   /** Delay (ms) before a still-unanswered message gets the receipt reaction; default 2000 (tests shorten it). */
   receiptDelayMs?: number;
 }
@@ -228,6 +231,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
         await receipt.visible();
         return;
       }
+      if ((await deps.adoptChannel?.(msg, receipt.visible)) === "refused") return; // owner got the reason; no thread
       const thread = await openThread(msg, ch.id, deps.threads);
       errorTarget = thread;
       await answer(
