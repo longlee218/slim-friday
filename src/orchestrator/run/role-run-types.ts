@@ -79,8 +79,6 @@ export interface RoleRunInput {
   ledger?: string;
   /** The lead's TEAM.md (roster, locations, how to delegate): placed after AGENTS.md in its persona block. */
   team?: string;
-  /** Dispatched worker run: no SDK subagent tools even when the role allows them (depth 1, developer included). */
-  noSubagents?: boolean;
   /** Envelope of a dispatched worker: its shell runs in the OS sandbox and every tool call is checked against it. Omitted = no envelope. */
   envelope?: DispatchEnvelope;
   /** Where the typed question of a worker's AskUserQuestion goes instead of the owner (the run's `code` hook); omitted = the owner's buttons. */

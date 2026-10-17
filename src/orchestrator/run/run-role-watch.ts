@@ -3,7 +3,6 @@ import { mayHaveWritten } from "../../roles/capability-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import type { RunAgentResult } from "../../runtime/run-agent";
 import { createRunSupervisor, recoverOnce } from "../../runtime/run-supervisor";
-import { MAX_TURNS } from "../../runtime/sdk-options";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 
 /** Logger of this module (task fields come from the log context). */
@@ -20,7 +19,10 @@ export function watchRun(
   role: RoleDefinition,
   awaiting: () => string | undefined,
 ) {
-  const supervisor = createRunSupervisor({ maxTurns: MAX_TURNS, alreadyRecovered: false });
+  const supervisor = createRunSupervisor({
+    maxTurns: role.limits.maxTurns,
+    alreadyRecovered: false,
+  });
   /** Audit line of a supervisor action: the technical reason, state words and numbers only (no owner text, no hint). */
   const audit = (action: string, reason: string) => {
     const s = supervisor.snapshot();

@@ -1,7 +1,11 @@
 import type { Database } from "bun:sqlite";
 import { logEvent, logger } from "../../observability/logger";
 import { redactText } from "../../observability/redact";
-import { SUMMARY_MAX_CHARS, summaryHitId, summaryPath } from "../../storage/thread-summary-store";
+import {
+  summaryHitId,
+  summaryPath,
+  THREAD_SUMMARY_MAX_CHARS,
+} from "../../storage/thread-summary-store";
 import { localDay } from "../memory-clock";
 import { foldText } from "./fold-text";
 import {
@@ -124,7 +128,7 @@ export const ledger = (db: Database, path: string) =>
 /** Index the summary of one thread (redacted, clipped to the stored summary size). `summary` is the full text. */
 export function indexSummary(db: Database, r: SummaryRow): void {
   const row: Row = {
-    text: redactText(r.summary).normalize("NFC").slice(0, SUMMARY_MAX_CHARS),
+    text: redactText(r.summary).normalize("NFC").slice(0, THREAD_SUMMARY_MAX_CHARS),
     id: summaryHitId(r.thread_id, r.cycle),
     source: "summary",
     section: "",

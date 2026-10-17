@@ -1,6 +1,5 @@
 import { STALE_AFTER_MS } from "../../config/resilience-caps";
 import { logEvent, logger } from "../../observability/logger";
-import { getRole } from "../../roles/role-registry";
 import type { LeadRuntime } from "../lead/lead-runtime";
 import { type LiveRun, liveWorkers } from "../run/live-runs";
 
@@ -30,14 +29,8 @@ export function pickStale(
   );
 }
 
-/** Threshold of a run: its role's override, else the default. A role name unknown to the registry uses the default. */
-function staleAfterOfRole(run: LiveRun): number {
-  try {
-    return getRole(run.role).staleAfterMs ?? STALE_AFTER_MS;
-  } catch {
-    return STALE_AFTER_MS;
-  }
-}
+/** Threshold of a run: the same `STALE_AFTER_MS` for every role. */
+const staleAfterAny = (): number => STALE_AFTER_MS;
 
 /**
  * One sweep: abort every stale worker run (cause `stale`). No event here: the failure policy resumes the item (the lead does
@@ -47,7 +40,7 @@ export function sweepStale(
   _rt: LeadRuntime, // kept for the sweeper's call shape
 
   now = Date.now(),
-  staleAfterOf: (run: LiveRun) => number = staleAfterOfRole,
+  staleAfterOf: (run: LiveRun) => number = staleAfterAny,
 ): LiveRun[] {
   const stale = pickStale(liveWorkers(), now, staleAfterOf);
   for (const run of stale) {

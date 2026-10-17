@@ -14,9 +14,9 @@ import {
   PROGRESS_NOTE_MAX_CHARS,
   QUESTION_MAX_CHARS,
   REASON_MAX_CHARS,
+  REPORT_SUMMARY_MAX_CHARS,
   REQUEST_MAX_CHARS,
   STEER_TEXT_MAX_CHARS,
-  SUMMARY_MAX_CHARS,
 } from "./lead-limits";
 
 /* Input schemas (zod raw shapes) of the lead's tools and of the worker's ReportResult. The SDK validates a call
@@ -91,7 +91,7 @@ const WORKER_REQUEST = z.object({
 });
 export const REPORT_RESULT_SHAPE = {
   status: z.enum(RESULT_KINDS as [string, ...string[]]),
-  summary: z.string().min(1).max(SUMMARY_MAX_CHARS),
+  summary: z.string().min(1).max(REPORT_SUMMARY_MAX_CHARS),
   requests: z.array(WORKER_REQUEST).max(MAX_REQUESTS).optional(),
 };
 

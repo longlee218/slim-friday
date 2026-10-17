@@ -17,6 +17,8 @@ import type { RoleDefinition } from "../role-types";
 const MAX_ASK = 0;
 /** Budget (USD) of one planner run (counted in the goal budget). */
 const BUDGET_USD = 0.5;
+/** Agent loops (SDK turns) one planner run may take. */
+const MAX_TURNS = 20;
 
 /** Run contract: plan only, through the plan tools; the lead and the owner decide the rest. */
 const CONTRACT = `This run is the planner: you turn the lead's request into a plan the owner can approve once. You plan; you never do the work.
@@ -41,7 +43,8 @@ export const PLANNER_ROLE: RoleDefinition = {
     "Turns a big or branching request into a validated plan with items, dependencies, risks and an envelope.",
   kind: "worker",
   skills: ["plan-work"],
-  limits: { maxAsk: MAX_ASK },
+  limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
+  subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",
   capabilities: ["read", "skills"],
   mcpTools: [
@@ -58,7 +61,7 @@ export const PLANNER_ROLE: RoleDefinition = {
     GET_EXECUTION_PROGRESS_TOOL,
     ANALYZE_BLOCKERS_TOOL,
   ],
-  noSubagents: true, // depth 1: a worker never spawns subagents
+  noSubagents: true, // subagents are developer-only (owner)
   permissionMode: "auto",
   model: SONNET_MODEL,
   budgetUsd: BUDGET_USD,

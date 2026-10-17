@@ -20,6 +20,8 @@ import type { RoleDefinition } from "../role-types";
 const MAX_ASK = 0;
 /** Budget (USD) of one lead run (a short routing turn). There is no daily lead budget. */
 const BUDGET_USD = 0.75;
+/** Agent loops (SDK turns) one lead run may take. */
+const MAX_TURNS = 20;
 
 /**
  * Run contract (code rules only): who the lead is and what it may do. The team (TEAM.md, built per run), the owner's
@@ -60,10 +62,11 @@ export const LEAD_ROLE: RoleDefinition = {
     SET_THREAD_TITLE_TOOL,
     REGISTER_LOCATION_TOOL,
   ],
-  limits: { maxAsk: MAX_ASK },
+  limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
+  subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",
   capabilities: ["read"],
-  noSubagents: true, // depth 1: the lead dispatches through its tools only
+  noSubagents: true, // the lead dispatches through its tools only
   permissionMode: "auto",
   model: SONNET_MODEL,
   thinking: { type: "adaptive" }, // the model decides how long to think (a short routing turn)

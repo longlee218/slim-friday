@@ -103,7 +103,6 @@ export async function startWorker(
           ac: new AbortController(), // the run's own controller: /stop aborts it, the thread is not held
           pinned,
           ledger: earlierSteps(db, item),
-          noSubagents: true, // depth 1: developer too
           envelope,
           // The ctx parts of this worker's MCP tools; its role's `mcpTools` picks which ones it really gets (a worker has no
           // `lead` part, so it can never hold a lead tool).

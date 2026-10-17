@@ -78,7 +78,6 @@ export function agentRunOnce(p: OnceParts) {
       skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
       guard: guardFor(role, {
         ...s.guard,
-        ...(i.noSubagents && { subagents: false }),
         ...(i.envelope && {
           envelope: i.envelope,
           // A worker reads only what it was granted (locations, goal dir, worktrees, attachments, skill dirs): never ~/.ssh, ~/.aws ...

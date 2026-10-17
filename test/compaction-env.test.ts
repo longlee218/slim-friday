@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { resolveCompactWindow } from "../src/config/model-routing";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import {
@@ -52,22 +51,17 @@ afterEach(() => {
 });
 
 describe("compaction + cache TTL env (set by the app for every role, never inherited)", () => {
-  test("sdkEnv: window falls back to the app default; an explicit value wins; 0 drops only the window var", () => {
+  test("sdkEnv: the window is the app default for every call", () => {
     const { config } = makeEnv();
     expect(sdkEnv(config, { PATH: "/bin" })[AUTO_COMPACT_WINDOW_VAR]).toBe(
       String(COMPACT_WINDOW_TOKENS),
     );
-    expect(sdkEnv(config, {}, 150_000)[AUTO_COMPACT_WINDOW_VAR]).toBe("150000");
-    const off = sdkEnv(config, {}, 0);
-    expect(off[AUTO_COMPACT_WINDOW_VAR]).toBeUndefined();
-    expect(off[AUTOCOMPACT_PCT_VAR]).toBe(String(COMPACT_PCT));
+    expect(sdkEnv(config, {})[AUTOCOMPACT_PCT_VAR]).toBe(String(COMPACT_PCT));
   });
 
-  test("sdkEnv oneShot: none of the 4 vars, even with a window given", () => {
+  test("sdkEnv oneShot: none of the 4 vars", () => {
     const { config } = makeEnv();
-    const e = sdkEnv(config, { PATH: "/bin", [PROMPT_CACHE_TTL_VAR]: "5m" }, 150_000, {
-      oneShot: true,
-    });
+    const e = sdkEnv(config, { PATH: "/bin", [PROMPT_CACHE_TTL_VAR]: "5m" }, { oneShot: true });
     for (const v of VARS) expect(e[v]).toBeUndefined();
     expect(e.PATH).toBe("/bin");
   });
@@ -95,12 +89,7 @@ describe("compaction + cache TTL env (set by the app for every role, never inher
     }
   });
 
-  test("the window is role data or the app default; no env var changes it", async () => {
-    for (const name of ["lead", "developer", "scout", "planner", "discord-manager"] as const) {
-      expect(resolveCompactWindow(getRole(name))).toBe(
-        getRole(name).autoCompactWindow ?? COMPACT_WINDOW_TOKENS,
-      );
-    }
+  test("the window is the app default; no env var changes it", async () => {
     process.env.COMPACT_WINDOW_LEAD = "150000";
     const e = (await optionsOf(makeEnv(), "lead")).env;
     delete process.env.COMPACT_WINDOW_LEAD;

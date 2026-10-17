@@ -1,4 +1,4 @@
-import { SUMMARY_MAX_CHARS } from "../storage/thread-summary-store";
+import { THREAD_SUMMARY_MAX_CHARS } from "../storage/thread-summary-store";
 
 /** Max chars of the previous summary kept in a merge (its newest end). */
 const SUMMARY_PREV_KEEP_CHARS = 2500;
@@ -32,7 +32,7 @@ const unlabel = (s: string): string =>
  * - The new one already covers the previous (a RESUMED session carries the earlier compaction summary inside
  *   its own transcript, so its new summary restates it): the new one as is, no duplicated text.
  * - Otherwise (a fresh session after a rollover: the old summary was only prompt context, so the SDK never saw
- *   it): `Earlier: <previous, newest SUMMARY_PREV_KEEP_CHARS>` + `Latest: <new>`, fitted to SUMMARY_MAX_CHARS
+ *   it): `Earlier: <previous, newest SUMMARY_PREV_KEEP_CHARS>` + `Latest: <new>`, fitted to THREAD_SUMMARY_MAX_CHARS
  *   with the OLD part giving way first.
  */
 export function mergeSummary(previous: string, latest: string): string {
@@ -46,7 +46,7 @@ export function mergeSummary(previous: string, latest: string): string {
     if (hits / words.length >= COVERED_SHARE) return next;
   }
   // One char of room for the ellipsis that marks a clipped old part.
-  const room = SUMMARY_MAX_CHARS - EARLIER.length - LATEST.length - next.length - 1;
+  const room = THREAD_SUMMARY_MAX_CHARS - EARLIER.length - LATEST.length - next.length - 1;
   const keep = Math.min(SUMMARY_PREV_KEEP_CHARS, room);
   if (keep <= 0) return next;
   return `${EARLIER}${prev.length > keep ? `…${prev.slice(-keep)}` : prev}${LATEST}${next}`;

@@ -1,7 +1,6 @@
+import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../../config/lead-caps";
 import {
   MAX_BODY_BYTES,
-  MAX_ITEMS,
-  MAX_REVISIONS,
   PLANNER_KEY,
   type PlanCtx,
   type PlanDoc,
@@ -34,16 +33,16 @@ export function validatePlan(doc: PlanDoc, ctx: PlanCtx): PlanError[] {
     errs.push({ code, message, ...(key && { key }) });
   const { items, envelope: env } = doc;
   if (!items.length) add("NO_ITEMS", "A plan needs at least one item.");
-  if (items.length > MAX_ITEMS)
-    add("TOO_MANY_ITEMS", `A plan holds at most ${MAX_ITEMS} items (got ${items.length}).`);
+  if (items.length > PLAN_MAX_ITEMS)
+    add("TOO_MANY_ITEMS", `A plan holds at most ${PLAN_MAX_ITEMS} items (got ${items.length}).`);
   if (items.length > env.bounds.maxItems)
     add("OUTSIDE_ENVELOPE", `${items.length} items exceed bounds.maxItems ${env.bounds.maxItems}.`);
   if (Buffer.byteLength(JSON.stringify({ items })) > MAX_BODY_BYTES)
     add("TOO_BIG", `The plan body is over ${MAX_BODY_BYTES} bytes: shorten the briefs.`);
-  if (ctx.revisions > MAX_REVISIONS)
+  if (ctx.revisions > PLAN_MAX_REVISIONS)
     add(
       "TOO_MANY_REVISIONS",
-      `At most ${MAX_REVISIONS} revisions: ask the lead to start a new plan.`,
+      `At most ${PLAN_MAX_REVISIONS} revisions: ask the lead to start a new plan.`,
     );
   if (env.budgetUsd > ctx.goalBudgetUsd)
     add("BUDGET", `Budget $${env.budgetUsd} is over the goal budget $${ctx.goalBudgetUsd}.`);

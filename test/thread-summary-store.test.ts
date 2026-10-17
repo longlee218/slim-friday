@@ -7,10 +7,10 @@ import {
   markFlushed,
   markRolled,
   needsFlush,
-  SUMMARY_MAX_CHARS,
   saveSummary,
   summaryHitId,
   summaryPath,
+  THREAD_SUMMARY_MAX_CHARS,
 } from "../src/storage/thread-summary-store";
 
 test("save is an upsert per thread; get returns workspace and text", () => {
@@ -29,11 +29,11 @@ test("summary is redacted and clipped", () => {
     db,
     "t1",
     "main",
-    `key sk-ant-api03-${"a".repeat(40)} ${"x".repeat(SUMMARY_MAX_CHARS * 2)}`,
+    `key sk-ant-api03-${"a".repeat(40)} ${"x".repeat(THREAD_SUMMARY_MAX_CHARS * 2)}`,
   );
   const s = getThreadSummary(db, "t1")?.summary ?? "";
   expect(s).not.toContain("sk-ant-api03");
-  expect(s.length).toBeLessThanOrEqual(SUMMARY_MAX_CHARS);
+  expect(s.length).toBeLessThanOrEqual(THREAD_SUMMARY_MAX_CHARS);
 });
 
 test("no row -> needsFlush true; markFlushed clears it; markRolled makes it true again; idempotent", () => {

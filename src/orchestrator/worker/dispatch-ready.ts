@@ -1,4 +1,5 @@
 import { MAX_DISPATCHES_PER_ITEM } from "../../config/resilience-caps";
+import { WORKER_SLOT_RETRY_MS } from "../../config/run-caps";
 import { logEvent, logger } from "../../observability/logger";
 import { findRole } from "../../roles/role-registry";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
@@ -14,9 +15,6 @@ import { startWorker } from "./worker-run";
 
 /** Logger of this module. */
 const log = logger.child({ module: "dispatch-ready" });
-
-/** Wait (ms) before a pass retries an item the run cap deferred (any worker ending retries earlier). */
-const BUSY_RETRY_MS = 3000;
 
 /** Threads whose ready item the run cap deferred, with their retry timer. */
 const deferred = new Map<string, ReturnType<typeof setTimeout>>();
@@ -48,8 +46,8 @@ function failItem(
   logEvent(log, "dispatch.refused", { itemId: it.id, kind, reason }, "warn");
 }
 
-/** Retry the thread's pass once after `ms` (default `BUSY_RETRY_MS`; one timer per thread; it never keeps the process alive). */
-function deferRetry(rt: LeadRuntime, threadId: string, ms = BUSY_RETRY_MS): void {
+/** Retry the thread's pass once after `ms` (default `WORKER_SLOT_RETRY_MS`; one timer per thread; it never keeps the process alive). */
+function deferRetry(rt: LeadRuntime, threadId: string, ms = WORKER_SLOT_RETRY_MS): void {
   if (deferred.has(threadId)) return;
   const t = setTimeout(() => {
     deferred.delete(threadId);
@@ -68,14 +66,10 @@ function wakeDeferred(rt: LeadRuntime): void {
   }
 }
 
-/** Scheduler view of a role: its own concurrency limit and whether it changes files (data of the role). */
+/** Scheduler view of a role: whether it changes files (data of the role). */
 const roleCaps = (name: string | null): RoleCaps => {
   const role = name ? findRole(name) : undefined;
-  // At least 1: a limit of 0 would strand the goal (nothing running, so no worker end wakes the pass).
-  return {
-    concurrency: role?.concurrency === undefined ? undefined : Math.max(1, role.concurrency),
-    writer: role?.sideEffects === "location",
-  };
+  return { writer: role?.sideEffects === "location" };
 };
 
 /**

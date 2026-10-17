@@ -59,7 +59,7 @@ export function sdkCompactLlm(
           persistSession: false, // the transcript would hold the whole memory text
           settingSources: [],
           abortController: ac,
-          env: sdkEnv({ ...config, model: config.memoryModel }, readProcessEnv(), undefined, {
+          env: sdkEnv({ ...config, model: config.memoryModel }, readProcessEnv(), {
             oneShot: true,
           }),
         },

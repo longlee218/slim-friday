@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * Limits live only as named constants at the top of a role file: the role limits (`MAX_ASK`, `BUDGET_USD`) are declared under `src/roles/builtin/`, the per-task ceiling `TASK_BUDGET_USD` only in
+ * Limits live only as named constants at the top of a role file: the role limits (`MAX_ASK`, `BUDGET_USD`, `MAX_TURNS`) are declared under `src/roles/builtin/`, the per-task ceiling `TASK_BUDGET_USD` only in
  * `config/model-routing.ts`. A second declaration elsewhere would be a second source of truth.
  */
 const SRC = join(import.meta.dir, "..", "src");
@@ -23,7 +23,7 @@ function declaredIn(name: string): string[] {
 }
 
 test("role limit constants are declared only in src/roles/builtin/", () => {
-  for (const name of ["MAX_ASK", "BUDGET_USD"]) {
+  for (const name of ["MAX_ASK", "BUDGET_USD", "MAX_TURNS"]) {
     const files = declaredIn(name);
     expect(files.length).toBeGreaterThan(0); // not vacuous: the declaration was found
     for (const f of files) expect(f.startsWith("roles/builtin/")).toBe(true);

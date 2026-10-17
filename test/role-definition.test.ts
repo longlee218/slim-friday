@@ -6,6 +6,8 @@ import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
+import { AGENT_TOOL_NAME } from "../src/tools/sdk-tool-names";
+import { toolsFor } from "../src/tools/tool-catalog";
 
 test("dev is a background role: one run, bypass from the first token, no plan control", () => {
   expect(DEVELOPER_ROLE.kind).toBe("worker");
@@ -42,6 +44,23 @@ test("validateRole refuses a role without a positive budget or with a bad ask li
   expect(validateRole(SCOUT_ROLE)).toBeUndefined();
   const bad = (p: Partial<RoleDefinition>) => validateRole({ ...DEVELOPER_ROLE, ...p });
   expect(bad({ budgetUsd: 0 })).toContain("budget");
-  expect(bad({ limits: { maxAsk: -1 } })).toContain("ask limit");
-  expect(bad({ limits: { maxAsk: 1.5 } })).toContain("ask limit");
+  expect(bad({ limits: { ...DEVELOPER_ROLE.limits, maxAsk: -1 } })).toContain("ask limit");
+  expect(bad({ limits: { ...DEVELOPER_ROLE.limits, maxAsk: 1.5 } })).toContain("ask limit");
+});
+
+test("subagents: only the developer may spawn (3 parallel, depth 1); every role declares the bounds", () => {
+  for (const r of Object.values(ROLES)) {
+    expect([r.name, r.subagents.depth >= 1, r.subagents.parallel >= 1]).toEqual([
+      r.name,
+      true,
+      true,
+    ]);
+    expect([r.name, r.limits.maxTurns > 0]).toEqual([r.name, true]);
+    expect([r.name, !r.noSubagents, toolsFor(r).includes(AGENT_TOOL_NAME)]).toEqual([
+      r.name,
+      r.name === "developer",
+      r.name === "developer",
+    ]);
+  }
+  expect(DEVELOPER_ROLE.subagents).toEqual({ parallel: 3, depth: 1 });
 });

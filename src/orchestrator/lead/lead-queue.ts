@@ -1,3 +1,4 @@
+import { LEAD_DEBOUNCE_MS, LEAD_QUEUE_PER_THREAD } from "../../config/lead-caps";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 
@@ -82,9 +83,9 @@ const merge = (a: LeadInput, b: LeadInput): LeadInput => ({
 /** Build a lead queue. */
 export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
   const {
-    debounceMs = 800,
+    debounceMs = LEAD_DEBOUNCE_MS,
     maxWaitMs = debounceMs * 3,
-    cap = 10,
+    cap = LEAD_QUEUE_PER_THREAD,
     slotRetryMs = 1000,
     slotAttempts = 10,
   } = o;

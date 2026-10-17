@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
-import { CHAIN_CAP } from "../src/config/lead-caps";
+import { CHAIN_CAP, PENDING_PLAN_MAX_AGE_MS } from "../src/config/lead-caps";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { goalCaps, openGoalIdOf } from "../src/orchestrator/goal/effect-port-queries";
@@ -16,12 +16,7 @@ import { openDb } from "../src/storage/db";
 import { childrenOf } from "../src/storage/owned-item-store";
 import { getOwnedTask } from "../src/storage/owned-task-store";
 import { appendEvent } from "../src/storage/thread-event-store";
-import {
-  getPlan,
-  hasPendingPlan,
-  PENDING_PLAN_MAX_AGE_MS,
-  planVersions,
-} from "../src/storage/work-plan-store";
+import { getPlan, hasPendingPlan, planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { FakePort } from "./lead-fake-port";
 

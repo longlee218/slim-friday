@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { WORKSPACE_NAME, workspacePaths } from "../../config/workspace-paths";
-import { SUMMARY_MAX_CHARS } from "../../storage/thread-summary-store";
+import { THREAD_SUMMARY_MAX_CHARS } from "../../storage/thread-summary-store";
 import { channelTarget, locationTarget, rootTarget, workspaceTarget } from "../memory-targets";
 import type { MemoryToolContext } from "../memory-tool-context";
 import type { Chunk } from "./memory-chunker";
@@ -74,7 +74,7 @@ export function resolveEntry(db: Database, ctx: MemoryToolContext, rawId: string
       )
       .get(id.threadId, ctx.workspace);
     if (!row || row.cycle !== id.cycle || row.summary === "") return null;
-    const text = row.summary.slice(0, SUMMARY_MAX_CHARS);
+    const text = row.summary.slice(0, THREAD_SUMMARY_MAX_CHARS);
     return { text, context: text, date: "" };
   }
   const where = fileOf(ctx, id);

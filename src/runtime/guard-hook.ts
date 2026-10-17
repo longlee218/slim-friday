@@ -19,7 +19,7 @@ import { RUN_STOPPED_REASON, type ToolPermissionInput } from "./tool-permissions
  * auto-mode run is left to the SDK classifier (logged "auto"), and an ask in an active bypass-mode run is let through
  * (logged "bypass"; the hook is the only gate there, deny stays a hard deny). Records the decision per tool_use_id
  * for the `tool.done` line. The hook is session-level, so subagents of the run pass through it too: their calls
- * go through the same guard and carry `agent_id`/`agent_type` into the log lines.
+ * go through the same guard (with the subagent allowlist, see `checkToolCall`) and carry `agent_id`/`agent_type` into the log lines.
  */
 export function guardHook(
   p: ToolPermissionInput,
@@ -46,10 +46,13 @@ export function guardHook(
         },
       };
     }
-    // The question tool is handled by canUseTool (the owner's buttons), for any caller.
-    if (i.tool_name === ASK_USER_QUESTION_TOOL_NAME) return { continue: true };
+    // A subagent call carries `agent_id` (the main agent's does not): the guard applies the subagent allowlist to it.
+    const subagent = !!i.agent_id;
+    // The question tool is handled by canUseTool (the owner's buttons) for the main agent only: a subagent's call goes
+    // through the guard first (BEFORE this return), which denies it, so a subagent can never ask the owner.
+    if (i.tool_name === ASK_USER_QUESTION_TOOL_NAME && !subagent) return { continue: true };
     const input = (i.tool_input ?? {}) as Record<string, unknown>;
-    const checked = checkToolCall(i.tool_name, input, p.guard);
+    const checked = checkToolCall(i.tool_name, input, p.guard, { subagent });
     const d = isSpawnCall(i.tool_name) ? gateSpawn(checked, i.tool_use_id, limit) : checked;
     try {
       p.onGuardDecision?.({

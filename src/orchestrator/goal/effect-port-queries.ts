@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { PENDING_PLAN_MAX_AGE_MS } from "../../config/lead-caps";
 import { clip, redactText } from "../../observability/redact";
 import { LEAD_ROLE } from "../../roles/builtin/lead-role";
 import {
@@ -10,7 +11,6 @@ import {
 } from "../../storage/owned-item-store";
 import { taskScope } from "../../storage/owned-task-store";
 import { countChainStarts, lastEventOfItem } from "../../storage/thread-event-store";
-import { PENDING_PLAN_MAX_AGE_MS } from "../../storage/work-plan-store";
 import type { Caps } from "../strategy/caps";
 import { progressOf } from "../worker/run-activity";
 import type { TaskSnapshot } from "./effect-port";

@@ -7,7 +7,7 @@ export type Capability =
   | "shell" // Bash (bounded by the OS sandbox of the run)
   | "web" // search / fetch
   | "skills"
-  | "subagents" // Agent + SendMessage + ListAgents: the SDK's own built-in subagent; EVERY role gets them (toolsFor)
+  | "subagents" // Agent + SendMessage + ListAgents: the SDK's own built-in subagent; every role gets them unless `noSubagents` (toolsFor)
   | "tasks" // progress tracking; TaskStop (stops a worker task) needs the owner
   | "mcp" // MCP resource reads (+ refresh of the app's own MCP servers)
   | "feedback" // SendFeedback: sends a report to Anthropic, always owner-approved
@@ -44,8 +44,10 @@ export interface RoleDefinition {
   kind: "lead" | "worker" | "control";
   /** Skills the role gets (see `RoleSkills`). Omitted = `[]`. */
   skills?: RoleSkills;
-  /** No SDK subagent tools (Agent, SendMessage, ListAgents): not offered and denied by the guard. Lead and workers set it (depth 1). Omitted = allowed. */
+  /** No SDK subagent tools (Agent, SendMessage, ListAgents): not offered and denied by the guard. The on/off switch of `subagents`. Omitted = allowed. */
   noSubagents?: boolean;
+  /** Subagent bounds of a run: `parallel` = most subagents running at once (the guard denies the next start), `depth` = nesting levels (>= 1; 1 = a subagent has no Agent tool). Only used when `noSubagents` is not set. */
+  subagents: { parallel: number; depth: number };
   /** The lead may dispatch this role as a worker (`DispatchAgent`); TEAM.md lists these roles. Omitted = not dispatchable. */
   dispatchable?: boolean;
   /**
@@ -53,13 +55,13 @@ export interface RoleDefinition {
    * and only when it has the tool's ctx part; the guard denies every other `mcp__*` tool. Omitted = none.
    */
   mcpTools?: string[];
-  /** Limits of one run: AskUserQuestion calls (enforced in the permission guard). */
-  limits: { maxAsk: number };
+  /** Limits of one run: AskUserQuestion calls (enforced in the permission guard) and agent loops (SDK turns, `maxTurns`). */
+  limits: { maxAsk: number; maxTurns: number };
   /** Fixed model id of the role's runs (a full id, e.g. `claude-sonnet-5-5`; see `config/model-ids.ts`). Changing it is a data edit. */
   model: string;
   /** Fixed SDK thinking config of the role's runs (`{ type: "adaptive" }`, `{ type: "disabled" }`, ...). Omitted = the SDK default. */
   thinking?: Options["thinking"];
-  /** Default budget (USD) of one run (env BUDGET_<ROLE>_USD overrides). */
+  /** Default budget (USD) of one run; capped by the task ceiling and env MAX_BUDGET_USD. */
   budgetUsd: number;
   /**
    * Streaming input: the run takes the owner's later messages while it works ("steer"). Omitted = a string prompt, no
@@ -76,10 +78,6 @@ export interface RoleDefinition {
    * Data for the lead, the planner and the outcome check. Authorization stays in the guards.
    */
   sideEffects: "none" | "location" | "external";
-  /** Silence (ms) after which the watchdog aborts a run of this role. Omitted = `STALE_AFTER_MS` (resilience-caps.ts). */
-  staleAfterMs?: number;
-  /** Most runs of this role at once in one thread (the scheduler). Omitted = no limit of its own (the thread cap still applies). */
-  concurrency?: number;
   /**
    * Base of the role's system prompt: `custom` = our text alone (a role that writes no code: the SDK's coding, terminal and
    * file-memory guidance would compete with it); omitted = the SDK `claude_code` preset with our text appended (a coding role).
@@ -87,11 +85,6 @@ export interface RoleDefinition {
   basePrompt?: "custom";
   /** Built-in tools (and the guard's auto-allow list) derive from these. */
   capabilities: Capability[];
-  /**
-   * Override of the app default compaction window (tokens, CLAUDE_CODE_AUTO_COMPACT_WINDOW; default
-   * `COMPACT_WINDOW_TOKENS` in runtime/sdk-env.ts). Omitted = the app default. The 75% share applies to it.
-   */
-  autoCompactWindow?: number;
   /** Prompt sections between the run contract start and the COMMON safety rules. */
   promptSections: (ctx: PromptCtx) => string[];
 }

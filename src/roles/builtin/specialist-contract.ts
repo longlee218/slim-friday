@@ -11,6 +11,8 @@ import type { RoleDefinition } from "../role-types";
 
 /** Owner questions per run: a specialist never asks; it reports NEEDS_CLARIFICATION and the lead asks. */
 export const SPECIALIST_MAX_ASK = 0;
+/** Agent loops (SDK turns) per specialist run. */
+export const SPECIALIST_MAX_TURNS = 20;
 
 /** Contract every roster specialist runs under (the role's own job text follows it). */
 export const SPECIALIST_CONTRACT = `This run is a specialist worker dispatched by the lead. You do ONE job from your brief; the brief is all you know, plus the result files of the items you depend on.
@@ -24,10 +26,11 @@ export const SPECIALIST_CONTRACT = `This run is a specialist worker dispatched b
 export const SPECIALIST_BASE = {
   kind: "worker",
   dispatchable: true,
-  noSubagents: true, // depth 1: a worker never spawns subagents
+  noSubagents: true, // subagents are developer-only (owner)
   permissionMode: "auto",
   model: HAIKU_MODEL,
-  limits: { maxAsk: SPECIALIST_MAX_ASK },
+  limits: { maxAsk: SPECIALIST_MAX_ASK, maxTurns: SPECIALIST_MAX_TURNS },
+  subagents: { parallel: 3, depth: 1 },
   mcpTools: [
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,

@@ -17,10 +17,6 @@ export const DELIVERY_EFFECT_TOOLS = [
 ] as const;
 export type DeliveryEffect = (typeof DELIVERY_EFFECT_TOOLS)[number];
 
-/** Most items one plan may hold. */
-export const MAX_ITEMS = 8;
-/** Most revisions after version 1. */
-export const MAX_REVISIONS = 3;
 /** Largest plan body (JSON text of the items), bytes. */
 export const MAX_BODY_BYTES = 16 * 1024;
 /** Item key prefix of the planner's own items (reserved: a plan item never uses it). */

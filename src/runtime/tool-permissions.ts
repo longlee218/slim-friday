@@ -55,6 +55,8 @@ export interface ToolPermissionInput {
    * guard denial or the owner's decision) and never undoes a tool that already ran. Required for real runs.
    */
   runSignal?: AbortSignal;
+  /** Most subagents running at once in this run (`RoleDefinition.subagents.parallel`); the next Agent start is denied. Omitted = none. */
+  maxSubagents?: number;
   /** Observation only: every guard decision of a PreToolUse call. It cannot change the decision; a throwing observer is ignored. */
   onGuardDecision?: (event: {
     toolUseId: string;
@@ -95,7 +97,7 @@ export function buildToolPermissions(p: ToolPermissionInput): {
   const askLimit = p.askLimit ?? newAskLimit(0);
 
   // Subagents in flight of THIS run: one per permission layer, so it resets per run.
-  const limit = newSubagentLimit();
+  const limit = newSubagentLimit(p.maxSubagents ?? 0);
   const hooks: HookCallbackMatcher[] = [{ hooks: [guardHook(p, decisions, log, limit)] }];
 
   const decide: CanUseTool = async (tool, rawInput, opts) => {

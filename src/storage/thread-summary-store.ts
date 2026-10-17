@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { redactText } from "../observability/redact";
 
 /** Max chars of a stored summary (clipped on save, after redaction). */
-export const SUMMARY_MAX_CHARS = 8000;
+export const THREAD_SUMMARY_MAX_CHARS = 8000;
 
 /**
  * Keys of a thread summary in the memory index (shared by phases 6 and 9). `memory_files.path` is
@@ -40,7 +40,7 @@ export function saveSummary(
   summary: string,
   now = Date.now(),
 ): void {
-  const text = redactText(summary).slice(0, SUMMARY_MAX_CHARS);
+  const text = redactText(summary).slice(0, THREAD_SUMMARY_MAX_CHARS);
   db.query(
     `INSERT INTO thread_summaries (thread_id, workspace, summary, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(thread_id) DO UPDATE SET workspace = excluded.workspace, summary = excluded.summary,

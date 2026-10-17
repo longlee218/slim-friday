@@ -1,6 +1,6 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
-import { type Route, resolveBudget, resolveCompactWindow } from "../config/model-routing";
+import { type Route, resolveBudget } from "../config/model-routing";
 import { readProcessEnv } from "../config/process-env";
 import { buildServers, mcpToolNamesFor } from "../mcp/mcp-servers";
 import type { RunRecorder } from "../observability/record-run";
@@ -15,9 +15,6 @@ import type { RunSkills } from "./skills-plugin/plugin-builder";
 import { buildSystemPrompt } from "./system-prompt";
 import { buildToolPermissions } from "./tool-permissions";
 import { workerSandbox } from "./worker-sandbox";
-
-/** Agent loops (SDK turns) one run may take: an absolute ceiling for every role (owner-set). */
-export const MAX_TURNS = 20;
 
 /**
  * Config of the role run: `model` and `limits.maxBudgetUsd` replaced by the role's own (its fixed model and
@@ -124,6 +121,7 @@ export function buildSdkOptions(
         autoMode: deps.autoState,
         bypassMode: deps.bypassState,
         onDeny: (id) => deps.recorder.denied.add(id),
+        maxSubagents: role.subagents.parallel,
       })
     : undefined;
   return {
@@ -144,7 +142,8 @@ export function buildSdkOptions(
     // for `update-config`).
     skills: sk.skills,
     ...(sk.plugins && { plugins: sk.plugins }),
-    maxTurns: MAX_TURNS,
+    // The role's own agent-loop ceiling (`limits.maxTurns`).
+    maxTurns: role.limits.maxTurns,
     // The role's fixed thinking config; omitted = the SDK default.
     ...(role.thinking && { thinking: role.thinking }),
     // Role budget (already capped by MAX_BUDGET_USD in `roleConfig`).
@@ -173,8 +172,9 @@ export function buildSdkOptions(
       ...(input.memory?.threadId &&
         buildCompactHooks({ ...input.memory, threadId: input.memory.threadId })),
     },
-    env: sdkEnv(config, readProcessEnv(), resolveCompactWindow(role), {
+    env: sdkEnv(config, readProcessEnv(), {
       worker: !!guard?.envelope,
+      subagentDepth: role.subagents.depth,
     }),
     ...(input.lean && leanOptions(role, input.lean)),
   };

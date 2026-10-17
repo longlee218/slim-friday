@@ -1,5 +1,4 @@
-/** Messages (agent runs) processed in parallel (owner-set). */
-const MAX_CONCURRENT_RUNS = 30;
+import { WORKER_POOL_MAX } from "../../config/run-caps";
 
 /** Global cap on concurrent agent runs (each SDK query is ~220 MB RSS). No queue: callers reject when full. */
 export interface RunLimiter {
@@ -10,7 +9,7 @@ export interface RunLimiter {
 }
 
 /** Build a limiter allowing at most `max` concurrent runs (default: the app's cap). */
-export function createRunLimiter(max: number = MAX_CONCURRENT_RUNS): RunLimiter {
+export function createRunLimiter(max: number = WORKER_POOL_MAX): RunLimiter {
   /** Slots currently taken. */
   let count = 0;
   return {

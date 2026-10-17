@@ -10,7 +10,7 @@ import { AGENT_TOOL_NAME } from "../src/tools/sdk-tool-names";
 const log = { warn() {}, info() {}, error() {}, debug() {} } as unknown as Logger;
 
 function setup() {
-  const limit = newSubagentLimit();
+  const limit = newSubagentLimit(getRole("developer").subagents.parallel);
   const hook = guardHook(
     { turnId: "t", threadId: "th", guard: guardFor(getRole("developer"), {}) },
     new Map(),
@@ -41,12 +41,12 @@ function setup() {
   return { pre, finish };
 }
 
-test("the 51st concurrent subagent is denied; a finished or failed one frees its slot", async () => {
+test("the 4th concurrent subagent of a developer run is denied; a finished or failed one frees its slot", async () => {
   const { pre, finish } = setup();
-  for (let n = 0; n < 50; n++) expect((await pre(`a${n}`)).continue).toBe(true);
-  const over = await pre("a50");
+  for (let n = 0; n < 3; n++) expect((await pre(`a${n}`)).continue).toBe(true);
+  const over = await pre("a3");
   expect(over.hookSpecificOutput?.permissionDecision).toBe("deny");
-  expect(over.hookSpecificOutput?.permissionDecisionReason).toContain("at most 50 subagents");
+  expect(over.hookSpecificOutput?.permissionDecisionReason).toContain("at most 3 subagents");
   await finish("PostToolUse", "a0");
   expect((await pre("b1")).continue).toBe(true);
   expect((await pre("b2")).hookSpecificOutput?.permissionDecision).toBe("deny");

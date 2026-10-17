@@ -167,16 +167,12 @@ test("depth 1: Agent, SendMessage, ListAgents are denied for the lead and scout,
       expect(toolsFor(r)).not.toContain(t);
     }
   }
-  // a dispatched dev run: the scope turns subagents off (the role itself still allows them outside the lead)
+  // subagents on/off comes from the role: the developer may spawn, a role with noSubagents may not
   expect(
     checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, guardFor(ROLES.developer!, scope)).decision,
   ).toBe("allow");
   expect(
-    checkToolCall(
-      AGENT_TOOL_NAME,
-      { prompt: "p" },
-      guardFor(ROLES.developer!, { ...scope, subagents: false }),
-    ).decision,
+    checkToolCall(AGENT_TOOL_NAME, { prompt: "p" }, guardFor(ROLES.scout!, scope)).decision,
   ).toBe("deny");
 });
 

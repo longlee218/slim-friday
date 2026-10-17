@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { PENDING_PLAN_MAX_AGE_MS } from "../config/lead-caps";
 
 /** Lifecycle of a work plan version. */
 export type PlanStatus = "draft" | "valid" | "approved" | "superseded" | "rejected";
@@ -142,9 +143,6 @@ export function newestApprovedVersion(db: Database, goalId: string): WorkPlanRow
         .pop()
     : undefined;
 }
-
-/** A `draft` / `valid` version older than this (ms) no longer holds its goal open: the owner never answered. */
-export const PENDING_PLAN_MAX_AGE_MS = 30 * 60 * 1000;
 
 /** True while a recent version of the goal's plan waits for the owner (`draft` or `valid`): the goal is not finished. */
 export function hasPendingPlan(db: Database, goalId: string, now = Date.now()): boolean {

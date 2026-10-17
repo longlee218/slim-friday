@@ -47,7 +47,7 @@ const SECRETS: Record<string, string> = {
 test("worker env: no token, key, secret, password, cloud or git auth; identity, PATH and the scrub switch stay", () => {
   const { config } = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test" });
   const source = { ...SECRETS, PATH: "/bin", HOME: "/h", GIT_AUTHOR_NAME: "me", LANG: "C" };
-  const env = sdkEnv(config, source, undefined, { worker: true });
+  const env = sdkEnv(config, source, { worker: true });
   for (const k of Object.keys(SECRETS).filter((k) => k !== "CLAUDE_CODE_OAUTH_TOKEN"))
     expect([k, k in env]).toEqual([k, false]);
   expect(env).toMatchObject({ PATH: "/bin", HOME: "/h", GIT_AUTHOR_NAME: "me", LANG: "C" });

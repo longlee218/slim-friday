@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PLAN_MAX_ITEMS } from "../../config/lead-caps";
 import { BRIEF_MAX_CHARS, REASON_MAX_CHARS } from "../lead/lead-limits";
 import { KEY, TASK_ID } from "../lead/lead-schemas";
 import { DELIVERY_EFFECT_TOOLS } from "./plan-types";
@@ -30,7 +31,7 @@ const ENVELOPE = z.object({
   locations: z.array(z.string().min(1).max(80)).max(20),
   riskClasses: z.array(z.string().min(1).max(8)).min(1).max(4),
   bounds: z.object({
-    maxItems: z.number().int().min(1).max(50),
+    maxItems: z.number().int().min(1).max(PLAN_MAX_ITEMS),
     maxGb: z.number().min(0).max(1000),
   }),
 });
@@ -47,7 +48,7 @@ const PLAN_ID = z.string().min(1).max(80);
 export const GOAL_SHAPE = { goalId: TASK_ID };
 export const CREATE_PLAN_SHAPE = {
   goalId: TASK_ID,
-  items: z.array(PLAN_ITEM).min(1).max(20),
+  items: z.array(PLAN_ITEM).min(1).max(PLAN_MAX_ITEMS),
   acceptanceCriteria: z.array(z.string().min(1).max(300)).max(10),
   envelope: ENVELOPE,
   budgetUsd: z.number().positive().max(1000),
@@ -57,7 +58,7 @@ export const VALIDATE_PLAN_SHAPE = { planId: PLAN_ID, version: VERSION };
 export const PROPOSE_REVISION_SHAPE = {
   planId: PLAN_ID,
   baseVersion: VERSION,
-  add: z.array(PLAN_ITEM).max(8).default([]),
+  add: z.array(PLAN_ITEM).max(PLAN_MAX_ITEMS).default([]),
   cancel: z.array(KEY).max(8).default([]),
   modify: z
     .array(

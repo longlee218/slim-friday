@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { RELAY_WAIT_MS } from "../../config/run-caps";
 import { clip, redactText } from "../../observability/redact";
 import type { AskQuestion } from "../../runtime/tool-permissions";
 import { appendEvent } from "../../storage/thread-event-store";
@@ -7,9 +8,6 @@ import { setWaiting } from "./run-activity";
 /* Worker question relay: a lead-dispatched worker never asks the owner itself. Its AskUserQuestion becomes a `question`
    event (the lead reads it in an announce run) and the worker waits until the lead answers it (SteerTask) or relays
    it to the owner (AskOwner). The wait is bounded; nobody answering ends the run's ask like an owner timeout. */
-
-/** Longest wait (ms) for an answer before the worker's ask fails. */
-const RELAY_WAIT_MS = 30 * 60_000;
 
 /** Chars of a question kept in the event. */
 const QUESTION_CHARS = 600;

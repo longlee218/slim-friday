@@ -2,9 +2,10 @@ import { afterEach, expect, spyOn, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { SONNET_MODEL } from "../src/config/model-ids";
 import { guardFor } from "../src/policy/check-tool-call";
+import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
+import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
-import { MAX_TURNS } from "../src/runtime/sdk-options";
 import { SEND_MESSAGE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { makeEnv, resultMsg } from "./helpers";
 
@@ -134,7 +135,13 @@ test("options lock: model and limits per role, no run timeout", async () => {
   const dev = await capture("dev");
   expect(lead.o.model).toBe(SONNET_MODEL);
   expect(dev.o.model).toBe(SONNET_MODEL);
-  for (const r of [lead, dev]) expect(r.o.maxTurns).toBe(MAX_TURNS);
+  expect(lead.o.maxTurns).toBe(LEAD_ROLE.limits.maxTurns);
+  expect(dev.o.maxTurns).toBe(DEVELOPER_ROLE.limits.maxTurns);
+  // Env depth = the role's `subagents.depth`.
+  expect(lead.o.env?.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH).toBe(String(LEAD_ROLE.subagents.depth));
+  expect(dev.o.env?.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH).toBe(
+    String(DEVELOPER_ROLE.subagents.depth),
+  );
   // Per-role budget (lead 0.75, dev 4.5) capped by MAX_BUDGET_USD=3.
   expect(lead.o.maxBudgetUsd).toBe(0.75);
   expect(dev.o.maxBudgetUsd).toBe(3);

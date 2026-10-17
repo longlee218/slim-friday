@@ -5,8 +5,6 @@ import type { ItemRow } from "../../storage/owned-item-store";
 
 /** What the scheduler needs to know about a role (data of the role registry, injected so this stays pure). */
 export interface RoleCaps {
-  /** Most runs of the role at once in the thread; undefined = no limit of its own. */
-  concurrency?: number;
   /** True = the role changes files of a location (`sideEffects: "location"`): one such run per location. */
   writer: boolean;
 }
@@ -20,8 +18,8 @@ const collide = (a: ItemRow, b: ItemRow): boolean =>
 
 /**
  * Items to start now, in order: the `ready` items in creation order (FIFO), as many as the thread cap leaves free, skipping an
- * item whose role is at its concurrency limit or whose location already has a running (or just picked) writer.
- * `roleCaps` answers for a role name; an unknown role gets no limit and is no writer.
+ * item whose location already has a running (or just picked) writer.
+ * `roleCaps` answers for a role name; an unknown role is no writer.
  */
 export function pickDispatchable(
   items: ItemRow[],
@@ -37,8 +35,6 @@ export function pickDispatchable(
     if (running.length + picked.length >= perThread) break;
     const caps = roleCaps(it.ownerRole);
     const taken = [...active, ...picked];
-    const sameRole = taken.filter((t) => t.ownerRole === it.ownerRole).length;
-    if (caps.concurrency !== undefined && sameRole >= caps.concurrency) continue;
     if (caps.writer && taken.some((t) => roleCaps(t.ownerRole).writer && collide(t, it))) continue;
     picked.push(it);
   }

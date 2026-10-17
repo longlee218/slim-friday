@@ -26,29 +26,27 @@ export const MAIN_CACHE_TTL: CacheTtl | undefined = "1h";
 export const SUBAGENT_CACHE_TTL: CacheTtl = "1h";
 
 /**
- * Subagent limits the app always sets (never copied from the owner's shell; both PASS in the P3.0 spike, Q3/Q5):
- * foreground subagents only (the Agent tool otherwise defaults to background), and depth 1 (a subagent gets no Agent tool).
+ * Subagent limit the app always sets (never copied from the owner's shell; PASS in the P3.0 spike, Q3/Q5): foreground
+ * subagents only (the Agent tool otherwise defaults to background). The depth var is set per role in `sdkEnv`.
  */
-const SUBAGENT_LIMIT_ENV = {
-  CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1",
-  CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "1",
-} as const;
+const SUBAGENT_LIMIT_ENV = { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1" } as const;
+
+/** Depth of a run without a role (a one-shot call): a subagent gets no Agent tool. */
+const DEFAULT_SUBAGENT_DEPTH = 1;
 
 /** Claude Code switch: strip Anthropic and cloud provider credentials from the env of the tools' subprocesses (workers only). */
 const SUBPROCESS_SCRUB_VAR = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB";
 
 /**
  * Build the SDK child env: the owner's env passes through (the agent runs as the owner, with the owner's git / gh / ssh
- * auth) minus the bot's own variables (`config/data/child-env-deny.yaml`), then the app-owned ones on top: the OAuth token (when real), the subagent limits, the compaction vars (window = `compactWindow` from `resolveCompactWindow`, else the app default;
- * 0 = no window var; percent always) and the cache TTL vars: the ONLY source of these, the same names in the
+ * auth) minus the bot's own variables (`config/data/child-env-deny.yaml`), then the app-owned ones on top: the OAuth token (when real), the subagent limits (depth = `opts.subagentDepth`), the compaction vars (window = the app default `COMPACT_WINDOW_TOKENS`, percent always) and the cache TTL vars: the ONLY source of these, the same names in the
  * caller env are on the deny list. `opts.worker` (a dispatched worker) drops every secret-like variable too and turns the SDK's
  * subprocess scrub on.
  */
 export function sdkEnv(
   config: AgentConfig,
   source: Record<string, string | undefined> = readProcessEnv(),
-  compactWindow?: number,
-  opts: { oneShot?: boolean; worker?: boolean } = {},
+  opts: { oneShot?: boolean; worker?: boolean; subagentDepth?: number } = {},
 ): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {};
   // A dispatched worker (it runs repo code in its shell) also loses every token, key, secret, cloud and git auth of the owner.
@@ -56,14 +54,16 @@ export function sdkEnv(
   for (const [name, value] of Object.entries(source))
     if (value !== undefined && !denied(name)) env[name] = value;
   if (config.hasRealAuth) env.CLAUDE_CODE_OAUTH_TOKEN = config.oauthToken;
-  Object.assign(env, SUBAGENT_LIMIT_ENV);
+  // Foreground subagents only; depth = the role's `subagents.depth` (1 = a subagent gets no Agent tool).
+  Object.assign(env, SUBAGENT_LIMIT_ENV, {
+    CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: String(opts.subagentDepth ?? DEFAULT_SUBAGENT_DEPTH),
+  });
   // The SDK strips the credentials above from the env of its Bash tool, hooks and MCP servers: the model call still has them.
   if (opts.worker) env[SUBPROCESS_SCRUB_VAR] = "1";
   // One-shot calls (attachment and summary calls) are single-turn: no compaction, and a 1h cache write
   // would only cost more than it saves, so they get none of the four vars.
   if (opts.oneShot) return env;
-  const window = compactWindow ?? COMPACT_WINDOW_TOKENS;
-  if (window > 0) env[AUTO_COMPACT_WINDOW_VAR] = String(window);
+  env[AUTO_COMPACT_WINDOW_VAR] = String(COMPACT_WINDOW_TOKENS);
   env[AUTOCOMPACT_PCT_VAR] = String(COMPACT_PCT);
   if (MAIN_CACHE_TTL) env[PROMPT_CACHE_TTL_VAR] = MAIN_CACHE_TTL;
   env[SUBAGENT_CACHE_TTL_VAR] = SUBAGENT_CACHE_TTL;

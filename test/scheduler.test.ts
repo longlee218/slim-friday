@@ -2,13 +2,8 @@ import { expect, test } from "bun:test";
 import { pickDispatchable, type RoleCaps } from "../src/orchestrator/worker/scheduler";
 import { itemRow } from "./lead-fake-port";
 
-// Pure scheduler: which ready items start now. Roles: dev = writer, scout = free, one = at most one run at a time.
-const caps = (role: string | null): RoleCaps =>
-  role === "dev"
-    ? { writer: true }
-    : role === "one"
-      ? { writer: false, concurrency: 1 }
-      : { writer: false };
+// Pure scheduler: which ready items start now. Roles: dev = writer, scout = free.
+const caps = (role: string | null): RoleCaps => ({ writer: role === "dev" });
 const it = (id: string, status: string, role: string, location: string | null = null) =>
   itemRow({ id, itemKey: id, status, ownerRole: role, location });
 const ids = (xs: { id: string }[]) => xs.map((x) => x.id);
@@ -27,11 +22,6 @@ test("running items count against the thread cap", () => {
       caps,
     ),
   ).toEqual([]);
-});
-
-test("role concurrency: a second run of a limited role waits, the next item still starts", () => {
-  const items = [it("a", "running", "one"), it("b", "ready", "one"), it("c", "ready", "scout")];
-  expect(ids(pickDispatchable(items, caps))).toEqual(["c"]);
 });
 
 test("one writer per location: same location waits, another location starts", () => {
@@ -99,13 +89,11 @@ test("property: random DAG states never exceed 2 running per thread nor 2 writer
   }
 });
 
-test("a waiting_user item still holds its location (writer lock) and role slot, but not a thread slot", () => {
+test("a waiting_user item still holds its location (writer lock), but not a thread slot", () => {
   const items = [
     it("w", "waiting_user", "dev", "repo1"),
     it("b", "ready", "dev", "repo1"),
-    it("c", "ready", "one"),
+    it("c", "ready", "scout"),
   ];
   expect(ids(pickDispatchable(items, caps))).toEqual(["c"]);
-  const lim = [it("w", "waiting_user", "one"), it("x", "ready", "one")];
-  expect(pickDispatchable(lim, caps)).toEqual([]);
 });

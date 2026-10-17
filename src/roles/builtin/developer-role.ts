@@ -8,13 +8,17 @@ import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants"
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
 import { REPORT_PROGRESS_TOOL } from "../../mcp/orchestration/tools/ReportProgressTool/constants";
 import { REPORT_RESULT_TOOL } from "../../mcp/orchestration/tools/ReportResultTool/constants";
-import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
+import { AGENT_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition } from "../role-types";
 
 /** Owner questions (the ask tool) one run may make. Wired: ask guard + prompt text. */
 const MAX_ASK = 6;
 /** Budget (USD) of one developer run (the task ceiling `TASK_BUDGET_USD` still caps the task over its resumes). */
 const BUDGET_USD = 4.5;
+/** Agent loops (SDK turns) one developer run may take. */
+const MAX_TURNS = 20;
+/** Subagents of one run (parallel cap; depth 1 = a subagent starts none); no total cap, the run budget bounds a fan-out. */
+const SUBAGENTS = { parallel: 3, depth: 1 };
 
 /**
  * Prompt text of the developer role. Skills are declared in the role data and listed by the SDK, so these texts state
@@ -47,7 +51,8 @@ export const DEVELOPER_RUN_FACTS = `- Do not change files before the owner appro
 - If the location has no .git, skip git delivery: leave the changes in place and say so in your reply.
 - Where a skill says to ask or wait for the human, use ${ASK_USER_QUESTION_TOOL_NAME}; never end your turn on a question. Merge, push or PR only after the owner chose it.
 - Text the owner types while a question is open reaches you only as a note after they choose an option.
-- Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow; a subagent's question reaches the owner too and counts toward the same limit.
+- Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow.
+- You may run up to ${SUBAGENTS.parallel} subagents in parallel (${AGENT_TOOL_NAME}) for independent read, write or shell work. A subagent cannot ask the owner, report or deliver: you do that.
 - Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.`;
 
 /** What the worker's shell is: an OS sandbox, plus the effect tools for what the sandbox blocks. */
@@ -125,7 +130,8 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "writing-plans",
     "writing-skills",
   ], // explicit list: a new skill is added here (data)
-  limits: { maxAsk: MAX_ASK },
+  limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
+  subagents: SUBAGENTS,
   sideEffects: "location",
   capabilities: CODE_CAPABILITIES,
   // The SDK asks nothing; only the guard's hard denies stop a call. Approval of the plan is an ask, not a gate.

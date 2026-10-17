@@ -8,6 +8,8 @@ import type { RoleDefinition } from "../role-types";
 const MAX_ASK = 4;
 /** Budget (USD) of one run: a short admin chat on the cheap tier. */
 const BUDGET_USD = 0.5;
+/** Agent loops (SDK turns) one run may take. */
+const MAX_TURNS = 20;
 
 /** Run contract: what the role does and the limits of its three tools (the how-to is its skill). */
 const CONTRACT = `This run is the server manager, in the owner's private control channel. You help the owner set up Discord spaces (a private category with channels) and edit the persona files of a space or channel.
@@ -25,7 +27,9 @@ export const DISCORD_MANAGER_ROLE: RoleDefinition = {
   kind: "control",
   skills: ["discord-server-manager"],
   mcpTools: [LIST_SPACES_TOOL, CREATE_SPACE_OR_CHANNEL_TOOL, WRITE_SPACE_FILE_TOOL], // a control run has no memory ctx: no memory tools
-  limits: { maxAsk: MAX_ASK },
+  limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
+  subagents: { parallel: 3, depth: 1 },
+  noSubagents: true, // subagents are developer-only (owner)
   model: HAIKU_MODEL,
   thinking: { type: "disabled" }, // a short admin chat: thinking off keeps it cheap
   budgetUsd: BUDGET_USD,

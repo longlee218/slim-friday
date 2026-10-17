@@ -233,7 +233,8 @@ exports[`options lock: dev options snapshot 1`] = `
 - If the location has no .git, skip git delivery: leave the changes in place and say so in your reply.
 - Where a skill says to ask or wait for the human, use AskUserQuestion; never end your turn on a question. Merge, push or PR only after the owner chose it.
 - Text the owner types while a question is open reaches you only as a note after they choose an option.
-- Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow; a subagent's question reaches the owner too and counts toward the same limit.
+- Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow.
+- You may run up to 3 subagents in parallel (Agent) for independent read, write or shell work. A subagent cannot ask the owner, report or deliver: you do that.
 - Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.
 Shell rules: the shell runs in an OS sandbox. Writes work only in the granted dirs (the location and its scratch dirs); there is no network (no fetch, pull, curl, package install).
 - Local git works (status, diff, log, add, commit, branch, checkout, stash); run the location's tests and checks with Bash.

@@ -10,6 +10,8 @@ import type { RoleDefinition } from "../role-types";
 const MAX_ASK = 0;
 /** Budget (USD) of one scout run on the cheap tier. */
 const BUDGET_USD = 0.75;
+/** Agent loops (SDK turns) one scout run may take. */
+const MAX_TURNS = 20;
 
 /** Run contract: read-only research; the lead decides what reaches the owner. */
 const CONTRACT = `This run is a scout: a read-only research worker dispatched by the lead. Find out where or how something works (code, files, docs, the web) and report it.
@@ -31,7 +33,8 @@ export const SCOUT_ROLE: RoleDefinition = {
   kind: "worker",
   dispatchable: true,
   skills: ["scout", "docs-seeker"],
-  limits: { maxAsk: MAX_ASK },
+  limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
+  subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",
   capabilities: ["read", "web", "shell", "skills"],
   mcpTools: [
@@ -41,7 +44,7 @@ export const SCOUT_ROLE: RoleDefinition = {
     REPORT_RESULT_TOOL,
     REPORT_PROGRESS_TOOL,
   ],
-  noSubagents: true, // depth 1: a worker never spawns subagents
+  noSubagents: true, // subagents are developer-only (owner)
   permissionMode: "auto",
   model: HAIKU_MODEL,
   budgetUsd: BUDGET_USD,

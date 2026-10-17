@@ -5,7 +5,7 @@ import { HAIKU_MODEL, HAIKU_SUMMARY_MODEL, SONNET_MODEL } from "../src/config/mo
 import { resolveBudget } from "../src/config/model-routing";
 import { getRole, ROLES } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
-import { MAX_TURNS, roleConfig } from "../src/runtime/sdk-options";
+import { roleConfig } from "../src/runtime/sdk-options";
 import { makeEnv, resultMsg } from "./helpers";
 
 const cfg = (extra: Record<string, string> = {}) => loadConfig({ AGENT_HOME: "/h", ...extra });
@@ -84,7 +84,7 @@ describe("run options", () => {
       });
     expect("thinking" in seen[0]!).toBe(false);
     expect(seen[0]!.model).toBe(HAIKU_MODEL);
-    expect(seen[0]!.maxTurns).toBe(MAX_TURNS);
+    expect(seen[0]!.maxTurns).toBe(scout.limits.maxTurns);
     expect(seen[1]!.thinking).toEqual({ type: "disabled" });
   });
 });

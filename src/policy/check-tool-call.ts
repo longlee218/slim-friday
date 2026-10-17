@@ -25,7 +25,7 @@ import {
   SEND_MESSAGE_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
-import { autoAllowedTools, toolsFor } from "../tools/tool-catalog";
+import { autoAllowedTools, subagentToolsFor, toolsFor } from "../tools/tool-catalog";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
 import type { DispatchEnvelope } from "./envelope";
 import { envelopeGate } from "./envelope-guard";
@@ -65,12 +65,14 @@ export interface GuardrailContext {
   envelope?: DispatchEnvelope;
   /** False = no SDK subagent tools (Agent, Task, SendMessage, ListAgents): denied. Omitted = allowed. */
   subagents?: boolean;
+  /** Tools a subagent call may use (`subagentToolsFor(role)`); a subagent call of any other tool is denied. Omitted = a subagent may use none. */
+  subagentTools?: string[];
   /** Orchestration tools of the current mode that need no approval (Skill, TodoWrite, WebFetch...). */
   allowTools?: string[];
 }
 
 /** What differs between runs of one mode: where it may read/write and which locations git may touch. */
-export type GuardScope = Omit<GuardrailContext, "allowTools">;
+export type GuardScope = Omit<GuardrailContext, "allowTools" | "subagents" | "subagentTools">;
 
 /**
  * The guard context of a run: the role's auto-allowed tools come from the tool catalog, the paths from the caller.
@@ -81,8 +83,9 @@ export function guardFor(role: RoleDefinition, scope: GuardScope): GuardrailCont
     ...scope,
     allowTools: [...autoAllowedTools(role), ...mcpToolNamesOfRole(role)],
     shell: toolsFor(role).includes(BASH_TOOL_NAME),
-    // Depth 1: the role's data wins; a run (a dispatched worker) may also turn subagents off through the scope.
-    subagents: role.noSubagents ? false : (scope.subagents ?? true),
+    subagentTools: subagentToolsFor(role),
+    // Subagent tools on/off comes from the role's data only.
+    subagents: !role.noSubagents,
   };
 }
 
@@ -96,14 +99,22 @@ const SUBAGENT_TOOLS = new Set([AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME, LIST_AG
 const READ_TOOLS = new Set([READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME, LSP_TOOL_NAME]);
 
 /**
- * Decide whether a tool call may run (any caller, subagents included). Unknown tools need approval. The hard denies
- * come first; a run with an envelope then passes through the envelope gate (envelope-guard.ts).
+ * Decide whether a tool call may run. `caller.subagent` = the call comes from a subagent of the run (hook input has
+ * `agent_id`): it may use only `ctx.subagentTools`, then the normal checks apply as for the parent. Unknown tools need
+ * approval. The hard denies come first; a run with an envelope then passes through the envelope gate (envelope-guard.ts).
  */
 export function checkToolCall(
   toolName: string,
   input: Record<string, unknown>,
   ctx: GuardrailContext,
+  caller: { subagent: boolean } = { subagent: false },
 ): Decision {
+  // Subagent allowlist, first rule: files, shell, web and skills within the parent role's capabilities; no MCP, no owner questions.
+  if (caller.subagent && !ctx.subagentTools?.includes(toolName))
+    return {
+      decision: "deny",
+      reason: "a subagent may use only read, write, shell, web and skills tools",
+    };
   const d = checkBase(toolName, input, ctx);
   return ctx.envelope ? envelopeGate(toolName, input, ctx, d) : d;
 }

@@ -1,6 +1,8 @@
+import { PLAN_MAX_ITEMS } from "../../config/lead-caps";
+
 /* Input limits and timeouts of the lead's and the worker's typed tools. They are orchestrator rules (the zod shapes in
    lead-schemas.ts and the ask relay enforce them), so they live here; each tool's `constants.ts` re-exports its own.
-   Leaf file: no imports, so the dependency runs orchestrator -> tool constants never the other way. */
+   Leaf file: imports only `config/lead-caps` (a leaf too), so the dependency runs orchestrator -> tool constants never the other way. */
 
 /** The owner has this long (ms) to click before `AskOwner` returns a timeout. */
 export const ASK_OWNER_TIMEOUT_MS = 10 * 60_000;
@@ -23,10 +25,10 @@ export const BRIEF_MAX_CHARS = 4000;
 /** Max chars of the `DispatchAgent` intent / reason sentences. */
 export const REASON_MAX_CHARS = 400;
 /** Most assignments a `DispatchAgent` request may carry (more than the policy allows, so the policy can answer NEEDS_PLAN). */
-export const MAX_ASSIGNMENTS = 8;
+export const MAX_ASSIGNMENTS = PLAN_MAX_ITEMS;
 
 /** Max chars of the worker's `ReportResult` summary. */
-export const SUMMARY_MAX_CHARS = 4000;
+export const REPORT_SUMMARY_MAX_CHARS = 4000;
 /** Most follow-up requests one report may carry; max chars of one request. */
 export const MAX_REQUESTS = 5;
 export const REQUEST_MAX_CHARS = 500;

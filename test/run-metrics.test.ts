@@ -192,7 +192,7 @@ describe("run metrics", () => {
       guard: { shell: false },
       onDeny: (id: string) => seen.push(id),
     };
-    const hook = guardHook(p, new Map(), logger, newSubagentLimit());
+    const hook = guardHook(p, new Map(), logger, newSubagentLimit(0));
     await hook(
       {
         hook_event_name: "PreToolUse",

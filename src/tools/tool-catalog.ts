@@ -46,7 +46,7 @@ export const CAPABILITY_TOOLS: Record<Capability, readonly string[]> = {
   web: [WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME],
   skills: [SKILL_TOOL_NAME],
   // Agent starts the SDK's built-in subagent; SendMessage resumes one; ListAgents lists the reachable ones (the app
-  // defines no subagent types). Every role gets these: `toolsFor` adds them, roles do not list the capability.
+  // defines no subagent types). `toolsFor` adds them to every role without `noSubagents`; roles do not list the capability.
   subagents: [AGENT_TOOL_NAME, SEND_MESSAGE_TOOL_NAME, LIST_AGENTS_TOOL_NAME],
   tasks: [
     TODO_WRITE_TOOL_NAME,
@@ -81,13 +81,35 @@ const AUTO_ALLOWED = new Set<string>([
 
 /**
  * Built-in tools of a role (the SDK `tools` option): the tools of its capabilities, plus the `subagents` tools that
- * EVERY role gets (owner: all roles may spawn subagents), except a role with `noSubagents` (lead and workers: depth 1). Deduplicated, so a role that still lists the capability is harmless.
+ * every role gets unless it sets `noSubagents` (today only the developer may spawn: owner). Deduplicated, so a role that still lists the capability is harmless.
  */
 export const toolsFor = (role: RoleDefinition): string[] => [
   ...new Set([
     ...role.capabilities.flatMap((c) => CAPABILITY_TOOLS[c]),
     ...(role.noSubagents ? [] : CAPABILITY_TOOLS.subagents),
   ]),
+];
+
+/**
+ * Capabilities whose tools a SUBAGENT may call (owner allowlist): files, shell, web and skills only. Everything else is
+ * denied to a subagent: every MCP tool (report, memory, lead, effect), AskUserQuestion, Agent/SendMessage/ListAgents,
+ * tasks, mcp, feedback and unknown tools. The ONE place of this list.
+ */
+export const SUBAGENT_CAPABILITIES: readonly Capability[] = [
+  "read",
+  "write",
+  "shell",
+  "web",
+  "skills",
+];
+
+/** Tools a subagent of this role may call: the tools of the role's capabilities that are in `SUBAGENT_CAPABILITIES` (no `shell` in the role = no Bash for its subagents). */
+export const subagentToolsFor = (role: RoleDefinition): string[] => [
+  ...new Set(
+    role.capabilities
+      .filter((c) => SUBAGENT_CAPABILITIES.includes(c))
+      .flatMap((c) => CAPABILITY_TOOLS[c]),
+  ),
 ];
 
 /** Tools of a role that need no approval (the guard's `allowTools`). */

@@ -6,7 +6,7 @@ import { errText } from "../observability/redact";
 import { compactPrompt, MERGE_RULES } from "../roles/prompts/rollover-prompts";
 import { storeSummaryAsIs } from "../runtime/compact-hooks";
 import type { SessionRow } from "../storage/session-store";
-import { SUMMARY_MAX_CHARS } from "../storage/thread-summary-store";
+import { THREAD_SUMMARY_MAX_CHARS } from "../storage/thread-summary-store";
 import { type RolloverDeps, type RolloverRequest, runLean } from "./rollover-run";
 
 /* The incremental thread summary of a rollover: `/compact` on the resumed session (the SDK writes it, PostCompact
@@ -74,7 +74,7 @@ async function haikuSummary(
       attempts: 1,
     });
     const { text } = await llm(HAIKU_SYSTEM, haikuPrompt(previous, history));
-    const summary = text.trim().slice(0, SUMMARY_MAX_CHARS);
+    const summary = text.trim().slice(0, THREAD_SUMMARY_MAX_CHARS);
     if (!summary) return "none";
     storeSummaryAsIs(d.db, req.threadId, req.workspace, summary);
     return "haiku";
