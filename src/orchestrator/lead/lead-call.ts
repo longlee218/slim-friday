@@ -19,7 +19,25 @@ export interface LeadToolContext {
   /** Id of the lead input that triggered the run (idempotency key). */
   inputId: string;
   correlationId?: string;
-  run: { dispatched: number };
+  run: { dispatched: number; registered?: number };
+  /** Where the run lives, for `RegisterLocation` (absent in tests that never call it). */
+  place?: LeadPlace;
+}
+
+/** Facts `RegisterLocation` needs about the run: its thread's space and channel (from code, never the model) and its trigger. */
+export interface LeadPlace {
+  /** AGENT_HOME. */
+  home: string;
+  workspace: string;
+  /** Channel (yaml name), for the confirm text. */
+  channel?: string;
+  channelId: string;
+  /** What woke the lead: only an `owner` run may register a location (an announce run carries worker text = DATA). */
+  trigger: "owner" | "announce";
+  /** The owner's text of an `owner` run (merged messages); the path must appear in it. */
+  ownerText?: string;
+  /** Re-read the thread's locations after a write (lead ctx and port env), so the same run can dispatch to it. */
+  refresh(): void;
 }
 
 /** What a handler returns: the reply plus the events and audit ids to record. */
@@ -36,6 +54,8 @@ export interface Outcome {
   itemId?: string;
   /** The port already wrote the events and the audit row (the dispatch transaction): record nothing more. */
   recorded?: true;
+  /** Audit row overrides (default: scope "lead tool call", granted by "role"). */
+  audit?: { scope: string; grantedBy: string };
 }
 
 /** Idempotency key: thread + lead input + tool + a hash of the arguments (the same call twice is one effect). */
@@ -89,6 +109,7 @@ export async function leadCall(
         reply: JSON.stringify(out.reply),
         ...(out.goalId && { goalId: out.goalId }),
         ...(out.itemId && { itemId: out.itemId }),
+        ...(out.audit && out.audit),
       });
   }
   logEvent(log, "lead.decision", { tool, ok: out.reply.ok, code, key, leadTurnId: ctx.leadTurnId });

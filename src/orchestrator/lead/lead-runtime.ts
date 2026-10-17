@@ -23,6 +23,8 @@ export interface LeadRuntime {
   deps: DispatchDeps;
   /** Facts of a thread, or undefined when none is known (the thread was never seen in this process and is not in the db). */
   ctxOf(threadId: string): LeadThreadCtx | undefined;
+  /** Re-read the thread's locations from workspace.yaml (after `RegisterLocation` wrote one). */
+  refresh(threadId: string): void;
   /** Wake the lead for new news of the thread (batched by the announcer). */
   announce(threadId: string): void;
   relay: QuestionRelay;

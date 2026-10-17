@@ -10,6 +10,8 @@ import { DISPATCH_AGENT_TOOL } from "./tools/DispatchAgentTool/constants";
 import { createDispatchAgentTool } from "./tools/DispatchAgentTool/dispatch-agent-tool";
 import { FORWARD_RESULT_TOOL } from "./tools/ForwardResultTool/constants";
 import { createForwardResultTool } from "./tools/ForwardResultTool/forward-result-tool";
+import { REGISTER_LOCATION_TOOL } from "./tools/RegisterLocationTool/constants";
+import { createRegisterLocationTool } from "./tools/RegisterLocationTool/register-location-tool";
 import { REPORT_PROGRESS_TOOL } from "./tools/ReportProgressTool/constants";
 import { createReportProgressTool } from "./tools/ReportProgressTool/report-progress-tool";
 import { REPORT_RESULT_TOOL } from "./tools/ReportResultTool/constants";
@@ -36,6 +38,7 @@ export const ORCHESTRATION_SERVER: McpServerManifest = {
     { name: STEER_TASK_TOOL, create: (c) => c.lead && createSteerTaskTool(c.lead) },
     { name: CANCEL_TASK_TOOL, create: (c) => c.lead && createCancelTaskTool(c.lead) },
     { name: ASK_OWNER_TOOL, create: (c) => c.lead && createAskOwnerTool(c.lead) },
+    { name: REGISTER_LOCATION_TOOL, create: (c) => c.lead && createRegisterLocationTool(c.lead) },
     { name: FORWARD_RESULT_TOOL, create: (c) => c.lead && createForwardResultTool(c.lead) },
     { name: REQUEST_PLAN_TOOL, create: (c) => c.lead && createRequestPlanTool(c.lead) },
     { name: APPROVE_PLAN_TOOL, create: (c) => c.lead && createApprovePlanTool(c.lead) },

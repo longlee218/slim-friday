@@ -108,7 +108,18 @@ export interface EffectPort {
   /** Stored reply of an earlier call with this key, or undefined (idempotency: replay it, do not act again). */
   recall(key: string): string | undefined;
   /** Store the reply of a call (audit row in `effect_log`, goal / item optional). */
-  remember(key: string, e: { tool: string; reply: string; goalId?: string; itemId?: string }): void;
+  remember(
+    key: string,
+    e: {
+      tool: string;
+      reply: string;
+      goalId?: string;
+      itemId?: string;
+      /** Audit scope and grantor; default "lead tool call" / "role". */
+      scope?: string;
+      grantedBy?: string;
+    },
+  ): void;
   /** Open goal and items of the thread. */
   state(): GoalState;
   /** Cap counters (`dispatchedThisRun` comes from the run, not the port). */

@@ -8,6 +8,7 @@ import { ASK_OWNER_TOOL } from "../../mcp/orchestration/tools/AskOwnerTool/const
 import { CANCEL_TASK_TOOL } from "../../mcp/orchestration/tools/CancelTaskTool/constants";
 import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
 import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
+import { REGISTER_LOCATION_TOOL } from "../../mcp/orchestration/tools/RegisterLocationTool/constants";
 import { REQUEST_PLAN_TOOL } from "../../mcp/orchestration/tools/RequestPlanTool/constants";
 import { SET_THREAD_TITLE_TOOL } from "../../mcp/orchestration/tools/SetThreadTitleTool/constants";
 import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
@@ -55,6 +56,7 @@ export const LEAD_ROLE: RoleDefinition = {
     REQUEST_PLAN_TOOL,
     APPROVE_PLAN_TOOL,
     SET_THREAD_TITLE_TOOL,
+    REGISTER_LOCATION_TOOL,
   ],
   limits: { maxAsk: MAX_ASK },
   sideEffects: "none",

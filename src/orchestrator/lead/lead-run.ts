@@ -23,7 +23,15 @@ const log = logger.child({ module: "lead-run" });
 function leadOnce(
   rt: LeadRuntime,
   ctx: LeadThreadCtx,
-  o: { threadId: string; inputId: string; text: string; ac: AbortController },
+  o: {
+    threadId: string;
+    inputId: string;
+    text: string;
+    ac: AbortController;
+    /** What woke the lead and, for an owner run, the owner's raw text (RegisterLocation's guard). */
+    trigger: "owner" | "announce";
+    ownerText?: string;
+  },
 ): Promise<LeadTurnResult> {
   const { deps } = rt;
   const { db } = deps;
@@ -43,7 +51,11 @@ function leadOnce(
         threadId,
         env: {
           workerRoles: dispatchableWorkers().map((r) => r.name),
-          locations: ctx.locations.map((l) => l.name),
+          // A getter on the thread's NEWEST ctx: `RegisterLocation` refreshes it, and a second owner message mid-run
+          // replaces the ctx this run captured (`remember`), so the captured one may be stale.
+          get locations() {
+            return (rt.ctxOf(threadId) ?? ctx).locations.map((l) => l.name);
+          },
         },
         io: createLeadIo(rt, ctx, threadId, turnId, o.ac.signal),
       });
@@ -52,7 +64,16 @@ function leadOnce(
         threadId,
         leadTurnId: turnId,
         inputId: o.inputId,
-        run: { dispatched: 0 },
+        run: { dispatched: 0, registered: 0 },
+        place: {
+          home: deps.config.agentHome,
+          workspace: ctx.workspace,
+          channel: ctx.channel,
+          channelId: ctx.channelId,
+          trigger: o.trigger,
+          ...(o.ownerText && { ownerText: o.ownerText }),
+          refresh: () => rt.refresh(threadId),
+        },
       };
       const role = getRole("lead");
       const language = messageLanguage(ctx.message);
@@ -130,7 +151,14 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
       input.kind === "announce"
         ? announceBlock(news)
         : `${OWNER_MESSAGE_LABEL}\n${input.text ?? ""}`;
-    const out = await leadOnce(rt, ctx, { threadId, inputId, text, ac });
+    const out = await leadOnce(rt, ctx, {
+      threadId,
+      inputId,
+      text,
+      ac,
+      trigger: input.kind,
+      ...(input.kind === "owner" && input.text && { ownerText: input.text }),
+    });
     turns.push(out.turnId);
     if (out.outcome === "aborted") return; // `/stop`: the owner knows
     if (out.outcome === "error") retry = await failed(post, input, announced);

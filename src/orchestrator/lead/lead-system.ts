@@ -79,6 +79,12 @@ export function createLeadSystem(o: {
   const rt: LeadRuntime = {
     deps,
     ctxOf: (threadId) => threads.get(threadId) ?? fromDb(threadId),
+    refresh: (threadId) => {
+      const ctx = threads.get(threadId);
+      const picked = ctx && selectWorkspace(deps.config.agentHome, ctx.channelId);
+      if (ctx && picked && !("reply" in picked))
+        ctx.locations = channelLocations(picked.ws, picked.channel);
+    },
     announce: (threadId) => announcer?.notify(threadId),
     relay,
     afterRun: o.afterRun,

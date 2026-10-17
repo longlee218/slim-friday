@@ -35,7 +35,15 @@ export class FakePort implements EffectPort {
   answer: OwnerAnswer = { answer: "yes", timedOut: false };
 
   recall = (key: string) => this.memo.get(key);
-  remember = (key: string, e: { reply: string }) => void this.memo.set(key, e.reply);
+  /** Audit rows written by `remember` (scope / grantor overrides included). */
+  audits: { key: string; tool?: string; scope?: string; grantedBy?: string }[] = [];
+  remember = (
+    key: string,
+    e: { reply: string; tool?: string; scope?: string; grantedBy?: string },
+  ) => {
+    this.memo.set(key, e.reply);
+    this.audits.push({ key, tool: e.tool, scope: e.scope, grantedBy: e.grantedBy });
+  };
   state = () => this.goalState;
   caps = () => this.capsNow;
   env = () => this.envNow;

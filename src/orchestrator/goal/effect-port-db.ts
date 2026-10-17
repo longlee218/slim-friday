@@ -149,8 +149,8 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
         ...(e.goalId && { goalId: e.goalId }),
         ...(e.itemId && { itemId: e.itemId }),
         tool: e.tool,
-        scope: "lead tool call",
-        grantedBy: "role",
+        scope: e.scope ?? "lead tool call",
+        grantedBy: e.grantedBy ?? "role",
         result: e.reply,
       });
     },

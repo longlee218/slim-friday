@@ -10,6 +10,7 @@ import {
   OPTION_MAX_CHARS,
   OPTIONS_MAX,
   OPTIONS_MIN,
+  PATH_MAX_CHARS,
   PROGRESS_NOTE_MAX_CHARS,
   QUESTION_MAX_CHARS,
   REASON_MAX_CHARS,
@@ -70,6 +71,13 @@ export const ASK_OWNER_SHAPE = {
   taskId: TASK_ID.optional(),
   workerAskId: z.string().min(1).max(80).optional(),
 };
+export const REGISTER_LOCATION_SHAPE = {
+  path: z
+    .string()
+    .min(1)
+    .max(PATH_MAX_CHARS)
+    .describe("Directory path exactly as the owner wrote it in the current message"),
+};
 export const FORWARD_RESULT_SHAPE = { taskId: TASK_ID, mode: z.enum(["verbatim", "summary"]) };
 
 /** A follow-up the worker asks for next to its result. */
@@ -95,6 +103,7 @@ export type TaskStatusInput = z.infer<z.ZodObject<typeof TASK_STATUS_SHAPE>>;
 export type SteerInput = z.infer<z.ZodObject<typeof STEER_TASK_SHAPE>>;
 export type CancelInput = z.infer<z.ZodObject<typeof CANCEL_TASK_SHAPE>>;
 export type AskOwnerInput = z.infer<z.ZodObject<typeof ASK_OWNER_SHAPE>>;
+export type RegisterLocationInput = z.infer<z.ZodObject<typeof REGISTER_LOCATION_SHAPE>>;
 export type ForwardInput = z.infer<z.ZodObject<typeof FORWARD_RESULT_SHAPE>>;
 export type ProgressInput = z.infer<z.ZodObject<typeof REPORT_PROGRESS_SHAPE>>;
 export type ReportInput = z.infer<z.ZodObject<typeof REPORT_RESULT_SHAPE>>;

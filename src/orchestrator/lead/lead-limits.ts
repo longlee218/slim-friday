@@ -11,6 +11,10 @@ export const OPTIONS_MAX = 4;
 export const QUESTION_MAX_CHARS = 600;
 export const OPTION_MAX_CHARS = 80;
 
+/** `RegisterLocation`: longest path accepted, and calls allowed per lead run. */
+export const PATH_MAX_CHARS = 1024;
+export const REGISTER_LOCATION_MAX_PER_RUN = 1;
+
 /** Max chars of the text a `SteerTask` call sends to a worker. */
 export const STEER_TEXT_MAX_CHARS = 4000;
 
