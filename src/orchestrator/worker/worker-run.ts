@@ -2,7 +2,7 @@ import { workspacePaths } from "../../config/workspace-paths";
 import { messageLanguage } from "../../ingress/user-copy";
 import { spawnRunner } from "../../locations/git-run";
 import { channelDigestBlock } from "../../memory/channel-digest";
-import { logger } from "../../observability/logger";
+import { logEvent, logger } from "../../observability/logger";
 import { ownerConfirm } from "../../owner-approval/owner-confirm";
 import { goalLocations, loadEnvelope } from "../../policy/load-envelope";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
@@ -48,6 +48,14 @@ export async function startWorker(
   const slot = rt.deps.limiter ? rt.deps.limiter.tryAcquire() : () => {};
   if (!slot) return false;
   try {
+    // The pass read the item before awaiting: a hold (age limit, stop) may have moved it since. Only `ready` starts;
+    // a held or ended item is skipped (true = nothing to retry later), only RetryTask can release a hold.
+    const current = getItem(db, item.id);
+    if (current?.status !== "ready") {
+      slot();
+      logEvent(log, "dispatch.skipped", { itemId: item.id, status: current?.status }, "warn");
+      return true;
+    }
     const goalId = item.parentId ?? item.id;
     const role = getRole(getOwnedTask(db, item.id)?.ownerAgentId ?? "");
     // A first start or a lead retry sends the brief (or the resume prompt); an automatic resume is no new dispatch.

@@ -106,14 +106,13 @@ test("stop clears debouncing and queued inputs and their timer; later pushes sti
   expect(ran).toEqual(["run", "after"]);
 });
 
-test("a run takes a global slot and frees it; a full limiter delays the run; a thrown run does not stop the queue", async () => {
-  const limiter = createRunLimiter(1);
+test("a run takes a lead slot and frees it; a full pool delays the run; a thrown run does not stop the queue", async () => {
+  const limiter = createRunLimiter(1, 5);
   const hold = limiter.tryAcquire()!; // the only slot is taken elsewhere
   const ran: string[] = [];
   const q = createLeadQueue({
     debounceMs: 1,
-    limiter,
-    slotRetryMs: 10,
+    pool: limiter,
     run: async (i) => {
       ran.push(i.text!);
       if (i.text === "boom") throw new Error("runner failed");
@@ -145,20 +144,18 @@ test("default debounce is 800ms: owner messages 100ms apart merge into one input
   expect(seen[0]!.messageIds).toEqual(["m1", "m2", "m3"]);
 });
 
-test("slot never frees: after slotAttempts the input is dropped (run never called), the queue keeps serving later inputs", async () => {
-  const limiter = createRunLimiter(1);
+test("waiting bound reached: the input is refused (run never called), the queue keeps serving later inputs", async () => {
+  const limiter = createRunLimiter(1, 0); // nobody may wait
   const hold = limiter.tryAcquire()!;
   const ran: string[] = [];
   const q = createLeadQueue({
     debounceMs: 1,
-    limiter,
-    slotRetryMs: 5,
-    slotAttempts: 2,
+    pool: limiter,
     run: async (i) => void ran.push(i.text!),
   });
   q.push({ threadId: "th", kind: "announce", messageIds: [], text: "lost" });
-  await sleep(40);
-  expect(ran).toEqual([]); // gave up: the input is gone, not run later
+  await sleep(20);
+  expect(ran).toEqual([]); // refused: the input is gone, not run later
   expect(q.busy("th")).toBe(false);
   hold();
   q.push({ threadId: "th", kind: "announce", messageIds: [], text: "later" });

@@ -22,8 +22,8 @@ export interface FailureInput {
   errorText?: string;
   /** The stream already saw a transient error before it blanked the text. */
   transient?: boolean;
-  /** Why the app aborted the run (watchdog: `stale`); absent = nobody but the owner or the shutdown. */
-  abortCause?: "stale";
+  /** Why the app aborted the run (watchdog: `stale`, age limit: `item_age`); absent = nobody but the owner or the shutdown. */
+  abortCause?: "stale" | "item_age";
   /** The process is shutting down (SIGTERM): the abort is a restart, not a decision. */
   stopping?: boolean;
 }
@@ -33,6 +33,8 @@ export function classifyRunFailure(i: FailureInput): { class: FailureClass; caus
   if (i.outcome === "aborted") {
     if (i.stopping) return { class: "transient", cause: "shutdown" };
     if (i.abortCause === "stale") return { class: "transient", cause: "stale" };
+    // The item outlived its age limit: a decision for the lead, never an automatic resume.
+    if (i.abortCause === "item_age") return { class: "real", cause: "item_age" };
     return { class: "owner_stop", cause: "owner_stop" };
   }
   // A failed resume is retried once more as a fresh start (the resume prompt falls back to the brief).

@@ -24,6 +24,7 @@ export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
     queryFn: deps.queryFn,
     stopping: tracker.isStopping,
     limiter: deps.limiter,
+    leadPool: deps.leadPool,
     threadTitle: deps.threadTitle,
     steer: createSteerRegistry(db), // streaming roles take the owner's messages while they run
   };

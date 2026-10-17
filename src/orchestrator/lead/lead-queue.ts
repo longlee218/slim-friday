@@ -1,11 +1,12 @@
 import { LEAD_DEBOUNCE_MS, LEAD_QUEUE_PER_THREAD } from "../../config/lead-caps";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
+import type { RunLimiter } from "../turns/run-limiter";
 
 /*
  * Lead queue: the inputs of a thread's lead agent, one run at a time per thread. Owner messages that arrive close
  * together are merged into one input (debounce); the queue is FIFO with a cap (oldest dropped); every run takes a
- * global slot from the run limiter. The runner itself is injected (the lead runner of L2a).
+ * slot of the lead pool (a full pool makes the thread wait FIFO, bounded). The runner itself is injected (the lead runner of L2a).
  */
 
 /** Logger of this module. */
@@ -24,26 +25,24 @@ export interface LeadInput {
   eventSeqs?: number[];
 }
 
-/** Slot source: the global run limiter (`tryAcquire` returns a release function, or null when full). */
-interface LeadSlots {
-  tryAcquire(): (() => void) | null;
-}
+/** The lead pool: a limiter with a bounded FIFO wait (see `run-limiter.ts`). */
+type LeadSlots = Pick<RunLimiter, "tryAcquire" | "acquire" | "canWait">;
 
 /** Dependencies of the queue. */
 export interface LeadQueueOptions {
   /** The lead run for one input; the next input of the thread starts only after it settles. */
   run: (input: LeadInput) => Promise<void>;
-  limiter?: LeadSlots;
+  pool?: LeadSlots;
+  /** An input found the lead pool full (`full` = the waiting bound is reached, the input is refused) or the thread queue full (the oldest input is dropped). Not called without a pool for the first case. */
+  onQueued?: (input: LeadInput, full: boolean) => void;
+  /** True during shutdown: no new lead run starts (a freed slot is not taken). */
+  stopping?: () => boolean;
   /** Quiet time (ms) after the last owner message before its merged input is queued. */
   debounceMs?: number;
   /** Longest wait (ms) from the first merged owner message; a steady stream cannot defer the input forever. Default 3x debounce. */
   maxWaitMs?: number;
   /** Most queued inputs per thread (the oldest is dropped past it). */
   cap?: number;
-  /** Wait (ms) between attempts to get a slot when the limiter is full. */
-  slotRetryMs?: number;
-  /** Attempts to get a slot before the input is dropped. */
-  slotAttempts?: number;
 }
 
 /** The queue API. */
@@ -69,8 +68,8 @@ interface ThreadState {
   queue: LeadInput[];
   /** One drain loop owns the thread (max 1 lead run per thread, also across a stop). */
   running: boolean;
-  /** Bumped by `stop`: a drain waiting for a slot then drops the input it holds. */
-  epoch: number;
+  /** Aborted by `stop`: a drain waiting for a lead slot then drops the input it holds. */
+  abort: AbortController;
 }
 
 /** Merge two owner inputs of one thread (ids and text are appended in arrival order). */
@@ -86,14 +85,12 @@ export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
     debounceMs = LEAD_DEBOUNCE_MS,
     maxWaitMs = debounceMs * 3,
     cap = LEAD_QUEUE_PER_THREAD,
-    slotRetryMs = 1000,
-    slotAttempts = 10,
   } = o;
   const threads = new Map<string, ThreadState>();
   const stateOf = (threadId: string): ThreadState => {
     const found = threads.get(threadId);
     if (found) return found;
-    const fresh: ThreadState = { queue: [], running: false, epoch: 0 };
+    const fresh: ThreadState = { queue: [], running: false, abort: new AbortController() };
     threads.set(threadId, fresh);
     return fresh;
   };
@@ -101,29 +98,33 @@ export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
   const prune = (threadId: string, s: ThreadState) => {
     if (!s.running && !s.timer && !s.queue.length) threads.delete(threadId);
   };
-  /** Take a global slot, retrying while the limiter is full; null = gave up (or stopped meanwhile). */
-  const acquire = async (s: ThreadState, epoch: number): Promise<(() => void) | null> => {
-    if (!o.limiter) return () => {};
-    for (let n = 0; n < slotAttempts && s.epoch === epoch; n++) {
-      const release = o.limiter.tryAcquire();
-      if (release) return release;
-      await new Promise((r) => setTimeout(r, slotRetryMs).unref()); // a retry never keeps the process alive
-    }
-    return null;
+  /**
+   * Take a lead slot. A full pool: the owner is told once (`queue`, or `queue full` when the waiting bound is reached and
+   * the input is refused), then the thread waits FIFO. Announce inputs wait silently; a refused announce stays
+   * undelivered in the outbox and the next announce picks it up. null = refused or stopped while waiting.
+   */
+  const acquire = async (input: LeadInput, signal: AbortSignal): Promise<(() => void) | null> => {
+    const pool = o.pool;
+    if (!pool) return () => {};
+    const now = pool.tryAcquire();
+    if (now) return now;
+    if (input.kind === "owner") o.onQueued?.(input, !pool.canWait());
+    return pool.acquire(signal);
   };
   /** Run the thread's queue one input at a time. */
   const drain = async (threadId: string, s: ThreadState) => {
     s.running = true;
     try {
       for (let input = s.queue.shift(); input; input = s.queue.shift()) {
-        const epoch = s.epoch; // a stop after this point drops the input while it waits for a slot
-        const release = await acquire(s, epoch);
-        if (s.epoch !== epoch) {
-          release?.(); // stopped while waiting for a slot: this input is dropped
+        if (o.stopping?.()) continue; // shutdown: the input is dropped
+        const signal = s.abort.signal; // a stop after this point drops the input while it waits for a slot
+        const release = await acquire(input, signal);
+        if (signal.aborted || o.stopping?.()) {
+          release?.(); // stopped (or shutting down) while waiting for a slot: this input is dropped
           continue;
         }
         if (!release) {
-          logEvent(log, "lead.slot_unavailable", { threadId, kind: input.kind }, "warn");
+          logEvent(log, "lead.pool_full", { threadId, kind: input.kind }, "warn");
           continue;
         }
         try {
@@ -150,6 +151,7 @@ export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
         { threadId: input.threadId, dropped: dropped?.kind },
         "warn",
       );
+      if (dropped?.kind === "owner") o.onQueued?.(dropped, true); // the owner is told the input was not taken
     }
     if (!s.running) void drain(input.threadId, s);
   };
@@ -161,7 +163,8 @@ export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
     s.pending = undefined;
     s.pendingSince = undefined;
     s.queue = [];
-    s.epoch++; // a drain waiting for a slot drops the input it holds; a running run is aborted by the caller
+    s.abort.abort(); // a drain waiting for a slot drops the input it holds; a running run is aborted by the caller
+    s.abort = new AbortController();
     prune(threadId, s);
   };
   return {

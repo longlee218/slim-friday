@@ -41,7 +41,7 @@ interface PolicyInput {
   /** Typed result the worker reported. */
   resultKind?: ResultKind;
   stopping: boolean;
-  abortCause?: "stale";
+  abortCause?: "stale" | "item_age";
   now?: number;
 }
 

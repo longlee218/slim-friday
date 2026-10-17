@@ -18,3 +18,6 @@ export const RESUME_BACKOFF_STEP_MS = 2000;
 
 /** Circuit breaker: an item dispatched this many times fails instead of starting again (first start + each `RetryTask`; automatic resumes do not count). */
 export const MAX_DISPATCHES_PER_ITEM = 3;
+
+/** Age limit (ms) of one goal item: 1 man-day, from its first start (owner wait and backoff count, resumes do not reset it). Past it the item is held for the lead; `RetryTask` starts a fresh window. */
+export const ITEM_MAX_AGE_MS = 8 * 60 * 60_000;

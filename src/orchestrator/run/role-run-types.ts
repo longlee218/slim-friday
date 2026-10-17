@@ -30,12 +30,14 @@ export interface RoleRunnerDeps {
   threadTitle?: ThreadTitlePort;
 }
 
-/** Dependencies of a task run: the role runner's, plus whether shutdown is aborting runs and the global run cap. */
+/** Dependencies of a task run: the role runner's, plus whether shutdown is aborting runs and the run pools. */
 export interface DispatchDeps extends RoleRunnerDeps {
   /** True once shutdown aborted the runs: an aborted task is then `interrupted` (resumable), not cancelled. */
   stopping: () => boolean;
-  /** Global run cap: a detached task run takes its own slot from it. */
+  /** Worker pool: a detached task run takes its own slot from it. */
   limiter?: RunLimiter;
+  /** Lead pool: a lead run takes its own slot from it (never a worker slot). */
+  leadPool?: RunLimiter;
 }
 
 /** One role run: a fresh message, a dispatched task, or the continuation of one (`resume`). */

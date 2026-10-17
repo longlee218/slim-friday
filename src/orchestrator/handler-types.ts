@@ -21,8 +21,10 @@ export interface TurnHandlerDeps {
   config: AgentConfig;
   /** Override the SDK query (tests). */
   queryFn?: QueryFn;
-  /** Optional global concurrency cap shared by the lead runs and the worker runs. */
+  /** Worker pool: concurrent worker runs (a full pool defers the item). */
   limiter?: RunLimiter;
+  /** Lead pool: concurrent lead runs (a full pool makes the thread wait). Omitted = the lead system builds the default pool. */
+  leadPool?: RunLimiter;
   /** Owner approval gateway; required for background roles such as developer. */
   approvals?: ApprovalGateway;
   /** Renames threads for `SetThreadTitle` (offered to every role run; not rollover runs); omitted = the tool is not offered. */

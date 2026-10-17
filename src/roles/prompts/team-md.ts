@@ -4,6 +4,7 @@ import {
   DISPATCHES_PER_RUN,
   MAX_RUNNING_PER_THREAD,
 } from "../../config/lead-caps";
+import { ITEM_MAX_AGE_MS } from "../../config/resilience-caps";
 import type { Location } from "../../locations/location-registry";
 import { APPROVE_PLAN_TOOL } from "../../mcp/orchestration/tools/ApprovePlanTool/constants";
 import { ASK_OWNER_TOOL } from "../../mcp/orchestration/tools/AskOwnerTool/constants";
@@ -16,6 +17,9 @@ import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/con
 import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
 import { dispatchableWorkers } from "../role-registry";
 import type { RoleDefinition } from "../role-types";
+
+/** The item age limit in hours, for the prompt line. */
+const ITEM_MAX_AGE_HOURS = ITEM_MAX_AGE_MS / 3_600_000;
 
 /* TEAM.md: the lead's team, built by code per run from the role registry and the thread's locations (never a hand-kept
    list), so it is always true. Owner-editable behaviour (style, memory, privacy) lives in AGENTS.md, not here. */
@@ -78,6 +82,7 @@ export function buildTeamMd(i: TeamMdInput = {}): string {
     `- Up to ${MAX_RUNNING_PER_THREAD} items run at once in this thread; only one writer per location at a time (the others wait).`,
     "- A brief is all the member knows: goal sentence, what is already done, what to deliver, the location by name. Never put secrets in a brief.",
     `- Plans: ${REQUEST_PLAN_TOOL} starts the planner (inside the open goal when one exists: its finished items stay). When its result carries a plan (id + version), call ${APPROVE_PLAN_TOOL}: the owner approves the whole plan once. Only a wider envelope asks again.`,
+    `- Items may wait for a free worker slot (a slot_wait event: news only, nothing to do). An item older than ${ITEM_MAX_AGE_HOURS} h is held with cause item_age: ${RETRY_TASK_TOOL} gives it a fresh ${ITEM_MAX_AGE_HOURS} h, or ${CANCEL_TASK_TOOL}.`,
     `- Change running work with ${STEER_TASK_TOOL}; stop it with ${CANCEL_TASK_TOOL}. Ask the owner with ${ASK_OWNER_TOOL}.`,
     `- Transient failures (API overload, crash, restart, stale run) are resumed by code in the same session (up to 2 times): do nothing for them (a recovered_after_restart event with autoResumed true is one). A failure event that carries a class and cause means the item is held: its dependents wait and the goal stays open. Read the cause, then call ${RETRY_TASK_TOOL} with a note on what to fix (the worker resumes its session and verifies state first) or ${CANCEL_TASK_TOOL} to give up (the goal fails). A task that ended (completed, failed, cancelled): "go" or "continue" means ${DISPATCH_AGENT_TOOL} again with the same role and a self-contained brief; say the work restarts.`,
     "",

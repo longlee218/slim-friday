@@ -1,9 +1,12 @@
+import { LEAD_POOL_MAX, LEAD_WAITING_MAX } from "../../config/run-caps";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
+import { messageLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { appendEvent } from "../../storage/thread-event-store";
 import { getThread } from "../../storage/thread-store";
 import { channelLocations, selectWorkspace } from "../../workspaces/task-workspace";
 import type { DispatchDeps } from "../run/role-run-types";
+import { createRunLimiter } from "../turns/run-limiter";
 import { dispatchReady } from "../worker/dispatch-ready";
 import { createQuestionRelay } from "../worker/question-relay";
 import type { RecoveryReport } from "../worker/recover-in-flight";
@@ -11,7 +14,7 @@ import { startResilienceSweeper } from "../worker/resilience-sweeper";
 import { createAnnouncer } from "./lead-events";
 import { createLeadQueue, type LeadQueue } from "./lead-queue";
 import { runLead } from "./lead-run";
-import type { LeadRuntime, LeadThreadCtx } from "./lead-runtime";
+import { type LeadRuntime, type LeadThreadCtx, postTo } from "./lead-runtime";
 
 /** Logger of this module. */
 const log = logger.child({ module: "lead-system" });
@@ -33,7 +36,7 @@ export interface LeadSystem {
 }
 
 /**
- * Build the lead system: the question relay, the announcer, the lead queue (the lead runner + the global run limiter)
+ * Build the lead system: the question relay, the announcer, the lead queue (the lead runner + the lead pool)
  * and the per-thread facts. `post` posts into a thread when no owner message of it was seen in this process (boot wake).
  */
 export function createLeadSystem(o: {
@@ -96,7 +99,17 @@ export function createLeadSystem(o: {
       o.track?.(run);
       return run;
     },
-    limiter: deps.limiter,
+    pool: deps.leadPool ?? createRunLimiter(LEAD_POOL_MAX, LEAD_WAITING_MAX),
+    // The owner is told once that the input waits for a lead slot, or that it was not taken (waiting bound / thread queue full).
+    onQueued: (input, full) => {
+      const ctx = rt.ctxOf(input.threadId);
+      if (ctx)
+        void postTo(
+          ctx,
+          renderUserNotice({ kind: "queue", full }, messageLanguage(ctx.message)),
+        ).catch(() => undefined);
+    },
+    stopping: deps.stopping,
     debounceMs: o.debounceMs,
   });
   announcer = createAnnouncer({ db: deps.db, push: queue.push, windowMs: o.announceWindowMs });

@@ -11,6 +11,7 @@ import type { LeadRuntime } from "../lead/lead-runtime";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import { clearHold, waitMs } from "./resume-backoff";
 import { pickDispatchable, type RoleCaps } from "./scheduler";
+import { clearSlotWait, noteDeferred } from "./slot-wait";
 import { startWorker } from "./worker-run";
 
 /** Logger of this module. */
@@ -92,7 +93,11 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
       )
         moveTaskTo(db, it.id, "ready");
     items = childrenOf(db, goalId);
-    for (const it of items) if (it.status !== "ready") clearHold(it.id); // a cancelled / ended item keeps no backoff entry
+    for (const it of items)
+      if (it.status !== "ready") {
+        clearHold(it.id); // a cancelled / ended item keeps no backoff entry
+        clearSlotWait(it.id);
+      }
     const ready = items.filter((i) => i.status === "ready");
     // Refused items first (a failed one cancels its dependents, so the list is read again).
     const overBudget = goalOverBudget(db, items);
@@ -111,7 +116,8 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
       settleGoal(db, goalId);
       return;
     }
-    for (const next of pickDispatchable(items, roleCaps)) {
+    const picks = pickDispatchable(items, roleCaps);
+    for (const [at, next] of picks.entries()) {
       // An item waiting out its resume backoff keeps its place (and its location) and is tried again when due.
       const wait = waitMs(next.id);
       if (wait > 0) {
@@ -127,9 +133,13 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
         failItem(rt, threadId, next, "failure", `start failed: ${String(err)}`);
         return true;
       });
-      if (!started) {
-        // Run cap reached: the item stays ready and is retried on the next worker end or after a short wait.
+      if (started) clearSlotWait(next.id);
+      else {
+        // Worker pool full: the item stays ready and is retried on the next worker end or after a short wait; the lead hears of it after 60 s.
         logEvent(log, "dispatch.deferred", { itemId: next.id, reason: "run_limit" }, "warn");
+        // Every pick the pool keeps waiting (not only the head) starts its 60 s clock; an item in resume backoff is not a slot wait.
+        for (const waiting of picks.slice(at))
+          if (waitMs(waiting.id) <= 0) noteDeferred(rt, threadId, waiting);
         deferRetry(rt, threadId);
         break;
       }

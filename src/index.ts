@@ -3,6 +3,7 @@ import { type Client, Events } from "discord.js";
 import pkg from "../package.json";
 import { type AgentConfig, loadConfig } from "./config/agent-config";
 import { readProcessEnv } from "./config/process-env";
+import { LEAD_POOL_MAX, LEAD_WAITING_MAX, WORKER_POOL_MAX } from "./config/run-caps";
 import { workspacePaths } from "./config/workspace-paths";
 import { syncChannelTopics } from "./discord-setup/channel-topic";
 import { createControlRoleRun } from "./discord-setup/control-role-run";
@@ -110,7 +111,8 @@ async function main(): Promise<void> {
     db,
     config,
     approvals,
-    limiter: createRunLimiter(),
+    limiter: createRunLimiter(WORKER_POOL_MAX),
+    leadPool: createRunLimiter(LEAD_POOL_MAX, LEAD_WAITING_MAX),
     control, // shutdown hooks of the control runner
     threadTitle: createThreadTitlePort(() => botClient),
     // The lead's boot wake has no owner message to answer through: post into the thread by id.

@@ -40,7 +40,7 @@ export interface LiveRun {
   /** Open by-design waits of the run on the owner or the lead (question relay, effect confirms); the watchdog skips the run while it is above 0. */
   waitingCount?: number;
   /** Why the app (not the owner) aborted the run; set before `ac.abort()` so the run's end can tell the cause. */
-  abortCause?: "stale";
+  abortCause?: "stale" | "item_age";
 }
 
 /** key -> live run. */

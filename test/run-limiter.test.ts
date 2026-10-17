@@ -20,9 +20,9 @@ test("limiter caps at max and frees on release (idempotent)", () => {
 
 /**
  * Handler over a fake `query`: a worker run blocks on `gate` until released or aborted; the lead answers at once. The
- * lead run takes a slot too (released before the worker's end), so two slots leave one for the first worker.
+ * lead runs in its own pool, so one worker slot is all the first worker needs.
  */
-function gatedHandler(env: ReturnType<typeof makeEnv>, limiter = createRunLimiter(2)) {
+function gatedHandler(env: ReturnType<typeof makeEnv>, limiter = createRunLimiter(1)) {
   const gate: { open?: () => void; entered: number } = { entered: 0 };
   const queryFn = ((a: any) =>
     (async function* () {

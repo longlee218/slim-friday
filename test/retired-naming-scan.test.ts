@@ -100,6 +100,8 @@ const TASK_ID_OK = [
   "events.ts", // schema: thread_events.task_id, run_messages.task_id
   "db-schema-baseline.test.ts",
   "worktree-store.ts",
+  "item-age-store.ts", // reads turns.owned_task_id
+  "item-age.test.ts",
   "files-changed.ts",
   "run-message-store.ts",
   "clone-retention.ts",

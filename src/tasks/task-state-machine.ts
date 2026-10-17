@@ -17,8 +17,8 @@ const TRANSITIONS: Readonly<Record<Status, readonly Status[]>> = {
   ready: ["running", "blocked", "cancelled", "failed"],
   // running -> ready: an interrupted goal item is resumed automatically (same session, see failure-policy.ts).
   running: ["ready", "waiting_user", "blocked", "completed", "failed", "cancelled"],
-  // A waiting task is continued (running), or the owner drops it.
-  waiting_user: ["running", "ready", "completed", "failed", "cancelled"],
+  // A waiting task is continued (running), or the owner drops it; past the item age limit it is held (blocked).
+  waiting_user: ["running", "ready", "blocked", "completed", "failed", "cancelled"],
   // Blocked (e.g. NEEDS_PLANNING) is released back to the queue, or dropped.
   blocked: ["pending", "ready", "running", "failed", "cancelled"],
   completed: [],

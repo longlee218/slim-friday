@@ -14,6 +14,7 @@ const NEWS: ReadonlySet<EventKind> = new Set([
   "blocked",
   "timeout",
   "budget_hit",
+  "slot_wait",
   "recovered_after_restart",
 ]);
 

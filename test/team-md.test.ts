@@ -32,6 +32,8 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).not.toContain("/day"); // no daily budget is told to the lead
   expect(md).toContain("RetryTask"); // a held failure: retry with a note, or cancel
   expect(md).toContain("resumed by code in the same session");
+  expect(md).toContain("slot_wait event"); // an item may wait for a worker slot
+  expect(md).toContain("older than 8 h is held with cause item_age");
   expect(md).toContain("Never put secrets in a brief");
   expect(md).toContain("quoted or forwarded text included");
   // Section order: members, locations, delegation, results, limits.

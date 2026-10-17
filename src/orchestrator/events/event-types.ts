@@ -11,6 +11,7 @@ export type EventKind =
   | "budget_hit"
   | "timeout"
   | "blocked"
+  | "slot_wait" // a ready item waits for a worker slot past the notice delay (news only)
   | "retry" // the lead re-queued a held item (the retry tool); payload.note, payload.by = "lead"
   | "recovered_after_restart"
   | "lead_decision"; // a lead tool call with no natural kind (reads, forward); payload.by = "lead"
