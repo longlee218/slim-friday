@@ -54,12 +54,16 @@ Single source of every limit and stop condition of the app. Other docs link here
 | `AUTO_RESUME_CAP` | item | 2 per dispatch <!-- limit:AUTO_RESUME_CAP=2 --> | `config/resilience-caps.ts` | the next transient failure holds the item | code |
 | `RESUME_BACKOFF_STEP_MS` | item | 2 s x N <!-- limit:RESUME_BACKOFF_STEP_MS=2000 --> | `config/resilience-caps.ts` | resume N waits N x step (2 s, 4 s) | code |
 | `MAX_DISPATCHES_PER_ITEM` | item | 3 <!-- limit:MAX_DISPATCHES_PER_ITEM=3 --> | `config/resilience-caps.ts` | circuit breaker: first start + each `RetryTask` count (auto-resumes do not); the next start fails | code |
+| `DIGEST_FLOOR_MS` | t | 30 min <!-- limit:DIGEST_FLOOR_MS=1800000 --> | `config/resilience-caps.ts` | check-in digest (code-rendered, 0 tokens) posted at most this often per thread, and only when the facts changed | code |
+| `HOLD_ESCALATE_MS` | item | 30 min <!-- limit:HOLD_ESCALATE_MS=1800000 --> | `config/resilience-caps.ts` | a held item of an OPEN goal with no `RetryTask` / `CancelTask` writes one `timeout` event (id `hold:<item>:<dispatch>`) and wakes the lead once; a closed goal never escalates, nor a hold older than 3 x `ITEM_MAX_AGE_MS` | code |
+| `MAX_ESCALATIONS_PER_TICK` | g | 3 <!-- limit:MAX_ESCALATIONS_PER_TICK=3 --> | `config/resilience-caps.ts` | escalation wakes per 60 s tick; the rest fire on the next ticks | code |
 
 - Worker pool 10: RAM budget. A claude process is about 140-464 MB, so the bot budget is about 5 GB on a 16 GB machine. Raise only after measuring.
 - `MAX_RUNNING_PER_THREAD` 4 with pool 10: only 2-3 threads can run 4 items at once.
 - One writer per location: a second writer of the same location waits (scheduler rule, no number).
 - Item age 8 h counts owner wait and backoff, resumes do not reset it, and it is independent of the 15 min stale watchdog. A ready item waiting for a slot longer than that is held the same way. `RetryTask` counts toward the breaker: an item gets at most 2 fresh windows.
-- Not verified live: the whole worker limits chain (R1, R2).
+- Digest (R3): per thread with an open goal that has running or held items, on the 60 s tick; facts hash ignores ages and rounds spend to whole USD. A failed post keeps the state and retries after the floor. Not verified live.
+- Not verified live: the whole worker limits chain (R1, R2, R3).
 - The never-started clock (`last_progress_at`) is stamped when the item becomes ready, and not written again while it is not running.
 ## Roles
 

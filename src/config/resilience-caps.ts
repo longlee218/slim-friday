@@ -21,3 +21,12 @@ export const MAX_DISPATCHES_PER_ITEM = 3;
 
 /** Age limit (ms) of one goal item: 1 man-day, from its first start (owner wait and backoff count, resumes do not reset it). Past it the item is held for the lead; `RetryTask` starts a fresh window. */
 export const ITEM_MAX_AGE_MS = 8 * 60 * 60_000;
+
+/** Least gap (ms) between two check-in digests of one thread (code-rendered, no model); a digest is also skipped while the facts are unchanged. */
+export const DIGEST_FLOOR_MS = 30 * 60_000;
+
+/** A held item (blocked + FAILED) with no `RetryTask` / `CancelTask` for this long (ms) wakes the lead once with a `timeout` event. */
+export const HOLD_ESCALATE_MS = 30 * 60_000;
+
+/** Most held-item escalations (lead wakes) one sweeper tick writes; the rest fire on the next ticks. */
+export const MAX_ESCALATIONS_PER_TICK = 3;
