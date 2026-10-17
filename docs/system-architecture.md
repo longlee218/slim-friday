@@ -10,7 +10,7 @@ Last updated: 2026-10-16 (cleanup phases 1-6 and 5c done; phase 3 SDK sandbox pe
 | Role | Kind | Model | Does |
 |---|---|---|---|
 | `developer` | worker | Sonnet | changes files in one of the space's locations after the owner approves; delivers through effect tools |
-| `scout` | worker | Haiku | read-only search and web lookup |
+| `scout` | worker | Haiku | search and web research; changes no location, its report is an artifact (written by the artifact tool, no SDK write) |
 | `planner` | worker | Sonnet | read-only; writes a plan that code validates; not dispatchable |
 | `discord-manager` | control | Haiku | `#ops-control` only: spaces and persona files |
 
@@ -304,7 +304,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 
 ### Scopes (per run, `src/orchestrator/run/role-scope.ts`)
 - Write-capable (developer): the run's location, all of the space's locations, the worktrees dir, the task scratch dir and `~/.claude/plans`.
-- Read-only roles (scout, lead): read paths only (cwd, locations, attachments); no write path.
+- Roles with no write capability (scout, lead): read paths only (cwd, locations, attachments); no write path. A scout still produces artifacts: the artifact tool writes them in code (app-owned store), like the lead's memory tool.
 - AGENT_HOME is denied to every run, read and write, even when a location contains it.
 - Checked by Read, Glob, Grep, Edit, Write, NotebookEdit and by path words in Bash. Accepted gaps: `GIT_DIR`, `env -C`, shell variables, scripts, glob symlinks.
 

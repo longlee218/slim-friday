@@ -10,7 +10,7 @@ Last updated: 2026-10-17 (after low-config channel and location phases 1-4; HEAD
 |---|---|---|---|---|
 | `lead` | lead | Sonnet | budget: [limits](limits-and-stop-conditions.md) | Answers, asks the owner, dispatches workers, starts the planner, reports results |
 | `planner` | worker | Sonnet | budget: [limits](limits-and-stop-conditions.md) | Read-only; writes a plan that code validates and the owner approves once |
-| `scout` | worker | Haiku | budget: [limits](limits-and-stop-conditions.md) | Read-only search and lookups |
+| `scout` | worker | Haiku | budget: [limits](limits-and-stop-conditions.md) | Search and research; changes no location, its report is an artifact (artifact tool, no SDK write) |
 | `developer` | worker | Sonnet | budget: [limits](limits-and-stop-conditions.md) | Works in a granted location; delivers through effect tools |
 | `discord-manager` | control | Haiku | 0.5 | `#ops-control` free text: spaces, channels, persona files |
 
