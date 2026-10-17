@@ -24,3 +24,6 @@ export const PLAN_MCP_SERVER = "plan";
 export const EFFECTS_MCP_SERVER = "effects";
 /** Discord admin server: the control-channel role's space tools. */
 export const DISCORD_ADMIN_MCP_SERVER = "discord-admin";
+
+/** Firecrawl server (external, hosted): its tool names live in `src/mcp/firecrawl/tools/<Name>Tool/constants.ts`. */
+export const FIRECRAWL_MCP_SERVER = "firecrawl";

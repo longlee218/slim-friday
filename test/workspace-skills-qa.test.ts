@@ -1,9 +1,15 @@
 import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { readSkillsLock } from "../src/config/skills-lock";
+import { ROLES } from "../src/roles/role-registry";
 import { GLOB_TOOL_NAME, READ_TOOL_NAME, WRITE_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { runWorkerViaLead } from "./dev-worker-fixture";
 import { addLocation, makeEnv } from "./helpers";
+
+/** App-owned plugins of a scout run: one per source of its skills (from data, no names here). */
+const lockOf = readSkillsLock();
+const APP_PLUGINS = new Set((ROLES.scout?.skills ?? []).map((n) => lockOf[n]?.source)).size;
 
 /** Write `<dir>/<name>/SKILL.md`. */
 function skill(dir: string, name: string): void {
@@ -45,7 +51,7 @@ test("scout: one plugin with the workspace skills (plus the app's); location ski
   const { opts, pluginDirs, pluginFiles } = await qa();
   expect(opts.skills).toContain("main:ws-skill");
   expect(opts.skills.some((n: string) => n.includes("sk-"))).toBe(false);
-  expect(opts.plugins).toHaveLength(2); // workspace plugin + the app-owned skills
+  expect(opts.plugins).toHaveLength(APP_PLUGINS + 1); // workspace plugin + the app-owned skills
   expect(opts.settingSources).toEqual([]);
   expect(JSON.stringify(opts.systemPrompt)).not.toContain("CLAUDE_BODY_MARK");
   expect(pluginFiles.some((f) => /sk-[ab]|hooks|mcp/.test(f))).toBe(false);
@@ -58,12 +64,12 @@ test("a workspace without curated skills gets no workspace plugin even when its 
   skill(join(location, ".claude", "skills"), "sk-a");
   const [opts] = await runWorkerViaLead(env, "scout");
   expect(opts.skills.some((n: string) => n.startsWith("main:") || n.includes("sk-a"))).toBe(false);
-  expect(opts.plugins).toHaveLength(1); // only the app-owned skills
+  expect(opts.plugins).toHaveLength(APP_PLUGINS); // only the app-owned skills
 });
 
 test("plugin dirs are removed also when the run throws", async () => {
   const { env, pluginDirs } = await qa(true);
-  expect(pluginDirs).toHaveLength(2);
+  expect(pluginDirs).toHaveLength(APP_PLUGINS + 1);
   expect(pluginDirs.some((d) => existsSync(d))).toBe(false);
   expect(readdirSync(join(env.home, "tmp")).filter((n) => n.startsWith("plugin-"))).toEqual([]);
 });

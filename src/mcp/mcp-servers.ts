@@ -1,7 +1,7 @@
 import { createSdkMcpServer, type Options } from "@anthropic-ai/claude-agent-sdk";
 import type { RoleDefinition } from "../roles/role-types";
 import type { RunCtx } from "./manifest-types";
-import { ALL_SERVERS } from "./manifests";
+import { ALL_SERVERS, EXTERNAL_SERVERS } from "./manifests";
 import { mcpToolName } from "./mcp-tool-names";
 
 /**
@@ -22,13 +22,23 @@ export function buildServers(
       .flatMap((t) => t.create(run) ?? []);
     if (tools.length) servers[manifest.name] = createSdkMcpServer({ name: manifest.name, tools });
   }
+  // An external server: connected only when the role lists one of its tools and the server is configured.
+  for (const ext of EXTERNAL_SERVERS) {
+    const config = ext.tools.some((t) => wanted.has(t)) ? ext.config() : undefined;
+    if (config) servers[ext.name] = config;
+  }
   return servers;
 }
 
 /** Full names (`mcp__<server>__<tool>`) of the MCP tools of a role (the guard allows exactly these). */
 export const mcpToolNamesFor = (role: RoleDefinition): string[] => {
   const wanted = new Set(role.mcpTools ?? []);
-  return ALL_SERVERS.flatMap((m) =>
-    m.tools.filter((t) => wanted.has(t.name)).map((t) => mcpToolName(m.name, t.name)),
-  );
+  return [
+    ...ALL_SERVERS.flatMap((m) =>
+      m.tools.filter((t) => wanted.has(t.name)).map((t) => mcpToolName(m.name, t.name)),
+    ),
+    ...EXTERNAL_SERVERS.flatMap((m) =>
+      m.tools.filter((t) => wanted.has(t)).map((t) => mcpToolName(m.name, t)),
+    ),
+  ];
 };

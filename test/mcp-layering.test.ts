@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { dirname, relative, resolve } from "node:path";
 import { Glob } from "bun";
-import { ALL_SERVERS } from "../src/mcp/manifests";
+import { ALL_SERVERS, EXTERNAL_SERVERS } from "../src/mcp/manifests";
 import { mcpToolNamesFor } from "../src/mcp/mcp-servers";
 import { MCP_TOOL_SERVER, mcpToolNamesOfRole } from "../src/mcp/tool-names-of-role";
 import { ROLES } from "../src/roles/role-registry";
@@ -43,9 +43,10 @@ test("src layers import src/mcp only through constants, tool names and manifest 
 });
 
 test("the guard's leaf tool-name table matches the server manifests", () => {
-  const fromManifests = Object.fromEntries(
-    ALL_SERVERS.flatMap((m) => m.tools.map((t) => [t.name, m.name])),
-  );
+  const fromManifests = Object.fromEntries([
+    ...ALL_SERVERS.flatMap((m) => m.tools.map((t) => [t.name, m.name])),
+    ...EXTERNAL_SERVERS.flatMap((m) => m.tools.map((t) => [t, m.name])),
+  ]);
   expect(MCP_TOOL_SERVER).toEqual(fromManifests);
   // A bare name in two servers would collapse in the table above.
   const names = ALL_SERVERS.flatMap((m) => m.tools.map((t) => t.name));

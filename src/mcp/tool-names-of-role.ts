@@ -6,9 +6,17 @@ import { CREATE_PULL_REQUEST_TOOL } from "./effects/tools/CreatePullRequestTool/
 import { DELETE_PATHS_TOOL } from "./effects/tools/DeletePathsTool/constants";
 import { GIT_PUSH_TOOL } from "./effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "./effects/tools/MergeBranchTool/constants";
+import { FIRECRAWL_INSPECT_PAPER_TOOL } from "./firecrawl/tools/FirecrawlInspectPaperTool/constants";
+import { FIRECRAWL_MAP_TOOL } from "./firecrawl/tools/FirecrawlMapTool/constants";
+import { FIRECRAWL_READ_PAPER_TOOL } from "./firecrawl/tools/FirecrawlReadPaperTool/constants";
+import { FIRECRAWL_RELATED_PAPERS_TOOL } from "./firecrawl/tools/FirecrawlRelatedPapersTool/constants";
+import { FIRECRAWL_SCRAPE_TOOL } from "./firecrawl/tools/FirecrawlScrapeTool/constants";
+import { FIRECRAWL_SEARCH_PAPERS_TOOL } from "./firecrawl/tools/FirecrawlSearchPapersTool/constants";
+import { FIRECRAWL_SEARCH_TOOL } from "./firecrawl/tools/FirecrawlSearchTool/constants";
 import {
   DISCORD_ADMIN_MCP_SERVER,
   EFFECTS_MCP_SERVER,
+  FIRECRAWL_MCP_SERVER,
   MEMORY_MCP_SERVER,
   mcpToolName,
   ORCHESTRATION_MCP_SERVER,
@@ -76,6 +84,13 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
   [GET_PROJECT_CONTEXT_TOOL]: PLAN_MCP_SERVER,
   [PROPOSE_PLAN_REVISION_TOOL]: PLAN_MCP_SERVER,
   [VALIDATE_PLAN_TOOL]: PLAN_MCP_SERVER,
+  [FIRECRAWL_SEARCH_TOOL]: FIRECRAWL_MCP_SERVER,
+  [FIRECRAWL_SCRAPE_TOOL]: FIRECRAWL_MCP_SERVER,
+  [FIRECRAWL_MAP_TOOL]: FIRECRAWL_MCP_SERVER,
+  [FIRECRAWL_SEARCH_PAPERS_TOOL]: FIRECRAWL_MCP_SERVER,
+  [FIRECRAWL_RELATED_PAPERS_TOOL]: FIRECRAWL_MCP_SERVER,
+  [FIRECRAWL_INSPECT_PAPER_TOOL]: FIRECRAWL_MCP_SERVER,
+  [FIRECRAWL_READ_PAPER_TOOL]: FIRECRAWL_MCP_SERVER,
 };
 
 /** Full names (`mcp__<server>__<tool>`) of the MCP tools of a role (the guard allows exactly these). */

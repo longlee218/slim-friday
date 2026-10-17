@@ -22,6 +22,7 @@ exact:
   - MAX_CONCURRENT_RUNS
   # other app secrets
   - GITHUB_PERSONAL_ACCESS_TOKEN
+  - FIRECRAWL_API_KEY # sent only by the SDK's own MCP client (config/firecrawl-config.ts)
   # set per role by the app, never inherited
   - CLAUDE_CODE_AUTO_COMPACT_WINDOW
   - CLAUDE_AUTOCOMPACT_PCT_OVERRIDE

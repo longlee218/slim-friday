@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { HAIKU_MODEL, SONNET_MODEL } from "../src/config/model-ids";
+import { readSkillsLock } from "../src/config/skills-lock";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { mcpToolName, ORCHESTRATION_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
@@ -44,7 +45,13 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, o
     model: HAIKU_MODEL,
     sideEffects: "none",
     dispatchable: true,
-    skills: ["scout", "docs-seeker"],
+    skills: [
+      "scout",
+      "docs-seeker",
+      "firecrawl-deep-research",
+      "firecrawl-research-papers",
+      "firecrawl-market-research",
+    ],
   });
   expect(scout.capabilities).toEqual(expect.arrayContaining(["read", "web"]));
   expect(scout.capabilities).not.toContain("write");
@@ -71,7 +78,9 @@ test("dispatchable workers come from role data: developer, scout and the roster"
 });
 
 test("app skills of scout have no sub-agent or missing-CLI instructions", async () => {
-  for (const n of scout.skills ?? []) {
+  // App skills only (friday source): publisher skills load unmodified; the scout contract covers their tool gaps.
+  const lock = readSkillsLock();
+  for (const n of (scout.skills ?? []).filter((s) => lock[s]?.source.endsWith("/friday"))) {
     const text = await Bun.file(join(PUBLISHER_SKILLS_DIR, n, "SKILL.md")).text();
     expect(text.split("\n").length).toBeLessThan(40);
     expect(text).not.toMatch(/subagent|Explore|Gemini|node scripts|\.claude\//i);

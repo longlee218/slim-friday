@@ -27,6 +27,15 @@ const LOCK = readSkillsLock();
 /** The developer's set: every locked skill except the friday source (the other roles' own skills). */
 const PUBLISHER = Object.entries(LOCK.skills).filter(([, e]) => !e.source.endsWith("/friday"));
 const INSTALLED = PUBLISHER.map(([name, e]) => `${e.source.split("/").pop()}:${name}`);
+/** One plugin per publisher source. */
+const PLUGINS = new Set(PUBLISHER.map(([, e]) => e.source)).size;
+/** The developer's set: every skill of each publisher source it uses (a whole pack, so none is missed). */
+const devSources = new Set(
+  PUBLISHER.filter(([n]) => ROLES.developer?.skills?.includes(n)).map(([, e]) => e.source),
+);
+const DEV_INSTALLED = PUBLISHER.filter(([, e]) => devSources.has(e.source)).map(
+  ([name, e]) => `${e.source.split("/").pop()}:${name}`,
+);
 
 /** A home whose workspace `main` has the given extra yaml and an empty own skills dir. */
 function homeWith(yaml = ""): string {
@@ -52,24 +61,30 @@ test("the real publisher plugin lists every locked skill as <plugin>:<name> and 
   expect(INSTALLED.length).toBeGreaterThan(10);
   const r = dev(homeWith());
   expect([...r.skills].sort()).toEqual([...INSTALLED].sort());
-  const root = r.dirs[0] as string;
+  // One plugin dir per publisher source; a skill lives in the dir of its own plugin.
+  expect(r.dirs).toHaveLength(PLUGINS);
+  const rootOf = (name: string) =>
+    r.dirs.find((d) => existsSync(join(d, "skills", name))) as string;
   // Whole: the copy of every skill hashes to what skills-lock.json pins.
   for (const [name, e] of PUBLISHER)
-    expect([name, skillDirHash(join(root, "skills", name))]).toEqual([name, e.computedHash]);
-  // Exec bits kept: every file of the copy has the exec bits of its source, and some scripts are executable.
-  const copied = files(root).filter((f) => f.startsWith("skills/"));
-  let executable = 0;
-  for (const rel of copied) {
-    const bits = lstatSync(join(root, rel)).mode & 0o111;
-    expect([rel, bits]).toEqual([
-      rel,
-      lstatSync(join(PUBLISHER_SKILLS_DIR, rel.slice(7))).mode & 0o111,
+    expect([name, skillDirHash(join(rootOf(name), "skills", name))]).toEqual([
+      name,
+      e.computedHash,
     ]);
-    if (bits) executable++;
-  }
+  // Exec bits kept: every file of the copy has the exec bits of its source, and some scripts are executable.
+  let executable = 0;
+  for (const root of r.dirs)
+    for (const rel of files(root).filter((f) => f.startsWith("skills/"))) {
+      const bits = lstatSync(join(root, rel)).mode & 0o111;
+      expect([rel, bits]).toEqual([
+        rel,
+        lstatSync(join(PUBLISHER_SKILLS_DIR, rel.slice(7))).mode & 0o111,
+      ]);
+      if (bits) executable++;
+    }
   expect(executable).toBeGreaterThan(0);
   r.cleanup();
-  expect(existsSync(root)).toBe(false);
+  for (const root of r.dirs) expect(existsSync(root)).toBe(false);
 });
 
 test("a new skill in a publisher dir (dir + lock entry) is listed for dev with no code change", () => {
@@ -165,8 +180,8 @@ test("the workspace dir (extra) gets its own plugin next to the publisher one; s
   const r = dev(home);
   expect(r.skills).toContain("main:mine");
   expect(r.skills).toHaveLength(INSTALLED.length + 1);
-  expect(r.dirs).toHaveLength(2);
-  expect(r.plugins).toHaveLength(2);
+  expect(r.dirs).toHaveLength(PLUGINS + 1);
+  expect(r.plugins).toHaveLength(PLUGINS + 1);
   r.cleanup();
   expect(readdirSync(join(home, "tmp"))).toEqual([]);
   expect(dev(homeWith("skills:\n  extra: false\n")).skills).toHaveLength(INSTALLED.length);
@@ -175,13 +190,13 @@ test("the workspace dir (extra) gets its own plugin next to the publisher one; s
   only.cleanup();
 });
 
-test("dev loads the publisher skills (the lock minus the friday source), the lead none; a role without `skills` loads none", () => {
+test("dev loads every skill of its publisher packs, the lead none; a role without `skills` loads none", () => {
   const names = (role: RoleDefinition) => {
     const r = buildRoleSkills(role, "main", homeWith());
     r.cleanup();
     return [...r.skills].sort();
   };
-  expect(names(ROLES.developer as RoleDefinition)).toEqual([...INSTALLED].sort());
+  expect(names(ROLES.developer as RoleDefinition)).toEqual([...DEV_INSTALLED].sort());
   expect(names(ROLES.lead as RoleDefinition)).toEqual([]);
   expect(names({ ...(ROLES.developer as RoleDefinition), skills: undefined })).toEqual([]);
 });

@@ -173,7 +173,7 @@ Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per f
 | `kind` | lead | worker | worker | worker | control |
 | `dispatchable` | no | no | yes | yes | no |
 | `model` | Sonnet | Sonnet | Haiku | Sonnet | Haiku |
-| `skills` | `[]` | `plan-work` | `scout`, `docs-seeker` | 15 named skills | `discord-server-manager` |
+| `skills` | `[]` | `plan-work` | `scout`, `docs-seeker`, `firecrawl-deep-research`, `firecrawl-research-papers`, `firecrawl-market-research` | 15 named skills | `discord-server-manager` |
 | `capabilities` | read | read, skills | read, web, shell, skills | read, write, shell, skills, tasks, mcp, feedback, ask | read, skills, ask |
 | `mcpTools` | 13 (see below) | 12 | 5 | 9 | 3 |
 | `limits.maxAsk`, `limits.maxTurns`, `budgetUsd` | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) |
@@ -198,6 +198,7 @@ Five in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<se
 | `plan` | `GetProjectContext`, `GetAgentCapabilities`, `CreatePlan`, `ValidatePlan`, `ProposePlanRevision`, `GetExecutionProgress`, `AnalyzeBlockers` | planner |
 | `effects` | `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch` | developer |
 | `discord-admin` | `ListSpaces`, `CreateSpaceOrChannel`, `WriteSpaceFile` | discord-manager |
+| `firecrawl` (external, hosted: `https://mcp.firecrawl.dev/v2/mcp`, `src/mcp/firecrawl/server.ts`; each tool name is the `constants.ts` of its own folder `src/mcp/firecrawl/tools/<Name>Tool/`, only the server name is in `mcp-tool-names.ts`) | `firecrawl_search`, `firecrawl_scrape`, `firecrawl_map`, `firecrawl_research_search_papers`, `firecrawl_research_related_papers`, `firecrawl_research_inspect_paper`, `firecrawl_research_read_paper` | scout. Built only when `FIRECRAWL_API_KEY` is set (key in the `Authorization` header, denied to every agent process). The server exposes more tools (crawl, agent, interact, monitor); the guard denies every unlisted one |
 
 - Per run, `buildServers(role, ctx)` (`src/mcp/mcp-servers.ts`) builds only the tools in `role.mcpTools` whose ctx part the run has. A run without a lead part can never hold a lead tool.
 - The guard allow list is derived from the same data: `mcpToolNamesFor(role)` gives `mcp__<server>__<tool>`. The leaf table `src/mcp/tool-names-of-role.ts` must match the manifests (test-enforced).
@@ -207,7 +208,7 @@ Five in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<se
 ## Skills
 
 ### Publisher skills (data)
-- Source: `<app root>/.agents/skills/<name>/`, pinned by `skills-lock.json` (19 entries; 4 with source `friday-app/friday`: `discord-server-manager`, `docs-seeker`, `plan-work`, `scout`). Skills are loaded whole and unmodified.
+- Source: `<app root>/.agents/skills/<name>/`, pinned by `skills-lock.json` (22 entries, one plugin per source: 4 with source `friday-app/friday` (`discord-server-manager`, `docs-seeker`, `plan-work`, `scout`), 3 with source `firecrawl/firecrawl-workflows` (scout's research skills; they name Firecrawl tools, served by the `firecrawl` MCP server, and sub-agents the scout lacks: the scout contract only says to do such steps by hand and never write files, the skills decide the method), the rest `obra/superpowers`). Skills are loaded whole and unmodified.
 - A role lists bare names in `skills: string[]`. A name that is not installed is skipped. No skill name appears in code (test-enforced).
 - One plugin per installed publisher is built per run under `<AGENT_HOME>/tmp/`, narrowed to the role's list, and removed after the run. Startup sweeps stale plugin dirs.
 - A location's `.claude/skills`, hooks and `.mcp.json` are never read. Run settings use `settingSources: []`.

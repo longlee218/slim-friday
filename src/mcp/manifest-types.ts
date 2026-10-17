@@ -1,4 +1,4 @@
-import type { SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
+import type { McpHttpServerConfig, SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
 import type { DiscordAdminContext } from "../discord-setup/discord-admin-context";
 import type { MemoryToolContext } from "../memory/memory-tool-context";
 import type { LeadToolContext } from "../orchestrator/lead/lead-call";
@@ -53,4 +53,17 @@ export interface McpServerManifest {
   tools: McpToolEntry[];
   /** Per-instance setup run once when the server is built (shared state, wrapped hooks). */
   prepare?(ctx: RunCtx): RunCtx;
+}
+
+/**
+ * One external (out-of-process) MCP server: a name, the tools a role may be given, and its SDK config. The server may
+ * expose more tools; the guard allows only the ones a role lists in `mcpTools` (all of them from `tools`).
+ */
+export interface ExternalMcpServer {
+  /** Server name (the `mcp__<name>__` prefix). */
+  name: string;
+  /** Bare names of the tools a role may list. */
+  tools: string[];
+  /** SDK connection config, or undefined when the server is not configured (then it is never built). */
+  config(): McpHttpServerConfig | undefined;
 }

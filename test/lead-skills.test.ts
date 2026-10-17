@@ -20,14 +20,15 @@ afterAll(() => {
   for (const d of homes) rmSync(d, { recursive: true, force: true });
 });
 
-test("scout loads exactly its two skills (scout, docs-seeker) through buildRoleSkills", () => {
+test("scout loads exactly the skills of its role data through buildRoleSkills", () => {
   const r = buildRoleSkills(ROLES.scout!, undefined, home());
+  const listed = [...(ROLES.scout?.skills ?? [])];
   try {
-    // Plugin skill names are `<plugin>:<skill>`; only the two listed in the role's data load.
-    expect(r.skills.map((n) => n.split(":").at(-1)).sort()).toEqual(["docs-seeker", "scout"]);
-    expect(r.skills).toHaveLength(2);
+    // Plugin skill names are `<plugin>:<skill>`; only the ones listed in the role's data load.
+    expect(r.skills.map((n) => n.split(":").at(-1)).sort()).toEqual([...listed].sort());
+    expect(r.skills).toHaveLength(listed.length);
     // Each listed skill is a real copy on disk inside one of the run's plugin dirs.
-    for (const n of ["scout", "docs-seeker"])
+    for (const n of listed)
       expect(r.dirs.some((d) => existsSync(join(d, "skills", n, "SKILL.md")))).toBe(true);
   } finally {
     r.cleanup();

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { EXTERNAL_SERVERS } from "../src/mcp/manifests";
 import { buildServers, mcpToolNamesFor } from "../src/mcp/mcp-servers";
 import {
   MEMORY_MCP_SERVER,
@@ -20,6 +21,9 @@ import { ALL_TOOL_NAMES, FULL_CTX, LEAD_ONLY_TOOLS, toolsByServer } from "./mcp-
 /** Roles that run as workers (dispatched or planner): never hold a lead tool. */
 const WORKERS = ["developer", "scout", "planner"].map((n) => getRole(n));
 
+/** Tools of the external servers: listed in `mcpTools`, served out of process (not held by an in-process instance). */
+const EXTERNAL_TOOLS = EXTERNAL_SERVERS.flatMap((s) => s.tools);
+
 /** Every bare tool name an instance holds, across servers, sorted. */
 const held = (servers: Record<string, unknown>) =>
   Object.values(toolsByServer(servers)).flat().sort();
@@ -27,14 +31,17 @@ const held = (servers: Record<string, unknown>) =>
 test("role mcpTools list only tools some manifest defines (no typo, no dead entry)", () => {
   for (const role of Object.values(ROLES))
     for (const t of role.mcpTools ?? [])
-      expect([role.name, ALL_TOOL_NAMES.includes(t)]).toEqual([role.name, true]);
+      expect([role.name, [...ALL_TOOL_NAMES, ...EXTERNAL_TOOLS].includes(t)]).toEqual([
+        role.name,
+        true,
+      ]);
 });
 
 test("with every ctx part, the tool set of each role is exactly its mcpTools", () => {
   for (const role of Object.values(ROLES))
     expect([role.name, held(buildServers(role, FULL_CTX))]).toEqual([
       role.name,
-      [...(role.mcpTools ?? [])].sort(),
+      [...(role.mcpTools ?? [])].filter((t) => !EXTERNAL_TOOLS.includes(t)).sort(),
     ]);
 });
 
