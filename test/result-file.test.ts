@@ -1,29 +1,23 @@
 import { expect, test } from "bun:test";
-import { lstatSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { logger } from "../src/observability/logger";
 import { closeTurn } from "../src/orchestrator/turns/turn-result";
 import { beginTurn } from "../src/orchestrator/turns/turn-tracker";
-import { RESULT_EXCERPT_CHARS, writeTaskResultFile } from "../src/orchestrator/worker/result-file";
+import { RESULT_EXCERPT_CHARS, resultDocument } from "../src/orchestrator/worker/result-file";
 import { ROLES } from "../src/roles/role-registry";
 import { getItem } from "../src/storage/owned-item-store";
 import { ownedTaskOfTurn } from "../src/storage/owned-task-store";
 import { makeEnv } from "./helpers";
 
-test("file under goals/<goal>/<item>.md: mode 0600, redacted, excerpt capped", () => {
-  const { home } = makeEnv();
+test("document: redacted, header lines, excerpt capped", () => {
   const secret = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789";
-  const reply = `token ${secret}\n${"x".repeat(2000)}`;
-  const { path, excerpt } = writeTaskResultFile(home, {
-    goalId: "g1",
+  const { text, excerpt } = resultDocument({
     itemKey: "main",
     turnStatus: "done",
     outcome: "success",
-    reply,
+    reply: `token ${secret}\n${"x".repeat(2000)}`,
   });
-  expect(path).toBe(join(home, "goals", "g1", "main.md"));
-  expect(statSync(path).mode & 0o777).toBe(0o600);
-  const text = readFileSync(path, "utf8");
   expect(text).toContain("- outcome: success");
   expect(text).not.toContain(secret);
   expect(excerpt.length).toBeLessThanOrEqual(RESULT_EXCERPT_CHARS);
@@ -31,28 +25,15 @@ test("file under goals/<goal>/<item>.md: mode 0600, redacted, excerpt capped", (
 });
 
 test("the heading is the worker's title (one line, redacted); no title = Result <key>", () => {
-  const { home } = makeEnv();
   const base = { itemKey: "main", turnStatus: "done", outcome: "success", reply: "r" };
-  const a = writeTaskResultFile(home, { ...base, goalId: "g1", title: "Giáo án\n8 tuần" });
-  expect(readFileSync(a.path, "utf8").startsWith("# Giáo án 8 tuần\n")).toBe(true);
-  const b = writeTaskResultFile(home, { ...base, goalId: "g2", title: "  " });
-  expect(readFileSync(b.path, "utf8").startsWith("# Result main\n")).toBe(true);
+  expect(resultDocument({ ...base, title: "Giáo án\n8 tuần" }).text).toStartWith(
+    "# Giáo án 8 tuần\n",
+  );
+  expect(resultDocument({ ...base, title: "  " }).text).toStartWith("# Result main\n");
 });
 
-test("a key with path characters cannot leave the goals dir", () => {
-  const { home } = makeEnv();
-  const { path } = writeTaskResultFile(home, {
-    goalId: "../..",
-    itemKey: "../../etc/x",
-    turnStatus: "done",
-    outcome: "success",
-    reply: "r",
-  });
-  expect(path.startsWith(join(home, "goals"))).toBe(true);
-});
-
-test("closeTurn writes the file and stores path + excerpt on the task row", () => {
-  const { db, home } = makeEnv();
+/** Begin a worker turn `t1` in thread `th` (an owned task is created for it). */
+function beginWorkerTurn(db: ReturnType<typeof makeEnv>["db"]) {
   const role = Object.values(ROLES).find((r) => r.kind === "worker")!.name;
   beginTurn(
     db,
@@ -60,51 +41,68 @@ test("closeTurn writes the file and stores path + excerpt on the task row", () =
     { turnId: "t1", threadId: "th", source: "test" },
     { location: "*", role, brief: "b" },
   );
+}
+
+const closeOpts = (home: string) => ({
+  language: "en" as const,
+  stopping: false,
+  t0: Date.now(),
+  location: "*",
+  agentHome: home,
+});
+
+test("closeTurn stores the result as an artifact of the channel and keeps its path on the task row", () => {
+  const { db, home } = makeEnv();
+  beginWorkerTurn(db);
   closeTurn(
     db,
     { turnId: "t1", threadId: "th" },
     { text: "all good https://github.com/o/r/pull/7", outcome: "success", sessionId: undefined },
-    { language: "en", stopping: false, t0: Date.now(), location: "*", agentHome: home },
+    {
+      ...closeOpts(home),
+      artifactScope: { workspace: "main", channel: "general" },
+      resultTitle: "Giáo án 8 tuần",
+    },
   );
   const taskId = ownedTaskOfTurn(db, "t1")!;
   const item = getItem(db, taskId)!;
-  expect(item.resultPath).toBe(join(home, "goals", taskId, "main.md"));
+  expect(item.resultPath).toBe(
+    join(home, "workspaces", "main", "channels", "general", "artifacts", "giao-an-8-tuan.md"),
+  );
   expect(item.resultExcerpt).toContain("all good");
   expect(readFileSync(item.resultPath!, "utf8")).toContain("all good");
+  const row = db
+    .query<{ goal_id: string; thread_id: string; kind: string }, []>(
+      "SELECT goal_id, thread_id, kind FROM artifacts",
+    )
+    .get()!;
+  expect(row).toEqual({ goal_id: taskId, thread_id: "th", kind: "md" });
+  const fts = db.query("SELECT 1 FROM artifacts_fts WHERE artifacts_fts MATCH 'good'").get();
+  expect(fts).not.toBeNull();
 });
 
-test("a planted symlink at the target is replaced; its destination stays untouched", () => {
-  const { home } = makeEnv();
-  const victim = join(home, "victim.txt");
-  writeFileSync(victim, "keep");
-  mkdirSync(join(home, "goals", "g2"), { recursive: true });
-  symlinkSync(victim, join(home, "goals", "g2", "main.md"));
-  const { path } = writeTaskResultFile(home, {
-    goalId: "g2",
-    itemKey: "main",
-    turnStatus: "done",
-    outcome: "success",
-    reply: "fresh",
-  });
-  expect(readFileSync(victim, "utf8")).toBe("keep");
-  expect(lstatSync(path).isSymbolicLink()).toBe(false);
-  expect(readFileSync(path, "utf8")).toContain("fresh");
-});
+test("no title: the file is named result-<item>; no scope: nothing is written, the excerpt stays", () => {
+  const { db, home } = makeEnv();
+  beginWorkerTurn(db);
+  closeTurn(
+    db,
+    { turnId: "t1", threadId: "th" },
+    { text: "fine", outcome: "success", sessionId: undefined },
+    { ...closeOpts(home), artifactScope: { workspace: "main" } },
+  );
+  const item = getItem(db, ownedTaskOfTurn(db, "t1")!)!;
+  expect(item.resultPath).toBe(join(home, "workspaces", "main", "artifacts", "result-main.md"));
 
-test("a symlinked goal dir is refused; the header names the sanitized key", () => {
-  const { home } = makeEnv();
-  const elsewhere = join(home, "elsewhere");
-  mkdirSync(elsewhere);
-  mkdirSync(join(home, "goals"), { recursive: true });
-  symlinkSync(elsewhere, join(home, "goals", "g3"));
-  const input = {
-    goalId: "g3",
-    itemKey: "a/b",
-    turnStatus: "done",
-    outcome: "success",
-    reply: "r",
-  };
-  expect(() => writeTaskResultFile(home, input)).toThrow(/symlink/);
-  const { path } = writeTaskResultFile(home, { ...input, goalId: "g4" });
-  expect(readFileSync(path, "utf8")).toContain("# Result a_b");
+  const other = makeEnv();
+  beginWorkerTurn(other.db);
+  closeTurn(
+    other.db,
+    { turnId: "t1", threadId: "th" },
+    { text: "fine", outcome: "success", sessionId: undefined },
+    closeOpts(other.home),
+  );
+  const bare = getItem(other.db, ownedTaskOfTurn(other.db, "t1")!)!;
+  expect(bare.resultPath).toBeNull();
+  expect(bare.resultExcerpt).toBe("fine");
+  expect(other.db.query("SELECT COUNT(*) AS n FROM artifacts").get()).toEqual({ n: 0 });
 });

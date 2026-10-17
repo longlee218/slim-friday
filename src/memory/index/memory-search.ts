@@ -4,11 +4,11 @@ import { buildMatch, queryTerms } from "./fold-text";
 import type { Source } from "./memory-ids";
 
 /** Query limits (named constants, one place). */
-const SEARCH_MAX_QUERY_CHARS = 200;
-const SEARCH_MAX_TERMS = 12;
+export const SEARCH_MAX_QUERY_CHARS = 200;
+export const SEARCH_MAX_TERMS = 12;
 /** Length of a snippet, in characters (the FTS5 token window is wider; the text is clipped after). */
 const SNIPPET_CHARS = 200;
-const SNIPPET_TOKENS = 32;
+export const SNIPPET_TOKENS = 32;
 /** Longest shown section / block label. */
 const LABEL_CHARS = 80;
 
@@ -40,7 +40,7 @@ export interface Hit {
  * Snippet in the ORIGINAL spelling. FTS5 cut `snip` out of the folded text; folding keeps the length, so the same
  * window of `orig` is shown. If the window cannot be located, the start of `orig` is shown.
  */
-function origSnippet(snip: string, folded: string, orig: string): string {
+export function origSnippet(snip: string, folded: string, orig: string): string {
   const core = snip.replace(/^\.\.\./, "").replace(/\.\.\.$/, "");
   const at = core === "" ? -1 : folded.indexOf(core);
   const text = at >= 0 ? orig.slice(at, at + core.length) : orig;

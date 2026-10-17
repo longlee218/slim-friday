@@ -45,6 +45,8 @@ export function workspacePaths(agentHome: string) {
         memory: join(root, "MEMORY.md"),
         /** Owner-curated skills (`skills/<name>/SKILL.md`): the only skills any run of this workspace gets. */
         skills: join(root, "skills"),
+        /** Artifacts of a run with no mapped channel (the channel level is `channel(name).artifacts`). */
+        artifacts: join(root, "artifacts"),
         /** Working dir of runs that are not bound to one location. */
         cwd: join(root, "cwd"),
         tasks,
@@ -70,6 +72,8 @@ export function workspacePaths(agentHome: string) {
             identity: join(croot, "IDENTITY.md"),
             soul: join(croot, "SOUL.md"),
             user: join(croot, "USER.md"),
+            /** Titled documents of the channel (`<llm-title>[-vN].<ext>`), owner-only (0700 dir, 0600 files). */
+            artifacts: join(croot, "artifacts"),
           };
         },
         /** Per-location dir `locations/<name>/` (only MEMORY.md lives in it; the location's own files are at its `path`). */

@@ -15,6 +15,24 @@ const cols = (db: Database, table: string): string[] =>
 /** Every table the stores use and the columns they read or write (dropped ones are asserted absent below). */
 const EXPECTED: Record<string, string[]> = {
   approvals: ["id", "turn_id", "tool", "summary", "decision", "requested_at", "decided_at"],
+  artifacts: [
+    "id",
+    "workspace",
+    "channel",
+    "goal_id",
+    "task_id",
+    "thread_id",
+    "title",
+    "name",
+    "kind",
+    "origin",
+    "path",
+    "location",
+    "producer_role",
+    "version",
+    "size",
+    "created_at",
+  ],
   effect_log: [
     "id",
     "thread_id",
@@ -174,12 +192,12 @@ test("fresh db has exactly the baseline tables and columns", () => {
     expect(cols(db, table).sort(), table).toEqual([...expected].sort());
   const tables = db
     .query<{ name: string }, []>(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'memory_fts_%'",
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'memory_fts_%' AND name NOT LIKE 'artifacts_fts_%'",
     )
     .all()
     .map((r) => r.name);
   expect(tables.sort()).toEqual(
-    [...Object.keys(EXPECTED), "__drizzle_migrations", "memory_fts"].sort(),
+    [...Object.keys(EXPECTED), "__drizzle_migrations", "artifacts_fts", "memory_fts"].sort(),
   );
   // Dropped with the v8 chain: no proposals/meta table, no dead columns.
   expect(tables).not.toContain("proposals");
@@ -208,7 +226,7 @@ test("reopening a file db is a no-op and a foreign db is refused", () => {
     a.close();
     const b = openDb(file);
     expect(b.query("SELECT thread_id FROM threads").all()).toHaveLength(1);
-    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 2 });
+    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 4 });
     b.close();
 
     const foreign = join(dir, "foreign.db");

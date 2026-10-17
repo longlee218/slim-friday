@@ -167,6 +167,10 @@ export async function startWorker(
             language,
             taskId: item.id,
             location,
+            artifactScope: {
+              workspace: ctx.workspace,
+              ...(ctx.channel && { channel: ctx.channel }),
+            },
             delivery: expectedDelivery(db, role, goalId),
             slot,
             resultKind: () => sink.report?.status as ResultKind | undefined, // the schema enum is RESULT_KINDS

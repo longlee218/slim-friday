@@ -12,6 +12,7 @@ const LIMIT_MODULES = [
   "../orchestrator/lead/lead-limits",
   "../orchestrator/budget/task-budget",
   "../runtime/run-supervisor",
+  "../artifacts/artifact-limits",
 ];
 
 /**

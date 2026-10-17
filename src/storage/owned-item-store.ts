@@ -32,7 +32,7 @@ export interface ItemRow {
   brief: string | null;
   /** Typed result kind of the last run; null until one ended. */
   resultKind: ResultKind | null;
-  /** Result file of the last run (under AGENT_HOME/goals); null until one ended. */
+  /** Artifact file of the last run's result (the workspace channel's artifacts dir); null until one ended or when none was stored. */
   resultPath: string | null;
   /** Redacted excerpt (<= 600 chars) of that result; null until one ended. */
   resultExcerpt: string | null;
@@ -85,11 +85,11 @@ export function bumpDispatch(db: Database, id: string): number {
   return getItem(db, id)?.dispatchCount ?? 0;
 }
 
-/** Record where the result of a finished run lives: file path + redacted excerpt (+ kind when typed). */
+/** Record where the result of a finished run lives: artifact file path (null = none was stored) + redacted excerpt (+ kind when typed). */
 export function setTaskResult(
   db: Database,
   id: string,
-  r: { path: string; excerpt: string; kind?: ResultKind },
+  r: { path: string | null; excerpt: string; kind?: ResultKind },
 ): void {
   db.query(
     "UPDATE owned_tasks SET result_path = ?, result_excerpt = ?, result_kind = COALESCE(?, result_kind) WHERE id = ?",

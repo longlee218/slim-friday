@@ -162,6 +162,6 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 - **Redact before logging and before sending to Discord.** Replies, logs, attachments and stored text pass `src/observability/redact.ts`.
 - **Deny list plus envelope.** Hard denies are listed in [system-architecture.md, Guards](system-architecture.md#guards). Keep them narrow. Cover a new rule in `test/deny-dangerous.test.ts`.
 - **Child env deny list.** The agent process never inherits the bot's own secrets (`src/config/data/child-env-deny.yaml`). Workers also lose GitHub tokens and the SSH agent socket.
-- **File modes:** the database, logs and per-run temp files are owner-only (0600 files, 0700 dirs). Result files under `goals/` follow the same rule.
+- **File modes:** the database, logs and per-run temp files are owner-only (0600 files, 0700 dirs). Artifact files (`workspaces/<ws>/channels/<channel>/artifacts/`) follow the same rule.
 - **Owner only:** the bot obeys `OWNER_DISCORD_ID` in the pinned guild.
 - **Known limits (accepted):** the shell is bounded only by the OS sandbox (live-probed 2026-10-16 through direct SDK calls; the full bot path is not exercised). `.git` hooks and config are writable by design; repo code run by runners (tests, scripts) is not filtered.

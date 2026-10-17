@@ -192,6 +192,15 @@ All in `src/orchestrator/lead/lead-limits.ts` (zod shapes and the relay enforce 
 - Other informational limits: steers per run pending 5 / holds 2 / late resumes 1 (`runtime/run-input-channel.ts`); delete-check tree scan 100,000 entries (`policy/tree-totals.ts`); SDK compaction window 1,000,000 tokens at 75% (`runtime/sdk-env.ts`).
 - Memory caps (informational): root 5000, space 5000, channel 3000, location 8000, all locations 16000 chars (`memory/location-memory.ts`); persona 8000 chars (`memory/persona.ts`).
 
+## Artifacts
+
+Files: `artifacts/artifact-limits.ts`. An artifact body has no size cap (the owner decided); only its search index rows are sized.
+
+| Name | Value | At the limit |
+|---|---|---|
+| `ARTIFACT_CHUNK_CHARS` | <!-- limit:ARTIFACT_CHUNK_CHARS=2000 -->2000 chars per FTS row | the body is split at paragraph borders, a longer paragraph in fixed windows; one hit per artifact |
+| Search query / terms | 200 chars / 12 terms (shared with memory search, `memory/index/memory-search.ts`, not drift-checked) | query clipped, extra terms dropped |
+
 ## Discord Output
 
 Informational (files `ingress/discord-message-rules.ts`, `ingress/reply-bubbles.ts`, `ingress/inline-report.ts`, `ingress/attachment-name.ts`). Not scanned by the drift test (no marker).

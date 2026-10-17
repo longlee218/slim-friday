@@ -229,10 +229,11 @@ The store is one SQLite file, `<AGENT_HOME>/data/agent.db`, built from the Drizz
 ### Reset (once, before the first start on this build)
 1. Stop the bot: `launchctl bootout gui/$(id -u)/com.friday.agent`, or stop `bun run start`. `pgrep -f src/index.ts` prints nothing.
 2. Check `echo "$AGENT_HOME"` (a real directory outside every location), then delete it: `rm -rf "$AGENT_HOME"`. This removes `data/agent.db` with its `-wal` and `-shm`, the workspaces, memory, logs and `discord.yaml`. Nothing is carried over: copy by hand anything you want to keep first.
+   Artifact phase 3 adds tables (`artifacts`, `artifacts_fts`) to the baseline: a db from before it is reset like any older one. Old result files under `goals/<goalId>/` are not migrated; new results go to `workspaces/<ws>/channels/<channel>/artifacts/`.
 3. Start: `bun run start`, or `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.friday.agent.plist`.
 
 ### What the first start creates
-- `data/agent.db` in WAL mode, owner-only, with every table, the FTS5 `memory_fts` index and Drizzle's `__drizzle_migrations` log. A later start on the same db is a no-op.
+- `data/agent.db` in WAL mode, owner-only, with every table (including `artifacts`), the FTS5 `memory_fts` and `artifacts_fts` indexes and Drizzle's `__drizzle_migrations` log. A later start on the same db is a no-op.
 - The slash commands, re-registered (overwritten) on every start: see [Native slash commands](#native-slash-commands).
 - Without `discord.yaml` there are no ops channels and no admin commands. Run `bun run bootstrap:discord` (it refuses names that already exist: rename or delete the old channels by hand first), then `/init-workspace` again.
 

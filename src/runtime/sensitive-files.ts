@@ -12,6 +12,19 @@ const DIRS = new Set(SENSITIVE_PATHS.dirs.map((d) => d.toLowerCase()));
 const SKIP = new Set(SENSITIVE_PATHS.skip.map((d) => d.toLowerCase()));
 
 /**
+ * True when a path relative to a granted dir is sensitive: its basename matches a sensitive file glob, or any dir segment
+ * above it is a sensitive dir (see `data/sensitive-paths.yaml`). Case-insensitive; one path, no scan.
+ */
+export function isSensitivePath(rel: string): boolean {
+  const parts = rel
+    .split(/[\\/]/)
+    .filter(Boolean)
+    .map((p) => p.toLowerCase());
+  const name = parts.pop() ?? "";
+  return parts.some((p) => DIRS.has(p)) || DIRS.has(name) || FILE_GLOBS.some((g) => g.match(name));
+}
+
+/**
  * Sensitive files and dirs (see `data/sensitive-paths.yaml`) inside `root`: a matching file, or a matching dir as a whole.
  * Skipped dirs (node_modules, .git...) are not entered. Bounded by depth and entry count; `truncated` is true when the entry cap cut the search short (the rest of the tree is not covered).
  */

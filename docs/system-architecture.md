@@ -43,7 +43,7 @@ Discord message
         → the lead posts the reply (the only owner-facing voice)
 
 Worker run (detached; survives the owner message)
- └─ ReportResult → result file goals/<goalId>/<itemKey>.md + thread_events row
+ └─ ReportResult → result artifact (workspaces/<ws>/channels/<channel>/artifacts/<title>.md) + thread_events row
     → announce (2 s quiet window) → lead run reads the events → lead tells the owner
 ```
 - Slash commands (the only command form): `/stop`, `/status`, `/purge`, `/limits [role]`, `/find <keywords>`, `/init-workspace <name>`, `/init-channel <space>/<name>`.
@@ -138,7 +138,7 @@ Worker run (detached; survives the owner message)
 ### Dispatch and result flow
 1. The lead calls `DispatchAgent`. The policy checks the shape; goal and item rows are written through the effect port.
 2. `dispatch-ready` starts each item whose dependencies completed. The worker run is detached.
-3. The worker calls `ReportResult`. Code writes `<AGENT_HOME>/goals/<goalId>/<itemKey>.md` (dir 0700, file 0600) and appends a `thread_events` row.
+3. The worker calls `ReportResult`. Code stores the result as an artifact of the run's workspace channel (`workspaces/<ws>/channels/<channel>/artifacts/<title-slug>[-vN].md`, dir 0700, file 0600; `owned_tasks.result_path` keeps its path) and appends a `thread_events` row.
 4. The announcer waits 2 s for more events; one lead run reads them.
 5. The lead reports to the owner, starts the next step, or asks the owner (`AskOwner`).
 6. The goal settles when every item has ended. A failed run goes through the failure policy first (see [Failure classes](#failure-classes-and-auto-resume)): resumed or held, never silently lost.
@@ -325,7 +325,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 
 ## Storage
 - DB: `<AGENT_HOME>/data/agent.db` (SQLite, WAL).
-- Schema: Drizzle. TypeScript schema in `src/storage/schema/*.ts` → `bun run db:generate` (`drizzle-kit generate`) → `src/storage/migrations/`. Migrations: `0000_baseline` (generated) and `0001_memory_fts` (hand-written FTS5 `memory_fts`). The stores keep raw `bun:sqlite` SQL in `src/storage/*-store.ts`.
+- Schema: Drizzle. TypeScript schema in `src/storage/schema/*.ts` → `bun run db:generate` (`drizzle-kit generate`) → `src/storage/migrations/`. Migrations: `0000_baseline` and `0002_artifacts` (generated), `0001_memory_fts` and `0003_artifacts_fts` (hand-written FTS5 `memory_fts`, `artifacts_fts`; same tokenizer literal as `FTS_TOKENIZER`). The stores keep raw `bun:sqlite` SQL in `src/storage/*-store.ts`.
 - Baseline only: no upgrade path and no backup. `src/storage/db.ts` refuses a database that has tables but no `__drizzle_migrations` table. Reset: [discord-setup.md, First start and reset](discord-setup.md#first-start-and-reset).
 
 | Table | Schema file | Purpose |
@@ -344,6 +344,10 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 | `thread_summaries` | `threads.ts` | rollover summary and cycle counters per thread |
 | `memory_files` | `memory.ts` | index of memory files (path, space, mtime, size) |
 | `memory_fts` | `0001_memory_fts.sql` | FTS5 full-text index of memory |
+| `artifacts` | `artifacts.ts` | one row per artifact: workspace, channel, title, `name`, `kind`, `origin` (`store` file or `repo` reference), path, `version`; goal, task and thread ids are lookup columns only |
+| `artifacts_fts` | `0003_artifacts_fts.sql` | FTS5 index of text artifacts (`md`, `txt`, `csv`; chunks of 2000 chars; accents folded like memory) |
+
+- Artifacts (`src/artifacts/`, `storage/artifact-store.ts`): owned by the workspace channel, not the goal. `writeArtifact` writes `channels/<channel>/artifacts/<title-slug>[-vN].<ext>` (workspace-level `artifacts/` when the run has no channel; no workspace = no write), redacted, atomic (`safe-write.ts`, shared symlink refusal), no size cap. The same name in a channel gives `-v2`; older files stay. `registerRepoArtifact` references a file of a granted location (never copied): real path inside the location, symlink escape and sensitive files (`isSensitivePath`) refused. `searchArtifacts` is scoped to the run's workspace (and channel). `html` and `diff` are stored, not indexed.
 
 - Turn status values are declared in `src/storage/schema/turns.ts`.
 
@@ -388,14 +392,14 @@ $AGENT_HOME/                       real directory outside every location and git
 ├── AGENTS.md IDENTITY.md SOUL.md USER.md MEMORY.md BOOTSTRAP.md MEMORY.pending.md
 ├── discord.yaml                   ops channel ids and control channels
 ├── data/agent.db                  SQLite (WAL)
-├── goals/<goalId>/<itemKey>.md    result file of each finished item
 ├── logs/app.*.jsonl, logs/tasks/<taskId>.jsonl
 ├── tmp/                           skill plugins, attachment copies, control scratch (swept at startup)
 ├── trash/<goalId>/                DeletePaths trash, 7 days
 ├── backups/persona/               backups of persona files written by WriteSpaceFile (newest 10 per file)
 └── workspaces/<ws>/
     ├── workspace.yaml             description, channels, locations, skills.extra
-    ├── channels/<name>/           MEMORY.md; optional persona overrides
+    ├── channels/<name>/           MEMORY.md; optional persona overrides; artifacts/<title>[-vN].<ext>
+    ├── artifacts/                 artifacts of runs with no mapped channel
     ├── skills/                    owner-curated skills
     ├── cwd/                       neutral cwd of runs without a location
     ├── tasks/<taskId>/scratch/    per-task scratch

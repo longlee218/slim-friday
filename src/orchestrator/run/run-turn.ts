@@ -12,6 +12,7 @@ import { errText } from "../../observability/redact";
 import type { ResultKind } from "../../storage/owned-item-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import type { DeliveryExpectation } from "../turns/completion";
+import type { ArtifactScope } from "../turns/result-file-save";
 import { closeTurn, type FlowResult } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
 import { registerRun } from "./live-runs";
@@ -47,7 +48,9 @@ export interface DetachedOpts {
   slot: () => void;
   /** Typed result the worker reported (read after the run ends): it decides the task status over the derived one. */
   resultKind: () => ResultKind | undefined;
-  /** Title the worker reported (read after the run ends): the heading of its result file. */
+  /** Workspace and channel of the run: its result artifact is stored in that channel. */
+  artifactScope?: ArtifactScope;
+  /** Title the worker reported (read after the run ends): the heading and file name of its result artifact. */
   resultTitle?: () => string | undefined;
   /** Goal-item failure policy (see `closeTurn`): a failed run resumes or holds its item instead of failing it. */
   failurePolicy?: (res: FlowResult, status: string) => boolean;
@@ -110,6 +113,7 @@ export function runDetached(deps: DispatchDeps, input: RoleRunInput, o: Detached
           location: getLogContext().location ?? o.location, // tool hooks move an unpinned task to the location it worked in
           ...(o.delivery && { delivery: o.delivery }),
           agentHome: config.agentHome,
+          ...(o.artifactScope && { artifactScope: o.artifactScope }),
           resultKind: o.resultKind(),
           resultTitle: o.resultTitle?.(),
           ...(o.failurePolicy && { failurePolicy: o.failurePolicy }),

@@ -20,7 +20,7 @@ import { setSession } from "../../storage/session-store";
 import { moveTaskTo, settleTaskAfterTurn } from "../../tasks/task-resolver";
 import { budgetHitReply } from "../budget/budget-hit";
 import { type DeliveryExpectation, missingEffects } from "./completion";
-import { saveResultFile } from "./result-file-save";
+import { type ArtifactScope, saveResultFile } from "./result-file-save";
 
 /* The result of a role run, and the bookkeeping that closes a run. */
 
@@ -141,11 +141,13 @@ export function closeTurn(
     t0: number;
     location: string;
     language: OwnerLanguage;
-    /** AGENT_HOME: where the result file of a task run goes (absent = no file). */
+    /** AGENT_HOME: the artifact store root where the result of a task run goes (absent = no result recorded). */
     agentHome?: string;
+    /** Workspace and channel the result artifact belongs to (absent = no store write, only the excerpt is kept). */
+    artifactScope?: ArtifactScope;
     /** Typed result the worker reported: it settles the task (over the derived status) when the turn ended `done`. */
     resultKind?: ResultKind;
-    /** Title the worker gave its result (the result file's heading). */
+    /** Title the worker gave its result (heading and artifact name). */
     resultTitle?: string;
     /** Delivery effects the approved plan promised (workers): a COMPLETED report of the goal's last item without their `effect_log` rows is not delivered. */
     delivery?: DeliveryExpectation;
@@ -180,7 +182,9 @@ export function closeTurn(
     saveResultFile(
       db,
       o.agentHome,
+      o.artifactScope,
       ids.turnId,
+      ids.threadId,
       status,
       res.outcome,
       reply,

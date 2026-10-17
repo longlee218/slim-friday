@@ -115,6 +115,9 @@ const TASK_ID_OK = [
   "run-metrics-store.ts", // cost of the runs of owned tasks (turns.owned_task_id)
   // thread_events.task_id: the goal / task an outbox event is about (schema v8)
   "event-store.ts",
+  // artifacts.task_id: the task that produced the artifact (a lookup column, owner decision)
+  "artifacts.ts",
+  "artifact-store.ts",
   "dispatch-ready.ts", // writes the outbox event of a dispatched task
 ];
 
