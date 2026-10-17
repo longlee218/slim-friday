@@ -54,16 +54,21 @@ export const FULL_CTX: RunCtx = {
   admin: {} as never,
 };
 
-/** Tool names held by each built server: `{ <server>: [bare tool names, sorted] }`. */
+/**
+ * Tool names held by each built IN-PROCESS server: `{ <server>: [bare tool names, sorted] }`. An external (http) server,
+ * connected when its key is in the env, holds no tools here, so it is left out.
+ */
 export function toolsByServer(servers: Record<string, unknown>): Record<string, string[]> {
   return Object.fromEntries(
-    Object.entries(servers).map(([name, s]) => [
-      name,
-      // Test-only: `_registeredTools` is an undocumented MCP SDK internal (no public list call on the instance).
-      Object.keys(
-        (s as { instance: { _registeredTools: object } }).instance._registeredTools,
-      ).sort(),
-    ]),
+    Object.entries(servers)
+      .filter(([, s]) => (s as { type?: string }).type !== "http")
+      .map(([name, s]) => [
+        name,
+        // Test-only: `_registeredTools` is an undocumented MCP SDK internal (no public list call on the instance).
+        Object.keys(
+          (s as { instance: { _registeredTools: object } }).instance._registeredTools,
+        ).sort(),
+      ]),
   );
 }
 
