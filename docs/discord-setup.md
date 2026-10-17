@@ -194,7 +194,7 @@ Type in `#ops-control`. One string argument (`path`).
 - Creating: `CreateSpaceOrChannel` is create-only (same name rules and private overwrites as `/init-workspace` and `/init-channel`). It asks for a confirm button first. No delete or rename.
 - Writing a persona file (`USER.md`, `IDENTITY.md`, `AGENTS.md`, `SOUL.md`, `MEMORY.md`): the owner gets a diff (`.txt` attachment) and confirms. No answer, a "no", or a timeout writes nothing. The old file is backed up to `$AGENT_HOME/backups/persona/`.
 - Session: one per control channel; `stop` aborts the run; a fresh session after 24 h idle. A run interrupted by a restart gets no Continue button.
-- Limits: each run has a 0.5 USD budget and at most 4 owner questions. The agent has no Discord token, no shell and no web.
+- Limits: each run has a budget and an owner-question cap (see [limits](limits-and-stop-conditions.md)). The agent has no Discord token, no shell and no web.
 
 ## Threads: names, manual threads, titles
 - A thread the bot opens (a message in a mapped channel, or a slash command) starts as `⏳ MM-DD HH:MM` (placeholder, local time). The first message is never the name.
@@ -310,7 +310,7 @@ remove all files in src/
 Expected (not verified live): the worker is told to use the `DeletePaths` effect tool for deletes (a raw `rm` inside the granted dirs is not filtered by the app), which moves files to the trash for 7 days (`/purge` empties it).
 
 ### Test 8: Busy limit
-Long runs in several threads at once. The run limiter allows `MAX_CONCURRENT_RUNS` (30, constant) runs; a thread whose run holds it answers from the busy-thread path.
+Long runs in several threads at once. The run limiter has a lead pool and a worker pool (constants, see [limits](limits-and-stop-conditions.md)); a thread whose run waits for a slot answers from the busy-thread path.
 
 ## Commands (slash only)
 Text forms (`stop`, `go`, `init:workspace:`, `remember:`, `compact memory`, ...) and the Resume button are gone.
@@ -381,7 +381,7 @@ locations:
 - Pushes, PRs and merges go through the effect tools `GitPush`, `CreatePullRequest` and `MergeBranch`, each one logged in `effect_log`. Force push and pushes to `main` are never granted (risk class R4).
 - A PR or merge happens only when the approved plan or the envelope allows it.
 - A reply or a new message after a run goes to the lead, which decides whether it is a new task.
-- The per-run budget is 4.5 USD (constant in the developer role; the task ceiling is 6.0 USD). Resume and `/go +<usd>` are gone: a run that stops is ended, and a new request starts a new task.
+- The per-run budget is a constant in the developer role and the task ceiling is in [limits](limits-and-stop-conditions.md). Resume and `/go +<usd>` are gone: a run that stops is ended, and a new request starts a new task.
 - No run timeout exists. Stop a run with `/stop`.
 
 ### Known limits

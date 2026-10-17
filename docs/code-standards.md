@@ -27,7 +27,7 @@ bun run bootstrap:discord   # create the ops channels
    - Subagents are the SDK built-in `Agent` tool. The app defines no subagent types.
    - Adding or removing a skill is a data change. A skill name in code is a bug.
 4. **Tools are data.** An MCP tool is one folder, one manifest line, and its name in the `mcpTools` of each role that may use it. A tool adapter is thin; the logic lives in a domain module (see [MCP Tools](#mcp-tools)).
-5. **Limits live in the role file.** `MAX_ASK` and `BUDGET_USD` are named constants at the top of `src/roles/builtin/<role>-role.ts`. The task ceiling `TASK_BUDGET_USD` lives only in `src/config/model-routing.ts`. Other run-wide caps are constants in the module that owns them.
+5. **Limits live in the role file.** `MAX_ASK`, `MAX_TURNS` and `BUDGET_USD` are named constants at the top of `src/roles/builtin/<role>-role.ts`. The task ceiling `TASK_BUDGET_USD` lives only in `src/config/model-routing.ts`. Other run-wide caps are constants only in the config limit files (`lead-caps.ts`, `run-caps.ts`, `resilience-caps.ts`, `model-routing.ts`) or `orchestrator/lead/lead-limits.ts`. Every limit is documented in [limits-and-stop-conditions.md](limits-and-stop-conditions.md): adding or changing a number without its `<!-- limit:NAME=VALUE -->` marker fails `test/limits-doc-drift.test.ts`.
 6. **Guard layers, by run kind.**
    - `src/policy/` deny list: every run. It returns allow, ask or deny per tool call; hard denies are never approvable.
    - Envelope (`src/policy/envelope*.ts`): dispatched workers only. R2/R3 work goes only through the effect tools; their Bash is not parsed, the OS sandbox (`src/runtime/worker-sandbox.ts`) bounds it.
@@ -116,6 +116,7 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 | No stage concept in `src/` | `test/no-stage-concept.test.ts` |
 | Tool names come from constants (`sdk-tool-names.ts`, MCP `constants.ts`); no name literal elsewhere | `test/tool-name-literals.test.ts`, `test/tool-names.test.ts`, `test/tool-catalog.test.ts` |
 | Role limits only in role files; `TASK_BUDGET_USD` only in `model-routing.ts` | `test/role-limits-declared-in-role-files.test.ts` |
+| Every limit constant and role limit has a matching marker in the limits doc | `test/limits-doc-drift.test.ts` |
 | Engine reads no role names; layering holds | `test/engine-layering.test.ts`, `test/role-leftover-scan.test.ts`, `test/mcp-layering.test.ts` |
 | No `dev` or `assistant` role literal in `src/` | `test/retired-naming-scan.test.ts` |
 | Retired names stay out of `src/`, `test/` and the living docs (the changelog is exempt) | `test/retired-naming-scan.test.ts`, `test/handoff-retired-scan.test.ts` |

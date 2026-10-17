@@ -35,7 +35,7 @@ Discord message
  │    thread, chat channel or mention → handle-message (src/orchestrator/handle-message.ts)
  ├─ commands, no model: /stop, /status, /purge; /find <keywords> (inline)
  └─ every other owner message → lead queue (src/orchestrator/lead/lead-queue.ts)
-      debounce 800 ms; one lead run per thread; global run limiter 30
+      debounce and lead pool: see [limits](limits-and-stop-conditions.md); one lead run per thread; worker pool: see [limits](limits-and-stop-conditions.md)
       lead run (lead/lead-run.ts): AGENTS.md + TEAM.md + persona + data block + lead tools
         answers itself | DispatchAgent | RequestPlan → ApprovePlan | TaskStatus | SteerTask
         | CancelTask | RetryTask | AskOwner | ForwardResult | SetThreadTitle
@@ -97,7 +97,7 @@ Worker run (detached; survives the owner message)
 
 | Tool | Does | Rule |
 |---|---|---|
-| `DispatchAgent` | start work: DIRECT or DELEGATE | `DELEGATE_MAX` 3, `CHAIN_CAP` 3 starts per owner message, `DISPATCHES_PER_RUN` 1; a bigger shape → `NEEDS_PLAN` |
+| `DispatchAgent` | start work: DIRECT or DELEGATE | `DELEGATE_MAX`, `CHAIN_CAP` (starts per owner message), `DISPATCHES_PER_RUN` (values: [limits](limits-and-stop-conditions.md)); a bigger shape → `NEEDS_PLAN` |
 | `RequestPlan` | start the planner (PLAN) | the planner writes a versioned plan; code validates it |
 | `ApprovePlan` | owner approves a valid plan (`planId`, `version`) | the plan must be `valid`; one yes for the whole plan |
 | `TaskStatus` | read goal and task state | facts come from the store |
@@ -110,7 +110,7 @@ Worker run (detached; survives the owner message)
 | `RegisterLocation` | register the directory the owner named as a location of the space and link this channel | owner turn only, path written in the owner's message, 1 per run; asks Yes/No every call; never a stored grant (see [Guards](#guards)) |
 | `MemorySave` | save a durable note | lead only (see [Memory and Persona](#memory-and-persona)) |
 
-- Lead role data: `MAX_ASK` 0, `BUDGET_USD` 0.75, `noSubagents`, `capabilities: read` (no shell, no write).
+- Lead role data: `MAX_ASK`, `MAX_TURNS`, `BUDGET_USD` (values: [limits](limits-and-stop-conditions.md)), `noSubagents`, `capabilities: read` (no shell, no write).
 - Worker results, planner results and events are DATA in the lead's prompt, never instructions.
 - Transient failures resume by code (the lead does nothing). A held item is the lead's decision: `RetryTask` (same session, with a note) or `CancelTask`. For a task that already ended, "go" or "continue" re-dispatches the role with a self-contained brief (rule in `roles/prompts/team-md.ts`).
 
@@ -128,8 +128,8 @@ Worker run (detached; survives the owner message)
 - Item states (`src/tasks/task-state-machine.ts`): `pending → ready → running → waiting_user | blocked | completed | failed | cancelled`, plus `running → ready` (automatic resume). `open` is the start of a standalone task. `completed`, `failed` and `cancelled` are terminal.
 - **Held item** = `blocked` with `result_kind` FAILED: it failed for a reason the lead must decide on. It is not terminal: its dependents stay `pending` and the goal stays `open` until `RetryTask` or `CancelTask`.
 - `attempt` counts automatic resumes of the current dispatch (reset by `RetryTask`); `dispatch_count` counts first starts and `RetryTask` (automatic resumes do not count). An item dispatched 3 times (`MAX_DISPATCHES_PER_ITEM`) fails instead of starting again.
-- Plans (`work_plans`, versioned): `MAX_ITEMS` 8 per plan, `MAX_REVISIONS` 3. The validator rejects cycles, unknown or non-dispatchable roles, locations outside the space, and over-budget items.
-- PLAN execution runs independent items in parallel (L5 scheduler, `orchestrator/worker/scheduler.ts`): FIFO by creation order, at most 2 running per thread, per-role `concurrency` (role data), one writer (`sideEffects: "location"`) per location, 30 global runs; a dependent item starts when its dependencies completed.
+- Plans (`work_plans`, versioned): `PLAN_MAX_ITEMS` per plan, `PLAN_MAX_REVISIONS` (values: [limits](limits-and-stop-conditions.md); no plan body byte cap). The validator rejects cycles, unknown or non-dispatchable roles, locations outside the space, and over-budget items.
+- PLAN execution runs independent items in parallel (L5 scheduler, `orchestrator/worker/scheduler.ts`): FIFO by creation order, at most `MAX_RUNNING_PER_THREAD` running per thread, one writer (`sideEffects: "location"`) per location, the worker pool bound (a ready item that finds the pool full waits; the lead gets one `slot_wait` notice; values: [limits](limits-and-stop-conditions.md)); a dependent item starts when its dependencies completed.
 
 ### Dispatch and result flow
 1. The lead calls `DispatchAgent`. The policy checks the shape; goal and item rows are written through the effect port.
@@ -147,6 +147,7 @@ Worker run (detached; survives the owner message)
 - **Resume start** (`worker/resume-prompt.ts`): the next start resumes the SDK session of the item's newest turn (`turns.session_id`, cwd recomputed from the location) with a fixed prompt ("You were interrupted. The last tool call may or may not have run. Verify state ... before repeating any step.") plus the item's `effect_log` rows and the lead's retry note, both as DATA. The cwd of the resumed run is the one the session's turn ran in (an `effect_log` bookkeeping row `RunCwd`, `scope` = path, written when the run's scope is built; never recomputed from the item's location, which may have changed). No session, or a failed resume (it clears the session) → the brief again with one line "A previous attempt was interrupted.". Effect tools are repeat-safe (non-forced push is a no-op, merge reports up to date, a second PR is refused, delete finds nothing).
 
 ### Restart
+- Subagent allowlist (applies inside layer 1): a call that carries `agent_id` may only use read, write, shell, web and skills tools the parent role has; everything else is denied before any other rule (see [Subagents](#subagents-sdk-built-in-only) and [limits](limits-and-stop-conditions.md)).
 - On boot, `recoverInFlight` runs in one transaction. Goal items that were `running` go back to `ready` with `attempt + 1` (auto-resume; the boot wake calls `dispatch-ready`, which resumes the session), or are held when `AUTO_RESUME_CAP` is used up (`failure` event, cause `resume_cap:crash`). Other running tasks wait for the owner. Each recovered task gets one `recovered_after_restart` event (`autoResumed` for goal items); each thread with undelivered events gets its lead woken. Undelivered `thread_events` rows stay until a lead run delivers them.
 - SIGTERM: the abort is classed transient, so the item is `ready`; `dispatch-ready` starts nothing while the process stops. At boot `recoverInFlight` also reports the threads that hold a `ready` goal item (`readyThreads`); the boot wake runs the dispatch pass for them (no lead run, no owner message), so the item resumes. A run still alive at the drain timeout is interrupted as before (`waiting_user`).
 - A crash leaves running turns; they become `interrupted`.
@@ -154,8 +155,8 @@ Worker run (detached; survives the owner message)
 
 ### Watchdog
 - Every live worker run carries `lastActivityAt` (`live-runs.ts`): set at run start, on every tool start (the guard's `onGuardDecision` observer, worker runs only) and on `ReportProgress` (`worker/run-activity.ts`). The db stamp `owned_tasks.last_progress_at` follows at most once per 60 s (no schema change, no version bump).
-- `worker/resilience-sweeper.ts` ticks every 60 s (`config/resilience-caps.ts`; timer `unref()`, stopped in `LeadSystem.stopAll`). `worker/watchdog.ts` `pickStale` (pure) takes worker runs idle for more than `STALE_AFTER_MS` (15 min; a role may set `staleAfterMs`). A stale run gets `abortCause = "stale"` and is aborted; no event is written (the lead does nothing while code resumes the item; a held item's `failure` event, cause `resume_cap:stale`, is what reaches the lead). Detection is within threshold + one tick. The failure policy consumes the abort as a transient failure: the item resumes its session (see above).
-- A run waiting by design is skipped: the question relay wait (≤ 30 min) and the owner confirm of an effect open a counted wait (`waitingCount`, try/finally; the last close counts as activity). The watchdog also skips a run already aborted; `touchProgress` never writes a final task. An owner tool approval (canUseTool) does not set it: the tool start just before it is a heartbeat and the approval times out after 10 min, below the threshold.
+- `worker/resilience-sweeper.ts` ticks every 60 s (`config/resilience-caps.ts`; timer `unref()`, stopped in `LeadSystem.stopAll`). `worker/watchdog.ts` `pickStale` (pure) takes worker runs idle for more than `STALE_AFTER_MS` (see [limits](limits-and-stop-conditions.md)). A stale run gets `abortCause = "stale"` and is aborted; no event is written (the lead does nothing while code resumes the item; a held item's `failure` event, cause `resume_cap:stale`, is what reaches the lead). Detection is within threshold + one tick. The failure policy consumes the abort as a transient failure: the item resumes its session (see above).
+- A run waiting by design is skipped: the question relay wait (bounded, see [limits](limits-and-stop-conditions.md)) and the owner confirm of an effect open a counted wait (`waitingCount`, try/finally; the last close counts as activity). The watchdog also skips a run already aborted; `touchProgress` never writes a final task. An owner tool approval (canUseTool) does not set it: the tool start just before it is a heartbeat and the approval times out after 10 min, below the threshold.
 
 ## Role Model
 Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per file (`src/roles/role-types.ts`). The engine reads only that data, never a role name (test-enforced).
@@ -168,17 +169,16 @@ Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per f
 | `skills` | `[]` | `plan-work` | `scout`, `docs-seeker` | 15 named skills | `discord-server-manager` |
 | `capabilities` | read | read, skills | read, web, shell, skills | read, write, shell, skills, tasks, mcp, feedback, ask | read, skills, ask |
 | `mcpTools` | 13 (see below) | 12 | 5 | 9 | 3 |
-| `limits.maxAsk` | 0 | 0 | 0 | 6 | 4 |
-| `budgetUsd` | 0.75 | 0.5 | 0.75 | 4.5 | 0.5 |
+| `limits.maxAsk`, `limits.maxTurns`, `budgetUsd` | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) |
 | `permissionMode` | auto | auto | auto | bypassPermissions (a worker with an envelope runs in `default`) | - |
 | `sideEffects` | none | none | none | location | external |
-| `noSubagents` | yes | yes | yes | yes | no |
+| `noSubagents` | yes | yes | yes | no | yes |
 | `streaming` | - | - | - | yes (owner can steer) | - |
 
-- Fields of `RoleDefinition` (`src/roles/role-types.ts`): `name`, `whenToUse`, `kind`, `skills`, `noSubagents`, `dispatchable`, `mcpTools`, `limits`, `model`, `thinking`, `budgetUsd`, `streaming`, `permissionMode`, `sideEffects`, `capabilities`, `autoCompactWindow`, `promptSections`.
+- Fields of `RoleDefinition` (`src/roles/role-types.ts`): `name`, `whenToUse`, `kind`, `skills`, `noSubagents`, `subagents`, `dispatchable`, `mcpTools`, `limits`, `model`, `thinking`, `budgetUsd`, `streaming`, `permissionMode`, `sideEffects`, `capabilities`, `promptSections`.
 - `kind`: `lead` (the router), `worker` (a detached run that counts toward the task cap and works in a location), `control` (`#ops-control` only). Only a `worker` may own a task.
 - `model` is one fixed full model id per role (`src/config/model-ids.ts`). No tiers, no env pins, no escalation.
-- `limits` and `budgetUsd` are constants at the top of each role file.
+- `limits` (`maxAsk`, `maxTurns`), `budgetUsd` and `subagents` (`parallel`, `depth`) are constants at the top of each role file. All values: [limits](limits-and-stop-conditions.md).
 - Adding or changing a role is a TypeScript edit in its role file. Config-as-files for roles is closed (owner decision, 2026-10-12).
 
 ## MCP Servers and Tools
@@ -210,8 +210,10 @@ Five in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<se
 - `workspaces/<ws>/skills/<name>/SKILL.md`. Read-only copy, built per run as a plugin named after the space, when `skills.extra` is true (default true).
 
 ### Subagents (SDK built-in only)
-- The app defines no subagent types, models or tool lists. `Agent`, `SendMessage` and `ListAgents` are the SDK's built-in tools, offered to every role except `noSubagents` (lead, planner, scout, developer).
-- `src/policy/subagent-limit.ts` caps subagents in flight at 50 per run.
+- The app defines no subagent types, models or tool lists. `Agent`, `SendMessage` and `ListAgents` are the SDK's built-in tools, offered only to roles without `noSubagents` (today the developer).
+- Parallel and depth come from the role's `subagents` data; `src/policy/subagent-limit.ts` denies a start over the parallel cap. No total spawn cap.
+- Tool allowlist: a subagent call (hook input has `agent_id`) may use only tools of the capabilities in `SUBAGENT_CAPABILITIES` (`src/tools/tool-catalog.ts`) that the parent role also has. All MCP, report, effect, memory and lead tools and `AskUserQuestion` are denied. The live hook deny is UNVERIFIED.
+- Values and the verified/unverified list: [limits](limits-and-stop-conditions.md).
 
 ## Tool Capabilities
 - Built-in tools come from a role's `capabilities` through `CAPABILITY_TOOLS` in `src/tools/tool-catalog.ts`. `toolsFor(role)` sets the SDK `tools` option.
@@ -223,7 +225,7 @@ Five in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<se
 | shell | Bash, Monitor (not parsed: bounded by the OS sandbox of the run) |
 | web | WebSearch, WebFetch |
 | skills | Skill |
-| subagents | Agent, SendMessage, ListAgents (every role except `noSubagents`) |
+| subagents | Agent, SendMessage, ListAgents (roles without `noSubagents`: developer) |
 | tasks | TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet, TaskStop, ToolSearch |
 | mcp | ListMcpResourcesTool, ReadMcpResourceTool, ReadMcpResourceDirTool, RefreshMcpTools, WaitForMcpServers |
 | feedback | SendFeedback (owner approval) |
@@ -307,7 +309,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 ## Owner Approvals
 - **Plan:** `ApprovePlan` asks once for the whole plan (Discord buttons). No plan mode and no plan file.
 - **Worker questions:** `AskUserQuestion` (developer only, cap 6 per run) → `canUseTool` → buttons (`src/owner-approval/discord-approval.ts`). A long question goes out as `<tool>-detail.txt`. No answer in 10 minutes: the run stops and the owner is told.
-- **Lead questions:** `AskOwner`. A worker waits at most 30 minutes for its answer to come back through the lead (`question-relay.ts`).
+- **Lead questions:** `AskOwner`. A worker waits a bounded time (see [limits](limits-and-stop-conditions.md)) for its answer to come back through the lead (`question-relay.ts`).
 - **Owner-confirm buttons** (`src/owner-approval/owner-confirm.ts`): `effect` (a worker's R4 or over-bound act), `purge_trash` (`/purge`), `write_space_file`, `create_space_or_channel` (control). No answer or a timeout means "do not run".
 - Text the owner types while a question is open is a note only after the owner chooses an option.
 
@@ -337,7 +339,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 
 ### Logs and files
 - `$AGENT_HOME/logs/app.<date>.<n>.jsonl`: all app events, owner-only, 14 days.
-- `$AGENT_HOME/logs/tasks/<taskId>.jsonl`: SDK messages of one run; deleted after 30 days at startup.
+- `$AGENT_HOME/logs/tasks/<taskId>.jsonl`: SDK messages of one run; deleted at startup after the retention in [limits](limits-and-stop-conditions.md).
 - Tool events: `tool.start`, `tool.done`, `tool.denied`. Result text is never logged, only sizes.
 - Message text and file content are never logged. Lead and task events carry ids, role names, reason codes and counts.
 
@@ -434,11 +436,10 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 - Known limits: a space created during a run is readable from the next run. A written `MEMORY.md` is re-indexed at once.
 
 ## Budgets
-- Role run budget: `budgetUsd` in the role file.
+- Run budget: `budgetUsd` in the role file. Task and goal ceiling `TASK_BUDGET_USD` (`src/config/model-routing.ts`), summed over all runs of a task; an item run is also capped by what the goal has left (`route.capUsd`). Optional global cap `MAX_BUDGET_USD` (env). All values: [limits](limits-and-stop-conditions.md).
 - No daily lead budget: the lead is never blocked by the day's spend. Cost per day is monitored with `bun run metrics:lead`. A lead run that hits its own budget (`budgetUsd`, `max_budget`) posts the budget-stop reply; the announced news of that run stays undelivered (pending), so a worker result is not lost, and the next input still starts a lead run.
-- Task ceiling: `TASK_BUDGET_USD` = 6.0 (`src/config/model-routing.ts`), summed over all runs of one task. A run starts with `min(role budget, ceiling left)`; a spent ceiling refuses the start.
-- Optional global cap `MAX_BUDGET_USD` (env) is applied as a minimum on every run.
-- A budget stop replies with spent and limit and the last summary. A stop caused by the ceiling says the limit cannot be raised. No command raises a budget.
+- A run starts with `min(role budget, ceiling left, goal left)`; a spent ceiling refuses the start.
+- A budget stop replies with spent and limit and the last summary. A stop caused by the ceiling says the limit cannot be raised. No command raises a budget. Known gap: the "ceiling binds" check ignores the goal-left cap, so a raise may be offered that the goal cap ignores.
 - Not verified live: whether the SDK `total_cost_usd` accumulates across a resumed session.
 
 ## Output
@@ -450,7 +451,7 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 
 ## Startup and Lifecycle
 - Boot (`src/index.ts`): the home placement and registry checks run, the database opens, then hygiene (`src/lifecycle/startup.ts`):
-  - delete task logs older than 30 days; sweep stale plugin dirs;
+  - delete old task logs ([limits](limits-and-stop-conditions.md)); sweep stale plugin dirs;
   - remove old attachment copies; purge `run_messages` older than 14 days; prune journals; sync the memory index.
 - Trash sweeper: at boot, then every 6 hours (`src/lifecycle/trash-sweeper.ts`).
 - Recovery: in-flight items and lead wake-ups (see [Restart](#restart)).
@@ -471,45 +472,14 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 | `LOG_LEVEL` | no | default `info` |
 | `MEMORY_MODEL` | no | model of the cheap one-shot calls (memory compaction, attachment summary); default `claude-haiku-4-5-20251001` (`HAIKU_SUMMARY_MODEL`) |
 | `MAX_BUDGET_USD` | no | optional global cap on every run |
-| `TIMEOUT_MS` | no | parsed (default 300000) but no code path reads it; see [Not Built Yet](#not-built-yet) |
+| `TIMEOUT_MS` | no | deadline cap (default 300000 ms) of the memory compaction one-shot only (`memory-compaction-llm.ts`); runs have no timeout |
 | `GIT_AUTHOR` | no | accepted and ignored |
 
 - Unknown env names are ignored (zod strips them). Startup exits when a bot variable is missing or the chosen credential is absent.
 - `FRIDAY_DRAIN` is read at drain checks (`src/lifecycle/drain.ts`).
 
 ### Fixed constants (not env)
-
-| Constant | Value | Where |
-|---|---|---|
-| `MAX_ASK` (per run) | lead 0, planner 0, scout 0, developer 6, discord-manager 4 | role files |
-| `budgetUsd` | lead 0.75, planner 0.5, scout 0.75, developer 4.5, discord-manager 0.5 | role files |
-| `CHAIN_CAP` / `DELEGATE_MAX` / `DISPATCHES_PER_RUN` | 3 / 3 / 1 | `src/config/lead-caps.ts` |
-| `MAX_DISPATCHES_PER_ITEM` | 3 | `src/orchestrator/worker/dispatch-ready.ts` |
-| `TASK_BUDGET_USD` | 6.0 | `src/config/model-routing.ts` |
-| `MAX_CONCURRENT_RUNS` | 30 | `src/orchestrator/turns/run-limiter.ts` |
-| Lead debounce | 800 ms | `src/orchestrator/lead/lead-queue.ts` |
-| `ANNOUNCE_WINDOW_MS` / `ANNOUNCE_ATTEMPTS` | 2000 ms / 2 | `lead/lead-events.ts`, `lead/lead-run.ts` |
-| Steers: pending / holds / late resumes | 5 / 2 / 1 | `src/runtime/run-input-channel.ts` |
-| Worker wait for an answer | 30 min | `src/orchestrator/worker/question-relay.ts` |
-| Owner question wait | 10 min | `src/owner-approval/discord-approval.ts` |
-| `MAX_PARALLEL_SUBAGENTS` | 50 | `src/policy/subagent-limit.ts` |
-| `HELD_TASK_DAYS` | 14 | `src/lifecycle/startup.ts` |
-| `MAX_ITEMS` / `MAX_REVISIONS` (plan) | 8 / 3 | `src/orchestrator/plan/plan-types.ts` |
-| `TRASH_DAYS` / `DEFAULT_BOUNDS` | 7 days / 200 items, 50 GB | `src/policy/risk-types.ts` |
-| Tree scan limit (delete check) | 100,000 entries | `src/policy/tree-totals.ts` |
-| Trash sweep interval | 6 h | `src/lifecycle/trash-sweeper.ts` |
-| `SET_THREAD_TITLE_MAX_CALLS_PER_RUN` / title / digest | 2 / 60 / 200 chars | `src/mcp/orchestration/tools/SetThreadTitleTool/constants.ts` |
-| Rename timeout | 5 s | `src/ingress/thread-rename.ts` |
-| `MEMORY_SAVE_MAX_CALLS_PER_RUN` / note size | 20 / 400 chars | `src/mcp/memory/tools/MemorySaveTool/constants.ts`, `src/memory/memory-limits.ts` |
-| Memory caps | root 5000, space 5000, channel 3000, location 8000, all locations 16000 | `src/memory/location-memory.ts` |
-| `PERSONA_MAX` | 8000 chars | `src/memory/persona.ts` |
-| `WriteSpaceFile` limits | content 6000, diff 16000, backups 10 | `src/mcp/discord-admin/tools/WriteSpaceFileTool/constants.ts` |
-| Compaction window / share | 1,000,000 tokens / 75% | `src/runtime/sdk-env.ts` |
-| Control session age | 24 h | `src/discord-setup/control-role-run.ts` |
-| Run message retention | 14 days | `src/storage/run-message-store.ts` |
-| Log retention | app 14 days; task logs 30 days | `src/observability/log-files.ts`, `src/lifecycle/startup.ts` |
-| Reply chunk / head | 1900 / 1500 chars | `src/ingress/discord-message-rules.ts` |
-| Reply bubbles / attach above | 4 / 800 chars | `src/ingress/reply-bubbles.ts` |
+Every limit, cap, timeout and retention value lives in [limits](limits-and-stop-conditions.md) (checked against the code by `test/limits-doc-drift.test.ts`).
 
 ### Lead metrics
 - `bun run metrics:lead [--days N]` (default 7) opens the database read-only and prints decisions (successful lead tool calls by tool), refusals (by code), envelope blocks (by code) and cost per day.
@@ -528,4 +498,3 @@ Source of truth: [lead orchestration plan](../plans/261015-1538-lead-supervisor-
 
 - Done but not verified live: lead queue and announce, planner and plan approval, approval envelope and effect tools, OS sandbox, restart with undelivered events, `ReportResult` without a call, rollover effect.
 - Known gaps: two developer tasks in one location share one working tree; the thread does not pin the last task's location.
-- Known code leftovers (owner decision needed): `TIMEOUT_MS` is parsed but unused.

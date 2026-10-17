@@ -8,10 +8,10 @@ Last updated: 2026-10-17 (after low-config channel and location phases 1-4; HEAD
 
 | Role | Kind | Model | Budget (USD) | Job |
 |---|---|---|---|---|
-| `lead` | lead | Sonnet | 0.75 per run | Answers, asks the owner, dispatches workers, starts the planner, reports results |
-| `planner` | worker | Sonnet | 0.5 | Read-only; writes a plan that code validates and the owner approves once |
-| `scout` | worker | Haiku | 0.75 | Read-only search and lookups |
-| `developer` | worker | Sonnet | 4.5 | Works in a granted location; delivers through effect tools |
+| `lead` | lead | Sonnet | budget: [limits](limits-and-stop-conditions.md) | Answers, asks the owner, dispatches workers, starts the planner, reports results |
+| `planner` | worker | Sonnet | budget: [limits](limits-and-stop-conditions.md) | Read-only; writes a plan that code validates and the owner approves once |
+| `scout` | worker | Haiku | budget: [limits](limits-and-stop-conditions.md) | Read-only search and lookups |
+| `developer` | worker | Sonnet | budget: [limits](limits-and-stop-conditions.md) | Works in a granted location; delivers through effect tools |
 | `discord-manager` | control | Haiku | 0.5 | `#ops-control` free text: spaces, channels, persona files |
 
 - **Stack:** Bun, TypeScript, discord.js, Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`), SQLite (`bun:sqlite`) with Drizzle ORM, zod, pino.
@@ -48,7 +48,7 @@ src/
 
 | Dir | Purpose | Key files |
 |-----|---------|-----------|
-| `config/` | env schema (zod), role-independent limits, model ids, paths, skills lock | `agent-config.ts`, `model-ids.ts`, `model-routing.ts` (`TASK_BUDGET_USD` 6.0), `lead-caps.ts`, `process-env.ts`, `child-env-deny.ts`, `workspace-paths.ts`, `skills-lock.ts`, `data/child-env-deny.yaml` |
+| `config/` | env schema (zod), role-independent limits, model ids, paths, skills lock | `agent-config.ts`, `model-ids.ts`, `model-routing.ts` (`TASK_BUDGET_USD`), `lead-caps.ts`, `run-caps.ts` (pools, slot wait, relay wait), `resilience-caps.ts`, `process-env.ts`, `child-env-deny.ts`, `workspace-paths.ts`, `skills-lock.ts`, `data/child-env-deny.yaml` |
 | `commands/` | native slash commands: `/stop`, `/status`, `/purge`, `/find`, `/init-workspace`, `/init-channel` | `slash-definitions.ts`, `slash-commands.ts` |
 | `ingress/` | Discord bot, gates, message handler, thread placement and rename, attachments, receipts, slash interactions | `discord-bot.ts`, `discord-message-handler.ts`, `discord-message-rules.ts`, `thread-placement.ts`, `channel-adoption.ts` (auto-adopt of an owner-made channel on the first @mention), `thread-rename.ts`, `thread-history.ts`, `attachment-text.ts`, `discord-components.ts`, `status-copy.ts` |
 | `orchestrator/` (top) | command entry and service wiring | `handle-message.ts`, `message-commands.ts`, `handler-services.ts`, `handler-types.ts`, `reply.ts` (`Reply`, `refuse`: leaf type) |
@@ -60,7 +60,7 @@ src/
 | `orchestrator/plan/` | plan documents, validation, revision, approval, materialising items | `plan-doc.ts`, `plan-schemas.ts`, `validate-plan.ts`, `plan-revision.ts`, `plan-lifecycle.ts`, `plan-ready.ts`, `materialize-items.ts`, `planner-handlers.ts`, `progress-handlers.ts`, `envelope-diff.ts` |
 | `orchestrator/strategy/` | lead routing checks: DIRECT / DELEGATE / PLAN shape | `dispatch-policy.ts`, `plan-policy.ts`, `caps.ts`, `lead-context-block.ts` |
 | `orchestrator/budget/` | run budget and task or goal budget (`TASK_BUDGET_USD`) | `task-budget.ts`, `lead-budget.ts` (failed-run notice), `budget-hit.ts` |
-| `orchestrator/turns/` | turn rows, run limiter (30 runs), steer registry and store, completion, status snapshot | `completion.ts`, `turn-admission.ts`, `turn-tracker.ts`, `run-limiter.ts`, `steer-registry.ts`, `steer-store.ts`, `turn-result.ts`, `turn-stop.ts`, `status-snapshot.ts`, `status-tools.ts`, `progress-notes.ts`, `result-file-save.ts` |
+| `orchestrator/turns/` | turn rows, run limiter (lead and worker pools), steer registry and store, completion, status snapshot | `completion.ts`, `turn-admission.ts`, `turn-tracker.ts`, `run-limiter.ts`, `steer-registry.ts`, `steer-store.ts`, `turn-result.ts`, `turn-stop.ts`, `status-snapshot.ts`, `status-tools.ts`, `progress-notes.ts`, `result-file-save.ts` |
 | `orchestrator/events/` | event types of the thread outbox (`thread_events`) | `event-types.ts` |
 | `orchestrator/thread/` | derived thread state | `thread-state.ts` |
 | `policy/` | the guard: allow / ask / deny per tool call, envelope check | `check-tool-call.ts` (single entry point), `classify-tool-call.ts`, `risk-types.ts` (R0-R4), `envelope.ts`, `load-envelope.ts`, `check-envelope.ts`, `envelope-guard.ts`, `deny-dangerous.ts`, `protected-paths.ts`, `worktree-path.ts`, `ask-policy.ts`, `subagent-limit.ts` |
@@ -90,7 +90,7 @@ Discord message (owner, mapped channel or its thread)
         └─ everything else → lead queue (debounce 800 ms, one lead run per thread)
            └─ lead run (orchestrator/lead) → orchestration tools
               ├─ RequestPlan → planner run (read-only) → plan validated by code → ApprovePlan (owner, once)
-              ├─ DispatchAgent → strategy checks → owned_tasks rows → dispatch-ready (scheduler: up to 2 items per thread in parallel)
+              ├─ DispatchAgent → strategy checks → owned_tasks rows → dispatch-ready (scheduler: items of a thread in parallel up to the per-thread cap and the worker pool)
               │   └─ detached worker run (orchestrator/worker → run-turn → runtime/run-agent)
               │      ├─ effect tools (mcp/effects) → policy envelope checks → effect_log rows
               │      └─ ReportResult → result file (goals/<goalId>/) → thread_events
@@ -99,7 +99,7 @@ Discord message (owner, mapped channel or its thread)
 ```
 
 ## Roles (data)
-- A role is a `RoleDefinition` object in `src/roles/builtin/`, registered in `role-registry.ts`. Fields include `name`, `kind` (`lead`, `worker`, `control`), `model` (a fixed id from `config/model-ids.ts`), `thinking`, `budgetUsd`, `limits.maxAsk`, `skills` (publisher skill names), `mcpTools` (tool names), `permissionMode`, `noSubagents`.
+- A role is a `RoleDefinition` object in `src/roles/builtin/`, registered in `role-registry.ts`. Fields include `name`, `kind` (`lead`, `worker`, `control`), `model` (a fixed id from `config/model-ids.ts`), `thinking`, `budgetUsd`, `limits.maxAsk`, `limits.maxTurns`, `subagents`, `skills` (publisher skill names), `mcpTools` (tool names), `permissionMode`, `noSubagents`.
 - Tiers, role tags, escalation and per-role env pins are removed. A role's model and budget are constants in its file.
 - Developer prompt pieces (`developer-role.ts`): role text, run facts, commit rules, code standards, skills rule. The lead's contract is in `lead-role.ts`; its team (members, locations, strategy, limits) is `roles/prompts/team-md.ts`; its owner rules are the default `AGENTS.md` (`memory/persona-templates.ts`).
 - Fields and values: [system-architecture.md, Role Model](system-architecture.md#role-model).
@@ -163,7 +163,7 @@ Layers that decide whether a tool call runs (details: [system-architecture.md](s
 ## Configuration
 - `config/agent-config.ts` (zod) reads the env schema: `CLAUDE_CODE_OAUTH_TOKEN`, `AGENT_HOME`, `LOG_LEVEL`, `DISCORD_TOKEN`, `OWNER_DISCORD_ID`, `DISCORD_GUILD_ID`, `MEMORY_MODEL` (default `HAIKU_SUMMARY_MODEL`, `claude-haiku-4-5-20251001`; the Haiku roles use `HAIKU_MODEL`, `claude-haiku-5-5`), `MAX_BUDGET_USD`, `TIMEOUT_MS`. `GIT_AUTHOR` is accepted and ignored. Unknown keys are not read.
 - Only `config/` reads `process.env` (scan test `no-process-env-outside-config`). `process-env.ts` is the one reader it allows.
-- Per-role model, budget and ask limit are constants in each role file. `TASK_BUDGET_USD` (6.0) in `config/model-routing.ts` caps the task over its runs. Lead caps (`CHAIN_CAP`, `DELEGATE_MAX`, `DISPATCHES_PER_RUN`, `MAX_RUNNING_PER_THREAD`) are in `config/lead-caps.ts`; the lead has no daily budget.
+- Per-role model, budget and ask limit are constants in each role file. `TASK_BUDGET_USD` in `config/model-routing.ts` caps the task over its runs. Every limit value: [limits-and-stop-conditions.md](limits-and-stop-conditions.md) (`test/limits-doc-drift.test.ts` keeps it in sync). Lead caps (`CHAIN_CAP`, `DELEGATE_MAX`, `DISPATCHES_PER_RUN`, `MAX_RUNNING_PER_THREAD`) are in `config/lead-caps.ts`, pool and wait caps in `config/run-caps.ts`, resilience caps (incl. item age) in `config/resilience-caps.ts`; the lead has no daily budget.
 - `config/child-env-deny.ts` + `data/child-env-deny.yaml`: env names the SDK child must not inherit. A new schema key must be listed there (test-checked).
 - Env table: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-variables-and-limits).
 
