@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PLAN_MAX_ITEMS } from "../../config/lead-caps";
+import { PLAN_MAX_CRITERIA, PLAN_MAX_ITEMS } from "../../config/lead-caps";
 import { BRIEF_MAX_CHARS, REASON_MAX_CHARS } from "../lead/lead-limits";
 import { KEY, TASK_ID } from "../lead/lead-schemas";
 import { DELIVERY_EFFECT_TOOLS } from "./plan-types";
@@ -9,7 +9,9 @@ import { DELIVERY_EFFECT_TOOLS } from "./plan-types";
 
 /** One plan item. The risk is free text here: code turns an unknown word into R2. */
 const PLAN_ITEM = z.object({
-  key: KEY.describe("Unique within the goal; never starts with 'planner'"),
+  key: KEY.describe(
+    "Unique within the goal; never starts with 'planner' or looks like verify-N / fix-N (reserved)",
+  ),
   role: z.string().min(1).max(40).describe("Worker role name (see GetAgentCapabilities)"),
   brief: z
     .string()
@@ -53,7 +55,7 @@ export const GOAL_SHAPE = { goalId: TASK_ID };
 export const CREATE_PLAN_SHAPE = {
   goalId: TASK_ID,
   items: z.array(PLAN_ITEM).min(1).max(PLAN_MAX_ITEMS),
-  acceptanceCriteria: z.array(z.string().min(1).max(300)).max(10),
+  acceptanceCriteria: z.array(z.string().min(1).max(300)).max(PLAN_MAX_CRITERIA),
   envelope: ENVELOPE,
   budgetUsd: z.number().positive().max(1000),
   effects: EFFECTS,
@@ -81,7 +83,7 @@ export const PROPOSE_REVISION_SHAPE = {
     .default([]),
   acceptanceCriteria: z
     .array(z.string().min(1).max(300))
-    .max(10)
+    .max(PLAN_MAX_CRITERIA)
     .optional()
     .describe("Full replacement; omit to keep them"),
   reason: z.string().min(1).max(REASON_MAX_CHARS),

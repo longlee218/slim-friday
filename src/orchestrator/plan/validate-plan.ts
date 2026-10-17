@@ -1,5 +1,11 @@
 import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../../config/lead-caps";
-import { PLANNER_KEY, type PlanCtx, type PlanDoc, type PlanError } from "./plan-types";
+import {
+  isReservedKey,
+  type PlanCtx,
+  type PlanDoc,
+  type PlanError,
+  RESERVED_KEY_PATTERN,
+} from "./plan-types";
 
 /* Pure plan validator: no db, no clock. The planner retries on the coded errors. */
 
@@ -44,8 +50,12 @@ export function validatePlan(doc: PlanDoc, ctx: PlanCtx): PlanError[] {
   const seen = new Set<string>();
   const known = new Set([...items.map((i) => i.key), ...ctx.existingKeys]);
   for (const it of items) {
-    if (seen.has(it.key) || ctx.existingKeys.includes(it.key) || it.key.startsWith(PLANNER_KEY))
-      add("DUP_KEY", `Key ${it.key} is already used or reserved.`, it.key);
+    if (seen.has(it.key) || ctx.existingKeys.includes(it.key) || isReservedKey(it.key))
+      add(
+        "DUP_KEY",
+        `Key ${it.key} is already used or reserved (${RESERVED_KEY_PATTERN}).`,
+        it.key,
+      );
     seen.add(it.key);
     if (!ctx.workerRoles.includes(it.role))
       add("UNKNOWN_ROLE", `Role ${it.role} is not a dispatchable worker.`, it.key);

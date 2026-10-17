@@ -198,7 +198,7 @@ test("M3: an approved revision is one transaction: a failing item insert leaves 
     }),
   ).toThrow(/boom/);
   expect(planVersions(db, plan.id).map((v) => `${v.version}:${v.status}`)).toEqual(["1:approved"]);
-  expect(keys(goalId)).toEqual(["planner:completed", "a:ready", "b:ready"]);
+  expect(keys(goalId)).toEqual(["planner:completed", "a:ready", "b:ready", "verify-1:pending"]);
 });
 
 test("M3: a revision of a plan whose goal closed is refused and stores no version", () => {

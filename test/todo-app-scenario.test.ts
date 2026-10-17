@@ -51,7 +51,10 @@ function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, fina
         return "planned";
       }
       if (c.kind === "worker") {
-        const key = /do (\w+)/.exec(c.prompt)?.[1] as string;
+        // The code-appended items have no `do <key>` brief: "Verify the goal: ..." and "Fix the goal: ...".
+        const key =
+          /^do (\w+)/m.exec(c.prompt)?.[1] ??
+          (c.prompt.includes("Acceptance criteria:") ? "verify" : "fix");
         const status = await worker(key);
         await c.tool("ReportResult", { status, summary: `${key} ${status}` });
         return "worker done";
@@ -87,13 +90,13 @@ test("the roster runs a DAG: tester and hacker overlap, everything else follows 
     }
     finished.push(key);
     return "COMPLETED";
-  }, /"key":"docs"/);
+  }, /"key":"verify-1"/);
   await h.send("build a todo app");
   await until(() => h.posts.includes("Final report."), 20000);
   const at = (k: string) => finished.indexOf(k);
   // Dependency order: every item finished after the ones it waits for.
   for (const it of ITEMS) for (const d of it.dependsOn) expect(at(d)).toBeLessThan(at(it.key));
-  expect(started.slice(-1)).toEqual(["docs"]);
+  expect(started.slice(-2)).toEqual(["docs", "verify"]); // the verify item runs last, after every item
   expect(h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").all()).toEqual([
     { status: "completed" },
   ]);
@@ -117,4 +120,30 @@ test("a failing tester is held: its dependent `docs` waits, the hacker's result 
   expect(
     (h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").get() as any)?.status,
   ).toBe("open");
+});
+
+test("verify FAILED once: code appends fix-1 and verify-2, the fix runs, the second verify passes, the goal completes", async () => {
+  const ran: string[] = [];
+  let verifies = 0;
+  const h = scenario(async (key) => {
+    ran.push(key);
+    if (key === "verify") return ++verifies === 1 ? "FAILED" : "COMPLETED";
+    return "COMPLETED";
+  }, /"key":"verify-2"/);
+  await h.send("build a todo app");
+  await until(() => h.posts.includes("Final report."), 20000);
+  expect(ran.slice(-3)).toEqual(["verify", "fix", "verify"]); // verify, the fix, the re-check
+  const rows = h.env.db
+    .query(
+      "SELECT item_key AS k, status FROM owned_tasks WHERE item_key LIKE 'verify%' OR item_key LIKE 'fix%'",
+    )
+    .all();
+  expect(rows).toEqual([
+    { k: "verify-1", status: "cancelled" },
+    { k: "fix-1", status: "completed" },
+    { k: "verify-2", status: "completed" },
+  ]);
+  expect(h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").all()).toEqual([
+    { status: "completed" },
+  ]);
 });

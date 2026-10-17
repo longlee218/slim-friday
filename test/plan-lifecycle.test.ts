@@ -96,14 +96,14 @@ test("a valid plan keeps the goal open after the planner ended; approve creates 
   expect(openGoalIdOf(db, "th1")).toBe(goalId);
   const done = approveVersion(db, plan.id, 1);
   expect(done).toMatchObject({ ok: true, created: ["a", "b"] });
-  expect(keys(goalId)).toEqual(["planner:completed", "a:ready", "b:pending"]);
+  expect(keys(goalId)).toEqual(["planner:completed", "a:ready", "b:pending", "verify-1:pending"]);
   expect(getPlan(db, plan.id, 1)?.status).toBe("approved");
   expect(getPlan(db, plan.id, 1)?.approvedAt).not.toBeNull();
   // The same version cannot be approved twice: nothing is created again.
   expect(approveVersion(db, plan.id, 1)).toMatchObject({ ok: false, code: "PLAN_NOT_VALID" });
-  expect(childrenOf(db, goalId)).toHaveLength(3);
+  expect(childrenOf(db, goalId)).toHaveLength(4);
   expect(db.query("SELECT COUNT(*) AS n FROM thread_events WHERE kind = 'start'").get()).toEqual({
-    n: 3,
+    n: 4,
   }); // planner + 2
 });
 
@@ -157,6 +157,7 @@ test("revision of an approved plan within the envelope applies at once: add, can
     "a:ready",
     "c:cancelled",
     "b:pending",
+    "verify-1:pending",
     "d:pending",
   ]);
   expect(childrenOf(db, goalId).find((i) => i.itemKey === "b")?.brief).toBe("do b better");
@@ -222,7 +223,7 @@ test("envelope grows -> new version waits as valid, the approved one stays in fo
   });
   expect(r).toMatchObject({ ok: true, version: 2, status: "valid" });
   expect(planVersions(db, plan.id).map((v) => v.status)).toEqual(["approved", "valid"]);
-  expect(keys(goalId)).toEqual(["planner:ready", "a:ready", "b:pending"]); // nothing applied yet
+  expect(keys(goalId)).toEqual(["planner:ready", "a:ready", "b:pending", "verify-1:pending"]); // nothing applied yet
   expect(approveVersion(db, plan.id, 2)).toMatchObject({ ok: true, created: ["d"] });
   expect(planVersions(db, plan.id).map((v) => v.status)).toEqual(["superseded", "approved"]);
   expect(childrenOf(db, goalId).find((i) => i.itemKey === "d")?.location).toBe("docs");

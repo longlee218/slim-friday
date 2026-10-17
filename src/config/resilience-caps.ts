@@ -30,3 +30,6 @@ export const HOLD_ESCALATE_MS = 30 * 60_000;
 
 /** Most held-item escalations (lead wakes) one sweeper tick writes; the rest fire on the next ticks. */
 export const MAX_ESCALATIONS_PER_TICK = 3;
+
+/** Most fix loops of one goal's verify (verify FAILED -> `fix-N` + `verify-(N+1)`); the next failed verify is held for the lead. */
+export const MAX_FIX_LOOPS = 2;

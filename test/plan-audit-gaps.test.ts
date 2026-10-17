@@ -8,7 +8,7 @@ import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/p
 import { type Edit, revisePlan } from "../src/orchestrator/plan/plan-revision";
 import { validatePlan } from "../src/orchestrator/plan/validate-plan";
 import { checkDispatch } from "../src/orchestrator/strategy/dispatch-policy";
-import { settleGoal } from "../src/orchestrator/worker/goal-settle";
+import { cancelDependents, settleGoal } from "../src/orchestrator/worker/goal-settle";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { dispatchableWorkers, ROLES } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
@@ -80,7 +80,13 @@ test("a superseded version is never approved; the newest version is approved onc
   expect(keys(goalId)).toEqual(["planner:ready"]); // nothing created by the refused v1
   expect(approveVersion(db, plan.id, 2)).toMatchObject({ ok: true, created: ["a", "c", "b"] });
   expect(approveVersion(db, plan.id, 2)).toMatchObject({ ok: false, code: "PLAN_NOT_VALID" });
-  expect(keys(goalId)).toEqual(["planner:ready", "a:ready", "c:ready", "b:pending"]);
+  expect(keys(goalId)).toEqual([
+    "planner:ready",
+    "a:ready",
+    "c:ready",
+    "b:pending",
+    "verify-1:pending",
+  ]);
   expect(planVersions(db, plan.id).map((v) => v.status)).toEqual(["superseded", "approved"]);
 });
 
@@ -127,7 +133,13 @@ test("materialize is one transaction: a failing item insert rolls back every ite
     ok: true,
     created: ["model", "api", "ui"],
   });
-  expect(keys(goalId)).toEqual(["planner:ready", "model:ready", "api:pending", "ui:pending"]);
+  expect(keys(goalId)).toEqual([
+    "planner:ready",
+    "model:ready",
+    "api:pending",
+    "ui:pending",
+    "verify-1:pending",
+  ]);
 });
 
 test("a planner that crashes after storing a valid plan: the goal waits for the owner, then rejection cancels it", () => {
@@ -227,6 +239,7 @@ test("a revision that makes a new item wait on a FAILED item is refused (DEAD_DE
   const byKey = (k: string) => childrenOf(db, goalId).find((i) => i.itemKey === k)!;
   moveTaskTo(db, byKey("a").id, "running");
   moveTaskTo(db, byKey("a").id, "failed");
+  cancelDependents(db, byKey("a").id); // what the worker end does: the verify waiting for a can never run
   const r = revisePlan(db, {
     planId: plan.id,
     baseVersion: 1,

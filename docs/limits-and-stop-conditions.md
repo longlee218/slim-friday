@@ -56,6 +56,7 @@ Single source of every limit and stop condition of the app. Other docs link here
 | `MAX_DISPATCHES_PER_ITEM` | item | 3 <!-- limit:MAX_DISPATCHES_PER_ITEM=3 --> | `config/resilience-caps.ts` | circuit breaker: first start + each `RetryTask` count (auto-resumes do not); the next start fails | code |
 | `DIGEST_FLOOR_MS` | t | 30 min <!-- limit:DIGEST_FLOOR_MS=1800000 --> | `config/resilience-caps.ts` | check-in digest (code-rendered, 0 tokens) posted at most this often per thread, and only when the facts changed | code |
 | `HOLD_ESCALATE_MS` | item | 30 min <!-- limit:HOLD_ESCALATE_MS=1800000 --> | `config/resilience-caps.ts` | a held item of an OPEN goal with no `RetryTask` / `CancelTask` writes one `timeout` event (id `hold:<item>:<dispatch>`) and wakes the lead once; a closed goal never escalates, nor a hold older than 3 x `ITEM_MAX_AGE_MS` | code |
+| `MAX_FIX_LOOPS` | goal | 2 <!-- limit:MAX_FIX_LOOPS=2 --> | `config/resilience-caps.ts` | verify FAILED appends `fix-N` + `verify-(N+1)` up to this many times; the next failed verify is held with a `failure` event (code `VERIFY_LOOP_CAP`), `RetryTask` on it is refused (`VERIFY_LOOP_CAP`) only when that verify ran and reported FAILED (a crashed, stale or budget-held verify stays retryable); the lead asks the owner. No budget left = no loop, held with a `failure` event (cause `budget`) | code |
 | `MAX_ESCALATIONS_PER_TICK` | g | 3 <!-- limit:MAX_ESCALATIONS_PER_TICK=3 --> | `config/resilience-caps.ts` | escalation wakes per 60 s tick; the rest fire on the next ticks | code |
 
 - Worker pool 10: RAM budget. A claude process is about 140-464 MB, so the bot budget is about 5 GB on a 16 GB machine. Raise only after measuring.
@@ -63,7 +64,8 @@ Single source of every limit and stop condition of the app. Other docs link here
 - One writer per location: a second writer of the same location waits (scheduler rule, no number).
 - Item age 8 h counts owner wait and backoff, resumes do not reset it, and it is independent of the 15 min stale watchdog. A ready item waiting for a slot longer than that is held the same way. `RetryTask` counts toward the breaker: an item gets at most 2 fresh windows.
 - Digest (R3): per thread with an open goal that has running or held items, on the 60 s tick; facts hash ignores ages and rounds spend to whole USD. A failed post keeps the state and retries after the floor. Not verified live.
-- Not verified live: the whole worker limits chain (R1, R2, R3).
+- Verify loop (R4): the `verify-N` / `fix-N` items are added by code after validation; no item cap, envelope bound or dispatch cap counts them, the goal budget (`GOAL_BUDGET_USD`) does. `RetryTask` on a verify that ran and reported FAILED after the last fix loop is refused (`VERIFY_LOOP_CAP`); a crashed one stays retryable. Known gaps: a plan revision after `verify-1` started or finished does not refresh it (new items are not covered; P5 rolling waves, verify only in the last wave, owns the fix); a multi-location plan verifies and fixes in ONE location (the last writer's).
+- Not verified live: the whole worker limits chain (R1, R2, R3, R4).
 - The never-started clock (`last_progress_at`) is stamped when the item becomes ready, and not written again while it is not running.
 ## Roles
 
@@ -123,6 +125,7 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer on
 | Name | Scope | Value | File | At the limit | Configurable |
 |---|---|---|---|---|---|
 | `PLAN_MAX_ITEMS` | goal | 20 <!-- limit:PLAN_MAX_ITEMS=20 --> | `config/lead-caps.ts` | validator refuses the plan | code |
+| `PLAN_MAX_CRITERIA` | goal | 5 <!-- limit:PLAN_MAX_CRITERIA=5 --> | `config/lead-caps.ts` | schema refuses a plan or revision with more acceptance criteria (they feed the verify run) | code |
 | `PLAN_MAX_REVISIONS` | goal | 5 <!-- limit:PLAN_MAX_REVISIONS=5 --> | `config/lead-caps.ts` | no further revision after version 1 | code |
 | `PENDING_PLAN_MAX_AGE_MS` | goal | 24 h <!-- limit:PENDING_PLAN_MAX_AGE_MS=86400000 --> | `config/lead-caps.ts` | a `draft` or `valid` plan no longer holds its goal open | code |
 | `BRIEF_MAX_CHARS` | item | 4000 chars <!-- limit:BRIEF_MAX_CHARS=4000 --> | `orchestrator/lead/lead-limits.ts` | schema rejects | code |

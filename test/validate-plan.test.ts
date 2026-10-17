@@ -50,6 +50,8 @@ test("each rule answers its code", () => {
     ],
     ["DUP_KEY", ["DUP_KEY"], doc([item("a"), item("a")])],
     ["DUP_KEY reserved", ["DUP_KEY"], doc([item("planner-x")])],
+    ["DUP_KEY reserved verify", ["DUP_KEY"], doc([item("verify-1")])],
+    ["DUP_KEY reserved fix", ["DUP_KEY"], doc([item("fix-2")])],
     ["DUP_KEY existing", ["DUP_KEY"], doc([item("old")]), { existingKeys: ["old"] }],
     ["UNKNOWN_ROLE", ["UNKNOWN_ROLE"], doc([item("a", { role: "lead" })])],
     ["UNKNOWN_DEP", ["UNKNOWN_DEP"], doc([item("a", { dependsOn: ["nope"] })])],

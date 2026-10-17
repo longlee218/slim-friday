@@ -49,7 +49,7 @@ test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run 
         return "planned";
       }
       if (c.kind === "worker") {
-        order.push(/do (\w+)/.exec(c.prompt)?.[1] ?? "?");
+        order.push(/^do (\w+)/m.exec(c.prompt)?.[1] ?? "verify"); // the code-appended verify has no `do <key>` brief
         await c.tool("ReportResult", { status: "COMPLETED", summary: "done" });
         return "worker done";
       }
@@ -68,7 +68,7 @@ test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run 
         expect(r).toMatchObject({ ok: true, status: "approved", items: ["model", "api", "ui"] });
         return "Plan approved, running.";
       }
-      return c.prompt.includes('"key":"ui"') ? "All three steps are done." : "";
+      return c.prompt.includes('"key":"verify-1"') ? "All three steps are done." : "";
     },
     undefined,
     {
@@ -88,7 +88,7 @@ test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run 
   expect(questions[0]!.question).toContain("3. ui");
   expect(questions[0]!.question).toContain("delivery: keep");
   // Sequential, in dependency order; the planner ran once and never did the work.
-  expect(order).toEqual(["model", "api", "ui"]);
+  expect(order).toEqual(["model", "api", "ui", "verify"]); // verify last, after every item
   expect(h.ofKind("planner")).toHaveLength(1);
   const rows = h.env.db
     .query(
@@ -100,6 +100,7 @@ test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run 
     { k: "model", status: "completed" },
     { k: "api", status: "completed" },
     { k: "ui", status: "completed" },
+    { k: "verify-1", status: "completed" },
   ]);
   expect(h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").all()).toEqual([
     { status: "completed" },

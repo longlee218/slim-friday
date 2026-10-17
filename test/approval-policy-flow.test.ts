@@ -72,6 +72,11 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
         return "planned";
       }
       if (c.kind === "worker") {
+        if (c.prompt.includes("Acceptance criteria:")) {
+          // The code-appended verify run: it only reports (the checks below belong to the cleanup item).
+          await c.tool("ReportResult", { status: "COMPLETED", summary: "verified" });
+          return "worker done";
+        }
         const can = (t: string, input: object) => c.options.canUseTool(t, input, {});
         // Inside the envelope: the guard lets the call reach the tool, which moves the file to the trash without a question.
         seen.guardIn = (

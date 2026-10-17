@@ -15,6 +15,9 @@ export const MAX_RUNNING_PER_THREAD = 4;
 /** Most items one plan may hold (the planner's schema, the envelope bound and the validator read this one number). */
 export const PLAN_MAX_ITEMS = 20;
 
+/** Most acceptance criteria one plan may hold (the verify run checks each; the schema and the planner prompt read this one number). */
+export const PLAN_MAX_CRITERIA = 5;
+
 /** Most revisions of a plan after version 1. */
 export const PLAN_MAX_REVISIONS = 5;
 

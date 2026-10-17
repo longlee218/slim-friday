@@ -20,6 +20,21 @@ export type DeliveryEffect = (typeof DELIVERY_EFFECT_TOOLS)[number];
 /** Item key prefix of the planner's own items (reserved: a plan item never uses it). */
 export const PLANNER_KEY = "planner";
 
+/** Key prefixes of the items code appends (verify and fix, see goal-verify.ts): reserved, a plan item never uses them. */
+export const VERIFY_KEY = "verify";
+export const FIX_KEY = "fix";
+
+/** Role that runs the verify item (Haiku; it has the `shell` capability, so it can run the checks). */
+export const VERIFY_ROLE = "tester";
+
+/** What a plan item key may not look like (named in the validator error): planner items and the code-made `verify-N` / `fix-N`. */
+export const RESERVED_KEY_PATTERN = "planner*, verify-N, fix-N";
+const CODE_KEY = new RegExp(`^(${VERIFY_KEY}|${FIX_KEY})-\\d+$`);
+
+/** True for a key a plan item may not use (`fixtures`, `verify-tests`, `fix-login` are legal). */
+export const isReservedKey = (key: string): boolean =>
+  key.startsWith(PLANNER_KEY) || CODE_KEY.test(key);
+
 /** An unknown risk word counts as R2 (the cautious middle), never as R0. */
 export const normalizeRisk = (r: string): Risk =>
   (RISKS as readonly string[]).includes(r) ? (r as Risk) : "R2";

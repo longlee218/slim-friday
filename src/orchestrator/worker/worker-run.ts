@@ -18,6 +18,7 @@ import { markStartDelivered } from "../../storage/thread-event-store";
 import { channelDigest } from "../../storage/thread-store";
 import { goalRoute } from "../budget/task-budget";
 import type { LeadRuntime, LeadThreadCtx } from "../lead/lead-runtime";
+import { afterVerify } from "../plan/goal-verify";
 import type { RoleRunInput } from "../run/role-run-types";
 import { runTurn } from "../run/run-turn";
 import { expectedDelivery } from "../turns/completion";
@@ -178,6 +179,7 @@ export async function startWorker(
               verdict,
             }),
             onSettled: () => {
+              afterVerify(db, item.id, verdict.current, ctx.locations); // fix loop, before the end event
               emitEndEvent(db, threadId, item.id, turnId, sink.report, verdict.current);
               // A held item (blocked) keeps its dependents waiting for the lead; only an item that truly failed
               // (a crash of the run itself, no retry possible) cancels them: they can never start.
