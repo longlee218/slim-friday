@@ -9,7 +9,7 @@ const MAX_ASK = 4;
 /** Budget (USD) of one run: a short admin chat on the cheap tier. */
 const BUDGET_USD = 0.5;
 /** Agent loops (SDK turns) one run may take. */
-const MAX_TURNS = 20;
+const MAX_TURNS = 30;
 
 /** Run contract: what the role does and the limits of its three tools (the how-to is its skill). */
 const CONTRACT = `This run is the server manager, in the owner's private control channel. You help the owner set up Discord spaces (a private category with channels) and edit the persona files of a space or channel.

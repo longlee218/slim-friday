@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { type Route, TASK_BUDGET_USD } from "../../config/model-routing";
 import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
-import type { ItemRow } from "../../storage/owned-item-store";
+import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { costOfTasks, spentByTask } from "../../storage/run-metrics-store";
 
 /* Task and goal budget: what is left of the per-task ceiling `TASK_BUDGET_USD` (declared in config/model-routing.ts, where
@@ -42,3 +42,11 @@ export const goalSpent = (db: Database, items: ItemRow[]): number =>
 /** True when the goal's items already cost the goal budget: its next item is not started. */
 export const goalOverBudget = (db: Database, items: ItemRow[]): boolean =>
   goalSpent(db, items) >= GOAL_BUDGET_USD;
+
+/**
+ * Route of an item run: `capUsd` = what the goal has left of `GOAL_BUDGET_USD` now, so a run (up to the role budget) can
+ * not push the goal past its budget. Runs started in the same pass read the same figure (a known, bounded overshoot).
+ */
+export const goalRoute = (db: Database, goalId: string): Route => ({
+  capUsd: Math.max(0, GOAL_BUDGET_USD - goalSpent(db, childrenOf(db, goalId))),
+});

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
+import { MAX_ASSIGNMENTS } from "../src/orchestrator/lead/lead-limits";
 import {
   ASK_OWNER_SHAPE,
   DISPATCH_AGENT_SHAPE,
@@ -19,7 +20,9 @@ test("DispatchAgent: accepts a minimal request (dependsOn defaults to [])", () =
 test("DispatchAgent: rejects bad strategy, empty / too many assignments, bad key, long brief", () => {
   expect(ok(DISPATCH_AGENT_SHAPE, { ...D, strategy: "PLAN" })).toBe(false);
   expect(ok(DISPATCH_AGENT_SHAPE, { ...D, assignments: [] })).toBe(false);
-  expect(ok(DISPATCH_AGENT_SHAPE, { ...D, assignments: Array(9).fill(A) })).toBe(false);
+  expect(ok(DISPATCH_AGENT_SHAPE, { ...D, assignments: Array(MAX_ASSIGNMENTS + 1).fill(A) })).toBe(
+    false,
+  );
   expect(ok(DISPATCH_AGENT_SHAPE, { ...D, assignments: [{ ...A, key: "../x" }] })).toBe(false);
   expect(ok(DISPATCH_AGENT_SHAPE, { ...D, assignments: [{ ...A, brief: "x".repeat(4001) }] })).toBe(
     false,

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { TASK_BUDGET_USD } from "../src/config/model-routing";
 import { runRole } from "../src/orchestrator/run/run-role";
 import { finishRun } from "../src/orchestrator/turns/turn-result";
+import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
 import { addLocation, clearWorkspaces, makeEnv, resultMsg, stubGateway } from "./helpers";
@@ -93,7 +94,7 @@ test("task ceiling: a run gets only what the task and the runs it resumes left o
     location: "location",
     role: "developer",
   });
-  spend(env.db, "t1", 4.0);
+  spend(env.db, "t1", TASK_BUDGET_USD - 2.0); // t1 + t2 leave 0.5
   spend(env.db, "t2", 1.5);
   spend(env.db, "other", 5.0);
   const { res, seen } = await runDev(env, "t3");
@@ -152,9 +153,9 @@ test("a task that is not a resume starts at zero spent (an earlier task of the t
     role: "developer",
   });
   env.db.query("UPDATE turns SET parent_turn_id = ? WHERE id = ?").run("t1", "t2"); // a hop, not a resume
-  spend(env.db, "t1", 5.9);
+  spend(env.db, "t1", TASK_BUDGET_USD - 0.1);
   const { seen } = await runDev(env, "t2");
-  expect(seen[0].maxBudgetUsd).toBe(4.5);
+  expect(seen[0].maxBudgetUsd).toBe(DEVELOPER_ROLE.budgetUsd);
 });
 
 test("a thrown run does not leave a run row 'running': the runs row carries the error", async () => {

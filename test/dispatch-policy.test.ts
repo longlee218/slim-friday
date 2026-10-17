@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/lead-caps";
 import type { Caps, GoalState, PolicyEnv } from "../src/orchestrator/strategy/caps";
 import {
   type Assignment,
@@ -22,6 +23,8 @@ const direct = (over: Partial<DispatchReq> = {}): DispatchReq => ({
   assignments: [a("main")],
   ...over,
 });
+/** `n` independent assignments (keys k0..). */
+const manyKeys = (n: number): Assignment[] => Array.from({ length: n }, (_, i) => a(`k${i}`));
 const delegate = (assignments: Assignment[]): DispatchReq => ({
   strategy: "DELEGATE",
   assignments,
@@ -37,20 +40,20 @@ test("every refusal code and the accepted shapes", () => {
   const table: [string, string, DispatchReq, Partial<Caps>, GoalState][] = [
     ["ok", "ok", direct(), {}, IDLE],
     ["one per run", "ONE_PER_RUN", direct(), { dispatchedThisRun: 1 }, IDLE],
-    ["chain cap, full", "CHAIN_CAP", direct(), { chainCount: 3 }, IDLE],
-    ["chain 2 used + 1 ok", "ok", direct(), { chainCount: 2 }, IDLE],
+    ["chain cap, full", "CHAIN_CAP", direct(), { chainCount: CHAIN_CAP }, IDLE],
+    ["chain cap - 1 used + 1 ok", "ok", direct(), { chainCount: CHAIN_CAP - 1 }, IDLE],
     [
-      "chain 2 used + delegate of 3",
+      "chain over cap with a full delegate",
       "CHAIN_CAP",
-      delegate([a("x"), a("y"), a("z")]),
-      { chainCount: 2 },
+      delegate(manyKeys(DELEGATE_MAX)),
+      { chainCount: CHAIN_CAP - DELEGATE_MAX + 1 },
       IDLE,
     ],
     [
-      "chain 1 used + delegate of 3",
-      "CHAIN_CAP",
-      delegate([a("x"), a("y"), a("z")]),
-      { chainCount: 1 },
+      "chain exactly full with a full delegate",
+      "ok",
+      delegate(manyKeys(DELEGATE_MAX)),
+      { chainCount: CHAIN_CAP - DELEGATE_MAX },
       IDLE,
     ],
     ["goal open", "GOAL_OPEN", direct(), {}, { openGoalId: "g1", items: [] }],
@@ -102,11 +105,12 @@ test("every refusal code and the accepted shapes", () => {
     ["duplicate key", "CYCLE", delegate([a("x"), a("x")]), {}, IDLE],
     ["duplicate keys among 4", "CYCLE", delegate([a("x"), a("x"), a("y"), a("z")]), {}, IDLE],
     ["supersedes with no open goal", "BAD_TASK", direct({ supersedes: "g9" }), {}, IDLE],
-    ["4 assignments", "NEEDS_PLAN", delegate([a("a"), a("b"), a("c"), a("d")]), {}, IDLE],
+    ["too many assignments", "NEEDS_PLAN", delegate(manyKeys(DELEGATE_MAX + 1)), {}, IDLE],
     ["branching", "NEEDS_PLAN", delegate([a("x"), a("y", ["x"]), a("z", ["x"])]), {}, IDLE],
     ["join", "NEEDS_PLAN", delegate([a("x"), a("y"), a("z", ["x", "y"])]), {}, IDLE],
     ["chain of 3", "ok", delegate([a("x"), a("y", ["x"]), a("z", ["y"])]), {}, IDLE],
     ["3 independent", "ok", delegate([a("x"), a("y"), a("z")]), {}, IDLE],
+    ["DELEGATE_MAX independent", "ok", delegate(manyKeys(DELEGATE_MAX)), {}, IDLE],
   ];
   for (const [name, want, req, caps, state] of table)
     expect([name, run(req, caps, state)]).toEqual([name, want]);
@@ -114,12 +118,12 @@ test("every refusal code and the accepted shapes", () => {
 
 test("rule order: one-per-run, goal open, then chain cap last (after the shape rules)", () => {
   const open: GoalState = { openGoalId: "g1", items: [] };
-  const all = { dispatchedThisRun: 1, chainCount: 9 };
+  const all = { dispatchedThisRun: 1, chainCount: CHAIN_CAP + 90 };
   expect(run(direct(), all, open)).toBe("ONE_PER_RUN");
   expect(run(direct(), { ...all, dispatchedThisRun: 0 }, open)).toBe("GOAL_OPEN");
-  expect(run(direct(), { chainCount: 9 })).toBe("CHAIN_CAP");
+  expect(run(direct(), { chainCount: CHAIN_CAP + 90 })).toBe("CHAIN_CAP");
   // a too-big request answers NEEDS_PLAN even when the chain is also full
-  expect(run(delegate([a("a"), a("b"), a("c"), a("d")]), { chainCount: 9 })).toBe("NEEDS_PLAN");
+  expect(run(delegate(manyKeys(DELEGATE_MAX + 1)), { chainCount: 99 })).toBe("NEEDS_PLAN");
 });
 
 test("accepted items: no dependency = ready, otherwise pending", () => {

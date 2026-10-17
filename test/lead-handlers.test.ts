@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/lead-caps";
 import {
   handleAskOwner,
   handleCancel,
@@ -38,23 +39,23 @@ test("dispatch: a second DIFFERENT dispatch in the same run is refused ONE_PER_R
 
 test("dispatch refusal: coded, writes a lead_decision event and no goal", async () => {
   const port = new FakePort();
-  port.capsNow = { chainCount: 3 };
+  port.capsNow = { chainCount: CHAIN_CAP };
   const r = await handleDispatch(leadCtx(port), REQ);
   expect(r).toMatchObject({ ok: false, code: "CHAIN_CAP" });
   expect(port.goals).toEqual([]);
   expect(port.events[0]).toMatchObject({ kind: "lead_decision", payload: { code: "CHAIN_CAP" } });
 });
 
-test("dispatch with 4 assignments answers NEEDS_PLAN; supersedes passes to openGoal", async () => {
+test("dispatch over DELEGATE_MAX assignments answers NEEDS_PLAN; supersedes passes to openGoal", async () => {
   const port = new FakePort();
-  const four = ["a", "b", "c", "d"].map((key) => ({
-    key,
+  const many = Array.from({ length: DELEGATE_MAX + 1 }, (_, i) => ({
+    key: `k${i}`,
     role: "developer",
     brief: "b",
     dependsOn: [],
   }));
   expect(
-    await handleDispatch(leadCtx(port), { ...REQ, strategy: "DELEGATE", assignments: four }),
+    await handleDispatch(leadCtx(port), { ...REQ, strategy: "DELEGATE", assignments: many }),
   ).toMatchObject({
     code: "NEEDS_PLAN",
   });

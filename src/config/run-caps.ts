@@ -17,4 +17,4 @@ export const WORKER_SLOT_NOTICE_MS = 60_000;
 export const WORKER_SLOT_RETRY_MS = 3000;
 
 /** Longest wait (ms) of a worker for the lead's or owner's answer to its question; then the ask fails like an owner timeout. */
-export const RELAY_WAIT_MS = 30 * 60_000;
+export const RELAY_WAIT_MS = 2 * 60 * 60_000;

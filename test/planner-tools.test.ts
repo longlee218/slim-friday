@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { CHAIN_CAP } from "../src/config/lead-caps";
 import { SONNET_MODEL } from "../src/config/model-ids";
 import { CREATE_PULL_REQUEST_TOOL } from "../src/mcp/effects/tools/CreatePullRequestTool/constants";
 import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
@@ -184,7 +185,7 @@ test("RequestPlan: starts the planner; one per run; open goal needs goalId; bad 
 });
 
 test("RequestPlan: chain cap refuses before any write", () => {
-  const caps = { chainCount: 3, dispatchedThisRun: 0 };
+  const caps = { chainCount: CHAIN_CAP, dispatchedThisRun: 0 };
   expect(checkPlanRequest({ items: [] }, {}, caps)).toMatchObject({ code: "CHAIN_CAP" });
 });
 

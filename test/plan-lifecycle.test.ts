@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
+import { PLAN_MAX_REVISIONS } from "../src/config/lead-caps";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { openGoalIdOf } from "../src/orchestrator/goal/effect-port-queries";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
@@ -185,7 +186,7 @@ test("a started item cannot be modified; unknown keys and the revision cap are r
       env: ENV,
     }),
   ).toMatchObject({ ok: false, code: "UNKNOWN_KEY" });
-  for (const v of [1, 2, 3]) {
+  for (let v = 1; v <= PLAN_MAX_REVISIONS; v++) {
     const r = revisePlan(db, {
       planId: plan.id,
       baseVersion: v,
@@ -195,15 +196,15 @@ test("a started item cannot be modified; unknown keys and the revision cap are r
     });
     expect(r).toMatchObject({ ok: true, version: v + 1 });
   }
-  const fifth = revisePlan(db, {
+  const over = revisePlan(db, {
     planId: plan.id,
-    baseVersion: 4,
+    baseVersion: PLAN_MAX_REVISIONS + 1,
     edit: edit({ add: [item("x9")] }),
     reason: "r",
     env: ENV,
   });
-  expect(fifth).toMatchObject({ ok: false, code: "INVALID" });
-  expect(fifth.ok === false && fifth.errors?.map((e) => e.code)).toContain("TOO_MANY_REVISIONS");
+  expect(over).toMatchObject({ ok: false, code: "INVALID" });
+  expect(over.ok === false && over.errors?.map((e) => e.code)).toContain("TOO_MANY_REVISIONS");
 });
 
 test("envelope grows -> new version waits as valid, the approved one stays in force; approving it applies the diff", () => {

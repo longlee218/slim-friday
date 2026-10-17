@@ -16,6 +16,7 @@ import {
 import { getOwnedTask } from "../../storage/owned-task-store";
 import { markStartDelivered } from "../../storage/thread-event-store";
 import { channelDigest } from "../../storage/thread-store";
+import { goalRoute } from "../budget/task-budget";
 import type { LeadRuntime, LeadThreadCtx } from "../lead/lead-runtime";
 import type { RoleRunInput } from "../run/role-run-types";
 import { runTurn } from "../run/run-turn";
@@ -111,6 +112,7 @@ export async function startWorker(
           ac: new AbortController(), // the run's own controller: /stop aborts it, the thread is not held
           pinned,
           ledger: earlierSteps(db, item),
+          route: goalRoute(db, goalId), // the run never spends past what the goal has left
           envelope,
           // The ctx parts of this worker's MCP tools; its role's `mcpTools` picks which ones it really gets (a worker has no
           // `lead` part, so it can never hold a lead tool).

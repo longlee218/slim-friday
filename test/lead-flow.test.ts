@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/lead-caps";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { leadHarness, until, workersDone } from "./lead-harness";
 
@@ -74,10 +75,17 @@ const a = (key: string, dependsOn: string[] = []) => ({
   dependsOn,
 });
 
-test("DELEGATE with 4 assignments -> NEEDS_PLAN; a cycle -> CYCLE; nothing is started", async () => {
+test("DELEGATE over DELEGATE_MAX assignments -> NEEDS_PLAN; a cycle -> CYCLE; nothing is started", async () => {
   const codes: string[] = [];
   const h = leadHarness(async (c) => {
-    codes.push((await dispatch(c, [a("a"), a("b"), a("c"), a("d")])).code);
+    codes.push(
+      (
+        await dispatch(
+          c,
+          Array.from({ length: DELEGATE_MAX + 1 }, (_, i) => a(`m${i}`)),
+        )
+      ).code,
+    );
     codes.push((await dispatch(c, [a("x", ["y"]), a("y", ["x"])])).code);
     return "refused";
   });
@@ -88,7 +96,7 @@ test("DELEGATE with 4 assignments -> NEEDS_PLAN; a cycle -> CYCLE; nothing is st
   expect(h.env.db.query("SELECT COUNT(*) AS n FROM owned_tasks").get()).toEqual({ n: 0 });
 });
 
-test("the 4th chained dispatch without an owner message is refused CHAIN_CAP", async () => {
+test("the chained dispatch past CHAIN_CAP without an owner message is refused CHAIN_CAP", async () => {
   const codes: (string | true)[] = [];
   let n = 0;
   const h = leadHarness(async (c) => {
@@ -101,9 +109,9 @@ test("the 4th chained dispatch without an owner message is refused CHAIN_CAP", a
     return "";
   });
   await h.send("go on");
-  await until(() => codes.length === 4, 8000);
-  expect(codes).toEqual([true, true, true, "CHAIN_CAP"]);
-  expect(h.ofKind("worker")).toHaveLength(3);
+  await until(() => codes.length === CHAIN_CAP + 1, 8000);
+  expect(codes).toEqual([...Array(CHAIN_CAP).fill(true), "CHAIN_CAP"]);
+  expect(h.ofKind("worker")).toHaveLength(CHAIN_CAP);
 });
 
 test("no daily lead budget: 31 costly lead runs in a day block neither a message nor a dispatch", async () => {

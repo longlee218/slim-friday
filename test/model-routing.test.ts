@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { loadConfig } from "../src/config/agent-config";
 import { HAIKU_MODEL, HAIKU_SUMMARY_MODEL, SONNET_MODEL } from "../src/config/model-ids";
-import { resolveBudget } from "../src/config/model-routing";
+import { resolveBudget, TASK_BUDGET_USD } from "../src/config/model-routing";
 import { getRole, ROLES } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
 import { roleConfig } from "../src/runtime/sdk-options";
@@ -49,21 +49,31 @@ describe("env", () => {
 describe("resolveBudget", () => {
   test("role defaults replace the global cap; MAX_BUDGET_USD is a cap", () => {
     const c = cfg();
-    expect([scout, dev].map((r) => resolveBudget(r, {}, c))).toEqual([0.75, 4.5]);
+    expect([scout, dev].map((r) => resolveBudget(r, {}, c))).toEqual([
+      scout.budgetUsd,
+      dev.budgetUsd,
+    ]);
     expect(resolveBudget(dev, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(2);
-    expect(resolveBudget(scout, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(0.75);
+    expect(resolveBudget(scout, {}, cfg({ MAX_BUDGET_USD: "2" }))).toBe(scout.budgetUsd);
   });
   test("owner raise; the task ceiling limits both", () => {
-    expect(resolveBudget(dev, { extraBudgetUsd: 1.0 }, cfg())).toBe(5.5);
-    expect(resolveBudget(dev, { extraBudgetUsd: 3 }, cfg())).toBe(6); // TASK_BUDGET_USD
-    expect(resolveBudget(dev, { spentUsd: 4 }, cfg())).toBe(2); // what is left of the task ceiling
+    expect(resolveBudget(dev, { extraBudgetUsd: 1.0 }, cfg())).toBe(dev.budgetUsd + 1);
+    expect(resolveBudget(dev, { extraBudgetUsd: TASK_BUDGET_USD }, cfg())).toBe(TASK_BUDGET_USD);
+    // what is left of the task ceiling
+    expect(resolveBudget(dev, { spentUsd: TASK_BUDGET_USD - 2 }, cfg())).toBe(2);
+  });
+  test("goal cap: capUsd limits a run below its role budget and is never raised", () => {
+    expect(resolveBudget(dev, { capUsd: 5 }, cfg())).toBe(5);
+    expect(resolveBudget(dev, { capUsd: 5, extraBudgetUsd: 3 }, cfg())).toBe(5);
+    expect(resolveBudget(dev, { capUsd: 0 }, cfg())).toBe(0);
+    expect(resolveBudget(dev, { capUsd: TASK_BUDGET_USD * 2 }, cfg())).toBe(dev.budgetUsd);
   });
 });
 
 describe("run options", () => {
   test("roleConfig carries the role's model and budget; runAgent passes model, thinking and the turn ceiling", async () => {
     const sc = roleConfig(dev, cfg());
-    expect([sc.model, sc.limits.maxBudgetUsd]).toEqual([SONNET_MODEL, 4.5]);
+    expect([sc.model, sc.limits.maxBudgetUsd]).toEqual([SONNET_MODEL, dev.budgetUsd]);
     const env = makeEnv();
     const seen: Options[] = [];
     const queryFn = (a: { options?: Options }) =>

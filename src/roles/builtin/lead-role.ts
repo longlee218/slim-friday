@@ -19,9 +19,9 @@ import type { RoleDefinition } from "../role-types";
 /** The lead asks the owner through its own AskOwner tool, never AskUserQuestion. */
 const MAX_ASK = 0;
 /** Budget (USD) of one lead run (a short routing turn). There is no daily lead budget. */
-const BUDGET_USD = 0.75;
+const BUDGET_USD = 1.5;
 /** Agent loops (SDK turns) one lead run may take. */
-const MAX_TURNS = 20;
+const MAX_TURNS = 30;
 
 /**
  * Run contract (code rules only): who the lead is and what it may do. The team (TEAM.md, built per run), the owner's

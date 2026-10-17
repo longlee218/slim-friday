@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../src/config/lead-caps";
 import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
 import { envelopeGrew } from "../src/orchestrator/plan/envelope-diff";
 import { buildEnvelope, toPlanItem } from "../src/orchestrator/plan/plan-doc";
@@ -39,10 +40,14 @@ test("a sound plan has no errors; deps may point at earlier finished items", () 
 });
 
 test("each rule answers its code", () => {
-  const nine = Array.from({ length: 9 }, (_, i) => item(`k${i}`));
+  const tooMany = Array.from({ length: PLAN_MAX_ITEMS + 1 }, (_, i) => item(`k${i}`));
   const table: [string, string[], PlanDoc, Partial<PlanCtx>?][] = [
     ["NO_ITEMS", ["NO_ITEMS"], doc([])],
-    ["TOO_MANY_ITEMS", ["TOO_MANY_ITEMS"], doc(nine, { bounds: { maxItems: 20, maxGb: 1 } })],
+    [
+      "TOO_MANY_ITEMS",
+      ["TOO_MANY_ITEMS"],
+      doc(tooMany, { bounds: { maxItems: tooMany.length, maxGb: 1 } }),
+    ],
     ["DUP_KEY", ["DUP_KEY"], doc([item("a"), item("a")])],
     ["DUP_KEY reserved", ["DUP_KEY"], doc([item("planner-x")])],
     ["DUP_KEY existing", ["DUP_KEY"], doc([item("old")]), { existingKeys: ["old"] }],
@@ -62,8 +67,12 @@ test("each rule answers its code", () => {
       doc([item("a"), item("b")], { bounds: { maxItems: 1, maxGb: 1 } }),
     ],
     ["BUDGET", ["BUDGET"], doc([item("a")], { budgetUsd: 7 })],
-    ["TOO_BIG", ["TOO_BIG"], doc([item("a", { brief: "x".repeat(17_000) })])],
-    ["TOO_MANY_REVISIONS", ["TOO_MANY_REVISIONS"], doc([item("a")]), { revisions: 4 }],
+    [
+      "TOO_MANY_REVISIONS",
+      ["TOO_MANY_REVISIONS"],
+      doc([item("a")]),
+      { revisions: PLAN_MAX_REVISIONS + 1 },
+    ],
   ];
   for (const [name, want, d, ctx] of table) expect([name, codes(d, ctx)]).toEqual([name, want]);
 });

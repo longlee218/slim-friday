@@ -17,7 +17,11 @@ const PLAN_ITEM = z.object({
     .max(BRIEF_MAX_CHARS)
     .describe("Self-contained: the worker sees only this"),
   location: z.string().min(1).max(80).optional(),
-  dependsOn: z.array(KEY).max(7).default([]).describe("Keys this item waits for"),
+  dependsOn: z
+    .array(KEY)
+    .max(PLAN_MAX_ITEMS - 1)
+    .default([])
+    .describe("Keys this item waits for"),
   risk: z
     .string()
     .min(1)
@@ -59,18 +63,21 @@ export const PROPOSE_REVISION_SHAPE = {
   planId: PLAN_ID,
   baseVersion: VERSION,
   add: z.array(PLAN_ITEM).max(PLAN_MAX_ITEMS).default([]),
-  cancel: z.array(KEY).max(8).default([]),
+  cancel: z.array(KEY).max(PLAN_MAX_ITEMS).default([]),
   modify: z
     .array(
       z.object({
         key: KEY,
         brief: z.string().min(1).max(BRIEF_MAX_CHARS).optional(),
         location: z.string().min(1).max(80).optional(),
-        dependsOn: z.array(KEY).max(7).optional(),
+        dependsOn: z
+          .array(KEY)
+          .max(PLAN_MAX_ITEMS - 1)
+          .optional(),
         risk: z.string().min(1).max(8).optional(),
       }),
     )
-    .max(8)
+    .max(PLAN_MAX_ITEMS)
     .default([]),
   acceptanceCriteria: z
     .array(z.string().min(1).max(300))

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { MAX_RUNNING_PER_THREAD as CAP } from "../src/config/lead-caps";
 import { pickDispatchable, type RoleCaps } from "../src/orchestrator/worker/scheduler";
 import { itemRow } from "./lead-fake-port";
 
@@ -8,20 +9,19 @@ const it = (id: string, status: string, role: string, location: string | null = 
   itemRow({ id, itemKey: id, status, ownerRole: role, location });
 const ids = (xs: { id: string }[]) => xs.map((x) => x.id);
 
-test("ready items start in creation order, up to the thread cap (2)", () => {
-  const items = [it("a", "ready", "scout"), it("b", "ready", "scout"), it("c", "ready", "scout")];
-  expect(ids(pickDispatchable(items, caps))).toEqual(["a", "b"]);
+test("ready items start in creation order, up to the thread cap", () => {
+  const items = Array.from({ length: CAP + 1 }, (_, i) => it(`r${i}`, "ready", "scout"));
+  expect(ids(pickDispatchable(items, caps))).toEqual(ids(items.slice(0, CAP)));
 });
 
 test("running items count against the thread cap", () => {
-  const items = [it("a", "running", "scout"), it("b", "ready", "scout"), it("c", "ready", "scout")];
-  expect(ids(pickDispatchable(items, caps))).toEqual(["b"]);
-  expect(
-    pickDispatchable(
-      [it("a", "running", "scout"), it("b", "running", "scout"), it("c", "ready", "scout")],
-      caps,
-    ),
-  ).toEqual([]);
+  const items = [
+    it("a", "running", "scout"),
+    ...Array.from({ length: CAP }, (_, i) => it(`r${i}`, "ready", "scout")),
+  ];
+  expect(ids(pickDispatchable(items, caps))).toEqual(ids(items.slice(1, CAP)));
+  const full = Array.from({ length: CAP }, (_, i) => it(`a${i}`, "running", "scout"));
+  expect(pickDispatchable([...full, it("c", "ready", "scout")], caps)).toEqual([]);
 });
 
 test("one writer per location: same location waits, another location starts", () => {
@@ -59,7 +59,7 @@ test("deterministic: the same items give the same pick; pending / terminal items
   expect(ids(pickDispatchable(items, caps))).toEqual(["c"]);
 });
 
-test("property: random DAG states never exceed 2 running per thread nor 2 writers on one location", () => {
+test("property: random DAG states never exceed the thread cap nor 2 writers on one location", () => {
   const roles = ["dev", "scout", "one"];
   const locs = [null, "repo1", "repo2"];
   let seed = 7;
@@ -78,8 +78,8 @@ test("property: random DAG states never exceed 2 running per thread nor 2 writer
     );
     const picked = pickDispatchable(items, caps);
     const after = [...items.filter((i) => i.status === "running"), ...picked];
-    if (items.filter((i) => i.status === "running").length <= 2)
-      expect(after.length).toBeLessThanOrEqual(2);
+    if (items.filter((i) => i.status === "running").length <= CAP)
+      expect(after.length).toBeLessThanOrEqual(CAP);
     const writers = after.filter((i) => caps(i.ownerRole).writer);
     const pickedWriters = picked.filter((i) => caps(i.ownerRole).writer);
     for (const p of pickedWriters)

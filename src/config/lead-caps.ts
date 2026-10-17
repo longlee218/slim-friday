@@ -1,25 +1,25 @@
 /* Caps of the lead (code, not prompt): what the dispatch policy checks before a goal starts, and what TEAM.md tells the model. */
 
 /** Most chained worker starts after one owner message (`start` events since the last `owner_message` plus the new request's items). */
-export const CHAIN_CAP = 3;
+export const CHAIN_CAP = 6;
 
 /** Most workers one DELEGATE may start; a bigger request needs a plan. */
-export const DELEGATE_MAX = 3;
+export const DELEGATE_MAX = 5;
 
 /** Most dispatches in ONE lead run. */
 export const DISPATCHES_PER_RUN = 1;
 
 /** Most items of one thread running at once (the dispatch scheduler). */
-export const MAX_RUNNING_PER_THREAD = 2;
+export const MAX_RUNNING_PER_THREAD = 4;
 
 /** Most items one plan may hold (the planner's schema, the envelope bound and the validator read this one number). */
-export const PLAN_MAX_ITEMS = 8;
+export const PLAN_MAX_ITEMS = 20;
 
 /** Most revisions of a plan after version 1. */
-export const PLAN_MAX_REVISIONS = 3;
+export const PLAN_MAX_REVISIONS = 5;
 
 /** A `draft` / `valid` plan version older than this (ms) no longer holds its goal open: the owner never answered. */
-export const PENDING_PLAN_MAX_AGE_MS = 30 * 60 * 1000;
+export const PENDING_PLAN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** Most queued lead inputs per thread (the oldest is dropped past it). */
 export const LEAD_QUEUE_PER_THREAD = 10;

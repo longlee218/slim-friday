@@ -1,4 +1,4 @@
-/** Start a goal with one worker (DIRECT) or up to three chained workers (DELEGATE). */
+/** Start a goal with one worker (DIRECT) or a few chained workers (DELEGATE). */
 export const DISPATCH_AGENT_TOOL = "DispatchAgent";
 
 /** Limits of the `DispatchAgent` tool input (defined orchestrator-side, re-exported here). */

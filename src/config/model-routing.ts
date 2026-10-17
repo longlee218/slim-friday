@@ -14,10 +14,12 @@ export interface Route {
   extraBudgetUsd?: number;
   /** USD the task's earlier runs (itself and the runs it resumes) already cost; the task ceiling `TASK_BUDGET_USD` is shared with them. */
   spentUsd?: number;
+  /** Hard cap (USD) of this run: what the goal still has left (item runs); never raised by `extraBudgetUsd`. */
+  capUsd?: number;
 }
 
 /** Per-task spend ceiling (USD) over the task's runs (re-runs included): a run gets at most what is left of it (owner, Rev 14 addendum 2). */
-export const TASK_BUDGET_USD = 6.0;
+export const TASK_BUDGET_USD = 15.0;
 
 /** True when a run's budget cap IS what the task's earlier runs left of the ceiling (so a raise cannot help). */
 export const ceilingBinds = (limitUsd: number | undefined, spentUsd = 0): boolean =>
@@ -26,7 +28,7 @@ export const ceilingBinds = (limitUsd: number | undefined, spentUsd = 0): boolea
 /**
  * Budget (USD) of a role run, or undefined = no cap. The role's constant budget
  * plus any owner raise, limited to what is left of
- * TASK_BUDGET_USD, then capped by MAX_BUDGET_USD.
+ * TASK_BUDGET_USD and of the goal (`route.capUsd`), then capped by MAX_BUDGET_USD.
  */
 export function resolveBudget(
   role: RoleDefinition,
@@ -38,6 +40,6 @@ export function resolveBudget(
   // Task ceiling: the run gets at most what the task's earlier runs left of TASK_BUDGET_USD. An extra budget
   // widens the role budget only, never the ceiling (a hard per-task cost cap by design).
   const left = Math.max(0, TASK_BUDGET_USD - (route.spentUsd ?? 0));
-  const total = Math.min(base + (route.extraBudgetUsd ?? 0), left);
+  const total = Math.min(base + (route.extraBudgetUsd ?? 0), left, route.capUsd ?? Infinity);
   return cap === undefined ? total : Math.min(total, cap);
 }

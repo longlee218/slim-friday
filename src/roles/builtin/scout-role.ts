@@ -9,9 +9,9 @@ import type { RoleDefinition } from "../role-types";
 /** Owner questions per run: a scout answers from what it finds and never asks. */
 const MAX_ASK = 0;
 /** Budget (USD) of one scout run on the cheap tier. */
-const BUDGET_USD = 0.75;
+const BUDGET_USD = 1.5;
 /** Agent loops (SDK turns) one scout run may take. */
-const MAX_TURNS = 20;
+const MAX_TURNS = 40;
 
 /** Run contract: read-only research; the lead decides what reaches the owner. */
 const CONTRACT = `This run is a scout: a read-only research worker dispatched by the lead. Find out where or how something works (code, files, docs, the web) and report it.

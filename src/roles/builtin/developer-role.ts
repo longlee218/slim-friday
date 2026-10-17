@@ -14,9 +14,9 @@ import type { Capability, RoleDefinition } from "../role-types";
 /** Owner questions (the ask tool) one run may make. Wired: ask guard + prompt text. */
 const MAX_ASK = 6;
 /** Budget (USD) of one developer run (the task ceiling `TASK_BUDGET_USD` still caps the task over its resumes). */
-const BUDGET_USD = 4.5;
+const BUDGET_USD = 8;
 /** Agent loops (SDK turns) one developer run may take. */
-const MAX_TURNS = 20;
+const MAX_TURNS = 150;
 /** Subagents of one run (parallel cap; depth 1 = a subagent starts none); no total cap, the run budget bounds a fan-out. */
 const SUBAGENTS = { parallel: 3, depth: 1 };
 

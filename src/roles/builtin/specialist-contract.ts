@@ -12,7 +12,7 @@ import type { RoleDefinition } from "../role-types";
 /** Owner questions per run: a specialist never asks; it reports NEEDS_CLARIFICATION and the lead asks. */
 export const SPECIALIST_MAX_ASK = 0;
 /** Agent loops (SDK turns) per specialist run. */
-export const SPECIALIST_MAX_TURNS = 20;
+export const SPECIALIST_MAX_TURNS = 60;
 
 /** Contract every roster specialist runs under (the role's own job text follows it). */
 export const SPECIALIST_CONTRACT = `This run is a specialist worker dispatched by the lead. You do ONE job from your brief; the brief is all you know, plus the result files of the items you depend on.

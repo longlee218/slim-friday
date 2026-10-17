@@ -17,8 +17,6 @@ export const DELIVERY_EFFECT_TOOLS = [
 ] as const;
 export type DeliveryEffect = (typeof DELIVERY_EFFECT_TOOLS)[number];
 
-/** Largest plan body (JSON text of the items), bytes. */
-export const MAX_BODY_BYTES = 16 * 1024;
 /** Item key prefix of the planner's own items (reserved: a plan item never uses it). */
 export const PLANNER_KEY = "planner";
 
@@ -65,7 +63,6 @@ export interface PlanDoc {
 type PlanErrorCode =
   | "NO_ITEMS"
   | "TOO_MANY_ITEMS"
-  | "TOO_BIG"
   | "DUP_KEY"
   | "UNKNOWN_ROLE"
   | "UNKNOWN_DEP"

@@ -142,8 +142,8 @@ test("options lock: model and limits per role, no run timeout", async () => {
   expect(dev.o.env?.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH).toBe(
     String(DEVELOPER_ROLE.subagents.depth),
   );
-  // Per-role budget (lead 0.75, dev 4.5) capped by MAX_BUDGET_USD=3.
-  expect(lead.o.maxBudgetUsd).toBe(0.75);
+  // Per-role budget (lead, dev) capped by MAX_BUDGET_USD=3.
+  expect(lead.o.maxBudgetUsd).toBe(LEAD_ROLE.budgetUsd);
   expect(dev.o.maxBudgetUsd).toBe(3);
   // No run timeout: no timer is armed for the run (owner decision).
   for (const r of [lead, dev]) expect(r.delays).toEqual([]);

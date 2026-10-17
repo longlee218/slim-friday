@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { CHAIN_CAP, MAX_RUNNING_PER_THREAD } from "../src/config/lead-caps";
 import type { Location } from "../src/locations/location-registry";
 import {
   buildLeadContextBlock,
@@ -25,9 +26,9 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).toContain("- api [git]: backend");
   expect(md).not.toContain("/r/api"); // no path in the reply source
   for (const s of ["ANSWER", "DIRECT", "DELEGATE", "PLAN"]) expect(md).toContain(`- ${s}:`);
-  expect(md).toContain("Up to 2 items run at once");
+  expect(md).toContain(`Up to ${MAX_RUNNING_PER_THREAD} items run at once`);
   expect(md).toContain("one writer per location");
-  expect(md).toContain("At most 3 chained starts");
+  expect(md).toContain(`At most ${CHAIN_CAP} chained starts`);
   expect(md).toContain("1 dispatch per run");
   expect(md).not.toContain("/day"); // no daily budget is told to the lead
   expect(md).toContain("RetryTask"); // a held failure: retry with a note, or cancel

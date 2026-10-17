@@ -2,7 +2,7 @@ import type { RoleDefinition } from "../role-types";
 import { SPECIALIST_BASE, SPECIALIST_CONTRACT } from "./specialist-contract";
 
 /** Budget (USD) of one devops run. */
-const BUDGET_USD = 0.75;
+const BUDGET_USD = 1.5;
 
 /** What this specialist does, after the shared contract. */
 const JOB = `You are the devops engineer. Create or fix build and infrastructure files in the location (Dockerfile, CI workflow, scripts, config) and check them locally with the sandboxed shell (build, lint, dry run). You have no network and no credentials: never deploy, never call a cloud or registry, never put a secret in a file. Report the files you changed and what each check showed.`;

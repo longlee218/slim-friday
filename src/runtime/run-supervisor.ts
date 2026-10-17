@@ -115,7 +115,7 @@ export function createRunSupervisor(o: { maxTurns: number; alreadyRecovered: boo
 }
 
 /** A recovery needs at least this much of the task ceiling left (USD): less would stop at once. */
-const MIN_RECOVERY_BUDGET_USD = 0.1;
+export const MIN_RECOVERY_BUDGET_USD = 0.1;
 
 /** Outcomes after which nothing is recovered: the work is done, or the owner / the service ended it. */
 const FINAL_OUTCOMES: ReadonlySet<string> = new Set(["success", "aborted", "quota", "max_budget"]);

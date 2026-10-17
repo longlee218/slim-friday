@@ -14,7 +14,7 @@ test("dev is a background role: one run, bypass from the first token, no plan co
   expect(DEVELOPER_ROLE.permissionMode).toBe("bypassPermissions");
   expect(DEVELOPER_ROLE.streaming).toBe(true);
   expect(DEVELOPER_ROLE.limits.maxAsk).toBe(6);
-  expect(DEVELOPER_ROLE.budgetUsd).toBe(4.5);
+  expect(DEVELOPER_ROLE.budgetUsd).toBe(8);
   expect(DEVELOPER_ROLE.capabilities).toContain("ask");
   expect(DEVELOPER_ROLE.capabilities).not.toContain("planControl" as never);
   expect(DEVELOPER_ROLE.model).toBe(SONNET_MODEL);
