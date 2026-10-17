@@ -76,6 +76,8 @@ export interface RoleDefinition {
    * Data for the lead, the planner and the outcome check. Authorization stays in the guards.
    */
   sideEffects: "none" | "location" | "external";
+  /** Silence (ms) after which the watchdog aborts a run of this role. Omitted = `STALE_AFTER_MS` (resilience-caps.ts). */
+  staleAfterMs?: number;
   /** Most runs of this role at once in one thread (the scheduler). Omitted = no limit of its own (the thread cap still applies). */
   concurrency?: number;
   /**

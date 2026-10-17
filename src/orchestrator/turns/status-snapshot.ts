@@ -4,6 +4,7 @@ import { activeOwnedTask } from "../../storage/owned-task-store";
 import { latestToolCall } from "../../storage/run-metrics-store";
 import { latestTurnOfTask, latestTurnOfThread } from "../../storage/run-store";
 import { deriveThreadState, threadToolApproval } from "../thread/thread-state";
+import { progressOf } from "../worker/run-activity";
 import { getProgressNote } from "./progress-notes";
 import { type RecentTool, toolFacts } from "./status-tools";
 
@@ -30,6 +31,8 @@ export interface StatusFacts {
   recent: RecentTool[];
   /** Latest thing the agent said (redacted, clipped); only while it runs. */
   note?: string;
+  /** `ReportProgress` facts of a live worker run (percent and note as the worker reported them) and seconds since its last activity. */
+  progress?: { percent?: number; note?: string; idleSeconds: number };
   /** Tool approval the task waits on, with seconds waited. */
   waiting?: { tool: string; seconds: number };
 }
@@ -62,6 +65,7 @@ export function statusFacts(
   if (task && (task.status === "running" || task.status === "waiting_approval")) {
     const waiting = threadToolApproval(db, threadId);
     const note = getProgressNote(task.id);
+    const progress = progressOf(task.id, now);
     return {
       running: true,
       role: task.role,
@@ -69,6 +73,7 @@ export function statusFacts(
       seconds: secondsSince(task.started_at, now),
       ...withTools(db, task.id),
       ...(note && { note }),
+      ...(progress && { progress }),
       ...(waiting && {
         waiting: { tool: redactText(waiting.tool), seconds: secondsSince(waiting.since, now) },
       }),

@@ -7,6 +7,7 @@ import type { DispatchDeps } from "../run/role-run-types";
 import { dispatchReady } from "../worker/dispatch-ready";
 import { createQuestionRelay } from "../worker/question-relay";
 import type { RecoveryReport } from "../worker/recover-in-flight";
+import { startResilienceSweeper } from "../worker/resilience-sweeper";
 import { createAnnouncer } from "./lead-events";
 import { createLeadQueue, type LeadQueue } from "./lead-queue";
 import { runLead } from "./lead-run";
@@ -27,7 +28,7 @@ export interface LeadSystem {
   wake(report: RecoveryReport): void;
   /** `/stop`: drop the thread's queued inputs and announce timer, end its workers' question waits. */
   stopThread(threadId: string): void;
-  /** Shutdown: drop queued inputs and timers, end every worker wait. */
+  /** Shutdown: drop queued inputs and timers (the watchdog's too), end every worker wait. */
   stopAll(): void;
 }
 
@@ -93,6 +94,8 @@ export function createLeadSystem(o: {
     debounceMs: o.debounceMs,
   });
   announcer = createAnnouncer({ db: deps.db, push: queue.push, windowMs: o.announceWindowMs });
+  // The watchdog tick over the live worker runs (unref'd timer); stopped with the rest at shutdown.
+  const stopSweeper = startResilienceSweeper(rt);
   return {
     rt,
     queue,
@@ -137,6 +140,7 @@ export function createLeadSystem(o: {
       relay.abortThread(threadId);
     },
     stopAll() {
+      stopSweeper();
       announcer?.stopAll();
       queue.stopAll();
       relay.abortAll();

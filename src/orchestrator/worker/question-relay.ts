@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../../observability/redact";
 import type { AskQuestion } from "../../runtime/tool-permissions";
 import { appendEvent } from "../../storage/thread-event-store";
+import { setWaiting } from "./run-activity";
 
 /* Worker question relay: a lead-dispatched worker never asks the owner itself. Its AskUserQuestion becomes a `question`
    event (the lead reads it in an announce run) and the worker waits until the lead answers it (SteerTask) or relays
@@ -49,9 +50,15 @@ export function createQuestionRelay(
       new Promise((resolve) => {
         const timer = setTimeout(() => finish(undefined), waitMs);
         timer.unref();
+        // The worker idles by design while it waits: the watchdog skips it until the answer (or the timeout) comes.
+        setWaiting(db, w.itemId, true);
+        let done = false; // the wait is closed once: a second finish must not close another wait of the run
         const finish = (a: Record<string, string> | undefined) => {
+          if (done) return;
+          done = true;
           clearTimeout(timer);
           waiting.delete(w.itemId);
+          setWaiting(db, w.itemId, false);
           resolve(a);
         };
         waiting.set(w.itemId, {

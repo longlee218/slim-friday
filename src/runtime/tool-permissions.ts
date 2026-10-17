@@ -150,6 +150,9 @@ export function buildToolPermissions(p: ToolPermissionInput): {
       if (d.decision === "allow") return { behavior: "allow", updatedInput: input };
       if (!p.gateway)
         return { behavior: "deny", message: `${d.reason} (needs approval; not available here)` };
+      // The owner may take up to `timeoutMs` (default 600_000 ms, `discord-approval.ts`) to answer. That is below the
+      // watchdog's `STALE_AFTER_MS` (15 min, `config/resilience-caps.ts`) and the tool start just before is a
+      // heartbeat, so this wait needs no `setWaiting`.
       const r = await p.gateway.request({
         turnId: p.turnId,
         threadId: p.threadId,

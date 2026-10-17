@@ -6,6 +6,7 @@ import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/const
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
+import { REPORT_PROGRESS_TOOL } from "../../mcp/orchestration/tools/ReportProgressTool/constants";
 import { REPORT_RESULT_TOOL } from "../../mcp/orchestration/tools/ReportResultTool/constants";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition } from "../role-types";
@@ -37,6 +38,7 @@ export const DEVELOPER = `This run is a code task in the location's own checkout
 - A request to research, design or improve with no explicit change and no defect or target named: invoke the listed skill whose description matches first; the deliverable may be a design or plan with no code change. Then do not edit or commit; put the result in your reply and say no code change was needed.
 - A follow-up message may be a pure question: answer it without editing when no change is asked.
 - Run the location's tests with Bash when it has some (README, package scripts).
+- Call ${REPORT_PROGRESS_TOOL} at each milestone.
 - When done, reply with the outcome first: what changed and whether it is verified, as a short summary.`;
 
 /** Run facts that a skill text cannot know: approval before changes, checkout, delivery by the agent, skill scripts, precedence. */
@@ -100,6 +102,7 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,
     REPORT_RESULT_TOOL,
+    REPORT_PROGRESS_TOOL,
     DELETE_PATHS_TOOL,
     GIT_PUSH_TOOL,
     CREATE_PULL_REQUEST_TOOL,

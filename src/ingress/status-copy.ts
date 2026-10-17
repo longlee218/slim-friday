@@ -15,6 +15,24 @@ function ago(seconds: number): string {
 const toolLines = (f: StatusFacts): string[] =>
   f.recent.map((t) => `- ${t.tool}${t.description ? `: ${t.description}` : ""}`);
 
+/** Progress lines of a worker run: percent + its note, and how long ago it showed any activity. */
+function progressLines(
+  p: NonNullable<StatusFacts["progress"]>,
+  say: (vi: string, en: string) => string,
+): string[] {
+  const pct =
+    p.percent === undefined ? [] : [say(`Tiến độ: ${p.percent}%`, `Progress: ${p.percent}%`)];
+  const note = p.note ? [say(`Báo cáo: ${p.note}`, `Reported: ${p.note}`)] : [];
+  return [
+    ...pct,
+    ...note,
+    say(
+      `Hoạt động gần nhất ${ago(p.idleSeconds)} trước.`,
+      `Last activity ${ago(p.idleSeconds)} ago.`,
+    ),
+  ];
+}
+
 /**
  * The `/status` reply. A running task: role, state, time, tools so far, last tools, latest note, a pending approval.
  * A waiting task: role, status, scope, how long ago it stopped, its last tools. Nothing: one line.
@@ -53,6 +71,7 @@ export function renderStatus(f: StatusFacts | undefined, language: OwnerLanguage
           ),
         ]
       : []),
+    ...(f.progress ? progressLines(f.progress, say) : []),
     ...tools,
     ...(f.note ? [say(`Ghi chú mới nhất: ${f.note}`, `Latest note: ${f.note}`)] : []),
   ].join("\n");

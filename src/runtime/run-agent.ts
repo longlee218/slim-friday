@@ -75,6 +75,8 @@ export interface RunAgentInput {
    * denial. Observation only; it never changes the run.
    */
   onControlEvent?: (event: RunControlEvent) => void;
+  /** A tool call is about to start (any guard decision): a sign of life for the watchdog. Observation only. */
+  onToolStart?: () => void;
   /** Sees every stream message of a plain (non-steered) run: the rollover flush counts its `MemorySave` results. */
   onMessage?: (msg: SDKMessage) => void;
   /** Called with each assistant text of the run (the status snapshot's progress note); observation only. */

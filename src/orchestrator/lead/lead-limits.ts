@@ -26,3 +26,6 @@ export const SUMMARY_MAX_CHARS = 4000;
 /** Most follow-up requests one report may carry; max chars of one request. */
 export const MAX_REQUESTS = 5;
 export const REQUEST_MAX_CHARS = 500;
+
+/** Max chars of the worker's `ReportProgress` note. */
+export const PROGRESS_NOTE_MAX_CHARS = 200;

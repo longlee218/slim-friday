@@ -10,6 +10,7 @@ import {
   OPTION_MAX_CHARS,
   OPTIONS_MAX,
   OPTIONS_MIN,
+  PROGRESS_NOTE_MAX_CHARS,
   QUESTION_MAX_CHARS,
   REASON_MAX_CHARS,
   REQUEST_MAX_CHARS,
@@ -82,6 +83,12 @@ export const REPORT_RESULT_SHAPE = {
   requests: z.array(WORKER_REQUEST).max(MAX_REQUESTS).optional(),
 };
 
+/** A worker's `ReportProgress` input: how far along (whole percent) and what it is doing now. */
+export const REPORT_PROGRESS_SHAPE = {
+  percent: z.number().int().min(0).max(100),
+  note: z.string().min(1).max(PROGRESS_NOTE_MAX_CHARS),
+};
+
 /** Parsed inputs, one per tool. */
 export type DispatchInput = z.infer<z.ZodObject<typeof DISPATCH_AGENT_SHAPE>>;
 export type TaskStatusInput = z.infer<z.ZodObject<typeof TASK_STATUS_SHAPE>>;
@@ -89,4 +96,5 @@ export type SteerInput = z.infer<z.ZodObject<typeof STEER_TASK_SHAPE>>;
 export type CancelInput = z.infer<z.ZodObject<typeof CANCEL_TASK_SHAPE>>;
 export type AskOwnerInput = z.infer<z.ZodObject<typeof ASK_OWNER_SHAPE>>;
 export type ForwardInput = z.infer<z.ZodObject<typeof FORWARD_RESULT_SHAPE>>;
+export type ProgressInput = z.infer<z.ZodObject<typeof REPORT_PROGRESS_SHAPE>>;
 export type ReportInput = z.infer<z.ZodObject<typeof REPORT_RESULT_SHAPE>>;

@@ -57,3 +57,19 @@ test("Vietnamese wording", () => {
   expect(out).toContain("Đang chạy (developer, running) được 2m.");
   expect(out).toContain("Ghi chú mới nhất: fixing the bug");
 });
+
+test("a worker's progress: percent, its note and the activity age, in both languages; none without progress facts", () => {
+  const facts = { ...running, progress: { percent: 60, note: "tests green", idleSeconds: 90 } };
+  const en = renderStatus(facts, "en");
+  expect(en).toContain("Progress: 60%");
+  expect(en).toContain("Reported: tests green");
+  expect(en).toContain("Last activity 2m ago.");
+  const vi = renderStatus(facts, "vi");
+  expect(vi).toContain("Tiến độ: 60%");
+  expect(vi).toContain("Hoạt động gần nhất 2m trước.");
+  expect(renderStatus(running, "en")).not.toContain("Last activity");
+  // No report yet: only the activity age.
+  expect(renderStatus({ ...running, progress: { idleSeconds: 5 } }, "en")).not.toContain(
+    "Progress:",
+  );
+});

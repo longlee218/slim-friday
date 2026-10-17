@@ -8,6 +8,7 @@ import type { RoleDefinition } from "../../roles/role-types";
 import { newAskLimit } from "../../runtime/ask-limit";
 import { runAgent } from "../../runtime/run-agent";
 import { setProgressNote } from "../turns/progress-notes";
+import { touch } from "../worker/run-activity";
 import type { askTimeoutControl } from "./ask-timeout-control";
 import type { RoleRunInput, RoleRunnerDeps } from "./role-run-types";
 import type { RoleScope } from "./role-scope-types";
@@ -72,6 +73,8 @@ export function agentRunOnce(p: OnceParts) {
             }),
       onControlEvent: (e) => supervisor.observe(e),
       onProgress: (text) => setProgressNote(i.turnId, text),
+      // Every tool start of a worker run is a heartbeat for the watchdog (the lead run has no watchdog).
+      onToolStart: role.kind === "worker" ? () => touch(db, i.turnId) : undefined,
       skillsWorkspace: i.workspace, // curated skills of this workspace (never location content)
       guard: guardFor(role, {
         ...s.guard,

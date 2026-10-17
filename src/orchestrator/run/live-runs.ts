@@ -31,6 +31,16 @@ export interface LiveRun {
   seq: number;
   /** Input of a streaming run, once it registered it (owner steers are pushed into it). */
   steer?: { sink: SteerSink; run: SteerRun };
+  /** Last sign of life (ms epoch): run start, every tool start, every `ReportProgress`. The watchdog reads it. */
+  lastActivityAt: number;
+  /** Last time the activity was written to the db (throttles `touchProgress`). */
+  persistedAt?: number;
+  /** Latest `ReportProgress` of a worker (in memory only: lost on a restart, harmless). */
+  progress?: { percent: number; note: string; at: number };
+  /** Open by-design waits of the run on the owner or the lead (question relay, effect confirms); the watchdog skips the run while it is above 0. */
+  waitingCount?: number;
+  /** Why the app (not the owner) aborted the run; set before `ac.abort()` so the run's end can tell the cause. */
+  abortCause?: "stale";
 }
 
 /** key -> live run. */
@@ -62,7 +72,7 @@ export function registerRun(r: {
     logEvent(log, "task_run.replaced", { key, oldTurnId: old.turnId, turnId: r.turnId }, "warn");
     old.ac.abort();
   }
-  const run: LiveRun = { key, ...r, seq: nextSeq++ };
+  const run: LiveRun = { key, ...r, seq: nextSeq++, lastActivityAt: Date.now() };
   runs.set(key, run);
   let done!: () => void;
   const promise = new Promise<void>((res) => {
@@ -81,6 +91,9 @@ export function registerRun(r: {
 export function liveRunsOf(threadId: string): LiveRun[] {
   return [...runs.values()].filter((h) => h.threadId === threadId).sort((a, b) => a.seq - b.seq);
 }
+
+/** Every live worker run (the watchdog's candidates; the lead run is never one). */
+export const liveWorkers = (): LiveRun[] => [...runs.values()].filter((h) => h.kind === "worker");
 
 /** One live worker run by owned task id or by turn id, or undefined. */
 export const runOfTask = (idOrTurn: string): LiveRun | undefined =>

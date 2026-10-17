@@ -113,6 +113,7 @@ Worker run (detached; survives the owner message)
 
 | Who | Tools | Rule |
 |---|---|---|
+| every worker role (`developer`, `scout`, `planner`, roster specialists) | `ReportProgress` | percent (0-100) + note (≤ 200 chars, redacted); a heartbeat for the watchdog; shown by `/status` and `TaskStatus`; in memory only |
 | every worker role (`developer`, `scout`, `planner`, roster specialists) | `ReportResult` | typed result; no call → code derives the outcome from the run; a changing run with no report waits for the owner |
 | `planner` | `GetProjectContext`, `GetAgentCapabilities`, `CreatePlan`, `ValidatePlan`, `ProposePlanRevision`, `GetExecutionProgress`, `AnalyzeBlockers` | plan writing and reading; `ProposePlanRevision` is compare-and-set on `baseVersion` |
 | `developer` | `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch` | the only way to do R2/R3 work; each call checks the envelope (see [Guards](#guards)) |
@@ -136,6 +137,11 @@ Worker run (detached; survives the owner message)
 - On boot, in-flight items are recovered from the store and each thread with undelivered events gets its lead woken. Undelivered `thread_events` rows stay until a lead run delivers them.
 - A crash leaves running turns; they become `interrupted`.
 
+### Watchdog
+- Every live worker run carries `lastActivityAt` (`live-runs.ts`): set at run start, on every tool start (the guard's `onGuardDecision` observer, worker runs only) and on `ReportProgress` (`worker/run-activity.ts`). The db stamp `owned_tasks.last_progress_at` follows at most once per 60 s (no schema change, no version bump).
+- `worker/resilience-sweeper.ts` ticks every 60 s (`config/resilience-caps.ts`; timer `unref()`, stopped in `LeadSystem.stopAll`). `worker/watchdog.ts` `pickStale` (pure) takes worker runs idle for more than `STALE_AFTER_MS` (15 min; a role may set `staleAfterMs`). A stale run gets `abortCause = "stale"`, is aborted, and a `timeout` event (`stale:<itemId>:<dispatchCount>`) wakes the lead. Detection is within threshold + one tick. For now the aborted run ends as a cancelled run; auto-resume is a later phase.
+- A run waiting by design is skipped: the question relay wait (≤ 30 min) and the owner confirm of an effect open a counted wait (`waitingCount`, try/finally; the last close counts as activity). The watchdog also skips a run already aborted, and appends no `timeout` event for an item that already ended; `touchProgress` never writes a final task. An owner tool approval (canUseTool) does not set it: the tool start just before it is a heartbeat and the approval times out after 10 min, below the threshold.
+
 ## Role Model
 Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per file (`src/roles/role-types.ts`). The engine reads only that data, never a role name (test-enforced).
 
@@ -146,7 +152,7 @@ Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per f
 | `model` | Sonnet | Sonnet | Haiku | Sonnet | Haiku |
 | `skills` | `[]` | `plan-work` | `scout`, `docs-seeker` | 15 named skills | `discord-server-manager` |
 | `capabilities` | read | read, skills | read, web, shell, skills | read, write, shell, skills, tasks, mcp, feedback, ask | read, skills, ask |
-| `mcpTools` | 13 (see below) | 11 | 4 | 8 | 3 |
+| `mcpTools` | 13 (see below) | 12 | 5 | 9 | 3 |
 | `limits.maxAsk` | 0 | 0 | 0 | 6 | 4 |
 | `budgetUsd` | 0.75 | 0.5 | 0.75 | 4.5 | 0.5 |
 | `permissionMode` | auto | auto | auto | bypassPermissions (a worker with an envelope runs in `default`) | - |
@@ -166,7 +172,7 @@ Five in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<se
 | Server (name) | Tools | Roles (role `mcpTools`) |
 |---|---|---|
 | `memory` | `MemorySave`, `MemorySearch`, `MemoryGet`, `MemoryExpand` | `MemorySave`: lead only. The three read tools: lead, planner, scout, developer |
-| `orchestration` | `DispatchAgent`, `TaskStatus`, `SteerTask`, `CancelTask`, `AskOwner`, `ForwardResult`, `RequestPlan`, `ApprovePlan`, `SetThreadTitle`, `ReportResult` | lead (the first nine); `ReportResult`: planner, scout, developer |
+| `orchestration` | `DispatchAgent`, `TaskStatus`, `SteerTask`, `CancelTask`, `AskOwner`, `ForwardResult`, `RequestPlan`, `ApprovePlan`, `SetThreadTitle`, `ReportResult`, `ReportProgress` | lead (the first nine); `ReportResult`, `ReportProgress`: every worker role |
 | `plan` | `GetProjectContext`, `GetAgentCapabilities`, `CreatePlan`, `ValidatePlan`, `ProposePlanRevision`, `GetExecutionProgress`, `AnalyzeBlockers` | planner |
 | `effects` | `DeletePaths`, `GitPush`, `CreatePullRequest`, `MergeBranch` | developer |
 | `discord-admin` | `ListSpaces`, `CreateSpaceOrChannel`, `WriteSpaceFile` | discord-manager |

@@ -21,6 +21,7 @@ import { runTurn } from "../run/run-turn";
 import { expectedDelivery } from "../turns/completion";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import type { ReportSink } from "./report-sink";
+import { setProgress, withWaiting } from "./run-activity";
 import { earlierSteps, emitEndEvent } from "./worker-end-event";
 
 /** Logger of this module. */
@@ -100,6 +101,8 @@ export async function startWorker(
           // `lead` part, so it can never hold a lead tool).
           appCtx: () => ({
             reportSink: sink,
+            // ReportProgress: recorded on this task's live run (percent, note, heartbeat).
+            progress: (p) => setProgress(db, item.id, p),
             // Plan tools: bound to the goal the planner plans for.
             plan: {
               db,
@@ -122,14 +125,17 @@ export async function startWorker(
               locations: ctx.locations.map((l) => ({ name: l.name, path: l.path })),
               agentHome: rt.deps.config.agentHome,
               // R4 and over-bound asks: a yes / no to the owner (fail closed without the button flow).
+              // The run idles while the owner decides: the watchdog skips it (never left waiting, even on a throw).
               confirm: (summary) =>
-                ownerConfirm(rt.deps.approvals, {
-                  kind: "effect",
-                  turnId,
-                  threadId,
-                  summary,
-                  language,
-                }),
+                withWaiting(db, item.id, () =>
+                  ownerConfirm(rt.deps.approvals, {
+                    kind: "effect",
+                    turnId,
+                    threadId,
+                    summary,
+                    language,
+                  }),
+                ),
               run: spawnRunner,
             },
           }),

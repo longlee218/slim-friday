@@ -13,6 +13,7 @@ import { costOfRoleSince } from "../../storage/run-metrics-store";
 import { countChainStarts, lastEventOfItem } from "../../storage/thread-event-store";
 import { PENDING_PLAN_MAX_AGE_MS } from "../../storage/work-plan-store";
 import type { Caps } from "../strategy/caps";
+import { progressOf } from "../worker/run-activity";
 import type { TaskSnapshot } from "./effect-port";
 
 /* Read-only db queries of the db-backed EffectPort (caps counters, the open goal, a worker's pending question). */
@@ -64,11 +65,13 @@ export function snapshotOf(db: Database, threadId: string, taskId?: string): Tas
     ...(intent && { intent }),
     items: childrenOf(db, goalId).map((it) => {
       const pendingQuestion = pendingQuestionOf(db, it.id);
+      const progress = progressOf(it.id);
       return {
         id: it.id,
         key: it.itemKey,
         status: it.status,
         ...(pendingQuestion && { pendingQuestion }),
+        ...(progress && { progress }),
         resultKind: it.resultKind,
         resultExcerpt: it.resultExcerpt,
         resultPath: it.resultPath,

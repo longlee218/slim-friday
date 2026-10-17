@@ -115,6 +115,13 @@ export function casUpdateTask(
   return res.changes === 1;
 }
 
+/** Record a sign of life of a task (`last_progress_at` only: no status change, no version bump). A final task is left as it ended. */
+export function touchProgress(db: Database, id: string, now = Date.now()): void {
+  db.query(
+    "UPDATE owned_tasks SET last_progress_at = ? WHERE id = ? AND status NOT IN ('completed', 'failed', 'cancelled')",
+  ).run(now, id);
+}
+
 /** Link a turn to the task it works on. */
 export function linkTurn(db: Database, turnId: string, taskId: string): void {
   db.query("UPDATE turns SET owned_task_id = ? WHERE id = ?").run(taskId, turnId);

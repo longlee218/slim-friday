@@ -226,6 +226,7 @@ exports[`options lock: dev options snapshot 1`] = `
 - A request to research, design or improve with no explicit change and no defect or target named: invoke the listed skill whose description matches first; the deliverable may be a design or plan with no code change. Then do not edit or commit; put the result in your reply and say no code change was needed.
 - A follow-up message may be a pure question: answer it without editing when no change is asked.
 - Run the location's tests with Bash when it has some (README, package scripts).
+- Call ReportProgress at each milestone.
 - When done, reply with the outcome first: what changed and whether it is verified, as a short summary.
 - Do not change files before the owner approved your plan; get approval with AskUserQuestion (the skill says when). The owner sees only Discord.
 - You work in the owner's checkout with \`git\` in the shell; the shell rules are in the next section.

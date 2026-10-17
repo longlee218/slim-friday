@@ -48,6 +48,7 @@ export const FULL_CTX: RunCtx = {
   },
   lead: {} as never,
   reportSink: {},
+  progress: () => {},
   plan: {} as never,
   effects: {} as never,
   admin: {} as never,

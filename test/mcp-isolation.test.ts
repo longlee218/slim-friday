@@ -9,6 +9,7 @@ import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constan
 import { MEMORY_SEARCH_TOOL } from "../src/mcp/memory/tools/MemorySearchTool/constants";
 import { ASK_OWNER_TOOL } from "../src/mcp/orchestration/tools/AskOwnerTool/constants";
 import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
+import { REPORT_PROGRESS_TOOL } from "../src/mcp/orchestration/tools/ReportProgressTool/constants";
 import { REPORT_RESULT_TOOL } from "../src/mcp/orchestration/tools/ReportResultTool/constants";
 import { SET_THREAD_TITLE_TOOL } from "../src/mcp/orchestration/tools/SetThreadTitleTool/constants";
 import { STEER_TASK_TOOL } from "../src/mcp/orchestration/tools/SteerTaskTool/constants";
@@ -62,10 +63,11 @@ test("worker roles never hold a lead tool, even when the run (wrongly) brings a 
       expect([role.name, t, names.includes(t)]).toEqual([role.name, t, false]);
     expect(names).not.toContain(SET_THREAD_TITLE_TOOL);
   }
-  // Worker ctx as the engine builds it (no lead part): the orchestration instance is ReportResult only.
+  // Worker ctx as the engine builds it (no lead part): the orchestration instance is ReportProgress + ReportResult only.
   const { lead: _lead, ...workerCtx } = FULL_CTX;
   for (const role of WORKERS)
     expect(toolsByServer(buildServers(role, workerCtx))[ORCHESTRATION_MCP_SERVER]).toEqual([
+      REPORT_PROGRESS_TOOL,
       REPORT_RESULT_TOOL,
     ]);
 });

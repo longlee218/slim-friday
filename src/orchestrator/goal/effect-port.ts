@@ -18,6 +18,8 @@ interface ItemFacts {
   status: string;
   /** Question the worker waits on, redacted; undefined = none. */
   pendingQuestion?: string;
+  /** Live run only: what the worker reported (percent, note) and seconds since its last activity. */
+  progress?: { percent?: number; note?: string; idleSeconds: number };
   resultKind: ResultKind | null;
   resultExcerpt: string | null;
   resultPath: string | null;

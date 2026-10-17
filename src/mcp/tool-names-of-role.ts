@@ -23,6 +23,7 @@ import { ASK_OWNER_TOOL } from "./orchestration/tools/AskOwnerTool/constants";
 import { CANCEL_TASK_TOOL } from "./orchestration/tools/CancelTaskTool/constants";
 import { DISPATCH_AGENT_TOOL } from "./orchestration/tools/DispatchAgentTool/constants";
 import { FORWARD_RESULT_TOOL } from "./orchestration/tools/ForwardResultTool/constants";
+import { REPORT_PROGRESS_TOOL } from "./orchestration/tools/ReportProgressTool/constants";
 import { REPORT_RESULT_TOOL } from "./orchestration/tools/ReportResultTool/constants";
 import { REQUEST_PLAN_TOOL } from "./orchestration/tools/RequestPlanTool/constants";
 import { SET_THREAD_TITLE_TOOL } from "./orchestration/tools/SetThreadTitleTool/constants";
@@ -58,6 +59,7 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
   [CANCEL_TASK_TOOL]: ORCHESTRATION_MCP_SERVER,
   [DISPATCH_AGENT_TOOL]: ORCHESTRATION_MCP_SERVER,
   [FORWARD_RESULT_TOOL]: ORCHESTRATION_MCP_SERVER,
+  [REPORT_PROGRESS_TOOL]: ORCHESTRATION_MCP_SERVER,
   [REPORT_RESULT_TOOL]: ORCHESTRATION_MCP_SERVER,
   [REQUEST_PLAN_TOOL]: ORCHESTRATION_MCP_SERVER,
   [SET_THREAD_TITLE_TOOL]: ORCHESTRATION_MCP_SERVER,

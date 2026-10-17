@@ -117,6 +117,7 @@ export function buildSdkOptions(
         guard,
         runSignal: input.abortController.signal,
         onGuardDecision: (e) => {
+          input.onToolStart?.();
           if (e.decision === "deny")
             input.onControlEvent?.({ kind: "guard_denied", tool: e.tool, reasonCode: "guard" });
         },

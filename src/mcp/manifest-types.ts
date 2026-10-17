@@ -18,6 +18,8 @@ export interface RunCtx {
   lead?: LeadToolContext;
   /** Where a worker's `ReportResult` lands. */
   reportSink?: ReportSink;
+  /** A worker's `ReportProgress` port, bound to its task (percent + note in, redacted and recorded by the callee). */
+  progress?: (p: { percent: number; note: string }) => void;
   /** Planner tools: the planner run bound to its goal. */
   plan?: PlannerCtx;
   /** Effect tools: the worker run's envelope, locations and owner gate. */
