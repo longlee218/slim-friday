@@ -81,7 +81,9 @@ test("md renders with security headers; raw html and javascript: links are escap
   for (const [k, v] of Object.entries(HEADERS)) expect(res.headers.get(k)).toBe(v);
   expect(res.headers.get("content-security-policy")).toContain("default-src 'none'");
   const html = await res.text();
-  expect(html).not.toContain("<script");
+  expect(html.match(/<script/g)?.length).toBe(1); // only the layout's own, hash-pinned script
+  expect(html).not.toContain("<script>alert");
+  expect(res.headers.get("content-security-policy")).toContain("script-src 'sha256-");
   expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
   expect(html).not.toContain('href="javascript:'); // an invalid link stays literal text, never an anchor
   expect(html).toContain("<strong>b</strong>");

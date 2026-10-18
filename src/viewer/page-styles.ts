@@ -31,8 +31,6 @@ table{border-collapse:collapse;width:max-content;min-width:100%}
 th,td{border:1px solid var(--line);padding:6px 13px;text-align:left;vertical-align:top}th{font-weight:600}
 tr:nth-child(2n) td{background:var(--code)}
 img{max-width:100%}del{color:var(--mute)}
-nav{border:1px solid var(--line);border-radius:6px;padding:4px 16px;margin-bottom:24px;background:var(--code)}
-nav ul{list-style:none;padding-left:1em;margin:8px 0}nav>ul{padding-left:0}
 .hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-doctag,.hljs-meta .hljs-keyword{color:var(--kw)}
 .hljs-string,.hljs-regexp,.hljs-meta .hljs-string{color:var(--str)}
 .hljs-number,.hljs-symbol,.hljs-bullet,.hljs-variable,.hljs-template-variable{color:var(--num)}

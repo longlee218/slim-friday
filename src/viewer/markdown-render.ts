@@ -103,6 +103,10 @@ function headingIds(state: StateCore): void {
     seen.set(base, n + 1);
     const id = n === 0 ? base : `${base}-${n}`;
     tok.attrSet("id", id);
+    // Permalink `#` after the heading text (static markup; the id is slug-safe ASCII).
+    const link = new state.Token("html_inline", "", 0);
+    link.content = `<a class="anchor" href="#${id}" aria-label="Link to this section">#</a>`;
+    state.tokens[i + 1]?.children?.push(link);
     toc.push({ level: Number(tok.tag.slice(1)), id, html: esc(text) });
   });
   (state.env as { toc?: TocEntry[] }).toc = toc;
