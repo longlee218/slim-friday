@@ -368,3 +368,10 @@ test("prepareOutput: threshold edges (800 chat, 3900 inline)", () => {
   expect(over.report).toBeUndefined();
   expect(over.file?.name).toBe("reply.md");
 });
+
+test("prepareOutput: a long html document reply is attached as .html, never .md", () => {
+  const html = `<!DOCTYPE html>\n<html><body>${"<p>row</p>\n".repeat(400)}</body></html>`;
+  const out = prepareOutput(html, "en");
+  expect(out.file?.name).toBe("reply.html");
+  expect(out.file?.name.endsWith(".md")).toBe(false);
+});

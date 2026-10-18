@@ -16,6 +16,9 @@ export const CHUNK_MAX = 1900;
 export const REPLY_CAP = 6000;
 export const HEAD_MAX = 1500;
 
+/** A text that is a whole html document (starts with a doctype or the html tag): its file must not be named `.md`. */
+const HTML_DOCUMENT = /^\s*(<!doctype\s+html|<html[\s>])/i;
+
 /** Minimal message facts the routing rules need (decoupled from discord.js types). */
 export interface MessageFacts {
   authorId: string;
@@ -185,7 +188,9 @@ export function prepareOutput(
   const asFile = (chatText: string, content: string, title?: string) => {
     // No chat part: use the first paragraph. Cut at HEAD_MAX so it fits MAX_BUBBLES messages.
     const head = closeFence(clip(chatText || (paragraphs(content)[0] ?? ""), HEAD_MAX));
-    return { bubbles: bubblesOf(head), file: { name: attachmentName(title, "md"), content } };
+    // An html document keeps `.html` (the model's title still names it); everything else is Markdown.
+    const ext = HTML_DOCUMENT.test(content) ? "html" : "md";
+    return { bubbles: bubblesOf(head), file: { name: attachmentName(title, ext), content } };
   };
   if (split && detail) return asFile(chat, `${chat}\n\n${detail}`.trim(), headingTitle(detail));
   const body = split ? chat : safe;

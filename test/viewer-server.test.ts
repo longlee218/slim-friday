@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { writeArtifact } from "../src/artifacts/artifact-writer";
 import { VIEWER_LINK_TTL_DEFAULT_MS, type ViewerConfig } from "../src/config/viewer-config";
 import { insertArtifact } from "../src/storage/artifact-store";
+import { FRAME_LINK_SCRIPT } from "../src/viewer/frame-link-script";
+import { esc } from "../src/viewer/page-template";
 import { signedArtifactUrl } from "../src/viewer/signed-link";
 import { createViewerHandler, startViewer } from "../src/viewer/viewer-server";
 import { makeEnv, outsideDir } from "./helpers";
@@ -95,8 +97,9 @@ test("html is wrapped in a sandboxed iframe (scripts yes, same origin no) with t
   const id = save("html", "<h1>hi</h1><script>fetch('https://evil')</script>");
   const res = get(id);
   const html = await res.text();
-  expect(html).toContain('sandbox="allow-scripts"');
+  expect(html).toContain('sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"');
   expect(html).not.toContain("allow-same-origin");
+  expect(html).not.toContain("allow-top-navigation");
   expect(html).toContain("srcdoc=");
   expect(html).toContain("&lt;script&gt;fetch"); // the artifact sits in the escaped attribute, not in the wrapper
   expect(html).toContain("Content-Security-Policy");
@@ -104,6 +107,21 @@ test("html is wrapped in a sandboxed iframe (scripts yes, same origin no) with t
   expect(csp).toContain("frame-src 'self'");
   expect(csp).not.toContain("connect-src");
   expect(csp).toContain("default-src 'none'");
+});
+
+test("html: the static link script is injected once, holds no artifact text, and the artifact stays escaped", async () => {
+  const { save, get } = setup();
+  const secret = "SECRET-TEXT-9f3";
+  const html = await get(save("html", `<a href="#s">${secret}</a><h2 id="s">x</h2>`)).text();
+  const srcdoc = html.slice(html.indexOf("srcdoc=")); // still HTML-escaped: compare with the escaped script
+  const script = esc(FRAME_LINK_SCRIPT);
+  expect(srcdoc.split(script).length - 1).toBe(1); // once
+  expect(FRAME_LINK_SCRIPT).not.toContain(secret); // static: nothing of the artifact in it
+  expect(srcdoc.indexOf(script)).toBeLessThan(srcdoc.indexOf(secret)); // runs before the artifact
+  expect(html).toContain("&lt;a href=&quot;#s&quot;&gt;"); // the artifact itself is still escaped in the attribute
+  expect(FRAME_LINK_SCRIPT).toContain("a[href]"); // # links scrolled in place, never navigated
+  expect(FRAME_LINK_SCRIPT).toContain("preventDefault");
+  expect(FRAME_LINK_SCRIPT).toContain("noopener noreferrer");
 });
 
 test("diff, csv and txt are escaped <pre>", async () => {

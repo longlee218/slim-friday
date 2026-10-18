@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { basename, extname } from "node:path";
 import { attachmentName, headingTitle } from "../../ingress/attachment-name";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
@@ -59,13 +60,17 @@ export function createLeadIo(
     post: async (p) => {
       try {
         const text = p.filePath ? readFileSync(p.filePath, "utf8") : (p.text ?? "");
-        // A result file is posted as a file (the lead summarizes it in its own words), never as inline text; its
-        // name is its `# <title>` heading made filesystem-safe.
+        // A result file is posted as a file (the lead summarizes it in its own words), never as inline text. A markdown
+        // file is named from its `# <title>` heading made filesystem-safe; any other kind (html, code, ...) keeps its real
+        // file name, so an html artifact is never posted as `reply.md`.
         if (text.trim() && !ac.aborted)
           await postTo(ctx, text, {
             asFile: !!p.filePath,
             ...(p.filePath && {
-              fileName: attachmentName(headingTitle(text), "md"),
+              fileName:
+                extname(p.filePath).toLowerCase() === ".md"
+                  ? attachmentName(headingTitle(text), "md")
+                  : basename(p.filePath),
               // The artifact of that file opens in the viewer (no links when the viewer is off or the file is no artifact).
               links: openLinks(deps.config.viewer, artifactIdByPath(deps.db, p.filePath)),
             }),

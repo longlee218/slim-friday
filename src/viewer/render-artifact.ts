@@ -1,4 +1,5 @@
 import type { ArtifactKind } from "../artifacts/artifact-kinds";
+import { FRAME_LINK_SCRIPT } from "./frame-link-script";
 import { markdownToHtml } from "./markdown-render";
 import { docPage } from "./page-doc-layout";
 import { DOC_SCRIPT_CSP_SOURCE } from "./page-doc-script";
@@ -37,7 +38,7 @@ export function renderArtifact(kind: ArtifactKind, title: string, text: string):
     return { html: docPage(title, kind, html, toc), csp: DOC_CSP };
   }
   if (kind === "html") {
-    const inner = `<meta http-equiv="Content-Security-Policy" content="${esc(INNER_CSP)}">${text}`;
+    const inner = `<meta http-equiv="Content-Security-Policy" content="${esc(INNER_CSP)}">${FRAME_LINK_SCRIPT}${text}`;
     return { html: framePage(title, inner), csp: FRAME_CSP };
   }
   return {

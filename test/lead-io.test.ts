@@ -169,3 +169,21 @@ test("post: a result file that is an artifact carries the viewer's Open link whe
   });
   expect(sent[1]?.links).toEqual([]);
 });
+
+test("post: a non-markdown result file keeps its real file name (html is never posted as reply.md)", async () => {
+  const names: (string | undefined)[] = [];
+  const ctx = {
+    message: {
+      notify: async (_t: string, o?: { fileName?: string }) => void names.push(o?.fileName),
+    },
+  } as unknown as LeadThreadCtx;
+  const s = setup();
+  const io = createLeadIo(s.rt, ctx, "t", "turn", new AbortController().signal);
+  const html = join(s.env.home, "lo-trinh-infra.html");
+  writeFileSync(html, "<!DOCTYPE html><html><body>x</body></html>");
+  const md = join(s.env.home, "other.md");
+  writeFileSync(md, "# My Title\n\nbody");
+  await io.post({ filePath: html });
+  await io.post({ filePath: md });
+  expect(names).toEqual(["lo-trinh-infra.html", "my-title.md"]);
+});
