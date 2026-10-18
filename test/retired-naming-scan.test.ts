@@ -118,6 +118,7 @@ const TASK_ID_OK = [
   // artifacts.task_id: the task that produced the artifact (a lookup column, owner decision)
   "artifacts.ts",
   "artifact-store.ts",
+  "artifact-list-store.ts", // taskStoreArtifacts: the files a task saved
   "dispatch-ready.ts", // writes the outbox event of a dispatched task
 ];
 

@@ -34,6 +34,10 @@ export class FakePort implements EffectPort {
   steerReply: SteerReply = "queued";
   answer: OwnerAnswer = { answer: "yes", timedOut: false };
 
+  /** Test-set files a task saved (primary first). */
+  files = new Map<string, string[]>();
+  resultFiles = (taskId: string) => this.files.get(taskId) ?? [];
+
   recall = (key: string) => this.memo.get(key);
   /** Audit rows written by `remember` (scope / grantor overrides included). */
   audits: { key: string; tool?: string; scope?: string; grantedBy?: string }[] = [];

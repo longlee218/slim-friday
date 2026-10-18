@@ -144,7 +144,10 @@ export const handleAskOwner = (ctx: LeadToolContext, input: AskOwnerInput): Prom
     return { reply: { ok: true, answer: a.answer }, events };
   });
 
-/** ForwardResult: post a finished item's result file (verbatim) or its excerpt (summary). */
+/**
+ * ForwardResult: post a finished item's result file(s) (verbatim) or its excerpt (summary). Verbatim posts one message
+ * per file the task saved, the primary (result path) first; each file gets its own Open link.
+ */
 export const handleForward = (ctx: LeadToolContext, input: ForwardInput): Promise<Reply> =>
   leadCall(ctx, FORWARD_RESULT_TOOL, input, async () => {
     const item = ctx.port.item(input.taskId);
@@ -152,8 +155,11 @@ export const handleForward = (ctx: LeadToolContext, input: ForwardInput): Promis
     const verbatim = input.mode === "verbatim";
     if (verbatim ? !item.resultPath : !item.resultExcerpt)
       return { reply: refuse("NO_RESULT", "The task has no result yet.") };
-    await ctx.port.post(
-      verbatim ? { filePath: item.resultPath as string } : { text: item.resultExcerpt as string },
-    );
-    return { reply: { ok: true, posted: input.mode }, itemId: item.id };
+    if (!verbatim) {
+      await ctx.port.post({ text: item.resultExcerpt as string });
+      return { reply: { ok: true, posted: input.mode }, itemId: item.id };
+    }
+    const files = [...new Set([item.resultPath as string, ...ctx.port.resultFiles(input.taskId)])];
+    for (const filePath of files) await ctx.port.post({ filePath });
+    return { reply: { ok: true, posted: input.mode, files: files.length }, itemId: item.id };
   });

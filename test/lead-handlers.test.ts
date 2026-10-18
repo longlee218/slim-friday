@@ -181,3 +181,12 @@ test("forward: verbatim posts the file, summary the excerpt, no result is refuse
     code: "NO_RESULT",
   });
 });
+
+test("forward verbatim: one message per saved file, primary (result path) first, no duplicate", async () => {
+  const port = new FakePort();
+  port.rows.set("t1", itemRow({ resultPath: "/full.md", resultExcerpt: "short" }));
+  port.files.set("t1", ["/full.md", "/second.md"]);
+  const r = await handleForward(leadCtx(port), { taskId: "t1", mode: "verbatim" });
+  expect(port.posts).toEqual([{ filePath: "/full.md" }, { filePath: "/second.md" }]);
+  expect(r).toMatchObject({ ok: true, files: 2 });
+});

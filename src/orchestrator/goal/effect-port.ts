@@ -134,6 +134,8 @@ export interface EffectPort {
   snapshot(taskId?: string): TaskSnapshot | undefined;
   /** One item of this thread, or undefined. */
   item(taskId: string): ItemRow | undefined;
+  /** Paths of the files the task saved itself (SaveArtifact), the primary (largest) first; [] = none or not this thread's. */
+  resultFiles(taskId: string): string[];
   /**
    * Start a goal in ONE transaction: cancel the superseded goal, open the new goal, add its items, one `start` event per
    * item and the audit row (`key` = idempotency key). A failure part-way leaves nothing behind. `supersedes` must be the

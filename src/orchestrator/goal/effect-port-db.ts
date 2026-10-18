@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { taskStoreArtifacts } from "../../storage/artifact-list-store";
 import { appendEffect, effectResult } from "../../storage/effect-log-store";
 import { childrenOf, getItem, goalOf, type ItemRow } from "../../storage/owned-item-store";
 import { threadOfTask } from "../../storage/owned-task-store";
@@ -91,6 +92,8 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
     env: () => d.env,
     snapshot: (taskId) => (taskId && !mine(taskId) ? undefined : snapshotOf(db, threadId, taskId)),
     item: (taskId): ItemRow | undefined => (mine(taskId) ? getItem(db, taskId) : undefined),
+    resultFiles: (taskId) =>
+      mine(taskId) ? taskStoreArtifacts(db, taskId).map((a) => a.path) : [],
     dispatch: (x): DispatchResult => {
       // Only the thread's own open goal may be replaced (a foreign or stale id changes nothing).
       if (x.supersedes && (!mine(x.supersedes) || x.supersedes !== openGoalIdOf(db, threadId)))

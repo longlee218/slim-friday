@@ -37,6 +37,18 @@ export function listChannelArtifacts(
     .all(...params);
 }
 
+/**
+ * Files a task saved itself (store origin, `task_id` = the task), the task's PRIMARY first: the largest (a research
+ * report beats its short summary), a tie goes to the newest. Used for the result path, the end event and verbatim forward.
+ */
+export function taskStoreArtifacts(db: Database, taskId: string): ArtifactRow[] {
+  return db
+    .query<ArtifactRow, [string]>(
+      `SELECT ${COLUMNS} FROM artifacts WHERE task_id = ? AND origin = 'store' ORDER BY size DESC, rowid DESC`,
+    )
+    .all(taskId);
+}
+
 /** Drop the index rows of one artifact (before it is indexed again from a changed file). */
 export function ftsDelete(db: Database, artifactId: string): void {
   db.query("DELETE FROM artifacts_fts WHERE artifact_id = ?").run(artifactId);

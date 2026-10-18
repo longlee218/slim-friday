@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../../observability/redact";
+import { taskStoreArtifacts } from "../../storage/artifact-list-store";
 import { getArtifact } from "../../storage/artifact-store";
 import { childrenOf, getItem, type ItemRow, isHeld } from "../../storage/owned-item-store";
 import { appendEvent } from "../../storage/thread-event-store";
@@ -50,6 +51,8 @@ export function emitEndEvent(
 ): void {
   const it = getItem(db, itemId);
   if (!it) return;
+  // Every file the run saved (SaveArtifact) plus the ones the report named, deduped, in that order.
+  const allIds = [...new Set([...taskStoreArtifacts(db, it.id).map((a) => a.id), ...artifactIds])];
   const kind =
     it.status === "completed"
       ? "result"
@@ -75,8 +78,8 @@ export function emitEndEvent(
       resultKind: it.resultKind,
       excerpt: it.resultExcerpt,
       path: it.resultPath,
-      // Artifacts the report names (id + title): the lead passes the ids on in briefs.
-      ...(artifactIds.length && { artifacts: artifactsOf(db, artifactIds) }),
+      // Artifacts the run saved or the report names (id + title): the lead passes the ids on in briefs.
+      ...(allIds.length && { artifacts: artifactsOf(db, allIds) }),
       ...(verdict?.action === "hold" && {
         class: verdict.class,
         cause: verdict.cause,
