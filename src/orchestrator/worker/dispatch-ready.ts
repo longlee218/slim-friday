@@ -2,15 +2,17 @@ import { MAX_DISPATCHES_PER_ITEM } from "../../config/resilience-caps";
 import { WORKER_SLOT_RETRY_MS } from "../../config/run-caps";
 import { logEvent, logger } from "../../observability/logger";
 import { findRole } from "../../roles/role-registry";
-import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
-import { appendEvent, markStartDelivered } from "../../storage/thread-event-store";
+import { childrenOf, type ItemRow, setResultKind } from "../../storage/owned-item-store";
+import { appendEvent, holdCount, markStartDelivered } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
-import { goalBudgetOf, goalOverBudget } from "../budget/task-budget";
+import { budgetReason, goalBudgetCanGrow, goalOverBudget } from "../budget/task-budget";
 import { openGoalIdOf } from "../goal/effect-port-queries";
 import type { LeadRuntime } from "../lead/lead-runtime";
 import { startNextWave, waveGoalOf } from "../plan/plan-waves";
+import { zombieClaims } from "../run/zombie-claims";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import { clearHold, waitMs } from "./resume-backoff";
+import { hasPendingAnswer } from "./resume-prompt";
 import { pickDispatchable, type RoleCaps } from "./scheduler";
 import { clearSlotWait, noteDeferred } from "./slot-wait";
 import { startWorker } from "./worker-run";
@@ -25,7 +27,11 @@ const deferred = new Map<string, ReturnType<typeof setTimeout>>();
 const passing = new Set<string>();
 const again = new Set<string>();
 
-/** Fail an item the engine will not start (breaker, budget): the work order closes, dependents are cancelled, the lead is told. */
+/**
+ * Stop an item the engine will not start. The breaker (`failure`) fails it for good: the work order closes, dependents are
+ * cancelled. A budget hit (`budget_hit`) only HOLDS it (`blocked`, FAILED): dependents wait and the lead retries it once the
+ * budget allows, or cancels it. The lead is told either way.
+ */
 function failItem(
   rt: LeadRuntime,
   threadId: string,
@@ -34,16 +40,24 @@ function failItem(
   reason: string,
 ): void {
   const { db } = rt.deps;
-  moveTaskTo(db, it.id, "failed");
+  const hold = kind === "budget_hit";
+  const seq = holdCount(db, it.id); // before the event: a second hold of the item is its own event
+  moveTaskTo(db, it.id, hold ? "blocked" : "failed");
+  if (hold) setResultKind(db, it.id, "FAILED");
   markStartDelivered(db, it.id);
-  cancelDependents(db, it.id);
+  if (!hold) cancelDependents(db, it.id);
   appendEvent(db, {
-    id: `${kind}:${it.id}:${it.dispatchCount}`,
+    id: `${kind}:${it.id}:${it.dispatchCount}:${seq}`,
     threadId,
     taskId: it.parentId ?? it.id,
     itemId: it.id,
     kind,
-    payload: { key: it.itemKey, error: reason },
+    payload: {
+      key: it.itemKey,
+      error: reason,
+      // A budget hold tells the lead whether the budget can still rise (a retry is pointless when it cannot).
+      ...(hold && { cause: "budget", canGrow: goalBudgetCanGrow(db, it.parentId ?? it.id) }),
+    },
   });
   logEvent(log, "dispatch.refused", { itemId: it.id, kind, reason }, "warn");
 }
@@ -105,19 +119,14 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
     const overBudget = goalOverBudget(db, goalId);
     // The breaker stops a re-dispatch loop, never an automatic resume (`attempt > 0`): a transient failure at the third
     // dispatch still gets its capped resumes and then a hold for the lead, not a terminal failure.
-    const tripped = (i: ItemRow) => i.attempt === 0 && i.dispatchCount >= MAX_DISPATCHES_PER_ITEM;
+    // An item resuming on an answer to its own question is no loop either (its start is not counted).
+    const tripped = (i: ItemRow) =>
+      i.attempt === 0 && i.dispatchCount >= MAX_DISPATCHES_PER_ITEM && !hasPendingAnswer(db, i.id);
     const refused = ready.find((i) => tripped(i) || overBudget);
     if (refused) {
       if (tripped(refused))
         failItem(rt, threadId, refused, "failure", `dispatched ${refused.dispatchCount} times`);
-      else
-        failItem(
-          rt,
-          threadId,
-          refused,
-          "budget_hit",
-          `goal budget $${goalBudgetOf(db, goalId)} used`,
-        );
+      else failItem(rt, threadId, refused, "budget_hit", budgetReason(db, goalId));
       rt.announce(threadId); // a failed item is news
       continue;
     }
@@ -127,7 +136,11 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
       settleGoal(db, goalId);
       return;
     }
-    const picks = pickDispatchable(items, roleCaps);
+    // A writer waits while a force-closed run of its location may still be alive (claim until the run returns); the
+    // scheduler skips it, so it takes no slot from the items that can start.
+    const zombie = (i: ItemRow) => zombieClaims(i.location);
+    const picks = pickDispatchable(items, roleCaps, undefined, zombie);
+    if (ready.some((i) => roleCaps(i.ownerRole).writer && zombie(i))) deferRetry(rt, threadId);
     for (const [at, next] of picks.entries()) {
       // An item waiting out its resume backoff keeps its place (and its location) and is tried again when due.
       const wait = waitMs(next.id);
@@ -136,8 +149,8 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
         continue;
       }
       // A start that throws (bad role data, db error) fails that item only: the other picks still start.
-      const started = await startWorker(rt, ctx, threadId, next, () => {
-        rt.announce(threadId);
+      const started = await startWorker(rt, ctx, threadId, next, (announce = true) => {
+        if (announce) rt.announce(threadId);
         void dispatchReady(rt, threadId);
         wakeDeferred(rt);
       }).catch((err: unknown) => {

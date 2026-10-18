@@ -167,5 +167,8 @@ test("budget_hit: a plan goal stops starting items at its plan budget ($4), and 
   expect(caps.a).toBeLessThan(4);
   expect(hits()[0]?.payload).toContain("goal budget $4 used");
   const goalId = GOAL.exec(h.calls.find((c) => c.kind === "planner")!.prompt)?.[1] as string;
-  expect(byKey(h.env.db, goalId, "b").status).toBe("failed");
+  // The budget hit HOLDS the item (E-L13): the lead may retry it once the budget allows, or cancel it.
+  const b = byKey(h.env.db, goalId, "b");
+  expect(b.status).toBe("blocked");
+  expect(b.resultKind).toBe("FAILED");
 }, 20000);

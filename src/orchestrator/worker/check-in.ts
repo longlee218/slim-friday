@@ -1,6 +1,7 @@
 import {
   DIGEST_FLOOR_MS,
   HOLD_ESCALATE_MS,
+  HOLD_REESCALATE_MS,
   ITEM_MAX_AGE_MS,
   MAX_ESCALATIONS_PER_TICK,
 } from "../../config/resilience-caps";
@@ -15,13 +16,13 @@ import { digestFacts, factsKey } from "./digest-facts";
 
 /* The timer check-in, on the resilience tick: (1) a code-rendered digest (0 LLM tokens) per thread with an open goal that
    has running or held items, at most every `DIGEST_FLOOR_MS` and only when the facts changed; (2) one `timeout` event +
-   announce for a held item nobody decided for `HOLD_ESCALATE_MS`. Digest state is in memory: a restart costs at most one
+   announce for a held item nobody decided for `HOLD_ESCALATE_MS`, again every `HOLD_REESCALATE_MS`. Digest state is in memory: a restart costs at most one
    extra digest. Nothing here throws. */
 
 /** Logger of this module. */
 const log = logger.child({ module: "check-in" });
 
-/** Escalate every held item that waited long enough; the stable event id makes it once per dispatch. */
+/** Escalate every held item that waited long enough (again after `HOLD_REESCALATE_MS` while it stays undecided). */
 function escalateHolds(rt: LeadRuntime, now: number): void {
   for (const h of heldTooLong(
     rt.deps.db,
@@ -29,9 +30,12 @@ function escalateHolds(rt: LeadRuntime, now: number): void {
     HOLD_ESCALATE_MS,
     ITEM_MAX_AGE_MS * 3,
     MAX_ESCALATIONS_PER_TICK,
+    HOLD_REESCALATE_MS,
   )) {
+    // The query already spaced the escalations (floor); the id carries the moment so each one is its own event.
     const written = appendEvent(rt.deps.db, {
-      id: `hold:${h.itemId}:${h.dispatchCount}`,
+      id: `hold:${h.itemId}:${h.dispatchCount}:${now}`,
+      createdAt: now, // the clock of the tick (the repeat floor compares against it)
       threadId: h.threadId,
       taskId: h.goalId,
       itemId: h.itemId,
@@ -43,7 +47,7 @@ function escalateHolds(rt: LeadRuntime, now: number): void {
         heldMinutes: Math.round((now - h.heldAt) / 60_000),
       },
     });
-    if (!written) continue; // already escalated for this dispatch
+    if (!written) continue; // the same tick twice
     logEvent(log, "hold.escalated", { itemId: h.itemId, threadId: h.threadId }, "warn");
     rt.announce(h.threadId);
   }

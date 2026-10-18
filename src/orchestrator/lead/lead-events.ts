@@ -1,4 +1,9 @@
 import type { Database } from "bun:sqlite";
+import {
+  ANNOUNCE_MAX_CHARS,
+  ANNOUNCE_MAX_EVENTS,
+  ANNOUNCE_REARM_MAX_MS,
+} from "../../config/lead-caps";
 import { clip, redactText } from "../../observability/redact";
 import { listUndelivered, markDeliveredIds } from "../../storage/thread-event-store";
 import type { EventKind, ThreadEvent } from "../events/event-types";
@@ -11,6 +16,7 @@ const NEWS: ReadonlySet<EventKind> = new Set([
   "result",
   "failure",
   "question",
+  "answer", // the owner's answer that resumed a waiting_user item (the lead's own answers carry by: "lead")
   "blocked",
   "timeout",
   "budget_hit",
@@ -31,28 +37,75 @@ const byLead = (e: ThreadEvent): boolean => (e.payload as { by?: unknown } | nul
 export const pendingNews = (db: Database, threadId: string): ThreadEvent[] =>
   listUndelivered(db, threadId).filter((e) => NEWS.has(e.kind) && !byLead(e));
 
-/** The announce block: one redacted, clipped line per event. */
-export function announceBlock(events: readonly ThreadEvent[]): string {
-  const lines = events.map((e) => {
-    const body = clip(redactText(JSON.stringify(e.payload ?? null)), PAYLOAD_CHARS);
-    return `- ${e.kind} task=${e.itemId ?? e.taskId ?? "-"} ${body}`;
-  });
-  return [EVENTS_HEADING, ...lines].join("\n");
+/** One redacted, clipped line of the announce block. */
+const lineOf = (e: ThreadEvent): string => {
+  const body = clip(redactText(JSON.stringify(e.payload ?? null)), PAYLOAD_CHARS);
+  return `- ${e.kind} task=${e.itemId ?? e.taskId ?? "-"} ${body}`;
+};
+
+/** What one announce run reads: `shown` goes into the prompt, `coalesced` ids are closed with it, `more` waits for the next run. */
+export interface NewsBatch {
+  shown: ThreadEvent[];
+  coalesced: string[];
+  more: number;
 }
 
 /**
- * The lead run ended: close what it consumed. The announced news, the owner messages it read and its own records
- * (not the `start` work orders: `dispatch-ready` closes those when it starts the item).
+ * Cap one announce batch (oldest first): at most ANNOUNCE_MAX_EVENTS events and ANNOUNCE_MAX_CHARS of lines. A goal over
+ * budget fails every ready item with its own `budget_hit`: only the first one of a goal is shown, the others are
+ * `coalesced` (closed with the batch, no information lost). The rest is counted in `more` and stays undelivered.
+ */
+export function capNews(news: readonly ThreadEvent[]): NewsBatch {
+  const shown: ThreadEvent[] = [];
+  const coalesced: string[] = [];
+  const budgetGoals = new Set<string>();
+  let chars = 0;
+  let more = 0;
+  for (const e of news) {
+    if (e.kind === "budget_hit") {
+      const goal = e.taskId ?? e.itemId ?? e.id;
+      if (budgetGoals.has(goal)) {
+        coalesced.push(e.id);
+        continue;
+      }
+      budgetGoals.add(goal);
+    }
+    const len = lineOf(e).length;
+    // Once something is cut, later events wait too (order is kept); one event always fits.
+    if (
+      more ||
+      (shown.length && (shown.length >= ANNOUNCE_MAX_EVENTS || chars + len > ANNOUNCE_MAX_CHARS))
+    )
+      more++;
+    else {
+      shown.push(e);
+      chars += len;
+    }
+  }
+  return { shown, coalesced, more };
+}
+
+/** The announce block: one line per event, then how many more events wait. */
+export function announceBlock(events: readonly ThreadEvent[], more = 0): string {
+  const tail = more ? [`- +${more} more events wait; they come in the next announce`] : [];
+  return [EVENTS_HEADING, ...events.map(lineOf), ...tail].join("\n");
+}
+
+/**
+ * The lead run ended: close what it consumed. The announced news, the owner messages it carried (`ownerEventIds`: never
+ * the ones still debouncing or queued) and the lead's own records (not the `start` work orders: `dispatch-ready` closes
+ * those when it starts the item).
  */
 export function settleLeadEvents(
   db: Database,
   threadId: string,
   announced: readonly string[],
+  ownerEventIds: readonly string[] = [],
 ): void {
   const records = listUndelivered(db, threadId)
-    .filter((e) => e.kind === "owner_message" || (byLead(e) && e.kind !== "start"))
+    .filter((e) => byLead(e) && e.kind !== "start")
     .map((e) => e.id);
-  markDeliveredIds(db, [...announced, ...records]);
+  markDeliveredIds(db, [...announced, ...ownerEventIds, ...records]);
 }
 
 /* Announce: worker news (result, failure, question, blocked) wakes the thread's lead. News that comes close together is
@@ -61,9 +114,16 @@ export function settleLeadEvents(
 /** Quiet window (ms) that batches the news of a thread into one lead run. */
 const ANNOUNCE_WINDOW_MS = 2000;
 
-/** The announcer: `notify` after an event was appended; `stopAll` at shutdown. */
+/**
+ * Delay (ms) before a dropped announce is armed again, after `streak` refusals in a row: the window doubled per refusal, up to
+ * `ANNOUNCE_REARM_MAX_MS`. A full lead pool must not be polled every window by every thread that waits on it.
+ */
+export const announceRearmDelay = (streak: number, windowMs = ANNOUNCE_WINDOW_MS): number =>
+  Math.min(windowMs * 2 ** Math.min(streak, 16), ANNOUNCE_REARM_MAX_MS);
+
+/** The announcer: `notify` after an event was appended (`delayMs` replaces the quiet window); `stopAll` at shutdown. */
 export interface Announcer {
-  notify(threadId: string): void;
+  notify(threadId: string, delayMs?: number): void;
   /** Drop the thread's waiting batch (`/stop`). */
   cancel(threadId: string): void;
   stopAll(): void;
@@ -77,13 +137,16 @@ export function createAnnouncer(o: {
 }): Announcer {
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   return {
-    notify(threadId) {
+    notify(threadId, delayMs) {
       if (timers.has(threadId)) return; // a batch is already waiting
-      const t = setTimeout(() => {
-        timers.delete(threadId);
-        if (pendingNews(o.db, threadId).length)
-          o.push({ threadId, kind: "announce", messageIds: [] });
-      }, o.windowMs ?? ANNOUNCE_WINDOW_MS);
+      const t = setTimeout(
+        () => {
+          timers.delete(threadId);
+          if (pendingNews(o.db, threadId).length)
+            o.push({ threadId, kind: "announce", messageIds: [] });
+        },
+        delayMs ?? o.windowMs ?? ANNOUNCE_WINDOW_MS,
+      );
       t.unref(); // a batch never keeps the process alive
       timers.set(threadId, t);
     },

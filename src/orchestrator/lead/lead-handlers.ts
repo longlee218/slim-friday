@@ -2,8 +2,10 @@ import { ASK_OWNER_TOOL } from "../../mcp/orchestration/tools/AskOwnerTool/const
 import { CANCEL_TASK_TOOL } from "../../mcp/orchestration/tools/CancelTaskTool/constants";
 import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
 import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
+import { RETRY_TASK_TOOL } from "../../mcp/orchestration/tools/RetryTaskTool/constants";
 import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
 import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
+import { isHeld } from "../../storage/owned-item-store";
 import type { OwnerQuestion } from "../goal/effect-port";
 import { type Reply, refuse } from "../reply";
 import { checkDispatch, dispatchQuestion } from "../strategy/dispatch-policy";
@@ -77,6 +79,14 @@ export const handleSteer = (ctx: LeadToolContext, input: SteerInput): Promise<Re
   leadCall(ctx, STEER_TASK_TOOL, input, () => {
     const item = ctx.port.item(input.taskId);
     if (!item) return { reply: badTask(input.taskId) };
+    // A held task has no run to take the text and no waiting answer to resume: only RetryTask (with a note) starts it again.
+    if (isHeld(item))
+      return {
+        reply: refuse(
+          "HELD",
+          `Task is held: use ${RETRY_TASK_TOOL} with the text as its note (it resumes the task), or cancel it.`,
+        ),
+      };
     const result = ctx.port.steer(input.taskId, input.text);
     return {
       reply: { ok: true, result },

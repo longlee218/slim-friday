@@ -63,6 +63,10 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     }
     const ctx = lead.remember(message);
     if ("refusal" in ctx) return ctx.refusal;
+    // A reply to the question message of a waiting task resumes that task; any other message goes to the lead.
+    // The owner sees at once that the answer reached the task (the lead may take a while to speak).
+    if (lead.answerReply(message))
+      return renderUserNotice({ kind: "steer", state: "resumed" }, messageLanguage(message));
     lead.submit(message);
     return undefined;
   };

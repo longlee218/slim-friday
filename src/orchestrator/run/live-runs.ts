@@ -41,6 +41,10 @@ export interface LiveRun {
   waitingCount?: number;
   /** Why the app (not the owner) aborted the run; set before `ac.abort()` so the run's end can tell the cause. */
   abortCause?: "stale" | "item_age";
+  /** Set when the owner's `/stop` aborted the run (not a lead `CancelTask`, not the watchdog): its end must not wake the lead. */
+  ownerStopped?: boolean;
+  /** Give up on a run that did not exit after its abort: settles its item, frees its slot and entry (the reaper calls it). */
+  forceClose?: () => void;
 }
 
 /** key -> live run. */
@@ -61,6 +65,7 @@ export function registerRun(r: {
   ac: AbortController;
   turnId?: string;
   taskId?: string;
+  forceClose?: () => void;
 }): () => void {
   const workerKey = r.taskId ?? r.turnId;
   // A worker without an id would share one key with every other such worker: fail loudly instead.
@@ -110,7 +115,10 @@ export function liveRunOf(threadId: string): AbortController | undefined {
 /** Abort every live run of a thread (lead and workers); returns the runs that were aborted (the caller settles their rows). */
 export function abortThreadRuns(threadId: string): LiveRun[] {
   const live = liveRunsOf(threadId);
-  for (const h of live) h.ac.abort();
+  for (const h of live) {
+    h.ownerStopped = true; // before the abort: the run's end reads it
+    h.ac.abort();
+  }
   return live;
 }
 

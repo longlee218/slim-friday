@@ -10,9 +10,10 @@ import { registerRun } from "../run/live-runs";
 import { type LeadTurnResult, runTurn } from "../run/run-turn";
 import { buildLeadContextBlock } from "../strategy/lead-context-block";
 import { dispatchReady } from "../worker/dispatch-ready";
-import { announceBlock, pendingNews, settleLeadEvents } from "./lead-events";
-import { failed, forgetBatch } from "./lead-failure";
+import { announceBlock, capNews, pendingNews, settleLeadEvents } from "./lead-events";
+import { failed, forgetBatch, rearm } from "./lead-failure";
 import { createLeadIo } from "./lead-io";
+import { ownerEventIds } from "./lead-owner-events";
 import type { LeadInput } from "./lead-queue";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "./lead-runtime";
 import { artifactCtx } from "./thread-tool-ctx";
@@ -118,6 +119,9 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
   const ctx = rt.ctxOf(threadId);
   if (!ctx) {
     logEvent(log, "lead.no_context", { threadId, kind: input.kind }, "warn");
+    // Nobody can answer: close the owner's events or the boot replay would try again at every start.
+    if (input.kind === "owner")
+      settleLeadEvents(rt.deps.db, threadId, [], ownerEventIds(input.messageIds));
     return;
   }
   const { db } = rt.deps;
@@ -135,38 +139,55 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
   let announced: string[] = [];
   let consumed = false; // news counts as read only on success (a `max_budget` stop leaves it pending)
   let retry = false;
+  let overflow = false; // the announce batch was capped: more news waits
+  let stopped = false; // `/stop`: start nothing, re-arm nothing
   try {
     const news = input.kind === "announce" ? pendingNews(db, threadId) : [];
     if (input.kind === "announce" && !news.length) return; // nothing new (another run already read it)
-    announced = news.map((e) => e.id);
+    const batch = capNews(news);
+    announced = [...batch.shown.map((e) => e.id), ...batch.coalesced];
+    overflow = batch.more > 0;
     const inputId = crypto.randomUUID();
     const out = await leadOnce(rt, ctx, {
       threadId,
       inputId,
       text:
         input.kind === "announce"
-          ? announceBlock(news)
+          ? announceBlock(batch.shown, batch.more)
           : `${OWNER_MESSAGE_LABEL}\n${input.text ?? ""}`,
       ac,
       trigger: input.kind,
       ...(input.kind === "owner" && input.text && { ownerText: input.text }),
     });
     turns.push(out.turnId);
-    if (out.outcome === "aborted") return; // `/stop`: the owner knows
+    if (out.outcome === "aborted") {
+      stopped = true;
+      return; // `/stop`: the owner knows
+    }
     if (out.outcome === "error") retry = await failed(post, input, announced);
     else if (out.reply.trim()) await post(out.reply);
     consumed = out.outcome === "success" || (out.outcome === "error" && !retry);
-    if (out.outcome === "success") await dispatchReady(rt, threadId);
   } catch (err) {
     logEvent(log, "lead.run_crashed", { threadId, err: errText(err) }, "error");
     retry = await failed(post, input, announced);
     consumed = !retry;
   } finally {
     settleActive();
-    settleLeadEvents(db, threadId, consumed ? announced : []);
+    const ownerIds = input.kind === "owner" ? ownerEventIds(input.messageIds) : [];
+    settleLeadEvents(db, threadId, consumed ? announced : [], ownerIds);
     if (consumed) forgetBatch(announced);
+    // Whatever the outcome, a dispatch the run committed has `ready` items nothing else would start (idempotent pass).
+    if (!stopped)
+      await dispatchReady(rt, threadId).catch((err: unknown) =>
+        logEvent(log, "lead.dispatch_failed", { threadId, err: errText(err) }, "error"),
+      );
     for (const turnId of turns) rt.afterRun?.(ctx.message, turnId, ctx.workspace); // only now: the reply is out
     if (input.kind === "owner" && !posted) await ctx.message.visible?.().catch(() => {}); // no silent message
-    if (retry) rt.announce(threadId);
+    // Re-announce: a failed batch, capped overflow, or news a limit stop left unread (bounded by `rearm`).
+    if (
+      !stopped &&
+      (retry || (consumed && overflow) || (!consumed && announced.length && rearm(announced)))
+    )
+      rt.announce(threadId);
   }
 }

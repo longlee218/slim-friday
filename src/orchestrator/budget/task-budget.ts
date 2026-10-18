@@ -1,6 +1,8 @@
 import type { Database } from "bun:sqlite";
 import { PLAN_GOAL_BUDGET_MAX_USD, type Route, TASK_BUDGET_USD } from "../../config/model-routing";
 import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
+import { CANCEL_TASK_TOOL } from "../../mcp/orchestration/tools/CancelTaskTool/constants";
+import { RETRY_TASK_TOOL } from "../../mcp/orchestration/tools/RetryTaskTool/constants";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { costOfTasks, spentByTask } from "../../storage/run-metrics-store";
 import { newestApprovedVersion } from "../../storage/work-plan-store";
@@ -20,6 +22,20 @@ export function goalBudgetOf(db: Database, goalId: string): number {
   const planned = newestApprovedVersion(db, goalId)?.budgetUsd;
   return planned != null ? Math.min(planned, PLAN_GOAL_BUDGET_MAX_USD) : GOAL_BUDGET_USD;
 }
+
+/**
+ * True when the goal's budget can still rise: it has an approved plan whose budget is below the plan ceiling (a revised plan the
+ * owner approves may carry a higher one). A goal without a plan (DELEGATE) or at the ceiling is fixed: a held item cannot be retried.
+ */
+export const goalBudgetCanGrow = (db: Database, goalId: string): boolean =>
+  newestApprovedVersion(db, goalId) != null && goalBudgetOf(db, goalId) < PLAN_GOAL_BUDGET_MAX_USD;
+
+/** Why an item was held for budget: the lead reads it in the `budget_hit` event, so it names the way out. */
+export const budgetReason = (db: Database, goalId: string): string =>
+  `goal budget $${goalBudgetOf(db, goalId)} used` +
+  (goalBudgetCanGrow(db, goalId)
+    ? `: ${RETRY_TASK_TOOL} works only after the owner approves a plan revision with a higher budget; else ${CANCEL_TASK_TOOL}`
+    : `: it cannot grow (no approved plan, or at the ceiling), so ${RETRY_TASK_TOOL} is refused; ${CANCEL_TASK_TOOL} it or ask the owner what to do`);
 
 /**
  * Task ceiling (`TASK_BUDGET_USD`): the run input with `route.spentUsd` = what the task's earlier runs already cost (its

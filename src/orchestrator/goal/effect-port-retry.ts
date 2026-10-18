@@ -26,7 +26,7 @@ export function createRetryPort(db: Database, threadId: string): Pick<EffectPort
         resetAttempt(db, taskId);
         clearResultKind(db, taskId); // no longer held: `isHeld` must not read the old FAILED
         appendEvent(db, {
-          id: `retry:${taskId}:${it.dispatchCount}`,
+          id: `retry:${taskId}:${crypto.randomUUID()}`, // one event per call: a second retry with no run between must still write its note
           threadId,
           taskId: it.parentId ?? it.id,
           itemId: it.id,

@@ -36,13 +36,17 @@ export interface LeadQueueOptions {
   pool?: LeadSlots;
   /** The lead pool or the thread queue is full (`full` = input refused / oldest dropped, not just waiting). */
   onQueued?: (input: LeadInput, full: boolean) => void;
+  /** An `announce` input was dropped (lead pool full, thread queue full): its news is still undelivered. */
+  onDropped?: (input: LeadInput) => void;
+  /** An `owner` input was dropped on purpose (`/stop`, thread queue cap, pool refusal): its message must never be replayed. */
+  onDiscarded?: (input: LeadInput) => void;
   /** True during shutdown: no new lead run starts (a freed slot is not taken). */
   stopping?: () => boolean;
   /** Quiet time (ms) after the last owner message before its merged input is queued. */
   debounceMs?: number;
   /** Longest wait (ms) from the first merged owner message (default 3x debounce). */
   maxWaitMs?: number;
-  /** Most queued inputs per thread (the oldest is dropped past it). */
+  /** Most queued owner inputs per thread (the oldest is dropped past it; announces never count and never evict one). */
   cap?: number;
 }
 
@@ -66,6 +70,9 @@ export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
     cap = LEAD_QUEUE_PER_THREAD,
   } = o;
   const { threads, stateOf, prune } = createThreadStates();
+  /** Set by `stopAll`: a shutdown keeps the owner's unanswered messages for the boot replay, `/stop` does not. */
+  let shuttingDown = false;
+  const discards = () => !shuttingDown && !o.stopping?.();
   /**
    * Take a lead slot. A full pool: the owner is told once (`queue full` when the waiting bound is reached and the
    * input is refused), then the thread waits FIFO. Announces wait silently; a refused one stays in the outbox.
@@ -89,10 +96,14 @@ export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
         const release = await acquire(input, signal);
         if (signal.aborted || o.stopping?.()) {
           release?.(); // stopped or shutting down while waiting: drop the input
+          // `/stop` discards the owner's message for good; a shutdown keeps it for the boot replay.
+          if (input.kind === "owner" && discards()) o.onDiscarded?.(input);
           continue;
         }
         if (!release) {
           logEvent(log, "lead.pool_full", { threadId, kind: input.kind }, "warn");
+          if (input.kind === "announce") o.onDropped?.(input);
+          else o.onDiscarded?.(input); // the owner was told "not taken"
           continue;
         }
         try {
@@ -108,24 +119,36 @@ export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
       prune(threadId, s);
     }
   };
-  /** Append to the FIFO (drop the oldest past the cap) and start the drain when idle. */
+  /**
+   * Append to the FIFO and start the drain when idle. Announces are deduped (one queued announce reads all the news) and
+   * stand outside the cap; past the cap the oldest OWNER input is dropped.
+   */
   const enqueue = (s: ThreadState, input: LeadInput) => {
+    if (input.kind === "announce" && s.queue.some((q) => q.kind === "announce")) return;
     s.queue.push(input);
-    if (s.queue.length > cap) {
-      const dropped = s.queue.shift();
+    if (s.queue.filter((q) => q.kind === "owner").length > cap) {
+      const at = s.queue.findIndex((q) => q.kind === "owner");
+      const [dropped] = s.queue.splice(at, 1);
       logEvent(
         log,
         "lead.queue_full",
         { threadId: input.threadId, dropped: dropped?.kind },
         "warn",
       );
-      if (dropped?.kind === "owner") o.onQueued?.(dropped, true); // the owner is told it was not taken
+      if (dropped) {
+        o.onQueued?.(dropped, true); // the owner is told it was not taken
+        o.onDiscarded?.(dropped);
+      }
     }
     if (!s.running) void drain(input.threadId, s);
   };
   const stop = (threadId: string) => {
     const s = threads.get(threadId);
     if (!s) return;
+    // `/stop` discards the owner's unanswered messages; a shutdown (`stopAll`) keeps them undelivered for the boot replay.
+    if (discards())
+      for (const i of [...(s.pending ? [s.pending] : []), ...s.queue])
+        if (i.kind === "owner") o.onDiscarded?.(i);
     clearPending(s);
     s.queue = [];
     s.abort.abort(); // a drain waiting for a slot drops the input it holds; a running run is aborted by the caller
@@ -151,6 +174,7 @@ export function createLeadQueue(o: LeadQueueOptions): LeadQueue {
     },
     stop,
     stopAll() {
+      shuttingDown = true;
       for (const id of [...threads.keys()]) stop(id);
     },
     busy(threadId) {

@@ -8,7 +8,7 @@ import { badTask, ENDED } from "./lead-handlers";
 import type { RetryInput } from "./lead-schemas";
 
 /**
- * RetryTask: re-queue a held item (blocked after a failure the lead must decide on). The port moves it `ready` with a fresh
+ * RetryTask: re-queue a held item (blocked: a failure, a budget hit or a BLOCKED / NEEDS_PLANNING report the lead must decide on). The port moves it `ready` with a fresh
  * automatic-resume budget and records the `retry` event (the note); the next dispatch pass resumes its session. Refused:
  * ENDED (already finished), NOT_HELD (not waiting for a decision), BREAKER (dispatched too many times), VERIFY_LOOP_CAP (a verify that ran and reported FAILED after the last fix loop; a crashed one stays retryable), OVER_BUDGET.
  */
@@ -18,7 +18,12 @@ export const handleRetry = (ctx: LeadToolContext, input: RetryInput): Promise<Re
     if (!item) return { reply: badTask(input.taskId) };
     if (ENDED.has(item.status)) return { reply: refuse("ENDED", `Task already ${item.status}.`) };
     if (!isHeld(item))
-      return { reply: refuse("NOT_HELD", "Only a held (failed, waiting) task can be retried.") };
+      return {
+        reply: refuse(
+          "NOT_HELD",
+          "Only a held (blocked) task can be retried; a task waiting for the owner is resumed by SteerTask.",
+        ),
+      };
     if (item.dispatchCount >= MAX_DISPATCHES_PER_ITEM)
       return {
         reply: refuse(

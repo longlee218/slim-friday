@@ -255,3 +255,17 @@ test("a held item cannot be started by anything but RetryTask: a stale ready sna
   expect(createRetryPort(db, "th").retry("it", "again")).toBe("ok");
   expect(getItem(db, "it")?.status).toBe("ready");
 });
+
+test("E-L11: a second hold of the same dispatch writes its own failure event", () => {
+  setup("ready");
+  const { rt, woken } = rtOf();
+  expect(sweepItemAge(rt, T0 + 9 * H)).toBe(1);
+  // The lead retried (no new dispatch yet) and the item aged again: held a second time.
+  moveTaskTo(db, "it", "ready");
+  db.query("UPDATE owned_tasks SET result_kind = NULL, last_progress_at = ? WHERE id = 'it'").run(
+    T0,
+  );
+  expect(sweepItemAge(rt, T0 + 10 * H)).toBe(1);
+  expect(listUndelivered(db, "th").filter((e) => e.kind === "failure")).toHaveLength(2);
+  expect(woken).toEqual(["th", "th"]);
+});

@@ -182,7 +182,7 @@ exports[`worker aborted by /stop: its query sees the abort, rows closed, registr
 }
 `;
 
-exports[`worker whose close step throws: turn stays running or failed as before, \`failure\` event, registry empty 1`] = `
+exports[`worker whose close step throws: turn row ends \`failed\`, \`failure\` event, registry empty 1`] = `
 {
   "events": [
     {
@@ -204,7 +204,7 @@ exports[`worker whose close step throws: turn stays running or failed as before,
       "role": "developer",
       "sess": 0,
       "source": "t",
-      "status": "running",
+      "status": "failed",
     },
   ],
 }

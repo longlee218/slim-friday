@@ -36,3 +36,15 @@ export const LEAD_QUEUE_PER_THREAD = 10;
 
 /** Quiet time (ms) after the last owner message before the merged lead input is queued. */
 export const LEAD_DEBOUNCE_MS = 800;
+
+/** Most events one announce run reads; the rest stays undelivered and is announced again after the run. */
+export const ANNOUNCE_MAX_EVENTS = 20;
+
+/** Most chars of event lines in one announce block (an event past it waits for the next announce). */
+export const ANNOUNCE_MAX_CHARS = 6000;
+
+/** An owner message older than this (ms) is not replayed at boot: it is closed unanswered (the owner has moved on). */
+export const LEAD_REPLAY_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+/** Longest delay (ms) before a dropped announce is armed again: the delay doubles from the announce window while the lead pool keeps refusing it. */
+export const ANNOUNCE_REARM_MAX_MS = 60_000;

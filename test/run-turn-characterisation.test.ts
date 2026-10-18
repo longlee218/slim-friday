@@ -99,7 +99,7 @@ test("worker aborted by /stop: its query sees the abort, rows closed, registry e
   expect(snap(h.env.db)).toMatchSnapshot();
 });
 
-test("worker whose close step throws: turn stays running or failed as before, `failure` event, registry empty", async () => {
+test("worker whose close step throws: turn row ends `failed`, `failure` event, registry empty", async () => {
   const { runDetached } = await import("../src/orchestrator/run/run-turn");
   const env = makeEnv();
   const locations = loadWorkspaces(env.home).workspaces[0]!.locations;

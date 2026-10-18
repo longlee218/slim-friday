@@ -20,7 +20,7 @@ export interface AnswerDeps {
 export async function answerTurn(
   deps: AnswerDeps,
   channel: SendableChannels,
-  ids: { threadId: string; channelId: string; messageId: string },
+  ids: { threadId: string; channelId: string; messageId: string; replyToMessageId?: string },
   receipt: ReturnType<typeof createMessageReceipt>,
   text: string,
   recent?: RecentMessage[],

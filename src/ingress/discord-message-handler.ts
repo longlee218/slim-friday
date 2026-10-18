@@ -137,6 +137,7 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
               threadId: ch.id,
               channelId,
               messageId: msg.id,
+              ...(msg.reference?.messageId && { replyToMessageId: msg.reference.messageId }),
             },
             receipt,
             text,

@@ -8,6 +8,7 @@ import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { runOfTask } from "../run/live-runs";
 import type { PolicyEnv } from "../strategy/caps";
+import { resumeWaiting } from "../worker/resume-waiting";
 import type {
   DispatchResult,
   EffectPort,
@@ -111,6 +112,8 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
     appendEvent: (e) => appendEvent(db, { ...e, threadId }),
     steer: (taskId, text): SteerReply => {
       if (pendingQuestionOf(db, taskId) && d.io.answerPending?.(taskId, text)) return "answered";
+      // A `waiting_user` item has no run: the lead's answer re-queues it (the lead's own answer event is no news).
+      if (resumeWaiting(db, taskId, text, "lead")) return "resumed";
       const r = d.io.steerTask(taskId, text);
       return r === "none" ? "ended" : r;
     },

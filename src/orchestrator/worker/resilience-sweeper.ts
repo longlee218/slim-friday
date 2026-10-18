@@ -2,14 +2,16 @@ import { SWEEP_TICK_MS } from "../../config/resilience-caps";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import type { LeadRuntime } from "../lead/lead-runtime";
+import { reapAborted } from "./abort-reaper";
 import { createCheckIn } from "./check-in";
 import { sweepItemAge } from "./item-age";
 import { sweepStale } from "./watchdog";
+import { noticeStuckZombies } from "./zombie-notice";
 
 /** Logger of this module. */
 const log = logger.child({ module: "resilience-sweeper" });
 
-/* One timer for the resilience checks of the live worker runs (the watchdog, the item age limit and the check-in digest). */
+/* One timer for the resilience checks of the live worker runs (the watchdog, the item age limit, the reaper, stuck zombie claims and the check-in digest). */
 
 /** Sweep every tick; the timer never keeps the process alive. Returns the stop function. */
 export function startResilienceSweeper(rt: LeadRuntime, tickMs = SWEEP_TICK_MS): () => void {
@@ -25,6 +27,8 @@ export function startResilienceSweeper(rt: LeadRuntime, tickMs = SWEEP_TICK_MS):
     };
     step("stale", () => sweepStale(rt));
     step("item_age", () => sweepItemAge(rt));
+    step("reaper", () => reapAborted());
+    step("zombies", () => noticeStuckZombies(rt));
     step("check_in", () => void checkIn(rt)); // async and never rejects: it logs its own failures
   }, tickMs);
   timer.unref();

@@ -2,7 +2,7 @@ import { ITEM_MAX_AGE_MS } from "../../config/resilience-caps";
 import { logEvent, logger } from "../../observability/logger";
 import { agedItems } from "../../storage/item-age-store";
 import { getItem, setResultKind } from "../../storage/owned-item-store";
-import { appendEvent } from "../../storage/thread-event-store";
+import { appendEvent, holdCount } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import type { LeadRuntime } from "../lead/lead-runtime";
 import { runOfTask } from "../run/live-runs";
@@ -40,7 +40,7 @@ export function sweepItemAge(
     setResultKind(db, id, "FAILED");
     clearHold(id); // a backoff entry of the held item must not outlive it
     appendEvent(db, {
-      id: `failure:${id}:${item.dispatchCount}`,
+      id: `failure:${id}:${item.dispatchCount}:${holdCount(db, id)}`, // the count: a second hold is its own event
       threadId,
       taskId: item.parentId,
       itemId: id,

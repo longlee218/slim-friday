@@ -170,3 +170,17 @@ export function countChainStarts(db: Database, threadId: string): number {
     .get(threadId, threadId);
   return row?.n ?? 0;
 }
+
+/**
+ * How many holds an item already has on record (its `failure`, `blocked` and `budget_hit` events). A hold event id that
+ * carries this count is new for every hold of the item, so a second hold is never swallowed by `INSERT OR IGNORE`.
+ */
+export function holdCount(db: Database, itemId: string): number {
+  return (
+    db
+      .query<{ n: number }, [string]>(
+        "SELECT COUNT(*) AS n FROM thread_events WHERE item_id = ? AND kind IN ('failure', 'blocked', 'budget_hit')",
+      )
+      .get(itemId)?.n ?? 0
+  );
+}

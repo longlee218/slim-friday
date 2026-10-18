@@ -89,11 +89,11 @@ test("property: random DAG states never exceed the thread cap nor 2 writers on o
   }
 });
 
-test("a waiting_user item still holds its location (writer lock), but not a thread slot", () => {
+test("a waiting_user item has no run: it holds neither its location nor a thread slot", () => {
   const items = [
     it("w", "waiting_user", "dev", "repo1"),
     it("b", "ready", "dev", "repo1"),
     it("c", "ready", "scout"),
   ];
-  expect(ids(pickDispatchable(items, caps))).toEqual(["c"]);
+  expect(ids(pickDispatchable(items, caps))).toEqual(["b", "c"]);
 });

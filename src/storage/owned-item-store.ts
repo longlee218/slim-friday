@@ -169,9 +169,11 @@ export function runningGoalItems(db: Database): ItemRow[] {
     .map(toItem);
 }
 
-/** A held item: it failed (typed FAILED or a failed run) and waits for the lead's `RetryTask` or `CancelTask`. */
-export const isHeld = (it: Pick<ItemRow, "status" | "resultKind">): boolean =>
-  it.status === "blocked" && it.resultKind === "FAILED";
+/**
+ * A held item: any `blocked` item (a failed run, a budget hit, BLOCKED / NEEDS_PLANNING). It is stopped and waits for the
+ * lead's `RetryTask` or `CancelTask`; `resultKind` tells why (FAILED = a failure, else the worker's own report).
+ */
+export const isHeld = (it: Pick<ItemRow, "status">): boolean => it.status === "blocked";
 
 /** Clear the typed result kind (a retried item is no longer held: `isHeld` must not read the old FAILED). */
 export function clearResultKind(db: Database, id: string): void {

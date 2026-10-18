@@ -4,6 +4,7 @@ import { logEvent, logger } from "../../observability/logger";
 import { goalLocations, loadEnvelope } from "../../policy/load-envelope";
 import { getRole } from "../../roles/role-registry";
 import { recordRunCwd } from "../../storage/effect-log-store";
+import { clearQuestionLinks } from "../../storage/item-question-store";
 import {
   bumpDispatch,
   getItem,
@@ -39,7 +40,7 @@ export async function startWorker(
   ctx: LeadThreadCtx,
   threadId: string,
   item: ItemRow,
-  after: () => void,
+  after: (announce?: boolean) => void,
 ): Promise<boolean> {
   const { db } = rt.deps;
   // The slot is taken before any row changes: a full cap defers the item, it never fails it.
@@ -56,9 +57,11 @@ export async function startWorker(
     }
     const goalId = item.parentId ?? item.id;
     const role = getRole(getOwnedTask(db, item.id)?.ownerAgentId ?? "");
-    // A first start or a lead retry sends the brief (or the resume prompt); an automatic resume is no new dispatch.
+    // A first start or a lead retry sends the brief (or the resume prompt); an automatic resume and an answer to the
+    // item's own question are no new dispatch (neither can loop: the owner or the lead paced them).
     const start = startInput(db, item);
-    if (!start.auto) bumpDispatch(db, item.id);
+    if (!start.auto && !start.answer) bumpDispatch(db, item.id);
+    clearQuestionLinks(db, item.id); // a new run: question messages of the earlier run no longer answer it
     markStartDelivered(db, item.id);
     const turnId = crypto.randomUUID();
     const location = item.location ?? "*";
@@ -133,6 +136,7 @@ export async function startWorker(
             language,
             taskId: item.id,
             location,
+            writer: role.sideEffects === "location",
             artifactScope: {
               workspace: ctx.workspace,
               ...(ctx.channel && { channel: ctx.channel }),
@@ -149,7 +153,8 @@ export async function startWorker(
               stopping: rt.deps.stopping,
               verdict,
             }),
-            onSettled: () => {
+            onSettled: (crash, ownerStopped) => {
+              rt.relay.release(turnId); // a wait left by an aborted or crashed run must not outlive it
               afterVerify(db, item.id, verdict.current, ctx.locations); // fix loop, before the end event
               emitEndEvent(
                 db,
@@ -159,12 +164,13 @@ export async function startWorker(
                 sink.report,
                 verdict.current,
                 sink.artifactIds,
+                crash,
               );
               // A held item (blocked) keeps its dependents waiting for the lead; only an item that truly failed
               // (a crash of the run itself, no retry possible) cancels them: they can never start.
               if (getItem(db, item.id)?.status === "failed") cancelDependents(db, item.id);
               settleGoal(db, goalId);
-              after();
+              after(!ownerStopped); // `/stop` ended it: the result is recorded, the lead is not woken
             },
           },
         };

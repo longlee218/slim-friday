@@ -68,14 +68,10 @@ test("RetryTask: held -> ready, fresh resume budget, a retry event names the tur
   expect(await handleRetry(ctx("r1"), { taskId: a, note: "use the other branch" })).toEqual(r);
 });
 
-test("RetryTask refusals: NOT_HELD (not blocked FAILED), ENDED, BREAKER at 3 dispatches, BAD_TASK", async () => {
+test("RetryTask refusals: NOT_HELD (not blocked), ENDED, BREAKER at 3 dispatches, BAD_TASK", async () => {
   const { ctx, a, b } = await held();
   expect(await handleRetry(ctx("n1"), { taskId: b, note: "x" })).toMatchObject({
     ok: false,
-    code: "NOT_HELD",
-  });
-  db.query("UPDATE owned_tasks SET result_kind = 'BLOCKED' WHERE id = ?").run(a); // blocked for another reason
-  expect(await handleRetry(ctx("n2"), { taskId: a, note: "x" })).toMatchObject({
     code: "NOT_HELD",
   });
   db.query("UPDATE owned_tasks SET result_kind = 'FAILED', dispatch_count = 3 WHERE id = ?").run(a);
@@ -125,4 +121,14 @@ test("RetryTask refuses with OVER_BUDGET when the goal already used its budget, 
   const r = await handleRetry(ctx("k2"), { taskId: a, note: "again" });
   expect(r).toMatchObject({ ok: false, code: "OVER_BUDGET" });
   expect(getItem(db, a)).toMatchObject({ status: "blocked", resultKind: "FAILED" });
+});
+
+test("RetryTask accepts a plain blocked item (BLOCKED / NEEDS_PLANNING report): blocked is held too", async () => {
+  const { ctx, a } = await held();
+  db.query("UPDATE owned_tasks SET result_kind = 'BLOCKED' WHERE id = ?").run(a);
+  expect(await handleRetry(ctx("n2"), { taskId: a, note: "unblocked now" })).toMatchObject({
+    ok: true,
+    retried: a,
+  });
+  expect(getItem(db, a)).toMatchObject({ status: "ready", resultKind: null });
 });

@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { clip, redactText } from "../../observability/redact";
 import { taskStoreArtifacts } from "../../storage/artifact-list-store";
 import { getArtifact } from "../../storage/artifact-store";
-import { childrenOf, getItem, type ItemRow, isHeld } from "../../storage/owned-item-store";
+import { childrenOf, getItem, type ItemRow } from "../../storage/owned-item-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { planReadyOf } from "../plan/plan-ready";
 import { PLANNER_KEY } from "../plan/plan-types";
@@ -37,8 +37,9 @@ const artifactsOf = (db: Database, ids: string[]) =>
 /**
  * The end event of a worker run, from the task's settled status: completed = `result`, failed = `failure`, blocked =
  * `blocked` (a held item, blocked with result FAILED, is a `failure`: payload `class`, `cause`, `attempt`), waiting on
- * the owner = `question`. A resumed item (back to `ready`) and a cancelled task are news to nobody. Ids are stable per turn, so the
- * crash path's own `failure` event is never doubled.
+ * the owner = `question`. A resumed item (back to `ready`) is news to nobody; a cancelled task is too, unless its worker
+ * had already reported COMPLETED (the cancel raced the report: effects may exist, so the result is announced anyway).
+ * Ids are stable per turn. `crashError` = the run crashed (or was force-closed): it rides on the one end event.
  */
 export function emitEndEvent(
   db: Database,
@@ -48,6 +49,7 @@ export function emitEndEvent(
   report?: ReportSink["report"],
   verdict?: FailureVerdict,
   artifactIds: string[] = [],
+  crashError?: string,
 ): void {
   const it = getItem(db, itemId);
   if (!it) return;
@@ -59,12 +61,14 @@ export function emitEndEvent(
       : it.status === "failed"
         ? "failure"
         : it.status === "blocked"
-          ? isHeld(it)
+          ? it.resultKind === "FAILED"
             ? "failure"
             : "blocked"
           : it.status === "waiting_user"
             ? "question"
-            : undefined;
+            : it.status === "cancelled" && report?.status === "COMPLETED"
+              ? "result"
+              : undefined;
   if (!kind) return;
   appendEvent(db, {
     id: `${kind}:${turnId}`,
@@ -85,6 +89,7 @@ export function emitEndEvent(
         cause: verdict.cause,
         attempt: verdict.attempt,
       }),
+      ...(crashError && { error: clip(redactText(crashError), STEP_CHARS) }),
       ...(report && { summary: report.summary, requests: report.requests }),
       // The planner ended with a plan waiting for the owner: the lead is told which one (plan-ready).
       ...(it.itemKey?.startsWith(PLANNER_KEY) && { plan: planReadyOf(db, it.parentId ?? it.id) }),

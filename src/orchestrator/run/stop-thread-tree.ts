@@ -33,8 +33,13 @@ export function stopThreadTree(
     // Items of the open goal that never started (`pending` / `ready`) would start on the next dispatch pass: cancel them too.
     if (goalId) {
       for (const it of childrenOf(db, goalId))
-        if (it.status === "pending" || it.status === "ready" || isHeld(it))
-          moveTaskTo(db, it.id, "cancelled"); // a held failure is given up too: its dependents are cancelled above, the goal settles
+        if (
+          it.status === "pending" ||
+          it.status === "ready" ||
+          it.status === "waiting_user" || // its run ended and nobody is left to answer it
+          isHeld(it)
+        )
+          moveTaskTo(db, it.id, "cancelled"); // a held item is given up too: its dependents are cancelled above, the goal settles
       closePendingPlans(db, goalId, "stopped"); // a later "approve" of the open plan question must create nothing
     }
     // A rolling-wave goal with every item ended (or one that just ended here) is not "open" but would start its next wave

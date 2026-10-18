@@ -2,7 +2,6 @@ import { LEAD_POOL_MAX, LEAD_WAITING_MAX } from "../../config/run-caps";
 import type { InboundMessage } from "../../ingress/discord-message-handler";
 import { messageLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
-import { appendEvent } from "../../storage/thread-event-store";
 import { getThread } from "../../storage/thread-store";
 import { channelLocations, selectWorkspace } from "../../workspaces/task-workspace";
 import type { DispatchDeps } from "../run/role-run-types";
@@ -11,7 +10,9 @@ import { dispatchReady } from "../worker/dispatch-ready";
 import { createQuestionRelay } from "../worker/question-relay";
 import type { RecoveryReport } from "../worker/recover-in-flight";
 import { startResilienceSweeper } from "../worker/resilience-sweeper";
-import { createAnnouncer } from "./lead-events";
+import { answerReply } from "./lead-answer-reply";
+import { announceRearmDelay, createAnnouncer } from "./lead-events";
+import { appendOwnerEvent, closeOwnerEvents, replayOwnerInputs } from "./lead-owner-events";
 import { createLeadQueue, type LeadQueue } from "./lead-queue";
 import { runLead } from "./lead-run";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "./lead-runtime";
@@ -27,6 +28,8 @@ export interface LeadSystem {
   remember(message: InboundMessage): LeadThreadCtx | { refusal: string };
   /** An owner message for the lead: append its `owner_message` event and queue the input. */
   submit(message: InboundMessage): void;
+  /** A reply to a waiting task's question message resumes it (see lead-answer-reply.ts); false = a plain message. */
+  answerReply(message: InboundMessage): boolean;
   /** Boot: wake the lead of every thread that has undelivered events (recovered tasks, unfinished news). */
   wake(report: RecoveryReport): void;
   /** `/stop`: drop the thread's queued inputs and announce timer, end its workers' question waits. */
@@ -93,8 +96,11 @@ export function createLeadSystem(o: {
     afterRun: o.afterRun,
     hold: o.hold,
   };
+  /** Per thread: announces the full lead pool dropped in a row (the re-arm delay grows with it; a lead run of the thread resets it). */
+  const dropStreak = new Map<string, number>();
   const queue = createLeadQueue({
     run: (input) => {
+      dropStreak.delete(input.threadId);
       const run = runLead(rt, input);
       o.track?.(run);
       return run;
@@ -108,6 +114,14 @@ export function createLeadSystem(o: {
           ctx,
           renderUserNotice({ kind: "queue", full }, messageLanguage(ctx.message)),
         ).catch(() => undefined);
+    },
+    // An owner input dropped on purpose (`/stop`, cap, refusal) is closed: the boot replay must not bring it back.
+    onDiscarded: (input) => closeOwnerEvents(deps.db, input.messageIds),
+    // An announce dropped (pool full, queue cap) leaves its news undelivered: arm it again, later each time it is refused.
+    onDropped: (input) => {
+      const streak = dropStreak.get(input.threadId) ?? 0;
+      dropStreak.set(input.threadId, streak + 1);
+      announcer?.notify(input.threadId, announceRearmDelay(streak, o.announceWindowMs));
     },
     stopping: deps.stopping,
     debounceMs: o.debounceMs,
@@ -133,22 +147,21 @@ export function createLeadSystem(o: {
       return ctx;
     },
     submit(message) {
-      appendEvent(deps.db, {
-        id: `owner:${message.messageId ?? crypto.randomUUID()}`,
-        threadId: message.threadId,
-        kind: "owner_message",
-        payload: { text: message.text.slice(0, 200) },
-      });
+      // The event id carries the message id: the run that reads this input closes exactly this event.
+      const messageId = message.messageId ?? crypto.randomUUID();
+      appendOwnerEvent(deps.db, { threadId: message.threadId, messageId, text: message.text });
       queue.push({
         threadId: message.threadId,
         kind: "owner",
-        messageIds: message.messageId ? [message.messageId] : [],
+        messageIds: [messageId],
         text: message.text,
       });
     },
+    answerReply: (message) => answerReply(rt, message),
     wake(report) {
       for (const threadId of report.threads) {
         logEvent(log, "lead.wake", { threadId });
+        for (const input of replayOwnerInputs(deps.db, threadId)) queue.push(input);
         queue.push({ threadId, kind: "announce", messageIds: [] });
         void dispatchReady(rt, threadId); // work orders the crash left unstarted
       }

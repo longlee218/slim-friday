@@ -1,15 +1,8 @@
 import type { Database } from "bun:sqlite";
-import {
-  type ActionRowBuilder,
-  AttachmentBuilder,
-  ButtonStyle,
-  type Client,
-  type Interaction,
-  type MessageActionRowComponentBuilder,
-} from "discord.js";
+import { AttachmentBuilder, ButtonStyle, type Client, type Interaction } from "discord.js";
 import { buildChoiceRows, TYPED_PREFIX, threadLanguage } from "../ingress/discord-components";
 import { SAFE_MENTIONS } from "../ingress/discord-message-rules";
-import { type OwnerLanguage, renderUserNotice } from "../ingress/user-copy";
+import { renderUserNotice } from "../ingress/user-copy";
 import { logEvent, logger, runWithLogContext, tryLog } from "../observability/logger";
 import { clip, errText, redactText } from "../observability/redact";
 import { type ApprovalDecision, decideApproval, insertApproval } from "../storage/approval-store";
@@ -25,6 +18,7 @@ import {
 import { handleApprovalInteraction } from "./approval-interaction";
 import { buildChoicePrompt, SUMMARY_MAX } from "./approval-text";
 import type { ApprovalGateway, ApprovalRequest, ApprovalResult } from "./approval-types";
+import type { AskOptions } from "./ask-options";
 
 /** Dependencies of the gateway. */
 export interface ApprovalGatewayDeps {
@@ -51,20 +45,7 @@ export function createDiscordApprovalGateway(
    * Post a message with buttons and wait for a click. `rows` builds the controls from the request id
    * (customId = `${prefix}:${id}:${value}`). Resolves undefined on timeout, "no-channel" if unsendable.
    */
-  async function ask(o: {
-    turnId: string;
-    threadId: string;
-    tool: string;
-    prefix: "appr" | "choice";
-    text: string;
-    detail?: string;
-    /** Option labels in the order of their values (shown back to the owner once answered). */
-    labels: string[];
-    rows: (id: string) => ActionRowBuilder<MessageActionRowComponentBuilder>[];
-    language: OwnerLanguage;
-    /** Runs after a successful send; a failure there never affects the question. */
-    onPosted?: () => void | Promise<void>;
-  }): Promise<string | undefined> {
+  async function ask(o: AskOptions): Promise<string | undefined> {
     const id = crypto.randomUUID().slice(0, 8);
     const summary = redactText(o.text);
     const alog = log.child({ tool: o.tool, approvalId: id });
@@ -101,6 +82,7 @@ export function createDiscordApprovalGateway(
         files,
         allowedMentions: SAFE_MENTIONS,
       });
+      tryLog(log, "approval onMessage failed", () => o.onMessage?.(msg.id));
       // The question is the first thing the owner sees: settle the message receipt (only after a send).
       await Promise.resolve(o.onPosted?.()).catch((err: unknown) =>
         log.warn({ err: errText(err) }, "approval onPosted failed"),
@@ -184,6 +166,7 @@ export function createDiscordApprovalGateway(
         labels: shown,
         rows: (id) => buildChoiceRows(id, shown, layout, language),
         language,
+        onMessage: a.onMessage,
       });
       if (value === undefined || value === "no-channel" || value === "cancelled") return undefined;
       if (value.startsWith(TYPED_PREFIX)) return value.slice(TYPED_PREFIX.length);

@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { clearSettledQuestionLinks } from "../../storage/item-question-store";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import { hasPendingPlan } from "../../storage/work-plan-store";
@@ -25,6 +26,7 @@ export function cancelDependents(db: Database, itemId: string): void {
  * Returns the items read.
  */
 export function settleGoal(db: Database, goalId: string): ItemRow[] {
+  clearSettledQuestionLinks(db, goalId); // an ended item is never answered again: its question links go
   const items = childrenOf(db, goalId);
   if (!items.length || !items.every((i) => TERMINAL.has(i.status))) return items;
   if (hasPendingPlan(db, goalId)) return items; // the planner ended, the plan waits for the owner: the goal goes on

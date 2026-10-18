@@ -36,6 +36,10 @@ const STEER = {
     "Chưa nhận được vì hàng chờ đầy, nên chưa áp dụng. Bạn gửi lại sau nhé.",
     "I could not take this because the queue is full, so it is not applied. Please send it again later.",
   ],
+  resumed: [
+    "Đã nhận câu trả lời của bạn, việc đang chờ sẽ chạy tiếp.",
+    "Got your answer: the waiting task continues.",
+  ],
   ended: [
     "Việc đang làm vừa xong nên ý này chưa được chuyển hay áp dụng. Bạn gửi lại nhé.",
     "The work just finished, so this was not passed on or applied. Please send it again.",

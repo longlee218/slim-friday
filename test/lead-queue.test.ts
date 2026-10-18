@@ -56,7 +56,7 @@ test("max 1 run per thread, FIFO: the next input starts only after the run settl
   expect(maxLive).toBe(1);
 });
 
-test("cap: past the cap the oldest queued input is dropped", async () => {
+test("cap: past the cap the oldest queued owner input is dropped (announces stand outside the cap)", async () => {
   const ran: string[] = [];
   let release!: () => void;
   const gate = new Promise<void>((r) => {
@@ -70,10 +70,12 @@ test("cap: past the cap the oldest queued input is dropped", async () => {
       if (i.text === "a") await gate;
     },
   });
-  q.push({ threadId: "th", kind: "announce", messageIds: [], text: "a" });
+  q.push(owner("a", "a"));
   await sleep(10); // a runs (blocked)
-  for (const t of ["b", "c", "d"])
-    q.push({ threadId: "th", kind: "announce", messageIds: [], text: t });
+  for (const t of ["b", "c", "d"]) {
+    q.push(owner(t, t));
+    await sleep(10); // past the debounce: each is its own input
+  }
   release();
   await sleep(30);
   expect(ran).toEqual(["a", "c", "d"]); // b was the oldest past the cap of 2

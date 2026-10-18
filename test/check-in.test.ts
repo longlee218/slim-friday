@@ -3,6 +3,7 @@ import { afterEach, expect, test } from "bun:test";
 import {
   DIGEST_FLOOR_MS,
   HOLD_ESCALATE_MS,
+  HOLD_REESCALATE_MS,
   ITEM_MAX_AGE_MS,
   MAX_ESCALATIONS_PER_TICK,
 } from "../src/config/resilience-caps";
@@ -172,7 +173,7 @@ test("escalation: held item undecided for 30 min writes one timeout event and wa
   expect(woken).toEqual(["th"]);
   const ev = listUndelivered(db, "th").filter((e) => e.kind === "timeout");
   expect(ev).toHaveLength(1);
-  expect(ev[0]?.id).toBe("hold:it:1");
+  expect(ev[0]?.id).toBe(`hold:it:1:${T0 + HOLD_ESCALATE_MS}`); // one inside the repeat floor
   expect(ev[0]?.payload).toMatchObject({ key: "main", cause: "hold_undecided" });
   expect(calls.query).toBe(0);
 });
@@ -332,7 +333,7 @@ test("escalation: an item_age hold (failure event) escalates; a second dispatch 
   const { rt, woken } = rtOf();
   const tick = createCheckIn();
   await tick(rt, LATE);
-  expect(timeouts().map((e) => e.id)).toEqual(["hold:it:1"]);
+  expect(timeouts().map((e) => e.id)).toEqual([`hold:it:1:${LATE}`]);
   // Retried, dispatched again, failed again, held again.
   appendEvent(db, {
     id: "r1",
@@ -344,7 +345,10 @@ test("escalation: an item_age hold (failure event) escalates; a second dispatch 
   });
   hold("it", LATE + 2, 2);
   await tick(rt, LATE + 2 + HOLD_ESCALATE_MS);
-  expect(timeouts().map((e) => e.id)).toEqual(["hold:it:1", "hold:it:2"]);
+  expect(timeouts().map((e) => e.id)).toEqual([
+    `hold:it:1:${LATE}`,
+    `hold:it:2:${LATE + 2 + HOLD_ESCALATE_MS}`,
+  ]);
   expect(woken).toEqual(["th", "th"]);
 });
 
@@ -422,4 +426,28 @@ test("digest-copy: ago rounds down and keys are clipped", async () => {
   const { rt, posts } = rtOf();
   await createCheckIn()(rt, T0);
   expect(posts[0]).not.toContain("k".repeat(41));
+});
+
+test("E-H1: a plain blocked item (BLOCKED report, no failure) escalates like any held item", async () => {
+  setup("blocked");
+  db.query(
+    "UPDATE owned_tasks SET result_kind = 'BLOCKED', last_progress_at = ? WHERE id = 'it'",
+  ).run(T0);
+  const { rt, woken } = rtOf();
+  await createCheckIn()(rt, LATE);
+  expect(woken).toEqual(["th"]);
+  expect(timeouts()).toHaveLength(1);
+});
+
+test("E-L13: an undecided hold escalates again after the floor, not before", async () => {
+  setup("blocked");
+  hold("it", T0);
+  const { rt, woken } = rtOf();
+  const tick = createCheckIn();
+  await tick(rt, LATE);
+  await tick(rt, LATE + HOLD_REESCALATE_MS - 1_000);
+  expect(timeouts()).toHaveLength(1);
+  await tick(rt, LATE + HOLD_REESCALATE_MS + 1_000);
+  expect(timeouts()).toHaveLength(2);
+  expect(woken).toEqual(["th", "th"]);
 });

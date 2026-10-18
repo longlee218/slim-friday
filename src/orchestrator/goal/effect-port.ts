@@ -8,8 +8,8 @@ import type { ItemDraft } from "../strategy/dispatch-policy";
 /* The port the lead's tool handlers act through. Handlers hold the rules and stay pure over it: tests pass a fake,
    the real one (`effect-port-db.ts`) reads and writes the db and calls the injected IO. */
 
-/** What `SteerTask` did. `answered` = it resolved a pending worker question. */
-export type SteerReply = "queued" | "held" | "full" | "ended" | "answered";
+/** What `SteerTask` did. `answered` = it resolved a pending worker question, `resumed` = it re-queued a `waiting_user` item with the text as its answer. */
+export type SteerReply = "queued" | "held" | "full" | "ended" | "answered" | "resumed";
 
 /** One item as the status tool shows it (facts from the db). */
 interface ItemFacts {

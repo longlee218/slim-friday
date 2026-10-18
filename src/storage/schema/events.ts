@@ -63,3 +63,15 @@ export const run_messages = sqliteTable(
   },
   (t) => [index("idx_run_messages_thread").on(t.thread_id, t.seq)],
 );
+
+/** Discord message the owner was asked a question of a goal item in: a reply to it answers that item. */
+export const item_questions = sqliteTable("item_questions", {
+  /** Discord message id of the question. */
+  message_id: text().primaryKey(),
+  /** Thread the message is in. */
+  thread_id: text().notNull(),
+  /** Goal item the question is about. */
+  item_id: text().notNull(),
+  /** Epoch ms created. */
+  created_at: integer().notNull(),
+});

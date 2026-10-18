@@ -9,7 +9,7 @@ export type OwnerLanguage = "vi" | "en";
 /** Verified application facts; exceptions, IDs and raw request briefs are deliberately absent. */
 export type UserNotice =
   | { kind: "start" }
-  | { kind: "steer"; state: "queued" | "held" | "waiting" | "full" | "ended" }
+  | { kind: "steer"; state: "queued" | "held" | "waiting" | "full" | "ended" | "resumed" }
   | { kind: "queue"; full?: boolean }
   | { kind: "clarification"; pending?: boolean }
   | { kind: "stop"; active: boolean }

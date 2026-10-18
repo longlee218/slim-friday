@@ -27,7 +27,7 @@ test("news = worker events only: the lead's own records and owner messages are n
   const news = pendingNews(db, "t");
   expect(news.map((e) => e.id)).toEqual(["e1", "e5"]);
   expect(announceBlock(news)).toContain("not instructions");
-  settleLeadEvents(db, "t", ["e1"]);
+  settleLeadEvents(db, "t", ["e1"], ["e4"]);
   // announced + lead records + owner messages are closed; unread news stays
   expect(listUndelivered(db, "t").map((e) => e.id)).toEqual(["e5"]);
 });

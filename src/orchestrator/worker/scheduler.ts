@@ -19,22 +19,27 @@ const collide = (a: ItemRow, b: ItemRow): boolean =>
 /**
  * Items to start now, in order: the `ready` items in creation order (FIFO), as many as the thread cap leaves free, skipping an
  * item whose location already has a running (or just picked) writer.
- * `roleCaps` answers for a role name; an unknown role is no writer.
+ * `roleCaps` answers for a role name; an unknown role is no writer. `occupied` marks an item whose location is held by a
+ * force-closed run that may still write (a zombie claim): that writer is skipped like a collision, so it neither starts
+ * nor uses a slot of the cap, and the items behind it still run.
  */
 export function pickDispatchable(
   items: ItemRow[],
   roleCaps: (role: string | null) => RoleCaps,
   perThread = MAX_RUNNING_PER_THREAD,
+  occupied: (it: ItemRow) => boolean = () => false,
 ): ItemRow[] {
   const running = items.filter((i) => i.status === "running");
-  // A `waiting_user` item still holds its location and role slot: the owner's answer resumes it outside the scheduler.
-  const active = [...running, ...items.filter((i) => i.status === "waiting_user")];
+  // A `waiting_user` item has no run (its run ended): it holds no location and no slot. The owner's answer re-queues
+  // it as `ready`, and it then competes for its location like any other item.
+  const active = running;
   const picked: ItemRow[] = [];
   for (const it of items) {
     if (it.status !== "ready") continue;
     if (running.length + picked.length >= perThread) break;
     const caps = roleCaps(it.ownerRole);
     const taken = [...active, ...picked];
+    if (caps.writer && occupied(it)) continue;
     if (caps.writer && taken.some((t) => roleCaps(t.ownerRole).writer && collide(t, it))) continue;
     picked.push(it);
   }

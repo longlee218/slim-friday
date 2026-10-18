@@ -29,6 +29,8 @@ export interface QuestionRelay {
   }): (questions: AskQuestion[]) => Promise<Record<string, string> | undefined>;
   /** Hand an answer to the worker waiting on `itemId`; false when none waits. */
   answer(itemId: string, text: string): boolean;
+  /** Ends the wait of one turn with no answer (its run ended): a stale wait never answers or clears a later run's. */
+  release(turnId: string): void;
   /** Ends every wait of one thread with no answer (`/stop`): a late answer finds nobody waiting. */
   abortThread(threadId: string): void;
   /** Ends every wait with no answer (shutdown). */
@@ -41,30 +43,33 @@ export function createQuestionRelay(
   onQuestion: (threadId: string) => void,
   waitMs = RELAY_WAIT_MS,
 ): QuestionRelay {
-  /** itemId -> the worker's pending ask (one at a time per worker). */
-  const waiting = new Map<string, Waiting & { threadId: string; goalId: string }>();
+  /** turnId -> the worker's pending ask (one at a time per run). Keyed by turn: a retry of the same item is a new turn. */
+  const waiting = new Map<string, Waiting & { threadId: string; goalId: string; itemId: string }>();
   return {
     forWorker: (w) => (questions) =>
       new Promise((resolve) => {
         const timer = setTimeout(() => finish(undefined), waitMs);
         timer.unref();
         // The worker idles by design while it waits: the watchdog skips it until the answer (or the timeout) comes.
-        setWaiting(db, w.itemId, true);
+        setWaiting(db, w.turnId, true);
         let done = false; // the wait is closed once: a second finish must not close another wait of the run
         const finish = (a: Record<string, string> | undefined) => {
           if (done) return;
           done = true;
           clearTimeout(timer);
-          waiting.delete(w.itemId);
-          setWaiting(db, w.itemId, false);
+          if (waiting.get(w.turnId) === entry) waiting.delete(w.turnId);
+          setWaiting(db, w.turnId, false); // by turn: a later run of the item has its own count
+
           resolve(a);
         };
-        waiting.set(w.itemId, {
+        const entry = {
           questions,
           resolve: finish,
           threadId: w.threadId,
           goalId: w.goalId,
-        });
+          itemId: w.itemId,
+        };
+        waiting.set(w.turnId, entry);
         const text = questions.map((q) => q.question).join("\n");
         appendEvent(db, {
           id: `question:${w.turnId}:${crypto.randomUUID()}`,
@@ -80,7 +85,7 @@ export function createQuestionRelay(
         onQuestion(w.threadId);
       }),
     answer(itemId, text) {
-      const w = waiting.get(itemId);
+      const w = [...waiting.values()].reverse().find((e) => e.itemId === itemId); // newest wait of the item
       if (!w) return false;
       appendEvent(db, {
         id: `answer:${itemId}:${crypto.randomUUID()}`,
@@ -93,6 +98,9 @@ export function createQuestionRelay(
       // Every question of the call gets the one answer (the lead answers the whole ask).
       w.resolve(Object.fromEntries(w.questions.map((q) => [q.question, text])));
       return true;
+    },
+    release(turnId) {
+      waiting.get(turnId)?.resolve(undefined);
     },
     abortThread(threadId) {
       for (const w of [...waiting.values()]) if (w.threadId === threadId) w.resolve(undefined);

@@ -4,11 +4,13 @@ import { attachmentName, headingTitle } from "../../ingress/attachment-name";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import { artifactIdByPath } from "../../storage/artifact-path-store";
+import { linkQuestionMessage } from "../../storage/item-question-store";
 import { openLinks } from "../../viewer/signed-link";
 import type { OwnerAnswer } from "../goal/effect-port";
 import type { PortIo } from "../goal/effect-port-db";
 import { ASK_OWNER_TIMEOUT_MS } from "./lead-limits";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "./lead-runtime";
+import { registerAsk } from "./pending-asks";
 
 /** Logger of this module. */
 const log = logger.child({ module: "lead-io" });
@@ -32,11 +34,17 @@ export function createLeadIo(
     askOwner: async (q): Promise<OwnerAnswer> => {
       if (!deps.approvals) return { timedOut: true };
       let timer: ReturnType<typeof setTimeout> | undefined;
+      let unregister = () => {};
       // No answer within the limit, or `/stop` ends the lead run: the question is dropped.
       const limit = new Promise<undefined>((r) => {
         timer = setTimeout(() => r(undefined), waitMs);
         timer.unref();
         ac.addEventListener("abort", () => r(undefined), { once: true });
+      });
+      // The owner replied to the question message (not a button): that text answers this ask too.
+      let replied: ((text: string) => void) | undefined;
+      const repliedP = new Promise<{ replied: string }>((r) => {
+        replied = (text) => r({ replied: text });
       });
       const answer = await Promise.race([
         deps.approvals.askChoice({
@@ -45,12 +53,27 @@ export function createLeadIo(
           question: q.question,
           options: q.options,
           yesno: q.yesno,
+          // A question about a task: a Discord reply to this message answers that task (even after the buttons timed out).
+          onMessage: (messageId) => {
+            if (!q.taskId) return;
+            linkQuestionMessage(deps.db, messageId, threadId, q.taskId);
+            if (replied) unregister = registerAsk(messageId, replied);
+          },
         }),
         limit,
-      ]).finally(() => clearTimeout(timer));
+        repliedP,
+      ]).finally(() => {
+        clearTimeout(timer);
+        unregister();
+      });
       if (answer === undefined) {
         deps.approvals.cancelTurn(turnId); // the buttons go away with the wait
         return { timedOut: true };
+      }
+      if (typeof answer === "object") {
+        // The reply already resumed the task (code did it): only the buttons and the lead's wait end here.
+        deps.approvals.cancelTurn(turnId);
+        return { answer: answer.replied, timedOut: false };
       }
       // An answer to a worker's question reaches the waiting worker too; nobody waiting (stopped, ended) is no success.
       if (q.workerAskId && !relay.answer(q.taskId ?? q.workerAskId, answer))
