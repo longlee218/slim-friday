@@ -54,8 +54,16 @@ describe.skipIf(!live)("scout research set (real lead and scout)", () => {
         threadId: `eval-${c.id}`,
         text: c.text,
       });
+      // The lead may answer alone (no dispatch): give a dispatch 60 s to appear, else skip the worker wait.
+      const dispatched = await until(
+        () => !!env.db.query("SELECT 1 FROM turns WHERE role != 'lead'").get(),
+        60_000,
+      ).then(
+        () => true,
+        () => false,
+      );
       // The scout starts after the lead's run: wait for it, then for every run to end.
-      await workersDone(env.db, 600_000).catch(() => {});
+      if (dispatched) await workersDone(env.db, 600_000).catch(() => {});
       await until(
         () => !env.db.query("SELECT 1 FROM turns WHERE status = 'running'").get(),
         300_000,
@@ -67,10 +75,11 @@ describe.skipIf(!live)("scout research set (real lead and scout)", () => {
       const pass = out.completed && ok > 0;
       if (pass) good++;
       cost += out.costUsd;
-      lines.push(
-        `${pass ? "ok  " : "MISS"} ${c.id}: completed=${out.completed} urls=${ok}/${urls.length} $${out.costUsd.toFixed(3)} ${Math.round(out.durationMs / 1000)}s`,
-      );
-      env.db.close();
+      const line = `${pass ? "ok  " : "MISS"} ${c.id}: dispatched=${dispatched} completed=${out.completed} urls=${ok}/${urls.length} $${out.costUsd.toFixed(3)} ${Math.round(out.durationMs / 1000)}s`;
+      lines.push(line);
+      process.stderr.write(`${line}\n`); // streamed per case: a long run shows progress
+      // No db.close(): the lead's announcer timers of this handler may still fire and read the db ("closed database"
+      // would fail the whole file). The temp home is removed after the file by the preload.
     }
     process.stderr.write(
       `scout research: ${good}/${cases.length} ok, total $${cost.toFixed(2)}\n${lines.join("\n")}\n`,
