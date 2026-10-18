@@ -48,6 +48,8 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, o
     skills: [
       "scout",
       "docs-seeker",
+      "deep-research",
+      "research-online",
       "firecrawl-deep-research",
       "firecrawl-research-papers",
       "firecrawl-market-research",

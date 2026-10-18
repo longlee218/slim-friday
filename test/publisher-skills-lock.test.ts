@@ -19,7 +19,8 @@ test("skills-lock.json lists exactly the skill dirs of .agents/skills, each with
   expect(Object.keys(lock.skills).sort()).toEqual(onDisk);
   for (const [name, entry] of Object.entries(lock.skills)) {
     expect(existsSync(join(PUBLISHER_SKILLS_DIR, name, "SKILL.md"))).toBe(true);
-    expect(entry.skillPath).toBe(`skills/${name}/SKILL.md`);
+    // The path is where the skill sits in its source repo (it may be nested or the repo root).
+    expect(entry.skillPath).toMatch(/(^|\/)SKILL\.md$/);
   }
 });
 
