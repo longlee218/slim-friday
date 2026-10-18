@@ -92,8 +92,8 @@ test("two saves of one title never overwrite (exclusive publish, next version)",
   const a = { workspace: "main", channel: "healthy", kind: "md" as const, title: "Same" };
   const dir = workspacePaths(env.home).workspace("main").channel("healthy").artifacts;
   // The helper refuses a taken name and leaves no temp file.
-  expect(writeFileExclusive(dir, "x.md", "1")).toBe(join(dir, "x.md"));
-  expect(writeFileExclusive(dir, "x.md", "2")).toBeNull();
+  expect(writeFileExclusive(env.home, dir, "x.md", "1")).toBe(join(dir, "x.md"));
+  expect(writeFileExclusive(env.home, dir, "x.md", "2")).toBeNull();
   // A stale db (version computed 1 while the file exists) still moves to v2.
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "same.md"), "other save");

@@ -68,7 +68,7 @@ const summary = (a: ArtifactRow) => ({
 const sinceMs = (day?: string): number | undefined =>
   day ? Date.parse(`${day}T00:00:00Z`) : undefined;
 
-/** Artifacts of the run's channel, newest first (at most `ARTIFACT_LIST_MAX`). */
+/** Latest version of each artifact of the run's channel, newest first (at most `ARTIFACT_LIST_MAX`). */
 export function listArtifacts(c: ArtifactToolCtx, f: Omit<ArtifactFilter, "since"> = {}) {
   const rows = listChannelArtifacts(c.db, c.workspace, channelOf(c), {
     ...f,
@@ -77,7 +77,7 @@ export function listArtifacts(c: ArtifactToolCtx, f: Omit<ArtifactFilter, "since
   return { ok: true as const, artifacts: rows.map(summary) };
 }
 
-/** Keyword search over the run's channel (one hit per artifact, best chunk as the snippet). */
+/** Keyword search over the latest versions of the run's channel (one hit per artifact, best chunk as the snippet). */
 export function searchChannel(
   c: ArtifactToolCtx,
   q: { query: string; goalId?: string; threadId?: string; since?: string; limit?: number },
@@ -99,6 +99,7 @@ export function searchChannel(
   const rows = hits.map((h: ArtifactHit) => ({
     id: h.artifactId,
     title: h.title,
+    version: h.version,
     snippet: redactText(h.snippet),
   }));
   return { ok: true as const, hits: rows };

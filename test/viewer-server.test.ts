@@ -5,6 +5,7 @@ import { writeArtifact } from "../src/artifacts/artifact-writer";
 import { VIEWER_LINK_TTL_DEFAULT_MS, type ViewerConfig } from "../src/config/viewer-config";
 import { insertArtifact } from "../src/storage/artifact-store";
 import { FRAME_LINK_SCRIPT } from "../src/viewer/frame-link-script";
+import { injectHead } from "../src/viewer/inject-head";
 import { esc } from "../src/viewer/page-template";
 import { signedArtifactUrl } from "../src/viewer/signed-link";
 import { createViewerHandler, startViewer } from "../src/viewer/viewer-server";
@@ -58,6 +59,7 @@ function setup() {
       version: 1,
       size: 1,
       sourceMtime: null,
+      summary: 0,
       createdAt: Date.now(),
     });
     return id;
@@ -197,6 +199,7 @@ test("a store row that points outside AGENT_HOME is refused", () => {
     version: 1,
     size: 1,
     sourceMtime: null,
+    summary: 0,
     createdAt: Date.now(),
   });
   expect(get(id).status).toBe(404);
@@ -218,4 +221,46 @@ test("a real socket on 127.0.0.1 (port 0) answers a signed link and 404s the res
   } finally {
     v.stop();
   }
+});
+
+/** The `srcdoc` of a framed page, unescaped back to the document the frame parses. */
+const srcdocOf = (page: string): string =>
+  page
+    .slice(page.indexOf('srcdoc="') + 8, page.lastIndexOf('"></iframe>'))
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'")
+    .replaceAll("&amp;", "&");
+
+test("html with a doctype keeps it first (standards mode); our head goes after it, before artifact scripts", async () => {
+  const { save, get } = setup();
+  const body =
+    "<!DOCTYPE html><html><head><title>t</title><script>window.x=1</script></head><body>b</body></html>";
+  const doc = srcdocOf(await get(save("html", body)).text());
+  expect(doc.startsWith("<!DOCTYPE html><html><head><meta http-equiv=")).toBe(true);
+  expect(doc.indexOf("<meta http-equiv")).toBeLessThan(doc.indexOf("window.x=1"));
+  expect(doc.indexOf(FRAME_LINK_SCRIPT)).toBeLessThan(doc.indexOf("window.x=1"));
+  expect(doc.match(/<!doctype/gi)?.length).toBe(1);
+});
+
+test("html without a doctype gets one prepended", async () => {
+  const { save, get } = setup();
+  const doc = srcdocOf(await get(save("html", "<h1>hi</h1>")).text());
+  expect(doc.startsWith("<!DOCTYPE html><meta http-equiv=")).toBe(true);
+  expect(doc.endsWith("<h1>hi</h1>")).toBe(true);
+});
+
+test("injectHead: doctype found after BOM, whitespace and comments, any case; head goes after <html>/<head> when present", () => {
+  const H = "[H]";
+  expect(injectHead("﻿ \n<!-- c --><!doctype HTML>\n<html lang=en>\n<HEAD>x", H)).toBe(
+    "﻿ \n<!-- c --><!doctype HTML>\n<html lang=en>\n<HEAD>[H]x",
+  );
+  expect(injectHead("<!DOCTYPE html><html><body>b", H)).toBe("<!DOCTYPE html><html>[H]<body>b");
+  expect(injectHead("<!DOCTYPE html><p>b", H)).toBe("<!DOCTYPE html>[H]<p>b");
+  expect(injectHead("<!DOCTYPE html><header>b", H)).toBe("<!DOCTYPE html>[H]<header>b"); // <header> is not <head>
+  expect(injectHead("<p>no doctype", H)).toBe("<!DOCTYPE html>[H]<p>no doctype");
+  expect(injectHead("<!-- <!doctype html> --><p>x", H)).toBe(
+    "<!DOCTYPE html>[H]<!-- <!doctype html> --><p>x",
+  );
 });

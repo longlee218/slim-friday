@@ -71,6 +71,7 @@ export function registerRepoArtifact(
     version,
     size: st.size,
     sourceMtime: Math.floor(st.mtimeMs),
+    summary: 0,
     createdAt: Date.now(),
   });
   if (isIndexedKind(a.kind))

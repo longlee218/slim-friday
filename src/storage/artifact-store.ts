@@ -22,20 +22,22 @@ export interface ArtifactRow {
   size: number;
   /** For a repo artifact: mtime (epoch ms) of the file snapshot the index was built from; null for a store file. */
   sourceMtime: number | null;
+  /** 1 = the code-written result summary of a task (not a file the run saved); 0 otherwise. */
+  summary: number;
   createdAt: number;
 }
 
 /** Columns of `artifacts` as `ArtifactRow` fields. */
 export const COLUMNS = `id, workspace, channel, goal_id AS goalId, task_id AS taskId, thread_id AS threadId, title, name, kind,
-  origin, path, location, producer_role AS producerRole, version, size, source_mtime AS sourceMtime,
+  origin, path, location, producer_role AS producerRole, version, size, source_mtime AS sourceMtime, summary,
   created_at AS createdAt`;
 
 /** Record one artifact (a new version is a new row; nothing is overwritten). */
 export function insertArtifact(db: Database, a: ArtifactRow): void {
   db.query(
     `INSERT INTO artifacts (id, workspace, channel, goal_id, task_id, thread_id, title, name, kind, origin, path,
-       location, producer_role, version, size, source_mtime, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       location, producer_role, version, size, source_mtime, summary, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     a.id,
     a.workspace,
@@ -53,6 +55,7 @@ export function insertArtifact(db: Database, a: ArtifactRow): void {
     a.version,
     a.size,
     a.sourceMtime,
+    a.summary,
     a.createdAt,
   );
 }
@@ -70,6 +73,13 @@ export function listByGoal(db: Database, goalId: string): ArtifactRow[] {
     )
     .all(goalId);
 }
+
+/**
+ * SQL condition (table alias `a`): the row is the newest version of its name in its channel. Old `-vN` rows stay on disk
+ * and readable by id, but listings and searches show only this one.
+ */
+export const IS_LATEST_VERSION = `a.version = (SELECT MAX(b.version) FROM artifacts b
+  WHERE b.workspace = a.workspace AND b.channel = a.channel AND b.name = a.name)`;
 
 /** Highest version of a name in a channel (0 when none): the next write is this + 1. */
 export function latestVersion(
@@ -127,7 +137,7 @@ export interface FtsHit {
 }
 
 /**
- * Ranked chunk search in ONE workspace (and one channel when given). `match` is a ready FTS5 expression (the caller
+ * Ranked chunk search over the latest versions in ONE workspace (and one channel when given). `match` is a ready FTS5 expression (the caller
  * quotes the terms). Returns chunks, best first; one artifact may appear more than once.
  */
 export function ftsSearch(
@@ -144,7 +154,7 @@ export function ftsSearch(
     snippetTokens: number;
   },
 ): FtsHit[] {
-  const where = ["artifacts_fts MATCH ?", "artifacts_fts.workspace = ?"];
+  const where = ["artifacts_fts MATCH ?", "artifacts_fts.workspace = ?", IS_LATEST_VERSION];
   const params: (string | number)[] = [q.match, q.workspace];
   if (q.channel !== undefined) {
     where.push("artifacts_fts.channel = ?");

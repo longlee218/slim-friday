@@ -30,6 +30,8 @@ export interface ArtifactInput {
   producerRole?: string;
   /** Location name of a repo artifact. */
   location?: string;
+  /** True for the code-written result summary of a task: it is never counted as a file the run saved itself. */
+  summary?: boolean;
 }
 
 /** Name (`attachmentName` of the title) split into stem and extension. */
@@ -73,7 +75,7 @@ export function writeArtifact(
   // fails on a taken name and the next version is tried (bounded).
   let path: string | null = null;
   for (let i = 0; i < MAX_VERSION_TRIES && path === null; i++) {
-    path = writeFileExclusive(dir, fileOf(version), body);
+    path = writeFileExclusive(agentHome, dir, fileOf(version), body);
     if (path === null) version++;
   }
   if (path === null) throw new Error(`no free file name for artifact ${name}`);
@@ -95,6 +97,7 @@ export function writeArtifact(
     version,
     size: Buffer.byteLength(body),
     sourceMtime: null,
+    summary: a.summary ? 1 : 0,
     createdAt: Date.now(),
   });
   if (isIndexedKind(a.kind)) indexArtifact(db, { id, workspace: a.workspace, channel }, body);

@@ -1,0 +1,1 @@
+ALTER TABLE `artifacts` ADD `summary` integer DEFAULT 0 NOT NULL;

@@ -1,5 +1,6 @@
 import type { ArtifactKind } from "../artifacts/artifact-kinds";
 import { FRAME_LINK_SCRIPT } from "./frame-link-script";
+import { injectHead } from "./inject-head";
 import { markdownToHtml } from "./markdown-render";
 import { docPage } from "./page-doc-layout";
 import { DOC_SCRIPT_CSP_SOURCE } from "./page-doc-script";
@@ -12,7 +13,7 @@ export interface Rendered {
 }
 
 /**
- * Policy of the html artifact's own document (inner, a `<meta>` first in `srcdoc`): its inline script and style run,
+ * Policy of the html artifact's own document (inner, a `<meta>` first in the document head of `srcdoc`, after the doctype): its inline script and style run,
  * nothing leaves (no connect-src, fonts, frames, forms, base; images only inline `data:`).
  */
 const INNER_CSP =
@@ -38,8 +39,8 @@ export function renderArtifact(kind: ArtifactKind, title: string, text: string):
     return { html: docPage(title, kind, html, toc), csp: DOC_CSP };
   }
   if (kind === "html") {
-    const inner = `<meta http-equiv="Content-Security-Policy" content="${esc(INNER_CSP)}">${FRAME_LINK_SCRIPT}${text}`;
-    return { html: framePage(title, inner), csp: FRAME_CSP };
+    const head = `<meta http-equiv="Content-Security-Policy" content="${esc(INNER_CSP)}">${FRAME_LINK_SCRIPT}`;
+    return { html: framePage(title, injectHead(text, head)), csp: FRAME_CSP };
   }
   return {
     html: pageHtml(title, `<h1>${esc(title)}</h1><pre>${esc(text)}</pre>`),

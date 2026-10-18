@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { type ArtifactRow, COLUMNS } from "./artifact-store";
+import { type ArtifactRow, COLUMNS, IS_LATEST_VERSION } from "./artifact-store";
 
 /** Filters of a channel listing: all optional, ANDed. `since` is epoch ms (created at or after). */
 export interface ArtifactFilter {
@@ -8,14 +8,14 @@ export interface ArtifactFilter {
   since?: number;
 }
 
-/** Artifacts of ONE workspace channel (`channel` '' = the workspace level), newest first, at most `limit`. */
+/** Latest version of each artifact of ONE workspace channel (`channel` '' = the workspace level), newest first, at most `limit`. */
 export function listChannelArtifacts(
   db: Database,
   workspace: string,
   channel: string,
   f: ArtifactFilter & { limit: number },
 ): ArtifactRow[] {
-  const where = ["workspace = ?", "channel = ?"];
+  const where = ["workspace = ?", "channel = ?", IS_LATEST_VERSION];
   const params: (string | number)[] = [workspace, channel];
   if (f.goalId !== undefined) {
     where.push("goal_id = ?");
@@ -32,19 +32,19 @@ export function listChannelArtifacts(
   params.push(f.limit);
   return db
     .query<ArtifactRow, (string | number)[]>(
-      `SELECT ${COLUMNS} FROM artifacts WHERE ${where.join(" AND ")} ORDER BY created_at DESC, rowid DESC LIMIT ?`,
+      `SELECT ${COLUMNS} FROM artifacts a WHERE ${where.join(" AND ")} ORDER BY created_at DESC, rowid DESC LIMIT ?`,
     )
     .all(...params);
 }
 
 /**
- * Files a task saved itself (store origin, `task_id` = the task), the task's PRIMARY first: the largest (a research
+ * Files a task saved itself (store origin, `task_id` = the task, not a code-written result summary: after a resume the old summary must not win), the task's PRIMARY first: the largest (a research
  * report beats its short summary), a tie goes to the newest. Used for the result path, the end event and verbatim forward.
  */
 export function taskStoreArtifacts(db: Database, taskId: string): ArtifactRow[] {
   return db
     .query<ArtifactRow, [string]>(
-      `SELECT ${COLUMNS} FROM artifacts WHERE task_id = ? AND origin = 'store' ORDER BY size DESC, rowid DESC`,
+      `SELECT ${COLUMNS} FROM artifacts WHERE task_id = ? AND origin = 'store' AND summary = 0 ORDER BY size DESC, rowid DESC`,
     )
     .all(taskId);
 }

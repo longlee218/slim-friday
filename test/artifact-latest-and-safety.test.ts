@@ -1,0 +1,110 @@
+import { expect, test } from "bun:test";
+import { mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { join } from "node:path";
+import {
+  type ArtifactToolCtx,
+  listArtifacts,
+  readArtifact,
+  searchChannel,
+} from "../src/artifacts/artifact-access";
+import { writeArtifact } from "../src/artifacts/artifact-writer";
+import { workspacePaths } from "../src/config/workspace-paths";
+import { logger } from "../src/observability/logger";
+import { saveResultFile } from "../src/orchestrator/turns/result-file-save";
+import { beginTurn } from "../src/orchestrator/turns/turn-tracker";
+import { ROLES } from "../src/roles/role-registry";
+import { taskStoreArtifacts } from "../src/storage/artifact-list-store";
+import { getItem } from "../src/storage/owned-item-store";
+import { ownedTaskOfTurn } from "../src/storage/owned-task-store";
+import { makeEnv, outsideDir } from "./helpers";
+
+const base = { workspace: "main", channel: "healthy", kind: "md" as const };
+
+/** A tool ctx over the env's db and home, channel `healthy` of space `main`. */
+const ctxOf = (env: ReturnType<typeof makeEnv>): ArtifactToolCtx => ({
+  db: env.db,
+  home: env.home,
+  workspace: "main",
+  channel: "healthy",
+  locations: [],
+});
+
+test("list and search show only the latest version of a name; ReadArtifact still reads an old one", () => {
+  const env = makeEnv();
+  const v1 = writeArtifact(env.db, env.home, { ...base, title: "Plan", body: "zebra old text" });
+  const v2 = writeArtifact(env.db, env.home, { ...base, title: "Plan", body: "zebra new text" });
+  const other = writeArtifact(env.db, env.home, { ...base, title: "Other", body: "zebra other" });
+  const c = ctxOf(env);
+  const listed = listArtifacts(c).artifacts;
+  expect(listed.map((a) => [a.id, a.version])).toEqual([
+    [other.id, 1],
+    [v2.id, 2],
+  ]);
+  const found = searchChannel(c, { query: "zebra" });
+  const hits = "hits" in found ? found.hits : [];
+  expect(hits.map((h) => [h.id, h.version]).sort()).toEqual(
+    [
+      [other.id, 1],
+      [v2.id, 2],
+    ].sort(),
+  );
+  expect(hits.some((h) => h.id === v1.id)).toBe(false);
+  const old = readArtifact(c, v1.id) as { text: string; version: number };
+  expect(old.version).toBe(1);
+  expect(old.text).toContain("old text");
+});
+
+test("a task's old result summary is never the primary file (resume): only saved files count", () => {
+  const env = makeEnv();
+  const { db, home } = env;
+  const role = Object.values(ROLES).find((r) => r.kind === "worker")!.name;
+  beginTurn(
+    db,
+    logger,
+    { turnId: "t1", threadId: "th", source: "test" },
+    { location: "*", role, brief: "b" },
+  );
+  const taskId = ownedTaskOfTurn(db, "t1")!;
+  const scope = { workspace: "main", channel: "general" };
+  const long = "long summary ".repeat(300);
+  // First run: no saved file, so the code writes the (large) summary artifact.
+  saveResultFile(db, home, scope, "t1", "th", "done", "success", long);
+  expect(taskStoreArtifacts(db, taskId)).toEqual([]);
+  // After a resume the run saves a small file itself: it is the primary, the old summary is ignored.
+  const saved = writeArtifact(db, home, {
+    ...scope,
+    kind: "md",
+    taskId,
+    title: "Report",
+    body: "tiny",
+  });
+  expect(taskStoreArtifacts(db, taskId).map((a) => a.path)).toEqual([saved.path]);
+  saveResultFile(db, home, scope, "t1", "th", "done", "success", "short");
+  expect(getItem(db, taskId)?.resultPath).toBe(saved.path);
+  expect(db.query("SELECT COUNT(*) AS n FROM artifacts WHERE summary = 1").get()).toEqual({ n: 1 });
+});
+
+test("a symlinked parent dir (channels, the workspace dir) that leads outside AGENT_HOME is refused", () => {
+  const env = makeEnv();
+  const outside = outsideDir();
+  const ws = workspacePaths(env.home).workspace("main");
+  // `channels` -> outside the home (the final artifacts dir does not exist yet, so only the parent is a symlink).
+  rmSync(join(env.home, "workspaces", "main", "channels"), { recursive: true, force: true });
+  mkdirSync(join(env.home, "workspaces", "main"), { recursive: true });
+  symlinkSync(outside, join(env.home, "workspaces", "main", "channels"));
+  expect(() => writeArtifact(env.db, env.home, { ...base, title: "T", body: "b" })).toThrow(
+    /outside AGENT_HOME/,
+  );
+  expect(ws.channel("healthy").artifacts.startsWith(env.home)).toBe(true);
+  expect(Bun.spawnSync(["ls", outside]).stdout.toString()).toBe(""); // nothing was created out there
+
+  const env2 = makeEnv();
+  const out2 = outsideDir();
+  rmSync(join(env2.home, "workspaces", "main"), { recursive: true, force: true });
+  mkdirSync(join(env2.home, "workspaces"), { recursive: true });
+  symlinkSync(out2, join(env2.home, "workspaces", "main"));
+  expect(() => writeArtifact(env2.db, env2.home, { ...base, title: "T", body: "b" })).toThrow(
+    /outside AGENT_HOME/,
+  );
+  expect(Bun.spawnSync(["ls", out2]).stdout.toString()).toBe("");
+});

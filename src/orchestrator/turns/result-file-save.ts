@@ -61,6 +61,7 @@ export function saveResultFile(
             title,
             fallbackName: `result-${pathSegment(itemKey).toLowerCase()}`,
             kind: "md",
+            summary: true,
             body: doc.text,
             producerRole: task?.ownerAgentId ?? undefined,
           })
