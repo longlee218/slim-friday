@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { AUTO_RESUME_CAP } from "../src/config/resilience-caps";
-import type { RunOutcome } from "../src/observability/record-run";
+import type { RunOutcome } from "../src/observability/run-usage";
 import type { FlowResult } from "../src/orchestrator/turns/turn-result";
 import { applyFailurePolicy } from "../src/orchestrator/worker/failure-policy";
 import { clearHold, holdUntil, waitMs } from "../src/orchestrator/worker/resume-backoff";

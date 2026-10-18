@@ -8,8 +8,9 @@ import {
   setResultKind,
   threadsWithReadyItems,
 } from "../../storage/owned-item-store";
-import { runningTasks, taskScope, threadOfTask } from "../../storage/owned-task-store";
+import { taskScope, threadOfTask } from "../../storage/owned-task-store";
 import { interruptRunningTurns } from "../../storage/run-store";
+import { runningTasks } from "../../storage/running-owned-task-store";
 import { appendEvent, unclaimStale, undeliveredThreads } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { wavePendingThreads } from "../plan/plan-waves";

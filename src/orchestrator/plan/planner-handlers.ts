@@ -13,7 +13,8 @@ import {
 } from "../../storage/work-plan-store";
 import { type Reply, refuse } from "../reply";
 import { docOfRow } from "./plan-doc";
-import { createPlan, type Fail, type PlanEnv, validateStored } from "./plan-lifecycle";
+import { createPlan, validateStored } from "./plan-lifecycle";
+import type { Fail, PlanEnv } from "./plan-refusal";
 import { revisePlan } from "./plan-revision";
 import type {
   CreatePlanInput,

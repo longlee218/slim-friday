@@ -5,14 +5,15 @@ import { INLINE_MAX, wrapTables } from "./inline-report";
 import { needsFile, needsReport, paragraphs, splitReply, toBubbles } from "./reply-bubbles";
 import { type OwnerLanguage, renderUserNotice } from "./user-copy";
 
+// Link helpers live in report-links.ts; re-exported because several modules import them from here.
+export { markdownLinks, type ReportLink, safeLinks } from "./report-links";
+
 /** Mention policy for every outgoing message: nothing can ping (@everyone, @here, roles, users). */
 export const SAFE_MENTIONS = { parse: [] as never[], repliedUser: false };
 
-/** Discord hard limit is 2000; stay under it. */
+/** Chunk size (Discord's hard limit is 2000), truncation cap of a reply, and inline head size before a file. */
 export const CHUNK_MAX = 1900;
-/** Replies longer than this are truncated. */
 export const REPLY_CAP = 6000;
-/** Size of the inline head sent before the attachment. */
 export const HEAD_MAX = 1500;
 
 /** Minimal message facts the routing rules need (decoupled from discord.js types). */
@@ -21,24 +22,24 @@ export interface MessageFacts {
   authorIsBot: boolean;
   /** False for DMs. */
   inGuild: boolean;
-  /** True when a guild is pinned (DISCORD_GUILD_ID) and the message comes from another one. */
+  /** True when a guild is pinned (DISCORD_GUILD_ID) and the message is from another one. */
   otherGuild: boolean;
   /** True when the channel is a thread created by this bot. */
   inBotThread: boolean;
-  /** True when the channel is an owner-made thread already adopted (acts like `inBotThread`). */
+  /** True for an adopted owner-made thread (acts like `inBotThread`). */
   adoptedThread?: boolean;
-  /** True for a thread under a channel mapped to a space that is not bot-owned, not adopted, not in an ops channel. */
+  /** True for an owner-made thread under a mapped channel, not yet adopted (not in an ops channel). */
   adoptableThread?: boolean;
   /** True for a channel (not a thread) the owner marked `mode: chat`: the owner needs no mention there. */
   chatChannel?: boolean;
   /** True when the message mentions this bot. */
   mentionsBot: boolean;
   content: string;
-  /** The message carries files: an empty text is then not "empty" (the files are read later). */
+  /** The message carries files, so an empty text is not "empty". */
   hasAttachments?: boolean;
   /** True when the channel (or the parent of its thread) is an ops channel from discord.yaml. */
   opsChannel?: boolean;
-  /** True when the channel itself (not a thread) accepts admin commands (discord.yaml controlChannels). */
+  /** True when the channel itself (not a thread) is a discord.yaml control channel. */
   controlChannel?: boolean;
 }
 
@@ -64,12 +65,12 @@ export type Route =
   /** New conversation: create a thread from the message. */
   | { kind: "channel"; prompt: string };
 
-/** Remove the bot mention (`<@id>` / `<@!id>`) and trim. */
+/** Remove the bot mention and trim. */
 export function stripMention(content: string, botId: string): string {
   return content.replace(new RegExp(`<@!?${botId}>`, "g"), "").trim();
 }
 
-/** Decide what to do with a message. Non-owners and bots never get past `ignore`. */
+/** Decide what to do with a message. Non-owners and bots never get past `ignore`; admin text elsewhere is refused by the gate, never sent to the agent. */
 export function routeMessage(f: MessageFacts, ownerId: string, botId: string): Route {
   if (f.authorIsBot) return { kind: "ignore", reason: "bot" };
   if (f.authorId !== ownerId) return { kind: "ignore", reason: "not_owner" };
@@ -77,12 +78,11 @@ export function routeMessage(f: MessageFacts, ownerId: string, botId: string): R
   if (f.otherGuild) return { kind: "ignore", reason: "other_guild" };
   const prompt = stripMention(f.content, botId);
   if (!prompt && !f.hasAttachments) return { kind: "ignore", reason: "empty" };
-  // Ops channels (and their threads) never reach the agent: only admin handling, which re-checks the gate.
+  // Ops channels (and their threads) never reach the agent: only admin handling.
   if (f.opsChannel)
     return f.controlChannel || isAdminText(prompt)
       ? { kind: "control", prompt }
       : { kind: "ignore", reason: "ops_channel" };
-  // Admin text anywhere else is refused by the gate, never sent to the agent.
   // Bot-owned or adopted thread, or a chat channel (the channel is the thread): no mention needed.
   const inThread = f.inBotThread || !!f.adoptedThread || !!f.chatChannel;
   if (isAdminText(prompt) && (inThread || f.mentionsBot)) return { kind: "control", prompt };
@@ -94,26 +94,21 @@ export function routeMessage(f: MessageFacts, ownerId: string, botId: string): R
   return { kind: "ignore", reason: "not_mentioned" };
 }
 
-/** Break text into lines, cutting any line too long to ever fit in one chunk. */
+/** Lines of the text, with any line longer than `max` cut. */
 function toPieces(text: string, max: number): string[] {
-  return text.split("\n").flatMap((line) => {
-    const parts: string[] = [];
-    for (let i = 0; i < line.length; i += max) parts.push(line.slice(i, i + max));
-    return parts.length ? parts : [""];
-  });
+  const cutter = new RegExp(`.{1,${max}}`, "gs");
+  return text
+    .split("\n")
+    .flatMap((line) => (line.length <= max ? [line] : (line.match(cutter) ?? [])));
 }
 
-/**
- * Split text into chunks <= max chars on line boundaries.
- * A ``` fence left open at a chunk end is closed and reopened in the next chunk.
- */
+/** Split into chunks <= max chars by line; an open ``` fence is closed and reopened. `max` 1900: +1 per newline and fence markers (<= 8) fit under Discord's 2000. */
 export function splitChunks(text: string, max = CHUNK_MAX): string[] {
   const chunks: string[] = [];
   let cur: string[] = []; // lines of the chunk being built
   let len = 0;
   let inFence = false; // inside a ``` block at the current position
   for (const line of toPieces(text, max)) {
-    // +1 for the newline. Fence markers added at edges (<=8 chars) fit in the slack below Discord's 2000.
     if (cur.length && len + line.length > max) {
       chunks.push((inFence ? [...cur, "```"] : cur).join("\n"));
       cur = inFence ? ["```"] : [];
@@ -131,23 +126,22 @@ export function splitChunks(text: string, max = CHUNK_MAX): string[] {
 export function prepareReply(text: string): string[] {
   let safe = redactText(text);
   if (safe.length > REPLY_CAP) safe = safe.slice(0, REPLY_CAP) + "\n\n[output truncated]";
-  // Discord rejects empty messages: drop blank chunks, fall back to a notice.
+  // Discord rejects empty messages: drop blank chunks.
   const chunks = splitChunks(safe).filter((c) => c.trim() !== "");
   return chunks.length ? chunks : ["(no answer)"];
 }
 
 /** A reply sent as a head message plus one redacted file. */
 export interface OutputFile {
-  /** Attachment name: the model's title made filesystem-safe (`attachment-name.ts`), or `reply.md` / `changes.diff`. */
+  /** Filesystem-safe attachment name (see `attachment-name.ts`). */
   name: string;
   content: string;
 }
 
 /** True when ```diff blocks make up more than half of the text. */
 function isMainlyDiff(text: string): boolean {
-  let inDiff = 0;
-  for (const [block] of text.matchAll(/```diff\n[\s\S]*?(?:```|$)/g)) inDiff += block.length;
-  return inDiff > text.length / 2;
+  const blocks = [...text.matchAll(/```diff\n[\s\S]*?(?:```|$)/g)];
+  return blocks.reduce((n, [b]) => n + b.length, 0) > text.length / 2;
 }
 
 /** `text` with an open ``` fence closed (a cut text must not swallow the rest of the message). */
@@ -171,10 +165,8 @@ function bubblesOf(text: string): string[] {
 }
 
 /**
- * What to send for a reply, redacted: chat bubbles (one per paragraph, at most MAX_BUBBLES) plus an optional file, or
- * one inline `report` (Markdown, small tables wrapped in a code block) with no bubbles and no file.
- * - text after a `---` line, or a reply over INLINE_MAX / with a long code block: bubbles = the chat part (or the first
- *   paragraph) and the full text as a file named after the model's `# <title>` heading;
+ * What to send for a reply, redacted: chat bubbles plus an optional file, or one inline `report` (no bubbles, no file).
+ * - text after `---`, or a reply over INLINE_MAX / with a long code block: chat part (or first paragraph) + full file
  * - mainly a diff: a head + a `.diff` file;
  * - over ATTACH_MIN chars or with a table (and short enough): the inline report;
  * - otherwise bubbles only.
@@ -191,13 +183,11 @@ export function prepareOutput(
   }
   const { chat, detail, split } = splitReply(safe);
   const asFile = (chatText: string, content: string, title?: string) => {
-    // No chat part to show: fall back to the first paragraph. Either way the chat part is cut at HEAD_MAX, so it
-    // stays within MAX_BUBBLES messages of at most CHUNK_MAX chars (and an open fence is closed).
+    // No chat part: use the first paragraph. Cut at HEAD_MAX so it fits MAX_BUBBLES messages.
     const head = closeFence(clip(chatText || (paragraphs(content)[0] ?? ""), HEAD_MAX));
     return { bubbles: bubblesOf(head), file: { name: attachmentName(title, "md"), content } };
   };
   if (split && detail) return asFile(chat, `${chat}\n\n${detail}`.trim(), headingTitle(detail));
-  // Without a usable `---`, a long reply shows only its first paragraph; the rest is in the file.
   const body = split ? chat : safe;
   if (!needsFile(safe) && needsReport(body)) {
     const report = wrapTables(body); // the wrap adds a few chars: re-check the inline limit
@@ -206,50 +196,4 @@ export function prepareOutput(
   if (needsFile(safe) || needsReport(body))
     return asFile(split ? chat : "", body, headingTitle(body));
   return { bubbles: bubblesOf(chat) };
-}
-
-/** A link offered as a Discord link button. */
-export interface ReportLink {
-  label: string;
-  url: string;
-}
-
-/** Discord allows 5 buttons per row; reports offer at most three links. */
-const LINKS_MAX = 3;
-/** Discord caps a button label at 80 chars. */
-const LINK_LABEL_MAX = 80;
-
-/** Discord rejects the whole message when a link button URL is over 512 chars. */
-const LINK_URL_MAX = 512;
-
-/** Normalized absolute http(s) URL of at most 512 chars, or undefined (local paths, `file:`, relative, `javascript:`, ...). */
-function safeUrl(raw: string): string | undefined {
-  try {
-    const u = new URL(raw);
-    const ok = u.protocol === "http:" || u.protocol === "https:";
-    return ok && u.href.length <= LINK_URL_MAX ? u.href : undefined;
-  } catch {
-    return undefined; // relative paths and bare text do not parse as absolute URLs
-  }
-}
-
-/** Keep only safe absolute links (deduped by URL, max three); a blank label falls back to the host. */
-export function safeLinks(links: ReportLink[]): ReportLink[] {
-  const out: ReportLink[] = [];
-  for (const link of links) {
-    const url = safeUrl(link.url.trim());
-    if (!url || out.some((l) => l.url === url)) continue;
-    const label = clip(link.label.trim() || new URL(url).host, LINK_LABEL_MAX);
-    out.push({ label, url });
-    if (out.length === LINKS_MAX) break;
-  }
-  return out;
-}
-
-/** Safe `[label](url)` links found in Markdown text; code is not special-cased (a link in a fence is still a link). */
-export function markdownLinks(markdown: string): ReportLink[] {
-  const found = [...markdown.matchAll(/(!?)\[([^\]\n]+)\]\((\S+?)\)/g)]
-    .filter((m) => !m[1]) // `![alt](url)` is an image, not a link
-    .map((m) => ({ label: m[2]!, url: m[3]! }));
-  return safeLinks(found);
 }

@@ -48,9 +48,8 @@ export function createDiscordApprovalGateway(
   /** Run a db write; approvals must never crash the agent on a storage error. */
   const safeDb = (fn: () => void) => tryLog(log, "approval db write failed", fn);
   /**
-   * Post a message with buttons and wait for a click.
-   * `rows` builds the controls from the request id (customId = `${prefix}:${id}:${value}`).
-   * Resolves undefined on timeout, "no-channel" if unsendable.
+   * Post a message with buttons and wait for a click. `rows` builds the controls from the request id
+   * (customId = `${prefix}:${id}:${value}`). Resolves undefined on timeout, "no-channel" if unsendable.
    */
   async function ask(o: {
     turnId: string;
@@ -68,7 +67,6 @@ export function createDiscordApprovalGateway(
   }): Promise<string | undefined> {
     const id = crypto.randomUUID().slice(0, 8);
     const summary = redactText(o.text);
-    // Both approval lines share these fields; the owner's wait is measured from the request.
     const alog = log.child({ tool: o.tool, approvalId: id });
     const t0 = Date.now();
     logEvent(alog, "approval.requested", { summary: clip(summary, 300) });
@@ -76,8 +74,7 @@ export function createDiscordApprovalGateway(
     safeDb(() => setTurnStatus(db, o.turnId, "waiting_approval"));
 
     const finish = (decision: ApprovalDecision) => {
-      // A button click runs in discord.js's event context, not the task's: re-enter the task's context.
-      // log schema key kept (taskId)
+      // A click runs in discord.js's event context: re-enter the task's log context (schema key taskId).
       runWithLogContext({ taskId: o.turnId, threadId: o.threadId }, () =>
         logEvent(alog, "approval.decided", { decision, waitMs: Date.now() - t0 }),
       );
@@ -104,7 +101,7 @@ export function createDiscordApprovalGateway(
         files,
         allowedMentions: SAFE_MENTIONS,
       });
-      // The question is now the first thing the owner sees: settle the message receipt (only after a successful send).
+      // The question is the first thing the owner sees: settle the message receipt (only after a send).
       await Promise.resolve(o.onPosted?.()).catch((err: unknown) =>
         log.warn({ err: errText(err) }, "approval onPosted failed"),
       );
@@ -113,7 +110,6 @@ export function createDiscordApprovalGateway(
           const p = pending.get(id);
           pending.delete(id);
           finish("timeout");
-          // best effort: drop the controls
           void p?.edit(
             `${content}\n\n${renderUserNotice({ kind: "approval", state: "timeout" }, o.language)}`,
           );

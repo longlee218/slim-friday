@@ -1,28 +1,21 @@
-import { homedir } from "node:os";
 import { type Client, Events } from "discord.js";
 import pkg from "../package.json";
-import { type AgentConfig, loadConfig } from "./config/agent-config";
-import { readProcessEnv } from "./config/process-env";
 import { LEAD_POOL_MAX, LEAD_WAITING_MAX, WORKER_POOL_MAX } from "./config/run-caps";
 import { workspacePaths } from "./config/workspace-paths";
 import { syncChannelTopics } from "./discord-setup/channel-topic";
 import { createControlRoleRun } from "./discord-setup/control-role-run";
-import { opsIds, readDiscordSetup } from "./discord-setup/discord-setup-config";
+import { opsIds } from "./discord-setup/discord-setup-config";
 import { createOpsLog } from "./discord-setup/ops-log";
 import { warnIfBotAdministrator } from "./discord-setup/ready-checks";
-import { warnOpsChannelsInWorkspaces } from "./discord-setup/warn-ops-channels";
 import { createDiscordBot } from "./ingress/discord-bot";
 import { threadLanguage } from "./ingress/discord-components";
 import { sendReply } from "./ingress/discord-message-handler";
 import { createThreadTitlePort } from "./ingress/thread-rename";
 import { createThreadsPort } from "./ingress/threads-port";
-import { homePlacementError } from "./lifecycle/home-placement-check";
-import { registryError } from "./lifecycle/registry-check";
+import { type BootState, loadBootState } from "./lifecycle/boot-checks";
 import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
 import { startTrashSweeper } from "./lifecycle/trash-sweeper";
-import { real } from "./locations/location-registry";
-import { ensureHome } from "./memory/persona";
 import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
 import { createTurnHandler } from "./orchestrator/handle-message";
@@ -33,7 +26,6 @@ import { createDiscordApprovalGateway } from "./owner-approval/discord-approval"
 import { openDb } from "./storage/db";
 import { appRoots } from "./viewer/viewer-roots";
 import { startViewer } from "./viewer/viewer-server";
-import { loadWorkspaces, warnOverlap } from "./workspaces/workspace-registry";
 
 const log = logger.child({ module: "index" });
 
@@ -45,49 +37,13 @@ function fail(message: string): never {
 
 /** Boot: config, db, Discord login, graceful shutdown. */
 async function main(): Promise<void> {
-  let config: AgentConfig;
+  let boot: BootState;
   try {
-    // Fail fast before any connection when DISCORD_TOKEN / OWNER_DISCORD_ID are missing or placeholders.
-    config = loadConfig(readProcessEnv(), { requireDiscord: true });
+    boot = loadBootState(log);
   } catch (err) {
     return fail(String(err instanceof Error ? err.message : err));
   }
-
-  // Fail fast: there is no real credential (name only, never a key), or a role definition is invalid.
-  if (!config.hasRealAuth) return fail(`CLAUDE_CODE_OAUTH_TOKEN missing or placeholder`);
-  const badRole = registryError();
-  if (badRole) return fail(`Invalid role registry: ${badRole}`);
-
-  const { workspaces } = loadWorkspaces(config.agentHome);
-  warnOverlap(workspaces); // once per start: later scans stay quiet
-
-  // Fail closed: the home (persona, memory, db, logs) must not live inside a location or a git working tree.
-  // A location equal to the owner's $HOME is allowed: the guard denies AGENT_HOME to every run instead.
-  const userHomes = [homedir(), readProcessEnv().HOME ?? ""].filter(Boolean).map(real);
-  const misplaced = homePlacementError(
-    config.agentHome,
-    workspaces.flatMap((w) =>
-      w.locations.map((r) => r.path).filter((p) => !userHomes.includes(real(p))),
-    ),
-  );
-  if (misplaced) return fail(misplaced);
-
-  // Create the missing root persona/memory files (and per-workspace/location memory) once at startup, never
-  // overwriting; works with zero workspaces, so a fresh home is complete before the first message.
-  ensureHome(config.agentHome, workspaces);
-
-  // Fail closed: once a workspace lists channels, ingress must be pinned to one guild.
-  if (!config.discordGuildId && workspaces.some((w) => w.channels.length))
-    return fail("DISCORD_GUILD_ID required: a workspace lists channels");
-
-  // Fail closed: an unparsable discord.yaml could hide the ops/control channels, so refuse to start.
-  let setup: ReturnType<typeof readDiscordSetup>;
-  try {
-    setup = readDiscordSetup(config.agentHome);
-  } catch (err) {
-    return fail(String(err instanceof Error ? err.message : err));
-  }
-  warnOpsChannelsInWorkspaces(workspaces, opsIds(setup), log);
+  const { config, setup } = boot;
 
   // Opening applies the Drizzle migrations; an old-format db is refused, untouched.
   let db: ReturnType<typeof openDb>;

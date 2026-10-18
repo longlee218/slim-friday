@@ -1,10 +1,10 @@
 import type { Database } from "bun:sqlite";
 import type { TaskState } from "../tasks/task-contracts";
 
-/** Statuses of a task that is still the thread's live work (the focus is the newest of these). */
+/** Statuses of a task that is still the thread's live work (the focus is the newest). */
 const LIVE_STATUSES = ["open", "waiting_user", "running"] as const;
 
-/** Row of `owned_tasks` as the code sees it (same shape as the routing contract, `ownerAgentId` = owner role). */
+/** Row of `owned_tasks` as the code sees it (`ownerRole` = the contract's `ownerAgentId`). */
 type Row = {
   id: string;
   threadId: string;
@@ -70,6 +70,10 @@ export function insertOwnedTask(
   );
 }
 
+/** One column (aliased `v`) of the row selected by an id, or undefined when the row is missing or the value null. */
+const cell = <T>(db: Database, sql: string, id: string): T | undefined =>
+  db.query<{ v: T | null }, [string]>(sql).get(id)?.v ?? undefined;
+
 /** Task by id, or undefined. */
 export function getOwnedTask(db: Database, id: string): TaskState | undefined {
   const row = db.query<Row, [string]>(`SELECT ${COLUMNS} FROM owned_tasks WHERE id = ?`).get(id);
@@ -78,9 +82,7 @@ export function getOwnedTask(db: Database, id: string): TaskState | undefined {
 
 /** Thread a task belongs to, or undefined. */
 export function threadOfTask(db: Database, id: string): string | undefined {
-  return db
-    .query<{ t: string }, [string]>("SELECT thread_id AS t FROM owned_tasks WHERE id = ?")
-    .get(id)?.t;
+  return cell<string>(db, "SELECT thread_id AS v FROM owned_tasks WHERE id = ?", id);
 }
 
 /** The thread's focus: its newest live task (open / waiting_user / running), or undefined. */
@@ -115,7 +117,7 @@ export function casUpdateTask(
   return res.changes === 1;
 }
 
-/** Record a sign of life of a task (`last_progress_at` only: no status change, no version bump). A final task is left as it ended. */
+/** Sign of life of a task (`last_progress_at` only: no status or version change). A final task is left alone. */
 export function touchProgress(db: Database, id: string, now = Date.now()): void {
   db.query(
     "UPDATE owned_tasks SET last_progress_at = ? WHERE id = ? AND status NOT IN ('completed', 'failed', 'cancelled')",
@@ -129,43 +131,19 @@ export function linkTurn(db: Database, turnId: string, taskId: string): void {
 
 /** Id of the task a turn is linked to, or undefined (foreground / side-lane turn, or no row). */
 export function ownedTaskOfTurn(db: Database, turnId: string): string | undefined {
-  return (
-    db
-      .query<{ id: string | null }, [string]>("SELECT owned_task_id AS id FROM turns WHERE id = ?")
-      .get(turnId)?.id ?? undefined
-  );
+  return cell<string>(db, "SELECT owned_task_id AS v FROM turns WHERE id = ?", turnId);
 }
 
-/**
- * Startup/shutdown reconcile. Only safe when no run is alive (startup, drain): it flips EVERY running task. No process runs the work of a `running` task any more, so it waits for the owner
- * (its turn became `interrupted` in the same step).
- */
+/** Startup/shutdown reconcile: flips EVERY running task to `waiting_user` (no process runs it any more). Only safe when no run is alive. */
 export function reconcileRunningTasks(db: Database): void {
   db.query(
     "UPDATE owned_tasks SET status = 'waiting_user', version = version + 1, last_progress_at = ? WHERE status = 'running'",
   ).run(Date.now());
 }
 
-/** The newest running (or approval-waiting) turn of a task, given as an owned task id or a turn id; undefined when none. */
-export function runningTurnOfTask(
-  db: Database,
-  taskId: string,
-): { id: string; role: string; threadId: string } | undefined {
-  const row = db
-    .query<{ id: string; role: string; threadId: string }, [string, string]>(
-      `SELECT id, role, thread_id AS threadId FROM turns
-         WHERE (owned_task_id = ? OR id = ?) AND status IN ('running', 'waiting_approval')
-         ORDER BY started_at DESC, rowid DESC LIMIT 1`,
-    )
-    .get(taskId, taskId);
-  return row ?? undefined;
-}
-
 /** Scope text of a task (goal sentence or item scope), or undefined when the row is missing. */
 export function taskScope(db: Database, id: string): string | undefined {
-  return db
-    .query<{ s: string }, [string]>("SELECT scope AS s FROM owned_tasks WHERE id = ?")
-    .get(id)?.s;
+  return cell<string>(db, "SELECT scope AS v FROM owned_tasks WHERE id = ?", id);
 }
 
 /** Thread and correlation id of a task, or undefined when the row is missing. */
@@ -182,16 +160,7 @@ export function taskOrigin(
   );
 }
 
-/** Tasks whose status is `running` (id, thread, version). */
-export function runningTasks(db: Database): { id: string; threadId: string; version: number }[] {
-  return db
-    .query<{ id: string; threadId: string; version: number }, []>(
-      "SELECT id, thread_id AS threadId, version FROM owned_tasks WHERE status = 'running'",
-    )
-    .all();
-}
-
-/** Rewrite an item the owner's plan edit changed. Only while it has not started (`pending` / `ready`). */
+/** Rewrite an item the owner's plan edit changed, only while it has not started (`pending` / `ready`). */
 export function rewriteNotStartedItem(
   db: Database,
   id: string,

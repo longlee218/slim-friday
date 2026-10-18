@@ -5,16 +5,17 @@ import { OWNER_MESSAGE_LABEL } from "../../roles/prompts/first-prompt-prefix";
 import { buildTeamMd } from "../../roles/prompts/team-md";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
 import { getSession } from "../../storage/session-store";
-import { LEAD_FAILED_NOTICE } from "../budget/lead-budget";
 import { createDbEffectPort } from "../goal/effect-port-db";
 import { registerRun } from "../run/live-runs";
 import { type LeadTurnResult, runTurn } from "../run/run-turn";
 import { buildLeadContextBlock } from "../strategy/lead-context-block";
 import { dispatchReady } from "../worker/dispatch-ready";
 import { announceBlock, pendingNews, settleLeadEvents } from "./lead-events";
+import { failed, forgetBatch } from "./lead-failure";
 import { createLeadIo } from "./lead-io";
 import type { LeadInput } from "./lead-queue";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "./lead-runtime";
+import { artifactCtx } from "./thread-tool-ctx";
 
 /** Logger of this module. */
 const log = logger.child({ module: "lead-run" });
@@ -35,7 +36,7 @@ function leadOnce(
 ): Promise<LeadTurnResult> {
   const { deps } = rt;
   const { db } = deps;
-  const { threadId } = o;
+  const { threadId, ac } = o;
   const turnId = crypto.randomUUID();
   return runTurn("lead", deps, {
     begin: {
@@ -44,20 +45,19 @@ function leadOnce(
       ids: { turnId, threadId, source: ctx.message.source },
       turn: { location: "*", role: "lead", brief: o.text },
     },
-    // Built after the turn row exists: the lead's tools over a fresh port, the stored session, the run input.
+    // Built after the turn row exists: tools over a fresh port, the stored session, the run input.
     build: () => {
       const port = createDbEffectPort({
         db,
         threadId,
         env: {
           workerRoles: dispatchableWorkers().map((r) => r.name),
-          // A getter on the thread's NEWEST ctx: `RegisterLocation` refreshes it, and a second owner message mid-run
-          // replaces the ctx this run captured (`remember`), so the captured one may be stale.
+          // Getter on the thread's NEWEST ctx: `RegisterLocation` and a second owner message replace the captured one.
           get locations() {
             return (rt.ctxOf(threadId) ?? ctx).locations.map((l) => l.name);
           },
         },
-        io: createLeadIo(rt, ctx, threadId, turnId, o.ac.signal),
+        io: createLeadIo(rt, ctx, threadId, turnId, ac.signal),
       });
       const toolCtx = {
         port,
@@ -75,7 +75,7 @@ function leadOnce(
           refresh: () => rt.refresh(threadId),
         },
       };
-      const role = getRole("lead");
+      const model = getRole("lead").model;
       const language = messageLanguage(ctx.message);
       const stored = getSession(db, threadId);
       return {
@@ -89,27 +89,18 @@ function leadOnce(
           channelMode: ctx.channelMode,
           channelId: ctx.channelId,
           locations: [], // neutral cwd: the lead routes, it reads no location
-          ac: o.ac,
+          ac,
           language,
           recent: ctx.message.recent, // seeds a fresh session after a rollover
           existing: stored?.kind === "lead" ? stored : null,
           team: buildTeamMd({ locations: ctx.locations }),
           appCtx: () => ({
             lead: toolCtx,
-            // Artifact tools: the lead reads and saves in its own channel.
-            artifacts: {
-              db,
-              home: deps.config.agentHome,
-              workspace: ctx.workspace,
-              ...(ctx.channel && { channel: ctx.channel }),
-              threadId,
-              role: "lead",
-              locations: ctx.locations.map((l) => ({ name: l.name, path: l.path })),
-            },
+            artifacts: artifactCtx(rt, ctx, threadId, "lead"), // the lead reads and saves in its own channel
           }),
         },
         close: (res, t0) => ({
-          res: { ...res, sessionKind: "lead", model: res.model ?? role.model },
+          res: { ...res, sessionKind: "lead", model: res.model ?? model },
           opts: { language, stopping: deps.stopping(), t0, location: "*" },
         }),
       };
@@ -117,14 +108,10 @@ function leadOnce(
   });
 }
 
-/** Failed runs allowed per announce batch (key = its event ids): past it the news is dropped and the owner told once. */
-const ANNOUNCE_ATTEMPTS = 2;
-const failedBatches = new Map<string, number>();
-
 /**
- * One lead input end to end: wait for the thread's rollover, the lead run, post the reply, close the
- * events it consumed, start the workers it queued, then let the rollover start (after the reply, never before). A failed run posts a fixed notice and starts nothing; a failed announce is retried once, then dropped with
- * one notice. Never throws (the queue logs a throw, but a post must not hide it).
+ * One lead input end to end: wait for the thread's rollover, run the lead, post the reply, close the consumed events,
+ * start the queued workers, then let the rollover start (after the reply). A failed run posts a fixed notice and
+ * starts nothing; a failed announce is retried once, then dropped with one notice. Never throws.
  */
 export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> {
   const { threadId } = input;
@@ -134,7 +121,7 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
     return;
   }
   const { db } = rt.deps;
-  await rt.hold?.(threadId); // a rollover of the previous run flushes / deletes the session: never resume it meanwhile
+  await rt.hold?.(threadId); // a rollover of the previous run may delete the session: never resume it meanwhile
   let posted = false; // the owner saw something from this run
   const post = (text: string) => {
     posted = true;
@@ -146,21 +133,20 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
   const ac = new AbortController();
   const settleActive = registerRun({ kind: "lead", threadId, role: "lead", ac });
   let announced: string[] = [];
-  let consumed = false; // the news counts as read only when the lead run succeeded (a `max_budget` stop leaves it pending)
+  let consumed = false; // news counts as read only on success (a `max_budget` stop leaves it pending)
   let retry = false;
   try {
     const news = input.kind === "announce" ? pendingNews(db, threadId) : [];
     if (input.kind === "announce" && !news.length) return; // nothing new (another run already read it)
     announced = news.map((e) => e.id);
     const inputId = crypto.randomUUID();
-    const text =
-      input.kind === "announce"
-        ? announceBlock(news)
-        : `${OWNER_MESSAGE_LABEL}\n${input.text ?? ""}`;
     const out = await leadOnce(rt, ctx, {
       threadId,
       inputId,
-      text,
+      text:
+        input.kind === "announce"
+          ? announceBlock(news)
+          : `${OWNER_MESSAGE_LABEL}\n${input.text ?? ""}`,
       ac,
       trigger: input.kind,
       ...(input.kind === "owner" && input.text && { ownerText: input.text }),
@@ -178,27 +164,9 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
   } finally {
     settleActive();
     settleLeadEvents(db, threadId, consumed ? announced : []);
-    if (consumed) failedBatches.delete(announced.join(","));
+    if (consumed) forgetBatch(announced);
     for (const turnId of turns) rt.afterRun?.(ctx.message, turnId, ctx.workspace); // only now: the reply is out
     if (input.kind === "owner" && !posted) await ctx.message.visible?.().catch(() => {}); // no silent message
     if (retry) rt.announce(threadId);
   }
-}
-
-/** A lead run failed: an owner input gets the notice at once; an announce batch is retried (true) until the cap, then the notice once (false). */
-async function failed(
-  post: (text: string) => Promise<void>,
-  input: LeadInput,
-  announced: string[],
-): Promise<boolean> {
-  if (input.kind === "announce") {
-    const key = announced.join(",");
-    const n = (failedBatches.get(key) ?? 0) + 1;
-    if (n < ANNOUNCE_ATTEMPTS) {
-      failedBatches.set(key, n);
-      return true;
-    }
-  }
-  await post(LEAD_FAILED_NOTICE);
-  return false;
 }

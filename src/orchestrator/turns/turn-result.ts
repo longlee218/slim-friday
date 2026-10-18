@@ -1,26 +1,17 @@
 import type { Database } from "bun:sqlite";
 import { localizeUserCopy, type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { excerpt, logEvent, logger } from "../../observability/logger";
-import type { RunOutcome, RunUsage } from "../../observability/record-run";
 import { redactText } from "../../observability/redact";
-import { ROLES } from "../../roles/role-registry";
-import { STATUS_OF_RESULT } from "../../roles/typed-result";
+import type { RunOutcome, RunUsage } from "../../observability/run-usage";
 import type { RunAgentResult } from "../../runtime/run-agent";
 import { requestRollover } from "../../session/thread-rollover";
 import type { ResultKind } from "../../storage/owned-item-store";
-import { ownedTaskOfTurn } from "../../storage/owned-task-store";
-import {
-  finishTurn,
-  setTurnStatus,
-  type TurnStatus,
-  turnRole,
-  turnStatusOf,
-} from "../../storage/run-store";
+import { finishTurn, setTurnStatus, type TurnStatus, turnStatusOf } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
-import { moveTaskTo, settleTaskAfterTurn } from "../../tasks/task-resolver";
 import { budgetHitReply } from "../budget/budget-hit";
-import { type DeliveryExpectation, missingEffects } from "./completion";
+import type { DeliveryExpectation } from "./completion";
 import { type ArtifactScope, saveResultFile } from "./result-file-save";
+import { settleTurn } from "./turn-settle";
 
 /* The result of a role run, and the bookkeeping that closes a run. */
 
@@ -42,39 +33,35 @@ export interface FlowResult
   refusal?: true;
   /** Metrics of the run (spent USD for the budget-hit message); absent when no run happened. */
   usage?: RunUsage;
-  /** cwd + location of the session to save (resume needs the same cwd), when a session should be stored. */
+  /** cwd + location of the session to save (resume needs the same cwd). */
   cwd?: string;
   location?: string;
-  /** Save the session although the outcome is not success/limit (a run stopped to await the owner's reply). */
+  /** Save the session although the outcome is not success/limit (a run stopped to await the owner). */
   keepSession?: boolean;
-  /** Do not save this run's session as the thread's (a worker run in the location itself: a later lead message in the thread must not resume it). */
+  /** Do not save this session as the thread's (a worker run: a later lead message must not resume it). */
   skipThreadSession?: true;
-  /** The session is the lead's (stored with `kind='lead'` and the run's model): set by the lead runner only. */
+  /** The session is the lead's (stored with `kind='lead'` and the model): set by the lead runner only. */
   sessionKind?: "lead";
-  /** Model that answered, when the runner knows it (stored with the session). */
+  /** Model that answered (stored with the session). */
   model?: string;
 }
 
-/** A run that did not start or failed before any agent result: reply text, no session. */
+/** A run that did not start or failed before any agent result: reply text, no session. `refusal: true` marks a verified app refusal (not an SDK exception): the owner may read it. */
 export const failResult = (text: string, outcome: "error" | "aborted" = "error"): FlowResult => ({
   text,
   outcome,
   sessionId: undefined,
-  // The text is a verified refusal of the app (not an SDK exception): the owner may read it.
   refusal: outcome === "error" ? true : undefined,
 });
 
-/** Map run outcome to the task status stored in db. */
+/** Run outcome to the turn status stored in db (any other outcome = failed). */
 const TURN_STATUS: Record<string, TurnStatus> = {
   success: "done",
   aborted: "cancelled",
   timeout: "timeout",
 };
 
-/**
- * Outcomes where a result message arrived, so the session transcript exists and can be resumed (the session
- * is saved).
- */
+/** Outcomes where a result message arrived: the transcript exists, so the session is saved. */
 export const RESUMABLE_OUTCOMES: ReadonlySet<RunOutcome> = new Set([
   "success",
   "max_turns",
@@ -83,6 +70,7 @@ export const RESUMABLE_OUTCOMES: ReadonlySet<RunOutcome> = new Set([
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "task-result" });
+
 /** End of a run, same for every role: save the session, close the turn row, return the redacted reply. */
 export function finishRun(
   db: Database,
@@ -104,14 +92,14 @@ export function finishRun(
       ...(res.sessionKind && { kind: res.sessionKind, model: res.model }),
     });
     logEvent(log, "session.saved", { location: res.location ?? "*", sessionId: res.sessionId });
-    // Context over the share of the model window: the handler rolls the thread after the reply is posted.
+    // Context over the window share: the thread rolls over after the reply is posted.
     if (res.outcome === "success") requestRollover(db, ids, res.usage);
   }
   finishTurn(db, ids.turnId, TURN_STATUS[res.outcome] ?? "failed");
   if (res.outcome === "max_budget") return budgetHitReply(res, language);
-  // A lead run may answer with tool calls only (it dispatched, forwarded, or has nothing to add): say nothing then.
+  // A lead run may answer with tool calls only: say nothing then.
   if (res.sessionKind === "lead" && res.outcome === "success" && !res.text.trim()) return "";
-  // Unknown failure text may be an SDK exception. Keep it in the audit/log path, never guess a cause from it.
+  // Unknown failure text may be an SDK exception: log it, never show it.
   const unknownError = res.outcome === "error" && !res.refusal;
   if (unknownError) logEvent(log, "run.failed", { reason: "error", detail: redactText(res.text) });
   return unknownError
@@ -129,8 +117,8 @@ export function finishRun(
 }
 
 /**
- * End of a task as the handler sees it: `finishRun`, then `interrupted` instead of cancelled when shutdown
- * aborted it (resumable), then the `task.finished` line. `location` = location to log when the flow named none.
+ * End of a task: `finishRun`, `interrupted` instead of cancelled when shutdown aborted it (resumable), settle the
+ * owned task, save the result file, log `task.finished`. `location` is logged when the flow named none.
  */
 export function closeTurn(
   db: Database,
@@ -141,43 +129,25 @@ export function closeTurn(
     t0: number;
     location: string;
     language: OwnerLanguage;
-    /** AGENT_HOME: the artifact store root where the result of a task run goes (absent = no result recorded). */
+    /** AGENT_HOME: artifact store root for the task's result (absent = no result recorded). */
     agentHome?: string;
-    /** Workspace and channel the result artifact belongs to (absent = no store write, only the excerpt is kept). */
+    /** Workspace and channel of the result artifact (absent = no store write, only the excerpt). */
     artifactScope?: ArtifactScope;
-    /** Typed result the worker reported: it settles the task (over the derived status) when the turn ended `done`. */
+    /** Typed result the worker reported: it settles the task when the turn ended `done`. */
     resultKind?: ResultKind;
     /** Title the worker gave its result (heading and artifact name). */
     resultTitle?: string;
-    /** Delivery effects the approved plan promised (workers): a COMPLETED report of the goal's last item without their `effect_log` rows is not delivered. */
+    /** Delivery effects the plan promised: a COMPLETED last item without their `effect_log` rows is not delivered. */
     delivery?: DeliveryExpectation;
-    /** Goal-item failure policy (workers): returns true when it moved the item itself (resume or hold), so the normal settle is skipped. */
+    /** Worker failure policy: true = it moved the item itself (resume or hold), skip the normal settle. */
     failurePolicy?: (res: FlowResult, status: string) => boolean;
   },
 ): string {
   let reply = finishRun(db, ids, res, o.language);
   if (o.stopping && res.outcome === "aborted") setTurnStatus(db, ids.turnId, "interrupted");
   const status = turnStatusOf(db, ids.turnId);
-  // Completion = the typed report + the effect log. COMPLETED on the goal's last item while a delivery effect the approved
-  // plan promised left no (successful) row: reported, NOT delivered: the reply carries one neutral line, the task stays completed.
-  const taskId = ownedTaskOfTurn(db, ids.turnId);
-  const missing =
-    status === "done" && o.resultKind === "COMPLETED" && o.delivery
-      ? missingEffects(db, o.delivery, taskId)
-      : [];
-  if (missing.length > 0) {
-    logEvent(log, "execution.undelivered", { tools: missing });
-    reply = `${reply}\n\n${renderUserNotice({ kind: "note", state: "no-delivery" }, o.language)}`;
-  }
-  // The owned task follows the typed result; a `done` run of a role that changes things with no typed report is not a
-  // completion: the task waits for the owner (no reply note).
-  const role = ROLES[turnRole(db, ids.turnId) ?? ""];
-  const noReport = status === "done" && !o.resultKind && !!role && role.sideEffects !== "none";
-  if (o.failurePolicy?.(res, status)) {
-    // Resumed or held by the failure policy: the task is already moved.
-  } else if (o.resultKind && status === "done" && taskId)
-    moveTaskTo(db, taskId, STATUS_OF_RESULT[o.resultKind]);
-  else settleTaskAfterTurn(db, ids.turnId, status, noReport);
+  const settled = settleTurn(db, ids.turnId, res, status, o);
+  reply += settled.note;
   if (o.agentHome)
     saveResultFile(
       db,

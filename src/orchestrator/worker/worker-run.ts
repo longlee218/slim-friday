@@ -1,11 +1,8 @@
 import { workspacePaths } from "../../config/workspace-paths";
 import { messageLanguage } from "../../ingress/user-copy";
-import { spawnRunner } from "../../locations/git-run";
-import { channelDigestBlock } from "../../memory/channel-digest";
 import { logEvent, logger } from "../../observability/logger";
-import { ownerConfirm } from "../../owner-approval/owner-confirm";
 import { goalLocations, loadEnvelope } from "../../policy/load-envelope";
-import { dispatchableWorkers, getRole } from "../../roles/role-registry";
+import { getRole } from "../../roles/role-registry";
 import { recordRunCwd } from "../../storage/effect-log-store";
 import {
   bumpDispatch,
@@ -15,7 +12,6 @@ import {
 } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import { markStartDelivered } from "../../storage/thread-event-store";
-import { channelDigest } from "../../storage/thread-store";
 import { goalRoute } from "../budget/task-budget";
 import type { LeadRuntime, LeadThreadCtx } from "../lead/lead-runtime";
 import { afterVerify } from "../plan/goal-verify";
@@ -26,7 +22,7 @@ import { type FailureVerdict, workerFailurePolicy } from "./failure-policy";
 import { cancelDependents, settleGoal } from "./goal-settle";
 import type { ReportSink } from "./report-sink";
 import { startInput } from "./resume-prompt";
-import { setProgress, withWaiting } from "./run-activity";
+import { workerAppCtx } from "./worker-app-ctx";
 import { earlierSteps, emitEndEvent } from "./worker-end-event";
 
 /** Logger of this module. */
@@ -83,6 +79,7 @@ export async function startWorker(
       build: () => {
         const sink: ReportSink = {};
         const verdict: { current?: FailureVerdict } = {}; // what the failure policy did, for the end event
+        const resultKind = () => sink.report?.status as ResultKind | undefined;
         // The envelope is rebuilt from the db at every start (approved plan, dispatch grants or the default): never kept only in memory.
         const language = messageLanguage(ctx.message);
         const envelope = loadEnvelope(
@@ -115,60 +112,16 @@ export async function startWorker(
           ledger: earlierSteps(db, item),
           route: goalRoute(db, goalId), // the run never spends past what the goal has left
           envelope,
-          // The ctx parts of this worker's MCP tools; its role's `mcpTools` picks which ones it really gets (a worker has no
-          // `lead` part, so it can never hold a lead tool).
-          appCtx: () => ({
-            reportSink: sink,
-            // Artifact tools: the run's channel scope; a developer may report docs of its granted location.
-            artifacts: {
-              db,
-              home: rt.deps.config.agentHome,
-              workspace: ctx.workspace,
-              ...(ctx.channel && { channel: ctx.channel }),
-              threadId,
-              goalId,
-              taskId: item.id,
-              role: role.name,
-              locations: ctx.locations.map((l) => ({ name: l.name, path: l.path })),
-              ...(pinned && { granted: { name: pinned.name, path: pinned.path } }),
-            },
-            // ReportProgress: recorded on this task's live run (percent, note, heartbeat).
-            progress: (p) => setProgress(db, item.id, p),
-            // Plan tools: bound to the goal the planner plans for.
-            plan: {
-              db,
-              threadId,
-              goalId,
-              workers: dispatchableWorkers(),
-              locations: ctx.locations.map((l) => ({ name: l.name, path: l.path })),
-              channelDigest: () =>
-                ctx.channelId && (ctx.channelMode ?? "task") === "task"
-                  ? channelDigestBlock(channelDigest(db, ctx.channelId, threadId)).text
-                  : "",
-            },
-            // Effect tools: bound to the run's envelope.
-            effects: {
-              db,
-              threadId,
-              goalId,
-              itemId: item.id,
-              envelope,
-              locations: ctx.locations.map((l) => ({ name: l.name, path: l.path })),
-              agentHome: rt.deps.config.agentHome,
-              // R4 and over-bound asks: a yes / no to the owner (fail closed without the button flow).
-              // The run idles while the owner decides: the watchdog skips it (never left waiting, even on a throw).
-              confirm: (summary) =>
-                withWaiting(db, item.id, () =>
-                  ownerConfirm(rt.deps.approvals, {
-                    kind: "effect",
-                    turnId,
-                    threadId,
-                    summary,
-                    language,
-                  }),
-                ),
-              run: spawnRunner,
-            },
+          appCtx: workerAppCtx(rt, ctx, {
+            threadId,
+            goalId,
+            itemId: item.id,
+            turnId,
+            role: role.name,
+            language,
+            envelope,
+            sink,
+            pinned,
           }),
           askRelay: role.capabilities.includes("ask")
             ? rt.relay.forWorker({ threadId, goalId, itemId: item.id, turnId })
@@ -186,13 +139,13 @@ export async function startWorker(
             },
             delivery: expectedDelivery(db, role, goalId),
             slot,
-            resultKind: () => sink.report?.status as ResultKind | undefined, // the schema enum is RESULT_KINDS
+            resultKind, // the schema enum is RESULT_KINDS
             resultTitle: () => sink.report?.title,
             failurePolicy: workerFailurePolicy({
               db,
               itemId: item.id,
               turnId,
-              resultKind: () => sink.report?.status as ResultKind | undefined,
+              resultKind,
               stopping: rt.deps.stopping,
               verdict,
             }),

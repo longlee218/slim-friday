@@ -1,7 +1,7 @@
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
 import { readProcessEnv } from "../config/process-env";
-import { type ResultShape, type RunUsage, usageFromResult } from "../observability/record-run";
+import { type ResultShape, type RunUsage, usageFromResult } from "../observability/run-usage";
 import type { QueryFn } from "../runtime/run-agent";
 import { sdkEnv } from "../runtime/sdk-env";
 

@@ -6,13 +6,13 @@ import { workspacePaths } from "../config/workspace-paths";
 import type { AppCtxFactory } from "../mcp/manifest-types";
 import type { MemoryToolContext } from "../memory/memory-tool-context";
 import { logEvent, logger } from "../observability/logger";
+import { RunRecorder } from "../observability/record-run";
 import {
   avgContextTokens,
   emptyUsage,
   type RunOutcome,
-  RunRecorder,
   type RunUsage,
-} from "../observability/record-run";
+} from "../observability/run-usage";
 import type { GuardrailContext } from "../policy/check-tool-call";
 import type { RoleDefinition } from "../roles/role-types";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
@@ -29,10 +29,7 @@ import type { ToolPermissionInput } from "./tool-permissions";
 
 export type { QueryFn };
 
-/**
- * A lean run (the rollover's flush and `/compact`): no built-in tool, thinking off, only the MCP tools of the (lean)
- * role's `mcpTools`, its own turn and budget caps (they replace the role's). Omitted = a normal role run.
- */
+/** A lean run (rollover flush, `/compact`): no built-in tool, thinking off, only the role's MCP tools; its caps replace the role's. */
 export interface LeanRun {
   maxTurns: number;
   budgetUsd: number;
@@ -48,21 +45,21 @@ export interface RunAgentInput {
   cwd: string;
   /** Extra location directories the agent may read (multi-location registry). */
   additionalDirectories?: string[];
-  /** Extra prompt context blocks (persona, registry, memory...); empty ones are dropped, the rest joined once. */
+  /** Extra prompt context blocks (persona, registry, memory...); empty ones are dropped. */
   extraContext?: string[];
-  /** Guardrails of the run (paths, git locations, allowed tools). Every mode has one; omitted only in unit tests. */
+  /** Guardrails of the run (paths, git locations, allowed tools); omitted only in unit tests. */
   guard?: GuardrailContext;
   /** The role to run: its tools, model slot, permission mode and prompt. */
   role: RoleDefinition;
   /** Permission layer of the run (gateway, ask limit). Omitted = a run without a gateway (ask = deny). */
   code?: Omit<ToolPermissionInput, "turnId" | "guard">;
-  /** Where the agent may put a git worktree (`<workspace worktrees dir>/<location>`), told in one prompt line. */
+  /** Where the agent may put a git worktree (`<workspace worktrees dir>/<location>`). */
   worktreesDir?: string;
-  /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy (never location content). */
+  /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy. */
   skillsWorkspace?: string;
-  /** Context of the memory tools (MemorySave...) and `SetThreadTitle`: omitted = the run has no memory tools. */
+  /** Context of the memory tools and `SetThreadTitle`; omitted = no memory tools. */
   memory?: MemoryToolContext;
-  /** Builds the app ctx parts (lead, report sink, plan, effects, admin) of ONE query() call; the role's `mcpTools` picks the tools. */
+  /** Builds the app ctx parts of ONE query() call; the role's `mcpTools` picks the tools. */
   appCtx?: AppCtxFactory;
   /** Per-run facts (internal hint, budget raise, spent so far); omitted = the role defaults. */
   route?: Route;
@@ -70,21 +67,15 @@ export interface RunAgentInput {
   resume?: string;
   /** Lean run (see `LeanRun`). */
   lean?: LeanRun;
-  /**
-   * Structured events for the run supervisor: `model_turn` per main-agent model call and `guard_denied` per guard
-   * denial. Observation only; it never changes the run.
-   */
+  /** Run supervisor events (`model_turn`, `guard_denied`); observation only. */
   onControlEvent?: (event: RunControlEvent) => void;
-  /** A tool call is about to start (any guard decision): a sign of life for the watchdog. Observation only. */
+  /** A tool call is about to start: a sign of life for the watchdog. */
   onToolStart?: () => void;
-  /** Sees every stream message of a plain (non-steered) run: the rollover flush counts its `MemorySave` results. */
+  /** Sees every stream message of a plain (non-steered) run (the rollover flush counts `MemorySave`). */
   onMessage?: (msg: SDKMessage) => void;
-  /** Called with each assistant text of the run (the status snapshot's progress note); observation only. */
+  /** Called with each assistant text of the run (the status progress note). */
   onProgress?: (text: string) => void;
-  /**
-   * Streaming-input mode (background roles): the prompt goes in as the first item of an input channel whose
-   * sink is registered here, so the owner's later messages reach the model. Omitted = a plain string prompt.
-   */
+  /** Streaming-input mode (background roles): the owner's later messages reach the model (channel, registration and the step-7 wait live in steered-stream.ts). Omitted = plain string prompt. */
   steer?: SteerHook;
   config: AgentConfig;
   /** sqlite handle for runs/tool_calls rows. */
@@ -105,15 +96,15 @@ export interface RunAgentResult {
   outcome: RunOutcome;
   /** Token/cost/time metrics. */
   usage: RunUsage;
-  /** Budget (USD) this run was capped at; undefined = no cap. Read by the budget-hit message. */
+  /** Budget (USD) this run was capped at; undefined = no cap. */
   budgetUsd?: number;
-  /** The task ceiling (TASK_BUDGET_USD minus the task's earlier spend), not the role budget, was the cap of this run. */
+  /** The task ceiling (TASK_BUDGET_USD minus earlier spend), not the role budget, capped this run. */
   ceilingBound?: boolean;
-  /** What the task's earlier runs already cost (USD), for the budget-hit message's raise offer. */
+  /** What the task's earlier runs already cost (USD). */
   spentBeforeUsd?: number;
   /** Quota outcome: when the limit resets (epoch ms), if the SDK reported it. */
   resetsAt?: number;
-  /** Last thing the assistant said (text of its last message with text); the budget-hit message shows it. */
+  /** Text of the assistant's last message with text. */
   lastText?: string;
   /** The failure was a transient provider / network error (see failure-class.ts). */
   transient?: true;
@@ -124,9 +115,7 @@ const log = logger.child({ module: "run-agent" });
 
 /** Run the agent once (an answer, or a code task: the role says), recording messages, tool calls and the run row. */
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
-  const { abortController: ac } = input;
-  // The role definition decides tools, model slot, permission mode and prompt.
-  const { role } = input;
+  const { abortController: ac, role } = input;
   const base = roleConfig(role, input.config, input.route);
   const config = input.lean
     ? { ...base, limits: { ...base.limits, maxBudgetUsd: input.lean.budgetUsd } }
@@ -140,11 +129,10 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     config.model,
     workspacePaths(config.agentHome).taskLog(input.turnId),
   );
-  const run = input.queryFn ?? (sdkQuery as QueryFn);
 
-  // No run timeout (owner): a run ends by its result, the budget, the turn ceiling or an abort (/stop, shutdown).
+  // No run timeout (owner): ends by result, budget, turn ceiling or abort.
   let res: StreamResult = { text: "", sessionId: undefined, outcome: "error", usage: emptyUsage() };
-  // Workspace skills plugin (fail closed, never throws); built inside the try so `finally` always removes it.
+  // Skills plugin (fail closed); built inside the try so `finally` removes it.
   let sk: RunSkills = NO_SKILLS;
   try {
     sk = buildRoleSkills(role, input.skillsWorkspace, config.agentHome);
@@ -167,9 +155,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       mcpServers: Object.keys(options.mcpServers ?? {}),
     });
     if (input.resume) logEvent(log, "session.resumed", { sessionId: input.resume });
-    // Streaming input (steer): the channel, its registration and the step-7 wait live in steered-stream.ts.
     const common = {
-      run,
+      run: input.queryFn ?? (sdkQuery as QueryFn),
       options,
       recorder,
       ac,
@@ -185,7 +172,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     res = input.steer
       ? await consumeSteered({ ...common, first: input.prompt, hook: input.steer, runId })
       : await consumeStream({ ...common, prompt: input.prompt, onMessage: input.onMessage });
-    // A run that REQUIRED the OS sandbox and could not get it fails with a code, never a hang or an unsandboxed retry.
+    // A run that REQUIRED the OS sandbox and could not get it fails, never hangs or retries unsandboxed.
     if (options.sandbox && res.sandboxFailure)
       throw new SandboxUnavailableError(res.sandboxFailure);
   } finally {
@@ -193,9 +180,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     recorder.finish(res.outcome, res.usage);
     recorder.close();
   }
-  const { text, sessionId, outcome, usage, resetsAt, lastText, transient } = res;
-  // `usage` is the main agent's tokens; `costUsd` is the total cost (all agents); `modelUsage` splits both per model.
-  // Context metrics (sizes only): peak/last context, tool errors, compactions come from `usage`; `maxTurnsHit` = turn ceiling.
+  const { sandboxFailure: _handled, ...result } = res; // not part of the result
+  const { outcome, usage } = result;
+  // `usage` = main agent tokens; `costUsd` = all agents; `modelUsage` splits both per model.
   logEvent(log, "run.finished", {
     outcome,
     ...usage,
@@ -204,13 +191,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     durationMs: Date.now() - startedAt,
   });
   return {
-    text,
-    sessionId,
-    outcome,
-    usage,
-    resetsAt,
-    lastText,
-    ...(transient && { transient }),
+    ...result,
     budgetUsd: config.limits.maxBudgetUsd,
     ceilingBound: ceilingBinds(config.limits.maxBudgetUsd, input.route?.spentUsd),
     spentBeforeUsd: input.route?.spentUsd,

@@ -19,15 +19,8 @@ import {
   rowFieldsOf,
   toPlanItem,
 } from "./plan-doc";
-import {
-  applyApproval,
-  deadKeys,
-  type Fail,
-  fail,
-  invalid,
-  otherKeys,
-  type PlanEnv,
-} from "./plan-lifecycle";
+import { applyApproval } from "./plan-lifecycle";
+import { deadKeys, type Fail, fail, invalid, otherKeys, type PlanEnv } from "./plan-refusal";
 import type { DeliveryEffect, PlanDoc } from "./plan-types";
 import { Refused, stripUndefined } from "./revision-support";
 import { validatePlan } from "./validate-plan";

@@ -6,7 +6,7 @@ import { journalFile } from "../src/memory/daily-journal";
 import { searchIndex } from "../src/memory/index/memory-search";
 import { localDay } from "../src/memory/memory-clock";
 import { captureLogs, logger } from "../src/observability/logger";
-import { emptyUsage } from "../src/observability/record-run";
+import { emptyUsage } from "../src/observability/run-usage";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { FLUSH_PROMPT } from "../src/roles/prompts/rollover-prompts";
 import { BUDGET_CAP_USD, leanBudgetUsd } from "../src/session/rollover-run";

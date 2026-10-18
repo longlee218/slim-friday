@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { logEvent, logger } from "../observability/logger";
-import type { RunUsage } from "../observability/record-run";
 import { errText } from "../observability/redact";
+import type { RunUsage } from "../observability/run-usage";
 import { getRole } from "../roles/role-registry";
 import { turnRole } from "../storage/run-store";
 import { deleteSession, getSession } from "../storage/session-store";

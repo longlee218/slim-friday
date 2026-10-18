@@ -1,5 +1,5 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { addUsage, emptyUsage } from "../observability/record-run";
+import { addUsage, emptyUsage } from "../observability/run-usage";
 import {
   createInputChannel,
   MAX_LATE_RESUMES,

@@ -3,25 +3,19 @@ import { type DiscordSetup, EMPTY_SETUP, opsIds } from "../discord-setup/discord
 import type { InlineRunner } from "../memory/find-command-handler";
 import { excerpt, logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { answerTurn } from "./answer-turn";
 import { type AttachmentDeps, withAttachments } from "./attachment-text";
 import type { ChannelAdopter } from "./channel-adoption";
 import { routeMessage, SAFE_MENTIONS } from "./discord-message-rules";
-import { BUSY_ACK_EMOJI, sendReply, sendResultFile, startTyping } from "./discord-send";
+import { BUSY_ACK_EMOJI, sendReply } from "./discord-send";
 import type { InboundMessage } from "./inbound-message";
 import { replyToInlineCommand } from "./inline-command-ingress";
-import type { RecentMessage } from "./intent-types";
 import { createMessageReceipt } from "./message-receipt";
-import { type HistoryChannel, historyOf, recentFor } from "./thread-history";
+import { recentFor } from "./thread-history";
 import { threadOnlyNote } from "./thread-only-commands";
 import { adoptRoute, openThread, type ThreadsPort, threadFacts } from "./thread-placement";
 import { createThreadTurns } from "./thread-turns";
-import {
-  detectLanguage,
-  languageOf,
-  pinnedThreadLanguage,
-  pinThreadLanguage,
-  renderUserNotice,
-} from "./user-copy";
+import { languageOf, pinnedThreadLanguage, renderUserNotice } from "./user-copy";
 
 export type { InboundMessage } from "./inbound-message";
 
@@ -62,70 +56,6 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
   const setup = deps.setup ?? EMPTY_SETUP;
   const ops = opsIds(setup);
   const takeTurn = createThreadTurns(); // per-thread arrival order up to the `handleMessage` call
-
-  /** Run the turn with typing shown, then post the reply into `channel`. `started` runs right after the `handleMessage` call began. */
-  async function answer(
-    channel: SendableChannels,
-    ids: { threadId: string; channelId: string; messageId: string },
-    receipt: ReturnType<typeof createMessageReceipt>,
-    text: string,
-    recent?: RecentMessage[],
-    started?: () => void,
-  ): Promise<void> {
-    // The text decides; neutral text ("3", "yes") keeps the thread's language, else the recent owner messages.
-    const language =
-      detectLanguage(text) ?? pinnedThreadLanguage(ids.threadId) ?? languageOf(text, recent);
-    pinThreadLanguage(ids.threadId, language);
-    let stopTyping = startTyping(channel);
-    let shown = false;
-    const visible = async () => {
-      shown = true;
-      stopTyping();
-      await receipt.visible();
-    };
-    // Resolved once the reply is out: the thread's rollover work (flush, summary) starts only then.
-    let posted!: () => void;
-    const replied = new Promise<void>((r) => {
-      posted = r;
-    });
-    try {
-      const call = deps.handleMessage({
-        source: "discord",
-        userId: deps.ownerId,
-        ...ids,
-        text,
-        ...(recent?.length && { recent }),
-        language,
-        visible,
-        replied,
-        history: (limit) =>
-          historyOf(channel as unknown as HistoryChannel, deps.ownerId, deps.botId(), limit),
-        notify: (m, opts) => {
-          if (shown) {
-            stopTyping();
-            stopTyping = startTyping(channel);
-          }
-          // A caught send failure ends this composing phase too; background work must not refresh typing.
-          const stopNotificationTyping = stopTyping;
-          const sent = opts?.asFile
-            ? sendResultFile(channel, m, language, visible, opts.fileName, opts.links)
-            : sendReply(channel, m, language, visible);
-          return sent.finally(stopNotificationTyping);
-        },
-      });
-      started?.();
-      const reply = await call;
-      if (reply === undefined) return; // nothing to send here: the lead answers on its own through `notify`
-      if (shown) {
-        stopTyping();
-        stopTyping = startTyping(channel);
-      }
-      await sendReply(channel, reply, language, visible);
-    } finally {
-      posted();
-      stopTyping();
-    }
-  }
 
   return async function onMessage(msg: Message): Promise<void> {
     const botId = deps.botId();
@@ -200,7 +130,8 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       if (route.kind === "thread") {
         // The thread's last messages give the lead the conversation (a new thread has none yet).
         if (ch.isSendable() && channelId)
-          await answer(
+          await answerTurn(
+            deps,
             ch,
             {
               threadId: ch.id,
@@ -234,7 +165,8 @@ export function createMessageHandler(deps: MessageHandlerDeps) {
       if ((await deps.adoptChannel?.(msg, receipt.visible)) === "refused") return; // owner got the reason; no thread
       const thread = await openThread(msg, ch.id, deps.threads);
       errorTarget = thread;
-      await answer(
+      await answerTurn(
+        deps,
         thread,
         { threadId: thread.id, channelId: ch.id, messageId: msg.id },
         receipt,

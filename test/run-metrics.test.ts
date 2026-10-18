@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { captureLogs, logger } from "../src/observability/logger";
 import { contextWindowFor, mergeModelUsage } from "../src/observability/model-usage";
+import { createRunGauges } from "../src/observability/run-gauges";
 import {
   addUsage,
   avgContextTokens,
   emptyUsage,
   usageFromResult,
-} from "../src/observability/record-run";
-import { createRunGauges } from "../src/observability/run-gauges";
+} from "../src/observability/run-usage";
 import { newSubagentLimit } from "../src/policy/subagent-limit";
 import { getRole } from "../src/roles/role-registry";
 import { guardHook } from "../src/runtime/guard-hook";

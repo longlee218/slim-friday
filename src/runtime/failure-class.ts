@@ -1,4 +1,4 @@
-import type { RunOutcome } from "../observability/record-run";
+import type { RunOutcome } from "../observability/run-usage";
 import { RESUME_FAILED } from "./run-errors";
 
 /* Failure classes of a worker run (pure): is the failure worth an automatic resume of the same session (`transient`),

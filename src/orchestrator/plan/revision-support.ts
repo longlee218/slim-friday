@@ -1,4 +1,4 @@
-import type { Fail } from "./plan-lifecycle";
+import type { Fail } from "./plan-refusal";
 
 /* Small helpers of plan-revision.ts. */
 

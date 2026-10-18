@@ -2,28 +2,28 @@ import type { Database } from "bun:sqlite";
 import type { Options, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { logEvent, logger, tryLog } from "../observability/logger";
 import { contextWindowFor } from "../observability/model-usage";
+import type { RunRecorder } from "../observability/record-run";
+import { errText } from "../observability/redact";
+import { createRunGauges } from "../observability/run-gauges";
 import {
   addUsage,
   emptyUsage,
-  outcomeFromSubtype,
   type ResultShape,
   type RunOutcome,
-  type RunRecorder,
   type RunUsage,
   usageFromResult,
-} from "../observability/record-run";
-import { errText, redactText } from "../observability/redact";
-import { createRunGauges } from "../observability/run-gauges";
+} from "../observability/run-usage";
 import { createTurnUsage } from "../observability/turn-usage";
 import { setTurnSession } from "../storage/run-store";
 import { isTransientError } from "./failure-class";
-import { isQuotaFailure, RESUME_FAILED, resetFromInfo } from "./run-errors";
+import { isQuotaFailure, resetFromInfo } from "./run-errors";
 import { isSandboxFailure } from "./sandbox-errors";
+import { assistantText, classifyResult } from "./stream-result";
 
 /** Logger of this module (task fields come from the log context). */
 const log = logger.child({ module: "run-stream" });
 
-/** What `query` takes as prompt: one string (an answer run), or a streaming input the owner can add to (a background role, see run-input-channel.ts). */
+/** Prompt of `query`: one string, or a streaming input the owner can add to (background role, run-input-channel.ts). */
 export type QueryPrompt = string | AsyncIterable<SDKUserMessage>;
 
 /** Signature of the SDK `query` function; injectable for tests. */
@@ -41,31 +41,17 @@ export interface StreamResult {
   usage: RunUsage;
   /** Quota outcome: when the limit resets (epoch ms), if the SDK reported it. */
   resetsAt?: number;
-  /** Last assistant message that had text (what the agent last said); undefined = none. Used by the budget-hit message. */
+  /** Last assistant message that had text; undefined = none (budget-hit message). */
   lastText?: string;
-  /** The raw error text when the run failed because the required OS sandbox could not start (see sandbox-errors.ts). */
+  /** Raw error text when the required OS sandbox could not start (sandbox-errors.ts). */
   sandboxFailure?: string;
-  /** The failure named a transient provider / network error (read before the text is blanked): the worker policy resumes it. */
+  /** The failure named a transient provider / network error: the worker policy resumes it. */
   transient?: true;
-}
-
-/** Text blocks of an assistant message, joined; empty when it only called tools. */
-function assistantText(m: SDKMessage): string {
-  const content = (m as { message?: { content?: unknown } }).message?.content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .filter(
-      (b): b is { type: "text"; text: string } => b?.type === "text" && typeof b.text === "string",
-    )
-    .map((b) => b.text)
-    .join("\n")
-    .trim();
 }
 
 /**
  * Consume the SDK message stream of one run: record every message, remember the session id at init, collect
- * the quota evidence and turn the final `result`
- * message (or a throw, or an abort) into one outcome. Never throws.
+ * the quota evidence and turn the final `result` (or a throw, or an abort) into one outcome. Never throws.
  */
 export async function consumeStream(p: {
   run: QueryFn;
@@ -77,14 +63,11 @@ export async function consumeStream(p: {
   turnId: string;
   cwd: string;
   resume?: string;
-  /** Sees every stream message: logs the actual permission mode and classifier denials (permission-watch.ts). */
+  /** Sees every stream message: logs the permission mode and classifier denials (permission-watch.ts). */
   permissionWatch?: (msg: SDKMessage) => void;
   /** Streaming input: called for every stream message first (echo tracking, hold timer). */
   onMessage?: (msg: SDKMessage) => void;
-  /**
-   * Streaming input: called on each `result` with its subtype. The caller closes the channel (the CLI exits once its
-   * input ends) or keeps it open to wait for a steer that was not echoed yet (the CLI answers it with its own `result`).
-   */
+  /** Streaming input: called on each `result`; the caller closes the channel or keeps it open for an un-echoed steer. */
   onResult?: (subtype: string) => void;
   /** Called once per distinct model call of the MAIN agent (1-based): the run supervisor counts turns. */
   onTurn?: (turn: number) => void;
@@ -163,24 +146,11 @@ export async function consumeStream(p: {
       if (m.type === "result") {
         const r = m as unknown as ResultShape;
         p.onResult?.(r.subtype);
-        outcome = outcomeFromSubtype(r.subtype);
-        text = r.subtype === "success" ? (r.result ?? "") : (r.errors ?? []).join("; ");
+        const v = classifyResult(r, { assistantError, rejected });
+        ({ outcome, text } = v);
         usage = addUsage(usage, usageFromResult(r, 0)); // several results per run: see addUsage
-        // Failure (error subtype, or success flagged is_error): quota, or unknown (raw error to the log only).
-        if (outcome === "error" || (outcome === "success" && r.is_error)) {
-          const errors = outcome === "error" ? text : (r.result ?? "");
-          if (isSandboxFailure(errors)) sandboxFailure = errors;
-          transient = !rejected && isTransientError(errors); // before the text is blanked below
-          if (transient && outcome === "success") outcome = "error"; // success + is_error + API error = a failed run
-          if (isQuotaFailure({ subtype: r.subtype, errors, assistantError, rejected })) {
-            outcome = "quota";
-            text = "";
-          } else if (outcome === "error") {
-            log.warn({ subtype: r.subtype, err: redactText(errors) }, "run failed");
-            // Only a failed resume needs the raw text (handle-message drops the stale session); else generic reply.
-            if (!RESUME_FAILED.test(errors)) text = "";
-          }
-        }
+        sandboxFailure = v.sandboxFailure ?? sandboxFailure;
+        transient = v.transient ?? transient;
       }
     }
   } catch (err) {

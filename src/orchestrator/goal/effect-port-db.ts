@@ -1,26 +1,21 @@
 import type { Database } from "bun:sqlite";
-import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
-import { excerpt } from "../../observability/logger";
-import { GRANT_TOOL, grantRowId } from "../../policy/load-envelope";
-import { LEAD_ROLE } from "../../roles/builtin/lead-role";
 import { appendEffect, effectResult } from "../../storage/effect-log-store";
 import { childrenOf, getItem, goalOf, type ItemRow } from "../../storage/owned-item-store";
-import { insertOwnedTask, threadOfTask } from "../../storage/owned-task-store";
+import { threadOfTask } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
-import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
-import { closeIdleGoals } from "../plan/plan-waves";
+import { moveTaskTo } from "../../tasks/task-resolver";
 import { runOfTask } from "../run/live-runs";
 import type { PolicyEnv } from "../strategy/caps";
 import type {
   DispatchResult,
-  DispatchWrite,
   EffectPort,
   OwnerAnswer,
   OwnerQuestion,
   Post,
   SteerReply,
 } from "./effect-port";
+import { createDispatchWriter } from "./effect-port-dispatch";
 import { createPlanPort } from "./effect-port-plan";
 import {
   cancelSet,
@@ -69,77 +64,7 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
     for (const id of ids) runOfTask(id)?.ac.abort();
   };
 
-  /** The dispatch transaction (see `EffectPort.dispatch`); returns what to abort after the commit. */
-  const writeDispatch = (x: DispatchWrite) =>
-    db.transaction(() => {
-      const old = x.supersedes ? markCancelled(x.supersedes) : { all: [], moved: [] };
-      closeIdleGoals(db, threadId); // a new goal supersedes an old idle wave goal of the thread
-      const goalId = crypto.randomUUID();
-      const correlationId = d.correlationId ?? goalId;
-      insertOwnedTask(db, {
-        id: goalId,
-        threadId,
-        ownerRole: LEAD_ROLE.name,
-        status: "open",
-        scope: excerpt(x.intent, SCOPE_CHARS),
-        correlationId,
-      });
-      const itemIds = x.items.map((it) => {
-        const id = crypto.randomUUID();
-        insertOwnedTask(db, {
-          id,
-          threadId,
-          ownerRole: it.role,
-          status: it.status,
-          scope: excerpt(it.brief, SCOPE_CHARS),
-          correlationId,
-          parentId: goalId,
-          itemKey: it.key,
-          dependsOn: it.dependsOn,
-          brief: it.brief,
-          ...(it.location && { location: it.location }),
-        });
-        return id;
-      });
-      for (const [i, it] of x.items.entries())
-        appendEvent(db, {
-          id: `${x.key}:${i}`,
-          threadId,
-          kind: "start",
-          taskId: goalId,
-          itemId: itemIds[i],
-          correlationId,
-          payload: {
-            key: it.key,
-            role: it.role,
-            strategy: x.strategy,
-            reason: x.reason,
-            by: "lead",
-            tool: DISPATCH_AGENT_TOOL,
-          },
-        });
-      appendEffect(db, {
-        id: x.key,
-        threadId,
-        goalId,
-        tool: DISPATCH_AGENT_TOOL,
-        scope: "lead tool call",
-        grantedBy: "role",
-        result: JSON.stringify({ ok: true, goalId, itemIds }),
-      });
-      // The grants the owner confirmed are read back by every worker start (the envelope), never kept in memory.
-      if (x.grants?.length)
-        appendEffect(db, {
-          id: grantRowId(goalId),
-          threadId,
-          goalId,
-          tool: GRANT_TOOL,
-          scope: JSON.stringify(x.grants),
-          grantedBy: "owner",
-          result: "granted",
-        });
-      return { goalId, itemIds, abort: old.all };
-    })();
+  const writeDispatch = createDispatchWriter(db, threadId, d.correlationId, markCancelled);
 
   return {
     recall: (key) => effectResult(db, key),
