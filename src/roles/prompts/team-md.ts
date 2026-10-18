@@ -32,7 +32,10 @@ interface StrategyRow {
 
 /** Strategy policy table of the lead. */
 const STRATEGY_POLICY: readonly StrategyRow[] = [
-  { strategy: "ANSWER", when: "greeting, small talk, or a status question the data block answers" },
+  {
+    strategy: "ANSWER",
+    when: "greeting, small talk, a status question the data block answers, or a fact you know for certain from this conversation or memory, or a general concept (say it is from memory when it could have changed)",
+  },
   { strategy: "DIRECT", when: "one specialist covers the job: one assignment" },
   {
     strategy: "DELEGATE",
@@ -79,6 +82,7 @@ export function buildTeamMd(i: TeamMdInput = {}): string {
     "",
     "## How to delegate",
     ...STRATEGY_POLICY.map((s) => `- ${s.strategy}: ${s.when}`),
+    "- A question about a specific product, library, API or standard (its behaviour, limits, defaults, versions, prices), a comparison, or anything that must be verified or cited goes to a member that researches, never to ANSWER, however sure you feel. Never present a memory-only technical fact as verified.",
     `- Up to ${MAX_RUNNING_PER_THREAD} items run at once in this thread; only one writer per location at a time (the others wait).`,
     "- A brief is all the member knows: goal sentence, what is already done, what to deliver, the location by name. Never put secrets in a brief.",
     "- When earlier work saved a document, give its artifact id in the brief instead of pasting the text: the member reads it by id.",

@@ -1,124 +1,148 @@
 {
-  "_doc": "Scout research eval set (opt-in SCOUT_EVAL=1). Each case is one owner research question sent to the real lead; the lead routes it. kind = the research shape (quick lookup, technical docs, deep report, academic, market); it only groups the report. No expected answer: the run is scored on a completed scout, cited URLs that resolve, cost and latency.",
+  "_doc": "Scout research eval set (opt-in SCOUT_EVAL=1). Each case is one owner research question sent to the real lead; the lead routes it. kind = the research shape (quick lookup, technical docs, deep report, academic, market); it only groups the report. expect = routing: dispatch (a direct lead answer is a MISS) or either (default; a sure direct answer is fine, scored routed-direct). No expected answer: the run is scored on a completed scout, cited URLs that resolve, cost and latency.",
   "cases": [
     {
       "id": "quick-01",
       "kind": "quick",
+      "expect": "either",
       "text": "what is the current LTS version of Node.js and when does it end support?"
     },
     {
       "id": "quick-02",
       "kind": "quick",
+      "expect": "either",
       "text": "which Bun release first shipped a built-in S3 client?"
     },
     {
       "id": "quick-03",
       "kind": "quick",
+      "expect": "either",
       "text": "what is the default max_connections of PostgreSQL 17?"
     },
     {
       "id": "quick-04",
       "kind": "quick",
+      "expect": "either",
       "text": "what does HTTP status 425 mean and which RFC defines it?"
     },
     {
       "id": "quick-05",
       "kind": "quick",
+      "expect": "either",
       "text": "what is the latest stable TypeScript version and its headline feature?"
     },
     {
       "id": "technical-06",
       "kind": "technical",
+      "expect": "dispatch",
       "text": "how does SQLite FTS5 handle the unicode61 tokenizer and accent folding?"
     },
     {
       "id": "technical-07",
       "kind": "technical",
+      "expect": "dispatch",
       "text": "how do I set a per-request timeout with the fetch API in Bun?"
     },
     {
       "id": "technical-08",
       "kind": "technical",
+      "expect": "dispatch",
       "text": "what are the rate limits of the Discord REST API for creating channels?"
     },
     {
       "id": "technical-09",
       "kind": "technical",
+      "expect": "dispatch",
       "text": "how does Drizzle ORM handle SQLite migrations with drizzle-kit generate?"
     },
     {
       "id": "technical-10",
       "kind": "technical",
+      "expect": "dispatch",
       "text": "what options does the Claude Agent SDK query() accept for sandboxing Bash?"
     },
     {
       "id": "technical-11",
       "kind": "technical",
+      "expect": "dispatch",
       "text": "how does the MCP Streamable HTTP transport differ from SSE transport?"
     },
     {
       "id": "technical-12",
       "kind": "technical",
+      "expect": "dispatch",
       "text": "what changed in Biome 2 compared with Biome 1 for linter configuration?"
     },
     {
       "id": "deep-13",
       "kind": "deep",
+      "expect": "dispatch",
       "text": "compare approaches for full-text search in SQLite versus Postgres for a single-user app, with sources"
     },
     {
       "id": "deep-14",
       "kind": "deep",
+      "expect": "dispatch",
       "text": "what are current best practices for prompt-injection defense in LLM agents that browse the web?"
     },
     {
       "id": "deep-15",
       "kind": "deep",
+      "expect": "dispatch",
       "text": "survey how open-source coding agents isolate tool execution (sandboxing) and what trade-offs they report"
     },
     {
       "id": "deep-16",
       "kind": "deep",
+      "expect": "dispatch",
       "text": "how do production LLM agent frameworks handle long-running task resumption and retries?"
     },
     {
       "id": "academic-17",
       "kind": "academic",
+      "expect": "dispatch",
       "text": "find recent papers on context compaction or memory for long-horizon LLM agents and summarize the main methods"
     },
     {
       "id": "academic-18",
       "kind": "academic",
+      "expect": "dispatch",
       "text": "what does research say about LLM-as-a-judge bias and how to mitigate it?"
     },
     {
       "id": "academic-19",
       "kind": "academic",
+      "expect": "dispatch",
       "text": "find papers on retrieval-augmented generation evaluation metrics and compare them"
     },
     {
       "id": "academic-20",
       "kind": "academic",
+      "expect": "dispatch",
       "text": "summarize recent work on tool-use reliability benchmarks for LLM agents"
     },
     {
       "id": "market-21",
       "kind": "market",
+      "expect": "dispatch",
       "text": "who are the main hosted web-scraping API vendors for LLM agents and how do their prices compare?"
     },
     {
       "id": "market-22",
       "kind": "market",
+      "expect": "dispatch",
       "text": "what are the leading personal AI agent products in 2026 and how do they differ?"
     },
     {
       "id": "market-23",
       "kind": "market",
+      "expect": "dispatch",
       "text": "compare the pricing models of the main vector database vendors"
     },
     {
       "id": "market-24",
       "kind": "market",
+      "expect": "dispatch",
       "text": "what is the market landscape of AI coding assistants for terminals?"
     }
   ]

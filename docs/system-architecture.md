@@ -506,7 +506,8 @@ Every limit, cap, timeout and retention value lives in [limits](limits-and-stop-
 - Sources: `effect_log` (lead calls have `scope = 'lead tool call'`), `thread_events` (refusals), `runs` joined to `turns` (cost).
 - Not recorded: plain-text answers and read-only tool calls.
 - Lead golden set: `test/fixtures/lead-golden.json`; always-on shape test in `test/lead-golden.test.ts`; the paid run needs `LEAD_EVAL=1` and a real token and is a report, not a gate.
-- Scout research set: `test/fixtures/scout-research.json` (24 questions); shape test `test/scout-research.test.ts` always on; the paid run (`SCOUT_EVAL=1`, real token) drives the real lead and scout and scores completion, cited URLs that resolve, cost and latency. A report, not a gate.
+- Lead routing of research: TEAM.md (`prompts/team-md.ts`) sends a question about a specific product, library, API or standard, a comparison, or anything to verify or cite to a research member, never to ANSWER; ANSWER keeps greetings, status, what the conversation or memory certainly holds, and general concepts. Eval: `SCOUT_EVAL_FORCE=1` and the per-case `expect` field below.
+- Scout research set: `test/fixtures/scout-research.json` (24 questions, per-case `expect` `dispatch` or `either`: a direct lead answer is `routed-direct` or, for `dispatch`, a MISS; dispatch rate and pass rate over dispatched are reported apart; `SCOUT_EVAL_FORCE=1` asks the lead for a research worker to measure scout quality apart from routing); shape test `test/scout-research.test.ts` always on; the paid run (`SCOUT_EVAL=1`, real token) drives the real lead and scout and scores completion, cited URLs that resolve, cost and latency. A report, not a gate.
 
 ## Not Built Yet
 Source of truth: [lead orchestration plan](../plans/261015-1538-lead-supervisor-orchestration/plan.md) and [cleanup plan](../plans/261016-0900-cleanup-tools-mcp-skills-db/plan.md).

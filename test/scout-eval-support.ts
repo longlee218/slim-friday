@@ -13,7 +13,41 @@ export interface ScoutCase {
   id: string;
   kind: (typeof KINDS)[number];
   text: string;
+  /** `dispatch`: the lead must hand it to a worker (a direct answer is a MISS); `either` (default): a sure direct answer is fine. */
+  expect?: "dispatch" | "either";
 }
+
+/** How one case ended: `ok` (dispatched and passed), `routed-direct` (lead answered, allowed), `MISS`. */
+export type Verdict = "ok" | "routed-direct" | "MISS";
+
+/** Score one case: a direct answer is a miss only for a must-dispatch case; a dispatched case must pass. */
+export function verdictOf(
+  c: Pick<ScoutCase, "expect">,
+  dispatched: boolean,
+  pass: boolean,
+): Verdict {
+  if (!dispatched) return c.expect === "dispatch" ? "MISS" : "routed-direct";
+  return pass ? "ok" : "MISS";
+}
+
+/** Counts of a run: dispatch rate over all cases, pass rate over the DISPATCHED cases only. */
+export function summarize(rows: { verdict: Verdict; dispatched: boolean }[]) {
+  const dispatched = rows.filter((r) => r.dispatched).length;
+  const ok = rows.filter((r) => r.verdict === "ok").length;
+  const direct = rows.filter((r) => r.verdict === "routed-direct").length;
+  return {
+    dispatched,
+    ok,
+    direct,
+    miss: rows.filter((r) => r.verdict === "MISS").length,
+    /** Pass rate over dispatched cases (1 when none was dispatched and none missed). */
+    passRate: dispatched ? ok / dispatched : 1,
+  };
+}
+
+/** SCOUT_EVAL_FORCE=1: the first message names a research worker, so scout quality is measured apart from routing. */
+export const forceText = (text: string): string =>
+  `Use a research worker (the scout) for this, do not answer it yourself: ${text}`;
 
 /** The fixture file (test/fixtures/scout-research.json). */
 export const loadScoutCases = (): ScoutCase[] =>

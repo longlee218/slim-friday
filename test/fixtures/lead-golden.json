@@ -120,6 +120,54 @@
       "text": "plan the rollout of the multi-tenant refactor across all my locations step by step",
       "strategy": "PLAN",
       "roles": []
+    },
+    {
+      "id": "research-version-en",
+      "text": "which Python version is the latest stable release right now and what are its headline changes?",
+      "strategy": "DIRECT",
+      "roles": ["scout"]
+    },
+    {
+      "id": "research-docs-vi",
+      "text": "SQLite WAL mode xử lý nhiều process ghi đồng thời thế nào?",
+      "strategy": "DIRECT",
+      "roles": ["scout"]
+    },
+    {
+      "id": "research-prices-vi",
+      "text": "giá hiện tại của các gói API Claude và OpenAI khác nhau thế nào?",
+      "strategy": "DIRECT",
+      "roles": ["scout"]
+    },
+    {
+      "id": "research-compare-en",
+      "text": "compare Drizzle and Prisma for SQLite: migrations, performance and maintenance",
+      "strategy": "DIRECT",
+      "roles": ["scout"]
+    },
+    {
+      "id": "greeting-vi",
+      "text": "chào buổi sáng",
+      "strategy": "ANSWER",
+      "roles": []
+    },
+    {
+      "id": "thread-context",
+      "text": "Earlier in this thread I told you my deploy target is Fly.io. Which cloud did I say I deploy to?",
+      "strategy": "ANSWER",
+      "roles": []
+    },
+    {
+      "id": "arithmetic",
+      "text": "what is 17 times 23?",
+      "strategy": "ANSWER",
+      "roles": []
+    },
+    {
+      "id": "memory-recall",
+      "text": "do you remember which language I prefer for answers? check your memory",
+      "strategy": "ANSWER",
+      "roles": []
     }
   ]
 }

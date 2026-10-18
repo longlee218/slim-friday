@@ -1,7 +1,15 @@
 import { expect, test } from "bun:test";
 import { openDb } from "../src/storage/db";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
-import { KINDS, loadScoutCases, outcomeOf, urlsOf } from "./scout-eval-support";
+import {
+  forceText,
+  KINDS,
+  loadScoutCases,
+  outcomeOf,
+  summarize,
+  urlsOf,
+  verdictOf,
+} from "./scout-eval-support";
 
 /* Shape of the scout research set (no API call; the paid run is scout-research.eval.test.ts). */
 
@@ -43,4 +51,31 @@ test("outcomeOf: empty db = not completed; a completed scout item gives its exce
   expect(o.completed).toBe(true);
   expect(urlsOf(o.text)).toEqual(["https://a.dev"]);
   db.close();
+});
+
+test("research set: expect is dispatch or either; quick cases may be answered directly, the rest must dispatch", () => {
+  for (const c of cases) {
+    expect(["dispatch", "either", undefined]).toContain(c.expect);
+    expect(c.expect).toBe(c.kind === "quick" ? "either" : "dispatch");
+  }
+});
+
+test("verdictOf and summarize: direct answer is routed-direct or MISS by expect; pass rate is over dispatched", () => {
+  expect(verdictOf({}, false, false)).toBe("routed-direct");
+  expect(verdictOf({ expect: "either" }, false, false)).toBe("routed-direct");
+  expect(verdictOf({ expect: "dispatch" }, false, false)).toBe("MISS");
+  expect(verdictOf({ expect: "dispatch" }, true, true)).toBe("ok");
+  expect(verdictOf({ expect: "dispatch" }, true, false)).toBe("MISS");
+  const s = summarize([
+    { verdict: "ok", dispatched: true },
+    { verdict: "MISS", dispatched: true },
+    { verdict: "routed-direct", dispatched: false },
+    { verdict: "MISS", dispatched: false },
+  ]);
+  expect(s).toEqual({ dispatched: 2, ok: 1, direct: 1, miss: 2, passRate: 0.5 });
+});
+
+test("forceText keeps the question and asks for a research worker", () => {
+  expect(forceText("q?")).toContain("q?");
+  expect(forceText("q?")).toContain("research worker");
 });

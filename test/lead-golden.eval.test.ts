@@ -10,7 +10,7 @@ import { isLeadRun } from "./mcp-run-probe";
  * PAID opt-in eval of the lead: runs only with LEAD_EVAL=1 and a real CLAUDE_CODE_OAUTH_TOKEN (never by default).
  * Each case sends one owner message to a fresh db and the REAL lead; worker and planner runs are faked (no paid worker
  * run). The lead's recorded decision (effect_log + owned_tasks) is scored against the expected strategy and roles.
- * A report, not a gate: the owner runs it after a lead prompt or model change. `LEAD_EVAL_MIN` (default 0.8) is the pass rate.
+ * A report, not a gate: the owner runs it after a lead prompt or model change. `LEAD_EVAL_MIN` (default 0.8) is the pass rate; `LEAD_EVAL_ONLY` (a case id prefix, e.g. `research`) limits the run.
  */
 const token = process.env.CLAUDE_CODE_OAUTH_TOKEN;
 const live = process.env.LEAD_EVAL === "1" && !!token && token !== PLACEHOLDER;
@@ -23,7 +23,8 @@ describe.skipIf(!live)("lead golden set (real lead, fake workers)", () => {
   test("the lead's decisions match the expected strategy and roles", async () => {
     const { query } = await import("@anthropic-ai/claude-agent-sdk");
     const misses: string[] = [];
-    const cases = loadGolden();
+    const only = process.env.LEAD_EVAL_ONLY ?? "";
+    const cases = loadGolden().filter((c) => c.id.startsWith(only));
     for (const c of cases) {
       const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: token!, TIMEOUT_MS: "90000" });
       // Lead runs go to the real SDK; any other run (worker, planner) is a stub that ends at once.
