@@ -83,7 +83,7 @@ test("md renders with security headers; raw html and javascript: links are escap
   const html = await res.text();
   expect(html).not.toContain("<script");
   expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
-  expect(html).not.toContain("javascript:");
+  expect(html).not.toContain('href="javascript:'); // an invalid link stays literal text, never an anchor
   expect(html).toContain("<strong>b</strong>");
   expect(html).toContain('<nav aria-label="Contents">'); // TOC from the headings
 });
