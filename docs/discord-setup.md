@@ -248,6 +248,7 @@ The store is one SQLite file, `<AGENT_HOME>/data/agent.db`, built from the Drizz
 - [ ] `/purge` asks one yes/no question and empties the trash; `"No"` keeps it.
 - [ ] Live smoke, real token: `CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/live-agent.smoke.test.ts`.
 - [ ] Lead golden set, paid, report not a gate: `LEAD_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/lead-golden.eval.test.ts` (`LEAD_EVAL_MIN`, default 0.8).
+- [ ] Scout research set, paid, report not a gate: `SCOUT_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/scout-research.eval.test.ts` (`SCOUT_EVAL_MIN` default 0.7, `SCOUT_EVAL_ONLY` id prefix); run with and without `FIRECRAWL_API_KEY` to compare.
 - [ ] `bun run metrics:lead [--days N]` against the real db (read-only; the bot may run).
 
 ### Low-config channel and location: owner live checklist

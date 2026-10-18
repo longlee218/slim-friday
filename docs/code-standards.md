@@ -84,7 +84,7 @@ Folders under `src/orchestrator/`:
 ## File Organization
 - **Naming:** kebab-case `.ts` files. The name states the purpose (`discord-message-handler.ts`, not `message.ts`). Exception: tool folders are PascalCase (see above).
 - **Organize by domain** (`src/<domain>/...`), not by technical layer: `orchestrator/`, `runtime/`, `roles/`, `storage/`, `memory/`, `workspaces/`, `locations/`, `lifecycle/`, `discord-setup/`, `ingress/`, `policy/`, `owner-approval/`, `session/`, `config/`, `tools/`, `tasks/`, `mcp/`, `commands/`, `observability/`.
-- **Size:** keep files under about 200 lines and split by domain. This is a review rule, not a test. Eight files in `src/` are longer today (the longest is `src/ingress/user-copy.ts`, 402 lines).
+- **Size:** keep files under about 200 lines and split by domain. This is a review rule, not a test. No file in `src/` is longer than 200 lines today (after commit `500325a`).
 
 ## Storage
 - **Schema:** TypeScript tables in `src/storage/schema/*.ts` (one file per domain). Migrations are generated into `src/storage/migrations/`.
@@ -144,7 +144,7 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 ## Testing
 - **Framework:** `bun test` (`bun:test` `expect`). Run one file with `bun test test/<area>.test.ts`.
 - **Naming:** `test/<area>.test.ts`. Live tests are named `*.smoke.test.ts` or `*.live.test.ts` and skip without credentials.
-- **Opt-in (paid):** the lead golden set runs only with `LEAD_EVAL=1` and a real token. Live SDK checks run only with their own gate variable. Never run them in a routine gate.
+- **Opt-in (paid):** the lead golden set runs only with `LEAD_EVAL=1` and a real token; the scout research eval only with `SCOUT_EVAL=1` and a real token. Live SDK checks run only with their own gate variable. Never run them in a routine gate.
 - **Fakes:** a fake `query` for SDK options; an in-memory SQLite for storage; a fake effect port for the orchestrator; fake Discord message objects.
 - **Scan tests** (see above) run in the normal suite.
 - **No sleeps for concurrency tests:** wait on a deferred promise or a callback.
