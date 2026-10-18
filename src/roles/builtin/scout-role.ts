@@ -49,6 +49,8 @@ export const SCOUT_ROLE: RoleDefinition = {
   skills: [
     "scout",
     "docs-seeker",
+    "deep-research",
+    "research-online",
     "firecrawl-deep-research",
     "firecrawl-research-papers",
     "firecrawl-market-research",
