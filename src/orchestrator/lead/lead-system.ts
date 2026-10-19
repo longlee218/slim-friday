@@ -91,7 +91,7 @@ export function createLeadSystem(o: {
       if (ctx && picked && !("reply" in picked))
         ctx.locations = channelLocations(picked.ws, picked.channel);
     },
-    announce: (threadId) => announcer?.notify(threadId),
+    announce: (threadId, delayMs) => announcer?.notify(threadId, delayMs),
     relay,
     afterRun: o.afterRun,
     hold: o.hold,

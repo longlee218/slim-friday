@@ -1,5 +1,5 @@
 {
-  "_doc": "Lead golden set (opt-in LEAD_EVAL=1). strategy: ANSWER = no dispatch (text answer or ask), DIRECT = one worker, DELEGATE = 2-3 chained workers, PLAN = RequestPlan. roles = expected worker roles of the dispatched items in order (empty for ANSWER and PLAN).",
+  "_doc": "Lead golden set (opt-in LEAD_EVAL=1). strategy: ANSWER = no dispatch (text answer or ask), DIRECT = one worker, DELEGATE = 2-3 chained workers, PLAN = Orchestrate request_plan. roles = expected worker roles of the dispatched items in order (empty for ANSWER and PLAN).",
   "cases": [
     {
       "id": "greeting",

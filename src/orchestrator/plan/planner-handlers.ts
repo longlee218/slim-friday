@@ -11,6 +11,7 @@ import {
   newestApprovedVersion,
   planIdOfGoal,
 } from "../../storage/work-plan-store";
+import { duplicateRefusal, similarOpenWork } from "../goal/task-reads";
 import { type Reply, refuse } from "../reply";
 import { docOfRow } from "./plan-doc";
 import { createPlan, validateStored } from "./plan-lifecycle";
@@ -63,7 +64,7 @@ const failReply = (f: Fail): Reply => refuse(f.code, f.message);
 export const wrongGoal = (id: string): Reply =>
   refuse("BAD_TASK", `Goal ${id} is not the goal of this run.`);
 
-/** Refusal when the run's goal is not planner-owned (a goal the lead owns takes no plan before RequestPlan hands it over). */
+/** Refusal when the run's goal is not planner-owned (a goal the lead owns takes no plan before Orchestrate request_plan hands it over). */
 const notPlannerGoal = (c: PlannerCtx): Reply | undefined => {
   const r = assertStructureOwner(structureOwnerOf(c.db, c.goalId), "planner");
   return r && refuse(r.code, r.message);
@@ -125,8 +126,15 @@ export function createPlanHandler(c: PlannerCtx, i: CreatePlanInput): Reply {
   if (i.goalId !== c.goalId) return wrongGoal(i.goalId);
   const notOwner = notPlannerGoal(c);
   if (notOwner) return notOwner;
+  // Search before create: the plan's items against the thread's open or recent work of OTHER goals (this goal's own
+  // earlier plan versions and finished waves are not duplicates). `confirmNew` repeats the call.
+  const { confirmNew, ...plan } = i;
+  if (!confirmNew) {
+    const dup = duplicateRefusal(similarOpenWork(c.db, c.threadId, plan.items, [c.goalId]));
+    if (dup) return dup;
+  }
   const r = createPlan(c.db, {
-    ...i,
+    ...plan,
     objective: taskScope(c.db, c.goalId) ?? "",
     env: planEnvOf(c),
   });

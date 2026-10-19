@@ -100,7 +100,16 @@ const view = (over: Record<string, unknown> = {}) => ({
   goalId: "g1",
   objective: "build it",
   doc: {
-    items: [{ key: "a", role: "developer", brief: "do a", dependsOn: [], risk: "R1" as const }],
+    items: [
+      {
+        key: "a",
+        subject: "task",
+        role: "developer",
+        brief: "do a",
+        dependsOn: [],
+        risk: "R1" as const,
+      },
+    ],
     acceptanceCriteria: ["works"],
     envelope: {
       roles: ["developer"],
@@ -121,7 +130,7 @@ test("B1: the owner's typed text comes back on UNCLEAR; a reject says no reason 
   const r = await handleApprovePlan(leadCtx(port), { planId: "p1", version: 1 });
   expect(r).toMatchObject({ ok: false, code: "UNCLEAR" });
   expect(r.ok === false && r.message).toContain("step 3 should use Postgres");
-  expect(r.ok === false && r.message).toContain("RequestPlan");
+  expect(r.ok === false && r.message).toContain("Orchestrate request_plan");
   expect(port.decisions).toHaveLength(0);
   port.answer = { answer: "Reject plan", timedOut: false };
   const rej = await handleApprovePlan(leadCtx(port, "in2"), { planId: "p1", version: 1 });
@@ -225,7 +234,7 @@ test("B4: an item the lead cancelled still counts: the goal settles `cancelled`"
   const { goalId, planId } = approved([item("a"), item("b")]);
   revisePlan(db, { planId, baseVersion: 1, edit: edit({ cancel: ["b"] }), reason: "x", env: ENV });
   const b = byKey(db, goalId, "b").id;
-  // The lead's CancelTask event names the item: the owner's side stopped this work, it is not a plan drop.
+  // The lead's Orchestrate cancel event names the item: the owner's side stopped this work, it is not a plan drop.
   appendEvent(db, {
     id: `cancel:${b}`,
     threadId: TH,
@@ -308,7 +317,7 @@ test("B6: a plan item that waits for the item the approval releases is refused a
   expect(revised.ok === false && revised.message).toContain("RELEASED_DEP");
 });
 
-test("B7: CancelTask of a planner item leaves the goal's pending plan valid; CancelTask of the goal closes it", () => {
+test("B7: Orchestrate cancel of a planner item leaves the goal's pending plan valid; Orchestrate cancel of the goal closes it", () => {
   const { goalId, plan } = validPlan();
   const port = createDbEffectPort({
     db,
@@ -349,7 +358,7 @@ test("B8: modify of a started item is refused when the base is a pending valid v
   expect(r).toMatchObject({ ok: false, code: "ITEM_STARTED" });
 });
 
-test("B9: RequestPlan is refused while a planner item of the goal is live", () => {
+test("B9: Orchestrate request_plan is refused while a planner item of the goal is live", () => {
   const caps = { chainCount: 0, dispatchedThisRun: 0 };
   const planner = (status: string) => itemRow({ itemKey: "planner-2", status: status as never });
   const state = (status: string) => ({ openGoalId: "g1", items: [planner(status)] });
@@ -399,7 +408,7 @@ test("B10: an expired grown revision of an approved plan is rejected; the goal s
   expect(getOwnedTask(db, goalId)?.status).toBe("completed");
 });
 
-test("B10/B14: ApprovePlan is refused before asking when the goal is not the thread's open goal", async () => {
+test("B10/B14: Orchestrate approve_plan is refused before asking when the goal is not the thread's open goal", async () => {
   const { goalId, plan } = validPlan();
   const real = createPlanPort(db, TH);
   expect(real.plan(plan.id, 1)?.blocker).toBeUndefined();
@@ -467,5 +476,5 @@ test("B13: a wave goal held at the cap or stalled can be re-planned inside itsel
   for (const code of ["WAVE_STALLED", "WAVE_CAP"])
     expect(
       JSON.stringify(held.find((e) => (e.payload as { code?: string }).code === code)?.payload),
-    ).toContain("RequestPlan with this goalId re-plans the rest inside the goal");
+    ).toContain("Orchestrate request_plan with this goalId re-plans the rest inside the goal");
 });

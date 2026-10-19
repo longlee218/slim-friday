@@ -82,7 +82,7 @@ test("M1: /stop cancels the announce timer and ends the thread's worker question
   expect(t.calls).toHaveLength(0); // the batch timer was cancelled: no lead run
 });
 
-test("M1: AskOwner for a worker that is gone (stopped) is not a success; /stop ends a pending owner question", async () => {
+test("M1: Orchestrate ask_owner for a worker that is gone (stopped) is not a success; /stop ends a pending owner question", async () => {
   const ctx = { message: { notify: async () => {} } } as unknown as LeadThreadCtx;
   const gone = {
     deps: { approvals: stubGateway({ askChoice: async () => "b" }) },
@@ -124,15 +124,15 @@ test("M3: a failed announce run is retried once, then dropped with ONE notice (n
   let announceRuns = 0;
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "";
     }
     if (c.prompt.includes("Owner message:")) {
-      await c.tool("DispatchAgent", {
+      await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         intent: "work",
         reason: "test",
-        assignments: [{ key: "main", role: "scout", brief: "do", dependsOn: [] }],
+        assignments: [{ key: "main", subject: "task", role: "scout", brief: "do", dependsOn: [] }],
       });
       return "started";
     }

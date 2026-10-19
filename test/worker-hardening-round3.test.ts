@@ -82,9 +82,9 @@ const ctx: GuardrailContext = {
   envelope: defaultEnvelope("g", ["loc"], scratch),
 };
 
-test("sandbox: network closed (strictAllowlist), writes only in the grants (no per-path denyWrite), credential dirs outside the grants unreadable", () => {
-  const sb = workerSandbox(ctx) as { network: any; filesystem: any };
-  expect(sb.network).toEqual({ allowedDomains: [], strictAllowlist: true });
+test("sandbox: network open (wildcard allowedDomains), writes only in the grants (no per-path denyWrite), credential dirs outside the grants unreadable", () => {
+  const sb = workerSandbox(ctx) as { filesystem: any };
+  expect((sb as { network?: unknown }).network).toEqual({ allowedDomains: ["*"] });
   expect(sb.filesystem.allowWrite).toEqual(expect.arrayContaining([loc, scratch, wt]));
   expect(sb.filesystem.denyWrite).toBeUndefined(); // inside a grant the worker writes everything, `.git` included
   expect(sb.filesystem.denyRead).toEqual(
@@ -140,7 +140,6 @@ test("worker options: default permission mode (nothing auto-approved), scrubbed 
       failIfUnavailable: true,
       allowUnsandboxedCommands: false,
       autoAllowBashIfSandboxed: false,
-      network: { allowedDomains: [], strictAllowlist: true },
     });
     for (const k of Object.keys(SECRETS).filter((k) => k !== "CLAUDE_CODE_OAUTH_TOKEN"))
       expect([k, k in o.env]).toEqual([k, false]);
@@ -168,12 +167,19 @@ test("the lead hears a `failure` event naming SANDBOX_UNAVAILABLE; the worker is
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") throw new Error("sandbox-exec: sandbox could not be started");
     if (c.prompt.includes("Owner message:")) {
-      await c.tool("DispatchAgent", {
+      await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         intent: "x",
         reason: "r",
         assignments: [
-          { key: "a", role: "developer", brief: "do a", location: "location", dependsOn: [] },
+          {
+            key: "a",
+            subject: "Do a",
+            role: "developer",
+            brief: "do a",
+            location: "location",
+            dependsOn: [],
+          },
         ],
       });
       return "started";

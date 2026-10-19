@@ -35,7 +35,7 @@ import {
 } from "./waves-fixture";
 
 /* Phase 3 boundary: who owns a goal's structure (lead for DIRECT / DELEGATE, planner for PLAN), the owner gate on
-   superseding a PLAN goal (B2), one ApprovePlan ask per plan version (B11) and the news for code-made items. */
+   superseding a PLAN goal (B2), one Orchestrate approve_plan ask per plan version (B11) and the news for code-made items. */
 
 let db: Database;
 afterEach(() => db?.close());
@@ -95,10 +95,10 @@ const DIRECT = {
   strategy: "DIRECT" as const,
   intent: "one",
   reason: "r",
-  assignments: [{ key: "m", role: "developer", brief: "b", dependsOn: [] }],
+  assignments: [{ key: "m", subject: "task", role: "developer", brief: "b", dependsOn: [] }],
 };
 
-test("structureOwner: DispatchAgent goal = lead; RequestPlan new goal = planner; RequestPlan(goalId) switches lead -> planner", async () => {
+test("structureOwner: Orchestrate dispatch goal = lead; Orchestrate request_plan new goal = planner; Orchestrate request_plan(goalId) switches lead -> planner", async () => {
   const { port, ctx } = setup();
   const d = (await handleDispatch(ctx(), DIRECT)) as unknown as { goalId: string };
   expect(structureOwnerOf(db, d.goalId)).toBe("lead");
@@ -118,15 +118,15 @@ test("assertStructureOwner: the wrong actor is refused and told the right tool; 
   expect(assertStructureOwner("lead", "lead")).toBeUndefined();
   expect(assertStructureOwner("planner", "lead")).toMatchObject({
     code: "NOT_STRUCTURE_OWNER",
-    message: expect.stringContaining("RequestPlan"),
+    message: expect.stringContaining("Orchestrate request_plan"),
   });
   expect(assertStructureOwner("lead", "planner")).toMatchObject({
     code: "NOT_STRUCTURE_OWNER",
-    message: expect.stringContaining("RequestPlan"),
+    message: expect.stringContaining("Orchestrate request_plan"),
   });
 });
 
-test("planner CreatePlan / ProposePlanRevision: refused on a lead-owned goal, accepted on a planner-owned one", async () => {
+test("planner Plan create / Plan revise: refused on a lead-owned goal, accepted on a planner-owned one", async () => {
   const { port, ctx } = setup();
   const d = (await handleDispatch(ctx(), DIRECT)) as unknown as { goalId: string };
   expect(createPlanHandler(plannerCtx(d.goalId), planArgs(d.goalId))).toMatchObject({
@@ -142,7 +142,7 @@ test("planner CreatePlan / ProposePlanRevision: refused on a lead-owned goal, ac
       modify: [],
     }),
   ).toMatchObject({ code: expect.stringMatching(/NO_PLAN|NOT_STRUCTURE_OWNER/) });
-  // The lead hands the goal over (RequestPlan): now the planner may write.
+  // The lead hands the goal over (Orchestrate request_plan): now the planner may write.
   port.requestPlan({ key: "k", objective: "plan", goalId: d.goalId });
   const made = createPlanHandler(plannerCtx(d.goalId), planArgs(d.goalId));
   expect(made).toMatchObject({ ok: true, version: 1 });
@@ -163,7 +163,7 @@ test("B2: GOAL_OPEN on a PLAN goal does not suggest supersedes; on a lead goal i
   const r = (await handleDispatch(ctx(), DIRECT)) as { code: string; message: string };
   expect(r.code).toBe("GOAL_OPEN");
   expect(r.message).not.toContain("supersedes");
-  expect(r.message).toContain("RequestPlan");
+  expect(r.message).toContain("Orchestrate request_plan");
   db.close();
   const b = setup();
   await handleDispatch(b.ctx(), DIRECT);

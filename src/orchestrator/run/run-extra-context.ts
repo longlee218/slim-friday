@@ -20,7 +20,7 @@ export function runExtraContext(p: {
   i: RoleRunInput;
   s: RoleScope;
   role: RoleDefinition;
-  /** The run can rename its thread (the `SetThreadTitle` tool is registered). */
+  /** The run can rename its thread (the `Orchestrate set_title` tool is registered). */
   hasTitlePort: boolean;
 }): string[] {
   const { db, config, i, s, role } = p;

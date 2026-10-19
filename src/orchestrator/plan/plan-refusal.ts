@@ -1,4 +1,6 @@
 import type { Database } from "bun:sqlite";
+import { PLAN_ACTION_CREATE } from "../../mcp/plan/tools/PlanTool/action-names";
+import { PLAN_TOOL } from "../../mcp/plan/tools/PlanTool/constants";
 import { childrenOf } from "../../storage/owned-item-store";
 import {
   latestPlan,
@@ -6,6 +8,7 @@ import {
   planVersions,
   type WorkPlanRow,
 } from "../../storage/work-plan-store";
+import { spentOf } from "../budget/task-budget";
 import type { PlanCtx, PlanError } from "./plan-types";
 
 /* Refusals and goal-key facts shared by the plan lifecycle, revision and the planner tools. */
@@ -70,7 +73,7 @@ export function reviseBase(
   if (!base)
     return fail(
       "BAD_STATE",
-      `Plan v${latest.version} is ${latest.status} and no version is approved: use CreatePlan to plan again.`,
+      `Plan v${latest.version} is ${latest.status} and no version is approved: use ${PLAN_TOOL} ${PLAN_ACTION_CREATE} to plan again.`,
     );
   if (baseVersion !== base.version && baseVersion !== latest.version)
     return fail(
@@ -79,3 +82,19 @@ export function reviseBase(
     );
   return { ok: true, base };
 }
+
+/** What the validator reads about the goal: keys the plan does not own, dead keys, revisions so far, spend. */
+export const validatorCtx = (
+  db: Database,
+  goalId: string,
+  env: PlanEnv,
+  planKeys: readonly string[],
+  revisions: number,
+): PlanCtx => ({
+  ...env,
+  existingKeys: otherKeys(db, goalId, planKeys),
+  deadKeys: deadKeys(db, goalId),
+  releasedKeys: releasedKeys(db, goalId),
+  revisions,
+  spentUsd: spentOf(db, goalId),
+});

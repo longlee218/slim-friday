@@ -87,7 +87,14 @@ export const verifyBrief = (
 export function insertItem(
   db: Database,
   goalId: string,
-  it: { key: string; role: string; brief: string; location?: string | null; dependsOn: string[] },
+  it: {
+    key: string;
+    role: string;
+    brief: string;
+    subject: string;
+    location?: string | null;
+    dependsOn: string[];
+  },
 ): void {
   const goal = taskOrigin(db, goalId);
   if (!goal) return;
@@ -103,6 +110,7 @@ export function insertItem(
     itemKey: it.key,
     dependsOn: it.dependsOn,
     brief: it.brief,
+    subject: it.subject,
     ...(it.location && { location: it.location }),
   });
   appendEvent(db, {

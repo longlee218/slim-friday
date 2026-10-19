@@ -5,6 +5,7 @@ import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import { ownerConfirm } from "../../owner-approval/owner-confirm";
 import type { DispatchEnvelope } from "../../policy/envelope";
+import { PLANNER_ROLE } from "../../roles/builtin/planner-role";
 import { dispatchableWorkers } from "../../roles/role-registry";
 import { channelDigest } from "../../storage/thread-store";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "../lead/lead-runtime";
@@ -42,6 +43,8 @@ export function workerAppCtx(
 ): NonNullable<RoleRunInput["appCtx"]> {
   const { db } = rt.deps;
   const { threadId, goalId, itemId } = s;
+  // A planner reports through its result (its item is the plan request): no blocker action for it.
+  if (s.role === PLANNER_ROLE.name) s.sink.noBlocker = true;
   return () => ({
     reportSink: s.sink,
     artifacts: artifactCtx(rt, ctx, threadId, s.role, {
@@ -49,7 +52,7 @@ export function workerAppCtx(
       taskId: itemId,
       ...(s.pinned && { granted: { name: s.pinned.name, path: s.pinned.path } }),
     }),
-    // ReportProgress: recorded on this task's live run (percent, note, heartbeat).
+    // Report progress: recorded on this task's live run (percent, note, heartbeat).
     progress: (p) => setProgress(db, itemId, p),
     // Plan tools: bound to the goal the planner plans for.
     plan: {

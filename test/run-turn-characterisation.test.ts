@@ -29,11 +29,11 @@ function snap(db: Database) {
 }
 
 const dispatchOne = (c: Call) =>
-  c.tool("DispatchAgent", {
+  c.orchestrate("dispatch", {
     strategy: "DIRECT",
     intent: "work",
     reason: "test",
-    assignments: [{ key: "a", role: "scout", brief: "do a", dependsOn: [] }],
+    assignments: [{ key: "a", subject: "task", role: "scout", brief: "do a", dependsOn: [] }],
   });
 
 test("lead run ends ok: one done lead turn, one success run, session kept", async () => {
@@ -58,7 +58,7 @@ test("lead run errors: its turn row is closed, the owner gets the fixed notice",
 test("worker run ends ok: worker turn done + task completed + end event", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
     if (c.prompt.includes("Owner message:")) {

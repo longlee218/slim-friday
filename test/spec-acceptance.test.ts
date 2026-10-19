@@ -6,7 +6,7 @@ import { leadHarness, until } from "./lead-harness";
    1 DIRECT without planner ............ lead-flow.test.ts
    2 DELEGATE items in parallel ........ dispatch-parallel.test.ts
    3 PLAN, one approval ................ plan-strategy-flow.test.ts, todo-app-scenario.test.ts
-   4 worker NEEDS_PLANNING -> RequestPlan  (below)
+   4 worker NEEDS_PLANNING -> Orchestrate request_plan  (below)
    5 dispatch to planner / lead refused  plan-audit-gaps.test.ts, dispatch-policy.test.ts
    6 cycle refused ..................... lead-flow.test.ts, dispatch-policy.test.ts
    7 role / location outside the envelope  validate-plan.test.ts, dispatch-policy.test.ts
@@ -22,7 +22,7 @@ test("a worker that reports NEEDS_PLANNING wakes the lead, which asks for a plan
   const h = leadHarness(async (c) => {
     if (c.kind === "planner") {
       expect(GOAL.test(c.prompt)).toBe(true);
-      await c.tool("ReportResult", {
+      await c.report("result", {
         status: "NEEDS_CLARIFICATION",
         summary: "stop here",
         question: "unused",
@@ -30,7 +30,7 @@ test("a worker that reports NEEDS_PLANNING wakes the lead, which asks for a plan
       return "planner stopped";
     }
     if (c.kind === "worker") {
-      await c.tool("ReportResult", {
+      await c.report("result", {
         title: "T",
         status: "NEEDS_PLANNING",
         summary: "too big for one run",
@@ -38,13 +38,14 @@ test("a worker that reports NEEDS_PLANNING wakes the lead, which asks for a plan
       return "needs a plan";
     }
     if (c.prompt.includes("Owner message:\nrewrite everything")) {
-      const made = await c.tool("DispatchAgent", {
+      const made = await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         intent: "rewrite",
         reason: "try one worker",
         assignments: [
           {
             key: "main",
+            subject: "task",
             role: "developer",
             brief: "rewrite it",
             location: "location",
@@ -57,7 +58,7 @@ test("a worker that reports NEEDS_PLANNING wakes the lead, which asks for a plan
     }
     if (/blocked/i.test(c.prompt) && asked.length === 0) {
       asked.push(
-        await c.tool("RequestPlan", {
+        await c.orchestrate("request_plan", {
           goalId,
           objective: "rewrite everything",
           findings: "worker said too big",
@@ -72,7 +73,7 @@ test("a worker that reports NEEDS_PLANNING wakes the lead, which asks for a plan
   expect(asked[0]).toMatchObject({ ok: true });
 });
 
-test("CancelTask of a goal with two running items cancels both, aborts their runs and closes the goal", async () => {
+test("Orchestrate cancel of a goal with two running items cancels both, aborts their runs and closes the goal", async () => {
   const aborted: string[] = [];
   let goalId = "";
   const running = new Set<string>();
@@ -88,20 +89,20 @@ test("CancelTask of a goal with two running items cancels both, aborts their run
       return "stopped";
     }
     if (c.prompt.includes("Owner message:\ntwo things")) {
-      const r = await c.tool("DispatchAgent", {
+      const r = await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
         intent: "work",
         reason: "test",
         assignments: [
-          { key: "a", role: "scout", brief: "do a", dependsOn: [] },
-          { key: "b", role: "scout", brief: "do b", dependsOn: [] },
+          { key: "a", subject: "task", role: "scout", brief: "do a", dependsOn: [] },
+          { key: "b", subject: "task", role: "scout", brief: "do b", dependsOn: [] },
         ],
       });
       goalId = r.goalId;
       return "On it.";
     }
     if (c.prompt.includes("Owner message:\ncancel it")) {
-      await c.tool("CancelTask", { taskId: goalId });
+      await c.orchestrate("cancel", { taskId: goalId, reason: "owner asked" });
       return "Cancelled.";
     }
     return "";

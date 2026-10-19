@@ -1,4 +1,5 @@
 import type { WorkPlanRow } from "../../storage/work-plan-store";
+import { subjectFromBrief } from "../../tasks/task-subject";
 import {
   DELIVERY_EFFECT_TOOLS,
   type DeliveryEffect,
@@ -16,6 +17,9 @@ export interface ItemInput {
   key: string;
   role: string;
   brief: string;
+  /** Absent = the first words of the brief. */
+  subject?: string | undefined;
+  priority?: number | undefined;
   location?: string | undefined;
   dependsOn: string[];
   risk: string;
@@ -34,6 +38,8 @@ export const toPlanItem = (i: ItemInput): PlanItem => ({
   key: i.key,
   role: i.role,
   brief: i.brief,
+  subject: i.subject ?? subjectFromBrief(i.brief),
+  ...(i.priority && { priority: i.priority }),
   ...(i.location && { location: i.location }),
   dependsOn: [...new Set(i.dependsOn)],
   risk: normalizeRisk(i.risk),
@@ -91,7 +97,11 @@ export function docOfRow(r: WorkPlanRow): PlanDoc {
     effects: [],
   });
   return {
-    items: parse<{ items?: PlanItem[] }>(r.body, {}).items ?? [],
+    // A plan stored before `subject` existed has none: the first words of its brief stand in.
+    items: (parse<{ items?: PlanItem[] }>(r.body, {}).items ?? []).map((i) => ({
+      ...i,
+      subject: i.subject ?? subjectFromBrief(i.brief),
+    })),
     acceptanceCriteria: parse<string[]>(r.acceptance, []),
     // A stored `effects` list is filtered through the allowlist: a missing, corrupt or unknown entry grants nothing.
     envelope: {

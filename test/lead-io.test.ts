@@ -25,7 +25,7 @@ function setup(over: Parameters<typeof stubGateway>[0] = {}, viewer?: ViewerConf
   return { env, posts, answered, ctx, rt };
 }
 
-test("AskOwner: the owner's click is returned and handed to the worker that waits; a timeout cancels the buttons", async () => {
+test("Orchestrate ask_owner: the owner's click is returned and handed to the worker that waits; a timeout cancels the buttons", async () => {
   const s = setup({ askChoice: async () => "b" });
   const io = createLeadIo(s.rt, s.ctx, "t", "turn", new AbortController().signal);
   expect(

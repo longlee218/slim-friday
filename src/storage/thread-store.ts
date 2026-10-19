@@ -3,7 +3,7 @@ import type { Database } from "bun:sqlite";
 /** Who made the thread: the bot (from a message or slash command) or the owner (adopted on first mention). */
 type ThreadOrigin = "bot" | "adopted";
 
-/** Row of `threads`. `placeholder` is the name the bot gave; `title`/`digest` come from SetThreadTitle. */
+/** Row of `threads`. `placeholder` is the name the bot gave; `title`/`digest` come from Orchestrate set_title. */
 export interface ThreadRow {
   thread_id: string;
   channel_id: string;

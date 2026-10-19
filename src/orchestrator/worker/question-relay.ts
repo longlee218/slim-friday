@@ -6,8 +6,8 @@ import { appendEvent } from "../../storage/thread-event-store";
 import { setWaiting } from "./run-activity";
 
 /* Worker question relay: a lead-dispatched worker never asks the owner itself. Its AskUserQuestion becomes a `question`
-   event (the lead reads it in an announce run) and the worker waits until the lead answers it (SteerTask) or relays
-   it to the owner (AskOwner). The wait is bounded; nobody answering ends the run's ask like an owner timeout. */
+   event (the lead reads it in an announce run) and the worker waits until the lead answers it (Orchestrate steer) or relays
+   it to the owner (Orchestrate ask_owner). The wait is bounded; nobody answering ends the run's ask like an owner timeout. */
 
 /** Chars of a question kept in the event. */
 const QUESTION_CHARS = 600;

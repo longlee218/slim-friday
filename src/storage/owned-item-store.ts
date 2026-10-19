@@ -30,6 +30,12 @@ export interface ItemRow {
   location: string | null;
   /** Brief given to the worker; null = none. */
   brief: string | null;
+  /** Short label (<= 80 chars); null on a row older than the column that has no brief. */
+  subject: string | null;
+  /** Urgency: 0 normal, 10 high, 100 urgent. */
+  priority: number;
+  /** Epoch ms of the last status move or sign of life; for a `ready` item, about when it started to wait (scheduler aging). */
+  lastProgressAt: number;
   /** Typed result kind of the last run; null until one ended. */
   resultKind: ResultKind | null;
   /** Artifact file of the last run's result (the workspace channel's artifacts dir); null until one ended or when none was stored. */
@@ -42,7 +48,7 @@ export interface ItemRow {
 type Raw = Omit<ItemRow, "dependsOn"> & { dependsOn: string };
 
 const COLUMNS = `id, parent_id AS parentId, item_key AS itemKey, status, depends_on AS dependsOn, attempt,
-  dispatch_count AS dispatchCount, owner_role AS ownerRole, location, brief, result_kind AS resultKind, result_path AS resultPath,
+  dispatch_count AS dispatchCount, owner_role AS ownerRole, location, brief, subject, priority, last_progress_at AS lastProgressAt, result_kind AS resultKind, result_path AS resultPath,
   result_excerpt AS resultExcerpt`;
 
 /** Raw row to item (JSON `depends_on` parsed; a corrupt value reads as no dependency). */
@@ -149,7 +155,7 @@ export function bumpAttempt(db: Database, id: string): number {
   return getItem(db, id)?.attempt ?? 0;
 }
 
-/** Give an item a fresh automatic-resume budget (the lead's `RetryTask`). */
+/** Give an item a fresh automatic-resume budget (the lead's `Orchestrate retry`). */
 export function resetAttempt(db: Database, id: string): void {
   db.query("UPDATE owned_tasks SET attempt = 0 WHERE id = ?").run(id);
 }
@@ -171,7 +177,7 @@ export function runningGoalItems(db: Database): ItemRow[] {
 
 /**
  * A held item: any `blocked` item (a failed run, a budget hit, BLOCKED / NEEDS_PLANNING). It is stopped and waits for the
- * lead's `RetryTask` or `CancelTask`; `resultKind` tells why (FAILED = a failure, else the worker's own report).
+ * lead's `Orchestrate retry` or `Orchestrate cancel`; `resultKind` tells why (FAILED = a failure, else the worker's own report).
  */
 export const isHeld = (it: Pick<ItemRow, "status">): boolean => it.status === "blocked";
 

@@ -32,6 +32,7 @@ afterEach(() => db?.close());
 const ENV = { workerRoles: ["developer", "scout"], locations: ["repo"], goalBudgetUsd: 15 };
 const item = (key: string, over: Record<string, unknown> = {}) => ({
   key,
+  subject: `Do ${key}`,
   role: "developer",
   brief: `do ${key}`,
   location: "repo",
@@ -190,7 +191,7 @@ test("restart safety: a held FAILED verify whose fix-N exists inserts no second 
   expect(keys(goalId).filter((k) => k.startsWith("verify"))).toHaveLength(2);
 });
 
-test("max 2 fix loops: the third failed verify is held with VERIFY_LOOP_CAP, no fix-3 ever, RetryTask refused", async () => {
+test("max 2 fix loops: the third failed verify is held with VERIFY_LOOP_CAP, no fix-3 ever, Orchestrate retry refused", async () => {
   const { goalId } = approved();
   complete(goalId, "a");
   complete(goalId, "b");
@@ -257,7 +258,7 @@ test("a verify that CRASHED (held, not a reported FAILED) is an ordinary hold: n
     expect(afterVerify(db, id, { ...REPORTED, cause })).toBe(false);
   expect(afterVerify(db, id)).toBe(false);
   expect(keys(goalId).slice(-1)).toEqual(["verify-1:blocked"]);
-  expect(byKey(goalId, "verify-1").resultKind).toBe("FAILED"); // still held for RetryTask
+  expect(byKey(goalId, "verify-1").resultKind).toBe("FAILED"); // still held for Orchestrate retry
 });
 
 test("no goal budget left: no fix loop, the verify stays held and a budget failure event says so", () => {
@@ -364,7 +365,7 @@ const retryCtx = () => ({
   run: { dispatched: 0 },
 });
 
-test("RetryTask at the cap: a verify-3 that crashed (no result written) stays retryable; one that reported FAILED is refused", async () => {
+test("Orchestrate retry at the cap: a verify-3 that crashed (no result written) stays retryable; one that reported FAILED is refused", async () => {
   const { goalId } = approved();
   complete(goalId, "a");
   complete(goalId, "b");
@@ -420,6 +421,6 @@ test("digest: verify-N and fix-N items show as ordinary lines (key, role, status
   ]);
   expect(facts.done).toBe(facts.total - 2);
   const text = renderDigest(facts, "en");
-  expect(text).toContain("- fix-1 (developer): ready");
-  expect(text).toContain("- verify-2 (tester): pending");
+  expect(text).toContain('- fix-1 "Fix the failed checks" (developer): ready');
+  expect(text).toContain('- verify-2 "Verify the goal" (tester): pending');
 });

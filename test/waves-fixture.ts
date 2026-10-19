@@ -22,6 +22,7 @@ export const ENV = {
 };
 export const item = (key: string, over: Record<string, unknown> = {}) => ({
   key,
+  subject: `Do ${key}`,
   role: "developer",
   brief: `do ${key}`,
   location: "repo",

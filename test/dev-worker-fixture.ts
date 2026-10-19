@@ -73,11 +73,13 @@ export async function runWorkerViaLead(
       return "done";
     }
     if (c.prompt.includes("Owner message:")) {
-      await c.tool("DispatchAgent", {
+      await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         intent: "work",
         reason: "test",
-        assignments: [{ key: "main", role, brief: "where is x?", dependsOn: [] }],
+        assignments: [
+          { key: "main", subject: "Find x", role, brief: "where is x?", dependsOn: [] },
+        ],
       });
     }
     return "ok";

@@ -1,8 +1,9 @@
 import type { Database } from "bun:sqlite";
 
 import { excerpt } from "../../observability/logger";
+import { rewriteNotStartedItem } from "../../storage/item-edit-store";
 import { childrenOf, type ItemRow, isHeld } from "../../storage/owned-item-store";
-import { rewriteNotStartedItem, taskScope } from "../../storage/owned-task-store";
+import { taskScope } from "../../storage/owned-task-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
 import { recordCodeItems } from "./plan-revised";
 import { FIX_KEY, PLANNER_KEY, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
@@ -103,6 +104,13 @@ const insert = (
   location: string | null,
   dependsOn: string[],
 ): string => {
-  insertItem(db, goalId, { key, role: VERIFY_ROLE, brief, location, dependsOn });
+  insertItem(db, goalId, {
+    key,
+    role: VERIFY_ROLE,
+    brief,
+    subject: "Verify the goal",
+    location,
+    dependsOn,
+  });
   return key;
 };

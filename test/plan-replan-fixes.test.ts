@@ -91,7 +91,7 @@ function needsPlanning(goalId: string, key: string, hold = true) {
   return id;
 }
 
-test("H1: reject -> RequestPlan(goalId) -> CreatePlan -> valid -> ApprovePlan inside the same goal", async () => {
+test("H1: reject -> Orchestrate request_plan(goalId) -> Plan create -> valid -> Orchestrate approve_plan inside the same goal", async () => {
   const { goalId, plan } = validPlan();
   needsPlanning(goalId, "x"); // a DELEGATE goal: the goal stays open after the reject
   finishPlanner(goalId);
@@ -115,7 +115,7 @@ test("H1: reject -> RequestPlan(goalId) -> CreatePlan -> valid -> ApprovePlan in
   expect(keysOf(db, goalId)).toContain("q1:ready");
 });
 
-test("H1: CreatePlan is still refused while a version is valid or approved", () => {
+test("H1: Plan create is still refused while a version is valid or approved", () => {
   const { goalId } = validPlan();
   expect(createPlan(db, planArgs(goalId, [item("z")]))).toMatchObject({
     ok: false,
@@ -254,7 +254,9 @@ test("L1: a refusal after the click is posted as a notice without the internal m
     goalId: "g1",
     objective: "o",
     doc: {
-      items: [{ key: "a", role: "developer", brief: "do a", dependsOn: [], risk: "R1" }],
+      items: [
+        { key: "a", subject: "task", role: "developer", brief: "do a", dependsOn: [], risk: "R1" },
+      ],
       acceptanceCriteria: ["works"],
       envelope: {
         roles: ["developer"],

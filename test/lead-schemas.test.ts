@@ -9,15 +9,15 @@ import {
 } from "../src/orchestrator/lead/lead-schemas";
 
 const ok = (shape: z.ZodRawShape, v: unknown) => z.object(shape).safeParse(v).success;
-const A = { key: "main", role: "developer", brief: "b" };
+const A = { key: "main", subject: "task", role: "developer", brief: "b" };
 const D = { strategy: "DIRECT", intent: "i", reason: "r", assignments: [A] };
 
-test("DispatchAgent: accepts a minimal request (dependsOn defaults to [])", () => {
+test("Orchestrate dispatch: accepts a minimal request (dependsOn defaults to [])", () => {
   const r = z.object(DISPATCH_AGENT_SHAPE).parse(D);
   expect(r.assignments[0]?.dependsOn).toEqual([]);
 });
 
-test("DispatchAgent: rejects bad strategy, empty / too many assignments, bad key, long brief", () => {
+test("Orchestrate dispatch: rejects bad strategy, empty / too many assignments, bad key, long brief", () => {
   expect(ok(DISPATCH_AGENT_SHAPE, { ...D, strategy: "PLAN" })).toBe(false);
   expect(ok(DISPATCH_AGENT_SHAPE, { ...D, assignments: [] })).toBe(false);
   expect(ok(DISPATCH_AGENT_SHAPE, { ...D, assignments: Array(MAX_ASSIGNMENTS + 1).fill(A) })).toBe(
@@ -30,7 +30,7 @@ test("DispatchAgent: rejects bad strategy, empty / too many assignments, bad key
   expect(ok(DISPATCH_AGENT_SHAPE, { ...D, intent: "" })).toBe(false);
 });
 
-test("AskOwner: kind is required and one of yesno/select/text; options capped at 25; Forward takes only its enums", () => {
+test("Orchestrate ask_owner: kind is required and one of yesno/select/text; options capped at 25; Forward takes only its enums", () => {
   const many = (n: number) => Array.from({ length: n }, (_, i) => `o${i}`);
   expect(ok(ASK_OWNER_SHAPE, { question: "q", options: ["a", "b"] })).toBe(false); // no kind
   expect(ok(ASK_OWNER_SHAPE, { question: "q", kind: "form" })).toBe(false);
@@ -41,7 +41,7 @@ test("AskOwner: kind is required and one of yesno/select/text; options capped at
   expect(ok(FORWARD_RESULT_SHAPE, { taskId: "t", mode: "raw" })).toBe(false);
 });
 
-test("ReportResult: the five statuses only, summary required, requests optional and capped", () => {
+test("Report result: the five statuses only, summary required, requests optional and capped", () => {
   for (const s of ["COMPLETED", "FAILED", "BLOCKED", "NEEDS_PLANNING", "NEEDS_CLARIFICATION"])
     expect(ok(REPORT_RESULT_SHAPE, { title: "t", status: s, summary: "x" })).toBe(true);
   expect(ok(REPORT_RESULT_SHAPE, { title: "t", status: "DONE", summary: "x" })).toBe(false);

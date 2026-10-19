@@ -6,14 +6,14 @@ import {
   THREAD_NAME_MAX_CHARS,
   TITLE_MAX_CHARS,
   TITLE_MIN_CHARS,
-} from "../mcp/orchestration/tools/SetThreadTitleTool/constants";
+} from "../mcp/orchestration/tools/OrchestrateTool/constants";
 import { localDay } from "../memory/memory-clock";
 import { logEvent, logger } from "../observability/logger";
 import { errText, redactText } from "../observability/redact";
 import { getThread, saveTitle } from "../storage/thread-store";
 
 /**
- * Renames a thread on behalf of the `SetThreadTitle` tool. The agent never holds a Discord token: only this
+ * Renames a thread on behalf of the `Orchestrate set_title` action. The agent never holds a Discord token: only this
  * app-side port touches Discord. `renamed` = new name set, `kept` = the live name is not the placeholder
  * (the owner renamed it, or it is not a thread), `failed` = Discord or lookup error.
  */

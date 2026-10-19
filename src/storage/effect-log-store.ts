@@ -106,7 +106,7 @@ export function recordRunCwd(
 export const runCwdOfTurn = (db: Database, turnId: string): string | undefined =>
   effectScope(db, `cwd:${turnId}`);
 
-/** Audit tool name of the rows that record an ApprovePlan ask that ended without a decision (outcome in `result`). */
+/** Audit tool name of the rows that record an Orchestrate approve_plan ask that ended without a decision (outcome in `result`). */
 export const PLAN_ASK_TOOL = "PlanAsk";
 
 /** Newest outcome recorded for an ask of a plan version after `since` (epoch ms), or undefined. */

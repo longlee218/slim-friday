@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { TaskState } from "../tasks/task-contracts";
+import { subjectFromBrief } from "../tasks/task-subject";
 
 /** Statuses of a task that is still the thread's live work (the focus is the newest). */
 const LIVE_STATUSES = ["open", "waiting_user", "running"] as const;
@@ -46,6 +47,9 @@ export function insertOwnedTask(
     dependsOn?: string[];
     location?: string;
     brief?: string;
+    /** Item fields: the short label (<= 80 chars) and the urgency (0 normal, 10 high, 100 urgent; default 0). */
+    subject?: string;
+    priority?: number;
     /** Goal rows only: who may change the goal's items (see `StructureOwner`). */
     structureOwner?: StructureOwner;
   },
@@ -53,8 +57,8 @@ export function insertOwnedTask(
   const now = Date.now();
   db.query(
     `INSERT INTO owned_tasks (id, thread_id, owner_role, status, scope, version, correlation_id, created_at,
-       last_progress_at, parent_id, item_key, depends_on, location, brief, structure_owner)
-     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       last_progress_at, parent_id, item_key, depends_on, location, brief, structure_owner, subject, priority)
+     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     t.id,
     t.threadId,
@@ -70,6 +74,8 @@ export function insertOwnedTask(
     t.location ?? null,
     t.brief ?? null,
     t.structureOwner ?? null,
+    t.subject ?? (t.brief ? subjectFromBrief(t.brief) : null),
+    t.priority ?? 0,
   );
 }
 
@@ -84,7 +90,7 @@ export function structureOwnerOf(db: Database, goalId: string): StructureOwner {
     : "lead";
 }
 
-/** Hand a goal's structure to `owner` (RequestPlan: lead -> planner). */
+/** Hand a goal's structure to `owner` (Orchestrate request_plan: lead -> planner). */
 export function setStructureOwner(db: Database, goalId: string, owner: StructureOwner): void {
   db.query("UPDATE owned_tasks SET structure_owner = ? WHERE id = ?").run(owner, goalId);
 }
@@ -177,15 +183,4 @@ export function taskOrigin(
       )
       .get(id) ?? undefined
   );
-}
-
-/** Rewrite an item the owner's plan edit changed, only while it has not started (`pending` / `ready`). */
-export function rewriteNotStartedItem(
-  db: Database,
-  id: string,
-  f: { brief: string; scope: string; location: string | null; dependsOn: string[] },
-): void {
-  db.query(
-    "UPDATE owned_tasks SET brief = ?, scope = ?, location = ?, depends_on = ? WHERE id = ? AND status IN ('pending', 'ready')",
-  ).run(f.brief, f.scope, f.location, JSON.stringify(f.dependsOn), id);
 }

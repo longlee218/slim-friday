@@ -59,3 +59,6 @@ export const WAIT_FOR_MCP_SERVERS_TOOL_NAME = "WaitForMcpServers";
 
 /* Sends a bug / idea report to Anthropic: always the owner's call. */
 export const SEND_FEEDBACK_TOOL_NAME = "SendFeedback";
+
+/* Permission request the SDK sends for a host a sandboxed command reaches that no `allowedDomains` entry covers. */
+export const SANDBOX_NETWORK_ACCESS_TOOL_NAME = "SandboxNetworkAccess";

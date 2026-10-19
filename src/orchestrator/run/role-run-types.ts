@@ -26,7 +26,7 @@ export interface RoleRunnerDeps {
   stopping?: () => boolean;
   /** Where streaming runs register their input so the owner can steer them. Omitted = string prompts, no steer. */
   steer?: SteerRegistry;
-  /** Renames the thread for `SetThreadTitle` (lead only: only the lead lists the tool in its `mcpTools`; rollover/lean runs never get it). Omitted = the tool is not offered. */
+  /** Renames the thread for `Orchestrate set_title` (lead only: only the lead lists the tool in its `mcpTools`; rollover/lean runs never get it). Omitted = the tool is not offered. */
   threadTitle?: ThreadTitlePort;
 }
 
@@ -63,7 +63,7 @@ export interface RoleRunInput {
   channel?: string;
   /** Mode of that channel (`chat` skips the channel digest); absent = `task`. */
   channelMode?: "task" | "chat";
-  /** Discord channel id the run started in (the thread's parent): stamped on thread rows `SetThreadTitle` creates. */
+  /** Discord channel id the run started in (the thread's parent): stamped on thread rows `Orchestrate set_title` creates. */
   channelId?: string;
   /** Locations the run may use. */
   locations: Location[];

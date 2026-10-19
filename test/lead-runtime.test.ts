@@ -5,12 +5,13 @@ import { leadHarness, until } from "./lead-harness";
 
 const step = (key: string, dependsOn: string[] = [], role = "scout") => ({
   key,
+  subject: `Do ${key}`,
   role,
   brief: `do ${key}`,
   dependsOn,
 });
 const dispatch = (c: any, assignments: object[]) =>
-  c.tool("DispatchAgent", {
+  c.orchestrate("dispatch", {
     strategy: assignments.length === 1 ? "DIRECT" : "DELEGATE",
     intent: "work",
     reason: "test",
@@ -28,7 +29,7 @@ test("a chain starts the second item only after the first completed, in order; t
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
       order.push(c.prompt);
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return `result of ${c.prompt}`;
     }
     if (c.prompt.includes("Owner message:")) {
@@ -52,7 +53,7 @@ test("a failed first item is held: its dependents wait, the goal stays open and 
   let announced = "";
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "FAILED", summary: "broke" });
+      await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
     }
     if (c.prompt.includes("Owner message:")) {
@@ -78,7 +79,7 @@ test("typed results: BLOCKED -> blocked + `blocked` event; no report -> derived 
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
       if (c.prompt === "do a")
-        await c.tool("ReportResult", { title: "T", status: "BLOCKED", summary: "need a key" });
+        await c.report("result", { title: "T", status: "BLOCKED", summary: "need a key" });
       return "worker text";
     }
     if (c.prompt.includes("Owner message:")) {
@@ -122,7 +123,7 @@ test("the lead's own records are never announced back to it", async () => {
   let announces = 0;
   const h = leadHarness(async (c) => {
     if (c.prompt.includes("Task events")) announces++;
-    if (c.kind === "lead" && c.prompt.includes("Owner message:")) await c.tool("TaskStatus", {});
+    if (c.kind === "lead" && c.prompt.includes("Owner message:")) await c.orchestrate("list", {});
     return "hi";
   });
   await h.send("status?");

@@ -2,14 +2,15 @@ import { expect, test } from "bun:test";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { leadHarness, until } from "./lead-harness";
 
-/* End to end with a fake query: owner asks something big -> lead RequestPlan -> planner (GetProjectContext, CreatePlan,
-   ValidatePlan, ReportResult) -> announce of plan-ready -> lead ApprovePlan -> ONE owner question -> the 3 items run one
+/* End to end with a fake query: owner asks something big -> lead Orchestrate request_plan -> planner (Plan context, Plan create,
+   Plan validate, Report result) -> announce of plan-ready -> lead Orchestrate approve_plan -> ONE owner question -> the 3 items run one
    after another -> announce of the result. The lead never plans: the plan comes only from the planner's tools. */
 
 const GOAL = /Goal id: ([0-9a-f-]{36})/;
 const PLAN_ID = /"planId":"([0-9a-f-]{36})"/;
 const item = (key: string, dependsOn: string[] = []) => ({
   key,
+  subject: `Do ${key}`,
   role: "developer",
   brief: `do ${key}`,
   location: "location",
@@ -17,7 +18,7 @@ const item = (key: string, dependsOn: string[] = []) => ({
   risk: "R1",
 });
 
-test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run in order -> announce", async () => {
+test("owner big ask -> Orchestrate request_plan -> planner plan -> one approval -> items run in order -> announce", async () => {
   const questions: { question: string; options: string[] }[] = [];
   const order: string[] = [];
   const leadTools: string[] = [];
@@ -25,11 +26,11 @@ test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run 
     async (c) => {
       if (c.kind === "planner") {
         const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        expect((await c.tool("GetProjectContext", { goalId })).request).toContain("todo app");
-        expect((await c.tool("GetAgentCapabilities", {})).roles.map((r: any) => r.name)).toContain(
+        expect((await c.plan("context", { goalId })).request).toContain("todo app");
+        expect((await c.plan("capabilities", {})).roles.map((r: any) => r.name)).toContain(
           "developer",
         );
-        const made = await c.tool("CreatePlan", {
+        const made = await c.plan("create", {
           goalId,
           items: [item("model"), item("api", ["model"]), item("ui", ["api"])],
           acceptanceCriteria: ["the app runs"],
@@ -42,10 +43,8 @@ test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run 
           effects: [],
         });
         expect(made).toMatchObject({ ok: true, version: 1, status: "valid" });
-        expect((await c.tool("ValidatePlan", { planId: made.planId, version: 1 })).valid).toBe(
-          true,
-        );
-        await c.tool("ReportResult", {
+        expect((await c.plan("validate", { planId: made.planId, version: 1 })).valid).toBe(true);
+        await c.report("result", {
           title: "T",
           status: "COMPLETED",
           summary: `plan ${made.planId} v1`,
@@ -54,21 +53,24 @@ test("owner big ask -> RequestPlan -> planner plan -> one approval -> items run 
       }
       if (c.kind === "worker") {
         order.push(/^do (\w+)/m.exec(c.prompt)?.[1] ?? "verify"); // the code-appended verify has no `do <key>` brief
-        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done" });
+        await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
         return "worker done";
       }
       if (c.prompt.includes("Owner message:\nbuild a todo app")) {
-        // The lead's only move is RequestPlan: it has no plan tool and a direct dispatch would be NEEDS_PLAN.
-        leadTools.push("RequestPlan");
+        // The lead's only move is Orchestrate request_plan: it has no plan tool and a direct dispatch would be NEEDS_PLAN.
+        leadTools.push("Orchestrate request_plan");
         expect(
-          await c.tool("RequestPlan", { objective: "build a todo app", findings: "empty repo" }),
+          await c.orchestrate("request_plan", {
+            objective: "build a todo app",
+            findings: "empty repo",
+          }),
         ).toMatchObject({ ok: true });
         return "Planning it.";
       }
       const plan = PLAN_ID.exec(c.prompt)?.[1];
-      if (plan && !leadTools.includes("ApprovePlan")) {
-        leadTools.push("ApprovePlan");
-        const r = await c.tool("ApprovePlan", { planId: plan, version: 1 });
+      if (plan && !leadTools.includes("Orchestrate approve_plan")) {
+        leadTools.push("Orchestrate approve_plan");
+        const r = await c.orchestrate("approve_plan", { planId: plan, version: 1 });
         expect(r).toMatchObject({ ok: true, status: "approved", items: ["model", "api", "ui"] });
         return "Plan approved, running.";
       }
@@ -120,7 +122,7 @@ test("owner rejects the plan -> no item runs, the goal is cancelled, the lead sa
     async (c) => {
       if (c.kind === "planner") {
         const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        const made = await c.tool("CreatePlan", {
+        const made = await c.plan("create", {
           goalId,
           items: [item("only")],
           acceptanceCriteria: [],
@@ -132,7 +134,7 @@ test("owner rejects the plan -> no item runs, the goal is cancelled, the lead sa
           budgetUsd: 1,
           effects: [],
         });
-        await c.tool("ReportResult", {
+        await c.report("result", {
           title: "T",
           status: "COMPLETED",
           summary: `plan ${made.planId}`,
@@ -141,12 +143,12 @@ test("owner rejects the plan -> no item runs, the goal is cancelled, the lead sa
       }
       if (c.kind === "worker") throw new Error("no item may run");
       if (c.prompt.includes("Owner message:\nbuild")) {
-        await c.tool("RequestPlan", { objective: "build it" });
+        await c.orchestrate("request_plan", { objective: "build it" });
         return "Planning.";
       }
       const plan = PLAN_ID.exec(c.prompt)?.[1];
       if (plan) {
-        expect(await c.tool("ApprovePlan", { planId: plan, version: 1 })).toMatchObject({
+        expect(await c.orchestrate("approve_plan", { planId: plan, version: 1 })).toMatchObject({
           ok: true,
           status: "rejected",
         });

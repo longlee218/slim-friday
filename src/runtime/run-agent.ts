@@ -57,7 +57,7 @@ export interface RunAgentInput {
   worktreesDir?: string;
   /** Workspace whose curated skills dir the run may use, via an app-owned plugin copy. */
   skillsWorkspace?: string;
-  /** Context of the memory tools and `SetThreadTitle`; omitted = no memory tools. */
+  /** Context of the memory tools and `Orchestrate set_title`; omitted = no memory tools. */
   memory?: MemoryToolContext;
   /** Builds the app ctx parts of ONE query() call; the role's `mcpTools` picks the tools. */
   appCtx?: AppCtxFactory;

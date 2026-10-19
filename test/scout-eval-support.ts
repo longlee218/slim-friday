@@ -65,7 +65,7 @@ export function urlsOf(text: string): string[] {
 
 /** What one case produced (one case per db). */
 export interface ScoutOutcome {
-  /** A scout item ended COMPLETED (its `ReportResult.status`). */
+  /** A scout item ended COMPLETED (its `Report result.status`). */
   completed: boolean;
   /** Result excerpt plus the text of the artifacts the scout saved. */
   text: string;

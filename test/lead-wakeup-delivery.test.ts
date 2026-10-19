@@ -39,15 +39,17 @@ test("E-H3: boot replays an undelivered owner message as an owner input", async 
 test("E-H2: a lead run that dispatched and then hit the budget still starts the worker", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
     if (c.prompt.includes("Owner message:")) {
-      await c.tool("DispatchAgent", {
+      await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         intent: "work",
         reason: "one specialist",
-        assignments: [{ key: "main", role: "developer", brief: "do it", dependsOn: [] }],
+        assignments: [
+          { key: "main", subject: "task", role: "developer", brief: "do it", dependsOn: [] },
+        ],
       });
       return { text: "half way", cost: 1, maxBudget: true };
     }

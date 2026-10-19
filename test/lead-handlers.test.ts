@@ -15,7 +15,9 @@ const REQ: DispatchInput = {
   strategy: "DIRECT",
   intent: "clean node_modules",
   reason: "one job",
-  assignments: [{ key: "main", role: "developer", brief: "clean it", dependsOn: [] }],
+  assignments: [
+    { key: "main", subject: "task", role: "developer", brief: "clean it", dependsOn: [] },
+  ],
 };
 
 test("dispatch: opens the goal, adds items, one start event per item, counts the run", async () => {
@@ -50,6 +52,7 @@ test("dispatch over DELEGATE_MAX assignments answers NEEDS_PLAN; supersedes pass
   const port = new FakePort();
   const many = Array.from({ length: DELEGATE_MAX + 1 }, (_, i) => ({
     key: `k${i}`,
+    subject: `Task ${i}`,
     role: "developer",
     brief: "b",
     dependsOn: [],

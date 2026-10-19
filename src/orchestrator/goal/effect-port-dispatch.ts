@@ -1,5 +1,9 @@
 import type { Database } from "bun:sqlite";
-import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
+import {
+  ORCHESTRATE_ACTION_DISPATCH,
+  orchestrateAudit,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
+import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
 import { excerpt } from "../../observability/logger";
 import { GRANT_TOOL, grantRowId } from "../../policy/load-envelope";
 import { LEAD_ROLE } from "../../roles/builtin/lead-role";
@@ -48,6 +52,8 @@ export function createDispatchWriter(
           itemKey: it.key,
           dependsOn: it.dependsOn,
           brief: it.brief,
+          subject: it.subject,
+          priority: it.priority ?? 0,
           ...(it.location && { location: it.location }),
         });
         return id;
@@ -66,14 +72,15 @@ export function createDispatchWriter(
             strategy: x.strategy,
             reason: x.reason,
             by: "lead",
-            tool: DISPATCH_AGENT_TOOL,
+            tool: ORCHESTRATE_TOOL,
+            action: ORCHESTRATE_ACTION_DISPATCH,
           },
         });
       appendEffect(db, {
         id: x.key,
         threadId,
         goalId,
-        tool: DISPATCH_AGENT_TOOL,
+        tool: orchestrateAudit(ORCHESTRATE_ACTION_DISPATCH),
         scope: "lead tool call",
         grantedBy: "role",
         result: JSON.stringify({ ok: true, goalId, itemIds }),

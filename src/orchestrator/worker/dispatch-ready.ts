@@ -151,8 +151,8 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
         continue;
       }
       // A start that throws (bad role data, db error) fails that item only: the other picks still start.
-      const started = await startWorker(rt, ctx, threadId, next, (announce = true) => {
-        if (announce) rt.announce(threadId);
+      const started = await startWorker(rt, ctx, threadId, next, (announce = true, delayMs) => {
+        if (announce) rt.announce(threadId, delayMs);
         void dispatchReady(rt, threadId);
         wakeDeferred(rt);
       }).catch((err: unknown) => {

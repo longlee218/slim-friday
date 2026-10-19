@@ -57,6 +57,13 @@
       "when": 1792378692309,
       "tag": "0007_structure_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792385259632,
+      "tag": "0008_item_priority_subject",
+      "breakpoints": true
     }
   ]
 }

@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { REPORT_ARTIFACTS_MAX } from "../../artifacts/artifact-limits";
+import { PRIORITY_VALUES, SUBJECT_MAX_CHARS } from "../../config/lead-caps";
 import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
 import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 import { RESULT_KINDS } from "../../roles/typed-result";
 import {
+  BLOCKER_REASON_MAX_CHARS,
   BRIEF_MAX_CHARS,
   MAX_ASSIGNMENTS,
   MAX_REQUESTS,
@@ -16,10 +18,11 @@ import {
   REASON_MAX_CHARS,
   REPORT_SUMMARY_MAX_CHARS,
   REQUEST_MAX_CHARS,
+  SEARCH_QUERY_MAX_CHARS,
   STEER_TEXT_MAX_CHARS,
 } from "./lead-limits";
 
-/* Input schemas (zod raw shapes) of the lead's tools and of the worker's ReportResult. The SDK validates a call
+/* Input schemas (zod raw shapes) of the lead's tools and of the worker's Report result. The SDK validates a call
    against them before any handler runs; the handlers' input types are inferred from the same shapes. */
 
 /** Item key: a short slug (it becomes a file name segment). */
@@ -27,9 +30,28 @@ export const KEY = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/);
 /** Task id as given by the status and dispatch tools. */
 export const TASK_ID = z.string().min(1).max(80);
 
+/** Short label of an item (the list / digest / plan line); `brief` stays the full description. */
+export const SUBJECT = z
+  .string()
+  .min(1)
+  .max(SUBJECT_MAX_CHARS)
+  .describe("Short label of the task, at most 80 chars; brief is the description");
+/** Urgency of an item: 0 normal (omitted = 0), 10 high, 100 urgent. Ready items start by priority, then age; a running item is not preempted. */
+export const PRIORITY_VALUE = z
+  .literal([...PRIORITY_VALUES])
+  .describe("0 normal, 10 high, 100 urgent");
+export const PRIORITY_FIELD = PRIORITY_VALUE.optional();
+/** Repeat a call that `DUPLICATE_SUSPECT` refused when the work really is new. */
+export const CONFIRM_NEW = z
+  .boolean()
+  .optional()
+  .describe("true = it is new work even though a similar task exists");
+
 /** One worker assignment. */
 const ASSIGNMENT = z.object({
   key: KEY.describe("Unique within this dispatch, e.g. main"),
+  subject: SUBJECT,
+  priority: PRIORITY_FIELD,
   role: z.string().min(1).max(40).describe("Worker role name from the roster"),
   brief: z.string().min(1).max(BRIEF_MAX_CHARS).describe("What the worker must do, self-contained"),
   location: z.string().min(1).max(80).optional().describe("Location name; omit when none"),
@@ -55,6 +77,7 @@ export const DISPATCH_AGENT_SHAPE = {
     .max(6)
     .optional()
     .describe("Push / PR / merge the workers need, e.g. the owner asked for a PR"),
+  confirmNew: CONFIRM_NEW,
 };
 export const TASK_STATUS_SHAPE = { taskId: TASK_ID.optional() };
 export const STEER_TASK_SHAPE = {
@@ -69,7 +92,7 @@ export const RETRY_TASK_SHAPE = {
   taskId: TASK_ID,
   note: z.string().min(1).max(STEER_TEXT_MAX_CHARS).describe("What to fix or change on the retry"),
 };
-/** How `AskOwner` collects the answer: Yes/No buttons, a pick among options, or typed text. */
+/** How `Orchestrate ask_owner` collects the answer: Yes/No buttons, a pick among options, or typed text. */
 export const ASK_KINDS = ["yesno", "select", "text"] as const;
 export const ASK_OWNER_SHAPE = {
   question: z.string().min(1).max(QUESTION_MAX_CHARS),
@@ -87,7 +110,13 @@ export const REGISTER_LOCATION_SHAPE = {
     .string()
     .min(1)
     .max(PATH_MAX_CHARS)
-    .describe("Directory path exactly as the owner wrote it in the current message"),
+    .describe("Directory path exactly as the owner wrote it in the current message or answer"),
+  create: z
+    .boolean()
+    .optional()
+    .describe(
+      "true = make a NEW project there (mkdir, git init, README, first commit). Ask the owner first with ask_owner select; the answer is the approval",
+    ),
 };
 export const FORWARD_RESULT_SHAPE = { taskId: TASK_ID, mode: z.enum(["verbatim", "summary"]) };
 
@@ -115,7 +144,7 @@ export const REPORT_RESULT_SHAPE = {
     ),
 };
 
-/** A worker's `ReportProgress` input: how far along (whole percent) and what it is doing now. */
+/** A worker's `Report` progress input: how far along (whole percent) and what it is doing now. */
 export const REPORT_PROGRESS_SHAPE = {
   percent: z.number().int().min(0).max(100),
   note: z.string().min(1).max(PROGRESS_NOTE_MAX_CHARS),

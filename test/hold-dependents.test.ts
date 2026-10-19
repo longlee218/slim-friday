@@ -9,12 +9,13 @@ import { isWorkerRun } from "./mcp-run-probe";
 
 const step = (key: string, dependsOn: string[] = [], role = "developer") => ({
   key,
+  subject: `Do ${key}`,
   role,
   brief: `do ${key}`,
   dependsOn,
 });
 const dispatch = (c: any, assignments: object[]) =>
-  c.tool("DispatchAgent", {
+  c.orchestrate("dispatch", {
     strategy: "DELEGATE",
     intent: "work",
     reason: "test",
@@ -33,7 +34,7 @@ const itemOf = (h: ReturnType<typeof leadHarness>, key: string) => {
 const goalStatus = (h: ReturnType<typeof leadHarness>) =>
   (h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").get() as any)?.status;
 
-test("worker FAILED: dependents stay pending, goal stays open; RetryTask resumes the item with the note and the goal completes", async () => {
+test("worker FAILED: dependents stay pending, goal stays open; Orchestrate retry resumes the item with the note and the goal completes", async () => {
   let failures = 0;
   const h = leadHarness(
     async (c) => {
@@ -41,10 +42,10 @@ test("worker FAILED: dependents stay pending, goal stays open; RetryTask resumes
         const key =
           /do (\w+)/.exec(c.prompt)?.[1] ?? (c.prompt.includes(RESUME_PROMPT) ? "a" : "?");
         if (key === "a" && !c.prompt.includes(RESUME_PROMPT)) {
-          await c.tool("ReportResult", { title: "T", status: "FAILED", summary: "broke" });
+          await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
           return "failed";
         }
-        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: `${key} ok` });
+        await c.report("result", { title: "T", status: "COMPLETED", summary: `${key} ok` });
         return "ok";
       }
       if (c.prompt.includes("Owner message:")) {
@@ -53,7 +54,10 @@ test("worker FAILED: dependents stay pending, goal stays open; RetryTask resumes
       }
       const failed = /failure task=([0-9a-f-]{36}) .*"class":"real"/.exec(c.prompt);
       if (failed && failures++ === 0) {
-        const r = await c.tool("RetryTask", { taskId: failed[1], note: "try the other approach" });
+        const r = await c.orchestrate("retry", {
+          taskId: failed[1],
+          note: "try the other approach",
+        });
         expect(r.ok).toBe(true);
       }
       return "";
@@ -80,7 +84,7 @@ test("worker FAILED: dependents stay pending, goal stays open; RetryTask resumes
 test("held item: dependents are not started and the goal is not settled while the lead has not decided", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "FAILED", summary: "broke" });
+      await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
     }
     if (c.prompt.includes("Owner message:")) {
@@ -104,7 +108,7 @@ test("overload: the same session is resumed after the backoff, no failure event 
     async (c) => {
       if (c.kind === "worker") {
         if (n++ === 0) throw new Error("API Error: 529 overloaded_error");
-        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+        await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
         return "ok";
       }
       if (c.prompt.includes("Owner message:")) {
@@ -154,14 +158,14 @@ test("overload on every run: 2 automatic resumes (+2 s, +4 s), then the item is 
   expect(goalStatus(h)).toBe("open");
 }, 30_000);
 
-test("start + 2 RetryTask, then a transient failure: the breaker does not kill the resume; after the cap the item is held, never failed", async () => {
+test("start + 2 Orchestrate retry, then a transient failure: the breaker does not kill the resume; after the cap the item is held, never failed", async () => {
   let runs = 0;
   let retries = 0;
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
       // Runs 1 and 2 report FAILED (the lead retries them); from run 3 (dispatch 3) the API is overloaded.
       if (++runs <= 2) {
-        await c.tool("ReportResult", { title: "T", status: "FAILED", summary: "broke" });
+        await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
         return "failed";
       }
       throw new Error("API Error: 529 overloaded_error");
@@ -173,7 +177,7 @@ test("start + 2 RetryTask, then a transient failure: the breaker does not kill t
     const failed = /failure task=([0-9a-f-]{36}) .*"cause":"worker_failed"/.exec(c.prompt);
     if (failed && retries < 2) {
       retries++;
-      expect((await c.tool("RetryTask", { taskId: failed[1], note: "again" })).ok).toBe(true);
+      expect((await c.orchestrate("retry", { taskId: failed[1], note: "again" })).ok).toBe(true);
     }
     return "";
   });

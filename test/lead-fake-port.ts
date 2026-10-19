@@ -12,8 +12,12 @@ import type {
   SteerReply,
   TaskSnapshot,
 } from "../src/orchestrator/goal/effect-port";
+import type { AddItemWrite, GoalFacts } from "../src/orchestrator/goal/effect-port-item-types";
+import type { TaskMatch } from "../src/orchestrator/goal/task-reads";
 import type { LeadToolContext } from "../src/orchestrator/lead/lead-call";
+import type { Reply } from "../src/orchestrator/reply";
 import type { GoalState, PolicyEnv } from "../src/orchestrator/strategy/caps";
+import type { ItemEdit } from "../src/storage/item-edit-store";
 import type { ItemRow } from "../src/storage/owned-item-store";
 
 /** In-memory EffectPort for handler tests: records every effect, answers reads from fields the test sets. */
@@ -98,6 +102,24 @@ export class FakePort implements EffectPort {
     this.retried.push({ taskId, note });
     return "ok" as const;
   };
+  /** Task-tool reads and writes (test-set): goal facts, what `addItem` / `editItem` received, the matches `similar` returns. */
+  goalFacts = new Map<string, GoalFacts>();
+  addedItems: AddItemWrite[] = [];
+  edits: { taskId: string; edit: ItemEdit }[] = [];
+  matches: TaskMatch[] = [];
+  goal = (id: string): GoalFacts | undefined =>
+    this.goalFacts.get(id) ?? { structureOwner: "lead", overBudget: false };
+  addItem = (w: AddItemWrite) => {
+    this.addedItems.push(w);
+    return `new-${this.addedItems.length}`;
+  };
+  editItem = (taskId: string, edit: ItemEdit) => {
+    this.edits.push({ taskId, edit });
+    return true;
+  };
+  similar = () => this.matches;
+  detail = (taskId: string): Reply => ({ ok: true, id: taskId });
+  search = (): Reply => ({ ok: true, matches: [] });
   askOwner = async (q: OwnerQuestion) => (this.asked.push(q), this.answer);
   post = async (p: Post) => void this.posts.push(p);
 }
@@ -114,6 +136,9 @@ export const itemRow = (over: Partial<ItemRow> = {}): ItemRow => ({
   ownerRole: null,
   location: null,
   brief: null,
+  subject: null,
+  priority: 0,
+  lastProgressAt: Date.now(),
   resultKind: null,
   resultPath: null,
   resultExcerpt: null,

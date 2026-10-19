@@ -59,15 +59,17 @@ async function crashScenario(iter: number, crashes: number) {
             await new Promise<void>((r) => release.push(r)); // the process dies here (until the test ends)
             return "late";
           }
-          await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done" });
+          await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
           return "worker done";
         }
         if (c.prompt.includes("Owner message:")) {
-          await c.tool("DispatchAgent", {
+          await c.orchestrate("dispatch", {
             strategy: "DIRECT",
             intent: "work",
             reason: "one specialist",
-            assignments: [{ key: "main", role: "developer", brief: "do it", dependsOn: [] }],
+            assignments: [
+              { key: "main", subject: "task", role: "developer", brief: "do it", dependsOn: [] },
+            ],
           });
           return "On it.";
         }

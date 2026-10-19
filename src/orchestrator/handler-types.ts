@@ -27,7 +27,7 @@ export interface TurnHandlerDeps {
   leadPool?: RunLimiter;
   /** Owner approval gateway; required for background roles such as developer. */
   approvals?: ApprovalGateway;
-  /** Renames threads for `SetThreadTitle` (offered to every role run; not rollover runs); omitted = the tool is not offered. */
+  /** Renames threads for `Orchestrate set_title` (offered to every role run; not rollover runs); omitted = the tool is not offered. */
   threadTitle?: ThreadTitlePort;
   /** Posts into a thread by id: the lead's boot wake (a restart) has no owner message to answer through. Omitted = that wake is skipped. */
   post?: (threadId: string, text: string) => Promise<void>;

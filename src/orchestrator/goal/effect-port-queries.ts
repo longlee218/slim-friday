@@ -59,6 +59,8 @@ export function snapshotOf(db: Database, threadId: string, taskId?: string): Tas
         key: it.itemKey,
         ...(it.location && { location: it.location }),
         status: it.status,
+        subject: it.subject,
+        priority: it.priority,
         ...(pendingQuestion && { pendingQuestion }),
         ...(progress && { progress }),
         resultKind: it.resultKind,

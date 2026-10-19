@@ -50,8 +50,8 @@ const req = (over: Partial<DispatchInput> = {}): DispatchInput => ({
   intent: "two steps",
   reason: "r",
   assignments: [
-    { key: "a", role: "developer", brief: "first", dependsOn: [] },
-    { key: "b", role: "scout", brief: "second", dependsOn: ["a"] },
+    { key: "a", subject: "task", role: "developer", brief: "first", dependsOn: [] },
+    { key: "b", subject: "task", role: "scout", brief: "second", dependsOn: ["a"] },
   ],
   ...over,
 });
@@ -85,7 +85,7 @@ test("one open goal: a second dispatch is refused GOAL_OPEN; supersedes cancels 
       intent: "y",
       supersedes: goalId,
       strategy: "DIRECT",
-      assignments: [{ key: "m", role: "developer", brief: "b", dependsOn: [] }],
+      assignments: [{ key: "m", subject: "task", role: "developer", brief: "b", dependsOn: [] }],
     }),
   );
   expect(next.ok).toBe(true);
@@ -99,7 +99,7 @@ test("a goal whose items all ended is no longer open", async () => {
     ctx(),
     req({
       strategy: "DIRECT",
-      assignments: [{ key: "m", role: "developer", brief: "b", dependsOn: [] }],
+      assignments: [{ key: "m", subject: "task", role: "developer", brief: "b", dependsOn: [] }],
     }),
   );
   const id = port.state().items[0]?.id as string;
@@ -169,8 +169,22 @@ test("steer without a pending question maps the registry result; none = ended", 
 
 /** Two items with the same key: the second insert hits the unique (goal, item key) index and throws. */
 const DUP_ITEMS = [
-  { key: "a", role: "developer", brief: "x", dependsOn: [], status: "ready" as const },
-  { key: "a", role: "developer", brief: "y", dependsOn: [], status: "ready" as const },
+  {
+    key: "a",
+    subject: "task",
+    role: "developer",
+    brief: "x",
+    dependsOn: [],
+    status: "ready" as const,
+  },
+  {
+    key: "a",
+    subject: "task",
+    role: "developer",
+    brief: "y",
+    dependsOn: [],
+    status: "ready" as const,
+  },
 ];
 
 const WRITE = { key: "k1", strategy: "DELEGATE", intent: "two same-key items", reason: "r" };
@@ -256,7 +270,7 @@ test("a re-run of the same lead input (a retry) does not post or ask twice; a re
     run1,
     req({
       strategy: "DIRECT",
-      assignments: [{ key: "m", role: "developer", brief: "b", dependsOn: [] }],
+      assignments: [{ key: "m", subject: "task", role: "developer", brief: "b", dependsOn: [] }],
     }),
   );
   const id = port.state().items[0]?.id as string;
@@ -272,13 +286,16 @@ test("a re-run of the same lead input (a retry) does not post or ask twice; a re
   // a dispatch refused by an open goal succeeds after the blocker is cleared (not replayed from a stored refusal)
   const again = req({
     strategy: "DIRECT",
-    assignments: [{ key: "n", role: "developer", brief: "b", dependsOn: [] }],
+    assignments: [{ key: "n", subject: "task", role: "developer", brief: "b", dependsOn: [] }],
   });
   const c2 = ctx("in2");
   expect(await handleDispatch(c2, again)).toMatchObject({ code: "GOAL_OPEN" });
   moveTaskTo(db, id, "running");
   moveTaskTo(db, id, "completed");
-  expect(await handleDispatch({ ...c2, run: { dispatched: 0 } }, again)).toMatchObject({
+  // The same work again within the window is a suspect; the lead says it is new.
+  expect(
+    await handleDispatch({ ...c2, run: { dispatched: 0 } }, { ...again, confirmNew: true }),
+  ).toMatchObject({
     ok: true,
   });
 });

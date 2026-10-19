@@ -11,7 +11,7 @@ import { findSensitive } from "./sensitive-files";
    boundary: the app does not parse the command line. A location the owner registered is
    trusted: inside a granted dir the worker's processes read and write everything (`.git` hooks and config, and for a location
    equal to the home dir the dotfiles, included). The sandbox bounds what is OUTSIDE the grants: no write outside them, no read of
-   the agent home or of a credential dir that no grant covers, no network. NOT live-verified (see the L2c checklist). */
+   the agent home or of a credential dir that no grant covers. Network is open (owner decision). NOT live-verified (see the L2c checklist). */
 
 /** Toolchain dirs of the home that a worker's `bun` / `cargo` / `node` needs to read (only those that exist are listed). Not secret. */
 const TOOLCHAIN_HOME = [".bun", ".cargo", ".rustup", ".nvm", ".volta", ".deno", ".asdf", ".pyenv"];
@@ -46,7 +46,8 @@ export function carve(root: string, blocked: string[], depth = 0): string[] {
  * - Reads: DENY BY DEFAULT for the owner's home (and `/Users`); the run's granted dirs, the toolchain dirs and git's global config
  *   are allowed back (an allow rule beats a deny rule, so a granted home is listed child by child around the agent home). A
  *   credential dir is denied only when no granted dir covers it: the location wins.
- * - Network closed (no domain, `strictAllowlist`). The sandbox is required and a command cannot opt out of it.
+ * - Network OPEN (owner decision 2026-10-18): `allowedDomains: ["*"]` (bare wildcard, CLI >= 2.1.186). Without it the CLI keeps an
+ *   empty allowlist and asks `canUseTool` (`SandboxNetworkAccess`) per host. The read/write limits above still bind. The sandbox is required and a command cannot opt out of it.
  */
 export function workerSandbox(guard: GuardrailContext | undefined): Options["sandbox"] | undefined {
   const env = guard?.envelope;
@@ -113,6 +114,6 @@ export function workerSandbox(guard: GuardrailContext | undefined): Options["san
         ]),
       ],
     },
-    network: { allowedDomains: [], strictAllowlist: true },
+    network: { allowedDomains: ["*"] },
   };
 }

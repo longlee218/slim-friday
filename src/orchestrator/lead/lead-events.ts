@@ -130,7 +130,10 @@ const ANNOUNCE_WINDOW_MS = 2000;
 export const announceRearmDelay = (streak: number, windowMs = ANNOUNCE_WINDOW_MS): number =>
   Math.min(windowMs * 2 ** Math.min(streak, 16), ANNOUNCE_REARM_MAX_MS);
 
-/** The announcer: `notify` after an event was appended (`delayMs` replaces the quiet window); `stopAll` at shutdown. */
+/**
+ * The announcer: `notify` after an event was appended (`delayMs` replaces the quiet window; a waiting batch is brought
+ * forward by a smaller delay, never pushed back); `stopAll` at shutdown.
+ */
 export interface Announcer {
   notify(threadId: string, delayMs?: number): void;
   /** Drop the thread's waiting batch (`/stop`). */
@@ -144,26 +147,28 @@ export function createAnnouncer(o: {
   push: (i: LeadInput) => void;
   windowMs?: number;
 }): Announcer {
-  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** The waiting batch of a thread: its timer and the time it fires. */
+  const timers = new Map<string, { t: ReturnType<typeof setTimeout>; at: number }>();
   return {
     notify(threadId, delayMs) {
-      if (timers.has(threadId)) return; // a batch is already waiting
-      const t = setTimeout(
-        () => {
-          timers.delete(threadId);
-          if (wakesLead(o.db, threadId)) o.push({ threadId, kind: "announce", messageIds: [] });
-        },
-        delayMs ?? o.windowMs ?? ANNOUNCE_WINDOW_MS,
-      );
+      const delay = delayMs ?? o.windowMs ?? ANNOUNCE_WINDOW_MS;
+      const at = Date.now() + delay;
+      const waiting = timers.get(threadId);
+      if (waiting && waiting.at <= at) return; // a batch is already waiting, and fires no later
+      clearTimeout(waiting?.t); // an urgent news (a blocker) brings the batch forward
+      const t = setTimeout(() => {
+        timers.delete(threadId);
+        if (wakesLead(o.db, threadId)) o.push({ threadId, kind: "announce", messageIds: [] });
+      }, delay);
       t.unref(); // a batch never keeps the process alive
-      timers.set(threadId, t);
+      timers.set(threadId, { t, at });
     },
     cancel(threadId) {
-      clearTimeout(timers.get(threadId));
+      clearTimeout(timers.get(threadId)?.t);
       timers.delete(threadId);
     },
     stopAll() {
-      for (const t of timers.values()) clearTimeout(t);
+      for (const w of timers.values()) clearTimeout(w.t);
       timers.clear();
     },
   };

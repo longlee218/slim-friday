@@ -48,3 +48,22 @@ export const LEAD_REPLAY_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
 /** Longest delay (ms) before a dropped announce is armed again: the delay doubles from the announce window while the lead pool keeps refusing it. */
 export const ANNOUNCE_REARM_MAX_MS = 60_000;
+
+/** Item urgency: the scheduler starts ready items by priority (highest first), then age. A running item is never preempted. */
+export const PRIORITY = { normal: 0, high: 10, urgent: 100 } as const;
+/** A `ready` item that waited longer than this (ms) is started as if urgent (FIFO among urgent ones), so newer urgent items cannot starve it. No preemption. */
+export const PRIORITY_AGING_MS = 30 * 60 * 1000;
+/** The accepted `priority` values (the default is `PRIORITY.normal`). */
+export const PRIORITY_VALUES = [PRIORITY.normal, PRIORITY.high, PRIORITY.urgent] as const;
+
+/** Token overlap (0-1, Jaccard on subject + brief) from which a new item looks like an existing one: `DUPLICATE_SUSPECT` unless `confirmNew`. */
+export const DUPLICATE_MIN_OVERLAP = 0.6;
+
+/** An item of the thread that ended (completed) longer ago than this (ms) is no longer compared by the duplicate check; open items always are. */
+export const DUPLICATE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** Most matches a `DUPLICATE_SUSPECT` refusal lists (best first). */
+export const DUPLICATE_MAX_MATCHES = 3;
+
+/** Max chars of an item `subject` (the short label shown in lists, digests and plans; `brief` is the description). */
+export const SUBJECT_MAX_CHARS = 80;

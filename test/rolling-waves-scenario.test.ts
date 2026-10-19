@@ -9,6 +9,7 @@ const GOAL = /Goal id: ([0-9a-f-]{36})/;
 const PLAN_ID = /"planId":"([0-9a-f-]{36})"/;
 const item = (key: string, extra: object = {}) => ({
   key,
+  subject: `Do ${key}`,
   role: "developer",
   brief: `do ${key}`,
   location: "location",
@@ -34,10 +35,10 @@ test("45 items over 3 waves: one owner approval, waves start by code, ONE verify
     async (c) => {
       if (c.kind === "planner") {
         const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        const ctx = await c.tool("GetProjectContext", { goalId });
+        const ctx = await c.plan("context", { goalId });
         if (!c.prompt.includes("Wave ")) {
           // Wave 1: 15 items now, 5 deferred placeholders for the rest (a version holds 20).
-          const made = await c.tool("CreatePlan", {
+          const made = await c.plan("create", {
             goalId,
             items: [...wave(1, 15), ...later(2, 5)],
             acceptanceCriteria: ["everything works"],
@@ -46,7 +47,7 @@ test("45 items over 3 waves: one owner approval, waves start by code, ONE verify
             effects: [],
           });
           expect(made).toMatchObject({ ok: true, status: "valid" });
-          await c.tool("ReportResult", {
+          await c.report("result", {
             title: "T",
             status: "COMPLETED",
             summary: `plan ${made.planId} v1`,
@@ -58,7 +59,7 @@ test("45 items over 3 waves: one owner approval, waves start by code, ONE verify
         expect(ctx.deferredItems.length).toBe(5);
         const keys = ctx.deferredItems.map((d: { key: string }) => d.key);
         // Wave 2 activates its deferred items in place (modify); wave 3 swaps them for new ones (cancel + add).
-        const r = await c.tool("ProposePlanRevision", {
+        const r = await c.plan("revise", {
           planId: ctx.plan.planId,
           baseVersion: ctx.plan.version,
           cancel: n === 2 ? [] : keys,
@@ -67,7 +68,7 @@ test("45 items over 3 waves: one owner approval, waves start by code, ONE verify
           reason: `wave ${n}`,
         });
         expect(r).toMatchObject({ ok: true, status: "approved" }); // no owner question
-        await c.tool("ReportResult", {
+        await c.report("result", {
           title: "T",
           status: "COMPLETED",
           summary: `wave ${n} planned`,
@@ -76,17 +77,17 @@ test("45 items over 3 waves: one owner approval, waves start by code, ONE verify
       }
       if (c.kind === "worker") {
         order.push(/^do ([\w-]+)/m.exec(c.prompt)?.[1] ?? "verify");
-        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done" });
+        await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
         return "worker done";
       }
       if (c.prompt.includes("Owner message:")) {
-        await c.tool("RequestPlan", { objective: "build the big thing" });
+        await c.orchestrate("request_plan", { objective: "build the big thing" });
         return "Planning.";
       }
       const plan = PLAN_ID.exec(c.prompt)?.[1];
       if (plan && !approved) {
         approved = true;
-        expect(await c.tool("ApprovePlan", { planId: plan, version: 1 })).toMatchObject({
+        expect(await c.orchestrate("approve_plan", { planId: plan, version: 1 })).toMatchObject({
           ok: true,
         });
         return "Plan approved.";

@@ -31,7 +31,7 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).toContain(`At most ${CHAIN_CAP} chained starts`);
   expect(md).toContain("1 dispatch per run");
   expect(md).not.toContain("/day"); // no daily budget is told to the lead
-  expect(md).toContain("RetryTask"); // a held failure: retry with a note, or cancel
+  expect(md).toContain("Orchestrate retry"); // a held failure: retry with a note, or cancel
   expect(md).toContain("resumed by code in the same session");
   expect(md).toContain("slot_wait event"); // an item may wait for a worker slot
   expect(md).toContain("older than 8 h is held with cause item_age");
@@ -61,6 +61,8 @@ test("data block: heading says data, one row per item, results are redacted and 
         {
           id: "t1",
           key: "main",
+          subject: "Main",
+          priority: 0,
           status: "completed",
           resultKind: "COMPLETED",
           resultPath: "/h/goals/g1/main.md",
@@ -70,6 +72,8 @@ test("data block: heading says data, one row per item, results are redacted and 
         {
           id: "t2",
           key: "next",
+          subject: "Next",
+          priority: 0,
           status: "waiting_user",
           resultKind: null,
           resultPath: null,

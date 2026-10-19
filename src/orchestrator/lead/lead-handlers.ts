@@ -1,12 +1,16 @@
-import { ASK_OWNER_TOOL } from "../../mcp/orchestration/tools/AskOwnerTool/constants";
-import { CANCEL_TASK_TOOL } from "../../mcp/orchestration/tools/CancelTaskTool/constants";
-import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
-import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
-import { RETRY_TASK_TOOL } from "../../mcp/orchestration/tools/RetryTaskTool/constants";
-import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
-import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
+import {
+  ORCHESTRATE_ACTION_ASK_OWNER,
+  ORCHESTRATE_ACTION_CANCEL,
+  ORCHESTRATE_ACTION_DISPATCH,
+  ORCHESTRATE_ACTION_FORWARD,
+  ORCHESTRATE_ACTION_LIST,
+  ORCHESTRATE_ACTION_RETRY,
+  ORCHESTRATE_ACTION_STEER,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { isHeld } from "../../storage/owned-item-store";
 import type { OwnerQuestion } from "../goal/effect-port";
+import { duplicateRefusal } from "../goal/task-reads";
 import { type Reply, refuse } from "../reply";
 import { checkDispatch, dispatchQuestion } from "../strategy/dispatch-policy";
 import { type LeadToolContext, leadCall } from "./lead-call";
@@ -29,13 +33,19 @@ export const ENDED = new Set(["completed", "failed", "cancelled"]);
 const BAD_TASK = "BAD_TASK";
 export const badTask = (id: string): Reply => refuse(BAD_TASK, `Task ${id} is not in this thread.`);
 
-/** DispatchAgent: check the policy, then one port transaction writes goal, items, `start` events and the audit row. */
+/** Orchestrate dispatch: check the policy, then one port transaction writes goal, items, `start` events and the audit row. */
 export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Promise<Reply> =>
-  leadCall(ctx, DISPATCH_AGENT_TOOL, input, async (key) => {
+  leadCall(ctx, ORCHESTRATE_ACTION_DISPATCH, input, async (key) => {
     const { port } = ctx;
     const caps = { ...port.caps(), dispatchedThisRun: ctx.run.dispatched };
     const check = checkDispatch(port.state(), input, caps, port.env());
     if (!check.ok) return { reply: refuse(check.code, check.message) };
+    // Search before create: a similar open or recent task of the thread (the goal being replaced is not one) is a suspect.
+    if (!input.confirmNew) {
+      const texts = input.assignments.map((a) => ({ subject: a.subject, brief: a.brief }));
+      const dup = duplicateRefusal(port.similar(texts, input.supersedes ? [input.supersedes] : []));
+      if (dup) return { reply: dup };
+    }
     const blocked = await supersedeGate(ctx, input.supersedes);
     if (blocked) return { reply: blocked };
     // Effect actions the lead declared (push, PR, merge): ONE question to the owner, listing the scope. No = nothing starts.
@@ -68,7 +78,7 @@ export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Prom
 export const handleTaskStatus = (ctx: LeadToolContext, input: TaskStatusInput): Promise<Reply> =>
   leadCall(
     ctx,
-    TASK_STATUS_TOOL,
+    ORCHESTRATE_ACTION_LIST,
     input,
     () => {
       const snap = ctx.port.snapshot(input.taskId);
@@ -77,17 +87,17 @@ export const handleTaskStatus = (ctx: LeadToolContext, input: TaskStatusInput): 
     { read: true },
   );
 
-/** SteerTask: owner text to one task of this thread. */
+/** Orchestrate steer: owner text to one task of this thread. */
 export const handleSteer = (ctx: LeadToolContext, input: SteerInput): Promise<Reply> =>
-  leadCall(ctx, STEER_TASK_TOOL, input, () => {
+  leadCall(ctx, ORCHESTRATE_ACTION_STEER, input, () => {
     const item = ctx.port.item(input.taskId);
     if (!item) return { reply: badTask(input.taskId) };
-    // A held task has no run to take the text and no waiting answer to resume: only RetryTask (with a note) starts it again.
+    // A held task has no run to take the text and no waiting answer to resume: only Orchestrate retry (with a note) starts it again.
     if (isHeld(item))
       return {
         reply: refuse(
           "HELD",
-          `Task is held: use ${RETRY_TASK_TOOL} with the text as its note (it resumes the task), or cancel it.`,
+          `Task is held: use ${orchestrateRef(ORCHESTRATE_ACTION_RETRY)} with the text as its note (it resumes the task), or cancel it.`,
         ),
       };
     const result = ctx.port.steer(input.taskId, input.text);
@@ -100,9 +110,9 @@ export const handleSteer = (ctx: LeadToolContext, input: SteerInput): Promise<Re
     };
   });
 
-/** CancelTask: cancel one task and its dependents; a task that already ended is refused. */
+/** Orchestrate cancel: cancel one task and its dependents; a task that already ended is refused. */
 export const handleCancel = (ctx: LeadToolContext, input: CancelInput): Promise<Reply> =>
-  leadCall(ctx, CANCEL_TASK_TOOL, input, () => {
+  leadCall(ctx, ORCHESTRATE_ACTION_CANCEL, input, () => {
     const item = ctx.port.item(input.taskId);
     if (!item) return { reply: badTask(input.taskId) };
     if (ENDED.has(item.status)) return { reply: refuse("ENDED", `Task already ${item.status}.`) };
@@ -124,7 +134,7 @@ export const handleCancel = (ctx: LeadToolContext, input: CancelInput): Promise<
 /** Options of a `yesno` question: canonical values (the buttons are localized at the Discord edge). */
 const YES_NO = ["Yes", "No"];
 
-/** Map a typed `AskOwner` input to the port question; a string is the refusal message (options do not fit the kind). */
+/** Map a typed `Orchestrate ask_owner` input to the port question; a string is the refusal message (options do not fit the kind). */
 export function askQuestion(input: AskOwnerInput): OwnerQuestion | string {
   const { kind, question, taskId, workerAskId } = input;
   const given = input.options ?? [];
@@ -143,9 +153,9 @@ export function askQuestion(input: AskOwnerInput): OwnerQuestion | string {
   };
 }
 
-/** AskOwner: a yes/no, select or typed question; the reply carries the answer, or the code TIMEOUT. */
+/** Orchestrate ask_owner: a yes/no, select or typed question; the reply carries the answer, or the code TIMEOUT. */
 export const handleAskOwner = (ctx: LeadToolContext, input: AskOwnerInput): Promise<Reply> =>
-  leadCall(ctx, ASK_OWNER_TOOL, input, async () => {
+  leadCall(ctx, ORCHESTRATE_ACTION_ASK_OWNER, input, async () => {
     if (input.taskId && !ctx.port.item(input.taskId)) return { reply: badTask(input.taskId) };
     const q = askQuestion(input);
     if (typeof q === "string") return { reply: refuse("BAD_OPTIONS", q) };
@@ -154,15 +164,16 @@ export const handleAskOwner = (ctx: LeadToolContext, input: AskOwnerInput): Prom
     const events = [{ kind: "question" as const, payload }];
     if (a.timedOut || a.answer === undefined)
       return { reply: refuse("TIMEOUT", "The owner did not answer in time."), events };
+    ctx.run.ownerAnswers = [...(ctx.run.ownerAnswers ?? []), a.answer]; // the owner's own words: a path in them may be registered
     return { reply: { ok: true, answer: a.answer }, events };
   });
 
 /**
- * ForwardResult: post a finished item's result file(s) (verbatim) or its excerpt (summary). Verbatim posts one message
+ * Orchestrate forward: post a finished item's result file(s) (verbatim) or its excerpt (summary). Verbatim posts one message
  * per file the task saved, the primary (result path) first; each file gets its own Open link.
  */
 export const handleForward = (ctx: LeadToolContext, input: ForwardInput): Promise<Reply> =>
-  leadCall(ctx, FORWARD_RESULT_TOOL, input, async () => {
+  leadCall(ctx, ORCHESTRATE_ACTION_FORWARD, input, async () => {
     const item = ctx.port.item(input.taskId);
     if (!item) return { reply: badTask(input.taskId) };
     const verbatim = input.mode === "verbatim";

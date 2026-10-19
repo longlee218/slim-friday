@@ -1,8 +1,9 @@
 import type { Database } from "bun:sqlite";
 
 import { excerpt } from "../../observability/logger";
+import { rewriteNotStartedItem } from "../../storage/item-edit-store";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
-import { insertOwnedTask, rewriteNotStartedItem, taskOrigin } from "../../storage/owned-task-store";
+import { insertOwnedTask, taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
 import { cancelSet } from "../goal/effect-port-queries";
@@ -97,6 +98,8 @@ export function materialize(
         itemKey: it.key,
         dependsOn: it.dependsOn,
         brief: it.brief,
+        subject: it.subject,
+        priority: it.priority ?? 0,
         ...(it.location && { location: it.location }),
       });
       appendEvent(db, {
@@ -122,6 +125,8 @@ export function materialize(
         scope: excerpt(it.brief, SCOPE_CHARS),
         location: it.location ?? null,
         dependsOn: it.dependsOn,
+        subject: it.subject,
+        priority: it.priority ?? 0,
       });
       out.modified.push(it.key);
     }
@@ -184,5 +189,7 @@ export const abortRuns = (ids: readonly string[]): void => {
 /** True when the stored item differs from the plan item in what a worker would see. */
 const changed = (cur: ItemRow, it: PlanItem): boolean =>
   cur.brief !== it.brief ||
+  cur.subject !== it.subject ||
+  cur.priority !== (it.priority ?? 0) ||
   (cur.location ?? undefined) !== it.location ||
   JSON.stringify(cur.dependsOn) !== JSON.stringify(it.dependsOn);

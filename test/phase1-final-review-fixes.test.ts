@@ -58,17 +58,19 @@ function waitingScript(finishOn: string, onLead: (c: Call, item: string) => Prom
     if (c.kind === "worker") {
       if (c.prompt.includes(finishOn))
         return c
-          .tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" })
+          .report("result", { title: "T", status: "COMPLETED", summary: "ok" })
           .then(() => "done");
       return Promise.resolve("which theme?");
     }
     if (c.prompt.includes("Owner message:") && !itemId)
       return c
-        .tool("DispatchAgent", {
+        .orchestrate("dispatch", {
           strategy: "DIRECT",
           intent: "work",
           reason: "one specialist",
-          assignments: [{ key: "main", role: "developer", brief: "style it", dependsOn: [] }],
+          assignments: [
+            { key: "main", subject: "task", role: "developer", brief: "style it", dependsOn: [] },
+          ],
         })
         .then((r) => {
           itemId = r.itemIds[0];
@@ -136,7 +138,7 @@ test("#2/#8: question links are removed when their item settles (completed or ca
   g.db.close();
 }, 30_000);
 
-test("#3 + onMessage link: a reply while AskOwner waits answers the ask, removes its buttons and resumes the item", async () => {
+test("#3 + onMessage link: a reply while Orchestrate ask_owner waits answers the ask, removes its buttons and resumes the item", async () => {
   let resolveAsk: (v: string | undefined) => void = () => {};
   const cancelled: string[] = [];
   let asked: any;
@@ -145,7 +147,7 @@ test("#3 + onMessage link: a reply while AskOwner waits answers the ask, removes
     waitingScript("blue", async (c, id) => {
       if (c.prompt.includes("Task events") && id && !asked) {
         asked = true;
-        askResult = await c.tool("AskOwner", {
+        askResult = await c.orchestrate("ask_owner", {
           kind: "text",
           question: "which theme?",
           taskId: id,
@@ -303,17 +305,17 @@ test("#5: a goal without an approved plan cannot grow its budget; a plan goal be
 test("#5: a budget_hit on a DELEGATE goal says the budget cannot grow; the lead prompt does not promise a retry", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
       return { text: "ok", cost: 20 }; // over the $15 DELEGATE budget
     }
     if (c.prompt.includes("Owner message:")) {
-      await c.tool("DispatchAgent", {
+      await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
         intent: "work",
         reason: "two steps",
         assignments: [
-          { key: "a", role: "developer", brief: "do a", dependsOn: [] },
-          { key: "b", role: "developer", brief: "do b", dependsOn: ["a"] },
+          { key: "a", subject: "task", role: "developer", brief: "do a", dependsOn: [] },
+          { key: "b", subject: "task", role: "developer", brief: "do b", dependsOn: ["a"] },
         ],
       });
       return "started";
@@ -334,7 +336,7 @@ test("#5: a budget_hit on a DELEGATE goal says the budget cannot grow; the lead 
   expect(md).toContain("cannot grow");
 }, 25_000);
 
-test("#6: every RetryTask writes its own retry event, and the newest note reaches the session", () => {
+test("#6: every Orchestrate retry writes its own retry event, and the newest note reaches the session", () => {
   const g = approvedPlan([planItem("a")], { budget: 4 });
   const id = (g.db.query("SELECT id FROM owned_tasks WHERE item_key = 'a'").get() as any).id;
   const port = createRetryPort(g.db, "th");
@@ -355,7 +357,7 @@ test("#6: every RetryTask writes its own retry event, and the newest note reache
   g.db.close();
 });
 
-test("#7: SteerTask on a held item says so (use RetryTask), it never says ended", async () => {
+test("#7: Orchestrate steer on a held item says so (use Orchestrate retry), it never says ended", async () => {
   let r: any;
   const h = leadHarness(
     waitingScript("never", async (c, id) => {
@@ -363,7 +365,7 @@ test("#7: SteerTask on a held item says so (use RetryTask), it never says ended"
         // The age limit held the waiting item: blocked + FAILED.
         moveTaskTo(h.env.db, id, "blocked");
         h.env.db.query("UPDATE owned_tasks SET result_kind = 'FAILED' WHERE id = ?").run(id);
-        r = await c.tool("SteerTask", { taskId: id, text: ANSWER });
+        r = await c.orchestrate("steer", { taskId: id, text: ANSWER });
       }
     }),
   );
@@ -372,7 +374,7 @@ test("#7: SteerTask on a held item says so (use RetryTask), it never says ended"
   await until(() => r !== undefined, 8000);
   expect(r.ok).toBe(false);
   expect(r.code).toBe("HELD");
-  expect(r.message).toContain("RetryTask");
+  expect(r.message).toContain("Orchestrate retry");
 }, 30_000);
 
 test("F5: a dropped announce re-arms with a growing, capped delay", () => {

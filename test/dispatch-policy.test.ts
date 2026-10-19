@@ -13,6 +13,7 @@ const CAPS: Caps = { chainCount: 0, dispatchedThisRun: 0 };
 const IDLE: GoalState = { items: [] };
 const a = (key: string, dependsOn: string[] = [], over: Partial<Assignment> = {}): Assignment => ({
   key,
+  subject: `Do ${key}`,
   role: "developer",
   brief: "b",
   dependsOn,

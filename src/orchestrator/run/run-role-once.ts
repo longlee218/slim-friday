@@ -1,6 +1,6 @@
 import type { Route } from "../../config/model-routing";
 import type { ThreadTitlePort } from "../../ingress/thread-rename";
-import { SET_THREAD_TITLE_TOOL } from "../../mcp/orchestration/tools/SetThreadTitleTool/constants";
+import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { guardFor } from "../../policy/check-tool-call";
 import { withPrefix } from "../../roles/prompts/first-prompt-prefix";
@@ -92,7 +92,7 @@ export function agentRunOnce(p: OnceParts) {
         i,
         s,
         role,
-        hasTitlePort: !!titlePort && !!role.mcpTools?.includes(SET_THREAD_TITLE_TOOL),
+        hasTitlePort: !!titlePort && !!role.mcpTools?.includes(ORCHESTRATE_TOOL),
       }),
       appCtx: i.appCtx,
       resume: resumeId,

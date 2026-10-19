@@ -27,7 +27,7 @@ import {
   TH,
 } from "./waves-fixture";
 
-/* Rolling waves: what ends them. /stop, CancelTask, a new goal, a wave planner that leaves no approved revision, a
+/* Rolling waves: what ends them. /stop, Orchestrate cancel, a new goal, a wave planner that leaves no approved revision, a
    stale unanswered wave plan, plan budget boundaries, and the carried envelope roles. */
 
 let db: Database;
@@ -175,7 +175,7 @@ test("/stop of an idle goal (wave done, planner not inserted yet) closes it: no 
   expect(startNextWave(db, goalId)).toBe(false);
 });
 
-test("CancelTask <goalId> settles an idle goal: capped, stalled and ready alike", () => {
+test("Orchestrate cancel <goalId> settles an idle goal: capped, stalled and ready alike", () => {
   for (const mode of ["capped", "stalled", "ready"] as const) {
     const { goalId, planId } = waveGoal();
     if (mode === "stalled") {

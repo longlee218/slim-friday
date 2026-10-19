@@ -1,13 +1,14 @@
 import { expect, test } from "bun:test";
 import { leadHarness, until } from "./lead-harness";
 
-/* TODO-app scenario with a fake query: owner -> RequestPlan -> planner builds a DAG over the ROSTER roles -> one approval ->
+/* TODO-app scenario with a fake query: owner -> Orchestrate request_plan -> planner builds a DAG over the ROSTER roles -> one approval ->
    architect -> (designer, scaffold) -> build -> (tester || hacker, parallel) -> writer. A second run: the tester fails. */
 
 const GOAL = /Goal id: ([0-9a-f-]{36})/;
 const PLAN_ID = /"planId":"([0-9a-f-]{36})"/;
 const step = (key: string, role: string, dependsOn: string[] = [], risk = "R1") => ({
   key,
+  subject: `Do ${key}`,
   role,
   brief: `do ${key}`,
   ...(role === "solution-architect" || role === "hacker" ? {} : { location: "location" }),
@@ -31,10 +32,10 @@ function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, fina
     async (c) => {
       if (c.kind === "planner") {
         const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        const roles = (await c.tool("GetAgentCapabilities", {})).roles.map((r: any) => r.name);
+        const roles = (await c.plan("capabilities", {})).roles.map((r: any) => r.name);
         for (const r of ["solution-architect", "designer", "tester", "hacker", "humanizer-writer"])
           expect(roles).toContain(r);
-        const made = await c.tool("CreatePlan", {
+        const made = await c.plan("create", {
           goalId,
           items: ITEMS,
           acceptanceCriteria: ["the app runs"],
@@ -47,7 +48,7 @@ function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, fina
           effects: [],
         });
         expect(made).toMatchObject({ ok: true, status: "valid" });
-        await c.tool("ReportResult", {
+        await c.report("result", {
           title: "T",
           status: "COMPLETED",
           summary: `plan ${made.planId} v1`,
@@ -60,17 +61,20 @@ function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, fina
           /^do (\w+)/m.exec(c.prompt)?.[1] ??
           (c.prompt.includes("Acceptance criteria:") ? "verify" : "fix");
         const status = await worker(key);
-        await c.tool("ReportResult", { title: "T", status, summary: `${key} ${status}` });
+        await c.report("result", { title: "T", status, summary: `${key} ${status}` });
         return "worker done";
       }
       if (c.prompt.includes("Owner message:\nbuild a todo app")) {
-        await c.tool("RequestPlan", { objective: "build a todo app", findings: "empty repo" });
+        await c.orchestrate("request_plan", {
+          objective: "build a todo app",
+          findings: "empty repo",
+        });
         return "Planning it.";
       }
       const plan = PLAN_ID.exec(c.prompt)?.[1];
       if (plan && !done.approved) {
         done.approved = true;
-        await c.tool("ApprovePlan", { planId: plan, version: 1 });
+        await c.orchestrate("approve_plan", { planId: plan, version: 1 });
         return "Plan approved, running.";
       }
       return final.test(c.prompt) ? "Final report." : "";

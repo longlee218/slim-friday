@@ -1,4 +1,4 @@
-/* Token match of a path inside the owner's message (the prompt-injection guard of RegisterLocation). Fails closed: a
+/* Token match of a path inside the owner's message (the prompt-injection guard of Orchestrate register_location). Fails closed: a
    case difference, a unicode lookalike, a longer path that merely starts with the given one, or a parent of a longer
    typed path never matches. Leaf module (no imports). */
 

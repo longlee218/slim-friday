@@ -5,7 +5,7 @@ import { touchProgress } from "../../storage/owned-task-store";
 import { PROGRESS_NOTE_MAX_CHARS } from "../lead/lead-limits";
 import { type LiveRun, runOfTask } from "../run/live-runs";
 
-/* Activity of a worker run, kept on its live-run entry: the watchdog's heartbeat and the `ReportProgress` facts.
+/* Activity of a worker run, kept on its live-run entry: the watchdog's heartbeat and the `Report` progress facts.
    The in-memory stamp is always fresh; the db stamp (`owned_tasks.last_progress_at`, no schema change) is written at
    most once per `ACTIVITY_PERSIST_MS` so a tool-heavy run does not write on every call. A run that is not live (or
    is the lead's) is ignored: nothing here throws. */
@@ -27,7 +27,7 @@ export function touch(db: Database, idOrTurn: string, now = Date.now()): void {
   }
 }
 
-/** `ReportProgress`: record percent + note (redacted, clipped here) and count it as a sign of life. */
+/** `Report` progress: record percent + note (redacted, clipped here) and count it as a sign of life. */
 export function setProgress(
   db: Database,
   idOrTurn: string,

@@ -18,7 +18,7 @@ export interface ArtifactScope {
 
 /**
  * A finished turn linked to an owned task: when the run saved no file itself, store its result as an artifact (kind `md`, named from the worker's title) in
- * the run's workspace channel and record path + excerpt on the task row (`ForwardResult` reads that path). Without a
+ * the run's workspace channel and record path + excerpt on the task row (`Orchestrate forward` reads that path). Without a
  * scope (no workspace) nothing is written and only the excerpt is kept. No-op for an unlinked turn. Bookkeeping only: a
  * failure is logged and never blocks the reply.
  */

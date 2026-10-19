@@ -18,7 +18,7 @@ import {
 import { addLocation, CHANNEL_2, makeEnv, TEST_CHANNEL } from "./helpers";
 import { type Call, leadHarness, until } from "./lead-harness";
 
-/** A titled thread row written through the store (the way SetThreadTitle does). */
+/** A titled thread row written through the store (the way Orchestrate set_title does). */
 const titled = (
   db: ReturnType<typeof openDb>,
   id: string,

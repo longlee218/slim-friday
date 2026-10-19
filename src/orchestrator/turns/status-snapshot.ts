@@ -31,7 +31,7 @@ export interface StatusFacts {
   recent: RecentTool[];
   /** Latest thing the agent said (redacted, clipped); only while it runs. */
   note?: string;
-  /** `ReportProgress` facts of a live worker run (percent and note as the worker reported them) and seconds since its last activity. */
+  /** `Report` progress facts of a live worker run (percent and note as the worker reported them) and seconds since its last activity. */
   progress?: { percent?: number; note?: string; idleSeconds: number };
   /** Tool approval the task waits on, with seconds waited. */
   waiting?: { tool: string; seconds: number };

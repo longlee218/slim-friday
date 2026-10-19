@@ -43,7 +43,7 @@ export interface UpdateOptions {
 }
 
 /**
- * The ONE writer of `workspace.yaml`: lock (`workspace.yaml.lock`, shared by /init-channel, auto-adopt and RegisterLocation)
+ * The ONE writer of `workspace.yaml`: lock (`workspace.yaml.lock`, shared by /init-channel, auto-adopt and Orchestrate register_location)
  * -> parse -> `mutate(data)` -> stringify -> temp + rename 0600. `mutate` edits the parsed object in place; a returned
  * string refuses WITHOUT writing, a throw aborts (lock released). The file is re-rendered deterministically, so comments in
  * it are lost (the backup keeps the old bytes). Returns the refusal reason, or undefined when the file was written.

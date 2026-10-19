@@ -1,4 +1,6 @@
 import type { Database } from "bun:sqlite";
+import { PLAN_ACTION_REVISE } from "../../mcp/plan/tools/PlanTool/action-names";
+import { PLAN_TOOL } from "../../mcp/plan/tools/PlanTool/constants";
 import { childrenOf } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import {
@@ -21,20 +23,11 @@ import {
   rowFieldsOf,
   toPlanItem,
 } from "./plan-doc";
-import {
-  deadKeys,
-  type Fail,
-  fail,
-  invalid,
-  otherKeys,
-  type PlanEnv,
-  releasedKeys,
-} from "./plan-refusal";
+import { type Fail, fail, invalid, type PlanEnv, validatorCtx } from "./plan-refusal";
 import {
   budgetSpentMessage,
   type DeliveryEffect,
   PLANNER_KEY,
-  type PlanCtx,
   type PlanDoc,
   type PlanError,
 } from "./plan-types";
@@ -42,22 +35,6 @@ import { validatePlan } from "./validate-plan";
 
 /* Plan lifecycle over the db: create, revise (compare-and-set on the base version), approve, reject. Every version is
    kept; the statuses are draft | valid | approved | superseded | rejected. Pure of IO: the owner question is the caller's. */
-
-/** What the validator reads about the goal: keys the plan does not own, dead keys, revisions so far, spend. */
-const validatorCtx = (
-  db: Database,
-  goalId: string,
-  env: PlanEnv,
-  planKeys: readonly string[],
-  revisions: number,
-): PlanCtx => ({
-  ...env,
-  existingKeys: otherKeys(db, goalId, planKeys),
-  deadKeys: deadKeys(db, goalId),
-  releasedKeys: releasedKeys(db, goalId),
-  revisions,
-  spentUsd: spentOf(db, goalId),
-});
 
 /**
  * Store a new plan for a goal after validation: version 1, or the next version of the goal's plan when every earlier
@@ -82,7 +59,7 @@ export function createPlan(
     prior &&
     planVersions(db, prior).some((v) => v.status !== "rejected" && v.status !== "superseded")
   )
-    return fail("PLAN_EXISTS", "This goal has a plan: use ProposePlanRevision.");
+    return fail("PLAN_EXISTS", `This goal has a plan: use ${PLAN_TOOL} ${PLAN_ACTION_REVISE}.`);
   const items = a.items.map(toPlanItem);
   const doc: PlanDoc = {
     items,

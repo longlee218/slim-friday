@@ -37,15 +37,17 @@ test("boot: a thread without undelivered work is not woken", async () => {
 test("worker text reaches the owner only through the lead; the worker's own reply is never posted", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "WORKER-ONLY-TEXT";
     }
     if (c.prompt.includes("Owner message:")) {
-      await c.tool("DispatchAgent", {
+      await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         intent: "work",
         reason: "one specialist",
-        assignments: [{ key: "main", role: "developer", brief: "do it", dependsOn: [] }],
+        assignments: [
+          { key: "main", subject: "task", role: "developer", brief: "do it", dependsOn: [] },
+        ],
       });
       return "On it.";
     }

@@ -5,7 +5,7 @@ import type { Caps, GoalState } from "./caps";
 /** Item statuses that ended for good. */
 const ENDED = new Set(["completed", "failed", "cancelled"]);
 
-/* Pure policy of `RequestPlan`: may the lead start a planner now? Same caps as a dispatch (a planner run is one start). */
+/* Pure policy of `Orchestrate request_plan`: may the lead start a planner now? Same caps as a dispatch (a planner run is one start). */
 
 /** Refusal codes, checked in this order. */
 type PlanRequestRefusal =

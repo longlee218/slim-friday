@@ -3,7 +3,7 @@ import { logEvent, logger } from "../../observability/logger";
 import type { LeadRuntime } from "../lead/lead-runtime";
 import { type LiveRun, liveWorkers } from "../run/live-runs";
 
-/* The watchdog: a worker run with no sign of life (tool start, ReportProgress, run start) for longer than its threshold
+/* The watchdog: a worker run with no sign of life (tool start, Report progress, run start) for longer than its threshold
    is stuck; it is aborted (cause `stale`). A run waiting on the owner or the lead by
    design is never stale. The failure policy (failure-policy.ts) reads the abort as a transient failure: the item resumes. */
 

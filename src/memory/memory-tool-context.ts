@@ -14,7 +14,7 @@ export interface MemoryToolContext {
   workspace: string;
   /** Channel (yaml name) the run started in: scope `channel` writes its MEMORY.md; absent = no channel. */
   channel?: string;
-  /** Discord channel id the run started in (the thread's parent): `SetThreadTitle` stamps it on a thread row it must create. */
+  /** Discord channel id the run started in (the thread's parent): `Orchestrate set_title` stamps it on a thread row it must create. */
   channelId?: string;
   /** Valid location names of the workspace (the registry), read when a tool needs them. */
   locationNames: () => string[];
@@ -29,7 +29,7 @@ export interface MemoryToolContext {
    * `markRolled` counts it), hands it to `onSummary`, and PreCompact skips its extract (the LLM flush already ran).
    */
   rollover?: { onSummary: (summary: string) => void };
-  /** Rename port of the run's thread: its presence registers `SetThreadTitle` (every role; not rollover/lean runs). Absent = no such tool. */
+  /** Rename port of the run's thread: its presence registers `Orchestrate set_title` (every role; not rollover/lean runs). Absent = no such tool. */
   threadTitle?: ThreadTitlePort;
   /** Short label of the thread: the journal block title (`## HH:MM <label>`). */
   threadLabel: string;

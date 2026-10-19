@@ -12,7 +12,7 @@ import { insertTurn } from "../src/storage/run-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 
-/* RetryTask and CancelTask on a held item (blocked + FAILED), over the real db port. */
+/* Orchestrate retry and Orchestrate cancel on a held item (blocked + FAILED), over the real db port. */
 
 const TH = "th1";
 let db: Database;
@@ -43,8 +43,8 @@ async function held() {
     intent: "two steps",
     reason: "r",
     assignments: [
-      { key: "a", role: "developer", brief: "first", dependsOn: [] },
-      { key: "b", role: "scout", brief: "second", dependsOn: ["a"] },
+      { key: "a", subject: "task", role: "developer", brief: "first", dependsOn: [] },
+      { key: "b", subject: "task", role: "scout", brief: "second", dependsOn: ["a"] },
     ],
   })) as unknown as { goalId: string; itemIds: string[] };
   const [a, b] = d.itemIds as [string, string];
@@ -57,7 +57,7 @@ async function held() {
   return { ctx, goalId: d.goalId, a, b };
 }
 
-test("RetryTask: held -> ready, fresh resume budget, a retry event names the turn and carries the note", async () => {
+test("Orchestrate retry: held -> ready, fresh resume budget, a retry event names the turn and carries the note", async () => {
   const { ctx, a } = await held();
   const r = await handleRetry(ctx("r1"), { taskId: a, note: "use the other branch" });
   expect(r).toMatchObject({ ok: true, retried: a });
@@ -68,7 +68,7 @@ test("RetryTask: held -> ready, fresh resume budget, a retry event names the tur
   expect(await handleRetry(ctx("r1"), { taskId: a, note: "use the other branch" })).toEqual(r);
 });
 
-test("RetryTask refusals: NOT_HELD (not blocked), ENDED, BREAKER at 3 dispatches, BAD_TASK", async () => {
+test("Orchestrate retry refusals: NOT_HELD (not blocked), ENDED, BREAKER at 3 dispatches, BAD_TASK", async () => {
   const { ctx, a, b } = await held();
   expect(await handleRetry(ctx("n1"), { taskId: b, note: "x" })).toMatchObject({
     ok: false,
@@ -84,7 +84,7 @@ test("RetryTask refusals: NOT_HELD (not blocked), ENDED, BREAKER at 3 dispatches
   expect(await handleRetry(ctx("n5"), { taskId: a, note: "x" })).toMatchObject({ code: "ENDED" });
 });
 
-test("CancelTask on a held item: it fails, dependents are cancelled, the goal settles failed", async () => {
+test("Orchestrate cancel on a held item: it fails, dependents are cancelled, the goal settles failed", async () => {
   const { ctx, goalId, a, b } = await held();
   const r = (await handleCancel(ctx("c1"), { taskId: a, reason: "give up" })) as unknown as {
     cancelled: string[];
@@ -95,13 +95,13 @@ test("CancelTask on a held item: it fails, dependents are cancelled, the goal se
   expect(getOwnedTask(db, goalId)?.status).toBe("failed");
 });
 
-test("RetryTask clears the held marker: after the move the item is ready with no result kind (isHeld cannot read a stale FAILED)", async () => {
+test("Orchestrate retry clears the held marker: after the move the item is ready with no result kind (isHeld cannot read a stale FAILED)", async () => {
   const { ctx, a } = await held();
   await handleRetry(ctx("k1"), { taskId: a, note: "again" });
   expect(getItem(db, a)).toMatchObject({ status: "ready", resultKind: null });
 });
 
-test("RetryTask refuses with OVER_BUDGET when the goal already used its budget, and changes nothing", async () => {
+test("Orchestrate retry refuses with OVER_BUDGET when the goal already used its budget, and changes nothing", async () => {
   const { ctx, a } = await held();
   // The goal's runs cost more than the goal budget.
   insertRun(db, {
@@ -123,7 +123,7 @@ test("RetryTask refuses with OVER_BUDGET when the goal already used its budget, 
   expect(getItem(db, a)).toMatchObject({ status: "blocked", resultKind: "FAILED" });
 });
 
-test("RetryTask accepts a plain blocked item (BLOCKED / NEEDS_PLANNING report): blocked is held too", async () => {
+test("Orchestrate retry accepts a plain blocked item (BLOCKED / NEEDS_PLANNING report): blocked is held too", async () => {
   const { ctx, a } = await held();
   db.query("UPDATE owned_tasks SET result_kind = 'BLOCKED' WHERE id = ?").run(a);
   expect(await handleRetry(ctx("n2"), { taskId: a, note: "unblocked now" })).toMatchObject({

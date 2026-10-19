@@ -1,26 +1,27 @@
 import { expect, test } from "bun:test";
 import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/lead-caps";
 import { listUndelivered } from "../src/storage/thread-event-store";
-import { leadHarness, until, workersDone } from "./lead-harness";
+import { type Call, leadHarness, until, workersDone } from "./lead-harness";
 
-/* End to end with a fake query: owner -> lead -> DispatchAgent -> worker -> ReportResult -> announce -> ForwardResult. */
+/* End to end with a fake query: owner -> lead -> Orchestrate dispatch -> worker -> Report result -> announce -> Orchestrate forward. */
 
 const ITEM = /task=([0-9a-f-]{36})/;
 
-test("DIRECT -> worker -> ReportResult -> announce -> ForwardResult, then a follow-up answered from the result file", async () => {
+test("DIRECT -> worker -> Report result -> announce -> Orchestrate forward, then a follow-up answered from the result file", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "deleted 2 dirs" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "deleted 2 dirs" });
       return "Deleted node_modules and dist in location.";
     }
     if (c.prompt.includes("Owner message:\nclean node_modules")) {
-      const r = await c.tool("DispatchAgent", {
+      const r = await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         intent: "clean node_modules",
         reason: "one specialist covers it",
         assignments: [
           {
             key: "main",
+            subject: "task",
             role: "developer",
             brief: "Remove node_modules in location",
             location: "location",
@@ -33,7 +34,7 @@ test("DIRECT -> worker -> ReportResult -> announce -> ForwardResult, then a foll
     }
     if (c.prompt.includes("Task events")) {
       const id = ITEM.exec(c.prompt)?.[1] as string;
-      const f = await c.tool("ForwardResult", { taskId: id, mode: "verbatim" });
+      const f = await c.orchestrate("forward", { taskId: id, mode: "verbatim" });
       expect(f.ok).toBe(true);
       return "";
     }
@@ -45,7 +46,7 @@ test("DIRECT -> worker -> ReportResult -> announce -> ForwardResult, then a foll
   await until(() => h.posts.some((p) => p.includes("Deleted node_modules")));
   expect(h.posts[0]).toBe("On it.");
   expect(h.ofKind("worker")).toHaveLength(1);
-  // The worker never posted: its text reached the owner only through ForwardResult (the file, posted verbatim).
+  // The worker never posted: its text reached the owner only through Orchestrate forward (the file, posted verbatim).
   expect(h.posts.filter((p) => p.includes("Deleted node_modules"))).toHaveLength(1);
   const goal = h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").all();
   expect(goal).toEqual([{ status: "completed" }]);
@@ -55,13 +56,9 @@ test("DIRECT -> worker -> ReportResult -> announce -> ForwardResult, then a foll
   expect(listUndelivered(h.env.db, "t1").filter((e) => e.kind !== "start")).toEqual([]);
 });
 
-/** One DispatchAgent call with the given assignments. */
-const dispatch = (
-  c: { tool: (n: string, a: object) => Promise<any> },
-  assignments: object[],
-  over: object = {},
-) =>
-  c.tool("DispatchAgent", {
+/** One `Orchestrate dispatch` call with the given assignments. */
+const dispatch = (c: Pick<Call, "orchestrate">, assignments: object[], over: object = {}) =>
+  c.orchestrate("dispatch", {
     strategy: assignments.length === 1 ? "DIRECT" : "DELEGATE",
     intent: "work",
     reason: "test",
@@ -70,6 +67,7 @@ const dispatch = (
   });
 const a = (key: string, dependsOn: string[] = []) => ({
   key,
+  subject: `Do ${key}`,
   role: "scout",
   brief: `do ${key}`,
   dependsOn,
@@ -101,7 +99,7 @@ test("the chained dispatch past CHAIN_CAP without an owner message is refused CH
   let n = 0;
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
     const r = await dispatch(c, [a(`k${++n}`)]);
@@ -118,7 +116,7 @@ test("no daily lead budget: 31 costly lead runs in a day block neither a message
   let n = 0;
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
     if (c.prompt.includes("final ask")) {
@@ -140,7 +138,7 @@ test("no daily lead budget: 31 costly lead runs in a day block neither a message
 test("an announce run that hits the per-run budget tells the owner and keeps the news pending", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "found it" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "found it" });
       return "done";
     }
     if (c.prompt.includes("Task events")) return { text: "half way", cost: 1, maxBudget: true };
@@ -167,7 +165,7 @@ test("a lead run that errors posts the fixed notice and starts nothing", async (
   expect(h.ofKind("worker")).toHaveLength(0);
 });
 
-test("a worker question becomes an event; SteerTask answers it and the worker continues", async () => {
+test("a worker question becomes an event; Orchestrate steer answers it and the worker continues", async () => {
   const answers: unknown[] = [];
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
@@ -178,16 +176,18 @@ test("a worker question becomes an event; SteerTask answers it and the worker co
         {},
       );
       answers.push(r.updatedInput?.answers);
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "used b" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "used b" });
       return "done with b";
     }
     if (c.prompt.includes("Owner message:\nstart")) {
-      await dispatch(c, [{ key: "main", role: "developer", brief: "do it", dependsOn: [] }]);
+      await dispatch(c, [
+        { key: "main", subject: "task", role: "developer", brief: "do it", dependsOn: [] },
+      ]);
       return "started";
     }
     const id = ITEM.exec(c.prompt)?.[1] as string;
     if (c.prompt.includes("question task=")) {
-      const s = await c.tool("SteerTask", { taskId: id, text: "b" });
+      const s = await c.orchestrate("steer", { taskId: id, text: "b" });
       expect(s.result).toBe("answered");
       return "answered the worker";
     }

@@ -19,18 +19,20 @@ function waitingScript(onLead: (c: Call, item: () => string) => Promise<void> | 
     if (c.kind === "worker") {
       if (c.prompt.includes(ANSWER))
         return c
-          .tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" })
+          .report("result", { title: "T", status: "COMPLETED", summary: "ok" })
           .then(() => "done");
-      return Promise.resolve("which theme?"); // done, no ReportResult: the item waits for the owner
+      return Promise.resolve("which theme?"); // done, no Report result: the item waits for the owner
     }
     if (c.prompt.includes("Owner message: ") || c.prompt.includes("Owner message:\n")) {
       if (itemId) return Promise.resolve("noted");
       return c
-        .tool("DispatchAgent", {
+        .orchestrate("dispatch", {
           strategy: "DIRECT",
           intent: "work",
           reason: "one specialist",
-          assignments: [{ key: "main", role: "developer", brief: "style it", dependsOn: [] }],
+          assignments: [
+            { key: "main", subject: "task", role: "developer", brief: "style it", dependsOn: [] },
+          ],
         })
         .then((r) => {
           itemId = r.itemIds[0];
@@ -107,12 +109,12 @@ test("E-H1: a reply to an unknown message is a plain thread message for the lead
   expect(h.ofKind("lead")[0]?.prompt).toContain("style it");
 }, 15_000);
 
-test("E-H1: the lead's SteerTask on a waiting_user item resumes it (no `ended`)", async () => {
+test("E-H1: the lead's Orchestrate steer on a waiting_user item resumes it (no `ended`)", async () => {
   let steered = "";
   const h = leadHarness(
     waitingScript(async (c, item) => {
       if (!steered && item())
-        steered = (await c.tool("SteerTask", { taskId: item(), text: ANSWER })).result;
+        steered = (await c.orchestrate("steer", { taskId: item(), text: ANSWER })).result;
     }),
   );
   await h.send("style it");

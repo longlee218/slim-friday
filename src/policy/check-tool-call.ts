@@ -3,7 +3,7 @@
  * Pure: no SDK, no Discord, no logging. The caller wires it into PreToolUse / canUseTool.
  *
  * Bash is not parsed: a role with the `shell` capability may call them and the OS sandbox of the run
- * (worker-sandbox.ts: writes only in the granted dirs, no network) bounds them. `ask` is left for unknown tools (Monitor included).
+ * (worker-sandbox.ts: writes only in the granted dirs, network open by owner decision) bounds them. `ask` is left for unknown tools (Monitor included).
  */
 
 import { MCP_PREFIX } from "../mcp/mcp-tool-names";
@@ -22,6 +22,7 @@ import {
   MULTI_EDIT_TOOL_NAME,
   NOTEBOOK_EDIT_TOOL_NAME,
   READ_TOOL_NAME,
+  SANDBOX_NETWORK_ACCESS_TOOL_NAME,
   SEND_MESSAGE_TOOL_NAME,
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
@@ -147,6 +148,9 @@ function checkBase(
       return { decision: "deny", reason: "Bash: sandbox opt-out is not allowed" };
     return { decision: "allow", reason: "shell bounded by the OS sandbox" };
   }
+  // The network is open (owner decision 2026-10-18): the SDK's per-host prompt of a sandboxed command is allowed (a shell worker only).
+  if (toolName === SANDBOX_NETWORK_ACCESS_TOOL_NAME && ctx.shell)
+    return { decision: "allow", reason: "network is open for a shell worker" };
   // An app MCP tool: allowed only when the role's `mcpTools` lists it (`guardFor` puts those in `allowTools`); any other
   // `mcp__*` tool is denied (second lock behind the per-run server build).
   if (toolName.startsWith(MCP_PREFIX))

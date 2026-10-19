@@ -14,7 +14,7 @@ export const threads = sqliteTable(
     origin: text().notNull(),
     /** Placeholder name the thread started with (renamed once). */
     placeholder: text(),
-    /** Title set by SetThreadTitle. */
+    /** Title set by Orchestrate set_title. */
     title: text(),
     /** Short digest of the thread for the channel digest. */
     digest: text(),

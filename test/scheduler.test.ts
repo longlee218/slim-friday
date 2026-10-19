@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { MAX_RUNNING_PER_THREAD as CAP } from "../src/config/lead-caps";
+import { MAX_RUNNING_PER_THREAD as CAP, PRIORITY_AGING_MS } from "../src/config/lead-caps";
 import { pickDispatchable, type RoleCaps } from "../src/orchestrator/worker/scheduler";
 import { itemRow } from "./lead-fake-port";
 
@@ -96,4 +96,40 @@ test("a waiting_user item has no run: it holds neither its location nor a thread
     it("c", "ready", "scout"),
   ];
   expect(ids(pickDispatchable(items, caps))).toEqual(["b", "c"]);
+});
+
+test("priority: urgent starts before high before normal, equal priority keeps creation order, nothing is preempted", () => {
+  const p = (id: string, priority: number, status = "ready") =>
+    itemRow({ id, itemKey: id, status, ownerRole: "scout", priority });
+  const items = [p("n1", 0), p("h1", 10), p("n2", 0), p("u1", 100), p("h2", 10)];
+  expect(ids(pickDispatchable(items, caps))).toEqual(["u1", "h1", "h2", "n1"]); // cap = 4
+  // A full thread of running items takes nothing, whatever the priority of the waiting one.
+  const full = Array.from({ length: CAP }, (_, i) => p(`run${i}`, 0, "running"));
+  expect(pickDispatchable([...full, p("u2", 100)], caps)).toEqual([]);
+});
+
+test("priority orders writers of one location: the urgent one takes the location first", () => {
+  const w = (id: string, priority: number) =>
+    itemRow({ id, itemKey: id, status: "ready", ownerRole: "dev", location: "repo1", priority });
+  expect(ids(pickDispatchable([w("old", 0), w("new", 100)], caps))).toEqual(["new"]);
+});
+
+test("aging: a normal item that waited over the aging limit is not starved by newer urgent items", () => {
+  const now = Date.now();
+  const w = (id: string, priority: number, lastProgressAt: number) =>
+    itemRow({
+      id,
+      itemKey: id,
+      status: "ready",
+      ownerRole: "dev",
+      location: "repo1",
+      priority,
+      lastProgressAt,
+    });
+  const old = w("old", 0, now - PRIORITY_AGING_MS - 1);
+  const fresh = w("new", 100, now);
+  expect(ids(pickDispatchable([old, fresh], caps, undefined, undefined, now))).toEqual(["old"]);
+  // Not yet aged: the urgent one still goes first.
+  const young = w("young", 0, now - PRIORITY_AGING_MS + 1000);
+  expect(ids(pickDispatchable([young, fresh], caps, undefined, undefined, now))).toEqual(["new"]);
 });

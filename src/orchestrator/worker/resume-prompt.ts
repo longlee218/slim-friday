@@ -36,7 +36,7 @@ export interface StartInput {
   resume?: { sessionId: string; cwd?: string };
   /** An automatic resume (not a first start or a lead retry): it does not count toward the dispatch breaker. */
   auto: boolean;
-  /** The start carries an answer to the item's own question (owner reply or lead SteerTask): no retry loop, so it is no dispatch for the breaker either. */
+  /** The start carries an answer to the item's own question (owner reply or lead Orchestrate steer): no retry loop, so it is no dispatch for the breaker either. */
   answer?: true;
 }
 

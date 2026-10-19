@@ -49,7 +49,7 @@ export function recoverCrashedRun(db: Database, run: CrashRun, err: unknown): bo
     if (item?.parentId && kind && kind !== "FAILED") {
       moveTaskTo(db, item.id, STATUS_OF_RESULT[kind]); // the report was stored: the crash must not erase it
       if (run.agentHome)
-        // ... nor its result file (`ForwardResult` reads the path)
+        // ... nor its result file (`Orchestrate forward` reads the path)
         saveResultFile(
           db,
           run.agentHome,

@@ -173,11 +173,11 @@ test("confirm text: path, git, sensitive count + 3 names, incomplete flag, other
 
 test("leadCall records a custom audit scope and grantor", async () => {
   const port = new FakePort();
-  await leadCall(leadCtx(port), "T", {}, () => ({
+  await leadCall(leadCtx(port), "t", {}, () => ({
     reply: { ok: true },
     audit: { scope: "s", grantedBy: "owner" },
   }));
-  expect(port.audits[0]).toMatchObject({ tool: "T", scope: "s", grantedBy: "owner" });
+  expect(port.audits[0]).toMatchObject({ tool: "Orchestrate.t", scope: "s", grantedBy: "owner" });
 });
 
 test("token match: a parent or prefix of a longer typed path is refused; exact, punctuation and slash forms pass", () => {

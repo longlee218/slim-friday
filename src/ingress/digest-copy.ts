@@ -6,6 +6,8 @@ import type { OwnerLanguage } from "./user-copy";
 /** One open item of the goal. */
 export interface DigestItem {
   key: string;
+  /** Short label of the item; absent = none stored. */
+  subject?: string;
   role: string;
   status: string;
   /** True for a held item (blocked after a failure): it waits for the lead's decision. */
@@ -41,7 +43,7 @@ export function renderDigest(f: DigestFacts, language: OwnerLanguage): string {
     const pct = i.percent === undefined ? "" : ` ${i.percent}%`;
     const note = i.note ? `, ${i.note}` : "";
     const held = i.held ? say(" - đang chờ quyết định", " - waiting for decision") : "";
-    return `- ${i.key} (${i.role}): ${i.status}${pct}${note}, ${ago(i.ageSeconds)}${held}`;
+    return `- ${i.key}${i.subject ? ` "${i.subject}"` : ""} (${i.role}): ${i.status}${pct}${note}, ${ago(i.ageSeconds)}${held}`;
   });
   return [
     say(`Cập nhật: ${f.objective}`, `Check-in: ${f.objective}`),

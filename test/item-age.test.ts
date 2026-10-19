@@ -142,7 +142,7 @@ test("resumes do not reset the clock (MIN of the turns); a recent resume turn do
   expect(aged(T0 + 8 * H + 1)).toEqual(["it"]);
 });
 
-test("RetryTask resets the clock: the new retry event starts a fresh 8 h (also for the old turns); a new turn after it is the new start", () => {
+test("Orchestrate retry resets the clock: the new retry event starts a fresh 8 h (also for the old turns); a new turn after it is the new start", () => {
   setup("blocked", [T0]);
   db.query("UPDATE owned_tasks SET result_kind = 'FAILED' WHERE id = 'it'").run();
   const retryAt = Date.now(); // the port stamps events and the ready move with the real clock
@@ -233,7 +233,7 @@ test("end to end: sweep aborts a real registered run with item_age, the run's ow
   expect(sweepItemAge(rt, T0 + 9 * H)).toBe(0);
 });
 
-test("a held item cannot be started by anything but RetryTask: a stale ready snapshot and an owner answer both leave it blocked", async () => {
+test("a held item cannot be started by anything but Orchestrate retry: a stale ready snapshot and an owner answer both leave it blocked", async () => {
   setup("ready");
   const stale = getItem(db, "it")!; // the pass read it as ready ...
   const { rt } = rtOf();
@@ -251,7 +251,7 @@ test("a held item cannot be started by anything but RetryTask: a stale ready sna
   expect(full.relay.answer("it", "yes, go on")).toBe(false); // nobody waits: an answer moves nothing
   const it = getItem(db, "it")!;
   expect([it.status, it.resultKind]).toEqual(["blocked", "FAILED"]);
-  // Only RetryTask releases it.
+  // Only Orchestrate retry releases it.
   expect(createRetryPort(db, "th").retry("it", "again")).toBe("ok");
   expect(getItem(db, "it")?.status).toBe("ready");
 });

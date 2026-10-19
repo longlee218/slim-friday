@@ -29,11 +29,13 @@ const untilAborted = (c: any) =>
     ),
   );
 const dispatchDev = (c: any, location?: string) =>
-  c.tool("DispatchAgent", {
+  c.orchestrate("dispatch", {
     strategy: "DIRECT",
     intent: "work",
     reason: "t",
-    assignments: [{ key: "main", role: "developer", brief: "do it", dependsOn: [], location }],
+    assignments: [
+      { key: "main", subject: "task", role: "developer", brief: "do it", dependsOn: [], location },
+    ],
   });
 
 test("SIGTERM: the abort leaves the item ready (nothing restarts while stopping); the next boot dispatches it, same session, no owner message", async () => {
@@ -65,7 +67,7 @@ test("SIGTERM: the abort leaves the item ready (nothing restarts while stopping)
   const h2 = leadHarness(
     async (c) => {
       if (c.kind === "worker") {
-        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+        await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
         return "ok";
       }
       return "";
@@ -116,7 +118,7 @@ test("resume uses the cwd of the turn that owns the session, even when the item'
   const second = leadHarness(
     async (c) => {
       if (c.kind === "worker") {
-        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+        await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
         return "ok";
       }
       return "";
@@ -137,17 +139,17 @@ test("resume uses the cwd of the turn that owns the session, even when the item'
 test("/stop with a held item: it and its dependents are cancelled and the goal settles cancelled", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "FAILED", summary: "broke" });
+      await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
     }
     if (c.prompt.includes("Owner message:")) {
-      await c.tool("DispatchAgent", {
+      await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
         intent: "work",
         reason: "t",
         assignments: [
-          { key: "a", role: "developer", brief: "do a", dependsOn: [] },
-          { key: "b", role: "developer", brief: "do b", dependsOn: ["a"] },
+          { key: "a", subject: "task", role: "developer", brief: "do a", dependsOn: [] },
+          { key: "b", subject: "task", role: "developer", brief: "do b", dependsOn: ["a"] },
         ],
       });
       return "started";

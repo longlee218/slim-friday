@@ -45,6 +45,10 @@ export const owned_tasks = sqliteTable(
     result_excerpt: text(),
     /** Who may change the goal's items: `lead` (DIRECT / DELEGATE) or `planner` (PLAN). Goal rows only; null on items. */
     structure_owner: text(),
+    /** Item urgency: 0 normal, 10 high, 100 urgent. The scheduler starts ready items by priority, then age; nothing is preempted. */
+    priority: integer().notNull().default(0),
+    /** Short label of the item (<= 80 chars) shown in lists, digests and plans; null on goals and on rows older than migration 0008 with no brief. */
+    subject: text(),
   },
   (t) => [
     uniqueIndex("owned_tasks_goal_item")

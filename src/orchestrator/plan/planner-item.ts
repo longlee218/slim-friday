@@ -5,6 +5,7 @@ import { childrenOf } from "../../storage/owned-item-store";
 import { insertOwnedTask } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { SCOPE_CHARS } from "../../tasks/task-resolver";
+import { subjectFromBrief } from "../../tasks/task-subject";
 import { PLANNER_KEY } from "./plan-types";
 
 /** Planner items of the goal: the first is `planner`, the next ones `planner-2`, `planner-3`... (the wave count reads them). */
@@ -13,8 +14,8 @@ export const plannerCount = (db: Database, goalId: string): number =>
 
 /**
  * Insert one planner item (`ready`) in a goal and its `start` work order, in the caller's transaction. The key is the next
- * free `planner-N`; `eventId` is the idempotency key of the work order (RequestPlan: its call key, a wave: derived from the
- * key). Shared by `RequestPlan` (the lead asks) and the rolling waves (code asks).
+ * free `planner-N`; `eventId` is the idempotency key of the work order (Orchestrate request_plan: its call key, a wave: derived from the
+ * key). Shared by `Orchestrate request_plan` (the lead asks) and the rolling waves (code asks).
  */
 export function insertPlannerItem(
   db: Database,
@@ -42,6 +43,7 @@ export function insertPlannerItem(
     parentId: a.goalId,
     itemKey: key,
     brief: a.brief,
+    subject: subjectFromBrief(`Plan: ${a.objective}`),
   });
   appendEvent(db, {
     id: a.eventId(key),

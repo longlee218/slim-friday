@@ -34,6 +34,7 @@ export function digestFacts(
       const since = stamps.get(i.id) ?? now;
       return {
         key: clip(i.itemKey ?? i.id, NAME_CHARS),
+        ...(i.subject && { subject: redactClip(i.subject, NOTE_CHARS) }),
         role: clip(i.ownerRole ?? "?", NAME_CHARS),
         status: i.status,
         held: isHeld(i),

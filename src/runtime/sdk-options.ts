@@ -161,7 +161,7 @@ export function buildSdkOptions(
       includeGitInstructions: false,
       attribution: { commit: "", pr: "" },
     },
-    // A dispatched worker's shell runs in an OS sandbox (writes only in its dirs, no network); see worker-sandbox.ts.
+    // A dispatched worker's shell runs in an OS sandbox (writes only in its dirs, network open); see worker-sandbox.ts.
     ...(sandbox && { sandbox }),
     systemPrompt: buildSystemPrompt((input.extraContext ?? []).filter(Boolean).join("\n\n"), role, {
       worktreesDir: input.worktreesDir,

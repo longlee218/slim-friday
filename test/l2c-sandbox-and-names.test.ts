@@ -4,7 +4,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { deletePaths } from "../src/orchestrator/effects/delete-paths";
-import { type GuardrailContext, guardFor } from "../src/policy/check-tool-call";
+import { checkToolCall, type GuardrailContext, guardFor } from "../src/policy/check-tool-call";
 import type { EffectsCtx } from "../src/policy/effect-context";
 import { defaultEnvelope } from "../src/policy/envelope";
 import { foldName } from "../src/policy/protected-names";
@@ -40,7 +40,7 @@ const ctx: GuardrailContext = {
   envelope: defaultEnvelope("g", ["loc"], scratch),
 };
 
-test("sandbox: a worker run passes sandbox options to query (writes in its dirs only, network off, no opt-out)", async () => {
+test("sandbox: a worker run passes sandbox options to query (writes in its dirs only, network open, no opt-out)", async () => {
   const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test" });
   let options: Options | undefined;
   const queryFn = (a: { options?: Options }) =>
@@ -66,8 +66,8 @@ test("sandbox: a worker run passes sandbox options to query (writes in its dirs 
     enabled: true,
     failIfUnavailable: true,
     allowUnsandboxedCommands: false,
-    network: { allowedDomains: [], strictAllowlist: true },
   });
+  expect(sb?.network).toMatchObject({ allowedDomains: ["*"] }); // open network: wildcard, not key absence
   const fs = sb?.filesystem as { allowWrite: string[]; denyWrite?: string[]; denyRead: string[] };
   expect(fs.allowWrite).toContain(realpathSync(env.location));
   expect(fs.allowWrite).toContain(scratch); // the goal dir
@@ -118,4 +118,12 @@ test("delete: a nested git dir (any depth, any case), an invisible-char secret a
       p,
       expect.objectContaining({ ok: false }),
     ]);
+});
+
+test("sandbox: a SandboxNetworkAccess request of a shell worker is allowed (network open); a role without shell is not", () => {
+  const net = "SandboxNetworkAccess";
+  expect(checkToolCall(net, { host: "example.com" }, ctx).decision).toBe("allow");
+  expect(checkToolCall(net, { host: "example.com" }, { ...ctx, shell: false }).decision).not.toBe(
+    "allow",
+  );
 });

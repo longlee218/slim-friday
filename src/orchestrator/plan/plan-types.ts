@@ -51,6 +51,10 @@ export interface PlanItem {
   role: string;
   /** Self-contained brief: the worker sees only this. */
   brief: string;
+  /** Short label (<= 80 chars) shown in lists, digests and the plan notice. */
+  subject: string;
+  /** Urgency 10 (high) or 100 (urgent); omitted = 0 (normal). */
+  priority?: number;
   /** Location name; omitted = none. */
   location?: string;
   /** Keys this item waits for (plan keys or earlier finished items of the goal). */

@@ -31,7 +31,7 @@ const log = logger.child({ module: "worker-run" });
 
 /**
  * Start one item as a detached worker run: count the dispatch, close its `start` work order, open the turn (the owned
- * task goes `running`) and run with its MCP tools (`ReportResult`...), no subagents, the question relay and a neutral
+ * task goes `running`) and run with its MCP tools (`Report`...), no subagents, the question relay and a neutral
  * message (a worker never posts to Discord). `after` runs when the run ended: end event, goal settle, next item.
  * Takes its global run slot first: returns false (nothing touched, the item stays ready) when the cap is reached.
  */
@@ -40,7 +40,7 @@ export async function startWorker(
   ctx: LeadThreadCtx,
   threadId: string,
   item: ItemRow,
-  after: (announce?: boolean) => void,
+  after: (announce?: boolean, delayMs?: number) => void,
 ): Promise<boolean> {
   const { db } = rt.deps;
   // The slot is taken before any row changes: a full cap defers the item, it never fails it.
@@ -48,7 +48,7 @@ export async function startWorker(
   if (!slot) return false;
   try {
     // The pass read the item before awaiting: a hold (age limit, stop) may have moved it since. Only `ready` starts;
-    // a held or ended item is skipped (true = nothing to retry later), only RetryTask can release a hold.
+    // a held or ended item is skipped (true = nothing to retry later), only Orchestrate retry can release a hold.
     const current = getItem(db, item.id);
     if (current?.status !== "ready") {
       slot();
@@ -165,12 +165,14 @@ export async function startWorker(
                 verdict.current,
                 sink.artifactIds,
                 crash,
+                sink.blocker,
               );
               // A held item (blocked) keeps its dependents waiting for the lead; only an item that truly failed
               // (a crash of the run itself, no retry possible) cancels them: they can never start.
               if (getItem(db, item.id)?.status === "failed") cancelDependents(db, item.id);
               settleGoal(db, goalId);
-              after(!ownerStopped); // `/stop` ended it: the result is recorded, the lead is not woken
+              // `/stop` ended it: the result is recorded, the lead is not woken. A blocker wakes the lead now, not after the batch window.
+              after(!ownerStopped, sink.blocker ? 0 : undefined);
             },
           },
         };

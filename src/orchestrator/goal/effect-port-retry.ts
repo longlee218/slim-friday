@@ -43,7 +43,7 @@ export function createRetryPort(db: Database, threadId: string): Pick<EffectPort
 }
 
 /**
- * `CancelTask` on a held item: the lead gives the failure up, so the item becomes `failed` (terminal), its dependents are
+ * `Orchestrate cancel` on a held item: the lead gives the failure up, so the item becomes `failed` (terminal), its dependents are
  * cancelled and the goal settles `failed`. Returns the ids moved, or undefined when the item is not held (the normal cancel applies).
  */
 export function cancelHeld(db: Database, taskId: string): string[] | undefined {

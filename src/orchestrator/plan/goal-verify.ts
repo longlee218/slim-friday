@@ -84,6 +84,7 @@ export function afterVerify(
     if (!moveTaskTo(db, it.id, "cancelled")) return false; // not held any more: the lead decided first
     insertItem(db, goalId, {
       key: fixKey,
+      subject: "Fix the failed checks",
       role: writer.ownerRole as string,
       location: writer.location,
       dependsOn: [],
@@ -99,6 +100,7 @@ export function afterVerify(
     const verifyKey = `${VERIFY_KEY}-${nextNumber(items, VERIFY_KEY)}`;
     insertItem(db, goalId, {
       key: verifyKey,
+      subject: "Verify the goal",
       role: VERIFY_ROLE,
       location: it.location,
       dependsOn: [fixKey],

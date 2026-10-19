@@ -115,7 +115,7 @@ test("budget_hit: a plan goal stops starting items at its plan budget ($4), and 
     async (c) => {
       if (c.kind === "planner") {
         const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        const made = await c.tool("CreatePlan", {
+        const made = await c.plan("create", {
           goalId,
           items: [
             item("a", { location: "location" }),
@@ -130,7 +130,7 @@ test("budget_hit: a plan goal stops starting items at its plan budget ($4), and 
           budgetUsd: 4,
           effects: [],
         });
-        await c.tool("ReportResult", {
+        await c.report("result", {
           title: "T",
           status: "COMPLETED",
           summary: `plan ${made.planId}`,
@@ -141,16 +141,16 @@ test("budget_hit: a plan goal stops starting items at its plan budget ($4), and 
         const key = /do (\w+)/.exec(c.prompt)?.[1] as string;
         started.push(key);
         caps[key] = c.options.maxBudgetUsd;
-        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done" });
+        await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
         return { text: "ok", cost: 5 }; // over the whole $4 plan budget
       }
       if (c.prompt.includes("Owner message:")) {
-        await c.tool("RequestPlan", { objective: "two steps" });
+        await c.orchestrate("request_plan", { objective: "two steps" });
         return "Planning.";
       }
       const plan = PLAN_ID.exec(c.prompt)?.[1];
       if (plan && c.prompt.includes("plan"))
-        await c.tool("ApprovePlan", { planId: plan, version: 1 });
+        await c.orchestrate("approve_plan", { planId: plan, version: 1 });
       return "";
     },
     undefined,

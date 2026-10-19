@@ -18,7 +18,7 @@ export function renderPlan(p: { version: number; objective: string; doc: PlanDoc
   const e = doc.envelope;
   const rows = doc.items.map(
     (it, n) =>
-      `${n + 1}. ${it.key} [${it.role}${it.location ? ` @ ${it.location}` : ""}, risk ${it.risk}${it.deferredScope ? ", later" : ""}]${it.dependsOn.length ? ` after ${it.dependsOn.join(", ")}` : ""}: ${it.brief}`,
+      `${n + 1}. ${it.key} "${it.subject}" [${it.role}${it.location ? ` @ ${it.location}` : ""}, risk ${it.risk}${it.deferredScope ? ", later" : ""}]${it.dependsOn.length ? ` after ${it.dependsOn.join(", ")}` : ""}: ${it.brief}`,
   );
   return [
     `Plan v${p.version}: ${clip(p.objective.replace(/\s+/g, " "), HEAD_OBJECTIVE_CHARS)}`,

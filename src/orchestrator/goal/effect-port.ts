@@ -4,11 +4,12 @@ import type { EventKind } from "../events/event-types";
 import type { PlanDoc, PlanStatusView } from "../plan/plan-types";
 import type { Caps, GoalState, PolicyEnv } from "../strategy/caps";
 import type { ItemDraft } from "../strategy/dispatch-policy";
+import type { TaskPort } from "./effect-port-item-types";
 
 /* The port the lead's tool handlers act through. Handlers hold the rules and stay pure over it: tests pass a fake,
    the real one (`effect-port-db.ts`) reads and writes the db and calls the injected IO. */
 
-/** What `SteerTask` did. `answered` = it resolved a pending worker question, `resumed` = it re-queued a `waiting_user` item with the text as its answer. */
+/** What `Orchestrate steer` did. `answered` = it resolved a pending worker question, `resumed` = it re-queued a `waiting_user` item with the text as its answer. */
 export type SteerReply = "queued" | "held" | "full" | "ended" | "answered" | "resumed";
 
 /** One item as the status tool shows it (facts from the db). */
@@ -18,6 +19,10 @@ interface ItemFacts {
   /** Location the item works in (the verify fix cap is per location); absent = none. */
   location?: string | undefined;
   status: string;
+  /** Short label of the task. */
+  subject: string | null;
+  /** 0 normal, 10 high, 100 urgent. */
+  priority: number;
   /** Question the worker waits on, redacted; undefined = none. */
   pendingQuestion?: string;
   /** Live run only: what the worker reported (percent, note) and seconds since its last activity. */
@@ -86,7 +91,7 @@ export type DispatchResult =
   | { ok: true; goalId: string; itemIds: string[] }
   | { ok: false; code: string; message: string };
 
-/** What `RequestPlan` writes: a planner item (in a new goal, or in the open goal `goalId`). */
+/** What `Orchestrate request_plan` writes: a planner item (in a new goal, or in the open goal `goalId`). */
 export interface PlanRequestWrite {
   /** Idempotency key of the call (audit row id and event id prefix). */
   key: string;
@@ -112,7 +117,7 @@ export type PlanDecision =
   | { ok: false; code: string; message: string };
 
 /** Everything a lead tool may do to the world; every method acts on the thread the port was built for. */
-export interface EffectPort {
+export interface EffectPort extends TaskPort {
   /** Stored reply of an earlier call with this key, or undefined (idempotency: replay it, do not act again). */
   recall(key: string): string | undefined;
   /** Store the reply of a call (audit row in `effect_log`, goal / item optional). */

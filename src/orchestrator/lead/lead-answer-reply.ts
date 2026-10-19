@@ -20,7 +20,7 @@ export function answerReply(rt: LeadRuntime, message: InboundMessage): boolean {
     message.replyToMessageId &&
     itemOfQuestionMessage(db, message.replyToMessageId, message.threadId);
   if (!itemId || !resumeWaiting(db, itemId, message.text, "owner")) return false;
-  closeAsk(message.replyToMessageId as string, message.text); // the lead's AskOwner on that message ends: buttons gone, run released
+  closeAsk(message.replyToMessageId as string, message.text); // the lead's Orchestrate ask_owner on that message ends: buttons gone, run released
   logEvent(log, "lead.reply_resumed", { threadId: message.threadId, itemId });
   rt.announce(message.threadId); // the lead reads the owner's answer as news
   void dispatchReady(rt, message.threadId); // and the item starts again

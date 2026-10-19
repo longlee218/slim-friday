@@ -1,8 +1,11 @@
 import type { Database } from "bun:sqlite";
 import { PLAN_GOAL_BUDGET_MAX_USD, type Route, TASK_BUDGET_USD } from "../../config/model-routing";
 import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
-import { CANCEL_TASK_TOOL } from "../../mcp/orchestration/tools/CancelTaskTool/constants";
-import { RETRY_TASK_TOOL } from "../../mcp/orchestration/tools/RetryTaskTool/constants";
+import {
+  ORCHESTRATE_ACTION_CANCEL,
+  ORCHESTRATE_ACTION_RETRY,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { costOfTasks, spentByTask } from "../../storage/run-metrics-store";
 import { newestApprovedVersion } from "../../storage/work-plan-store";
@@ -34,8 +37,8 @@ export const goalBudgetCanGrow = (db: Database, goalId: string): boolean =>
 export const budgetReason = (db: Database, goalId: string): string =>
   `goal budget $${goalBudgetOf(db, goalId)} used` +
   (goalBudgetCanGrow(db, goalId)
-    ? `: ${RETRY_TASK_TOOL} works only after the owner approves a plan revision with a higher budget; else ${CANCEL_TASK_TOOL}`
-    : `: it cannot grow (no approved plan, or at the ceiling), so ${RETRY_TASK_TOOL} is refused; ${CANCEL_TASK_TOOL} it or ask the owner what to do`);
+    ? `: ${orchestrateRef(ORCHESTRATE_ACTION_RETRY)} works only after the owner approves a plan revision with a higher budget; else ${orchestrateRef(ORCHESTRATE_ACTION_CANCEL)}`
+    : `: it cannot grow (no approved plan, or at the ceiling), so ${orchestrateRef(ORCHESTRATE_ACTION_RETRY)} is refused; ${orchestrateRef(ORCHESTRATE_ACTION_CANCEL)} it or ask the owner what to do`);
 
 /**
  * Task ceiling (`TASK_BUDGET_USD`): the run input with `route.spentUsd` = what the task's earlier runs already cost (its

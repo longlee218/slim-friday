@@ -49,7 +49,7 @@ test("decisionOf reads the recorded dispatch: none, one item, two items, a plan 
   appendEffect(db, {
     id: "k",
     threadId: "th",
-    tool: "RequestPlan",
+    tool: "Orchestrate.request_plan",
     scope: "lead tool call",
     grantedBy: "role",
     result: "{}",

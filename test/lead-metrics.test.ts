@@ -43,21 +43,28 @@ function run(id: string, role: string, usd: number, ageMs: number) {
 
 function seed() {
   db = openDb(":memory:");
-  call("k1", "DispatchAgent");
-  call("k2", "DispatchAgent");
-  call("k3", "AskOwner");
+  call("k1", "Orchestrate.dispatch");
+  call("k2", "Orchestrate.dispatch");
+  call("k3", "Orchestrate.ask_owner");
   // Refused lead call (id holds `:refused:`) and a normal event that must not count.
   appendEvent(db, {
     id: "k9:refused:u1",
     threadId: "th",
     kind: "lead_decision",
-    payload: { tool: "DispatchAgent", ok: false, code: "BUDGET", by: "lead" },
+    payload: { tool: "Orchestrate", action: "dispatch", ok: false, code: "BUDGET", by: "lead" },
+  });
+  // An old refusal row written before `action` was recorded: counted under the bare tool.
+  appendEvent(db, {
+    id: "k8:refused:u1",
+    threadId: "th",
+    kind: "lead_decision",
+    payload: { tool: "Orchestrate", ok: false, code: "OLD", by: "lead" },
   });
   appendEvent(db, {
     id: "k1:0",
     threadId: "th",
     kind: "start",
-    payload: { by: "lead", tool: "DispatchAgent" },
+    payload: { by: "lead", tool: "Orchestrate", action: "dispatch" },
   });
   // Envelope blocks: a refused push and an owner-denied merge; a granted push is not a block.
   const effect = (id: string, tool: string, result: string) =>
@@ -74,10 +81,13 @@ test("decisions, refusals, envelope blocks count only their own rows", () => {
   seed();
   const m = leadMetrics(db, 7);
   expect(m.decisions).toEqual([
-    { tool: "DispatchAgent", count: 2 },
-    { tool: "AskOwner", count: 1 },
+    { tool: "Orchestrate.dispatch", count: 2 },
+    { tool: "Orchestrate.ask_owner", count: 1 },
   ]);
-  expect(m.refusals).toEqual([{ tool: "DispatchAgent", code: "BUDGET", count: 1 }]);
+  expect(m.refusals).toEqual([
+    { tool: "Orchestrate", code: "OLD", count: 1 },
+    { tool: "Orchestrate.dispatch", code: "BUDGET", count: 1 },
+  ]);
   expect(m.envelopeBlocks.map((b) => `${b.tool}:${b.code}`).sort()).toEqual([
     "GitPush:NOT_IN_ENVELOPE",
     "MergeBranch:OWNER_NO",

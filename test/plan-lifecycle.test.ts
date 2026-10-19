@@ -19,6 +19,7 @@ afterEach(() => db?.close());
 const ENV = { workerRoles: ["developer", "scout"], locations: ["repo", "docs"], goalBudgetUsd: 6 };
 const item = (key: string, over: Record<string, unknown> = {}) => ({
   key,
+  subject: `Do ${key}`,
   role: "developer",
   brief: `do ${key}`,
   dependsOn: [] as string[],
@@ -275,7 +276,7 @@ test("NEEDS_PLANNING items are released (cancelled) by the first approval; finis
   ]);
 });
 
-test("RequestPlan inside the open goal adds a second planner item (planner-2) and keeps the finished items", () => {
+test("Orchestrate request_plan inside the open goal adds a second planner item (planner-2) and keeps the finished items", () => {
   const { goalId } = setup();
   const port = createPlanPort(db, "th1");
   const w = port.requestPlan({ key: "k2", objective: "re-plan", goalId });

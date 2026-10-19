@@ -1,11 +1,13 @@
 import { clip, redactText } from "../../observability/redact";
 import { childrenOf } from "../../storage/owned-item-store";
 import { lastEventOfItem } from "../../storage/thread-event-store";
+import { searchTasks, taskDetail } from "../goal/task-reads";
+import type { GetTaskInput, SearchTasksInput } from "../lead/task-schemas";
 import type { Reply } from "../reply";
 import type { GoalInput } from "./plan-schemas";
 import { type PlannerCtx, wrongGoal } from "./planner-handlers";
 
-/* The planner's two read-only views of how the goal is going. */
+/* The planner's read-only views of how the goal is going. */
 
 /** Chars of an excerpt / failure payload shown to the planner. */
 const EXCERPT_CHARS = 300;
@@ -50,3 +52,32 @@ export function analyzeBlockers(c: PlannerCtx, i: GoalInput): Reply {
     }),
   };
 }
+
+/**
+ * The item table of the goal; an item that is blocked, failed or waiting carries its `cause` (the last failure-like
+ * event). One view for the planner's `list` action (it merges the two reads above).
+ */
+export function listGoalItems(c: PlannerCtx, i: GoalInput): Reply {
+  const progress = getExecutionProgress(c, i);
+  const blockers = analyzeBlockers(c, i);
+  if (!progress.ok) return progress;
+  const causes = new Map(
+    ((blockers.ok ? blockers.blockers : []) as { key: string | null; cause: unknown }[]).map(
+      (b) => [b.key, b.cause],
+    ),
+  );
+  return {
+    ok: true,
+    items: (progress.items as { key: string | null }[]).map((x) =>
+      causes.has(x.key) ? { ...x, cause: causes.get(x.key) } : x,
+    ),
+  };
+}
+
+/** One task or goal of this thread in full (the same view the lead's `get` returns). */
+export const getTaskHandler = (c: PlannerCtx, i: GetTaskInput): Reply =>
+  taskDetail(c.db, c.threadId, i.taskId);
+
+/** The thread's goals and tasks that contain the query's words (the same view the lead's `search` returns). */
+export const searchTasksHandler = (c: PlannerCtx, i: SearchTasksInput): Reply =>
+  searchTasks(c.db, c.threadId, i.query);

@@ -89,7 +89,7 @@ test("H2: the rendered plan carries each brief, the objective and the criteria i
     version: 1,
     objective,
     doc: {
-      items: [{ key: "a", role: "developer", brief, dependsOn: [], risk: "R1" }],
+      items: [{ key: "a", subject: "task", role: "developer", brief, dependsOn: [], risk: "R1" }],
       acceptanceCriteria: ["c".repeat(290)],
       envelope: {
         roles: ["developer"],
@@ -127,7 +127,7 @@ test("M1/D2: /stop closes the pending plan; an approve answered after it creates
   expect(getOwnedTask(db, goalId)?.status).toBe("cancelled");
 });
 
-test("M1: CancelTask of the goal closes its pending plan", () => {
+test("M1: Orchestrate cancel of the goal closes its pending plan", () => {
   const { goalId, plan } = setup();
   const port = createDbEffectPort({
     db,

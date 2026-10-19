@@ -1,10 +1,17 @@
 import { z } from "zod";
 import { PLAN_MAX_CRITERIA, PLAN_MAX_ITEMS } from "../../config/lead-caps";
 import { BRIEF_MAX_CHARS, REASON_MAX_CHARS } from "../lead/lead-limits";
-import { KEY, TASK_ID } from "../lead/lead-schemas";
+import {
+  CONFIRM_NEW,
+  KEY,
+  PRIORITY_FIELD,
+  PRIORITY_VALUE,
+  SUBJECT,
+  TASK_ID,
+} from "../lead/lead-schemas";
 import { DELIVERY_EFFECT_TOOLS } from "./plan-types";
 
-/* Input schemas (zod raw shapes) of the planner's seven tools and the lead's RequestPlan / ApprovePlan. The SDK
+/* Input schemas (zod raw shapes) of the planner's seven tools and the lead's Orchestrate request_plan / Orchestrate approve_plan. The SDK
    validates a call against them before any handler runs; the handler input types are inferred from the same shapes. */
 
 /** One plan item. The risk is free text here: code turns an unknown word into R2. */
@@ -12,7 +19,9 @@ const PLAN_ITEM = z.object({
   key: KEY.describe(
     "Unique within the goal; never starts with 'planner' or looks like verify-N / fix-N (reserved)",
   ),
-  role: z.string().min(1).max(40).describe("Worker role name (see GetAgentCapabilities)"),
+  subject: SUBJECT,
+  priority: PRIORITY_FIELD,
+  role: z.string().min(1).max(40).describe("Worker role name (see the capabilities action)"),
   brief: z
     .string()
     .min(1)
@@ -64,6 +73,7 @@ export const CREATE_PLAN_SHAPE = {
   envelope: ENVELOPE,
   budgetUsd: z.number().positive().max(1000),
   effects: EFFECTS,
+  confirmNew: CONFIRM_NEW,
 };
 export const VALIDATE_PLAN_SHAPE = { planId: PLAN_ID, version: VERSION };
 export const PROPOSE_REVISION_SHAPE = {
@@ -75,6 +85,8 @@ export const PROPOSE_REVISION_SHAPE = {
     .array(
       z.object({
         key: KEY,
+        subject: SUBJECT.optional(),
+        priority: PRIORITY_VALUE.optional(),
         brief: z.string().min(1).max(BRIEF_MAX_CHARS).optional(),
         location: z.string().min(1).max(80).optional(),
         dependsOn: z

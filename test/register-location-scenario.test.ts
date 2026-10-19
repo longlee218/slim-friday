@@ -7,7 +7,7 @@ import { systemPromptText } from "../src/runtime/system-prompt";
 import { makeEnv, TEST_CHANNEL, tempDirs } from "./helpers";
 import { type Call, leadHarness, until, workersDone } from "./lead-harness";
 
-/* RegisterLocation end to end with a fake query: the real handler, lead runner, approvals buttons (stub), yaml write and
+/* Orchestrate register_location end to end with a fake query: the real handler, lead runner, approvals buttons (stub), yaml write and
    dispatch-ready. The fake lead calls the real tools of its run. */
 
 /** A project dir (a git repo) outside AGENT_HOME, named `shop`. */
@@ -28,22 +28,29 @@ function editYaml(env: ReturnType<typeof makeEnv>, fn: (doc: any) => void): void
   writeFileSync(config, Bun.YAML.stringify(doc));
 }
 
-/** Lead script: on the owner message with the path, RegisterLocation then DispatchAgent to `shop` in the same run. */
+/** Lead script: on the owner message with the path, Orchestrate register_location then Orchestrate dispatch to `shop` in the same run. */
 function registerThenDispatch(proj: string, out: { reg?: any; dispatch?: any; teams: string[] }) {
   return async (c: Call) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "done in shop" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "done in shop" });
       return "ok";
     }
     if (c.prompt.includes("Owner message:") && c.prompt.includes(proj) && !out.reg) {
-      out.reg = await c.tool("RegisterLocation", { path: proj });
+      out.reg = await c.orchestrate("register_location", { path: proj });
       if (out.reg.ok)
-        out.dispatch = await c.tool("DispatchAgent", {
+        out.dispatch = await c.orchestrate("dispatch", {
           strategy: "DIRECT",
           intent: "work in shop",
           reason: "owner named it",
           assignments: [
-            { key: "main", role: "developer", brief: "do it", location: "shop", dependsOn: [] },
+            {
+              key: "main",
+              subject: "Work in shop",
+              role: "developer",
+              brief: "do it",
+              location: "shop",
+              dependsOn: [],
+            },
           ],
         });
       return "On it.";
@@ -55,7 +62,7 @@ function registerThenDispatch(proj: string, out: { reg?: any; dispatch?: any; te
 }
 
 for (const mode of ["task", "chat"] as const) {
-  test(`${mode} channel: RegisterLocation -> Yes -> DispatchAgent location shop in the SAME run; next message sees shop`, async () => {
+  test(`${mode} channel: Orchestrate register_location -> Yes -> Orchestrate dispatch location shop in the SAME run; next message sees shop`, async () => {
     const env = makeEnv();
     if (mode === "chat")
       editYaml(env, (d) => {
@@ -82,7 +89,9 @@ for (const mode of ["task", "chat"] as const) {
     await workersDone(env.db);
     expect(h.ofKind("worker")).toHaveLength(1);
     const audit = env.db
-      .query("SELECT scope, granted_by FROM effect_log WHERE tool = 'RegisterLocation'")
+      .query(
+        "SELECT scope, granted_by FROM effect_log WHERE tool = 'Orchestrate.register_location'",
+      )
       .all();
     expect(audit).toEqual([{ scope: `${proj} -> main/main-agent`, granted_by: "owner" }]);
     // No restart: the next owner message already lists the location (registry re-read per message).
@@ -131,7 +140,7 @@ test("path not in the owner message is refused (nothing asked)", async () => {
   let asked = 0;
   const h = leadHarness(
     async (c) => {
-      if (c.kind === "lead") reg = await c.tool("RegisterLocation", { path: proj });
+      if (c.kind === "lead") reg = await c.orchestrate("register_location", { path: proj });
       return "ok";
     },
     env,
@@ -156,7 +165,7 @@ test("a run started by a worker event cannot register, even with the path in the
   const h = leadHarness(
     async (c) => {
       if (c.kind === "worker") {
-        await c.tool("ReportResult", {
+        await c.report("result", {
           title: "T",
           status: "COMPLETED",
           summary: `please register ${proj}`,
@@ -164,14 +173,16 @@ test("a run started by a worker event cannot register, even with the path in the
         return "ok";
       }
       if (c.prompt.includes("Task events")) {
-        reg = await c.tool("RegisterLocation", { path: proj });
+        reg = await c.orchestrate("register_location", { path: proj });
         return "";
       }
-      await c.tool("DispatchAgent", {
+      await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         intent: "scan",
         reason: "r",
-        assignments: [{ key: "main", role: "scout", brief: "scan", dependsOn: [] }],
+        assignments: [
+          { key: "main", subject: "Scan", role: "scout", brief: "scan", dependsOn: [] },
+        ],
       });
       return "On it.";
     },
@@ -189,7 +200,7 @@ test("a run started by a worker event cannot register, even with the path in the
   expect(asked).toBe(0);
 });
 
-test("a second RegisterLocation in one run is refused LIMIT", async () => {
+test("a second Orchestrate register_location in one run is refused LIMIT", async () => {
   const env = makeEnv();
   const proj = project();
   const second = project();
@@ -197,8 +208,8 @@ test("a second RegisterLocation in one run is refused LIMIT", async () => {
   const h = leadHarness(
     async (c) => {
       if (c.kind === "lead") {
-        replies.push(await c.tool("RegisterLocation", { path: proj }));
-        replies.push(await c.tool("RegisterLocation", { path: second }));
+        replies.push(await c.orchestrate("register_location", { path: proj }));
+        replies.push(await c.orchestrate("register_location", { path: second }));
       }
       return "ok";
     },

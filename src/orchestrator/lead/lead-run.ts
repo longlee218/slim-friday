@@ -30,7 +30,7 @@ function leadOnce(
     inputId: string;
     text: string;
     ac: AbortController;
-    /** What woke the lead and, for an owner run, the owner's raw text (RegisterLocation's guard). */
+    /** What woke the lead and, for an owner run, the owner's raw text (Orchestrate register_location's guard). */
     trigger: "owner" | "announce";
     ownerText?: string;
   },
@@ -53,7 +53,7 @@ function leadOnce(
         threadId,
         env: {
           workerRoles: dispatchableWorkers().map((r) => r.name),
-          // Getter on the thread's NEWEST ctx: `RegisterLocation` and a second owner message replace the captured one.
+          // Getter on the thread's NEWEST ctx: `Orchestrate register_location` and a second owner message replace the captured one.
           get locations() {
             return (rt.ctxOf(threadId) ?? ctx).locations.map((l) => l.name);
           },

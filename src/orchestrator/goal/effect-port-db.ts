@@ -28,6 +28,7 @@ import {
   snapshotOf,
 } from "./effect-port-queries";
 import { cancelHeld, createRetryPort } from "./effect-port-retry";
+import { createTaskPort } from "./effect-port-tasks";
 
 /* The real EffectPort: db reads and writes are here; the IO that needs Discord or a live run is injected. */
 
@@ -114,6 +115,7 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
     },
     ...createPlanPort(db, threadId, d.correlationId),
     ...createRetryPort(db, threadId),
+    ...createTaskPort(db, threadId, d.correlationId),
     appendEvent: (e) => appendEvent(db, { ...e, threadId }),
     steer: (taskId, text): SteerReply => {
       if (pendingQuestionOf(db, taskId) && d.io.answerPending?.(taskId, text)) return "answered";

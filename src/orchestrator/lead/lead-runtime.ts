@@ -24,10 +24,10 @@ export interface LeadRuntime {
   deps: DispatchDeps;
   /** Facts of a thread, or undefined when none is known (the thread was never seen in this process and is not in the db). */
   ctxOf(threadId: string): LeadThreadCtx | undefined;
-  /** Re-read the thread's locations from workspace.yaml (after `RegisterLocation` wrote one). */
+  /** Re-read the thread's locations from workspace.yaml (after `Orchestrate register_location` wrote one). */
   refresh(threadId: string): void;
-  /** Wake the lead for new news of the thread (batched by the announcer). */
-  announce(threadId: string): void;
+  /** Wake the lead for new news of the thread (batched by the announcer; `delayMs` 0 = now, for urgent news such as a blocker). */
+  announce(threadId: string, delayMs?: number): void;
   relay: QuestionRelay;
   /** Resolves when the thread's rollover work (flush, summary) is done: a lead run never resumes a session being rolled. */
   hold?(threadId: string): Promise<void>;

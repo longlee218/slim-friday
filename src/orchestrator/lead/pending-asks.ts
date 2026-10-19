@@ -1,5 +1,5 @@
 /*
- * AskOwner questions that wait for the owner right now, by the Discord message that carries them. A reply to that message
+ * Orchestrate ask_owner questions that wait for the owner right now, by the Discord message that carries them. A reply to that message
  * answers the task directly (see `answerReply`); this registry lets that reply also end the lead's ask: the buttons go away
  * and the lead run is released with the owner's text instead of blocking until the ask times out.
  */

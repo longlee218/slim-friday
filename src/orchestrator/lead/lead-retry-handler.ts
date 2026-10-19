@@ -1,5 +1,5 @@
 import { MAX_DISPATCHES_PER_ITEM, MAX_FIX_LOOPS } from "../../config/resilience-caps";
-import { RETRY_TASK_TOOL } from "../../mcp/orchestration/tools/RetryTaskTool/constants";
+import { ORCHESTRATE_ACTION_RETRY } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { isHeld } from "../../storage/owned-item-store";
 import { fixesAt, isVerifyKey } from "../plan/verify-items";
 import { type Reply, refuse } from "../reply";
@@ -8,12 +8,12 @@ import { badTask, ENDED } from "./lead-handlers";
 import type { RetryInput } from "./lead-schemas";
 
 /**
- * RetryTask: re-queue a held item (blocked: a failure, a budget hit or a BLOCKED / NEEDS_PLANNING report the lead must decide on). The port moves it `ready` with a fresh
+ * Orchestrate retry: re-queue a held item (blocked: a failure, a budget hit or a BLOCKED / NEEDS_PLANNING report the lead must decide on). The port moves it `ready` with a fresh
  * automatic-resume budget and records the `retry` event (the note); the next dispatch pass resumes its session. Refused:
  * ENDED (already finished), NOT_HELD (not waiting for a decision), BREAKER (dispatched too many times), VERIFY_LOOP_CAP (a verify that ran and reported FAILED after the last fix loop; a crashed one stays retryable), OVER_BUDGET.
  */
 export const handleRetry = (ctx: LeadToolContext, input: RetryInput): Promise<Reply> =>
-  leadCall(ctx, RETRY_TASK_TOOL, input, () => {
+  leadCall(ctx, ORCHESTRATE_ACTION_RETRY, input, () => {
     const item = ctx.port.item(input.taskId);
     if (!item) return { reply: badTask(input.taskId) };
     if (ENDED.has(item.status)) return { reply: refuse("ENDED", `Task already ${item.status}.`) };
@@ -21,7 +21,7 @@ export const handleRetry = (ctx: LeadToolContext, input: RetryInput): Promise<Re
       return {
         reply: refuse(
           "NOT_HELD",
-          "Only a held (blocked) task can be retried; a task waiting for the owner is resumed by SteerTask.",
+          "Only a held (blocked) task can be retried; a task waiting for the owner is resumed by Orchestrate steer.",
         ),
       };
     if (item.dispatchCount >= MAX_DISPATCHES_PER_ITEM)
@@ -42,7 +42,7 @@ export const handleRetry = (ctx: LeadToolContext, input: RetryInput): Promise<Re
       return {
         reply: refuse(
           "VERIFY_LOOP_CAP",
-          `Verify failed after ${MAX_FIX_LOOPS} fix loops: ask the owner, or CancelTask.`,
+          `Verify failed after ${MAX_FIX_LOOPS} fix loops: ask the owner, or Orchestrate cancel.`,
         ),
       };
     const moved = ctx.port.retry(item.id, input.note);

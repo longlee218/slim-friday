@@ -41,7 +41,7 @@ test("runAgent: every PreToolUse guard decision (allow or deny) calls onToolStar
   expect(calls).toBe(2);
 });
 
-test("a worker run: a tool start stamps the live run, ReportProgress records percent and note (full path)", async () => {
+test("a worker run: a tool start stamps the live run, Report progress records percent and note (full path)", async () => {
   let before = -1;
   let after = -1;
   const h = leadHarness(async (c) => {
@@ -52,17 +52,17 @@ test("a worker run: a tool start stamps the live run, ReportProgress records per
       before = run.lastActivityAt;
       await preToolUse(c.options, "Read");
       after = run.lastActivityAt;
-      await c.tool("ReportProgress", { percent: 50, note: "half way" });
+      await c.report("progress", { percent: 50, note: "half way" });
       expect(run.progress).toMatchObject({ percent: 50, note: "half way" });
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
     if (c.prompt.includes("Owner message:")) {
-      await c.tool("DispatchAgent", {
+      await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
         intent: "work",
         reason: "test",
-        assignments: [{ key: "a", role: "scout", brief: "do a", dependsOn: [] }],
+        assignments: [{ key: "a", subject: "task", role: "scout", brief: "do a", dependsOn: [] }],
       });
       return "On it.";
     }

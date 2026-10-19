@@ -141,7 +141,7 @@ test("F5: announces are deduped per thread and never evict an owner input", asyn
 
 /** A worker script: reports COMPLETED, then holds the run until it is aborted. */
 const reportThenWait = async (c: Call) => {
-  await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "pushed" });
+  await c.report("result", { title: "T", status: "COMPLETED", summary: "pushed" });
   const signal = c.options.abortController.signal as AbortSignal;
   await new Promise<void>((res) => {
     if (signal.aborted) res();
@@ -150,11 +150,11 @@ const reportThenWait = async (c: Call) => {
   return "done";
 };
 const dispatchOne = (c: Call) =>
-  c.tool("DispatchAgent", {
+  c.orchestrate("dispatch", {
     strategy: "DIRECT",
     intent: "work",
     reason: "test",
-    assignments: [{ key: "a", role: "scout", brief: "do a", dependsOn: [] }],
+    assignments: [{ key: "a", subject: "task", role: "scout", brief: "do a", dependsOn: [] }],
   });
 
 test("F3: after /stop a COMPLETED-before-stop result is recorded but does not wake the lead", async () => {
@@ -189,7 +189,7 @@ test("E-L12 race: a lead cancel (no /stop) of a run that reported COMPLETED stil
   await until(() => liveRunsOf("t1").some((r) => r.kind === "worker"));
   await sleep(100);
   const run = liveRunsOf("t1").find((r) => r.kind === "worker")!;
-  moveTaskTo(h.env.db, run.taskId!, "cancelled"); // what the lead's CancelTask does
+  moveTaskTo(h.env.db, run.taskId!, "cancelled"); // what the lead's Orchestrate cancel does
   run.ac.abort();
   await until(() => h.ofKind("lead").some((c) => c.prompt.includes("Task events")), 8000);
 }, 15_000);
@@ -197,14 +197,14 @@ test("E-L12 race: a lead cancel (no /stop) of a run that reported COMPLETED stil
 test("F4: a ready writer item waits while its location is claimed by a force-closed run", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") {
-      await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "ok" });
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
-    await c.tool("DispatchAgent", {
+    await c.orchestrate("dispatch", {
       strategy: "DIRECT",
       intent: "work",
       reason: "test",
-      assignments: [{ key: "a", role: "developer", brief: "do a", dependsOn: [] }],
+      assignments: [{ key: "a", subject: "task", role: "developer", brief: "do a", dependsOn: [] }],
     });
     return "started";
   });

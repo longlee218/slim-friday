@@ -26,7 +26,13 @@ test("invariants between limits", () => {
   expect(CHAIN_CAP).toBeGreaterThanOrEqual(DELEGATE_MAX);
   // The zod items bound is PLAN_MAX_ITEMS: exactly that many valid items parse, one more fails on the cap.
   const valid = (n: number) =>
-    Array.from({ length: n }, (_, i) => ({ key: `k${i}`, role: "scout", brief: "b", risk: "R0" }));
+    Array.from({ length: n }, (_, i) => ({
+      key: `k${i}`,
+      subject: "task",
+      role: "scout",
+      brief: "b",
+      risk: "R0",
+    }));
   const items = CREATE_PLAN_SHAPE.items;
   expect(items.safeParse(valid(PLAN_MAX_ITEMS)).success).toBe(true);
   const over = items.safeParse(valid(PLAN_MAX_ITEMS + 1));
@@ -91,6 +97,7 @@ test(`a ${PLAN_MAX_ITEMS}-item plan with ${BRIEF_MAX_CHARS}-char briefs validate
   const items = Array.from({ length: PLAN_MAX_ITEMS }, (_, i) =>
     toPlanItem({
       key: `k${i}`,
+      subject: "task",
       role: "scout",
       brief: "x".repeat(BRIEF_MAX_CHARS),
       dependsOn: [],

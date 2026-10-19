@@ -5,7 +5,7 @@ import { childrenOf } from "../../storage/owned-item-store";
 import { newestApprovedVersion } from "../../storage/work-plan-store";
 import { docOfRow } from "../plan/plan-doc";
 
-/* Completion of a worker run = its typed `ReportResult` + the goal's `effect_log` rows. Pure over those two. */
+/* Completion of a worker run = its typed `Report` result + the goal's `effect_log` rows. Pure over those two. */
 
 /** What the goal promised to deliver: the goal and the effect tools its approved plan lists in `effects`. */
 export interface DeliveryExpectation {
