@@ -6,3 +6,4 @@ node_modules
 
 # Claude Code local config (rules, skills, agents, settings): not part of the repo
 .claude/
+/plans/*/skill-workspace/

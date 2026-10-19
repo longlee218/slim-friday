@@ -94,6 +94,22 @@ You never edit `workspace.yaml` for a project. Two ways, both in the channel's t
 - If anything fails after the folder was made, the bot removes what that call created.
 - Not verified live. Checklist: step 8 of [Low-config channel and location](#low-config-channel-and-location-owner-live-checklist).
 
+### Default projects dir (`projectsDir`)
+Set once in `workspace.yaml`; the lead then needs no path for a new project.
+
+```yaml
+projectsDir: ~/code            # workspace default (absolute or ~/...)
+channels:
+  - id: "<channel id>"
+    name: shop
+    projectsDir: ~/code/shop   # this channel wins over the workspace default
+```
+
+- Ask: `start a project called shop-api` (no path). The lead calls `register_location create:true` with a `name` (kebab slug); the folder is `<projectsDir>/<slug>`. Yes/No is not asked again (the dir is your config).
+- Slug: lowercase `a-z0-9` and single dashes, max 40 chars. No name: the first four words of the request. A clash gets `-2`, `-3`... (up to `-99`, else `NAME_TAKEN`).
+- Refusals: `NO_DEFAULT_PROJECTS_DIR` (no dir for this channel: the lead asks you to pick 2-3 candidate paths with `ask_owner` select, then creates at your choice); `BAD_DEFAULT_PROJECTS_DIR` (not absolute or `~/`, or the dir does not exist: create it or fix `projectsDir`). The path checks of the table above still apply to the final path.
+- Not verified live.
+
 ## Register a location (no YAML)
 Say the directory in the channel's thread (or in the channel itself for a `chat` channel). Nothing is written before your Yes.
 
@@ -245,6 +261,10 @@ Type in `#ops-control`. One string argument (`path`).
    - A long report arrives as a summary plus an attached file named after its title (Mermaid code stays as source) and link buttons for public `http(s)` links only.
 
 **Important:** never commit `.env` with real values. `.env.example` has placeholders only.
+
+## Prompt inspection (developer debug)
+- `bun run prompt:show <role|--all> [--workspace <ws> --channel <name>] [--out <file.md>] [--tools] [--no-skills]`: the exact system prompt layers (chars, about tokens), skills and tool schemas of each role. Offline: no API call, no bot, no token.
+- `FRIDAY_DUMP_PROMPTS=1 bun run start`: every model run writes its SDK input (system prompt, user prompt, tools, options; secrets masked) to `<AGENT_HOME>/logs/prompts`, 0600, newest 50 kept (`PROMPT_DUMP_KEEP`). Off by default; the files hold your chat text, so keep them out of git.
 
 ## First start and reset
 The store is one SQLite file, `<AGENT_HOME>/data/agent.db`, built from the Drizzle baseline (`src/storage/migrations/`). There is no upgrade path from older versions and no backup: an older database is refused, so the owner starts over.

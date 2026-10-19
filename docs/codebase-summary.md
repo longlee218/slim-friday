@@ -1,6 +1,6 @@
 # Codebase Summary
 
-Last updated: 2026-10-19 (plan visibility, phase 5, uncommitted: `plan-artifact.ts`, `plan-live.ts`, `plan-copy.ts`; action-tool merge, phase 4, uncommitted, on HEAD `ab8cd60`: the lead, planner and worker tools are the action tools `Orchestrate`, `Plan`, `Report`; migrations `0000`-`0008`). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
+Last updated: 2026-10-19 (role skills, prompt tooling and default projects dir, phase 6a, uncommitted: `prompt-preview/`, `prompt-dump.ts`, `default-project-path.ts`; plan visibility, phase 5, uncommitted: `plan-artifact.ts`, `plan-live.ts`, `plan-copy.ts`; action-tool merge, phase 4, uncommitted, on HEAD `ab8cd60`: the lead, planner and worker tools are the action tools `Orchestrate`, `Plan`, `Report`; migrations `0000`-`0008`). Source of truth: the code under `src/`. Architecture: [system-architecture.md](system-architecture.md). Conventions: [code-standards.md](code-standards.md).
 
 ## Overview
 - **Friday**: Discord-driven general workflow agent on the Claude Agent SDK. The owner posts in a thread; the thread's **lead** (Sonnet) is the only router: it answers, asks, or dispatches typed work.
@@ -15,7 +15,7 @@ Last updated: 2026-10-19 (plan visibility, phase 5, uncommitted: `plan-artifact.
 | `discord-manager` | control | Haiku | 0.5 | `#ops-control` free text: spaces, channels, persona files |
 
 - **Stack:** Bun, TypeScript, discord.js, Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`), SQLite (`bun:sqlite`) with Drizzle ORM, zod, pino.
-- **Size (2026-10-18):** 514 `.ts` files, about 32,200 lines under `src/`; 259 `.ts` files under `test/`.
+- **Size (2026-10-19):** 524 `.ts` files, about 36,750 lines under `src/`; 298 `.ts` files under `test/`.
 - **Counts that change:** `bun test` total is in [CLAUDE.md](../CLAUDE.md) and the latest entry of [project-changelog.md](project-changelog.md).
 
 ## Source Layout (`src/`)
@@ -73,7 +73,7 @@ src/
 | `artifacts/` | titled documents of a workspace channel: write, repo reference, chunks, FTS index, search | `artifact-writer.ts`, `artifact-repo-ref.ts`, `artifact-index.ts`, `artifact-chunks.ts`, `artifact-search.ts`, `artifact-access.ts` (scope check, paging, save: the logic of the artifact tools), `artifact-refs.ts` (`Report result` refs), `artifact-repo-sync.ts` (re-index on read), `artifact-kinds.ts`, `artifact-limits.ts`, `safe-write.ts` (atomic 0600 write shared with every owner-only file) |
 | `viewer/` | read-only artifact viewer behind a Cloudflare Tunnel: signed links, render by kind, server (OFF unless configured; `config/viewer-config.ts`) | `signed-link.ts` (HMAC sign/verify, "Open" link), `render-artifact.ts` (by kind: md, html frame, `<pre>`), `markdown-render.ts` (renderer: markdown-it + highlight.js), `page-template.ts` (escape, plain page, html frame), `page-doc-layout.ts` / `page-doc-styles.ts` / `page-doc-script.ts` (md documentation layout, CSS, the one hash-pinned script), `page-styles.ts` (base inline CSS), `artifact-body.ts` (path check on every read), `viewer-roots.ts`, `viewer-server.ts` |
 | `storage/` | SQLite open, Drizzle schema and baseline migration, stores | `db.ts`, `fts-probe.ts`, `schema/` (11 files), `migrations/` (`0000_baseline.sql` to `0008_item_priority_subject.sql`, 9 files, applied in place at start), 24 `*-store.ts` files, incl. `item-edit-store.ts` (not-started item edits, duplicate candidates) (`artifact-store.ts`, `artifact-list-store.ts`, `artifact-path-store.ts`, `running-owned-task-store.ts` (newest running turn of a task)) |
-| `workspaces/` | space registry, channel checks, `/init-workspace` target | `workspace-registry.ts`, `channel-checks.ts`, `list-spaces.ts`, `task-workspace.ts`, `workspace-yaml-write.ts` (the one locked writer of `workspace.yaml`), `location-candidate.ts` (`inspectLocation`), `location-description.ts` (README H1 for a location), `register-location.ts` (`registerLocation`), `adopt-channel.ts` (`adoptChannel`: slug, unique name, locked write, memory dir) `create-project.ts` (`register_location` with `create: true`: mkdir, `git init`, README, first commit; guards) |
+| `workspaces/` | space registry, channel checks, `/init-workspace` target | `workspace-registry.ts`, `channel-checks.ts`, `list-spaces.ts`, `task-workspace.ts`, `workspace-yaml-write.ts` (the one locked writer of `workspace.yaml`), `location-candidate.ts` (`inspectLocation`), `location-description.ts` (README H1 for a location), `register-location.ts` (`registerLocation`), `adopt-channel.ts` (`adoptChannel`: slug, unique name, locked write, memory dir) `create-project.ts` (`register_location` with `create: true`: mkdir, `git init`, README, first commit; guards), `default-project-path.ts` (`projectsDir` of the channel or workspace; slug, `-N` on a clash; `register_location` without a path) |
 | `locations/` | location registry, git detection, git CLI, isolation | `location-registry.ts`, `git-cli.ts`, `git-run.ts`, `git-isolation.ts` |
 | `discord-setup/` | `discord.yaml`, private channel overwrites, admin commands, control-channel run, persona backups | `admin-handler.ts`, `init-workspace.ts`, `init-channel.ts`, `control-role-run.ts`, `write-space-file.ts`, `line-diff.ts`, `persona-backup.ts`, `channel-topic.ts`, `bootstrap-discord-cli.ts`, `templates/` |
 | `lifecycle/` | startup, drain, shutdown, trash sweep, home and registry checks | `boot-checks.ts` (fail-fast boot checks, `loadBootState`), `startup.ts`, `drain.ts` (`FRIDAY_DRAIN=1` or `DRAIN` file), `shutdown.ts`, `trash-sweeper.ts`, `home-placement-check.ts`, `registry-check.ts` |
@@ -138,8 +138,9 @@ Layers that decide whether a tool call runs (details: [system-architecture.md](s
 - Implementations live in `orchestrator/effects/`.
 
 ## Skills
-- **Publisher skills** (`.agents/skills/`, 19 dirs, pinned by `skills-lock.json`, `friday` local entries for 4 of them): loaded whole and unmodified. `runtime/skills-plugin/` builds a plugin per run from the names in the role's `skills` list (`string[]`; empty = none).
-- Role lists (`skills` in role data): developer = 15 publisher skills (brainstorming, debugging, TDD, worktrees, code review, writing-plans, and others, listed in `developer-role.ts`); scout = `scout`, `docs-seeker`, `firecrawl-deep-research`, `firecrawl-research-papers`, `firecrawl-market-research`; planner = `plan-work`; discord-manager = `discord-server-manager`; lead = none.
+- **Publisher skills** (`.agents/skills/`, 26 dirs, pinned by `skills-lock.json`, `friday-app/friday` local entries for 6 of them: `lead-orchestration`, `plan-work`, `worker-reporting`, `scout`, `docs-seeker`, `discord-server-manager`): loaded whole and unmodified. `runtime/skills-plugin/` builds a plugin per run from the names in the role's `skills` list (`string[]`; empty = none).
+- **App-owned skills**: `lead-orchestration` (lead), `plan-work` (planner), `worker-reporting` (8 worker roles). Each has `references/` checked by `test/skills-drift.test.ts`.
+- Role lists (`skills` in role data): developer = 15 publisher skills (brainstorming, debugging, TDD, worktrees, code review, writing-plans, and others, listed in `developer-role.ts`); scout = `worker-reporting`, `scout`, `docs-seeker`, `firecrawl-deep-research`, `firecrawl-research-papers`, `firecrawl-market-research`; planner = `plan-work`; discord-manager = `discord-server-manager`; lead = `lead-orchestration`.
 - **Workspace skills** (`workspaces/<ws>/skills/`): owner-curated, one plugin per run when `skills.extra` is `true` in `workspace.yaml`.
 - A location's `.claude/skills`, hooks and `.mcp.json` are never read.
 - Adding a skill = a directory in `.agents/skills/`, a lock entry and a role name. No code change.
@@ -180,7 +181,8 @@ Layers that decide whether a tool call runs (details: [system-architecture.md](s
 - `lifecycle/registry-check.ts`: validates the role registry at start.
 
 ## Tests
-- `test/`: 287 `.ts` files, `bun test`. Gate and counts: [CLAUDE.md](../CLAUDE.md).
+- `test/`: 298 `.ts` files, `bun test`. Gate and counts: [CLAUDE.md](../CLAUDE.md).
+- Prompt inspection (no API call): `prompt-show.test.ts`, `prompt-dump.test.ts`; code in `runtime/prompt-preview/` (`show.ts`, `default-home.ts`), `scripts/prompt-show.ts`, `observability/prompt-dump.ts` (`config/prompt-dump-config.ts`: `PROMPT_DUMP_KEEP` = 50). Usage: [discord-setup.md](discord-setup.md#prompt-inspection-developer-debug).
 - Layering and scan tests: `engine-layering` (no import cycle into the engine), `mcp-layering` (orchestrator and policy import no `src/mcp` code except constants), `no-sql-in-orchestrator`, `no-process-env-outside-config`, `tool-name-literals`, `role-limits-declared-in-role-files`, `retired-naming-scan` (also checks the living docs and their relative links), `child-env-deny`, `db-schema-baseline`.
 - Lead golden set: `lead-golden.test.ts` (shape only, no API call). `lead-golden.eval.test.ts` is paid: it needs `LEAD_EVAL=1` and a real token.
 - Scout research set: `scout-research.test.ts` (shape only, no API call; fixture `fixtures/scout-research.json`, helpers `scout-eval-support.ts`). `scout-research.eval.test.ts` is paid: it needs `SCOUT_EVAL=1` and a real token.

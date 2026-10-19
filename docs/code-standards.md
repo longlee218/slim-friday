@@ -68,6 +68,7 @@ Folders under `src/orchestrator/`:
 - One `RoleDefinition` object per file: `src/roles/builtin/<name>-role.ts`. Prompt text sits in the role file or in `src/roles/prompts/` (`team-md.ts`, `rollover-prompts.ts`).
 - Role fields are described in [system-architecture.md, Role Model](system-architecture.md#role-model).
 - `model` is one fixed full id per role (`src/config/model-ids.ts`). No tiers, no escalation, no per-role env pins. Two Haiku ids: `HAIKU_MODEL` (`claude-haiku-5-5`) for the Haiku roles and every Haiku task run; `HAIKU_SUMMARY_MODEL` (`claude-haiku-4-5-20251001`) for the one-shot summary and compaction calls (`config.memoryModel`).
+- Prompts: role contracts state runtime facts and scope only (no tone, no method). Method lives in the role's skills (`skills` list) and persona files. Preview a role's exact prompt with `bun run prompt:show <role>`.
 - Config as data: roles stay TypeScript objects. Roles as files plus a resolver is closed (owner decision, 2026-10-12). Keep role data flat so the move stays possible.
 
 ## MCP Tools

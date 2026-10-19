@@ -1,6 +1,6 @@
 # Friday Agent System Architecture
 
-Last updated: 2026-10-19 (plan visibility, phase 5, uncommitted: `/plan`, plan artifacts, revision line; action-tool merge, phase 4, uncommitted: the lead, planner and worker tools are three action tools; see [Not Built Yet](#not-built-yet)).
+Last updated: 2026-10-19 (role skills and prompt tooling, phase 6a, uncommitted: app-owned skills, runtime-facts role contracts, `projectsDir`, `prompt:show` and prompt dump; plan visibility, phase 5, uncommitted: `/plan`, plan artifacts, revision line; action-tool merge, phase 4, uncommitted: the lead, planner and worker tools are three action tools; see [Not Built Yet](#not-built-yet)).
 
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite through a Drizzle baseline).
@@ -230,7 +230,7 @@ Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per f
 | `kind` | lead | worker | worker | worker | control |
 | `dispatchable` | no | no | yes | yes | no |
 | `model` | Sonnet | Sonnet | Haiku | Sonnet | Haiku |
-| `skills` | `[]` | `plan-work` | `scout`, `docs-seeker`, `firecrawl-deep-research`, `firecrawl-research-papers`, `firecrawl-market-research` | 15 named skills | `discord-server-manager` |
+| `skills` | `lead-orchestration` | `plan-work` | `worker-reporting`, `scout`, `docs-seeker`, `firecrawl-deep-research`, `firecrawl-research-papers`, `firecrawl-market-research` | 15 named skills (incl. `worker-reporting`) | `discord-server-manager` |
 | `capabilities` | read | read, skills | read, web, shell, skills | read, write, shell, skills, tasks, mcp, feedback, ask | read, skills, ask |
 | `mcpTools` | 9 | 9 | 15 (8 in-process, 7 firecrawl) | 12 | 3 |
 | `limits.maxAsk`, `limits.maxTurns`, `budgetUsd` | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) |
@@ -266,8 +266,10 @@ Six in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<ser
 ## Skills
 
 ### Publisher skills (data)
-- Source: `<app root>/.agents/skills/<name>/`, pinned by `skills-lock.json` (22 entries, one plugin per source: 4 with source `friday-app/friday` (`discord-server-manager`, `docs-seeker`, `plan-work`, `scout`), 3 with source `firecrawl/firecrawl-workflows` (scout's research skills; they name Firecrawl tools, served by the `firecrawl` MCP server, and sub-agents the scout lacks: the scout contract only says to do such steps by hand and never write files, the skills decide the method), the rest `obra/superpowers`). Skills are loaded whole and unmodified.
+- Source: `<app root>/.agents/skills/<name>/`, pinned by `skills-lock.json` (26 entries, one plugin per source: 6 with source `friday-app/friday` (`discord-server-manager`, `docs-seeker`, `plan-work`, `scout`, `lead-orchestration`, `worker-reporting`), 3 with source `firecrawl/firecrawl-workflows` (scout's research skills; they name Firecrawl tools, served by the `firecrawl` MCP server, and sub-agents the scout lacks: the scout contract only says to do such steps by hand and never write files, the skills decide the method), the rest `obra/superpowers`). Skills are loaded whole and unmodified.
 - A role lists bare names in `skills: string[]`. A name that is not installed is skipped. No skill name appears in code (test-enforced).
+- App-owned method skills (`friday-app/friday`, data only): `lead-orchestration` (lead; `references/` actions, events, refusals), `plan-work` (planner; `references/` actions, examples, refusals), `worker-reporting` (scout, developer, tester, devops, hacker, solution-architect, designer, humanizer-writer; not planner or discord-manager; `references/` report actions, artifacts and effects, roles). Their `references/` codes and action names are drift-tested (`test/skills-drift.test.ts`).
+- Role contracts (`specialist-contract.ts`, lead and planner prompts) state runtime facts and scope only. Behavior, tone and method live in `AGENTS.md`, `SOUL.md` and the skills (`test/system-prompt.test.ts`, `test/team-md.test.ts`).
 - One plugin per installed publisher is built per run under `<AGENT_HOME>/tmp/`, narrowed to the role's list, and removed after the run. Startup sweeps stale plugin dirs.
 - A location's `.claude/skills`, hooks and `.mcp.json` are never read. Run settings use `settingSources: []`.
 - Developer run facts (approval before changes, commit rules, code standards, the `location:` report line) are prompt text in `src/roles/builtin/developer-role.ts` (`COMMIT_RULES`, `CODE_STANDARDS`).
@@ -314,7 +316,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 | 5 | Child env scrub | every run | `src/runtime/sdk-env.ts`, `src/config/data/child-env-deny.yaml` | bot secrets never reach the agent process; workers also lose GitHub tokens and the SSH agent socket |
 
 - **Orchestrate register_location** (config, not an effect): outside the per-goal envelope. Existing directory (`create` absent or false): guards in order: owner turn (`NOT_OWNER_TURN`), path token in the owner text (`PATH_NOT_IN_MESSAGE`, `src/orchestrator/lead/owner-path-match.ts`), one per run (`LIMIT`), `inspectLocation` path and credential rules (`BAD_PATH`, `src/workspaces/location-candidate.ts`), Yes/No question via the lead's ask_owner port (`OWNER_DENIED`), then one locked write with a reload check (`WRITE_FAILED`, `src/workspaces/register-location.ts`). Audit row in `effect_log` (tool `Orchestrate.register_location`, `granted_by` owner) on success only; a refusal writes a `lead_decision` event.
-- **`create: true`** (new project from chat; `src/workspaces/create-project.ts`, called by `lead-location-handler.ts`): no Yes/No. The owner's `ask_owner` answer that names the path IS the approval; without it the call is refused `CREATE_NEEDS_ANSWER` (the lead asks `ask_owner` kind `select` with 1-3 candidate paths first). CODE makes the directory, `git init`, a `README.md` with the owner's request and one first commit under the owner's git identity (no agent shell). Refusals: `PATH_IS_SYMLINK`, `PATH_EXISTS` (not an empty folder), `PARENT_MISSING`, `OUTSIDE_HOME`, `INSIDE_AGENT_HOME`, `CREDENTIAL_DIR`, `INSIDE_LOCATION`, `INSIDE_GIT_REPO`, `BAD_PATH` (not absolute or `~/`), `NO_GIT_IDENTITY` (the owner sets `git config --global user.name` / `user.email`), `CREATE_FAILED`. A failure after the create removes what that call made (`undoCreateProject`); the project is then registered as an ordinary location (same write and audit row).
+- **`create: true`** (new project from chat; `src/workspaces/create-project.ts`, called by `lead-location-handler.ts`): no Yes/No. The path is the owner's own words (message or `ask_owner` answer; else `PATH_NOT_IN_MESSAGE`) or, with no path, the channel's default `projectsDir` (no default: `NO_DEFAULT_PROJECTS_DIR`, the lead asks `ask_owner` kind `select` with 2-3 candidate paths first). CODE makes the directory, `git init`, a `README.md` with the owner's request and one first commit under the owner's git identity (no agent shell). Refusals: `PATH_IS_SYMLINK`, `PATH_EXISTS` (not an empty folder), `PARENT_MISSING`, `OUTSIDE_HOME`, `INSIDE_AGENT_HOME`, `CREDENTIAL_DIR`, `INSIDE_LOCATION`, `INSIDE_GIT_REPO`, `BAD_PATH` (not absolute or `~/`), `NO_GIT_IDENTITY` (the owner sets `git config --global user.name` / `user.email`), `CREATE_FAILED`. A failure after the create removes what that call made (`undoCreateProject`); the project is then registered as an ordinary location (same write and audit row).
 - **Resume and the guards**: a resumed or retried run is a new start of the same item: the envelope is rebuilt from the db (approved plan, dispatch grants), so a resume cannot widen a grant; layers 1, 3 and 4 apply as on any run; R4 effects still ask the owner at every act. `Orchestrate retry` is lead-only (a worker has no `lead` ctx part); the retry note and the effect rows reach the resumed run as redacted, clipped DATA.
 - The app does not parse Bash. Layer 1 allows Bash and Monitor for a role with the `shell` capability (developer, scout) and denies them for the others; layer 4 bounds what the shell can do. No `disallowedTools` list.
 
@@ -362,7 +364,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 - No real Claude credential: the run falls back to `default` (fail closed). The SDK reporting another mode than requested makes asks owner asks.
 
 ### Scopes (per run, `src/orchestrator/run/role-scope.ts`)
-- Write-capable (developer): the run's location, all of the space's locations, the worktrees dir, the task scratch dir and `~/.claude/plans`.
+- Write-capable (developer): the run's location, all of the space's locations, the worktrees dir and the task scratch dir.
 - Roles with no write capability (scout, lead): read paths only (cwd, locations, attachments); no write path. A scout still produces artifacts: the artifact tool writes them in code (app-owned store), like the lead's memory tool.
 - AGENT_HOME is denied to every run, read and write, even when a location contains it.
 - Checked by Read, Glob, Grep, Edit, Write, NotebookEdit and by path words in Bash. Accepted gaps: `GIT_DIR`, `env -C`, shell variables, scripts, glob symlinks.
@@ -456,7 +458,7 @@ $AGENT_HOME/                       real directory outside every location and git
 ├── trash/<goalId>/                DeletePaths trash, 7 days
 ├── backups/persona/               backups of persona files written by WriteSpaceFile (newest 10 per file)
 └── workspaces/<ws>/
-    ├── workspace.yaml             description, channels, locations, skills.extra
+    ├── workspace.yaml             description, channels, locations, projectsDir (workspace and per channel), skills.extra
     ├── channels/<name>/           MEMORY.md; optional persona overrides; artifacts/<title>[-vN].<ext>
     ├── artifacts/                 artifacts of runs with no mapped channel
     ├── skills/                    owner-curated skills
