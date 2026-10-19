@@ -89,7 +89,7 @@ function pathGuard(
   if (final === realOrSame(userHome) || !isInside(realOrSame(userHome), final))
     return fail(
       "OUTSIDE_HOME",
-      "A new project must be under the owner's home folder: ask for another path.",
+      `A new project must be a folder under the owner's home (${userHome}): ask for another path, e.g. ${join(userHome, "projects", basename(target))}.`,
     );
   if (isInside(realOrSame(home), final) || isInside(final, realOrSame(home)))
     return fail(

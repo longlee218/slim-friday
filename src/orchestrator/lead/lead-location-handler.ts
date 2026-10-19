@@ -105,7 +105,7 @@ export const handleRegisterLocation = (
         return {
           reply: refuse(
             "PATH_NOT_IN_MESSAGE",
-            "The path is not in the owner's message or answer: ask the owner to write the full path.",
+            `The path is not in the owner's message or answer: pass only a path the owner wrote or picked, else ask_owner (candidates under ${userHome}).`,
           ),
         };
     }
@@ -118,7 +118,7 @@ export const handleRegisterLocation = (
         return {
           reply: refuse(
             "NO_DEFAULT_PROJECTS_DIR",
-            "No default projects dir is set for this channel: call ask_owner kind select with 2-3 candidate paths, then register_location create:true with the chosen path.",
+            `No default projects dir is set for this channel: call ask_owner kind select with 2-3 candidate paths, each a new folder under the owner's home (${userHome}), then register_location create:true with the chosen path.`,
           ),
         };
       const made = defaultProjectPath(dir, userHome, input.name, place.ownerText);
