@@ -6,6 +6,7 @@ import { threadOfTask } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
+import { waveHeldGoalOf } from "../plan/plan-waves";
 import { runOfTask } from "../run/live-runs";
 import type { PolicyEnv } from "../strategy/caps";
 import { resumeWaiting } from "../worker/resume-waiting";
@@ -58,8 +59,9 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
   /** Move the whole cancel set to `cancelled` (CAS: an ended task keeps its status); returns the set to abort. */
   const markCancelled = (taskId: string): { all: string[]; moved: string[] } => {
     const all = cancelSet(db, taskId);
-    // A plan waiting for the owner dies with its goal's work: a later approve must create nothing.
-    closePendingPlans(db, goalOf(db, taskId) ?? taskId, "cancelled");
+    // A plan waiting for the owner dies with its GOAL: a later approve must create nothing. Cancelling one item (a stuck
+    // task, a planner) leaves the goal's plan versions alone, same as `cancelHeld`.
+    if (goalOf(db, taskId) === undefined) closePendingPlans(db, taskId, "cancelled");
     return { all, moved: all.filter((id) => moveTaskTo(db, id, "cancelled")) };
   };
   const abortRuns = (ids: string[]): void => {
@@ -84,8 +86,10 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
     },
     state: () => {
       const openGoalId = openGoalIdOf(db, threadId);
+      const waveHeldGoalId = openGoalId ? undefined : waveHeldGoalOf(db, threadId);
       return {
         ...(openGoalId && { openGoalId }),
+        ...(waveHeldGoalId && { waveHeldGoalId }),
         items: openGoalId ? childrenOf(db, openGoalId) : [],
       };
     },

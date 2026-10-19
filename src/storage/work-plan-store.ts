@@ -155,6 +155,15 @@ export function hasPendingPlan(db: Database, goalId: string, now = Date.now()): 
   );
 }
 
+/** `valid` versions stored at or before `cutoff` (epoch ms): plans the owner left unanswered past the pending limit. */
+export function expiredValidPlans(db: Database, cutoff: number): WorkPlanRow[] {
+  return db
+    .query<WorkPlanRow, [number]>(
+      `SELECT ${COLUMNS} FROM work_plans WHERE status = 'valid' AND created_at <= ? ORDER BY created_at`,
+    )
+    .all(cutoff);
+}
+
 /**
  * Close every `draft` / `valid` version of the goal's plans (the goal was stopped or cancelled): `rejected` when the
  * plan never had an approved version (nothing was agreed), else `superseded` (the approved one stays in the history).

@@ -10,7 +10,7 @@ import { openGoalIdOf } from "../goal/effect-port-queries";
 import type { LeadRuntime } from "../lead/lead-runtime";
 import { startNextWave, waveGoalOf } from "../plan/plan-waves";
 import { zombieClaims } from "../run/zombie-claims";
-import { cancelDependents, settleGoal } from "./goal-settle";
+import { cancelDeadWaiters, cancelDependents, settleGoal } from "./goal-settle";
 import { clearHold, waitMs } from "./resume-backoff";
 import { hasPendingAnswer } from "./resume-prompt";
 import { pickDispatchable, type RoleCaps } from "./scheduler";
@@ -100,6 +100,8 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
   if (!ctx || !goalId) return;
   if (rt.deps.stopping()) return; // shutdown: an item resumed by the abort starts at the next boot, not now
   for (;;) {
+    // A pending item whose dependency ended without a result can never start: cancel it (the lead is told).
+    if (cancelDeadWaiters(db, goalId).length) rt.announce(threadId);
     let items = childrenOf(db, goalId);
     // A pending item whose dependencies all completed is ready.
     for (const it of items)

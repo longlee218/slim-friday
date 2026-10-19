@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { childrenOf } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import {
   casPlanStatus,
@@ -20,10 +21,19 @@ import {
   rowFieldsOf,
   toPlanItem,
 } from "./plan-doc";
-import { deadKeys, type Fail, fail, invalid, otherKeys, type PlanEnv } from "./plan-refusal";
+import {
+  deadKeys,
+  type Fail,
+  fail,
+  invalid,
+  otherKeys,
+  type PlanEnv,
+  releasedKeys,
+} from "./plan-refusal";
 import {
   budgetSpentMessage,
   type DeliveryEffect,
+  PLANNER_KEY,
   type PlanCtx,
   type PlanDoc,
   type PlanError,
@@ -44,11 +54,16 @@ const validatorCtx = (
   ...env,
   existingKeys: otherKeys(db, goalId, planKeys),
   deadKeys: deadKeys(db, goalId),
+  releasedKeys: releasedKeys(db, goalId),
   revisions,
   spentUsd: spentOf(db, goalId),
 });
 
-/** Store version 1 of a goal's plan after validation. A second plan for the goal is refused: revise it. */
+/**
+ * Store a new plan for a goal after validation: version 1, or the next version of the goal's plan when every earlier
+ * version was rejected (the owner turned it down or it expired: the lead re-plans inside the goal). A goal whose plan is
+ * valid or approved is refused: revise it.
+ */
 export function createPlan(
   db: Database,
   a: {
@@ -62,7 +77,11 @@ export function createPlan(
     env: PlanEnv;
   },
 ): ({ ok: true } & { plan: WorkPlanRow }) | Fail {
-  if (planIdOfGoal(db, a.goalId))
+  const prior = planIdOfGoal(db, a.goalId);
+  if (
+    prior &&
+    planVersions(db, prior).some((v) => v.status !== "rejected" && v.status !== "superseded")
+  )
     return fail("PLAN_EXISTS", "This goal has a plan: use ProposePlanRevision.");
   const items = a.items.map(toPlanItem);
   const doc: PlanDoc = {
@@ -73,7 +92,7 @@ export function createPlan(
   const errors = validatePlan(doc, validatorCtx(db, a.goalId, a.env, [], 0));
   if (errors.length) return invalid(errors);
   const plan = insertPlanVersion(db, {
-    id: crypto.randomUUID(),
+    id: prior ?? crypto.randomUUID(),
     goalId: a.goalId,
     strategy: "PLAN",
     objective: a.objective,
@@ -91,6 +110,16 @@ export function validateStored(db: Database, row: WorkPlanRow, env: PlanEnv): Pl
   return validatePlan(doc, validatorCtx(db, row.goalId, env, keys, row.version - 1));
 }
 
+/** Why approving `row` would be refused now (goal closed, budget spent), or undefined. Read-only: nothing is written. */
+export function approvalBlocker(db: Database, row: WorkPlanRow): Fail | undefined {
+  if (getOwnedTask(db, row.goalId)?.status !== "open")
+    return fail("GOAL_CLOSED", `Goal ${row.goalId} is no longer open: the plan cannot start.`);
+  // The goal may have spent on since the plan was stored: a budget at or below the spend could never start an item.
+  if (row.budgetUsd !== null && row.budgetUsd <= spentOf(db, row.goalId))
+    return fail("BUDGET", budgetSpentMessage(row.budgetUsd, spentOf(db, row.goalId)));
+  return undefined;
+}
+
 /**
  * Approval core, in the caller's transaction: the goal must still be open, then CAS, older approved versions
  * superseded, items created / changed / cancelled. Returns the run ids to abort after the commit, or a refusal
@@ -103,11 +132,8 @@ export function applyApproval(
 ): (Applied & { abort: string[]; ok: true }) | Fail {
   const row = getPlan(db, planId, version);
   if (!row) return fail("NO_PLAN", `Plan ${planId} v${version} not found.`);
-  if (getOwnedTask(db, row.goalId)?.status !== "open")
-    return fail("GOAL_CLOSED", `Goal ${row.goalId} is no longer open: the plan cannot start.`);
-  // The goal may have spent on since the plan was stored: a budget at or below the spend could never start an item.
-  if (row.budgetUsd !== null && row.budgetUsd <= spentOf(db, row.goalId))
-    return fail("BUDGET", budgetSpentMessage(row.budgetUsd, spentOf(db, row.goalId)));
+  const blocked = approvalBlocker(db, row);
+  if (blocked) return blocked;
   if (!casPlanStatus(db, planId, version, "valid", "approved"))
     return fail("PLAN_NOT_VALID", `Plan v${version} is ${row.status}, not valid.`);
   const prev = planVersions(db, planId).filter(
@@ -143,7 +169,7 @@ export function approveVersion(
   return { ok: true, created: out.created, modified: out.modified, cancelled: out.cancelled };
 }
 
-/** Reject a `valid` version. A plan that never had an approved version closes its goal (nothing was agreed). */
+/** Reject a `valid` version. A plan that never had an approved version closes its goal (nothing was agreed) unless the goal held other work first. */
 export function rejectVersion(
   db: Database,
   planId: string,
@@ -158,7 +184,13 @@ export function rejectVersion(
       return fail("PLAN_NOT_VALID", `Plan v${version} is ${row.status}, not valid.`);
     if (planVersions(db, planId).some((v) => v.status === "approved"))
       return { ok: true, abort: [] };
-    const ids = cancelSet(db, row.goalId);
+    // A goal that held other work before the plan (a DELEGATE item reported NEEDS_PLANNING): the owner turned down the
+    // plan, not that work. Only the planner ends; the siblings keep running and the lead decides about held ones.
+    const items = childrenOf(db, row.goalId);
+    const isPlanner = (k: string | null) => k?.startsWith(PLANNER_KEY) ?? false;
+    const ids = items.some((i) => !isPlanner(i.itemKey))
+      ? items.filter((i) => isPlanner(i.itemKey)).map((i) => i.id)
+      : cancelSet(db, row.goalId);
     for (const id of ids) moveTaskTo(db, id, "cancelled");
     return { ok: true, abort: ids };
   })();

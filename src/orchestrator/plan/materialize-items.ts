@@ -5,7 +5,9 @@ import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { insertOwnedTask, rewriteNotStartedItem, taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
+import { cancelSet } from "../goal/effect-port-queries";
 import { runOfTask } from "../run/live-runs";
+import { recordRevision } from "./plan-revised";
 import type { PlanDoc, PlanItem } from "./plan-types";
 import { ensureVerify } from "./verify-ensure";
 
@@ -46,7 +48,9 @@ export interface Applied {
  * - an item key the goal has not: a new task (`ready`, or `pending` when it waits) and one `start` event;
  * - an item that exists and has not started: brief, location and dependencies follow the plan;
  * - `cancelKeys`: those items are cancelled (a running one is aborted after the commit by the caller via `abort`);
- * - `releaseBlocked` (first approval): items that reported NEEDS_PLANNING are cancelled, the plan replaces them.
+ * - `releaseBlocked` (first approval): items that reported NEEDS_PLANNING are cancelled, the plan replaces them. A plan
+ *   item that waited for a released item stops waiting for it (validation refuses that; this is a safety net); any other
+ *   item that waited for it is cancelled too. One `plan_revised` event tells the lead when either happened.
  */
 export function materialize(
   db: Database,
@@ -68,7 +72,17 @@ export function materialize(
     cancelled: [],
     abort: [],
   };
-  for (const it of topoOrder(o.doc.items.filter((i) => !i.deferredScope))) {
+  // Items the plan replaces (reported NEEDS_PLANNING, first approval): their keys leave the plan items' dependencies.
+  const released = [...have.values()].filter(
+    (i) => o.releaseBlocked && i.status === "blocked" && i.resultKind === "NEEDS_PLANNING",
+  );
+  const gone = new Set(released.map((i) => i.itemKey));
+  // Plan items that stopped waiting for a released item. Validation refuses such a dependency, so this is a safety net
+  // (the item was running when the plan was stored, then reported NEEDS_PLANNING): it is told to the lead.
+  const repointed: string[] = [];
+  for (const planned of topoOrder(o.doc.items.filter((i) => !i.deferredScope))) {
+    const it = { ...planned, dependsOn: planned.dependsOn.filter((k) => !gone.has(k)) };
+    if (it.dependsOn.length !== planned.dependsOn.length) repointed.push(it.key);
     const cur = have.get(it.key);
     if (!cur) {
       const id = crypto.randomUUID();
@@ -115,16 +129,43 @@ export function materialize(
   const doomed = [...have.values()].filter(
     (i) =>
       !ENDED.has(i.status) &&
-      ((i.itemKey !== null && o.cancelKeys.includes(i.itemKey)) ||
-        (o.releaseBlocked && i.status === "blocked" && i.resultKind === "NEEDS_PLANNING")),
+      ((i.itemKey !== null && o.cancelKeys.includes(i.itemKey)) || released.includes(i)),
   );
   for (const d of doomed) {
-    // Only the item itself: a valid plan holds no item that still waits for it.
     if (moveTaskTo(db, d.id, "cancelled")) {
       out.cancelled.push(d.itemKey ?? d.id);
       out.abort.push(d.id);
     }
   }
+  // Items still waiting for a released item (not plan items: those were re-pointed above) could never start.
+  const orphans = released
+    .flatMap((r) => cancelSet(db, r.id))
+    .filter((id) => !released.some((r) => r.id === id));
+  let orphansCancelled = 0;
+  for (const id of new Set(orphans)) {
+    const row = childrenOf(db, o.goalId).find((i) => i.id === id);
+    if (row && !ENDED.has(row.status) && moveTaskTo(db, id, "cancelled")) {
+      out.cancelled.push(row.itemKey ?? id);
+      out.abort.push(id);
+      orphansCancelled++;
+    }
+  }
+  // Told only when something moved: waiting items were cancelled, or plan items were re-pointed.
+  if (orphansCancelled || repointed.length)
+    recordRevision(db, o.goalId, o.planId, {
+      version: o.version,
+      added: out.created,
+      cancelled: out.cancelled,
+      modified: out.modified,
+      criteriaChanged: false,
+      reason: [
+        "the plan replaces the items that reported NEEDS_PLANNING",
+        ...(orphansCancelled ? ["the items waiting for them were cancelled"] : []),
+        ...(repointed.length
+          ? [`plan items no longer wait for them: ${repointed.join(", ")}`]
+          : []),
+      ].join("; "),
+    });
   // The verify item goes in last: it waits for every live item, the ones this version just created included.
   ensureVerify(db, {
     goalId: o.goalId,

@@ -1,5 +1,6 @@
 import { francAll } from "franc-min";
 import type { RecentMessage } from "./intent-types";
+import { isPlanNotice, renderPlanNotice } from "./notice-text-plan";
 import { renderRunNotice } from "./notice-text-run";
 import { isUiNotice, renderUiNotice } from "./notice-text-ui";
 
@@ -32,6 +33,17 @@ export type UserNotice =
         | "channel-unavailable";
     }
   | { kind: "ask-after-location"; name?: string }
+  /** The owner clicked Approve and the plan could not start (no ids: only the cause class). */
+  | { kind: "plan-not-started"; cause: "closed" | "budget" | "other" }
+  /** An applied plan revision cancelled work or changed the criteria (item keys, never ids). */
+  | {
+      kind: "plan-revised";
+      cancelled: string[];
+      added: string[];
+      modified: string[];
+      criteriaChanged: boolean;
+      reason: string;
+    }
   /** An owner-made channel was just mapped to a space (auto-adopt). */
   | { kind: "channel-adopted"; space: string; name: string }
   /** Auto-adopt refused: the channel is not private, two spaces claim its category, or it could not be written. */
@@ -124,6 +136,7 @@ export const pinnedThreadLanguage = (threadId: string): OwnerLanguage | undefine
 
 /** Render only what the application knows happened (copy tables live in `notice-text-*.ts`). */
 function render(event: UserNotice, language: OwnerLanguage): string {
+  if (isPlanNotice(event)) return renderPlanNotice(event, language);
   return isUiNotice(event) ? renderUiNotice(event, language) : renderRunNotice(event, language);
 }
 
@@ -141,6 +154,7 @@ export function renderUserNotice(event: UserNotice, language: OwnerLanguage): st
     event.kind === "approval" ||
     event.kind === "choice" ||
     event.kind === "label" ||
+    event.kind === "plan-revised" ||
     (event.kind === "outcome" && event.resetsAt);
   if (language === "en" && !dynamic) ENGLISH_NOTICES.set(text, event);
   return text;

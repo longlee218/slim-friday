@@ -1,12 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { PLAN_MAX_ITEMS } from "../../config/lead-caps";
 import { childrenOf } from "../../storage/owned-item-store";
-import {
-  casPlanStatus,
-  insertPlanVersion,
-  latestPlan,
-  type WorkPlanRow,
-} from "../../storage/work-plan-store";
+import { casPlanStatus, insertPlanVersion, type WorkPlanRow } from "../../storage/work-plan-store";
 import { spentOf } from "../budget/task-budget";
 import { envelopeGrew } from "./envelope-diff";
 import { type Applied, abortRuns } from "./materialize-items";
@@ -20,7 +15,17 @@ import {
   toPlanItem,
 } from "./plan-doc";
 import { applyApproval } from "./plan-lifecycle";
-import { deadKeys, type Fail, fail, invalid, otherKeys, type PlanEnv } from "./plan-refusal";
+import {
+  deadKeys,
+  type Fail,
+  fail,
+  invalid,
+  otherKeys,
+  type PlanEnv,
+  releasedKeys,
+  reviseBase,
+} from "./plan-refusal";
+import { criteriaDiffer, isNoteworthy, type RevisionDiff, recordRevision } from "./plan-revised";
 import type { DeliveryEffect, PlanDoc } from "./plan-types";
 import { Refused, stripUndefined } from "./revision-support";
 import { validatePlan } from "./validate-plan";
@@ -57,6 +62,8 @@ export interface Revised {
   version: number;
   status: "approved" | "valid";
   affected: Applied;
+  /** Set when the revision applied at once and cancelled work or changed the criteria: the lead was told, the owner is to be. */
+  revised?: RevisionDiff;
 }
 
 /** A new version from edits, checked against `baseVersion` (a stale base is refused). History is kept. */
@@ -64,25 +71,20 @@ export function revisePlan(
   db: Database,
   a: { planId: string; baseVersion: number; edit: Edit; reason: string; env: PlanEnv },
 ): Revised | Fail {
-  const base = latestPlan(db, a.planId);
-  if (!base) return fail("NO_PLAN", `Plan ${a.planId} not found.`);
-  if (base.version !== a.baseVersion)
-    return fail(
-      "STALE_VERSION",
-      `The latest version is ${base.version}, not ${a.baseVersion}: read it again.`,
-    );
-  if (base.status !== "valid" && base.status !== "approved")
-    return fail("BAD_STATE", `Plan v${base.version} is ${base.status}: it cannot be revised.`);
+  const found = reviseBase(db, a.planId, a.baseVersion);
+  if (!found.ok) return found;
+  const { base } = found;
   const baseDoc = docOfRow(base);
   const rows = new Map(childrenOf(db, base.goalId).map((i) => [i.itemKey, i] as const));
   const keys = new Set(baseDoc.items.map((i) => i.key));
   const touched = [...a.edit.cancel, ...a.edit.modify.map((m) => m.key)];
   const unknown = touched.find((k) => !keys.has(k));
   if (unknown) return fail("UNKNOWN_KEY", `Item ${unknown} is not in plan v${base.version}.`);
-  // A deferred item has no row yet: it can be changed (activated) like a not-started one.
+  // A deferred item has no row yet: it can be changed (activated) like a not-started one. A row that started is never
+  // modified, whatever the base (a pending version would show text that the approval cannot run).
   const started = a.edit.modify.find((m) => {
     const row = rows.get(m.key);
-    return base.status === "approved" && row !== undefined && !NOT_STARTED.has(row.status);
+    return row !== undefined && !NOT_STARTED.has(row.status);
   });
   if (started)
     return fail(
@@ -122,6 +124,7 @@ export function revisePlan(
     // The goal's other items, plus the completed keys this version dropped: both stay usable as dependencies.
     existingKeys: [...otherKeys(db, base.goalId, [...keys]), ...pruned],
     deadKeys: deadKeys(db, base.goalId),
+    releasedKeys: releasedKeys(db, base.goalId),
     revisions: base.version,
     spentUsd: spentOf(db, base.goalId),
   });
@@ -131,7 +134,7 @@ export function revisePlan(
     base.status === "approved" &&
     (envelopeGrew(oldEnv, doc.envelope) || doc.envelope.budgetUsd !== oldEnv.budgetUsd);
   // One transaction: the new version, the supersede and (when it applies now) the approval land together or not at all.
-  let out: { row: WorkPlanRow; done?: Applied & { abort: string[] } };
+  let out: { row: WorkPlanRow; done?: Applied & { abort: string[] }; diff?: RevisionDiff };
   try {
     out = db.transaction(() => {
       const row = insertPlanVersion(db, {
@@ -149,7 +152,17 @@ export function revisePlan(
       if (base.status === "valid" || grew) return { row };
       const done = applyApproval(db, row.id, row.version);
       if (!done.ok) throw new Refused(done); // rolls the insert back
-      return { row, done };
+      const diff: RevisionDiff = {
+        version: row.version,
+        added: done.created,
+        cancelled: done.cancelled,
+        modified: done.modified,
+        criteriaChanged: criteriaDiffer(baseDoc.acceptanceCriteria, doc.acceptanceCriteria),
+        reason: a.reason,
+      };
+      // Applied without the owner: a cancel or a changed criterion is announced in the same transaction (lead news).
+      if (isNoteworthy(diff)) recordRevision(db, base.goalId, row.id, diff);
+      return { row, done, diff };
     })();
   } catch (e) {
     if (e instanceof Refused) return e.fail;
@@ -176,5 +189,6 @@ export function revisePlan(
       modified: out.done.modified,
       cancelled: out.done.cancelled,
     },
+    ...(out.diff && isNoteworthy(out.diff) && { revised: out.diff }),
   };
 }

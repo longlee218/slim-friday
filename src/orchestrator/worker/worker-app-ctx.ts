@@ -1,15 +1,21 @@
-import type { OwnerLanguage } from "../../ingress/user-copy";
+import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
 import { spawnRunner } from "../../locations/git-run";
 import { channelDigestBlock } from "../../memory/channel-digest";
+import { logEvent, logger } from "../../observability/logger";
+import { errText } from "../../observability/redact";
 import { ownerConfirm } from "../../owner-approval/owner-confirm";
 import type { DispatchEnvelope } from "../../policy/envelope";
 import { dispatchableWorkers } from "../../roles/role-registry";
 import { channelDigest } from "../../storage/thread-store";
-import type { LeadRuntime, LeadThreadCtx } from "../lead/lead-runtime";
+import { type LeadRuntime, type LeadThreadCtx, postTo } from "../lead/lead-runtime";
 import { artifactCtx, locationRefs } from "../lead/thread-tool-ctx";
+import { revisionNotice } from "../plan/plan-revised";
 import type { RoleRunInput } from "../run/role-run-types";
 import type { ReportSink } from "./report-sink";
 import { setProgress, withWaiting } from "./run-activity";
+
+/** Logger of this module. */
+const log = logger.child({ module: "worker-app-ctx" });
 
 /** What a worker run binds its tools to. */
 interface WorkerToolScope {
@@ -52,6 +58,11 @@ export function workerAppCtx(
       goalId,
       workers: dispatchableWorkers(),
       locations: locationRefs(ctx),
+      // A revision that cancelled work or changed the criteria is posted to the thread (a failed post is only logged).
+      notify: (diff) =>
+        void postTo(ctx, renderUserNotice(revisionNotice(diff), s.language)).catch((err: unknown) =>
+          logEvent(log, "plan.notice_failed", { threadId, err: errText(err) }, "warn"),
+        ),
       channelDigest: () =>
         ctx.channelId && (ctx.channelMode ?? "task") === "task"
           ? channelDigestBlock(channelDigest(db, ctx.channelId, threadId)).text

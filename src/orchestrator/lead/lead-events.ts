@@ -21,6 +21,7 @@ const NEWS: ReadonlySet<EventKind> = new Set([
   "timeout",
   "budget_hit",
   "slot_wait",
+  "plan_revised", // the planner changed the running plan (cancels, criteria): the lead hears of it
   "recovered_after_restart",
 ]);
 

@@ -15,6 +15,7 @@ import { type Reply, refuse } from "../reply";
 import { docOfRow } from "./plan-doc";
 import { createPlan, validateStored } from "./plan-lifecycle";
 import type { Fail, PlanEnv } from "./plan-refusal";
+import type { RevisionDiff } from "./plan-revised";
 import { revisePlan } from "./plan-revision";
 import type {
   CreatePlanInput,
@@ -39,6 +40,8 @@ export interface PlannerCtx {
   locations: readonly { name: string; path: string }[];
   /** Channel digest block ("" = none): what the channel worked on lately. */
   channelDigest: () => string;
+  /** Tell the owner in the thread what a revision changed (it cancelled work or changed the criteria). Omitted = none. */
+  notify?: (d: RevisionDiff) => void;
 }
 
 /** Chars of the objective / an excerpt shown to the planner. */
@@ -139,6 +142,7 @@ export function proposeRevisionHandler(c: PlannerCtx, i: ProposeRevisionInput): 
   const { planId, baseVersion, reason, ...edit } = i;
   const r = revisePlan(c.db, { planId, baseVersion, reason, edit, env: planEnvOf(c) });
   if (!r.ok) return failReply(r);
+  if (r.revised) c.notify?.(r.revised); // applied at once: the owner hears what changed
   return {
     ok: true,
     planId: r.planId,

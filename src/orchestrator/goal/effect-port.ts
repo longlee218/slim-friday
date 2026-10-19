@@ -100,6 +100,8 @@ export interface PlanView extends PlanStatusView {
   goalId: string;
   objective: string;
   doc: PlanDoc;
+  /** Why an approval would be refused right now (goal closed or no longer the thread's open goal, budget spent); absent = none. */
+  blocker?: { code: string; message: string };
 }
 
 /** Result of the owner's decision on a plan: the item keys the approval created, or a coded refusal. */

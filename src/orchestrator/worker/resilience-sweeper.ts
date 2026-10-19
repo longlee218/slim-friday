@@ -5,6 +5,7 @@ import type { LeadRuntime } from "../lead/lead-runtime";
 import { reapAborted } from "./abort-reaper";
 import { createCheckIn } from "./check-in";
 import { sweepItemAge } from "./item-age";
+import { sweepPendingPlans } from "./plan-expiry";
 import { sweepStale } from "./watchdog";
 import { noticeStuckZombies } from "./zombie-notice";
 
@@ -27,6 +28,7 @@ export function startResilienceSweeper(rt: LeadRuntime, tickMs = SWEEP_TICK_MS):
     };
     step("stale", () => sweepStale(rt));
     step("item_age", () => sweepItemAge(rt));
+    step("plan_expiry", () => sweepPendingPlans(rt));
     step("reaper", () => reapAborted());
     step("zombies", () => noticeStuckZombies(rt));
     step("check_in", () => void checkIn(rt)); // async and never rejects: it logs its own failures

@@ -6,6 +6,8 @@ import type { ItemRow } from "../../storage/owned-item-store";
 export interface GoalState {
   /** Id of the thread's open goal; undefined = none (a new goal may start). */
   openGoalId?: string;
+  /** Id of a wave goal the thread holds (cap hit or stalled, every item ended): a plan may start inside it again. */
+  waveHeldGoalId?: string;
   /** Items of that goal, creation order. */
   items: ItemRow[];
 }

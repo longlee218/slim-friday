@@ -72,6 +72,12 @@ export function validatePlan(doc: PlanDoc, ctx: PlanCtx): PlanError[] {
       if (!known.has(d)) add("UNKNOWN_DEP", `Dependency ${d} is not a key of this goal.`, it.key);
       else if (ctx.deadKeys?.includes(d))
         add("DEAD_DEP", `Dependency ${d} failed or was cancelled: it never runs.`, it.key);
+      else if (ctx.releasedKeys?.includes(d))
+        add(
+          "RELEASED_DEP",
+          `Dependency ${d} reported NEEDS_PLANNING: approving this plan replaces it. Depend on the plan item that replaces ${d}.`,
+          it.key,
+        );
   }
   for (const k of cyclicKeys(items)) add("CYCLE", `Item ${k} is part of a dependency cycle.`, k);
   return errs;

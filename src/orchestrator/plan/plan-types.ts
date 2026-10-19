@@ -88,6 +88,7 @@ type PlanErrorCode =
   | "CYCLE"
   | "BAD_LOCATION"
   | "DEAD_DEP"
+  | "RELEASED_DEP"
   | "OUTSIDE_ENVELOPE"
   | "BUDGET"
   | "TOO_MANY_REVISIONS";
@@ -111,6 +112,8 @@ export interface PlanCtx {
   existingKeys: readonly string[];
   /** Keys of the goal's items that ended `failed` / `cancelled`: they never run, so nothing may wait for them (default none). */
   deadKeys?: readonly string[];
+  /** Keys of held NEEDS_PLANNING items the first approval cancels: nothing may wait for them (default none). */
+  releasedKeys?: readonly string[];
   /** Revisions already made (0 for a new plan). */
   revisions: number;
   /** USD the goal already spent (the planner and earlier items): the plan budget must exceed it (default 0). */

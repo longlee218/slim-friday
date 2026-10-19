@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { OwnerLanguage } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import type { EventKind } from "../events/event-types";
 import type { EffectPort } from "../goal/effect-port";
@@ -19,6 +20,8 @@ export interface LeadToolContext {
   /** Id of the lead input that triggered the run (idempotency key). */
   inputId: string;
   correlationId?: string;
+  /** Language of the owner's message (owner-facing posts of a handler; absent = Vietnamese). */
+  language?: OwnerLanguage;
   run: { dispatched: number; registered?: number };
   /** Where the run lives, for `RegisterLocation` (absent in tests that never call it). */
   place?: LeadPlace;

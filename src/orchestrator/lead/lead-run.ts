@@ -60,8 +60,10 @@ function leadOnce(
         },
         io: createLeadIo(rt, ctx, threadId, turnId, ac.signal),
       });
+      const language = messageLanguage(ctx.message);
       const toolCtx = {
         port,
+        language,
         threadId,
         leadTurnId: turnId,
         inputId: o.inputId,
@@ -77,7 +79,6 @@ function leadOnce(
         },
       };
       const model = getRole("lead").model;
-      const language = messageLanguage(ctx.message);
       const stored = getSession(db, threadId);
       return {
         input: {
