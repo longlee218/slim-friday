@@ -77,6 +77,7 @@ export function buildTeamMd(i: TeamMdInput = {}): string {
     "Built by code for this run; the members and locations below are complete.",
     "",
     "## Members (role names for the dispatch tool)",
+    "You route work and do not do it: work on a location's files or code, on the web, and every change is done by a member (dispatch it); do not search or read location files yourself. Your own tools cover memory, artifacts and this thread. A question about a specific product, library, API, standard, paper or how others do something (behaviour, limits, versions, prices), or anything that must be verified or cited, goes to a member that researches (scout), not answered from your own knowledge.",
     ...(workers.length ? workers.map(memberLine) : ["- none available"]),
     "",
     "## Locations (the only names a brief may use)",
