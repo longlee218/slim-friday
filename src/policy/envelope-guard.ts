@@ -12,7 +12,7 @@ import type { EffectTool } from "./risk-types";
 /** Reason of a call outside the envelope (never echoes the call). */
 const OUTSIDE = (why: string): Decision => ({
   decision: "deny",
-  reason: `OUT_OF_ENVELOPE: ${why}; report BLOCKED with what you need`,
+  reason: `OUT_OF_ENVELOPE: ${why}; report a blocker with what you need`,
 });
 
 /** The effect tool a full MCP tool name is, or undefined. */

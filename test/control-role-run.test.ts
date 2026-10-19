@@ -133,7 +133,7 @@ test("end to end: owner text in #ops-control runs the role with no workspace; as
     (await o.canUseTool(WRITE_TOOL_NAME, { file_path: join(o.cwd, "x"), content: "x" }, {}))
       .behavior,
   ).toBe("deny");
-  expect(o.systemPrompt.append).toContain("server manager"); // the role's contract
+  expect(o.systemPrompt).toContain("server manager"); // the role's contract
   // The ask relay posts into the control channel (threadId = channel id).
   expect(s.log.asks[0]).toMatchObject({ threadId: CTRL, question: "Create study space english?" });
   // The space was created through the create-only code path.

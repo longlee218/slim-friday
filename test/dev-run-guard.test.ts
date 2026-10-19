@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
-import { claudePlansDir, workspacePaths } from "../src/config/workspace-paths";
+import { workspacePaths } from "../src/config/workspace-paths";
 import {
   ARTIFACTS_MCP_SERVER,
   EFFECTS_MCP_SERVER,
@@ -96,7 +96,6 @@ test("dev guard: writes in the location (.github and the git dir too), the workt
   expect(await write(join(clone, ".git", "info", "exclude"))).toBe("allow");
   expect(await write(join(clone, ".git", "hooks", "pre-commit"))).toBe("allow");
   expect(await write(join(realpathSync(ws.worktrees), "real", "wt", "a.ts"))).toBe("allow");
-  expect(await write(join(claudePlansDir(), "p.md"))).toBe("allow");
   expect(await write(join(env.home, "outside.txt"))).toBe("deny");
   expect(await write("/etc/friday-x")).toBe("deny");
 });

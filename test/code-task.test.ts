@@ -68,9 +68,7 @@ test("code task (a dispatched worker) runs in default mode, never bypass, in the
   expect(opts.additionalDirectories[0]).toContain(join(ws, "tasks"));
   expect(opts.additionalDirectories[1]).toBe(join(ws, "worktrees"));
   expect(opts.canUseTool).toBeFunction();
-  expect(opts.systemPrompt.append).toContain(
-    "Do not change files before the owner approved your plan",
-  );
+  expect(opts.systemPrompt.append).toContain("change no file before the owner approved your plan");
   // The run keeps its session on the task row, never in the thread's session table.
   expect(env.db.query("SELECT cwd FROM sessions WHERE COALESCE(kind, '') != 'lead'").all()).toEqual(
     [],

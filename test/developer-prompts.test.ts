@@ -48,13 +48,14 @@ test("the ask cap is the role's limit, stated once in the ask rules", () => {
   ).toBe(1);
 });
 
-test("dev: one contract, approval before changes by ask, design request invokes the matching skill, no subagent text", () => {
+test("dev: one contract, approval before changes by ask, a design request may end with no code change, no skill routing, no subagent text", () => {
   const text = rules(DEVELOPER_ROLE);
-  expect(text).toContain("invoke the listed skill whose description matches first");
+  expect(text).not.toContain("invoke the listed skill"); // the SDK matches skills by description: no routing line
+  expect(text).toContain("the deliverable may be a design or plan with no code change");
   expect(text).toContain("the location's own checkout");
-  expect(text).toContain("Do not change files before the owner approved your plan");
+  expect(text).toContain("change no file before the owner approved your plan");
   expect(text).not.toContain('"location: <name>"'); // no location marker line any more
-  expect(text).toContain("`git` in the shell");
+  expect(text).toContain("git works in the shell");
   expect(text).toContain("Merge, push or PR only after the owner chose it.");
   expect(text).toContain("by absolute path from the skill's base directory");
   expect(text).not.toContain("Memory:");
@@ -66,7 +67,7 @@ test("dev: one contract, approval before changes by ask, design request invokes 
   expect(text).not.toMatch(/subagent-run-facts|implementer|task-reviewer|brainstorming/);
   expect(text).not.toContain("git MCP");
   expect(text).not.toContain("plan.md"); // no plan file, no handoff
-  expect(text.indexOf("Outcome:")).toBeLessThan(text.indexOf("`git` in the shell"));
+  expect(text.indexOf("Outcome:")).toBeLessThan(text.indexOf("git works in the shell"));
 });
 
 test("no tool-name literal in the dev role source", async () => {

@@ -150,7 +150,7 @@ export function recoverOnce(i: {
   if (result.outcome === "max_turns")
     return {
       kind: "resume",
-      hint: "Internal note (not from the owner): the previous attempt reached its turn limit. Continue from where it stopped and finish the owner's request concisely.",
+      hint: "Internal note (not from the owner): the previous attempt reached its turn limit. Continue from where it stopped and finish the owner's request.",
     };
   return { kind: "none" };
 }

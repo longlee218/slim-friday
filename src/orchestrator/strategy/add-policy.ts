@@ -102,7 +102,10 @@ export function checkAdd(
     );
   if (f.overBudget)
     return fail(
-      no("OVER_BUDGET", "The goal budget is used up: a new task would not start. Tell the owner."),
+      no(
+        "OVER_BUDGET",
+        "The goal budget is used up: a new task would not start. Ask the owner what to do (ask_owner).",
+      ),
     );
   const waits = a.dependsOn.some(
     (k) => f.items.find((i) => i.itemKey === k)?.status !== "completed",

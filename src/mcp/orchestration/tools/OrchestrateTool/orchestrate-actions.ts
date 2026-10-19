@@ -68,7 +68,7 @@ const onLead =
 
 const TASK = { taskId: "task-1" };
 const SET_TITLE_SHAPE = {
-  title: z.string().describe("Thread title: at most 6 words, the owner's language."),
+  title: z.string().describe("Thread title: at most 6 words."),
   digest: z.string().describe("1-2 short lines on what the thread is about."),
 };
 
@@ -179,7 +179,7 @@ export const ORCHESTRATE_ACTIONS = [
   defineAction<OrchestrateCtx, typeof REGISTER_LOCATION_SHAPE>({
     name: ORCHESTRATE_ACTION_REGISTER_LOCATION,
     schema: z.object(REGISTER_LOCATION_SHAPE),
-    example: { path: "~/Documents/app" },
+    example: { create: true, name: "todo-app" },
     run: (c, p) => handleRegisterLocation(c.lead, p),
   }),
 ];

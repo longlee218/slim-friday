@@ -50,7 +50,7 @@ export const handleRetry = (ctx: LeadToolContext, input: RetryInput): Promise<Re
       return {
         reply: refuse(
           "OVER_BUDGET",
-          "The goal budget is used up: retry would not start. Cancel or tell the owner.",
+          "The goal budget is used up: retry would not start. Cancel, or ask the owner what to do (ask_owner).",
         ),
       };
     if (moved === "not_held")

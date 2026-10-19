@@ -97,13 +97,12 @@ test("table rows: planner has the plan tools only, lead has the control tools an
 
 test("contract text: planner is structure only (revisions are its only way to running items); lead leaves a PLAN goal's items to the planner", async () => {
   const planner = (await PLANNER_ROLE.promptSections?.({} as never))?.join("\n") ?? "";
-  expect(planner).toContain(
-    "Structure only: no owner contact; running items are changed only through plan revisions.",
-  );
+  expect(planner).toContain("no owner contact");
+  expect(planner).toContain("Running items change only through a plan revision.");
   expect(planner).not.toContain("no control of running items");
   const lead = (await LEAD_ROLE.promptSections?.({} as never))?.join("\n") ?? "";
-  expect(lead).toContain("The planner owns a PLAN goal's items (never edit)");
-  expect(lead).toContain("code adds verify, fix, wave items");
+  expect(lead).toContain("A PLAN goal's items belong to the planner");
+  expect(lead).toContain("Code adds verify, fix and wave items");
 });
 
 test("ALREADY_ASKED tells the lead one next step per outcome", async () => {

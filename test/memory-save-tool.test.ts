@@ -243,9 +243,9 @@ for (const roleName of ["lead", "developer"] as const)
     );
   });
 
-test("DEFAULT_AGENTS has the Memory + Privacy text within the persona cap; no role prompt carries a memory rule", () => {
+test("DEFAULT_AGENTS has the Memory text (privacy is the lead contract's) within the persona cap; no role prompt carries a memory rule", () => {
   expect(DEFAULT_AGENTS).toContain("## Memory");
-  expect(DEFAULT_AGENTS).toContain("### Privacy");
+  expect(DEFAULT_AGENTS).not.toContain("### Privacy"); // the shared-channel rule lives once, in the lead contract
   expect(DEFAULT_AGENTS.length).toBeLessThan(PERSONA_MAX);
   for (const name of ["lead", "developer"] as const) {
     const p = JSON.stringify(buildSystemPrompt("", getRole(name)));
