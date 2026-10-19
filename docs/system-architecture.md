@@ -87,7 +87,7 @@ Worker run (detached; survives the owner message)
 | Goal settle | `worker/goal-settle.ts` | all items ended → goal `completed` or `failed`; an item that can never run (breaker, budget) cancels its dependents; a held item does not (see [Failure classes](#failure-classes-and-auto-resume)); items cancelled by plan mechanics (dropped keys, a replaced NEEDS_PLANNING item) do not fail it |
 | Outbox | `events/event-types.ts`, `storage/thread-event-store.ts`, table `thread_events` | append (idempotent by `id`), claim per lead run, mark delivered, redeliver after a crash |
 | Announce | `lead/lead-events.ts` (2 s window), `lead/lead-run.ts` (2 attempts) | worker events batched into one lead run; at most `ANNOUNCE_MAX_EVENTS` events and `ANNOUNCE_MAX_CHARS` chars per run (overflow waits for the next announce); a dropped announce (pool full) is re-armed with backoff (`ANNOUNCE_REARM_MAX_MS`), not lost |
-| Planner | `plan/` (12 files), `mcp/plan/` | versioned plan; code validates it; the owner approves the whole plan once; approved items become goal items |
+| Planner | `plan/` (22 files), `mcp/plan/` | versioned plan; code validates it; the owner approves the whole plan once; approved items become goal items; a PLAN goal's structure belongs to the planner (see [Goal and item model](#goal-and-item-model)) |
 | Effects | `goal/effect-port*.ts`, `effects/`, `storage/effect-log-store.ts`, table `effect_log` | the only write path for lead and effect tool state changes (one atomic write) |
 | Failure policy | `runtime/failure-class.ts`, `worker/failure-policy.ts`, `worker/resume-prompt.ts`, `worker/resume-backoff.ts` | transient failure → same session resumed (cap 2, backoff); real failure → item held; see [Failure classes](#failure-classes-and-auto-resume) |
 | Recovery | `worker/recover-in-flight.ts`, `index.ts`, `lead/lead-owner-events.ts` | boot: running goal items resume or are held; a lead of a thread with undelivered events is woken; undelivered owner messages are replayed as owner inputs (younger than `LEAD_REPLAY_MAX_AGE_MS`) |
@@ -99,8 +99,8 @@ Worker run (detached; survives the owner message)
 | Tool | Does | Rule |
 |---|---|---|
 | `DispatchAgent` | start work: DIRECT or DELEGATE | `DELEGATE_MAX`, `CHAIN_CAP` (starts per owner message), `DISPATCHES_PER_RUN` (values: [limits](limits-and-stop-conditions.md)); a bigger shape → `NEEDS_PLAN` |
-| `RequestPlan` | start the planner (PLAN) | the planner writes a versioned plan; code validates it; one live planner per goal (`PLANNER_RUNNING` otherwise); on a wave-held goal it plans again in the same goal |
-| `ApprovePlan` | owner approves a valid plan (`planId`, `version`) | the plan must be `valid` and its goal open (`GOAL_NOT_OPEN` / `GOAL_CLOSED`); one yes for the whole plan; `UNCLEAR` returns the owner's typed text to the lead; Reject carries a reason |
+| `RequestPlan` | start the planner (PLAN) | the planner writes a versioned plan; code validates it; one live planner per goal (`PLANNER_RUNNING` otherwise); on a wave-held goal it plans again in the same goal; sets the goal's `structureOwner` to `planner` |
+| `ApprovePlan` | owner approves a valid plan (`planId`, `version`) | the plan must be `valid` and its goal open (`GOAL_NOT_OPEN` / `GOAL_CLOSED`); one yes for the whole plan; `UNCLEAR` returns the owner's typed text to the lead; Reject carries a reason; a version whose ask ended `TIMEOUT`, `UNCLEAR` or `BUDGET` is `ALREADY_ASKED` until an owner message or a revision (stored as a `PlanAsk` row in `effect_log`) |
 | `TaskStatus` | read goal and task state | facts come from the store |
 | `SteerTask` | send an owner answer or note to a running worker; on a `waiting_user` item it resumes the item | task-keyed; not an interrupt |
 | `CancelTask` | cancel a task and its waiting dependents; on a held item: the item fails, dependents are cancelled, the goal settles `failed` | the state machine decides what is allowed |
@@ -126,6 +126,15 @@ Worker run (detached; survives the owner message)
 
 ### Goal and item model
 - A **goal** is a root `owned_tasks` row (`parent_id` NULL). Its **items** are child rows (`parent_id` = goal, unique `item_key` per goal, `depends_on` list).
+- **Structure owner** (`owned_tasks.structure_owner`, goal rows only; migration `0007_structure_owner`, backfilled: a goal with a plan or a `planner*` item is `planner`, else `lead`; NULL counts as `lead`). Only the owner changes a goal's items, dependencies and criteria; `RequestPlan` hands the goal to the planner (approval does not change it). Code enforces it:
+
+| Actor | May write | Refusal |
+|---|---|---|
+| `lead` | items of a DIRECT / DELEGATE goal (`DispatchAgent`) | a dispatch while an open PLAN goal exists: `GOAL_OPEN` naming `RequestPlan` or `CancelTask` |
+| `planner` | items, dependencies and criteria of a PLAN goal (`CreatePlan`, `ProposePlanRevision`) | a write to a lead goal: `NOT_STRUCTURE_OWNER` naming `DispatchAgent` |
+| code | `verify-N`, `fix-N`, wave `planner-N` items | none; one `items_added` event per batch (passive news, never a wake-up; payload `added` = the keys) |
+| owner | approves a plan (`ApprovePlan`); supersedes an open PLAN goal (`supersedes`, or a wave-held goal) | Yes/No ask (vi/en) first: `OWNER_DENIED` (No), `OWNER_TIMEOUT` (no answer) |
+
 - Item states (`src/tasks/task-state-machine.ts`): `pending → ready → running → waiting_user | blocked | completed | failed | cancelled`, plus `running → ready` (automatic resume) and `waiting_user → ready` (the owner's reply to the item's question, or `SteerTask`; `resumeWaiting` writes an `answer` event). `open` is the start of a standalone task. `completed`, `failed` and `cancelled` are terminal.
 - **Held item** = any `blocked` item (`isHeld`, `storage/owned-item-store.ts`): a real failure, a budget hit, a NEEDS_PLANNING item, or a crash path. The lead must decide. It is not terminal: its dependents stay `pending` and the goal stays `open` until `RetryTask` or `CancelTask`.
 - `attempt` counts automatic resumes of the current dispatch (reset by `RetryTask`); `dispatch_count` counts first starts and `RetryTask` (automatic resumes do not count). An item dispatched 3 times (`MAX_DISPATCHES_PER_ITEM`) fails instead of starting again.
