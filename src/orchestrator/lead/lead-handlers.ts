@@ -19,6 +19,7 @@ import type {
   SteerInput,
   TaskStatusInput,
 } from "./lead-schemas";
+import { supersedeGate } from "./lead-supersede-gate";
 
 /* The lead's six tool handlers. Pure over the `EffectPort` in the context: they check state, caps and ownership,
    then act through the port. Each call goes through `leadCall` (idempotent, logged, one thread event at least). */
@@ -35,6 +36,8 @@ export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Prom
     const caps = { ...port.caps(), dispatchedThisRun: ctx.run.dispatched };
     const check = checkDispatch(port.state(), input, caps, port.env());
     if (!check.ok) return { reply: refuse(check.code, check.message) };
+    const blocked = await supersedeGate(ctx, input.supersedes);
+    if (blocked) return { reply: blocked };
     // Effect actions the lead declared (push, PR, merge): ONE question to the owner, listing the scope. No = nothing starts.
     const question = dispatchQuestion(input.strategy, check.grants);
     if (question) {

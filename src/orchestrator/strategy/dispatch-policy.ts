@@ -3,6 +3,7 @@ import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/const
 import { askNeeded } from "../../policy/ask-policy";
 import { effectRisk } from "../../policy/check-envelope";
 import type { EffectGrant } from "../../policy/envelope";
+import { goalOpenMessage } from "../plan/structure-owner";
 import type { Caps, GoalState, PolicyEnv } from "./caps";
 
 /* Pure dispatch policy: the lead picked a typed action; this decides whether code allows it. No db, no clock. */
@@ -114,10 +115,7 @@ export function checkDispatch(
       "One dispatch per lead run: wait for the result, then dispatch again.",
     );
   if (state.openGoalId && req.supersedes !== state.openGoalId)
-    return refuse(
-      "GOAL_OPEN",
-      `Goal ${state.openGoalId} is open: set supersedes to its id or wait.`,
-    );
+    return refuse("GOAL_OPEN", goalOpenMessage(state.openGoalId, state.structureOwner ?? "lead"));
   // `supersedes` names the open goal or nothing: any other id (stale, foreign) is refused, never acted on.
   if (req.supersedes && req.supersedes !== state.openGoalId)
     return refuse("BAD_TASK", `Goal ${req.supersedes} is not this thread's open goal.`);

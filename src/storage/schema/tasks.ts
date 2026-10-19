@@ -43,6 +43,8 @@ export const owned_tasks = sqliteTable(
     result_path: text(),
     /** Short excerpt of the result. */
     result_excerpt: text(),
+    /** Who may change the goal's items: `lead` (DIRECT / DELEGATE) or `planner` (PLAN). Goal rows only; null on items. */
+    structure_owner: text(),
   },
   (t) => [
     uniqueIndex("owned_tasks_goal_item")

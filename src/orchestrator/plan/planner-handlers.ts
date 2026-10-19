@@ -4,7 +4,7 @@ import { clip, redactText } from "../../observability/redact";
 import { countsTowardCap } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
 import { childrenOf } from "../../storage/owned-item-store";
-import { taskScope } from "../../storage/owned-task-store";
+import { structureOwnerOf, taskScope } from "../../storage/owned-task-store";
 import {
   getPlan,
   latestPlan,
@@ -24,6 +24,7 @@ import type {
   ValidatePlanInput,
 } from "./plan-schemas";
 import { PLANNER_KEY } from "./plan-types";
+import { assertStructureOwner } from "./structure-owner";
 
 /* The planner's seven tool handlers. They read the db and write plan rows only; the planner has no other effect. A
    planner run serves ONE goal: every tool refuses another goal's id. */
@@ -61,6 +62,12 @@ const failReply = (f: Fail): Reply => refuse(f.code, f.message);
 /** Refusal for a goal that is not the run's goal. */
 export const wrongGoal = (id: string): Reply =>
   refuse("BAD_TASK", `Goal ${id} is not the goal of this run.`);
+
+/** Refusal when the run's goal is not planner-owned (a goal the lead owns takes no plan before RequestPlan hands it over). */
+const notPlannerGoal = (c: PlannerCtx): Reply | undefined => {
+  const r = assertStructureOwner(structureOwnerOf(c.db, c.goalId), "planner");
+  return r && refuse(r.code, r.message);
+};
 
 /** A plan version of this run's goal, or a refusal. */
 function ownPlan(c: PlannerCtx, planId: string, version: number) {
@@ -116,6 +123,8 @@ export const getAgentCapabilities = (c: PlannerCtx): Reply => ({
 /** Store version 1 of the goal's plan; coded errors when the validator refuses it. */
 export function createPlanHandler(c: PlannerCtx, i: CreatePlanInput): Reply {
   if (i.goalId !== c.goalId) return wrongGoal(i.goalId);
+  const notOwner = notPlannerGoal(c);
+  if (notOwner) return notOwner;
   const r = createPlan(c.db, {
     ...i,
     objective: taskScope(c.db, c.goalId) ?? "",
@@ -139,6 +148,8 @@ export function proposeRevisionHandler(c: PlannerCtx, i: ProposeRevisionInput): 
   const row = latestPlan(c.db, i.planId);
   if (!row || row.goalId !== c.goalId)
     return refuse("NO_PLAN", `Plan ${i.planId} is not a plan of this goal.`);
+  const notOwner = notPlannerGoal(c);
+  if (notOwner) return notOwner;
   const { planId, baseVersion, reason, ...edit } = i;
   const r = revisePlan(c.db, { planId, baseVersion, reason, edit, env: planEnvOf(c) });
   if (!r.ok) return failReply(r);

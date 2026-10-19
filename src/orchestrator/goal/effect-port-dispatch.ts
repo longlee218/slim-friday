@@ -33,6 +33,7 @@ export function createDispatchWriter(
         status: "open",
         scope: excerpt(x.intent, SCOPE_CHARS),
         correlationId,
+        structureOwner: "lead", // DIRECT / DELEGATE: the lead owns the items
       });
       const itemIds = x.items.map((it) => {
         const id = crypto.randomUUID();

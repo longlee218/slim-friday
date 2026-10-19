@@ -184,3 +184,14 @@ export function holdCount(db: Database, itemId: string): number {
       .get(itemId)?.n ?? 0
   );
 }
+
+/** Epoch ms of the thread's newest `owner_message` event (0 = none). */
+export function lastOwnerMessageAt(db: Database, threadId: string): number {
+  return (
+    db
+      .query<{ t: number | null }, [string]>(
+        "SELECT MAX(created_at) AS t FROM thread_events WHERE thread_id = ? AND kind = 'owner_message'",
+      )
+      .get(threadId)?.t ?? 0
+  );
+}

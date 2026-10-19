@@ -68,6 +68,7 @@ const EXPECTED: Record<string, string[]> = {
     "result_kind",
     "result_path",
     "result_excerpt",
+    "structure_owner",
   ],
   run_messages: [
     "id",
@@ -229,7 +230,7 @@ test("reopening a file db is a no-op and a foreign db is refused", () => {
     a.close();
     const b = openDb(file);
     expect(b.query("SELECT thread_id FROM threads").all()).toHaveLength(1);
-    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 7 });
+    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 8 });
     b.close();
 
     const foreign = join(dir, "foreign.db");

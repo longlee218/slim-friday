@@ -102,6 +102,8 @@ export interface PlanView extends PlanStatusView {
   doc: PlanDoc;
   /** Why an approval would be refused right now (goal closed or no longer the thread's open goal, budget spent); absent = none. */
   blocker?: { code: string; message: string };
+  /** How an earlier ask of THIS version ended without a decision (TIMEOUT / UNCLEAR / BUDGET) since the owner last wrote; absent = not asked. */
+  askedOutcome?: string;
 }
 
 /** Result of the owner's decision on a plan: the item keys the approval created, or a coded refusal. */
@@ -124,6 +126,8 @@ export interface EffectPort {
       /** Audit scope and grantor; default "lead tool call" / "role". */
       scope?: string;
       grantedBy?: string;
+      /** Epoch ms to stamp (default now): an ask is stamped at its START. */
+      createdAt?: number;
     },
   ): void;
   /** Open goal and items of the thread. */

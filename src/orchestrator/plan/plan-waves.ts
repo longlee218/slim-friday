@@ -15,6 +15,7 @@ import {
 } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { docOfRow } from "./plan-doc";
+import { recordCodeItems } from "./plan-revised";
 import { PLANNER_KEY } from "./plan-types";
 import { insertPlannerItem, plannerCount } from "./planner-item";
 
@@ -101,7 +102,7 @@ export function startNextWave(db: Database, goalId: string): boolean {
   return db.transaction(() => {
     if (waveOutlook(db, goalId) !== "ready") return false;
     const wave = plannerCount(db, goalId) + 1;
-    insertPlannerItem(db, {
+    const { key } = insertPlannerItem(db, {
       goalId,
       threadId: goal.threadId,
       correlationId: goal.correlationId,
@@ -110,6 +111,12 @@ export function startNextWave(db: Database, goalId: string): boolean {
       eventId: (key) => `wave:${goalId}:${key}`, // stable per planner key: never started twice
       payload: { by: "code", wave },
     });
+    recordCodeItems(
+      db,
+      goalId,
+      [key],
+      `the app started wave ${wave}: a planner for the deferred scope`,
+    );
     return true;
   })();
 }

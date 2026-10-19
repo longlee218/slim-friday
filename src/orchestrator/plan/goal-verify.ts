@@ -8,6 +8,7 @@ import { appendEvent } from "../../storage/thread-event-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { goalOverBudget } from "../budget/task-budget";
 import type { FailureVerdict } from "../worker/failure-policy";
+import { recordCodeItems } from "./plan-revised";
 import { FIX_KEY, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
 import { fixesAt, insertItem, isVerifyKey, isWriter, nextNumber, numberOf } from "./verify-items";
 
@@ -95,13 +96,20 @@ export function afterVerify(
         "Fix the cause in the location, run the failing checks yourself, then report. Do not change the acceptance criteria.",
       ].join("\n"),
     });
+    const verifyKey = `${VERIFY_KEY}-${nextNumber(items, VERIFY_KEY)}`;
     insertItem(db, goalId, {
-      key: `${VERIFY_KEY}-${nextNumber(items, VERIFY_KEY)}`,
+      key: verifyKey,
       role: VERIFY_ROLE,
       location: it.location,
       dependsOn: [fixKey],
       brief: it.brief ?? "", // the same criteria
     });
+    recordCodeItems(
+      db,
+      goalId,
+      [fixKey, verifyKey],
+      `${it.itemKey} failed: the app added a fix and a new verify`,
+    );
     return true;
   })();
 }

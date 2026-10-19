@@ -3,8 +3,9 @@ import { MAX_WAVES } from "../../config/lead-caps";
 import { REQUEST_PLAN_TOOL } from "../../mcp/orchestration/tools/RequestPlanTool/constants";
 import { excerpt } from "../../observability/logger";
 import { LEAD_ROLE } from "../../roles/builtin/lead-role";
-import { appendEffect } from "../../storage/effect-log-store";
-import { insertOwnedTask, threadOfTask } from "../../storage/owned-task-store";
+import { appendEffect, planAskSince } from "../../storage/effect-log-store";
+import { insertOwnedTask, setStructureOwner, threadOfTask } from "../../storage/owned-task-store";
+import { lastOwnerMessageAt } from "../../storage/thread-event-store";
 import { getPlan } from "../../storage/work-plan-store";
 import { SCOPE_CHARS } from "../../tasks/task-resolver";
 import { docOfRow } from "../plan/plan-doc";
@@ -60,8 +61,9 @@ export function createPlanPort(
             status: "open",
             scope: excerpt(w.objective, SCOPE_CHARS),
             correlationId: corr,
+            structureOwner: "planner",
           });
-        }
+        } else setStructureOwner(db, goalId, "planner"); // re-plan: the structure moves lead -> planner
         const brief = [
           `Goal id: ${goalId}`,
           `Objective: ${w.objective}`,
@@ -108,10 +110,13 @@ export function createPlanPort(
               message: `Goal ${row.goalId} is not this thread's open goal: the plan cannot start.`,
             }
           : approvalBlocker(db, row);
+      // An ask that ended without a decision is not repeated until the planner revises the version or the owner writes.
+      const askedOutcome = planAskSince(db, planId, version, lastOwnerMessageAt(db, threadId));
       return {
         planId,
         version,
         status: row.status,
+        ...(askedOutcome && { askedOutcome }),
         goalId: row.goalId,
         objective: row.objective,
         doc: docOfRow(row),

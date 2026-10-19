@@ -20,7 +20,10 @@ export interface EffectRow {
 }
 
 /** Append one effect. Same `id` twice = no-op (idempotent). Returns true when a row was written. */
-export function appendEffect(db: Database, e: Omit<EffectRow, "createdAt">): boolean {
+export function appendEffect(
+  db: Database,
+  e: Omit<EffectRow, "createdAt"> & { createdAt?: number },
+): boolean {
   const res = db
     .query(
       `INSERT OR IGNORE INTO effect_log (id, thread_id, goal_id, item_id, tool, scope, granted_by, result, undo,
@@ -36,7 +39,7 @@ export function appendEffect(db: Database, e: Omit<EffectRow, "createdAt">): boo
       e.grantedBy,
       e.result,
       e.undo ?? null,
-      Date.now(),
+      e.createdAt ?? Date.now(),
     );
   return res.changes === 1;
 }
@@ -102,3 +105,20 @@ export function recordRunCwd(
 /** The cwd a turn ran in, or undefined when none was recorded (the run died before its scope was built). */
 export const runCwdOfTurn = (db: Database, turnId: string): string | undefined =>
   effectScope(db, `cwd:${turnId}`);
+
+/** Audit tool name of the rows that record an ApprovePlan ask that ended without a decision (outcome in `result`). */
+export const PLAN_ASK_TOOL = "PlanAsk";
+
+/** Newest outcome recorded for an ask of a plan version after `since` (epoch ms), or undefined. */
+export function planAskSince(
+  db: Database,
+  planId: string,
+  version: number,
+  since: number,
+): string | undefined {
+  return db
+    .query<{ r: string }, [string, string, number]>(
+      "SELECT result AS r FROM effect_log WHERE tool = ? AND scope = ? AND created_at > ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    )
+    .get(PLAN_ASK_TOOL, `${planId}:${version}`, since)?.r;
+}

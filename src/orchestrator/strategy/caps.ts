@@ -1,4 +1,5 @@
 import type { ItemRow } from "../../storage/owned-item-store";
+import type { StructureOwner } from "../../storage/owned-task-store";
 
 /* Caps of the lead (code, not prompt): what the dispatch policy checks before a goal starts. */
 
@@ -6,6 +7,8 @@ import type { ItemRow } from "../../storage/owned-item-store";
 export interface GoalState {
   /** Id of the thread's open goal; undefined = none (a new goal may start). */
   openGoalId?: string;
+  /** Who owns the open goal's structure; absent = `lead`. */
+  structureOwner?: StructureOwner;
   /** Id of a wave goal the thread holds (cap hit or stalled, every item ended): a plan may start inside it again. */
   waveHeldGoalId?: string;
   /** Items of that goal, creation order. */

@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { taskStoreArtifacts } from "../../storage/artifact-list-store";
 import { appendEffect, effectResult } from "../../storage/effect-log-store";
 import { childrenOf, getItem, goalOf, type ItemRow } from "../../storage/owned-item-store";
-import { threadOfTask } from "../../storage/owned-task-store";
+import { structureOwnerOf, threadOfTask } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
@@ -82,13 +82,14 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
         scope: e.scope ?? "lead tool call",
         grantedBy: e.grantedBy ?? "role",
         result: e.reply,
+        ...(e.createdAt !== undefined && { createdAt: e.createdAt }),
       });
     },
     state: () => {
       const openGoalId = openGoalIdOf(db, threadId);
       const waveHeldGoalId = openGoalId ? undefined : waveHeldGoalOf(db, threadId);
       return {
-        ...(openGoalId && { openGoalId }),
+        ...(openGoalId && { openGoalId, structureOwner: structureOwnerOf(db, openGoalId) }),
         ...(waveHeldGoalId && { waveHeldGoalId }),
         items: openGoalId ? childrenOf(db, openGoalId) : [],
       };

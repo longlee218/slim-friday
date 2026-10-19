@@ -46,13 +46,15 @@ export function insertOwnedTask(
     dependsOn?: string[];
     location?: string;
     brief?: string;
+    /** Goal rows only: who may change the goal's items (see `StructureOwner`). */
+    structureOwner?: StructureOwner;
   },
 ): void {
   const now = Date.now();
   db.query(
     `INSERT INTO owned_tasks (id, thread_id, owner_role, status, scope, version, correlation_id, created_at,
-       last_progress_at, parent_id, item_key, depends_on, location, brief)
-     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       last_progress_at, parent_id, item_key, depends_on, location, brief, structure_owner)
+     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     t.id,
     t.threadId,
@@ -67,7 +69,24 @@ export function insertOwnedTask(
     JSON.stringify(t.dependsOn ?? []),
     t.location ?? null,
     t.brief ?? null,
+    t.structureOwner ?? null,
   );
+}
+
+/** Who may change a goal's items: the lead (DIRECT / DELEGATE) or the planner (PLAN). */
+export type StructureOwner = "lead" | "planner";
+
+/** Structure owner of a goal; a goal row without the value (or a missing row) counts as `lead`. */
+export function structureOwnerOf(db: Database, goalId: string): StructureOwner {
+  return cell<string>(db, "SELECT structure_owner AS v FROM owned_tasks WHERE id = ?", goalId) ===
+    "planner"
+    ? "planner"
+    : "lead";
+}
+
+/** Hand a goal's structure to `owner` (RequestPlan: lead -> planner). */
+export function setStructureOwner(db: Database, goalId: string, owner: StructureOwner): void {
+  db.query("UPDATE owned_tasks SET structure_owner = ? WHERE id = ?").run(owner, goalId);
 }
 
 /** One column (aliased `v`) of the row selected by an id, or undefined when the row is missing or the value null. */

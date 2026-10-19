@@ -1,11 +1,16 @@
 import type { OwnerLanguage, UserNotice } from "./user-copy";
 
 /** Notices about the plan lifecycle: a plan that did not start, a revision that changed agreed work. */
-export type PlanNotice = Extract<UserNotice, { kind: "plan-not-started" | "plan-revised" }>;
+export type PlanNotice = Extract<
+  UserNotice,
+  { kind: "plan-not-started" | "plan-revised" | "plan-supersede-ask" }
+>;
 
 /** Type guard: true for the notices this module renders. */
 export const isPlanNotice = (event: UserNotice): event is PlanNotice =>
-  event.kind === "plan-not-started" || event.kind === "plan-revised";
+  event.kind === "plan-not-started" ||
+  event.kind === "plan-revised" ||
+  event.kind === "plan-supersede-ask";
 
 /** [vi, en] pairs by cause (no ids, no internal messages). */
 const NOT_STARTED = {
@@ -26,6 +31,13 @@ export function renderPlanNotice(event: PlanNotice, language: OwnerLanguage): st
   if (event.kind === "plan-not-started") {
     const [vi, en] = NOT_STARTED[event.cause];
     return say(vi, en);
+  }
+  if (event.kind === "plan-supersede-ask") {
+    const what = event.intent ? ` "${event.intent}"` : "";
+    return say(
+      `Hủy kế hoạch${what}, các việc đang chạy và kế hoạch của nó, rồi bắt đầu việc mới?`,
+      `Cancel the plan goal${what}, its running work and its plan, and start a new goal instead?`,
+    );
   }
   const parts = [
     ...(event.cancelled.length

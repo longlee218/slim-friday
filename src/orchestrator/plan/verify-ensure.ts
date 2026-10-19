@@ -4,6 +4,7 @@ import { excerpt } from "../../observability/logger";
 import { childrenOf, type ItemRow, isHeld } from "../../storage/owned-item-store";
 import { rewriteNotStartedItem, taskScope } from "../../storage/owned-task-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
+import { recordCodeItems } from "./plan-revised";
 import { FIX_KEY, PLANNER_KEY, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
 import {
   insertItem,
@@ -61,6 +62,7 @@ export function ensureVerify(
   const places: (string | null)[] = writerAt.length ? writerAt : [lastAt ?? null];
   const objective = taskScope(db, a.goalId) ?? "the goal";
   let next = nextNumber(items, VERIFY_KEY);
+  const added: string[] = []; // new verify items of this call: told to the lead once
   for (const location of places) {
     const brief = verifyBrief(
       objective,
@@ -68,7 +70,7 @@ export function ensureVerify(
       location ? { location, shared: places.length > 1 } : undefined,
     );
     const newest = newestVerifyAt(items, location);
-    if (!newest) insert(db, a.goalId, `${VERIFY_KEY}-${next++}`, brief, location, deps);
+    if (!newest) added.push(insert(db, a.goalId, `${VERIFY_KEY}-${next++}`, brief, location, deps));
     else if (NOT_STARTED.has(newest.status))
       rewriteNotStartedItem(db, newest.id, {
         brief,
@@ -78,9 +80,10 @@ export function ensureVerify(
       });
     else if (a.created.length) {
       if (isHeld(newest)) moveTaskTo(db, newest.id, "cancelled"); // replaced: the new verify decides
-      insert(db, a.goalId, `${VERIFY_KEY}-${next++}`, brief, location, deps);
+      added.push(insert(db, a.goalId, `${VERIFY_KEY}-${next++}`, brief, location, deps));
     }
   }
+  recordCodeItems(db, a.goalId, added, "the app added verify items for the acceptance criteria");
 }
 
 /** The goal's newest verify item of a location, or undefined. */
@@ -91,7 +94,7 @@ function newestVerifyAt(items: readonly ItemRow[], location: string | null): Ite
     .at(-1);
 }
 
-/** Insert one verify item. */
+/** Insert one verify item; returns its key. */
 const insert = (
   db: Database,
   goalId: string,
@@ -99,4 +102,7 @@ const insert = (
   brief: string,
   location: string | null,
   dependsOn: string[],
-): void => insertItem(db, goalId, { key, role: VERIFY_ROLE, brief, location, dependsOn });
+): string => {
+  insertItem(db, goalId, { key, role: VERIFY_ROLE, brief, location, dependsOn });
+  return key;
+};

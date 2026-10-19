@@ -35,6 +35,8 @@ export type UserNotice =
   | { kind: "ask-after-location"; name?: string }
   /** The owner clicked Approve and the plan could not start (no ids: only the cause class). */
   | { kind: "plan-not-started"; cause: "closed" | "budget" | "other" }
+  /** Before a PLAN goal is replaced by a new goal (its plan and running work are cancelled): the owner's yes/no. */
+  | { kind: "plan-supersede-ask"; intent?: string }
   /** An applied plan revision cancelled work or changed the criteria (item keys, never ids). */
   | {
       kind: "plan-revised";
