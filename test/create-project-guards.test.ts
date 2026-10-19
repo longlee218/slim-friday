@@ -165,3 +165,19 @@ test("an announce run (worker text) with create: true is NOT_OWNER_TURN: nothing
   expect(port.asked).toEqual([]);
   expect(existsSync(target)).toBe(false);
 });
+
+test("a location equal to the owner's home does not block a new project under home", async () => {
+  createWorkspaceDir(home, "w");
+  writeFileSync(
+    workspacePaths(home).workspace("w").config,
+    `channels:\n  - id: "${CH}"\n    name: c\n    mode: task\n`,
+  );
+  const c = inspectLocation(home, "w", base, base); // the location is the home itself
+  expect(c.ok).toBe(true);
+  if (!c.ok) return;
+  expect(registerLocation(home, "w", CH, c, base).ok).toBe(true);
+  mkdirSync(join(base, "projects"));
+  const made = await createProject(home, base, join(base, "projects", "caro"), "req");
+  expect(made).toMatchObject({ ok: true });
+  expect(existsSync(join(base, "projects", "caro", "README.md"))).toBe(true);
+});

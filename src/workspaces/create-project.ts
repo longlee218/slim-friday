@@ -107,7 +107,13 @@ function pathGuard(
     if (dirname(d) === d) break;
   }
   const clash = loadWorkspaces(home, userHome).workspaces.flatMap((w) =>
-    w.locations.filter((l) => isInside(real(l.path), final) || isInside(final, real(l.path))),
+    w.locations.filter(
+      // A location that IS the owner's home holds every path under it (owner accepted that), so it cannot block a new
+      // project under home: only a location inside the new path, or a narrower location around it, clashes.
+      (l) =>
+        (real(l.path) !== realOrSame(userHome) && isInside(real(l.path), final)) ||
+        isInside(final, real(l.path)),
+    ),
   )[0];
   if (clash)
     return fail(
