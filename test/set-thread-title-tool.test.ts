@@ -4,12 +4,11 @@ import { buildServers } from "../src/mcp/mcp-servers";
 import { ORCHESTRATION_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import {
   DIGEST_MAX_CHARS,
-  SET_THREAD_TITLE_MAX_CALLS_PER_RUN,
-  SET_THREAD_TITLE_TOOL,
+  ORCHESTRATE_TOOL,
+  SET_TITLE_MAX_CALLS_PER_RUN,
   TITLE_MAX_CHARS,
-} from "../src/mcp/orchestration/tools/SetThreadTitleTool/constants";
-import { SET_THREAD_TITLE_DESCRIPTION } from "../src/mcp/orchestration/tools/SetThreadTitleTool/prompt";
-import { createSetThreadTitleTool } from "../src/mcp/orchestration/tools/SetThreadTitleTool/set-thread-title-tool";
+} from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
+import { createOrchestrateTool } from "../src/mcp/orchestration/tools/OrchestrateTool/orchestrate-tool";
 import { localDay } from "../src/memory/memory-clock";
 import type { MemoryToolContext } from "../src/memory/memory-tool-context";
 import { getRole } from "../src/roles/role-registry";
@@ -39,10 +38,12 @@ function setup(live: string = PH) {
     threadId: "t1",
     threadTitle: port,
   } as MemoryToolContext;
-  const tool = createSetThreadTitleTool(ctx);
+  // Only `set_title` is called, so the lead ctx is never read.
+  const tool = createOrchestrateTool({ lead: {} as never, memory: ctx, titleCalls: { n: 0 } });
   const call = async (title: string, digest: string) => {
-    const r = await tool.handler({ title, digest } as never, {});
-    return { text: (r.content[0] as { text: string }).text, isError: !!r.isError };
+    const r = await tool.handler({ action: "set_title", params: { title, digest } } as never, {});
+    const reply = JSON.parse((r.content[0] as { text: string }).text);
+    return { text: (reply.note ?? reply.message) as string, isError: !!r.isError };
   };
   return { db, calls, call, ctx };
 }
@@ -102,25 +103,24 @@ test("date falls back to today when the row is new; empty text refused", async (
 test("call cap: the call after the limit is refused and stores nothing", async () => {
   const s = setup();
   recordBotThread(s.db, "t1", "c1", "main", PH, CREATED);
-  for (let i = 0; i < SET_THREAD_TITLE_MAX_CALLS_PER_RUN; i++) await s.call(`T${i}`, "d");
+  for (let i = 0; i < SET_TITLE_MAX_CALLS_PER_RUN; i++) await s.call(`T${i}`, "d");
   const r = await s.call("late", "d");
   expect(r.isError).toBe(true);
-  expect(getThread(s.db, "t1")?.title).toBe(`T${SET_THREAD_TITLE_MAX_CALLS_PER_RUN - 1}`);
+  expect(getThread(s.db, "t1")?.title).toBe(`T${SET_TITLE_MAX_CALLS_PER_RUN - 1}`);
 });
 
-test("prompt: greeting-only turn means no call; no secrets", () => {
-  expect(SET_THREAD_TITLE_DESCRIPTION).toMatch(/greeting-only/);
-  expect(SET_THREAD_TITLE_DESCRIPTION).toMatch(/do NOT call/);
-  expect(SET_THREAD_TITLE_DESCRIPTION).toMatch(/Never include secrets/);
-});
-
-test("built for the lead only with ctx.threadTitle; a developer never gets it", () => {
+test("offered as an Orchestrate action only with ctx.threadTitle; a developer never gets the tool", () => {
   const s = setup();
   const names = (role: string, c: MemoryToolContext) =>
-    toolsByServer(buildServers(getRole(role), { memory: c }))[ORCHESTRATION_MCP_SERVER] ?? [];
-  expect(names("lead", s.ctx)).toContain(SET_THREAD_TITLE_TOOL);
-  expect(names("lead", { ...s.ctx, threadTitle: undefined })).not.toContain(SET_THREAD_TITLE_TOOL);
-  expect(names("developer", s.ctx)).not.toContain(SET_THREAD_TITLE_TOOL);
+    toolsByServer(buildServers(getRole(role), { memory: c, lead: {} as never }))[
+      ORCHESTRATION_MCP_SERVER
+    ] ?? [];
+  expect(names("lead", s.ctx)).toContain(ORCHESTRATE_TOOL);
+  expect(names("developer", s.ctx)).not.toContain(ORCHESTRATE_TOOL);
+  const listed = (c: MemoryToolContext) =>
+    createOrchestrateTool({ lead: {} as never, memory: c, titleCalls: { n: 0 } }).description;
+  expect(listed(s.ctx)).toContain("set_title");
+  expect(listed({ ...s.ctx, threadTitle: undefined })).not.toContain("set_title");
 });
 
 test("clean strips bidi/zero-width chars and clips by code point (no split surrogate)", async () => {

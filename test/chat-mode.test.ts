@@ -231,7 +231,7 @@ function turnHarness(big = false, threadId = TEST_CHANNEL) {
 const memoryTools = (options: any): string[] =>
   Object.keys(options.mcpServers?.[MEMORY_MCP_SERVER]?.instance?._registeredTools ?? {});
 
-test("turns: the second chat message resumes the first session (sessions.thread_id = channel id); no SetThreadTitle, no digest", async () => {
+test("turns: the second chat message resumes the first session (sessions.thread_id = channel id); no set_title, no digest", async () => {
   const { env, calls, send } = turnHarness();
   await send("hello");
   await send("and again");
@@ -242,7 +242,7 @@ test("turns: the second chat message resumes the first session (sessions.thread_
   expect(calls[0]?.prompt).not.toContain(DIGEST_HEADING); // no channel digest in a chat channel
   const tools = memoryTools(calls[0]?.options);
   expect(tools).toContain("MemorySave"); // the probe sees the memory server's tools
-  expect(tools).not.toContain("SetThreadTitle");
+  expect(tools).not.toContain("Orchestrate");
 });
 
 test("rollover is keyed by the channel id", async () => {

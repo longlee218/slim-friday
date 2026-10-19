@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SONNET_MODEL } from "../src/config/model-ids";
-import { REPORT_RESULT_TOOL } from "../src/mcp/orchestration/tools/ReportResultTool/constants";
+import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { g, makeLocation } from "./git-fixture";
 import {
@@ -54,8 +54,8 @@ const fakeSdk = (result?: Record<string, unknown>) => (a: any) => {
       "add b",
     );
     // The typed result a worker ends with: what decides the task status.
-    await toolOf(o, REPORT_RESULT_TOOL)!.handler(
-      { status: "COMPLETED", summary: "b.txt added" },
+    await toolOf(o, REPORT_TOOL)!.handler(
+      { action: "result", params: { title: "T", status: "COMPLETED", summary: "b.txt added" } },
       {},
     );
     yield resultMsg({

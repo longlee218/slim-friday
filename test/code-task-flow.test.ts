@@ -38,7 +38,7 @@ async function setup(meta: Record<string, unknown> = {}) {
 }
 
 /**
- * Fake SDK: a worker call (it holds ReportResult) writes and commits b.txt in its cwd and reports; a lead call
+ * Fake SDK: a worker call (it holds Report result) writes and commits b.txt in its cwd and reports; a lead call
  * (the announce after the worker ended) just answers. `seen` records the worker calls only.
  */
 function fakeSdk(seen: any[], hold?: Promise<void>) {

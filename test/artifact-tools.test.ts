@@ -10,13 +10,13 @@ import { createSaveArtifactTool } from "../src/mcp/artifacts/tools/SaveArtifactT
 import { createSearchArtifactsTool } from "../src/mcp/artifacts/tools/SearchArtifactsTool/search-artifacts-tool";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { ARTIFACTS_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
-import { createReportResultTool } from "../src/mcp/orchestration/tools/ReportResultTool/report-result-tool";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { ARTIFACT_TOOLS } from "../src/roles/builtin/artifact-tools";
 import { ROLES } from "../src/roles/role-registry";
 import { getArtifact } from "../src/storage/artifact-store";
 import { makeEnv, outsideDir } from "./helpers";
 import { FULL_CTX, toolsByServer } from "./mcp-ctx-fixture";
+import { reportResultTool } from "./report-tool-helper";
 
 /** A run ctx of the channel `healthy` of space `main`, with a granted location holding a doc, a secret and a symlink out. */
 function setup(channel = "healthy") {
@@ -134,7 +134,7 @@ test("SearchArtifacts finds by folded keywords; ListArtifacts newest first with 
   expect((await call(createListArtifactsTool(c), { goalId: "none" })).artifacts).toEqual([]);
 });
 
-test("ReportResult refs: own ids and repo docs pass; escapes, secrets and foreign ids are refused", async () => {
+test("Report result refs: own ids and repo docs pass; escapes, secrets and foreign ids are refused", async () => {
   const { ctx } = setup();
   const c = ctx();
   const { id } = await call(createSaveArtifactTool(c), { title: "Rep", kind: "md", body: "x" });
@@ -150,7 +150,7 @@ test("ReportResult refs: own ids and repo docs pass; escapes, secrets and foreig
     artifacts,
   });
   const sink: { report?: unknown; artifactIds?: string[] } = {};
-  const t = createReportResultTool(sink as never, c);
+  const t = reportResultTool(sink as never, c);
   for (const bad of [
     { title: "x", path: "../outside.md" },
     { title: "x", path: "docs/link.md" },
@@ -172,7 +172,7 @@ test("ReportResult refs: own ids and repo docs pass; escapes, secrets and foreig
     location: "location",
   });
   // A run without a granted location cannot report a repo doc.
-  const none = createReportResultTool({} as never, ctx({ granted: undefined }));
+  const none = reportResultTool({} as never, ctx({ granted: undefined }));
   expect((await call(none, report([{ title: "x", path: "docs/plan.md" }]))).code).toBe(
     "INVALID_ARTIFACTS",
   );
@@ -182,7 +182,7 @@ test("a repo artifact is re-indexed on read when its file changed; an unchanged 
   const { ctx, root, db } = setup();
   const c = ctx();
   const sink: { artifactIds?: string[] } = {};
-  await call(createReportResultTool(sink as never, c), {
+  await call(reportResultTool(sink as never, c), {
     title: "T",
     status: "COMPLETED",
     summary: "s",
@@ -207,7 +207,7 @@ test("a repo artifact is re-indexed on read when its file changed; an unchanged 
 test("a repo artifact of a location the run lacks is metadata only", async () => {
   const { ctx } = setup();
   const sink: { artifactIds?: string[] } = {};
-  await call(createReportResultTool(sink as never, ctx()), {
+  await call(reportResultTool(sink as never, ctx()), {
     title: "T",
     status: "COMPLETED",
     summary: "s",

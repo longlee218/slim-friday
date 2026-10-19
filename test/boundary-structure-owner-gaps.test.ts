@@ -1,15 +1,12 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { MAX_WAVES } from "../src/config/lead-caps";
-import { APPROVE_PLAN_TOOL } from "../src/mcp/orchestration/tools/ApprovePlanTool/constants";
-import { ASK_OWNER_TOOL } from "../src/mcp/orchestration/tools/AskOwnerTool/constants";
-import { CANCEL_TASK_TOOL } from "../src/mcp/orchestration/tools/CancelTaskTool/constants";
-import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
-import { REQUEST_PLAN_TOOL } from "../src/mcp/orchestration/tools/RequestPlanTool/constants";
-import { RETRY_TASK_TOOL } from "../src/mcp/orchestration/tools/RetryTaskTool/constants";
-import { STEER_TASK_TOOL } from "../src/mcp/orchestration/tools/SteerTaskTool/constants";
-import { CREATE_PLAN_TOOL } from "../src/mcp/plan/tools/CreatePlanTool/constants";
-import { PROPOSE_PLAN_REVISION_TOOL } from "../src/mcp/plan/tools/ProposePlanRevisionTool/constants";
+import {
+  ORCHESTRATE_ACTION_REQUEST_PLAN,
+  orchestrateRef,
+} from "../src/mcp/orchestration/tools/OrchestrateTool/action-names";
+import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
+import { PLAN_TOOL } from "../src/mcp/plan/tools/PlanTool/constants";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { handleApprovePlan } from "../src/orchestrator/lead/lead-plan-handlers";
@@ -71,7 +68,7 @@ const plannerCtx = (goalId: string): PlannerCtx => ({
   channelDigest: () => "",
 });
 
-test("ProposePlanRevision guard is reachable: a real plan on a lead-owned goal is NOT_STRUCTURE_OWNER", () => {
+test("Plan revise guard is reachable: a real plan on a lead-owned goal is NOT_STRUCTURE_OWNER", () => {
   const g = planGoal();
   setStructureOwner(db, g.goalId, "lead");
   const r = proposeRevisionHandler(plannerCtx(g.goalId), {
@@ -88,21 +85,11 @@ test("ProposePlanRevision guard is reachable: a real plan on a lead-owned goal i
 test("table rows: planner has the plan tools only, lead has the control tools and no plan write", () => {
   const planner = PLANNER_ROLE.mcpTools ?? [];
   const lead = LEAD_ROLE.mcpTools ?? [];
-  // Talk to the owner, start / steer / retry / cancel: lead only.
-  for (const t of [
-    DISPATCH_AGENT_TOOL,
-    ASK_OWNER_TOOL,
-    STEER_TASK_TOOL,
-    RETRY_TASK_TOOL,
-    CANCEL_TASK_TOOL,
-    REQUEST_PLAN_TOOL,
-    APPROVE_PLAN_TOOL,
-  ]) {
-    expect(planner).not.toContain(t);
-    expect(lead).toContain(t);
-  }
+  // Talk to the owner, start / steer / retry / cancel (the `Orchestrate` actions): lead only.
+  expect(planner).not.toContain(ORCHESTRATE_TOOL);
+  expect(lead).toContain(ORCHESTRATE_TOOL);
   // Structure of a PLAN goal: planner writes, the lead has no tool for it.
-  for (const t of [CREATE_PLAN_TOOL, PROPOSE_PLAN_REVISION_TOOL]) {
+  for (const t of [PLAN_TOOL]) {
     expect(planner).toContain(t);
     expect(lead).not.toContain(t);
   }
@@ -115,7 +102,7 @@ test("contract text: planner is structure only (revisions are its only way to ru
   );
   expect(planner).not.toContain("no control of running items");
   const lead = (await LEAD_ROLE.promptSections?.({} as never))?.join("\n") ?? "";
-  expect(lead).toContain("The planner owns a PLAN goal's items (never edit them)");
+  expect(lead).toContain("The planner owns a PLAN goal's items (never edit)");
   expect(lead).toContain("code adds verify, fix, wave items");
 });
 
@@ -146,7 +133,7 @@ test("ALREADY_ASKED tells the lead one next step per outcome", async () => {
     db.query("UPDATE effect_log SET result = ? WHERE tool = ?").run(o, PLAN_ASK_TOOL);
   row("UNCLEAR");
   expect(((await ask(3)) as { message: string }).message).toContain(
-    `call ${REQUEST_PLAN_TOOL} with the goalId and their words`,
+    `call ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)} with the goalId and their words`,
   );
   row("BUDGET");
   expect(((await ask(4)) as { message: string }).message).toContain("the budget is spent");
@@ -167,7 +154,7 @@ test("completion: a PlanAsk effect row never counts as a delivery or a missing e
   expect(missingEffects(db, { goalId: g.goalId, tools: ["GitPush"] })).toEqual(["GitPush"]);
 });
 
-test("re-plan keeps the goal open and planner-owned; past MAX_WAVES it is a re-plan, and nothing starts before ApprovePlan", () => {
+test("re-plan keeps the goal open and planner-owned; past MAX_WAVES it is a re-plan, and nothing starts before Orchestrate approve_plan", () => {
   const g = planGoal();
   for (let n = 1; n < MAX_WAVES; n++)
     insertPlannerItem(db, {

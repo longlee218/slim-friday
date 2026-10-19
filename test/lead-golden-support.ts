@@ -1,7 +1,10 @@
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { REQUEST_PLAN_TOOL } from "../src/mcp/orchestration/tools/RequestPlanTool/constants";
+import {
+  ORCHESTRATE_ACTION_REQUEST_PLAN,
+  orchestrateAudit,
+} from "../src/mcp/orchestration/tools/OrchestrateTool/action-names";
 
 /* Support of the lead golden set: the fixture loader and the scorer that reads the lead's recorded decisions. */
 
@@ -27,13 +30,13 @@ export const loadGolden = (): GoldenCase[] =>
   ).cases;
 
 /**
- * The lead's recorded decision in a fresh db (one case per db): PLAN when it called RequestPlan, else the strategy
+ * The lead's recorded decision in a fresh db (one case per db): PLAN when it called `Orchestrate request_plan`, else the strategy
  * its dispatched items imply (1 = DIRECT, 2+ = DELEGATE) with their roles, else ANSWER (it only wrote text or asked).
  */
 export function decisionOf(db: Database): Pick<GoldenCase, "strategy" | "roles"> {
   const planned = db
     .query("SELECT 1 FROM effect_log WHERE scope = 'lead tool call' AND tool = ?")
-    .get(REQUEST_PLAN_TOOL);
+    .get(orchestrateAudit(ORCHESTRATE_ACTION_REQUEST_PLAN));
   if (planned) return { strategy: "PLAN", roles: [] };
   const roles = db
     .query<{ owner_role: string }, []>(

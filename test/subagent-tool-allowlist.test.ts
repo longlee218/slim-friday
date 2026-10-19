@@ -10,9 +10,8 @@ import {
   ORCHESTRATION_MCP_SERVER,
 } from "../src/mcp/mcp-tool-names";
 import { MEMORY_SEARCH_TOOL } from "../src/mcp/memory/tools/MemorySearchTool/constants";
-import { REPORT_PROGRESS_TOOL } from "../src/mcp/orchestration/tools/ReportProgressTool/constants";
-import { REPORT_RESULT_TOOL } from "../src/mcp/orchestration/tools/ReportResultTool/constants";
-import { RETRY_TASK_TOOL } from "../src/mcp/orchestration/tools/RetryTaskTool/constants";
+import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
+import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { newSubagentLimit } from "../src/policy/subagent-limit";
 import { getRole } from "../src/roles/role-registry";
@@ -67,9 +66,8 @@ test("subagent Bash: allowed for a role with shell (developer), denied for one w
 test("subagent: every MCP tool, owner questions, subagent tools and task tools are denied", () => {
   const denied = [
     subMcp.tool_name, // the captured MCP tool: subagents DO inherit MCP tools, the allowlist stops them
-    orch(REPORT_RESULT_TOOL),
-    orch(REPORT_PROGRESS_TOOL),
-    orch(RETRY_TASK_TOOL),
+    orch(REPORT_TOOL),
+    orch(ORCHESTRATE_TOOL),
     mcpToolName(EFFECTS_MCP_SERVER, GIT_PUSH_TOOL),
     mcpToolName(MEMORY_MCP_SERVER, MEMORY_SEARCH_TOOL),
     "mcp__unknown__Anything",
@@ -86,8 +84,8 @@ test("subagent: every MCP tool, owner questions, subagent tools and task tools a
 });
 
 test("the same calls from the parent (no agent_id) are decided as before", () => {
-  expect(decide(orch(REPORT_RESULT_TOOL), {}, dev, false)).toBe("allow");
-  expect(decide(orch(RETRY_TASK_TOOL), {}, dev, false)).toBe("deny"); // not a developer tool
+  expect(decide(orch(REPORT_TOOL), {}, dev, false)).toBe("allow");
+  expect(decide(orch(ORCHESTRATE_TOOL), {}, dev, false)).toBe("deny"); // not a developer tool
   expect(decide(SEND_MESSAGE_TOOL_NAME, {}, dev, false)).toBe("allow");
   expect(decide(TODO_WRITE_TOOL_NAME, {}, dev, false)).toBe("allow");
   expect(decide("SomeUnknownTool", {}, dev, false)).toBe("ask");

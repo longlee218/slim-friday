@@ -252,7 +252,7 @@ describe("rollover sequence", () => {
     expect(flush.resume).toBe("sess-main");
     expect(flush.tools).toEqual([]); // no built-in tool
     expect(flush.allowedTools).toEqual([MEMORY_SAVE]); // the only tool
-    // The lean role lists only MemorySave: the other memory tools and SetThreadTitle are not even built.
+    // The lean role lists only MemorySave: the other memory tools and Orchestrate are not even built.
     expect(toolsByServer(flush.mcpServers)).toEqual({ [MEMORY_MCP_SERVER]: [MEMORY_SAVE_TOOL] });
     expect(toolsByServer(h.calls[2]!.options.mcpServers)).toEqual({}); // the /compact run has no tool
     expect(flush.hooks.PreCompact).toBeUndefined(); // the flush registers no compact hooks

@@ -21,7 +21,9 @@ const plan = (effects: ("GitPush" | "CreatePullRequest" | "MergeBranch")[]) => {
   const r = createPlan(db, {
     goalId: w.goalId,
     objective: "o",
-    items: [{ key: "a", role: "developer", brief: "do a", dependsOn: [], risk: "R1" }],
+    items: [
+      { key: "a", subject: "task", role: "developer", brief: "do a", dependsOn: [], risk: "R1" },
+    ],
     acceptanceCriteria: [],
     envelope: { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 8, maxGb: 1 } },
     budgetUsd: 2,
@@ -53,7 +55,9 @@ test("the plan tool schema takes an `effects` list and refuses an unknown tool",
   const schema = z.object(CREATE_PLAN_SHAPE);
   const ok = {
     goalId: "g",
-    items: [{ key: "a", role: "developer", brief: "b", dependsOn: [], risk: "R1" }],
+    items: [
+      { key: "a", subject: "task", role: "developer", brief: "b", dependsOn: [], risk: "R1" },
+    ],
     acceptanceCriteria: [],
     envelope: { locations: [], riskClasses: ["R1"], bounds: { maxItems: 1, maxGb: 0 } },
     budgetUsd: 1,

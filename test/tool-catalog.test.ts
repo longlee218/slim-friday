@@ -145,7 +145,7 @@ test("auto-allowed tools are a subset of the role's tools and never include writ
 
 test("guardFor: one builder per role, auto-allowed tools from the catalog", () => {
   const qa = guardFor(qaRole, { readPaths: ["/r"] });
-  // the scout lists its MCP tools (ReportResult, memory): allowed next to the auto tools
+  // the scout lists its MCP tools (Report result, memory): allowed next to the auto tools
   expect(qa.allowTools).toEqual([...autoAllowedTools(qaRole), ...mcpToolNamesOfRole(qaRole)]);
   expect(qa.writePaths).toBeUndefined(); // a read-only role writes nothing
   const exec = guardFor(dev, {
@@ -157,7 +157,7 @@ test("guardFor: one builder per role, auto-allowed tools from the catalog", () =
     writePaths: ["/location", "/ws/worktrees"],
     worktreeDirs: ["/ws/worktrees"],
   });
-  // dev lists its MCP tools in its data (ReportResult, effects, memory): allowed next to the auto tools
+  // dev lists its MCP tools in its data (Report result, effects, memory): allowed next to the auto tools
   expect(exec.allowTools).toEqual([...autoAllowedTools(dev), ...mcpToolNamesOfRole(dev)]);
 });
 
@@ -196,9 +196,14 @@ test("secret-file deny rules are part of disallowedTools", () => {
 });
 
 test("every declared SDK tool name belongs to exactly one capability (a new constant cannot be forgotten)", () => {
-  // Names that are not capability tools: EnterWorktree (never offered; the guard only checks it) and Monitor (no role
-  // gets it: its processes were not probed inside the OS sandbox; the guard asks for it).
-  const aliases = new Set<string>([sdkNames.ENTER_WORKTREE_TOOL_NAME, sdkNames.MONITOR_TOOL_NAME]);
+  // Names that are not capability tools: EnterWorktree (never offered; the guard only checks it), Monitor (no role
+  // gets it: its processes were not probed inside the OS sandbox; the guard asks for it) and SandboxNetworkAccess (a
+  // permission request of the sandbox, not a tool).
+  const aliases = new Set<string>([
+    sdkNames.ENTER_WORKTREE_TOOL_NAME,
+    sdkNames.MONITOR_TOOL_NAME,
+    sdkNames.SANDBOX_NETWORK_ACCESS_TOOL_NAME,
+  ]);
   const owners = new Map<string, number>();
   for (const tools of Object.values(CAPABILITY_TOOLS))
     for (const t of tools) owners.set(t, (owners.get(t) ?? 0) + 1);

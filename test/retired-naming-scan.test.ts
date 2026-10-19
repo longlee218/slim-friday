@@ -88,7 +88,36 @@ const REPO_CONCEPT: Record<string, RegExp> = {
   "repo registry path": j("repo", "-registry"),
 };
 
-const RETIRED: Record<string, RegExp> = { ...SYMBOLS, ...SQL, ...REPO_CONCEPT };
+/**
+ * Tool names retired by the action-tool merge (phase 4): the planner's seven tools became `Plan` actions and the
+ * worker's two report tools `Report` actions; the lead's eleven tools became `Orchestrate` actions (`TaskStatus` is
+ * retired as a storage type above). Banned in src and test (the docs are updated by the docs phase).
+ */
+const TOOLS: Record<string, RegExp> = Object.fromEntries(
+  [
+    ["Report", "Progress"],
+    ["Report", "Result"],
+    ["Get", "ProjectContext"],
+    ["Get", "AgentCapabilities"],
+    ["Create", "Plan"],
+    ["Validate", "Plan"],
+    ["Propose", "PlanRevision"],
+    ["Get", "ExecutionProgress"],
+    ["Analyze", "Blockers"],
+    ["Dispatch", "Agent"],
+    ["Steer", "Task"],
+    ["Retry", "Task"],
+    ["Cancel", "Task"],
+    ["Forward", "Result"],
+    ["Ask", "Owner"],
+    ["Request", "Plan"],
+    ["Approve", "Plan"],
+    ["SetThread", "Title"],
+    ["Register", "Location"],
+  ].map((p) => [`retired tool ${p.join("")}`, new RegExp(`\\b${p.join("")}\\b`)]),
+);
+
+const RETIRED: Record<string, RegExp> = { ...SYMBOLS, ...SQL, ...REPO_CONCEPT, ...TOOLS };
 
 /**
  * `task_id` is a column only of worktrees and run_messages (staged tasks) and an SDK tool input: allowed in

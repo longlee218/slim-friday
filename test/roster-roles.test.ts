@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { REPORT_RESULT_TOOL } from "../src/mcp/orchestration/tools/ReportResultTool/constants";
+import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
 import { validateRole } from "../src/orchestrator/run/validate-role";
 import { validateRegistry } from "../src/roles/capability-registry";
 import { dispatchableWorkers, getRole } from "../src/roles/role-registry";
@@ -9,13 +9,13 @@ import { toolsFor } from "../src/tools/tool-catalog";
 
 const ROSTER = ["solution-architect", "designer", "tester", "devops", "humanizer-writer", "hacker"];
 
-test("every roster role is a dispatchable Haiku worker that validates and reports through ReportResult", () => {
+test("every roster role is a dispatchable Haiku worker that validates and reports through Report result", () => {
   validateRegistry();
   for (const name of ROSTER) {
     const r = getRole(name);
     expect(validateRole(r)).toBeUndefined();
     expect([name, r.kind, r.dispatchable, r.noSubagents]).toEqual([name, "worker", true, true]);
-    expect(r.mcpTools).toContain(REPORT_RESULT_TOOL);
+    expect(r.mcpTools).toContain(REPORT_TOOL);
     expect(r.limits.maxAsk).toBe(0);
     expect(dispatchableWorkers().map((w) => w.name)).toContain(name);
   }

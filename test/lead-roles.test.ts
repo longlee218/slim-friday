@@ -5,9 +5,8 @@ import { HAIKU_MODEL, SONNET_MODEL } from "../src/config/model-ids";
 import { readSkillsLock } from "../src/config/skills-lock";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { mcpToolName, ORCHESTRATION_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
-import { REPORT_RESULT_TOOL } from "../src/mcp/orchestration/tools/ReportResultTool/constants";
-import { createReportResultTool } from "../src/mcp/orchestration/tools/ReportResultTool/report-result-tool";
+import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
+import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { countsTowardCap, dispatchableWorkers, ROLES } from "../src/roles/role-registry";
 import { PUBLISHER_SKILLS_DIR } from "../src/runtime/skills-plugin/publisher-skills";
@@ -25,6 +24,7 @@ import {
 import { toolsFor } from "../src/tools/tool-catalog";
 import { FakePort, leadCtx } from "./lead-fake-port";
 import { FULL_CTX, LEAD_ONLY_TOOLS, toolsByServer } from "./mcp-ctx-fixture";
+import { reportResultTool } from "./report-tool-helper";
 
 const lead = ROLES.lead!;
 const scout = ROLES.scout!;
@@ -97,12 +97,12 @@ test("guard: the lead may call exactly the lead tools; the scout none", () => {
   expect(checkToolCall(mcpToolName(ORCHESTRATION_MCP_SERVER, "Other"), {}, g).decision).toBe(
     "deny",
   );
-  expect(
-    checkToolCall(mcpToolName(ORCHESTRATION_MCP_SERVER, REPORT_RESULT_TOOL), {}, g).decision,
-  ).toBe("deny");
+  expect(checkToolCall(mcpToolName(ORCHESTRATION_MCP_SERVER, REPORT_TOOL), {}, g).decision).toBe(
+    "deny",
+  );
   const s = guardFor(scout, scope);
   expect(
-    checkToolCall(mcpToolName(ORCHESTRATION_MCP_SERVER, DISPATCH_AGENT_TOOL), {}, s).decision,
+    checkToolCall(mcpToolName(ORCHESTRATION_MCP_SERVER, ORCHESTRATE_TOOL), {}, s).decision,
   ).toBe("deny");
 });
 
@@ -110,13 +110,13 @@ test("the lead's orchestration instance holds the lead tools; a scout given the 
   const lead_ = { lead: leadCtx(new FakePort()) };
   const mine = toolsByServer(buildServers(lead, lead_))[ORCHESTRATION_MCP_SERVER] ?? [];
   for (const t of LEAD_ONLY_TOOLS) expect(mine).toContain(t);
-  expect(mine).not.toContain(REPORT_RESULT_TOOL); // a lead has no report sink
+  expect(mine).not.toContain(REPORT_TOOL); // a lead has no report sink
   expect(toolsByServer(buildServers(scout, lead_))[ORCHESTRATION_MCP_SERVER] ?? []).toEqual([]);
 });
 
-test("ReportResult stores the first report in the sink; a second call is refused", async () => {
+test("Report result stores the first report in the sink; a second call is refused", async () => {
   const sink: { report?: { status: string } } = {};
-  const t = createReportResultTool(sink as never);
+  const t = reportResultTool(sink as never);
   const ok = await t.handler(
     { title: "T", status: "COMPLETED", summary: "done", requests: undefined, artifacts: undefined },
     {},
@@ -145,9 +145,9 @@ test("no Bash for the lead; the scout may call Bash (the sandbox grants it no wr
   );
 });
 
-test("ReportResult: every worker role (developer, scout, planner, roster) may call it; no other role may; lead tools only for the lead", () => {
+test("Report result: every worker role (developer, scout, planner, roster) may call it; no other role may; lead tools only for the lead", () => {
   const scope = { readPaths: ["/r"] };
-  const report = mcpToolName(ORCHESTRATION_MCP_SERVER, REPORT_RESULT_TOOL);
+  const report = mcpToolName(ORCHESTRATION_MCP_SERVER, REPORT_TOOL);
   const allowed = (role: string, tool: string) =>
     checkToolCall(tool, {}, guardFor(ROLES[role]!, scope)).decision === "allow";
   for (const name of Object.keys(ROLES)) {
@@ -160,14 +160,14 @@ test("ReportResult: every worker role (developer, scout, planner, roster) may ca
   }
 });
 
-test("dev and scout get ReportResult when the run has a report sink; the lead does not", () => {
+test("dev and scout get Report when the run has a report sink; the lead does not", () => {
   const supply = { reportSink: FULL_CTX.reportSink };
   for (const n of ["developer", "scout"])
     expect(toolsByServer(buildServers(ROLES[n]!, supply))[ORCHESTRATION_MCP_SERVER]).toContain(
-      REPORT_RESULT_TOOL,
+      REPORT_TOOL,
     );
   expect(toolsByServer(buildServers(lead, supply))[ORCHESTRATION_MCP_SERVER] ?? []).not.toContain(
-    REPORT_RESULT_TOOL,
+    REPORT_TOOL,
   );
 });
 

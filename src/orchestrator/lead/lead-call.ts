@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import type { OwnerLanguage } from "../../ingress/user-copy";
+import { orchestrateAudit } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
+import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
 import { logEvent, logger } from "../../observability/logger";
 import type { EventKind } from "../events/event-types";
 import type { EffectPort } from "../goal/effect-port";
@@ -22,12 +24,12 @@ export interface LeadToolContext {
   correlationId?: string;
   /** Language of the owner's message (owner-facing posts of a handler; absent = Vietnamese). */
   language?: OwnerLanguage;
-  run: { dispatched: number; registered?: number };
-  /** Where the run lives, for `RegisterLocation` (absent in tests that never call it). */
+  run: { dispatched: number; registered?: number; ownerAnswers?: string[] };
+  /** Where the run lives, for `Orchestrate register_location` (absent in tests that never call it). */
   place?: LeadPlace;
 }
 
-/** Facts `RegisterLocation` needs about the run: its thread's space and channel (from code, never the model) and its trigger. */
+/** Facts `Orchestrate register_location` needs about the run: its thread's space and channel (from code, never the model) and its trigger. */
 export interface LeadPlace {
   /** AGENT_HOME. */
   home: string;
@@ -61,31 +63,35 @@ export interface Outcome {
   audit?: { scope: string; grantedBy: string };
 }
 
-/** Idempotency key: thread + lead input + tool + a hash of the arguments (the same call twice is one effect). */
-const callKey = (threadId: string, inputId: string, tool: string, args: unknown): string =>
-  `${threadId}:${inputId}:${tool}:${createHash("sha256").update(JSON.stringify(args)).digest("hex").slice(0, 16)}`;
+/** Idempotency key: thread + lead input + tool + action + a hash of the arguments (the same call twice is one effect). */
+const callKey = (threadId: string, inputId: string, action: string, args: unknown): string =>
+  `${threadId}:${inputId}:${ORCHESTRATE_TOOL}:${action}:${createHash("sha256").update(JSON.stringify(args)).digest("hex").slice(0, 16)}`;
 
 /** Options of one call. */
 export interface CallOpts {
   /** A pure read: never cached, no event, no audit row (only the log line). */
   read?: true;
+  /** Never replay a stored reply: the call changes state that can change back (update 10 -> 0 -> 10). Each call is its own effect. */
+  fresh?: true;
 }
 
 /**
- * Run one tool call. A mutation that already succeeded under the same key replays its stored reply (one effect); a
+ * Run one `Orchestrate` action. A mutation that already succeeded under the same key replays its stored reply (one effect); a
  * refusal is never stored, so it is not replayed once the blocker is gone. A new call runs `act(key)`, writes the thread
  * event(s) (events carry `by: "lead"` so announce skips them), the audit row on success, and one `lead.decision` log line.
  * A read skips the db entirely.
  */
 export async function leadCall(
   ctx: LeadToolContext,
-  tool: string,
+  action: string,
   args: unknown,
   act: (key: string) => Promise<Outcome> | Outcome,
   opts: CallOpts = {},
 ): Promise<Reply> {
-  const key = callKey(ctx.threadId, ctx.inputId, tool, args);
-  if (!opts.read) {
+  const key =
+    callKey(ctx.threadId, ctx.inputId, action, args) +
+    (opts.fresh ? `:${crypto.randomUUID()}` : "");
+  if (!opts.read && !opts.fresh) {
     const stored = ctx.port.recall(key);
     if (stored) return JSON.parse(stored) as Reply;
   }
@@ -94,7 +100,12 @@ export async function leadCall(
   if (!opts.read && !out.recorded) {
     const events = out.events?.length
       ? out.events
-      : [{ kind: "lead_decision" as const, payload: { tool, ok: out.reply.ok, code } }];
+      : [
+          {
+            kind: "lead_decision" as const,
+            payload: { tool: ORCHESTRATE_TOOL, action, ok: out.reply.ok, code },
+          },
+        ];
     for (const [i, e] of events.entries()) {
       ctx.port.appendEvent({
         // A refusal is not stored, so its events get a fresh id (a later success under the same key must still write its own).
@@ -102,19 +113,26 @@ export async function leadCall(
         kind: e.kind,
         ...(e.taskId && { taskId: e.taskId }),
         ...(e.itemId && { itemId: e.itemId }),
-        payload: { ...e.payload, by: "lead", tool },
+        payload: { ...e.payload, by: "lead", tool: ORCHESTRATE_TOOL, action },
         ...(ctx.correlationId && { correlationId: ctx.correlationId }),
       });
     }
     if (out.reply.ok)
       ctx.port.remember(key, {
-        tool,
+        tool: orchestrateAudit(action),
         reply: JSON.stringify(out.reply),
         ...(out.goalId && { goalId: out.goalId }),
         ...(out.itemId && { itemId: out.itemId }),
         ...(out.audit && out.audit),
       });
   }
-  logEvent(log, "lead.decision", { tool, ok: out.reply.ok, code, key, leadTurnId: ctx.leadTurnId });
+  logEvent(log, "lead.decision", {
+    tool: ORCHESTRATE_TOOL,
+    action,
+    ok: out.reply.ok,
+    code,
+    key,
+    leadTurnId: ctx.leadTurnId,
+  });
   return out.reply;
 }

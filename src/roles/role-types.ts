@@ -48,7 +48,7 @@ export interface RoleDefinition {
   noSubagents?: boolean;
   /** Subagent bounds of a run: `parallel` = most subagents running at once (the guard denies the next start), `depth` = nesting levels (>= 1; 1 = a subagent has no Agent tool). Only used when `noSubagents` is not set. */
   subagents: { parallel: number; depth: number };
-  /** The lead may dispatch this role as a worker (`DispatchAgent`); TEAM.md lists these roles. Omitted = not dispatchable. */
+  /** The lead may dispatch this role as a worker (`Orchestrate dispatch`); TEAM.md lists these roles. Omitted = not dispatchable. */
   dispatchable?: boolean;
   /**
    * Bare names of the in-process MCP tools the role gets (from each tool's `constants.ts`). A run builds only these,

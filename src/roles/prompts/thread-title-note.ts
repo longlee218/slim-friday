@@ -1,9 +1,12 @@
 import type { Database } from "bun:sqlite";
-import { SET_THREAD_TITLE_TOOL } from "../../mcp/orchestration/tools/SetThreadTitleTool/constants";
+import {
+  ORCHESTRATE_ACTION_SET_TITLE,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { getThread } from "../../storage/thread-store";
 
 /** The system-context line that asks the agent to title a thread that still carries the bot's placeholder name. */
-const THREAD_TITLE_NOTE = `This thread has no title yet: call ${SET_THREAD_TITLE_TOOL} once, early, with a short title and digest (skip for a greeting-only turn).`;
+const THREAD_TITLE_NOTE = `This thread has no title yet: call ${orchestrateRef(ORCHESTRATE_ACTION_SET_TITLE)} once, early, with a short title and digest (skip for a greeting-only turn).`;
 
 /**
  * One context line while the thread has its placeholder name and no title, and the run can rename (`hasPort`:

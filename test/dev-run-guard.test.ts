@@ -72,7 +72,7 @@ test("the dev run works in the location's own checkout: cwd = location path, scr
 
 test("dev: only the app's MCP servers; a worker's env keeps no owner secret (the SDK also scrubs its tools' env)", async () => {
   const { exec } = await runExec();
-  // Only the app's in-process servers (memory, ReportResult, effect tools).
+  // Only the app's in-process servers (memory, Report result, effect tools).
   expect(Object.keys(exec.mcpServers)).toEqual([
     MEMORY_MCP_SERVER,
     ARTIFACTS_MCP_SERVER,

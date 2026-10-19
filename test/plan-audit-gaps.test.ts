@@ -90,7 +90,7 @@ test("a superseded version is never approved; the newest version is approved onc
   expect(planVersions(db, plan.id).map((v) => v.status)).toEqual(["superseded", "approved"]);
 });
 
-test("ApprovePlan on a superseded version is refused before the owner is asked; a real db port", async () => {
+test("Orchestrate approve_plan on a superseded version is refused before the owner is asked; a real db port", async () => {
   const { plan } = setup();
   revisePlan(db, { planId: plan.id, baseVersion: 1, edit: edit(), reason: "x", env: ENV });
   const real = createPlanPort(db, "t");
@@ -185,7 +185,7 @@ test("a revision that cancels an item another item still needs is refused (UNKNO
   expect(planVersions(db, plan.id).map((v) => v.version)).toEqual([1]);
 });
 
-test("the planner cannot be a plan role: the registry and the validator refuse it, DispatchAgent refuses it", () => {
+test("the planner cannot be a plan role: the registry and the validator refuse it, Orchestrate dispatch refuses it", () => {
   expect(ENV.workerRoles).not.toContain("planner");
   expect(ENV.workerRoles).not.toContain("lead");
   const doc = (role: string) => ({
@@ -213,7 +213,7 @@ test("the planner cannot be a plan role: the registry and the validator refuse i
     state,
     {
       strategy: "DIRECT",
-      assignments: [{ key: "p", role: "planner", brief: "x", dependsOn: [] }],
+      assignments: [{ key: "p", subject: "task", role: "planner", brief: "x", dependsOn: [] }],
     } as never,
     caps,
     { workerRoles: ENV.workerRoles, locations: ["repo"] },

@@ -45,7 +45,7 @@ test("lead reads nothing outside its own dirs (outside paths, home dotfiles); no
   expect(
     (await can(WRITE_TOOL_NAME, { file_path: join(location, "z"), content: "" }, {})).behavior,
   ).toBe("deny");
-  // No gateway in a lead run: the question tool is unavailable (it asks through AskOwner).
+  // No gateway in a lead run: the question tool is unavailable (it asks through Orchestrate ask_owner).
   expect((await can(ASK_USER_QUESTION_TOOL_NAME, { questions: [] }, {})).behavior).toBe("deny");
 });
 

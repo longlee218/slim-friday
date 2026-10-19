@@ -8,7 +8,8 @@ import { CREATE_PULL_REQUEST_TOOL } from "../src/mcp/effects/tools/CreatePullReq
 import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { mcpToolName, ORCHESTRATION_MCP_SERVER, PLAN_MCP_SERVER } from "../src/mcp/mcp-tool-names";
-import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
+import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
+import { PLAN_TOOL } from "../src/mcp/plan/tools/PlanTool/constants";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { handleApprovePlan, handleRequestPlan } from "../src/orchestrator/lead/lead-plan-handlers";
 import { renderPlan } from "../src/orchestrator/plan/plan-render";
@@ -19,6 +20,7 @@ import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { ROLES } from "../src/roles/role-registry";
 import { buildRoleSkills } from "../src/runtime/skills-plugin/role-skills";
 import { openDb } from "../src/storage/db";
+import { appendEvent } from "../src/storage/thread-event-store";
 import { makeEnv } from "./helpers";
 import { FakePort } from "./lead-fake-port";
 import { PLAN_TOOLS } from "./mcp-ctx-fixture";
@@ -30,6 +32,7 @@ let db: Database;
 afterEach(() => db?.close());
 const item = (key: string, over: Record<string, unknown> = {}) => ({
   key,
+  subject: `Do ${key}`,
   role: "developer",
   brief: `do ${key}`,
   dependsOn: [],
@@ -72,19 +75,23 @@ function setup() {
       _registeredTools: Record<string, { handler: (a: object, e: object) => Promise<any> }>;
     };
   };
-  const call = async (name: string, args: object) =>
-    JSON.parse((await server.instance._registeredTools[name]!.handler(args, {})).content[0].text);
+  /** Call an action of the `Plan` tool; returns the parsed JSON reply. */
+  const call = async (action: string, params: object) =>
+    JSON.parse(
+      (await server.instance._registeredTools[PLAN_TOOL]!.handler({ action, params }, {}))
+        .content[0].text,
+    );
   return { goalId: w.goalId, call, ctx, server };
 }
 
-test("the plan server exposes exactly the seven plan tools", () => {
+test("the plan server exposes exactly the Plan action tool", () => {
   const { server } = setup();
   expect(Object.keys(server.instance._registeredTools).sort()).toEqual([...PLAN_TOOLS].sort());
 });
 
-test("GetProjectContext + GetAgentCapabilities: request, locations, digest, roles; another goal is refused", async () => {
+test("Plan context + capabilities: request, locations, digest, roles; another goal is refused", async () => {
   const { goalId, call } = setup();
-  const c = await call("GetProjectContext", { goalId });
+  const c = await call("context", { goalId });
   expect(c).toMatchObject({
     ok: true,
     locations: [{ name: "location" }],
@@ -92,42 +99,42 @@ test("GetProjectContext + GetAgentCapabilities: request, locations, digest, role
   });
   expect(c.request).toContain("build it");
   expect(c.request).toContain("see x");
-  expect(await call("GetProjectContext", { goalId: "other" })).toMatchObject({
+  expect(await call("context", { goalId: "other" })).toMatchObject({
     ok: false,
     code: "BAD_TASK",
   });
-  const caps = await call("GetAgentCapabilities", {});
+  const caps = await call("capabilities", {});
   expect(caps.roles.map((r: { name: string }) => r.name)).toEqual(["developer", "scout"]);
   expect(caps.roles[0]).toHaveProperty("whenToUse");
 });
 
-test("CreatePlan -> valid; coded errors; ValidatePlan; the planner cannot name itself or the lead", async () => {
+test("Plan create -> valid; coded errors; validate; the planner cannot name itself or the lead", async () => {
   const { goalId, call } = setup();
-  const bad = await call("CreatePlan", PLAN(goalId, { items: [item("a", { role: "planner" })] }));
+  const bad = await call("create", PLAN(goalId, { items: [item("a", { role: "planner" })] }));
   expect(bad).toMatchObject({ ok: false, code: "INVALID" });
   expect(bad.message).toContain("UNKNOWN_ROLE");
   const cyc = await call(
-    "CreatePlan",
+    "create",
     PLAN(goalId, { items: [item("a", { dependsOn: ["b"] }), item("b", { dependsOn: ["a"] })] }),
   );
   expect(cyc.message).toContain("CYCLE");
-  const ok = await call("CreatePlan", PLAN(goalId));
+  const ok = await call("create", PLAN(goalId));
   expect(ok).toMatchObject({ ok: true, version: 1, status: "valid" });
-  expect(await call("ValidatePlan", { planId: ok.planId, version: 1 })).toEqual({
+  expect(await call("validate", { planId: ok.planId, version: 1 })).toEqual({
     ok: true,
     valid: true,
     errors: [],
   });
-  expect(await call("CreatePlan", PLAN(goalId))).toMatchObject({ ok: false, code: "PLAN_EXISTS" });
-  expect(await call("ValidatePlan", { planId: "nope", version: 1 })).toMatchObject({
+  expect(await call("create", PLAN(goalId))).toMatchObject({ ok: false, code: "PLAN_EXISTS" });
+  expect(await call("validate", { planId: "nope", version: 1 })).toMatchObject({
     code: "NO_PLAN",
   });
 });
 
-test("ProposePlanRevision: new version; stale baseVersion refused; progress and blockers read the goal", async () => {
+test("Plan revise: new version; stale baseVersion refused; list reads the goal and the cause of a failed item", async () => {
   const { goalId, call } = setup();
-  const { planId } = await call("CreatePlan", PLAN(goalId));
-  const rev = await call("ProposePlanRevision", {
+  const { planId } = await call("create", PLAN(goalId));
+  const rev = await call("revise", {
     planId,
     baseVersion: 1,
     add: [item("c")],
@@ -136,7 +143,7 @@ test("ProposePlanRevision: new version; stale baseVersion refused; progress and 
     reason: "more",
   });
   expect(rev).toMatchObject({ ok: true, version: 2, status: "valid" });
-  const stale = await call("ProposePlanRevision", {
+  const stale = await call("revise", {
     planId,
     baseVersion: 1,
     add: [],
@@ -145,12 +152,26 @@ test("ProposePlanRevision: new version; stale baseVersion refused; progress and 
     reason: "x",
   });
   expect(stale).toMatchObject({ ok: false, code: "STALE_VERSION" });
-  const prog = await call("GetExecutionProgress", { goalId });
+  const prog = await call("list", { goalId });
   expect(prog.items.map((i: { key: string }) => i.key)).toEqual(["planner"]);
-  expect(await call("AnalyzeBlockers", { goalId })).toEqual({ ok: true, blockers: [] });
+  expect(prog.items[0]).not.toHaveProperty("cause"); // not blocked, failed or waiting: no cause
   db.query("UPDATE owned_tasks SET status = 'failed' WHERE item_key = 'planner'").run();
-  const blockers = await call("AnalyzeBlockers", { goalId });
-  expect(blockers.blockers).toMatchObject([{ key: "planner", status: "failed" }]);
+  const failed = await call("list", { goalId });
+  expect(failed.items).toMatchObject([{ key: "planner", status: "failed" }]);
+  // The cause of a failed item is the last failure-like event on it.
+  const planner = db.query("SELECT id FROM owned_tasks WHERE item_key = 'planner'").get() as {
+    id: string;
+  };
+  appendEvent(db, {
+    id: "e1",
+    threadId: "th1",
+    itemId: planner.id,
+    kind: "failure",
+    payload: "boom",
+  });
+  const withCause = await call("list", { goalId });
+  expect(withCause.items[0].cause.kind).toBe("failure");
+  expect(withCause.items[0].cause.detail).toContain("boom");
 });
 
 /** Lead context over the fake port. */
@@ -162,7 +183,7 @@ const lead = (port: FakePort, dispatched = 0) => ({
   run: { dispatched },
 });
 
-test("RequestPlan: starts the planner; one per run; open goal needs goalId; bad goal refused", async () => {
+test("Orchestrate request_plan: starts the planner; one per run; open goal needs goalId; bad goal refused", async () => {
   const port = new FakePort();
   const ctx = lead(port);
   const r = await handleRequestPlan(ctx, { objective: "big thing" });
@@ -184,7 +205,7 @@ test("RequestPlan: starts the planner; one per run; open goal needs goalId; bad 
   });
 });
 
-test("RequestPlan: chain cap refuses before any write", () => {
+test("Orchestrate request_plan: chain cap refuses before any write", () => {
   const caps = { chainCount: CHAIN_CAP, dispatchedThisRun: 0 };
   expect(checkPlanRequest({ items: [] }, {}, caps)).toMatchObject({ code: "CHAIN_CAP" });
 });
@@ -192,7 +213,16 @@ test("RequestPlan: chain cap refuses before any write", () => {
 /** A plan view for the fake port. */
 function view(status = "valid") {
   const doc = {
-    items: [{ key: "a", role: "developer", brief: "do a", dependsOn: [], risk: "R1" as const }],
+    items: [
+      {
+        key: "a",
+        subject: "task",
+        role: "developer",
+        brief: "do a",
+        dependsOn: [],
+        risk: "R1" as const,
+      },
+    ],
     acceptanceCriteria: ["works"],
     envelope: {
       roles: ["developer"],
@@ -206,7 +236,7 @@ function view(status = "valid") {
   return { planId: "p1", version: 1, status, goalId: "g1", objective: "build it", doc };
 }
 
-test("ApprovePlan: one question with the whole plan; yes approves, no rejects, timeout / unclear change nothing", async () => {
+test("Orchestrate approve_plan: one question with the whole plan; yes approves, no rejects, timeout / unclear change nothing", async () => {
   const port = new FakePort();
   port.plans.set("p1:1", view());
   port.answer = { answer: "Approve plan", timedOut: false };
@@ -234,7 +264,7 @@ test("ApprovePlan: one question with the whole plan; yes approves, no rejects, t
   expect(port.decisions.map((d) => d.approve)).toEqual([true, false]); // timeout and unclear decided nothing
 });
 
-test("ApprovePlan refuses a plan that is not valid or unknown, without asking the owner", async () => {
+test("Orchestrate approve_plan refuses a plan that is not valid or unknown, without asking the owner", async () => {
   const port = new FakePort();
   port.plans.set("p1:1", view("approved"));
   expect(await handleApprovePlan(lead(port), { planId: "p1", version: 1 })).toMatchObject({
@@ -255,12 +285,19 @@ test("renderPlan lists steps with dependencies, criteria and the limits", () => 
       ...v.doc,
       items: [
         ...v.doc.items,
-        { key: "b", role: "developer", brief: "x".repeat(500), dependsOn: ["a"], risk: "R1" },
+        {
+          key: "b",
+          subject: "task",
+          role: "developer",
+          brief: "x".repeat(500),
+          dependsOn: ["a"],
+          risk: "R1",
+        },
       ],
     },
   });
-  expect(text).toContain("1. a [developer, risk R1]: do a");
-  expect(text).toContain("2. b [developer, risk R1] after a:");
+  expect(text).toContain('1. a "task" [developer, risk R1]: do a');
+  expect(text).toContain('2. b "task" [developer, risk R1] after a:');
   expect(text).toContain("Done when:");
   expect(text).toContain("budget $3");
   // The brief is carried in full (the worker receives it whole); the head says where the full text lives.
@@ -290,9 +327,7 @@ test("planner tools are allowed for the planner only; the planner holds no lead 
         name === "planner",
       ]);
   }
-  expect(allowed("planner", mcpToolName(ORCHESTRATION_MCP_SERVER, DISPATCH_AGENT_TOOL))).toBe(
-    false,
-  );
+  expect(allowed("planner", mcpToolName(ORCHESTRATION_MCP_SERVER, ORCHESTRATE_TOOL))).toBe(false);
   expect(ROLES.planner!.dispatchable).toBeFalsy();
   expect(ROLES.planner!.sideEffects).toBe("none");
   expect(ROLES.planner!.capabilities).not.toContain("write");

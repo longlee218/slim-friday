@@ -12,7 +12,6 @@ import { join } from "node:path";
 import { DELETE_PATHS_TOOL } from "../src/mcp/effects/tools/DeletePathsTool/constants";
 import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
 import { EFFECTS_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
-import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
 import { parseMessageCommand } from "../src/orchestrator/message-commands";
 import { addLocation, makeEnv } from "./helpers";
 import { leadHarness, until } from "./lead-harness";
@@ -47,11 +46,12 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
     async (c) => {
       if (c.kind === "planner") {
         const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        const made = await c.tool("CreatePlan", {
+        const made = await c.plan("create", {
           goalId,
           items: [
             {
               key: "cleanup",
+              subject: "task",
               role: "developer",
               brief: "remove old.txt",
               location: "location",
@@ -68,7 +68,7 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
           budgetUsd: 2,
           effects: [],
         });
-        await c.tool("ReportResult", {
+        await c.report("result", {
           title: "T",
           status: "COMPLETED",
           summary: `plan ${made.planId} v1`,
@@ -78,7 +78,7 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
       if (c.kind === "worker") {
         if (c.prompt.includes("Acceptance criteria:")) {
           // The code-appended verify run: it only reports (the checks below belong to the cleanup item).
-          await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "verified" });
+          await c.report("result", { title: "T", status: "COMPLETED", summary: "verified" });
           return "worker done";
         }
         const can = (t: string, input: object) => c.options.canUseTool(t, input, {});
@@ -99,17 +99,17 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
           remote: "origin",
           branch: "feat/x",
         });
-        await c.tool("ReportResult", { title: "T", status: "COMPLETED", summary: "removed" });
+        await c.report("result", { title: "T", status: "COMPLETED", summary: "removed" });
         return "worker done";
       }
       if (c.prompt.includes("Owner message:\ncleanup")) {
-        await c.tool("RequestPlan", { objective: "clean up" });
+        await c.orchestrate("request_plan", { objective: "clean up" });
         return "Planning it.";
       }
       const plan = PLAN_ID.exec(c.prompt)?.[1];
       if (plan && !leadApproved) {
         leadApproved = true;
-        await c.tool("ApprovePlan", { planId: plan, version: 1 });
+        await c.orchestrate("approve_plan", { planId: plan, version: 1 });
         return "Plan approved.";
       }
       return c.prompt.includes('"key":"cleanup"') ? "Cleanup done." : "";
@@ -149,7 +149,7 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
   expect(seen.deleteOutB).toMatchObject({ ok: false, code: "OWNER_DENIED" });
   expect(existsSync(outsideA)).toBe(false);
   expect(existsSync(outsideB)).toBe(true);
-  // Push: the shell call passes the guard (the sandbox has no network); the tool outside the envelope is denied.
+  // Push: the shell call passes the guard (the sandbox does not parse it); the tool outside the envelope is denied.
   expect(seen.bash).toBe("allow");
   expect(seen.toolPush).toMatchObject({ behavior: "deny" });
   expect((seen.toolPush as { message: string }).message).toContain("OUT_OF_ENVELOPE");
@@ -181,6 +181,7 @@ test("the dispatch lists effect grants: one owner question, No = nothing starts,
           assignments: [
             {
               key: "main",
+              subject: "task",
               role: "developer",
               brief: "open a PR",
               location: "location",
@@ -189,11 +190,11 @@ test("the dispatch lists effect grants: one owner question, No = nothing starts,
           ],
           effects: [{ tool: GIT_PUSH_TOOL, location: "location", branch: "feat/x" }],
         };
-        const first = await c.tool(DISPATCH_AGENT_TOOL, call);
+        const first = await c.orchestrate("dispatch", call);
         expect(first).toMatchObject({ ok: false, code: "OWNER_DENIED" });
-        expect(
-          await c.tool(DISPATCH_AGENT_TOOL, { ...call, reason: "owner agreed" }),
-        ).toMatchObject({ ok: true });
+        expect(await c.orchestrate("dispatch", { ...call, reason: "owner agreed" })).toMatchObject({
+          ok: true,
+        });
         return "Started.";
       }
       return "";

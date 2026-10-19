@@ -1,5 +1,7 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { DISPATCH_AGENT_TOOL } from "../src/mcp/orchestration/tools/DispatchAgentTool/constants";
+import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
+import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
+import { PLAN_TOOL } from "../src/mcp/plan/tools/PlanTool/constants";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import type { ApprovalGateway } from "../src/owner-approval/approval-types";
@@ -17,6 +19,12 @@ export interface Call {
   options: any;
   /** Call a tool of the run's lead / worker server; returns the parsed JSON reply. */
   tool: (name: string, args: object) => Promise<any>;
+  /** Call an action of the lead's `Orchestrate` tool (`dispatch`, `retry`, ...); returns the parsed JSON reply. */
+  orchestrate: (action: string, params: object) => Promise<any>;
+  /** Call an action of the worker's `Report` tool (`result`, `progress`); returns the parsed JSON reply. */
+  report: (action: string, params: object) => Promise<any>;
+  /** Call an action of the planner's `Plan` tool (`context`, `create`, ...); returns the parsed JSON reply. */
+  plan: (action: string, params: object) => Promise<any>;
 }
 
 /** What the script returns: the final text of the run, an optional cost, and `maxBudget` to end the run as a budget stop. */
@@ -59,7 +67,7 @@ export function scriptedQuery(script: Script, calls: Call[], sessionOf?: Session
           : isWorkerRun(a.options)
             ? "worker"
             : "other";
-      const call: Call = {
+      const call = {
         kind,
         prompt: await promptOf(a.prompt),
         options: a.options,
@@ -68,7 +76,10 @@ export function scriptedQuery(script: Script, calls: Call[], sessionOf?: Session
           const r = await toolOf(a.options, name)!.handler(args, {});
           return JSON.parse(r.content[0].text);
         },
-      };
+      } as Call;
+      call.orchestrate = (action, params) => call.tool(ORCHESTRATE_TOOL, { action, params });
+      call.report = (action, params) => call.tool(REPORT_TOOL, { action, params });
+      call.plan = (action, params) => call.tool(PLAN_TOOL, { action, params });
       calls.push(call);
       // A test that tracks sessions (resume) names the run's session; the default is the fixed one of `initMsg`.
       const sid = sessionOf?.(a.options, calls.length);
@@ -89,13 +100,13 @@ const DEV_START_NOTICE = "I’m starting on your request.";
 
 /**
  * Wrap a fake `query` for tests that need a developer worker to start from a plain owner message: a lead run (the run
- * holding the lead tools) dispatches the message text to the developer through the real `DispatchAgent` tool (an optional
+ * holding the lead tools) dispatches the message text to the developer through the real `Orchestrate dispatch` action (an optional
  * leading `location:<name>` becomes the assignment's location; an open goal is superseded) and replies `DEV_START_NOTICE`; an announce run just
  * replies; every other run (the worker) goes to `inner`.
  */
 export function devLeadQuery(inner: unknown) {
   return ((a: { prompt: unknown; options: any }) => {
-    const dispatchTool = toolOf(a.options, DISPATCH_AGENT_TOOL);
+    const dispatchTool = toolOf(a.options, ORCHESTRATE_TOOL);
     if (!dispatchTool) return (inner as (a: unknown) => AsyncIterable<SDKMessage>)(a);
     return (async function* (): AsyncGenerator<SDKMessage> {
       const prompt = await promptOf(a.prompt);
@@ -109,13 +120,23 @@ export function devLeadQuery(inner: unknown) {
             (
               await dispatchTool.handler(
                 {
-                  strategy: "DIRECT",
-                  intent: "work",
-                  reason: "test",
-                  ...(supersedes && { supersedes }),
-                  assignments: [
-                    { key: "main", role: "developer", brief, location: pin?.[1], dependsOn: [] },
-                  ],
+                  action: "dispatch",
+                  params: {
+                    strategy: "DIRECT",
+                    intent: "work",
+                    reason: "test",
+                    ...(supersedes && { supersedes }),
+                    assignments: [
+                      {
+                        key: "main",
+                        subject: brief.slice(0, 80), // distinct per message: same subjects would look like a repeat
+                        role: "developer",
+                        brief,
+                        location: pin?.[1],
+                        dependsOn: [],
+                      },
+                    ],
+                  },
                 },
                 {},
               )

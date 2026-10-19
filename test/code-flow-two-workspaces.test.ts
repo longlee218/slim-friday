@@ -93,5 +93,5 @@ test("two workspaces with location `real`: every task runs in the channel's work
     EFFECTS_MCP_SERVER,
     MEMORY_MCP_SERVER,
     ORCHESTRATION_MCP_SERVER,
-  ]); // no git tools, no identity from the app; the effect tools next to ReportResult
+  ]); // no git tools, no identity from the app; the effect tools next to Report result
 });

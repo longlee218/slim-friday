@@ -10,8 +10,8 @@ import { ROLES } from "../src/roles/role-registry";
 const SCANNED = new Glob("src/**/*.ts");
 const isLayerFile = (f: string) => !f.startsWith("src/mcp/") && !f.startsWith("src/tools/");
 
-/** Allowed imports of `src/mcp` (always allowed: `constants.ts`, `mcp-tool-names.ts`, `import type` of manifest-types). */
-const ALLOWED_IMPORT = /(^|\/)(constants|mcp-tool-names)$|^src\/mcp\/manifest-types$/;
+/** Allowed imports of `src/mcp` (always allowed: `constants.ts`, `action-names.ts`, `mcp-tool-names.ts`, `import type` of manifest-types). */
+const ALLOWED_IMPORT = /(^|\/)(constants|mcp-tool-names|action-names)$|^src\/mcp\/manifest-types$/;
 
 /** Extra exceptions: `file -> imported module`, each with the reason. Keep it as short as possible. */
 const ALLOW_LIST: Record<string, string> = {

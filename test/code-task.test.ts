@@ -96,7 +96,7 @@ test("canUseTool: writes only in the workspace; a feedback report is outside a w
   // Bash never asks. A dispatched worker has an envelope: a tool the guard would ask about (SendFeedback) is unknown
   // = R2 = denied (fail closed), the owner is not bothered.
   expect((await can(BASH_TOOL_NAME, { command: "bun run lint" }, {})).behavior).toBe("allow");
-  // The shell is not parsed: the OS sandbox (no network, writes only in the grants) bounds any line.
+  // The shell is not parsed: the OS sandbox (network open, writes only in the grants) bounds any line.
   expect((await can(BASH_TOOL_NAME, { command: "bun add left-pad" }, {})).behavior).toBe("allow");
   expect((await can(SEND_FEEDBACK_TOOL_NAME, { type: "bug", title: "t" }, {})).behavior).toBe(
     "deny",

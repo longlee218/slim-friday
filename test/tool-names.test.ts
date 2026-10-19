@@ -54,6 +54,7 @@ test("SDK built-in tool names are the real wire names", () => {
     REFRESH_MCP_TOOLS_TOOL_NAME: "RefreshMcpTools",
     WAIT_FOR_MCP_SERVERS_TOOL_NAME: "WaitForMcpServers",
     SEND_FEEDBACK_TOOL_NAME: "SendFeedback",
+    SANDBOX_NETWORK_ACCESS_TOOL_NAME: "SandboxNetworkAccess",
   });
 });
 
@@ -70,30 +71,8 @@ test("MCP server and tool names are the real wire names", () => {
   expect(toolsByServer(buildServers(ALL_ROLE, FULL_CTX))).toEqual({
     artifacts: ["ListArtifacts", "ReadArtifact", "SaveArtifact", "SearchArtifacts"],
     memory: ["MemoryExpand", "MemoryGet", "MemorySave", "MemorySearch"],
-    orchestration: [
-      "ApprovePlan",
-      "AskOwner",
-      "CancelTask",
-      "DispatchAgent",
-      "ForwardResult",
-      "RegisterLocation",
-      "ReportProgress",
-      "ReportResult",
-      "RequestPlan",
-      "RetryTask",
-      "SetThreadTitle",
-      "SteerTask",
-      "TaskStatus",
-    ],
-    plan: [
-      "AnalyzeBlockers",
-      "CreatePlan",
-      "GetAgentCapabilities",
-      "GetExecutionProgress",
-      "GetProjectContext",
-      "ProposePlanRevision",
-      "ValidatePlan",
-    ],
+    orchestration: ["Orchestrate", "Report"],
+    plan: ["Plan"],
     effects: ["CreatePullRequest", "DeletePaths", "GitPush", "MergeBranch"],
     "discord-admin": ["CreateSpaceOrChannel", "ListSpaces", "WriteSpaceFile"],
   });

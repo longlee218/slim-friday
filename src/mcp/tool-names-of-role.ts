@@ -31,26 +31,9 @@ import { MEMORY_EXPAND_TOOL } from "./memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "./memory/tools/MemoryGetTool/constants";
 import { MEMORY_SAVE_TOOL } from "./memory/tools/MemorySaveTool/constants";
 import { MEMORY_SEARCH_TOOL } from "./memory/tools/MemorySearchTool/constants";
-import { APPROVE_PLAN_TOOL } from "./orchestration/tools/ApprovePlanTool/constants";
-import { ASK_OWNER_TOOL } from "./orchestration/tools/AskOwnerTool/constants";
-import { CANCEL_TASK_TOOL } from "./orchestration/tools/CancelTaskTool/constants";
-import { DISPATCH_AGENT_TOOL } from "./orchestration/tools/DispatchAgentTool/constants";
-import { FORWARD_RESULT_TOOL } from "./orchestration/tools/ForwardResultTool/constants";
-import { REGISTER_LOCATION_TOOL } from "./orchestration/tools/RegisterLocationTool/constants";
-import { REPORT_PROGRESS_TOOL } from "./orchestration/tools/ReportProgressTool/constants";
-import { REPORT_RESULT_TOOL } from "./orchestration/tools/ReportResultTool/constants";
-import { REQUEST_PLAN_TOOL } from "./orchestration/tools/RequestPlanTool/constants";
-import { RETRY_TASK_TOOL } from "./orchestration/tools/RetryTaskTool/constants";
-import { SET_THREAD_TITLE_TOOL } from "./orchestration/tools/SetThreadTitleTool/constants";
-import { STEER_TASK_TOOL } from "./orchestration/tools/SteerTaskTool/constants";
-import { TASK_STATUS_TOOL } from "./orchestration/tools/TaskStatusTool/constants";
-import { ANALYZE_BLOCKERS_TOOL } from "./plan/tools/AnalyzeBlockersTool/constants";
-import { CREATE_PLAN_TOOL } from "./plan/tools/CreatePlanTool/constants";
-import { GET_AGENT_CAPABILITIES_TOOL } from "./plan/tools/GetAgentCapabilitiesTool/constants";
-import { GET_EXECUTION_PROGRESS_TOOL } from "./plan/tools/GetExecutionProgressTool/constants";
-import { GET_PROJECT_CONTEXT_TOOL } from "./plan/tools/GetProjectContextTool/constants";
-import { PROPOSE_PLAN_REVISION_TOOL } from "./plan/tools/ProposePlanRevisionTool/constants";
-import { VALIDATE_PLAN_TOOL } from "./plan/tools/ValidatePlanTool/constants";
+import { ORCHESTRATE_TOOL } from "./orchestration/tools/OrchestrateTool/constants";
+import { REPORT_TOOL } from "./orchestration/tools/ReportTool/constants";
+import { PLAN_TOOL } from "./plan/tools/PlanTool/constants";
 
 /**
  * Server of every MCP tool, by bare tool name. Leaf data (imports only `constants.ts` files and server names, never
@@ -73,26 +56,9 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
   [MEMORY_GET_TOOL]: MEMORY_MCP_SERVER,
   [MEMORY_SAVE_TOOL]: MEMORY_MCP_SERVER,
   [MEMORY_SEARCH_TOOL]: MEMORY_MCP_SERVER,
-  [APPROVE_PLAN_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [ASK_OWNER_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [CANCEL_TASK_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [DISPATCH_AGENT_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [FORWARD_RESULT_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [REGISTER_LOCATION_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [REPORT_PROGRESS_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [REPORT_RESULT_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [REQUEST_PLAN_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [RETRY_TASK_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [SET_THREAD_TITLE_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [STEER_TASK_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [TASK_STATUS_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [ANALYZE_BLOCKERS_TOOL]: PLAN_MCP_SERVER,
-  [CREATE_PLAN_TOOL]: PLAN_MCP_SERVER,
-  [GET_AGENT_CAPABILITIES_TOOL]: PLAN_MCP_SERVER,
-  [GET_EXECUTION_PROGRESS_TOOL]: PLAN_MCP_SERVER,
-  [GET_PROJECT_CONTEXT_TOOL]: PLAN_MCP_SERVER,
-  [PROPOSE_PLAN_REVISION_TOOL]: PLAN_MCP_SERVER,
-  [VALIDATE_PLAN_TOOL]: PLAN_MCP_SERVER,
+  [ORCHESTRATE_TOOL]: ORCHESTRATION_MCP_SERVER,
+  [REPORT_TOOL]: ORCHESTRATION_MCP_SERVER,
+  [PLAN_TOOL]: PLAN_MCP_SERVER,
   [FIRECRAWL_SEARCH_TOOL]: FIRECRAWL_MCP_SERVER,
   [FIRECRAWL_SCRAPE_TOOL]: FIRECRAWL_MCP_SERVER,
   [FIRECRAWL_MAP_TOOL]: FIRECRAWL_MCP_SERVER,

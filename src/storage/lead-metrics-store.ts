@@ -19,7 +19,7 @@ export interface DayCost {
   leadUsd: number;
 }
 
-/** Successful lead tool calls since `sinceMs`, by tool. */
+/** Successful lead tool calls since `sinceMs`, by tool and action (`Orchestrate.<action>`). */
 export function leadDecisions(db: Database, sinceMs: number): ToolCount[] {
   return db
     .query<ToolCount, [string, number]>(
@@ -29,11 +29,11 @@ export function leadDecisions(db: Database, sinceMs: number): ToolCount[] {
     .all(LEAD_CALL_SCOPE, sinceMs);
 }
 
-/** Refused lead tool calls since `sinceMs`, by tool and refusal code (events carry `by: "lead"` and `tool`). */
+/** Refused lead tool calls since `sinceMs`, by tool and refusal code (events carry `by: "lead"`, `tool` and `action`; shown as `Orchestrate.<action>`). */
 export function leadRefusals(db: Database, sinceMs: number): ToolCount[] {
   return db
     .query<ToolCount, [number]>(
-      `SELECT json_extract(payload, '$.tool') AS tool, json_extract(payload, '$.code') AS code, COUNT(*) AS count
+      `SELECT json_extract(payload, '$.tool') || COALESCE('.' || json_extract(payload, '$.action'), '') AS tool, json_extract(payload, '$.code') AS code, COUNT(*) AS count
        FROM thread_events
        WHERE id LIKE '%:refused:%' AND json_extract(payload, '$.by') = 'lead' AND created_at >= ?
        GROUP BY tool, code ORDER BY count DESC, tool`,

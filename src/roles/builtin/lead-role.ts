@@ -3,21 +3,15 @@ import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/cons
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SAVE_TOOL } from "../../mcp/memory/tools/MemorySaveTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
-import { APPROVE_PLAN_TOOL } from "../../mcp/orchestration/tools/ApprovePlanTool/constants";
-import { ASK_OWNER_TOOL } from "../../mcp/orchestration/tools/AskOwnerTool/constants";
-import { CANCEL_TASK_TOOL } from "../../mcp/orchestration/tools/CancelTaskTool/constants";
-import { DISPATCH_AGENT_TOOL } from "../../mcp/orchestration/tools/DispatchAgentTool/constants";
-import { FORWARD_RESULT_TOOL } from "../../mcp/orchestration/tools/ForwardResultTool/constants";
-import { REGISTER_LOCATION_TOOL } from "../../mcp/orchestration/tools/RegisterLocationTool/constants";
-import { REQUEST_PLAN_TOOL } from "../../mcp/orchestration/tools/RequestPlanTool/constants";
-import { RETRY_TASK_TOOL } from "../../mcp/orchestration/tools/RetryTaskTool/constants";
-import { SET_THREAD_TITLE_TOOL } from "../../mcp/orchestration/tools/SetThreadTitleTool/constants";
-import { STEER_TASK_TOOL } from "../../mcp/orchestration/tools/SteerTaskTool/constants";
-import { TASK_STATUS_TOOL } from "../../mcp/orchestration/tools/TaskStatusTool/constants";
+import {
+  ORCHESTRATE_ACTION_REQUEST_PLAN,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
+import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
 import type { RoleDefinition } from "../role-types";
 import { ARTIFACT_TOOLS } from "./artifact-tools";
 
-/** The lead asks the owner through its own AskOwner tool, never AskUserQuestion. */
+/** The lead asks the owner through its own `Orchestrate ask_owner` action, never AskUserQuestion. */
 const MAX_ASK = 0;
 /** Budget (USD) of one lead run (a short routing turn). There is no daily lead budget. */
 const BUDGET_USD = 1.5;
@@ -30,7 +24,7 @@ const MAX_TURNS = 30;
  */
 const CONTRACT = `This run is the lead of the team (its name and persona come from IDENTITY.md). Your reply is posted to the owner in Discord as it is. You route work, you do not do it.
 - Answer yourself only chat, status and sure facts; dispatch what a team member covers or what needs a source (TEAM.md).
-- A big or branching request goes to ${REQUEST_PLAN_TOOL}. The planner owns a PLAN goal's items (never edit them); code adds verify, fix, wave items.
+- A big or branching request goes to ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)}. The planner owns a PLAN goal's items (never edit); code adds verify, fix, wave items.
 - You have memory, artifact and lead tools only: no shell, no file changes.
 - Write like a chat: short sentences, one idea per paragraph, at most 4 short paragraphs (each paragraph is sent as its own message). A reply over about 800 characters, or with a table, is shown as one message. Put long details, tables or code after a line \`---\`: they are sent as a file, and the detail part starts with a heading \`# <title>\` (the title names the file).
 - A worker's question reaches the owner as its own question, one per message; never forward a result that asks the owner to answer inside a file.
@@ -46,24 +40,14 @@ export const LEAD_ROLE: RoleDefinition = {
   whenToUse: "Routes the owner's messages to specialist workers and reports their results.",
   kind: "lead",
   skills: [],
-  // Memory tools + the lead's typed actions + SetThreadTitle (the `orchestration` server; a worker run never gets these).
+  // Memory tools + the lead's `Orchestrate` action tool (the `orchestration` server; a worker run never gets it).
   mcpTools: [
     MEMORY_SAVE_TOOL,
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,
     ...ARTIFACT_TOOLS,
-    DISPATCH_AGENT_TOOL,
-    TASK_STATUS_TOOL,
-    STEER_TASK_TOOL,
-    CANCEL_TASK_TOOL,
-    RETRY_TASK_TOOL,
-    ASK_OWNER_TOOL,
-    FORWARD_RESULT_TOOL,
-    REQUEST_PLAN_TOOL,
-    APPROVE_PLAN_TOOL,
-    SET_THREAD_TITLE_TOOL,
-    REGISTER_LOCATION_TOOL,
+    ORCHESTRATE_TOOL,
   ],
   limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
   subagents: { parallel: 3, depth: 1 },

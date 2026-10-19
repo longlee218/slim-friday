@@ -13,13 +13,13 @@ import type { ReadBudget } from "./memory/memory-read-shared";
  * part simply does not get the tool (so a worker run, which has no `lead` part, can never hold a lead tool).
  */
 export interface RunCtx {
-  /** Memory tools; also `SetThreadTitle` (needs `memory.threadTitle`). Absent = no memory (a control-channel run). */
+  /** Memory tools; also `Orchestrate set_title` (needs `memory.threadTitle`). Absent = no memory (a control-channel run). */
   memory?: MemoryToolContext;
   /** Lead tools: the lead run's port and counters. */
   lead?: LeadToolContext;
-  /** Where a worker's `ReportResult` lands. */
+  /** Where a worker's `Report` result lands. */
   reportSink?: ReportSink;
-  /** A worker's `ReportProgress` port, bound to its task (percent + note in, redacted and recorded by the callee). */
+  /** A worker's `Report` progress port, bound to its task (percent + note in, redacted and recorded by the callee). */
   progress?: (p: { percent: number; note: string }) => void;
   /** Planner tools: the planner run bound to its goal. */
   plan?: PlannerCtx;
@@ -27,7 +27,7 @@ export interface RunCtx {
   effects?: EffectsCtx;
   /** Discord admin tools: the control-channel run. */
   admin?: DiscordAdminContext;
-  /** Artifact tools (and the artifact refs of `ReportResult`): the run's channel scope. Absent = no artifact tools. */
+  /** Artifact tools (and the artifact refs of `Report` result): the run's channel scope. Absent = no artifact tools. */
   artifacts?: ArtifactToolCtx;
   /** Per-server-instance read cap shared by the memory read tools (set by the memory manifest's `prepare`). */
   readBudget?: ReadBudget;

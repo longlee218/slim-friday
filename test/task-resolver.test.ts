@@ -360,7 +360,7 @@ test("completion: FAILED / BLOCKED / NEEDS_CLARIFICATION settle as reported, wit
   }
 });
 
-test("completion: a done run with no ReportResult is not completed when the role changes things; a read-only role completes", () => {
+test("completion: a done run with no Report result is not completed when the role changes things; a read-only role completes", () => {
   const { db } = makeEnv();
   const changer = Object.values(ROLES).find(
     (r) => r.kind === "worker" && r.sideEffects !== "none",

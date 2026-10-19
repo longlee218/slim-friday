@@ -16,7 +16,7 @@ export const mcpToolName = (server: string, tool: string): string =>
 
 /** Memory server: save, search, read and expand notes. */
 export const MEMORY_MCP_SERVER = "memory";
-/** Orchestration server: the lead's typed actions, `SetThreadTitle` and the worker's `ReportResult` (isolated per run by `role.mcpTools`). */
+/** Orchestration server: the lead's typed actions, `Orchestrate set_title` and the worker's `Report` result (isolated per run by `role.mcpTools`). */
 export const ORCHESTRATION_MCP_SERVER = "orchestration";
 /** Plan server: the planner's read tools and plan-row writers. */
 export const PLAN_MCP_SERVER = "plan";
