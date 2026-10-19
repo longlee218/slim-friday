@@ -108,12 +108,12 @@ test("a valid plan keeps the goal open after the planner ended; approve creates 
   }); // planner + 2
 });
 
-test("reject: no approved version -> the goal and its items are cancelled; history is kept", () => {
+test("reject: no approved version -> the planner is cancelled, the goal stays open for a re-plan; history is kept", () => {
   const { goalId, plan } = setup();
   expect(rejectVersion(db, plan.id, 1, "owner rejected")).toEqual({ ok: true });
   expect(getPlan(db, plan.id, 1)).toMatchObject({ status: "rejected", reason: "owner rejected" });
-  expect(getOwnedTask(db, goalId)?.status).toBe("cancelled");
-  expect(openGoalIdOf(db, "th1")).toBeUndefined();
+  expect(getOwnedTask(db, goalId)?.status).toBe("open");
+  expect(openGoalIdOf(db, "th1")).toBe(goalId);
 });
 
 test("revision of a valid version: new version valid, old superseded, stale base refused", () => {

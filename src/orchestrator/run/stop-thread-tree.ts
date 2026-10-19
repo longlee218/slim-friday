@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { logEvent, logger, tryLog } from "../../observability/logger";
 import { childrenOf, isHeld } from "../../storage/owned-item-store";
+import { getOwnedTask } from "../../storage/owned-task-store";
 import { cancelStartEvents } from "../../storage/thread-event-store";
 import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
@@ -45,7 +46,11 @@ export function stopThreadTree(
     // A rolling-wave goal with every item ended (or one that just ended here) is not "open" but would start its next wave
     // at the next pass or boot: close it now. Before the settle, so a cancelled wave planner raises no "stalled" event.
     closeIdleGoals(db, threadId);
-    if (goalId) settleGoal(db, goalId);
+    if (goalId) {
+      settleGoal(db, goalId);
+      // A stop ends the goal for good: settle keeps a goal open that only awaits a re-plan after a rejected plan.
+      if (getOwnedTask(db, goalId)?.status === "open") moveTaskTo(db, goalId, "cancelled");
+    }
     cancelStartEvents(db, threadId);
   });
   if (aborted.length) logEvent(log, "stop.tree", { threadId, tasks: aborted.length });

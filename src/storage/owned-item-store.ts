@@ -107,7 +107,8 @@ const OPEN_ITEM = "('pending', 'ready', 'running', 'waiting_user', 'blocked')";
 
 /**
  * Id of the thread's newest goal of `ownerRole` (a goal = a row without a parent) with status `open` and at least
- * one unfinished item (or no item yet), or a plan waiting for the owner created after `pendingPlansSince`.
+ * one unfinished item (or no item yet), or a plan waiting for the owner created after `pendingPlansSince`, or a goal whose only items are planners and whose plan
+ * was rejected or expired with no approved version (the lead re-plans in it).
  */
 export function openGoalId(
   db: Database,
@@ -121,7 +122,10 @@ export function openGoalId(
        WHERE g.thread_id = ? AND g.parent_id IS NULL AND g.owner_role = ? AND g.status = 'open'
          AND (NOT EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id)
               OR EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id AND i.status IN ${OPEN_ITEM})
-              OR EXISTS (SELECT 1 FROM work_plans p WHERE p.goal_id = g.id AND p.status IN ('draft', 'valid') AND p.created_at > ?))
+              OR EXISTS (SELECT 1 FROM work_plans p WHERE p.goal_id = g.id AND p.status IN ('draft', 'valid') AND p.created_at > ?)
+              OR (NOT EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id AND i.item_key NOT LIKE 'planner%')
+                  AND EXISTS (SELECT 1 FROM work_plans r WHERE r.goal_id = g.id AND r.status = 'rejected')
+                  AND NOT EXISTS (SELECT 1 FROM work_plans a WHERE a.goal_id = g.id AND a.status = 'approved')))
        ORDER BY g.rowid DESC LIMIT 1`,
     )
     .get(threadId, ownerRole, pendingPlansSince)?.id;

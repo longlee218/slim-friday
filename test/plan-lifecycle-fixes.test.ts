@@ -284,10 +284,11 @@ test("B5: rejecting a plan inside a DELEGATE goal cancels the planner only; the 
   expect(getPlan(db, plan.id, 1)?.status).toBe("rejected");
 });
 
-test("B5: rejecting the plan of a pure PLAN goal still closes the goal", () => {
+test("B5: rejecting the plan of a pure PLAN goal ends the planner only; the goal stays open for a re-plan", () => {
   const { goalId, plan } = validPlan(["p1"]);
   expect(rejectVersion(db, plan.id, 1, "no")).toMatchObject({ ok: true });
-  expect(getOwnedTask(db, goalId)?.status).toBe("cancelled");
+  expect(getOwnedTask(db, goalId)?.status).toBe("open");
+  expect(byKey(db, goalId, "planner").status).toBe("cancelled");
 });
 
 test("B6: a dependent of a released NEEDS_PLANNING item is cancelled with an event; none stays pending", () => {
@@ -377,13 +378,13 @@ const rtOf = (announced: string[]) =>
   ({ deps: { db }, announce: (t: string) => announced.push(t) }) as unknown as LeadRuntime;
 const later = () => Date.now() + PENDING_PLAN_MAX_AGE_MS + ASK_OWNER_TIMEOUT_MS + 1000;
 
-test("B10: an expired pending plan is rejected, its goal closes and the lead is told once", () => {
+test("B10: an expired pending plan is rejected, its goal stays open for a re-plan and the lead is told once", () => {
   const { goalId, plan } = validPlan();
   finishPlanner(goalId);
   const announced: string[] = [];
   expect(sweepPendingPlans(rtOf(announced), later())).toBe(1);
   expect(getPlan(db, plan.id, 1)).toMatchObject({ status: "rejected", reason: "expired" });
-  expect(getOwnedTask(db, goalId)?.status).toBe("cancelled");
+  expect(getOwnedTask(db, goalId)?.status).toBe("open");
   const ev = listUndelivered(db, TH).filter((e) => e.kind === "timeout");
   expect(ev).toHaveLength(1);
   expect(ev[0]?.payload).toMatchObject({ code: "PLAN_EXPIRED", version: 1 });

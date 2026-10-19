@@ -117,7 +117,7 @@ test("owner big ask -> Orchestrate request_plan -> planner plan -> one approval 
   expect(listUndelivered(h.env.db, "t1").filter((e) => e.kind !== "start")).toEqual([]);
 });
 
-test("owner rejects the plan -> no item runs, the goal is cancelled, the lead says so", async () => {
+test("owner rejects the plan -> no item runs, the goal stays open for a re-plan, the lead says so", async () => {
   const h = leadHarness(
     async (c) => {
       if (c.kind === "planner") {
@@ -164,6 +164,6 @@ test("owner rejects the plan -> no item runs, the goal is cancelled, the lead sa
   expect(h.ofKind("worker")).toHaveLength(0);
   expect(h.env.db.query("SELECT status FROM work_plans").all()).toEqual([{ status: "rejected" }]);
   expect(h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").all()).toEqual([
-    { status: "cancelled" },
+    { status: "open" },
   ]);
 });

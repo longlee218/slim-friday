@@ -142,7 +142,7 @@ test("materialize is one transaction: a failing item insert rolls back every ite
   ]);
 });
 
-test("a planner that crashes after storing a valid plan: the goal waits for the owner, then rejection cancels it", () => {
+test("a planner that crashes after storing a valid plan: the goal waits for the owner, then rejection ends the planner only", () => {
   const { goalId, plan } = setup();
   const planner = childrenOf(db, goalId)[0]!;
   moveTaskTo(db, planner.id, "running");
@@ -154,8 +154,8 @@ test("a planner that crashes after storing a valid plan: the goal waits for the 
   expect(getPlan(db, plan.id, 1)?.status).toBe("valid");
   expect(rejectVersion(db, plan.id, 1, "owner rejected")).toEqual({ ok: true });
   settleGoal(db, goalId);
-  expect(getOwnedTask(db, goalId)?.status).toBe("cancelled");
-  expect(openGoalIdOf(db, "t")).toBeUndefined();
+  expect(getOwnedTask(db, goalId)?.status).toBe("open"); // the lead may re-plan in this goal
+  expect(openGoalIdOf(db, "t")).toBe(goalId);
 });
 
 test("a planner that crashes before storing any plan: the goal settles as failed, not open", () => {

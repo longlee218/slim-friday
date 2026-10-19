@@ -3,10 +3,16 @@ import { clearSettledQuestionLinks } from "../../storage/item-question-store";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { getOwnedTask, taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
-import { hasPendingPlan } from "../../storage/work-plan-store";
+import {
+  hasPendingPlan,
+  latestPlan,
+  newestApprovedVersion,
+  planIdOfGoal,
+} from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { cancelSet } from "../goal/effect-port-queries";
 import { planDroppedIds } from "../plan/plan-dropped";
+import { PLANNER_KEY } from "../plan/plan-types";
 import { noteWaveHold, waveOutlook } from "../plan/plan-waves";
 import { supersededVerifyIds } from "../plan/verify-items";
 
@@ -60,6 +66,17 @@ export function cancelDeadWaiters(db: Database, goalId: string): string[] {
 }
 
 /**
+ * True when the goal's only items are planner items and its plan was rejected or expired with no version ever approved:
+ * the goal stays open so the lead can re-plan in the same goal (`Orchestrate request_plan` with the goal id).
+ */
+function awaitsReplan(db: Database, goalId: string, items: readonly ItemRow[]): boolean {
+  if (!items.every((i) => i.itemKey?.startsWith(PLANNER_KEY))) return false;
+  const planId = planIdOfGoal(db, goalId);
+  if (!planId || newestApprovedVersion(db, goalId)) return false;
+  return latestPlan(db, planId)?.status === "rejected";
+}
+
+/**
  * When every item of the goal ended, settle the goal row: all completed = `completed`, any failed = `failed`, else
  * `cancelled`; a verify that a newer verify of the same location replaced is left out (the newest verify of each location
  * decides), and so is an item the plan cancelled by itself (dropped by a revision, replaced after NEEDS_PLANNING). While the approved plan still defers scope the goal does not settle: the next wave is due (`ready`), or the
@@ -72,6 +89,7 @@ export function settleGoal(db: Database, goalId: string): ItemRow[] {
   if (!items.length || !items.every((i) => TERMINAL.has(i.status))) return items;
   if (hasPendingPlan(db, goalId)) return items; // the planner ended, the plan waits for the owner: the goal goes on
   if (getOwnedTask(db, goalId)?.status !== "open") return items; // closed already (stopped, cancelled)
+  if (awaitsReplan(db, goalId, items)) return items;
   const wave = waveOutlook(db, goalId);
   if (wave === "capped" || wave === "stalled") noteWaveHold(db, goalId, wave);
   if (wave === "ready" || wave === "capped" || wave === "stalled") return items;

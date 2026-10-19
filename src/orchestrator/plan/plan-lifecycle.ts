@@ -13,7 +13,6 @@ import {
 } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { spentOf } from "../budget/task-budget";
-import { cancelSet } from "../goal/effect-port-queries";
 import { type Applied, abortRuns, materialize } from "./materialize-items";
 import {
   buildEnvelope,
@@ -161,13 +160,11 @@ export function rejectVersion(
       return fail("PLAN_NOT_VALID", `Plan v${version} is ${row.status}, not valid.`);
     if (planVersions(db, planId).some((v) => v.status === "approved"))
       return { ok: true, abort: [] };
-    // A goal that held other work before the plan (a DELEGATE item reported NEEDS_PLANNING): the owner turned down the
-    // plan, not that work. Only the planner ends; the siblings keep running and the lead decides about held ones.
-    const items = childrenOf(db, row.goalId);
-    const isPlanner = (k: string | null) => k?.startsWith(PLANNER_KEY) ?? false;
-    const ids = items.some((i) => !isPlanner(i.itemKey))
-      ? items.filter((i) => isPlanner(i.itemKey)).map((i) => i.id)
-      : cancelSet(db, row.goalId);
+    // The owner turned down the plan, not the goal or its other work (a DELEGATE item that reported NEEDS_PLANNING, or
+    // nothing at all): only the planner items end. The goal stays open so the lead can re-plan in it (decision 15).
+    const ids = childrenOf(db, row.goalId)
+      .filter((i) => i.itemKey?.startsWith(PLANNER_KEY))
+      .map((i) => i.id);
     for (const id of ids) moveTaskTo(db, id, "cancelled");
     return { ok: true, abort: ids };
   })();
