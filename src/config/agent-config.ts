@@ -49,6 +49,11 @@ const envSchema = z.object({
     (v) => v === undefined || v === PLACEHOLDER || Buffer.byteLength(v) >= VIEWER_SECRET_MIN_BYTES,
   ),
   VIEWER_LINK_TTL_MS: z.coerce.number().int().positive().optional(),
+  /** Debug: `1` or `true` writes every model run's exact SDK input to <AGENT_HOME>/logs/prompts (src/observability/prompt-dump.ts). Off by default. */
+  FRIDAY_DUMP_PROMPTS: z
+    .string()
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
 });
 
 /** Names of the env variables the app itself reads: each must be classified in `data/child-env-deny.yaml`. */
@@ -74,6 +79,8 @@ export interface AgentConfig {
   limits: { maxBudgetUsd: number | undefined; timeoutMs: number };
   /** The artifact viewer settings; undefined = viewer off (no server, no link buttons). */
   viewer?: ViewerConfig;
+  /** FRIDAY_DUMP_PROMPTS is on: each run writes a prompt dump file. Omitted = off. */
+  dumpPrompts?: true;
 }
 
 /** True when a value is missing or the placeholder. */
@@ -120,5 +127,6 @@ export function loadConfig(
       timeoutMs: e.TIMEOUT_MS,
     },
     ...(viewer && { viewer }),
+    ...(e.FRIDAY_DUMP_PROMPTS && { dumpPrompts: true as const }),
   };
 }

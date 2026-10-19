@@ -17,6 +17,8 @@ const ALLOWED_IMPORT = /(^|\/)(constants|mcp-tool-names|action-names)$|^src\/mcp
 const ALLOW_LIST: Record<string, string> = {
   // The SDK options builder is the one place that builds the per-run MCP servers.
   "src/runtime/sdk-options.ts -> src/mcp/mcp-servers": "builds the run's MCP servers",
+  // Offline prompt viewer (`bun run prompt:show`): lists the tool definitions the run's servers carry.
+  "src/runtime/prompt-preview/tool-definitions.ts -> src/mcp/mcp-servers": "prompt viewer",
   // Leaf data of tool names (imports only constants), used by the guard.
   "src/policy/check-tool-call.ts -> src/mcp/tool-names-of-role": "leaf: names only",
 };

@@ -17,6 +17,7 @@ import { createShutdown } from "./lifecycle/shutdown";
 import { runStartupHygiene } from "./lifecycle/startup";
 import { startTrashSweeper } from "./lifecycle/trash-sweeper";
 import { logEvent, logger } from "./observability/logger";
+import { logPromptDumpEnabled } from "./observability/prompt-dump";
 import { errText } from "./observability/redact";
 import { createTurnHandler } from "./orchestrator/handle-message";
 import { createLimitsView } from "./orchestrator/turns/limits-live";
@@ -160,6 +161,7 @@ async function main(): Promise<void> {
     db.close();
     process.exit(1);
   }
+  logPromptDumpEnabled(config);
   logEvent(log, "app.started", {
     model: config.model,
     agentHome: config.agentHome,

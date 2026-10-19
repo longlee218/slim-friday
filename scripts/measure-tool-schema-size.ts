@@ -4,8 +4,7 @@
  * chars and approx tokens (chars / 4) per role, plus the per-tool breakdown with `--tools`.
  * Run: `bun scripts/measure-tool-schema-size.ts [--tools]`. External (http) servers expose no definition here.
  */
-import { z } from "zod";
-import { buildServers } from "../src/mcp/mcp-servers";
+import { toolDefinitions } from "../src/runtime/prompt-preview/tool-definitions";
 import { getRole } from "../src/roles/role-registry";
 import { FULL_CTX } from "../test/mcp-ctx-fixture";
 
@@ -17,21 +16,11 @@ interface Sized {
 }
 
 /** Serialized definition of every in-process tool of a role: what the model reads (name, description, schema). */
-function toolSizes(role: string): Sized[] {
-  const servers = buildServers(getRole(role), FULL_CTX) as Record<string, any>;
-  return Object.entries(servers)
-    .filter(([, s]) => s.type !== "http")
-    .flatMap(([server, s]) =>
-      Object.entries<any>(s.instance._registeredTools).map(([name, t]) => ({
-        name: `${server}/${name}`,
-        chars: JSON.stringify({
-          name,
-          description: t.description ?? "",
-          inputSchema: t.inputSchema ? z.toJSONSchema(t.inputSchema) : {},
-        }).length,
-      })),
-    );
-}
+const toolSizes = (role: string): Sized[] =>
+  toolDefinitions(getRole(role), FULL_CTX).tools.map((t) => ({
+    name: `${t.server}/${t.name}`,
+    chars: t.chars,
+  }));
 
 const showTools = process.argv.includes("--tools");
 const out: string[] = ["| role | tools | chars | ~tokens |", "|---|---|---|---|"];

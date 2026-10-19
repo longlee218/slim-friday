@@ -6,6 +6,7 @@ import { workspacePaths } from "../config/workspace-paths";
 import type { AppCtxFactory } from "../mcp/manifest-types";
 import type { MemoryToolContext } from "../memory/memory-tool-context";
 import { logEvent, logger } from "../observability/logger";
+import { dumpPrompt } from "../observability/prompt-dump";
 import { RunRecorder } from "../observability/record-run";
 import {
   avgContextTokens,
@@ -146,6 +147,15 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       skills: sk,
       autoState,
       bypassState,
+    });
+    // Debug dump of exactly what the SDK receives (FRIDAY_DUMP_PROMPTS=1); never throws.
+    dumpPrompt({
+      config,
+      role: role.name,
+      threadId: input.code?.threadId ?? input.memory?.threadId ?? input.turnId,
+      turnId: input.turnId,
+      options,
+      prompt: input.prompt,
     });
     logEvent(log, "run.started", {
       model: config.model,
