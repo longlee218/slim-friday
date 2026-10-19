@@ -105,7 +105,7 @@ test("options lock: tools, mcp servers, permission mode per role", async () => {
   const lead = await capture("lead");
   const dev = await capture("dev");
   // Built-in tools: the lead is read only; dev has the code set.
-  expect(lead.o.tools).toEqual(["Read", "Glob", "Grep", "LSP"]); // read only: no web, no shell, no subagents
+  expect(lead.o.tools).toEqual(["Read", "Glob", "Grep", "LSP", "Skill"]); // read only + Skill (lead-orchestration): no web, no shell, no subagents
   expect(lead.o.tools).not.toContain(SEND_MESSAGE_TOOL_NAME); // the lead dispatches through its tools only
   expect(dev.o.tools).toContain("Write");
   expect(dev.o.tools).toContain("AskUserQuestion"); // the plan approval is an ask

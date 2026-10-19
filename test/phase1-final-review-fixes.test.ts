@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { ANNOUNCE_REARM_MAX_MS } from "../src/config/lead-caps";
 import { ZOMBIE_CLAIM_NOTICE_MS } from "../src/config/resilience-caps";
 import { createMessageHandler } from "../src/ingress/discord-message-handler";
@@ -333,7 +334,11 @@ test("#5: a budget_hit on a DELEGATE goal says the budget cannot grow; the lead 
   expect(p.error).toContain("cannot grow");
   const md = buildTeamMd();
   expect(md).not.toContain("works once the goal budget allows");
-  expect(md).toContain("cannot grow");
+  // The budget_hit playbook moved from TEAM.md to the lead-orchestration skill.
+  expect(md).not.toContain("budget_hit:");
+  expect(readFileSync(".agents/skills/lead-orchestration/SKILL.md", "utf8")).toContain(
+    "budget_hit `canGrow:false`",
+  );
 }, 25_000);
 
 test("#6: every Orchestrate retry writes its own retry event, and the newest note reaches the session", () => {

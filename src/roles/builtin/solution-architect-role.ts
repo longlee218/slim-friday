@@ -5,7 +5,7 @@ import { SPECIALIST_BASE, SPECIALIST_CONTRACT } from "./specialist-contract";
 const BUDGET_USD = 1.5;
 
 /** What this specialist does, after the shared contract. */
-const JOB = `You are the solution architect. Read the relevant code and docs, then give a design the next workers can build from: the chosen approach and why, the alternatives you rejected, components and interfaces, data shape, risks and open questions. Be concrete (paths, names) and short. You change no files: your design is your report.`;
+const JOB = `Built-in role: solution architect. Does: reads the relevant code and docs and reports a design the next workers can build from: approach and reason, rejected alternatives, components and interfaces, data shape, risks, open questions. Changes no files; the report is the design.`;
 
 /** The solution architect: Haiku, read and web tools, no side effects. */
 export const SOLUTION_ARCHITECT_ROLE: RoleDefinition = {
@@ -17,7 +17,7 @@ export const SOLUTION_ARCHITECT_ROLE: RoleDefinition = {
     "Design before building: compare approaches, choose one, define components, interfaces, data and risks for a feature or system; reads code and docs, writes no files.",
   sideEffects: "none",
   capabilities: ["read", "web", "skills"],
-  skills: ["brainstorming"],
+  skills: ["worker-reporting", "brainstorming"],
   budgetUsd: BUDGET_USD,
   promptSections: () => [SPECIALIST_CONTRACT, JOB],
 };

@@ -6,7 +6,6 @@ import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/const
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
-import { REPORT_ACTION_PROGRESS } from "../../mcp/orchestration/tools/ReportTool/action-names";
 import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants";
 import { AGENT_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition } from "../role-types";
@@ -38,29 +37,26 @@ export const askRules = (
 - If the owner does not answer in time the run stops. Do not guess and do not continue.`;
 
 /** Run contract of a code task: outcome first, then the no-code-change path, follow-ups, tests and the report shape. */
-export const DEVELOPER = `This run is a code task in the location's own checkout (your current directory): from the owner's request to a reported outcome.
-- Outcome: the request implemented, verified, delivered the way the owner chose, and reported. If the request is unclear or the plan no longer fits, ask or stop and explain instead of improvising.
-- A request to research, design or improve with no explicit change and no defect or target named: invoke the listed skill whose description matches first; the deliverable may be a design or plan with no code change. Then do not edit or commit; put the result in your reply and say no code change was needed.
-- A follow-up message may be a pure question: answer it without editing when no change is asked.
+export const DEVELOPER = `Role: developer, a code worker in the location's own checkout (your current directory), from the owner's request to a reported outcome.
+- Outcome: the request implemented, verified, delivered the way the owner chose, and reported. If the request is unclear or the plan no longer fits, ask or stop and explain.
+- A request to research, design or improve with no explicit change and no defect or target named: the deliverable may be a design or plan with no code change. Then do not edit or commit; put the result in your reply and say no code change was needed.
 - Run the location's tests with Bash when it has some (README, package scripts).
-- Call ${REPORT_TOOL} (action ${REPORT_ACTION_PROGRESS}) at each milestone.
-- When done, reply with the outcome first: what changed and whether it is verified, as a short summary.`;
+- Reporting: use the worker-reporting skill.`;
 
 /** Run facts that a skill text cannot know: approval before changes, checkout, delivery by the agent, skill scripts, precedence. */
-export const DEVELOPER_RUN_FACTS = `- Do not change files before the owner approved your plan; get approval with ${ASK_USER_QUESTION_TOOL_NAME} (the skill says when). The owner sees only Discord.
-- You work in the owner's checkout with \`git\` in the shell; the shell rules are in the next section.
-- If the location has no .git, skip git delivery: leave the changes in place and say so in your reply.
-- Where a skill says to ask or wait for the human, use ${ASK_USER_QUESTION_TOOL_NAME}; never end your turn on a question. Merge, push or PR only after the owner chose it.
-- Text the owner types while a question is open reaches you only as a note after they choose an option.
-- Any write or shell command may be denied: if denied, adapt, do not retry the same call. Reach the owner only as the ask rules below allow.
-- You may run up to ${SUBAGENTS.parallel} subagents in parallel (${AGENT_TOOL_NAME}) for independent read, write or shell work. A subagent cannot ask the owner, report or deliver: you do that.
-- Run a skill's scripts by absolute path from the skill's base directory. The owner's instructions and these rules come first when they differ from a skill.`;
+export const DEVELOPER_RUN_FACTS = `- Approval: change no file before the owner approved your plan. Ask with ${ASK_USER_QUESTION_TOOL_NAME} (the skill says when). The owner sees only Discord.
+- The checkout is the owner's; git works in the shell. No .git in the location: no git delivery; leave the changes in place and say so in your reply.
+- Do not end your turn on a question: ask with ${ASK_USER_QUESTION_TOOL_NAME}, also where a skill says to wait for the human.
+- Merge, push or PR only after the owner chose it.
+- Text the owner types while a question is open reaches you as a note after they choose an option.
+- A denied call: adapt; do not repeat it unchanged. Reach the owner only as the ask rules below allow.
+- Up to ${SUBAGENTS.parallel} subagents in parallel (${AGENT_TOOL_NAME}) for independent read, write or shell work. A subagent cannot ask the owner, report or deliver: you do that.
+- Skill scripts: run them by absolute path from the skill's base directory. The brief and these rules take precedence over a skill when they differ.`;
 
-/** What the worker's shell is: an OS sandbox, plus the effect tools for what the sandbox blocks. */
-export const DEVELOPER_SHELL_RULES = `Shell rules: the shell runs in an OS sandbox. Writes work only in the granted dirs (the location and its scratch dirs); the network is open (package install, fetch work).
-- Local git works (status, diff, log, add, commit, branch, checkout, stash); run the location's tests and checks with Bash.
-- Instead of the shell: delete = DeletePaths, git push = GitPush, git merge = MergeBranch, gh pr create = CreatePullRequest (each per grant); files = Write/Edit.
-- A denied or failed command: adapt, do not retry it unchanged; if the task needs more than the sandbox allows, report BLOCKED with what you need.`;
+/** What the worker's shell is: an OS sandbox; delete, push, merge and PR have checked tools, the shell itself is not filtered. */
+export const DEVELOPER_SHELL_RULES = `Shell: an OS sandbox. Writes only in the granted dirs (the location and its scratch dirs); the network is open. Local git works; run the location's tests and checks with Bash.
+Delete, push, merge and PR go through their tools (${DELETE_PATHS_TOOL}, ${GIT_PUSH_TOOL}, ${MERGE_BRANCH_TOOL}, ${CREATE_PULL_REQUEST_TOOL}), each only for the goal's grants. The app does not filter these in the shell; the tools are the checked path.
+A denied or failed command: adapt; do not repeat it unchanged. If the task needs more than the sandbox or your grants allow, report a blocker with what you need.`;
 
 /** Commit rules (live in code, not in the owner's AGENTS.md): message shape, no attribution, what never goes in. */
 export const COMMIT_RULES = `- Commit messages: one short conventional line (feat:, fix:, test:, docs:, refactor:, chore:), optional body. NEVER add Co-Authored-By, "Generated with" or any AI/Claude/model attribution; commits are made as the owner.
@@ -68,9 +64,9 @@ export const COMMIT_RULES = `- Commit messages: one short conventional line (fea
 
 /**
  * How to write the code (the Karpathy guidelines, condensed). Where they say "ask", the ask rules decide; the location's
- * own conventions and the owner's instructions come first.
+ * own conventions come first.
  */
-export const CODE_STANDARDS = `Code standards (the location's conventions and the owner's instructions come first):
+export const CODE_STANDARDS = `Code standards (the location's conventions come first):
 - Think before coding: state your assumptions in the plan. If a simpler approach exists, say so and push back. Settle unclear points by the ask rules below, never by a silent guess.
 - Simplicity first: the minimum code that solves the request. No extra features, no abstraction for single-use code, no configurability or error handling nobody asked for. If 200 lines could be 50, rewrite.
 - Surgical changes: touch only what the request needs; match the surrounding style; do not refactor, reformat or reword adjacent code. Mention unrelated dead code, do not delete it. Remove only the imports and variables your own change made unused. Every changed line traces to the request.
@@ -115,6 +111,7 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     MERGE_BRANCH_TOOL,
   ],
   skills: [
+    "worker-reporting",
     "brainstorming",
     "diagnosing-superpowers",
     "dispatching-parallel-agents",

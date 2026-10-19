@@ -35,15 +35,24 @@ test("every skill dir hashes to the computedHash the lock pins (paths and bytes)
 test("roles pick skills by a data list of installed names", () => {
   for (const role of Object.values(ROLES))
     for (const n of role.skills ?? []) expect(Object.keys(lock.skills)).toContain(n);
-  expect(ROLES.lead?.skills).toEqual([]);
+  expect(ROLES.lead?.skills).toEqual(["lead-orchestration"]);
 });
 
-test("the four app skills are locked under the friday source, so their qualified names stay friday:<skill>", () => {
+test("the app skills are locked under the friday source, so their qualified names stay friday:<skill>", () => {
   const friday = Object.entries(lock.skills)
     .filter(([, e]) => e.source.endsWith("/friday"))
     .map(([n]) => n)
     .sort();
-  expect(friday).toEqual(["discord-server-manager", "docs-seeker", "plan-work", "scout"]);
+  // Other app skills (worker-reporting) may join: the named ones must stay locked as friday:<skill>.
+  expect(friday).toEqual(
+    expect.arrayContaining([
+      "discord-server-manager",
+      "docs-seeker",
+      "lead-orchestration",
+      "plan-work",
+      "scout",
+    ]),
+  );
 });
 
 test("workspace name `friday` stays reserved (its plugin name comes from the lock)", () => {

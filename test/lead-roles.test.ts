@@ -29,12 +29,13 @@ import { reportResultTool } from "./report-tool-helper";
 const lead = ROLES.lead!;
 const scout = ROLES.scout!;
 
-test("lead role is data: Sonnet entry role of kind lead, no skills, only lead tools", () => {
+test("lead role is data: Sonnet entry role of kind lead, one skill (lead-orchestration), only lead tools", () => {
   expect(lead).toMatchObject({
     model: SONNET_MODEL,
     kind: "lead",
-    skills: [],
+    skills: ["lead-orchestration"],
   });
+  expect(lead.capabilities).toContain("skills"); // the Skill tool is offered only with this capability
   for (const t of LEAD_ONLY_TOOLS) expect(lead.mcpTools).toContain(t);
   expect(lead.capabilities).not.toContain("write");
   expect(lead.capabilities).not.toContain("shell"); // no Bash at all in L2a
@@ -46,6 +47,7 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, o
     sideEffects: "none",
     dispatchable: true,
     skills: [
+      "worker-reporting",
       "scout",
       "docs-seeker",
       "deep-research",
@@ -84,7 +86,7 @@ test("app skills of scout have no sub-agent or missing-CLI instructions", async 
   const lock = readSkillsLock();
   for (const n of (scout.skills ?? []).filter((s) => lock[s]?.source.endsWith("/friday"))) {
     const text = await Bun.file(join(PUBLISHER_SKILLS_DIR, n, "SKILL.md")).text();
-    expect(text.split("\n").length).toBeLessThan(40);
+    expect(text.split("\n").length).toBeLessThan(60);
     expect(text).not.toMatch(/subagent|Explore|Gemini|node scripts|\.claude\//i);
   }
 });

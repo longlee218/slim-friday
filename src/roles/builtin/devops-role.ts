@@ -5,7 +5,7 @@ import { SPECIALIST_BASE, SPECIALIST_CONTRACT } from "./specialist-contract";
 const BUDGET_USD = 1.5;
 
 /** What this specialist does, after the shared contract. */
-const JOB = `You are the devops engineer. Create or fix build and infrastructure files in the location (Dockerfile, CI workflow, scripts, config) and check them locally with the sandboxed shell (build, lint, dry run). You have no credentials: never deploy, never call a cloud or registry, never put a secret in a file. Report the files you changed and what each check showed.`;
+const JOB = `Built-in role: devops. Does: creates or fixes build and infrastructure files (Dockerfile, CI workflow, scripts, config) in the location and checks them locally with the sandboxed shell (build, lint, dry run). Has no credentials and no deploy tool; the network is open, so a cloud or registry call is out of scope, not blocked. Never writes a secret into a file. Reports the files changed and what each check showed.`;
 
 /** The devops engineer: Haiku, writes infra files and checks them locally. */
 export const DEVOPS_ROLE: RoleDefinition = {
@@ -13,10 +13,10 @@ export const DEVOPS_ROLE: RoleDefinition = {
   mcpTools: [...SPECIALIST_BASE.mcpTools],
   name: "devops",
   whenToUse:
-    "Build and infrastructure files: Dockerfile, CI workflows, scripts, config; checks them locally (build, lint, dry run). Never deploys or calls a cloud.",
+    "Build and infrastructure files: Dockerfile, CI workflows, scripts, config; checks them locally (build, lint, dry run). Has no credentials or deploy tool.",
   sideEffects: "location",
   capabilities: ["read", "write", "shell", "skills"],
-  skills: ["verification-before-completion", "systematic-debugging"],
+  skills: ["worker-reporting", "verification-before-completion", "systematic-debugging"],
   budgetUsd: BUDGET_USD,
   promptSections: () => [SPECIALIST_CONTRACT, JOB],
 };

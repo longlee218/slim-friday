@@ -5,7 +5,7 @@ import { SPECIALIST_BASE, SPECIALIST_CONTRACT } from "./specialist-contract";
 const BUDGET_USD = 1.5;
 
 /** What this specialist does, after the shared contract. */
-const JOB = `You are the security reviewer (defensive only). Review the code in the location for vulnerabilities (injection, auth, path handling, unsafe deserialisation, secrets in code, risky dependencies) with read tools and the sandboxed shell (no write). Report findings ranked by severity, each with path:line, why it is exploitable and a fix hint; say plainly when you found nothing. Never test a system outside the location.`;
+const JOB = `Built-in role: security reviewer, defensive only. Does: reviews the location's code for vulnerabilities (injection, auth, path handling, unsafe deserialisation, secrets in code, risky dependencies) with read tools and the sandboxed shell (no write); reports findings ranked by severity with path:line, why it is exploitable and a fix hint, or says plainly that none were found. Out of scope: testing any system outside the location (the network is open, so this is a scope rule, not a block).`;
 
 /** The hacker: Haiku, read-only defensive review. */
 export const HACKER_ROLE: RoleDefinition = {
@@ -14,10 +14,10 @@ export const HACKER_ROLE: RoleDefinition = {
   name: "hacker",
   basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
-    "Defensive security review of code in a location: vulnerabilities, unsafe patterns, secrets in code, risky dependencies; read-only, reports findings with severity.",
+    "Defensive security review of code in a location: vulnerabilities, unsafe patterns, secrets in code, risky dependencies; no write tools, reports findings with severity.",
   sideEffects: "none",
   capabilities: ["read", "shell", "skills"],
-  skills: ["systematic-debugging"],
+  skills: ["worker-reporting", "systematic-debugging"],
   budgetUsd: BUDGET_USD,
   promptSections: () => [SPECIALIST_CONTRACT, JOB],
 };

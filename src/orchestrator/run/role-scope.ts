@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentConfig } from "../../config/agent-config";
-import { claudePlansDir, workspacePaths } from "../../config/workspace-paths";
+import { workspacePaths } from "../../config/workspace-paths";
 import { realOrSame } from "../../policy/paths";
 import type { RoleDefinition } from "../../roles/role-types";
 import { controlScope } from "./control-scope";
@@ -107,7 +107,6 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
           ...locations.map((r) => realOrSame(r.path)),
           real.worktrees,
           real.scratch,
-          claudePlansDir(),
         ]),
       ],
       worktreeDirs: [real.worktrees],

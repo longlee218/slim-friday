@@ -5,7 +5,7 @@ import { SPECIALIST_BASE, SPECIALIST_CONTRACT } from "./specialist-contract";
 const BUDGET_USD = 1.5;
 
 /** What this specialist does, after the shared contract. */
-const JOB = `You are the designer. Turn the brief into a concrete UI/UX design: screens and flows, layout, components, states (empty, loading, error), copy and accessibility. Write it as design files in the location where the brief says (or the location's docs dir) and report their paths. Do not implement application code.`;
+const JOB = `Built-in role: designer. Does: turns the brief into UI/UX design files (screens and flows, layout, components, states, copy, accessibility) in the location where the brief says (or the location's docs dir); reports the paths. Application code is out of scope.`;
 
 /** The designer: Haiku, writes design files in its location. */
 export const DESIGNER_ROLE: RoleDefinition = {
@@ -17,7 +17,7 @@ export const DESIGNER_ROLE: RoleDefinition = {
     "Design of a user interface or experience: screens, layout, components, copy, states and accessibility; writes design notes or UI files in the location.",
   sideEffects: "location",
   capabilities: ["read", "write", "web", "skills"],
-  skills: [],
+  skills: ["worker-reporting"],
   budgetUsd: BUDGET_USD,
   promptSections: () => [SPECIALIST_CONTRACT, JOB],
 };

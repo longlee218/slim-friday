@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { mcpToolNamesOfRole } from "../src/mcp/tool-names-of-role";
-import { guardFor } from "../src/policy/check-tool-call";
+import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { SCOUT_ROLE } from "../src/roles/builtin/scout-role";
@@ -232,4 +232,14 @@ test("the scout has no write, feedback or task tools (a read-only shell only); d
     SEND_FEEDBACK_TOOL_NAME,
   ])
     expect(toolsFor(dev)).toContain(t);
+});
+
+test("the lead gets the Skill tool (for lead-orchestration) and the guard allows it, with no shell or write", () => {
+  const t = toolsFor(LEAD_ROLE);
+  expect(t).toContain(SKILL_TOOL_NAME);
+  for (const x of [BASH_TOOL_NAME, WRITE_TOOL_NAME, EDIT_TOOL_NAME]) expect(t).not.toContain(x);
+  expect(
+    checkToolCall(SKILL_TOOL_NAME, { skill: "friday:lead-orchestration" }, guardFor(LEAD_ROLE, {}))
+      .decision,
+  ).toBe("allow");
 });

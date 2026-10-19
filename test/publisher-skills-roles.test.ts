@@ -13,7 +13,7 @@ test("installedPublisherPlugins: every locked skill with a dir on disk, grouped 
     for (const s of p.skills) expect(lock.skills[s]?.source.endsWith(`/${p.plugin}`)).toBe(true);
 });
 
-test("dev lists every skill of each publisher pack it uses (so worktree and finishing skills load); the lead none", () => {
+test("dev lists every skill of each publisher pack it uses (so worktree and finishing skills load); the lead only lead-orchestration", () => {
   const locked = Object.entries(readSkillsLock().skills).filter(
     ([, e]) => !e.source.endsWith("/friday"),
   );
@@ -21,8 +21,11 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
     locked.filter(([n]) => ROLES.developer?.skills?.includes(n)).map(([, e]) => e.source),
   );
   const publisher = locked.filter(([, e]) => devSources.has(e.source)).map(([n]) => n);
-  expect([...(ROLES.developer?.skills ?? [])].sort()).toEqual(publisher.sort());
-  expect(ROLES.lead?.skills).toEqual([]);
+  // plus the app-owned reporting skill every worker lists
+  expect([...(ROLES.developer?.skills ?? [])].sort()).toEqual(
+    [...publisher, "worker-reporting"].sort(),
+  );
+  expect(ROLES.lead?.skills).toEqual(["lead-orchestration"]);
 });
 
 test("limits live in the role: dev asks up to 6; the lead has no ask capability", () => {

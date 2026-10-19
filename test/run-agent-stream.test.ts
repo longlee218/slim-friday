@@ -29,6 +29,7 @@ import {
   GREP_TOOL_NAME,
   LSP_TOOL_NAME,
   READ_TOOL_NAME,
+  SKILL_TOOL_NAME,
 } from "../src/tools/sdk-tool-names";
 import { fakeQuery, initMsg, makeEnv, resultMsg } from "./helpers";
 
@@ -113,7 +114,13 @@ describe("run-agent stream handling", () => {
       seen = a.options;
       return fakeQuery([resultMsg()])(a);
     }) as never);
-    expect(seen.tools).toEqual([READ_TOOL_NAME, GLOB_TOOL_NAME, GREP_TOOL_NAME, LSP_TOOL_NAME]); // read only, no shell
+    expect(seen.tools).toEqual([
+      READ_TOOL_NAME,
+      GLOB_TOOL_NAME,
+      GREP_TOOL_NAME,
+      LSP_TOOL_NAME,
+      SKILL_TOOL_NAME,
+    ]); // read only + Skill (lead-orchestration), no shell
     expect("agents" in seen).toBe(false); // no app-defined subagents
     expect(Object.keys(seen.mcpServers)).not.toContain("git"); // the lead has no git groups
     expect(seen.mcpServers.github).toBeUndefined();

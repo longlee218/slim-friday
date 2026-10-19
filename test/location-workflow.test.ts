@@ -74,7 +74,7 @@ test("location .claude/skills (clone and worktree) plus hooks never contribute t
 test("the dev run lists the workspace skills through an app-owned plugin copy, not the location", async () => {
   const { clone, exec, pluginFiles } = await runTask({}, ["deploy", "review"]);
   const pdir: string = exec.plugins.at(-1).path; // set plugin first, workspace plugin last
-  expect(exec.plugins).toHaveLength(2);
+  expect(exec.plugins).toHaveLength(3); // publisher pack, app skills, workspace
   expect(exec.skills.sort()).toEqual(withSet("main:deploy", "main:review")); // workspace name = plugin name
   // Not the location's .claude: the plugin dir is the app's own copy.
   expect(pdir.startsWith(realpathSync(clone))).toBe(false);
@@ -96,7 +96,7 @@ test("the dev run lists the workspace skills through an app-owned plugin copy, n
 
 test("no workspace skills: only the role's set plugin", async () => {
   const { exec } = await runTask({}, [], undefined, ["tracked"]);
-  expect(exec.plugins).toHaveLength(1);
+  expect(exec.plugins).toHaveLength(2); // publisher pack + app skills
   expect([...exec.skills].sort()).toEqual(withSet());
   expect(exec.settingSources).toEqual([]);
 });

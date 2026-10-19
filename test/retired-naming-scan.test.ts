@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { readSkillsLock } from "./skills-lock-hash";
 
 /** Every .ts file under `dir` (relative to the repo root), with its source. */
 function sources(dir: string): { file: string; text: string }[] {
@@ -245,5 +246,28 @@ test("src holds no `dev` or `assistant` role name", () => {
   for (const f of sources("src"))
     for (const [name, re] of Object.entries(ROLE_NAMES))
       if (re.test(f.text)) hits.push(`${f.file}: ${name}`);
+  expect(hits).toEqual([]);
+});
+
+/** Every `.md` under `dir` (readdir does not skip hidden dirs, so `.agents` is included). */
+function markdown(dir: string): string[] {
+  const out: string[] = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...markdown(p));
+    else if (p.endsWith(".md")) out.push(p);
+  }
+  return out;
+}
+
+test("app-owned skills (`.agents/skills/**/*.md`, local lock entries) name no retired tool", () => {
+  const local = Object.entries(readSkillsLock().skills).filter(([, e]) => e.sourceType === "local");
+  const mds = local.flatMap(([n]) => markdown(join(".agents", "skills", n)));
+  expect(mds.length).toBeGreaterThan(5); // the glob really reaches the hidden dir
+  const hits: string[] = [];
+  for (const f of mds) {
+    const text = readFileSync(f, "utf8");
+    for (const [name, re] of Object.entries(TOOLS)) if (re.test(text)) hits.push(`${f}: ${name}`);
+  }
   expect(hits).toEqual([]);
 });
