@@ -1,6 +1,6 @@
 # Friday Agent System Architecture
 
-Last updated: 2026-10-19 (action-tool merge, phase 4, uncommitted: the lead, planner and worker tools are three action tools; see [Not Built Yet](#not-built-yet)).
+Last updated: 2026-10-19 (plan visibility, phase 5, uncommitted: `/plan`, plan artifacts, revision line; action-tool merge, phase 4, uncommitted: the lead, planner and worker tools are three action tools; see [Not Built Yet](#not-built-yet)).
 
 ## Overview
 - Friday is a Discord-driven personal agent on the Claude Agent SDK (Bun + TypeScript + discord.js + SQLite through a Drizzle baseline).
@@ -49,7 +49,7 @@ Worker run (detached; survives the owner message; `Report` action tool)
  └─ Report result → result artifact (workspaces/<ws>/channels/<channel>/artifacts/<title>.md) + thread_events row
     → announce (2 s quiet window) → lead run reads the events → lead tells the owner
 ```
-- Slash commands (the only command form): `/stop`, `/status`, `/purge`, `/limits [role]`, `/find <keywords>`, `/init-workspace <name>`, `/init-channel <space>/<name>`.
+- Slash commands (the only command form): `/stop`, `/status`, `/purge`, `/limits [role]`, `/plan [history]` (owner, ephemeral; see [Plan view](#plan-view-plan-revision-line-plan-artifact)), `/find <keywords>`, `/init-workspace <name>`, `/init-channel <space>/<name>`.
 - `/limits [role]` (owner only): `slash-interaction.ts` answers it itself with an ephemeral reply (a file `limits.md` when the text is over one message). Text: `ingress/limits-copy.ts` from `collectLimits()` (`config/limits-report.ts`, the scan the drift test uses) and the role registry; live state from `orchestrator/turns/limits-live.ts` (lead limiter `active()`/`waiting()`, worker limiter `active()`, `deferredCount()` of `worker/slot-wait.ts` for ready items waiting for a slot, running items per thread via `storage/running-items-store.ts`). No model, no thread needed. Not verified live.
 - There are no role tags and no intent classifier. Every non-command message goes to the lead.
 
@@ -207,6 +207,20 @@ One action tool. Its `result` and `blocker` actions are shared by all workers; t
 - `worker/check-in.ts` runs on the same sweeper tick (`createCheckIn`, state in memory; a restart costs at most one extra digest). Nothing in it calls a model.
 - Digest: for each thread with an open goal that has a `running` or a held item (`storage/check-in-store.ts` `goalsWithLiveWork`; newest goal per thread), `worker/digest-facts.ts` builds the facts (objective, unfinished items with key / role / status / percent / note / age, done count, goal spend from `goalSpent` against `goalBudgetOf`) and `ingress/digest-copy.ts` words them (vi / en; language = the thread's pinned language, else the last owner message, else Vietnamese). It is posted in the thread only, at most every `DIGEST_FLOOR_MS` and only when the hash of the facts changed (ages ignored, spend in whole USD). Objective and notes are redacted and clipped; result file content is never read. A failed post is logged (`digest.post_failed`), the old hash is kept and it is tried again after the floor.
 - Escalation: a held item (`blocked`) with no `retry` / `cancel` event since its newest `failure` event for `HOLD_ESCALATE_MS` gets a `timeout` event (id `hold:<itemId>:<dispatchCount>:<tick time>`, cause `hold_undecided`) and an announce. It repeats every `HOLD_REESCALATE_MS` while it stays undecided. Only items of an `open` goal count (a closed goal never escalates), a hold older than 3 x `ITEM_MAX_AGE_MS` is skipped as forgotten, and at most `MAX_ESCALATIONS_PER_TICK` events are written per tick (items already escalated are excluded in the query, so the rest follow on the next ticks). The digest keeps its floor time across a tick with no live work (state is pruned after 2 x floor idle). Limits: [limits](limits-and-stop-conditions.md).
+
+### Plan view (`/plan`, revision line, plan artifact)
+Owner-facing view of a PLAN goal's versions (phase 5, uncommitted, not verified live). No model call, no schema change.
+
+| Step | Code | Does |
+|---|---|---|
+| Store | `plan/plan-artifact.ts` `syncPlanArtifacts` | each version → markdown artifact of the thread's channel, title `Plan <goal8> v<N>` (`origin` store, no producer); created once, rewritten in place when the rendered text changed (`plan-render.ts` with status, reason and, for an approved version, live item status); no channel = no artifact, no link |
+| Sync | `planner-handlers.ts` (`onVersion`), `worker-app-ctx.ts`, `turns/plan-live.ts`, `worker/check-in.ts` | every stored version, every applied revision and every reader (`/plan`, digest, revision line) syncs first |
+| Revision line | `planner-handlers.ts` `notifyDiff` → `worker-app-ctx.ts` → `ingress/notice-text-plan.ts` | one owner line `Plan vN → vN+1: +a, −b, ~c` (cancelled keys named, changed criteria flagged) with "Open plan" (`planLinks`) when the viewer is on; skipped when the diff is a no-op; rolling waves included; code verify / fix / wave items post nothing. The lead still gets `plan_revised` |
+| `/plan` | `commands/slash-definitions.ts`, `ingress/slash-interaction.ts` → `turns/plan-live.ts` (`createPlanLookup`) → `ingress/plan-copy.ts` | owner only, ephemeral reply; the open goal's plan, else the newest plan of the thread (`storage/work-plan-store.ts` `planGoalOfThread`); version in force, goal, status per item, signed link first; `history` lists versions with status, date, reason; capped at one chunk |
+| Digest | `worker/digest-facts.ts` (`planVersion`), `ingress/digest-copy.ts`, `worker/check-in.ts` | the in-force version line and the "Open plan" button; a version change is a digest change |
+
+- Signed links never enter a lead tool result: `Orchestrate` tells the owner to use `/plan`.
+- Viewer off (`VIEWER_SECRET` / `VIEWER_BASE_URL` unset): no link anywhere; the rest is unchanged.
 
 ## Role Model
 Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per file (`src/roles/role-types.ts`). The engine reads only that data, never a role name (test-enforced).

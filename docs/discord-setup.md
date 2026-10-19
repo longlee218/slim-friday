@@ -176,11 +176,22 @@ controlChannels:   # default: [ops.control]
 
 ## Native slash commands
 - On every start the bot overwrites its application commands (`src/commands/slash-definitions.ts`): guild commands when `DISCORD_GUILD_ID` is set (instant), else global (can take up to an hour).
-- The picker lists: `/stop`, `/status` (the running task or the waiting one, no model call), `/purge` (empties the trash of this thread's goals, asks yes/no), `/find <keywords>` (threads of this space whose title or digest has every keyword, no model call), `/init-workspace <name>`, `/init-channel <space>/<name>`.
+- The picker lists: `/stop`, `/status` (the running task or the waiting one, no model call), `/purge` (empties the trash of this thread's goals, asks yes/no), `/plan [history]` (owner, private reply: the thread's plan, or its versions), `/find <keywords>` (threads of this space whose title or digest has every keyword, no model call), `/init-workspace <name>`, `/init-channel <space>/<name>`.
 - `/cleanup` is removed. The picker is replaced at the next start; old entries may linger until then.
 - A pick runs as the owner's `/name arg` message through the same gates. A non-owner gets "Not allowed."
 - A failed registration is logged (`slash command registration failed`) and does not block startup.
 - Not live-tested: the picker behavior in Discord and whether a slash in a channel opens a thread correctly.
+
+## Plan visibility (owner live checklist)
+Phase 5 (not verified live). Needs a thread with a PLAN goal; link steps need the viewer on (`VIEWER_SECRET`, `VIEWER_BASE_URL`).
+1. Restart; `/plan` is in the picker (guild commands at once, global up to an hour).
+2. `/plan` in a thread with a plan: a private reply (only you see it) with `Plan vN (status)`, the goal, one line per item with its status, and "Open the plan" when the viewer is on.
+3. `/plan history`: every version with status, date and reason.
+4. `/plan` in a thread with no plan: "This thread has no plan yet." (vi: "Thread này chưa có kế hoạch.").
+5. A revision that changes items (or a re-plan): one line `Plan v1 → v2: +a, −b, ~c` with an "Open plan" button. A revision that changes nothing posts no line.
+6. The "Open plan" link opens the plan artifact (channel artifacts, title `Plan <goal8> v<N>`). Its text is current as of the last sync (`/plan`, a digest or a revision): run `/plan` first to refresh it.
+7. Check-in digest of a goal with running work: `Plan: vN` and "Open plan".
+8. Viewer off: no link anywhere; `/plan` still lists the items.
 
 ## Add a workspace: `/init-workspace <name>`
 Type in `#ops-control` (no mention needed).
