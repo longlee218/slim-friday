@@ -40,7 +40,7 @@ LOG_LEVEL=info
 # MAX_BUDGET_USD=<usd>                # global cap on every run (min with the role budget); unset = role budgets only
 # MEMORY_MODEL=<model id>             # model of the cheap one-shot calls (attachment and rollover summaries)
 ```
-- Full variable list: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-variables-and-limits).
+- Full variable list: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-and-limits).
 - Budgets and models per role are constants in `src/roles/builtin/*-role.ts`; no env var sets them.
 - Removed: `MODEL`, `MODEL_<ROLE>_<STAGE>`, `BUDGET_<ROLE>_USD`, `MAX_CONCURRENT_RUNS`, `MAX_TURNS`, `LLM_PROVIDER` and the removed provider's key. The app no longer reads them (startup does not warn). `GIT_AUTHOR` is accepted and ignored: commits use your git config.
 
@@ -206,8 +206,53 @@ Phase 5 (not verified live). Needs a thread with a PLAN goal; link steps need th
 4. `/plan` in a thread with no plan: "This thread has no plan yet." (vi: "Thread này chưa có kế hoạch.").
 5. A revision that changes items (or a re-plan): one line `Plan v1 → v2: +a, −b, ~c` with an "Open plan" button. A revision that changes nothing posts no line.
 6. The "Open plan" link opens the plan artifact (channel artifacts, title `Plan <goal8> v<N>`). Its text is current as of the last sync (`/plan`, a digest or a revision): run `/plan` first to refresh it.
-7. Check-in digest of a goal with running work: `Plan: vN` and "Open plan".
+7. Check-in digest of a goal with running work: `Plan: vN` and "Open plan". It posts only when the facts change, at most every 30 min; an unchanged thread posts nothing new.
 8. Viewer off: no link anywhere; `/plan` still lists the items.
+9. A long plan (more than one Discord message of text): `/plan` is one message; item lines are cut first, the count and the link stay. Expect that cut, not a second message. `/plan history` lists every version.
+10. Ask the lead "show me the plan". Expect: the reply names `/plan` (and `/plan history`) and contains no URL.
+
+## Lead team hardening (owner live checklist)
+Phases 1-6a of [plans/261018-1145-lead-team-orchestration-hardening](../plans/261018-1145-lead-team-orchestration-hardening/plan.md) (committed, not verified live). Diagrams: [lead-team-flow.md](lead-team-flow.md). Run in a test guild on a test space. Limits named here: [limits](limits-and-stop-conditions.md). Only use local branches to lower a limit, never commit it. Record pass or fail in the changelog entry.
+
+- [ ] **Plan feedback text.** At the plan approval ask, type a change instead of Yes or No (e.g. "drop the timer").
+  Pass: the lead gets your words as data (no approval), the plan stays `valid`, the lead calls `Orchestrate request_plan` with the goal id and your words as findings, the planner revises the plan (`Plan revise`; `Plan create` is refused while a version is valid), and nothing starts before the next approval.
+- [ ] **Blocker resumes.** Ask a developer task that needs one fact only you know (e.g. which env var name to use).
+  Pass: the worker's `Report blocker` reaches the lead as `blocked` news; the lead asks you with `ask_owner`; your Discord reply to that question resumes the same item (`answer` event, item back to running, same session); no new dispatch.
+- [ ] **Restart with a pending owner message.** Send a message, stop the bot before the lead answers, restart.
+  Pass: the message is answered once after boot; a message older than `LEAD_REPLAY_MAX_AGE_MS` (6 h) is closed without an answer.
+- [ ] **Restart with a running worker.** Stop the bot during a developer item, restart.
+  Pass: the item resumes its session (`recovered_after_restart` event with `autoResumed`), the lead hears once, the goal settles.
+- [ ] **Re-plan after reject.** On a PLAN goal, answer No with a reason.
+  Pass: the lead calls `Orchestrate request_plan` with the same goal id; the planner stores v2 in that goal; `/plan history` shows v1 rejected and v2. This also holds for a PLAN goal whose only item was its planner (fixed 2026-10-20; unit-tested only, confirm live).
+- [ ] **Re-plan after expiry.** Leave a plan unanswered past `PENDING_PLAN_MAX_AGE_MS` (24 h; locally 10 min).
+  Pass: one `PLAN_EXPIRED` timeout event, the lead tells you, `/plan history` shows v1 rejected; the re-plan is as above.
+- [ ] **Re-plan past MAX_WAVES.** Locally set `MAX_WAVES` to 1, plan with deferred scope, let the first wave finish, then re-plan.
+  Pass: the re-plan asks you Yes or No (`approve_plan`) and no item starts before your Yes; with scope still deferred and the cap reached, the goal is held (`WAVE_CAP` failure event) for the lead.
+- [ ] **Owner supersede, No (`OWNER_DENIED`).** While a PLAN goal is open, ask for new work that supersedes it.
+  Pass: a Yes/No question first; on No the lead does not retry the supersede and the PLAN goal keeps running.
+- [ ] **Owner supersede, no answer (`OWNER_TIMEOUT`).** Same, but do not answer for 10 min (`ASK_OWNER_TIMEOUT_MS`).
+  Pass: `OWNER_TIMEOUT`; nothing is cancelled.
+- [ ] **`ALREADY_ASKED`.** Let a plan approval ask end with no answer, then ask the lead to approve again without a new message.
+  Pass: `ALREADY_ASKED` refusal, no second question; after your next message or a revision the question comes back.
+- [ ] **`/plan` and `/plan history`.** Items 1-4 and 9 of [Plan visibility](#plan-visibility-owner-live-checklist).
+  Pass: as listed there.
+- [ ] **Revision line and "Open plan" on a phone.** Trigger a revision that cancels a running item. Items 5-6 of [Plan visibility](#plan-visibility-owner-live-checklist), checked on a phone.
+  Pass: the line reads `Plan vN → vN+1: +a, −b, ~c`; the button opens the plan page without horizontal scroll.
+- [ ] **Digest plan line.** Item 7 of [Plan visibility](#plan-visibility-owner-live-checklist).
+  Pass: `Plan: vN` and the link appear; a second digest comes only after a change and at least 30 min later.
+- [ ] **Sandbox network open, full bot path.** Ask a developer to run `curl -sI https://example.com` in a granted location.
+  Pass: the request succeeds (`allowedDomains` `["*"]`); `$AGENT_HOME` stays unreadable from the shell.
+  **Record the risk:** a prompt-injected run can send readable data to any host, and a worker shell can run `git push` or `gh` outside the `GitPush` envelope. Only a direct SDK probe is verified (`plans/reports/fullstack-developer-261019-1232-sandbox-network-live-probe.md`).
+- [ ] **Create a project from Discord.** Say "start a project demo-app" in a space channel with no `projectsDir`, then with one set.
+  Pass: the lead asks `select` (1-3 paths) or your typed path wins; after your answer the folder has `README.md` and one commit under your git identity (`git -C <path> log --oneline`); the channel can work in it. With `projectsDir` set and no path, `<projectsDir>/<slug>` is used. A path that exists is refused `PATH_EXISTS` and nothing is created.
+- [ ] **`DUPLICATE_SUSPECT` and `confirmNew`.** Ask for the same task twice in a row.
+  Pass: the second `dispatch` is refused `DUPLICATE_SUSPECT` and names the match; the lead asks you, and repeats with `confirmNew` only for new work. The 0.6 overlap is untuned: note false positives.
+- [ ] **Priority in a real queue.** Fill the worker pool (4 items in one thread), then queue a normal item and an urgent item (priority 100).
+  Pass: the urgent item starts first when a slot frees. Aging (30 min, `PRIORITY_AGING_MS`) is checked locally with a lower value.
+- [ ] **Skills after a resumed session.** Send a second message in a thread with an existing lead session, with `FRIDAY_DUMP_PROMPTS=1`.
+  Pass: the lead's newest dump lists the `lead-orchestration` plugin path in its options. `metrics:lead` has no skill column, so the dump is the check.
+- [ ] **Prompt inspection.** Run `bun run prompt:show lead --tools` (offline) and one live run with `FRIDAY_DUMP_PROMPTS=1`.
+  Pass: layers, skills and tool schemas print; dumps are 0600 with secrets masked; the newest 50 are kept. See [Prompt inspection](#prompt-inspection-developer-debug).
 
 ## Add a workspace: `/init-workspace <name>`
 Type in `#ops-control` (no mention needed).
