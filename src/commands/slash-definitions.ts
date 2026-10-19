@@ -1,5 +1,5 @@
 import { ROLES } from "../roles/role-registry";
-import type { SlashName } from "./slash-commands";
+import { PLAN_HISTORY_ARG, type SlashName } from "./slash-commands";
 
 /** The one optional/required argument of a native slash command (all commands take at most one). */
 interface SlashArg {
@@ -29,6 +29,15 @@ export const SLASH_DEFINITIONS: Record<SlashName, SlashDefinition> = {
       description: "One role only (default: all)",
       required: false,
       choices: Object.keys(ROLES),
+    },
+  },
+  plan: {
+    description: "Show the plan of this thread (private reply)",
+    arg: {
+      name: "view",
+      description: "history = every version",
+      required: false,
+      choices: [PLAN_HISTORY_ARG],
     },
   },
   find: {

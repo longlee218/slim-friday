@@ -37,14 +37,15 @@ export type UserNotice =
   | { kind: "plan-not-started"; cause: "closed" | "budget" | "other" }
   /** Before a PLAN goal is replaced by a new goal (its plan and running work are cancelled): the owner's yes/no. */
   | { kind: "plan-supersede-ask"; intent?: string }
-  /** An applied plan revision cancelled work or changed the criteria (item keys, never ids). */
+  /** An applied plan revision, version `from` to `to` (item keys, never ids). */
   | {
       kind: "plan-revised";
+      from: number;
+      to: number;
       cancelled: string[];
       added: string[];
       modified: string[];
       criteriaChanged: boolean;
-      reason: string;
     }
   /** An owner-made channel was just mapped to a space (auto-adopt). */
   | { kind: "channel-adopted"; space: string; name: string }

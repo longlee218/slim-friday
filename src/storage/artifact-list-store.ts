@@ -58,3 +58,8 @@ export function ftsDelete(db: Database, artifactId: string): void {
 export function setSourceSnapshot(db: Database, id: string, size: number, mtime: number): void {
   db.query("UPDATE artifacts SET size = ?, source_mtime = ? WHERE id = ?").run(size, mtime, id);
 }
+
+/** Record the new size of a store artifact whose file was rewritten in place (a plan document that follows its plan). */
+export function setArtifactSize(db: Database, id: string, size: number): void {
+  db.query("UPDATE artifacts SET size = ? WHERE id = ?").run(size, id);
+}

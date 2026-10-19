@@ -25,7 +25,7 @@ import {
   releasedKeys,
   reviseBase,
 } from "./plan-refusal";
-import { criteriaDiffer, isNoteworthy, type RevisionDiff, recordRevision } from "./plan-revised";
+import { diffVersions, isNoteworthy, type RevisionDiff, recordRevision } from "./plan-revised";
 import type { DeliveryEffect, PlanDoc } from "./plan-types";
 import { Refused, stripUndefined } from "./revision-support";
 import { validatePlan } from "./validate-plan";
@@ -62,7 +62,7 @@ export interface Revised {
   version: number;
   status: "approved" | "valid";
   affected: Applied;
-  /** Set when the revision applied at once and cancelled work or changed the criteria: the lead was told, the owner is to be. */
+  /** Set when the revision applied at once: what changed (the owner is told in one line; the lead too when it cancelled work or changed the criteria). */
   revised?: RevisionDiff;
 }
 
@@ -152,14 +152,12 @@ export function revisePlan(
       if (base.status === "valid" || grew) return { row };
       const done = applyApproval(db, row.id, row.version);
       if (!done.ok) throw new Refused(done); // rolls the insert back
-      const diff: RevisionDiff = {
+      const diff = diffVersions(baseDoc, doc, {
+        from: base.version,
         version: row.version,
-        added: done.created,
-        cancelled: done.cancelled,
-        modified: done.modified,
-        criteriaChanged: criteriaDiffer(baseDoc.acceptanceCriteria, doc.acceptanceCriteria),
         reason: a.reason,
-      };
+        left: pruned,
+      });
       // Applied without the owner: a cancel or a changed criterion is announced in the same transaction (lead news).
       if (isNoteworthy(diff)) recordRevision(db, base.goalId, row.id, diff);
       return { row, done, diff };
@@ -189,6 +187,6 @@ export function revisePlan(
       modified: out.done.modified,
       cancelled: out.done.cancelled,
     },
-    ...(out.diff && isNoteworthy(out.diff) && { revised: out.diff }),
+    ...(out.diff && { revised: out.diff }),
   };
 }

@@ -158,6 +158,7 @@ export function materialize(
   // Told only when something moved: waiting items were cancelled, or plan items were re-pointed.
   if (orphansCancelled || repointed.length)
     recordRevision(db, o.goalId, o.planId, {
+      from: o.version - 1, // lead news only: the owner is not told of this one
       version: o.version,
       added: out.created,
       cancelled: out.cancelled,

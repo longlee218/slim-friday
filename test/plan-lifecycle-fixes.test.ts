@@ -182,13 +182,12 @@ test("B3: a revision that cancels a started item and changes the criteria applie
     criteriaChanged: true,
     reason: "scope cut",
   });
-  // What the owner reads: the cancelled key and the reason, in his language.
+  // What the owner reads: the version line with the cancelled key, in his language.
   const text = renderUserNotice(revisionNotice(notes[0] as RevisionDiff), "en");
-  expect(text).toContain("cancelled: a");
-  expect(text).toContain("scope cut");
+  expect(text).toContain("Plan v1 → v2: +0, −1, ~0 (cancelled: a)");
 });
 
-test("B3: a plain addition emits no plan_revised and no owner post", () => {
+test("B3: a plain addition emits no plan_revised event; the owner gets the one version line", () => {
   const { goalId, planId } = approved([item("a")]);
   const notes: RevisionDiff[] = [];
   const ctx: PlannerCtx = {
@@ -210,7 +209,8 @@ test("B3: a plain addition emits no plan_revised and no owner post", () => {
   });
   expect(r).toMatchObject({ ok: true, status: "approved" });
   expect(listUndelivered(db, TH).some((e) => e.kind === "plan_revised")).toBe(false);
-  expect(notes).toHaveLength(0);
+  expect(notes).toHaveLength(1);
+  expect(notes[0]).toMatchObject({ version: 2, added: ["z"], cancelled: [] });
 });
 
 test("B4: a plan that dropped a not-started item by revision settles `completed`, not `cancelled`", () => {

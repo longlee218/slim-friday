@@ -12,17 +12,37 @@ const HEAD_OBJECTIVE_CHARS = 120;
 export const APPROVE_LABEL = "Approve plan";
 export const REJECT_LABEL = "Reject plan";
 
-/** Render a plan version for the owner. */
-export function renderPlan(p: { version: number; objective: string; doc: PlanDoc }): string {
+/** The stored-document view of a version (plan artifact): its lifecycle state and, for an approved one, each item's live status. */
+export interface PlanDocView {
+  status: string;
+  /** Why the version was rejected / superseded / revised; absent = none. */
+  reason?: string | null;
+  /** Live status by item key (an item with no row yet reads "not started"). */
+  itemStatus?: ReadonlyMap<string, string>;
+}
+
+/** Render a plan version for the owner; with `view`, the stored document (status, reason, item status; no approval wording). */
+export function renderPlan(
+  p: { version: number; objective: string; doc: PlanDoc },
+  view?: PlanDocView,
+): string {
   const { doc } = p;
   const e = doc.envelope;
-  const rows = doc.items.map(
-    (it, n) =>
-      `${n + 1}. ${it.key} "${it.subject}" [${it.role}${it.location ? ` @ ${it.location}` : ""}, risk ${it.risk}${it.deferredScope ? ", later" : ""}]${it.dependsOn.length ? ` after ${it.dependsOn.join(", ")}` : ""}: ${it.brief}`,
-  );
+  const rows = doc.items.map((it, n) => {
+    const live = view?.itemStatus ? `, ${view.itemStatus.get(it.key) ?? "not started"}` : "";
+    return `${n + 1}. ${it.key} "${it.subject}" [${it.role}${it.location ? ` @ ${it.location}` : ""}, risk ${it.risk}${it.deferredScope ? ", later" : ""}${live}]${it.dependsOn.length ? ` after ${it.dependsOn.join(", ")}` : ""}: ${it.brief}`;
+  });
+  const head = clip(p.objective.replace(/\s+/g, " "), HEAD_OBJECTIVE_CHARS);
   return [
-    `Plan v${p.version}: ${clip(p.objective.replace(/\s+/g, " "), HEAD_OBJECTIVE_CHARS)}`,
-    "Full briefs are in the attachment when this text is long.",
+    ...(view
+      ? [
+          `# Plan v${p.version}: ${head}`,
+          `Status: ${view.status}${view.reason ? `. Reason: ${view.reason}` : ""}`,
+        ]
+      : [
+          `Plan v${p.version}: ${head}`,
+          "Full briefs are in the attachment when this text is long.",
+        ]),
     ...(p.objective.length > HEAD_OBJECTIVE_CHARS ? [`Objective: ${p.objective}`] : []),
     "Steps (run one after another):",
     ...rows,
@@ -30,6 +50,6 @@ export function renderPlan(p: { version: number; objective: string; doc: PlanDoc
       ? ["Done when:", ...doc.acceptanceCriteria.map((c) => `- ${c}`)]
       : []),
     `Limits: roles ${e.roles.join(", ") || "-"}; locations ${e.locations.join(", ") || "-"}; risk ${e.riskClasses.join(", ")}; at most ${e.bounds.maxItems} steps and ${e.bounds.maxGb} GB; budget $${e.budgetUsd}; delivery: ${e.effects.join(", ") || "keep"}.`,
-    "Approving runs the whole plan inside these limits without asking again.",
+    ...(view ? [] : ["Approving runs the whole plan inside these limits without asking again."]),
   ].join("\n");
 }

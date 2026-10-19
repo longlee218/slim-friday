@@ -39,22 +39,13 @@ export function renderPlanNotice(event: PlanNotice, language: OwnerLanguage): st
       `Cancel the plan goal${what}, its running work and its plan, and start a new goal instead?`,
     );
   }
-  const parts = [
-    ...(event.cancelled.length
-      ? [say(`đã hủy: ${event.cancelled.join(", ")}`, `cancelled: ${event.cancelled.join(", ")}`)]
-      : []),
-    ...(event.added.length
-      ? [say(`đã thêm: ${event.added.join(", ")}`, `added: ${event.added.join(", ")}`)]
-      : []),
-    ...(event.modified.length
-      ? [say(`đã đổi: ${event.modified.join(", ")}`, `changed: ${event.modified.join(", ")}`)]
-      : []),
-    ...(event.criteriaChanged
-      ? [say('tiêu chí "xong khi" đã đổi', 'the "done when" criteria changed')]
-      : []),
-  ];
-  return say(
-    `Kế hoạch đã thay đổi: ${parts.join("; ")}. Lý do: ${event.reason}. Bạn nói nếu muốn hoàn tác.`,
-    `The plan changed: ${parts.join("; ")}. Reason: ${event.reason}. Tell me if you want any of it undone.`,
-  );
+  // One short line: "Plan v1 → v2: +a, −b, ~c", the cancelled work named, a changed criteria list flagged.
+  const counts = `+${event.added.length}, −${event.cancelled.length}, ~${event.modified.length}`;
+  const cancelled = event.cancelled.length
+    ? say(` (đã hủy: ${event.cancelled.join(", ")})`, ` (cancelled: ${event.cancelled.join(", ")})`)
+    : "";
+  const criteria = event.criteriaChanged
+    ? say('; tiêu chí "xong khi" đã đổi', '; "done when" criteria changed')
+    : "";
+  return `${say("Kế hoạch", "Plan")} v${event.from} → v${event.to}: ${counts}${cancelled}${criteria}`;
 }

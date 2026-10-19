@@ -1,15 +1,16 @@
 import type { Database } from "bun:sqlite";
 import type { UserNotice } from "../../ingress/user-copy";
-import { clip, redactText } from "../../observability/redact";
 import { taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
+import type { PlanDoc } from "./plan-types";
 
-/* What an applied plan revision changed, told to the lead (a `plan_revised` news event) and the owner (one short post, see `revisionNotice`).
-   A revision that only adds or activates items is routine and silent; one that cancels work or changes the acceptance
-   criteria is applied at once and then announced, so nothing the owner agreed to changes unseen. */
+/* What an applied plan revision changed, told to the lead (a `plan_revised` news event) and the owner (one short line per applied revision, see `revisionNotice`).
+   The lead hears only a revision that cancels work or changes the acceptance criteria. */
 
 /** The diff of one applied revision, by item key. */
 export interface RevisionDiff {
+  /** The version it replaced. */
+  from: number;
   version: number;
   added: string[];
   cancelled: string[];
@@ -18,16 +19,39 @@ export interface RevisionDiff {
   reason: string;
 }
 
-/** Chars of the reason shown to the owner. */
-const REASON_CHARS = 300;
-
 /** True when the owner and the lead must hear of the revision (it cancelled work or changed the criteria). */
 export const isNoteworthy = (d: RevisionDiff): boolean =>
   d.cancelled.length > 0 || d.criteriaChanged;
 
+/** True when nothing the owner sees changed (no item added, cancelled or modified, same criteria): no line is posted. */
+export const isNoop = (d: RevisionDiff): boolean =>
+  !d.added.length && !d.cancelled.length && !d.modified.length && !d.criteriaChanged;
+
 /** True when two criteria lists differ. */
 export const criteriaDiffer = (a: readonly string[], b: readonly string[]): boolean =>
   JSON.stringify(a) !== JSON.stringify(b);
+
+/**
+ * The one diff of two plan versions by item key, for an applied revision and a re-plan alike. Order is ignored; `left`
+ * are keys the new version dropped because they completed (not a cancel).
+ */
+export function diffVersions(
+  before: PlanDoc,
+  after: PlanDoc,
+  v: { from: number; version: number; reason: string; left?: readonly string[] },
+): RevisionDiff {
+  const old = new Map(before.items.map((i) => [i.key, JSON.stringify(i)]));
+  const now = new Map(after.items.map((i) => [i.key, JSON.stringify(i)]));
+  return {
+    from: v.from,
+    version: v.version,
+    added: [...now.keys()].filter((k) => !old.has(k)),
+    cancelled: [...old.keys()].filter((k) => !now.has(k) && !v.left?.includes(k)),
+    modified: [...now].filter(([k, v]) => old.has(k) && old.get(k) !== v).map(([k]) => k),
+    criteriaChanged: criteriaDiffer(before.acceptanceCriteria, after.acceptanceCriteria),
+    reason: v.reason,
+  };
+}
 
 /** Append the `plan_revised` event of a goal (id per plan version: written once). Returns false when it already existed. */
 export function recordRevision(
@@ -65,12 +89,13 @@ export function recordCodeItems(db: Database, goalId: string, keys: string[], wh
   });
 }
 
-/** The owner notice of a revision (rendered in the owner's language by `renderUserNotice`): keys and a clipped, redacted reason. */
+/** The owner notice of a revision (rendered in the owner's language by `renderUserNotice`): one line, version change and key counts; the viewer link is sent beside it. */
 export const revisionNotice = (d: RevisionDiff): UserNotice => ({
   kind: "plan-revised",
+  from: d.from,
+  to: d.version,
   cancelled: d.cancelled,
   added: d.added,
   modified: d.modified,
   criteriaChanged: d.criteriaChanged,
-  reason: clip(redactText(d.reason), REASON_CHARS),
 });

@@ -20,6 +20,7 @@ import { logEvent, logger } from "./observability/logger";
 import { errText } from "./observability/redact";
 import { createTurnHandler } from "./orchestrator/handle-message";
 import { createLimitsView } from "./orchestrator/turns/limits-live";
+import { createPlanLookup } from "./orchestrator/turns/plan-live";
 import { createRunLimiter } from "./orchestrator/turns/run-limiter";
 import { recoverInFlight } from "./orchestrator/worker/recover-in-flight";
 import { createDiscordApprovalGateway } from "./owner-approval/discord-approval";
@@ -94,7 +95,11 @@ async function main(): Promise<void> {
   const threadsPort = createThreadsPort(db, config.agentHome);
   const { client } = createDiscordBot(
     config,
-    Object.assign(handleMessage, { control, limits: createLimitsView(db, limiter, leadPool) }), // the bot reads `control` (#ops-control text) and `limits` (/limits)
+    Object.assign(handleMessage, {
+      control,
+      limits: createLimitsView(db, limiter, leadPool),
+      plan: createPlanLookup({ db, home: config.agentHome, viewer: config.viewer }),
+    }), // the bot reads `control` (#ops-control text), `limits` (/limits) and `plan` (/plan)
     (i) => approvals.handleInteraction(i),
     setup,
     handleMessage.inline,

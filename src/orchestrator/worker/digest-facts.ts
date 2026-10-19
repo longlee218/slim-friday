@@ -3,6 +3,7 @@ import type { DigestFacts, DigestItem } from "../../ingress/digest-copy";
 import { clip, redactClip } from "../../observability/redact";
 import { lastProgressOfItems } from "../../storage/check-in-store";
 import { childrenOf, isHeld } from "../../storage/owned-item-store";
+import { planIdOfGoal, planVersions } from "../../storage/work-plan-store";
 import { goalBudgetOf, goalSpent } from "../budget/task-budget";
 import { progressOf } from "./run-activity";
 
@@ -44,6 +45,11 @@ export function digestFacts(
         ageSeconds: live ? live.idleSeconds : Math.max(0, Math.round((now - since) / 1000)),
       };
     });
+  const planId = planIdOfGoal(db, goalId);
+  // The version in force (the newest approved one, else the newest): the one the link opens.
+  const versions = planId ? planVersions(db, planId) : [];
+  const planVersion = (versions.findLast((v) => v.status === "approved") ?? versions.at(-1))
+    ?.version;
   return {
     objective: redactClip(objective.replace(/\s+/g, " ").trim(), OBJECTIVE_CHARS),
     items,
@@ -51,6 +57,7 @@ export function digestFacts(
     total: all.length,
     spentUsd: goalSpent(db, all),
     budgetUsd: goalBudgetOf(db, goalId),
+    ...(planVersion && { planVersion }),
   };
 }
 
@@ -64,5 +71,13 @@ export function factsKey(f: DigestFacts): string {
     i.percent ?? null,
     i.note ?? "",
   ]);
-  return JSON.stringify([f.objective, f.done, f.total, Math.floor(f.spentUsd), items]);
+  // The plan version counts: a revision is a change (the signed link is not hashed, it differs every time).
+  return JSON.stringify([
+    f.objective,
+    f.done,
+    f.total,
+    Math.floor(f.spentUsd),
+    items,
+    f.planVersion ?? 0,
+  ]);
 }

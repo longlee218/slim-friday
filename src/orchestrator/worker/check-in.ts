@@ -12,6 +12,7 @@ import { errText } from "../../observability/redact";
 import { type DigestGoal, goalsWithLiveWork, heldTooLong } from "../../storage/check-in-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { type LeadRuntime, postTo } from "../lead/lead-runtime";
+import { planLinks, planUrlOfGoal } from "../plan/plan-artifact";
 import { digestFacts, factsKey } from "./digest-facts";
 
 /* The timer check-in, on the resilience tick: (1) a code-rendered digest (0 LLM tokens) per thread with an open goal that
@@ -74,9 +75,17 @@ export function createCheckIn(): (rt: LeadRuntime, now?: number) => Promise<void
       facts,
       pinnedThreadLanguage(threadId) ?? messageLanguage(ctx.message),
     );
+    // The current plan opens in the viewer (no link when the viewer is off or the goal has no plan).
+    const url = facts.planVersion
+      ? planUrlOfGoal(
+          { db: rt.deps.db, home: rt.deps.config.agentHome, viewer: rt.deps.config.viewer },
+          threadId,
+          g.goalId,
+        )
+      : undefined;
     inflight.add(threadId);
     try {
-      await postTo(ctx, text);
+      await postTo(ctx, text, url ? { links: planLinks(url) } : undefined);
       state.set(threadId, { at: now, hash });
     } catch (err) {
       // Keep the old hash: the digest is tried again after the floor (the thread may be archived).

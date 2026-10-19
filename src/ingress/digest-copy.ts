@@ -27,6 +27,8 @@ export interface DigestFacts {
   total: number;
   spentUsd: number;
   budgetUsd: number;
+  /** Newest plan version of the goal; absent = no plan. */
+  planVersion?: number;
 }
 
 /** "45s" / "59m" / "2h" for a count of seconds (rounded down, so 3570 s never reads "60m"). */
@@ -49,6 +51,7 @@ export function renderDigest(f: DigestFacts, language: OwnerLanguage): string {
     say(`Cập nhật: ${f.objective}`, `Check-in: ${f.objective}`),
     say(`Xong ${f.done}/${f.total} việc.`, `${f.done}/${f.total} items done.`),
     ...lines,
+    ...(f.planVersion ? [say(`Kế hoạch: v${f.planVersion}`, `Plan: v${f.planVersion}`)] : []),
     say(
       `Chi phí: $${f.spentUsd.toFixed(2)} / $${f.budgetUsd}`,
       `Spend: $${f.spentUsd.toFixed(2)} / $${f.budgetUsd}`,

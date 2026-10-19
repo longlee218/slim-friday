@@ -11,6 +11,7 @@ import { createChannelAdopter } from "./channel-adoption";
 import { createMessageHandler, type HandleMessage } from "./discord-message-handler";
 import { SAFE_MENTIONS } from "./discord-message-rules";
 import type { LimitsView } from "./limits-copy";
+import type { PlanLookup } from "./plan-copy";
 import { createSlashHandler, registerSlashCommands } from "./slash-interaction";
 import type { ThreadsPort } from "./thread-placement";
 
@@ -27,7 +28,7 @@ export const CLIENT_OPTIONS = {
 /** Build the Discord bot (not connected until `login`). */
 export function createDiscordBot(
   config: AgentConfig,
-  handleMessage: HandleMessage & { control?: ControlRun; limits?: LimitsView },
+  handleMessage: HandleMessage & { control?: ControlRun; limits?: LimitsView; plan?: PlanLookup },
   handleInteraction?: (i: Interaction) => Promise<void>,
   setup: DiscordSetup = EMPTY_SETUP,
   inline?: InlineRunner,
@@ -73,6 +74,7 @@ export function createDiscordBot(
     ownerId: config.ownerDiscordId!,
     onMessage,
     limits: handleMessage.limits,
+    plan: handleMessage.plan,
   });
   client.on(Events.InteractionCreate, (i) => void onSlash(i));
   client.on(Events.ClientReady, (c) => {

@@ -6,6 +6,7 @@
  *
  *   /stop, /status, /purge   no argument (app code answers, no model)
  *   /limits [role]           every limit of the code (owner only, private reply, no model)
+ *   /plan [history]          current plan of this thread, or its versions (owner only, private reply, no model)
  *   /find <keywords>         answered by the find handler, no model
  *   /init-workspace <name>   ops control channel only
  *   /init-channel <space>/<name>  ops control channel only
@@ -16,11 +17,15 @@ export const SLASH_NAMES = [
   "status",
   "purge",
   "limits",
+  "plan",
   "find",
   "init-workspace",
   "init-channel",
 ] as const;
 export type SlashName = (typeof SLASH_NAMES)[number];
+
+/** The one argument of `/plan`: list the versions instead of showing the current one. */
+export const PLAN_HISTORY_ARG = "history";
 
 const SLASH = new RegExp(`^/(${SLASH_NAMES.join("|")})(?:\\s+([\\s\\S]*))?$`, "i");
 

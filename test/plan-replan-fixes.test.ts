@@ -233,15 +233,16 @@ test("L1: owner notices are localized and keep ids out", () => {
   expect(renderUserNotice(closed, "en")).not.toBe(renderUserNotice(closed, "vi"));
   const diff: UserNotice = {
     kind: "plan-revised",
+    from: 1,
+    to: 2,
     cancelled: ["a"],
     added: [],
     modified: [],
     criteriaChanged: true,
-    reason: "scope cut",
   };
   const en = renderUserNotice(diff, "en");
   expect(en).toContain("cancelled: a");
-  expect(en).toContain("scope cut");
+  expect(en).toContain("Plan v1 → v2");
   expect(renderUserNotice(diff, "vi")).toContain("đã hủy: a");
 });
 

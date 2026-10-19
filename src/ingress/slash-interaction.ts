@@ -6,13 +6,19 @@ import {
   type Message,
   MessageFlags,
 } from "discord.js";
-import { parseSlash } from "../commands/slash-commands";
+import { PLAN_HISTORY_ARG, parseSlash } from "../commands/slash-commands";
 import { slashPayload, slashText } from "../commands/slash-definitions";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { CHUNK_MAX, SAFE_MENTIONS } from "./discord-message-rules";
 import type { LimitsText, LimitsView } from "./limits-copy";
-import { languageOf, type OwnerLanguage, renderUserNotice } from "./user-copy";
+import { type PlanLookup, renderPlanFacts } from "./plan-copy";
+import {
+  languageOf,
+  type OwnerLanguage,
+  pinnedThreadLanguage,
+  renderUserNotice,
+} from "./user-copy";
 
 const log = logger.child({ module: "slash-interaction" });
 
@@ -94,6 +100,8 @@ export function createSlashHandler(deps: {
   onMessage: (msg: Message) => Promise<void>;
   /** Builds the `/limits` text (app code, no model); without it `/limits` is not handled here. */
   limits?: LimitsView;
+  /** Builds the `/plan` facts of a thread (app code, no model); without it `/plan` is not handled here. */
+  plan?: PlanLookup;
 }) {
   return async function handleSlash(i: { isChatInputCommand(): boolean }): Promise<void> {
     if (!i.isChatInputCommand()) return;
@@ -123,6 +131,28 @@ export function createSlashHandler(deps: {
         } catch (err) {
           // Nothing was replied yet (the view is built before the one reply): a short private notice, never a thrown error.
           log.error({ err: errText(err) }, "limits reply failed");
+          await cmd
+            .reply({
+              content: renderUserNotice({ kind: "failure" }, language),
+              flags: MessageFlags.Ephemeral,
+            })
+            .catch(() => undefined);
+        }
+        return;
+      }
+      // `/plan` is about the thread it is typed in: answered privately by app code, no message path.
+      if (parsed?.name === "plan" && deps.plan) {
+        try {
+          const history = parsed.arg.toLowerCase() === PLAN_HISTORY_ARG;
+          // The thread's language when known (as for other owner notices); the slash text is the fallback.
+          const planLanguage = pinnedThreadLanguage(cmd.channelId) ?? language;
+          await cmd.reply({
+            content: renderPlanFacts(deps.plan(cmd.channelId, history), planLanguage),
+            flags: MessageFlags.Ephemeral,
+            allowedMentions: SAFE_MENTIONS,
+          });
+        } catch (err) {
+          log.error({ err: errText(err) }, "plan reply failed");
           await cmd
             .reply({
               content: renderUserNotice({ kind: "failure" }, language),

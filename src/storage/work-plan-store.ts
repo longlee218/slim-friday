@@ -179,3 +179,22 @@ export function closePendingPlans(db: Database, goalId: string, reason: string):
     )
     .run(reason, goalId).changes;
 }
+
+/**
+ * Goal whose plan `/plan` shows for a thread: the open goal's plan, else the goal of the newest plan version of the
+ * thread (any status); with its objective. Undefined when the thread has no plan.
+ */
+export function planGoalOfThread(
+  db: Database,
+  threadId: string,
+): { goalId: string; objective: string } | undefined {
+  return (
+    db
+      .query<{ goalId: string; objective: string }, [string]>(
+        `SELECT w.goal_id AS goalId, w.objective AS objective FROM work_plans w JOIN owned_tasks t ON t.id = w.goal_id
+         WHERE t.thread_id = ?
+         ORDER BY (t.status = 'open') DESC, w.created_at DESC, w.version DESC LIMIT 1`,
+      )
+      .get(threadId) ?? undefined
+  );
+}

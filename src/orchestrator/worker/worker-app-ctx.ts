@@ -10,6 +10,7 @@ import { dispatchableWorkers } from "../../roles/role-registry";
 import { channelDigest } from "../../storage/thread-store";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "../lead/lead-runtime";
 import { artifactCtx, locationRefs } from "../lead/thread-tool-ctx";
+import { planLinks, planUrlOfGoal, syncPlanArtifacts } from "../plan/plan-artifact";
 import { revisionNotice } from "../plan/plan-revised";
 import type { RoleRunInput } from "../run/role-run-types";
 import type { ReportSink } from "./report-sink";
@@ -43,6 +44,7 @@ export function workerAppCtx(
 ): NonNullable<RoleRunInput["appCtx"]> {
   const { db } = rt.deps;
   const { threadId, goalId, itemId } = s;
+  const view = { db, home: rt.deps.config.agentHome, viewer: rt.deps.config.viewer };
   // A planner reports through its result (its item is the plan request): no blocker action for it.
   if (s.role === PLANNER_ROLE.name) s.sink.noBlocker = true;
   return () => ({
@@ -61,11 +63,17 @@ export function workerAppCtx(
       goalId,
       workers: dispatchableWorkers(),
       locations: locationRefs(ctx),
-      // A revision that cancelled work or changed the criteria is posted to the thread (a failed post is only logged).
-      notify: (diff) =>
-        void postTo(ctx, renderUserNotice(revisionNotice(diff), s.language)).catch((err: unknown) =>
+      // Every stored version becomes an artifact of the channel.
+      onVersion: () => void syncPlanArtifacts(view, threadId, goalId),
+      // An applied revision or a re-plan: one line "Plan vN → vM" + the viewer link (a failed post is only logged).
+      notify: (diff) => {
+        const url = planUrlOfGoal(view, threadId, goalId);
+        void postTo(ctx, renderUserNotice(revisionNotice(diff), s.language), {
+          links: planLinks(url),
+        }).catch((err: unknown) =>
           logEvent(log, "plan.notice_failed", { threadId, err: errText(err) }, "warn"),
-        ),
+        );
+      },
       channelDigest: () =>
         ctx.channelId && (ctx.channelMode ?? "task") === "task"
           ? channelDigestBlock(channelDigest(db, ctx.channelId, threadId)).text

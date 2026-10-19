@@ -16,7 +16,7 @@ import { type Reply, refuse } from "../reply";
 import { docOfRow } from "./plan-doc";
 import { createPlan, validateStored } from "./plan-lifecycle";
 import type { Fail, PlanEnv } from "./plan-refusal";
-import type { RevisionDiff } from "./plan-revised";
+import { diffVersions, isNoop, type RevisionDiff } from "./plan-revised";
 import { revisePlan } from "./plan-revision";
 import type {
   CreatePlanInput,
@@ -42,9 +42,16 @@ export interface PlannerCtx {
   locations: readonly { name: string; path: string }[];
   /** Channel digest block ("" = none): what the channel worked on lately. */
   channelDigest: () => string;
-  /** Tell the owner in the thread what a revision changed (it cancelled work or changed the criteria). Omitted = none. */
+  /** Tell the owner in the thread, in one line, what an applied revision or a re-plan changed. Omitted = none. */
   notify?: (d: RevisionDiff) => void;
+  /** A plan version was stored (any status): save it as an artifact. Omitted = none. */
+  onVersion?: () => void;
 }
+
+/** Tell the owner of a diff unless it changed nothing. */
+const notifyDiff = (c: PlannerCtx, d: RevisionDiff): void => {
+  if (!isNoop(d)) c.notify?.(d);
+};
 
 /** Chars of the objective / an excerpt shown to the planner. */
 const TEXT_CHARS = 2000;
@@ -133,14 +140,25 @@ export function createPlanHandler(c: PlannerCtx, i: CreatePlanInput): Reply {
     const dup = duplicateRefusal(similarOpenWork(c.db, c.threadId, plan.items, [c.goalId]));
     if (dup) return dup;
   }
+  const prior = latestPlan(c.db, planIdOfGoal(c.db, c.goalId) ?? "");
   const r = createPlan(c.db, {
     ...plan,
     objective: taskScope(c.db, c.goalId) ?? "",
     env: planEnvOf(c),
   });
-  return r.ok
-    ? { ok: true, planId: r.plan.id, version: r.plan.version, status: r.plan.status }
-    : failReply(r);
+  if (!r.ok) return failReply(r);
+  c.onVersion?.();
+  // A re-plan after a reject or an expiry: the owner sees the same version line as for a revision.
+  if (prior)
+    notifyDiff(
+      c,
+      diffVersions(docOfRow(prior), docOfRow(r.plan), {
+        from: prior.version,
+        version: r.plan.version,
+        reason: "re-plan",
+      }),
+    );
+  return { ok: true, planId: r.plan.id, version: r.plan.version, status: r.plan.status };
 }
 
 /** Re-run the validator on a stored version. */
@@ -161,7 +179,8 @@ export function proposeRevisionHandler(c: PlannerCtx, i: ProposeRevisionInput): 
   const { planId, baseVersion, reason, ...edit } = i;
   const r = revisePlan(c.db, { planId, baseVersion, reason, edit, env: planEnvOf(c) });
   if (!r.ok) return failReply(r);
-  if (r.revised) c.notify?.(r.revised); // applied at once: the owner hears what changed
+  c.onVersion?.();
+  if (r.revised) notifyDiff(c, r.revised); // applied at once: the owner hears what changed
   return {
     ok: true,
     planId: r.planId,
