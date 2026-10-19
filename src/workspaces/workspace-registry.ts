@@ -15,6 +15,8 @@ export interface WorkspaceChannel {
   name: string;
   mode: "task" | "chat";
   locations?: string[];
+  /** Default dir for new projects made from this channel (absolute or `~/...`); wins over the workspace's. */
+  projectsDir?: string;
 }
 
 /** One workspace: a group of locations behind one set of Discord channels. */
@@ -31,6 +33,8 @@ export interface Workspace {
   channelDefs: WorkspaceChannel[];
   /** Valid locations of the workspace. */
   locations: Location[];
+  /** Fallback default dir for new projects (absolute or `~/...`), used by a channel with no `projectsDir`. */
+  projectsDir?: string;
 }
 
 /** Result of a scan: the loaded workspaces. */
@@ -47,6 +51,7 @@ const channelSchema = z.object({
   name: z.string().trim().min(1),
   mode: z.enum(["task", "chat"]).default("task"),
   locations: z.array(z.string()).optional(),
+  projectsDir: z.string().trim().min(1).optional(),
 });
 
 /** Schema of `workspace.yaml`: no `default` key; `locations` entries are validated one by one by the location registry. */
@@ -54,6 +59,7 @@ const workspaceSchema = z.object({
   description: z.string().trim().optional(),
   channels: z.array(channelSchema).default([]),
   locations: z.array(z.unknown()).default([]),
+  projectsDir: z.string().trim().min(1).optional(),
   /** Read by src/runtime/skills-config.ts: kept here so the key stays valid. */
   skills: z.object({ extra: z.unknown().optional() }).passthrough().optional(),
 });
@@ -119,7 +125,7 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
         log.warn({ name }, "skipped workspace: invalid workspace.yaml");
         continue;
       }
-      const { description = "", channels, locations } = parsed.data;
+      const { description = "", channels, locations, projectsDir } = parsed.data;
       const locs = loadLocations(locations, ws, forbidden, userHomes);
       const channelDefs = checkChannels(
         name,
@@ -133,6 +139,7 @@ export function loadWorkspaces(agentHome: string, userHome = homedir()): Workspa
         channels: channelDefs.map((c) => c.id),
         channelDefs,
         locations: locs,
+        projectsDir,
       });
     } catch (err) {
       log.warn({ name, err: errText(err) }, "skipped workspace: workspace.yaml unreadable");

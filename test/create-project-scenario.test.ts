@@ -108,7 +108,7 @@ test("path the owner never wrote or chose is refused and nothing is created", as
   expect(existsSync(path)).toBe(false);
 });
 
-test("the owner's message alone is not enough: create needs the ask_owner answer (CREATE_NEEDS_ANSWER)", async () => {
+test("the owner's message alone is enough for an owner-typed path (no ask_owner)", async () => {
   const env = makeEnv();
   const path = join(base, "msgonly");
   let reg: any;
@@ -122,8 +122,8 @@ test("the owner's message alone is not enough: create needs the ask_owner answer
   );
   await h.send(`make ${path}`);
   await until(() => reg !== undefined);
-  expect(reg).toMatchObject({ ok: false, code: "CREATE_NEEDS_ANSWER" });
-  expect(existsSync(path)).toBe(false);
+  expect(reg).toMatchObject({ ok: true, created: true });
+  expect(existsSync(path)).toBe(true);
 });
 
 test("one create per run", async () => {

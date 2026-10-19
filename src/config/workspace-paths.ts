@@ -1,5 +1,4 @@
-import { chmodSync, mkdirSync, realpathSync } from "node:fs";
-import { homedir } from "node:os";
+import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { publisherPluginNames } from "./skills-lock";
 
@@ -119,11 +118,4 @@ export function ensureParentDir(file: string): string {
 /** Restrict an existing file to owner read/write (0600). */
 export function restrictFile(file: string): void {
   chmodSync(file, 0o600);
-}
-
-/** Dir where the SDK writes its plan file in plan mode (only this folder is writable besides scratch). */
-export function claudePlansDir(): string {
-  const dir = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "plans");
-  mkdirSync(dir, { recursive: true });
-  return realpathSync(dir);
 }

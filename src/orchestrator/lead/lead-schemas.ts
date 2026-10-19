@@ -14,6 +14,7 @@ import {
   OPTIONS_MAX,
   PATH_MAX_CHARS,
   PROGRESS_NOTE_MAX_CHARS,
+  PROJECT_NAME_MAX_CHARS,
   QUESTION_MAX_CHARS,
   REASON_MAX_CHARS,
   REPORT_SUMMARY_MAX_CHARS,
@@ -110,13 +111,22 @@ export const REGISTER_LOCATION_SHAPE = {
     .string()
     .min(1)
     .max(PATH_MAX_CHARS)
-    .describe("Directory path exactly as the owner wrote it in the current message or answer"),
+    .optional()
+    .describe(
+      "Directory path exactly as the owner wrote it in the current message or answer. Omit it with create:true to use the channel's default projects dir",
+    ),
   create: z
     .boolean()
     .optional()
     .describe(
-      "true = make a NEW project there (mkdir, git init, README, first commit). Ask the owner first with ask_owner select; the answer is the approval",
+      "true = make a NEW project (mkdir, git init, README, first commit) at path, or under the channel's default projects dir when path is omitted",
     ),
+  name: z
+    .string()
+    .min(1)
+    .max(PROJECT_NAME_MAX_CHARS)
+    .optional()
+    .describe("Short kebab-case folder name for a create without path (default dir + name)"),
 };
 export const FORWARD_RESULT_SHAPE = { taskId: TASK_ID, mode: z.enum(["verbatim", "summary"]) };
 

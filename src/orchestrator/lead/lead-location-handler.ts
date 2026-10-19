@@ -2,15 +2,17 @@ import { homedir } from "node:os";
 import { readProcessEnv } from "../../config/process-env";
 import { ORCHESTRATE_ACTION_REGISTER_LOCATION } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { createProject, undoCreateProject } from "../../workspaces/create-project";
+import { defaultProjectPath, defaultProjectsDir } from "../../workspaces/default-project-path";
 import { inspectLocation, type LocationCandidate } from "../../workspaces/location-candidate";
 import { registerLocation } from "../../workspaces/register-location";
+import { loadWorkspaces } from "../../workspaces/workspace-registry";
 import { type Reply, refuse } from "../reply";
 import { type LeadPlace, type LeadToolContext, leadCall } from "./lead-call";
 import { REGISTER_LOCATION_MAX_PER_RUN } from "./lead-limits";
 import type { RegisterLocationInput } from "./lead-schemas";
 import { pathInText } from "./owner-path-match";
 
-/* Orchestrate register_location handler: owner-only, path must be in the owner's message or an ask_owner answer, one call per run, an owner click before
+/* Orchestrate register_location handler: owner-only, an owner-given path must be in the owner's message or an ask_owner answer (a create without path uses the channel's default projects dir), one call per run, an owner click before
    anything is written. It is config, not work: outside the per-goal envelope, asked every time, never a stored grant. */
 
 /** Most sensitive names listed in the confirm text, and the longest one shown. */
@@ -68,6 +70,12 @@ export function confirmText(
   return lines.join("\n");
 }
 
+/** The default projects dir configured for the channel (channel entry, else workspace), or undefined. Re-read per call. */
+function defaultDir(home: string, workspace: string, channelId: string): string | undefined {
+  const ws = loadWorkspaces(home).workspaces.find((w) => w.name === workspace);
+  return ws && defaultProjectsDir(ws, channelId);
+}
+
 /**
  * Orchestrate register_location: refuse unless this is an owner run and the path is in the owner's message (prompt-injection guard),
  * at most one call per run, inspect the path, ask the owner Yes/No, then write yaml + link the channel and refresh the
@@ -80,7 +88,9 @@ export const handleRegisterLocation = (
 ): Promise<Reply> =>
   leadCall(ctx, ORCHESTRATE_ACTION_REGISTER_LOCATION, input, async () => {
     const { place } = ctx;
-    const path = input.path.trim();
+    if (input.path === undefined && !input.create)
+      return { reply: refuse("PATH_REQUIRED", "register_location needs a path (or create:true).") };
+    let path = input.path?.trim() ?? "";
     if (place?.trigger !== "owner" || !place.ownerText)
       return {
         reply: refuse(
@@ -88,29 +98,38 @@ export const handleRegisterLocation = (
           "A location is registered only on the owner's own message.",
         ),
       };
-    // The owner's own words only: the message, or an answer to an ask_owner of this run (never worker text or memory).
-    const ownerWords = [place.ownerText, ...(ctx.run.ownerAnswers ?? [])];
-    if (!ownerWords.some((t) => pathInText(path, t, userHome)))
-      return {
-        reply: refuse(
-          "PATH_NOT_IN_MESSAGE",
-          "The path is not in the owner's message or answer: ask the owner to write the full path.",
-        ),
-      };
-    // A new project is written with no second Yes/No: the ask_owner answer that names the path IS the approval (the message alone is not).
-    if (input.create && !(ctx.run.ownerAnswers ?? []).some((t) => pathInText(path, t, userHome)))
-      return {
-        reply: refuse(
-          "CREATE_NEEDS_ANSWER",
-          "Call ask_owner kind select with 1-3 candidate paths first, then register_location create:true with the path the owner chose.",
-        ),
-      };
+    if (input.path !== undefined) {
+      // The owner's own words only: the message, or an answer to an ask_owner of this run (never worker text or memory).
+      const ownerWords = [place.ownerText, ...(ctx.run.ownerAnswers ?? [])];
+      if (!ownerWords.some((t) => pathInText(path, t, userHome)))
+        return {
+          reply: refuse(
+            "PATH_NOT_IN_MESSAGE",
+            "The path is not in the owner's message or answer: ask the owner to write the full path.",
+          ),
+        };
+    }
     if ((ctx.run.registered ?? 0) >= REGISTER_LOCATION_MAX_PER_RUN)
       return { reply: refuse("LIMIT", "One location per run: ask the owner again next message.") };
-    ctx.run.registered = (ctx.run.registered ?? 0) + 1; // counted on attempt: a refused path is not retried in a loop
+    if (input.path === undefined) {
+      // No path: default projects dir (owner-edited config, so no owner answer needed) + a slug name.
+      const dir = defaultDir(place.home, place.workspace, place.channelId);
+      if (!dir)
+        return {
+          reply: refuse(
+            "NO_DEFAULT_PROJECTS_DIR",
+            "No default projects dir is set for this channel: call ask_owner kind select with 2-3 candidate paths, then register_location create:true with the chosen path.",
+          ),
+        };
+      const made = defaultProjectPath(dir, userHome, input.name, place.ownerText);
+      if (!made.ok) return { reply: refuse(made.code, made.reason) };
+      path = made.path;
+    }
+    // Counted once a path is resolved: a refusal for a missing default dir leaves the ask_owner fallback its one try.
+    ctx.run.registered = (ctx.run.registered ?? 0) + 1;
     let created: Awaited<ReturnType<typeof createProject>> | undefined;
     if (input.create) {
-      // New project: the owner's answer to ask_owner already chose the path, so there is no second Yes/No.
+      // New project: the owner's words or the configured default dir chose the path, so there is no second Yes/No.
       created = await createProject(place.home, userHome, path, place.ownerText);
       if (!created.ok) return { reply: refuse(created.code, created.reason) };
     }
