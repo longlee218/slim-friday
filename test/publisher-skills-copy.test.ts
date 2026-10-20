@@ -94,7 +94,7 @@ test("safety: a symlinked skills dir loads nothing; a skill dir named like a pat
   p.cleanup();
 });
 
-test("caps: 100 entries per skill load, one more is skipped; a file over 1 MB or a skill over 1 MB is skipped", () => {
+test("caps: 100 entries per skill load, one more is skipped; a file over 2 MB or a skill over 4 MB is skipped", () => {
   const at = fixture((d) => {
     for (let i = 0; i < 98; i++) writeFileSync(join(d, `n${i}`), "x"); // dir + SKILL.md + 98 = 100
   });
@@ -103,10 +103,12 @@ test("caps: 100 entries per skill load, one more is skipped; a file over 1 MB or
   ok.cleanup();
   writeFileSync(join(at, "alpha", "n98"), "x");
   expect(buildSkillsPlugin(spec(at), tmp()).skills).toEqual([]);
-  const bigFile = fixture((d) => writeFileSync(join(d, "big.bin"), Buffer.alloc(1024 * 1024 + 1)));
+  const bigFile = fixture((d) =>
+    writeFileSync(join(d, "big.bin"), Buffer.alloc(2 * 1024 * 1024 + 1)),
+  );
   expect(buildSkillsPlugin(spec(bigFile), tmp()).skills).toEqual([]);
   const bigSkill = fixture((d) => {
-    for (const n of ["a", "b"]) writeFileSync(join(d, n), Buffer.alloc(600 * 1024));
+    for (const n of ["a", "b", "c"]) writeFileSync(join(d, n), Buffer.alloc(1536 * 1024)); // 4.5 MB, each file under 2 MB
   });
   expect(buildSkillsPlugin(spec(bigSkill), tmp()).skills).toEqual([]);
 });

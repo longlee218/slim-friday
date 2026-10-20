@@ -116,5 +116,7 @@ test("pluginNameOf: the pack name, except generic pack names take their owner (n
   expect(pluginNameOf("https://github.com/x/y.git")).toBe("y");
   expect(pluginNameOf("anthropics/skills")).toBe("anthropics-skills");
   expect(pluginNameOf("wshobson/agents.git")).toBe("wshobson-agents");
+  expect(pluginNameOf("addyosmani/agent-skills")).toBe("addyosmani-agent-skills");
+  expect(pluginNameOf("vercel-labs/agent-skills")).toBe("vercel-labs-agent-skills");
   expect(pluginNameOf("skills")).toBe("skills"); // no owner: nothing to add
 });

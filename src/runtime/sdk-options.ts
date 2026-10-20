@@ -1,6 +1,7 @@
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentConfig } from "../config/agent-config";
 import { type Route, resolveBudget } from "../config/model-routing";
+import { pinnedBinaryEnv } from "../config/pinned-binaries";
 import { readProcessEnv } from "../config/process-env";
 import { buildServers, mcpToolNamesFor } from "../mcp/mcp-servers";
 import type { RunRecorder } from "../observability/record-run";
@@ -95,7 +96,7 @@ export function buildSdkOptions(
   // This run's plugin dirs (and only them) become READABLE so skills can open their bundled files.
   // Skill plugin dirs may sit under the denied AGENT_HOME: the run's own ones stay usable (`allowInside`), even
   // for a role without a readPaths limit.
-  const guard =
+  const withSkills =
     input.guard && sk.dirs.length
       ? {
           ...input.guard,
@@ -104,6 +105,11 @@ export function buildSdkOptions(
           skillDirs: [...(input.guard.skillDirs ?? []), ...sk.dirs],
         }
       : input.guard;
+  // The role's pinned binaries (verified by sha256): env vars for the run, readable by its sandboxed shell. Only a run with
+  // its own scratch dir (a dispatched worker) gets them.
+  const bins = pinnedBinaryEnv(role.binaries, input.guard?.envelope?.goalDir);
+  const guard =
+    withSkills && bins.paths.length ? { ...withSkills, binaryPaths: bins.paths } : withSkills;
   const sandbox = workerSandbox(guard);
   const permissionMode = resolvePermissionMode(role, config, input.guard);
   const perms = guard
@@ -132,7 +138,12 @@ export function buildSdkOptions(
     model: config.model,
     resume: input.resume,
     ...toolOptions(role),
-    mcpServers: buildServers(role, { ...input.appCtx?.(), memory: input.memory }),
+    // A local external server (Chrome DevTools) keeps its state in the run's own scratch dir (a worker with an envelope).
+    mcpServers: buildServers(
+      role,
+      { ...input.appCtx?.(), memory: input.memory },
+      { scratchDir: input.guard?.envelope?.goalDir },
+    ),
     ...(permissionMode && { permissionMode }),
     // The SDK refuses bypassPermissions without this explicit opt-in (the guard hook stays the gate).
     ...(permissionMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),
@@ -172,10 +183,13 @@ export function buildSdkOptions(
       ...(input.memory?.threadId &&
         buildCompactHooks({ ...input.memory, threadId: input.memory.threadId })),
     },
-    env: sdkEnv(config, readProcessEnv(), {
-      worker: !!guard?.envelope,
-      subagentDepth: role.subagents.depth,
-    }),
+    env: {
+      ...sdkEnv(config, readProcessEnv(), {
+        worker: !!guard?.envelope,
+        subagentDepth: role.subagents.depth,
+      }),
+      ...bins.env,
+    },
     ...(input.lean && leanOptions(role, input.lean)),
   };
 }

@@ -19,10 +19,8 @@ export const DEVOPS_ROLE: RoleDefinition = {
     "worker-reporting",
     "verification-before-completion",
     "systematic-debugging",
-    "ci-cd-and-automation",
-    "observability-and-instrumentation",
-    "docker-build-strategies",
-    "docker-destructive-guardrails",
+    "devops-engineer",
+    "kubernetes-specialist",
   ],
   promptSections: () => devopsContract(),
 };

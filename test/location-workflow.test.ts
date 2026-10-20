@@ -11,6 +11,8 @@ const lock = readSkillsLock();
 const SP = (ROLES.developer?.skills ?? []).map(
   (k) => `${pluginNameOf(lock[k]?.source ?? "")}:${k}`,
 );
+/** Plugins of a dev run's listed skills: one per publisher plugin name (data-derived, no count hard-coded). */
+const DEV_PLUGINS = new Set(SP.map((s) => s.split(":")[0])).size;
 /** The skills of a dev run as sorted names: the installed ones plus the given workspace ones. */
 const withSet = (...ws: string[]) => [...SP, ...ws].sort();
 
@@ -76,7 +78,7 @@ test("location .claude/skills (clone and worktree) plus hooks never contribute t
 test("the dev run lists the workspace skills through an app-owned plugin copy, not the location", async () => {
   const { clone, exec, pluginFiles } = await runTask({}, ["deploy", "review"]);
   const pdir: string = exec.plugins.at(-1).path; // set plugin first, workspace plugin last
-  expect(exec.plugins).toHaveLength(3); // publisher pack, app skills, workspace
+  expect(exec.plugins).toHaveLength(DEV_PLUGINS + 1); // the role's plugins, then the workspace
   expect(exec.skills.sort()).toEqual(withSet("main:deploy", "main:review")); // workspace name = plugin name
   // Not the location's .claude: the plugin dir is the app's own copy.
   expect(pdir.startsWith(realpathSync(clone))).toBe(false);
@@ -98,7 +100,7 @@ test("the dev run lists the workspace skills through an app-owned plugin copy, n
 
 test("no workspace skills: only the role's set plugin", async () => {
   const { exec } = await runTask({}, [], undefined, ["tracked"]);
-  expect(exec.plugins).toHaveLength(2); // publisher pack + app skills
+  expect(exec.plugins).toHaveLength(DEV_PLUGINS); // the role's plugins only
   expect([...exec.skills].sort()).toEqual(withSet());
   expect(exec.settingSources).toEqual([]);
 });

@@ -34,8 +34,16 @@ const PLUGINS = new Set(PUBLISHER.map(([, e]) => e.source)).size;
 const devSources = new Set(
   PUBLISHER.filter(([n]) => ROLES.developer?.skills?.includes(n)).map(([, e]) => e.source),
 );
-/** Pack skills the developer deliberately does not list (owner D8: skill authoring and plugin diagnosis are no code work). */
-const DEV_DROPPED = new Set(["writing-skills", "diagnosing-superpowers"]);
+/**
+ * Pack skills the developer deliberately does not list: owner D8 (skill authoring and plugin diagnosis are no code work),
+ * and phase 2c (a pack skill another role owns: security review = hacker, accessibility audit = designer).
+ */
+const DEV_DROPPED = new Set([
+  "writing-skills",
+  "diagnosing-superpowers",
+  "security-and-hardening",
+  "wcag-audit-patterns",
+]);
 const DEV_INSTALLED = PUBLISHER.filter(
   ([n, e]) => devSources.has(e.source) && !DEV_DROPPED.has(n),
 ).map(([name, e]) => `${pluginNameOf(e.source)}:${name}`);

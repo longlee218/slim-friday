@@ -21,8 +21,14 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
   const devSources = new Set(
     locked.filter(([n]) => ROLES.developer?.skills?.includes(n)).map(([, e]) => e.source),
   );
-  // owner D8: the developer does not list skill authoring and plugin diagnosis
-  const dropped = new Set(["writing-skills", "diagnosing-superpowers"]);
+  // owner D8: the developer does not list skill authoring and plugin diagnosis; phase 2c: nor a pack skill another
+  // role owns (security review = hacker, accessibility audit = designer)
+  const dropped = new Set([
+    "writing-skills",
+    "diagnosing-superpowers",
+    "security-and-hardening",
+    "wcag-audit-patterns",
+  ]);
   const publisher = locked
     .filter(([n, e]) => devSources.has(e.source) && !dropped.has(n))
     .map(([n]) => n);

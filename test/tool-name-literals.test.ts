@@ -36,7 +36,9 @@ test("no tool-name literals in src/ outside the constants files", async () => {
     const lines = (await Bun.file(join(SRC, rel)).text()).split("\n");
     lines.forEach((line, i) => {
       if (isComment(line)) return;
-      const quoted = [...line.matchAll(/(["'`])((?:(?!\1).)*)\1/g)].map((m) => m[2]!);
+      // A DOM event name (`addEventListener("click", ...)` in the viewer's page scripts) is not a browser tool name.
+      const code = line.replace(/addEventListener\((["'`])[a-z]+\1/g, "addEventListener(");
+      const quoted = [...code.matchAll(/(["'`])((?:(?!\1).)*)\1/g)].map((m) => m[2]!);
       if (quoted.some((q) => NAMES.has(q)) || /["'`]mcp__/.test(line))
         hits.push(`src/${rel}:${i + 1}: ${line.trim()}`);
     });

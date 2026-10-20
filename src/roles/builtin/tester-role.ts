@@ -1,3 +1,4 @@
+import { BROWSER_TOOLS } from "../../mcp/browser/browser-tool-names";
 import { testerContract } from "../prompts/contracts/tester-contract";
 import type { RoleDefinition } from "../role-types";
 import {
@@ -12,7 +13,8 @@ const SUBAGENTS = { parallel: 2, depth: 1 };
 /** The tester: Sonnet, writes and runs tests in its location (sandboxed shell). */
 export const TESTER_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
-  mcpTools: [...SPECIALIST_BASE.mcpTools],
+  // + the Chrome DevTools browser tools (local MCP server, headless, a fresh profile in the run's scratch dir).
+  mcpTools: [...SPECIALIST_BASE.mcpTools, ...BROWSER_TOOLS],
   name: "tester",
   noSubagents: false, // owner D7: the tester may spawn (tools limited by `subagentToolsFor`)
   subagents: SUBAGENTS,
@@ -27,6 +29,8 @@ export const TESTER_ROLE: RoleDefinition = {
     "systematic-debugging",
     "requesting-code-review",
     "property-based-testing",
+    "test-master",
+    "chrome-devtools",
   ],
   promptSections: () =>
     testerContract({

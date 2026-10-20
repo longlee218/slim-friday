@@ -90,6 +90,11 @@ export interface RoleDefinition {
   basePrompt?: "custom";
   /** Built-in tools (and the guard's auto-allow list) derive from these. */
   capabilities: Capability[];
+  /**
+   * Pinned native binaries (names in `config/data/pinned-binaries.yaml`) the role's shell may run: a dispatched run gets
+   * each verified file's env var and the sandbox lets the shell read (not write) it. Omitted = none.
+   */
+  binaries?: string[];
   /** Prompt sections between the run contract start and the COMMON safety rules. */
   promptSections: (ctx: PromptCtx) => string[];
 }

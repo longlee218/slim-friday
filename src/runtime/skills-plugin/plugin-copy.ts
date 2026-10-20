@@ -42,8 +42,8 @@ const SKIP_DIRS = new Set(["node_modules", ".git"]);
  * inside a skill dir. The plugin root itself is app-written and holds only the manifest.
  */
 const SKIP_NAMES = new Set([".claude", ".claude-plugin", "hooks", "hooks.json", ".mcp.json"]);
-/** Largest single file copied; a bigger one fails its skill (it is skipped alone, with a warn). */
-const MAX_FILE_BYTES = 1024 * 1024;
+/** Largest single file copied (2 MB: a design skill's font index is 1.1 MB); a bigger one fails its skill (skipped alone, with a warn). */
+const MAX_FILE_BYTES = 2 * 1024 * 1024;
 /** A usable skill name (the frontmatter name is only trusted when it looks like this). */
 const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 

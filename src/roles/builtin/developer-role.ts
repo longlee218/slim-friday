@@ -81,6 +81,13 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "using-superpowers",
     "verification-before-completion",
     "writing-plans",
+    "frontend-ui-engineering",
+    "frontend-design",
+    "vercel-react-best-practices",
+    "supabase-postgres-best-practices",
+    "api-and-interface-design",
+    "performance-optimization",
+    "nodejs-backend-patterns",
   ], // explicit list: a new skill is added here (data)
   limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
   subagents: SUBAGENTS,

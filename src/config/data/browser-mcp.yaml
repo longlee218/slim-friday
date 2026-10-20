@@ -1,0 +1,9 @@
+# The tester's local browser MCP server (Google's Chrome DevTools MCP, npm), started by `npx` per run.
+# Pinned to an exact version, never `latest`: the newest release at least two weeks old when picked
+# (1.10.1, published 2026-09-23; picked 2026-10-20). A bump = a new review of its flags and tool list.
+package: chrome-devtools-mcp
+version: 1.10.1
+# Env of the server: no update check against the npm registry, no usage statistics to Google.
+env:
+  CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS: "1"
+  CHROME_DEVTOOLS_MCP_NO_USAGE_STATISTICS: "1"

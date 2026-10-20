@@ -65,8 +65,12 @@ export function workerSandbox(guard: GuardrailContext | undefined): Options["san
   const creds = homes
     .flatMap((h) => SECRET_HOME.map((n) => realOrSame(join(h, n))))
     .filter((c) => !grants.some((g) => isInside(g, c)));
-  // The run's own dirs under a denied root (scratch, skills) come back whole.
-  const inner = [...(guard.allowInside ?? []), ...(guard.skillDirs ?? [])].map(realOrSame);
+  // The run's own dirs under a denied root (scratch, skills) come back whole; its pinned binaries are readable (so runnable).
+  const inner = [
+    ...(guard.allowInside ?? []),
+    ...(guard.skillDirs ?? []),
+    ...(guard.binaryPaths ?? []),
+  ].map(realOrSame);
   const toolchain = homes
     .flatMap((h) => [...TOOLCHAIN_HOME, ...GIT_READ_HOME].map((n) => join(h, n)))
     .filter((p) => existsSync(p));

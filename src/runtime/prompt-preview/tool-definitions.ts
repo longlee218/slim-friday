@@ -3,6 +3,12 @@ import type { RunCtx } from "../../mcp/manifest-types";
 import { buildServers } from "../../mcp/mcp-servers";
 import type { RoleDefinition } from "../../roles/role-types";
 
+/** Scratch dir shown for a local external server in the preview (never created: the preview starts no server). */
+const PREVIEW_SCRATCH = "/<run-scratch>";
+
+/** An external server config (hosted http or a local stdio child): no tool definition to show offline. */
+const isExternal = (s: ServerView): boolean => s.type === "http" || s.type === "stdio";
+
 /** One in-process MCP tool as the model reads it: name, description and input JSON schema. */
 export interface ToolDef {
   server: string;
@@ -24,18 +30,21 @@ interface ServerView {
 /**
  * The MCP tool definitions of a role, as the runtime builds them (`buildServers` over `ctx`, filtered by
  * `role.mcpTools`). `ctx` decides which tools exist (a tool without its ctx part is skipped), so pass a full one to see
- * every tool of the role. External (http) servers expose no definition here: they come back in `external`.
+ * every tool of the role. External servers (http, stdio) expose no definition here: they come back in `external`.
  */
 export function toolDefinitions(
   role: RoleDefinition,
   ctx: RunCtx,
 ): { tools: ToolDef[]; external: string[] } {
-  const servers = buildServers(role, ctx) as Record<string, ServerView>;
+  const servers = buildServers(role, ctx, { scratchDir: PREVIEW_SCRATCH }) as Record<
+    string,
+    ServerView
+  >;
   const entries = Object.entries(servers);
   return {
-    external: entries.filter(([, s]) => s.type === "http").map(([name]) => name),
+    external: entries.filter(([, s]) => isExternal(s)).map(([name]) => name),
     tools: entries
-      .filter(([, s]) => s.type !== "http")
+      .filter(([, s]) => !isExternal(s))
       .flatMap(([server, s]) =>
         Object.entries(s.instance?._registeredTools ?? {}).map(([name, t]) => {
           const description = t.description ?? "";

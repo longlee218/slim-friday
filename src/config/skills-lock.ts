@@ -14,10 +14,11 @@ export interface SkillsLockEntry {
 }
 
 /**
- * Pack names too generic to name a plugin: several publishers use them (`anthropics/skills`, `docker/skills`,
- * `wshobson/agents`), so they would collide with each other and with ordinary words in src and workspace names.
+ * Pack names too generic to name a plugin: several publishers use them (`anthropics/skills`, `wshobson/agents`,
+ * `addyosmani/agent-skills`, `vercel-labs/agent-skills`, `supabase/agent-skills`), so they would collide with each
+ * other and with ordinary words in src and workspace names.
  */
-const GENERIC_REPO_NAMES = new Set(["skills", "agents"]);
+const GENERIC_REPO_NAMES = new Set(["skills", "agents", "agent-skills"]);
 
 /**
  * Plugin name of a lock entry (its skills load as `<plugin>:<skill>`): the last segment of its `source`

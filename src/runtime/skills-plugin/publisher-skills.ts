@@ -14,9 +14,12 @@ import { log, type PluginCaps } from "./plugin-copy";
  */
 export const PUBLISHER_SKILLS_DIR = join(import.meta.dir, "../../../.agents/skills");
 
-/** Caps of the publisher plugin: per skill 100 entries / 1 MB, whole plugin 300 entries / 5 MB (one file: 1 MB, see plugin-copy). */
+/**
+ * Caps of the publisher plugin: per skill 100 entries / 4 MB, whole plugin 300 entries / 5 MB (one file: 2 MB, see
+ * plugin-copy). 4 MB per skill: the owner's design skills carry data (CSV/JSON indexes up to 3.6 MB per skill).
+ */
 export const PUBLISHER_CAPS: PluginCaps = {
-  skill: { files: 100, bytes: 1024 * 1024 },
+  skill: { files: 100, bytes: 4 * 1024 * 1024 },
   total: { files: 300, bytes: 5 * 1024 * 1024 },
 };
 

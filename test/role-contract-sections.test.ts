@@ -91,9 +91,10 @@ test("numbers in the contracts match the role data", () => {
 });
 
 test("owner decisions: no-shell writers complete without committing; shell roster roles commit only locally", () => {
-  for (const name of ["designer", "humanizer-writer"])
-    expect(contract(name)).toContain(NO_SHELL_WRITER_FACT);
-  for (const name of ["tester", "devops"]) {
+  expect(contract("humanizer-writer")).toContain(NO_SHELL_WRITER_FACT);
+  // The designer has a shell since phase 2c (owner 2026-10-20): it commits like tester and devops, never "no shell".
+  expect(contract("designer")).not.toContain(NO_SHELL_WRITER_FACT);
+  for (const name of ["tester", "devops", "designer"]) {
     expect(contract(name)).toContain("only when the brief asks, a local commit");
     expect(contract(name)).toContain(
       "Push, merge, PR and deleting existing files are the developer's",

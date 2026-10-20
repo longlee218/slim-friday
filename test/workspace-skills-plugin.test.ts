@@ -125,7 +125,7 @@ test("one bad skill is skipped alone with a warn naming it; the good ones stay",
   skill(sd, "big");
   for (const n of ["a", "b", "c"]) writeFileSync(join(sd, "big", n), Buffer.alloc(900 * 1024)); // 2.7 MB: over 2 MB per skill
   skill(sd, "fat");
-  writeFileSync(join(sd, "fat", "blob"), Buffer.alloc(1024 * 1024 + 1)); // one file over 1 MB
+  writeFileSync(join(sd, "fat", "blob"), Buffer.alloc(2 * 1024 * 1024 + 1)); // one file over 2 MB
   skill(sd, "many");
   for (let i = 0; i < 101; i++) writeFileSync(join(sd, "many", `f${i}`), "x"); // over 100 entries
   skill(sd, "deep");

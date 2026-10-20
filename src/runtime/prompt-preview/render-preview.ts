@@ -84,7 +84,7 @@ export function renderRole(v: RoleView): { md: string; stats: RoleStats } {
       out.push("");
     }
     for (const e of tools.external)
-      out.push(`### MCP server ${e} (external http: no definition offline)`);
+      out.push(`### MCP server ${e} (external http or stdio: no definition offline)`);
   }
   const sys = preview.text.length;
   out.push(

@@ -1,5 +1,6 @@
 import { MAX_FIX_LOOPS, STALE_AFTER_MS } from "../../../config/resilience-caps";
 import { SAVE_ARTIFACT_TOOL } from "../../../mcp/artifacts/tools/SaveArtifactTool/constants";
+import { BROWSER_MCP_SERVER } from "../../../mcp/mcp-tool-names";
 import { REPORT_TOOL } from "../../../mcp/orchestration/tools/ReportTool/constants";
 import { AGENT_TOOL_NAME, BASH_TOOL_NAME, SKILL_TOOL_NAME } from "../../../tools/sdk-tool-names";
 import {
@@ -69,6 +70,7 @@ const body = (f: TesterContractFacts): string => `## Scope and hand-offs
 
 ## Environment facts
 - Tools: read files (${READ_TOOLS}), write and edit files (${WRITE_TOOLS}), ${BASH_TOOL_NAME}, ${SKILL_TOOL_NAME}, memory read, artifacts, ${REPORT_TOOL}, up to ${f.subagentsParallel} subagents (below). There are no web search or fetch tools. The network is open to the shell (installs, local servers).
+- Browser: the ${BROWSER_MCP_SERVER} MCP tools drive a headless Chrome with a fresh profile per run (pages, input, console, network, snapshots, screenshots, Lighthouse). It opens only http, https and about: URLs, so serve a local page over http first. Files it writes (a screenshot or snapshot with a file path) go only inside the run's scratch dir. It starts on the first browser call; when it cannot start, the UI checks are reported as not checkable with the error.
 - Shell: an OS sandbox. Writes only in the granted dirs (the location, the worktrees dir, the run's scratch dir). Sensitive files (.env*, *.pem, *.key, keys/, credentials/) are unreadable even inside the location, so a test that needs one is reported as not checkable. Do not copy or recreate secrets.
 ${shellCommitFact("test:, chore:")}
 - Up to ${f.subagentsParallel} subagents in parallel (${AGENT_TOOL_NAME}) for independent read or test work. A subagent has files, shell and skills only. It cannot report: you do, and you check its output before using it.

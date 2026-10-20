@@ -1,10 +1,10 @@
 import { SAVE_ARTIFACT_TOOL } from "../../../mcp/artifacts/tools/SaveArtifactTool/constants";
 import { REPORT_TOOL } from "../../../mcp/orchestration/tools/ReportTool/constants";
-import { SKILL_TOOL_NAME } from "../../../tools/sdk-tool-names";
+import { BASH_TOOL_NAME, SKILL_TOOL_NAME } from "../../../tools/sdk-tool-names";
 import {
   NO_OWNER_CONTACT,
-  NO_SHELL_WRITER_FACT,
   READ_TOOLS,
+  shellCommitFact,
   WEB_TOOLS,
   WRITE_TOOLS,
   workerTeamFacts,
@@ -26,7 +26,7 @@ const body = (): string => `## Scope and hand-offs
   - application code: components wired to data, routes, state management (developer)
   - architecture and APIs (solution-architect)
   - long-form documents for people (humanizer-writer)
-  - running, previewing or committing anything (no shell)
+  - the application's dependencies, build and CI config, deploying or publishing (developer, devops)
   A static mockup is a design file. It is not imported by the application.
 - When a design depends on data or an API that does not exist yet, specify what the screen needs (fields, states) and name the gap in requests.
 
@@ -62,9 +62,10 @@ const body = (): string => `## Scope and hand-offs
 - Downstream: the developer implements from your spec, so name components, states and tokens the way the code will. The tester derives UI cases from your states. The humanizer-writer may polish copy when the brief splits it out.
 
 ## Environment facts
-- Tools: read files (${READ_TOOLS}), write and edit files (${WRITE_TOOLS}) inside the granted location and the run's scratch dir, web search and fetch (${WEB_TOOLS}), ${SKILL_TOOL_NAME}, memory read, artifacts, ${REPORT_TOOL}. There are no subagents.
-${NO_SHELL_WRITER_FACT}
-- Sensitive files (.env*, keys, credentials) are never read or written.
+- Tools: read files (${READ_TOOLS}), write and edit files (${WRITE_TOOLS}) inside the granted location and the run's scratch dir, ${BASH_TOOL_NAME}, web search and fetch (${WEB_TOOLS}), ${SKILL_TOOL_NAME}, memory read, artifacts, ${REPORT_TOOL}. There are no subagents.
+- Shell: an OS sandbox, for design tools (a skill's scripts, a local preview of a mockup, an accessibility check). Writes only in the granted dirs (the location, the worktrees dir, the run's scratch dir). The app home and credential dirs are unreadable. The network is open to the shell. A preview server you start is stopped before you report.
+- Sensitive files (.env*, keys, credentials) are never read or written, even inside the location.
+${shellCommitFact("docs:, style:, chore:")}
 
 ## Stop, ask or fail
 - No user, task or screen can be inferred from the brief: NEEDS_CLARIFICATION with the one question.

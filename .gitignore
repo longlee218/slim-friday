@@ -7,3 +7,6 @@ node_modules
 # Claude Code local config (rules, skills, agents, settings): not part of the repo
 .claude/
 /plans/*/skill-workspace/
+
+# Pinned native binaries (too big for git; checked by sha256 from src/config/data/pinned-binaries.yaml)
+/pinned-bin/

@@ -61,11 +61,11 @@ export const workerTeamFacts = (ownerContact: string): string => `## How the tea
 - Each run has a cost and a turn limit that you cannot see. At a limit the run is stopped and reports nothing, and the item fails. Do what the brief needs most first, report progress at milestones, and report as soon as the done-when is met.
 - Evidence before claims: say what you ran or read, and what it showed. A check you did not run is reported as not run.`;
 
-/** Write roles without a shell (designer, humanizer-writer): files stay uncommitted and that is a completed result. */
+/** Write roles without a shell (humanizer-writer): files stay uncommitted and that is a completed result. */
 export const NO_SHELL_WRITER_FACT =
   '- No shell: you cannot run, build, preview, install, test or commit. Files you write stay uncommitted in the working tree. List each one in the result as { title, path }. Committing, and any step that needs a command, belongs to a member with a shell (developer). A brief that asks you to commit is answered with the files written and "not committed" in the summary, status COMPLETED. It is not a blocker.';
 
-/** Roster roles with a shell (tester, devops): a local commit only when the brief asks; delivery stays the developer's. */
+/** Roster roles with a shell and write (tester, devops, designer): a local commit only when the brief asks; delivery stays the developer's. */
 export const shellCommitFact = (prefixes: string): string =>
   `- Commit: only when the brief asks, a local commit of only the files of this item, one short conventional line (${prefixes}), never any AI or model attribution, never a secret or key file. Push, merge, PR and deleting existing files are the developer's (checked tools, owner approval). The shell does not block them, so do not run them.`;
 

@@ -212,6 +212,8 @@ All in `src/orchestrator/lead/lead-limits.ts` (zod shapes and the relay enforce 
 - `BRIEF_MAX_CHARS` is in [Plans](#plans), `MAX_ASSIGNMENTS` in [Lead](#lead).
 - Other tool limits (informational, in each tool's `constants.ts`): `Orchestrate set_title` 2 calls per run, title 60 chars; `MemorySave` 20 calls per run, note 400 chars; effect tools: `DeletePaths` path 1000 / reason 300, `CreatePullRequest` title 200 / body 8000; `WriteSpaceFile` content 6000, diff 16000, 10 backups; `DEFAULT_BOUNDS` of the envelope 200 items and 50 GB (`policy/risk-types.ts`).
 - Other informational limits: steers per run pending 5 / holds 2 / late resumes 1 (`runtime/run-input-channel.ts`); delete-check tree scan 100,000 entries (`policy/tree-totals.ts`); SDK compaction window 1,000,000 tokens at 75% (`runtime/sdk-env.ts`).
+- Skill plugin caps (informational): publisher skills 100 entries / 4 MB per skill, one file 2 MB, 300 entries / 5 MB per plugin (`runtime/skills-plugin/publisher-skills.ts`, `plugin-copy.ts`; raised on 2026-10-20 for two data-heavy design skills, 3.6 MB and a 1.1 MB file); workspace skills 100 entries / 2 MB per skill, 300 / 5 MB per dir. Over a cap the skill is skipped alone (`skill skipped` warn).
+- Pinned versions (informational, data in `src/config/data/`): the tester's browser MCP server `browser-mcp.yaml` (exact npm version, a bump needs a review); native binaries a role's shell may run `pinned-binaries.yaml` (sha256 and size checked before every run; a missing or mismatching file is not offered).
 - Memory caps (informational): root 5000, space 5000, channel 3000, location 8000, all locations 16000 chars (`memory/location-memory.ts`); persona 8000 chars (`memory/persona.ts`).
 
 ## Artifacts

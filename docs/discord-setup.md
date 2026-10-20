@@ -254,6 +254,28 @@ Phases 1-6a of [plans/261018-1145-lead-team-orchestration-hardening](../plans/26
 - [ ] **Prompt inspection.** Run `bun run prompt:show lead --tools` (offline) and one live run with `FRIDAY_DUMP_PROMPTS=1`.
   Pass: layers, skills and tool schemas print; dumps are 0600 with secrets masked; the newest 50 are kept. See [Prompt inspection](#prompt-inspection-developer-debug).
 
+## Skill packs (phase 2c, owner live checklist)
+
+Phase 2c (2026-10-20) is unit-tested only; nothing below was verified live.
+
+Install the pinned Impeccable engine (not in git: 16 MB; the designer gets it only when size and sha256 match `src/config/data/pinned-binaries.yaml`):
+```
+mkdir -p pinned-bin/impeccable/0.1.16/darwin-arm64 && cd pinned-bin/impeccable/0.1.16/darwin-arm64
+curl -fsSLo impeccable https://github.com/pbakaus/impeccable/releases/download/engine-v0.1.16/impeccable-darwin-arm64
+shasum -a 256 impeccable   # must print 5c00c3130b961f3aa1066f04ed0e1f58e87808ad153efa00f1c44184800084f2
+chmod 0555 impeccable
+```
+`bun test test/pinned-binaries.test.ts` fails when an installed file differs. Another platform (e.g. linux-x64) needs its own reviewed entry in the data file first.
+
+Checks (one designer, one developer, one devops and one tester item):
+- Designer, Impeccable: a UI critique or polish brief. The run's `Bash` calls the skill's `scripts/impeccable` launcher from the skill's base directory and it runs the pinned engine (no download, no `~/.impeccable` write). Watch for a sandbox denial on reading or running `pinned-bin/...` (the path is in `allowRead`; exec under Seatbelt not probed).
+- Designer, ui-ux-pro-max: its SKILL.md names `python "${CLAUDE_PLUGIN_ROOT}/.claude/skills/ui-ux-pro-max/scripts/search.py"`. The CLI replaces `${CLAUDE_PLUGIN_ROOT}` with the run's plugin root, but Friday's copy sits at `<plugin>/skills/ui-ux-pro-max/` and this host has `python3`, no `python`. Check the run finds the script from the Skill output's "Base directory for this skill" and calls `python3`; note how many failed tries it took.
+- Designer: TEAM.md now lists it among members that can change files and commit (shell + write); it commits only when the brief asks.
+- Developer: a React or API brief loads the matching new skill (frontend-ui-engineering, frontend-design, vercel-react-best-practices, supabase-postgres-best-practices, api-and-interface-design, performance-optimization, nodejs-backend-patterns). Listing: 21 skills, about 1400 tokens.
+- DevOps: a Kubernetes manifest brief loads devops-engineer and kubernetes-specialist; no cluster access (credential dirs are unreadable).
+- Tester, browser: serve a local page over http in the location (`bunx serve` or the project's dev server), then ask for a UI check. Expect: `npx` starts the pinned `chrome-devtools-mcp` (first start downloads it to the npm cache), headless Chrome with a profile in the run's scratch dir, a screenshot and the console read. A `file://` URL is refused by the guard. Unverified: `npx` on the bot's PATH, Chrome found, server start time within the CLI's MCP connect timeout, and whether the CLI keeps the server outside the Bash sandbox (source reading says it does).
+- Tester: test-master and chrome-devtools appear in its skill listing.
+
 ## Add a workspace: `/init-workspace <name>`
 Type in `#ops-control` (no mention needed).
 - Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops` or a publisher skill name (reserved).

@@ -6,24 +6,25 @@ import {
   SPECIALIST_MAX_TURNS,
 } from "./specialist-contract";
 
-/** The designer: Sonnet, writes design files in its location. */
+/** The designer: Sonnet, writes design files in its location; a sandboxed shell runs its design tools (owner 2026-10-20). */
 export const DESIGNER_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
   mcpTools: [...SPECIALIST_BASE.mcpTools],
   name: "designer",
   basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
-    "Design of a user interface or experience: screens, layout, components, copy, states and accessibility; writes design notes or UI files in the location.",
+    "Design of a user interface or experience: screens, layout, components, copy, states and accessibility; writes design notes or static mockups in the location and runs design tools (sandboxed shell).",
   sideEffects: "location",
-  capabilities: ["read", "write", "web", "skills"],
+  capabilities: ["read", "write", "shell", "web", "skills"],
   skills: [
     "worker-reporting",
     "brainstorming",
     "verification-before-completion",
     "docs-seeker",
-    "frontend-ui-engineering",
-    "frontend-design",
+    "ui-ux-pro-max",
     "wcag-audit-patterns",
+    "impeccable",
   ],
+  binaries: ["impeccable-engine"], // a design skill's engine, pinned by sha256 (config/data/pinned-binaries.yaml)
   promptSections: () => designerContract(),
 };

@@ -1,4 +1,8 @@
-import type { McpHttpServerConfig, SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  McpHttpServerConfig,
+  McpStdioServerConfig,
+  SdkMcpToolDefinition,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { ArtifactToolCtx } from "../artifacts/artifact-access";
 import type { DiscordAdminContext } from "../discord-setup/discord-admin-context";
 import type { MemoryToolContext } from "../memory/memory-tool-context";
@@ -58,15 +62,22 @@ export interface McpServerManifest {
   prepare?(ctx: RunCtx): RunCtx;
 }
 
+/** What an external server's config may use from the run (each part optional: a server needing one is skipped without it). */
+export interface ExternalRunInfo {
+  /** The run's own scratch dir (real path, writable by the run): a local server keeps its state here. */
+  scratchDir?: string;
+}
+
 /**
- * One external (out-of-process) MCP server: a name, the tools a role may be given, and its SDK config. The server may
- * expose more tools; the guard allows only the ones a role lists in `mcpTools` (all of them from `tools`).
+ * One external (out-of-process) MCP server: a name, the tools a role may be given, and its SDK config (hosted over
+ * http, or a local stdio child of the CLI). The server may expose more tools; the guard allows only the ones a role
+ * lists in `mcpTools` (all of them from `tools`).
  */
 export interface ExternalMcpServer {
   /** Server name (the `mcp__<name>__` prefix). */
   name: string;
   /** Bare names of the tools a role may list. */
   tools: string[];
-  /** SDK connection config, or undefined when the server is not configured (then it is never built). */
-  config(): McpHttpServerConfig | undefined;
+  /** SDK connection config, or undefined when the server is not configured for this run (then it is never built). */
+  config(run: ExternalRunInfo): McpHttpServerConfig | McpStdioServerConfig | undefined;
 }
