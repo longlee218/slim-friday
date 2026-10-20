@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { CHAIN_CAP, PENDING_PLAN_MAX_AGE_MS } from "../src/config/lead-caps";
+import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { goalCaps, openGoalIdOf } from "../src/orchestrator/goal/effect-port-queries";
@@ -19,6 +20,7 @@ import { appendEvent } from "../src/storage/thread-event-store";
 import { getPlan, hasPendingPlan, planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { FakePort } from "./lead-fake-port";
+import { setStoredBudget } from "./waves-fixture";
 
 /* Review fixes of phase L2b over a real in-memory db: chain cap, rendering, pending plans, atomic approve / revise /
    reject, dead dependencies, revision of the acceptance criteria. */
@@ -28,7 +30,6 @@ afterEach(() => db?.close());
 const ENV = {
   workerRoles: dispatchableWorkers().map((r) => r.name),
   locations: ["repo"],
-  goalBudgetUsd: 6,
 };
 const ENVELOPE = {
   locations: ["repo"],
@@ -52,11 +53,11 @@ function setup(raw: string[] = ["a", "b", "c"]) {
     items: raw.map((k) => item(k)),
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
+  setStoredBudget(db, r.plan.id, 1, PLAN_GOAL_BUDGET_MAX_USD); // at the ceiling: an added item applies at once
   return { goalId: w.goalId, plan: r.plan };
 }
 const finishPlanner = (goalId: string) => {

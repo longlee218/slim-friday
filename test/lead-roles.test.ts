@@ -46,22 +46,29 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, o
     model: HAIKU_MODEL,
     sideEffects: "none",
     dispatchable: true,
-    skills: [
-      "worker-reporting",
-      "scout",
-      "docs-seeker",
-      "deep-research",
-      "research-online",
-      "firecrawl-deep-research",
-      "firecrawl-research-papers",
-      "firecrawl-market-research",
-    ],
+    skills: ["worker-reporting", "scout", "docs-seeker"],
   });
   expect(scout.capabilities).toEqual(expect.arrayContaining(["read", "web"]));
   expect(scout.capabilities).not.toContain("write");
   expect(scout.capabilities).toContain("shell"); // read-only in practice: the sandbox grants it no write dir
   for (const n of scout.skills ?? [])
     expect(existsSync(join(PUBLISHER_SKILLS_DIR, n, "SKILL.md"))).toBe(true);
+});
+
+test("researcher role is data: Sonnet, read + web + read-only shell, no side effects, research skills", () => {
+  const r = ROLES.researcher!;
+  expect(r).toMatchObject({
+    model: SONNET_MODEL,
+    sideEffects: "none",
+    dispatchable: true,
+    noSubagents: true,
+  });
+  expect(r.capabilities).toEqual(["read", "web", "shell", "skills"]);
+  expect(r.skills).toEqual(expect.arrayContaining(["worker-reporting", "deep-research"]));
+  expect(r.skills).not.toContain("scout");
+  for (const n of r.skills ?? [])
+    expect(existsSync(join(PUBLISHER_SKILLS_DIR, n, "SKILL.md"))).toBe(true);
+  expect(countsTowardCap(r)).toBe(false); // read-only: not a writer slot
 });
 
 test("dispatchable workers come from role data: developer, scout and the roster", () => {
@@ -75,19 +82,22 @@ test("dispatchable workers come from role data: developer, scout and the roster"
     "devops",
     "hacker",
     "humanizer-writer",
+    "researcher",
     "scout",
     "solution-architect",
     "tester",
   ]);
 });
 
-test("app skills of scout have no sub-agent or missing-CLI instructions", async () => {
+test("app skills of scout name no missing CLI or dev-only tool", async () => {
   // App skills only (friday source): publisher skills load unmodified; the scout contract covers their tool gaps.
+  // Subagents are allowed only as the conditional branch "the run has an Agent tool" (owner decision 2026-10-20).
   const lock = readSkillsLock();
   for (const n of (scout.skills ?? []).filter((s) => lock[s]?.source.endsWith("/friday"))) {
     const text = await Bun.file(join(PUBLISHER_SKILLS_DIR, n, "SKILL.md")).text();
     expect(text.split("\n").length).toBeLessThan(60);
-    expect(text).not.toMatch(/subagent|Explore|Gemini|node scripts|\.claude\//i);
+    expect(text).not.toMatch(/Explore|Gemini|OpenCode|TaskCreate|node scripts|\.claude\//i);
+    if (/subagent/i.test(text)) expect(text).toContain("No Agent tool");
   }
 });
 

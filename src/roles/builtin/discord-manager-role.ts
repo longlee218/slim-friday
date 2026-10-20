@@ -2,7 +2,7 @@ import { HAIKU_MODEL } from "../../config/model-ids";
 import { CREATE_SPACE_OR_CHANNEL_TOOL } from "../../mcp/discord-admin/tools/CreateSpaceOrChannelTool/constants";
 import { LIST_SPACES_TOOL } from "../../mcp/discord-admin/tools/ListSpacesTool/constants";
 import { WRITE_SPACE_FILE_TOOL } from "../../mcp/discord-admin/tools/WriteSpaceFileTool/constants";
-import { ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
+import { discordManagerContract } from "../prompts/contracts/discord-manager-contract";
 import type { RoleDefinition } from "../role-types";
 
 /** Owner questions per run (AskUserQuestion): enough to pick a kind, a name and a confirmation. */
@@ -11,12 +11,6 @@ const MAX_ASK = 4;
 const BUDGET_USD = 0.5;
 /** Agent loops (SDK turns) one run may take. */
 const MAX_TURNS = 30;
-
-/** Run contract (facts): what the role does and the limits of its three tools (the how-to is its skill). */
-const CONTRACT = `Role: server manager, in the owner's private control channel. Does: creates Discord spaces (a private category with channels) and edits a space's or channel's persona files, through the discord-admin tools only (no shell, no web, no file write).
-- Create tools only create: nothing is deleted, renamed or re-permissioned; an existing name is refused.
-- Each write shows the owner a diff and waits for Yes or No; no answer or No means nothing was written. Say a file changed only when the tool reports it written.
-- Questions to the owner: at most ${MAX_ASK} per run (${ASK_USER_QUESTION_TOOL_NAME}; enforced).`;
 
 /** The server manager: a control-channel role (no workspace) that creates spaces/channels and edits persona files through guarded tools. */
 export const DISCORD_MANAGER_ROLE: RoleDefinition = {
@@ -35,5 +29,5 @@ export const DISCORD_MANAGER_ROLE: RoleDefinition = {
   budgetUsd: BUDGET_USD,
   sideEffects: "external",
   capabilities: ["read", "skills", "ask"],
-  promptSections: () => [CONTRACT],
+  promptSections: () => discordManagerContract({ maxAsk: MAX_ASK }),
 };

@@ -51,7 +51,6 @@ function world(
     items: o.items ?? [item("a"), item("b", { dependsOn: ["a"] })],
     acceptanceCriteria: ["works", "tests pass"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });

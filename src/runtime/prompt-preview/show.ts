@@ -14,6 +14,7 @@ export const PREVIEW_ROLES = [
   "lead",
   "planner",
   "scout",
+  "researcher",
   "developer",
   "tester",
   "devops",

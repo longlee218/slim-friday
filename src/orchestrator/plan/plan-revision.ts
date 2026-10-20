@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { PLAN_MAX_ITEMS } from "../../config/lead-caps";
 import { childrenOf } from "../../storage/owned-item-store";
 import { casPlanStatus, insertPlanVersion, type WorkPlanRow } from "../../storage/work-plan-store";
+import { planBudgetUsd } from "../budget/plan-budget";
 import { spentOf } from "../budget/task-budget";
 import { envelopeGrew } from "./envelope-diff";
 import { type Applied, abortRuns } from "./materialize-items";
@@ -51,7 +52,6 @@ export interface Edit {
     deferredScope?: boolean | undefined;
   }[];
   envelope?: EnvelopeInput | undefined;
-  budgetUsd?: number | undefined;
   effects?: DeliveryEffect[] | undefined;
 }
 
@@ -107,13 +107,20 @@ export function revisePlan(
     items = items.filter((i) => rows.get(i.key)?.status !== "completed");
   const pruned = [...left].filter((k) => !items.some((i) => i.key === k));
   const oldEnv = baseDoc.envelope;
+  const acceptanceCriteria = a.edit.acceptanceCriteria ?? baseDoc.acceptanceCriteria;
+  const spentUsd = spentOf(db, base.goalId);
+  // The budget is recomputed by code on every revision. An approved budget is never lowered: completed items that left the
+  // version and cancelled items may already have spent part of it. Activating deferred items keeps it (they were counted);
+  // added items raise it, and a raise waits for the owner (`envelopeGrew`).
+  const computed = planBudgetUsd({ items, verifies: acceptanceCriteria.length > 0, spentUsd });
+  const budgetUsd = base.status === "approved" ? Math.max(computed, oldEnv.budgetUsd) : computed;
   const doc: PlanDoc = {
     items,
-    acceptanceCriteria: a.edit.acceptanceCriteria ?? baseDoc.acceptanceCriteria,
+    acceptanceCriteria,
     envelope: buildEnvelope(
       a.edit.envelope ?? oldEnv,
       items,
-      a.edit.budgetUsd ?? oldEnv.budgetUsd,
+      budgetUsd,
       a.edit.effects ?? oldEnv.effects,
     ),
   };
@@ -126,13 +133,11 @@ export function revisePlan(
     deadKeys: deadKeys(db, base.goalId),
     releasedKeys: releasedKeys(db, base.goalId),
     revisions: base.version,
-    spentUsd: spentOf(db, base.goalId),
+    spentUsd,
   });
   if (errors.length) return invalid(errors);
-  // The owner approves again when the envelope grew or the budget changed (a rolling wave applies at once only when neither did).
-  const grew =
-    base.status === "approved" &&
-    (envelopeGrew(oldEnv, doc.envelope) || doc.envelope.budgetUsd !== oldEnv.budgetUsd);
+  // The owner approves again when the envelope grew or the computed budget rose (a rolling wave applies at once only when neither did).
+  const grew = base.status === "approved" && envelopeGrew(oldEnv, doc.envelope);
   // One transaction: the new version, the supersede and (when it applies now) the approval land together or not at all.
   let out: { row: WorkPlanRow; done?: Applied & { abort: string[] }; diff?: RevisionDiff };
   try {

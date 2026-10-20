@@ -1,13 +1,12 @@
-import { MAX_WAVES, PLAN_MAX_CRITERIA, PLAN_MAX_ITEMS } from "../../config/lead-caps";
 import { SONNET_MODEL } from "../../config/model-ids";
+import { ARTIFACT_TOOLS } from "../../mcp/artifacts/artifact-tool-names";
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
 import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants";
 import { PLAN_TOOL } from "../../mcp/plan/tools/PlanTool/constants";
+import { plannerContract } from "../prompts/contracts/planner-contract";
 import type { RoleDefinition } from "../role-types";
-import { ARTIFACT_TOOLS } from "./artifact-tools";
-import { PLANNER_METHOD_LINE } from "./worker-method";
 
 /** Owner questions per run: the planner never asks; when it cannot plan it reports NEEDS_CLARIFICATION and the lead asks. */
 const MAX_ASK = 0;
@@ -15,14 +14,6 @@ const MAX_ASK = 0;
 const BUDGET_USD = 2.0;
 /** Agent loops (SDK turns) one planner run may take. */
 const MAX_TURNS = 40;
-
-/** Run contract (facts): plan only, through the plan tools; the lead and the owner decide the rest. */
-const CONTRACT = `Role: planner, a read-only worker dispatched by the lead. It turns the lead's request into one plan the owner approves once. It writes no code and has no owner contact.
-${PLANNER_METHOD_LINE}
-Caps (code): ${PLAN_MAX_ITEMS} items per plan version; 1-${PLAN_MAX_CRITERIA} acceptance criteria; ${MAX_WAVES} planner runs per goal.
-Running items change only through a plan revision.
-If the request is too unclear to plan, finish with NEEDS_CLARIFICATION and the one question that unblocks you.
-Finish once with the report's result: COMPLETED with the plan id and version (the lead then asks the owner to approve), or BLOCKED, NEEDS_CLARIFICATION or FAILED. The blocker action is refused for you.`;
 
 /**
  * The planner: Sonnet, read-only worker. Reached only through the lead's `Orchestrate request_plan` (`kind: "worker"`, not
@@ -53,5 +44,5 @@ export const PLANNER_ROLE: RoleDefinition = {
   permissionMode: "auto",
   model: SONNET_MODEL,
   budgetUsd: BUDGET_USD,
-  promptSections: () => [CONTRACT],
+  promptSections: () => plannerContract(),
 };

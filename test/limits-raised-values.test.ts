@@ -117,7 +117,6 @@ test(`a ${PLAN_MAX_ITEMS}-item plan with ${BRIEF_MAX_CHARS}-char briefs validate
     validatePlan(doc, {
       workerRoles: ["scout"],
       locations: [],
-      goalBudgetUsd: TASK_BUDGET_USD,
       existingKeys: [],
       revisions: 0,
     }),

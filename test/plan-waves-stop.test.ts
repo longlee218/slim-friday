@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { MAX_WAVES, PENDING_PLAN_MAX_AGE_MS, PLAN_MAX_ITEMS } from "../src/config/lead-caps";
+import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
@@ -122,8 +123,8 @@ test("owner rejects the wave plan: stalled, no new planner", () => {
   const grown = revisePlan(db, {
     planId,
     baseVersion: 1,
-    edit: edit({ budgetUsd: 6 }),
-    reason: "more money",
+    edit: edit({ effects: ["GitPush"] }),
+    reason: "push it",
     env: ENV,
   });
   expect(grown).toMatchObject({ ok: true, status: "valid" });
@@ -140,7 +141,7 @@ test("an unanswered wave plan older than PENDING_PLAN_MAX_AGE_MS is stalled: no 
   revisePlan(db, {
     planId,
     baseVersion: 1,
-    edit: edit({ budgetUsd: 6 }),
+    edit: edit({ effects: ["GitPush"] }),
     reason: "more",
     env: ENV,
   });
@@ -205,33 +206,34 @@ test("a NEW goal in the thread cancels the old idle wave goal: its waves never r
   expect(wavePendingThreads(db)).toEqual([]);
 });
 
-test("plan budget must be above what the goal already spent: equal and below are refused, above passes", () => {
-  const plan = (goalId: string, budgetUsd: number) =>
-    createPlan(db, {
-      goalId,
+test("computed plan budget vs the goal's spend: room is added above the spend, at the ceiling the plan is refused", () => {
+  const plan = (spentUsd: number) => {
+    const g = newGoal();
+    db = g.db;
+    if (spentUsd) spend(db, byKey(db, g.goalId, "planner").id, spentUsd);
+    return createPlan(db, {
+      goalId: g.goalId,
       objective: "o",
-      items: [item("a")],
+      items: [item("a")], // one developer run, no criteria: ceil(8 * 1.25) = $10
       acceptanceCriteria: [],
       envelope: {
         locations: ["repo"],
         riskClasses: ["R1"],
         bounds: { maxItems: PLAN_MAX_ITEMS, maxGb: 1 },
       },
-      budgetUsd,
       effects: [],
       env: ENV,
     });
-  const g = newGoal();
-  db = g.db;
-  spend(db, byKey(db, g.goalId, "planner").id, 4);
-  for (const b of [4, 3.5]) {
-    const r = plan(g.goalId, b);
+  };
+  const budgetOf = (r: ReturnType<typeof plan>) => (r.ok ? r.plan.budgetUsd : r.message);
+  expect(budgetOf(plan(4))).toBe(10); // own budget above the spend
+  expect(budgetOf(plan(12))).toBe(22); // not above: spend + reserved sum
+  expect(budgetOf(plan(30))).toBe(PLAN_GOAL_BUDGET_MAX_USD); // capped
+  for (const spent of [PLAN_GOAL_BUDGET_MAX_USD, 40]) {
+    const r = plan(spent);
     expect(r).toMatchObject({ ok: false, code: "INVALID" });
-    expect(r.ok === false && r.message).toContain(
-      "must be above what the goal already spent ($4.00",
-    );
+    expect(r.ok === false && r.message).toContain("must be above what the goal already spent");
   }
-  expect(plan(g.goalId, 4.01)).toMatchObject({ ok: true });
 });
 
 test("approval re-checks the budget: a plan stored valid is refused once the goal spent up to it", () => {
@@ -243,12 +245,12 @@ test("approval re-checks the budget: a plan stored valid is refused once the goa
     items: [item("a")],
     acceptanceCriteria: [],
     envelope: { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 4, maxGb: 1 } },
-    budgetUsd: 4,
     effects: [],
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
-  spend(db, byKey(db, g.goalId, "planner").id, 4);
+  expect(r.plan.budgetUsd).toBe(10);
+  spend(db, byKey(db, g.goalId, "planner").id, 10);
   expect(approveVersion(db, r.plan.id, 1)).toMatchObject({ ok: false, code: "BUDGET" });
   expect(childrenOf(db, g.goalId).map((i) => i.itemKey)).toEqual(["planner"]); // nothing created
 });

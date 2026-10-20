@@ -64,7 +64,6 @@ export const PLAN_ACTIONS = [
       items: [EXAMPLE_ITEM],
       acceptanceCriteria: ["tests pass"],
       envelope: EXAMPLE_ENVELOPE,
-      budgetUsd: 3,
       effects: [],
     },
     run: createPlanHandler,

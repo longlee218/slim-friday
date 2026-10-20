@@ -6,7 +6,7 @@ const within = (next: readonly string[], old: readonly string[]): boolean =>
 
 /**
  * True when the revised envelope asks for more than the approved one: a new role, location or risk class, a higher
- * bound or budget, or a delivery effect not granted before. Only then does the owner approve again (5.12). Pure.
+ * bound or a higher (code-computed) budget, or a delivery effect not granted before. Only then does the owner approve again (5.12). Pure.
  */
 export function envelopeGrew(old: Envelope, next: Envelope): boolean {
   return (

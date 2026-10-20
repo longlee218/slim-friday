@@ -28,7 +28,6 @@ afterEach(() => db?.close());
 const ENV = {
   workerRoles: dispatchableWorkers().map((r) => r.name),
   locations: ["repo"],
-  goalBudgetUsd: 6,
 };
 const item = (key: string, over: Record<string, unknown> = {}) =>
   toPlanItem({ key, role: "developer", brief: `do ${key}`, dependsOn: [], risk: "R1", ...over });
@@ -58,7 +57,6 @@ function setup(raw: Record<string, unknown>[] = [{ key: "a" }, { key: "b", depen
     items,
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });
@@ -201,7 +199,6 @@ test("the planner cannot be a plan role: the registry and the validator refuse i
   const ctx = {
     workerRoles: ENV.workerRoles,
     locations: ["repo"],
-    goalBudgetUsd: 6,
     existingKeys: [],
     revisions: 0,
   };

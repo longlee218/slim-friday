@@ -1,8 +1,10 @@
+import { humanizerWriterContract } from "../prompts/contracts/humanizer-writer-contract";
 import type { RoleDefinition } from "../role-types";
-import { SPECIALIST_BASE, SPECIALIST_CONTRACT } from "./specialist-contract";
-
-/** What this specialist does, after the shared contract. */
-const JOB = `Built-in role: writer. Does: writes or edits the document the brief names, in the location, in clear natural prose for its reader; reports its path. Uses only the brief, the files and the earlier results: no invented facts.`;
+import {
+  SPECIALIST_BASE,
+  SPECIALIST_BUDGET_USD,
+  SPECIALIST_MAX_TURNS,
+} from "./specialist-contract";
 
 /** The humanizer-writer: Sonnet, writes and edits documents in its location. */
 export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
@@ -23,5 +25,5 @@ export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
     "writing-changelogs",
     "recording-decisions",
   ],
-  promptSections: () => [SPECIALIST_CONTRACT, JOB],
+  promptSections: () => humanizerWriterContract(),
 };

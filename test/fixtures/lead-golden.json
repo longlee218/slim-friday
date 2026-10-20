@@ -125,25 +125,25 @@
       "id": "research-version-en",
       "text": "which Python version is the latest stable release right now and what are its headline changes?",
       "strategy": "DIRECT",
-      "roles": ["scout"]
+      "roles": ["researcher"]
     },
     {
       "id": "research-docs-vi",
       "text": "SQLite WAL mode xử lý nhiều process ghi đồng thời thế nào?",
       "strategy": "DIRECT",
-      "roles": ["scout"]
+      "roles": ["researcher"]
     },
     {
       "id": "research-prices-vi",
       "text": "giá hiện tại của các gói API Claude và OpenAI khác nhau thế nào?",
       "strategy": "DIRECT",
-      "roles": ["scout"]
+      "roles": ["researcher"]
     },
     {
       "id": "research-compare-en",
       "text": "compare Drizzle and Prisma for SQLite: migrations, performance and maintenance",
       "strategy": "DIRECT",
-      "roles": ["scout"]
+      "roles": ["researcher"]
     },
     {
       "id": "greeting-vi",

@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 
 import { excerpt } from "../../observability/logger";
 import { findRole } from "../../roles/role-registry";
+import type { RoleDefinition } from "../../roles/role-types";
 import type { ItemRow } from "../../storage/owned-item-store";
 import { insertOwnedTask, taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
@@ -34,15 +35,19 @@ export const fixesAt = (items: readonly KeyAt[], location: string | null): numbe
   items.filter((i) => numberOf(i.key, FIX_KEY) !== undefined && (i.location ?? null) === location)
     .length;
 
+/** True for a role that changes code in a location: side effects on the location and a shell, never the verify role
+    itself (the tester only changes test files). */
+export const isWriterRole = (role: RoleDefinition | undefined): boolean =>
+  role?.name !== VERIFY_ROLE &&
+  role?.sideEffects === "location" &&
+  role.capabilities.includes("shell");
+
 /** True for an item that changes code in a location (a fix goes back to the same role and place): a writer role with a
-    shell, never the verify role itself (the tester only changes test files). */
+    location, never a reserved (planner / verify / fix) key. */
 export function isWriter(i: ItemRow): boolean {
-  const role = i.ownerRole ? findRole(i.ownerRole) : undefined;
   return (
     !!i.location &&
-    role?.name !== VERIFY_ROLE &&
-    role?.sideEffects === "location" &&
-    role.capabilities.includes("shell") &&
+    isWriterRole(i.ownerRole ? findRole(i.ownerRole) : undefined) &&
     !isReservedKey(i.itemKey ?? PLANNER_KEY)
   );
 }

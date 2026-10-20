@@ -71,7 +71,6 @@ export const CREATE_PLAN_SHAPE = {
   items: z.array(PLAN_ITEM).min(1).max(PLAN_MAX_ITEMS),
   acceptanceCriteria: z.array(z.string().min(1).max(300)).max(PLAN_MAX_CRITERIA),
   envelope: ENVELOPE,
-  budgetUsd: z.number().positive().max(1000),
   effects: EFFECTS,
   confirmNew: CONFIRM_NEW,
 };
@@ -109,7 +108,6 @@ export const PROPOSE_REVISION_SHAPE = {
     .describe("Full replacement; omit to keep them"),
   reason: z.string().min(1).max(REASON_MAX_CHARS),
   envelope: ENVELOPE.optional().describe("Full replacement; omit to keep the approved one"),
-  budgetUsd: z.number().positive().max(1000).optional(),
   effects: EFFECTS.optional(),
 };
 export const REQUEST_PLAN_SHAPE = {

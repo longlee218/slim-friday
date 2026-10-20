@@ -106,11 +106,8 @@ test("Plan context + capabilities: request, locations, digest, roles; another go
   const caps = await call("capabilities", {});
   expect(caps.roles.map((r: { name: string }) => r.name)).toEqual(["developer", "scout"]);
   expect(caps.roles[0]).toHaveProperty("whenToUse");
-  // The planner sizes the goal budget from the per-run ceiling of each role (data, not skill text).
-  expect(caps.roles.map((r: { budgetUsd: number }) => r.budgetUsd)).toEqual([
-    ROLES.developer!.budgetUsd,
-    ROLES.scout!.budgetUsd,
-  ]);
+  // Code computes the plan budget from the role ceilings: the planner does not see them.
+  for (const r of caps.roles) expect(r).not.toHaveProperty("budgetUsd");
 });
 
 test("Plan create -> valid; coded errors; validate; the planner cannot name itself or the lead", async () => {

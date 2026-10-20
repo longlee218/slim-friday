@@ -42,7 +42,6 @@ export function createPlanHandlerFor(
         riskClasses: ["R0", "R1"],
         bounds: { maxItems: 8, maxGb: 1 },
       },
-      budgetUsd: 3,
       effects: [],
       confirmNew: true,
     } as never);

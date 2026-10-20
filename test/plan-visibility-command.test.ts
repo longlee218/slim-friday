@@ -40,7 +40,6 @@ function goalWithPlan(
     items: o.items ?? [item(`${threadId}-own`)],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });
@@ -96,7 +95,6 @@ test("/plan after a rejection: the rejected version is shown with its reason; hi
     items: [item("n1")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });

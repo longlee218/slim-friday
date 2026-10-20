@@ -103,7 +103,6 @@ test("an applied brief edit posts one line with ~1 and the planner ctx receives 
     items: [item("a"), item("b")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });
@@ -137,7 +136,6 @@ test("a no-op revision (nothing added, cancelled or modified) posts nothing", ()
     items: [item("a")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });

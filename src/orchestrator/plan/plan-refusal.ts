@@ -14,7 +14,7 @@ import type { PlanCtx, PlanError } from "./plan-types";
 /* Refusals and goal-key facts shared by the plan lifecycle, revision and the planner tools. */
 
 /** Registry and goal facts the validator reads; `existingKeys` and `revisions` are computed here. */
-export type PlanEnv = Pick<PlanCtx, "workerRoles" | "locations" | "goalBudgetUsd">;
+export type PlanEnv = Pick<PlanCtx, "workerRoles" | "locations">;
 
 /** A coded refusal; `errors` holds the validator's list for CODE INVALID. */
 export interface Fail {

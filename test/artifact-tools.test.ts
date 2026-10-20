@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { type ArtifactToolCtx, readArtifact } from "../src/artifacts/artifact-access";
 import { ARTIFACT_READ_PAGE_CHARS } from "../src/artifacts/artifact-limits";
 import { searchArtifacts } from "../src/artifacts/artifact-search";
+import { ARTIFACT_TOOLS } from "../src/mcp/artifacts/artifact-tool-names";
 import { createListArtifactsTool } from "../src/mcp/artifacts/tools/ListArtifactsTool/list-artifacts-tool";
 import { createReadArtifactTool } from "../src/mcp/artifacts/tools/ReadArtifactTool/read-artifact-tool";
 import { createSaveArtifactTool } from "../src/mcp/artifacts/tools/SaveArtifactTool/save-artifact-tool";
@@ -11,7 +12,6 @@ import { createSearchArtifactsTool } from "../src/mcp/artifacts/tools/SearchArti
 import { buildServers } from "../src/mcp/mcp-servers";
 import { ARTIFACTS_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
-import { ARTIFACT_TOOLS } from "../src/roles/builtin/artifact-tools";
 import { ROLES } from "../src/roles/role-registry";
 import { getArtifact } from "../src/storage/artifact-store";
 import { makeEnv, outsideDir } from "./helpers";

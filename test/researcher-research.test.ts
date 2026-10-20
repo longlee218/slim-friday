@@ -4,16 +4,16 @@ import { insertOwnedTask } from "../src/storage/owned-task-store";
 import {
   forceText,
   KINDS,
-  loadScoutCases,
+  loadResearchCases,
   outcomeOf,
   summarize,
   urlsOf,
   verdictOf,
-} from "./scout-eval-support";
+} from "./researcher-eval-support";
 
-/* Shape of the scout research set (no API call; the paid run is scout-research.eval.test.ts). */
+/* Shape of the researcher eval set (no API call; the paid run is researcher-research.eval.test.ts). */
 
-const cases = loadScoutCases();
+const cases = loadResearchCases();
 
 test("research set: 20-50 cases, unique ids and texts, known kinds, every kind covered", () => {
   expect(cases.length).toBeGreaterThanOrEqual(20);
@@ -33,13 +33,13 @@ test("urlsOf: distinct URLs, trailing punctuation and markdown closers trimmed",
   expect(urlsOf("no links")).toEqual([]);
 });
 
-test("outcomeOf: empty db = not completed; a completed scout item gives its excerpt", () => {
+test("outcomeOf: empty db = not completed; a completed researcher item gives its excerpt", () => {
   const db = openDb(":memory:");
   expect(outcomeOf(db, () => "").completed).toBe(false);
   insertOwnedTask(db, {
     id: "i1",
     threadId: "th",
-    ownerRole: "scout",
+    ownerRole: "researcher",
     status: "completed",
     scope: "s",
     correlationId: "c",

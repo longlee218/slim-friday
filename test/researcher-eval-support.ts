@@ -3,13 +3,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { listByGoal } from "../src/storage/artifact-store";
 
-/* Support of the scout research eval: the fixture loader, the URL extractor and the scorer over one case's db. */
+/* Support of the researcher eval (web research by the `researcher` role): the fixture loader, the URL extractor and the scorer over one case's db. */
+
+/** Worker role measured by the research eval (its item, artifacts and runs). */
+export const RESEARCHER_ROLE = "researcher";
 
 /** Research shapes a case may have (grouping only). */
 export const KINDS = ["quick", "technical", "deep", "academic", "market"] as const;
 
 /** One owner research question. */
-export interface ScoutCase {
+export interface ResearchCase {
   id: string;
   kind: (typeof KINDS)[number];
   text: string;
@@ -22,7 +25,7 @@ export type Verdict = "ok" | "routed-direct" | "MISS";
 
 /** Score one case: a direct answer is a miss only for a must-dispatch case; a dispatched case must pass. */
 export function verdictOf(
-  c: Pick<ScoutCase, "expect">,
+  c: Pick<ResearchCase, "expect">,
   dispatched: boolean,
   pass: boolean,
 ): Verdict {
@@ -45,15 +48,17 @@ export function summarize(rows: { verdict: Verdict; dispatched: boolean }[]) {
   };
 }
 
-/** SCOUT_EVAL_FORCE=1: the first message names a research worker, so scout quality is measured apart from routing. */
+/** RESEARCHER_EVAL_FORCE=1 (alias SCOUT_EVAL_FORCE): the first message names a research worker, so researcher quality is measured apart from routing. */
 export const forceText = (text: string): string =>
-  `Use a research worker (the scout) for this, do not answer it yourself: ${text}`;
+  `Use a research worker (the researcher) for this, do not answer it yourself: ${text}`;
 
-/** The fixture file (test/fixtures/scout-research.json). */
-export const loadScoutCases = (): ScoutCase[] =>
+/** The fixture file (test/fixtures/researcher-research.json). */
+export const loadResearchCases = (): ResearchCase[] =>
   (
-    JSON.parse(readFileSync(join(import.meta.dir, "fixtures", "scout-research.json"), "utf8")) as {
-      cases: ScoutCase[];
+    JSON.parse(
+      readFileSync(join(import.meta.dir, "fixtures", "researcher-research.json"), "utf8"),
+    ) as {
+      cases: ResearchCase[];
     }
   ).cases;
 
@@ -64,32 +69,36 @@ export function urlsOf(text: string): string[] {
 }
 
 /** What one case produced (one case per db). */
-export interface ScoutOutcome {
-  /** A scout item ended COMPLETED (its `Report result.status`). */
+export interface ResearchOutcome {
+  /** A researcher item ended COMPLETED (its `Report result.status`). */
   completed: boolean;
-  /** Result excerpt plus the text of the artifacts the scout saved. */
+  /** Result excerpt plus the text of the artifacts the researcher saved. */
   text: string;
   costUsd: number;
   durationMs: number;
 }
 
-/** Read the scout's outcome from the db: its item row, its saved artifacts (store files) and its run metrics. */
-export function outcomeOf(db: Database, readFile: (path: string) => string): ScoutOutcome {
+/** Read a worker's outcome from the db (default the researcher; the scout codebase eval passes `scout`): its item row, its saved artifacts (store files) and its run metrics. */
+export function outcomeOf(
+  db: Database,
+  readFile: (path: string) => string,
+  role: string = RESEARCHER_ROLE,
+): ResearchOutcome {
   const item = db
-    .query<{ parent: string; status: string; excerpt: string | null }, []>(
-      "SELECT parent_id AS parent, status, result_excerpt AS excerpt FROM owned_tasks WHERE parent_id IS NOT NULL AND owner_role = 'scout' ORDER BY rowid LIMIT 1",
+    .query<{ parent: string; status: string; excerpt: string | null }, [string]>(
+      "SELECT parent_id AS parent, status, result_excerpt AS excerpt FROM owned_tasks WHERE parent_id IS NOT NULL AND owner_role = ? ORDER BY rowid LIMIT 1",
     )
-    .get();
+    .get(role);
   if (!item) return { completed: false, text: "", costUsd: 0, durationMs: 0 };
-  // The scout's saved reports: store files of its goal written by the scout role.
+  // The worker's saved reports: store files of its goal written by that role.
   const files = listByGoal(db, item.parent).filter(
-    (a) => a.origin === "store" && a.producerRole === "scout",
+    (a) => a.origin === "store" && a.producerRole === role,
   );
   const run = db
-    .query<{ cost: number; ms: number }, []>(
-      "SELECT COALESCE(SUM(r.cost_usd), 0) AS cost, COALESCE(SUM(r.duration_ms), 0) AS ms FROM runs r JOIN turns t ON t.id = r.turn_id WHERE t.role = 'scout'",
+    .query<{ cost: number; ms: number }, [string]>(
+      "SELECT COALESCE(SUM(r.cost_usd), 0) AS cost, COALESCE(SUM(r.duration_ms), 0) AS ms FROM runs r JOIN turns t ON t.id = r.turn_id WHERE t.role = ?",
     )
-    .get();
+    .get(role);
   return {
     completed: item.status === "completed",
     text: [item.excerpt ?? "", ...files.map((f) => readFile(f.path))].join("\n"),

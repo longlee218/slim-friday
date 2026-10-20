@@ -1,18 +1,12 @@
 import { SONNET_MODEL } from "../../config/model-ids";
+import { ARTIFACT_TOOLS } from "../../mcp/artifacts/artifact-tool-names";
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SAVE_TOOL } from "../../mcp/memory/tools/MemorySaveTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/constants";
 import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
-import {
-  GLOB_TOOL_NAME,
-  GREP_TOOL_NAME,
-  LSP_TOOL_NAME,
-  READ_TOOL_NAME,
-  SKILL_TOOL_NAME,
-} from "../../tools/sdk-tool-names";
+import { leadContract } from "../prompts/contracts/lead-contract";
 import type { RoleDefinition } from "../role-types";
-import { ARTIFACT_TOOLS } from "./artifact-tools";
 
 /** The lead's method skill: its folder name in `.agents/skills` (data) and the qualified name the Skill tool takes (`friday:<name>`). */
 const LEAD_SKILL = "lead-orchestration";
@@ -26,20 +20,6 @@ const BUDGET_USD = 1.5;
 const MAX_TURNS = 30;
 
 /**
- * Run contract (runtime facts and safety only): tools, how the reply is delivered, secrets and privacy. Tone, voice and
- * format style are the owner's (AGENTS.md, SOUL.md). The team (TEAM.md, built per run), the owner's layers and the data
- * block are added by the runner. The delivery line mirrors `src/ingress/reply-bubbles.ts` and `inline-report.ts`.
- */
-const CONTRACT = `Role: lead of the team in this thread; name and persona: IDENTITY.md (below).
-Tools: memory, artifact and ${ORCHESTRATE_TOOL} actions; read-only ${READ_TOOL_NAME}, ${GLOB_TOOL_NAME}, ${GREP_TOOL_NAME}, ${LSP_TOOL_NAME} and ${SKILL_TOOL_NAME}. No shell, no file writes, no web. Members do the work.
-Method for dispatch, plan, retry, cancel and event decisions: skill ${LEAD_SKILL_REF}; load it before such a decision.
-A PLAN goal's items belong to the planner: add or update on them is refused. Code adds verify, fix and wave items.
-Output (code): your final text reply is posted to the owner, redacted, as Discord messages. Each paragraph (a blank-line block) is one message, at most 4; extra paragraphs join the 4th. A reply over 800 characters, or with a table, is one inline message (max 3900). Text after a line \`---\` is an attached file, named from the first \`# <title>\` in that text (else \`reply\`); a code block over 10 lines also makes a file.
-Only your reply and what ${ORCHESTRATE_TOOL} posts (ask_owner, forward) reach the owner; tool results and events do not.
-Never claim work that was not done, or a memory save that the tool did not confirm.
-In a shared channel, memory and private data of another person or channel never appear in a reply.`;
-
-/**
  * The lead: Sonnet. Chosen by the lead runner (not by `entryRole`), reached only through it (`kind: "lead"`), so intent
  * routing never offers it. Its tools are the `orchestration` server's lead tools (typed actions; handlers hold the rules).
  */
@@ -48,7 +28,8 @@ export const LEAD_ROLE: RoleDefinition = {
   basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse: "Routes the owner's messages to specialist workers and reports their results.",
   kind: "lead",
-  skills: [LEAD_SKILL], // the app-owned method skill; needs the `skills` capability for the Skill tool
+  skills: [LEAD_SKILL], // the app-owned method skill; needs the `skills` capability for the Skill tool (its references)
+  preloadSkills: [LEAD_SKILL], // its text is in the system prompt: the lead never has to remember to load it
   // Memory tools + the lead's `Orchestrate` action tool (the `orchestration` server; a worker run never gets it).
   mcpTools: [
     MEMORY_SAVE_TOOL,
@@ -67,5 +48,5 @@ export const LEAD_ROLE: RoleDefinition = {
   model: SONNET_MODEL,
   thinking: { type: "adaptive" }, // the model decides how long to think (a short routing turn)
   budgetUsd: BUDGET_USD,
-  promptSections: () => [CONTRACT],
+  promptSections: () => [leadContract(LEAD_SKILL_REF)],
 };

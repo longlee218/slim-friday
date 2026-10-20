@@ -2,9 +2,9 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { z } from "zod";
 import { PLAN_MAX_CRITERIA, PLAN_MAX_ITEMS } from "../src/config/lead-caps";
+import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
 import { MAX_FIX_LOOPS } from "../src/config/resilience-caps";
 import { renderDigest } from "../src/ingress/digest-copy";
-import { GOAL_BUDGET_USD } from "../src/orchestrator/budget/task-budget";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { handleRetry } from "../src/orchestrator/lead/lead-retry-handler";
@@ -29,7 +29,7 @@ import { moveTaskTo } from "../src/tasks/task-resolver";
 const TH = "t";
 let db: Database;
 afterEach(() => db?.close());
-const ENV = { workerRoles: ["developer", "scout"], locations: ["repo"], goalBudgetUsd: 15 };
+const ENV = { workerRoles: ["developer", "scout"], locations: ["repo"] };
 const item = (key: string, over: Record<string, unknown> = {}) => ({
   key,
   subject: `Do ${key}`,
@@ -65,7 +65,6 @@ function approved(items = [item("a"), item("b", { dependsOn: ["a"] })], criteria
       riskClasses: ["R0", "R1"],
       bounds: { maxItems: PLAN_MAX_ITEMS, maxGb: 1 },
     },
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });
@@ -123,7 +122,6 @@ test("reserved keys verify* / fix* are refused in plan items; criteria are cappe
       items: [item(key)],
       acceptanceCriteria: [],
       envelope: { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 8, maxGb: 1 } },
-      budgetUsd: 1,
       effects: [],
       env: ENV,
     });
@@ -138,7 +136,6 @@ test("reserved keys verify* / fix* are refused in plan items; criteria are cappe
     items: [item("fixtures"), item("verify-tests"), item("fix-login")],
     acceptanceCriteria: [],
     envelope: { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 8, maxGb: 1 } },
-    budgetUsd: 1,
     effects: [],
     env: ENV,
   });
@@ -277,7 +274,7 @@ test("no goal budget left: no fix loop, the verify stays held and a budget failu
     outputTokens: 0,
     cacheReadTokens: 0,
     cacheCreationTokens: 0,
-    costUsd: GOAL_BUDGET_USD + 1,
+    costUsd: PLAN_GOAL_BUDGET_MAX_USD + 1, // over any plan budget
     turns: 1,
     durationMs: 1,
     compactions: 0,

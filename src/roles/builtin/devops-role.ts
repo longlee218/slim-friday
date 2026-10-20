@@ -1,8 +1,10 @@
+import { devopsContract } from "../prompts/contracts/devops-contract";
 import type { RoleDefinition } from "../role-types";
-import { SPECIALIST_BASE, SPECIALIST_CONTRACT } from "./specialist-contract";
-
-/** What this specialist does, after the shared contract. */
-const JOB = `Built-in role: devops. Does: creates or fixes build and infrastructure files (Dockerfile, CI workflow, scripts, config) in the location and checks them locally with the sandboxed shell (build, lint, dry run). Has no credentials and no deploy tool; the network is open, so a cloud or registry call is out of scope, not blocked. Never writes a secret into a file. Reports the files changed and what each check showed.`;
+import {
+  SPECIALIST_BASE,
+  SPECIALIST_BUDGET_USD,
+  SPECIALIST_MAX_TURNS,
+} from "./specialist-contract";
 
 /** The devops engineer: Sonnet, writes infra files and checks them locally. */
 export const DEVOPS_ROLE: RoleDefinition = {
@@ -22,5 +24,5 @@ export const DEVOPS_ROLE: RoleDefinition = {
     "docker-build-strategies",
     "docker-destructive-guardrails",
   ],
-  promptSections: () => [SPECIALIST_CONTRACT, JOB],
+  promptSections: () => devopsContract(),
 };

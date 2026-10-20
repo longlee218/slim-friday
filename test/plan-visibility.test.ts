@@ -3,6 +3,7 @@ import { afterEach, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PLAN_HISTORY_ARG, parseSlash } from "../src/commands/slash-commands";
 import { SLASH_DEFINITIONS, slashPayload, slashText } from "../src/commands/slash-definitions";
+import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
 import type { ViewerConfig } from "../src/config/viewer-config";
 import { renderDigest } from "../src/ingress/digest-copy";
 import { type PlanFacts, renderPlanFacts } from "../src/ingress/plan-copy";
@@ -23,7 +24,7 @@ import { moveTaskTo } from "../src/tasks/task-resolver";
 import { verifyLink } from "../src/viewer/signed-link";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
 import { createPlanHandlerFor, plannerCtxOf } from "./plan-visibility-helpers";
-import { byKey, ENV, item, TH } from "./waves-fixture";
+import { byKey, ENV, item, setStoredBudget, TH } from "./waves-fixture";
 
 /* Phase 5: plan versions as artifacts, the one-line revision notice with the viewer link, /plan, planUrl, digest. */
 
@@ -55,11 +56,11 @@ function world(o: { approve?: boolean; viewer?: boolean } = {}) {
     items: [item("a"), item("b")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
+  setStoredBudget(db, r.plan.id, 1, PLAN_GOAL_BUDGET_MAX_USD); // at the ceiling: an added item applies at once
   if (o.approve) approveVersion(db, r.plan.id, 1);
   const deps = { db, home: env.home, ...(o.viewer !== false && { viewer: VIEWER }) };
   return { env, goalId: w.goalId, planId: r.plan.id, deps };

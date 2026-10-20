@@ -1,8 +1,10 @@
+import { hackerContract } from "../prompts/contracts/hacker-contract";
 import type { RoleDefinition } from "../role-types";
-import { SPECIALIST_BASE, SPECIALIST_CONTRACT } from "./specialist-contract";
-
-/** What this specialist does, after the shared contract. */
-const JOB = `Built-in role: security reviewer, defensive only. Does: reviews the location's code for vulnerabilities (injection, auth, path handling, unsafe deserialisation, secrets in code, risky dependencies) with read tools and the sandboxed shell (no write); reports findings ranked by severity with path:line, why it is exploitable and a fix hint, or says plainly that none were found. Out of scope: testing any system outside the location (the network is open, so this is a scope rule, not a block).`;
+import {
+  SPECIALIST_BASE,
+  SPECIALIST_BUDGET_USD,
+  SPECIALIST_MAX_TURNS,
+} from "./specialist-contract";
 
 /** The hacker: Sonnet, read-only defensive review. */
 export const HACKER_ROLE: RoleDefinition = {
@@ -20,5 +22,5 @@ export const HACKER_ROLE: RoleDefinition = {
     "verification-before-completion",
     "security-and-hardening",
   ],
-  promptSections: () => [SPECIALIST_CONTRACT, JOB],
+  promptSections: () => hackerContract(),
 };

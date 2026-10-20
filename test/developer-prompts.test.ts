@@ -1,33 +1,18 @@
 import { expect, test } from "bun:test";
 import {
   askRules,
-  CODE_STANDARDS,
-  COMMIT_RULES,
   DEVELOPER,
   DEVELOPER_ROLE,
-  DEVELOPER_RUN_FACTS,
-  DEVELOPER_SHELL_RULES,
+  DEVELOPER_WORK,
 } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
 import { buildSystemPrompt, systemPromptText } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 const rules = (role: typeof DEVELOPER_ROLE) => systemPromptText(buildSystemPrompt("", role));
-/** Run contract budget per section (prompt-standard.md), before interpolation of context. */
-const SECTION_BUDGET = 1200;
 
-test("every dev section and the lead section fit the 1200 char budget", () => {
-  for (const t of [
-    DEVELOPER,
-    DEVELOPER_RUN_FACTS,
-    DEVELOPER_SHELL_RULES,
-    COMMIT_RULES,
-    CODE_STANDARDS,
-  ])
-    expect(t.length).toBeLessThanOrEqual(SECTION_BUDGET);
-  const lead = LEAD_ROLE.promptSections({}) ?? [];
-  expect(lead[0]?.length).toBeLessThanOrEqual(SECTION_BUDGET);
-});
+/* The 1200-char per-section budget is replaced by a per-role ceiling on the whole contract (owner direction 2026-10-20:
+   rich contracts; ceilings in test/role-contract-sections.test.ts). */
 
 test("the skills bootstrap block is gone; skills are not described in the prompt", () => {
   for (const role of [DEVELOPER_ROLE, LEAD_ROLE]) {
@@ -67,7 +52,22 @@ test("dev: one contract, approval before changes by ask, a design request may en
   expect(text).not.toMatch(/subagent-run-facts|implementer|task-reviewer|brainstorming/);
   expect(text).not.toContain("git MCP");
   expect(text).not.toContain("plan.md"); // no plan file, no handoff
-  expect(text.indexOf("Outcome:")).toBeLessThan(text.indexOf("git works in the shell"));
+  // Section order: Mission and Method first, the shared worker block, then scope ... environment, stop rules last.
+  const at = (h: string) => text.indexOf(h);
+  const order = [
+    "## Mission",
+    "## Method",
+    "## How the team works",
+    "## Scope and hand-offs",
+    "## How the work goes",
+    "## Asking the owner",
+    "## Commits",
+    "## Environment facts",
+    "## Stop, ask or fail",
+  ].map(at);
+  expect(order.every((i) => i >= 0)).toBe(true);
+  expect(order).toEqual([...order].sort((a, b) => a - b));
+  expect(at("## Mission")).toBeLessThan(at("git works in the shell"));
 });
 
 test("no tool-name literal in the dev role source", async () => {
@@ -78,5 +78,6 @@ test("no tool-name literal in the dev role source", async () => {
 test("dev contract: research path; skill use and location memory are left to the SDK and AGENTS.md", () => {
   expect(rules(DEVELOPER_ROLE)).not.toContain("description matches the step you are about to do");
   expect(rules(DEVELOPER_ROLE)).not.toMatch(/\[workflow: (full|lean)\]/);
-  expect(DEVELOPER).toContain("no defect or target named");
+  expect(DEVELOPER_WORK).toContain("no defect or target named");
+  expect(DEVELOPER).toContain("## Mission");
 });

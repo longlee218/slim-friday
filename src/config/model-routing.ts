@@ -21,8 +21,11 @@ export interface Route {
 /** Per-task spend ceiling (USD) over the task's runs (re-runs included): a run gets at most what is left of it (owner, Rev 14 addendum 2). */
 export const TASK_BUDGET_USD = 15.0;
 
-/** Spend ceiling (USD) of a PLAN goal: its approved plan `budgetUsd` is the goal budget, never above this (owner 2026-10-17). Other goals keep `GOAL_BUDGET_USD`. */
+/** Spend ceiling (USD) of a PLAN goal: its approved plan `budgetUsd` (computed by code, `planBudgetUsd`) is the goal budget, never above this (owner 2026-10-17). Other goals keep `GOAL_BUDGET_USD`. */
 export const PLAN_GOAL_BUDGET_MAX_USD = 35.0;
+
+/** Reserve factor on the sum of a plan's run ceilings (fix loops, resumes, slack): the computed plan budget is the sum times this (owner 2026-10-20). */
+export const PLAN_BUDGET_RESERVE_FACTOR = 1.25;
 
 /** True when a run's budget cap IS what the task's earlier runs left of the ceiling (so a raise cannot help). */
 export const ceilingBinds = (limitUsd: number | undefined, spentUsd = 0): boolean =>

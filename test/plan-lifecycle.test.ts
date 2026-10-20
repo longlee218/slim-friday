@@ -16,7 +16,7 @@ import { moveTaskTo } from "../src/tasks/task-resolver";
 
 let db: Database;
 afterEach(() => db?.close());
-const ENV = { workerRoles: ["developer", "scout"], locations: ["repo", "docs"], goalBudgetUsd: 6 };
+const ENV = { workerRoles: ["developer", "scout"], locations: ["repo", "docs"] };
 const item = (key: string, over: Record<string, unknown> = {}) => ({
   key,
   subject: `Do ${key}`,
@@ -43,7 +43,6 @@ function setup(items = [item("a"), item("b", { dependsOn: ["a"] })]) {
     items,
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });
@@ -62,7 +61,6 @@ test("create stores version 1 valid; a second plan for the goal is refused", () 
     items: [item("z")],
     acceptanceCriteria: [],
     envelope: ENVELOPE,
-    budgetUsd: 1,
     effects: [],
     env: ENV,
   });
@@ -79,7 +77,6 @@ test("a plan that fails validation is not stored", () => {
     items: [item("a", { role: "lead" })],
     acceptanceCriteria: [],
     envelope: ENVELOPE,
-    budgetUsd: 1,
     effects: [],
     env: ENV,
   });
@@ -262,7 +259,6 @@ test("NEEDS_PLANNING items are released (cancelled) by the first approval; finis
     items: [item("next", { dependsOn: ["done1"] })],
     acceptanceCriteria: [],
     envelope: ENVELOPE,
-    budgetUsd: 2,
     effects: [],
     env: ENV,
   });

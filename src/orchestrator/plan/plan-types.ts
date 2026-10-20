@@ -27,9 +27,10 @@ export const FIX_KEY = "fix";
 /** Role that runs the verify item (Haiku; it has the `shell` capability, so it can run the checks). */
 export const VERIFY_ROLE = "tester";
 
-/** Error text of a plan budget that is not above what the goal already spent (validator and approval; the planner prompt says the same). */
+/** Error text of a plan budget that is not above what the goal already spent (validator and approval). The budget is computed by
+    code and capped at the goal ceiling, so this means the goal spent its ceiling: no item could start. */
 export const budgetSpentMessage = (budgetUsd: number, spentUsd: number): string =>
-  `Budget $${budgetUsd} must be above what the goal already spent ($${spentUsd.toFixed(2)}: the planner and earlier items count). Raise budgetUsd.`;
+  `Plan budget $${budgetUsd} (computed by code, capped at the goal ceiling) must be above what the goal already spent ($${spentUsd.toFixed(2)}: the planner and earlier items count): no item could start. Report it to the lead.`;
 
 /** What a plan item key may not look like (named in the validator error): planner items and the code-made `verify-N` / `fix-N`. */
 export const RESERVED_KEY_PATTERN = "planner*, verify-N, fix-N";
@@ -110,8 +111,6 @@ export interface PlanCtx {
   workerRoles: readonly string[];
   /** Location names of the workspace. */
   locations: readonly string[];
-  /** Budget ceiling of the goal, USD. */
-  goalBudgetUsd: number;
   /** Keys of items of the goal that are not part of this plan (planner runs, finished earlier work): usable as dependencies, never as new keys. */
   existingKeys: readonly string[];
   /** Keys of the goal's items that ended `failed` / `cancelled`: they never run, so nothing may wait for them (default none). */

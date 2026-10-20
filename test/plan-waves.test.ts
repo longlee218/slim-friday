@@ -132,22 +132,21 @@ test("wave revision: applies at once when the envelope and budget are unchanged,
   expect(keysOf(db, goalId).some((k) => k.startsWith("verify"))).toBe(false); // `e` is still deferred
 });
 
-test("wave revision that adds a role, a location, an effect, a bound or changes the budget goes to the owner (valid, nothing created)", () => {
+test("wave revision that adds a role, a location, an effect, a bound or raises the budget goes to the owner (valid, nothing created)", () => {
   const same = {
     locations: ["repo"],
     riskClasses: ["R0", "R1"],
     bounds: { maxItems: PLAN_MAX_ITEMS, maxGb: 1 },
   };
   const cases: object[] = [
-    { budgetUsd: 5 },
-    { budgetUsd: 3 }, // lower is a change too
+    { add: [later("e")] }, // a new (deferred) developer item raises the code-computed budget
     { add: [item("s", { role: "scout" })] },
     { effects: ["GitPush"] },
     { envelope: { ...same, riskClasses: ["R0", "R1", "R2"] } },
     { envelope: { ...same, bounds: { maxItems: PLAN_MAX_ITEMS, maxGb: 2 } } },
   ];
   for (const c of cases) {
-    const p = approvedPlan([item("a"), later("d")]);
+    const p = approvedPlan([item("a"), later("d")], { budget: null });
     complete(p.db, p.goalId, "a");
     const r = revisePlan(p.db, {
       planId: p.planId,
@@ -251,4 +250,23 @@ test("a wave planner item ages like any item (8 h) and shows in the digest with 
   ]);
   expect(waveOutlook(db, goalId)).toBe("waiting"); // held for the lead: no second planner
   expect(startNextWave(db, goalId)).toBe(false);
+});
+
+test("computed budget on revise: activating a counted deferred item keeps it, a cancel never lowers an approved one", () => {
+  const p = approvedPlan([item("a"), later("d"), later("e")], { budget: null });
+  db = p.db;
+  const budget = (v: number) =>
+    (db.query("SELECT budget_usd AS b FROM work_plans WHERE version = ?").get(v) as { b: number })
+      .b;
+  expect(budget(1)).toBe(35); // (3 developer runs * 8 + 1 verify * 4) * 1.25 = 35, at the ceiling
+  complete(db, p.goalId, "a");
+  const wave = revisePlan(db, {
+    planId: p.planId,
+    baseVersion: 1,
+    edit: edit({ modify: [{ key: "d", deferredScope: false }], cancel: ["e"] }),
+    reason: "wave 2, e dropped",
+    env: ENV,
+  });
+  expect(wave).toMatchObject({ ok: true, status: "approved", affected: { created: ["d"] } });
+  expect(budget(2)).toBe(35); // computed (8 + 8 + 4) * 1.25 = 25, the approved 35 is kept
 });

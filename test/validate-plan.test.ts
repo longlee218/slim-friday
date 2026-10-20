@@ -11,7 +11,6 @@ import { validatePlan } from "../src/orchestrator/plan/validate-plan";
 const CTX: PlanCtx = {
   workerRoles: ["developer", "scout"],
   locations: ["repo", "docs"],
-  goalBudgetUsd: 6,
   existingKeys: [],
   revisions: 0,
 };
@@ -68,7 +67,7 @@ test("each rule answers its code", () => {
       ["OUTSIDE_ENVELOPE"],
       doc([item("a"), item("b")], { bounds: { maxItems: 1, maxGb: 1 } }),
     ],
-    ["BUDGET", ["BUDGET"], doc([item("a")], { budgetUsd: 7 })],
+    ["BUDGET spent", ["BUDGET"], doc([item("a")]), { spentUsd: 3 }], // budget 3 is not above the spend
     [
       "TOO_MANY_REVISIONS",
       ["TOO_MANY_REVISIONS"],

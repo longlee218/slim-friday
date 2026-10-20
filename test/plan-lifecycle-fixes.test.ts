@@ -53,7 +53,6 @@ function validPlan(keys = ["a", "b"]) {
     items: keys.map((k) => item(k)),
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });
@@ -425,7 +424,7 @@ test("B10/B14: Orchestrate approve_plan is refused before asking when the goal i
 
 test("B14: a plan whose budget is spent is refused before the question; a refusal after the click is posted", async () => {
   const { goalId, plan } = validPlan();
-  spend(db, byKey(db, goalId, "planner").id, 3.5);
+  spend(db, byKey(db, goalId, "planner").id, plan.budgetUsd ?? 0); // the goal spent the computed budget
   const real = createPlanPort(db, TH);
   expect(real.plan(plan.id, 1)?.blocker).toMatchObject({ code: "BUDGET" });
   const port = new FakePort();

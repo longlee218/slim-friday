@@ -154,7 +154,7 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 ## Testing
 - **Framework:** `bun test` (`bun:test` `expect`). Run one file with `bun test test/<area>.test.ts`.
 - **Naming:** `test/<area>.test.ts`. Live tests are named `*.smoke.test.ts` or `*.live.test.ts` and skip without credentials.
-- **Opt-in (paid):** the lead golden set runs only with `LEAD_EVAL=1` and a real token; the scout research eval only with `SCOUT_EVAL=1` and a real token. Live SDK checks run only with their own gate variable. Never run them in a routine gate.
+- **Opt-in (paid):** the lead golden set runs only with `LEAD_EVAL=1` and a real token; the researcher research eval only with `RESEARCHER_EVAL=1` (alias `SCOUT_EVAL=1`) and the scout codebase eval only with `SCOUT_CODE_EVAL=1`, each with a real token. Live SDK checks run only with their own gate variable. Never run them in a routine gate.
 - **Fakes:** a fake `query` for SDK options; an in-memory SQLite for storage; a fake effect port for the orchestrator; fake Discord message objects.
 - **Scan tests** (see above) run in the normal suite.
 - **No sleeps for concurrency tests:** wait on a deferred promise or a callback.

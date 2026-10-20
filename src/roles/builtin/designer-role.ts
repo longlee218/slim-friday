@@ -1,8 +1,10 @@
+import { designerContract } from "../prompts/contracts/designer-contract";
 import type { RoleDefinition } from "../role-types";
-import { SPECIALIST_BASE, SPECIALIST_CONTRACT } from "./specialist-contract";
-
-/** What this specialist does, after the shared contract. */
-const JOB = `Built-in role: designer. Does: turns the brief into UI/UX design files (screens and flows, layout, components, states, copy, accessibility) in the location where the brief says (or the location's docs dir); reports the paths. Application code is out of scope.`;
+import {
+  SPECIALIST_BASE,
+  SPECIALIST_BUDGET_USD,
+  SPECIALIST_MAX_TURNS,
+} from "./specialist-contract";
 
 /** The designer: Sonnet, writes design files in its location. */
 export const DESIGNER_ROLE: RoleDefinition = {
@@ -23,5 +25,5 @@ export const DESIGNER_ROLE: RoleDefinition = {
     "frontend-design",
     "wcag-audit-patterns",
   ],
-  promptSections: () => [SPECIALIST_CONTRACT, JOB],
+  promptSections: () => designerContract(),
 };

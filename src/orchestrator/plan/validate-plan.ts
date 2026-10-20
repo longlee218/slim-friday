@@ -43,9 +43,9 @@ export function validatePlan(doc: PlanDoc, ctx: PlanCtx): PlanError[] {
       "TOO_MANY_REVISIONS",
       `At most ${PLAN_MAX_REVISIONS} revisions: ask the lead to start a new plan.`,
     );
-  if (env.budgetUsd > ctx.goalBudgetUsd)
-    add("BUDGET", `Budget $${env.budgetUsd} is over the goal budget $${ctx.goalBudgetUsd}.`);
-  if (env.budgetUsd <= (ctx.spentUsd ?? 0))
+  // The budget is computed by code and capped at the goal ceiling; it is only refused when the goal already spent it all
+  // (an empty plan has no budget to compare: NO_ITEMS says it).
+  if (items.length && env.budgetUsd <= (ctx.spentUsd ?? 0))
     add("BUDGET", budgetSpentMessage(env.budgetUsd, ctx.spentUsd ?? 0));
   for (const l of env.locations)
     if (!ctx.locations.includes(l))

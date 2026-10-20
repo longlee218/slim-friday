@@ -6,6 +6,7 @@ import { HACKER_ROLE } from "./builtin/hacker-role";
 import { HUMANIZER_WRITER_ROLE } from "./builtin/humanizer-writer-role";
 import { LEAD_ROLE } from "./builtin/lead-role";
 import { PLANNER_ROLE } from "./builtin/planner-role";
+import { RESEARCHER_ROLE } from "./builtin/researcher-role";
 import { SCOUT_ROLE } from "./builtin/scout-role";
 import { SOLUTION_ARCHITECT_ROLE } from "./builtin/solution-architect-role";
 import { TESTER_ROLE } from "./builtin/tester-role";
@@ -24,6 +25,7 @@ export const ROLES: Readonly<Record<string, RoleDefinition>> = {
   [LEAD_ROLE.name]: LEAD_ROLE,
   [PLANNER_ROLE.name]: PLANNER_ROLE,
   [SCOUT_ROLE.name]: SCOUT_ROLE,
+  [RESEARCHER_ROLE.name]: RESEARCHER_ROLE,
 };
 
 /** A task of this role counts toward the concurrent task cap: it runs in the background AND may change something (a read-only scout does not). */

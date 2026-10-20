@@ -12,6 +12,7 @@ import {
   type WorkPlanRow,
 } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
+import { planBudgetUsd } from "../budget/plan-budget";
 import { spentOf } from "../budget/task-budget";
 import { type Applied, abortRuns, materialize } from "./materialize-items";
 import {
@@ -48,7 +49,6 @@ export function createPlan(
     items: ItemInput[];
     acceptanceCriteria: string[];
     envelope: EnvelopeInput;
-    budgetUsd: number;
     effects: DeliveryEffect[];
     env: PlanEnv;
   },
@@ -60,10 +60,16 @@ export function createPlan(
   )
     return fail("PLAN_EXISTS", `This goal has a plan: use ${PLAN_TOOL} ${PLAN_ACTION_REVISE}.`);
   const items = a.items.map(toPlanItem);
+  // The budget is computed by code from the items' role ceilings (the planner never sets it).
+  const budgetUsd = planBudgetUsd({
+    items,
+    verifies: a.acceptanceCriteria.length > 0,
+    spentUsd: spentOf(db, a.goalId),
+  });
   const doc: PlanDoc = {
     items,
     acceptanceCriteria: a.acceptanceCriteria,
-    envelope: buildEnvelope(a.envelope, items, a.budgetUsd, a.effects),
+    envelope: buildEnvelope(a.envelope, items, budgetUsd, a.effects),
   };
   const errors = validatePlan(doc, validatorCtx(db, a.goalId, a.env, [], 0));
   if (errors.length) return invalid(errors);

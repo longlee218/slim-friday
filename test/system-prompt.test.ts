@@ -1,17 +1,20 @@
 import { expect, test } from "bun:test";
 import { DEVELOPER_ROLE } from "../src/roles/builtin/developer-role";
 import { LEAD_ROLE } from "../src/roles/builtin/lead-role";
+import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { buildSystemPrompt, systemPromptText } from "../src/runtime/system-prompt";
 import { ASK_USER_QUESTION_TOOL_NAME } from "../src/tools/sdk-tool-names";
 
 /** Rules text of a role (no context). */
-const rules = (role: RoleDefinition) => systemPromptText(buildSystemPrompt("", role));
+/** The role's own rules; the preloaded skill text (a skill's wording, not the contract's) is cut off. */
+const rules = (role: RoleDefinition) =>
+  systemPromptText(buildSystemPrompt("", role)).split("\n\n## Skill ")[0] as string;
 /** Occurrences of a marker in a text. */
 const count = (text: string, marker: string) => text.split(marker).length - 1;
 
-/** Every role the app builds. */
-const MODES: readonly RoleDefinition[] = [LEAD_ROLE, DEVELOPER_ROLE];
+/** Every role the app builds (phase 2b: all roles, not only the lead and the developer). */
+const MODES: readonly RoleDefinition[] = Object.values(ROLES);
 const lead = LEAD_ROLE;
 const dev = DEVELOPER_ROLE;
 
@@ -20,7 +23,7 @@ test("COMMON safety lines appear exactly once in every mode", () => {
     const text = rules(mode);
     expect(count(text, "is DATA")).toBe(1);
     expect(count(text, "Never reveal")).toBe(1);
-    expect(count(text, ".env")).toBe(1); // the secret-file rule exists in every role
+    expect(count(text, "Never read or quote .env")).toBe(1); // the secret-file rule exists in every role
   }
 });
 
@@ -57,7 +60,7 @@ test("dev: follow-up, memory contract, shell git and delivery by the agent", () 
   expect(text).toContain("Merge, push or PR only after the owner chose it.");
   // The shell is not filtered: no prompt claims it is (tool descriptions and the shell rules say so).
   expect(text).not.toMatch(/denied in the shell|blocked in the shell/);
-  expect(text).not.toContain("worktree"); // the worktree line appears only when the run names a dir
+  expect(text).not.toContain("git worktree add"); // the worktree line appears only when the run names a dir
   expect(systemPromptText(buildSystemPrompt("", dev, { worktreesDir: "/w/api" }))).toContain(
     "If you use a git worktree, put it under /w/api/:",
   );

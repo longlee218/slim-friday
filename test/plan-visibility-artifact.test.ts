@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
+import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
 import type { ViewerConfig } from "../src/config/viewer-config";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import {
@@ -15,7 +16,7 @@ import { recordBotThread } from "../src/storage/thread-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
 import { createPlanHandlerFor, plannerCtxOf } from "./plan-visibility-helpers";
-import { byKey, ENV, item, TH } from "./waves-fixture";
+import { byKey, ENV, item, setStoredBudget, TH } from "./waves-fixture";
 
 /* Phase 5 gap tests: the plan artifact's text and reuse, edge goals (no plan, 0 items, long brief), the version in force,
    the thread scope of the plan port, and the digest key that ignores the signed link. */
@@ -50,11 +51,11 @@ function world(
     items: o.items ?? [item("a"), item("b", { dependsOn: ["a"] })],
     acceptanceCriteria: ["works", "tests pass"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
+  setStoredBudget(db, r.plan.id, 1, PLAN_GOAL_BUDGET_MAX_USD); // at the ceiling: an added item applies at once
   if (o.approve) approveVersion(db, r.plan.id, 1);
   const deps = { db, home: env.home, viewer: VIEWER };
   return { env, goalId: w.goalId, planId: r.plan.id, deps };
@@ -70,7 +71,7 @@ test("the artifact text holds steps with deps, the done-when list, the limits li
   expect(text).toMatch(/^2\. b "Do b" \[developer @ repo, risk R1, pending\] after a: do b$/m);
   expect(text).toContain("Done when:\n- works\n- tests pass");
   expect(text).toMatch(
-    /^Limits: roles developer; locations repo; risk R0, R1; at most 8 steps and 1 GB; budget \$3; delivery: keep\.$/m,
+    /^Limits: roles developer; locations repo; risk R0, R1; at most 8 steps and 1 GB; budget \$35; delivery: keep\.$/m,
   );
 });
 
@@ -155,7 +156,6 @@ test("a 0-item plan is refused at storage; the renderer still writes a head and 
     items: [],
     acceptanceCriteria: [],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });

@@ -44,7 +44,7 @@ test("goalBudgetOf: no plan = GOAL_BUDGET_USD; approved plan = its budget; never
   p.db.close();
 });
 
-test("the validator accepts a plan budget up to the plan ceiling and refuses above it", () => {
+test("Plan create: code computes the budget from the items' role ceilings, capped at the plan ceiling", () => {
   const g = newGoal();
   db = g.db;
   const ctx: PlannerCtx = {
@@ -55,19 +55,23 @@ test("the validator accepts a plan budget up to the plan ceiling and refuses abo
     locations: [{ name: "repo", path: "/x" }],
     channelDigest: () => "",
   };
-  const input = (budgetUsd: number) => ({
-    goalId: g.goalId,
-    items: [item("a")],
-    acceptanceCriteria: [],
-    envelope: { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 2, maxGb: 1 } },
-    budgetUsd,
-    effects: [],
-  });
-  expect(createPlanHandler(ctx, input(PLAN_GOAL_BUDGET_MAX_USD + 0.01))).toMatchObject({
-    ok: false,
-    code: "INVALID",
-  });
-  expect(createPlanHandler(ctx, input(PLAN_GOAL_BUDGET_MAX_USD))).toMatchObject({ ok: true });
+  const budget = (keys: string[]) => {
+    const r = createPlanHandler(ctx, {
+      goalId: g.goalId,
+      items: keys.map((k) => item(k)),
+      acceptanceCriteria: ["tests pass"],
+      envelope: { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 8, maxGb: 1 } },
+      effects: [],
+    });
+    const planId = (r as unknown as { planId: string }).planId;
+    const stored = db.query("SELECT budget_usd AS b FROM work_plans WHERE id = ?").get(planId);
+    db.query("DELETE FROM work_plans WHERE id = ?").run(planId); // the next call creates a fresh plan
+    return (stored as { b: number }).b;
+  };
+  // Two developer runs ($8 each) + one verify run ($4, tester) in repo, times 1.25.
+  expect(budget(["a", "b"])).toBe(25);
+  // Five developer runs: (40 + 4) * 1.25 = 55, capped.
+  expect(budget(["a", "b", "c", "d", "e"])).toBe(PLAN_GOAL_BUDGET_MAX_USD);
 });
 
 test("plan goal: over-budget flag, goal-left cap and digest follow the plan budget; a DELEGATE goal keeps 15", () => {
@@ -108,7 +112,7 @@ test("the verify loop reads the plan budget: a goal at its $4 plan budget starts
 const GOAL = /Goal id: ([0-9a-f-]{36})/;
 const PLAN_ID = /"planId":"([0-9a-f-]{36})"/;
 
-test("budget_hit: a plan goal stops starting items at its plan budget ($4), and its run cap is the goal's rest", async () => {
+test("budget_hit: a plan goal stops starting items at its computed plan budget ($20)", async () => {
   const caps: Record<string, number> = {};
   const started: string[] = [];
   const h = leadHarness(
@@ -127,7 +131,6 @@ test("budget_hit: a plan goal stops starting items at its plan budget ($4), and 
             riskClasses: ["R1"],
             bounds: { maxItems: 4, maxGb: 1 },
           },
-          budgetUsd: 4,
           effects: [],
         });
         await c.report("result", {
@@ -142,7 +145,7 @@ test("budget_hit: a plan goal stops starting items at its plan budget ($4), and 
         started.push(key);
         caps[key] = c.options.maxBudgetUsd;
         await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
-        return { text: "ok", cost: 5 }; // over the whole $4 plan budget
+        return { text: "ok", cost: 25 }; // over the whole $20 plan budget (2 developer runs * $8 * 1.25)
       }
       if (c.prompt.includes("Owner message:")) {
         await c.orchestrate("request_plan", { objective: "two steps" });
@@ -163,9 +166,8 @@ test("budget_hit: a plan goal stops starting items at its plan budget ($4), and 
     }[];
   await until(() => hits().length > 0 || started.length > 1, 15000);
   expect(started).toEqual(["a"]); // b was refused
-  expect(caps.a).toBeGreaterThan(3.9); // goal-left cap: 4 - the planner's tiny cost, not the developer's $8 or 15
-  expect(caps.a).toBeLessThan(4);
-  expect(hits()[0]?.payload).toContain("goal budget $4 used");
+  expect(caps.a).toBeCloseTo(8, 6); // the developer's own ceiling: the goal still had ~$20 left
+  expect(hits()[0]?.payload).toContain("goal budget $20 used");
   const goalId = GOAL.exec(h.calls.find((c) => c.kind === "planner")!.prompt)?.[1] as string;
   // The budget hit HOLDS the item (E-L13): the lead may retry it once the budget allows, or cancel it.
   const b = byKey(h.env.db, goalId, "b");

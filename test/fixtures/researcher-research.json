@@ -1,5 +1,5 @@
 {
-  "_doc": "Scout research eval set (opt-in SCOUT_EVAL=1). Each case is one owner research question sent to the real lead; the lead routes it. kind = the research shape (quick lookup, technical docs, deep report, academic, market); it only groups the report. expect = routing: dispatch (a direct lead answer is a MISS) or either (default; a sure direct answer is fine, scored routed-direct). No expected answer: the run is scored on a completed scout, cited URLs that resolve, cost and latency.",
+  "_doc": "Researcher eval set (opt-in RESEARCHER_EVAL=1, alias SCOUT_EVAL=1). Each case is one owner research question sent to the real lead; the lead routes it. kind = the research shape (quick lookup, technical docs, deep report, academic, market); it only groups the report. expect = routing: dispatch (a direct lead answer is a MISS) or either (default; a sure direct answer is fine, scored routed-direct). No expected answer: the run is scored on a completed researcher, cited URLs that resolve, cost and latency.",
   "cases": [
     {
       "id": "quick-01",

@@ -13,7 +13,7 @@ import { openDb } from "../src/storage/db";
 
 let db: Database;
 afterEach(() => db?.close());
-const ENV = { workerRoles: ["developer"], locations: ["repo"], goalBudgetUsd: 6 };
+const ENV = { workerRoles: ["developer"], locations: ["repo"] };
 const plan = (effects: ("GitPush" | "CreatePullRequest" | "MergeBranch")[]) => {
   db = openDb(":memory:");
   const w = createPlanPort(db, "th1").requestPlan({ key: "k1", objective: "o" });
@@ -26,7 +26,6 @@ const plan = (effects: ("GitPush" | "CreatePullRequest" | "MergeBranch")[]) => {
     ],
     acceptanceCriteria: [],
     envelope: { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 8, maxGb: 1 } },
-    budgetUsd: 2,
     effects,
     env: ENV,
   });

@@ -52,7 +52,6 @@ function goal(key: string, objective: string, approve = false) {
     items: [item("a")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });

@@ -14,11 +14,10 @@ import { moveTaskTo } from "../src/tasks/task-resolver";
 /* Shared setup of the rolling-wave, verify and goal-budget tests: a real db, an approved plan, item helpers. */
 
 export const TH = "t";
-/** Validator facts: the roles and locations the plans use; the ceiling is the plan-goal one. */
+/** Validator facts: the roles and locations the plans use. */
 export const ENV = {
   workerRoles: ["developer", "scout"],
   locations: ["repo", "docs"],
-  goalBudgetUsd: PLAN_GOAL_BUDGET_MAX_USD,
 };
 export const item = (key: string, over: Record<string, unknown> = {}) => ({
   key,
@@ -42,10 +41,29 @@ export function newGoal(): { db: Database; goalId: string } {
   return { db, goalId: w.goalId };
 }
 
-/** An approved plan v1 (items, criteria, budget, locations) on a fresh goal. */
+/**
+ * Pin the stored budget of a plan version (column and envelope). Code computes a plan's budget from its items' role
+ * ceilings; the budget-hit tests need a small round figure instead, as if the plan had been stored with it.
+ */
+export function setStoredBudget(
+  db: Database,
+  planId: string,
+  version: number,
+  budgetUsd: number,
+): void {
+  db.query(
+    "UPDATE work_plans SET budget_usd = ?, envelope = json_set(envelope, '$.budgetUsd', ?) WHERE id = ? AND version = ?",
+  ).run(budgetUsd, budgetUsd, planId, version);
+}
+
+/**
+ * An approved plan v1 (items, criteria, budget, locations) on a fresh goal. `budget` pins the stored budget; the default is
+ * the goal ceiling, so a revision that adds scope cannot raise it and applies at once (the wave and verify mechanics under
+ * test); `null` keeps the budget code computed.
+ */
 export function approvedPlan(
   items: ReturnType<typeof item>[],
-  o: { criteria?: string[]; budget?: number; locations?: string[] } = {},
+  o: { criteria?: string[]; budget?: number | null; locations?: string[] } = {},
 ) {
   const { db, goalId } = newGoal();
   const r = createPlan(db, {
@@ -58,11 +76,12 @@ export function approvedPlan(
       riskClasses: ["R0", "R1"],
       bounds: { maxItems: PLAN_MAX_ITEMS, maxGb: 1 },
     },
-    budgetUsd: o.budget ?? 4,
     effects: [],
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
+  const budget = o.budget === undefined ? PLAN_GOAL_BUDGET_MAX_USD : o.budget;
+  if (budget !== null) setStoredBudget(db, r.plan.id, 1, budget);
   expect(approveVersion(db, r.plan.id, 1).ok).toBe(true);
   return { db, goalId, planId: r.plan.id };
 }

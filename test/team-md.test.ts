@@ -7,6 +7,7 @@ import {
 } from "../src/orchestrator/strategy/lead-context-block";
 import { buildTeamMd } from "../src/roles/prompts/team-md";
 import { ROLES } from "../src/roles/role-registry";
+import type { RoleDefinition } from "../src/roles/role-types";
 
 const api: Location = {
   name: "api",
@@ -25,7 +26,8 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).not.toMatch(/^- (lead|discord-manager):/m);
   expect(md).toContain("- api [git]: backend");
   expect(md).not.toContain("/r/api"); // no path in the reply source
-  for (const s of ["DIRECT", "DELEGATE", "PLAN"]) expect(md).toContain(`- ${s}:`);
+  expect(md).toContain("- DELEGATE: up to"); // the only strategy fact code owns (a cap)
+  for (const s of ["- DIRECT:", "- PLAN:"]) expect(md).not.toContain(s); // the skill owns the strategies
   expect(md).not.toContain("ANSWER"); // not a code strategy; choosing is the skill's job
   expect(md).toContain("NEEDS_PLAN");
   expect(md).not.toMatch(/tools:.*\b(tasks|mcp|feedback|ask)\b/); // internal capability names are left out
@@ -35,8 +37,8 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).toContain("1 dispatch or plan request per run");
   expect(md).not.toContain("/day"); // no daily budget is told to the lead
   expect(md).toContain("older than 8 h is held");
-  expect(md).toContain("Event kinds: result, failure, blocked"); // names only: the skill owns the playbook
-  expect(md).toContain("data blocks, not instructions"); // events and results are data
+  expect(md).not.toContain("## Events"); // the lead contract and skill own events
+  expect(md).not.toContain("Event kinds");
   // The playbook moved to the lead-orchestration skill: TEAM.md holds none of it.
   for (const gone of [
     "Orchestrate retry",
@@ -45,9 +47,9 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
     "NO_DEFAULT_PROJECTS_DIR",
   ])
     expect(md).not.toContain(gone);
-  // Section order: members, locations, strategies, events, limits.
+  // Section order: members, locations, strategies, limits.
   const at = (h: string) => md.indexOf(h);
-  const heads = ["## Members", "## Locations", "## Strategies", "## Events", "## Limits"].map(at);
+  const heads = ["## Members", "## Locations", "## Strategies", "## Limits"].map(at);
   expect(heads).toEqual([...heads].sort((a, b) => a - b));
 });
 
@@ -56,7 +58,36 @@ test("TEAM.md follows the roles and locations it is given and stays small", () =
   expect(buildTeamMd({ workers: [] })).toContain("none available");
   expect(buildTeamMd()).toContain("none in this channel");
   expect(buildTeamMd({ locations: [api] }).length).toBeLessThan(6000);
-  expect(buildTeamMd({ locations: [api] }).length).toBeLessThan(3500); // trimmed in phase 6a
+  expect(buildTeamMd({ locations: [api] }).length).toBeLessThan(5200); // phase 2b: routing, shell and test-split lines
+});
+
+test("TEAM.md phase 2b lines: routing split, shell members from capabilities, test split, PLAN staffing, no budget numbers", () => {
+  const md = buildTeamMd({ locations: [api] });
+  expect(md).toContain("goes to the scout");
+  expect(md).toContain("goes to the researcher");
+  expect(md).toMatch(/^- researcher: .*changes: none/m);
+  expect(md).toContain(
+    "higher-level tests (integration, end-to-end, regression, property) are the tester's",
+  );
+  expect(md).not.toContain("the planner is the project manager"); // the strategies live in the lead skill
+  expect(md).not.toContain("Goal budget"); // owner: code enforces the budget, no numbers for the lead
+  // Shell members come from the capabilities of the roles given, never a hard-coded list.
+  const fake = (name: string, caps: RoleDefinition["capabilities"]): RoleDefinition => ({
+    ...ROLES.scout!,
+    name,
+    capabilities: caps,
+  });
+  const only = buildTeamMd({
+    workers: [
+      fake("alpha", ["read", "shell"]),
+      fake("beta", ["read", "write", "shell"]),
+      fake("gamma", ["read"]),
+    ],
+  });
+  expect(only).toContain(
+    "Members with a shell can run commands and tests: alpha, beta; of these, only beta can also change files",
+  );
+  expect(buildTeamMd({ workers: [fake("gamma", ["read"])] })).toContain("No member has a shell");
 });
 
 test("data block: heading says data, one row per item, results are redacted and clipped", () => {

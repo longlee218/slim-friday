@@ -16,7 +16,7 @@ describe("fixed role models", () => {
   test("every role names a full model id (no tier alias)", () => {
     for (const r of Object.values(ROLES)) expect(r.model).toMatch(/^claude-[a-z]+-\d/);
   });
-  test("ids per role: lead, planner, developer and roster sonnet; scout and discord-manager haiku; roster specialists sonnet", () => {
+  test("ids per role: lead, planner, developer and roster sonnet; scout and discord-manager haiku; roster specialists and researcher sonnet", () => {
     expect(Object.fromEntries(Object.values(ROLES).map((r) => [r.name, r.model]))).toEqual({
       designer: SONNET_MODEL,
       developer: SONNET_MODEL,
@@ -26,6 +26,7 @@ describe("fixed role models", () => {
       "humanizer-writer": SONNET_MODEL,
       lead: SONNET_MODEL,
       planner: SONNET_MODEL,
+      researcher: SONNET_MODEL,
       scout: HAIKU_MODEL,
       "solution-architect": SONNET_MODEL,
       tester: SONNET_MODEL,

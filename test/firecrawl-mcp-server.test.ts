@@ -15,33 +15,35 @@ afterEach(() => {
   else process.env[KEY] = before;
 });
 
+const researcher = ROLES.researcher as RoleDefinition;
 const scout = ROLES.scout as RoleDefinition;
 const lead = ROLES.lead as RoleDefinition;
 
 test("no key (unset or placeholder): the Firecrawl server is not built", () => {
   delete process.env[KEY];
-  expect(buildServers(scout, {})[FIRECRAWL_MCP_SERVER]).toBeUndefined();
+  expect(buildServers(researcher, {})[FIRECRAWL_MCP_SERVER]).toBeUndefined();
   process.env[KEY] = "REPLACE_ME";
-  expect(buildServers(scout, {})[FIRECRAWL_MCP_SERVER]).toBeUndefined();
+  expect(buildServers(researcher, {})[FIRECRAWL_MCP_SERVER]).toBeUndefined();
 });
 
-test("with a key: the scout gets the hosted server over http, key in the header only", () => {
+test("with a key: the researcher gets the hosted server over http, key in the header only", () => {
   process.env[KEY] = " fc-test \n";
-  expect(buildServers(scout, {})[FIRECRAWL_MCP_SERVER]).toEqual({
+  expect(buildServers(researcher, {})[FIRECRAWL_MCP_SERVER]).toEqual({
     type: "http",
     url: FIRECRAWL_MCP_URL,
     headers: { Authorization: "Bearer fc-test" },
   });
   expect(FIRECRAWL_MCP_URL).not.toContain("fc-");
-  // A role that lists no Firecrawl tool never connects to it.
+  // A role that lists no Firecrawl tool never connects to it (the scout does code lookups since the split).
   expect(buildServers(lead, {})[FIRECRAWL_MCP_SERVER]).toBeUndefined();
+  expect(buildServers(scout, {})[FIRECRAWL_MCP_SERVER]).toBeUndefined();
 });
 
-test("guard: the scout may call its listed Firecrawl tools only; other roles none", () => {
+test("guard: the researcher may call its listed Firecrawl tools only; other roles none", () => {
   const scope = { readPaths: ["/r"] };
   const search = mcpToolName(FIRECRAWL_MCP_SERVER, FIRECRAWL_SEARCH_TOOL);
-  expect(mcpToolNamesFor(scout)).toContain(search);
-  expect(checkToolCall(search, {}, guardFor(scout, scope)).decision).toBe("allow");
+  expect(mcpToolNamesFor(researcher)).toContain(search);
+  expect(checkToolCall(search, {}, guardFor(researcher, scope)).decision).toBe("allow");
   for (const denied of [
     "firecrawl_crawl",
     "firecrawl_agent",
@@ -49,9 +51,11 @@ test("guard: the scout may call its listed Firecrawl tools only; other roles non
     "firecrawl_monitor_create",
   ])
     expect(
-      checkToolCall(mcpToolName(FIRECRAWL_MCP_SERVER, denied), {}, guardFor(scout, scope)).decision,
+      checkToolCall(mcpToolName(FIRECRAWL_MCP_SERVER, denied), {}, guardFor(researcher, scope))
+        .decision,
     ).toBe("deny");
   expect(checkToolCall(search, {}, guardFor(lead, scope)).decision).toBe("deny");
+  expect(checkToolCall(search, {}, guardFor(scout, scope)).decision).toBe("deny");
 });
 
 test("the key never reaches an agent process", () => {

@@ -19,7 +19,7 @@ flowchart LR
     Code["Code<br/>policy, scheduler, timers,<br/>verify and fix, waves"]
     DB[("SQLite<br/>owned_tasks, work_plans,<br/>thread_events")]
     Planner["Planner (Sonnet)<br/>Plan action tool"]
-    Workers["Workers: scout, developer, roster<br/>Report action tool"]
+    Workers["Workers: scout, researcher, developer, roster<br/>Report action tool"]
 
     Owner -->|message| Lead
     Lead -->|tool call| Orch
@@ -87,7 +87,7 @@ Revision of a valid or approved plan (`Plan revise`, planner):
 
 ```mermaid
 flowchart TD
-    REV["Planner: Plan revise (compare-and-set on baseVersion)"] --> Q{"Envelope grew or budget changed?"}
+    REV["Planner: Plan revise (compare-and-set on baseVersion)"] --> Q{"Envelope grew or computed budget rose?"}
     Q -->|yes| OWN["Owner approves the revision first"]
     Q -->|no| APPLY["Applies at once"]
     OWN -->|Yes| APPLY

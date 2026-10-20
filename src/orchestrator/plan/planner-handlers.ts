@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import { PLAN_GOAL_BUDGET_MAX_USD } from "../../config/model-routing";
 import { clip, redactText } from "../../observability/redact";
 import { countsTowardCap } from "../../roles/role-registry";
 import type { RoleDefinition } from "../../roles/role-types";
@@ -61,7 +60,6 @@ const EXCERPT_CHARS = 300;
 const planEnvOf = (c: PlannerCtx): PlanEnv => ({
   workerRoles: c.workers.map((w) => w.name),
   locations: c.locations.map((l) => l.name),
-  goalBudgetUsd: PLAN_GOAL_BUDGET_MAX_USD, // a plan's own budget is what the goal gets, up to this ceiling (`goalBudgetOf`)
 });
 
 /** A lifecycle refusal as a tool reply (the validator's list goes into the message). */
@@ -116,7 +114,7 @@ export function getProjectContext(c: PlannerCtx, i: GoalInput): Reply {
   };
 }
 
-/** The worker roles a plan may use, with the per-run budget ceiling of each. */
+/** The worker roles a plan may use (no budget: code computes the plan budget from the role ceilings). */
 export const getAgentCapabilities = (c: PlannerCtx): Reply => ({
   ok: true,
   roles: c.workers.map((w) => ({
@@ -124,8 +122,6 @@ export const getAgentCapabilities = (c: PlannerCtx): Reply => ({
     whenToUse: w.whenToUse,
     capabilities: w.capabilities,
     sideEffects: w.sideEffects,
-    // Per-run ceiling (USD) of this role: the planner sizes the goal budget from it, not from skill text.
-    budgetUsd: w.budgetUsd,
     concurrency: countsTowardCap(w) ? "limited" : "free",
   })),
 });

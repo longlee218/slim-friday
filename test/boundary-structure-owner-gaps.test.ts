@@ -48,7 +48,6 @@ function planGoal() {
     items: [item("p1")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     env: ENV,
   });

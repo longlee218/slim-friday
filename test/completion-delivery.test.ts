@@ -21,7 +21,7 @@ let db: Database;
 afterEach(() => db?.close());
 const NOTE = renderUserNotice({ kind: "note", state: "no-delivery" }, "en");
 const dev = ROLES.developer!;
-const ENV = { workerRoles: ["developer"], locations: ["repo"], goalBudgetUsd: 6 };
+const ENV = { workerRoles: ["developer"], locations: ["repo"] };
 
 /** A goal with a completed planner item and two plan items `a` -> `b` (pending); the plan is approved with `effects`. */
 function goalWithPlan(effects: DeliveryEffect[]) {
@@ -37,7 +37,6 @@ function goalWithPlan(effects: DeliveryEffect[]) {
     items: [mk("a", []), mk("b", ["a"])],
     acceptanceCriteria: [],
     envelope: { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 8, maxGb: 1 } },
-    budgetUsd: 2,
     effects,
     env: ENV,
   });
