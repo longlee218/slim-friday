@@ -7,6 +7,7 @@ import { pruneJournals } from "../memory/daily-journal";
 import { syncAll } from "../memory/index/memory-sync";
 import { safely } from "../memory/index/safely";
 import { logEvent, logger } from "../observability/logger";
+import { writeTeamFile } from "../roles/prompts/team-md-file";
 import { sweepStalePlugins } from "../runtime/skills-plugin/plugin-sweep";
 import { purgeRunMessages } from "../storage/run-message-store";
 
@@ -38,12 +39,13 @@ export function cleanupTaskLogs(agentHome: string, now = Date.now()): number {
   return deleted;
 }
 
-/** Startup hygiene: log retention + stale plugin dirs + attachments + owner-message purge + journal retention + memory index sync. Never throws (best effort). */
+/** Startup hygiene: TEAM.md snapshot + log retention + stale plugin dirs + attachments + owner-message purge + journal retention + memory index sync. Never throws (best effort). */
 export async function runStartupHygiene(db: Database, agentHome: string): Promise<void> {
   try {
     cleanupTaskLogs(agentHome);
     sweepStalePlugins(agentHome);
     cleanupAttachments(agentHome);
+    writeTeamFile(agentHome); // TEAM.md snapshot of the roster, for the owner to read
     const purged = purgeRunMessages(db); // owner messages kept for the audit (Rev 11) age out too
     if (purged) logEvent(log, "run_messages.purged", { deleted: purged });
   } catch (err) {

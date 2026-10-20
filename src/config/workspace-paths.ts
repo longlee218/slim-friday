@@ -17,6 +17,8 @@ export function workspacePaths(agentHome: string) {
     soul: join(agentHome, "SOUL.md"),
     /** Owner operating notes, owner profile (preferences), global memory, owner guide (never injected). */
     agents: join(agentHome, "AGENTS.md"),
+    /** Generated snapshot of the lead's TEAM.md (roster and caps), rewritten at every start; for the owner to read, never read by a run. */
+    team: join(agentHome, "TEAM.md"),
     user: join(agentHome, "USER.md"),
     memory: join(agentHome, "MEMORY.md"),
     bootstrap: join(agentHome, "BOOTSTRAP.md"),

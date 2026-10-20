@@ -60,6 +60,8 @@ export interface TeamMdInput {
   workers?: readonly RoleDefinition[];
   /** The locations of the thread's channel: the only names a brief may use. */
   locations?: readonly Location[];
+  /** Replaces the Locations list with this line (the home-level snapshot has no channel, so no locations). */
+  locationsNote?: string;
 }
 
 /** Build TEAM.md: members, locations, the delegate cap, limits. */
@@ -77,9 +79,11 @@ export function buildTeamMd(i: TeamMdInput = {}): string {
       : ["- none available"]),
     "",
     "## Locations (the only names a brief may use)",
-    ...(locations.length
-      ? locations.map(locationLine)
-      : ["- none in this channel: dispatch only work that needs no location"]),
+    ...(i.locationsNote
+      ? [i.locationsNote]
+      : locations.length
+        ? locations.map(locationLine)
+        : ["- none in this channel: dispatch only work that needs no location"]),
     "",
     "## Strategies",
     DELEGATE_LINE,
