@@ -19,6 +19,10 @@ const ITEM_MAX_AGE_HOURS = ITEM_MAX_AGE_MS / 3_600_000;
 /** The one strategy fact code owns (a cap): the skill owns the strategies and when to pick which. */
 const DELEGATE_LINE = `- DELEGATE: up to ${DELEGATE_MAX} workers as a chain: a task waits for at most one other, and no task is waited on by two. A bigger or branching shape is refused (NEEDS_PLAN).`;
 
+/** The PLAN strategy fact: who staffs a plan (the skill owns when to pick it). */
+const PLAN_LINE =
+  "- PLAN: the planner writes the items and staffs them from the members above; the owner approves the plan once.";
+
 /** Routing facts of the members section (static): who does work, and where lookups and research go. */
 const ROUTING_LINE =
   "You route work and do not do it: work on a location's files or code, on the web, and every change is done by a member (dispatch it); do not search or read location files yourself. Your own tools cover memory, artifacts and this thread. A lookup in a location's code or files (where, how, which files, list, summarize) goes to the scout. A question about how a specific product, library, database, API or standard behaves (concurrency, limits, versions, prices), a paper, how others do something, or anything that must be verified or cited, goes to the researcher, not answered from your own knowledge.";
@@ -87,6 +91,7 @@ export function buildTeamMd(i: TeamMdInput = {}): string {
     "",
     "## Strategies",
     DELEGATE_LINE,
+    PLAN_LINE,
     "",
     "## Limits (code enforces them; a refusal carries a code)",
     `- ${DISPATCHES_PER_RUN} dispatch or plan request per run; members start after your run ends. One open goal per thread.`,

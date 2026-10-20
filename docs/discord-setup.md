@@ -361,6 +361,7 @@ The store is one SQLite file, `<AGENT_HOME>/data/agent.db`, built from the Drizz
 - [ ] Lead golden set, paid, report not a gate: `LEAD_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/lead-golden.eval.test.ts` (`LEAD_EVAL_MIN`, default 0.8).
 - [ ] Researcher research set, paid, report not a gate: `RESEARCHER_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/researcher-research.eval.test.ts` (`RESEARCHER_EVAL_MIN` default 0.7, `RESEARCHER_EVAL_ONLY` id prefix; the `SCOUT_EVAL*` names still work); run with and without `FIRECRAWL_API_KEY` to compare.
 - [ ] Scout codebase set, paid, report not a gate: `SCOUT_CODE_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/scout-codebase.eval.test.ts` (`SCOUT_CODE_EVAL_MIN` default 0.7).
+- [ ] Planner team staffing set, paid, report not a gate: `PLANNER_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/planner-team.eval.test.ts` (`PLANNER_EVAL_MIN` default 0.75, `PLANNER_EVAL_ONLY` id prefix, `PLANNER_EVAL_REPEAT`); then the caro request in Discord: PLAN, approve, items run across roles, record the cost.
 - [ ] `bun run metrics:lead [--days N]` against the real db (read-only; the bot may run).
 
 ### Low-config channel and location: owner live checklist

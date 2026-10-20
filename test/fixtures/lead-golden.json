@@ -180,6 +180,78 @@
       "text": "add a realtime chat feature to the app: a websocket server, a React UI, message history in the database, and tests",
       "strategy": "PLAN",
       "roles": []
+    },
+    {
+      "id": "new-app-todo-vi",
+      "text": "làm một app quản lý chi tiêu mới từ đầu, web + API",
+      "strategy": "PLAN",
+      "roles": []
+    },
+    {
+      "id": "new-service-en",
+      "text": "build a new URL shortener service with an API, a small UI and tests",
+      "strategy": "PLAN",
+      "roles": []
+    },
+    {
+      "id": "research-lib-vi",
+      "text": "thư viện zod hiện tại hỗ trợ những kiểu discriminated union nào, phiên bản mới nhất là gì? cho mình nguồn",
+      "strategy": "DIRECT",
+      "roles": ["researcher"]
+    },
+    {
+      "id": "research-standard-en",
+      "text": "what does RFC 9110 say about the idempotency of the PUT method? cite the section",
+      "strategy": "DIRECT",
+      "roles": ["researcher"]
+    },
+    {
+      "id": "find-config-vi",
+      "text": "file cấu hình logging nằm ở đâu?",
+      "strategy": "DIRECT",
+      "roles": ["scout"]
+    },
+    {
+      "id": "read-file-en",
+      "text": "what does src/server.ts export?",
+      "strategy": "DIRECT",
+      "roles": ["scout"]
+    },
+    {
+      "id": "design-screens",
+      "text": "design the screens for the settings page: layout, states and accessibility notes",
+      "strategy": "DIRECT",
+      "roles": ["designer"]
+    },
+    {
+      "id": "compare-approaches",
+      "text": "compare Redis and Postgres for our job queue and recommend one with the interfaces and risks",
+      "strategy": "DIRECT",
+      "roles": ["solution-architect"]
+    },
+    {
+      "id": "write-tests-report",
+      "text": "write end-to-end tests for the checkout flow and report what breaks",
+      "strategy": "DIRECT",
+      "roles": ["tester"]
+    },
+    {
+      "id": "security-review",
+      "text": "review the auth module for vulnerabilities and unsafe patterns, report with severity",
+      "strategy": "DIRECT",
+      "roles": ["hacker"]
+    },
+    {
+      "id": "ci-dockerfile",
+      "text": "write a Dockerfile and a GitHub Actions workflow that builds and lints the project",
+      "strategy": "DIRECT",
+      "roles": ["devops"]
+    },
+    {
+      "id": "rewrite-readme",
+      "text": "rewrite the README so it reads naturally for new users",
+      "strategy": "DIRECT",
+      "roles": ["humanizer-writer"]
     }
   ]
 }

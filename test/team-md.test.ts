@@ -27,7 +27,10 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).toContain("- api [git]: backend");
   expect(md).not.toContain("/r/api"); // no path in the reply source
   expect(md).toContain("- DELEGATE: up to"); // the only strategy fact code owns (a cap)
-  for (const s of ["- DIRECT:", "- PLAN:"]) expect(md).not.toContain(s); // the skill owns the strategies
+  expect(md).not.toContain("- DIRECT:"); // the skill owns the strategies
+  expect(md).toContain(
+    "- PLAN: the planner writes the items and staffs them from the members above",
+  ); // a runtime fact
   expect(md).not.toContain("ANSWER"); // not a code strategy; choosing is the skill's job
   expect(md).toContain("NEEDS_PLAN");
   expect(md).not.toMatch(/tools:.*\b(tasks|mcp|feedback|ask)\b/); // internal capability names are left out
