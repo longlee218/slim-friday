@@ -1,5 +1,5 @@
 import type { Logger } from "pino";
-import { type LogContext, logger, setLogContext } from "../../observability/logger";
+import { type LogContext, logger, runWithLogContext } from "../../observability/logger";
 import { closeTurn, type FlowResult } from "../turns/turn-result";
 import { beginTurn, failTurn } from "../turns/turn-tracker";
 import type { DispatchDeps, RoleRunInput } from "./role-run-types";
@@ -62,22 +62,40 @@ export function runTurn(
   },
 ): Promise<LeadTurnResult> | undefined {
   const { begin } = spec;
-  setLogContext(begin.context);
-  beginTurn(deps.db, begin.log, begin.ids, begin.turn);
-  const built = spec.build();
-  if (kind === "worker") {
-    runDetached(deps, built.input, built.detached as DetachedOpts);
-    return undefined;
-  }
-  const { input } = built;
-  const t0 = Date.now();
-  return runAndClose(
-    deps,
-    input,
-    () => failTurn(deps.db, log, input.turnId),
-    (res) => {
-      const c = (built.close as LeadClose)(res, t0);
-      return closeTurn(deps.db, { turnId: input.turnId, threadId: input.threadId }, c.res, c.opts);
-    },
-  ).then(({ res, closed }) => ({ turnId: input.turnId, reply: closed, outcome: res.outcome }));
+  // The run owns its log context. A turn is started from whichever async tree woke it (a lead announce timer armed
+  // inside a running worker, a dispatch inside a lead run, ...): `setLogContext` mutates the store object of that
+  // tree, so without a fresh store here a later run would relabel every line of the one still running. Everything
+  // below (turn row, run stream, tool hooks, close) runs inside this store and keeps it across awaits and callbacks.
+  // The per-run keys of the waking tree are blanked; `traceId`, `threadId`, `channelId` stay.
+  const own: LogContext = {
+    taskId: undefined,
+    mode: undefined,
+    location: undefined,
+    sessionKey: undefined,
+    ...begin.context,
+  };
+  return runWithLogContext(own, () => {
+    beginTurn(deps.db, begin.log, begin.ids, begin.turn);
+    const built = spec.build();
+    if (kind === "worker") {
+      runDetached(deps, built.input, built.detached as DetachedOpts);
+      return undefined;
+    }
+    const { input } = built;
+    const t0 = Date.now();
+    return runAndClose(
+      deps,
+      input,
+      () => failTurn(deps.db, log, input.turnId),
+      (res) => {
+        const c = (built.close as LeadClose)(res, t0);
+        return closeTurn(
+          deps.db,
+          { turnId: input.turnId, threadId: input.threadId },
+          c.res,
+          c.opts,
+        );
+      },
+    ).then(({ res, closed }) => ({ turnId: input.turnId, reply: closed, outcome: res.outcome }));
+  });
 }

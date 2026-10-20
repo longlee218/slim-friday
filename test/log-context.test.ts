@@ -28,7 +28,7 @@ import {
   stubGateway,
   TEST_CHANNEL,
 } from "./helpers";
-import { devLeadQuery, workersDone } from "./lead-harness";
+import { devLeadQuery, leadHarness, until, workersDone } from "./lead-harness";
 
 /** A message the fake lead dispatches to a detached dev worker. */
 const task = (text: string, threadId: string) => ({
@@ -285,4 +285,61 @@ test("a tool call outside every location keeps location *", async () => {
   const lines = await runUnpinned(env, "/etc/hosts");
   expect(lines.find((l) => l.event === "tool.done")).toMatchObject({ location: "*" });
   expect(lines.find((l) => l.event === "task.finished")).toMatchObject({ location: "*" });
+});
+
+test("a lead run woken by a worker's question does not relabel the still-running worker's lines", async () => {
+  const cap = captureLogs();
+  const h = leadHarness(async (c) => {
+    if (c.kind === "worker") {
+      // The question wakes the lead (announce timer armed from this worker's async context) and parks the worker.
+      await c.options.canUseTool(
+        "AskUserQuestion",
+        { questions: [{ question: "Which dir?", options: [{ label: "a" }] }] },
+        {},
+      );
+      // Still running after the lead's run started: a hook line of the worker.
+      await c.options.hooks.PostToolUse[0].hooks[0](
+        {
+          hook_event_name: "PostToolUse",
+          tool_use_id: "u9",
+          tool_name: GLOB_TOOL_NAME,
+          tool_input: {},
+          tool_response: "ok",
+          duration_ms: 1,
+        },
+        "u9",
+        { signal: new AbortController().signal },
+      );
+      await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
+      return "done";
+    }
+    if (c.prompt.includes("Owner message:\nstart")) {
+      await c.orchestrate("dispatch", {
+        strategy: "DIRECT",
+        intent: "x",
+        reason: "x",
+        assignments: [
+          { key: "main", subject: "task", role: "developer", brief: "do it", dependsOn: [] },
+        ],
+      });
+      return "started";
+    }
+    const id = /task=([0-9a-f-]{36})/.exec(c.prompt)?.[1] as string;
+    if (c.prompt.includes("question task=")) {
+      await c.orchestrate("steer", { taskId: id, text: "a" });
+      return "answered";
+    }
+    return "";
+  });
+  await h.send("start");
+  await until(() => h.posts.includes("answered"), 8000);
+  await workersDone(h.env.db);
+  cap.stop();
+  const worker = cap.lines.find((l) => l.event === "run.started" && l.mode === "developer")!;
+  const done = cap.lines.find((l) => l.event === "tool.done" && l.tool === GLOB_TOOL_NAME)!;
+  expect(done).toMatchObject({
+    taskId: worker.taskId,
+    mode: "developer",
+    sessionKey: worker.sessionKey,
+  });
 });
