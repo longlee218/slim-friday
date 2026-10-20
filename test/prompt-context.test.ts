@@ -24,7 +24,7 @@ function setup() {
   return { env, p };
 }
 
-test("lead order: AGENTS, TEAM, persona, memory (root, workspace, location); no registry, no ledger; BOOTSTRAP never", () => {
+test("lead order: TEAM, AGENTS, persona, memory (root, workspace, location); no registry, no ledger; BOOTSTRAP never", () => {
   const { env } = setup();
   const logs = captureLogs();
   const out = buildPromptContext({
@@ -39,8 +39,8 @@ test("lead order: AGENTS, TEAM, persona, memory (root, workspace, location); no 
   logs.stop();
   const all = out.join("\n\n");
   const at = (m: string) => all.indexOf(m);
-  expect(at("AGENTS_MARK")).toBeLessThan(at("TEAM_MARK"));
-  expect(at("TEAM_MARK")).toBeLessThan(at("ROOT_MARK"));
+  expect(at("TEAM_MARK")).toBeLessThan(at("AGENTS_MARK"));
+  expect(at("AGENTS_MARK")).toBeLessThan(at("ROOT_MARK"));
   expect(at("ROOT_MARK")).toBeLessThan(at("WSLAYER_MARK"));
   expect(at("WSLAYER_MARK")).toBeLessThan(at("LOCATION_MARK"));
   expect(all).not.toContain("REGISTRY_MARK");

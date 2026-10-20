@@ -10,7 +10,7 @@ import type { RoleScope } from "./role-scope-types";
 
 /**
  * The extra prompt context of a role run (after the role's rules and COMMON):
- * - lead: AGENTS, TEAM, IDENTITY, SOUL, USER, memory (root, workspace, channel), then the thread-title note;
+ * - lead: TEAM, AGENTS, IDENTITY, SOUL, USER, memory (root, workspace, channel), then the thread-title note;
  * - worker: locations registry, its locations' memory, task ledger (no persona: the lead speaks to the owner);
  * - no workspace (the control channel): the root persona files only.
  */

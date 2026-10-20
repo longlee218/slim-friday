@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
+import { demoteHeadings } from "../text/demote-headings";
 import type { Workspace } from "../workspaces/workspace-registry";
 import {
   BOOTSTRAP,
@@ -108,10 +109,11 @@ const PERSONA_FILES = [
 ] as const;
 
 /**
- * The lead's persona block: `## AGENTS.md`, then `## TEAM.md` (`team`, built by code: roster and locations) when given,
- * then `## IDENTITY.md`, `## SOUL.md`, `## USER.md`, one section per non-empty file. Per file the first non-empty of
- * channel, workspace, root wins; `workspace` undefined = root files only (the control channel). `truncated` is true when
- * any file was cut. Text is "" when no section has content.
+ * The lead's persona block: `## TEAM.md` (`team`, built by code: roster and locations) when given, then `## AGENTS.md`,
+ * `## IDENTITY.md`, `## SOUL.md`, `## USER.md`, one section per non-empty file. The work block (TEAM) comes first, then the
+ * owner's files. Each file's own headings are pushed two levels down, so they nest under its `## <FILE>.md` heading.
+ * Per file the first non-empty of channel, workspace, root wins; `workspace` undefined = root files only (the control
+ * channel). `truncated` is true when any file was cut. Text is "" when no section has content.
  */
 export function buildPersonaContext(
   agentHome: string,
@@ -128,13 +130,11 @@ export function buildPersonaContext(
       .map((file) => (file ? readPersona(file, f.name) : NONE))
       .find((r) => r.body) ?? NONE;
   const files = PERSONA_FILES.map((f) => ({ name: f.name, ...read(f) }));
-  const loaded = [
-    files[0],
-    ...(team ? [{ name: "TEAM.md", body: team }] : []),
-    ...files.slice(1),
-  ].filter((f): f is { name: string; body: string } => Boolean(f?.body));
+  const loaded = [...(team ? [{ name: "TEAM.md", body: team }] : []), ...files].filter(
+    (f): f is { name: string; body: string } => Boolean(f?.body),
+  );
   return {
-    text: loaded.map((f) => `## ${f.name}\n\n${f.body}`).join("\n\n"),
+    text: loaded.map((f) => `## ${f.name}\n\n${demoteHeadings(f.body, 2)}`).join("\n\n"),
     truncated: files.some((f) => f.cut),
   };
 }

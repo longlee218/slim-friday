@@ -10,6 +10,7 @@ import { runExtraContext } from "../../orchestrator/run/run-extra-context";
 import { buildTeamMd } from "../../roles/prompts/team-md";
 import { threadTitleNote } from "../../roles/prompts/thread-title-note";
 import type { RoleDefinition } from "../../roles/role-types";
+import { preloadedSkillsText } from "../skills-plugin/preload-skills";
 import { buildSystemPrompt, type SystemPrompt, systemPromptText } from "../system-prompt";
 
 /** One labeled slice of the system prompt, in prompt order. */
@@ -97,9 +98,13 @@ export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): Promp
   ];
   const contract = role.promptSections(opts).join("\n");
   const rules = systemPromptText(buildSystemPrompt("", role, opts));
+  // The preloaded skill text is the tail of the rules (after COMMON), so it is cut off to label each layer on its own.
+  const skills = preloadedSkillsText(role.preloadSkills);
+  const common = skills ? rules.slice(0, rules.length - skills.length - 2) : rules;
   const layers: PromptLayer[] = [
     { name: "role contract (promptSections)", text: contract },
-    { name: "COMMON safety", text: rules.slice(contract ? contract.length + 1 : 0) },
+    { name: "COMMON safety", text: common.slice(contract ? contract.length + 1 : 0) },
+    ...(skills ? [{ name: "preloaded skills", text: skills }] : []),
   ];
   for (const b of blocks)
     if (persona && b === persona) layers.push(...personaLayers(b));

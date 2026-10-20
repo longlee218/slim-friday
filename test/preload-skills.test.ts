@@ -28,3 +28,10 @@ test("a name that is not installed or not in the lock is left out", () => {
   expect(preloadedSkillsText([])).toBe("");
   expect(preloadedSkillsText(["no-such-skill"])).toBe("");
 });
+
+test("injected blocks nest under their own heading: the skill's headings sit two levels down", () => {
+  const text = preloadedSkillsText(["lead-orchestration"]);
+  expect(text).toContain("### Lead orchestration"); // was `# `
+  expect(text).toContain("#### Always"); // was `## `
+  expect(text).not.toMatch(/^## (Always|Strategy|Brief)/m);
+});
