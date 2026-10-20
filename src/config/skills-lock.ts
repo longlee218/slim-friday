@@ -21,8 +21,8 @@ const GENERIC_REPO_NAMES = new Set(["skills", "agents"]);
 
 /**
  * Plugin name of a lock entry (its skills load as `<plugin>:<skill>`): the last segment of its `source`
- * (`<owner>/<pack>` -> `<pack>`, `.git` dropped). A generic last segment takes its owner too (`anthropics/skills` ->
- * `anthropics-skills`). Existing names stay as they are, so installing a generic-named pack renames no loaded skill.
+ * (`<owner>/<pack>` -> `<pack>`, `.git` dropped). A generic last segment takes its owner too (`<owner>/skills` ->
+ * `<owner>-skills`). Existing names stay as they are, so installing a generic-named pack renames no loaded skill.
  */
 export const pluginNameOf = (source: string): string => {
   const parts = source

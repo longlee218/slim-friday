@@ -12,7 +12,7 @@ import { PLANNER_METHOD_LINE } from "./worker-method";
 /** Owner questions per run: the planner never asks; when it cannot plan it reports NEEDS_CLARIFICATION and the lead asks. */
 const MAX_ASK = 0;
 /** Budget (USD) of one planner run (counted in the goal budget). */
-const BUDGET_USD = 1.0;
+const BUDGET_USD = 2.0;
 /** Agent loops (SDK turns) one planner run may take. */
 const MAX_TURNS = 40;
 

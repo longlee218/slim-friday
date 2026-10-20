@@ -48,7 +48,9 @@ test("validateRole refuses a role without a positive budget or with a bad ask li
   expect(bad({ limits: { ...DEVELOPER_ROLE.limits, maxAsk: 1.5 } })).toContain("ask limit");
 });
 
-test("subagents: only the developer may spawn (3 parallel, depth 1); every role declares the bounds", () => {
+const SPAWNERS = new Set(["developer", "tester"]);
+
+test("subagents: only the developer (3 parallel) and the tester (2 parallel) may spawn (depth 1); every role declares the bounds", () => {
   for (const r of Object.values(ROLES)) {
     expect([r.name, r.subagents.depth >= 1, r.subagents.parallel >= 1]).toEqual([
       r.name,
@@ -58,9 +60,10 @@ test("subagents: only the developer may spawn (3 parallel, depth 1); every role 
     expect([r.name, r.limits.maxTurns > 0]).toEqual([r.name, true]);
     expect([r.name, !r.noSubagents, toolsFor(r).includes(AGENT_TOOL_NAME)]).toEqual([
       r.name,
-      r.name === "developer",
-      r.name === "developer",
+      SPAWNERS.has(r.name),
+      SPAWNERS.has(r.name),
     ]);
   }
   expect(DEVELOPER_ROLE.subagents).toEqual({ parallel: 3, depth: 1 });
+  expect(ROLES.tester!.subagents).toEqual({ parallel: 2, depth: 1 });
 });

@@ -97,7 +97,7 @@ const CODE_CAPABILITIES: Capability[] = [
 export const DEVELOPER_ROLE: RoleDefinition = {
   name: "developer",
   whenToUse:
-    "A job that changes things or needs a plan the owner approves: implement, fix, refactor, add tests, design or plan a FUTURE change; works in the location and delivers (merge, PR or keep) after the owner chose.",
+    "Implement, fix, refactor, add unit tests of its own change in a location; delivers (merge, PR or keep) after the owner chose. Design or a plan goes to the solution-architect, designer or planner.",
   kind: "worker",
   dispatchable: true, // the lead may start it as a worker
   // Memory read tools (the lead alone saves), the Report tool and the effect tools (a run without the effects ctx just lacks them).
@@ -115,7 +115,6 @@ export const DEVELOPER_ROLE: RoleDefinition = {
   skills: [
     "worker-reporting",
     "brainstorming",
-    "diagnosing-superpowers",
     "dispatching-parallel-agents",
     "executing-plans",
     "finishing-a-development-branch",
@@ -128,7 +127,6 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "using-superpowers",
     "verification-before-completion",
     "writing-plans",
-    "writing-skills",
   ], // explicit list: a new skill is added here (data)
   limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
   subagents: SUBAGENTS,

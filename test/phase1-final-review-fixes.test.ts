@@ -298,7 +298,7 @@ test("#4: a stuck zombie claim gives the lead one notice and stays claimed", () 
 test("#5: a goal without an approved plan cannot grow its budget; a plan goal below the ceiling can", () => {
   const p = approvedPlan([planItem("a")], { budget: 4 });
   expect(goalBudgetCanGrow(p.db, p.goalId)).toBe(true);
-  p.db.query("UPDATE work_plans SET budget_usd = 25 WHERE goal_id = ?").run(p.goalId);
+  p.db.query("UPDATE work_plans SET budget_usd = 35 WHERE goal_id = ?").run(p.goalId);
   expect(goalBudgetCanGrow(p.db, p.goalId)).toBe(false); // at the ceiling
   p.db.close();
 });

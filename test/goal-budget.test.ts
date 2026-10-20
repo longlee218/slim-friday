@@ -24,7 +24,7 @@ import {
   TH,
 } from "./waves-fixture";
 
-/* The per-goal budget figure: a PLAN goal = its approved plan budget (ceiling $25), a DELEGATE goal = $15. One function
+/* The per-goal budget figure: a PLAN goal = its approved plan budget (ceiling $35), a DELEGATE goal = $15. One function
    (`goalBudgetOf`) feeds the dispatch refusal, the goal-left run cap, the verify loop and the digest. */
 
 let db: Database;
@@ -40,7 +40,7 @@ test("goalBudgetOf: no plan = GOAL_BUDGET_USD; approved plan = its budget; never
   // A stored value above the ceiling (it cannot pass the validator) is clamped.
   p.db.query("UPDATE work_plans SET budget_usd = 99 WHERE goal_id = ?").run(p.goalId);
   expect(goalBudgetOf(p.db, p.goalId)).toBe(PLAN_GOAL_BUDGET_MAX_USD);
-  expect(PLAN_GOAL_BUDGET_MAX_USD).toBe(25);
+  expect(PLAN_GOAL_BUDGET_MAX_USD).toBe(35);
   p.db.close();
 });
 

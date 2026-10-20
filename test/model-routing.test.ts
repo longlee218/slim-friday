@@ -16,19 +16,19 @@ describe("fixed role models", () => {
   test("every role names a full model id (no tier alias)", () => {
     for (const r of Object.values(ROLES)) expect(r.model).toMatch(/^claude-[a-z]+-\d/);
   });
-  test("ids per role: lead, planner, developer sonnet; scout, roster specialists and discord-manager haiku", () => {
+  test("ids per role: lead, planner, developer and roster sonnet; scout and discord-manager haiku; roster specialists sonnet", () => {
     expect(Object.fromEntries(Object.values(ROLES).map((r) => [r.name, r.model]))).toEqual({
-      designer: HAIKU_MODEL,
+      designer: SONNET_MODEL,
       developer: SONNET_MODEL,
-      devops: HAIKU_MODEL,
+      devops: SONNET_MODEL,
       "discord-manager": HAIKU_MODEL,
-      hacker: HAIKU_MODEL,
-      "humanizer-writer": HAIKU_MODEL,
+      hacker: SONNET_MODEL,
+      "humanizer-writer": SONNET_MODEL,
       lead: SONNET_MODEL,
       planner: SONNET_MODEL,
       scout: HAIKU_MODEL,
-      "solution-architect": HAIKU_MODEL,
-      tester: HAIKU_MODEL,
+      "solution-architect": SONNET_MODEL,
+      tester: SONNET_MODEL,
     });
   });
   test("thinking is role data: lead adaptive, discord-manager disabled, the others the SDK default", () => {

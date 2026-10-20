@@ -86,18 +86,18 @@ One row per role. All five fields are role data (constants at the top of each ro
 | Role | Model | maxTurns | budgetUsd | maxAsk | Subagents | parallel | depth |
 |---|---|---|---|---|---|---|---|
 | `lead` | Sonnet | 30 <!-- limit:role.lead.maxTurns=30 --> | $1.5 <!-- limit:role.lead.budgetUsd=1.5 --> | 0 <!-- limit:role.lead.maxAsk=0 --> | off | 3 <!-- limit:role.lead.subagents.parallel=3 --> | 1 <!-- limit:role.lead.subagents.depth=1 --> |
-| `planner` | Sonnet | 40 <!-- limit:role.planner.maxTurns=40 --> | $1 <!-- limit:role.planner.budgetUsd=1 --> | 0 <!-- limit:role.planner.maxAsk=0 --> | off | 3 <!-- limit:role.planner.subagents.parallel=3 --> | 1 <!-- limit:role.planner.subagents.depth=1 --> |
+| `planner` | Sonnet | 40 <!-- limit:role.planner.maxTurns=40 --> | $2 <!-- limit:role.planner.budgetUsd=2 --> | 0 <!-- limit:role.planner.maxAsk=0 --> | off | 3 <!-- limit:role.planner.subagents.parallel=3 --> | 1 <!-- limit:role.planner.subagents.depth=1 --> |
 | `scout` | Haiku | 40 <!-- limit:role.scout.maxTurns=40 --> | $1.5 <!-- limit:role.scout.budgetUsd=1.5 --> | 0 <!-- limit:role.scout.maxAsk=0 --> | off | 3 <!-- limit:role.scout.subagents.parallel=3 --> | 1 <!-- limit:role.scout.subagents.depth=1 --> |
 | `developer` | Sonnet | 150 <!-- limit:role.developer.maxTurns=150 --> | $8 <!-- limit:role.developer.budgetUsd=8 --> | 6 <!-- limit:role.developer.maxAsk=6 --> | on | 3 <!-- limit:role.developer.subagents.parallel=3 --> | 1 <!-- limit:role.developer.subagents.depth=1 --> |
 | `discord-manager` | Haiku | 30 <!-- limit:role.discord-manager.maxTurns=30 --> | $0.5 <!-- limit:role.discord-manager.budgetUsd=0.5 --> | 4 <!-- limit:role.discord-manager.maxAsk=4 --> | off | 3 <!-- limit:role.discord-manager.subagents.parallel=3 --> | 1 <!-- limit:role.discord-manager.subagents.depth=1 --> |
-| `solution-architect` | Haiku | 60 <!-- limit:role.solution-architect.maxTurns=60 --> | $1.5 <!-- limit:role.solution-architect.budgetUsd=1.5 --> | 0 <!-- limit:role.solution-architect.maxAsk=0 --> | off | 3 <!-- limit:role.solution-architect.subagents.parallel=3 --> | 1 <!-- limit:role.solution-architect.subagents.depth=1 --> |
-| `designer` | Haiku | 60 <!-- limit:role.designer.maxTurns=60 --> | $1.5 <!-- limit:role.designer.budgetUsd=1.5 --> | 0 <!-- limit:role.designer.maxAsk=0 --> | off | 3 <!-- limit:role.designer.subagents.parallel=3 --> | 1 <!-- limit:role.designer.subagents.depth=1 --> |
-| `tester` | Haiku | 60 <!-- limit:role.tester.maxTurns=60 --> | $1.5 <!-- limit:role.tester.budgetUsd=1.5 --> | 0 <!-- limit:role.tester.maxAsk=0 --> | off | 3 <!-- limit:role.tester.subagents.parallel=3 --> | 1 <!-- limit:role.tester.subagents.depth=1 --> |
-| `devops` | Haiku | 60 <!-- limit:role.devops.maxTurns=60 --> | $1.5 <!-- limit:role.devops.budgetUsd=1.5 --> | 0 <!-- limit:role.devops.maxAsk=0 --> | off | 3 <!-- limit:role.devops.subagents.parallel=3 --> | 1 <!-- limit:role.devops.subagents.depth=1 --> |
-| `humanizer-writer` | Haiku | 60 <!-- limit:role.humanizer-writer.maxTurns=60 --> | $1.5 <!-- limit:role.humanizer-writer.budgetUsd=1.5 --> | 0 <!-- limit:role.humanizer-writer.maxAsk=0 --> | off | 3 <!-- limit:role.humanizer-writer.subagents.parallel=3 --> | 1 <!-- limit:role.humanizer-writer.subagents.depth=1 --> |
-| `hacker` | Haiku | 60 <!-- limit:role.hacker.maxTurns=60 --> | $1.5 <!-- limit:role.hacker.budgetUsd=1.5 --> | 0 <!-- limit:role.hacker.maxAsk=0 --> | off | 3 <!-- limit:role.hacker.subagents.parallel=3 --> | 1 <!-- limit:role.hacker.subagents.depth=1 --> |
+| `solution-architect` | Sonnet | 60 <!-- limit:role.solution-architect.maxTurns=60 --> | $4 <!-- limit:role.solution-architect.budgetUsd=4 --> | 0 <!-- limit:role.solution-architect.maxAsk=0 --> | off | 3 <!-- limit:role.solution-architect.subagents.parallel=3 --> | 1 <!-- limit:role.solution-architect.subagents.depth=1 --> |
+| `designer` | Sonnet | 60 <!-- limit:role.designer.maxTurns=60 --> | $4 <!-- limit:role.designer.budgetUsd=4 --> | 0 <!-- limit:role.designer.maxAsk=0 --> | off | 3 <!-- limit:role.designer.subagents.parallel=3 --> | 1 <!-- limit:role.designer.subagents.depth=1 --> |
+| `tester` | Sonnet | 60 <!-- limit:role.tester.maxTurns=60 --> | $4 <!-- limit:role.tester.budgetUsd=4 --> | 0 <!-- limit:role.tester.maxAsk=0 --> | on | 2 <!-- limit:role.tester.subagents.parallel=2 --> | 1 <!-- limit:role.tester.subagents.depth=1 --> |
+| `devops` | Sonnet | 60 <!-- limit:role.devops.maxTurns=60 --> | $4 <!-- limit:role.devops.budgetUsd=4 --> | 0 <!-- limit:role.devops.maxAsk=0 --> | off | 3 <!-- limit:role.devops.subagents.parallel=3 --> | 1 <!-- limit:role.devops.subagents.depth=1 --> |
+| `humanizer-writer` | Sonnet | 60 <!-- limit:role.humanizer-writer.maxTurns=60 --> | $4 <!-- limit:role.humanizer-writer.budgetUsd=4 --> | 0 <!-- limit:role.humanizer-writer.maxAsk=0 --> | off | 3 <!-- limit:role.humanizer-writer.subagents.parallel=3 --> | 1 <!-- limit:role.humanizer-writer.subagents.depth=1 --> |
+| `hacker` | Sonnet | 60 <!-- limit:role.hacker.maxTurns=60 --> | $4 <!-- limit:role.hacker.budgetUsd=4 --> | 0 <!-- limit:role.hacker.maxAsk=0 --> | off | 3 <!-- limit:role.hacker.subagents.parallel=3 --> | 1 <!-- limit:role.hacker.subagents.depth=1 --> |
 
-Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer only"):
+Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer and tester only"):
 
 | Role | enabled |
 |---|---|
@@ -108,7 +108,7 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer on
 | `discord-manager` | 0 <!-- limit:role.discord-manager.subagents.enabled=0 --> |
 | `solution-architect` | 0 <!-- limit:role.solution-architect.subagents.enabled=0 --> |
 | `designer` | 0 <!-- limit:role.designer.subagents.enabled=0 --> |
-| `tester` | 0 <!-- limit:role.tester.subagents.enabled=0 --> |
+| `tester` | 1 <!-- limit:role.tester.subagents.enabled=1 --> |
 | `devops` | 0 <!-- limit:role.devops.subagents.enabled=0 --> |
 | `humanizer-writer` | 0 <!-- limit:role.humanizer-writer.subagents.enabled=0 --> |
 | `hacker` | 0 <!-- limit:role.hacker.subagents.enabled=0 --> |
@@ -120,8 +120,8 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer on
 
 | Name | Scope | Value | File | At the limit |
 |---|---|---|---|---|
-| Enablement | run | developer only (data: `noSubagents` unset; drift-checked as `role.<name>.subagents.enabled`) | role files | other roles get no `Agent`, `SendMessage`, `ListAgents` |
-| Parallel | run | role `subagents.parallel` (3 for developer) | `policy/subagent-limit.ts` | the guard denies the next start |
+| Enablement | run | developer and tester only (data: `noSubagents` unset; drift-checked as `role.<name>.subagents.enabled`) | role files | other roles get no `Agent`, `SendMessage`, `ListAgents` |
+| Parallel | run | role `subagents.parallel` (3 for developer, 2 for tester) | `policy/subagent-limit.ts` | the guard denies the next start |
 | Depth | run | role `subagents.depth` (1: a subagent has no `Agent` tool) | role files | - |
 | Total spawns | run | no cap | - | bounded by the run budget |
 | Background | run | off (`run_in_background` not covered; env disables background tasks) | `policy/subagent-limit.ts` | informational |
@@ -159,7 +159,7 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer on
 | `MAX_BUDGET_USD` | run | optional global cap | env, `config/agent-config.ts` | applied as a minimum on every run | env |
 | One-shot budgets | one-shot | rollover flush $0.2, compact $0.5, Haiku summary $0.05, lean step cap $3 | `session/rollover-*.ts` | informational | code |
 | `GOAL_BUDGET_USD` | goal | $15 <!-- limit:GOAL_BUDGET_USD=15 --> (alias of `TASK_BUDGET_USD`) | `orchestrator/budget/task-budget.ts` | budget of a goal with no approved plan (DELEGATE): the dispatch of a ready item is refused when it is used | code |
-| `PLAN_GOAL_BUDGET_MAX_USD` | goal | $25 <!-- limit:PLAN_GOAL_BUDGET_MAX_USD=25 --> | `config/model-routing.ts` | ceiling of a PLAN goal's budget: the approved plan `budgetUsd` is the goal budget, never above this; the validator refuses a plan over it (owner 2026-10-17). `goalBudgetOf(db, goalId)` is the one figure behind the dispatch refusal, the goal-left run cap, the verify loop and the digest | code |
+| `PLAN_GOAL_BUDGET_MAX_USD` | goal | $35 <!-- limit:PLAN_GOAL_BUDGET_MAX_USD=35 --> | `config/model-routing.ts` | ceiling of a PLAN goal's budget: the approved plan `budgetUsd` is the goal budget, never above this; the validator refuses a plan over it (owner 2026-10-17). `goalBudgetOf(db, goalId)` is the one figure behind the dispatch refusal, the goal-left run cap, the verify loop and the digest | code |
 | `MIN_RECOVERY_BUDGET_USD` | run | $0.1 <!-- limit:MIN_RECOVERY_BUDGET_USD=0.1 --> | `runtime/run-supervisor.ts` | below this much budget left, no recovery run starts | code |
 | Daily cap | - | none | - | cost per day is watched with `bun run metrics:lead` | - |
 

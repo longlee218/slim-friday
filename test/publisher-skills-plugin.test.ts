@@ -34,9 +34,11 @@ const PLUGINS = new Set(PUBLISHER.map(([, e]) => e.source)).size;
 const devSources = new Set(
   PUBLISHER.filter(([n]) => ROLES.developer?.skills?.includes(n)).map(([, e]) => e.source),
 );
-const DEV_INSTALLED = PUBLISHER.filter(([, e]) => devSources.has(e.source)).map(
-  ([name, e]) => `${pluginNameOf(e.source)}:${name}`,
-);
+/** Pack skills the developer deliberately does not list (owner D8: skill authoring and plugin diagnosis are no code work). */
+const DEV_DROPPED = new Set(["writing-skills", "diagnosing-superpowers"]);
+const DEV_INSTALLED = PUBLISHER.filter(
+  ([n, e]) => devSources.has(e.source) && !DEV_DROPPED.has(n),
+).map(([name, e]) => `${pluginNameOf(e.source)}:${name}`);
 
 /** A home whose workspace `main` has the given extra yaml and an empty own skills dir. */
 function homeWith(yaml = ""): string {
@@ -191,7 +193,7 @@ test("the workspace dir (extra) gets its own plugin next to the publisher one; s
   only.cleanup();
 });
 
-test("dev loads every skill of its publisher packs, the lead only its method skill; a role without `skills` loads none", () => {
+test("dev loads its publisher pack skills but the two dropped by D8, the lead only its method skill; a role without `skills` loads none", () => {
   const names = (role: RoleDefinition) => {
     const r = buildRoleSkills(role, "main", homeWith());
     r.cleanup();
