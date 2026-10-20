@@ -2,10 +2,11 @@ import type { HookCallbackMatcher, HookEvent } from "@anthropic-ai/claude-agent-
 import type { LoggedDecision } from "../policy/check-tool-call";
 import { READ_ONLY_REASON } from "../policy/deny-dangerous";
 import { isInside, resolveReal } from "../policy/paths";
-import { BASH_TOOL_NAME } from "../tools/sdk-tool-names";
+import { BASH_TOOL_NAME, SKILL_TOOL_NAME } from "../tools/sdk-tool-names";
 import { loadWorkspaces } from "../workspaces/workspace-registry";
 import { getLogContext, logEvent, logger, setLogContext, tryLog } from "./logger";
 import type { RunRecorder } from "./record-run";
+import { calledSkillName } from "./skills-used";
 import { agentIdentity, buildSubagentHooks } from "./subagent-hooks";
 import { inputPreview, scrubEditError } from "./tool-input-preview";
 import { summarizeResult } from "./tool-result-summary";
@@ -56,6 +57,8 @@ export interface ToolHookOptions {
   agentHome?: string;
   /** Directories paths are shown relative to in `target` (cwd + additional dirs). */
   roots?: string[];
+  /** Filled with the (normalized) name of every Skill tool call of the run; read at run end for `skills.used`. */
+  skillsCalled?: Set<string>;
 }
 
 /** Hook options of one run: guard decisions, home, and the cwd + extra dirs targets are shown relative to. */
@@ -63,11 +66,13 @@ export function hookOptions(
   perms: { decisions: Map<string, LoggedDecision> } | undefined,
   config: { agentHome: string },
   input: { cwd: string; additionalDirectories?: string[] },
+  skillsCalled?: Set<string>,
 ): ToolHookOptions {
   return {
     decisions: perms?.decisions,
     agentHome: config.agentHome,
     roots: [input.cwd, ...(input.additionalDirectories ?? [])],
+    skillsCalled,
   };
 }
 
@@ -77,7 +82,7 @@ export function hookOptions(
  */
 export function buildToolHooks(
   recorder: RunRecorder,
-  { decisions, agentHome, roots = [] }: ToolHookOptions = {},
+  { decisions, agentHome, roots = [], skillsCalled }: ToolHookOptions = {},
 ): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
   const log = logger.child({ module: "tool-hooks" });
   /** tool_use_id -> start timestamp, fallback when the SDK gives no duration_ms. */
@@ -152,6 +157,10 @@ export function buildToolHooks(
             if (i.hook_event_name === "PreToolUse")
               guard(() => {
                 started.set(i.tool_use_id, Date.now());
+                if (i.tool_name === SKILL_TOOL_NAME) {
+                  const skill = calledSkillName(i.tool_input);
+                  if (skill) skillsCalled?.add(skill);
+                }
                 logEvent(log, "tool.start", {
                   ...agentIdentity(i),
                   tool: i.tool_name,

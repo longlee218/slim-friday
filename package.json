@@ -9,6 +9,7 @@
     "db:generate": "drizzle-kit generate",
     "prompt:show": "bun run scripts/prompt-show.ts",
     "metrics:lead": "bun run src/observability/lead-metrics-cli.ts",
+    "metrics:skills": "bun run scripts/metrics-skills.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "format": "biome format --write src test",

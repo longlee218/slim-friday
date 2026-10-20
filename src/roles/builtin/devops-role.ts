@@ -1,6 +1,7 @@
 import { devopsContract } from "../prompts/contracts/devops-contract";
 import type { RoleDefinition } from "../role-types";
 import {
+  METHOD_SKILL,
   SPECIALIST_BASE,
   SPECIALIST_BUDGET_USD,
   SPECIALIST_MAX_TURNS,
@@ -16,11 +17,13 @@ export const DEVOPS_ROLE: RoleDefinition = {
   sideEffects: "location",
   capabilities: ["read", "write", "shell", "skills"],
   skills: [
+    METHOD_SKILL,
     "worker-reporting",
     "verification-before-completion",
     "systematic-debugging",
     "devops-engineer",
     "kubernetes-specialist",
   ],
+  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
   promptSections: () => devopsContract(),
 };

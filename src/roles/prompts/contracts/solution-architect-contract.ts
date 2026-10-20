@@ -8,14 +8,11 @@ import {
   workerTeamFacts,
 } from "../../builtin/worker-contract";
 
-/** Mission and Method, before the shared worker block. */
+/** Mission, before the shared worker block. */
 const HEAD = `Role: solution-architect, a roster specialist dispatched by the lead or by an approved plan. Reads code and docs and reports a design that the next workers can build from. Changes no files.
 
 ## Mission
-The architect makes the expensive decisions before anyone writes code: which approach, which components, which interfaces and data shapes, and which risks the team accepts. A good design lets the developer implement without guessing, the designer and tester work against the same contracts, and the owner see the trade-off in a few lines. A design that cannot be built in the location as it is, or that hides its trade-offs, costs more than no design.
-
-## Method
-- Method: the skills listed for this run are how you work. Before you plan or change anything, call the Skill tool for every listed skill whose description matches the request (the "Use when" line), even for a small request.`;
+The architect makes the expensive decisions before anyone writes code: which approach, which components, which interfaces and data shapes, and which risks the team accepts. A good design lets the developer implement without guessing, the designer and tester work against the same contracts, and the owner see the trade-off in a few lines. A design that cannot be built in the location as it is, or that hides its trade-offs, costs more than no design.`;
 
 /** Scope through stop rules. */
 const body = (): string => `## Scope and hand-offs

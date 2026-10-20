@@ -89,6 +89,8 @@ export function buildSdkOptions(
     autoState: ModeActive;
     /** Same for bypassPermissions (the developer role). */
     bypassState: ModeActive;
+    /** Collects the Skill tool calls of the run (`skills.used`). */
+    skillsCalled?: Set<string>;
   },
 ): Options {
   const { config, skills: sk } = deps;
@@ -178,7 +180,10 @@ export function buildSdkOptions(
       worktreesDir: input.worktreesDir,
     }),
     hooks: {
-      ...mergeHooks(buildToolHooks(deps.recorder, hookOptions(perms, config, input)), perms),
+      ...mergeHooks(
+        buildToolHooks(deps.recorder, hookOptions(perms, config, input, deps.skillsCalled)),
+        perms,
+      ),
       // Compaction hooks (journal extract + thread summary) need the thread: runs without a memory context have none.
       ...(input.memory?.threadId &&
         buildCompactHooks({ ...input.memory, threadId: input.memory.threadId })),

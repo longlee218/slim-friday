@@ -52,7 +52,6 @@ test("every role has a ceiling and stays under it", () => {
 test("worker contracts have the template sections in order", () => {
   const heads = [
     "## Mission",
-    "## Method",
     "## How the team works",
     "## Scope",
     "## Definition of done",
@@ -65,6 +64,12 @@ test("worker contracts have the template sections in order", () => {
     const at = heads.map((h) => text.indexOf(h));
     expect({ name, missing: heads.filter((_, i) => at[i]! < 0) }).toEqual({ name, missing: [] });
     expect(at).toEqual([...at].sort((a, b) => a - b));
+    // "## Method" exists only where text remains besides the Method line (the preloaded skill carries the rule).
+    const method = text.indexOf("## Method");
+    if (method >= 0) {
+      expect(method).toBeGreaterThan(text.indexOf("## Mission"));
+      expect(method).toBeLessThan(text.indexOf("## How the team works"));
+    }
   }
 });
 

@@ -19,6 +19,7 @@ import {
   developerOwnerContact,
 } from "../prompts/contracts/developer-contract";
 import type { Capability, RoleDefinition } from "../role-types";
+import { METHOD_SKILL } from "./specialist-contract";
 import { workerTeamFacts } from "./worker-contract";
 
 /** Owner questions (the ask tool) one run may make. Wired: ask guard + prompt text. */
@@ -67,6 +68,7 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     MERGE_BRANCH_TOOL,
   ],
   skills: [
+    METHOD_SKILL,
     "worker-reporting",
     "brainstorming",
     "dispatching-parallel-agents",
@@ -78,7 +80,6 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "systematic-debugging",
     "test-driven-development",
     "using-git-worktrees",
-    "using-superpowers",
     "verification-before-completion",
     "writing-plans",
     "frontend-ui-engineering",
@@ -102,6 +103,7 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "threejs-shaders",
     "threejs-textures",
   ], // explicit list: a new skill is added here (data)
+  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
   limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
   subagents: SUBAGENTS,
   sideEffects: "location",

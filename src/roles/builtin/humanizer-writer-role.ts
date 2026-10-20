@@ -1,6 +1,7 @@
 import { humanizerWriterContract } from "../prompts/contracts/humanizer-writer-contract";
 import type { RoleDefinition } from "../role-types";
 import {
+  METHOD_SKILL,
   SPECIALIST_BASE,
   SPECIALIST_BUDGET_USD,
   SPECIALIST_MAX_TURNS,
@@ -17,6 +18,7 @@ export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
   sideEffects: "location",
   capabilities: ["read", "write", "skills"],
   skills: [
+    METHOD_SKILL,
     "worker-reporting",
     "brainstorming",
     "verification-before-completion",
@@ -25,5 +27,6 @@ export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
     "writing-changelogs",
     "recording-decisions",
   ],
+  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
   promptSections: () => humanizerWriterContract(),
 };

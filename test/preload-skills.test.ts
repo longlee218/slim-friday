@@ -18,8 +18,40 @@ test("the lead's prompt carries the lead-orchestration skill text, without its f
   );
 });
 
-test("a role without preloadSkills gets no skill block", () => {
-  for (const name of Object.keys(ROLES).filter((n) => n !== "lead"))
+/** Worker roles that preload the process skill `using-skills`. */
+const PRELOADING = [
+  "developer",
+  "tester",
+  "devops",
+  "hacker",
+  "designer",
+  "solution-architect",
+  "humanizer-writer",
+];
+
+test("every preloaded skill of every role is also in its skills list", () => {
+  for (const [name, role] of Object.entries(ROLES))
+    for (const skill of role.preloadSkills ?? [])
+      expect(role.skills ?? [], `${name}: ${skill}`).toContain(skill);
+});
+
+test("the seven process roles preload using-skills; their prompt carries its text", () => {
+  expect(
+    Object.keys(ROLES)
+      .filter((n) => ROLES[n]!.preloadSkills?.includes("using-skills"))
+      .sort(),
+  ).toEqual([...PRELOADING].sort());
+  for (const name of PRELOADING) {
+    const p = prompt(name);
+    expect(p, name).toContain("## Skill using-skills (method, always loaded)");
+    expect(p, name).toContain("### The Rule");
+    expect(p, name).toContain("### Friday facts");
+    expect(p, name).not.toContain("description: How a Friday worker finds"); // frontmatter stays out
+  }
+});
+
+test("a role that preloads nothing gets no skill block", () => {
+  for (const name of Object.keys(ROLES).filter((n) => !ROLES[n]!.preloadSkills?.length))
     expect(prompt(name), name).not.toContain("(method, always loaded)");
 });
 

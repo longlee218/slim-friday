@@ -28,13 +28,14 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
     "diagnosing-superpowers",
     "security-and-hardening",
     "wcag-audit-patterns",
+    "using-superpowers", // replaced by the app-owned, preloaded using-skills
   ]);
   const publisher = locked
     .filter(([n, e]) => devSources.has(e.source) && !dropped.has(n))
     .map(([n]) => n);
-  // plus the app-owned reporting skill every worker lists
+  // plus the app-owned skills every worker lists (process rule and reporting)
   expect([...(ROLES.developer?.skills ?? [])].sort()).toEqual(
-    [...publisher, "worker-reporting"].sort(),
+    [...publisher, "worker-reporting", "using-skills"].sort(),
   );
   expect(ROLES.lead?.skills).toEqual(["lead-orchestration"]);
 });

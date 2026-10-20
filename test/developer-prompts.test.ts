@@ -34,7 +34,8 @@ test("the ask cap is the role's limit, stated once in the ask rules", () => {
 });
 
 test("dev: one contract, approval before changes by ask, a design request may end with no code change, no skill routing, no subagent text", () => {
-  const text = rules(DEVELOPER_ROLE);
+  // The contract only: the preloaded using-skills text (credit line, process skill names) is checked in preload-skills.test.ts.
+  const text = DEVELOPER_ROLE.promptSections({}).join("\n");
   expect(text).not.toContain("invoke the listed skill"); // the SDK matches skills by description: no routing line
   expect(text).toContain("the deliverable may be a design or plan with no code change");
   expect(text).toContain("the location's own checkout");

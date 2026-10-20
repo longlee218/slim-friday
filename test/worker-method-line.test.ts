@@ -8,16 +8,27 @@ const contract = (name: string) => ROLES[name]?.promptSections({} as never).join
 const METHOD = "- Method: the skills listed for this run are how you work. Before you ";
 const CALL = "call the Skill tool for every listed skill whose description matches the request";
 
-test("every role except the lead has the Method line in its contract, once, naming no skill", () => {
+/** Roles whose Method rule is in a preloaded skill: the contract no longer inlines the line. */
+const preloads = (name: string) => !!ROLES[name]?.preloadSkills?.length;
+
+test("a role without a preloaded skill (not the lead) has the Method line, once, naming no skill; a preloading role has none", () => {
   for (const name of Object.keys(ROLES).filter((n) => n !== "lead")) {
     const c = contract(name);
+    if (preloads(name)) {
+      expect(c, name).not.toContain("- Method:");
+      continue;
+    }
     expect(c.split("- Method:"), name).toHaveLength(2);
     expect(c, name).toContain(METHOD);
     expect(c, name).toContain(CALL);
   }
 });
 
-test("the planner's Method line precedes 'plan' only, the developer's says where its plan comes from", () => {
+test("the roles that keep the line are exactly researcher, scout, planner and discord-manager", () => {
+  const keep = Object.keys(ROLES).filter((n) => n !== "lead" && !preloads(n));
+  expect(keep.sort()).toEqual(["discord-manager", "planner", "researcher", "scout"]);
+});
+
+test("the planner's Method line precedes 'plan' only", () => {
   expect(contract("planner")).toContain(`${METHOD}plan, ${CALL}`);
-  expect(contract("developer")).toContain("the plan you ask the owner to approve comes from them.");
 });

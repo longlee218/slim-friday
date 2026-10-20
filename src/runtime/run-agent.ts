@@ -14,6 +14,7 @@ import {
   type RunOutcome,
   type RunUsage,
 } from "../observability/run-usage";
+import { logSkillsUsed } from "../observability/skills-used";
 import type { GuardrailContext } from "../policy/check-tool-call";
 import type { RoleDefinition } from "../roles/role-types";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
@@ -135,6 +136,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   let res: StreamResult = { text: "", sessionId: undefined, outcome: "error", usage: emptyUsage() };
   // Skills plugin (fail closed); built inside the try so `finally` removes it.
   let sk: RunSkills = NO_SKILLS;
+  const skillsCalled = new Set<string>(); // filled by the tool hooks, logged as `skills.used` at the end
   try {
     sk = buildRoleSkills(role, input.skillsWorkspace, config.agentHome);
     // Auto mode is requested here and confirmed by the SDK init message (permission-watch.ts).
@@ -147,6 +149,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       skills: sk,
       autoState,
       bypassState,
+      skillsCalled,
     });
     // Debug dump of exactly what the SDK receives (FRIDAY_DUMP_PROMPTS=1); never throws.
     dumpPrompt({
@@ -200,6 +203,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     maxTurnsHit: outcome === "max_turns",
     durationMs: Date.now() - startedAt,
   });
+  if (role.kind === "worker")
+    logSkillsUsed(log, { role: role.name, available: sk.skills, called: skillsCalled });
   return {
     ...result,
     budgetUsd: config.limits.maxBudgetUsd,

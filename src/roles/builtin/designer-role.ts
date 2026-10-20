@@ -1,6 +1,7 @@
 import { designerContract } from "../prompts/contracts/designer-contract";
 import type { RoleDefinition } from "../role-types";
 import {
+  METHOD_SKILL,
   SPECIALIST_BASE,
   SPECIALIST_BUDGET_USD,
   SPECIALIST_MAX_TURNS,
@@ -16,6 +17,7 @@ export const DESIGNER_ROLE: RoleDefinition = {
   sideEffects: "location",
   capabilities: ["read", "write", "shell", "web", "skills"],
   skills: [
+    METHOD_SKILL,
     "worker-reporting",
     "brainstorming",
     "verification-before-completion",
@@ -24,6 +26,7 @@ export const DESIGNER_ROLE: RoleDefinition = {
     "wcag-audit-patterns",
     "impeccable",
   ],
+  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
   binaries: ["impeccable-engine"], // a design skill's engine, pinned by sha256 (config/data/pinned-binaries.yaml)
   promptSections: () => designerContract(),
 };

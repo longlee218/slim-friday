@@ -208,7 +208,11 @@ test("dev loads its publisher pack skills but the two dropped by D8, the lead on
     return [...r.skills].sort();
   };
   expect(names(ROLES.developer as RoleDefinition)).toEqual(
-    [...DEV_INSTALLED, "friday:worker-reporting"].sort(),
+    [
+      ...DEV_INSTALLED.filter((n) => n !== "superpowers:using-superpowers"),
+      "friday:worker-reporting",
+      "friday:using-skills",
+    ].sort(),
   );
   expect(names(ROLES.lead as RoleDefinition)).toEqual(["friday:lead-orchestration"]);
   expect(names({ ...(ROLES.developer as RoleDefinition), skills: undefined })).toEqual([]);

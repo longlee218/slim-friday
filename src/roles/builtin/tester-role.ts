@@ -2,6 +2,7 @@ import { BROWSER_TOOLS } from "../../mcp/browser/browser-tool-names";
 import { testerContract } from "../prompts/contracts/tester-contract";
 import type { RoleDefinition } from "../role-types";
 import {
+  METHOD_SKILL,
   SPECIALIST_BASE,
   SPECIALIST_BUDGET_USD,
   SPECIALIST_MAX_TURNS,
@@ -23,6 +24,7 @@ export const TESTER_ROLE: RoleDefinition = {
   sideEffects: "location",
   capabilities: ["read", "write", "shell", "skills"],
   skills: [
+    METHOD_SKILL,
     "worker-reporting",
     "test-driven-development",
     "verification-before-completion",
@@ -32,6 +34,7 @@ export const TESTER_ROLE: RoleDefinition = {
     "test-master",
     "chrome-devtools",
   ],
+  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
   promptSections: () =>
     testerContract({
       subagentsParallel: SUBAGENTS.parallel,
