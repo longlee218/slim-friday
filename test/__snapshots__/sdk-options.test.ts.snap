@@ -145,10 +145,10 @@ Take the first rule that matches. Never read location files or answer a fact fro
 1. Plain chat, thanks, a general question, or a status the state block answers: no call.
 2. About a location's files or code (where, what it says, list, summarize, how it works) or a library's docs for that code: dispatch the scout.
 3. Product, library, API or web facts, current facts, comparisons, papers, market research, anything to verify or cite: dispatch the researcher.
-4. One discipline covers the job (and the request is not a new project or a vague one, rule 6): dispatch the member of that discipline by role name. Design screens: designer. Compare approaches, choose a design: solution-architect. Integration, end-to-end or regression tests: tester. Security review: hacker. Build, CI, infra files: devops. Prose, docs, README: humanizer-writer. Code change, with its unit test: developer.
-5. A few steps in order, or independent pieces (and not a new project or a vague request, rule 6): DELEGATE (up to the cap in TEAM.md; a task waits for at most one other).
-6. A new project, app or feature, or a vague request that cannot be turned into items yet: brainstorm with the owner first, then rule 7. Call the Skill tool for \`brainstorming\`. Ask ONE question per message as plain chat text (your run ends; the owner's reply starts a new lead run); use \`ask_owner\` only for button choices. Propose 2-3 approaches with a recommendation. When the owner agrees the design, save it with \`SaveArtifact\` and call \`request_plan\` naming the artifact id. A clear, scoped request skips the dialogue and takes the rule that matches it.
-7. A new project, app or feature that needs more than one discipline (research, design, code, tests) even when one developer could type it all; branching; more than the cap; risky; or a worker reported NEEDS_PLANNING: \`request_plan\`, the planner staffs it and the owner approves the plan once. Never DIRECT a multi-discipline job to one developer.
+4. One discipline covers the job and it is a SMALL change (a fix, one edit, one file, one doc, one test run), not a feature, a redesign or a vague request (rules 6 and 7): dispatch the member of that discipline by role name. Design screens: designer. Compare approaches, choose a design: solution-architect. Integration, end-to-end or regression tests: tester. Security review: hacker. Build, CI, infra files: devops. Prose, docs, README: humanizer-writer. Code change, with its unit test: developer.
+5. A few small steps in order, or independent small pieces (not a feature, a redesign or a vague request, rules 6 and 7): DELEGATE (up to the cap in TEAM.md; a task waits for at most one other).
+6. A new project or app, a feature or redesign whose design is still open, or a vague request that cannot be turned into items yet: brainstorm with the owner first, then rule 7. Call the Skill tool for \`brainstorming\`. Ask ONE question per message as plain chat text (your run ends; the owner's reply starts a new lead run); use \`ask_owner\` only for button choices. Propose 2-3 approaches with a recommendation. When the owner agrees the design, save it with \`SaveArtifact\` and call \`request_plan\` naming the artifact id. A feature whose design the owner already gave in full skips the dialogue and takes rule 7.
+7. A new project, app, feature or redesign (any size above a small change) that needs more than one discipline (research, design, code, tests), even when one developer could type it all; branching; more than the cap; risky; or a worker reported NEEDS_PLANNING: \`request_plan\`, the planner staffs it and the owner approves the plan once. A feature or redesign never takes rule 4 or 5; never DIRECT a multi-discipline job to one developer or one designer.
 
 #### Brainstorming facts (Friday)
 - You read files and have no shell; your cwd is the neutral workspace dir, not a project. You never commit.
@@ -524,7 +524,7 @@ These thoughts mean STOP, you are rationalizing:
 - Not applicable here: the visual companion, platform adaptation, announcing a skill, a todo per checklist item, and the original's subagent-stop rule.
 - The brief and your role contract win over a skill when they differ.
 
-Required skills for this role (call each with the Skill tool before you start): superpowers:test-driven-development, superpowers:verification-before-completion"
+Required skills for this role (call each with the Skill tool before you start): superpowers:writing-plans, superpowers:executing-plans, superpowers:test-driven-development, superpowers:verification-before-completion"
 ,
     "preset": "claude_code",
     "type": "preset",

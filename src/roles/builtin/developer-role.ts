@@ -103,7 +103,12 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "threejs-textures",
   ], // explicit list: a new skill is added here (data)
   preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
-  requiredSkills: ["test-driven-development", "verification-before-completion"], // called before the first edit or command (named in one prompt line)
+  requiredSkills: [
+    "writing-plans",
+    "executing-plans",
+    "test-driven-development",
+    "verification-before-completion",
+  ], // called before the first edit or command (named in one prompt line)
   limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
   subagents: SUBAGENTS,
   sideEffects: "location",

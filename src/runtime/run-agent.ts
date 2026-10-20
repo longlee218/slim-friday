@@ -203,7 +203,8 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     maxTurnsHit: outcome === "max_turns",
     durationMs: Date.now() - startedAt,
   });
-  if (role.kind === "worker")
+  // Every role with skills, the lead too (not only workers): its skill calls must be visible in the log.
+  if (sk.skills.length)
     logSkillsUsed(log, { role: role.name, available: sk.skills, called: skillsCalled });
   return {
     ...result,

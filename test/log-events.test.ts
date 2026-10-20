@@ -157,6 +157,7 @@ test("a run logs run.started and run.finished with the task's correlation fields
     "run.started",
     "permission.mode",
     "run.finished",
+    "skills.used", // the lead logs its skill use too
   ]);
   expect(lines[2]).toMatchObject({
     taskId: "T1",
