@@ -113,13 +113,13 @@ export const REGISTER_LOCATION_SHAPE = {
     .max(PATH_MAX_CHARS)
     .optional()
     .describe(
-      "Directory path exactly as the owner wrote it in the current message or answer. Omit it with create:true to use the channel's default projects dir",
+      "Directory path exactly as the owner wrote it in the current message or answer. Omit it with create:true to use the channel's default projects dir, else the agent's projects folder",
     ),
   create: z
     .boolean()
     .optional()
     .describe(
-      "true = make a NEW project (mkdir, git init, README, first commit) at path, or under the channel's default projects dir when path is omitted",
+      "true = make a NEW project (mkdir, git init, README, first commit) at path, or under the channel's default projects dir (else the agent's projects folder) when path is omitted",
     ),
   name: z
     .string()

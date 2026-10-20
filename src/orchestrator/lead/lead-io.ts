@@ -10,7 +10,7 @@ import type { OwnerAnswer } from "../goal/effect-port";
 import type { PortIo } from "../goal/effect-port-db";
 import { ASK_OWNER_TIMEOUT_MS } from "./lead-limits";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "./lead-runtime";
-import { registerAsk } from "./pending-asks";
+import { registerAsk, registerThreadAsk } from "./pending-asks";
 
 /** Logger of this module. */
 const log = logger.child({ module: "lead-io" });
@@ -46,6 +46,12 @@ export function createLeadIo(
       const repliedP = new Promise<{ replied: string }>((r) => {
         replied = (text) => r({ replied: text });
       });
+      // The lead's own select or text question (no task behind it, not a Yes/No): the owner's next plain message in the
+      // thread answers it, so the run is not blocked until the limit while that message waits in the queue.
+      const unregisterThread =
+        !q.taskId && !q.workerAskId && !q.yesno && replied
+          ? registerThreadAsk(threadId, replied)
+          : () => {};
       const answer = await Promise.race([
         deps.approvals.askChoice({
           turnId,
@@ -65,6 +71,7 @@ export function createLeadIo(
       ]).finally(() => {
         clearTimeout(timer);
         unregister();
+        unregisterThread();
       });
       if (answer === undefined) {
         deps.approvals.cancelTurn(turnId); // the buttons go away with the wait

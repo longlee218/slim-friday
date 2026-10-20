@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentConfig } from "../../config/agent-config";
 import { workspacePaths } from "../../config/workspace-paths";
-import { realOrSame } from "../../policy/paths";
+import { isInside, realOrSame } from "../../policy/paths";
 import type { RoleDefinition } from "../../roles/role-types";
 import { controlScope } from "./control-scope";
 import type { RoleRunInput } from "./role-run-types";
@@ -14,11 +14,21 @@ import type { RoleScope } from "./role-scope-types";
 function grantedUnderHome(
   dirs: ReturnType<ReturnType<typeof workspacePaths>["workspace"]>,
   attached: string,
+  projects: string,
+  runLocations: string[],
   scratch?: string,
 ): string[] {
-  return [dirs.cwd, dirs.worktrees, dirs.locations, attached, ...(scratch ? [scratch] : [])].map(
-    realOrSame,
-  );
+  // Only this run's locations inside `<home>/projects` (never the whole dir: a run must not read other projects).
+  const root = realOrSame(projects);
+  const ownProjects = runLocations.map(realOrSame).filter((p) => p !== root && isInside(root, p));
+  return [
+    dirs.cwd,
+    dirs.worktrees,
+    dirs.locations,
+    attached,
+    ...(scratch ? [scratch] : []),
+    ...ownProjects,
+  ].map(realOrSame);
 }
 
 /**
@@ -35,6 +45,7 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
   if (i.workspace === undefined) return controlScope(config, i); // no workspace: the control channel
   const { locations, pinned } = i;
   const dirs = workspacePaths(config.agentHome).workspace(i.workspace);
+  const projectsDir = workspacePaths(config.agentHome).projects;
   mkdirSync(dirs.cwd, { recursive: true });
   const scope = pinned ? [pinned] : locations;
   let cwd: string;
@@ -80,7 +91,12 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
         cwd: realOrSame(cwd),
         readPaths: [cwd, ...additionalDirectories].map(realOrSame),
         denyPaths: [realOrSame(config.agentHome)],
-        allowInside: grantedUnderHome(dirs, attached),
+        allowInside: grantedUnderHome(
+          dirs,
+          attached,
+          projectsDir,
+          locations.map((r) => r.path),
+        ),
       },
     };
   }
@@ -114,6 +130,8 @@ export function roleScope(config: AgentConfig, i: RoleRunInput, role: RoleDefini
       allowInside: grantedUnderHome(
         dirs,
         workspacePaths(config.agentHome).attachments(i.threadId),
+        projectsDir,
+        locations.map((r) => r.path),
         real.scratch,
       ),
     },

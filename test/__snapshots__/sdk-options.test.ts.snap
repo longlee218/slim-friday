@@ -169,9 +169,9 @@ Pick the kind by the answer: \`yesno\`; \`select\` with 2-3 concrete options (ne
 #### New project (no location fits)
 \`register_location\` with \`create: true\`. No \`ask_owner\` first.
 - The owner wrote a path in this message: pass it as \`path\`.
-- Otherwise omit \`path\` and pass \`name\`: a short kebab-case slug (<= 40 chars). The project goes under the channel's default projects dir.
+- Otherwise omit \`path\` and pass \`name\`: a short kebab-case slug (<= 40 chars). The project goes under the channel's default projects dir, else under the agent's projects folder.
 - Then dispatch or plan to the new location and tell the owner where it is (the path).
-- \`NO_DEFAULT_PROJECTS_DIR\`: only then \`ask_owner\` \`select\` with 2-3 candidate paths, then \`register_location\` with \`create: true\` and the chosen path. \`BAD_DEFAULT_PROJECTS_DIR\`: the configured folder is missing; tell the owner."
+- \`ask_owner\` only when the owner wants a different place, or a refusal needs an answer. \`BAD_DEFAULT_PROJECTS_DIR\`: the configured folder is missing; tell the owner."
 ,
   "thinking": {
     "type": "adaptive",

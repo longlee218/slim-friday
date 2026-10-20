@@ -24,7 +24,7 @@ export interface LeadToolContext {
   correlationId?: string;
   /** Language of the owner's message (owner-facing posts of a handler; absent = Vietnamese). */
   language?: OwnerLanguage;
-  run: { dispatched: number; registered?: number; ownerAnswers?: string[] };
+  run: { dispatched: number; ownerAnswers?: string[] };
   /** Where the run lives, for `Orchestrate register_location` (absent in tests that never call it). */
   place?: LeadPlace;
 }

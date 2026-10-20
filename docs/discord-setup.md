@@ -95,7 +95,7 @@ You never edit `workspace.yaml` for a project. Two ways, both in the channel's t
 - Not verified live. Checklist: step 8 of [Low-config channel and location](#low-config-channel-and-location-owner-live-checklist).
 
 ### Default projects dir (`projectsDir`)
-Set once in `workspace.yaml`; the lead then needs no path for a new project.
+Optional, set in `workspace.yaml`. Without it a new project with no path goes under `<AGENT_HOME>/projects/<slug>` (the dir is created at first use, no question to you); with it the project goes under `projectsDir`. A path you write always wins.
 
 ```yaml
 projectsDir: ~/code            # workspace default (absolute or ~/...)
@@ -105,9 +105,10 @@ channels:
     projectsDir: ~/code/shop   # this channel wins over the workspace default
 ```
 
-- Ask: `start a project called shop-api` (no path). The lead calls `register_location create:true` with a `name` (kebab slug); the folder is `<projectsDir>/<slug>`. Yes/No is not asked again (the dir is your config).
+- Ask: `start a project called shop-api` (no path). The lead calls `register_location create:true` with a `name` (kebab slug); the folder is `<projectsDir>/<slug>`, else `<AGENT_HOME>/projects/<slug>`. Yes/No is not asked again (the dir is your config).
 - Slug: lowercase `a-z0-9` and single dashes, max 40 chars. No name: the first four words of the request. A clash gets `-2`, `-3`... (up to `-99`, else `NAME_TAKEN`).
-- Refusals: `NO_DEFAULT_PROJECTS_DIR` (no dir for this channel: the lead asks you to pick 2-3 candidate paths with `ask_owner` select, then creates at your choice); `BAD_DEFAULT_PROJECTS_DIR` (not absolute or `~/`, or the dir does not exist: create it or fix `projectsDir`). The path checks of the table above still apply to the final path.
+- `<AGENT_HOME>/projects` is the one exempt part of the AGENT_HOME deny: a run reads and writes only its own project there, never a sibling project or other AGENT_HOME paths.
+- Refusals: `BAD_DEFAULT_PROJECTS_DIR` (not absolute or `~/`, or the dir does not exist: create it or fix `projectsDir`). The path checks of the table above still apply to the final path.
 - Not verified live.
 
 ## Register a location (no YAML)
@@ -244,7 +245,7 @@ Phases 1-6a of [plans/261018-1145-lead-team-orchestration-hardening](../plans/26
   Pass: the request succeeds (`allowedDomains` `["*"]`); `$AGENT_HOME` stays unreadable from the shell.
   **Record the risk:** a prompt-injected run can send readable data to any host, and a worker shell can run `git push` or `gh` outside the `GitPush` envelope. Only a direct SDK probe is verified (`plans/reports/fullstack-developer-261019-1232-sandbox-network-live-probe.md`).
 - [ ] **Create a project from Discord.** Say "start a project demo-app" in a space channel with no `projectsDir`, then with one set.
-  Pass: the lead asks `select` (1-3 paths) or your typed path wins; after your answer the folder has `README.md` and one commit under your git identity (`git -C <path> log --oneline`); the channel can work in it. With `projectsDir` set and no path, `<projectsDir>/<slug>` is used. A path that exists is refused `PATH_EXISTS` and nothing is created.
+  Pass: with no `projectsDir` the folder is `<AGENT_HOME>/projects/demo-app` and the lead asks nothing (a typed path wins); the folder has `README.md` and one commit under your git identity (`git -C <path> log --oneline`); the channel can work in it. With `projectsDir` set and no path, `<projectsDir>/<slug>` is used. A path that exists is refused `PATH_EXISTS` and nothing is created.
 - [ ] **`DUPLICATE_SUSPECT` and `confirmNew`.** Ask for the same task twice in a row.
   Pass: the second `dispatch` is refused `DUPLICATE_SUSPECT` and names the match; the lead asks you, and repeats with `confirmNew` only for new work. The 0.6 overlap is untuned: note false positives.
 - [ ] **Priority in a real queue.** Fill the worker pool (4 items in one thread), then queue a normal item and an urgent item (priority 100).

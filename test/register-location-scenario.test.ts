@@ -200,7 +200,7 @@ test("a run started by a worker event cannot register, even with the path in the
   expect(asked).toBe(0);
 });
 
-test("a second Orchestrate register_location in one run is refused LIMIT", async () => {
+test("a second Orchestrate register_location in one run is allowed", async () => {
   const env = makeEnv();
   const proj = project();
   const second = project();
@@ -219,7 +219,7 @@ test("a second Orchestrate register_location in one run is refused LIMIT", async
   await h.send(`use ${proj} and ${second}`);
   await until(() => replies.length === 2);
   expect(replies[0]).toMatchObject({ ok: true });
-  expect(replies[1]).toMatchObject({ ok: false, code: "LIMIT" });
+  expect(replies[1]).toMatchObject({ ok: true });
 });
 
 test("a second owner message mid-run replaces the thread ctx: same-run dispatch to the new location still works", async () => {

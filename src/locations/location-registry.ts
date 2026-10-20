@@ -77,7 +77,13 @@ export function locationPathError(
   if (!isUserHome && forbidden.some((f) => isInside(rpath, real(f))))
     return "path covers the home dir";
   const agentHome = dirname(dirname(wsRoot));
-  if (isInside(real(agentHome), rpath) && !isInside(real(join(wsRoot, "locations")), rpath))
+  // Exempt: this workspace's managed clones, and a project strictly inside the agent's `projects/` (made from chat).
+  const projects = real(join(agentHome, "projects"));
+  if (
+    isInside(real(agentHome), rpath) &&
+    !isInside(real(join(wsRoot, "locations")), rpath) &&
+    !(rpath !== projects && isInside(projects, rpath))
+  )
     return "path is inside AGENT_HOME";
   return undefined;
 }

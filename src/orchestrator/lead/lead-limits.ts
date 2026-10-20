@@ -13,9 +13,8 @@ export const OPTIONS_MAX = 25;
 export const QUESTION_MAX_CHARS = 600;
 export const OPTION_MAX_CHARS = 80;
 
-/** `Orchestrate register_location`: longest path accepted, and calls allowed per lead run. */
+/** `Orchestrate register_location`: longest path accepted. */
 export const PATH_MAX_CHARS = 1024;
-export const REGISTER_LOCATION_MAX_PER_RUN = 1;
 /** Longest project folder name (slug) of a new project made under the default projects dir. */
 export const PROJECT_NAME_MAX_CHARS = 40;
 

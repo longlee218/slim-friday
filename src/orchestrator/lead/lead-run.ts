@@ -67,7 +67,7 @@ function leadOnce(
         threadId,
         leadTurnId: turnId,
         inputId: o.inputId,
-        run: { dispatched: 0, registered: 0 },
+        run: { dispatched: 0 },
         place: {
           home: deps.config.agentHome,
           workspace: ctx.workspace,

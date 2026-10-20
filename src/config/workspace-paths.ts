@@ -28,6 +28,8 @@ export function workspacePaths(agentHome: string) {
     attachments: (threadKey: string) => join(agentHome, "tmp", "attachments", threadKey),
     /** Backups of the home (persona file backups). */
     backups: join(agentHome, "backups"),
+    /** Default home of NEW projects made from chat (no path, no `projectsDir`): `<home>/projects/<slug>`. Only a project inside it is exempt from the AGENT_HOME deny (never the dir itself). */
+    projects: join(agentHome, "projects"),
     /** Workspaces: each holds several locations (`workspaces/<ws>/locations/<location>/`). */
     workspaces: join(agentHome, "workspaces"),
     workspace: (name: string) => {

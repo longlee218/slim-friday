@@ -10,6 +10,7 @@ import {
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { readProcessEnv } from "../config/process-env";
 import { SECRET_HOME } from "../config/sensitive-paths";
+import { workspacePaths } from "../config/workspace-paths";
 import { spawnRunner } from "../locations/git-run";
 import { isGitLocation, real } from "../locations/location-registry";
 import type { Runner } from "../policy/effect-context";
@@ -86,12 +87,19 @@ function pathGuard(
     );
   const realParent = realOrSame(parent);
   const final = join(realParent, basename(target));
-  if (final === realOrSame(userHome) || !isInside(realOrSame(userHome), final))
+  // The agent's `projects/` folder is the one exempt part of AGENT_HOME: a project strictly inside it (never the dir itself).
+  const projectsRoot = realOrSame(workspacePaths(home).projects);
+  const inAgentProjects = final !== projectsRoot && isInside(projectsRoot, final);
+  // The agent's own projects folder needs no home check (AGENT_HOME may sit outside the owner's home).
+  if (
+    !inAgentProjects &&
+    (final === realOrSame(userHome) || !isInside(realOrSame(userHome), final))
+  )
     return fail(
       "OUTSIDE_HOME",
       `A new project must be a folder under the owner's home (${userHome}): ask for another path, e.g. ${join(userHome, "projects", basename(target))}.`,
     );
-  if (isInside(realOrSame(home), final) || isInside(final, realOrSame(home)))
+  if (!inAgentProjects && (isInside(realOrSame(home), final) || isInside(final, realOrSame(home))))
     return fail(
       "INSIDE_AGENT_HOME",
       "That path touches the agent's own home: ask for another path.",

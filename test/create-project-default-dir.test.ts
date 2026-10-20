@@ -120,32 +120,23 @@ test("owner path not in the message is refused even with a default dir", async (
   expect(existsSync(sneaky)).toBe(false);
 });
 
-test("no default and no path: NO_DEFAULT_PROJECTS_DIR", async () => {
+test("no default and no path: project under <home>/projects, dir auto-created, no ask", async () => {
   const env = makeEnv();
+  const dir = env.paths.projects;
+  expect(existsSync(dir)).toBe(false);
   const reg = await register(env, { create: true, name: "app" }, "build an app");
-  expect(reg).toMatchObject({ ok: false, code: "NO_DEFAULT_PROJECTS_DIR" });
+  expect(reg).toMatchObject({ ok: true, location: "app", path: join(realpathSync(dir), "app") });
+  expect(existsSync(join(dir, "app", GIT_DIR))).toBe(true);
 });
 
-test("NO_DEFAULT_PROJECTS_DIR does not use up the one register per run (the ask_owner fallback can still register)", async () => {
+test("a configured dir wins over <home>/projects", async () => {
   const env = makeEnv();
-  const own = join(base, "picked");
-  let first: any;
-  let second: any;
-  const h = leadHarness(
-    async (c: Call) => {
-      if (c.kind === "lead") {
-        first = await c.orchestrate("register_location", { create: true, name: "app" });
-        second = await c.orchestrate("register_location", { create: true, path: own });
-      }
-      return "ok";
-    },
-    env,
-    {},
-  );
-  await h.send(`make it in ${own}`);
-  await until(() => second !== undefined);
-  expect(first).toMatchObject({ ok: false, code: "NO_DEFAULT_PROJECTS_DIR" });
-  expect(second).toMatchObject({ ok: true, path: own });
+  const dir = join(base, "mine-dir");
+  mkdirSync(dir);
+  setDirs(env, { ws: dir });
+  const reg = await register(env, { create: true, name: "app" }, "build an app");
+  expect(reg).toMatchObject({ ok: true, path: join(dir, "app") });
+  expect(existsSync(env.paths.projects)).toBe(false);
 });
 
 test("channel default overrides the workspace default", async () => {

@@ -76,16 +76,6 @@ test("a blank path never matches (whitespace is a substring of any text)", async
   expect(r).toMatchObject({ ok: false, code: "PATH_NOT_IN_MESSAGE" });
 });
 
-test("second call in one run is LIMIT; the first (denied) call counted", async () => {
-  const s = setup();
-  const port = new FakePort();
-  port.answer = { answer: "No", timedOut: false };
-  const ctx = ctxFor(s, port);
-  expect(await call(s, ctx)).toMatchObject({ code: "OWNER_DENIED" });
-  expect(await call(s, ctx)).toMatchObject({ code: "LIMIT" });
-  expect(port.asked).toHaveLength(1);
-});
-
 test("owner No or timeout: nothing written, no audit row, no refresh", async () => {
   for (const answer of [{ answer: "No", timedOut: false }, { timedOut: true }]) {
     const s = setup();
@@ -120,7 +110,7 @@ test("Yes: yaml entry + audit row (owner, real path) + refresh; replay is the st
   expect(port.audits).toHaveLength(1);
   expect(port.audits[0]).toMatchObject({ grantedBy: "owner", scope: `${s.proj} -> w/c` });
   // Same input id + args: the stored reply, no second question, no second row.
-  const again = await call(s, { ...ctx, run: { dispatched: 0, registered: 0 } });
+  const again = await call(s, { ...ctx, run: { dispatched: 0 } });
   expect(again).toEqual(r);
   expect(port.asked).toHaveLength(1);
   expect(port.audits).toHaveLength(1);
@@ -249,17 +239,4 @@ test("a failed write is WRITE_FAILED (channel not in the space), nothing audited
   expect(r).toMatchObject({ ok: false, code: "WRITE_FAILED" });
   expect(port.audits).toEqual([]);
   expect(s.refreshed).toBe(0);
-});
-
-test("two parallel calls in one run: the first asks, the second is LIMIT", async () => {
-  const s = setup();
-  const other = join(s.proj, "..", "other");
-  mkdirSync(other, { recursive: true });
-  const port = new FakePort();
-  port.answer = YES;
-  const ctx = ctxFor(s, port, { ownerText: `use ${s.proj} and ${other}` });
-  const [a, b] = await Promise.all([call(s, ctx), call(s, ctx, other)]);
-  expect([a, b].filter((r) => r.ok)).toHaveLength(1);
-  expect(b).toMatchObject({ ok: false, code: "LIMIT" });
-  expect(port.asked).toHaveLength(1);
 });

@@ -7,6 +7,7 @@ import { ownerConfirm } from "../owner-approval/owner-confirm";
 import { purgeThreadTrash } from "./effects/purge-trash";
 import { createHandlerServices } from "./handler-services";
 import type { TurnHandlerDeps } from "./handler-types";
+import { closeThreadAsk } from "./lead/pending-asks";
 import { parseMessageCommand } from "./message-commands";
 import { statusFacts } from "./turns/status-snapshot";
 import { reportCrash, stopCommand } from "./turns/turn-admission";
@@ -67,6 +68,9 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
     // The owner sees at once that the answer reached the task (the lead may take a while to speak).
     if (lead.answerReply(message))
       return renderUserNotice({ kind: "steer", state: "resumed" }, messageLanguage(message));
+    // A plain message while the lead waits on its own question is the answer to it (the lead run would otherwise stay
+    // blocked on the question and this message would queue behind it).
+    if (closeThreadAsk(threadId, message.text)) return undefined;
     lead.submit(message);
     return undefined;
   };

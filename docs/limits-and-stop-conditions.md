@@ -192,7 +192,6 @@ All in `src/orchestrator/lead/lead-limits.ts` (zod shapes and the relay enforce 
 | `QUESTION_MAX_CHARS` | `Orchestrate ask_owner` | <!-- limit:QUESTION_MAX_CHARS=600 -->600 chars | schema rejects |
 | `OPTION_MAX_CHARS` | `Orchestrate ask_owner` | <!-- limit:OPTION_MAX_CHARS=80 -->80 chars | schema rejects |
 | `PATH_MAX_CHARS` | `Orchestrate register_location` | <!-- limit:PATH_MAX_CHARS=1024 -->1024 chars | schema rejects |
-| `REGISTER_LOCATION_MAX_PER_RUN` | `Orchestrate register_location` | <!-- limit:REGISTER_LOCATION_MAX_PER_RUN=1 -->1 per lead run | call refused |
 | `PROJECT_NAME_MAX_CHARS` | `Orchestrate register_location` create without path | <!-- limit:PROJECT_NAME_MAX_CHARS=40 -->40 chars | schema rejects |
 | `STEER_TEXT_MAX_CHARS` | `Orchestrate steer` | <!-- limit:STEER_TEXT_MAX_CHARS=4000 -->4000 chars | schema rejects |
 | `REASON_MAX_CHARS` | `Orchestrate dispatch` | <!-- limit:REASON_MAX_CHARS=400 -->400 chars | schema rejects |

@@ -1,5 +1,7 @@
+import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { readProcessEnv } from "../../config/process-env";
+import { workspacePaths } from "../../config/workspace-paths";
 import { ORCHESTRATE_ACTION_REGISTER_LOCATION } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { createProject, undoCreateProject } from "../../workspaces/create-project";
 import { defaultProjectPath, defaultProjectsDir } from "../../workspaces/default-project-path";
@@ -8,11 +10,10 @@ import { registerLocation } from "../../workspaces/register-location";
 import { loadWorkspaces } from "../../workspaces/workspace-registry";
 import { type Reply, refuse } from "../reply";
 import { type LeadPlace, type LeadToolContext, leadCall } from "./lead-call";
-import { REGISTER_LOCATION_MAX_PER_RUN } from "./lead-limits";
 import type { RegisterLocationInput } from "./lead-schemas";
 import { pathInText } from "./owner-path-match";
 
-/* Orchestrate register_location handler: owner-only, an owner-given path must be in the owner's message or an ask_owner answer (a create without path uses the channel's default projects dir), one call per run, an owner click before
+/* Orchestrate register_location handler: owner-only, an owner-given path must be in the owner's message or an ask_owner answer (a create without path uses the channel's default projects dir, else <AGENT_HOME>/projects), an owner click before
    anything is written. It is config, not work: outside the per-goal envelope, asked every time, never a stored grant. */
 
 /** Most sensitive names listed in the confirm text, and the longest one shown. */
@@ -78,7 +79,7 @@ function defaultDir(home: string, workspace: string, channelId: string): string 
 
 /**
  * Orchestrate register_location: refuse unless this is an owner run and the path is in the owner's message (prompt-injection guard),
- * at most one call per run, inspect the path, ask the owner Yes/No, then write yaml + link the channel and refresh the
+ * inspect the path, ask the owner Yes/No, then write yaml + link the channel and refresh the
  * run's location list. The audit row names the real path and the owner as grantor.
  */
 export const handleRegisterLocation = (
@@ -109,24 +110,16 @@ export const handleRegisterLocation = (
           ),
         };
     }
-    if ((ctx.run.registered ?? 0) >= REGISTER_LOCATION_MAX_PER_RUN)
-      return { reply: refuse("LIMIT", "One location per run: ask the owner again next message.") };
     if (input.path === undefined) {
-      // No path: default projects dir (owner-edited config, so no owner answer needed) + a slug name.
-      const dir = defaultDir(place.home, place.workspace, place.channelId);
-      if (!dir)
-        return {
-          reply: refuse(
-            "NO_DEFAULT_PROJECTS_DIR",
-            `No default projects dir is set for this channel: call ask_owner kind select with 2-3 candidate paths, each a new folder under the owner's home (${userHome}), then register_location create:true with the chosen path.`,
-          ),
-        };
+      // No path: default projects dir (owner config, else the agent's projects folder; no owner answer needed) + a slug name.
+      // A configured dir wins; else the agent's own projects folder, made here (defaultProjectPath needs it to exist).
+      const configured = defaultDir(place.home, place.workspace, place.channelId);
+      const dir = configured ?? workspacePaths(place.home).projects;
+      if (!configured) mkdirSync(dir, { recursive: true });
       const made = defaultProjectPath(dir, userHome, input.name, place.ownerText);
       if (!made.ok) return { reply: refuse(made.code, made.reason) };
       path = made.path;
     }
-    // Counted once a path is resolved: a refusal for a missing default dir leaves the ask_owner fallback its one try.
-    ctx.run.registered = (ctx.run.registered ?? 0) + 1;
     let created: Awaited<ReturnType<typeof createProject>> | undefined;
     if (input.create) {
       // New project: the owner's words or the configured default dir chose the path, so there is no second Yes/No.
@@ -144,6 +137,7 @@ export const handleRegisterLocation = (
       const a = await ctx.port.askOwner({
         question: confirmText(c, place),
         options: ["Yes", "No"],
+        yesno: true,
       });
       if (a.answer !== "Yes")
         return {

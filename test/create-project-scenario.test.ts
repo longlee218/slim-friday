@@ -126,7 +126,7 @@ test("the owner's message alone is enough for an owner-typed path (no ask_owner)
   expect(existsSync(path)).toBe(true);
 });
 
-test("one create per run", async () => {
+test("a failed or repeated create does not block the next one in the run", async () => {
   const env = makeEnv();
   const a = join(base, "a");
   const b = join(base, "b");
@@ -152,8 +152,8 @@ test("one create per run", async () => {
   await h.send(`make ${a} and ${b}`);
   await until(() => replies.length === 2);
   expect(replies[0]).toMatchObject({ ok: true });
-  expect(replies[1]).toMatchObject({ ok: false, code: "LIMIT" });
-  expect(existsSync(b)).toBe(false);
+  expect(replies[1]).toMatchObject({ ok: true });
+  expect(existsSync(b)).toBe(true);
 });
 
 /** createProject with $HOME = `base` and an agent home elsewhere. */
@@ -170,6 +170,11 @@ test("guards: each refusal has its code", async () => {
   expect(await run(join(tmpdir(), "outside-home-x"))).toMatchObject({ code: "OUTSIDE_HOME" });
   expect(await run(base)).toMatchObject({ code: "OUTSIDE_HOME" });
   expect(await run(join(base, "agent", "p"))).toMatchObject({ code: "INSIDE_AGENT_HOME" });
+  // Only a folder strictly inside <home>/projects is exempt (the dir itself and other AGENT_HOME paths are not).
+  mkdirSync(join(base, "agent", "projects"), { recursive: true });
+  expect(await run(join(base, "agent", "projects"))).toMatchObject({ code: "INSIDE_AGENT_HOME" });
+  expect(await run(join(base, "agent", "projects-x"))).toMatchObject({ code: "INSIDE_AGENT_HOME" });
+  expect(await run(join(base, "agent", "projects", "x"))).toMatchObject({ ok: true });
   expect(await run(join(base, ".ssh", "p"))).toMatchObject({ code: "PARENT_MISSING" });
   mkdirSync(join(base, ".ssh"));
   expect(await run(join(base, ".ssh", "p"))).toMatchObject({ code: "CREDENTIAL_DIR" });

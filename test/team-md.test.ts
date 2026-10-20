@@ -43,12 +43,7 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).not.toContain("## Events"); // the lead contract and skill own events
   expect(md).not.toContain("Event kinds");
   // The playbook moved to the lead-orchestration skill: TEAM.md holds none of it.
-  for (const gone of [
-    "Orchestrate retry",
-    "Orchestrate steer",
-    "approve_plan",
-    "NO_DEFAULT_PROJECTS_DIR",
-  ])
+  for (const gone of ["Orchestrate retry", "Orchestrate steer", "approve_plan"])
     expect(md).not.toContain(gone);
   // Section order: members, locations, strategies, limits.
   const at = (h: string) => md.indexOf(h);
