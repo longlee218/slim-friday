@@ -116,7 +116,7 @@ export function getProjectContext(c: PlannerCtx, i: GoalInput): Reply {
   };
 }
 
-/** The worker roles a plan may use. */
+/** The worker roles a plan may use, with the per-run budget ceiling of each. */
 export const getAgentCapabilities = (c: PlannerCtx): Reply => ({
   ok: true,
   roles: c.workers.map((w) => ({
@@ -124,6 +124,8 @@ export const getAgentCapabilities = (c: PlannerCtx): Reply => ({
     whenToUse: w.whenToUse,
     capabilities: w.capabilities,
     sideEffects: w.sideEffects,
+    // Per-run ceiling (USD) of this role: the planner sizes the goal budget from it, not from skill text.
+    budgetUsd: w.budgetUsd,
     concurrency: countsTowardCap(w) ? "limited" : "free",
   })),
 });

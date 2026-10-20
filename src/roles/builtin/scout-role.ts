@@ -12,6 +12,7 @@ import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/cons
 import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants";
 import type { RoleDefinition } from "../role-types";
 import { ARTIFACT_TOOLS } from "./artifact-tools";
+import { WORKER_METHOD_LINE } from "./worker-method";
 
 /** Owner questions per run: a scout answers from what it finds and never asks. */
 const MAX_ASK = 0;
@@ -23,6 +24,7 @@ const MAX_TURNS = 40;
 /** Run contract (facts): research that changes no location; its report is an artifact; the lead decides what reaches the owner. */
 const CONTRACT = `Role: scout, a read-only research worker dispatched by the lead. Its report is saved as an artifact.
 Tools: read, search and web tools, Firecrawl, and a shell in an OS sandbox with no write access: you cannot write files. Keep the shell to reads.
+${WORKER_METHOD_LINE}
 Skills in your list may name steps you do not have (a CLI, background runs, sub-agents, a notes file). Do such steps yourself, in sequence, or skip them.
 Reporting: use the worker-reporting skill.`;
 

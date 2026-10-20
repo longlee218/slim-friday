@@ -1,14 +1,16 @@
 import { expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { readSkillsLock } from "../src/config/skills-lock";
+import { pluginNameOf, readSkillsLock } from "../src/config/skills-lock";
 import { ROLES } from "../src/roles/role-registry";
 import { setupWorkflow } from "./code-flow-fixture";
 import { runDevWorker } from "./dev-worker-fixture";
 
 /** Skills the dev role gets: its own data list, qualified by the plugin of each lock entry (no names here). */
 const lock = readSkillsLock();
-const SP = (ROLES.developer?.skills ?? []).map((k) => `${lock[k]?.source.split("/").pop()}:${k}`);
+const SP = (ROLES.developer?.skills ?? []).map(
+  (k) => `${pluginNameOf(lock[k]?.source ?? "")}:${k}`,
+);
 /** The skills of a dev run as sorted names: the installed ones plus the given workspace ones. */
 const withSet = (...ws: string[]) => [...SP, ...ws].sort();
 

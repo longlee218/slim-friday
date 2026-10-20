@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { pluginNameOf } from "../src/config/skills-lock";
 import { ROLES } from "../src/roles/role-registry";
 import { installedPublisherPlugins } from "../src/runtime/skills-plugin/publisher-skills";
 import { readSkillsLock } from "./skills-lock-hash";
@@ -10,7 +11,7 @@ test("installedPublisherPlugins: every locked skill with a dir on disk, grouped 
   const sources = new Set(Object.values(lock.skills).map((e) => e.source));
   expect(plugins).toHaveLength(sources.size);
   for (const p of plugins)
-    for (const s of p.skills) expect(lock.skills[s]?.source.endsWith(`/${p.plugin}`)).toBe(true);
+    for (const s of p.skills) expect(pluginNameOf(lock.skills[s]?.source ?? "")).toBe(p.plugin);
 });
 
 test("dev lists every skill of each publisher pack it uses (so worktree and finishing skills load); the lead only lead-orchestration", () => {

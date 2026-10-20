@@ -13,9 +13,26 @@ export interface SkillsLockEntry {
   source: string;
 }
 
-/** Plugin name of a lock entry: the last segment of its `source` (`<owner>/<pack>` -> `<pack>`), `.git` dropped. */
-export const pluginNameOf = (source: string): string =>
-  (source.split("/").pop() ?? "").replace(/\.git$/, "");
+/**
+ * Pack names too generic to name a plugin: several publishers use them (`anthropics/skills`, `docker/skills`,
+ * `wshobson/agents`), so they would collide with each other and with ordinary words in src and workspace names.
+ */
+const GENERIC_REPO_NAMES = new Set(["skills", "agents"]);
+
+/**
+ * Plugin name of a lock entry (its skills load as `<plugin>:<skill>`): the last segment of its `source`
+ * (`<owner>/<pack>` -> `<pack>`, `.git` dropped). A generic last segment takes its owner too (`anthropics/skills` ->
+ * `anthropics-skills`). Existing names stay as they are, so installing a generic-named pack renames no loaded skill.
+ */
+export const pluginNameOf = (source: string): string => {
+  const parts = source
+    .replace(/\.git$/, "")
+    .split("/")
+    .filter(Boolean);
+  const pack = parts.at(-1) ?? "";
+  const owner = parts.at(-2);
+  return GENERIC_REPO_NAMES.has(pack) && owner ? `${owner}-${pack}` : pack;
+};
 
 /** A plugin name is a plain slug: it becomes `<plugin>:<skill>` and a workspace-name clash check. */
 export const isPluginName = (name: string): boolean =>

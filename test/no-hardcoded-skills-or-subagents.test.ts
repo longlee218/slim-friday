@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { readSkillsLock } from "../src/config/skills-lock";
+import { pluginNameOf, readSkillsLock } from "../src/config/skills-lock";
 
 // No skill, plugin or subagent name may appear in src/ (code, comments, prompt strings): installing a skill or
 // adding a subagent must never need a code change. The banned set is computed from skills-lock.json (every skill
@@ -17,7 +17,7 @@ const lock = Object.fromEntries(
 );
 const BANNED = new Set<string>([
   ...Object.keys(lock),
-  ...Object.values(lock).map((e) => e.source.split("/").pop() as string),
+  ...Object.values(lock).map((e) => pluginNameOf(e.source)),
   "explorer",
   "implementer",
   "task-reviewer",

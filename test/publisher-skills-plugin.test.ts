@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pluginNameOf } from "../src/config/skills-lock";
 import { workspacePaths } from "../src/config/workspace-paths";
 import { captureLogs } from "../src/observability/logger";
 import { ROLES } from "../src/roles/role-registry";
@@ -26,7 +27,7 @@ afterAll(() => {
 const LOCK = readSkillsLock();
 /** The developer's set: every locked skill except the friday source (the other roles' own skills). */
 const PUBLISHER = Object.entries(LOCK.skills).filter(([, e]) => !e.source.endsWith("/friday"));
-const INSTALLED = PUBLISHER.map(([name, e]) => `${e.source.split("/").pop()}:${name}`);
+const INSTALLED = PUBLISHER.map(([name, e]) => `${pluginNameOf(e.source)}:${name}`);
 /** One plugin per publisher source. */
 const PLUGINS = new Set(PUBLISHER.map(([, e]) => e.source)).size;
 /** The developer's set: every skill of each publisher source it uses (a whole pack, so none is missed). */
@@ -34,7 +35,7 @@ const devSources = new Set(
   PUBLISHER.filter(([n]) => ROLES.developer?.skills?.includes(n)).map(([, e]) => e.source),
 );
 const DEV_INSTALLED = PUBLISHER.filter(([, e]) => devSources.has(e.source)).map(
-  ([name, e]) => `${e.source.split("/").pop()}:${name}`,
+  ([name, e]) => `${pluginNameOf(e.source)}:${name}`,
 );
 
 /** A home whose workspace `main` has the given extra yaml and an empty own skills dir. */

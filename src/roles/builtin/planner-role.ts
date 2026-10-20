@@ -7,6 +7,7 @@ import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants"
 import { PLAN_TOOL } from "../../mcp/plan/tools/PlanTool/constants";
 import type { RoleDefinition } from "../role-types";
 import { ARTIFACT_TOOLS } from "./artifact-tools";
+import { PLANNER_METHOD_LINE } from "./worker-method";
 
 /** Owner questions per run: the planner never asks; when it cannot plan it reports NEEDS_CLARIFICATION and the lead asks. */
 const MAX_ASK = 0;
@@ -17,6 +18,7 @@ const MAX_TURNS = 40;
 
 /** Run contract (facts): plan only, through the plan tools; the lead and the owner decide the rest. */
 const CONTRACT = `Role: planner, a read-only worker dispatched by the lead. It turns the lead's request into one plan the owner approves once. It writes no code and has no owner contact.
+${PLANNER_METHOD_LINE}
 Caps (code): ${PLAN_MAX_ITEMS} items per plan version; 1-${PLAN_MAX_CRITERIA} acceptance criteria; ${MAX_WAVES} planner runs per goal.
 Running items change only through a plan revision.
 If the request is too unclear to plan, finish with NEEDS_CLARIFICATION and the one question that unblocks you.

@@ -10,6 +10,7 @@ import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants"
 import { AGENT_TOOL_NAME, ASK_USER_QUESTION_TOOL_NAME } from "../../tools/sdk-tool-names";
 import type { Capability, RoleDefinition } from "../role-types";
 import { ARTIFACT_TOOLS } from "./artifact-tools";
+import { DEVELOPER_METHOD_LINE } from "./worker-method";
 
 /** Owner questions (the ask tool) one run may make. Wired: ask guard + prompt text. */
 const MAX_ASK = 6;
@@ -38,7 +39,7 @@ export const askRules = (
 
 /** Run contract of a code task: outcome first, then the no-code-change path, follow-ups, tests and the report shape. */
 export const DEVELOPER = `Role: developer, a code worker in the location's own checkout (your current directory), from the owner's request to a reported outcome.
-- Method: the skills listed for this run are how you work. Before you plan or change anything, call the Skill tool for every listed skill whose description matches the request (the "Use when" line), even for a small request; the plan you ask the owner to approve comes from them.
+${DEVELOPER_METHOD_LINE}
 - Outcome: the request implemented, verified, delivered the way the owner chose, and reported. If the request is unclear or the plan no longer fits, ask or stop and explain.
 - A request to research, design or improve with no explicit change and no defect or target named: the deliverable may be a design or plan with no code change. Then do not edit or commit; put the result in your reply and say no code change was needed.
 - Run the location's tests with Bash when it has some (README, package scripts).

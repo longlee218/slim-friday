@@ -35,100 +35,73 @@
       "id": "find-code",
       "text": "find where the coupon rules are computed in the cart module and tell me",
       "strategy": "DIRECT",
-      "roles": [
-        "scout"
-      ]
+      "roles": ["scout"]
     },
     {
       "id": "list-files",
       "text": "list the files in the location that mention rate limiting",
       "strategy": "DIRECT",
-      "roles": [
-        "scout"
-      ]
+      "roles": ["scout"]
     },
     {
       "id": "read-readme",
       "text": "read the README of the location and summarize what it says about deployment",
       "strategy": "DIRECT",
-      "roles": [
-        "scout"
-      ]
+      "roles": ["scout"]
     },
     {
       "id": "read-changelog",
       "text": "read the changelog and tell me what changed in the last release",
       "strategy": "DIRECT",
-      "roles": [
-        "scout"
-      ]
+      "roles": ["scout"]
     },
     {
       "id": "fix-test",
       "text": "fix the failing test in cart/coupon.test.ts",
       "strategy": "DIRECT",
-      "roles": [
-        "developer"
-      ]
+      "roles": ["developer"]
     },
     {
       "id": "add-test",
       "text": "add a unit test for the session cache expiry",
       "strategy": "DIRECT",
-      "roles": [
-        "developer"
-      ]
+      "roles": ["developer"]
     },
     {
       "id": "rename-helper",
       "text": "rename the helper parseDate to parseIsoDate everywhere in the location",
       "strategy": "DIRECT",
-      "roles": [
-        "developer"
-      ]
+      "roles": ["developer"]
     },
     {
       "id": "refactor-logger",
       "text": "refactor the logger module to use child loggers per request",
       "strategy": "DIRECT",
-      "roles": [
-        "developer"
-      ]
+      "roles": ["developer"]
     },
     {
       "id": "bump-dep",
       "text": "bump the zod dependency to the latest minor and fix whatever breaks",
       "strategy": "DIRECT",
-      "roles": [
-        "developer"
-      ]
+      "roles": ["developer"]
     },
     {
       "id": "find-then-change",
       "text": "first find where the retry count is configured, then change the default from 3 to 5",
       "strategy": "DELEGATE",
-      "roles": [
-        "scout",
-        "developer"
-      ]
+      "roles": ["scout", "developer"]
     },
     {
       "id": "study-then-build",
       "text": "look at how pagination works in the api, then add cursor pagination to the orders endpoint",
       "strategy": "DELEGATE",
-      "roles": [
-        "scout",
-        "developer"
-      ]
+      "roles": ["scout", "developer"]
     },
     {
       "id": "investigate-then-fix",
       "text": "investigate why the build is slow, then fix the slowest step",
       "strategy": "DELEGATE",
-      "roles": [
-        "scout",
-        "developer"
-      ]
+      "roles": ["scout", "developer"]
     },
     {
       "id": "big-billing-module",
@@ -152,33 +125,25 @@
       "id": "research-version-en",
       "text": "which Python version is the latest stable release right now and what are its headline changes?",
       "strategy": "DIRECT",
-      "roles": [
-        "scout"
-      ]
+      "roles": ["scout"]
     },
     {
       "id": "research-docs-vi",
       "text": "SQLite WAL mode xử lý nhiều process ghi đồng thời thế nào?",
       "strategy": "DIRECT",
-      "roles": [
-        "scout"
-      ]
+      "roles": ["scout"]
     },
     {
       "id": "research-prices-vi",
       "text": "giá hiện tại của các gói API Claude và OpenAI khác nhau thế nào?",
       "strategy": "DIRECT",
-      "roles": [
-        "scout"
-      ]
+      "roles": ["scout"]
     },
     {
       "id": "research-compare-en",
       "text": "compare Drizzle and Prisma for SQLite: migrations, performance and maintenance",
       "strategy": "DIRECT",
-      "roles": [
-        "scout"
-      ]
+      "roles": ["scout"]
     },
     {
       "id": "greeting-vi",

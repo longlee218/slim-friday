@@ -11,6 +11,8 @@ import { isLeadRun } from "./mcp-run-probe";
  * Each case sends one owner message to a fresh db and the REAL lead; worker and planner runs are faked (no paid worker
  * run). The lead's recorded decision (effect_log + owned_tasks) is scored against the expected strategy and roles.
  * A report, not a gate: the owner runs it after a lead prompt or model change. `LEAD_EVAL_MIN` (default 0.8) is the pass rate; `LEAD_EVAL_ONLY` (a case id prefix, e.g. `research`) limits the run.
+ * `LEAD_EVAL_REPEAT=N` (default 1) runs every case N times and prints pass k/N per case, so an unstable case shows; the
+ * score is the mean pass rate over all runs.
  */
 const token = process.env.CLAUDE_CODE_OAUTH_TOKEN;
 const live = process.env.LEAD_EVAL === "1" && !!token && token !== PLACEHOLDER;
@@ -25,7 +27,11 @@ describe.skipIf(!live)("lead golden set (real lead, fake workers)", () => {
     const misses: string[] = [];
     const only = process.env.LEAD_EVAL_ONLY ?? "";
     const cases = loadGolden().filter((c) => c.id.startsWith(only));
-    for (const c of cases) {
+    const repeat = Math.max(1, Number(process.env.LEAD_EVAL_REPEAT ?? 1));
+    const passes = new Map<string, number>(); // case id -> passing runs
+    for (const [i, c] of cases.flatMap((c) =>
+      Array.from({ length: repeat }, (_, r) => [r, c] as const),
+    )) {
       const env = makeEnv({ CLAUDE_CODE_OAUTH_TOKEN: token!, TIMEOUT_MS: "90000" });
       // Lead runs go to the real SDK; any other run (worker, planner) is a stub that ends at once.
       const queryFn = (a: { prompt: unknown; options?: { mcpServers?: object } }) =>
@@ -47,7 +53,7 @@ describe.skipIf(!live)("lead golden set (real lead, fake workers)", () => {
         source: "test",
         channelId: TEST_CHANNEL,
         userId: "owner",
-        threadId: `eval-${c.id}`,
+        threadId: `eval-${c.id}-${i}`,
         text: c.text,
       });
       // The lead run starts after the queue's debounce: wait for its turn row, then for it to end.
@@ -60,14 +66,17 @@ describe.skipIf(!live)("lead golden set (real lead, fake workers)", () => {
       const got = decisionOf(env.db);
       if (got.strategy !== c.strategy || got.roles.join() !== c.roles.join())
         misses.push(
-          `${c.id}: expected ${c.strategy}[${c.roles}] got ${got.strategy}[${got.roles}]`,
+          `${c.id}#${i}: expected ${c.strategy}[${c.roles}] got ${got.strategy}[${got.roles}]`,
         );
+      else passes.set(c.id, (passes.get(c.id) ?? 0) + 1);
       env.db.close();
     }
+    const total = cases.length * repeat;
+    const perCase = cases.map((c) => `${c.id}: ${passes.get(c.id) ?? 0}/${repeat}`).join("\n");
     process.stderr.write(
-      `lead golden: ${cases.length - misses.length}/${cases.length}\n${misses.join("\n")}\n`,
+      `lead golden: ${total - misses.length}/${total} (repeat ${repeat})\n${perCase}\n${misses.join("\n")}\n`,
     );
-    expect(1 - misses.length / cases.length).toBeGreaterThanOrEqual(
+    expect(1 - misses.length / total).toBeGreaterThanOrEqual(
       Number(process.env.LEAD_EVAL_MIN ?? 0.8),
     );
   }, 3_600_000);

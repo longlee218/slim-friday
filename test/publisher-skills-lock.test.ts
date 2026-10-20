@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { existsSync, lstatSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readSkillsLock as readSkillsLock2 } from "../src/config/skills-lock";
+import { pluginNameOf, readSkillsLock as readSkillsLock2 } from "../src/config/skills-lock";
 import { isWorkspaceName, reservedWorkspaces } from "../src/config/workspace-paths";
 import { captureLogs } from "../src/observability/logger";
 import { ROLES } from "../src/roles/role-registry";
@@ -61,7 +61,7 @@ test("workspace name `friday` stays reserved (its plugin name comes from the loc
 });
 
 test("every plugin name of the lock is a reserved workspace name (it would clash with <ws>:<skill>)", () => {
-  const plugins = new Set(Object.values(lock.skills).map((e) => e.source.split("/").pop()));
+  const plugins = new Set(Object.values(lock.skills).map((e) => pluginNameOf(e.source)));
   expect(plugins.size).toBeGreaterThan(0);
   for (const p of plugins) expect(reservedWorkspaces()).toContain(p as string);
   expect(reservedWorkspaces()).toContain("ops");
@@ -108,4 +108,13 @@ test("readSkillsLock warns (shared logger) on an unreadable lock, a broken lock 
   expect(Object.keys(dup.out)).toEqual(["a", "b"]);
   expect(dup.msgs).toContain("two skills sources give the same plugin name");
   rmSync(dir, { recursive: true });
+});
+
+test("pluginNameOf: the pack name, except generic pack names take their owner (no collision, no clash with plain words)", () => {
+  expect(pluginNameOf("obra/superpowers")).toBe("superpowers");
+  expect(pluginNameOf("friday-app/friday")).toBe("friday");
+  expect(pluginNameOf("https://github.com/x/y.git")).toBe("y");
+  expect(pluginNameOf("anthropics/skills")).toBe("anthropics-skills");
+  expect(pluginNameOf("wshobson/agents.git")).toBe("wshobson-agents");
+  expect(pluginNameOf("skills")).toBe("skills"); // no owner: nothing to add
 });

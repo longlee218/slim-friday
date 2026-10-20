@@ -5,6 +5,7 @@ import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/cons
 import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants";
 import type { RoleDefinition } from "../role-types";
 import { ARTIFACT_TOOLS } from "./artifact-tools";
+import { WORKER_METHOD_LINE } from "./worker-method";
 
 /* Shared by the roster specialists (solution-architect, designer, tester, devops, humanizer-writer, hacker): one worker
    contract and the fields they all set, so each role file holds only what differs (job, tools, skills, budget). */
@@ -16,6 +17,7 @@ export const SPECIALIST_MAX_TURNS = 60;
 
 /** Contract every roster specialist runs under (the role's own job text follows it). Facts and scope only. */
 export const SPECIALIST_CONTRACT = `Role: specialist worker dispatched by the lead, for one job from your brief. Your input: the brief and the result files of the items you depend on.
+${WORKER_METHOD_LINE}
 - Scope: your job and your location(s). No subagents. No owner contact: if the brief is too unclear to start, report NEEDS_CLARIFICATION with the one question that unblocks you.
 - Delivery (push, merge, delete, PR) is the developer's job. The shell does not block these, so do not run them.
 - Reporting: use the worker-reporting skill.`;

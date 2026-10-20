@@ -310,6 +310,7 @@ Type in `#ops-control`. One string argument (`path`).
 ## Prompt inspection (developer debug)
 - `bun run prompt:show <role|--all> [--workspace <ws> --channel <name>] [--out <file.md>] [--tools] [--no-skills]`: the exact system prompt layers (chars, about tokens), skills and tool schemas of each role. Offline: no API call, no bot, no token.
 - `FRIDAY_DUMP_PROMPTS=1 bun run start`: every model run writes its SDK input (system prompt, user prompt, tools, options; secrets masked) to `<AGENT_HOME>/logs/prompts`, 0600, newest 50 kept (`PROMPT_DUMP_KEEP`). Off by default; the files hold your chat text, so keep them out of git.
+- `bun scripts/probe-skill-activation.ts --role <name> --task "<text|@file>" [--runs 3] [--out runs.json]`: PAID, real SDK. Runs the role's real prompt, tools and skills on a tiny task in a throwaway git repo and prints the order of Skill / AskUserQuestion / Bash calls up to the first Write or Edit, plus cost per run. Use it to check that a role loads its method skills (and, with a task that calls a skill outside the role's list, that the Skill tool refuses it).
 
 ## First start and reset
 The store is one SQLite file, `<AGENT_HOME>/data/agent.db`, built from the Drizzle baseline (`src/storage/migrations/`). There is no upgrade path from older versions and no backup: an older database is refused, so the owner starts over.
