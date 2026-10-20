@@ -28,7 +28,7 @@ export const LEAD_ROLE: RoleDefinition = {
   basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse: "Routes the owner's messages to specialist workers and reports their results.",
   kind: "lead",
-  skills: [LEAD_SKILL], // the app-owned method skill; needs the `skills` capability for the Skill tool (its references)
+  skills: [LEAD_SKILL, "brainstorming"], // the app-owned method skill + the owner dialogue skill (only the lead talks to the human); needs the `skills` capability for the Skill tool (its references)
   preloadSkills: [LEAD_SKILL], // its text is in the system prompt: the lead never has to remember to load it
   // Memory tools + the lead's `Orchestrate` action tool (the `orchestration` server; a worker run never gets it).
   mcpTools: [

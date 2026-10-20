@@ -42,12 +42,15 @@ test("scout's plugin dirs are removed by cleanup", () => {
   for (const d of r.dirs) expect(existsSync(d)).toBe(false);
 });
 
-test("lead loads only its method skill: friday:lead-orchestration in one plugin dir", () => {
+test("lead loads its method skill and brainstorming: friday:lead-orchestration plus the superpowers pack", () => {
   const r = buildRoleSkills(ROLES.lead!, undefined, home());
   try {
-    expect(r.skills).toEqual(["friday:lead-orchestration"]);
-    expect(r.dirs).toHaveLength(1);
-    expect(r.plugins ?? []).toHaveLength(1);
+    expect([...r.skills].sort()).toEqual([
+      "friday:lead-orchestration",
+      "superpowers:brainstorming",
+    ]);
+    expect(r.dirs).toHaveLength(2);
+    expect(r.plugins ?? []).toHaveLength(2);
   } finally {
     r.cleanup();
   }

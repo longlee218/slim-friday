@@ -19,7 +19,6 @@ export const DESIGNER_ROLE: RoleDefinition = {
   skills: [
     METHOD_SKILL,
     "worker-reporting",
-    "brainstorming",
     "verification-before-completion",
     "docs-seeker",
     "ui-ux-pro-max",
@@ -27,6 +26,7 @@ export const DESIGNER_ROLE: RoleDefinition = {
     "impeccable",
   ],
   preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  requiredSkills: ["ui-ux-pro-max", "impeccable"], // called before the first edit or command (named in one prompt line)
   binaries: ["impeccable-engine"], // a design skill's engine, pinned by sha256 (config/data/pinned-binaries.yaml)
   promptSections: () => designerContract(),
 };

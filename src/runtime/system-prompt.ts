@@ -1,5 +1,6 @@
 import type { PromptCtx, RoleDefinition } from "../roles/role-types";
 import { preloadedSkillsText } from "./skills-plugin/preload-skills";
+import { requiredSkillsText } from "./skills-plugin/required-skills";
 
 /** Options of the prompt builder (the run-time facts a role words its prompt with). */
 export type PromptOpts = PromptCtx;
@@ -17,7 +18,7 @@ export type SystemPrompt = string | { type: "preset"; preset: "claude_code"; app
 
 /**
  * Build the SDK systemPrompt: the role's own sections (run contract, ask rules), then COMMON safety, then the skills the
- * role preloads (`preloadSkills`), then the run's context (see `run-extra-context.ts` for its order). The same text for both bases: a `custom` role sends it alone (the SDK adds
+ * role preloads (`preloadSkills`), then one line naming its required skills (`requiredSkills`), then the run's context (see `run-extra-context.ts` for its order). The same text for both bases: a `custom` role sends it alone (the SDK adds
  * only its billing header and one identity line; tools and the environment block stay), a `claude_code` role appends it
  * to the preset. The host (platform, shell, OS) comes from the SDK's own environment block, so no host line is added.
  */
@@ -27,7 +28,9 @@ export function buildSystemPrompt(
   opts: PromptOpts = {},
 ): SystemPrompt {
   const base = [...role.promptSections(opts), COMMON].filter(Boolean).join("\n");
-  const skills = preloadedSkillsText(role.preloadSkills);
+  const skills = [preloadedSkillsText(role.preloadSkills), requiredSkillsText(role.requiredSkills)]
+    .filter(Boolean)
+    .join("\n\n");
   const rules = skills ? `${base}\n\n${skills}` : base;
   const text = context ? `${rules}\n\n${context}` : rules;
   return role.basePrompt === "custom"

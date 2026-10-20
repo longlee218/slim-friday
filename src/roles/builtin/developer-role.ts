@@ -70,7 +70,6 @@ export const DEVELOPER_ROLE: RoleDefinition = {
   skills: [
     METHOD_SKILL,
     "worker-reporting",
-    "brainstorming",
     "dispatching-parallel-agents",
     "executing-plans",
     "finishing-a-development-branch",
@@ -104,6 +103,7 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "threejs-textures",
   ], // explicit list: a new skill is added here (data)
   preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  requiredSkills: ["test-driven-development", "verification-before-completion"], // called before the first edit or command (named in one prompt line)
   limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
   subagents: SUBAGENTS,
   sideEffects: "location",

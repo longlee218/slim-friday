@@ -29,6 +29,7 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
     "security-and-hardening",
     "wcag-audit-patterns",
     "using-superpowers", // replaced by the app-owned, preloaded using-skills
+    "brainstorming", // the lead alone talks to the human
   ]);
   const publisher = locked
     .filter(([n, e]) => devSources.has(e.source) && !dropped.has(n))
@@ -37,7 +38,7 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
   expect([...(ROLES.developer?.skills ?? [])].sort()).toEqual(
     [...publisher, "worker-reporting", "using-skills"].sort(),
   );
-  expect(ROLES.lead?.skills).toEqual(["lead-orchestration"]);
+  expect(ROLES.lead?.skills).toEqual(["lead-orchestration", "brainstorming"]);
 });
 
 test("limits live in the role: dev asks up to 6; the lead has no ask capability", () => {

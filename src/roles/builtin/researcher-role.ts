@@ -46,5 +46,6 @@ export const RESEARCHER_ROLE: RoleDefinition = {
     "firecrawl-market-research",
     "docs-seeker",
   ],
+  requiredSkills: ["deep-research"], // called before the first edit or command (named in one prompt line)
   promptSections: () => researcherContract(),
 };

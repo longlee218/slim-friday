@@ -1,5 +1,5 @@
 {
-  "_doc": "Lead golden set (opt-in LEAD_EVAL=1). strategy: ANSWER = no dispatch (text answer or ask), DIRECT = one worker, DELEGATE = 2-3 chained workers, PLAN = Orchestrate request_plan. roles = expected worker roles of the dispatched items in order (empty for ANSWER and PLAN).",
+  "_doc": "Lead golden set (opt-in LEAD_EVAL=1). strategy: ANSWER = no dispatch (text answer or ask; also a first brainstorming reply: one question or 2-3 approaches, no request_plan yet), DIRECT = one worker, DELEGATE = 2-3 chained workers, PLAN = Orchestrate request_plan. roles = expected worker roles of the dispatched items in order (empty for ANSWER and PLAN).",
   "cases": [
     {
       "id": "greeting",
@@ -184,13 +184,13 @@
     {
       "id": "new-app-todo-vi",
       "text": "làm một app quản lý chi tiêu mới từ đầu, web + API",
-      "strategy": "PLAN",
+      "strategy": "ANSWER",
       "roles": []
     },
     {
       "id": "new-service-en",
       "text": "build a new URL shortener service with an API, a small UI and tests",
-      "strategy": "PLAN",
+      "strategy": "ANSWER",
       "roles": []
     },
     {

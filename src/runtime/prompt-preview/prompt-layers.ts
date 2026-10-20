@@ -11,6 +11,7 @@ import { buildTeamMd } from "../../roles/prompts/team-md";
 import { threadTitleNote } from "../../roles/prompts/thread-title-note";
 import type { RoleDefinition } from "../../roles/role-types";
 import { preloadedSkillsText } from "../skills-plugin/preload-skills";
+import { requiredSkillsText } from "../skills-plugin/required-skills";
 import { buildSystemPrompt, type SystemPrompt, systemPromptText } from "../system-prompt";
 
 /** One labeled slice of the system prompt, in prompt order. */
@@ -98,13 +99,16 @@ export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): Promp
   ];
   const contract = role.promptSections(opts).join("\n");
   const rules = systemPromptText(buildSystemPrompt("", role, opts));
-  // The preloaded skill text is the tail of the rules (after COMMON), so it is cut off to label each layer on its own.
+  // The preloaded skill text and the required-skills line are the tail of the rules (after COMMON), so it is cut off to label each layer on its own.
   const skills = preloadedSkillsText(role.preloadSkills);
-  const common = skills ? rules.slice(0, rules.length - skills.length - 2) : rules;
+  const required = requiredSkillsText(role.requiredSkills);
+  const tail = [skills, required].filter(Boolean).join("\n\n");
+  const common = tail ? rules.slice(0, rules.length - tail.length - 2) : rules;
   const layers: PromptLayer[] = [
     { name: "role contract (promptSections)", text: contract },
     { name: "COMMON safety", text: common.slice(contract ? contract.length + 1 : 0) },
     ...(skills ? [{ name: "preloaded skills", text: skills }] : []),
+    ...(required ? [{ name: "required skills", text: required }] : []),
   ];
   for (const b of blocks)
     if (persona && b === persona) layers.push(...personaLayers(b));

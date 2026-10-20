@@ -6,7 +6,7 @@ import { pluginNameOf, readSkillsLock } from "../src/config/skills-lock";
 // adding a subagent must never need a code change. The banned set is computed from skills-lock.json (every skill
 // dir name and every plugin name = last segment of an entry `source`), so a new install is covered by itself, plus
 // the app subagent names that were removed and the SDK's built-in one. Whole-word match. The one exception is role
-// DATA: a role file `roles/builtin/<name>-role.ts` lists its own publisher skills (`skills: [...]`), which is a data
+// DATA: a role file `roles/builtin/<name>-role.ts` lists its own publisher skills (`skills: [...]` and its subset `requiredSkills: [...]`), which is a data
 // edit, not a code change.
 
 const SRC = join(import.meta.dir, "..", "src");
@@ -31,9 +31,9 @@ const re = (name: string) =>
 const ROLE_DATA = /^roles\/builtin\/[a-z-]+-role\.ts$/;
 const MATCHERS = [...BANNED].map((n) => [n, re(n)] as const);
 
-/** The one exempt text of a role file: its `skills: [...]` array literal (role data), blanked before the scan. */
+/** The one exempt text of a role file: its `skills: [...]` and `requiredSkills: [...]` array literals (role data), blanked before the scan. */
 const stripSkillsList = (text: string): string =>
-  text.replace(/\bskills:\s*\[[^\]]*\]/g, (m) => m.replace(/[^\n]/g, " "));
+  text.replace(/\b(?:skills|requiredSkills):\s*\[[^\]]*\]/g, (m) => m.replace(/[^\n]/g, " "));
 
 /** Banned-name hits of one file's text (line numbers kept); a role data file loses only its `skills` list. */
 function scan(rel: string, text: string): string[] {

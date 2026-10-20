@@ -17,13 +17,8 @@ export const SOLUTION_ARCHITECT_ROLE: RoleDefinition = {
     "Design before building: compare approaches, choose one, define components, interfaces, data and risks for a feature or system; reads code and docs, writes no files.",
   sideEffects: "none",
   capabilities: ["read", "web", "skills"],
-  skills: [
-    METHOD_SKILL,
-    "worker-reporting",
-    "brainstorming",
-    "architecture-designer",
-    "docs-seeker",
-  ],
+  skills: [METHOD_SKILL, "worker-reporting", "architecture-designer", "docs-seeker"],
   preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  requiredSkills: ["architecture-designer"], // called before the first edit or command (named in one prompt line)
   promptSections: () => solutionArchitectContract(),
 };

@@ -49,6 +49,11 @@ export interface RoleDefinition {
    * the run and does not depend on the model calling the Skill tool. Their `references/` stay on demand. Omitted = none.
    */
   preloadSkills?: RoleSkills;
+  /**
+   * Names (a subset of `skills`) the role calls with the Skill tool before its first edit or command, unconditionally.
+   * The run's prompt names them in one generated line (the data is not repeated in contracts). Omitted = none.
+   */
+  requiredSkills?: RoleSkills;
   /** No SDK subagent tools (Agent, SendMessage, ListAgents): not offered and denied by the guard. The on/off switch of `subagents`. Omitted = allowed. */
   noSubagents?: boolean;
   /** Subagent bounds of a run: `parallel` = most subagents running at once (the guard denies the next start), `depth` = nesting levels (>= 1; 1 = a subagent has no Agent tool). Only used when `noSubagents` is not set. */

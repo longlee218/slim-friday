@@ -33,7 +33,7 @@ test("lead role is data: Sonnet entry role of kind lead, one skill (lead-orchest
   expect(lead).toMatchObject({
     model: SONNET_MODEL,
     kind: "lead",
-    skills: ["lead-orchestration"],
+    skills: ["lead-orchestration", "brainstorming"],
   });
   expect(lead.capabilities).toContain("skills"); // the Skill tool is offered only with this capability
   for (const t of LEAD_ONLY_TOOLS) expect(lead.mcpTools).toContain(t);

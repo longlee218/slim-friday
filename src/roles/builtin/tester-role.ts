@@ -35,6 +35,7 @@ export const TESTER_ROLE: RoleDefinition = {
     "chrome-devtools",
   ],
   preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  requiredSkills: ["verification-before-completion", "test-master"], // called before the first edit or command (named in one prompt line)
   promptSections: () =>
     testerContract({
       subagentsParallel: SUBAGENTS.parallel,

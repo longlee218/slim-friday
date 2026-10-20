@@ -26,9 +26,12 @@ test("every role gets exactly its listed skills: option names and plugin folders
   }
 });
 
-test("the lead holds one skill and no worker skill is in its plugin", () => {
+test("the lead holds its method skill and brainstorming, and no worker skill is in its plugins", () => {
   const sk = buildRoleSkills(ROLES.lead!, undefined, home);
-  expect(sk.skills).toEqual(["friday:lead-orchestration"]);
-  expect(sk.dirs.flatMap((d) => readdirSync(join(d, "skills")))).toEqual(["lead-orchestration"]);
+  expect([...sk.skills].sort()).toEqual(["friday:lead-orchestration", "superpowers:brainstorming"]);
+  expect(sk.dirs.flatMap((d) => readdirSync(join(d, "skills"))).sort()).toEqual([
+    "brainstorming",
+    "lead-orchestration",
+  ]);
   sk.cleanup();
 });

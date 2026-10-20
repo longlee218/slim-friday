@@ -18,7 +18,7 @@ test("dev is a background role: one run, bypass from the first token, no plan co
   expect(DEVELOPER_ROLE.capabilities).toContain("ask");
   expect(DEVELOPER_ROLE.capabilities).not.toContain("planControl" as never);
   expect(DEVELOPER_ROLE.model).toBe(SONNET_MODEL);
-  expect(DEVELOPER_ROLE.skills).toContain("brainstorming");
+  expect(DEVELOPER_ROLE.skills).not.toContain("brainstorming"); // the lead alone talks to the human
 });
 
 test("the lead is a foreground role without shell, ask, write or subagents; the scout is a read-only background worker", () => {

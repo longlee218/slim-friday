@@ -20,7 +20,6 @@ export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
   skills: [
     METHOD_SKILL,
     "worker-reporting",
-    "brainstorming",
     "verification-before-completion",
     "technical-writing",
     "reviewing-technical-prose",
@@ -28,5 +27,6 @@ export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
     "recording-decisions",
   ],
   preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  requiredSkills: ["technical-writing", "verification-before-completion"], // called before the first edit or command (named in one prompt line)
   promptSections: () => humanizerWriterContract(),
 };

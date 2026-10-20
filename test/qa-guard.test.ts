@@ -67,7 +67,10 @@ test("lead with several locations uses the neutral cwd and lists no CLAUDE.md hi
   expect(prompt).not.toContain("CLAUDE.md");
   expect(prompt).not.toContain("first]");
   expect(opts.settingSources).toEqual([]);
-  expect(opts.skills).toEqual(["friday:lead-orchestration"]); // only the lead's method skill: no location skills, no bundled SDK skills
+  expect([...(opts.skills as string[])].sort()).toEqual([
+    "friday:lead-orchestration",
+    "superpowers:brainstorming",
+  ]); // only the lead's method skill and brainstorming: no location skills, no bundled SDK skills
 });
 
 /* Interrupt-steer plan, Task 3: the abort fence only denies new tools; it never undoes a finished one. */

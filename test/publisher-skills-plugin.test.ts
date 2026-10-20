@@ -43,6 +43,7 @@ const DEV_DROPPED = new Set([
   "diagnosing-superpowers",
   "security-and-hardening",
   "wcag-audit-patterns",
+  "brainstorming", // the lead alone talks to the human
 ]);
 const DEV_INSTALLED = PUBLISHER.filter(
   ([n, e]) => devSources.has(e.source) && !DEV_DROPPED.has(n),
@@ -214,6 +215,9 @@ test("dev loads its publisher pack skills but the two dropped by D8, the lead on
       "friday:using-skills",
     ].sort(),
   );
-  expect(names(ROLES.lead as RoleDefinition)).toEqual(["friday:lead-orchestration"]);
+  expect(names(ROLES.lead as RoleDefinition)).toEqual([
+    "friday:lead-orchestration",
+    "superpowers:brainstorming",
+  ]);
   expect(names({ ...(ROLES.developer as RoleDefinition), skills: undefined })).toEqual([]);
 });

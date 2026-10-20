@@ -35,7 +35,7 @@ test("every skill dir hashes to the computedHash the lock pins (paths and bytes)
 test("roles pick skills by a data list of installed names", () => {
   for (const role of Object.values(ROLES))
     for (const n of role.skills ?? []) expect(Object.keys(lock.skills)).toContain(n);
-  expect(ROLES.lead?.skills).toEqual(["lead-orchestration"]);
+  expect(ROLES.lead?.skills).toEqual(["lead-orchestration", "brainstorming"]);
 });
 
 test("the app skills are locked under the friday source, so their qualified names stay friday:<skill>", () => {

@@ -25,5 +25,6 @@ export const HACKER_ROLE: RoleDefinition = {
     "security-and-hardening",
   ],
   preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  requiredSkills: ["security-and-hardening", "verification-before-completion"], // called before the first edit or command (named in one prompt line)
   promptSections: () => hackerContract(),
 };
