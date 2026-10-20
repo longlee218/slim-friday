@@ -6,12 +6,11 @@ import {
   SPECIALIST_MAX_TURNS,
 } from "./specialist-contract";
 
-/** The designer: Sonnet, writes design files in its location; a sandboxed shell runs its design tools (owner 2026-10-20). */
+/** The designer: Sonnet, coding preset (writes prototypes, design components and tokens as files); a sandboxed shell runs its design tools (owner 2026-10-20). */
 export const DESIGNER_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
   mcpTools: [...SPECIALIST_BASE.mcpTools],
   name: "designer",
-  basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
     "Design of a user interface or experience: screens, layout, components, copy, states and accessibility; writes design notes or static mockups in the location and runs design tools (sandboxed shell).",
   sideEffects: "location",
