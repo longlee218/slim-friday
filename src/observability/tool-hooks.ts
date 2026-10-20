@@ -4,6 +4,7 @@ import { READ_ONLY_REASON } from "../policy/deny-dangerous";
 import { isInside, resolveReal } from "../policy/paths";
 import { BASH_TOOL_NAME, SKILL_TOOL_NAME } from "../tools/sdk-tool-names";
 import { loadWorkspaces } from "../workspaces/workspace-registry";
+import { toolDoneLevel } from "./failure-level";
 import { getLogContext, logEvent, logger, setLogContext, tryLog } from "./logger";
 import type { RunRecorder } from "./record-run";
 import { calledSkillName } from "./skills-used";
@@ -129,23 +130,28 @@ export function buildToolHooks(
     const r = summarizeResult(output, isError);
     // An edit error echoes the file text it failed to match: keep only its first line.
     if (r.err && EDIT_TOOLS.includes(tool)) r.err = scrubEditError(r.err, input);
-    logEvent(log, "tool.done", {
-      ...(location && { location }),
-      ...who,
-      tool,
-      toolUseId: id,
-      target: describeTool(tool, input, roots).target,
-      ok: !isError,
-      durationMs,
-      ...r,
-      // Only the unusual: an owner-approved call or a non-default allow reason.
-      ...(d &&
-        (d.decision === "ask" || d.reason !== READ_ONLY_REASON) && {
-          decision: d.decision,
-          reason: d.reason,
-        }),
-      input: inputPreview(input),
-    });
+    logEvent(
+      log,
+      "tool.done",
+      {
+        ...(location && { location }),
+        ...who,
+        tool,
+        toolUseId: id,
+        target: describeTool(tool, input, roots).target,
+        ok: !isError,
+        durationMs,
+        ...r,
+        // Only the unusual: an owner-approved call or a non-default allow reason.
+        ...(d &&
+          (d.decision === "ask" || d.reason !== READ_ONLY_REASON) && {
+            decision: d.decision,
+            reason: d.reason,
+          }),
+        input: inputPreview(input),
+      },
+      toolDoneLevel(tool, isError, r.err),
+    );
   };
 
   return {

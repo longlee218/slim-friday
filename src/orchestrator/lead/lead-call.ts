@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { OwnerLanguage } from "../../ingress/user-copy";
 import { orchestrateAudit } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
+import { refusalLevel } from "../../observability/failure-level";
 import { logEvent, logger } from "../../observability/logger";
 import type { EventKind } from "../events/event-types";
 import type { EffectPort } from "../goal/effect-port";
@@ -126,13 +127,11 @@ export async function leadCall(
         ...(out.audit && out.audit),
       });
   }
-  logEvent(log, "lead.decision", {
-    tool: ORCHESTRATE_TOOL,
-    action,
-    ok: out.reply.ok,
-    code,
-    key,
-    leadTurnId: ctx.leadTurnId,
-  });
+  logEvent(
+    log,
+    "lead.decision",
+    { tool: ORCHESTRATE_TOOL, action, ok: out.reply.ok, code, key, leadTurnId: ctx.leadTurnId },
+    refusalLevel(out.reply.ok, code),
+  );
   return out.reply;
 }
