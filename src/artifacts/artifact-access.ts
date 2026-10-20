@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { redactText } from "../observability/redact";
-import { isInside, resolveReal } from "../policy/paths";
+import { isHiddenByAgentHome, isInside, resolveReal } from "../policy/paths";
 import { isSensitivePath } from "../runtime/sensitive-files";
 import { type ArtifactFilter, listChannelArtifacts } from "../storage/artifact-list-store";
 import { type ArtifactRow, getArtifact } from "../storage/artifact-store";
@@ -119,7 +119,7 @@ function artifactText(c: ArtifactToolCtx, a: ArtifactRow): string | null {
   const root = resolveReal(loc.path);
   const real = resolveReal(join(root, a.path));
   if (
-    isInside(resolveReal(c.home), real) ||
+    isHiddenByAgentHome(c.home, root, real) ||
     !isInside(root, real) ||
     isSensitivePath(a.path) ||
     isSensitivePath(relative(root, real))

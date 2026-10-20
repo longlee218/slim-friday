@@ -25,16 +25,16 @@ test("progress passes percent and note to the run's progress port", async () => 
   expect(seen).toEqual([{ percent: 30, note: "tests written" }]);
 });
 
-test("progress params are bounded: whole percent 0-100, note 1-200 chars (BAD_PARAMS)", async () => {
+test("progress params are bounded: whole percent 0-100, non-empty note (BAD_PARAMS); a note over 200 chars is cut, not refused", async () => {
   const t = createReportTool({ progress: () => {} });
   for (const bad of [
     { percent: 101, note: "a" },
     { percent: -1, note: "a" },
     { percent: 5.5, note: "a" },
     { percent: 5, note: "" },
-    { percent: 5, note: "x".repeat(201) },
   ])
     expect((await call(t, "progress", bad)).code).toBe("BAD_PARAMS");
+  expect((await call(t, "progress", { percent: 5, note: "x".repeat(201) })).ok).toBe(true);
 });
 
 test("an action refuses with ACTION_UNAVAILABLE when the run lacks its part", async () => {

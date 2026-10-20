@@ -61,3 +61,29 @@ test("the same title again is version 2 (reference rows are versioned too)", () 
   registerRepoArtifact(db, input("docs/plan.md"));
   expect(registerRepoArtifact(db, input("docs/plan.md")).version).toBe(2);
 });
+
+test("a file of a project inside <home>/projects is referenced; other AGENT_HOME files stay refused", () => {
+  const { db, home } = setup();
+  const proj = join(home, "projects", "app");
+  mkdirSync(join(proj, "docs"), { recursive: true });
+  writeFileSync(join(proj, "docs", "ui.md"), "# UI");
+  const input = (loc: string, relPath: string) => ({
+    workspace: "main",
+    channel: "healthy",
+    kind: "md" as const,
+    location: { name: "app", path: loc },
+    relPath,
+    home,
+  });
+  expect(registerRepoArtifact(db, input(proj, "docs/ui.md")).path).toBe("docs/ui.md");
+  // A $HOME-like location around AGENT_HOME reaching the db or a persona file is still refused.
+  mkdirSync(join(home, "data"), { recursive: true });
+  writeFileSync(join(home, "data", "x.md"), "db");
+  expect(() =>
+    registerRepoArtifact(db, input(join(home, ".."), `${home.split("/").pop()}/data/x.md`)),
+  ).toThrow(/inside AGENT_HOME/);
+  // The projects dir itself is not exempt.
+  expect(() => registerRepoArtifact(db, input(join(home, "projects"), "app/docs/ui.md"))).toThrow(
+    /inside AGENT_HOME/,
+  );
+});

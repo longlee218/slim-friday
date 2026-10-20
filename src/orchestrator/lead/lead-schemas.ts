@@ -131,10 +131,14 @@ export const REGISTER_LOCATION_SHAPE = {
 export const FORWARD_RESULT_SHAPE = { taskId: TASK_ID, mode: z.enum(["verbatim", "summary"]) };
 
 /** A follow-up the worker asks for next to its result. */
-const WORKER_REQUEST = z.object({
-  kind: z.enum(["question", "capability", "plan"]),
-  text: z.string().min(1).max(REQUEST_MAX_CHARS),
-});
+const WORKER_REQUEST = z.preprocess(
+  // Models often send a request as a bare string: read it as a question (the object form stays the documented one).
+  (v) => (typeof v === "string" ? { kind: "question", text: v } : v),
+  z.object({
+    kind: z.enum(["question", "capability", "plan"]),
+    text: z.string().min(1).max(REQUEST_MAX_CHARS),
+  }),
+);
 /** A doc a developer wrote in its granted location, named for the report (checked and registered by code). */
 const ARTIFACT_DOC = z.object({ title: z.string().min(1), path: z.string().min(1) });
 export const REPORT_RESULT_SHAPE = {
@@ -157,7 +161,11 @@ export const REPORT_RESULT_SHAPE = {
 /** A worker's `Report` progress input: how far along (whole percent) and what it is doing now. */
 export const REPORT_PROGRESS_SHAPE = {
   percent: z.number().int().min(0).max(100),
-  note: z.string().min(1).max(PROGRESS_NOTE_MAX_CHARS),
+  // A cosmetic heartbeat text: a long note is cut to the limit instead of failing the call.
+  note: z
+    .string()
+    .min(1)
+    .transform((n) => n.slice(0, PROGRESS_NOTE_MAX_CHARS)),
 };
 
 /** Parsed inputs, one per tool. */

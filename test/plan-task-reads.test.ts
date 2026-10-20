@@ -145,3 +145,27 @@ test("the Plan tool refuses an unknown action with BAD_ACTION and the action lis
   expect(r).toMatchObject({ code: "BAD_ACTION" });
   expect(r.message).toContain("search");
 });
+
+test("planner get: an item key of the planner's own goal reads that item; a key of another goal stays BAD_TASK", async () => {
+  const { goalId, call } = setup();
+  insertOwnedTask(db, {
+    id: "plan-item-uuid",
+    threadId: "th1",
+    ownerRole: "developer",
+    status: "pending",
+    scope: "build b",
+    correlationId: "c3",
+    parentId: goalId,
+    itemKey: "impl-b",
+    dependsOn: [],
+    brief: "build b",
+    subject: "Build b",
+  });
+  expect(await call("get", { taskId: "impl-b" })).toMatchObject({
+    ok: true,
+    kind: "item",
+    key: "impl-b",
+  });
+  // "docs" is a key in the lead's goal, not in the planner's: not resolved.
+  expect(await call("get", { taskId: "docs" })).toMatchObject({ ok: false, code: "BAD_TASK" });
+});

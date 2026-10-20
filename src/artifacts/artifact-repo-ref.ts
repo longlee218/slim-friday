@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 import { redactText } from "../observability/redact";
-import { isInside, resolveReal } from "../policy/paths";
+import { isHiddenByAgentHome, isInside, resolveReal } from "../policy/paths";
 import { isSensitivePath } from "../runtime/sensitive-files";
 import { insertArtifact, latestVersion } from "../storage/artifact-store";
 import { indexArtifact } from "./artifact-index";
@@ -37,7 +37,7 @@ export function registerRepoArtifact(
   const real = resolveReal(join(root, a.relPath));
   if (!isInside(root, real)) throw new Error("repo artifact path leaves the location");
   const rel = relative(root, real);
-  if (isInside(resolveReal(a.home), real))
+  if (isHiddenByAgentHome(a.home, root, real))
     throw new Error("repo artifact path is inside AGENT_HOME");
   if (isSensitivePath(a.relPath) || isSensitivePath(rel))
     throw new Error("repo artifact path is a sensitive file");

@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 import { redactText } from "../observability/redact";
-import { isInside, resolveReal } from "../policy/paths";
+import { isHiddenByAgentHome, isInside, resolveReal } from "../policy/paths";
 import { isSensitivePath } from "../runtime/sensitive-files";
 import type { ArtifactRow } from "../storage/artifact-store";
 
@@ -30,7 +30,7 @@ export function loadArtifactBody(row: ArtifactRow, roots: BodyRoots): string | n
     const root = resolveReal(dir);
     const real = resolveReal(join(root, row.path));
     // Outside the location, or inside AGENT_HOME (a $HOME location contains it): never served.
-    if (!isInside(root, real) || isInside(resolveReal(roots.home), real)) return null;
+    if (!isInside(root, real) || isHiddenByAgentHome(roots.home, root, real)) return null;
     if (isSensitivePath(row.path) || isSensitivePath(relative(root, real))) return null;
     if (!statSync(real).isFile()) return null;
     return redactText(readFileSync(real, "utf8"));

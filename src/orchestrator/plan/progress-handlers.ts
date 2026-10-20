@@ -74,9 +74,14 @@ export function listGoalItems(c: PlannerCtx, i: GoalInput): Reply {
   };
 }
 
-/** One task or goal of this thread in full (the same view the lead's `get` returns). */
-export const getTaskHandler = (c: PlannerCtx, i: GetTaskInput): Reply =>
-  taskDetail(c.db, c.threadId, i.taskId);
+/**
+ * One task or goal of this thread in full (the same view the lead's `get` returns). The planner knows its items by plan
+ * key, so a `taskId` equal to the key of exactly one item of ITS OWN goal reads that item; anything else is an id.
+ */
+export const getTaskHandler = (c: PlannerCtx, i: GetTaskInput): Reply => {
+  const byKey = childrenOf(c.db, c.goalId).filter((x) => x.itemKey === i.taskId);
+  return taskDetail(c.db, c.threadId, byKey.length === 1 ? byKey[0].id : i.taskId);
+};
 
 /** The thread's goals and tasks that contain the query's words (the same view the lead's `search` returns). */
 export const searchTasksHandler = (c: PlannerCtx, i: SearchTasksInput): Reply =>

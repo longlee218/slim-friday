@@ -63,3 +63,14 @@ export function isDeniedPath(
   if (!denyPaths.some((d) => isInside(d, target))) return false;
   return !allowInside.some((a) => isInside(a, target));
 }
+
+/**
+ * True when the repo file `real` of the location rooted at `root` (both real paths) lies in AGENT_HOME and must stay
+ * hidden. The one exemption: a location strictly inside `<home>/projects` (a project made from chat) owns its files.
+ */
+export function isHiddenByAgentHome(home: string, root: string, real: string): boolean {
+  const realHome = resolveReal(home);
+  if (!isInside(realHome, real)) return false;
+  const projects = realOrSame(join(realHome, "projects"));
+  return !(root !== projects && isInside(projects, root));
+}
