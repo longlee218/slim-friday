@@ -1,3 +1,4 @@
+import { OPUS_MODEL } from "../../config/model-ids";
 import { designerContract } from "../prompts/contracts/designer-contract";
 import type { RoleDefinition } from "../role-types";
 import {
@@ -7,7 +8,7 @@ import {
   SPECIALIST_MAX_TURNS,
 } from "./specialist-contract";
 
-/** The designer: Sonnet, coding preset (writes prototypes, design components and tokens as files); a sandboxed shell runs its design tools (owner 2026-10-20). */
+/** The designer: Opus, coding preset (writes prototypes, design components and tokens as files); a sandboxed shell runs its design tools (owner 2026-10-20). */
 export const DESIGNER_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
   mcpTools: [...SPECIALIST_BASE.mcpTools],
@@ -24,7 +25,9 @@ export const DESIGNER_ROLE: RoleDefinition = {
     "ui-ux-pro-max",
     "wcag-audit-patterns",
     "impeccable",
+    "chrome-devtools",
   ],
+  model: OPUS_MODEL,
   preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
   requiredSkills: ["ui-ux-pro-max", "impeccable"], // called before the first edit or command (named in one prompt line)
   binaries: ["impeccable-engine"], // a design skill's engine, pinned by sha256 (config/data/pinned-binaries.yaml)

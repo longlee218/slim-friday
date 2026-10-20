@@ -8,3 +8,6 @@ export const HAIKU_SUMMARY_MODEL = "claude-haiku-4-5-20251001";
 
 /** Default working model: the lead, the planner and the developer. */
 export const SONNET_MODEL = "claude-sonnet-5-5";
+
+/** Heavier working model: the designer. */
+export const OPUS_MODEL = "claude-opus-5-5";

@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { loadConfig } from "../src/config/agent-config";
-import { HAIKU_MODEL, HAIKU_SUMMARY_MODEL, SONNET_MODEL } from "../src/config/model-ids";
+import {
+  HAIKU_MODEL,
+  HAIKU_SUMMARY_MODEL,
+  OPUS_MODEL,
+  SONNET_MODEL,
+} from "../src/config/model-ids";
 import { resolveBudget, TASK_BUDGET_USD } from "../src/config/model-routing";
 import { getRole, ROLES } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
@@ -16,9 +21,9 @@ describe("fixed role models", () => {
   test("every role names a full model id (no tier alias)", () => {
     for (const r of Object.values(ROLES)) expect(r.model).toMatch(/^claude-[a-z]+-\d/);
   });
-  test("ids per role: lead, planner, developer and roster sonnet; scout and discord-manager haiku; roster specialists and researcher sonnet", () => {
+  test("ids per role: designer opus; lead, planner, developer, other roster specialists and researcher sonnet; scout and discord-manager haiku", () => {
     expect(Object.fromEntries(Object.values(ROLES).map((r) => [r.name, r.model]))).toEqual({
-      designer: SONNET_MODEL,
+      designer: OPUS_MODEL,
       developer: SONNET_MODEL,
       devops: SONNET_MODEL,
       "discord-manager": HAIKU_MODEL,

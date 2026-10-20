@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { SONNET_MODEL } from "../src/config/model-ids";
+import { OPUS_MODEL, SONNET_MODEL } from "../src/config/model-ids";
 import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
 import { validateRole } from "../src/orchestrator/run/validate-role";
 import { SPECIALIST_BUDGET_USD } from "../src/roles/builtin/specialist-contract";
@@ -11,7 +11,7 @@ import { toolsFor } from "../src/tools/tool-catalog";
 
 const ROSTER = ["solution-architect", "designer", "tester", "devops", "humanizer-writer", "hacker"];
 
-test("every roster role is a dispatchable Sonnet worker that validates and reports through Report result", () => {
+test("every roster role is a dispatchable worker (Sonnet, the designer Opus) that validates and reports through Report result", () => {
   validateRegistry();
   for (const name of ROSTER) {
     const r = getRole(name);
@@ -22,7 +22,7 @@ test("every roster role is a dispatchable Sonnet worker that validates and repor
       true,
       name !== "tester",
     ]);
-    expect(r.model).toBe(SONNET_MODEL);
+    expect(r.model).toBe(name === "designer" ? OPUS_MODEL : SONNET_MODEL);
     expect(r.budgetUsd).toBe(SPECIALIST_BUDGET_USD);
     expect(r.mcpTools).toContain(REPORT_TOOL);
     expect(r.limits.maxAsk).toBe(0);
