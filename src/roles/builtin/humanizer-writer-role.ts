@@ -1,11 +1,6 @@
 import { humanizerWriterContract } from "../prompts/contracts/humanizer-writer-contract";
 import type { RoleDefinition } from "../role-types";
-import {
-  METHOD_SKILL,
-  SPECIALIST_BASE,
-  SPECIALIST_BUDGET_USD,
-  SPECIALIST_MAX_TURNS,
-} from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
 
 /** The humanizer-writer: Sonnet, writes and edits documents in its location. */
 export const HUMANIZER_WRITER_ROLE: RoleDefinition = {

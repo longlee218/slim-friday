@@ -15,14 +15,18 @@ import type { RoleDefinition } from "../src/roles/role-types";
    the run's scratch dir). Wiring only: no Chrome is started here. */
 
 const tester = ROLES.tester as RoleDefinition;
+/** The roles that look at a page they build or check: all others list no browser tool. */
+const BROWSER_ROLES = ["tester", "designer", "developer"];
 const SCRATCH = "/agent/ws/tasks/t1";
 const full = (t: string) => mcpToolName(BROWSER_MCP_SERVER, t);
 
-test("the tester lists every Chrome DevTools tool; no other role lists any", () => {
-  const names = mcpToolNamesFor(tester);
-  for (const t of BROWSER_TOOLS) expect(names).toContain(full(t));
+test("the tester, designer and developer list every Chrome DevTools tool; no other role lists any", () => {
+  for (const name of BROWSER_ROLES) {
+    const names = mcpToolNamesFor(ROLES[name] as RoleDefinition);
+    for (const t of BROWSER_TOOLS) expect(names).toContain(full(t));
+  }
   for (const role of Object.values(ROLES))
-    if (role.name !== "tester")
+    if (!BROWSER_ROLES.includes(role.name))
       expect({
         role: role.name,
         chrome: (role.mcpTools ?? []).filter((t) => BROWSER_TOOLS.includes(t)),
@@ -49,18 +53,21 @@ test("a tester run with a scratch dir gets the pinned stdio server: headless, pr
 
 test("no scratch dir (not a dispatched worker) or a role without the tools: the server is not built", () => {
   expect(buildServers(tester, {})[BROWSER_MCP_SERVER]).toBeUndefined();
-  for (const name of ["designer", "developer", "lead", "scout"])
+  for (const name of ["lead", "scout"])
     expect(
       buildServers(ROLES[name] as RoleDefinition, {}, { scratchDir: SCRATCH })[BROWSER_MCP_SERVER],
     ).toBeUndefined();
 });
 
-test("guard: the tester's browser tools are allowed, upload_file and other roles are denied", () => {
+test("guard: the browser tools of the tester and designer are allowed, upload_file and other roles are denied", () => {
   const scope = { readPaths: ["/r"], envelope: defaultEnvelope("g1", [], SCRATCH) };
   const shot = full(BROWSER_TAKE_SCREENSHOT_TOOL);
   expect(checkToolCall(shot, {}, guardFor(tester, scope)).decision).toBe("allow");
   expect(checkToolCall(full("upload_file"), {}, guardFor(tester, scope)).decision).toBe("deny");
   expect(checkToolCall(shot, {}, guardFor(ROLES.designer as RoleDefinition, scope)).decision).toBe(
+    "allow",
+  );
+  expect(checkToolCall(shot, {}, guardFor(ROLES.scout as RoleDefinition, scope)).decision).toBe(
     "deny",
   );
 });

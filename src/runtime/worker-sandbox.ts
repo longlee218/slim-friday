@@ -46,7 +46,7 @@ export function carve(root: string, blocked: string[], depth = 0): string[] {
  * - Reads: DENY BY DEFAULT for the owner's home (and `/Users`); the run's granted dirs, the toolchain dirs and git's global config
  *   are allowed back (an allow rule beats a deny rule, so a granted home is listed child by child around the agent home). A
  *   credential dir is denied only when no granted dir covers it: the location wins.
- * - Network OPEN (owner decision 2026-10-18): `allowedDomains: ["*"]` (bare wildcard, CLI >= 2.1.186). Without it the CLI keeps an
+ * - Network OPEN (owner decision 2026-10-18; a command may also bind a localhost port): `allowedDomains: ["*"]` (bare wildcard, CLI >= 2.1.186). Without it the CLI keeps an
  *   empty allowlist and asks `canUseTool` (`SandboxNetworkAccess`) per host. The read/write limits above still bind. The sandbox is required and a command cannot opt out of it.
  */
 export function workerSandbox(guard: GuardrailContext | undefined): Options["sandbox"] | undefined {
@@ -118,6 +118,7 @@ export function workerSandbox(guard: GuardrailContext | undefined): Options["san
         ]),
       ],
     },
-    network: { allowedDomains: ["*"] },
+    // Local binding: a dev or static server on localhost, so the browser MCP (outside this sandbox) can open the page over http.
+    network: { allowedDomains: ["*"], allowLocalBinding: true },
   };
 }

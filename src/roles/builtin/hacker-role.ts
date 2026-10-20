@@ -1,11 +1,6 @@
 import { hackerContract } from "../prompts/contracts/hacker-contract";
 import type { RoleDefinition } from "../role-types";
-import {
-  METHOD_SKILL,
-  SPECIALIST_BASE,
-  SPECIALIST_BUDGET_USD,
-  SPECIALIST_MAX_TURNS,
-} from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
 
 /** The hacker: Sonnet, read-only defensive review. */
 export const HACKER_ROLE: RoleDefinition = {

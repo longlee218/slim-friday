@@ -47,7 +47,10 @@ test("a tool whose ctx part the run lacks is not built (mcpTools ∩ ctx)", () =
   const noEffects = held(buildServers(dev, { ...FULL_CTX, effects: undefined }));
   expect(noEffects).toContain(REPORT_TOOL);
   expect(noEffects).toContain(MEMORY_SEARCH_TOOL);
-  expect(noEffects.length).toBe((dev.mcpTools?.length ?? 0) - 4);
+  // The browser tools belong to an external server, not to the in-process ones counted here.
+  expect(noEffects.length).toBe(
+    (dev.mcpTools ?? []).filter((t) => !EXTERNAL_TOOLS.includes(t)).length - 4,
+  );
   // No memory, no sink, no effects: nothing at all.
   expect(buildServers(dev, {})).toEqual({});
   // The lead without a rename port still has Orchestrate, but its action table has no set_title.

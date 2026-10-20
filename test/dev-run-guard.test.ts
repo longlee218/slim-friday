@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
 import {
   ARTIFACTS_MCP_SERVER,
+  BROWSER_MCP_SERVER,
   EFFECTS_MCP_SERVER,
   MEMORY_MCP_SERVER,
   ORCHESTRATION_MCP_SERVER,
@@ -78,6 +79,7 @@ test("dev: only the app's MCP servers; a worker's env keeps no owner secret (the
     ARTIFACTS_MCP_SERVER,
     ORCHESTRATION_MCP_SERVER,
     EFFECTS_MCP_SERVER,
+    BROWSER_MCP_SERVER, // the developer looks at the page it builds
   ]);
   // A worker runs repo code: no gh / git login of the owner in its env. The effect tools use it in their own subprocess.
   expect(exec.env.GH_TOKEN).toBeUndefined();

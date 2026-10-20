@@ -4,6 +4,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   ARTIFACTS_MCP_SERVER,
+  BROWSER_MCP_SERVER,
   EFFECTS_MCP_SERVER,
   MEMORY_MCP_SERVER,
   ORCHESTRATION_MCP_SERVER,
@@ -90,6 +91,7 @@ test("two workspaces with location `real`: every task runs in the channel's work
   expect(second().options.cwd).toContain("/w-b/");
   expect(Object.keys(second().options.mcpServers).sort()).toEqual([
     ARTIFACTS_MCP_SERVER,
+    BROWSER_MCP_SERVER,
     EFFECTS_MCP_SERVER,
     MEMORY_MCP_SERVER,
     ORCHESTRATION_MCP_SERVER,

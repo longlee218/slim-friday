@@ -1,12 +1,7 @@
 import { BROWSER_TOOLS } from "../../mcp/browser/browser-tool-names";
 import { testerContract } from "../prompts/contracts/tester-contract";
 import type { RoleDefinition } from "../role-types";
-import {
-  METHOD_SKILL,
-  SPECIALIST_BASE,
-  SPECIALIST_BUDGET_USD,
-  SPECIALIST_MAX_TURNS,
-} from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
 
 /** Subagents of one tester run (parallel cap; depth 1 = a subagent starts none): small, for independent reviews or test runs. */
 const SUBAGENTS = { parallel: 2, depth: 1 };

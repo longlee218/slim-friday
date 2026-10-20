@@ -1,17 +1,13 @@
 import { OPUS_MODEL } from "../../config/model-ids";
+import { BROWSER_TOOLS } from "../../mcp/browser/browser-tool-names";
 import { designerContract } from "../prompts/contracts/designer-contract";
 import type { RoleDefinition } from "../role-types";
-import {
-  METHOD_SKILL,
-  SPECIALIST_BASE,
-  SPECIALIST_BUDGET_USD,
-  SPECIALIST_MAX_TURNS,
-} from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
 
 /** The designer: Opus, coding preset (writes prototypes, design components and tokens as files); a sandboxed shell runs its design tools (owner 2026-10-20). */
 export const DESIGNER_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
-  mcpTools: [...SPECIALIST_BASE.mcpTools],
+  mcpTools: [...SPECIALIST_BASE.mcpTools, ...BROWSER_TOOLS],
   name: "designer",
   whenToUse:
     "Design of a user interface or experience: screens, layout, components, copy, states and accessibility; writes design notes or static mockups in the location and runs design tools (sandboxed shell).",

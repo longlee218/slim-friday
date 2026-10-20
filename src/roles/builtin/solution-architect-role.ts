@@ -1,11 +1,6 @@
 import { solutionArchitectContract } from "../prompts/contracts/solution-architect-contract";
 import type { RoleDefinition } from "../role-types";
-import {
-  METHOD_SKILL,
-  SPECIALIST_BASE,
-  SPECIALIST_BUDGET_USD,
-  SPECIALIST_MAX_TURNS,
-} from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
 
 /** The solution architect: Sonnet, read and web tools, no side effects. */
 export const SOLUTION_ARCHITECT_ROLE: RoleDefinition = {

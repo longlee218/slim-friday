@@ -84,7 +84,10 @@ const ctx: GuardrailContext = {
 
 test("sandbox: network open (wildcard allowedDomains), writes only in the grants (no per-path denyWrite), credential dirs outside the grants unreadable", () => {
   const sb = workerSandbox(ctx) as { filesystem: any };
-  expect((sb as { network?: unknown }).network).toEqual({ allowedDomains: ["*"] });
+  expect((sb as { network?: unknown }).network).toEqual({
+    allowedDomains: ["*"],
+    allowLocalBinding: true,
+  });
   expect(sb.filesystem.allowWrite).toEqual(expect.arrayContaining([loc, scratch, wt]));
   expect(sb.filesystem.denyWrite).toBeUndefined(); // inside a grant the worker writes everything, `.git` included
   expect(sb.filesystem.denyRead).toEqual(

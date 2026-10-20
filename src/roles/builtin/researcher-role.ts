@@ -7,11 +7,7 @@ import { FIRECRAWL_SEARCH_PAPERS_TOOL } from "../../mcp/firecrawl/tools/Firecraw
 import { FIRECRAWL_SEARCH_TOOL } from "../../mcp/firecrawl/tools/FirecrawlSearchTool/constants";
 import { researcherContract } from "../prompts/contracts/researcher-contract";
 import type { RoleDefinition } from "../role-types";
-import {
-  SPECIALIST_BASE,
-  SPECIALIST_BUDGET_USD,
-  SPECIALIST_MAX_TURNS,
-} from "./specialist-contract";
+import { SPECIALIST_BASE } from "./specialist-contract";
 
 /**
  * The researcher: Sonnet, read-only web and deep research with cited reports (current facts, comparisons, markets,
