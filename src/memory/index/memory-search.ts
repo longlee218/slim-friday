@@ -60,11 +60,13 @@ export function searchIndex(
   if (terms.length === 0) return { hits: [], terms: 0 };
   const where = ["memory_fts MATCH ?", "workspace IN (?, '')"];
   const params: (string | number)[] = [buildMatch(terms), workspace];
-  // Channel entries only for the run's own channel (id prefix `channel/<name>`).
+  // Channel and journal entries only for the run's own channel (id prefix `channel/<name>`, `journal/<name>/<date>`).
   if (a.channel)
-    where.push("(source <> 'channel' OR substr(id, 1, instr(id, '#') - 1) = ?)"),
-      params.push(`channel/${a.channel}`);
-  else where.push("source <> 'channel'");
+    where.push(
+      "(source NOT IN ('channel', 'journal') OR substr(id, 1, instr(id, '#') - 1) = ? OR substr(id, 1, instr(id, '#') - 1) LIKE ?)",
+    ),
+      params.push(`channel/${a.channel}`, `journal/${a.channel}/%`);
+  else where.push("source NOT IN ('channel', 'journal')");
   if (a.scope) where.push("source = ?"), params.push(a.scope);
   if (a.kind) where.push("kind = ?"), params.push(a.kind);
   if (a.since) where.push("date >= ?"), params.push(a.since);

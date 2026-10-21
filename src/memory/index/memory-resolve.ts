@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import { join } from "node:path";
 import { WORKSPACE_NAME, workspacePaths } from "../../config/workspace-paths";
 import { THREAD_SUMMARY_MAX_CHARS } from "../../storage/thread-summary-store";
 import { channelTarget, rootTarget } from "../memory-targets";
@@ -40,10 +39,11 @@ function fileOf(ctx: MemoryToolContext, id: ParsedId): { file: string; info: Fil
       file: channelTarget(ctx.home, ctx.workspace, id.channel).file,
       info: { workspace: ctx.workspace, source: "channel", channel: id.channel },
     };
-  if (id.type === "journal")
+  // A journal id is served only for the run's own channel, like a channel id.
+  if (id.type === "journal" && id.channel === ctx.channel)
     return {
-      file: join(workspacePaths(ctx.home).workspace(ctx.workspace).root, "memory", `${id.date}.md`),
-      info: { workspace: ctx.workspace, source: "journal", date: id.date },
+      file: workspacePaths(ctx.home).workspace(ctx.workspace).channel(id.channel).journal(id.date),
+      info: { workspace: ctx.workspace, source: "journal", channel: id.channel, date: id.date },
     };
   return null;
 }

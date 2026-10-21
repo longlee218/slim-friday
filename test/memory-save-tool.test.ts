@@ -60,7 +60,7 @@ test("both scopes write the right file and section", async () => {
   expect((await s.call({ text: "check flaky test", scope: "journal", kind: "open" })).text).toBe(
     "saved to journal (Open)",
   );
-  const j = readFileSync(join(s.ws, "memory", "2026-10-13.md"), "utf8");
+  const j = readFileSync(join(s.ws, "channels", "alpha", "memory", "2026-10-13.md"), "utf8");
   expect(j).toContain("## 09:05 thread abc123");
   expect(j).toContain("### Open\n- check flaky test (2026-10-13)");
   expect(s.saved.length).toBe(2);
@@ -100,7 +100,7 @@ test("a channel file of 300+ lines and 9000+ chars still accepts a save; the per
 test("a journal day file keeps its 300-line guard with its own full message", async () => {
   const s = setup();
   await s.call({ text: "first note", scope: "journal" });
-  const file = join(s.ws, "memory", "2026-10-13.md");
+  const file = join(s.ws, "channels", "alpha", "memory", "2026-10-13.md");
   const old = readFileSync(file, "utf8").trimEnd();
   writeFileSync(
     file,
@@ -152,6 +152,13 @@ test("open outside journal, short and long notes are refused without writing; no
   );
   expect(none.isError).toBe(true);
   expect((none.content[0] as { text: string }).text).toContain("no channel");
+  // The journal is per channel too: a run without one cannot write it.
+  const noJournal = await createMemorySaveTool({ ...s.ctx, channel: undefined }).handler(
+    { text: "a note", scope: "journal" } as never,
+    {},
+  );
+  expect(noJournal.isError).toBe(true);
+  expect(existsSync(join(s.ws))).toBe(false);
 });
 
 test("repeat and normalized repeat -> already saved; secrets stored redacted; markup neutralized", async () => {
@@ -264,7 +271,7 @@ test("near midnight the journal file date and the bullet date agree (23:30 and 0
     s.ctx.now = () => new Date(2026, 9, d, h, m);
     const t = createMemorySaveTool(s.ctx);
     await t.handler({ text: "late note", scope: "journal" } as never, {});
-    const f = readFileSync(join(s.ws, "memory", `${day}.md`), "utf8");
+    const f = readFileSync(join(s.ws, "channels", "alpha", "memory", `${day}.md`), "utf8");
     expect(f).toContain(`## ${hhmm} thread abc123`);
     expect(f).toContain(`- late note (${day})`);
   }

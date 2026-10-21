@@ -71,7 +71,7 @@ test("search -> get -> expand on a bullet, journal block and summary", async () 
     "# api\n\n## Decisions\n- use kysely for queries (2026-10-01)\n- keep migrations linear (2026-10-02)\n\n## Facts\n- db is postgres (2026-10-03)\n",
   );
   s.put(
-    "workspaces/a/memory/2026-10-12.md",
+    "workspaces/a/channels/alpha/memory/2026-10-12.md",
     "# Journal\n## 14:00 thread x\n### Facts\n- the flarp deploy failed\n### Open\n- retry flarp tomorrow\n",
   );
   saveSummary(s.db, "t9", "a", "We discussed quarkus migration plans in depth.");
@@ -90,7 +90,7 @@ test("search -> get -> expand on a bullet, journal block and summary", async () 
   expect(ex).not.toContain("postgres");
   const j = await s.call(MEMORY_SEARCH_TOOL, { query: "flarp", scope: "journal" });
   const jid = s.idOf(j.text);
-  expect(jid).toBe(`journal/2026-10-12#14:00:1~${jid.slice(-6)}`);
+  expect(jid).toBe(`journal/alpha/2026-10-12#14:00:1~${jid.slice(-6)}`);
   expect((await s.call(MEMORY_GET_TOOL, { id: jid })).text).toContain(
     "### Open\n- retry flarp tomorrow",
   );
@@ -128,7 +128,9 @@ test("stale ids: edited -> not found, moved bullet resolves, deleted/cycle/bad i
     `location/api#${"A".repeat(300)}`,
     "' OR 1=1",
     "summary/../x@0",
-    "journal/2026-10-12#09:00:1~abcdef",
+    "journal/2026-10-12#09:00:1~abcdef", // old id format
+    "journal/alpha/2026-10-12#09:00:1~abcdef",
+    "journal/beta/2026-10-12#09:00:1~abcdef", // another channel
   ]) {
     const r = await s.call(MEMORY_GET_TOOL, { id: bad });
     expect(r).toEqual({ text: NOT_FOUND, isError: false });
@@ -167,7 +169,7 @@ test("MemorySave re-indexes at once; hand edit is found by the next search; a pe
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "blorf" })).text).toContain("no matches");
   await s.call(MEMORY_SAVE_TOOL, { text: "journal zork note", scope: "journal", kind: "open" });
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "zork", scope: "journal" })).text).toContain(
-    "journal/2026-10-13#09:05:1~",
+    "journal/alpha/2026-10-13#09:05:1~",
   );
   const f = join(s.home, "workspaces/a/channels/alpha/MEMORY.md");
   writeFileSync(f, `${readFileSync(f, "utf8")}- hand edited plugh fact (2026-10-13)\n`);
@@ -229,7 +231,10 @@ test("guard allows the 3 tools, denies unknown memory tools; all roles get the s
   expect(Object.keys(buildServers(getRole("lead"), { memory: s.ctx }))).toContain(
     MEMORY_MCP_SERVER,
   );
-  s.put("workspaces/a/memory/2026-10-12.md", "## 14:00 t\n### Facts\n- journalonlyword\n");
+  s.put(
+    "workspaces/a/channels/alpha/memory/2026-10-12.md",
+    "## 14:00 t\n### Facts\n- journalonlyword\n",
+  );
   saveSummary(s.db, "t1", "a", "summaryonlyword");
   const p = buildPromptContext({
     agentHome: s.home,
@@ -244,7 +249,7 @@ test("guard allows the 3 tools, denies unknown memory tools; all roles get the s
 test("journal ids: same-minute same-label blocks; delete first -> second resolves by hash; edit -> not found", async () => {
   const s = setup();
   const f = s.put(
-    "workspaces/a/memory/2026-10-12.md",
+    "workspaces/a/channels/alpha/memory/2026-10-12.md",
     "## 14:00 thread x\n### Facts\n- first zzblock\n## 14:00 thread x\n### Facts\n- second yyblock\n",
   );
   const first = s.idOf((await s.call(MEMORY_SEARCH_TOOL, { query: "zzblock" })).text);
@@ -266,7 +271,7 @@ test("hits: original spelling, redacted label, retired location and workspace fi
   s.put("workspaces/a/locations/old/MEMORY.md", "## Facts\n- shared kwux old\n");
   s.put("workspaces/a/MEMORY.md", "## Facts\n- shared kwux workspace\n");
   s.put(
-    "workspaces/a/memory/2026-10-12.md",
+    "workspaces/a/channels/alpha/memory/2026-10-12.md",
     "## 14:00 sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789\n- jlabel note\n",
   );
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "duong dan" })).text).toContain(

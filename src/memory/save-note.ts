@@ -1,4 +1,3 @@
-import { join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import {
   MEMORY_SAVE_MAX_CHARS,
@@ -50,14 +49,14 @@ export function saveNote(ctx: MemoryToolContext, a: MemorySaveArgs, now: Date): 
     return fail("kind open is only for scope journal", "bad_kind");
 
   const date = localDay(now);
-  const fields = { workspace: ctx.workspace };
+  const fields = { workspace: ctx.workspace, channel: ctx.channel };
   const ws = workspacePaths(ctx.home).workspace(ctx.workspace);
   let file: string;
   let where: string;
   let save: () => ReturnType<typeof saveMemoryBullet>;
   switch (a.scope) {
     case "channel": {
-      if (!ctx.channel) return fail("this run has no channel: use scope journal", "no_channel");
+      if (!ctx.channel) return fail("this run has no channel: memory notes need one", "no_channel");
       const t = channelTarget(ctx.home, ctx.workspace, ctx.channel);
       [file, where] = [t.file, `channel/${ctx.channel}`];
       save = () =>
@@ -65,7 +64,8 @@ export function saveNote(ctx: MemoryToolContext, a: MemorySaveArgs, now: Date): 
       break;
     }
     case "journal": {
-      file = join(ws.root, "memory", `${date}.md`);
+      if (!ctx.channel) return fail("this run has no channel: memory notes need one", "no_channel");
+      file = ws.channel(ctx.channel).journal(date);
       where = "journal";
       const slot = { hhmm: localHhmm(now), label: ctx.threadLabel };
       save = () => saveJournalBullet(file, slot, kind, text, date, fields);

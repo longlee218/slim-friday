@@ -37,6 +37,7 @@ function setup(trackSummary = true) {
     db,
     home,
     workspace: "a",
+    channel: "ops",
     threadId: "th1",
     trackSummary,
     threadLabel: "thread t1",
@@ -61,8 +62,8 @@ function setup(trackSummary = true) {
     writeFileSync(f, lines.map((l) => JSON.stringify(l)).join("\n"));
     return f;
   };
-  const journal = () => journalFile(home, "a", "2026-10-13");
-  const search = (q: string) => searchIndex(db, "a", { query: q, limit: 5 }).hits;
+  const journal = () => journalFile(home, "a", "ops", "2026-10-13");
+  const search = (q: string) => searchIndex(db, "a", { query: q, limit: 5, channel: "ops" }).hits;
   return { home, db, pre, post, transcript, journal, search };
 }
 
@@ -233,7 +234,7 @@ test("a background (dev) run journals the extract but never touches the thread s
 
 test("a pruned journal day is gone from MemorySearch after the startup prune and sync", () => {
   const s = setup();
-  const dir = join(s.home, "workspaces", "a", "memory");
+  const dir = join(s.home, "workspaces", "a", "channels", "ops", "memory");
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, "2026-08-01.md"),
@@ -273,6 +274,7 @@ test("journal: hook text is never injected into a prompt; the line limit stops a
   const res = appendJournalBlock({
     home: s.home,
     workspace: "a",
+    channel: "ops",
     label: "t",
     items: [{ kind: "fact", text: "a brand new note" }],
     now: NOW,
@@ -280,7 +282,7 @@ test("journal: hook text is never injected into a prompt; the line limit stops a
   expect(res.saved).toBe(0);
   expect(readFileSync(s.journal(), "utf8")).not.toContain("brand new");
 
-  const dir = join(s.home, "workspaces", "a", "memory");
+  const dir = join(s.home, "workspaces", "a", "channels", "ops", "memory");
   for (const n of ["2026-08-01.md", "2026-10-01.md", "notes.md"]) writeFileSync(join(dir, n), "x");
   expect(pruneJournals(s.home, NOW)).toBe(1);
   expect(existsSync(join(dir, "2026-08-01.md"))).toBe(false);
@@ -380,4 +382,24 @@ test("rollover context: PostCompact stores the SDK summary as is (no merge, no b
   );
   expect(got).toEqual(["fresh summary"]);
   expect(getThreadSummary(s.db, "th1")).toMatchObject({ summary: "fresh summary", cycle: 0 });
+});
+
+test("pruneJournals clears old day files of every channel and of the retired per-space dir; recent files stay", () => {
+  const s = setup();
+  const base = join(s.home, "workspaces", "a");
+  const dirs = [
+    join(base, "channels", "ops", "memory"),
+    join(base, "channels", "dev", "memory"),
+    join(base, "memory"),
+  ];
+  for (const d of dirs) {
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, "2026-08-01.md"), "x");
+    writeFileSync(join(d, "2026-10-12.md"), "x");
+  }
+  expect(pruneJournals(s.home, NOW)).toBe(3);
+  for (const d of dirs) {
+    expect(existsSync(join(d, "2026-08-01.md"))).toBe(false);
+    expect(existsSync(join(d, "2026-10-12.md"))).toBe(true);
+  }
 });

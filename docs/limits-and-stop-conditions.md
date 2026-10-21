@@ -267,7 +267,7 @@ Informational.
 | App log files | 14 days | `observability/log-files.ts` |
 | Task logs | 30 days | `lifecycle/startup.ts` |
 | Run messages | 14 days | `storage/run-message-store.ts` |
-| Daily journals | 30 days | `memory/daily-journal.ts` |
+| Daily journals (per channel: `channels/<ch>/memory/`; also the old per-space dir) | 30 days | `memory/daily-journal.ts` |
 | Attachment copies | 7 days | `ingress/attachment-summary.ts` |
 | Trash (deleted paths) | 7 days; sweep every 6 h | `policy/risk-types.ts`, `lifecycle/trash-sweeper.ts` |
 | Persona backups | newest 10 per file | `WriteSpaceFileTool/constants.ts` |

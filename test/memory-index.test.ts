@@ -59,8 +59,9 @@ test("ids: round trip and hostile input", () => {
     n: 2,
   });
   expect(hash6("Use  bun")).toBe(hash6("use bun."));
-  expect(parseId("journal/2026-10-13#09:05:1~abcdef")).toMatchObject({
+  expect(parseId("journal/finance/2026-10-13#09:05:1~abcdef")).toMatchObject({
     type: "journal",
+    channel: "finance",
     date: "2026-10-13",
   });
   expect(parseId("summary/123@4")).toEqual({ type: "summary", threadId: "123", cycle: 4 });
@@ -77,7 +78,9 @@ test("ids: round trip and hostile input", () => {
     "root#Facts:1~abcdef\n",
     "%",
     "' OR 1=1 --",
-    "journal/2026-1-1#09:05:1~abcdef",
+    "journal/2026-10-13#09:05:1~abcdef", // old id format (no channel)
+    "journal/finance/2026-1-1#09:05:1~abcdef",
+    "journal/../2026-10-13#09:05:1~abcdef",
     "",
     5,
   ])
@@ -116,7 +119,11 @@ test("classify: only the three shapes; retired workspace and location files, pen
     source: "channel",
     channel: "c1",
   });
-  expect(c("workspaces/a/memory/2026-10-13.md")).toMatchObject({ source: "journal" });
+  expect(c("workspaces/a/channels/c1/memory/2026-10-13.md")).toMatchObject({
+    source: "journal",
+    channel: "c1",
+    date: "2026-10-13",
+  });
   for (const bad of [
     STRAY_QUEUE_FILE,
     "workspaces/a/MEMORY.md",
@@ -124,6 +131,10 @@ test("classify: only the three shapes; retired workspace and location files, pen
     "AGENTS.md",
     "workspaces/a/AGENTS.md",
     "workspaces/a/memory/notes.md",
+    "workspaces/a/memory/2026-10-13.md", // old per-space journal: unread
+    "workspaces/a/channels/c1/memory/notes.md",
+    "workspaces/a/channels/C_1/memory/2026-10-13.md",
+    "workspaces/a/channels/c1/memory/x/2026-10-13.md",
     "workspaces/A_/MEMORY.md",
     "../x/MEMORY.md",
     "workspaces/a/locations/api/location/MEMORY.md",
@@ -183,7 +194,7 @@ test("workspace isolation (memory, journal, summary); root visible to both; pend
   for (const ws of ["a", "b"]) {
     s.put(`workspaces/${ws}/channels/c1/MEMORY.md`, MEM(`- zebra ${ws}`));
     s.put(
-      `workspaces/${ws}/memory/2026-10-13.md`,
+      `workspaces/${ws}/channels/c1/memory/2026-10-13.md`,
       `## 09:00 t\n### Facts\n- zebra journal ${ws}\n`,
     );
     saveSummary(s.db, `th${ws}`, ws, `zebra summary ${ws}`);
@@ -302,4 +313,24 @@ test("sync purges index rows of retired workspace and location files (they no lo
   expect(s.find("a", "oldlayerword")).toHaveLength(2);
   expect(syncIndex(s.db, s.home, "a").purged).toBe(2);
   expect(s.find("a", "oldlayerword")).toEqual([]);
+});
+
+test("journal isolation: two channels of one space write journals; a search in channel A never returns B hits", () => {
+  const s = setup();
+  for (const ch of ["c1", "c2"])
+    s.put(
+      `workspaces/a/channels/${ch}/memory/2026-10-13.md`,
+      `## 09:00 t\n### Facts\n- okapi journal ${ch}\n`,
+    );
+  syncAll(s.db, s.home);
+  const hits = (channel: string | undefined) =>
+    searchIndex(s.db, "a", { query: "okapi", limit: 20, channel }).hits;
+  const ids = (channel: string) => hits(channel).map((h) => h.id);
+  expect(ids("c1")).toHaveLength(1);
+  expect(ids("c1")[0]).toStartWith("journal/c1/2026-10-13#09:00:1~");
+  expect(ids("c2")[0]).toStartWith("journal/c2/");
+  expect(hits(undefined)).toEqual([]); // a run without a channel sees no journal
+  expect(
+    searchIndex(s.db, "a", { query: "okapi", limit: 20, channel: "c", scope: "journal" }).hits,
+  ).toEqual([]);
 });

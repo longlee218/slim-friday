@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { MEMORY_MCP_SERVER, mcpToolName } from "../src/mcp/mcp-tool-names";
 import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constants";
 import { journalFile } from "../src/memory/daily-journal";
@@ -147,7 +147,7 @@ function harness(over: Partial<Mode> = {}) {
     return posts[n];
   };
   const kinds = () => calls.map((c) => c.kind);
-  const journal = () => journalFile(env.home, "main", localDay(new Date()));
+  const journal = () => journalFile(env.home, "main", "main-agent", localDay(new Date()));
   return { env, calls, atCompact, handle, send, kinds, journal, mode };
 }
 
@@ -283,14 +283,13 @@ describe("rollover sequence", () => {
   });
 
   for (const flush of ["noreply", "throw"] as const) {
-    test(`flush ${flush} with no MemorySave write -> extractive journal block`, async () => {
+    // The rollover context has no channel and the journal is per channel: the extract writes nothing (rollover goes in phase 3).
+    test(`flush ${flush} with no MemorySave write -> extract skipped, no channel journal`, async () => {
       const h = harness({ flush });
       await h.send("hi", { history });
       await h.handle.rollover("th1");
       expect(h.kinds()).toEqual(["main", "flush", "compact"]);
-      const j = readFileSync(h.journal(), "utf8");
-      expect(j).toContain("Extracted Context");
-      expect(j).toContain("Postgres");
+      expect(existsSync(h.journal())).toBe(false);
       expect(getSession(h.env.db, "th1")).toBeNull();
     });
   }

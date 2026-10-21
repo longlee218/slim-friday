@@ -223,7 +223,7 @@ test("start-up (loadBootState) runs the migration after ensureHome and writes th
       else process.env[k] = saved[k];
     }
   }
-  expect(Object.keys(readMarker(s.home))).toEqual([LAYERS_V2_STEP]);
+  expect(Object.keys(readMarker(s.home))).toEqual([LAYERS_V2_STEP, "journal-per-channel"]);
   expect(readFileSync(s.ws.channel("finance").memory, "utf8")).toContain("- ws fact (2026-09-01)");
 });
 

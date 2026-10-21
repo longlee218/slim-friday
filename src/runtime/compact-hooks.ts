@@ -50,9 +50,15 @@ const label = (ctx: MemoryToolContext, title: string): string =>
  */
 export function journalExtract(ctx: MemoryToolContext, extract: ExtractedContext): number {
   if (extractSize(extract) === 0) return 0;
+  // The journal is per channel: a run without a channel has none (counted in the log, nothing written).
+  if (!ctx.channel) {
+    logEvent(log, "journal.skipped", { reason: "no_channel", notes: extractSize(extract) });
+    return 0;
+  }
   const res = appendJournalBlock({
     home: ctx.home,
     workspace: ctx.workspace,
+    channel: ctx.channel,
     label: label(ctx, EXTRACT_LABEL),
     items: itemsOf(extract),
     now: ctx.now?.() ?? new Date(),

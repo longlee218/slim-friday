@@ -7,7 +7,7 @@ import { MEMORY_SECTION_HEADINGS, normalizeBullet } from "../memory-sections";
  * re-resolved against the CURRENT file by position, then by content hash.
  *
  *   root#<Section>:<n>~<h>   channel/<name>#<Section>:<n>~<h>
- *   journal/<YYYY-MM-DD>#<HH:MM>:<n>~<h>        summary/<threadId>@<cycle>
+ *   journal/<channel>/<YYYY-MM-DD>#<HH:MM>:<n>~<h>   summary/<threadId>@<cycle>
  *
  * Section = a kind heading (Decisions...), `Other` (bullets outside kind sections) or `Text` (prose paragraphs).
  * n = 1-based position among entries of that section (journal: among blocks with the same HH:MM).
@@ -25,7 +25,8 @@ const FILE_TOKENS: readonly string[] = [...MEMORY_SECTION_HEADINGS, OTHER_TOKEN,
 const ID_MAX_CHARS = 200;
 const FILE_ID =
   /^(root|channel\/([a-z0-9][a-z0-9-]{0,63}))#([A-Za-z]{1,16}):(\d{1,5})~([0-9a-f]{6})$/;
-const JOURNAL_ID = /^journal\/(\d{4}-\d{2}-\d{2})#(\d{2}:\d{2}):(\d{1,5})~([0-9a-f]{6})$/;
+const JOURNAL_ID =
+  /^journal\/([a-z0-9][a-z0-9-]{0,63})\/(\d{4}-\d{2}-\d{2})#(\d{2}:\d{2}):(\d{1,5})~([0-9a-f]{6})$/;
 const SUMMARY_ID = /^summary\/([A-Za-z0-9_.-]{1,80})@(\d{1,9})$/;
 /** Thread ids that can be put in an id (anything else is not indexed). */
 export const THREAD_ID = /^[A-Za-z0-9_.-]{1,80}$/;
@@ -34,7 +35,7 @@ export const THREAD_ID = /^[A-Za-z0-9_.-]{1,80}$/;
 export const hash6 = (text: string): string =>
   createHash("sha1").update(normalizeBullet(text)).digest("hex").slice(0, 6);
 
-/** `prefix` is `root`, `channel/<name>` or `journal/<date>`. */
+/** `prefix` is `root`, `channel/<name>` or `journal/<channel>/<date>`. */
 export const makeId = (prefix: string, token: string, n: number, hash: string): string =>
   `${prefix}#${token}:${n}~${hash}`;
 
@@ -51,7 +52,7 @@ export type ParsedId =
       n: number;
       hash: string;
     }
-  | { type: "journal"; date: string; token: string; n: number; hash: string }
+  | { type: "journal"; channel: string; date: string; token: string; n: number; hash: string }
   | { type: "summary"; threadId: string; cycle: number };
 
 /** Parse an id; null for anything that is not exactly the grammar (never throws). */
@@ -74,10 +75,11 @@ export function parseId(id: unknown): ParsedId | null {
   if (m)
     return {
       type: "journal",
-      date: m[1] as string,
-      token: m[2] as string,
-      n: Number(m[3]),
-      hash: m[4] as string,
+      channel: m[1] as string,
+      date: m[2] as string,
+      token: m[3] as string,
+      n: Number(m[4]),
+      hash: m[5] as string,
     };
   m = SUMMARY_ID.exec(id);
   if (m) return { type: "summary", threadId: m[1] as string, cycle: Number(m[2]) };

@@ -6,6 +6,7 @@ import { opsIds, readDiscordSetup } from "../discord-setup/discord-setup-config"
 import { warnOpsChannelsInWorkspaces } from "../discord-setup/warn-ops-channels";
 import { real } from "../locations/location-registry";
 import { safely } from "../memory/index/safely";
+import { migrateJournals } from "../memory/journal-migration";
 import { migrateMemoryLayers } from "../memory/memory-layer-migration";
 import { ensureHome } from "../memory/persona";
 import { loadWorkspaces, warnOverlap } from "../workspaces/workspace-registry";
@@ -47,6 +48,8 @@ export function loadBootState(log: Logger): BootState {
   ensureHome(config.agentHome, workspaces);
   // One-time merge of the retired workspace/location memory into the channel files; never blocks the start.
   safely("memory layers migration", () => migrateMemoryLayers(config.agentHome, workspaces));
+  // Old per-space journal day files go to the channel of a one-channel space (copy, sources untouched).
+  safely("journal migration", () => migrateJournals(config.agentHome, workspaces));
 
   // Once a workspace lists channels, ingress must be pinned to one guild.
   if (!config.discordGuildId && workspaces.some((w) => w.channels.length))

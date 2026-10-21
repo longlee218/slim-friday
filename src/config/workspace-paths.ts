@@ -74,6 +74,9 @@ export function workspacePaths(agentHome: string) {
             user: join(croot, "USER.md"),
             /** Titled documents of the channel (`<llm-title>[-vN].<ext>`), owner-only (0700 dir, 0600 files). */
             artifacts: join(croot, "artifacts"),
+            /** Journal dir: one `YYYY-MM-DD.md` day file per day (flush and run notes of this channel; never injected). */
+            journalDir: join(croot, "memory"),
+            journal: (date: string) => join(croot, "memory", `${date}.md`),
           };
         },
       };
