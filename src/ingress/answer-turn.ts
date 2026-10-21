@@ -1,6 +1,6 @@
 import type { SendableChannels } from "discord.js";
 import type { HandleMessage } from "./discord-message-handler";
-import { sendReply, sendResultFile, startTyping } from "./discord-send";
+import { sendImage, sendReply, sendResultFile, startTyping } from "./discord-send";
 import type { RecentMessage } from "./intent-types";
 import type { createMessageReceipt } from "./message-receipt";
 import { detectLanguage, languageOf, pinnedThreadLanguage, pinThreadLanguage } from "./user-copy";
@@ -55,9 +55,11 @@ export async function answerTurn(
         retype();
         // A caught send failure ends this composing phase too; background work must not refresh typing.
         const stopNotificationTyping = stopTyping;
-        const sent = opts?.asFile
-          ? sendResultFile(channel, m, language, visible, opts.fileName, opts.links)
-          : sendReply(channel, m, language, visible);
+        const sent = opts?.image
+          ? sendImage(channel, opts.image)
+          : opts?.asFile
+            ? sendResultFile(channel, m, language, visible, opts.fileName, opts.links)
+            : sendReply(channel, m, language, visible);
         return sent.finally(stopNotificationTyping);
       },
     });

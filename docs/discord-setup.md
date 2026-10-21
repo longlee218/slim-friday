@@ -275,8 +275,6 @@ Checks (one designer, one developer, one devops and one tester item):
 - Designer: TEAM.md now lists it among members that can change files and commit (shell + write); it commits only when the brief asks.
 - Developer: a React or API brief loads the matching new skill (frontend-ui-engineering, frontend-design, vercel-react-best-practices, supabase-postgres-best-practices, api-and-interface-design, performance-optimization, nodejs-backend-patterns). Listing: 21 skills, about 1400 tokens.
 - DevOps: a Kubernetes manifest brief loads devops-engineer and kubernetes-specialist; no cluster access (credential dirs are unreadable).
-- Tester, browser: serve a local page over http in the location (`bunx serve` or the project's dev server), then ask for a UI check. Expect: `npx` starts the pinned `chrome-devtools-mcp` (first start downloads it to the npm cache), headless Chrome with a profile in the run's scratch dir, a screenshot and the console read. A `file://` URL is refused by the guard. Unverified: `npx` on the bot's PATH, Chrome found, server start time within the CLI's MCP connect timeout, and whether the CLI keeps the server outside the Bash sandbox (source reading says it does).
-- Tester: test-master and chrome-devtools appear in its skill listing.
 
 ## Add a workspace: `/init-workspace <name>`
 Type in `#ops-control` (no mention needed).

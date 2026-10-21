@@ -15,3 +15,8 @@ export const ARTIFACT_LIST_MAX = 50;
 export const REPORT_ARTIFACTS_MAX = 10;
 /** Largest repo file (bytes) a repo artifact may reference or read: a bigger file is refused at register and read as metadata only. */
 export const REPORT_REPO_DOC_MAX_BYTES = 2_000_000;
+
+/** Most screenshots one `Report result` may send to the owner (`images`). */
+export const REPORT_IMAGES_MAX = 4;
+/** Largest screenshot (bytes) a report may send: under Discord's attachment limit (about 10 MB); a bigger one is refused. */
+export const REPORT_IMAGE_MAX_BYTES = 8_000_000;

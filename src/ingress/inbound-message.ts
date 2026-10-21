@@ -2,6 +2,12 @@ import type { ReportLink } from "./discord-message-rules";
 import type { RecentMessage } from "./intent-types";
 import type { OwnerLanguage } from "./user-copy";
 
+/** One image posted as an attachment: its file name and bytes. */
+export interface ImageAttachment {
+  name: string;
+  bytes: Uint8Array;
+}
+
 /** A unit of work arriving from any ingress (Discord, tests). */
 export interface InboundMessage {
   /** Where it came from, e.g. "discord". */
@@ -30,6 +36,6 @@ export interface InboundMessage {
    */
   notify?: (
     text: string,
-    opts?: { asFile?: boolean; fileName?: string; links?: ReportLink[] },
+    opts?: { asFile?: boolean; fileName?: string; links?: ReportLink[]; image?: ImageAttachment },
   ) => Promise<void>;
 }

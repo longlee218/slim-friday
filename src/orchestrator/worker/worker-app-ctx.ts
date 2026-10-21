@@ -49,6 +49,7 @@ export function workerAppCtx(
   if (s.role === PLANNER_ROLE.name) s.sink.noBlocker = true;
   return () => ({
     reportSink: s.sink,
+    scratchDir: s.envelope.goalDir,
     artifacts: artifactCtx(rt, ctx, threadId, s.role, {
       goalId,
       taskId: itemId,

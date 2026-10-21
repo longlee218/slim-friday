@@ -24,7 +24,12 @@ export const ORCHESTRATION_SERVER: McpServerManifest = {
       // Held by a run that can report at least one way (progress port or report sink); each action checks its own part.
       create: (c) =>
         (c.progress || c.reportSink) &&
-        createReportTool({ progress: c.progress, sink: c.reportSink, artifacts: c.artifacts }),
+        createReportTool({
+          progress: c.progress,
+          sink: c.reportSink,
+          artifacts: c.artifacts,
+          scratchDir: c.scratchDir,
+        }),
     },
   ],
 };

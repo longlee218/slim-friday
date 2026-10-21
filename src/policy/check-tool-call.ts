@@ -27,7 +27,6 @@ import {
   WRITE_TOOL_NAME,
 } from "../tools/sdk-tool-names";
 import { autoAllowedTools, subagentToolsFor, toolsFor } from "../tools/tool-catalog";
-import { checkBrowserUrl } from "./browser-url-check";
 import { checkFileRead, checkFileWrite } from "./deny-dangerous";
 import type { DispatchEnvelope } from "./envelope";
 import { envelopeGate } from "./envelope-guard";
@@ -155,10 +154,10 @@ function checkBase(
   if (toolName === SANDBOX_NETWORK_ACCESS_TOOL_NAME && ctx.shell)
     return { decision: "allow", reason: "network is open for a shell worker" };
   // An app MCP tool: allowed only when the role's `mcpTools` lists it (`guardFor` puts those in `allowTools`); any other
-  // `mcp__*` tool is denied (second lock behind the per-run server build). A browser call may open only a web URL.
+  // `mcp__*` tool is denied (second lock behind the per-run server build).
   if (toolName.startsWith(MCP_PREFIX))
     return ctx.allowTools?.includes(toolName)
-      ? (checkBrowserUrl(toolName, input) ?? { decision: "allow", reason: "MCP tool of this role" })
+      ? { decision: "allow", reason: "MCP tool of this role" }
       : { decision: "deny", reason: "unknown MCP tool" };
   if (ctx.allowTools?.includes(toolName))
     return { decision: "allow", reason: "tool allowed in this mode" };

@@ -58,6 +58,7 @@ export function emitEndEvent(
   artifactIds: string[] = [],
   crashError?: string,
   blocker?: ReportSink["blocker"],
+  imageCount = 0,
 ): void {
   const it = getItem(db, itemId);
   if (!it) return;
@@ -101,6 +102,8 @@ export function emitEndEvent(
       ...(blocker && {
         blocker: { needs: blocker.needs, reason: clip(redactText(blocker.reason), STEP_CHARS) },
       }),
+      // Screenshots of the report, posted to the thread by code when the run ended: the lead need not (and cannot) send them.
+      ...(imageCount > 0 && { screenshotsPosted: imageCount }),
       ...(crashError && { error: clip(redactText(crashError), STEP_CHARS) }),
       ...(report && { summary: report.summary, requests: report.requests }),
       // The planner ended with a plan waiting for the owner: the lead is told which one (plan-ready).

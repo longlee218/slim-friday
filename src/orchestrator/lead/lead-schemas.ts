@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { REPORT_ARTIFACTS_MAX } from "../../artifacts/artifact-limits";
+import { REPORT_ARTIFACTS_MAX, REPORT_IMAGES_MAX } from "../../artifacts/artifact-limits";
 import { PRIORITY_VALUES, SUBJECT_MAX_CHARS } from "../../config/lead-caps";
 import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
 import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
@@ -161,6 +161,13 @@ export const REPORT_RESULT_SHAPE = {
     .optional()
     .describe(
       "Artifacts of this result: the id of one you saved, or {title, path} of a doc you wrote in your location (path relative to it)",
+    ),
+  images: z
+    .array(z.string().min(1))
+    .max(REPORT_IMAGES_MAX)
+    .optional()
+    .describe(
+      "Screenshots to send to the owner once: absolute paths of png/jpeg/webp files you saved in your scratch dir",
     ),
 };
 

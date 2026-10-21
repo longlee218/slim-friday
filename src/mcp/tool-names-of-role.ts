@@ -3,31 +3,6 @@ import { LIST_ARTIFACTS_TOOL } from "./artifacts/tools/ListArtifactsTool/constan
 import { READ_ARTIFACT_TOOL } from "./artifacts/tools/ReadArtifactTool/constants";
 import { SAVE_ARTIFACT_TOOL } from "./artifacts/tools/SaveArtifactTool/constants";
 import { SEARCH_ARTIFACTS_TOOL } from "./artifacts/tools/SearchArtifactsTool/constants";
-import { BROWSER_CLICK_TOOL } from "./browser/tools/BrowserClickTool/constants";
-import { BROWSER_CLOSE_PAGE_TOOL } from "./browser/tools/BrowserClosePageTool/constants";
-import { BROWSER_DRAG_TOOL } from "./browser/tools/BrowserDragTool/constants";
-import { BROWSER_EMULATE_TOOL } from "./browser/tools/BrowserEmulateTool/constants";
-import { BROWSER_EVALUATE_SCRIPT_TOOL } from "./browser/tools/BrowserEvaluateScriptTool/constants";
-import { BROWSER_FILL_FORM_TOOL } from "./browser/tools/BrowserFillFormTool/constants";
-import { BROWSER_FILL_TOOL } from "./browser/tools/BrowserFillTool/constants";
-import { BROWSER_GET_CONSOLE_MESSAGE_TOOL } from "./browser/tools/BrowserGetConsoleMessageTool/constants";
-import { BROWSER_GET_CSS_STYLES_TOOL } from "./browser/tools/BrowserGetCssStylesTool/constants";
-import { BROWSER_GET_NETWORK_REQUEST_TOOL } from "./browser/tools/BrowserGetNetworkRequestTool/constants";
-import { BROWSER_HANDLE_DIALOG_TOOL } from "./browser/tools/BrowserHandleDialogTool/constants";
-import { BROWSER_HOVER_TOOL } from "./browser/tools/BrowserHoverTool/constants";
-import { BROWSER_LIGHTHOUSE_AUDIT_TOOL } from "./browser/tools/BrowserLighthouseAuditTool/constants";
-import { BROWSER_LIST_CONSOLE_MESSAGES_TOOL } from "./browser/tools/BrowserListConsoleMessagesTool/constants";
-import { BROWSER_LIST_NETWORK_REQUESTS_TOOL } from "./browser/tools/BrowserListNetworkRequestsTool/constants";
-import { BROWSER_LIST_PAGES_TOOL } from "./browser/tools/BrowserListPagesTool/constants";
-import { BROWSER_NAVIGATE_PAGE_TOOL } from "./browser/tools/BrowserNavigatePageTool/constants";
-import { BROWSER_NEW_PAGE_TOOL } from "./browser/tools/BrowserNewPageTool/constants";
-import { BROWSER_PRESS_KEY_TOOL } from "./browser/tools/BrowserPressKeyTool/constants";
-import { BROWSER_RESIZE_PAGE_TOOL } from "./browser/tools/BrowserResizePageTool/constants";
-import { BROWSER_SELECT_PAGE_TOOL } from "./browser/tools/BrowserSelectPageTool/constants";
-import { BROWSER_TAKE_SCREENSHOT_TOOL } from "./browser/tools/BrowserTakeScreenshotTool/constants";
-import { BROWSER_TAKE_SNAPSHOT_TOOL } from "./browser/tools/BrowserTakeSnapshotTool/constants";
-import { BROWSER_TYPE_TEXT_TOOL } from "./browser/tools/BrowserTypeTextTool/constants";
-import { BROWSER_WAIT_FOR_TOOL } from "./browser/tools/BrowserWaitForTool/constants";
 import { CREATE_SPACE_OR_CHANNEL_TOOL } from "./discord-admin/tools/CreateSpaceOrChannelTool/constants";
 import { LIST_SPACES_TOOL } from "./discord-admin/tools/ListSpacesTool/constants";
 import { WRITE_SPACE_FILE_TOOL } from "./discord-admin/tools/WriteSpaceFileTool/constants";
@@ -44,7 +19,6 @@ import { FIRECRAWL_SEARCH_PAPERS_TOOL } from "./firecrawl/tools/FirecrawlSearchP
 import { FIRECRAWL_SEARCH_TOOL } from "./firecrawl/tools/FirecrawlSearchTool/constants";
 import {
   ARTIFACTS_MCP_SERVER,
-  BROWSER_MCP_SERVER,
   DISCORD_ADMIN_MCP_SERVER,
   EFFECTS_MCP_SERVER,
   FIRECRAWL_MCP_SERVER,
@@ -94,31 +68,6 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
   [FIRECRAWL_RELATED_PAPERS_TOOL]: FIRECRAWL_MCP_SERVER,
   [FIRECRAWL_INSPECT_PAPER_TOOL]: FIRECRAWL_MCP_SERVER,
   [FIRECRAWL_READ_PAPER_TOOL]: FIRECRAWL_MCP_SERVER,
-  [BROWSER_NAVIGATE_PAGE_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_NEW_PAGE_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_LIST_PAGES_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_SELECT_PAGE_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_CLOSE_PAGE_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_WAIT_FOR_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_CLICK_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_DRAG_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_FILL_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_FILL_FORM_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_HOVER_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_PRESS_KEY_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_TYPE_TEXT_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_HANDLE_DIALOG_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_EMULATE_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_RESIZE_PAGE_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_LIST_NETWORK_REQUESTS_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_GET_NETWORK_REQUEST_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_EVALUATE_SCRIPT_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_LIST_CONSOLE_MESSAGES_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_GET_CONSOLE_MESSAGE_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_GET_CSS_STYLES_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_LIGHTHOUSE_AUDIT_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_TAKE_SCREENSHOT_TOOL]: BROWSER_MCP_SERVER,
-  [BROWSER_TAKE_SNAPSHOT_TOOL]: BROWSER_MCP_SERVER,
 };
 
 /** Full names (`mcp__<server>__<tool>`) of the MCP tools of a role (the guard allows exactly these). */

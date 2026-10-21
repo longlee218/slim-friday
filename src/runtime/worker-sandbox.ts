@@ -118,7 +118,7 @@ export function workerSandbox(guard: GuardrailContext | undefined): Options["san
         ]),
       ],
     },
-    // Local binding: a dev or static server on localhost, so the browser MCP (outside this sandbox) can open the page over http.
+    // Local binding: a dev or static server on localhost.
     network: { allowedDomains: ["*"], allowLocalBinding: true },
   };
 }

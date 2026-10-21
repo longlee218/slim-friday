@@ -1,5 +1,6 @@
 import type { InboundMessage } from "../../ingress/discord-message-handler";
 import type { ReportLink } from "../../ingress/discord-message-rules";
+import type { ImageAttachment } from "../../ingress/inbound-message";
 import type { Location } from "../../locations/location-registry";
 import type { DispatchDeps } from "../run/role-run-types";
 import type { QuestionRelay } from "../worker/question-relay";
@@ -35,5 +36,5 @@ export interface LeadRuntime {
 export const postTo = (
   ctx: LeadThreadCtx,
   text: string,
-  opts?: { asFile?: boolean; fileName?: string; links?: ReportLink[] },
+  opts?: { asFile?: boolean; fileName?: string; links?: ReportLink[]; image?: ImageAttachment },
 ): Promise<void> => (ctx.message.notify ? ctx.message.notify(text, opts) : Promise.resolve());

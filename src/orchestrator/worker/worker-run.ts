@@ -21,6 +21,7 @@ import { runTurn } from "../run/run-turn";
 import { expectedDelivery } from "../turns/completion";
 import { type FailureVerdict, workerFailurePolicy } from "./failure-policy";
 import { cancelDependents, settleGoal } from "./goal-settle";
+import { postReportImages } from "./post-report-images";
 import type { ReportSink } from "./report-sink";
 import { startInput } from "./resume-prompt";
 import { workerAppCtx } from "./worker-app-ctx";
@@ -156,6 +157,9 @@ export async function startWorker(
             onSettled: (crash, ownerStopped) => {
               rt.relay.release(turnId); // a wait left by an aborted or crashed run must not outlive it
               afterVerify(db, item.id, verdict.current, ctx.locations); // fix loop, before the end event
+              // An accepted report's screenshots go to the thread once, unless the owner stopped the run.
+              const images = sink.report && !ownerStopped ? (sink.images ?? []) : [];
+              if (images.length) void postReportImages(ctx, images);
               emitEndEvent(
                 db,
                 threadId,
@@ -166,6 +170,7 @@ export async function startWorker(
                 sink.artifactIds,
                 crash,
                 sink.blocker,
+                images.length,
               );
               // A held item (blocked) keeps its dependents waiting for the lead; only an item that truly failed
               // (a crash of the run itself, no retry possible) cancels them: they can never start.

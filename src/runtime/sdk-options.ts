@@ -3,6 +3,7 @@ import type { AgentConfig } from "../config/agent-config";
 import { type Route, resolveBudget } from "../config/model-routing";
 import { pinnedBinaryEnv } from "../config/pinned-binaries";
 import { readProcessEnv } from "../config/process-env";
+import { workspacePaths } from "../config/workspace-paths";
 import { buildServers, mcpToolNamesFor } from "../mcp/mcp-servers";
 import type { RunRecorder } from "../observability/record-run";
 import { buildToolHooks, hookOptions } from "../observability/tool-hooks";
@@ -125,7 +126,7 @@ export function buildSdkOptions(
     model: config.model,
     resume: input.resume,
     ...toolOptions(role),
-    // A local external server (Chrome DevTools) keeps its state in the run's own scratch dir (a worker with an envelope).
+    // A local external server keeps its state in the run's own scratch dir (a worker with an envelope).
     mcpServers: buildServers(
       role,
       { ...input.appCtx?.(), memory: input.memory },

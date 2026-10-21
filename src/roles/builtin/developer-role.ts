@@ -1,6 +1,5 @@
 import { SONNET_MODEL } from "../../config/model-ids";
 import { ARTIFACT_TOOLS } from "../../mcp/artifacts/artifact-tool-names";
-import { BROWSER_TOOLS } from "../../mcp/browser/browser-tool-names";
 import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequestTool/constants";
 import { DELETE_PATHS_TOOL } from "../../mcp/effects/tools/DeletePathsTool/constants";
 import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
@@ -68,7 +67,6 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     GIT_PUSH_TOOL,
     CREATE_PULL_REQUEST_TOOL,
     MERGE_BRANCH_TOOL,
-    ...BROWSER_TOOLS, // look at the page it builds (served over http from its location)
   ],
   skills: [
     METHOD_SKILL,

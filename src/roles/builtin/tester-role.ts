@@ -1,4 +1,3 @@
-import { BROWSER_TOOLS } from "../../mcp/browser/browser-tool-names";
 import { testerContract } from "../prompts/contracts/tester-contract";
 import type { RoleDefinition } from "../role-types";
 import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
@@ -9,8 +8,6 @@ const SUBAGENTS = { parallel: 2, depth: 1 };
 /** The tester: Sonnet, writes and runs tests in its location (sandboxed shell). */
 export const TESTER_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
-  // + the Chrome DevTools browser tools (local MCP server, headless, a fresh profile in the run's scratch dir).
-  mcpTools: [...SPECIALIST_BASE.mcpTools, ...BROWSER_TOOLS],
   name: "tester",
   noSubagents: false, // owner D7: the tester may spawn (tools limited by `subagentToolsFor`)
   subagents: SUBAGENTS,
@@ -27,7 +24,6 @@ export const TESTER_ROLE: RoleDefinition = {
     "requesting-code-review",
     "property-based-testing",
     "test-master",
-    "chrome-devtools",
   ],
   preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
   requiredSkills: ["verification-before-completion", "test-master"], // called before the first edit or command (named in one prompt line)

@@ -8,6 +8,7 @@ import {
 } from "../../../../orchestrator/lead/lead-schemas";
 import { REPORT_BLOCKER_SHAPE } from "../../../../orchestrator/lead/task-schemas";
 import { refuse } from "../../../../orchestrator/reply";
+import { checkReportImages } from "../../../../orchestrator/worker/report-images";
 import type { ReportSink } from "../../../../orchestrator/worker/report-sink";
 import { defineAction } from "../../../action-tool/action-types";
 import { ACTION_UNAVAILABLE } from "../../../action-tool/constants";
@@ -31,6 +32,8 @@ export interface ReportCtx {
   sink?: ReportSink;
   /** Channel scope for the artifact refs of the result. */
   artifacts?: ArtifactToolCtx;
+  /** The run's scratch dir: the only place a report's screenshots may be. */
+  scratchDir?: string;
 }
 
 /** Every action of the worker's `Report` tool. */
@@ -60,11 +63,17 @@ export const REPORT_ACTIONS = [
         if ("errors" in r) return refuse("INVALID_ARTIFACTS", r.errors.join("; "));
         sink.artifactIds = r.ids;
       }
+      if (args.images?.length) {
+        const r = checkReportImages(args.images, c.scratchDir);
+        if ("errors" in r) return refuse("INVALID_IMAGES", r.errors.join("; "));
+        sink.images = r.images;
+      }
       sink.report = args;
       logEvent(log, "worker.report", {
         status: args.status,
         requests: args.requests?.length ?? 0,
         artifacts: sink.artifactIds?.length ?? 0,
+        images: sink.images?.length ?? 0,
       });
       return { ok: true };
     },

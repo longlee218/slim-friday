@@ -21,6 +21,8 @@ export interface RunCtx {
   memory?: MemoryToolContext;
   /** Lead tools: the lead run's port and counters. */
   lead?: LeadToolContext;
+  /** The run's own scratch dir (a dispatched worker): where its screenshots are checked from. */
+  scratchDir?: string;
   /** Where a worker's `Report` result lands. */
   reportSink?: ReportSink;
   /** A worker's `Report` progress port, bound to its task (percent + note in, redacted and recorded by the callee). */
@@ -76,7 +78,7 @@ export interface ExternalRunInfo {
 export interface ExternalMcpServer {
   /** Server name (the `mcp__<name>__` prefix). */
   name: string;
-  /** Bare names of the tools a role may list. */
+  /** Bare names of the tools a role may list one by one; empty when roles are granted the whole server (`mcpServers`). */
   tools: string[];
   /** SDK connection config, or undefined when the server is not configured for this run (then it is never built). */
   config(run: ExternalRunInfo): McpHttpServerConfig | McpStdioServerConfig | undefined;

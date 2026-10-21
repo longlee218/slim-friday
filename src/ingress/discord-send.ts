@@ -125,3 +125,14 @@ export function startTyping(channel: SendableChannels): () => void {
   const timer = setInterval(ping, TYPING_REFRESH_MS);
   return () => clearInterval(timer);
 }
+
+/** Post one image as an attachment (a screenshot a report sends to the owner, once). */
+export async function sendImage(
+  channel: SendableChannels,
+  image: { name: string; bytes: Uint8Array },
+): Promise<void> {
+  await channel.send({
+    files: [new AttachmentBuilder(Buffer.from(image.bytes), { name: image.name })],
+    allowedMentions: SAFE_MENTIONS,
+  });
+}

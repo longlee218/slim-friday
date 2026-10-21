@@ -29,6 +29,3 @@ export const DISCORD_ADMIN_MCP_SERVER = "discord-admin";
 
 /** Firecrawl server (external, hosted): its tool names live in `src/mcp/firecrawl/tools/<Name>Tool/constants.ts`. */
 export const FIRECRAWL_MCP_SERVER = "firecrawl";
-
-/** Browser server (external, local stdio: Chrome DevTools MCP): its tool names live in `src/mcp/browser/tools/<Name>Tool/constants.ts`. */
-export const BROWSER_MCP_SERVER = "browser";

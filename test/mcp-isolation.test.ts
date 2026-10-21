@@ -48,7 +48,7 @@ test("a tool whose ctx part the run lacks is not built (mcpTools ∩ ctx)", () =
   const noEffects = held(buildServers(dev, { ...FULL_CTX, effects: undefined }));
   expect(noEffects).toContain(REPORT_TOOL);
   expect(noEffects).toContain(MEMORY_SEARCH_TOOL);
-  // The browser tools belong to an external server, not to the in-process ones counted here.
+  // External-server tools (Firecrawl) are not in-process ones: they are not counted here.
   expect(noEffects.length).toBe(
     (dev.mcpTools ?? []).filter((t) => !EXTERNAL_TOOLS.includes(t)).length - 4,
   );
