@@ -53,6 +53,7 @@ test("SDK built-in tool names are the real wire names", () => {
     READ_MCP_RESOURCE_DIR_TOOL_NAME: "ReadMcpResourceDirTool",
     REFRESH_MCP_TOOLS_TOOL_NAME: "RefreshMcpTools",
     WAIT_FOR_MCP_SERVERS_TOOL_NAME: "WaitForMcpServers",
+    REPORT_FINDINGS_TOOL_NAME: "ReportFindings",
     SEND_FEEDBACK_TOOL_NAME: "SendFeedback",
     SANDBOX_NETWORK_ACCESS_TOOL_NAME: "SandboxNetworkAccess",
   });

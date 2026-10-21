@@ -14,6 +14,7 @@ export const WRITE_TOOL_NAME = "Write";
 export const EDIT_TOOL_NAME = "Edit";
 export const MULTI_EDIT_TOOL_NAME = "MultiEdit";
 export const NOTEBOOK_EDIT_TOOL_NAME = "NotebookEdit";
+export const REPORT_FINDINGS_TOOL_NAME = "ReportFindings";
 
 /* Shell and web. */
 export const BASH_TOOL_NAME = "Bash";

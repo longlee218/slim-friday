@@ -10,6 +10,7 @@ export type Capability =
   | "subagents" // Agent + SendMessage + ListAgents: the SDK's own built-in subagent; every role gets them unless `noSubagents` (toolsFor)
   | "tasks" // progress tracking; TaskStop (stops a worker task) needs the owner
   | "mcp" // MCP resource reads (+ refresh of the app's own MCP servers)
+  | "review" // ReportFindings: SDK built-in tool that reports review findings
   | "feedback" // SendFeedback: sends a report to Anthropic, always owner-approved
   | "ask"; // AskUserQuestion: answered by the owner through Discord buttons
 

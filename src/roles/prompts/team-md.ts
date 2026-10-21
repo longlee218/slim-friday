@@ -40,7 +40,7 @@ const memberFacts = (workers: readonly RoleDefinition[]): string[] => {
   ];
 };
 
-/** Plain names of the capabilities a member has; internal ones (skills, tasks, mcp, feedback, ask, subagents) are left out. */
+/** Plain names of the capabilities a member has; internal ones (skills, tasks, mcp, review, feedback, ask, subagents) are left out. */
 const TOOL_NAMES: Partial<Record<Capability, string>> = {
   read: "read files",
   write: "edit files",

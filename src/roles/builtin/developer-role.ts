@@ -42,6 +42,7 @@ const CODE_CAPABILITIES: Capability[] = [
   "skills",
   "tasks",
   "mcp",
+  "review",
   "feedback",
   "ask",
 ];
