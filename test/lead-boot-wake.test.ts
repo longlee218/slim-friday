@@ -43,6 +43,7 @@ test("worker text reaches the owner only through the lead; the worker's own repl
     if (c.prompt.includes("Owner message:")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
+        small: true,
         intent: "work",
         reason: "one specialist",
         assignments: [

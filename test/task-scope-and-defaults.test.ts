@@ -46,6 +46,7 @@ const SAME = { subject: "Migrate the database", brief: "Migrate the users databa
 const dispatchSame = (ctx: () => any) =>
   handleDispatch(ctx(), {
     strategy: "DIRECT",
+    small: true,
     intent: "migrate",
     reason: "r",
     assignments: [{ key: "m", ...SAME, role: "developer", dependsOn: [] }],
@@ -101,6 +102,7 @@ test("rule 4 default: an add without priority stores 0 (normal)", async () => {
   const ctx = leadPort("th-d");
   await handleDispatch(ctx(), {
     strategy: "DIRECT",
+    small: true,
     intent: "one",
     reason: "r",
     assignments: [

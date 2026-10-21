@@ -66,6 +66,7 @@ const asg = (key: string, over: Record<string, unknown> = {}) => ({
 });
 const dispatch = (over: Record<string, unknown> = {}) => ({
   strategy: "DIRECT" as const,
+  small: true,
   intent: "one",
   reason: "r",
   assignments: [asg("main")],

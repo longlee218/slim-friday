@@ -93,6 +93,7 @@ function setup(answer = "Yes") {
 }
 const DIRECT = {
   strategy: "DIRECT" as const,
+  small: true,
   intent: "one",
   reason: "r",
   assignments: [{ key: "m", subject: "task", role: "developer", brief: "b", dependsOn: [] }],

@@ -17,6 +17,7 @@ const step = (key: string, dependsOn: string[] = [], role = "developer") => ({
 const dispatch = (c: any, assignments: object[]) =>
   c.orchestrate("dispatch", {
     strategy: "DELEGATE",
+    small: true,
     intent: "work",
     reason: "test",
     assignments,

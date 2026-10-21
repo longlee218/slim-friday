@@ -45,6 +45,7 @@ test("E-H2: a lead run that dispatched and then hit the budget still starts the 
     if (c.prompt.includes("Owner message:")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
+        small: true,
         intent: "work",
         reason: "one specialist",
         assignments: [

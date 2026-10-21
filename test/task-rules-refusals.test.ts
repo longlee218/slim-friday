@@ -52,6 +52,7 @@ async function openGoal(
 ) {
   return (await handleDispatch(ctx(), {
     strategy: "DIRECT",
+    small: true,
     intent: "one",
     reason: "r",
     assignments: [{ key: "main", subject, role: "developer", brief, dependsOn: [] }],
@@ -124,6 +125,7 @@ test("rule 6: a missing or empty subject, and a subject over 80 chars, are BAD_P
   }
   const dispatch = await callTool("dispatch", {
     strategy: "DIRECT",
+    small: true,
     intent: "x",
     reason: "x",
     assignments: [{ key: "main", role: "developer", brief: "x", dependsOn: [] }],
@@ -137,6 +139,7 @@ test("rule 2: the assignee (role) is required on add and on each dispatch assign
   expect(await callTool("add", noRole)).toMatchObject({ code: "BAD_PARAMS" });
   const noAssignee = await callTool("dispatch", {
     strategy: "DIRECT",
+    small: true,
     intent: "x",
     reason: "x",
     assignments: [{ key: "main", subject: "x", brief: "x", dependsOn: [] }],

@@ -50,6 +50,7 @@ function createFlow(_path: string, out: { ask?: any; reg?: any; dispatch?: any }
       if (out.reg.ok)
         out.dispatch = await c.orchestrate("dispatch", {
           strategy: "DIRECT",
+          small: true,
           intent: "build",
           reason: "r",
           assignments: [

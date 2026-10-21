@@ -13,6 +13,7 @@ const step = (key: string, dependsOn: string[] = [], role = "scout") => ({
 const dispatch = (c: any, assignments: object[]) =>
   c.orchestrate("dispatch", {
     strategy: assignments.length === 1 ? "DIRECT" : "DELEGATE",
+    small: true,
     intent: "work",
     reason: "test",
     assignments,

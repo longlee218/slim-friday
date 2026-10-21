@@ -10,7 +10,7 @@ import {
 
 const ok = (shape: z.ZodRawShape, v: unknown) => z.object(shape).safeParse(v).success;
 const A = { key: "main", subject: "task", role: "developer", brief: "b" };
-const D = { strategy: "DIRECT", intent: "i", reason: "r", assignments: [A] };
+const D = { strategy: "DIRECT", small: true, intent: "i", reason: "r", assignments: [A] };
 
 test("Orchestrate dispatch: accepts a minimal request (dependsOn defaults to [])", () => {
   const r = z.object(DISPATCH_AGENT_SHAPE).parse(D);

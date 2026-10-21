@@ -67,6 +67,7 @@ function waitingScript(finishOn: string, onLead: (c: Call, item: string) => Prom
       return c
         .orchestrate("dispatch", {
           strategy: "DIRECT",
+          small: true,
           intent: "work",
           reason: "one specialist",
           assignments: [
@@ -312,6 +313,7 @@ test("#5: a budget_hit on a DELEGATE goal says the budget cannot grow; the lead 
     if (c.prompt.includes("Owner message:")) {
       await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
+        small: true,
         intent: "work",
         reason: "two steps",
         assignments: [

@@ -40,6 +40,7 @@ test("a worker that reports NEEDS_PLANNING wakes the lead, which asks for a plan
     if (c.prompt.includes("Owner message:\nrewrite everything")) {
       const made = await c.orchestrate("dispatch", {
         strategy: "DIRECT",
+        small: true,
         intent: "rewrite",
         reason: "try one worker",
         assignments: [
@@ -91,6 +92,7 @@ test("Orchestrate cancel of a goal with two running items cancels both, aborts t
     if (c.prompt.includes("Owner message:\ntwo things")) {
       const r = await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
+        small: true,
         intent: "work",
         reason: "test",
         assignments: [

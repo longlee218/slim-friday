@@ -31,6 +31,7 @@ function snap(db: Database) {
 const dispatchOne = (c: Call) =>
   c.orchestrate("dispatch", {
     strategy: "DIRECT",
+    small: true,
     intent: "work",
     reason: "test",
     assignments: [{ key: "a", subject: "task", role: "scout", brief: "do a", dependsOn: [] }],

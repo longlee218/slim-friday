@@ -130,6 +130,7 @@ test("M3: a failed announce run is retried once, then dropped with ONE notice (n
     if (c.prompt.includes("Owner message:")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
+        small: true,
         intent: "work",
         reason: "test",
         assignments: [{ key: "main", subject: "task", role: "scout", brief: "do", dependsOn: [] }],

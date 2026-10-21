@@ -40,6 +40,7 @@ function registerThenDispatch(proj: string, out: { reg?: any; dispatch?: any; te
       if (out.reg.ok)
         out.dispatch = await c.orchestrate("dispatch", {
           strategy: "DIRECT",
+          small: true,
           intent: "work in shop",
           reason: "owner named it",
           assignments: [
@@ -178,6 +179,7 @@ test("a run started by a worker event cannot register, even with the path in the
       }
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
+        small: true,
         intent: "scan",
         reason: "r",
         assignments: [

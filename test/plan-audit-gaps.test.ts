@@ -210,6 +210,7 @@ test("the planner cannot be a plan role: the registry and the validator refuse i
     state,
     {
       strategy: "DIRECT",
+      small: true,
       assignments: [{ key: "p", subject: "task", role: "planner", brief: "x", dependsOn: [] }],
     } as never,
     caps,

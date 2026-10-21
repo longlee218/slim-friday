@@ -47,6 +47,7 @@ function setup(io: Partial<PortIo> = {}) {
 }
 const req = (over: Partial<DispatchInput> = {}): DispatchInput => ({
   strategy: "DELEGATE",
+  small: true,
   intent: "two steps",
   reason: "r",
   assignments: [
@@ -85,6 +86,7 @@ test("one open goal: a second dispatch is refused GOAL_OPEN; supersedes cancels 
       intent: "y",
       supersedes: goalId,
       strategy: "DIRECT",
+      small: true,
       assignments: [{ key: "m", subject: "task", role: "developer", brief: "b", dependsOn: [] }],
     }),
   );
@@ -99,6 +101,7 @@ test("a goal whose items all ended is no longer open", async () => {
     ctx(),
     req({
       strategy: "DIRECT",
+      small: true,
       assignments: [{ key: "m", subject: "task", role: "developer", brief: "b", dependsOn: [] }],
     }),
   );
@@ -187,7 +190,13 @@ const DUP_ITEMS = [
   },
 ];
 
-const WRITE = { key: "k1", strategy: "DELEGATE", intent: "two same-key items", reason: "r" };
+const WRITE = {
+  key: "k1",
+  strategy: "DELEGATE",
+  small: true,
+  intent: "two same-key items",
+  reason: "r",
+};
 const count = (sql: string): number => db.query<{ n: number }, []>(sql).get()?.n ?? -1;
 
 test("dispatch is one transaction: a failing items insert leaves no goal, item, event or audit row", () => {
@@ -270,6 +279,7 @@ test("a re-run of the same lead input (a retry) does not post or ask twice; a re
     run1,
     req({
       strategy: "DIRECT",
+      small: true,
       assignments: [{ key: "m", subject: "task", role: "developer", brief: "b", dependsOn: [] }],
     }),
   );
@@ -286,6 +296,7 @@ test("a re-run of the same lead input (a retry) does not post or ask twice; a re
   // a dispatch refused by an open goal succeeds after the blocker is cleared (not replayed from a stored refusal)
   const again = req({
     strategy: "DIRECT",
+    small: true,
     assignments: [{ key: "n", subject: "task", role: "developer", brief: "b", dependsOn: [] }],
   });
   const c2 = ctx("in2");

@@ -70,6 +70,7 @@ test("end to end: the worker's blocker holds the item, the lead is told reason +
     }
     await c.orchestrate("dispatch", {
       strategy: "DIRECT",
+      small: true,
       intent: "work",
       reason: "one specialist",
       assignments: [

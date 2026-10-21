@@ -152,6 +152,7 @@ const reportThenWait = async (c: Call) => {
 const dispatchOne = (c: Call) =>
   c.orchestrate("dispatch", {
     strategy: "DIRECT",
+    small: true,
     intent: "work",
     reason: "test",
     assignments: [{ key: "a", subject: "task", role: "scout", brief: "do a", dependsOn: [] }],
@@ -202,6 +203,7 @@ test("F4: a ready writer item waits while its location is claimed by a force-clo
     }
     await c.orchestrate("dispatch", {
       strategy: "DIRECT",
+      small: true,
       intent: "work",
       reason: "test",
       assignments: [{ key: "a", subject: "task", role: "developer", brief: "do a", dependsOn: [] }],

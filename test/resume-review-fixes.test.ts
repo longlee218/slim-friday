@@ -31,6 +31,7 @@ const untilAborted = (c: any) =>
 const dispatchDev = (c: any, location?: string) =>
   c.orchestrate("dispatch", {
     strategy: "DIRECT",
+    small: true,
     intent: "work",
     reason: "t",
     assignments: [
@@ -145,6 +146,7 @@ test("/stop with a held item: it and its dependents are cancelled and the goal s
     if (c.prompt.includes("Owner message:")) {
       await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
+        small: true,
         intent: "work",
         reason: "t",
         assignments: [

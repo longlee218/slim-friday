@@ -75,6 +75,7 @@ export async function runWorkerViaLead(
     if (c.prompt.includes("Owner message:")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
+        small: true,
         intent: "work",
         reason: "test",
         assignments: [

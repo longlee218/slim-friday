@@ -60,6 +60,7 @@ test("a worker run: a tool start stamps the live run, Report progress records pe
     if (c.prompt.includes("Owner message:")) {
       await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
+        small: true,
         intent: "work",
         reason: "test",
         assignments: [{ key: "a", subject: "task", role: "scout", brief: "do a", dependsOn: [] }],

@@ -79,6 +79,12 @@ export const DISPATCH_AGENT_SHAPE = {
     .optional()
     .describe("Push / PR / merge the workers need, e.g. the owner asked for a PR"),
   confirmNew: CONFIRM_NEW,
+  small: z
+    .boolean()
+    .optional()
+    .describe(
+      "true = a SMALL change: one fix or one edit in one file, nothing the owner would call a feature. Required to dispatch a role that writes; anything bigger takes request_plan",
+    ),
 };
 export const TASK_STATUS_SHAPE = { taskId: TASK_ID.optional() };
 export const STEER_TASK_SHAPE = {

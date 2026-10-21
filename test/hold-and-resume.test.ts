@@ -28,6 +28,7 @@ function waitingScript(onLead: (c: Call, item: () => string) => Promise<void> | 
       return c
         .orchestrate("dispatch", {
           strategy: "DIRECT",
+          small: true,
           intent: "work",
           reason: "one specialist",
           assignments: [

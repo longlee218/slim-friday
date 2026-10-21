@@ -316,6 +316,7 @@ test("a lead run woken by a worker's question does not relabel the still-running
     if (c.prompt.includes("Owner message:\nstart")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
+        small: true,
         intent: "x",
         reason: "x",
         assignments: [

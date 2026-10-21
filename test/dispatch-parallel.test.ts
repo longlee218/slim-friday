@@ -30,6 +30,7 @@ test("two independent items run at the same time, a dependent one starts only af
     if (c.prompt.includes("Owner message:")) {
       const r = await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
+        small: true,
         intent: "work",
         reason: "test",
         assignments: [item("a"), item("b"), item("c", ["a"])],

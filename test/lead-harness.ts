@@ -123,6 +123,7 @@ export function devLeadQuery(inner: unknown) {
                   action: "dispatch",
                   params: {
                     strategy: "DIRECT",
+                    small: true,
                     intent: "work",
                     reason: "test",
                     ...(supersedes && { supersedes }),

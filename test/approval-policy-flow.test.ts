@@ -176,6 +176,7 @@ test("the dispatch lists effect grants: one owner question, No = nothing starts,
       if (c.prompt.includes("Owner message:\nship it")) {
         const call = {
           strategy: "DIRECT",
+          small: true,
           intent: "ship",
           reason: "owner asked for a PR",
           assignments: [

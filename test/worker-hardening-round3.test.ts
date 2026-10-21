@@ -172,6 +172,7 @@ test("the lead hears a `failure` event naming SANDBOX_UNAVAILABLE; the worker is
     if (c.prompt.includes("Owner message:")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
+        small: true,
         intent: "x",
         reason: "r",
         assignments: [

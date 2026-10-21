@@ -40,6 +40,7 @@ async function held() {
   });
   const d = (await handleDispatch(ctx("d"), {
     strategy: "DELEGATE",
+    small: true,
     intent: "two steps",
     reason: "r",
     assignments: [

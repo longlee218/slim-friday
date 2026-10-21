@@ -16,6 +16,7 @@ test("DIRECT -> worker -> Report result -> announce -> Orchestrate forward, then
     if (c.prompt.includes("Owner message:\nclean node_modules")) {
       const r = await c.orchestrate("dispatch", {
         strategy: "DIRECT",
+        small: true,
         intent: "clean node_modules",
         reason: "one specialist covers it",
         assignments: [
@@ -60,6 +61,7 @@ test("DIRECT -> worker -> Report result -> announce -> Orchestrate forward, then
 const dispatch = (c: Pick<Call, "orchestrate">, assignments: object[], over: object = {}) =>
   c.orchestrate("dispatch", {
     strategy: assignments.length === 1 ? "DIRECT" : "DELEGATE",
+    small: true,
     intent: "work",
     reason: "test",
     assignments,

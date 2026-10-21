@@ -13,6 +13,7 @@ import { FakePort, itemRow, leadCtx } from "./lead-fake-port";
 
 const REQ: DispatchInput = {
   strategy: "DIRECT",
+  small: true,
   intent: "clean node_modules",
   reason: "one job",
   assignments: [
@@ -58,7 +59,12 @@ test("dispatch over DELEGATE_MAX assignments answers NEEDS_PLAN; supersedes pass
     dependsOn: [],
   }));
   expect(
-    await handleDispatch(leadCtx(port), { ...REQ, strategy: "DELEGATE", assignments: many }),
+    await handleDispatch(leadCtx(port), {
+      ...REQ,
+      strategy: "DELEGATE",
+      small: true,
+      assignments: many,
+    }),
   ).toMatchObject({
     code: "NEEDS_PLAN",
   });

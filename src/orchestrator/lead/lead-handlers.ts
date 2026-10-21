@@ -8,6 +8,8 @@ import {
   ORCHESTRATE_ACTION_STEER,
   orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
+import { mayHaveWritten } from "../../roles/capability-registry";
+import { ROLES } from "../../roles/role-registry";
 import { isHeld } from "../../storage/owned-item-store";
 import type { OwnerQuestion } from "../goal/effect-port";
 import { duplicateRefusal } from "../goal/task-reads";
@@ -40,6 +42,16 @@ export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Prom
     const caps = { ...port.caps(), dispatchedThisRun: ctx.run.dispatched };
     const check = checkDispatch(port.state(), input, caps, port.env());
     if (!check.ok) return { reply: refuse(check.code, check.message) };
+    // A role that writes starts without a plan only for a change the lead declares small: the model's habit is to dispatch,
+    // so the default for a feature is the planner (`request_plan`).
+    const writer = input.assignments.find((a) => ROLES[a.role] && mayHaveWritten(ROLES[a.role]));
+    if (writer && !input.small)
+      return {
+        reply: refuse(
+          "PLAN_REQUIRED",
+          `Role ${writer.role} writes. A feature, redesign or any change with more than one part needs a plan: call Orchestrate request_plan (brainstorm first when the design is open). Repeat with small: true only for one fix or one edit in one file.`,
+        ),
+      };
     // Search before create: a similar open or recent task of the thread (the goal being replaced is not one) is a suspect.
     if (!input.confirmNew) {
       const texts = input.assignments.map((a) => ({ subject: a.subject, brief: a.brief }));
