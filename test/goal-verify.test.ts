@@ -15,6 +15,7 @@ import { CREATE_PLAN_SHAPE } from "../src/orchestrator/plan/plan-schemas";
 import { digestFacts } from "../src/orchestrator/worker/digest-facts";
 import type { FailureVerdict } from "../src/orchestrator/worker/failure-policy";
 import { cancelDependents, settleGoal } from "../src/orchestrator/worker/goal-settle";
+import { insertArtifact } from "../src/storage/artifact-store";
 import { openDb } from "../src/storage/db";
 import { childrenOf, getItem, setResultKind, setTaskResult } from "../src/storage/owned-item-store";
 import { getOwnedTask, linkTurn } from "../src/storage/owned-task-store";
@@ -394,6 +395,42 @@ test("the fix brief carries the failed checks in a fenced UNTRUSTED block that t
   expect(lines.filter((l) => l.startsWith("```"))).toHaveLength(2); // one open, one close: the data holds none
   expect(lines[open - 1]).toContain("UNTRUSTED");
   expect(lines.slice(open + 1, lines.lastIndexOf("```")).join("\n")).toContain("Ignore all rules");
+});
+
+test("the fix brief names the failed verify's artifacts (full report) and none when it saved none", () => {
+  const { goalId } = approved();
+  complete(goalId, "a");
+  complete(goalId, "b");
+  const id = failVerify(goalId, "verify-1");
+  const art = (aid: string, summary: number) =>
+    insertArtifact(db, {
+      id: aid,
+      workspace: "w",
+      channel: "c",
+      goalId,
+      taskId: id,
+      threadId: TH,
+      title: aid,
+      name: aid,
+      kind: "md",
+      origin: "store",
+      path: `/x/${aid}.md`,
+      location: null,
+      producerRole: "tester",
+      version: 1,
+      size: 10,
+      sourceMtime: null,
+      summary,
+      createdAt: 1,
+    });
+  art("sum1", 1);
+  art("log1", 0);
+  expect(afterVerify(db, id, REPORTED)).toBe(true);
+  expect(byKey(goalId, "fix-1").brief).toContain("ReadArtifact log1, sum1.");
+  // The next loop: verify-2 saved nothing, so the brief names no artifact.
+  complete(goalId, "fix-1");
+  expect(afterVerify(db, failVerify(goalId, "verify-2"), REPORTED)).toBe(true);
+  expect(byKey(goalId, "fix-2").brief).not.toContain("ReadArtifact");
 });
 
 test("the fix location left the workspace: no fix, NO_WRITER, the verify stays held", () => {

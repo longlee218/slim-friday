@@ -49,6 +49,16 @@ export function taskStoreArtifacts(db: Database, taskId: string): ArtifactRow[] 
     .all(taskId);
 }
 
+/** Ids of every stored artifact of a task, its code-written result summary included: files the run saved first, newest first. */
+export function taskArtifactIds(db: Database, taskId: string): string[] {
+  return db
+    .query<{ id: string }, [string]>(
+      "SELECT id FROM artifacts WHERE task_id = ? AND origin = 'store' ORDER BY summary ASC, rowid DESC",
+    )
+    .all(taskId)
+    .map((r) => r.id);
+}
+
 /** Drop the index rows of one artifact (before it is indexed again from a changed file). */
 export function ftsDelete(db: Database, artifactId: string): void {
   db.query("DELETE FROM artifacts_fts WHERE artifact_id = ?").run(artifactId);
