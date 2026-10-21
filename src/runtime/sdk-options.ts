@@ -97,7 +97,7 @@ export function buildSdkOptions(
   const bins = pinnedBinaryEnv(role.binaries, input.guard?.envelope?.goalDir);
   const guard =
     withSkills && bins.paths.length ? { ...withSkills, binaryPaths: bins.paths } : withSkills;
-  const sandbox = workerSandbox(guard);
+  const sandbox = config.sandboxOff ? undefined : workerSandbox(guard); // FRIDAY_SANDBOX_OFF: owner switch
   const permissionMode = resolvePermissionMode(role, config, input.guard);
   const perms = guard
     ? buildToolPermissions({

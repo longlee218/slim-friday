@@ -54,6 +54,11 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === "1" || v === "true"),
+  /** Temporary: `1` or `true` turns the worker OS sandbox off (shell and file writes unbounded by it). Off by default = sandbox on. */
+  FRIDAY_SANDBOX_OFF: z
+    .string()
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
 });
 
 /** Names of the env variables the app itself reads: each must be classified in `data/child-env-deny.yaml`. */
@@ -81,6 +86,8 @@ export interface AgentConfig {
   viewer?: ViewerConfig;
   /** FRIDAY_DUMP_PROMPTS is on: each run writes a prompt dump file. Omitted = off. */
   dumpPrompts?: true;
+  /** FRIDAY_SANDBOX_OFF is on: dispatched workers run without the OS sandbox. Omitted = sandbox on. */
+  sandboxOff?: true;
 }
 
 /** True when a value is missing or the placeholder. */
@@ -128,5 +135,6 @@ export function loadConfig(
     },
     ...(viewer && { viewer }),
     ...(e.FRIDAY_DUMP_PROMPTS && { dumpPrompts: true as const }),
+    ...(e.FRIDAY_SANDBOX_OFF && { sandboxOff: true as const }),
   };
 }
