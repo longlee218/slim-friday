@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import { logEvent, logger } from "../../observability/logger";
 import { redactText } from "../../observability/redact";
 import {
   summaryHitId,
@@ -8,22 +7,10 @@ import {
 } from "../../storage/thread-summary-store";
 import { localDay } from "../memory-clock";
 import { foldText } from "./fold-text";
-import {
-  chunkId,
-  classifyFile,
-  type FileInfo,
-  INDEX_MAX_CHUNKS_PER_FILE,
-  INDEX_MAX_FILE_BYTES,
-  readFileChunks,
-} from "./memory-files";
+import { chunkId, classifyFile, type FileInfo, readFileChunks } from "./memory-files";
 
-export { INDEX_MAX_CHUNKS_PER_FILE, INDEX_MAX_FILE_BYTES };
 /** Stored text of one chunk is clipped to this many chars (Get/Expand read the file, not the index). */
 export const CHUNK_MAX_CHARS = 1200;
-
-const log = logger.child({ module: "memory-index" });
-/** Files already reported as too big (logged once per process). */
-const warnedBig = new Set<string>();
 
 /** One row to insert into `memory_fts` (+ the file ledger row). */
 interface Row {
@@ -85,7 +72,7 @@ function replaceRows(
 
 /**
  * Re-index ONE file from its current content (what `MemorySave` calls after a write). Paths that are not an
- * indexable memory file (the retired workspace and location files, a pending queue file...) are refused ("skipped"); a vanished, symlinked or oversized
+ * indexable memory file (the retired workspace and location files, a pending queue file...) are refused ("skipped"); a vanished or symlinked
  * file is purged ("removed").
  */
 export function reindexFile(
@@ -98,13 +85,9 @@ export function reindexFile(
   const res = readFileChunks(file, info);
   if (!res.ok) {
     purgePath(db, file);
-    if (res.reason === "too_big" && !warnedBig.has(file)) {
-      warnedBig.add(file);
-      logEvent(log, "memory.index.skip_big", { max: INDEX_MAX_FILE_BYTES }, "warn");
-    }
     return "removed";
   }
-  const rows = res.chunks.slice(-INDEX_MAX_CHUNKS_PER_FILE).map((c) => ({
+  const rows = res.chunks.map((c) => ({
     text: redactText(c.text).normalize("NFC").slice(0, CHUNK_MAX_CHARS),
     id: chunkId(info, c),
     source: info.source,

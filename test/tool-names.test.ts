@@ -71,7 +71,7 @@ test("MCP server and tool names are the real wire names", () => {
   // Every tool the app can build, by server, with all ctx parts present and a role that lists every tool.
   expect(toolsByServer(buildServers(ALL_ROLE, FULL_CTX))).toEqual({
     artifacts: ["ListArtifacts", "ReadArtifact", "SaveArtifact", "SearchArtifacts"],
-    memory: ["MemoryExpand", "MemoryGet", "MemorySave", "MemorySearch"],
+    memory: ["MemoryEdit", "MemoryExpand", "MemoryGet", "MemorySave", "MemorySearch"],
     orchestration: ["Orchestrate", "Report"],
     plan: ["Plan"],
     effects: ["CreatePullRequest", "DeletePaths", "GitPush", "MergeBranch"],

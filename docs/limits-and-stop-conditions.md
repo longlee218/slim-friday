@@ -209,7 +209,8 @@ Files: `config/memory-caps.ts`. Time, cost and retention bounds of memory jobs; 
 | `DREAM_DEADLINE_MS` | one-shot | 90 s <!-- limit:DREAM_DEADLINE_MS=90000 --> | the call times out (one attempt); file and marks stay |
 | `DREAM_ITEM_MAX_CHARS` | one-shot | 3000 chars <!-- limit:DREAM_ITEM_MAX_CHARS=3000 --> | an episode summary or the bullets of a journal block sent to the model are cut (a journal bullet that does not fit stays unconsumed) |
 | `DREAM_NOTES_MAX_CHARS` | one-shot | 40000 chars <!-- limit:DREAM_NOTES_MAX_CHARS=40000 --> | the current dated notes sent to the model are cut to the newest within the cap (logged as `memory.dream_notes_capped`, counts only); the notes not sent stay untouched in the file |
-| `DREAM_BACKUP_KEEP` | channel | 20 backups <!-- limit:DREAM_BACKUP_KEEP=20 --> | older backups of the channel `MEMORY.md` are deleted |
+| `DREAM_BACKUP_KEEP` | channel | 20 backups <!-- limit:DREAM_BACKUP_KEEP=20 --> | older dream backups (`MEMORY.md-<stamp>`) of the channel `MEMORY.md` are deleted |
+| `EDIT_BACKUP_KEEP` | channel | 20 backups <!-- limit:EDIT_BACKUP_KEEP=20 --> | older `MemoryEdit` backups (`MEMORY.edit.md-<stamp>`) are deleted; own rotation, edits and dreams never evict each other's |
 | `DREAM_MAX_DROP_SHARE` | one-shot | 0.5 <!-- limit:DREAM_MAX_DROP_SHARE=0.5 --> | the dream is refused (`shrink_guard`) when the dated bullets with no similar bullet in the result exceed what merging near-duplicates can remove (duplicates minus clusters, one representative stays per cluster) plus this share of the distinct bullets; an all-empty result is always refused when the file has dated bullets; file and marks stay |
 | `PRUNE_INTERVAL_MS` | app | 6 h <!-- limit:PRUNE_INTERVAL_MS=21600000 --> | least time between two prunes (episodes and journals); one more prune runs at start |
 | `INJECT_MAX_HITS` | lead turn | 3 episodes <!-- limit:INJECT_MAX_HITS=3 --> | the lead's per-turn "related earlier threads" block lists at most this many abstracts (best FTS matches of the channel) |
@@ -246,15 +247,16 @@ All in `src/orchestrator/lead/lead-limits.ts` (zod shapes and the relay enforce 
 | `GET_RESULT_MAX_CHARS` | `Orchestrate get`, `Plan get` | <!-- limit:GET_RESULT_MAX_CHARS=8000 -->8000 chars of the item's primary result file (redacted; `resultClipped: true` when cut) | cut |
 | `GET_EVENTS_MAX` | `Orchestrate get`, `Plan get` | <!-- limit:GET_EVENTS_MAX=5 -->5 newest events of the item | older ones not listed |
 
-| `MEMORY_READ_MAX_CALLS_PER_RUN` | memory read tools | 30 per run (`mcp/memory/memory-read-shared.ts`, not drift-checked) | read refused |
+| `MEMORY_READ_MAX_CALLS_PER_RUN` | memory read tools | 100 per run (`mcp/memory/memory-read-shared.ts`, not drift-checked) | read refused |
 | `MAX_PATHS` | `DeletePaths` | 500 paths (`DeletePathsTool/constants.ts`, not drift-checked) | schema rejects |
 
 - `BRIEF_MAX_CHARS` is in [Plans](#plans), `MAX_ASSIGNMENTS` in [Lead](#lead).
-- Other tool limits (informational, in each tool's `constants.ts`): `Orchestrate set_title` 2 calls per run, title 60 chars; `MemorySave` 20 calls per run, note 2000 chars (`SAVE_MAX_CHARS`, `memory/memory-limits.ts`: a format guard, not a file size cap); effect tools: `DeletePaths` path 1000 / reason 300, `CreatePullRequest` title 200 / body 8000; `WriteSpaceFile` content 6000 (persona files; `MEMORY.md` has no cap), diff 16000, 10 backups; `DEFAULT_BOUNDS` of the envelope 200 items and 50 GB (`policy/risk-types.ts`).
+- Other tool limits (informational, in each tool's `constants.ts`): `Orchestrate set_title` 2 calls per run, title 60 chars; `MemorySave` 20 calls per run, note 2000 chars; `MemoryEdit` 20 calls per run (`MEMORY_EDIT_MAX_CALLS_PER_RUN`), replacement text 2000 chars (`SAVE_MAX_CHARS`, `memory/memory-limits.ts`: a format guard, not a file size cap); effect tools: `DeletePaths` path 1000 / reason 300, `CreatePullRequest` title 200 / body 8000; `WriteSpaceFile` content 6000 (persona files; `MEMORY.md` has no cap), diff 16000, 10 backups; `DEFAULT_BOUNDS` of the envelope 200 items and 50 GB (`policy/risk-types.ts`).
 - Other informational limits: steers per run pending 5 / holds 2 / late resumes 1 (`runtime/run-input-channel.ts`); delete-check tree scan 100,000 entries (`policy/tree-totals.ts`); SDK compaction window 1,000,000 tokens at 75% (`runtime/sdk-env.ts`).
 - Skill plugin caps (informational): publisher skills 100 entries / 4 MB per skill, one file 2 MB, 300 entries / 5 MB per plugin (`runtime/skills-plugin/publisher-skills.ts`, `plugin-copy.ts`; raised on 2026-10-20 for two data-heavy design skills, 3.6 MB and a 1.1 MB file); workspace skills 100 entries / 2 MB per skill, 300 / 5 MB per dir. Over a cap the skill is skipped alone (`skill skipped` warn).
 - Pinned versions (informational, data in `src/config/data/`): the tester's browser MCP server `browser-mcp.yaml` (exact npm version, a bump needs a review); native binaries a role's shell may run `pinned-binaries.yaml` (sha256 and size checked before every run; a missing or mismatching file is not offered).
-- Persona files: 8000 chars each (`memory/persona.ts`). Memory files have no size cap (owner decision 2026-10-21): root and channel `MEMORY.md` are injected whole; only a journal day file keeps a 300-line guard (`OWNER_MAX_LINES`, `memory/memory-section-writer.ts`).
+- Memory index (informational): no file size cap (root and channel `MEMORY.md` of any size are searchable); every entry of a file is indexed (no chunk cap); `MemorySearch` lists hits whose bm25 score is within `RECENCY_BAND` = 5% of each other newest day first (`memory/index/memory-search.ts`); `MemorySave` refuses a bullet with token Jaccard >= 0.6 against a bullet of the same `MEMORY.md` (`SIMILAR`, `memory/dream-sections.ts`); negation words count (a negated bullet is not similar to its positive twin), a bullet with fewer than 3 content words is judged by exact text only, and `confirmNew: true` skips the check.
+- Persona files: 8000 chars each (`memory/persona.ts`). Memory files have no size cap (owner decision 2026-10-21): root and channel `MEMORY.md` are injected whole; only a journal day file keeps a 300-line guard (`OWNER_MAX_LINES`, `memory/memory-section-writer.ts`); a `MemorySave` refused by it names the day file and the guard, and logs `memory.journal_full {lines, max}`.
 
 ## Artifacts
 
@@ -313,9 +315,10 @@ Informational.
 | Trash (deleted paths) | 7 days; sweep every 6 h | `policy/risk-types.ts`, `lifecycle/trash-sweeper.ts` |
 | Persona backups | newest 10 per file | `WriteSpaceFileTool/constants.ts` |
 | Control session | fresh after 24 h idle | `discord-setup/control-role-run.ts` |
-| Memory backups (before each dream write) | newest `DREAM_BACKUP_KEEP` = 20 per channel, `<AGENT_HOME>/backups/memory/<ws>/channels/<ch>/MEMORY.md-<stamp>` | `memory/stamped-backup.ts` |
+| Memory backups | dream: newest `DREAM_BACKUP_KEEP` = 20 per channel (`MEMORY.md-<stamp>`); `MemoryEdit`: newest `EDIT_BACKUP_KEEP` = 20 (`MEMORY.edit.md-<stamp>`); both in `<AGENT_HOME>/backups/memory/<ws>/channels/<ch>/`, 0600 in a 0700 dir | `memory/stamped-backup.ts`, `memory/memory-edit-writer.ts` |
 | Promotion ledger (`memory_promotions`) | `JOURNAL_RETENTION_DAYS` + 1 = 31 days since the bullet was consumed; pruned with the episodes | `memory/memory-prune.ts` |
 | Episodes (`thread_summaries`) | `EPISODE_TTL_DAYS` = 90 days since the last update; pruned at start and every `PRUNE_INTERVAL_MS` | `memory/memory-prune.ts` |
+| Memory audit (`memory_audit`: one row per `MemorySave` / `MemoryEdit`, hash only) | forever (owner: no limit, no prune) | `storage/memory-audit-store.ts` |
 | Other database rows | forever (no pruning; `thread_summaries` excepted) | see Not now |
 
 ## Not Now

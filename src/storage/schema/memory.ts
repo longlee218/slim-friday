@@ -30,3 +30,28 @@ export const memory_promotions = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.workspace, t.channel, t.hash] })],
 );
+
+/**
+ * Audit of the lead's memory writes (`MemorySave`, `MemoryEdit`): who changed what, never the text. `hash` = first 16 hex
+ * chars of sha1 over the normalized bullet (the dream ledger's hash), so a row can be matched to a bullet without
+ * storing it. For `edit_replace` the hash is the NEW bullet's (`old_hash` holds the replaced one), for `edit_delete` the deleted one's. No retention limit.
+ */
+export const memory_audit = sqliteTable("memory_audit", {
+  id: integer().primaryKey({ autoIncrement: true }),
+  /** When the write happened (epoch ms). */
+  ts: integer().notNull(),
+  /** Thread of the run ('' when the run had none). */
+  thread_id: text().notNull(),
+  /** Channel (yaml name) whose memory changed. */
+  channel: text().notNull(),
+  /** Role of the run that wrote (the lead). */
+  role: text().notNull(),
+  /** `save` | `edit_delete` | `edit_replace`. */
+  action: text().notNull(),
+  /** `channel` | `journal`. */
+  scope: text().notNull(),
+  /** Bullet hash (see above). */
+  hash: text().notNull(),
+  /** `edit_replace` only: hash of the replaced (old) bullet; null for every other row. */
+  old_hash: text(),
+});

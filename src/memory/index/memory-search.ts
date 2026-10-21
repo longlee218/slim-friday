@@ -12,6 +12,8 @@ const SNIPPET_CHARS = 200;
 export const SNIPPET_TOKENS = 32;
 /** 1-based SQL position of the thread id inside a summary hit id (`summary/<threadId>@<cycle>`). */
 const SUMMARY_ID_START = summaryPath("").length + 1;
+/** Hits whose bm25 score is within this share of the band's best score count as near-equal: the newer date goes first. */
+export const RECENCY_BAND = 0.05;
 /** Longest shown section / block label. */
 const LABEL_CHARS = 80;
 
@@ -47,6 +49,33 @@ export function origSnippet(snip: string, folded: string, orig: string): string 
   const text = at >= 0 ? orig.slice(at, at + core.length) : orig;
   const lead = at > 0 ? "..." : "";
   return (lead + text).replace(/\s+/g, " ").trim().slice(0, SNIPPET_CHARS);
+}
+
+/**
+ * Recency tie-break (pure): `rows` come best-first (score = -bm25, higher is better). Walk down the list; a row whose
+ * score is within RECENCY_BAND of the first row of the current band joins that band, and each band is then ordered
+ * newest date first (stable, so equal dates keep the bm25 order). Bands are never mixed, so a clearly better hit
+ * is never pushed below a clearly worse one.
+ */
+export function recencyOrder<T extends { date: string }>(
+  rows: T[],
+  scoreOf: (r: T) => number,
+): T[] {
+  const out: T[] = [];
+  let band: T[] = [];
+  let top = 0;
+  const close = () => {
+    out.push(...band.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)));
+    band = [];
+  };
+  for (const r of rows) {
+    const sc = scoreOf(r);
+    if (band.length && sc < top * (1 - RECENCY_BAND)) close();
+    if (band.length === 0) top = sc;
+    band.push(r);
+  }
+  close();
+  return out;
 }
 
 /**
@@ -96,7 +125,8 @@ export function searchIndex(
        FROM memory_fts WHERE ${where.join(" AND ")} ORDER BY rank LIMIT ?`,
     )
     .all(...params);
-  const hits = rows.map((r) => ({
+  // Query terms stay OR-joined; only the order of near-equal hits changes (newer first).
+  const hits = recencyOrder(rows, (r) => -r.rank).map((r) => ({
     id: r.id,
     source: r.source,
     section: redactText(r.section).slice(0, LABEL_CHARS),

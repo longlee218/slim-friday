@@ -12,6 +12,8 @@ export function buildMemoryToolContext(p: {
   threadId: string;
   /** Foreground run: the PostCompact hook may store the thread summary. */
   trackSummary: boolean;
+  /** Role name of the run (audit rows). */
+  role?: string;
   /** Channel (yaml name) of the run. */
   channel?: string;
   /** Discord channel id of the run (the thread's parent); stamped on a thread row created by `Orchestrate set_title`. */
@@ -30,6 +32,7 @@ export function buildMemoryToolContext(p: {
     channel: p.channel,
     channelId: p.channelId,
     threadId: p.threadId,
+    ...(p.role && { role: p.role }),
     trackSummary: p.trackSummary,
     threadTitle: p.threadTitle,
     threadLabel: `thread ${p.threadId.slice(-6)}`,

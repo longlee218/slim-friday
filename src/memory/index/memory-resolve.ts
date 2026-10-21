@@ -20,7 +20,7 @@ export interface Resolved {
 export const NOT_FOUND = "not found: entry moved or edited. Run MemorySearch again.";
 
 /** The chunk an id points to: same position AND hash, else the same hash elsewhere in the file (moved entry). A different hash (edited / deleted) never resolves; equal hashes mean equal content. */
-function pick(
+export function pickChunk(
   chunks: Chunk[],
   id: Extract<ParsedId, { type: "file" | "journal" }>,
 ): Chunk | undefined {
@@ -50,7 +50,7 @@ function fileOf(ctx: MemoryToolContext, id: ParsedId): { file: string; info: Fil
 
 /**
  * Re-resolve an id against the CURRENT state. Null = cannot be served (bad id, other workspace or channel, a retired workspace/location id,
- * file gone / symlink / too big, entry edited or deleted, summary cycle changed): the caller answers NOT_FOUND.
+ * file gone / symlink, entry edited or deleted, summary cycle changed): the caller answers NOT_FOUND.
  * Never throws for model input, never opens a path built from the id.
  */
 export function resolveEntry(db: Database, ctx: MemoryToolContext, rawId: string): Resolved | null {
@@ -72,6 +72,6 @@ export function resolveEntry(db: Database, ctx: MemoryToolContext, rawId: string
   if (!where) return null;
   const res = readFileChunks(where.file, where.info);
   if (!res.ok) return null;
-  const c = pick(res.chunks, id);
+  const c = pickChunk(res.chunks, id);
   return c ? { text: c.text, context: c.context, date: c.date } : null;
 }

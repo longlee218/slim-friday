@@ -15,6 +15,7 @@ import { localDay, localHhmm } from "../src/memory/memory-clock";
 import type { MemoryToolContext } from "../src/memory/memory-tool-context";
 import { PERSONA_MAX } from "../src/memory/persona";
 import { DEFAULT_AGENTS } from "../src/memory/persona-templates";
+import { captureLogs } from "../src/observability/logger";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { getRole } from "../src/roles/role-registry";
 import { runAgent } from "../src/runtime/run-agent";
@@ -108,7 +109,15 @@ test("a journal day file keeps its 300-line guard with its own full message", as
   );
   const r = await s.call({ text: "one more note", scope: "journal" });
   expect(r.isError).toBe(true);
-  expect(r.text).toContain("journal file is full");
+  expect(r.text).toContain("journal day file 2026-10-13.md is full (300-line guard");
+  // The warn carries counts only (lines of the day file, the guard), never the note text.
+  const logs = captureLogs();
+  await s.call({ text: "another secret-ish note", scope: "journal" });
+  logs.stop();
+  const ev = logs.lines.find((l) => l.event === "memory.journal_full");
+  expect(ev).toMatchObject({ level: 40, max: 300 });
+  expect(ev?.lines as number).toBeGreaterThan(300);
+  expect(JSON.stringify(logs.lines)).not.toContain("secret-ish");
 });
 
 test("an unexpected error becomes a short tool error", async () => {
@@ -179,13 +188,14 @@ test("repeat and normalized repeat -> already saved; secrets stored redacted; ma
 test("the 21st call of a run is refused; calls in parallel all land", async () => {
   const s = setup();
   const res = await Promise.all(
+    // Distinct words: notes that overlap (Jaccard >= 0.6) are refused as near-duplicates.
     Array.from({ length: MEMORY_SAVE_MAX_CALLS_PER_RUN }, (_, i) =>
-      s.call({ text: `note number ${i}`, scope: "channel" }),
+      s.call({ text: `${String.fromCharCode(97 + i).repeat(5)} fact`, scope: "channel" }),
     ),
   );
   expect(res.every((r) => !r.isError)).toBe(true);
   const f = readFileSync(s.chFile, "utf8");
-  expect(f.match(/^- note number/gm)?.length).toBe(MEMORY_SAVE_MAX_CALLS_PER_RUN);
+  expect(f.match(/^- [a-z]{5} fact/gm)?.length).toBe(MEMORY_SAVE_MAX_CALLS_PER_RUN);
   const over = await s.call({ text: "one more", scope: "channel" });
   expect(over.isError).toBe(true);
   expect(over.text).toContain("limit");

@@ -53,6 +53,7 @@ import {
   ORCHESTRATION_MCP_SERVER,
   PLAN_MCP_SERVER,
 } from "./mcp-tool-names";
+import { MEMORY_EDIT_TOOL } from "./memory/tools/MemoryEditTool/constants";
 import { MEMORY_EXPAND_TOOL } from "./memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "./memory/tools/MemoryGetTool/constants";
 import { MEMORY_SAVE_TOOL } from "./memory/tools/MemorySaveTool/constants";
@@ -78,6 +79,7 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
   [DELETE_PATHS_TOOL]: EFFECTS_MCP_SERVER,
   [GIT_PUSH_TOOL]: EFFECTS_MCP_SERVER,
   [MERGE_BRANCH_TOOL]: EFFECTS_MCP_SERVER,
+  [MEMORY_EDIT_TOOL]: MEMORY_MCP_SERVER,
   [MEMORY_EXPAND_TOOL]: MEMORY_MCP_SERVER,
   [MEMORY_GET_TOOL]: MEMORY_MCP_SERVER,
   [MEMORY_SAVE_TOOL]: MEMORY_MCP_SERVER,

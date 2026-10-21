@@ -74,6 +74,9 @@ export const DREAM_NOTES_MAX_CHARS = 40_000;
 /** Backups of a channel `MEMORY.md` kept (the newest), one is written before each dream write. */
 export const DREAM_BACKUP_KEEP = 20;
 
+/** `MemoryEdit` backups of a channel `MEMORY.md` kept (the newest); own rotation, so edits and dreams never evict each other's backups. */
+export const EDIT_BACKUP_KEEP = 20;
+
 /**
  * Shrink guard: a dream is refused when more than this share of the existing dated bullets has no similar bullet in
  * the result AND that loss is bigger than the number of near-duplicates among them. A ratio of the job's own input,

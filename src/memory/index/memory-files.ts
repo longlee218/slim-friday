@@ -5,11 +5,6 @@ import { localDay } from "../memory-clock";
 import { type Chunk, chunkJournal, chunkMemory } from "./memory-chunker";
 import { makeId, type Source } from "./memory-ids";
 
-/** A file bigger than this is not indexed (and not served by Get/Expand). */
-export const INDEX_MAX_FILE_BYTES = 512_000;
-/** Chunks kept per file (the newest: files grow at the end). */
-export const INDEX_MAX_CHUNKS_PER_FILE = 2000;
-
 /** What a path is in the index: which workspace it belongs to ('' = root) and which source. */
 export interface FileInfo {
   workspace: string;
@@ -89,11 +84,11 @@ export function workspaceFiles(home: string, workspace: string): string[] {
 
 export type ReadResult =
   | { ok: true; chunks: Chunk[]; mtimeMs: number; size: number }
-  | { ok: false; reason: "missing" | "not_file" | "too_big" };
+  | { ok: false; reason: "missing" | "not_file" };
 
 /**
- * Read and chunk one classified file. Refuses a symlink or a non-regular file and a file over the size cap
- * (reason tells which). Undated bullets get the file's mtime day. Chunks are NOT capped here (the index caps them).
+ * Read and chunk one classified file. Refuses a symlink or a non-regular file (no size cap: memory files have none, a big MEMORY.md is
+ * searchable). Undated bullets get the file's mtime day. Chunks are NOT capped here (the index caps them).
  */
 export function readFileChunks(file: string, info: FileInfo): ReadResult {
   let st: ReturnType<typeof lstatSync>;
@@ -103,7 +98,6 @@ export function readFileChunks(file: string, info: FileInfo): ReadResult {
     return { ok: false, reason: "missing" };
   }
   if (!st.isFile()) return { ok: false, reason: "not_file" };
-  if (st.size > INDEX_MAX_FILE_BYTES) return { ok: false, reason: "too_big" };
   let text: string;
   try {
     text = readFileSync(file, "utf8");

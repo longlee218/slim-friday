@@ -25,6 +25,8 @@ export interface MemoryToolContext {
   onCompacted?: (event: FlushRequest) => void;
   /** Rename port of the run's thread: its presence registers `Orchestrate set_title` (every role). Absent = no such tool. */
   threadTitle?: ThreadTitlePort;
+  /** Role of the run (recorded in `memory_audit`; absent = the lead, the only memory writer). */
+  role?: string;
   /** Short label of the thread: the journal block title (`## HH:MM <label>`). */
   threadLabel: string;
   /** Clock (tests pass a fixed one). One call per tool call: file date and bullet date come from the same instant. */

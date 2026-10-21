@@ -1,5 +1,6 @@
 import { SONNET_MODEL } from "../../config/model-ids";
 import { ARTIFACT_TOOLS } from "../../mcp/artifacts/artifact-tool-names";
+import { MEMORY_EDIT_TOOL } from "../../mcp/memory/tools/MemoryEditTool/constants";
 import { MEMORY_EXPAND_TOOL } from "../../mcp/memory/tools/MemoryExpandTool/constants";
 import { MEMORY_GET_TOOL } from "../../mcp/memory/tools/MemoryGetTool/constants";
 import { MEMORY_SAVE_TOOL } from "../../mcp/memory/tools/MemorySaveTool/constants";
@@ -33,6 +34,7 @@ export const LEAD_ROLE: RoleDefinition = {
   // Memory tools + the lead's `Orchestrate` action tool (the `orchestration` server; a worker run never gets it).
   mcpTools: [
     MEMORY_SAVE_TOOL,
+    MEMORY_EDIT_TOOL,
     MEMORY_SEARCH_TOOL,
     MEMORY_GET_TOOL,
     MEMORY_EXPAND_TOOL,

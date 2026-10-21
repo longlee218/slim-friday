@@ -22,6 +22,8 @@ export interface Chunk {
   date: string;
   /** The entry verbatim (a bullet without `- ` and its date stamp; a whole journal block). */
   text: string;
+  /** 0-based index of the entry's first line in the file (a bullet's own line; `MemoryEdit` addresses it). */
+  line: number;
   /** What MemoryExpand shows: the whole `##` section / journal block. */
   context: string;
 }
@@ -48,9 +50,10 @@ export function chunkMemory(text: string, fallbackDate: string): Chunk[] {
   let token = OTHER_TOKEN;
   let kind: MemoryKind = "fact";
   let para: string[] = [];
+  let paraLine = 0; // first line of the pending paragraph
   const sections: { from: number; to: number }[] = []; // [from,to) line ranges, in order
   const sectionOf: number[] = []; // per chunk: index of the section it was found in
-  const add = (tok: string, entry: string, date: string, k: MemoryKind) => {
+  const add = (tok: string, entry: string, date: string, k: MemoryKind, line: number) => {
     const key = normalizeBullet(entry);
     if (key === "") return;
     const n = (count.get(tok) ?? 0) + 1;
@@ -65,11 +68,12 @@ export function chunkMemory(text: string, fallbackDate: string): Chunk[] {
       kind: k,
       date,
       text: entry,
+      line,
       context: "",
     });
   };
   const flushPara = () => {
-    if (para.length) add(TEXT_TOKEN, para.join(" "), fallbackDate, "fact");
+    if (para.length) add(TEXT_TOKEN, para.join(" "), fallbackDate, "fact", paraLine);
     para = [];
   };
   const closeSection = (to: number) => sections.push({ from: start, to });
@@ -85,9 +89,18 @@ export function chunkMemory(text: string, fallbackDate: string): Chunk[] {
     } else if (line.trim().startsWith("- ")) {
       flushPara();
       const body = line.trim();
-      add(token, stripDateSuffix(body.slice(2)), BULLET_DATE.exec(body)?.[1] ?? fallbackDate, kind);
+      add(
+        token,
+        stripDateSuffix(body.slice(2)),
+        BULLET_DATE.exec(body)?.[1] ?? fallbackDate,
+        kind,
+        i,
+      );
     } else if (line.trim() === "") flushPara();
-    else para.push(line.trim());
+    else {
+      if (para.length === 0) paraLine = i;
+      para.push(line.trim());
+    }
   });
   flushPara();
   closeSection(lines.length);
@@ -120,6 +133,7 @@ export function chunkJournal(text: string, date: string): Chunk[] {
       kind: "",
       date,
       text: block,
+      line: i,
       context: block,
     });
   });

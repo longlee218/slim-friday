@@ -5,11 +5,8 @@ import type { MemoryToolContext } from "../../../../memory/memory-tool-context";
 import { type MemorySaveOutcome, saveNote } from "../../../../memory/save-note";
 import { logEvent, logger } from "../../../../observability/logger";
 import { errText } from "../../../../observability/redact";
-import {
-  formatTrustedToolIssue,
-  type TrustedToolIssueCode,
-} from "../../../../runtime/trusted-tool-issue";
 import { textResult } from "../../../tool-result";
+import { finishWriteOutcome } from "../../write-outcome";
 import { MEMORY_SAVE_MAX_CALLS_PER_RUN, MEMORY_SAVE_SCOPES, MEMORY_SAVE_TOOL } from "./constants";
 import { MEMORY_SAVE_DESCRIPTION } from "./prompt";
 
@@ -21,18 +18,10 @@ const SHAPE = {
   text: z.string().describe("The note: one short plain sentence."),
   scope: z.enum(MEMORY_SAVE_SCOPES),
   kind: z.enum(MEMORY_KINDS).optional().describe("Default fact. open only with scope journal."),
-};
-
-/** Trusted code of a refused write; any result this map does not know is `unavailable` (no guessed cause). */
-const ISSUE_OF: Record<string, TrustedToolIssueCode> = {
-  too_short: "invalid_input",
-  too_long: "invalid_input",
-  bad_kind: "invalid_input",
-  no_channel: "invalid_input",
-  empty: "invalid_input",
-  full: "limit",
-  limit: "limit",
-  busy: "temporarily_busy",
+  confirmNew: z
+    .boolean()
+    .optional()
+    .describe("true = save even when a similar note exists (scope channel)."),
 };
 
 /**
@@ -58,18 +47,7 @@ export function createMemorySaveTool(ctx: MemoryToolContext) {
       log.warn({ err: errText(err).slice(0, 120) }, "remember failed");
       out = { text: "", isError: true, result: "error" };
     }
-    if (out.isError) {
-      // The model gets a trusted code and one next step: known outcomes keep their short text as detail, an unknown
-      // one (an exception, an unmapped result) gets none.
-      const known = ISSUE_OF[out.result];
-      // Only a KNOWN outcome is reported to the supervisor; an unknown failure stays `unavailable` for the model but
-      // never counts toward a recovery.
-      if (known) ctx.onIssue?.({ tool: MEMORY_SAVE_TOOL, code: known });
-      out = {
-        ...out,
-        text: formatTrustedToolIssue(known ?? "unavailable", known ? out.text : undefined),
-      };
-    }
+    out = finishWriteOutcome(ctx, MEMORY_SAVE_TOOL, out);
     logEvent(log, "memory.save", {
       scope: args.scope,
       kind: args.kind,

@@ -206,7 +206,7 @@ test("caps: limit, result size, since/query errors, 31st read call", async () =>
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "x", since: "yesterday" })).isError).toBe(true);
   for (let i = 4; i < MEMORY_READ_MAX_CALLS_PER_RUN; i++)
     await s.call(MEMORY_GET_TOOL, { id: "nope" });
-  expect((await s.call(MEMORY_SEARCH_TOOL, { query: "common" })).isError).toBe(false); // call 30
+  expect((await s.call(MEMORY_SEARCH_TOOL, { query: "common" })).isError).toBe(false); // last allowed call
   const over = await s.call(MEMORY_GET_TOOL, { id: "nope" });
   expect(over.isError).toBe(true);
   expect(over.text).toContain("limit reached");

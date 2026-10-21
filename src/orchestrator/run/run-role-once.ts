@@ -65,6 +65,7 @@ export function agentRunOnce(p: OnceParts) {
               channel: i.channel,
               channelId: i.channelId,
               threadId: i.threadId,
+              role: role.name,
               trackSummary: role.kind !== "worker",
               threadTitle: titlePort,
               onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),

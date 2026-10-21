@@ -19,6 +19,7 @@ import {
   normalizeBullet,
 } from "./memory-sections";
 import { sanitizeBullet } from "./sanitize-bullet";
+import { type BulletRef, findSimilarBullet } from "./similar-bullet";
 
 /** Max chars of a journal block label (thread title or location name). */
 const JOURNAL_LABEL_CHARS = 60;
@@ -31,6 +32,9 @@ const log = logger.child({ module: "memory-section-writer" });
 
 /** Outcome of a sectioned write: `empty` = nothing left after sanitizing, `duplicate` = already there, `full` = a journal write would pass the line limit, `busy` = lock timeout. */
 export type SaveResult = "saved" | "duplicate" | "full" | "empty" | "busy" | "symlink";
+
+/** `similar` = a near-duplicate bullet (Jaccard >= 0.6) is already in the file: nothing written, `ref` says which. */
+export type BulletSave = SaveResult | { similar: BulletRef };
 
 /** Where a note goes in a journal file: the `## HH:MM <label>` block. */
 export interface JournalSlot {
@@ -80,6 +84,9 @@ function writeSectioned(
  * untouched). Text is sanitized (one line, redacted, markup stripped, SAVE_MAX_CHARS), stamped ` (date)`, and
  * skipped when the section already has the same note. `header` is the content of a file that does not exist yet.
  * `date` is `YYYY-MM-DD`. No size limit on the file (owner decision): only the per-note SAVE_MAX_CHARS applies. The caller picks the file.
+ * A bullet that is not an exact duplicate but is a near-duplicate of one in the file (token Jaccard >= 0.6) is NOT
+ * written: `{ similar }` names it, so the caller can edit that one instead. `confirmNew` skips that near-duplicate check
+ * only (an exact duplicate is still `duplicate`).
  */
 export function saveMemoryBullet(
   file: string,
@@ -88,19 +95,28 @@ export function saveMemoryBullet(
   text: string,
   date: string,
   fields: Record<string, unknown> = {},
-): SaveResult {
+  confirmNew = false,
+): BulletSave {
   const clean = sanitizeBullet(text, SAVE_MAX_CHARS);
   if (!clean) return "empty";
   const bullet = formatBullet(clean, date);
-  return writeSectioned(
+  // Filled inside the lock by the edit callback (an object, so TS keeps the later read).
+  const found: { ref?: BulletRef } = {};
+  const res = writeSectioned(
     file,
     header,
     (old) => {
       if (hasBullet(old, kind, bullet)) return "duplicate";
+      const ref = confirmNew ? null : findSimilarBullet(old, clean);
+      if (ref) {
+        found.ref = ref;
+        return "duplicate"; // "nothing to write"; the caller reads `found`
+      }
       return insertBullet(old, kind, bullet);
     },
     { ...fields, kind, layer: "sectioned" },
   );
+  return found.ref ? { similar: found.ref } : res;
 }
 
 /**

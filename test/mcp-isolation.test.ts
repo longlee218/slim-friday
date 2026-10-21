@@ -6,6 +6,7 @@ import {
   mcpToolName,
   ORCHESTRATION_MCP_SERVER,
 } from "../src/mcp/mcp-tool-names";
+import { MEMORY_EDIT_TOOL } from "../src/mcp/memory/tools/MemoryEditTool/constants";
 import { MEMORY_SAVE_TOOL } from "../src/mcp/memory/tools/MemorySaveTool/constants";
 import { MEMORY_SEARCH_TOOL } from "../src/mcp/memory/tools/MemorySearchTool/constants";
 import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
@@ -85,9 +86,18 @@ test("worker roles never hold a lead tool, even when the run (wrongly) brings a 
     ]);
 });
 
-test("owner rule: only the lead saves memory; workers keep the read tools, the guard denies MemorySave", () => {
+test("owner rule: only the lead saves and edits memory; workers keep the read tools, the guard denies MemorySave and MemoryEdit", () => {
   const save = mcpToolName(MEMORY_MCP_SERVER, MEMORY_SAVE_TOOL);
+  const edit = mcpToolName(MEMORY_MCP_SERVER, MEMORY_EDIT_TOOL);
   for (const role of WORKERS) {
+    expect([role.name, held(buildServers(role, FULL_CTX)).includes(MEMORY_EDIT_TOOL)]).toEqual([
+      role.name,
+      false,
+    ]);
+    expect([role.name, checkToolCall(edit, {}, guardFor(role, {})).decision]).toEqual([
+      role.name,
+      "deny",
+    ]);
     expect([role.name, held(buildServers(role, FULL_CTX)).includes(MEMORY_SAVE_TOOL)]).toEqual([
       role.name,
       false,
@@ -99,6 +109,7 @@ test("owner rule: only the lead saves memory; workers keep the read tools, the g
     ]);
   }
   expect(checkToolCall(save, {}, guardFor(getRole("lead"), {})).decision).toBe("allow");
+  expect(checkToolCall(edit, {}, guardFor(getRole("lead"), {})).decision).toBe("allow");
 });
 
 test("a lead run holds the lead tools and no Report result", () => {

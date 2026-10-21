@@ -75,8 +75,33 @@ export function replaceDatedBullets(text: string, kind: MemoryKind, bullets: str
   return lines.join("\n");
 }
 
-/** Token set of a bullet (date and markup out) for the similarity checks. */
-const tokens = (bullet: string): Set<string> => tokensOf(normalizeBullet(bullet));
+/** Negation words (English and Vietnamese); any word ending in `n't` counts too. */
+const NEGATIONS = new Set(["not", "never", "no", "cannot", "without", "không", "chưa", "đừng"]);
+
+/** Marker tokens one negated bullet gets: enough weight that a negated bullet and its positive twin fall below SIMILAR. */
+const NEGATION_WEIGHT = 3;
+
+/** True when the text holds a negation word (apostrophes folded, so `don’t` = `don't`). */
+const isNegated = (text: string): boolean =>
+  text
+    .toLowerCase()
+    .replace(/’/g, "'")
+    .split(/[^\p{L}\p{N}']+/u)
+    .some((w) => NEGATIONS.has(w) || w.endsWith("n't"));
+
+/** Content words of a bullet (date and markup out, no negation markers). */
+export const bulletWords = (bullet: string): Set<string> => tokensOf(normalizeBullet(bullet));
+
+/**
+ * Token set of a bullet for the similarity checks: its content words plus, when it holds a negation, NEGATION_WEIGHT
+ * marker tokens (`tokensOf` drops short and stop words such as "not", so "Never deploy on Friday" and "Deploy on
+ * Friday" would otherwise match). The ONE place both the save refusal and the dream shrink guard read.
+ */
+export const bulletTokens = (bullet: string): Set<string> => {
+  const t = bulletWords(bullet);
+  if (isNegated(bullet)) for (let i = 0; i < NEGATION_WEIGHT; i++) t.add(`\u0000neg${i}`);
+  return t;
+};
 
 /**
  * Size-free shrink guard numbers. `lost` = existing bullets with no similar bullet (Jaccard >= SIMILAR, or the same
@@ -88,8 +113,8 @@ export function shrinkStats(
   existing: readonly string[],
   result: readonly string[],
 ): { lost: number; dupes: number; clusters: number } {
-  const ex = existing.map(tokens);
-  const out = result.map(tokens);
+  const ex = existing.map(bulletTokens);
+  const out = result.map(bulletTokens);
   const exNorm = existing.map(normalizeBullet);
   const outNorm = new Set(result.map(normalizeBullet));
   const lost = ex.filter(

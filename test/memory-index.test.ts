@@ -6,13 +6,8 @@ import { buildMatch, foldText, queryTerms } from "../src/memory/index/fold-text"
 import { chunkJournal, chunkMemory } from "../src/memory/index/memory-chunker";
 import { classifyFile } from "../src/memory/index/memory-files";
 import { hash6, makeId, parseId } from "../src/memory/index/memory-ids";
-import {
-  CHUNK_MAX_CHARS,
-  INDEX_MAX_CHUNKS_PER_FILE,
-  INDEX_MAX_FILE_BYTES,
-  reindexFile,
-} from "../src/memory/index/memory-index";
-import { searchIndex } from "../src/memory/index/memory-search";
+import { CHUNK_MAX_CHARS, reindexFile } from "../src/memory/index/memory-index";
+import { recencyOrder, searchIndex } from "../src/memory/index/memory-search";
 import { syncAll, syncIndex } from "../src/memory/index/memory-sync";
 import { openDb } from "../src/storage/db";
 import { saveSummary } from "../src/storage/thread-summary-store";
@@ -270,27 +265,27 @@ test("freshness: unchanged file is not re-read; changed file replaced; deleted p
   expect(s.find("a", "second")).toEqual([]);
 });
 
-test("caps: big file skipped, chunks per file, chunk text clipped, summaries of a deleted thread purged", () => {
+test("caps: big file indexed (no byte cap), chunk text clipped, summaries of a deleted thread purged", () => {
   const s = setup();
   s.put(
     "workspaces/a/channels/c1/MEMORY.md",
-    `## Facts\n${"- bigword filler\n".repeat(INDEX_MAX_FILE_BYTES / 10)}`,
+    `## Facts\n- bigword first\n${`- ${"filler ".repeat(70)}\n`.repeat(1500)}`, // ~740 KB
   );
   s.put(
     "workspaces/a/channels/c2/MEMORY.md",
-    `## Facts\n${Array.from({ length: INDEX_MAX_CHUNKS_PER_FILE + 5 }, (_, i) => `- item${i} x`).join("\n")}\n`,
+    `## Facts\n${Array.from({ length: 2005 }, (_, i) => `- item${i} x`).join("\n")}\n`,
   );
   s.put("workspaces/a/channels/c3/MEMORY.md", `## Facts\n- ${"clipword ".repeat(400)}tailword\n`);
   syncIndex(s.db, s.home, "a");
-  expect(s.find("a", "bigword")).toEqual([]);
+  expect(s.find("a", "bigword")).toHaveLength(1); // a big MEMORY.md is searchable
   expect(
     s.db
       .query(
         "SELECT count(*) AS c FROM memory_fts WHERE source = 'channel' AND id LIKE 'channel/c2%'",
       )
       .get(),
-  ).toEqual({ c: INDEX_MAX_CHUNKS_PER_FILE });
-  expect(s.find("a", "item0", { channel: "c2" })).toEqual([]); // oldest dropped
+  ).toEqual({ c: 2005 }); // no per-file chunk cap
+  expect(s.find("a", "item0", { channel: "c2" })).toHaveLength(1); // the oldest is indexed too
   expect(s.find("a", "tailword", { channel: "c3" })).toEqual([]); // clipped at CHUNK_MAX_CHARS
   expect(s.find("a", "clipword", { channel: "c3" })[0]?.snippet.length).toBeLessThanOrEqual(200);
   expect(CHUNK_MAX_CHARS).toBe(1200);
@@ -376,4 +371,40 @@ test("summary hits only for the run's own channel (episode channel column); no c
   expect(searchIndex(s.db, "a", { query: "ingress", limit: 20 }).hits).toEqual([]);
   // key topics are part of the indexed text: "certificates" is a topic of the first episode
   expect(s.find("a", "certificates", { scope: "summary" })).toHaveLength(1);
+});
+
+test("recency: near-equal hits list the newer day first; a clearly better hit stays on top", () => {
+  const s = setup();
+  s.put(
+    "workspaces/a/channels/c1/memory/2026-10-01.md",
+    "## 10:00 t\n### Facts\n- tiebreak apple\n",
+  );
+  s.put(
+    "workspaces/a/channels/c1/memory/2026-10-09.md",
+    "## 10:00 t\n### Facts\n- tiebreak apple\n",
+  );
+  s.put(
+    "workspaces/a/channels/c1/memory/2026-10-05.md",
+    "## 10:00 t\n### Facts\n- tiebreak apple\n",
+  );
+  syncAll(s.db, s.home);
+  expect(s.find("a", "tiebreak apple").map((h) => h.date)).toEqual([
+    "2026-10-09",
+    "2026-10-05",
+    "2026-10-01",
+  ]);
+  // Pure rule: bands are walked in bm25 order, only rows within 5% of the band's first score are re-ordered.
+  const rows = [
+    { id: "best", date: "2026-01-01", s: 10 },
+    { id: "near-old", date: "2026-02-01", s: 9.8 },
+    { id: "near-new", date: "2026-03-01", s: 9.6 },
+    { id: "worse-new", date: "2026-09-01", s: 5 },
+  ];
+  expect(recencyOrder(rows, (r) => r.s).map((r) => r.id)).toEqual([
+    "near-new",
+    "near-old",
+    "best",
+    "worse-new",
+  ]);
+  expect(recencyOrder([], () => 0)).toEqual([]);
 });

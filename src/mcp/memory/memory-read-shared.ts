@@ -1,7 +1,7 @@
 import { redactText } from "../../observability/redact";
 
 /** Read calls (Search + Get + Expand together) allowed per SDK query: a looping model cannot spin forever. */
-export const MEMORY_READ_MAX_CALLS_PER_RUN = 30;
+export const MEMORY_READ_MAX_CALLS_PER_RUN = 100;
 
 /** Counter shared by the three read tools of ONE run (built once in the memory server). */
 export interface ReadBudget {
