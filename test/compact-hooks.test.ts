@@ -15,6 +15,7 @@ import { syncIndex } from "../src/memory/index/memory-sync";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { mergeSummary } from "../src/memory/summary-merge";
 import { runRole } from "../src/orchestrator/run/run-role";
+import { COMPACT_INSTRUCTIONS } from "../src/roles/prompts/memory-prompts";
 import { ROLES } from "../src/roles/role-registry";
 import type { RoleDefinition } from "../src/roles/role-types";
 import { buildCompactHooks } from "../src/runtime/compact-hooks";
@@ -134,7 +135,10 @@ test("PreCompact captures the chat tail without writing; PostCompact hands it to
     asst("The worker requires a restart after deploy."),
     { ...asst("We decided sidechain noise quokka."), isSidechain: true },
   ]);
-  expect(await s.pre({ transcript_path: path })).toEqual({ continue: true });
+  expect(await s.pre({ transcript_path: path })).toEqual({
+    continue: true,
+    systemMessage: COMPACT_INSTRUCTIONS,
+  });
   // No write at PreCompact: no journal, no cycle.
   expect(existsSync(s.journal())).toBe(false);
   expect(getThreadSummary(s.db, "th1")).toBeNull();
@@ -162,6 +166,7 @@ test("PreCompact: an unreadable transcript is harmless (empty tail, the flush st
   const s = setup();
   expect(await s.pre({ transcript_path: join(s.home, "missing.jsonl") })).toEqual({
     continue: true,
+    systemMessage: COMPACT_INSTRUCTIONS,
   });
   const loud = s.transcript([user("We decided to use Bun.")]);
   expect(await s.pre({ transcript_path: loud, agent_id: "sub1" })).toEqual({ continue: true });
@@ -272,7 +277,23 @@ test("hook errors never reach the run", async () => {
   expect(await s.post({ compact_summary: "some summary" })).toEqual({ continue: true });
   expect(await s.pre({ transcript_path: s.transcript([user("We decided to use Bun.")]) })).toEqual({
     continue: true,
+    systemMessage: COMPACT_INSTRUCTIONS,
   });
+});
+
+test("PreCompact returns the what-to-keep text as systemMessage (the SDK appends it to custom_instructions); no secrets, short; a worker run has no hook", async () => {
+  const s = setup();
+  const out = (await s.pre({
+    transcript_path: join(s.home, "missing.jsonl"),
+    trigger: "manual",
+    custom_instructions: "focus on code",
+  })) as { continue: boolean; systemMessage: string };
+  // The caller's custom_instructions are merged by the SDK, so ours must not echo them.
+  expect(out.systemMessage).toBe(COMPACT_INSTRUCTIONS);
+  expect(out.systemMessage).not.toContain("focus on code");
+  expect(COMPACT_INSTRUCTIONS.length).toBeLessThan(1200);
+  expect(COMPACT_INSTRUCTIONS).toContain("owner decisions");
+  expect(setup(false).hooks).toEqual({});
 });
 
 test("journal: hook text is never injected into a prompt; the line limit stops appends; prune keeps recent day files", async () => {

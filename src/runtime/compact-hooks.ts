@@ -2,6 +2,7 @@ import type {
   HookCallback,
   HookCallbackMatcher,
   HookEvent,
+  HookJSONOutput,
   PostCompactHookInput,
   PreCompactHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -13,6 +14,7 @@ import { mergeSummary } from "../memory/summary-merge";
 import { readTranscriptTail } from "../memory/transcript-tail";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
+import { COMPACT_INSTRUCTIONS } from "../roles/prompts/memory-prompts";
 import { bumpCycle, getThreadSummary, saveSummary } from "../storage/thread-summary-store";
 
 const log = logger.child({ module: "compact-hooks" });
@@ -28,14 +30,23 @@ function makeHandlers(ctx: CompactHookCtx) {
   /**
    * PreCompact (main agent, foreground runs): NO model call and no write (the hook blocks compaction). Keep the
    * newest chat text of the transcript in memory for the flush that PostCompact schedules. An unreadable
-   * transcript leaves an empty tail (the hook guard logs it).
+   * transcript leaves an empty tail (the hook guard logs it). Returns the what-to-keep text as `systemMessage`:
+   * the SDK appends a callback hook's `systemMessage` to the compaction prompt as custom instructions, after any
+   * `custom_instructions` of a manual /compact (it merges both itself, so those are not echoed here).
    */
-  function onPreCompact(i: PreCompactHookInput): void {
-    tail = readTranscriptTail(i.transcript_path, EXTRACT_SOURCE_CHARS);
+  function onPreCompact(i: PreCompactHookInput): HookJSONOutput {
+    try {
+      tail = readTranscriptTail(i.transcript_path, EXTRACT_SOURCE_CHARS);
+    } catch (err) {
+      // An unreadable transcript must not drop the instructions below.
+      tail = [];
+      logEvent(log, "compact.hook_failed", { event: "PreCompact", err: errText(err, 200) }, "warn");
+    }
     logEvent(log, "compact.pre", {
       trigger: i.trigger,
       chars: tail.reduce((n, m) => n + m.text.length, 0),
     });
+    return { continue: true, systemMessage: COMPACT_INSTRUCTIONS };
   }
 
   /**
@@ -81,17 +92,17 @@ function makeHandlers(ctx: CompactHookCtx) {
   return { onPreCompact, onPostCompact };
 }
 
-/** Hook callback for one event: subagent compactions are ignored; a throw is logged (class + clipped message), never propagated; compaction always continues. */
+/** Hook callback for one event: subagent compactions are ignored; a throw is logged (class + clipped message), never propagated; compaction always continues (the run's output, if any, is returned). */
 function guarded<T extends PreCompactHookInput | PostCompactHookInput>(
   event: T["hook_event_name"],
-  run: (i: T) => void,
+  run: (i: T) => HookJSONOutput | void,
 ): HookCallback {
   return async (i) => {
     if (i.hook_event_name !== event) return CONTINUE;
     const input = i as T;
     try {
       if (input.agent_id) logEvent(log, "compact.subagent_ignored", { event });
-      else run(input);
+      else return run(input) ?? CONTINUE;
     } catch (err) {
       logEvent(log, "compact.hook_failed", { event, err: errText(err, 200) }, "warn");
     }
