@@ -47,13 +47,13 @@ async function qa(fail = false) {
   return { env, opts, pluginDirs, pluginFiles };
 }
 
-test("scout: one plugin with the workspace skills (plus the app's); location skills/hooks/CLAUDE.md never contribute", async () => {
+test("scout: one plugin with the workspace skills (plus the app's); location skills/hooks never contribute, CLAUDE.md only as location rules", async () => {
   const { opts, pluginDirs, pluginFiles } = await qa();
   expect(opts.skills).toContain("main:ws-skill");
   expect(opts.skills.some((n: string) => n.includes("sk-"))).toBe(false);
   expect(opts.plugins).toHaveLength(APP_PLUGINS + 1); // workspace plugin + the app-owned skills
   expect(opts.settingSources).toEqual([]);
-  expect(JSON.stringify(opts.systemPrompt)).not.toContain("CLAUDE_BODY_MARK");
+  expect(JSON.stringify(opts.systemPrompt)).toContain("## Location rules: "); // CLAUDE.md read by Friday, not the SDK
   expect(pluginFiles.some((f) => /sk-[ab]|hooks|mcp/.test(f))).toBe(false);
   expect(pluginDirs.every((d) => !existsSync(d))).toBe(true); // removed after the run
 });

@@ -48,12 +48,12 @@ test("workspace skills load in the dev run; no workflow mode rules", async () =>
   expect(exec.systemPrompt.append).toContain("At most 6"); // the ask boundary applies to every code task
 });
 
-test("no location CLAUDE.md reaches the dev prompt, and the registry has no read hint", async () => {
+test("the location CLAUDE.md reaches the dev prompt only through the location rules block (no SDK settings)", async () => {
   const { exec } = await runTask({}, [], (clone) =>
     writeFileSync(join(clone, "CLAUDE.md"), "CLAUDE_BODY_MARK"),
   );
-  expect(exec.systemPrompt.append).not.toContain("CLAUDE_BODY_MARK");
-  expect(exec.systemPrompt.append).not.toContain("CLAUDE.md");
+  expect(exec.systemPrompt.append).toContain("## Location rules: ");
+  expect(exec.systemPrompt.append).toContain("### CLAUDE.md\n\nCLAUDE_BODY_MARK");
   expect(exec.settingSources).toEqual([]);
 });
 

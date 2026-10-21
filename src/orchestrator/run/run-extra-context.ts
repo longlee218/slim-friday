@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
 import { buildLocationsContext } from "../../locations/location-registry";
+import { buildLocationRulesContext } from "../../locations/location-rules";
 import { buildPersonaContext } from "../../memory/persona";
 import { buildPromptContext } from "../../memory/prompt-context";
 import { threadTitleNote } from "../../roles/prompts/thread-title-note";
@@ -11,7 +12,7 @@ import type { RoleScope } from "./role-scope-types";
 /**
  * The extra prompt context of a role run (after the role's rules and COMMON):
  * - lead: TEAM, AGENTS, IDENTITY, SOUL, USER, memory (root, channel), then the thread-title note;
- * - worker: locations registry, memory (root, channel; read-only), task ledger (no persona: the lead speaks to the owner);
+ * - worker: locations registry, location rules of its locations, memory (root, channel; read-only), task ledger (no persona: the lead speaks to the owner);
  * - no workspace (the control channel): the root persona files only.
  */
 export function runExtraContext(p: {
@@ -34,6 +35,7 @@ export function runExtraContext(p: {
     kind: worker ? "worker" : "lead",
     team: i.team,
     registry: worker ? buildLocationsContext(i.workspace, s.scope, true) : "",
+    locationRules: worker ? buildLocationRulesContext(s.scope) : "",
     ledger: i.ledger,
   }).concat(threadTitleNote(db, i.threadId, p.hasTitlePort));
 }

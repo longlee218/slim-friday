@@ -21,6 +21,8 @@ export interface PromptContextInput {
   team?: string;
   /** Registry block of a worker: its locations with their test command. */
   registry?: string;
+  /** Location rules block of a worker: the CLAUDE.md and `.claude/rules` of its locations (locations/location-rules.ts). */
+  locationRules?: string;
   /** Idle thread: the results of the steps it waits for (orchestrator/worker/worker-run.ts), after memory; empty = none. */
   ledger?: string;
 }
@@ -28,8 +30,9 @@ export interface PromptContextInput {
 /**
  * The one place that orders the prompt context of a run:
  * lead: TEAM, AGENTS, IDENTITY, SOUL, USER -> memory (root, channel);
- * worker: registry -> memory (root, channel) -> earlier-steps block.
- * No location CLAUDE.md anywhere: the SDK loads no settings (settingSources []) and nothing here injects one.
+ * worker: registry -> location rules (its locations' CLAUDE.md and .claude/rules) -> memory (root, channel) -> earlier-steps block.
+ * The SDK still loads no settings (settingSources []): a location's rules reach a worker only through this block,
+ * never its hooks, settings or skills; the lead gets none.
  * Logs one `prompt.context` event with the chars of each layer (counts only, never content).
  * BOOTSTRAP.md is an owner guide and is never injected.
  */
@@ -39,10 +42,11 @@ export function buildPromptContext(i: PromptContextInput): string[] {
     ? buildPersonaContext(i.agentHome, i.workspace, i.channel, i.team)
     : { text: "", truncated: false };
   const registry = lead ? "" : (i.registry ?? "");
+  const locationRules = lead ? "" : (i.locationRules ?? "");
   const layers = readMemoryLayers(i.agentHome, i.workspace, i.channel);
   const memory = formatMemoryContext(layers, i.channel);
   const ledger = lead ? "" : (i.ledger ?? "");
-  const blocks = [persona.text, registry, memory, ledger];
+  const blocks = [persona.text, registry, locationRules, memory, ledger];
   logEvent(
     log,
     "prompt.context",
@@ -50,6 +54,7 @@ export function buildPromptContext(i: PromptContextInput): string[] {
       personaChars: persona.text.length,
       personaTruncated: persona.truncated,
       registryChars: registry.length,
+      locationRulesChars: locationRules.length,
       ledgerChars: ledger.length,
       memoryRootChars: layers.root.length,
       memoryChannelChars: layers.channel.length,
