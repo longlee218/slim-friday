@@ -286,3 +286,21 @@ test("near midnight the journal file date and the bullet date agree (23:30 and 0
     expect(f).toContain(`- late note (${day})`);
   }
 });
+
+test("a lesson needs cue and evidence and is stored in its one-line form", async () => {
+  const s = setup();
+  const refused = await s.call({ text: "run migrations first", scope: "channel", kind: "lesson" });
+  expect(refused.isError).toBe(true);
+  expect(refused.text).toContain("a lesson needs cue (the situation) and evidence");
+  const ok = await s.call({
+    text: "run migrations before the tests",
+    scope: "channel",
+    kind: "lesson",
+    cue: "when a verify fails on a missing table",
+    evidence: "goal 3f2a verify-1",
+  });
+  expect(ok).toEqual({ text: "saved to channel/alpha (Lessons)", isError: false });
+  expect(readFileSync(s.chFile, "utf8")).toContain(
+    "- When a verify fails on a missing table: run migrations before the tests — evidence: goal 3f2a verify-1 (2026-10-13)",
+  );
+});

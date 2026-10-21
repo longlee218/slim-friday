@@ -14,6 +14,7 @@ import {
 import { errText } from "../observability/redact";
 import type { QueryFn } from "../runtime/run-agent";
 import { type FlushRequest, flushAfterCompaction } from "./compaction-flush";
+import { reflectClosedGoals } from "./goal-reflection";
 import { type ChannelResolver, registryResolver, writeIdleEpisodes } from "./idle-episode";
 import { type CompactLlm, sdkCompactLlm } from "./memory-compaction-llm";
 import { type DreamState, dreamAll } from "./memory-dream";
@@ -111,7 +112,7 @@ export function createMemoryJobs(deps: {
       pending.set(req.threadId, run);
     },
     /**
-     * One memory tick: idle-thread episodes, then dreaming (per channel), then the prune when due. A tick still running
+     * One memory tick: idle-thread episodes, then reflections on failed goals, then dreaming (per channel), then the prune when due. A tick still running
      * makes this call return its promise (no overlap). Never rejects.
      */
     tick(): Promise<void> {
@@ -126,6 +127,15 @@ export function createMemoryJobs(deps: {
           now: () => now,
           signal: shutdown.signal,
           skip: episodeSkip,
+        });
+        // Lessons from goals that closed with failures go to the journal before dreaming merges it.
+        await reflectClosedGoals({
+          db: deps.db,
+          home: deps.config.agentHome,
+          llm: episodeLlm,
+          resolve,
+          now: () => now,
+          signal: shutdown.signal,
         });
         await dreamAll({
           db: deps.db,

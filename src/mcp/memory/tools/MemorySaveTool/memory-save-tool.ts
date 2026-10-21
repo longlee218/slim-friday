@@ -18,6 +18,18 @@ const SHAPE = {
   text: z.string().describe("The note: one short plain sentence."),
   scope: z.enum(MEMORY_SAVE_SCOPES),
   kind: z.enum(MEMORY_KINDS).optional().describe("Default fact. open only with scope journal."),
+  cue: z
+    .string()
+    .optional()
+    .describe(
+      "kind lesson only (required): the situation it applies to, e.g. 'a verify fails on missing env'.",
+    ),
+  evidence: z
+    .string()
+    .optional()
+    .describe(
+      "kind lesson only (required): the run, item or message that showed it, e.g. 'goal 3f2a verify-1'.",
+    ),
   confirmNew: z
     .boolean()
     .optional()

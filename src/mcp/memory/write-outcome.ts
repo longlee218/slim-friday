@@ -10,6 +10,7 @@ const ISSUE_OF: Record<string, TrustedToolIssueCode> = {
   too_short: "invalid_input",
   too_long: "invalid_input",
   bad_kind: "invalid_input",
+  bad_lesson: "invalid_input",
   bad_id: "invalid_input",
   no_channel: "invalid_input",
   empty: "invalid_input",

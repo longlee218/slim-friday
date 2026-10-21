@@ -92,3 +92,12 @@ export const INJECT_MAX_CHARS = 800;
 
 /** Least searchable terms the owner message needs, and least of them an episode must share, for a block. */
 export const INJECT_MIN_TERMS = 2;
+
+/** A goal closed this long ago (ms) or less, with a failure signal, gets one reflection (older closed goals never do). */
+export const REFLECT_WINDOW_MS = 172_800_000;
+
+/** Most goal reflections one memory tick writes (the rest wait for the next tick). */
+export const REFLECT_MAX_PER_TICK = 3;
+
+/** Chars of the reflection model input (goal facts from the db); the start is kept (scope and items come first). */
+export const REFLECT_INPUT_MAX_CHARS = 8_000;

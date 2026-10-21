@@ -9,6 +9,7 @@ import {
 import { logEvent, logger } from "../observability/logger";
 import { bulletHash } from "./dream-inputs";
 import { makeId } from "./index/memory-ids";
+import { formatLesson } from "./lesson-format";
 import { auditWrite } from "./memory-audit";
 import { localDay, localHhmm } from "./memory-clock";
 import { OWNER_MAX_LINES, saveJournalBullet, saveMemoryBullet } from "./memory-section-writer";
@@ -26,6 +27,10 @@ export interface MemorySaveArgs {
   kind?: MemoryKind;
   /** True = write even when a similar bullet exists (exact duplicates are still refused). Channel scope only. */
   confirmNew?: boolean;
+  /** Kind lesson only (required): the situation the lesson applies to. */
+  cue?: string;
+  /** Kind lesson only (required): the run, item or message that showed it. */
+  evidence?: string;
 }
 
 /** Outcome: the text the model reads, whether it is an error, and the short result word for the log. */
@@ -66,11 +71,17 @@ function journalFullText(file: string): string {
  * Pure of state except the file write; never throws for a bad argument (returns an error outcome).
  */
 export function saveNote(ctx: MemoryToolContext, a: MemorySaveArgs, now: Date): MemorySaveOutcome {
-  const text = a.text.trim();
+  const kind = a.kind ?? DEFAULT_KIND;
+  // A lesson is stored in its one-line form; without a cue and evidence it is a guess and is refused.
+  if (kind === "lesson" && (!a.cue?.trim() || !a.evidence?.trim()))
+    return fail("a lesson needs cue (the situation) and evidence (what showed it)", "bad_lesson");
+  const text =
+    kind === "lesson"
+      ? formatLesson({ cue: a.cue ?? "", lesson: a.text, evidence: a.evidence ?? "" })
+      : a.text.trim();
   if (text.length < MEMORY_SAVE_MIN_CHARS) return fail("text too short", "too_short");
   if (text.length > MEMORY_SAVE_MAX_CHARS)
     return fail(`text too long (max ${MEMORY_SAVE_MAX_CHARS} chars): shorten it`, "too_long");
-  const kind = a.kind ?? DEFAULT_KIND;
   if (kind === "open" && a.scope !== "journal")
     return fail("kind open is only for scope journal", "bad_kind");
 

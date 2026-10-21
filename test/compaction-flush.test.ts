@@ -276,3 +276,26 @@ test("one invalid kind drops that note only; all invalid falls back", async () =
   );
   expect(res).toEqual({ mode: "llm", items: 1, saved: 1 });
 });
+
+test("a lesson item without cue and evidence is dropped; a structured one is kept", async () => {
+  const s = setup();
+  const f = fakeLlm(
+    JSON.stringify({
+      items: [
+        { kind: "lesson", text: "Always run migrations." },
+        {
+          kind: "lesson",
+          text: "When tests hit a missing table: run migrations first — evidence: owner message 09:01",
+        },
+      ],
+    }),
+  );
+  const res = await flushAfterCompaction(
+    { db: s.db, home: s.home, llm: f.llm, now: () => NOW },
+    req(),
+  );
+  expect(res).toMatchObject({ mode: "llm", items: 1 });
+  const text = readFileSync(s.journal(), "utf8");
+  expect(text).toContain("When tests hit a missing table: run migrations first — evidence:");
+  expect(text).not.toContain("Always run migrations.");
+});

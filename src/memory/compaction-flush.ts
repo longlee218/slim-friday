@@ -9,6 +9,7 @@ import { appendJournalBlock, type JournalItem } from "./daily-journal";
 import { type ChatText, type ExtractedContext, extractContext } from "./extract-context";
 import { reindexFile } from "./index/memory-index";
 import { safely } from "./index/safely";
+import { isStructuredLesson } from "./lesson-format";
 import type { CompactLlm } from "./memory-compaction-llm";
 import { MEMORY_KINDS } from "./memory-sections";
 
@@ -45,8 +46,10 @@ const log = logger.child({ module: "compaction-flush" });
 
 /** The model reply: a JSON object with a list of notes; each note is checked on its own (see `itemSchema`). */
 const replySchema = z.object({ items: z.array(z.unknown()) });
-/** One note: an unknown kind or empty text drops that note only. */
-const itemSchema = z.object({ kind: z.enum(MEMORY_KINDS), text: z.string().min(1) });
+/** One note: an unknown kind, empty text or a lesson without cue and evidence drops that note only. */
+const itemSchema = z
+  .object({ kind: z.enum(MEMORY_KINDS), text: z.string().min(1) })
+  .refine((i) => i.kind !== "lesson" || isStructuredLesson(i.text));
 
 /** The model input: summary then chat tail, both data, secrets masked BEFORE they leave the app; cut to its newest end. */
 function flushInput(req: FlushRequest): string {

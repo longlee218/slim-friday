@@ -526,6 +526,11 @@ An owner-made thread under a mapped channel is adopted on the owner's first real
 - Logs `memory.dream {workspace, channel, episodes, journalItems, before, after, added, merged, dropped, lost, dupes, chars, ms}` `memory.dream_skipped {workspace, channel, reason}` and `memory.dream_failed {reason}`; counts only, never content. Owner view: the backups dir; undo = copy a backup over the channel `MEMORY.md` (or restore through `WriteSpaceFile`); checklist: [discord-setup](discord-setup.md#memory-v2-owner-live-checklist).
 
 ## Control Channel
+### Goal reflection and lessons (`src/memory/goal-reflection.ts`, `lesson-format.ts`, `src/storage/reflection-store.ts`)
+- On the memory tick, before dreaming: goals closed within `REFLECT_WINDOW_MS` with a failure signal (a `fix-N` item, a failed item, or a `failure` event) and no `memory_promotions` mark `reflect:<goalId>`, at most `REFLECT_MAX_PER_TICK`. One Haiku call (`REFLECT_SYSTEM`, episode budget and deadline) over the goal's db facts (scope, items with role, status, result excerpt; failure payloads), redacted and cut to `REFLECT_INPUT_MAX_CHARS`.
+- Reply `{cue, lesson, evidence}` or `{"entry":"NO_ENTRY"}`. A lesson is appended to the channel journal (`## HH:MM Reflection - goal <id8>`, kind lesson) as `When <cue>: <lesson> — evidence: goal <id8>: <evidence>`; dreaming merges it into the channel `MEMORY.md`. Every outcome marks the goal except a shutdown abort and a busy journal lock. Logs `memory.reflection {outcome, status}` (counts only).
+- Lesson form everywhere: `MemorySave` kind `lesson` requires `cue` and `evidence` (`bad_lesson`); the flush drops a lesson item not in the form; `DREAM_SYSTEM` keeps the form (old-format lessons stay).
+
 Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/roles/builtin/discord-manager-role.ts`).
 
 | Part | Where | Behavior |
