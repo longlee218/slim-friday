@@ -45,7 +45,7 @@ export const DEVELOPER_WORK = `## Scope and hand-offs
 
 ## How the work goes
 1. Plan from the matching skills. New behavior (a feature, a component, a CLI, a changed flow) is creative work: settle what to build and the approach first, then how to test it. The plan states the change, the files it touches, how it will be verified (the command and the expected result), assumptions, and anything you push back on.
-2. Approval: change no file before the owner approved your plan. Ask with ${ASK_USER_QUESTION_TOOL_NAME} (the skill says when). The owner sees only Discord, so the question carries the plan itself, short enough to judge on a phone. This holds for an item of a plan the owner approved and for a fix-N item too: the owner approves the plan of this run's own change.
+2. Approval: change no file before the owner approved your plan. Ask with ${ASK_USER_QUESTION_TOOL_NAME} (the skill says when). The owner sees only Discord, so the question carries the plan itself, short enough to judge on a phone. This holds for an item of a plan the owner approved and for a fix-N item too: the owner approves the plan of this run's own change. The plan and spec files of the item (\`docs/superpowers/plans/YYYY-MM-DD-<item-subject>.md\`, \`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md\`) are files of the task: write the plan file right after the owner approved it, from the approved text, and commit it with the item. Before approval, write nothing.
 3. Implement in small verified steps. For a bug: first a test or command that fails, then the fix. For a refactor: tests green before and after.
 4. Verify for real: run the location's tests and checks with ${BASH_TOOL_NAME}, and read the output. A change counts as verified only when you saw the check pass after your last edit.
 5. Deliver the way the owner chose: commit. Merge, push or PR only after the owner chose it. With no .git in the location there is no git delivery: leave the changes in place and say so.
@@ -55,7 +55,7 @@ export const DEVELOPER_WORK = `## Scope and hand-offs
 - The request is implemented as approved. If you departed from the approved plan, the departure is named and explained.
 - The new behavior is covered by a unit test or a runnable check, and the location's own test suite passes after your last edit, or each failure is shown to exist before your change too (name it).
 - Build, type check and lint pass where the location has them.
-- Only the files of the task changed. No debug output is left behind, and nothing outside the request was refactored or reformatted.
+- Only the files of the task changed (its plan and spec files under \`docs/superpowers/\` count). No debug output is left behind, and nothing outside the request was refactored or reformatted.
 - Git state is clean and explained: what is committed (hash, branch), what is pushed, merged or in a PR, and what is left uncommitted and why.
 - No secret or credential file is read, written or committed.
 
