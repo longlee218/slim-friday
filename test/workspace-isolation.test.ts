@@ -2,22 +2,22 @@ import { expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../src/config/workspace-paths";
-import { locationMemoryFile } from "../src/memory/location-memory";
+import { channelMemoryFile } from "../src/memory/channel-memory";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { locationOfTool } from "../src/observability/tool-hooks";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { READ_TOOL_NAME } from "../src/tools/sdk-tool-names";
 import { CHANNEL_2, resultMsg, TEST_CHANNEL, twoWorkspaces } from "./helpers";
 import { devLeadQuery, workersDone } from "./lead-harness";
-import { writeLocationNotes } from "./memory-fixture";
+import { STRAY_QUEUE_FILE, writeChannelNotes } from "./memory-fixture";
 
-/** Full prompt context text of a run in `ws` over location `api`. */
+/** Full prompt context text of a lead run in channel `<ws>-agent` of `ws`. */
 const promptOf = (home: string, ws: string) =>
   buildPromptContext({
     agentHome: home,
     workspace: ws,
+    channel: `${ws}-agent`,
     kind: "lead",
-    memoryLocations: ["api"],
   }).join("\n\n");
 
 test("same location name in two workspaces: lookups stay inside the workspace", () => {
@@ -36,19 +36,22 @@ test("same location name in two workspaces: lookups stay inside the workspace", 
   expect(read("w1", join(b, "f.txt"))).toBeUndefined();
 });
 
-test("same location name: memory writes and reads are per workspace", () => {
+test("same channel name pattern in two workspaces: memory writes and reads are per workspace", () => {
   const { env } = twoWorkspaces();
-  writeLocationNotes(env.home, "w1", "api", ["W1_ONLY"]);
-  expect(readFileSync(locationMemoryFile(env.home, "w1", "api"), "utf8")).toContain("W1_ONLY");
-  expect(readFileSync(locationMemoryFile(env.home, "w2", "api"), "utf8")).not.toContain("W1_ONLY");
+  writeChannelNotes(env.home, "w1", "w1-agent", ["W1_ONLY"]);
+  expect(readFileSync(channelMemoryFile(env.home, "w1", "w1-agent"), "utf8")).toContain("W1_ONLY");
+  writeChannelNotes(env.home, "w2", "w2-agent", ["W2_NOTE"]);
+  expect(readFileSync(channelMemoryFile(env.home, "w2", "w2-agent"), "utf8")).not.toContain(
+    "W1_ONLY",
+  );
   expect(promptOf(env.home, "w1")).toContain("W1_ONLY");
   expect(promptOf(env.home, "w2")).not.toContain("W1_ONLY");
 });
 
-test("pending file: never reaches a prompt of any workspace until the owner promotes it by hand", () => {
+test("a stray pending queue file never reaches a prompt of any workspace; the owner's root memory does reach all", () => {
   const { env } = twoWorkspaces();
   const p = workspacePaths(env.home);
-  writeFileSync(p.memoryPending, "# pending\n\n## d\n- GLOBAL_MARK\n");
+  writeFileSync(join(env.home, STRAY_QUEUE_FILE), "# pending\n\n## d\n- GLOBAL_MARK\n");
   for (const ws of ["w1", "w2"]) expect(promptOf(env.home, ws)).not.toContain("GLOBAL_MARK");
   // Owner promotion (by hand) is what makes it apply, and then to every workspace.
   writeFileSync(p.memory, "# global memory\n\n## promoted\n- GLOBAL_MARK\n");
@@ -57,9 +60,8 @@ test("pending file: never reaches a prompt of any workspace until the owner prom
 
 test("a real dev run prompt contains no pending-file text and no other workspace's memory", async () => {
   const { env } = twoWorkspaces();
-  const p = workspacePaths(env.home);
-  writeFileSync(p.memoryPending, "# pending\n\n## d\n- PENDING_MARK\n");
-  writeLocationNotes(env.home, "w2", "api", ["W2_MARK"]);
+  writeFileSync(join(env.home, STRAY_QUEUE_FILE), "# pending\n\n## d\n- PENDING_MARK\n");
+  writeChannelNotes(env.home, "w2", "w2-agent", ["W2_MARK"]);
   let prompt = "";
   const queryFn = (a: any) => {
     prompt = a.options.systemPrompt.append as string;
@@ -87,8 +89,8 @@ test("a real dev run prompt contains no pending-file text and no other workspace
 
 test("a message from w2's channel gets w2's memory and not w1's", async () => {
   const { env } = twoWorkspaces();
-  writeLocationNotes(env.home, "w1", "api", ["W1_MARK"]);
-  writeLocationNotes(env.home, "w2", "api", ["W2_MARK"]);
+  writeChannelNotes(env.home, "w1", "w1-agent", ["W1_MARK"]);
+  writeChannelNotes(env.home, "w2", "w2-agent", ["W2_MARK"]);
   let prompt = "";
   const queryFn = (a: any) => {
     prompt = a.options.systemPrompt.append as string;

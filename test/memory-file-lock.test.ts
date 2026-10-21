@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdtempSync,
   readdirSync,
+  statSync,
   symlinkSync,
   utimesSync,
   writeFileSync,
@@ -120,4 +121,13 @@ test("a symlinked memory file is refused", () => {
   writeFileSync(`${f}.real`, "# x\n");
   symlinkSync(`${f}.real`, f);
   expect(() => withMemoryLock(f, () => 1)).toThrow(MemorySymlinkError);
+});
+
+test("writeAtomic creates the file with mode 0600, also over a leftover tmp", () => {
+  const f = tmpFile();
+  writeFileSync(`${f}.tmp`, "old", { mode: 0o644 });
+  writeAtomic(f, "text");
+  expect(statSync(f).mode & 0o777).toBe(0o600);
+  writeAtomic(f, "again");
+  expect(statSync(f).mode & 0o777).toBe(0o600);
 });

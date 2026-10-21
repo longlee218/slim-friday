@@ -88,7 +88,6 @@ export function createMemorySearchTool(ctx: MemoryToolContext, budget: ReadBudge
       const { hits, terms } = searchIndex(ctx.db, ctx.workspace, {
         ...args,
         limit,
-        locations: ctx.locationNames(),
         channel: ctx.channel,
       });
       logEvent(log, "memory.search", {

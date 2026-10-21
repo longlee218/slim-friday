@@ -37,7 +37,6 @@ function setup(trackSummary = true) {
     db,
     home,
     workspace: "a",
-    locationNames: () => [],
     threadId: "th1",
     trackSummary,
     threadLabel: "thread t1",
@@ -63,7 +62,7 @@ function setup(trackSummary = true) {
     return f;
   };
   const journal = () => journalFile(home, "a", "2026-10-13");
-  const search = (q: string) => searchIndex(db, "a", { query: q, limit: 5, locations: [] }).hits;
+  const search = (q: string) => searchIndex(db, "a", { query: q, limit: 5 }).hits;
   return { home, db, pre, post, transcript, journal, search };
 }
 
@@ -264,7 +263,6 @@ test("journal: hook text is never injected into a prompt; the line limit stops a
     workspace: "a",
     kind: "lead",
     registry: "",
-    memoryLocations: [],
   });
   expect(JSON.stringify(prompt)).not.toContain("quarkus");
 
@@ -352,7 +350,6 @@ test("rollover context: PostCompact stores the SDK summary as is (no merge, no b
     db: s.db,
     home: s.home,
     workspace: "a",
-    locationNames: () => [],
     threadId: "th1",
     trackSummary: true,
     threadLabel: "thread t1",

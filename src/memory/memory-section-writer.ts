@@ -22,16 +22,13 @@ import { sanitizeBullet } from "./sanitize-bullet";
 /** Max chars of a journal block label (thread title or location name). */
 const JOURNAL_LABEL_CHARS = 60;
 
-/** Storage hard limit (lines): a write is refused at this size, never trimmed. */
+/** Line guard of ONE journal day file (runaway-flush guard): a journal write is refused at this size, never trimmed. Channel `MEMORY.md` has no size limit. */
 export const OWNER_MAX_LINES = 300;
-
-/** Body size used for caps: the trimmed file text (what the prompt reader measures). */
-const bodyChars = (text: string): number => text.trim().length;
 
 /** Logger of this module. */
 const log = logger.child({ module: "memory-section-writer" });
 
-/** Outcome of a sectioned write: `empty` = nothing left after sanitizing, `duplicate` = already there, `full` = the write would pass the line or char limit, `busy` = lock timeout. */
+/** Outcome of a sectioned write: `empty` = nothing left after sanitizing, `duplicate` = already there, `full` = a journal write would pass the line limit, `busy` = lock timeout. */
 export type SaveResult = "saved" | "duplicate" | "full" | "empty" | "busy" | "symlink";
 
 /** Where a note goes in a journal file: the `## HH:MM <label>` block. */
@@ -71,7 +68,7 @@ function writeSectioned(
  * Save one note into a MEMORY.md under the section of `kind` (created at the end when missing; existing text
  * untouched). Text is sanitized (one line, redacted, markup stripped, SAVE_MAX_CHARS), stamped ` (date)`, and
  * skipped when the section already has the same note. `header` is the content of a file that does not exist yet.
- * `date` is `YYYY-MM-DD`; `capChars` is the target's prompt cap (`MemoryTarget.cap`), refused past it or 300 lines. The caller picks the file (location, workspace or pending).
+ * `date` is `YYYY-MM-DD`. No size limit on the file (owner decision): only the per-note SAVE_MAX_CHARS applies. The caller picks the file.
  */
 export function saveMemoryBullet(
   file: string,
@@ -79,7 +76,6 @@ export function saveMemoryBullet(
   kind: MemoryKind,
   text: string,
   date: string,
-  capChars: number,
   fields: Record<string, unknown> = {},
 ): SaveResult {
   const clean = sanitizeBullet(text, SAVE_MAX_CHARS);
@@ -90,11 +86,7 @@ export function saveMemoryBullet(
     header,
     (old) => {
       if (hasBullet(old, kind, bullet)) return "duplicate";
-      const next = insertBullet(old, kind, bullet);
-      // Never trim saved notes: past the line or char limit the write is refused.
-      return next.trimEnd().split("\n").length > OWNER_MAX_LINES || bodyChars(next) > capChars
-        ? "full"
-        : next;
+      return insertBullet(old, kind, bullet);
     },
     { ...fields, kind, layer: "sectioned" },
   );

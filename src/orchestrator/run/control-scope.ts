@@ -6,10 +6,10 @@ import { realOrSame } from "../../policy/paths";
 import type { RoleRunInput } from "./role-run-types";
 import type { RoleScope } from "./role-scope-types";
 
-/** What the control role may read of one space: its config, its persona/memory files and its channels dir (never tasks, cwd, locations). */
+/** What the control role may read of one space: its config, its persona files and its channels dir (channel memory included) (never tasks, cwd, locations). */
 function spaceGrants(home: string, name: string): string[] {
   const w = workspacePaths(home).workspace(name);
-  return [w.config, w.user, w.identity, w.agents, w.soul, w.memory, w.channels];
+  return [w.config, w.user, w.identity, w.agents, w.soul, w.channels];
 }
 
 /** Names of the space folders that exist now (a space created during the run is readable from the next run). */

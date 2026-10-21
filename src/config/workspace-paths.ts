@@ -15,27 +15,25 @@ export function workspacePaths(agentHome: string) {
     /** Default identity/soul shared by every workspace (a workspace file overrides them). */
     identity: join(agentHome, "IDENTITY.md"),
     soul: join(agentHome, "SOUL.md"),
-    /** Owner operating notes, owner profile (preferences), global memory, owner guide (never injected). */
+    /** Owner operating notes, owner profile (preferences), root memory, owner guide (never injected). */
     agents: join(agentHome, "AGENTS.md"),
     /** Generated snapshot of the lead's TEAM.md (roster and caps), rewritten at every start; for the owner to read, never read by a run. */
     team: join(agentHome, "TEAM.md"),
     user: join(agentHome, "USER.md"),
     memory: join(agentHome, "MEMORY.md"),
     bootstrap: join(agentHome, "BOOTSTRAP.md"),
-    /** Agent-written `[global]` memory notes: never injected into a prompt. */
-    memoryPending: join(agentHome, "MEMORY.pending.md"),
     /** Full text of a long owner attachment, per thread (read-only for the lead). */
     attachments: (threadKey: string) => join(agentHome, "tmp", "attachments", threadKey),
     /** Backups of the home (persona file backups). */
     backups: join(agentHome, "backups"),
     /** Default home of NEW projects made from chat (no path, no `projectsDir`): `<home>/projects/<slug>`. Only a project inside it is exempt from the AGENT_HOME deny (never the dir itself). */
     projects: join(agentHome, "projects"),
-    /** Workspaces: each holds several locations (`workspaces/<ws>/locations/<location>/`). */
+    /** Workspaces: each holds channels (`workspaces/<ws>/channels/<name>/`) and the locations named in its yaml. */
     workspaces: join(agentHome, "workspaces"),
     workspace: (name: string) => {
       const root = join(agentHome, "workspaces", name);
-      const locations = join(root, "locations");
       const tasks = join(root, "tasks");
+      const locations = join(root, "locations");
       return {
         root,
         /** workspace.yaml: description, Discord channels, locations. */
@@ -44,8 +42,6 @@ export function workspacePaths(agentHome: string) {
         soul: join(root, "SOUL.md"),
         agents: join(root, "AGENTS.md"),
         user: join(root, "USER.md"),
-        /** Owner-edited workspace memory. */
-        memory: join(root, "MEMORY.md"),
         /** Owner-curated skills (`skills/<name>/SKILL.md`): the only skills any run of this workspace gets. */
         skills: join(root, "skills"),
         /** Artifacts of a run with no mapped channel (the channel level is `channel(name).artifacts`). */
@@ -60,6 +56,7 @@ export function workspacePaths(agentHome: string) {
           const troot = join(tasks, id);
           return { root: troot, scratch: join(troot, "scratch") };
         },
+        /** Legacy `locations/` dir: holds no memory any more, still created and granted to runs as before. */
         locations,
         /** Channels dir: `channels/<name>/` holds the channel's own memory and optional persona files. */
         channels: join(root, "channels"),
@@ -68,7 +65,7 @@ export function workspacePaths(agentHome: string) {
           const croot = join(root, "channels", name);
           return {
             root: croot,
-            /** Agent-written channel memory. */
+            /** Channel memory: the one agent memory (lead writes, lead and workers read). */
             memory: join(croot, "MEMORY.md"),
             /** Optional persona files: a non-empty one overrides the space's (then the root's). */
             agents: join(croot, "AGENTS.md"),
@@ -77,15 +74,6 @@ export function workspacePaths(agentHome: string) {
             user: join(croot, "USER.md"),
             /** Titled documents of the channel (`<llm-title>[-vN].<ext>`), owner-only (0700 dir, 0600 files). */
             artifacts: join(croot, "artifacts"),
-          };
-        },
-        /** Per-location dir `locations/<name>/` (only MEMORY.md lives in it; the location's own files are at its `path`). */
-        location: (r: string) => {
-          const rroot = join(locations, r);
-          return {
-            root: rroot,
-            /** Agent-written location memory. */
-            memory: join(rroot, "MEMORY.md"),
           };
         },
       };

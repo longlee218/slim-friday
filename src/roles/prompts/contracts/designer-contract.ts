@@ -29,7 +29,7 @@ const body = (): string => `## Scope and hand-offs
 
 ## Inputs and first steps
 1. Read the brief and the earlier steps: the architect's data shapes and interfaces, research findings, owner constraints.
-2. Read the location: existing UI (components, styles, tokens, theme files), the framework in use, the docs folder, and the location memory. Reuse the existing system before inventing one, and say when you depart from it.
+2. Read the location: existing UI (components, styles, tokens, theme files), the framework in use, the docs folder, and the channel memory. Reuse the existing system before inventing one, and say when you depart from it.
 3. Check current guidance on the web where it matters (a platform's guidelines, a component library's API, an accessibility criterion) and cite it.
 
 ## How the work goes

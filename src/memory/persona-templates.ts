@@ -84,9 +84,9 @@ export const DEFAULT_AGENTS = `# Agents
 `;
 
 /** Root memory template: header only, so it counts as empty until the first `## ` entry. Owner-written only. */
-export const ROOT_MEMORY = `# global memory
+export const ROOT_MEMORY = `# root memory
 
-Facts true for every workspace. Written by the owner only (the agent never edits this file; its [global] notes wait in MEMORY.pending.md until you promote them). Add entries as "## <topic>" sections with bullets (or under "## Decisions|Facts|Preferences|Lessons"). Up to 5000 chars are used: the end of a plain file, or the newest bullets of each kind section.
+Facts true for every workspace and channel. Written by the owner only (the agent never edits this file). Read by the lead and by every member of every channel, whole (no size cut). Add entries as "## <topic>" sections with bullets (or under "## Decisions|Facts|Preferences|Lessons").
 `;
 
 /** Owner guide: never injected into a prompt, never read by code. */
@@ -97,32 +97,23 @@ Files in this folder (root) and their optional per-workspace copy in workspaces/
 - IDENTITY.md: who the agent is.
 - SOUL.md: tone of the replies.
 - USER.md: your profile and preferences (language...). Move such lines from SOUL.md here by hand.
-- MEMORY.md: root = facts for every workspace; workspaces/<ws>/MEMORY.md = facts for that workspace. Both are written by you only.
-- MEMORY.pending.md: [global] notes the agent proposed. NEVER injected into any prompt. Review it, then copy the facts you trust into MEMORY.md by hand (or into a workspace MEMORY.md), and delete them here.
+- MEMORY.md: root = facts for every channel, written by you only. The agent's memory is the channel MEMORY.md (workspaces/<ws>/channels/<channel>/MEMORY.md): the lead writes it, and the lead and every member of that channel read it. Both files are injected whole (no size cut).
+- Old workspace and location MEMORY.md files and the old pending-queue file are not read any more (a one-time merge copied the notes of the workspace and location files into the channel files; every old file stays on disk, and notes of the old pending queue are promoted by hand).
 - BOOTSTRAP.md: this guide.
 
 Layering: a non-empty workspace AGENTS/IDENTITY/SOUL/USER file REPLACES the root file (per file); an empty,
 heading-only or comment-only file falls back to the root one. <!-- comments --> are stripped from the prompt.
 
-Caps (chars): each persona file 8000 (cut in the middle: 70% head, 30% tail, with a marker); memory: root 5000, workspace 5000, each location 8000 (all locations of the workspace 16000), newest kept (in a file with kind sections: the newest bullets of each section).
+Caps (chars): each persona file 8000 (cut in the middle: 70% head, 30% tail, with a marker). Memory has no size cap.
 
 Memory writes: the agent saves notes during a run with its memory tool (a message like "remember: ..." or "nhớ: ..." goes to the
-agent like any message; it picks the scope and location). Location notes go to workspaces/<ws>/locations/<location>/MEMORY.md; global proposals go
-to MEMORY.pending.md. Bullets are reduced to one plain line (no markup, no role prefixes, secrets masked). Prune wrong entries by hand.
+agent like any message). Channel notes go to workspaces/<ws>/channels/<channel>/MEMORY.md. Bullets are reduced to one plain line (no markup, no role prefixes, secrets masked). Prune wrong entries by hand.
 
 Owner commands (type them in a workspace channel; no agent, no quota except where noted):
 - /stop: abort the running task.
 - /init-workspace <name>: create a workspace (#ops-control only).
 `;
 
-/** Workspace memory template (owner-written; a header only: it counts as empty until the first "## " entry). */
-export const workspaceMemoryTemplate = (ws: string) =>
-  `# ${ws} workspace memory\n\nFacts true for every location of this workspace. Written by the owner only (the agent never edits this file). Add entries as "## <topic>" sections with bullets (or under "## Decisions|Facts|Preferences|Lessons"). Up to 5000 chars are used: the end of a plain file, or the newest bullets of each kind section.\n`;
-
-/** Per-location memory template (a header only: it counts as empty until the first entry). */
-export const memoryTemplate = (name: string) =>
-  `# ${name} memory\n\nLessons the Friday agent keeps about this location, in sections by kind (Decisions, Facts, Preferences, Lessons). Kind sections are never dropped, and a full file refuses new notes. Dated legacy sections are trimmed at 300 lines.\n`;
-
 /** Per-channel memory template (a header only: it counts as empty until the first entry). */
 export const channelMemoryTemplate = (name: string) =>
-  `# ${name} channel memory\n\nNotes the Friday agent keeps about this channel's topic, in sections by kind (Decisions, Facts, Preferences, Lessons). Only runs started in this channel read it. A full file refuses new notes.\n`;
+  `# ${name} channel memory\n\nNotes the Friday agent keeps about this channel's topic, in sections by kind (Decisions, Facts, Preferences, Lessons). The lead writes it; the lead and every member of this channel read it, whole.\n`;

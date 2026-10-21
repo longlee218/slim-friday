@@ -19,8 +19,6 @@ export interface SearchArgs {
   /** `YYYY-MM-DD`: only entries with this date or later. */
   since?: string;
   limit: number;
-  /** Location names of the run's registry: hits of any other location are left out. */
-  locations: string[];
   /** Channel of the run: channel entries of any other channel are left out (none when absent). */
   channel?: string;
 }
@@ -62,13 +60,6 @@ export function searchIndex(
   if (terms.length === 0) return { hits: [], terms: 0 };
   const where = ["memory_fts MATCH ?", "workspace IN (?, '')"];
   const params: (string | number)[] = [buildMatch(terms), workspace];
-  // Location entries only for locations the run knows (the id prefix before '#' is `location/<name>`).
-  if (a.locations.length) {
-    where.push(
-      `(source <> 'location' OR substr(id, 1, instr(id, '#') - 1) IN (${a.locations.map(() => "?").join(", ")}))`,
-    );
-    params.push(...a.locations.map((r) => `location/${r}`));
-  } else where.push("source <> 'location'");
   // Channel entries only for the run's own channel (id prefix `channel/<name>`).
   if (a.channel)
     where.push("(source <> 'channel' OR substr(id, 1, instr(id, '#') - 1) = ?)"),

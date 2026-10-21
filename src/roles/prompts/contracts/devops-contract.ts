@@ -24,7 +24,7 @@ const body = (): string => `## Scope and hand-offs
 
 ## Inputs and first steps
 1. Read the brief and the earlier steps (what the developer built, how it runs).
-2. Read the location: languages and versions, the package manager and lockfiles, the existing scripts and CI, how tests run, and the location memory. Reuse what exists. A second CI system or build tool needs a reason.
+2. Read the location: languages and versions, the package manager and lockfiles, the existing scripts and CI, how tests run, and the channel memory. Reuse what exists. A second CI system or build tool needs a reason.
 3. Note which checks this environment can run (docker present or not, the toolchain installed) before promising them.
 
 ## How the work goes

@@ -19,7 +19,6 @@ export const FULL_CTX: RunCtx = {
     db: new Database(":memory:"),
     home: "/nowhere",
     workspace: "w",
-    locationNames: () => [],
     threadLabel: "t",
     threadId: "t1",
     threadTitle: { rename: async () => "kept" } as never,

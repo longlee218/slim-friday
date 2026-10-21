@@ -85,7 +85,7 @@ function replaceRows(
 
 /**
  * Re-index ONE file from its current content (what `MemorySave` calls after a write). Paths that are not an
- * indexable memory file (MEMORY.pending.md...) are refused ("skipped"); a vanished, symlinked or oversized
+ * indexable memory file (the retired workspace and location files, a pending queue file...) are refused ("skipped"); a vanished, symlinked or oversized
  * file is purged ("removed").
  */
 export function reindexFile(

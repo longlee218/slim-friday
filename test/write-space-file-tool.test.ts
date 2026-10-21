@@ -46,7 +46,8 @@ function setup(answer = true) {
     now: () => new Date("2026-10-15T10:00:00.123Z"),
   };
   const ws = workspacePaths(home).workspace("study");
-  return { home, ctx, asked, ws, backups: join(home, "backups", "persona") };
+  const memory = ws.channel("study-agent").memory;
+  return { home, ctx, asked, ws, memory, backups: join(home, "backups", "persona") };
 }
 
 const NEW = "# Soul\n- Patient and clear.\n- Short steps.\n";
@@ -202,16 +203,44 @@ test("too long content, NUL bytes, no change", async () => {
   expect(s.asked).toHaveLength(0);
 });
 
-test("MEMORY.md is a writable file too (and is created when missing)", async () => {
+test("a channel MEMORY.md is a writable file too (and is created when missing)", async () => {
   const s = setup();
-  await Bun.$`rm -f ${s.ws.memory}`.quiet();
+  await Bun.$`rm -f ${s.memory}`.quiet();
   const r = await writeSpaceFile(s.ctx, {
     space: "study",
+    channel: "study-agent",
     file: "MEMORY.md",
     content: "# Memory\n## Facts\n- a\n",
   });
   expect(r.error).toBe(false);
-  expect(readFileSync(s.ws.memory, "utf8")).toContain("- a");
+  expect(readFileSync(s.memory, "utf8")).toContain("- a");
+});
+
+test("content over 6000 chars: a channel MEMORY.md is accepted, a persona file is refused", async () => {
+  const s = setup();
+  const big = `# Memory\n${"- fact\n".repeat(1200)}`;
+  expect(big.length).toBeGreaterThan(6000);
+  const m = await writeSpaceFile(s.ctx, {
+    space: "study",
+    channel: "study-agent",
+    file: "MEMORY.md",
+    content: big,
+  });
+  expect(m.error).toBe(false);
+  expect(readFileSync(s.memory, "utf8")).toBe(big);
+  const p = await writeSpaceFile(s.ctx, { space: "study", file: "SOUL.md", content: big });
+  expect(p).toEqual({ text: "content must be text of at most 6000 chars", error: true });
+});
+
+test("a space-level MEMORY.md is refused: memory belongs to a channel", async () => {
+  const s = setup();
+  const r = await writeSpaceFile(s.ctx, {
+    space: "study",
+    file: "MEMORY.md",
+    content: "# Memory\n- x\n",
+  });
+  expect(r).toEqual({ text: "MEMORY.md belongs to a channel", error: true });
+  expect(s.asked).toHaveLength(0);
 });
 
 test("the file changed while the owner decided: nothing is written, the other writer's bytes stay", async () => {
@@ -261,24 +290,30 @@ test("a written MEMORY.md is searchable at once (re-indexed)", async () => {
   s.ctx.db = db;
   const r = await writeSpaceFile(s.ctx, {
     space: "study",
+    channel: "study-agent",
     file: "MEMORY.md",
     content: "# Memory\n## Facts\n- zebracorn vocabulary list\n",
   });
   expect(r.error).toBe(false);
-  const { hits } = searchIndex(db, "study", { query: "zebracorn", limit: 5, locations: [] });
+  const { hits } = searchIndex(db, "study", {
+    query: "zebracorn",
+    limit: 5,
+    channel: "study-agent",
+  });
   expect(hits.length).toBeGreaterThan(0);
 });
 
 test("the memory lock is held by another writer: nothing is written (after the 5 s lock wait)", async () => {
   const s = setup();
-  const before = readFileSync(s.ws.memory, "utf8");
-  writeFileSync(`${s.ws.memory}.lock`, String(process.pid)); // a live holder (this process)
+  const before = readFileSync(s.memory, "utf8");
+  writeFileSync(`${s.memory}.lock`, String(process.pid)); // a live holder (this process)
   const r = await writeSpaceFile(s.ctx, {
     space: "study",
+    channel: "study-agent",
     file: "MEMORY.md",
     content: "# Memory\n- x\n",
   });
   expect(r.error).toBe(true);
   expect(r.text).toContain("busy");
-  expect(readFileSync(s.ws.memory, "utf8")).toBe(before);
+  expect(readFileSync(s.memory, "utf8")).toBe(before);
 }, 10_000);

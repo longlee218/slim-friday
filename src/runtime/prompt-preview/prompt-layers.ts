@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
 import { buildLocationsContext, type Location } from "../../locations/location-registry";
 import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
-import { buildMemoryContext } from "../../memory/location-memory";
+import { buildMemoryContext } from "../../memory/channel-memory";
 import { buildPersonaContext } from "../../memory/persona";
 import type { RoleRunInput } from "../../orchestrator/run/role-run-types";
 import type { RoleScope } from "../../orchestrator/run/role-scope-types";
@@ -26,7 +26,7 @@ export interface PreviewInput {
   /** Workspace of the run; omitted = a placeholder one (its persona files fall back to the root ones). Ignored for the control role. */
   workspace?: string;
   channel?: string;
-  /** Locations of the channel (TEAM.md for the lead, registry and memory for a worker). */
+  /** Locations of the channel (TEAM.md for the lead, registry for a worker). */
   locations?: Location[];
   /** Worktrees dir a writing role is told about; omitted = no line. */
   worktreesDir?: string;
@@ -84,17 +84,7 @@ export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): Promp
       "registry (locations of the run)",
       workspace && buildLocationsContext(workspace, locations, true),
     ],
-    [
-      "memory",
-      workspace &&
-        buildMemoryContext(
-          i.agentHome,
-          workspace,
-          i.channel,
-          locations.map((l) => l.name),
-          role.kind !== "worker",
-        ),
-    ],
+    ["memory", workspace && buildMemoryContext(i.agentHome, workspace, i.channel)],
     ["thread-title note (fresh thread only)", threadTitleNote(FRESH_THREAD_DB, "preview", true)[0]],
   ];
   const contract = role.promptSections(opts).join("\n");

@@ -16,6 +16,7 @@ import { searchIndex } from "../src/memory/index/memory-search";
 import { syncAll, syncIndex } from "../src/memory/index/memory-sync";
 import { openDb } from "../src/storage/db";
 import { saveSummary } from "../src/storage/thread-summary-store";
+import { STRAY_QUEUE_FILE } from "./memory-fixture";
 
 /** Temp home + db with helpers to write files under it. */
 function setup() {
@@ -28,7 +29,7 @@ function setup() {
     return f;
   };
   const find = (ws: string, query: string, extra: Record<string, unknown> = {}) =>
-    searchIndex(db, ws, { query, limit: 20, locations: ["api", "web"], ...extra } as never).hits;
+    searchIndex(db, ws, { query, limit: 20, channel: "c1", ...extra } as never).hits;
   return { home, db, put, find };
 }
 const MEM = (s: string) => `# M\n\n## Decisions\n${s}\n`;
@@ -49,11 +50,11 @@ test("fold: đ -> d, NFD -> NFC, accents stripped by the tokenizer", () => {
 });
 
 test("ids: round trip and hostile input", () => {
-  const id = makeId("location/api", "Decisions", 2, hash6("Use Bun."));
+  const id = makeId("channel/finance", "Decisions", 2, hash6("Use Bun."));
   expect(parseId(id)).toMatchObject({
     type: "file",
-    source: "location",
-    location: "api",
+    source: "channel",
+    channel: "finance",
     token: "Decisions",
     n: 2,
   });
@@ -67,6 +68,9 @@ test("ids: round trip and hostile input", () => {
     "../x",
     "root#Evil:1~abcdef",
     "location/../x#Facts:1~abcdef",
+    "location/api#Facts:1~abcdef", // retired layers
+    "workspace#Facts:1~abcdef",
+    "channel/../x#Facts:1~abcdef",
     "root#Facts:1~ZZZZZZ",
     "x".repeat(500),
     "summary/a/b@1",
@@ -104,18 +108,19 @@ test("chunker: bullets by section, legacy Other/Text, journal blocks, CRLF", () 
   expect(j[0]?.text).not.toContain("thread b");
 });
 
-test("classify: only the four shapes; pending, AGENTS, odd paths refused", () => {
+test("classify: only the three shapes; retired workspace and location files, pending, AGENTS, odd paths refused", () => {
   const { home } = setup();
   const c = (rel: string) => classifyFile(home, join(home, rel));
   expect(c("MEMORY.md")).toMatchObject({ source: "root", workspace: "" });
-  expect(c("workspaces/a/MEMORY.md")).toMatchObject({ source: "workspace" });
-  expect(c("workspaces/a/locations/api/MEMORY.md")).toMatchObject({
-    source: "location",
-    location: "api",
+  expect(c("workspaces/a/channels/c1/MEMORY.md")).toMatchObject({
+    source: "channel",
+    channel: "c1",
   });
   expect(c("workspaces/a/memory/2026-10-13.md")).toMatchObject({ source: "journal" });
   for (const bad of [
-    "MEMORY.pending.md",
+    STRAY_QUEUE_FILE,
+    "workspaces/a/MEMORY.md",
+    "workspaces/a/locations/api/MEMORY.md",
     "AGENTS.md",
     "workspaces/a/AGENTS.md",
     "workspaces/a/memory/notes.md",
@@ -130,7 +135,7 @@ test("classify: only the four shapes; pending, AGENTS, odd paths refused", () =>
 test("ranking: more terms and rarer terms win; limit and filters", () => {
   const s = setup();
   s.put(
-    "workspaces/a/MEMORY.md",
+    "workspaces/a/channels/c1/MEMORY.md",
     `${MEM("- alpha beta gamma\n- alpha only\n- gamma gamma gamma plus alpha")}\n## Lessons\n- alpha lesson\n`,
   );
   syncIndex(s.db, s.home, "a");
@@ -140,13 +145,13 @@ test("ranking: more terms and rarer terms win; limit and filters", () => {
   expect(s.find("a", "alpha", { limit: 2 })).toHaveLength(2);
   expect(s.find("a", "alpha", { kind: "lesson" }).map((h) => h.snippet)).toEqual(["alpha lesson"]);
   expect(s.find("a", "alpha", { scope: "journal" })).toEqual([]);
-  expect(s.find("a", "alpha", { scope: "workspace" }).length).toBeGreaterThan(0);
+  expect(s.find("a", "alpha", { scope: "channel" }).length).toBeGreaterThan(0);
 });
 
 test("since filter uses the entry date (undated: file mtime day)", () => {
   const s = setup();
   const f = s.put(
-    "workspaces/a/MEMORY.md",
+    "workspaces/a/channels/c1/MEMORY.md",
     "## Facts\n- old fact (2026-01-01)\n- new fact (2026-10-10)\n- undated fact\n",
   );
   utimesSync(f, new Date(2026, 5, 1), new Date(2026, 5, 1));
@@ -158,7 +163,7 @@ test("since filter uses the entry date (undated: file mtime day)", () => {
 test("accent-insensitive Vietnamese including đ", () => {
   const s = setup();
   s.put(
-    "workspaces/a/MEMORY.md",
+    "workspaces/a/channels/c1/MEMORY.md",
     MEM("- quyết định dùng pnpm (2026-10-01)\n- đường dẫn gốc là /srv (2026-10-02)"),
   );
   syncIndex(s.db, s.home, "a");
@@ -173,10 +178,10 @@ test("accent-insensitive Vietnamese including đ", () => {
 test("workspace isolation (memory, journal, summary); root visible to both; pending never indexed", () => {
   const s = setup();
   s.put("MEMORY.md", MEM("- rootword shared"));
-  s.put("MEMORY.pending.md", MEM("- pendingword secret"));
+  s.put(STRAY_QUEUE_FILE, MEM("- pendingword secret"));
   s.put("AGENTS.md", "agentsword\n");
   for (const ws of ["a", "b"]) {
-    s.put(`workspaces/${ws}/MEMORY.md`, MEM(`- zebra ${ws}`));
+    s.put(`workspaces/${ws}/channels/c1/MEMORY.md`, MEM(`- zebra ${ws}`));
     s.put(
       `workspaces/${ws}/memory/2026-10-13.md`,
       `## 09:00 t\n### Facts\n- zebra journal ${ws}\n`,
@@ -194,7 +199,7 @@ test("workspace isolation (memory, journal, summary); root visible to both; pend
   expect(s.find("a", "rootword")).toHaveLength(1);
   expect(s.find("b", "rootword")).toHaveLength(1);
   for (const w of ["pendingword", "agentsword"]) expect(s.find("a", w)).toEqual([]);
-  expect(reindexFile(s.db, s.home, join(s.home, "MEMORY.pending.md"))).toBe("skipped");
+  expect(reindexFile(s.db, s.home, join(s.home, STRAY_QUEUE_FILE))).toBe("skipped");
   expect(s.find("a", "pendingword")).toEqual([]);
   // same-workspace summaries from several threads
   saveSummary(s.db, "th2", "a", "zebra second thread");
@@ -205,16 +210,16 @@ test("workspace isolation (memory, journal, summary); root visible to both; pend
 
 test("FTS syntax in the query is inert", () => {
   const s = setup();
-  s.put("workspaces/a/MEMORY.md", MEM("- foo bar"));
-  s.put("workspaces/b/MEMORY.md", MEM("- foo secretb"));
+  s.put("workspaces/a/channels/c1/MEMORY.md", MEM("- foo bar"));
+  s.put("workspaces/b/channels/c1/MEMORY.md", MEM("- foo secretb"));
   syncAll(s.db, s.home);
   const r = searchIndex(s.db, "a", {
     query: 'foo" OR workspace:b* NEAR(',
     limit: 20,
-    locations: [],
+    channel: "c1",
   });
   expect(r.hits.map((h) => h.snippet)).toEqual(["foo bar"]);
-  expect(searchIndex(s.db, "a", { query: '"*^(', limit: 5, locations: [] })).toEqual({
+  expect(searchIndex(s.db, "a", { query: '"*^(', limit: 5, channel: "c1" })).toEqual({
     hits: [],
     terms: 0,
   });
@@ -222,7 +227,7 @@ test("FTS syntax in the query is inert", () => {
 
 test("freshness: unchanged file is not re-read; changed file replaced; deleted purged; symlink refused", () => {
   const s = setup();
-  const f = s.put("workspaces/a/MEMORY.md", MEM("- first note"));
+  const f = s.put("workspaces/a/channels/c1/MEMORY.md", MEM("- first note"));
   syncIndex(s.db, s.home, "a");
   s.db.query("UPDATE memory_fts SET text = 'sentinel words'").run(); // tamper: a re-read would restore 'first note'
   expect(syncIndex(s.db, s.home, "a").reindexed).toBe(0);
@@ -234,7 +239,7 @@ test("freshness: unchanged file is not re-read; changed file replaced; deleted p
   expect(s.find("a", "first")).toEqual([]);
   const out = join(s.home, "outside.md");
   writeFileSync(out, MEM("- linked secret"));
-  const link = join(s.home, "workspaces/a/locations/api/MEMORY.md");
+  const link = join(s.home, "workspaces/a/channels/c2/MEMORY.md");
   mkdirSync(join(link, ".."), { recursive: true });
   symlinkSync(out, link);
   syncIndex(s.db, s.home, "a");
@@ -247,26 +252,26 @@ test("freshness: unchanged file is not re-read; changed file replaced; deleted p
 test("caps: big file skipped, chunks per file, chunk text clipped, summaries of a deleted thread purged", () => {
   const s = setup();
   s.put(
-    "workspaces/a/MEMORY.md",
+    "workspaces/a/channels/c1/MEMORY.md",
     `## Facts\n${"- bigword filler\n".repeat(INDEX_MAX_FILE_BYTES / 10)}`,
   );
   s.put(
-    "workspaces/a/locations/api/MEMORY.md",
+    "workspaces/a/channels/c2/MEMORY.md",
     `## Facts\n${Array.from({ length: INDEX_MAX_CHUNKS_PER_FILE + 5 }, (_, i) => `- item${i} x`).join("\n")}\n`,
   );
-  s.put("workspaces/a/locations/web/MEMORY.md", `## Facts\n- ${"clipword ".repeat(400)}tailword\n`);
+  s.put("workspaces/a/channels/c3/MEMORY.md", `## Facts\n- ${"clipword ".repeat(400)}tailword\n`);
   syncIndex(s.db, s.home, "a");
   expect(s.find("a", "bigword")).toEqual([]);
   expect(
     s.db
       .query(
-        "SELECT count(*) AS c FROM memory_fts WHERE source = 'location' AND id LIKE 'location/api%'",
+        "SELECT count(*) AS c FROM memory_fts WHERE source = 'channel' AND id LIKE 'channel/c2%'",
       )
       .get(),
   ).toEqual({ c: INDEX_MAX_CHUNKS_PER_FILE });
-  expect(s.find("a", "item0")).toEqual([]); // oldest dropped
-  expect(s.find("a", "tailword")).toEqual([]); // clipped at CHUNK_MAX_CHARS
-  expect(s.find("a", "clipword")[0]?.snippet.length).toBeLessThanOrEqual(200);
+  expect(s.find("a", "item0", { channel: "c2" })).toEqual([]); // oldest dropped
+  expect(s.find("a", "tailword", { channel: "c3" })).toEqual([]); // clipped at CHUNK_MAX_CHARS
+  expect(s.find("a", "clipword", { channel: "c3" })[0]?.snippet.length).toBeLessThanOrEqual(200);
   expect(CHUNK_MAX_CHARS).toBe(1200);
   saveSummary(s.db, "gone", "a", "summaryword");
   syncIndex(s.db, s.home, "a");
@@ -274,4 +279,27 @@ test("caps: big file skipped, chunks per file, chunk text clipped, summaries of 
   s.db.query("DELETE FROM thread_summaries").run();
   syncIndex(s.db, s.home, "a");
   expect(s.find("a", "summaryword")).toEqual([]);
+});
+
+test("sync purges index rows of retired workspace and location files (they no longer classify)", () => {
+  const s = setup();
+  const ws = s.put("workspaces/a/MEMORY.md", MEM("- oldlayerword"));
+  const loc = s.put("workspaces/a/locations/api/MEMORY.md", MEM("- oldlayerword"));
+  // Rows as an older build left them: the files exist, but their paths are not indexable now.
+  for (const [path, id, source] of [
+    [ws, "workspace#Decisions:1~abcdef", "workspace"],
+    [loc, "location/api#Decisions:1~abcdef", "location"],
+  ] as const) {
+    s.db
+      .query("INSERT INTO memory_files (path, workspace, mtime_ms, size) VALUES (?, 'a', 1, 1)")
+      .run(path);
+    s.db
+      .query(
+        "INSERT INTO memory_fts (text, orig, id, source, section, kind, date, workspace, path) VALUES ('oldlayerword', 'oldlayerword', ?, ?, 'Decisions', 'decision', '2026-10-01', 'a', ?)",
+      )
+      .run(id, source, path);
+  }
+  expect(s.find("a", "oldlayerword")).toHaveLength(2);
+  expect(syncIndex(s.db, s.home, "a").purged).toBe(2);
+  expect(s.find("a", "oldlayerword")).toEqual([]);
 });

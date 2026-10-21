@@ -10,9 +10,7 @@ import {
   DEFAULT_IDENTITY,
   DEFAULT_SOUL,
   DEFAULT_USER,
-  memoryTemplate,
   ROOT_MEMORY,
-  workspaceMemoryTemplate,
 } from "./persona-templates";
 
 /** Max chars kept of one persona file (4 files => at most 32000 chars of persona). */
@@ -58,7 +56,7 @@ export function ensureChannelDir(agentHome: string, ws: string, name: string): v
 
 /**
  * Create the missing pieces of the home and of every workspace (never overwrites): root
- * AGENTS/IDENTITY/SOUL/USER/MEMORY/BOOTSTRAP; per workspace `cwd/` + empty `skills/` + MEMORY.md; per location and per channel `MEMORY.md`.
+ * AGENTS/IDENTITY/SOUL/USER/MEMORY/BOOTSTRAP; per workspace `cwd/` + empty `skills/`; per channel its folder and `MEMORY.md`.
  * Writes no CLAUDE.md; the SDK loads none (settingSources []), so these files are the only instructions.
  */
 export function ensureHome(agentHome: string, workspaces: Workspace[]): void {
@@ -74,8 +72,6 @@ export function ensureHome(agentHome: string, workspaces: Workspace[]): void {
     const ws = paths.workspace(w.name);
     mkdirSync(ws.cwd, { recursive: true });
     mkdirSync(ws.skills, { recursive: true, mode: 0o700 }); // owner-curated skills, empty by default
-    ensureFile(ws.memory, workspaceMemoryTemplate(w.name));
-    for (const r of w.locations) ensureFile(ws.location(r.name).memory, memoryTemplate(r.name));
     for (const c of w.channelDefs) ensureChannelDir(agentHome, w.name, c.name);
   }
 }

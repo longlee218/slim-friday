@@ -20,10 +20,6 @@ const log = logger.child({ module: "memory-save-tool" });
 const SHAPE = {
   text: z.string().describe("The note: one short plain sentence."),
   scope: z.enum(MEMORY_SAVE_SCOPES),
-  location: z
-    .string()
-    .optional()
-    .describe("Location name; required with scope location, otherwise omit."),
   kind: z.enum(MEMORY_KINDS).optional().describe("Default fact. open only with scope journal."),
 };
 
@@ -32,7 +28,6 @@ const ISSUE_OF: Record<string, TrustedToolIssueCode> = {
   too_short: "invalid_input",
   too_long: "invalid_input",
   bad_kind: "invalid_input",
-  bad_location: "invalid_input",
   no_channel: "invalid_input",
   empty: "invalid_input",
   full: "limit",

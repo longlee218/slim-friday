@@ -10,16 +10,12 @@ export interface MemoryToolContext {
   db: Database;
   /** AGENT_HOME: where every memory file lives. */
   home: string;
-  /** Workspace of the run: scope `workspace`, `location` and `journal` resolve inside it. */
+  /** Workspace of the run: scope `channel` and `journal` resolve inside it. */
   workspace: string;
   /** Channel (yaml name) the run started in: scope `channel` writes its MEMORY.md; absent = no channel. */
   channel?: string;
   /** Discord channel id the run started in (the thread's parent): `Orchestrate set_title` stamps it on a thread row it must create. */
   channelId?: string;
-  /** Valid location names of the workspace (the registry), read when a tool needs them. */
-  locationNames: () => string[];
-  /** The run's single location, when it has exactly one: stamps `global` notes with their origin (`[ws/location]`). */
-  location?: string;
   /** Thread of the run: the compaction hooks store its summary and cycle counters under it. */
   threadId?: string;
   /** Foreground run: the PostCompact hook may store the thread summary and count cycles. Background runs (developer) leave the thread summary alone. */

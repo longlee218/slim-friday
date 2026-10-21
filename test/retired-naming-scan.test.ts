@@ -60,6 +60,25 @@ const SYMBOLS: Record<string, RegExp> = {
   "storage role fn": new RegExp(`\\b${["task", "Role"].join("")}\\b`),
   "storage interrupt fn": new RegExp(`\\b${["interruptRunning", "Tasks"].join("")}\\b`),
   "storage status type": new RegExp(`\\b${["Task", "Status"].join("")}\\b`),
+  // memory v2 phase 1: workspace, location and pending-queue layers, size caps and their helpers
+  "pending path field": new RegExp(`\\b${["memory", "Pending"].join("")}\\b`),
+  "pending queue file": j("MEMORY", "\\.pending"),
+  "location memory target": new RegExp(`\\b${["location", "Target"].join("")}\\b`),
+  "workspace memory target": new RegExp(`\\b${["workspace", "Target"].join("")}\\b`),
+  "location memory file fn": new RegExp(`\\b${["location", "MemoryFile"].join("")}\\b`),
+  "location memory reader": new RegExp(`\\b${["read", "LocationMemory"].join("")}\\b`),
+  "workspace memory reader": new RegExp(`\\b${["read", "WorkspaceMemory"].join("")}\\b`),
+  "location memory cap": new RegExp(`\\b${["PER_LOCATION", "_CHARS"].join("")}\\b`),
+  "workspace memory cap": new RegExp(`\\b${["WORKSPACE", "_CHARS"].join("")}\\b`),
+  "root memory cap": new RegExp(`\\b${["ROOT", "_CHARS"].join("")}\\b`),
+  "channel memory cap": new RegExp(`\\b${["CHANNEL", "_CHARS"].join("")}\\b`),
+  "capped reader": new RegExp(`\\b${["read", "Capped"].join("")}\\b`),
+  "memory cut fn": new RegExp(`\\b${["cap", "Memory"].join("")}\\b`),
+  "memory cut file path": j("memory", "-cap", "\\b"),
+  "pending cap constant": new RegExp(`\\b${["MEMORY_SAVE_PENDING", "_CAP_CHARS"].join("")}\\b`),
+  "workspace memory template": new RegExp(`\\b${["workspace", "MemoryTemplate"].join("")}\\b`),
+  "pending header": new RegExp(`\\b${["PENDING", "_HEADER"].join("")}\\b`),
+  "location memory file path": j("location", "-memory", "\\b"),
 };
 
 /**

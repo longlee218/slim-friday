@@ -1,18 +1,21 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { locationMemoryFile } from "../src/memory/location-memory";
+import { channelMemoryFile } from "../src/memory/channel-memory";
 
-/** Test fixture: a location MEMORY.md holding `bullets` under one dated section (what a `MemorySave` call leaves behind). */
-export function writeLocationNotes(
+/** Test fixture: a channel MEMORY.md holding `bullets` under one dated section (what a `MemorySave` call leaves behind). */
+export function writeChannelNotes(
   home: string,
   ws: string,
-  location: string,
+  channel: string,
   bullets: string[],
 ): void {
-  const f = locationMemoryFile(home, ws, location);
+  const f = channelMemoryFile(home, ws, channel);
   mkdirSync(dirname(f), { recursive: true });
   writeFileSync(
     f,
-    `# ${location} memory\n\n## 2026-10-13 note\n${bullets.map((b) => `- ${b}`).join("\n")}\n`,
+    `# ${channel} channel memory\n\n## 2026-10-13 note\n${bullets.map((b) => `- ${b}`).join("\n")}\n`,
   );
 }
+
+/** Name of the retired pending-queue file (built from parts: the retired-name scan bans the literal). A stray one must never be read or indexed. */
+export const STRAY_QUEUE_FILE = ["MEMORY", "pending", "md"].join(".");

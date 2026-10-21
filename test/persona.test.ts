@@ -7,7 +7,7 @@ import { buildPersonaContext, cutMiddle, ensureHome } from "../src/memory/person
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { addLocation, clearWorkspaces, makeEnv } from "./helpers";
 
-test("ensureHome creates defaults + workspace/location files once, never overwrites, no CLAUDE.md", () => {
+test("ensureHome creates defaults + channel memory once (no workspace or location memory), never overwrites, no CLAUDE.md", () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
   const location = addLocation(env.home, "api", { description: "billing api" });
@@ -15,8 +15,11 @@ test("ensureHome creates defaults + workspace/location files once, never overwri
   const p = workspacePaths(env.home);
   ensureHome(env.home, loadWorkspaces(env.home).workspaces);
   const ws = p.workspace("main");
-  for (const f of [p.identity, p.soul, p.memory, ws.memory, ws.location("api").memory])
+  for (const f of [p.identity, p.soul, p.memory, ws.channel("main-agent").memory])
     expect(existsSync(f)).toBe(true);
+  // The retired layers get no file.
+  expect(existsSync(join(ws.root, "MEMORY.md"))).toBe(false);
+  expect(existsSync(join(ws.locations, "api", "MEMORY.md"))).toBe(false);
   expect(existsSync(ws.cwd)).toBe(true);
   expect(existsSync(ws.identity)).toBe(false); // no per-workspace identity
   expect(readFileSync(p.user, "utf8")).toContain("Vietnamese");
@@ -27,26 +30,25 @@ test("ensureHome creates defaults + workspace/location files once, never overwri
   expect(found).toEqual([join(location, "CLAUDE.md")]); // only the location's own file
 
   writeFileSync(p.soul, "# Soul\n- Reply like a pirate.\n");
-  writeFileSync(ws.memory, "# mine\n");
+  writeFileSync(ws.channel("main-agent").memory, "# mine\n");
   ensureHome(env.home, loadWorkspaces(env.home).workspaces);
   expect(readFileSync(p.soul, "utf8")).toContain("pirate");
-  expect(readFileSync(ws.memory, "utf8")).toBe("# mine\n");
+  expect(readFileSync(ws.channel("main-agent").memory, "utf8")).toBe("# mine\n");
 });
 
-test("ensureHome creates a missing location memory folder (a location accepted after it was refused)", () => {
+test("ensureHome creates a missing channel memory folder (a channel added to workspace.yaml by hand)", () => {
   const env = makeEnv();
   clearWorkspaces(env.home);
-  // the location's own dir lives outside the home, so only the memory folder is missing
   addLocation(
     env.home,
     "api",
     { description: "billing api" },
     { path: mkdtempSync(join(tmpdir(), "friday-loc-")) },
   );
-  const mem = workspacePaths(env.home).workspace("main").location("api").memory;
+  const mem = workspacePaths(env.home).workspace("main").channel("main-agent").memory;
   rmSync(dirname(mem), { recursive: true, force: true });
   ensureHome(env.home, loadWorkspaces(env.home).workspaces);
-  expect(readFileSync(mem, "utf8")).toContain("api");
+  expect(readFileSync(mem, "utf8")).toContain("main-agent");
 });
 
 test("ensureHome creates AGENTS/USER/MEMORY/BOOTSTRAP once and never overwrites edits", () => {

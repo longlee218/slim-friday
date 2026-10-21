@@ -26,6 +26,9 @@ export interface WriteOutcome {
   error: boolean;
 }
 
+/** The memory file name: only a channel has one. */
+const MEMORY_FILE = "MEMORY.md";
+
 const refuse = (text: string): WriteOutcome => ({ text, error: true });
 
 /** A resolved target: the file, its backup stem and its label in the diff. */
@@ -58,6 +61,8 @@ function resolveTarget(
     return "unknown space";
   if (!(SPACE_FILES as readonly string[]).includes(a.file))
     return `file must be one of ${SPACE_FILES.join(", ")}`;
+  // The agent's memory is the channel MEMORY.md: a space has no memory file of its own.
+  if (a.file === MEMORY_FILE && a.channel === undefined) return "MEMORY.md belongs to a channel";
   const ws = workspacePaths(home).workspace(a.space);
   let dir = ws.root;
   if (a.channel !== undefined) {
@@ -130,8 +135,10 @@ export async function writeSpaceFile(
 ): Promise<WriteOutcome> {
   const target = resolveTarget(ctx.home, a);
   if (typeof target === "string") return refuse(target);
-  if (a.content.length > CONTENT_MAX_CHARS || a.content.includes("\0"))
+  // MEMORY.md has no size cap (owner decision); the diff limit below still applies to every file.
+  if (a.file !== MEMORY_FILE && a.content.length > CONTENT_MAX_CHARS)
     return refuse(`content must be text of at most ${CONTENT_MAX_CHARS} chars`);
+  if (a.content.includes("\0")) return refuse("content must be text");
   if (redactText(a.content) !== a.content)
     return refuse("the content looks like it holds a secret; remove it and try again");
   const old = readBytes(target.path);

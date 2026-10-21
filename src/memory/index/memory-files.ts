@@ -1,11 +1,6 @@
 import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
-import {
-  CHANNEL_NAME,
-  LOCATION_NAME,
-  WORKSPACE_NAME,
-  workspacePaths,
-} from "../../config/workspace-paths";
+import { CHANNEL_NAME, WORKSPACE_NAME, workspacePaths } from "../../config/workspace-paths";
 import { localDay } from "../memory-clock";
 import { type Chunk, chunkJournal, chunkMemory } from "./memory-chunker";
 import { makeId, type Source } from "./memory-ids";
@@ -19,7 +14,6 @@ export const INDEX_MAX_CHUNKS_PER_FILE = 2000;
 export interface FileInfo {
   workspace: string;
   source: Exclude<Source, "summary">;
-  location?: string;
   /** Channel name (source `channel`). */
   channel?: string;
   date?: string;
@@ -28,9 +22,9 @@ export interface FileInfo {
 const DATE_FILE = /^(\d{4}-\d{2}-\d{2})\.md$/;
 
 /**
- * Classify a path under AGENT_HOME as an indexable memory file, or null. ONLY the five known shapes are indexable:
- * root MEMORY.md, workspace MEMORY.md, channel MEMORY.md, location MEMORY.md, journal `memory/YYYY-MM-DD.md`. Anything else
- * (MEMORY.pending.md, AGENTS.md, persona files, other trees) is refused here, whoever asks.
+ * Classify a path under AGENT_HOME as an indexable memory file, or null. ONLY the three known shapes are indexable:
+ * root MEMORY.md, channel MEMORY.md, journal `memory/YYYY-MM-DD.md`. Anything else (the retired workspace and
+ * location MEMORY.md files, a pending queue file, AGENTS.md, persona files, other trees) is refused here, whoever asks.
  */
 export function classifyFile(home: string, file: string): FileInfo | null {
   const rel = relative(home, file);
@@ -39,18 +33,9 @@ export function classifyFile(home: string, file: string): FileInfo | null {
   if (p.length === 1 && p[0] === "MEMORY.md") return { workspace: "", source: "root" };
   const ws = p[1] ?? "";
   if (p[0] !== "workspaces" || !WORKSPACE_NAME.test(ws)) return null;
-  if (p.length === 3 && p[2] === "MEMORY.md") return { workspace: ws, source: "workspace" };
   const channel = p[3] ?? "";
   if (p.length === 5 && p[2] === "channels" && CHANNEL_NAME.test(channel) && p[4] === "MEMORY.md")
     return { workspace: ws, source: "channel", channel };
-  const location = p[3] ?? "";
-  if (
-    p.length === 5 &&
-    p[2] === "locations" &&
-    LOCATION_NAME.test(location) &&
-    p[4] === "MEMORY.md"
-  )
-    return { workspace: ws, source: "location", location };
   const date = DATE_FILE.exec(p[3] ?? "")?.[1];
   if (p.length === 4 && p[2] === "memory" && date)
     return { workspace: ws, source: "journal", date };
@@ -59,7 +44,6 @@ export function classifyFile(home: string, file: string): FileInfo | null {
 
 /** Prefix of the ids of a file's entries. */
 function idPrefix(info: FileInfo): string {
-  if (info.source === "location") return `location/${info.location}`;
   if (info.source === "channel") return `channel/${info.channel}`;
   if (info.source === "journal") return `journal/${info.date}`;
   return info.source;
@@ -77,18 +61,14 @@ const names = (dir: string): string[] => {
 export const listWorkspaces = (home: string): string[] =>
   names(workspacePaths(home).workspaces).filter((n) => WORKSPACE_NAME.test(n));
 
-/** Candidate memory files of one workspace (they may not exist): its MEMORY.md, each channel's, each location's, each journal day. */
+/** Candidate memory files of one workspace (they may not exist): each channel's MEMORY.md, each journal day. */
 export function workspaceFiles(home: string, workspace: string): string[] {
   if (!WORKSPACE_NAME.test(workspace)) return [];
   const ws = workspacePaths(home).workspace(workspace);
   return [
-    ws.memory,
     ...names(ws.channels)
       .filter((c) => CHANNEL_NAME.test(c))
       .map((c) => ws.channel(c).memory),
-    ...names(ws.locations)
-      .filter((r) => LOCATION_NAME.test(r))
-      .map((r) => ws.location(r).memory),
     ...names(join(ws.root, "memory"))
       .filter((f) => DATE_FILE.test(f))
       .map((f) => join(ws.root, "memory", f)),

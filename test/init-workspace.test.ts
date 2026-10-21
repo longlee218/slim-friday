@@ -95,10 +95,10 @@ test("createWorkspaceDir writes the template; loadWorkspaces reads it", () => {
   expect(workspaceState(home, "reelme")).toEqual({ kind: "missing" });
   createWorkspaceDir(home, "reelme");
   const ws = workspacePaths(home).workspace("reelme");
-  for (const f of ["workspace.yaml", "MEMORY.md", "IDENTITY.md", "SOUL.md", "USER.md", "AGENTS.md"])
+  for (const f of ["workspace.yaml", "IDENTITY.md", "SOUL.md", "USER.md", "AGENTS.md"])
     expect(existsSync(join(ws.root, f))).toBe(true);
   expect(existsSync(ws.locations) && existsSync(ws.cwd)).toBe(true);
-  expect(readFileSync(ws.memory, "utf8")).toContain("reelme workspace memory");
+  expect(existsSync(join(ws.root, "MEMORY.md"))).toBe(false); // memory lives in the channels
   expect(workspaceState(home, "reelme")).toEqual({ kind: "workspace", channels: [] });
   // The registry accepts the template as a workspace with no channels and no locations yet.
   expect(loadWorkspaces(home, home).workspaces).toMatchObject([

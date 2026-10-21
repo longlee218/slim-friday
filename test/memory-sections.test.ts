@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { capMemory } from "../src/memory/memory-cap";
 import { saveJournalBullet, saveMemoryBullet } from "../src/memory/memory-section-writer";
 import {
   formatBullet,
@@ -111,13 +110,13 @@ test("journal: new block, same minute+label merges, other label/kind adds", () =
 test("writer: sectioned save creates, dedupes, keeps owner text; legacy file loads", () => {
   const f = tmp();
   writeFileSync(f, "# r memory\n\nOwner note.\n\n## 2026-01-01 old\n- legacy bullet\n");
-  expect(
-    saveMemoryBullet(f, "# r memory\n", "lesson", "Always run tests", "2026-10-13", 8000),
-  ).toBe("saved");
-  expect(
-    saveMemoryBullet(f, "# r memory\n", "lesson", "always run tests.", "2026-10-14", 8000),
-  ).toBe("duplicate");
-  expect(saveMemoryBullet(f, "# r memory\n", "fact", "  ", "2026-10-13", 8000)).toBe("empty");
+  expect(saveMemoryBullet(f, "# r memory\n", "lesson", "Always run tests", "2026-10-13")).toBe(
+    "saved",
+  );
+  expect(saveMemoryBullet(f, "# r memory\n", "lesson", "always run tests.", "2026-10-14")).toBe(
+    "duplicate",
+  );
+  expect(saveMemoryBullet(f, "# r memory\n", "fact", "  ", "2026-10-13")).toBe("empty");
   const txt = readFileSync(f, "utf8");
   expect(txt.startsWith("# r memory\n\nOwner note.\n\n## 2026-01-01 old\n- legacy bullet\n")).toBe(
     true,
@@ -133,7 +132,6 @@ test("writer: new file uses the header; secrets redacted; journal merges in one 
     "fact",
     "key sk-ant-api03-abcdefghijklmnopqrstuvwx here",
     "2026-10-13",
-    8000,
   );
   const txt = readFileSync(f, "utf8");
   expect(txt.startsWith("# new\n\n## Facts\n")).toBe(true);
@@ -151,69 +149,27 @@ test("writer: new file uses the header; secrets redacted; journal merges in one 
 const ln = (n: number, tag: string) => `- ${tag} note number ${n} with some filler words`;
 const many = (n: number, tag: string) => Array.from({ length: n }, (_, i) => ln(i, tag)).join("\n");
 
-test("cap: legacy file (no kind heading) keeps today's tail behavior", () => {
-  const body = `# h\n\n## 2026-01-01 a\n${many(100, "old")}\n## 2026-02-01 b\n${many(100, "new")}`;
-  expect(capMemory(body, 1000)).toBe(`...${body.slice(-1000)}`);
-  expect(capMemory("short", 1000)).toBe("short");
-});
-
-test("cap: every kind section survives, keeps its newest bullets, no orphan bullets", () => {
-  const body = `# h\n\nOwner prose.\n\n## Decisions\n${many(80, "dec")}\n\n## Facts\n${many(80, "fact")}\n\n## Lessons\n${many(80, "les")}\n`;
-  const out = capMemory(body, 3000);
-  expect(out.length).toBeLessThanOrEqual(3000);
-  expect(out).toContain("# h\n\nOwner prose.");
-  for (const h of ["Decisions", "Facts", "Lessons"]) expect(out).toContain(`## ${h}\n...\n- `);
-  expect(out).toContain("dec note number 79 ");
-  expect(out).not.toContain("dec note number 0 ");
-  // every line is whole and every bullet sits under a heading
-  const lines = out.split("\n");
-  expect(
-    lines.every(
-      (l) =>
-        l === "" ||
-        l === "..." ||
-        l.startsWith("#") ||
-        l.endsWith("filler words") ||
-        l === "Owner prose.",
-    ),
-  ).toBe(true);
-  expect(lines.findIndex((l) => l.startsWith("- "))).toBeGreaterThan(
-    lines.findIndex((l) => l === "## Decisions"),
-  );
-});
-
-test("cap: unused budget flows to the big section; small sections kept whole", () => {
-  const body = `# h\n\n## Decisions\n- tiny one\n\n## Facts\n${many(200, "fact")}\n`;
-  const out = capMemory(body, 3000);
-  expect(out).toContain("## Decisions\n- tiny one");
-  expect(out.length).toBeGreaterThan(2500);
-  expect(out.length).toBeLessThanOrEqual(3000);
-});
-
-test("cap: large owner prose gets about 40% and is tail-cut", () => {
-  const body = `# h\n\n## My topic\n${many(200, "own")}\n\n## Facts\n${many(200, "fact")}\n`;
-  const out = capMemory(body, 3000);
-  expect(out).toContain("## Facts\n...");
-  expect(out).toContain("own note number 199 ");
-  expect(out).not.toContain("own note number 0 ");
-  expect(out.length).toBeLessThanOrEqual(3000);
-});
-
-test("writer: refuses past the line limit or the char cap with 'full'", () => {
+test("writer: no size limit on a MEMORY.md (300+ lines, 15000+ chars); the journal keeps the line guard", () => {
   const f = tmp();
-  writeFileSync(f, `# r\n\n## Facts\n${many(296, "x")}\n`);
-  expect(saveMemoryBullet(f, "# r\n", "fact", "one more", "2026-10-13", 100000)).toBe("saved");
-  const before = readFileSync(f, "utf8");
-  expect(saveMemoryBullet(f, "# r\n", "fact", "two more", "2026-10-13", 100000)).toBe("full");
-  expect(readFileSync(f, "utf8")).toBe(before);
-  const g = tmp();
-  writeFileSync(g, "# r\n\n## Facts\n- a (2026-01-01)\n");
-  expect(saveMemoryBullet(g, "# r\n", "fact", "b".repeat(100), "2026-10-13", 60)).toBe("full");
+  writeFileSync(f, `# r\n\n## Facts\n${many(400, "x")}\n`);
+  expect(readFileSync(f, "utf8").length).toBeGreaterThan(15000);
+  expect(saveMemoryBullet(f, "# r\n", "fact", "one more", "2026-10-13")).toBe("saved");
+  expect(readFileSync(f, "utf8")).toContain("- one more (2026-10-13)");
   const j = tmp();
   writeFileSync(j, `# J\n${many(300, "j")}\n`);
   expect(saveJournalBullet(j, { hhmm: "10:00", label: "t" }, "fact", "z", "2026-10-13")).toBe(
     "full",
   );
+});
+
+test("writer: a note of 2000 chars is kept whole, a longer one is cut at 2000", () => {
+  const f = tmp();
+  expect(saveMemoryBullet(f, "# r\n", "fact", "a".repeat(2000), "2026-10-13")).toBe("saved");
+  expect(readFileSync(f, "utf8")).toContain(`- ${"a".repeat(2000)} (2026-10-13)`);
+  const g = tmp();
+  saveMemoryBullet(g, "# r\n", "fact", "b".repeat(2500), "2026-10-13");
+  expect(readFileSync(g, "utf8")).toContain(`- ${"b".repeat(2000)} (2026-10-13)`);
+  expect(readFileSync(g, "utf8")).not.toContain("b".repeat(2001));
 });
 
 test("dedupe: an empty normalized key never matches", () => {

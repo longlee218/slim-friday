@@ -151,6 +151,8 @@ export function withMemoryLock<T>(file: string, fn: () => T, opts: LockOptions =
 /** Write `text` to `file` through `<file>.tmp` + rename, so a reader never sees a half-written file. */
 export function writeAtomic(file: string, text: string): void {
   const tmp = `${file}.tmp`;
-  writeFileSync(tmp, text);
+  // Owner-only (0600). `mode` applies only when the tmp file is created, so a leftover tmp is removed first.
+  rmSync(tmp, { force: true });
+  writeFileSync(tmp, text, { mode: 0o600 });
   renameSync(tmp, file);
 }

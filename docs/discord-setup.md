@@ -281,7 +281,7 @@ Checks (one designer, one developer, one devops and one tester item):
 Type in `#ops-control` (no mention needed).
 - Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops` or a publisher skill name (reserved).
 - Gate: you are the owner; the message is in the pinned guild; the channel id is in `controlChannels`; the channel is private now (live check). Typed anywhere else: not executed, not sent to the agent, reply "Admin commands run only in #ops-control."
-- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `locations/`, `cwd/`, `skills/`, `MEMORY.md`, persona stubs). (2) private category `<name>` and the channel `#<name>`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
+- Steps: (1) `workspaces/<name>/` from the template (`workspace.yaml` with `channels: []`, `locations/`, `cwd/`, `skills/`, persona stubs). (2) private category `<name>` and the channel `#<name>`, create-only. (3) the channel id is written into `workspace.yaml` (comments in that file are lost). (4) reply with what was created.
 - Rerun on a finished workspace: "already set up". If creation fails midway, the reply names what exists.
 - No turn row, no agent. Logs `admin.init_workspace`.
 
@@ -299,7 +299,7 @@ Type in `#ops-control`. One string argument (`path`).
 - Any non-command text in `#ops-control` goes to the server manager (role `discord-manager`). Ask it in plain words: list spaces, create a space or channel, apply a kind (`personal`, `company`, `study`), or edit a space's persona file.
 - Gate: same as `/init-workspace` (owner, pinned guild, control channel, private). Text in any other channel is never sent to it.
 - Creating: `CreateSpaceOrChannel` is create-only (same name rules and private overwrites as `/init-workspace` and `/init-channel`). It asks for a confirm button first. No delete or rename.
-- Writing a persona file (`USER.md`, `IDENTITY.md`, `AGENTS.md`, `SOUL.md`, `MEMORY.md`): the owner gets a diff (`.txt` attachment) and confirms. No answer, a "no", or a timeout writes nothing. The old file is backed up to `$AGENT_HOME/backups/persona/`.
+- Writing a persona file (`USER.md`, `IDENTITY.md`, `AGENTS.md`, `SOUL.md`, or a channel's `MEMORY.md`; a space has no `MEMORY.md`): the owner gets a diff (`.txt` attachment) and confirms. No answer, a "no", or a timeout writes nothing. The old file is backed up to `$AGENT_HOME/backups/persona/`.
 - Session: one per control channel; `stop` aborts the run; a fresh session after 24 h idle. A run interrupted by a restart gets no Continue button.
 - Limits: each run has a budget and an owner-question cap (see [limits](limits-and-stop-conditions.md)). The agent has no Discord token, no shell and no web.
 
@@ -597,20 +597,20 @@ locations:
 
 | Layer | File | Written by | Injected |
 |---|---|---|---|
-| Global | `$AGENT_HOME/MEMORY.md` | you only | newest 5000 chars |
-| Workspace (space) | `$AGENT_HOME/workspaces/<ws>/MEMORY.md` | you, and the lead (`workspace` scope) | newest 5000 chars |
-| Channel | `$AGENT_HOME/workspaces/<ws>/channels/<name>/MEMORY.md` | you, and the lead (`channel` scope) | newest 3000 chars, only in that channel |
-| Location | `$AGENT_HOME/workspaces/<ws>/locations/<name>/MEMORY.md` | the lead (`location` scope) and you | newest 8000 chars per location, 16000 for all locations of the workspace |
+| Root | `$AGENT_HOME/MEMORY.md` | you only | whole file, into the lead and every worker of every channel |
+| Channel | `$AGENT_HOME/workspaces/<ws>/channels/<name>/MEMORY.md` | you, and the lead (`channel` scope) | whole file, into the lead and every worker of that channel (workers read only) |
 
-- Order in the prompt: root, space, channel, location.
+- No memory size cap: neither file is cut in the prompt and a large channel file still accepts notes. Watch growth in the `prompt.context` log (`memoryRootChars`, `memoryChannelChars`). Prune by hand.
+- Order in the prompt: root (`### root`), channel (`### channel <name>`).
 - An entry needs a `## <topic>` heading to count. A template-only file injects nothing.
-- **Agent writes** (`MemorySave` tool, lead only; scope picked by the lead): `location`, `channel`, `workspace`, `global` (queued in `MEMORY.pending.md`), `journal` (`memory/<date>.md`). A run with no channel (e.g. a rollover) is told to use scope `workspace`.
+- **Agent writes** (`MemorySave` tool, lead only): scope `channel` (this channel's `MEMORY.md`) or `journal` (`memory/<date>.md`, 300 lines per day file). One note is at most 2000 chars. A run with no channel (e.g. a rollover) is told to use scope `journal`.
 - A worker's report may carry a `Memory:` block; it is plain text. The lead decides what to save with `MemorySave`; workers cannot write memory.
-- `global` notes go to `$AGENT_HOME/MEMORY.pending.md`. **Never injected.** Copy trusted facts into `MEMORY.md` by hand.
 - The agent never writes the root `MEMORY.md`.
-- Each file takes at most 300 lines; a write past that is refused. There is no owner command or script to compact memory: edit the file by hand.
+- **One-time merge at the first start of this version** (marker step `layers-v2` in `$AGENT_HOME/data/memory-migrations.json`, log `memory.migrate`): the old space and location `MEMORY.md` files are copied into the channel files. The space file goes to every channel of the space; a location file goes to every channel that includes that location. Kind bullets (`## Decisions|Facts|Preferences|Lessons`) keep their line and date and skip duplicates; other sections are appended unchanged under `## From workspace memory` or `## From location <name> memory`. A space with no channel is not merged (counted as an orphan in the log). Nothing is deleted: every old file, and the old pending-queue file (never merged; promote notes from it by hand), stays on disk and is never read. Delete `data/memory-migrations.json` to run the merge again (it dedupes).
+- Old threads keep their first system prompt: migrated notes reach them through `MemorySearch`; start a new thread to see them in the prompt.
+- There is no owner command or script to compact memory: edit the file by hand.
 
-**Files the bot never creates:** `CLAUDE.md` and `CLAUDE.local.md`. The SDK loads no CLAUDE.md. Put the facts an agent needs in the location's `description` and its `MEMORY.md`.
+**Files the bot never creates:** `CLAUDE.md` and `CLAUDE.local.md`. The SDK loads no CLAUDE.md. Put the facts an agent needs in the location's `description` and the channel `MEMORY.md`.
 
 ## Run in the background (launchd)
 `deploy/com.friday.agent.plist` starts the bot at login and restarts it after a failure (paths are for this Mac; edit them if the repo or bun moves).

@@ -237,7 +237,7 @@ Roles are data in `src/roles/builtin/<name>-role.ts`, one `RoleDefinition` per f
 | `dispatchable` | no | no | yes | yes | no |
 | `model` | Sonnet | Sonnet | Haiku | Sonnet | Haiku |
 | `skills` | `lead-orchestration` | `plan-work` | `worker-reporting`, `scout`, `docs-seeker` | 15 named skills (incl. `worker-reporting`) | `discord-server-manager` |
-| `capabilities` | read | read, skills | read, web, shell, skills | read, write, shell, skills, tasks, mcp, feedback, ask | read, skills, ask |
+| `capabilities` | read | read, skills | read, web, shell, skills | read, write, shell, skills, tasks, mcp, review, feedback, ask | read, skills, ask |
 | `mcpTools` | 9 | 9 | 8 (in-process) | 12 | 3 |
 | `limits.maxAsk`, `limits.maxTurns`, `budgetUsd` | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) | see [limits](limits-and-stop-conditions.md) |
 | `permissionMode` | auto | auto | auto | bypassPermissions (a worker with an envelope runs in `default`) | - |
@@ -307,6 +307,7 @@ Six in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<ser
 | subagents | Agent, SendMessage, ListAgents (roles without `noSubagents`: developer) |
 | tasks | TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet, TaskStop, ToolSearch |
 | mcp | ListMcpResourcesTool, ReadMcpResourceTool, ReadMcpResourceDirTool, RefreshMcpTools, WaitForMcpServers |
+| review | ReportFindings |
 | feedback | SendFeedback (owner approval) |
 | ask | AskUserQuestion |
 
@@ -430,13 +431,13 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 - Message text and file content are never logged. Lead and task events carry ids, role names, reason codes and counts.
 
 ## Memory and Persona
-- Root files in `$AGENT_HOME`: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md` (persona, owner-written), `MEMORY.md` (owner-written), `BOOTSTRAP.md` (never injected), `MEMORY.pending.md` (review queue of `global` notes; never injected).
+- Root files in `$AGENT_HOME`: `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md` (persona, owner-written), `MEMORY.md` (root memory, owner-written), `BOOTSTRAP.md` (never injected).
 - Persona per file: the first non-empty of channel, space, root (`buildPersonaContext`). Each persona file is read up to 8000 chars; a longer one is cut in the middle (70% head, 30% tail, at line borders) with a marker naming the file.
-- Memory caps (chars): root 5000, space 5000, channel 3000, each location 8000, all locations of a space 16000.
-- Writers: `MemorySave` (lead only; 400 chars per note, 20 calls per run). Scopes: `location`, `channel`, `workspace`, `global` (→ `MEMORY.pending.md`), `journal` (→ `memory/<date>.md`). Writes re-index the file at once.
+- Memory layers (memory v2, phase 1): root `MEMORY.md` and the channel `MEMORY.md` (`channels/<name>/MEMORY.md`) only. Both are injected whole into the lead and into every worker of the channel (read-only for workers); there is no memory size cap (no prompt cut, no refusal on a large file). Retired: the space `MEMORY.md`, the per-location `MEMORY.md` and the pending queue (old files stay on disk, unread; a one-time merge at start, marker step `layers-v2` in `data/memory-migrations.json`, copies their notes into the channel files).
+- Writers: `MemorySave` (lead only; 2000 chars per note, 20 calls per run). Scopes: `channel` (the run's channel `MEMORY.md`), `journal` (→ `memory/<date>.md`, 300-line guard per day file). Writes re-index the file at once.
 - System prompt base (`RoleDefinition.basePrompt`): `custom` (our text alone; the SDK adds only its billing header and one identity line) for the roles that write no code (lead, planner, scout, solution-architect, designer, humanizer-writer, hacker); the SDK `claude_code` preset plus our text for developer, tester, devops, discord-manager. Every run sets `settings` `autoMemoryEnabled: false`, `includeGitInstructions: false`, `attribution` empty (no SDK file memory, no Co-Authored-By reminder). Platform, shell and OS come from the SDK's own environment block.
-- Order (`buildSystemPrompt` + `runExtraContext`): role contract, COMMON safety, the role's `preloadSkills` text (the lead: `lead-orchestration`), one generated line naming the role's `requiredSkills` (qualified names), then per kind. Lead: `## TEAM.md` (built per run: members, the channel's locations, the DELEGATE cap, limits), `## AGENTS.md`, `## IDENTITY.md`, `## SOUL.md`, `## USER.md`, memory (root, space, channel), thread-title note. Worker: locations registry, its locations' memory, task ledger (no persona, no root/space/channel memory). Control (`discord-manager`, no space): root persona files. The user prompt carries the rollover seed and channel digest (fresh session), the lead's data block and the owner message; a supervisor re-run gets its internal note at the head of its prompt (a resumed session keeps its first system prompt).
-- Channel memory (`channels/<name>/MEMORY.md`) is read only by runs in that channel.
+- Order (`buildSystemPrompt` + `runExtraContext`): role contract, COMMON safety, the role's `preloadSkills` text (the lead: `lead-orchestration`), one generated line naming the role's `requiredSkills` (qualified names), then per kind. Lead: `## TEAM.md` (built per run: members, the channel's locations, the DELEGATE cap, limits), `## AGENTS.md`, `## IDENTITY.md`, `## SOUL.md`, `## USER.md`, memory (root, channel), thread-title note. Worker: locations registry, memory (root, channel; read-only), task ledger (no persona). Headings `### root` and `### channel <name>`. Control (`discord-manager`, no space): root persona files. The user prompt carries the rollover seed and channel digest (fresh session), the lead's data block and the owner message; a supervisor re-run gets its internal note at the head of its prompt (a resumed session keeps its first system prompt).
+- Channel memory (`channels/<name>/MEMORY.md`) is read only by runs in that channel (lead and workers); `MemorySearch` returns channel rows of the run's own channel only (sources `root`, `channel`, `journal`, `summary`).
 - The app never reads or creates `CLAUDE.md` or `CLAUDE.local.md`.
 
 ## Spaces, Channels, Locations
@@ -444,7 +445,7 @@ Discord words: **space** (a private category), **channel** (a channel of the spa
 
 | Concept | Where | Behavior |
 |---|---|---|
-| Space | `workspaces/<ws>/` + its category | owns its `locations`, `MEMORY.md`, persona overrides and N channels |
+| Space | `workspaces/<ws>/` + its category | owns its `locations`, persona overrides and N channels (memory lives in the channels) |
 | Channel | `channels:` entry in `workspace.yaml` (`name` = memory dir) | `mode: task` (default) or `chat`: in chat the owner needs no mention and `threadId = channelId`; no thread row, no title; the bot syncs the channel topic on start |
 | Location | `locations:` entry | a directory a run may work in; the `location:` pin names it |
 
@@ -452,7 +453,7 @@ Discord words: **space** (a private category), **channel** (a channel of the spa
 - `/init-channel <space>/<name>` (control channel, create-only) adds a channel. See [discord-setup.md](discord-setup.md#add-a-channel-init-channel-spacename).
 
 ### Location rules
-- `name`: letters, digits, `_ . -`, 1 to 64 chars, unique in the space. It is the `location:` pin and the memory dir name.
+- `name`: letters, digits, `_ . -`, 1 to 64 chars, unique in the space. It is the `location:` pin.
 - `path`: absolute, or relative to the space dir. A missing path, a non-directory, a strict ancestor of `$HOME`, a path that contains AGENT_HOME, or a path inside AGENT_HOME outside `workspaces/<ws>/locations/` is skipped with a warning. A path equal to `$HOME` is allowed.
 - `git` is computed (`.git` at `path`); never configured. No clone, fetch or pull: the app never refreshes a location.
 - A space with zero locations is valid; its runs work in `workspaces/<ws>/cwd/`.
@@ -461,7 +462,7 @@ Discord words: **space** (a private category), **channel** (a channel of the spa
 ### Space layout
 ```
 $AGENT_HOME/                       real directory outside every location and git working tree (startup refuses one inside)
-├── AGENTS.md IDENTITY.md SOUL.md USER.md MEMORY.md BOOTSTRAP.md MEMORY.pending.md
+├── AGENTS.md IDENTITY.md SOUL.md USER.md MEMORY.md BOOTSTRAP.md
 ├── discord.yaml                   ops channel ids and control channels
 ├── data/agent.db                  SQLite (WAL)
 ├── logs/app.*.jsonl, logs/tasks/<taskId>.jsonl
@@ -476,7 +477,7 @@ $AGENT_HOME/                       real directory outside every location and git
     ├── cwd/                       neutral cwd of runs without a location
     ├── tasks/<taskId>/scratch/    per-task scratch
     ├── worktrees/                 git worktrees a developer run may create
-    └── locations/<name>/MEMORY.md location memory (the checkout is at the location's `path`)
+    └── locations/                 legacy dir (no memory in it; the checkout is at the location's `path`)
 ```
 - `GIT_AUTHOR` is accepted and ignored: the agent uses the owner's git config.
 
@@ -516,7 +517,7 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 | Tools | in-process server `discord-admin` (`src/mcp/discord-admin/`) | `ListSpaces`, `CreateSpaceOrChannel` (create only), `WriteSpaceFile`. No delete or rename tool |
 | Skill | `.agents/skills/discord-server-manager/` | publisher skill, data only |
 
-- `WriteSpaceFile` writes only `USER.md`, `IDENTITY.md`, `AGENTS.md`, `SOUL.md`, `MEMORY.md` of a space or one channel. The path is fixed, never built from model text. Realpath must stay inside the space; symlinks are refused. Content ≤ 6000 chars; secret-like text is refused.
+- `WriteSpaceFile` writes only `USER.md`, `IDENTITY.md`, `AGENTS.md`, `SOUL.md` of a space or one channel, and `MEMORY.md` of a channel (a space-level `MEMORY.md` is refused: "MEMORY.md belongs to a channel"). The path is fixed, never built from model text. Realpath must stay inside the space; symlinks are refused. Content ≤ 6000 chars (not for `MEMORY.md`, no size cap); secret-like text is refused.
 - The owner sees a redacted line diff (≤ 16000 chars, attached as `.txt` when long) and confirms. No answer, timeout or error means nothing is written. The file is re-read after the confirm and refused if it changed. The old file is backed up to `<AGENT_HOME>/backups/persona/`; the newest 10 per file are kept.
 - Space kinds are folders: `src/discord-setup/templates/space-kinds/{personal,company,study}/`. Applying a kind is one `WriteSpaceFile` per file.
 - Known limits: a space created during a run is readable from the next run. A written `MEMORY.md` is re-indexed at once.

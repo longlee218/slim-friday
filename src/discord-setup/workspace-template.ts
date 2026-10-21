@@ -1,7 +1,6 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
-import { workspaceMemoryTemplate } from "../memory/persona-templates";
 import {
   type ChannelEntry,
   channelEntries,
@@ -58,7 +57,6 @@ export function createWorkspaceDir(home: string, name: string): void {
   writeFileSync(ws.config, Bun.YAML.stringify({ channels: [], skills: { extra: true } }, null, 2), {
     mode: 0o600,
   });
-  writeFileSync(ws.memory, workspaceMemoryTemplate(name), { mode: 0o600 });
   for (const [file, body] of Object.entries(PERSONA_STUBS))
     writeFileSync(join(ws.root, file), body, { mode: 0o600 });
 }

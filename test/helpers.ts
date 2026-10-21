@@ -115,7 +115,7 @@ export function assertTempHome(home: string): void {
 
 /** Default path of a test location without an explicit `path`: `workspaces/<ws>/locations/<name>/location`. */
 export const defaultLocationPath = (home: string, name: string, workspace = "main"): string =>
-  join(workspacePaths(home).workspace(workspace).location(name).root, "location");
+  join(workspacePaths(home).workspace(workspace).locations, name, "location");
 
 /**
  * Register a location in `workspaces/<ws>/workspace.yaml` (`locations:` list; the file is created when missing,
@@ -132,7 +132,7 @@ export function addLocation(
   assertTempHome(home);
   const { workspace = "main", channels, path, git = true } = opts;
   const ws = workspacePaths(home).workspace(workspace);
-  mkdirSync(ws.location(name).root, { recursive: true }); // the memory dir of the location
+  mkdirSync(join(ws.locations, name), { recursive: true }); // the dir of the location under locations/
   const doc: { channels?: { id: string; name: string }[]; locations?: unknown[] } = existsSync(
     ws.config,
   )

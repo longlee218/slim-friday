@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { WORKSPACE_NAME, workspacePaths } from "../../config/workspace-paths";
 import { THREAD_SUMMARY_MAX_CHARS } from "../../storage/thread-summary-store";
-import { channelTarget, locationTarget, rootTarget, workspaceTarget } from "../memory-targets";
+import { channelTarget, rootTarget } from "../memory-targets";
 import type { MemoryToolContext } from "../memory-tool-context";
 import type { Chunk } from "./memory-chunker";
 import { type FileInfo, readFileChunks } from "./memory-files";
@@ -34,21 +34,11 @@ function fileOf(ctx: MemoryToolContext, id: ParsedId): { file: string; info: Fil
   if (id.type === "file" && id.source === "root")
     return { file: rootTarget(ctx.home).file, info: { workspace: "", source: "root" } };
   if (!WORKSPACE_NAME.test(ctx.workspace)) return null;
-  if (id.type === "file" && id.source === "workspace")
-    return {
-      file: workspaceTarget(ctx.home, ctx.workspace).file,
-      info: { workspace: ctx.workspace, source: "workspace" },
-    };
   // A channel id is served only for the run's own channel (other channels' notes stay out of reach).
   if (id.type === "file" && id.channel !== undefined && id.channel === ctx.channel)
     return {
       file: channelTarget(ctx.home, ctx.workspace, id.channel).file,
       info: { workspace: ctx.workspace, source: "channel", channel: id.channel },
-    };
-  if (id.type === "file" && id.location !== undefined && ctx.locationNames().includes(id.location))
-    return {
-      file: locationTarget(ctx.home, ctx.workspace, id.location).file,
-      info: { workspace: ctx.workspace, source: "location", location: id.location },
     };
   if (id.type === "journal")
     return {
@@ -59,7 +49,7 @@ function fileOf(ctx: MemoryToolContext, id: ParsedId): { file: string; info: Fil
 }
 
 /**
- * Re-resolve an id against the CURRENT state. Null = cannot be served (bad id, other workspace, unknown location,
+ * Re-resolve an id against the CURRENT state. Null = cannot be served (bad id, other workspace or channel, a retired workspace/location id,
  * file gone / symlink / too big, entry edited or deleted, summary cycle changed): the caller answers NOT_FOUND.
  * Never throws for model input, never opens a path built from the id.
  */

@@ -54,7 +54,7 @@ export function agentRunOnce(p: OnceParts) {
       cwd: s.cwd,
       additionalDirectories: s.additionalDirectories,
       worktreesDir: s.worktreesDir,
-      // In-process memory tools (MemorySave...): location names are read from the registry only when a tool needs them.
+      // In-process memory tools (MemorySave, MemorySearch...), scoped to the run's workspace and channel.
       memory:
         i.workspace === undefined
           ? undefined // a control-channel run has no workspace: no memory tools
@@ -64,8 +64,6 @@ export function agentRunOnce(p: OnceParts) {
               workspace: i.workspace,
               channel: i.channel,
               channelId: i.channelId,
-              locationNames: i.locations.map((r) => r.name), // channel subset: memory tools cannot reach other locations
-              location: i.locations.length === 1 ? i.locations[0]?.name : undefined,
               threadId: i.threadId,
               trackSummary: role.kind !== "worker",
               threadTitle: titlePort,

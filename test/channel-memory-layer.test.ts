@@ -3,19 +3,17 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CHANNEL_NAME, workspacePaths } from "../src/config/workspace-paths";
 import { createMemorySaveTool } from "../src/mcp/memory/tools/MemorySaveTool/memory-save-tool";
+import { buildMemoryContext, readMemoryLayers } from "../src/memory/channel-memory";
 import { classifyFile } from "../src/memory/index/memory-files";
 import { parseId } from "../src/memory/index/memory-ids";
 import { searchIndex } from "../src/memory/index/memory-search";
 import { syncAll } from "../src/memory/index/memory-sync";
-import { buildMemoryContext, CHANNEL_CHARS, readMemoryLayers } from "../src/memory/location-memory";
-import { buildMemoryToolContext } from "../src/memory/memory-context";
 import type { MemoryToolContext } from "../src/memory/memory-tool-context";
 import { buildPersonaContext, ensureHome } from "../src/memory/persona";
 import { openDb } from "../src/storage/db";
 import { channelLocations, channelOf } from "../src/workspaces/task-workspace";
 import { loadWorkspaces } from "../src/workspaces/workspace-registry";
 import { clearWorkspaces, makeEnv, outsideDir } from "./helpers";
-import { writeLocationNotes } from "./memory-fixture";
 
 const CH_ID = "33333333333333333";
 const WS = "main";
@@ -103,29 +101,26 @@ test("ensureHome creates channel dirs + MEMORY.md for every channel, never overw
   expect(readFileSync(paths.channel("finance").memory, "utf8")).toBe("# mine\n");
 });
 
-test("memory layers: root, workspace, channel, locations in order; channel capped", () => {
+test("memory layers: root then channel, both whole (no cut); other channel or none = no block", () => {
   const { home, paths } = space();
   note(workspacePaths(home).memory, "root fact");
-  note(paths.memory, "space fact");
   note(paths.channel("finance").memory, "channel fact");
-  writeLocationNotes(home, WS, "api", ["loc fact"]);
-  const out = buildMemoryContext(home, WS, "finance", ["api"]);
-  const at = ["### global", "### workspace main", "### channel finance", "### api"].map((h) =>
-    out.indexOf(h),
-  );
+  const out = buildMemoryContext(home, WS, "finance");
+  const at = ["### root", "### channel finance"].map((h) => out.indexOf(h));
   expect(at.every((n) => n >= 0)).toBe(true);
   expect([...at].sort((a, b) => a - b)).toEqual(at);
-  // No channel (or another channel): the layer is absent.
-  expect(buildMemoryContext(home, WS, undefined, ["api"])).not.toContain("### channel");
-  expect(readMemoryLayers(home, WS, "chat-room", []).channel).toBe("");
-  // Cap: a bigger file is cut and reported.
+  // No channel (or another channel with no notes): the layer is absent.
+  expect(buildMemoryContext(home, WS, undefined)).not.toContain("### channel");
+  expect(readMemoryLayers(home, WS, "chat-room").channel).toBe("");
+  // No cap: a channel file over 3000 chars is injected whole.
   const big = Array.from({ length: 400 }, (_, i) => `- fact number ${i} padding padding`).join(
     "\n",
   );
   writeFileSync(paths.channel("finance").memory, `# m\n\n## Facts\n${big}\n`);
-  const l = readMemoryLayers(home, WS, "finance", []);
-  expect(l.channel.length).toBeLessThanOrEqual(CHANNEL_CHARS);
-  expect(l.overCap).toContain("channel");
+  const l = readMemoryLayers(home, WS, "finance");
+  expect(l.channel.length).toBeGreaterThan(3000);
+  expect(l.channel).toContain("fact number 0 ");
+  expect(l.channel).toContain("fact number 399 ");
 });
 
 test("persona: channel file > space file > root file, first non-empty wins", () => {
@@ -149,7 +144,6 @@ test("MemorySave scope channel writes the run's channel file; no channel = error
     home,
     workspace: WS,
     channel: "finance",
-    locationNames: () => ["api"],
     threadLabel: "thread x",
   };
   const call = async (c: MemoryToolContext) => {
@@ -176,18 +170,11 @@ test("index: channel MEMORY.md is source channel, searchable only from its own c
   const db = openDb(":memory:");
   syncAll(db, home);
   const find = (channel?: string) =>
-    searchIndex(db, WS, { query: "zebra", limit: 5, locations: [], channel }).hits;
+    searchIndex(db, WS, { query: "zebra", limit: 5, channel }).hits;
   expect(find("finance").map((h) => h.source)).toEqual(["channel"]);
   expect(find("chat-room")).toEqual([]);
   expect(find(undefined)).toEqual([]);
   const id = find("finance")[0]!.id;
   expect(id.startsWith("channel/finance#")).toBe(true);
   expect(parseId(id)).toMatchObject({ type: "file", source: "channel", channel: "finance" });
-});
-
-test("memory tool context: location names are the run's (channel) subset, else the registry's", () => {
-  const { home } = space();
-  const base = { db: openDb(":memory:"), home, workspace: WS, threadId: "t1", trackSummary: false };
-  expect(buildMemoryToolContext({ ...base, locationNames: [] }).locationNames()).toEqual([]);
-  expect(buildMemoryToolContext(base).locationNames()).toEqual(["api"]);
 });

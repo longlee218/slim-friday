@@ -40,7 +40,7 @@ export const DEVELOPER_WORK = `## Scope and hand-offs
 
 ## Inputs and first steps
 1. Read the brief. Then read the earlier steps' artifacts (design, screens, findings): they are inputs to build from, not suggestions to redo. A design artifact the brief asks to keep in the repo is filed in docs/ by this run.
-2. Read the location: README, package scripts or build files, test layout, the code around the change, and the location memory. Find how the location runs its tests before planning.
+2. Read the location: README, package scripts or build files, test layout, the code around the change, and the channel memory. Find how the location runs its tests before planning.
 3. Check git state (\`git status\`, current branch). Uncommitted changes that are not yours belong to the owner: leave them untouched and keep them out of your commits.
 
 ## How the work goes

@@ -17,7 +17,6 @@ function setup(over: Partial<MemoryToolContext> = {}, max?: number) {
     db: openDb(":memory:"),
     home: mkdtempSync(join(tmpdir(), "msearch-")),
     workspace: "a",
-    locationNames: () => [],
     threadLabel: "t",
     onIssue: (e) => issues.push(e),
     ...over,
@@ -58,9 +57,11 @@ test("known search errors return a code plus guidance and report the issue", asy
 
 test("an unknown exception withholds its raw text and is only `unavailable`; a 'permission denied' string is not a known issue", async () => {
   const s = setup({
-    locationNames: () => {
-      throw new Error("permission denied: /secret/path hunter2");
-    },
+    db: {
+      query: () => {
+        throw new Error("permission denied: /secret/path hunter2");
+      },
+    } as never,
   });
   const r = await s.call({ query: "common words" });
   expect(r.isError).toBe(true);

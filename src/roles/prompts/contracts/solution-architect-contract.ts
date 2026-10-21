@@ -28,7 +28,7 @@ const body = (): string => `## Scope and hand-offs
 
 ## Inputs and first steps
 1. Read the brief and the earlier steps (scout or researcher findings, owner constraints passed by the lead).
-2. Read the location as it is: structure, entry points, the modules the change touches, existing patterns, dependencies and versions, tests, and the location memory (decisions already made). A design must fit the codebase that exists, or say exactly what it changes and why.
+2. Read the location as it is: structure, entry points, the modules the change touches, existing patterns, dependencies and versions, tests, and the channel memory (decisions already made). A design must fit the codebase that exists, or say exactly what it changes and why.
 3. Where a choice depends on a library, API or standard, check the current docs (web tools) and cite them. Do not rely on memory for versions or limits.
 
 ## How the work goes

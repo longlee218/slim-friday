@@ -20,17 +20,17 @@ test("paths derive from AGENT_HOME and task id", () => {
   expect(p.user).toBe("/h/USER.md");
   expect(p.memory).toBe("/h/MEMORY.md");
   expect(p.bootstrap).toBe("/h/BOOTSTRAP.md");
-  expect(p.memoryPending).toBe("/h/MEMORY.pending.md");
   expect(p.backups).toBe("/h/backups");
   expect(p.workspaces).toBe("/h/workspaces");
 });
 
-test("workspace layout: workspaces/<ws>/locations/<location>/{location.yaml,MEMORY.md,location,worktrees}", () => {
+test("workspace layout: workspaces/<ws>/{workspace.yaml,channels/<name>/MEMORY.md,cwd,tasks}", () => {
   const ws = workspacePaths("/h").workspace("shop");
   expect(ws.root).toBe("/h/workspaces/shop");
   expect(ws.config).toBe("/h/workspaces/shop/workspace.yaml");
   expect(ws.identity).toBe("/h/workspaces/shop/IDENTITY.md");
-  expect(ws.memory).toBe("/h/workspaces/shop/MEMORY.md");
+  expect(ws).not.toHaveProperty("memory");
+  expect(ws.channel("ops").memory).toBe("/h/workspaces/shop/channels/ops/MEMORY.md");
   expect(ws.cwd).toBe("/h/workspaces/shop/cwd");
   expect(ws.tasks).toBe("/h/workspaces/shop/tasks");
   expect(ws.task("T1")).toEqual({
@@ -38,10 +38,7 @@ test("workspace layout: workspaces/<ws>/locations/<location>/{location.yaml,MEMO
     scratch: "/h/workspaces/shop/tasks/T1/scratch",
   });
   expect(ws.locations).toBe("/h/workspaces/shop/locations");
-  expect(ws.location("api")).toEqual({
-    root: "/h/workspaces/shop/locations/api",
-    memory: "/h/workspaces/shop/locations/api/MEMORY.md",
-  });
+  expect(ws).not.toHaveProperty("location");
 });
 
 test("name rules: workspace lowercase-hyphen and not reserved; location allows dots and underscores", () => {

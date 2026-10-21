@@ -307,7 +307,7 @@ describe("rollover sequence", () => {
     expect(haiku.options.hooks).toBeUndefined(); // the fallback call registers no hooks
     expect(getThreadSummary(h.env.db, "th1")?.summary).toBe("S-haiku");
     expect(getSession(h.env.db, "th1")).toBeNull();
-    const hits = searchIndex(h.env.db, "main", { query: "haiku", limit: 5, locations: [] }).hits;
+    const hits = searchIndex(h.env.db, "main", { query: "haiku", limit: 5 }).hits;
     expect(hits.length).toBe(1);
   });
 

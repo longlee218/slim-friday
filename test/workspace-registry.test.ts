@@ -56,7 +56,7 @@ const cases: Case[] = [
     setup: ({ home }) => {
       addLocation(home, "api", {}, { workspace: "main" });
       symlinkSync(
-        workspacePaths(home).workspace("main").location("api").root,
+        join(workspacePaths(home).workspace("main").locations, "api"),
         join(home, "workspaces", "main", "locations", "alias"),
       );
     },

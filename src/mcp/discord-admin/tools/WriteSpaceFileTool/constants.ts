@@ -6,7 +6,7 @@ export const WRITE_SPACE_FILE_TOOL = "WriteSpaceFile";
 /** The only files the tool writes (fixed names: a path is never built from model text). */
 export const SPACE_FILES = ["USER.md", "IDENTITY.md", "AGENTS.md", "SOUL.md", "MEMORY.md"] as const;
 
-/** Max chars of the new content (the prompt reads at most 6000 chars of a persona file). */
+/** Max chars of the new content of a persona file (the prompt reads at most 6000 chars of one). Not applied to MEMORY.md: memory has no size cap. */
 export const CONTENT_MAX_CHARS = 6000;
 /** Max chars of the diff shown to the owner; a bigger one is refused (the owner must see the whole change). */
 export const DIFF_MAX_CHARS = 16000;
