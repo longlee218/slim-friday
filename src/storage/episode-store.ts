@@ -146,3 +146,51 @@ export function markEpisodesPromoted(db: Database, used: readonly UnpromotedEpis
   );
   for (const e of used) up.run(e.updatedAt, e.threadId, e.updatedAt);
 }
+
+/** An episode of one channel as the per-turn related block needs it. */
+export interface RelatedEpisode {
+  threadId: string;
+  /** Thread title, null when the thread has none (or no `threads` row). */
+  title: string | null;
+  abstract: string;
+  /** Full episode text, used only to count how many query terms it shares (never shown). */
+  summary: string;
+  updatedAt: number;
+}
+
+/**
+ * Episodes among `threadIds` that belong to workspace + channel (the channel check is repeated here on purpose: the
+ * block must never show another channel's episode, whatever the search returned). Rows with no abstract are left out.
+ */
+export function episodesOfChannel(
+  db: Database,
+  workspace: string,
+  channel: string,
+  threadIds: readonly string[],
+): RelatedEpisode[] {
+  if (threadIds.length === 0) return [];
+  const marks = threadIds.map(() => "?").join(", ");
+  return db
+    .query<
+      {
+        thread_id: string;
+        title: string | null;
+        abstract: string;
+        summary: string;
+        updated_at: number;
+      },
+      string[]
+    >(
+      `SELECT s.thread_id, th.title, s.abstract, s.summary, s.updated_at FROM thread_summaries s
+       LEFT JOIN threads th ON th.thread_id = s.thread_id
+       WHERE s.workspace = ? AND s.channel = ? AND s.abstract <> '' AND s.thread_id IN (${marks})`,
+    )
+    .all(workspace, channel, ...threadIds)
+    .map((r) => ({
+      threadId: r.thread_id,
+      title: r.title,
+      abstract: r.abstract,
+      summary: r.summary,
+      updatedAt: r.updated_at,
+    }));
+}

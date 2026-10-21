@@ -80,3 +80,12 @@ export const DREAM_BACKUP_KEEP = 20;
  * never a size cap of the file.
  */
 export const DREAM_MAX_DROP_SHARE = 0.5;
+
+/** Most episode abstracts the lead's per-turn prompt carries (the best FTS matches of the channel). */
+export const INJECT_MAX_HITS = 3;
+
+/** Chars of the whole "related earlier threads" block, heading included (lines that do not fit are dropped). */
+export const INJECT_MAX_CHARS = 800;
+
+/** Least searchable terms the owner message needs, and least of them an episode must share, for a block. */
+export const INJECT_MIN_TERMS = 2;

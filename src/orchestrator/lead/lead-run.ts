@@ -1,4 +1,5 @@
 import { messageLanguage } from "../../ingress/user-copy";
+import { relatedEpisodesBlock } from "../../memory/related-episodes";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import { OWNER_MESSAGE_LABEL } from "../../roles/prompts/first-prompt-prefix";
@@ -80,11 +81,23 @@ function leadOnce(
       };
       const model = getRole("lead").model;
       const stored = getSession(db, threadId);
+      // Owner messages only (not wake-ups): earlier episodes of this channel that match the text, as data. Lead only.
+      const related =
+        o.trigger === "owner" && o.ownerText
+          ? relatedEpisodesBlock(db, {
+              workspace: ctx.workspace,
+              channel: ctx.channel,
+              threadId,
+              text: o.ownerText,
+            })
+          : "";
       return {
         input: {
           turnId,
           threadId,
-          text: `${buildLeadContextBlock(port.snapshot() ?? { items: [] })}\n\n${o.text}`,
+          text: [related, buildLeadContextBlock(port.snapshot() ?? { items: [] }), o.text]
+            .filter(Boolean)
+            .join("\n\n"),
           role: "lead",
           workspace: ctx.workspace,
           channel: ctx.channel,

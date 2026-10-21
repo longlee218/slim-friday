@@ -1,5 +1,6 @@
 import { FLUSH_MAX_ITEMS } from "../../config/memory-caps";
 import { MEMORY_KINDS } from "../../memory/memory-sections";
+import { RELATED_HEADING } from "../../memory/related-heading";
 
 /* Prompts of the memory jobs (text only; the jobs live in `src/memory/`). Runtime facts only: input and output shape. */
 
@@ -44,4 +45,5 @@ export const COMPACT_INSTRUCTIONS =
   "owner decisions and constraints; owner preferences stated in the thread; " +
   "open tasks and their status; goal and task ids with their outcomes; " +
   "file paths, branch names, commands and other identifiers; unresolved questions. " +
+  `Drop the "${RELATED_HEADING}" block at the start of a user prompt (app data, not part of the thread). ` +
   "Drop chit-chat and tool output noise. Never copy secrets (tokens, keys, passwords).";

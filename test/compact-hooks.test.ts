@@ -13,6 +13,7 @@ import {
 import { searchIndex } from "../src/memory/index/memory-search";
 import { syncIndex } from "../src/memory/index/memory-sync";
 import { buildPromptContext } from "../src/memory/prompt-context";
+import { RELATED_HEADING } from "../src/memory/related-heading";
 import { mergeSummary } from "../src/memory/summary-merge";
 import { runRole } from "../src/orchestrator/run/run-role";
 import { COMPACT_INSTRUCTIONS } from "../src/roles/prompts/memory-prompts";
@@ -293,6 +294,7 @@ test("PreCompact returns the what-to-keep text as systemMessage (the SDK appends
   expect(out.systemMessage).not.toContain("focus on code");
   expect(COMPACT_INSTRUCTIONS.length).toBeLessThan(1200);
   expect(COMPACT_INSTRUCTIONS).toContain("owner decisions");
+  expect(COMPACT_INSTRUCTIONS).toContain(RELATED_HEADING); // the injected per-turn block is not summarized
   expect(setup(false).hooks).toEqual({});
 });
 
