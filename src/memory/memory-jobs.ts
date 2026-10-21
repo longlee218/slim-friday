@@ -2,6 +2,8 @@ import type { Database } from "bun:sqlite";
 import type { Logger } from "pino";
 import type { AgentConfig } from "../config/agent-config";
 import {
+  DREAM_BUDGET_USD,
+  DREAM_DEADLINE_MS,
   EPISODE_BUDGET_USD,
   EPISODE_DEADLINE_MS,
   FLUSH_BUDGET_USD,
@@ -14,11 +16,12 @@ import type { QueryFn } from "../runtime/run-agent";
 import { type FlushRequest, flushAfterCompaction } from "./compaction-flush";
 import { type ChannelResolver, registryResolver, writeIdleEpisodes } from "./idle-episode";
 import { type CompactLlm, sdkCompactLlm } from "./memory-compaction-llm";
+import { type DreamState, dreamAll } from "./memory-dream";
 import { pruneMemory } from "./memory-prune";
 
 /**
  * Background memory jobs of the app: the flush after a compaction (queued per thread) and the memory tick (every
- * `MEMORY_TICK_MS`: idle-thread episodes, then the prune when `PRUNE_INTERVAL_MS` passed). Flush jobs of one thread
+ * `MEMORY_TICK_MS`: idle-thread episodes, dreaming, then the prune when `PRUNE_INTERVAL_MS` passed). Flush jobs of one thread
  * run one after the other; threads run side by side. A job never delays a reply or the next run (no hold) and never
  * throws: a failure is logged. `abortAll` (shutdown) stops the tick and queued jobs from starting; `drain` waits for
  * the running ones.
@@ -33,6 +36,8 @@ export function createMemoryJobs(deps: {
   now?: () => Date;
   /** Override the idle-episode model call (tests); defaults to `llm`, else a Haiku call with the episode limits. */
   episodeLlm?: CompactLlm;
+  /** Override the dream model call (tests); defaults to `llm`, else a Haiku call with the dream limits. */
+  dreamLlm?: CompactLlm;
   /** Override the channel lookup of the episode writer (tests); defaults to the workspace registry. */
   resolveChannel?: ChannelResolver;
 }) {
@@ -51,6 +56,16 @@ export function createMemoryJobs(deps: {
       budgetUsd: EPISODE_BUDGET_USD,
       attempts: 1,
     });
+  const dreamLlm =
+    deps.dreamLlm ??
+    deps.llm ??
+    sdkCompactLlm(deps.config, deps.queryFn, {
+      deadlineMs: DREAM_DEADLINE_MS,
+      budgetUsd: DREAM_BUDGET_USD,
+      attempts: 1,
+    });
+  /** Dream scheduler state: last attempt per channel (debounce) and channels dreaming now; lives for the process. */
+  const dreamState: DreamState = { last: new Map(), running: new Set() };
   const resolve = deps.resolveChannel ?? registryResolver(deps.config.agentHome);
   /** Tail of each thread's job chain; an entry deletes itself when it is still the newest. */
   const pending = new Map<string, Promise<void>>();
@@ -96,7 +111,7 @@ export function createMemoryJobs(deps: {
       pending.set(req.threadId, run);
     },
     /**
-     * One memory tick: idle-thread episodes, then (phase 5: dreaming), then the prune when due. A tick still running
+     * One memory tick: idle-thread episodes, then dreaming (per channel), then the prune when due. A tick still running
      * makes this call return its promise (no overlap). Never rejects.
      */
     tick(): Promise<void> {
@@ -111,6 +126,14 @@ export function createMemoryJobs(deps: {
           now: () => now,
           signal: shutdown.signal,
           skip: episodeSkip,
+        });
+        await dreamAll({
+          db: deps.db,
+          home: deps.config.agentHome,
+          llm: dreamLlm,
+          state: dreamState,
+          now: () => now,
+          signal: shutdown.signal,
         });
         if (now - lastPrune >= PRUNE_INTERVAL_MS) {
           lastPrune = now;

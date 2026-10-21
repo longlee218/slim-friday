@@ -112,3 +112,37 @@ export function expiredEpisodes(db: Database, cutoff: number): string[] {
     .all(cutoff)
     .map((r) => r.thread_id);
 }
+
+/** An episode dreaming may consume: its text and the `updated_at` version that was read. */
+export interface UnpromotedEpisode {
+  threadId: string;
+  summary: string;
+  updatedAt: number;
+}
+
+/** Episodes of one channel with text and no dream since their last update (`updated_at > promoted_at`), oldest first. */
+export function unpromotedEpisodes(
+  db: Database,
+  workspace: string,
+  channel: string,
+): UnpromotedEpisode[] {
+  return db
+    .query<{ thread_id: string; summary: string; updated_at: number }, [string, string]>(
+      `SELECT thread_id, summary, updated_at FROM thread_summaries
+       WHERE workspace = ? AND channel = ? AND summary <> '' AND updated_at > promoted_at
+       ORDER BY updated_at`,
+    )
+    .all(workspace, channel)
+    .map((r) => ({ threadId: r.thread_id, summary: r.summary, updatedAt: r.updated_at }));
+}
+
+/**
+ * Mark the read versions of episodes as consumed: `promoted_at` takes the `updated_at` that was read, and only while the
+ * row still has it, so an episode rewritten meanwhile stays unpromoted (its newer text was never used).
+ */
+export function markEpisodesPromoted(db: Database, used: readonly UnpromotedEpisode[]): void {
+  const up = db.query(
+    "UPDATE thread_summaries SET promoted_at = ? WHERE thread_id = ? AND updated_at = ?",
+  );
+  for (const e of used) up.run(e.updatedAt, e.threadId, e.updatedAt);
+}

@@ -1,7 +1,8 @@
 import type { Database } from "bun:sqlite";
-import { EPISODE_TTL_DAYS } from "../config/memory-caps";
+import { EPISODE_TTL_DAYS, JOURNAL_RETENTION_DAYS } from "../config/memory-caps";
 import { logEvent, logger } from "../observability/logger";
 import { expiredEpisodes } from "../storage/episode-store";
+import { prunePromotions } from "../storage/memory-promotion-store";
 import { deleteThreadSummary, summaryPath } from "../storage/thread-summary-store";
 import { pruneJournals } from "./daily-journal";
 import { purgePath } from "./index/memory-index";
@@ -24,16 +25,19 @@ function pruneEpisodes(db: Database, now: number): number {
 /**
  * The one prune job: expired episodes (90 d, with their index rows) and old journal day files (30 d, the index is
  * re-synced when files went so their rows go too). Runs at start and every `PRUNE_INTERVAL_MS` from the memory tick.
- * Logs `memory.prune {episodes, journals}`. Never throws (a failing half does not stop the other).
+ * The promotion ledger loses rows older than the journal retention plus one day (their journal files are gone).
+ * Logs `memory.prune {episodes, journals, promotions}`. Never throws (a failing half does not stop the other).
  */
 export function pruneMemory(
   db: Database,
   home: string,
   now: Date = new Date(),
-): { episodes: number; journals: number } {
+): { episodes: number; journals: number; promotions: number } {
   const episodes = safely("prune episodes", () => pruneEpisodes(db, now.getTime())) ?? 0;
   const journals = safely("prune journals", () => pruneJournals(home, now)) ?? 0;
+  const cutoff = now.getTime() - (JOURNAL_RETENTION_DAYS + 1) * 86_400_000;
+  const promotions = safely("prune promotions", () => prunePromotions(db, cutoff)) ?? 0;
   if (journals > 0) safely("prune sync", () => syncAll(db, home));
-  logEvent(log, "memory.prune", { episodes, journals });
-  return { episodes, journals };
+  logEvent(log, "memory.prune", { episodes, journals, promotions });
+  return { episodes, journals, promotions };
 }

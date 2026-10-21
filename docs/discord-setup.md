@@ -149,6 +149,7 @@ Refusals: the lead tells you the cause in its own words. The code is in the `lea
 - Remove a name from a channel's `locations:` list, or set `mode: chat` (auto-adopt and registration never set `chat`).
 - Anything outside the rules above.
 - The bot rewrites `workspace.yaml` on these writes: comments are lost. The old bytes are kept in `$AGENT_HOME/backups/persona/<space>/` (newest 10).
+- Dreaming (auto-merge of a channel's `MEMORY.md` bullets) keeps the old file in `$AGENT_HOME/backups/memory/<space>/channels/<channel>/MEMORY.md-<stamp>` (newest 20). To undo a dream, copy a backup over the file. Write your own notes without a trailing date or outside `## Decisions|Facts|Preferences|Lessons`: a dated bullet in those sections may be merged. The log line `memory.dream` shows counts only.
 
 ## Server organization (one guild)
 ```

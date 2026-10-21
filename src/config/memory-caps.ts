@@ -1,4 +1,4 @@
-/* Limits of the memory jobs (flush after compaction, idle episodes, prune; dreaming adds its own here).
+/* Limits of the memory jobs (flush after compaction, idle episodes, dreaming, prune).
    Time, cost and retention bounds of background work, NOT memory size caps: memory files have none.
    Plain constants: no env, no behaviour. */
 
@@ -46,3 +46,37 @@ export const MEMORY_TICK_MS = 600_000;
 
 /** Least time (ms) between two prune runs (episodes, journals); one run also happens at start. */
 export const PRUNE_INTERVAL_MS = 21_600_000;
+
+/** Least unpromoted items (episodes + journal blocks) of a channel before it dreams. */
+export const DREAM_MIN_ITEMS = 5;
+
+/** Most items one dream consumes (the oldest first; the rest wait for the next dream). */
+export const DREAM_MAX_ITEMS = 10;
+
+/** Least time (ms) between two dream attempts of one channel (a failed attempt counts too: no back-off). */
+export const DREAM_DEBOUNCE_MS = 600_000;
+
+/** Cost ceiling (USD) of one dream model call. */
+export const DREAM_BUDGET_USD = 0.1;
+
+/** Deadline (ms) of one dream model call (one attempt, thinking off). */
+export const DREAM_DEADLINE_MS = 90_000;
+
+/** Chars of one dream item sent to the model (an episode summary or the bullets of a journal block); the rest is cut. */
+export const DREAM_ITEM_MAX_CHARS = 3000;
+
+/**
+ * Chars of the current dated notes sent to the model in one dream. Over it, the newest notes (by date, then file
+ * position) within the cap are sent; the rest are not shown to the model and stay untouched in the file.
+ */
+export const DREAM_NOTES_MAX_CHARS = 40_000;
+
+/** Backups of a channel `MEMORY.md` kept (the newest), one is written before each dream write. */
+export const DREAM_BACKUP_KEEP = 20;
+
+/**
+ * Shrink guard: a dream is refused when more than this share of the existing dated bullets has no similar bullet in
+ * the result AND that loss is bigger than the number of near-duplicates among them. A ratio of the job's own input,
+ * never a size cap of the file.
+ */
+export const DREAM_MAX_DROP_SHARE = 0.5;

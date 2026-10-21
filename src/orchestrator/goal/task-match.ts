@@ -37,7 +37,7 @@ export const tokensOf = (text: string): Set<string> =>
   );
 
 /** Jaccard overlap of two token sets (0-1; 0 when either is empty). */
-function jaccard(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
+export function jaccard(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
   if (!a.size || !b.size) return 0;
   let shared = 0;
   for (const t of a) if (b.has(t)) shared++;

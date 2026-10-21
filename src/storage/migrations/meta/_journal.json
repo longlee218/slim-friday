@@ -71,6 +71,13 @@
       "when": 1792555349351,
       "tag": "0009_episodic_summaries",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792556723572,
+      "tag": "0010_memory_promotions",
+      "breakpoints": true
     }
   ]
 }

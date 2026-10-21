@@ -26,6 +26,9 @@ export function workspacePaths(agentHome: string) {
     attachments: (threadKey: string) => join(agentHome, "tmp", "attachments", threadKey),
     /** Backups of the home (persona file backups). */
     backups: join(agentHome, "backups"),
+    /** Folder of the backups made before a dream write of one channel `MEMORY.md`. */
+    memoryBackups: (ws: string, channel: string) =>
+      join(agentHome, "backups", "memory", ws, "channels", channel),
     /** Default home of NEW projects made from chat (no path, no `projectsDir`): `<home>/projects/<slug>`. Only a project inside it is exempt from the AGENT_HOME deny (never the dir itself). */
     projects: join(agentHome, "projects"),
     /** Workspaces: each holds channels (`workspaces/<ws>/channels/<name>/`) and the locations named in its yaml. */

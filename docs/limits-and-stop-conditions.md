@@ -201,11 +201,22 @@ Files: `config/memory-caps.ts`. Time, cost and retention bounds of memory jobs; 
 | `EPISODE_INPUT_MAX_CHARS` | one-shot | 12000 chars <!-- limit:EPISODE_INPUT_MAX_CHARS=12000 --> | the thread facts sent to the model are cut to their newest end |
 | `EPISODE_BUDGET_USD` | one-shot | $0.03 <!-- limit:EPISODE_BUDGET_USD=0.03 --> | the call stops; the facts text is stored as the episode |
 | `EPISODE_DEADLINE_MS` | one-shot | 30 s <!-- limit:EPISODE_DEADLINE_MS=30000 --> | the call times out (one attempt); the facts text is stored as the episode |
-| `MEMORY_TICK_MS` | app | 10 min <!-- limit:MEMORY_TICK_MS=600000 --> | period of the memory tick (idle episodes, then the prune when due); a tick never overlaps the next |
+| `MEMORY_TICK_MS` | app | 10 min <!-- limit:MEMORY_TICK_MS=600000 --> | period of the memory tick (idle episodes, dreaming, then the prune when due); a tick never overlaps the next |
+| `DREAM_MIN_ITEMS` | channel | 5 items <!-- limit:DREAM_MIN_ITEMS=5 --> | fewer unconsumed items (episodes + journal blocks): no dream, no model call |
+| `DREAM_MAX_ITEMS` | one-shot | 10 items <!-- limit:DREAM_MAX_ITEMS=10 --> | the oldest 10 are used, the rest wait for the next dream |
+| `DREAM_DEBOUNCE_MS` | channel | 10 min <!-- limit:DREAM_DEBOUNCE_MS=600000 --> | a second dream attempt of the channel waits (a failed attempt counts too: no back-off) |
+| `DREAM_BUDGET_USD` | one-shot | $0.10 <!-- limit:DREAM_BUDGET_USD=0.1 --> | the call stops; file and marks stay, the next debounce retries |
+| `DREAM_DEADLINE_MS` | one-shot | 90 s <!-- limit:DREAM_DEADLINE_MS=90000 --> | the call times out (one attempt); file and marks stay |
+| `DREAM_ITEM_MAX_CHARS` | one-shot | 3000 chars <!-- limit:DREAM_ITEM_MAX_CHARS=3000 --> | an episode summary or the bullets of a journal block sent to the model are cut (a journal bullet that does not fit stays unconsumed) |
+| `DREAM_NOTES_MAX_CHARS` | one-shot | 40000 chars <!-- limit:DREAM_NOTES_MAX_CHARS=40000 --> | the current dated notes sent to the model are cut to the newest within the cap (logged as `memory.dream_notes_capped`, counts only); the notes not sent stay untouched in the file |
+| `DREAM_BACKUP_KEEP` | channel | 20 backups <!-- limit:DREAM_BACKUP_KEEP=20 --> | older backups of the channel `MEMORY.md` are deleted |
+| `DREAM_MAX_DROP_SHARE` | one-shot | 0.5 <!-- limit:DREAM_MAX_DROP_SHARE=0.5 --> | the dream is refused (`shrink_guard`) when the dated bullets with no similar bullet in the result exceed what merging near-duplicates can remove (duplicates minus clusters, one representative stays per cluster) plus this share of the distinct bullets; an all-empty result is always refused when the file has dated bullets; file and marks stay |
 | `PRUNE_INTERVAL_MS` | app | 6 h <!-- limit:PRUNE_INTERVAL_MS=21600000 --> | least time between two prunes (episodes and journals); one more prune runs at start |
 
 - The flush runs once per compaction cycle, async, after the SDK compaction (lead runs only); it never delays a reply or the next run.
 - An episode is written on a compaction (the merged SDK summary) or when a thread goes idle (reuses a compaction summary written during its last lead turn, else one Haiku call over the db facts; at most `EPISODE_MAX_PER_TICK` per tick). The abstract and key topics are extractive (no model call).
+
+- Dreaming (per channel, on the memory tick): only dated bullets (`- text (YYYY-MM-DD)`) inside `## Decisions|Facts|Preferences|Lessons` can be merged or dropped; owner prose, undated bullets, headings and other sections stay byte for byte. Only top-level bullets (no indent, not under a `###` subheading, not in a code fence) are candidates. The reply must hold all four kind lists, else it is a bad reply (file unchanged, items unpromoted). The file is re-read under the lock: a bullet the owner deleted or edited during the model call is not re-added, an unreconcilable change skips the dream (`file_changed`), and a file that is not valid UTF-8 is never rewritten (`not_utf8`). Each result bullet is one line, at most 2000 chars (`SAVE_MAX_CHARS`), secrets masked. The shrink guard is a ratio of the dream's own input, never a size cap of the file. A refused or failed dream retries every `DREAM_DEBOUNCE_MS` (up to `DREAM_BUDGET_USD` per try, accepted).
 
 ## Tool Input Limits
 
@@ -297,6 +308,8 @@ Informational.
 | Trash (deleted paths) | 7 days; sweep every 6 h | `policy/risk-types.ts`, `lifecycle/trash-sweeper.ts` |
 | Persona backups | newest 10 per file | `WriteSpaceFileTool/constants.ts` |
 | Control session | fresh after 24 h idle | `discord-setup/control-role-run.ts` |
+| Memory backups (before each dream write) | newest `DREAM_BACKUP_KEEP` = 20 per channel, `<AGENT_HOME>/backups/memory/<ws>/channels/<ch>/MEMORY.md-<stamp>` | `memory/stamped-backup.ts` |
+| Promotion ledger (`memory_promotions`) | `JOURNAL_RETENTION_DAYS` + 1 = 31 days since the bullet was consumed; pruned with the episodes | `memory/memory-prune.ts` |
 | Episodes (`thread_summaries`) | `EPISODE_TTL_DAYS` = 90 days since the last update; pruned at start and every `PRUNE_INTERVAL_MS` | `memory/memory-prune.ts` |
 | Other database rows | forever (no pruning; `thread_summaries` excepted) | see Not now |
 

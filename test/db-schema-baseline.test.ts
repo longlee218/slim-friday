@@ -48,6 +48,7 @@ const EXPECTED: Record<string, string[]> = {
     "created_at",
   ],
   memory_files: ["path", "workspace", "mtime_ms", "size"],
+  memory_promotions: ["workspace", "channel", "hash", "promoted_at"],
   owned_tasks: [
     "id",
     "thread_id",
@@ -235,7 +236,7 @@ test("reopening a file db is a no-op and a foreign db is refused", () => {
     a.close();
     const b = openDb(file);
     expect(b.query("SELECT thread_id FROM threads").all()).toHaveLength(1);
-    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 10 });
+    expect(b.query("SELECT COUNT(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 11 });
     b.close();
 
     const foreign = join(dir, "foreign.db");
