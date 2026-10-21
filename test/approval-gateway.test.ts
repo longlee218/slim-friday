@@ -95,7 +95,7 @@ describe("discord approval gateway", () => {
     await c.run();
     expect(await p).toEqual({ approved: true });
     expect(c.out.update.components).toEqual([]);
-    expect(c.out.update.content).toContain("Chose: Approve");
+    expect(c.out.update.content).toContain("You chose: Approve");
     expect(s.row("SELECT status FROM turns").status).toBe("running");
     const a = s.row("SELECT * FROM approvals");
     expect(a.decision).toBe("approved");
@@ -118,7 +118,7 @@ describe("discord approval gateway", () => {
     await s.tick();
     const bad = s.click(s.ids()[0], "intruder");
     await bad.run();
-    expect(bad.out.reply.content).toBe("Only the owner can approve.");
+    expect(bad.out.reply.content).toBe("Only the owner can approve this.");
     expect(bad.out.reply.flags).toBeDefined();
     expect(s.row("SELECT decision FROM approvals").decision).toBe("pending");
     await s.click(s.ids()[0]).run();
@@ -313,7 +313,7 @@ describe("natural choices", () => {
     const c = s.click(s.ids()[0]);
     await c.run();
     expect(await p).toBe("Ship it");
-    expect(c.out.update.content).toContain("Chose: Ship it");
+    expect(c.out.update.content).toContain("You chose: Ship it");
     expect(c.out.update.content).not.toContain("#");
     expect(c.out.update.content).not.toContain("Owner chose");
     expect(c.out.update.components).toEqual([]);
@@ -326,7 +326,7 @@ describe("natural choices", () => {
     const c = s.click(s.ids()[1]);
     await c.run();
     expect(await p).toBe("Không");
-    expect(c.out.update.content).toContain("Đã chọn: Không");
+    expect(c.out.update.content).toContain("Bạn đã chọn: Không");
   });
 
   test("6 to 25 options use a select menu plus the Enter answer button; component ids hold only ids", async () => {
@@ -338,7 +338,7 @@ describe("natural choices", () => {
     const c = s.interact("select", ids(s)[0], { values: ["4"] });
     await c.run();
     expect(await p).toBe("option 4");
-    expect(c.out.update.content).toContain("Chose: option 4");
+    expect(c.out.update.content).toContain("You chose: option 4");
     expect(c.out.update.components).toEqual([]);
   });
 
@@ -354,7 +354,7 @@ describe("natural choices", () => {
     const sub = s.interact("modal", modalId, { typed: "  something else  " });
     await sub.run();
     expect(await p).toBe("something else");
-    expect(sub.out.update.content).toContain("Answered: something else");
+    expect(sub.out.update.content).toContain("You answered: something else");
     expect(sub.out.update.components).toEqual([]);
   });
 
@@ -415,17 +415,17 @@ describe("natural choices", () => {
     await s.tick();
     const bad = s.interact("select", ids(s)[0], { values: ["0"], userId: "intruder" });
     await bad.run();
-    expect(bad.out.reply.content).toBe("Only the owner can approve.");
+    expect(bad.out.reply.content).toBe("Only the owner can approve this.");
     const badModal = s.interact("modal", ids(s)[0].replace(/:s$/, ":m"), {
       typed: "x",
       userId: "intruder",
     });
     await badModal.run();
-    expect(badModal.out.reply.content).toBe("Only the owner can approve.");
+    expect(badModal.out.reply.content).toBe("Only the owner can approve this.");
     expect(s.row("SELECT decision FROM approvals").decision).toBe("pending");
     const stale = s.interact("select", "choice:deadbeef:s", { values: ["0"] });
     await stale.run();
-    expect(stale.out.reply.content).toBe("This action expired.");
+    expect(stale.out.reply.content).toBe("This one has expired.");
     const staleEnter = s.click("choice:deadbeef:a");
     await staleEnter.run();
     expect(staleEnter.out.modal).toBeUndefined();

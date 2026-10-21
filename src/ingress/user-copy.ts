@@ -1,11 +1,17 @@
 import { francAll } from "franc-min";
+import {
+  DEFAULT_LANGUAGE,
+  LANGUAGES,
+  type OwnerLanguage,
+  SOURCE_LANGUAGE,
+} from "../i18n/languages";
 import type { RecentMessage } from "./intent-types";
 import { isPlanNotice, renderPlanNotice } from "./notice-text-plan";
 import { renderRunNotice } from "./notice-text-run";
 import { isUiNotice, renderUiNotice } from "./notice-text-ui";
 
-/** The two conversation languages supported by application notices. */
-export type OwnerLanguage = "vi" | "en";
+/** The conversation languages (list: `i18n/languages.ts`), re-exported for the ingress modules. */
+export type { OwnerLanguage };
 
 /** Verified application facts; exceptions, IDs and raw request briefs are deliberately absent. */
 export type UserNotice =
@@ -79,24 +85,26 @@ export type UserNotice =
 
 /** Digits, yes/no and slash commands say nothing about the language: they inherit the conversation's. */
 const NEUTRAL = /^(?:\d+|yes|no|ok|okay|go|stop|\/go(?: \+\d+(?:\.\d+)?)?|\/stop)[.!?]*$/i;
-/** Vietnamese diacritics; any of them settles the language. */
-const VI_MARKS = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
 /** The detector must beat the other language by this much, else the text is treated as undecided. */
 const DETECT_MARGIN = 0.3;
 
-/** Detect vi/en from one text with franc (diacritics first); undefined when neutral, too short or ambiguous. */
+/** The listed languages as [code, franc code, script marks?] rows. */
+const ENTRIES = Object.entries(LANGUAGES) as [OwnerLanguage, { franc: string; marks?: RegExp }][];
+
+/** Detect one of the listed languages from one text with franc (script marks first); undefined when neutral, too short or ambiguous. */
 export function detectLanguage(value: string): OwnerLanguage | undefined {
-  const t = value.trim();
-  if (NEUTRAL.test(t)) return;
-  if (VI_MARKS.test(t)) return "vi";
-  const [top, second] = francAll(t, { only: ["vie", "eng"], minLength: 3 });
+  const text = value.trim();
+  if (NEUTRAL.test(text)) return;
+  const marked = ENTRIES.find(([, l]) => l.marks?.test(text));
+  if (marked) return marked[0];
+  const [top, second] = francAll(text, { only: ENTRIES.map(([, l]) => l.franc), minLength: 3 });
   if (!top || top[0] === "und" || (second && top[1] - second[1] < DETECT_MARGIN)) return;
-  return top[0] === "vie" ? "vi" : "en";
+  return ENTRIES.find(([, l]) => l.franc === top[0])?.[0];
 }
 
 /**
  * Conversation language of the owner's text. Neutral or ambiguous text inherits the latest recognizable OWNER
- * message of `recent` (bot messages never count); with none, Vietnamese.
+ * message of `recent` (bot messages never count); with none, the default language.
  */
 export function languageOf(text: string, recent: RecentMessage[] = []): OwnerLanguage {
   return (
@@ -106,7 +114,7 @@ export function languageOf(text: string, recent: RecentMessage[] = []): OwnerLan
       .filter((m) => m.from === "owner")
       .map((m) => detectLanguage(m.text))
       .find(Boolean) ??
-    "vi"
+    DEFAULT_LANGUAGE
   );
 }
 
@@ -144,12 +152,12 @@ function render(event: UserNotice, language: OwnerLanguage): string {
 }
 
 /**
- * Every English notice rendered by the app registers itself here (text -> event), so the boundary can render it
- * again in the owner's language without a hand-kept table: a new notice cannot be forgotten.
+ * Every source-language (English) notice rendered by the app registers itself here (text -> event), so the boundary
+ * can render it again in the owner's language without a hand-kept table: a new notice cannot be forgotten.
  */
-const ENGLISH_NOTICES = new Map<string, UserNotice>();
+const SOURCE_NOTICES = new Map<string, UserNotice>();
 
-/** Render a notice in the owner's language (English renders are remembered for `localizeUserCopy`). */
+/** Render a notice in the owner's language (source-language renders are remembered for `localizeUserCopy`). */
 export function renderUserNotice(event: UserNotice, language: OwnerLanguage): string {
   const text = render(event, language);
   // Outcomes with times and approval/choice texts (labels, owner words) are never matched back by text.
@@ -159,21 +167,21 @@ export function renderUserNotice(event: UserNotice, language: OwnerLanguage): st
     event.kind === "label" ||
     event.kind === "plan-revised" ||
     (event.kind === "outcome" && event.resetsAt);
-  if (language === "en" && !dynamic) ENGLISH_NOTICES.set(text, event);
+  if (language === SOURCE_LANGUAGE && !dynamic) SOURCE_NOTICES.set(text, event);
   return text;
 }
 
 /**
- * Localize app-generated notices that deeper code rendered in English. Only a LINE that equals a registered notice
+ * Localize app-generated notices that deeper code rendered in the source language (English). Only a LINE that equals a registered notice
  * is replaced, so a model's sentence that merely contains the same words (or an answer in the middle of a line)
  * is never rewritten.
  */
 export function localizeUserCopy(text: string, language: OwnerLanguage): string {
-  if (language === "en") return text;
+  if (language === SOURCE_LANGUAGE) return text;
   return text
     .split("\n")
     .map((line) => {
-      const event = ENGLISH_NOTICES.get(line);
+      const event = SOURCE_NOTICES.get(line);
       return event ? render(event, language) : line;
     })
     .join("\n");

@@ -145,7 +145,7 @@ test("happy path: first mention adopts, thread opens, turn reaches handleMessage
   expect(channelsOf(w.home).at(-1)).toEqual({ id: ch.id, name: "shop", mode: "task" });
   expect(existsSync(workspacePaths(w.home).workspace("demo").channel("shop").memory)).toBe(true);
   expect(w.topics[ch.id]).toContain("task");
-  expect(x.calls.reply[0].content).toContain("Linked #shop to space demo");
+  expect(x.calls.reply[0].content).toContain("Linked #shop to the demo space");
   expect(x.calls.threads).toHaveLength(1);
   expect(w.messages).toHaveLength(1);
   const again = message(w, ch);
@@ -174,7 +174,7 @@ test("refusals: stranger, no literal mention, other guild", async () => {
 test("non-private channel is refused with a hint, no thread", async () => {
   const w = world();
   const x = await untouched(w, textChannel(w, "shop", { open: true }));
-  expect(x.calls.reply[0].content).toContain("not private");
+  expect(x.calls.reply[0].content).toContain("isn't private");
   expect(x.calls.threads).toHaveLength(0);
   expect(w.messages).toHaveLength(0);
 });

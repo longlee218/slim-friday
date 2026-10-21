@@ -183,13 +183,13 @@ test("owner input on a full lead pool: one queue notice, runs when a slot frees;
   const { send, posts, calls } = handlerWith({ limiter: createRunLimiter(10), leadPool });
   await send("th1");
   await until(() => posts.length === 1);
-  expect(posts[0]).toContain("Received your request"); // `queue` notice, not full
+  expect(posts[0]).toContain("Got your request"); // `queue` notice, not full
   await send("th2"); // the bound (1 waiting thread) is reached
   await until(() => posts.some((p) => p.includes("queue is full")));
   expect(calls()).toBe(0);
   hold();
   await until(() => calls() === 1);
-  expect(posts.filter((p) => p.includes("Received your request"))).toHaveLength(1);
+  expect(posts.filter((p) => p.includes("Got your request"))).toHaveLength(1);
 });
 
 test("shutdown: a freed lead slot never starts a new run (waiter and queued inputs are dropped)", async () => {

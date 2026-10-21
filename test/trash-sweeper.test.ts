@@ -92,7 +92,7 @@ test("/purge empties the trash of THIS thread's goals only, after a yes", async 
   // No click (or a "no"): nothing is emptied, the goal's trash stays.
   expect(
     await purgeThreadTrash(db, home, "t1", "en", async (q) => (asked.push(q), false)),
-  ).toContain("Cancelled");
+  ).toContain("left the trash");
   expect(asked).toHaveLength(1);
   expect(existsSync(join(home, "trash", "goal-a"))).toBe(true);
   expect(await purgeThreadTrash(db, home, "t1", "en", yes)).toContain("1 goal");

@@ -1,8 +1,9 @@
+import type { OwnerLanguage } from "../i18n/languages";
+import { t } from "../i18n/translate";
 import { ROLES } from "../roles/role-registry";
 import { SUBAGENT_CAPABILITIES } from "../tools/tool-catalog";
-import type { OwnerLanguage } from "./user-copy";
 
-/* Owner text of `/limits` (vi / en), rendered by app code, no model. Every number comes from the collected limits
+/* Owner text of `/limits` (every language of the list), rendered by app code, no model. Every number comes from the collected limits
    (`collectLimits`) or the role registry at call time; this file holds only labels and which constant goes in which
    section. A collected limit that no section names still shows up under "other", so none is ever hidden. */
 
@@ -113,33 +114,33 @@ export function renderLimits(
   limits: ReadonlyMap<string, number>,
   opts: { role?: string; live: LiveState; language: OwnerLanguage },
 ): LimitsText {
-  const say = (vi: string, en: string) => (opts.language === "vi" ? vi : en);
+  const { language } = opts;
   const lines = (names: readonly string[]) =>
     names.filter((n) => limits.has(n)).map((n) => `- ${n}: ${show(n, limits.get(n) ?? 0)}`);
   const roleLines = rolesOf(opts.role).map((r) => roleLine(limits, r.name));
   if (opts.role) {
     const text = roleLines.length
-      ? [say(`Giới hạn của ${opts.role}:`, `Limits of ${opts.role}:`), ...roleLines].join("\n")
-      : say(`Không có vai trò ${opts.role}.`, `Unknown role: ${opts.role}.`);
+      ? [t(language, "limits.roleTitle", { role: opts.role }), ...roleLines].join("\n")
+      : t(language, "limits.unknownRole", { role: opts.role });
     return { text, head: text };
   }
   const grouped = new Set<string>(Object.values(LIMIT_GROUPS).flat());
   const other = [...limits.keys()].filter((k) => !k.startsWith("role.") && !grouped.has(k));
-  const poolLines = [say("**Pool**", "**Pools**"), ...lines(LIMIT_GROUPS.pools)];
-  const liveLines = liveSection(limits, opts.live, say);
+  const poolLines = [t(language, "limits.pools"), ...lines(LIMIT_GROUPS.pools)];
+  const liveLines = liveSection(limits, opts.live, language);
   const text = [
     ...poolLines,
-    say("**Vai trò**", "**Roles**"),
+    t(language, "limits.roles"),
     ...roleLines,
-    say("**Ngân sách**", "**Budgets**"),
+    t(language, "limits.budgets"),
     ...lines(LIMIT_GROUPS.budgets),
-    say("- Không có giới hạn theo ngày.", "- No daily cap."),
-    say("**Điều kiện dừng**", "**Stop conditions**"),
+    t(language, "limits.noDailyCap"),
+    t(language, "limits.stops"),
     ...lines(LIMIT_GROUPS.stops),
-    say("- Không có timeout cho run: chỉ /stop.", "- No run timeout: /stop only."),
-    say("**Subagent được dùng**", "**Subagent allowlist**"),
+    t(language, "limits.noRunTimeout"),
+    t(language, "limits.subagents"),
     `- ${SUBAGENT_CAPABILITIES.join(", ")}`,
-    ...(other.length ? [say("**Khác**", "**Other**"), ...lines(other)] : []),
+    ...(other.length ? [t(language, "limits.other"), ...lines(other)] : []),
     ...liveLines,
   ].join("\n");
   return { text, head: [...poolLines, ...liveLines].join("\n") };
@@ -149,30 +150,25 @@ export function renderLimits(
 function liveSection(
   limits: ReadonlyMap<string, number>,
   live: LiveState,
-  say: (vi: string, en: string) => string,
+  language: OwnerLanguage,
 ): string[] {
   const cap = (k: string) => limits.get(k) ?? "?";
   const shown = live.running.slice(0, LIVE_THREADS_MAX);
   const more = live.running.length - shown.length;
   return [
-    say("**Trạng thái hiện tại**", "**Live state**"),
-    say(
-      `- Lead pool: ${live.leadUsed}/${cap("LEAD_POOL_MAX")} đang dùng, ${live.leadWaiting} thread đang chờ`,
-      `- Lead pool: ${live.leadUsed}/${cap("LEAD_POOL_MAX")} used, ${live.leadWaiting} threads waiting`,
-    ),
-    say(
-      `- Worker slot: ${live.workerUsed}/${cap("WORKER_POOL_MAX")} đang dùng`,
-      `- Worker slots: ${live.workerUsed}/${cap("WORKER_POOL_MAX")} used`,
-    ),
-    say(
-      `- Việc ready đang chờ slot: ${live.readyWaiting}`,
-      `- Ready items waiting for a slot: ${live.readyWaiting}`,
-    ),
+    t(language, "limits.live"),
+    t(language, "limits.leadPool", {
+      used: live.leadUsed,
+      cap: cap("LEAD_POOL_MAX"),
+      waiting: live.leadWaiting,
+    }),
+    t(language, "limits.workerSlots", { used: live.workerUsed, cap: cap("WORKER_POOL_MAX") }),
+    t(language, "limits.readyWaiting", { count: live.readyWaiting }),
     ...(shown.length
       ? shown.map((r) =>
-          say(`- <#${r.threadId}>: ${r.count} việc`, `- <#${r.threadId}>: ${r.count} running`),
+          t(language, "limits.threadRunning", { threadId: r.threadId, count: r.count }),
         )
-      : [say("- Không có việc nào đang chạy.", "- No item running.")]),
-    ...(more > 0 ? [say(`- +${more} thread nữa`, `- +${more} more threads`)] : []),
+      : [t(language, "limits.noneRunning")]),
+    ...(more > 0 ? [t(language, "limits.moreThreads", { count: more })] : []),
   ];
 }

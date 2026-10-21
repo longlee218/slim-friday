@@ -16,7 +16,7 @@ import { planLinks, planUrlOfGoal } from "../plan/plan-artifact";
 import { digestFacts, factsKey } from "./digest-facts";
 
 /* The timer check-in, on the resilience tick: (1) a code-rendered digest (0 LLM tokens) per thread with an open goal that
-   has running or held items, at most every `DIGEST_FLOOR_MS` and only when the facts changed; (2) one `timeout` event +
+   has running or held items, at most every `DIGEST_FLOOR_MS` (the first one also waits a floor after the work appears) and only when the facts changed; (2) one `timeout` event +
    announce for a held item nobody decided for `HOLD_ESCALATE_MS`, again every `HOLD_REESCALATE_MS`. Digest state is in memory: a restart costs at most one
    extra digest. Nothing here throws. */
 
@@ -65,7 +65,12 @@ export function createCheckIn(): (rt: LeadRuntime, now?: number) => Promise<void
   async function digestOne(rt: LeadRuntime, g: DigestGoal, now: number): Promise<void> {
     const { threadId } = g;
     const prev = state.get(threadId);
-    if (inflight.has(threadId) || (prev && now - prev.at < DIGEST_FLOOR_MS)) return;
+    if (!prev) {
+      // First sight of live work: the lead has just answered, so stay silent for one floor (no digest right after a hand-off).
+      state.set(threadId, { at: now, hash: "" });
+      return;
+    }
+    if (inflight.has(threadId) || now - prev.at < DIGEST_FLOOR_MS) return;
     const facts = digestFacts(rt.deps.db, g.goalId, g.objective, now);
     const hash = factsKey(facts);
     if (prev?.hash === hash) return;
@@ -89,7 +94,7 @@ export function createCheckIn(): (rt: LeadRuntime, now?: number) => Promise<void
       state.set(threadId, { at: now, hash });
     } catch (err) {
       // Keep the old hash: the digest is tried again after the floor (the thread may be archived).
-      state.set(threadId, { at: now, hash: prev?.hash ?? "" });
+      state.set(threadId, { at: now, hash: prev.hash });
       logEvent(log, "digest.post_failed", { threadId, err: errText(err) }, "warn");
     } finally {
       inflight.delete(threadId);

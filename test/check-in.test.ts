@@ -78,14 +78,24 @@ function setup(status = "running", scope = "Ship the thing") {
     itemKey: "main",
   });
 }
-test("digest: first tick posts, none inside the floor, none when unchanged, change after the floor posts", async () => {
+/** A check-in that saw the live work one floor before `T0`: the first sight of work never posts. */
+async function primed(rt: Parameters<ReturnType<typeof createCheckIn>>[0]) {
+  const tick = createCheckIn();
+  await tick(rt, T0 - DIGEST_FLOOR_MS);
+  return tick;
+}
+
+test("digest: first sight is silent, the tick after the floor posts, none inside the floor, none when unchanged, change after the floor posts", async () => {
   setup();
   const { rt, posts, calls } = rtOf();
   const tick = createCheckIn();
+  await tick(rt, T0 - DIGEST_FLOOR_MS);
+  expect(posts).toHaveLength(0); // right after the hand-off: no digest
   await tick(rt, T0);
   expect(posts).toHaveLength(1);
   expect(posts[0]).toContain("Check-in: Ship the thing");
-  expect(posts[0]).toContain("main (developer): running");
+  expect(posts[0]).toContain("main: running");
+  expect(posts[0]).not.toContain("developer");
   await tick(rt, T0 + 60_000);
   expect(posts).toHaveLength(1); // inside the floor
   await tick(rt, T0 + DIGEST_FLOOR_MS + 1);
@@ -103,7 +113,7 @@ test("digest: first tick posts, none inside the floor, none when unchanged, chan
   });
   await tick(rt, T0 + DIGEST_FLOOR_MS + 2);
   expect(posts).toHaveLength(2);
-  expect(posts[1]).toContain("qa (tester): ready");
+  expect(posts[1]).toContain("qa: ready");
   expect(calls.query).toBe(0); // 0 LLM calls
 });
 
@@ -121,7 +131,7 @@ test("digest: live progress shows percent and a redacted note; Vietnamese copy; 
   setProgress(db, "it", { percent: 40, note: "key sk-ant-abcdefghijklmnop1234 used" }, T0);
   db.query("UPDATE owned_tasks SET result_excerpt = 'SECRET-EXCERPT' WHERE id = 'it'").run();
   const { rt, posts } = rtOf("vi");
-  await createCheckIn()(rt, T0 + 1000);
+  await (await primed(rt))(rt, T0 + 1000);
   expect(posts[0]).toContain("Cập nhật: Ship the thing");
   expect(posts[0]).toContain("running 40%");
   expect(posts[0]).not.toContain("sk-ant-abcdefghijklmnop1234");
@@ -132,7 +142,7 @@ test("digest: held item is flagged; a failed post keeps state and retries after 
   setup("blocked");
   setResultKind(db, "it", "FAILED");
   const { rt, posts, calls } = rtOf();
-  const tick = createCheckIn();
+  const tick = await primed(rt);
   calls.failPost = true;
   await tick(rt, T0); // must not throw
   expect(posts).toHaveLength(0);
@@ -141,7 +151,7 @@ test("digest: held item is flagged; a failed post keeps state and retries after 
   expect(posts).toHaveLength(0); // retry waits for the floor
   await tick(rt, T0 + DIGEST_FLOOR_MS + 1);
   expect(posts).toHaveLength(1);
-  expect(posts[0]).toContain("waiting for decision");
+  expect(posts[0]).toContain("waiting for your call");
 });
 
 test("digest: no live work (all items ended) posts nothing", async () => {
@@ -224,7 +234,7 @@ const LATE = T0 + HOLD_ESCALATE_MS + 1;
 test("digest: floor survives a tick with no live work (A done, B starts inside the floor: no digest; after it: digest)", async () => {
   setup();
   const { rt, posts } = rtOf();
-  const tick = createCheckIn();
+  const tick = await primed(rt);
   await tick(rt, T0);
   expect(posts).toHaveLength(1);
   db.query("UPDATE owned_tasks SET status = 'completed' WHERE id = 'it'").run();
@@ -268,14 +278,14 @@ test("digest: two open goals digest the newest; an old completed goal is ignored
   });
   db.query("UPDATE owned_tasks SET status = 'completed' WHERE id = 'g'").run(); // old goal done
   const { rt, posts } = rtOf();
-  await createCheckIn()(rt, T0);
+  await (await primed(rt))(rt, T0);
   expect(posts).toHaveLength(1);
   expect(posts[0]).toContain("Newer goal");
   expect(posts[0]).not.toContain("Ship the thing");
   db.query("UPDATE owned_tasks SET status = 'open' WHERE id = 'g'").run(); // both open now
   const again = rtOf();
   const posts2 = again.posts;
-  await createCheckIn()(again.rt, T0);
+  await (await primed(again.rt))(again.rt, T0);
   expect(posts2[0]).toContain("Newer goal");
 });
 
@@ -424,7 +434,7 @@ test("digest-copy: ago rounds down and keys are clipped", async () => {
   setup();
   db.query("UPDATE owned_tasks SET item_key = ? WHERE id = 'it'").run("k".repeat(100));
   const { rt, posts } = rtOf();
-  await createCheckIn()(rt, T0);
+  await (await primed(rt))(rt, T0);
   expect(posts[0]).not.toContain("k".repeat(41));
 });
 

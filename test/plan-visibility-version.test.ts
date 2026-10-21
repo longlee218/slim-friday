@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
+import { DIGEST_FLOOR_MS } from "../src/config/resilience-caps";
 import type { ViewerConfig } from "../src/config/viewer-config";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
@@ -91,6 +92,7 @@ test("the digest key ignores the signed link: a new secret or TTL with the same 
       }),
     }) as unknown as LeadRuntime;
   const tick = createCheckIn();
+  await tick(mk(VIEWER), 10_000_000 - DIGEST_FLOOR_MS); // first sight is silent
   await tick(mk(VIEWER), 10_000_000);
   expect(posts).toHaveLength(1);
   const rotated = { ...VIEWER, secret: "t".repeat(32), linkTtlMs: 7_200_000 };
@@ -130,6 +132,7 @@ test("a revision that changes only a brief is a digest change: the plan version 
     }),
   } as unknown as LeadRuntime;
   const tick = createCheckIn();
+  await tick(rt, 10_000_000 - DIGEST_FLOOR_MS); // first sight is silent
   await tick(rt, 10_000_000);
   expect(posts).toHaveLength(1);
   // Same items, same statuses, same counts: only the brief of b (not started) changes.

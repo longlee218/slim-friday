@@ -58,8 +58,8 @@ const req = (signal?: AbortSignal) => ({
 
 describe("owner-confirm labels", () => {
   test("follow the owner's language", () => {
-    expect(ownerConfirmLabels("vi")).toEqual(["Có, chạy đi", "Không"]);
-    expect(ownerConfirmLabels("en")).toEqual(["Yes, run it", "No"]);
+    expect(ownerConfirmLabels("vi")).toEqual(["Có, làm đi", "Không"]);
+    expect(ownerConfirmLabels("en")).toEqual(["Yes, go ahead", "No"]);
   });
 });
 
@@ -69,7 +69,7 @@ describe("owner-confirm gate", () => {
     const p = ownerConfirm(s.gw, req());
     await tick();
     expect(s.sent[0].components[0].toJSON().components.map((c: any) => c.label)).toEqual([
-      "Yes, run it",
+      "Yes, go ahead",
       "No",
     ]);
     const yes = s.ids().find((id: string) => id.endsWith(":allow"));

@@ -1,6 +1,7 @@
-import type { OwnerLanguage } from "./user-copy";
+import type { OwnerLanguage } from "../i18n/languages";
+import { t } from "../i18n/translate";
 
-/* Owner text of the check-in digest (vi / en): rendered by app code from the digest facts, no model. The facts are already
+/* Owner text of the check-in digest (every language of the list): rendered by app code from the digest facts, no model. The facts are already
    redacted and clipped (digest-facts.ts); this file only words them. Never carries result file content. */
 
 /** One open item of the goal. */
@@ -40,21 +41,17 @@ function ago(seconds: number): string {
 
 /** The digest message: goal line, one bullet per open item, held items flagged, spend against the goal budget. */
 export function renderDigest(f: DigestFacts, language: OwnerLanguage): string {
-  const say = (vi: string, en: string) => (language === "vi" ? vi : en);
   const lines = f.items.map((i) => {
     const pct = i.percent === undefined ? "" : ` ${i.percent}%`;
     const note = i.note ? `, ${i.note}` : "";
-    const held = i.held ? say(" - đang chờ quyết định", " - waiting for decision") : "";
-    return `- ${i.key}${i.subject ? ` "${i.subject}"` : ""} (${i.role}): ${i.status}${pct}${note}, ${ago(i.ageSeconds)}${held}`;
+    const held = i.held ? t(language, "digest.held") : "";
+    return `- ${i.key}${i.subject ? ` "${i.subject}"` : ""}: ${i.status}${pct}${note}, ${ago(i.ageSeconds)}${held}`;
   });
   return [
-    say(`Cập nhật: ${f.objective}`, `Check-in: ${f.objective}`),
-    say(`Xong ${f.done}/${f.total} việc.`, `${f.done}/${f.total} items done.`),
+    t(language, "digest.checkIn", { objective: f.objective }),
+    t(language, "digest.done", { done: f.done, total: f.total }),
     ...lines,
-    ...(f.planVersion ? [say(`Kế hoạch: v${f.planVersion}`, `Plan: v${f.planVersion}`)] : []),
-    say(
-      `Chi phí: $${f.spentUsd.toFixed(2)} / $${f.budgetUsd}`,
-      `Spend: $${f.spentUsd.toFixed(2)} / $${f.budgetUsd}`,
-    ),
+    ...(f.planVersion ? [t(language, "digest.plan", { version: f.planVersion })] : []),
+    t(language, "digest.spend", { spent: `$${f.spentUsd.toFixed(2)}`, budget: `$${f.budgetUsd}` }),
   ].join("\n");
 }

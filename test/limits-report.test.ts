@@ -41,12 +41,12 @@ test("a changed value shows without a code edit (pure formatter over the map)", 
 test("live state and language", async () => {
   const limits = await collectLimits();
   const en = renderLimits(limits, { live: LIVE, language: "en" }).text;
-  expect(en).toContain(`Worker slots: 7/${limits.get("WORKER_POOL_MAX")} used`);
-  expect(en).toContain("Ready items waiting for a slot: 3");
-  expect(en).toContain(`Lead pool: 2/${limits.get("LEAD_POOL_MAX")} used, 1 threads waiting`);
+  expect(en).toContain(`Worker slots: 7/${limits.get("WORKER_POOL_MAX")} in use`);
+  expect(en).toContain("Items ready and waiting for a slot: 3");
+  expect(en).toContain(`Lead pool: 2/${limits.get("LEAD_POOL_MAX")} in use, 1 threads waiting`);
   expect(en).toContain("<#T-9>: 4 running");
   const vi = renderLimits(limits, { live: LIVE, language: "vi" }).text;
-  expect(vi).toContain("Việc ready đang chờ slot: 3");
+  expect(vi).toContain("Việc đã sẵn sàng nhưng đang chờ slot: 3");
 });
 
 test("role filter shows one role only; unknown role says so", async () => {
@@ -57,7 +57,7 @@ test("role filter shows one role only; unknown role says so", async () => {
   expect(one).not.toContain("WORKER_POOL_MAX");
   expect(one).toContain("subagents on (parallel");
   expect(renderLimits(limits, { role: "nope", live: LIVE, language: "en" }).text).toBe(
-    "Unknown role: nope.",
+    "I don't know a role called nope.",
   );
 });
 
@@ -83,9 +83,9 @@ test("live thread list is capped at 10 rows with +N more; head holds pools and l
   const running = Array.from({ length: 13 }, (_, n) => ({ threadId: `T${n}`, count: 1 }));
   const r = renderLimits(limits, { live: { ...LIVE, running }, language: "en" });
   expect(r.text.match(/<#T\d+>/g)).toHaveLength(10);
-  expect(r.text).toContain("+3 more threads");
+  expect(r.text).toContain("and 3 more threads");
   expect(r.head).toContain("**Pools**");
-  expect(r.head).toContain("**Live state**");
+  expect(r.head).toContain("**Right now**");
   expect(r.head).not.toContain("**Roles**");
   expect(r.head.length).toBeLessThan(1900);
   expect(r.text.length).toBeGreaterThan(r.head.length);

@@ -53,7 +53,7 @@ test("stop aborts the worker run and marks its task cancelled", async () => {
   expect(await handle({ ...dev("hi"), notify: sink.notify })).toBeUndefined();
   expect(await sink.first()).toBe("I’m starting on your request.");
   await ready; // the worker's query is waiting on its abort signal
-  expect(await handle(task("/stop"))).toContain("stop");
+  expect(await handle(task("/stop"))).toContain("Stopping");
   await until(() => turnStatus(env) === "cancelled");
   expect(
     env.db

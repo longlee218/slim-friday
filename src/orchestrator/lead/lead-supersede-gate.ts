@@ -1,3 +1,4 @@
+import { DEFAULT_LANGUAGE } from "../../i18n/languages";
 import { renderUserNotice } from "../../ingress/user-copy";
 import { clip, redactText } from "../../observability/redact";
 import { type Reply, refuse } from "../reply";
@@ -27,7 +28,7 @@ export async function supersedeGate(
         kind: "plan-supersede-ask",
         ...(intent && { intent: clip(redactText(intent), INTENT_CHARS) }),
       },
-      ctx.language ?? "vi",
+      ctx.language ?? DEFAULT_LANGUAGE,
     ),
     options: ["Yes", "No"],
     yesno: true,

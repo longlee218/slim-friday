@@ -89,7 +89,7 @@ test("adoptChannel: slug collision and two simultaneous calls get distinct names
 
 test("notice copy exists in both languages", () => {
   const n = { kind: "channel-adopted", space: "demo", name: "shop" } as const;
-  expect(renderUserNotice(n, "en")).toContain("Linked #shop to space demo");
+  expect(renderUserNotice(n, "en")).toContain("Linked #shop to the demo space");
   expect(renderUserNotice(n, "vi")).toContain("#shop");
 });
 

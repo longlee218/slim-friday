@@ -418,6 +418,6 @@ test("digest: verify-N and fix-N items show as ordinary lines (key, role, status
   ]);
   expect(facts.done).toBe(facts.total - 2);
   const text = renderDigest(facts, "en");
-  expect(text).toContain('- fix-1 "Fix the failed checks" (developer): ready');
-  expect(text).toContain('- verify-2 "Verify the goal" (tester): pending');
+  expect(text).toContain('- fix-1 "Fix the failed checks": ready');
+  expect(text).toContain('- verify-2 "Verify the goal": pending');
 });

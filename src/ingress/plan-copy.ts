@@ -1,7 +1,8 @@
+import type { OwnerLanguage } from "../i18n/languages";
+import { t } from "../i18n/translate";
 import { CHUNK_MAX } from "./discord-message-rules";
-import type { OwnerLanguage } from "./user-copy";
 
-/* Owner text of `/plan` and `/plan history` (vi / en), worded by app code from facts the orchestrator collected (no
+/* Owner text of `/plan` and `/plan history` (every language of the list), worded by app code from facts the orchestrator collected (no
    model). The facts are already redacted and clipped. */
 
 /** What `/plan` shows for the thread. */
@@ -29,14 +30,13 @@ export type PlanLookup = (threadId: string, history: boolean) => PlanFacts;
 
 /** The `/plan` reply text; at most CHUNK_MAX chars: item lines are dropped (never the link, never a cut URL). */
 export function renderPlanFacts(f: PlanFacts, language: OwnerLanguage): string {
-  const say = (vi: string, en: string) => (language === "vi" ? vi : en);
-  if (f.kind === "none") return say("Thread này chưa có kế hoạch.", "This thread has no plan yet.");
-  const goal = f.goal ? [say(`Mục tiêu: ${f.goal}`, `Goal: ${f.goal}`)] : [];
-  const link = f.url ? [say(`Mở kế hoạch: ${f.url}`, `Open the plan: ${f.url}`)] : [];
+  if (f.kind === "none") return t(language, "plan.none");
+  const goal = f.goal ? [t(language, "plan.goal", { goal: f.goal })] : [];
+  const link = f.url ? [t(language, "plan.open", { url: f.url })] : [];
   const head =
     f.kind === "history"
-      ? [say("Các phiên bản kế hoạch:", "Plan versions:"), ...goal]
-      : [say(`Kế hoạch v${f.version} (${f.status})`, `Plan v${f.version} (${f.status})`), ...goal];
+      ? [t(language, "plan.versions"), ...goal]
+      : [t(language, "plan.current", { version: f.version, status: f.status }), ...goal];
   const rows =
     f.kind === "history"
       ? f.versions.map(
@@ -56,7 +56,7 @@ export function renderPlanFacts(f: PlanFacts, language: OwnerLanguage): string {
   return [
     ...head,
     ...kept,
-    ...(more ? [say(`… và ${more} dòng nữa`, `… and ${more} more`)] : []),
+    ...(more ? [t(language, "plan.more", { count: more })] : []),
     ...link,
   ].join("\n");
 }

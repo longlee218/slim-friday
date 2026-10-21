@@ -165,7 +165,7 @@ test("error after thread creation is reported inside the thread", async () => {
   const { onMessage } = setup(new Error(`boom ghp_${"a".repeat(36)}`));
   const m = fakeMsg({});
   await onMessage(m.msg);
-  expect(m.thread.sent.at(-1).content).toContain("did not finish");
+  expect(m.thread.sent.at(-1).content).toContain("couldn't finish");
   expect(m.channel.sent).toEqual([]);
 });
 
@@ -177,7 +177,7 @@ test("error before thread creation is reported in the channel", async () => {
     },
   });
   await onMessage(m.msg);
-  expect(m.channel.sent.at(-1).content).toContain("did not finish");
+  expect(m.channel.sent.at(-1).content).toContain("couldn't finish");
 });
 
 test("`@bot /stop` in a channel gives a hint and starts no thread", async () => {
@@ -534,7 +534,7 @@ test("unknown ingress failure uses owner language and never leaks exception or g
   const { msg, thread } = fakeMsg({ content: `<@${BOT}> giúp tôi đọc file này` });
   await onMessage(msg);
   const content = thread.sent.map((s: any) => s.content).join("\n");
-  expect(content).toContain("chưa hoàn tất");
+  expect(content).toContain("chưa làm xong");
   expect(content).not.toMatch(/SECRET|SDK|logs|permission|quota/i);
 });
 

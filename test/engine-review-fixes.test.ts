@@ -125,12 +125,12 @@ test("task ceiling used up: the run is refused before it starts, it cannot be ra
   spend(env.db, "t1", TASK_BUDGET_USD);
   const { res, seen } = await runDev(env, "t2");
   expect(res.outcome).toBe("error");
-  expect(res.text).toContain("cannot be raised");
+  expect(res.text).toContain("can't be raised");
   expect(res.refusal).toBe(true); // a verified refusal: finishRun shows it instead of the generic failure
   expect(seen).toHaveLength(0);
   // the owner reads that copy (localized), not the generic "try again"
   const shown = finishRun(env.db, { turnId: "t2", threadId: "th" }, res, "vi");
-  expect(shown).toContain("không thể tăng thêm");
+  expect(shown).toContain("không tăng thêm được");
   expect(shown).not.toContain("thử lại");
 });
 
@@ -224,7 +224,7 @@ test("resume: a background session whose cwd is not a registered location is ref
   let started = 0;
   const res = await runResumed(env, `${env.home}/not-a-location`, () => started++);
   expect(res.outcome).toBe("error");
-  expect(res.text).toContain("could not find the location");
+  expect(res.text).toContain("can't find the location");
   expect(started).toBe(0);
 });
 

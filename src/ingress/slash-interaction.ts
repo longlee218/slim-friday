@@ -8,6 +8,7 @@ import {
 } from "discord.js";
 import { PLAN_HISTORY_ARG, parseSlash } from "../commands/slash-commands";
 import { slashPayload, slashText } from "../commands/slash-definitions";
+import { DEFAULT_LANGUAGE } from "../i18n/languages";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
 import { CHUNK_MAX, SAFE_MENTIONS } from "./discord-message-rules";
@@ -106,7 +107,7 @@ export function createSlashHandler(deps: {
   return async function handleSlash(i: { isChatInputCommand(): boolean }): Promise<void> {
     if (!i.isChatInputCommand()) return;
     const cmd = i as ChatInputCommandInteraction;
-    let language: OwnerLanguage = "vi"; // refined from the command text once it is known
+    let language: OwnerLanguage = DEFAULT_LANGUAGE; // refined from the command text once it is known
     try {
       const text = slashText(cmd.commandName, (n) => {
         const o = cmd.options.get(n, false);

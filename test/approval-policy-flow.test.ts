@@ -158,11 +158,11 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
   expect(readdirSync(trash)).toHaveLength(1);
   // Final, so it asks one click first (the plain word `purge` too): a no keeps the trash, a yes empties it.
   ownerAnswer = false;
-  expect(await h.send("/purge")).toContain("Cancelled");
+  expect(await h.send("/purge")).toContain("left the trash");
   expect(readdirSync(trash)).toHaveLength(1);
   expect(confirms.at(-1)).toContain("Empty the trash");
   ownerAnswer = true;
-  expect(await h.send("/purge")).toContain("Emptied the trash of 1 goal");
+  expect(await h.send("/purge")).toContain("Emptied the trash for 1 goal");
   expect(existsSync(moved?.to ?? "")).toBe(false);
   expect(await h.send("/purge")).toContain("empty");
 });

@@ -1,3 +1,4 @@
+import { DEFAULT_LANGUAGE } from "../../i18n/languages";
 import { renderUserNotice } from "../../ingress/user-copy";
 import {
   ORCHESTRATE_ACTION_APPROVE_PLAN,
@@ -126,7 +127,7 @@ export const handleApprovePlan = (ctx: LeadToolContext, input: ApprovePlanInput)
         await port.post({
           text: renderUserNotice(
             { kind: "plan-not-started", cause: notStartedCause(d.code) },
-            ctx.language ?? "vi",
+            ctx.language ?? DEFAULT_LANGUAGE,
           ),
         });
       return { reply: refuse(d.code, d.message) };

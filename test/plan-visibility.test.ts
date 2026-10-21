@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { PLAN_HISTORY_ARG, parseSlash } from "../src/commands/slash-commands";
 import { SLASH_DEFINITIONS, slashPayload, slashText } from "../src/commands/slash-definitions";
 import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
+import { DIGEST_FLOOR_MS } from "../src/config/resilience-caps";
 import type { ViewerConfig } from "../src/config/viewer-config";
 import { renderDigest } from "../src/ingress/digest-copy";
 import { type PlanFacts, renderPlanFacts } from "../src/ingress/plan-copy";
@@ -201,7 +202,9 @@ test("the notice is localized and short", () => {
     criteriaChanged: true,
     reason: "r",
   });
-  expect(renderUserNotice(n, "en")).toBe('Plan v2 → v3: +1, −0, ~2; "done when" criteria changed');
+  expect(renderUserNotice(n, "en")).toBe(
+    'Plan v2 → v3: +1, −0, ~2; the "done when" criteria changed',
+  );
   expect(renderUserNotice(n, "vi")).toStartWith("Kế hoạch v2 → v3: +1, −0, ~2");
 });
 
@@ -293,6 +296,7 @@ test("the digest shows the plan version, a revision counts as a change, and the 
     }),
   } as unknown as LeadRuntime;
   const tick = createCheckIn();
+  await tick(rt, 10_000_000 - DIGEST_FLOOR_MS); // first sight is silent
   await tick(rt, 10_000_000);
   expect(posts).toHaveLength(1);
   expect(posts[0]?.text).toContain("Plan: v1");

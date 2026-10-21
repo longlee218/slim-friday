@@ -232,7 +232,7 @@ test("audit: an exhausted recovery logs the technical reason; Discord text says 
   const reply = await r.ask();
   cap.stop();
   expect(r.runs()).toBe(2); // ONE automatic recovery, never more
-  expect(reply).toMatch(/did not finish|chưa hoàn tất/i);
+  expect(reply).toMatch(/didn't finish|couldn't finish|chưa xong|chưa làm xong/i);
   expect(reply).not.toMatch(HINT_WORDS);
   const ctl = cap.lines.filter((l) => l.event === "run.control");
   expect(ctl.map((l) => l.action)).toEqual(["recover", "report_incomplete"]);

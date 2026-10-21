@@ -26,10 +26,10 @@ test("en digest: objective, counts, item lines, held flag, spend", () => {
   expect(t).toBe(
     [
       "Check-in: Ship it",
-      "1/3 items done.",
-      "- a (developer): running 50%, half, 2m",
-      "- b (tester): blocked, 2h - waiting for decision",
-      "Spend: $2.50 / $15",
+      "1 of 3 items done.",
+      "- a: running 50%, half, 2m",
+      "- b: blocked, 2h - waiting for your call",
+      "Spent so far: $2.50 of $15",
     ].join("\n"),
   );
 });
@@ -38,6 +38,6 @@ test("vi digest", () => {
   const t = renderDigest(facts, "vi");
   expect(t).toContain("Cập nhật: Ship it");
   expect(t).toContain("Xong 1/3 việc.");
-  expect(t).toContain("đang chờ quyết định");
-  expect(t).toContain("Chi phí: $2.50 / $15");
+  expect(t).toContain("đang chờ bạn quyết định");
+  expect(t).toContain("Đã dùng: $2.50 / $15");
 });

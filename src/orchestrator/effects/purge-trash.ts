@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
-import type { OwnerLanguage } from "../../ingress/user-copy";
+import type { OwnerLanguage } from "../../i18n/languages";
+import { t } from "../../i18n/translate";
 import { goalIdsOfThread } from "../../storage/owned-item-store";
 import { purgeGoalTrash } from "./trash-store";
 
@@ -16,18 +17,7 @@ export async function purgeThreadTrash(
   confirm: (summary: string) => Promise<boolean>,
 ): Promise<string> {
   const goals = goalIdsOfThread(db, threadId);
-  const ask =
-    language === "vi"
-      ? "Dọn sạch thùng rác của thread này? Không thể hoàn tác."
-      : "Empty the trash of this thread now? This cannot be undone.";
-  if (!(await confirm(ask)))
-    return language === "vi" ? "Đã hủy: thùng rác giữ nguyên." : "Cancelled: the trash is kept.";
+  if (!(await confirm(t(language, "purge.ask")))) return t(language, "purge.cancelled");
   const n = purgeGoalTrash(agentHome, goals);
-  if (language === "vi")
-    return n
-      ? `Đã dọn thùng rác của ${n} mục tiêu trong thread này.`
-      : "Thùng rác của thread này đang trống.";
-  return n
-    ? `Emptied the trash of ${n} goal(s) of this thread.`
-    : "The trash of this thread is empty.";
+  return n ? t(language, "purge.done", { count: n }) : t(language, "purge.empty");
 }

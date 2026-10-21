@@ -153,7 +153,7 @@ test("unknown error: generic reply, raw error not shown to the user", async () =
   const r = await go(env, fakeQuery([initMsg, m]));
   expect(r.outcome).toBe("error");
   const reply = finishRun(env.db, { turnId: "T", threadId: "th" }, r, "en");
-  expect(reply).toBe("I did not finish your request. You can try again.");
+  expect(reply).toBe("I couldn't finish that one. Want to try again?");
 });
 
 // ---- Startup hygiene ----

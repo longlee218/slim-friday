@@ -1,4 +1,6 @@
-import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
+import type { OwnerLanguage } from "../../i18n/languages";
+import { t } from "../../i18n/translate";
+import { renderUserNotice } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { clip, redactText } from "../../observability/redact";
 
@@ -30,12 +32,7 @@ export function budgetHitMessage(h: BudgetHit, language: OwnerLanguage): string 
   const lines = [renderUserNotice({ kind: "outcome", outcome: "max_budget" }, language)];
   if (h.summary?.trim()) lines.push(clip(h.summary.trim(), BUDGET_SUMMARY_MAX));
   // A ceiling-bound stop cannot be raised: say what to do instead.
-  if (h.ceilingBound)
-    lines.push(
-      language === "vi"
-        ? "Giới hạn này không thể tăng thêm; bạn hãy gửi một yêu cầu mới để làm tiếp."
-        : "This limit cannot be raised; send a new request to carry on.",
-    );
+  if (h.ceilingBound) lines.push(t(language, "budget.ceiling"));
   return lines.join("\n");
 }
 
