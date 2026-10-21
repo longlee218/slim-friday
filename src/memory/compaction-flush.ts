@@ -96,7 +96,7 @@ function itemsOf(e: ExtractedContext): JournalItem[] {
  * journal lock timed out (`busy`): then it stays unflushed (retryable by a later flush; the next compaction's flush
  * marks its own cycle only). A full day file (`full`) or a symlink is logged at warn with counts and marked flushed:
  * retrying cannot succeed. A shutdown abort ends the model call and the keyword fallback runs. Logs
- * `memory.flush {mode, items, saved, ms}` (counts only). Never throws.
+ * `memory.flush {workspace, channel, mode, items, saved, ms}` (counts only). Never throws.
  */
 export async function flushAfterCompaction(d: FlushDeps, req: FlushRequest): Promise<FlushResult> {
   const t0 = Date.now();
@@ -153,7 +153,14 @@ export async function flushAfterCompaction(d: FlushDeps, req: FlushRequest): Pro
     }
     if (busy) logEvent(log, "memory.flush_busy", { items: items.length, saved }, "warn");
     else markFlushed(d.db, req.threadId, req.workspace, req.cycle, req.channel ?? "");
-    logEvent(log, "memory.flush", { mode, items: items.length, saved, ms: Date.now() - t0 });
+    logEvent(log, "memory.flush", {
+      workspace: req.workspace,
+      channel: req.channel ?? "",
+      mode,
+      items: items.length,
+      saved,
+      ms: Date.now() - t0,
+    });
     return { mode, items: items.length, saved };
   } catch (err) {
     logEvent(log, "memory.flush_failed", { err: errText(err, 200) }, "warn");

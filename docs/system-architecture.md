@@ -122,7 +122,7 @@ One MCP action tool, called as `{ action, params }`. Each action is a row of `sr
 | `set_title` | name the thread and store its digest (`title`, `digest`) | in the action table only when the run has a rename port (not chat channels); at most `SET_TITLE_MAX_CALLS_PER_RUN` (2) per run |
 | `register_location` | register the directory the owner named (`path`, `create?`) | owner turn, path written in the owner's message; `create: true` makes a new project (see [Guards](#guards)) |
 
-- Memory is a separate server: `MemorySave` is lead only (see [Memory and Persona](#memory-and-persona)).
+- Memory is a separate server: `MemorySave` and `MemoryEdit` are lead only (see [Memory and Persona](#memory-and-persona)).
 - Lead role data: `MAX_ASK`, `MAX_TURNS`, `BUDGET_USD` (values: [limits](limits-and-stop-conditions.md)), `noSubagents`, `capabilities: read` (no shell, no write).
 - Worker results, planner results and events are DATA in the lead's prompt, never instructions.
 - Transient failures resume by code (the lead does nothing). A held item is the lead's decision: `Orchestrate retry` (same session, with a note) or `Orchestrate cancel`. For a task that already ended, "go" or "continue" re-dispatches the role with a self-contained brief (rule in `roles/prompts/team-md.ts`).
@@ -255,7 +255,7 @@ Six in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<ser
 
 | Server (name) | Tools | Roles (role `mcpTools`) |
 |---|---|---|
-| `memory` | `MemorySave`, `MemorySearch`, `MemoryGet`, `MemoryExpand` | `MemorySave`: lead only. The three read tools: lead, planner, scout, developer |
+| `memory` | `MemorySave`, `MemoryEdit`, `MemorySearch`, `MemoryGet`, `MemoryExpand` | `MemorySave`, `MemoryEdit`: lead only. The three read tools: lead, planner, scout, developer |
 | `artifacts` | `SaveArtifact`, `ReadArtifact`, `ListArtifacts`, `SearchArtifacts` | lead, planner, scout, developer, roster specialists (`mcp/artifacts/artifact-tool-names.ts`). A run sees only the artifacts of its own workspace channel (the boundary of channel memory); `SaveArtifact` writes through the artifact writer in code (no size cap), so a read-only worker stays read-only on disk; `ReadArtifact` pages the text (the page bounds one tool result, not the artifact); a repo artifact is re-indexed on read when its file mtime changed |
 | `orchestration` | `Orchestrate` (lead; one action tool, actions in [Lead tool](#lead-tool-orchestrate-role-lead)), `Report` (every worker role; actions `progress`, `blocker` (not planner), `result`) | `Orchestrate` only in the lead's run (`ctx.lead`); `Report` in every worker run with a progress port or report sink. `Report result.artifacts` (max `REPORT_ARTIFACTS_MAX`): ids of `SaveArtifact` outputs or `{title, path}` of a doc the worker wrote in its granted location (registered as a repo artifact; an escape, a sensitive file or a foreign id is refused as `INVALID_ARTIFACTS`, the report is not stored) |
 | `plan` | `Plan` (action tool: `context`, `capabilities`, `create`, `validate`, `revise`, `list`, `get`, `search`) | planner |
@@ -471,9 +471,10 @@ $AGENT_HOME/                       real directory outside every location and git
 ├── tmp/                           skill plugins, attachment copies, control scratch (swept at startup)
 ├── trash/<goalId>/                DeletePaths trash, 7 days
 ├── backups/persona/               backups of persona files written by WriteSpaceFile (newest 10 per file)
+├── backups/memory/<ws>/channels/<ch>/   MEMORY.md-<stamp> before each dream write (newest 20), MEMORY.edit.md-<stamp> before each MemoryEdit (newest 20)
 └── workspaces/<ws>/
     ├── workspace.yaml             description, channels, locations, projectsDir (workspace and per channel), skills.extra
-    ├── channels/<name>/           MEMORY.md; memory/<date>.md (journal); optional persona overrides; artifacts/<title>[-vN].<ext>
+    ├── channels/<name>/           MEMORY.md (channel memory); memory/<date>.md (channel journal, 30 d); optional persona overrides; artifacts/<title>[-vN].<ext>
     ├── artifacts/                 artifacts of runs with no mapped channel
     ├── skills/                    owner-curated skills
     ├── cwd/                       neutral cwd of runs without a location
@@ -507,7 +508,7 @@ An owner-made thread under a mapped channel is adopted on the owner's first real
 ### Compaction and memory flush (`src/runtime/compact-hooks.ts`, `src/memory/compaction-flush.ts`, `memory-jobs.ts`)
 - Context is managed by SDK compaction only: every run auto-compacts at 75% of `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (1,000,000 tokens, capped at the model window). There is no rollover: a thread keeps its session until the owner starts a new thread (no `/reset`). Effect not verified live.
 - Hooks are registered for foreground (lead) runs only; a worker's compaction writes nothing. PreCompact (no model call, no write) keeps the newest chat tail of the transcript in memory. PostCompact counts the cycle, stores the SDK summary merged with the previous one (`thread_summaries`) and calls `onCompacted` with the summary and the tail.
-- `onCompacted` queues the flush in `memory-jobs.ts` (one chain per thread, never delays a reply or the next run; shutdown: `abortAll` stops queued jobs, `drain` waits). The flush skips a cycle already flushed (`needsFlush`), makes one Haiku call (`MEMORY_MODEL`, no tools, JSON `{"items":[{kind,text}]}`, `FLUSH_SYSTEM`), and appends the notes as one `## HH:MM Flush - thread <id6>` block to the channel journal (writer redaction, one line, 2000 chars, 300-line guard), re-indexes the file and marks the cycle flushed. A bad reply, a model error or a timeout falls back to the keyword extract over the summary and tail. Log `memory.flush {mode llm|fallback|none, items, saved, ms}`. Limits: [limits](limits-and-stop-conditions.md#memory).
+- `onCompacted` queues the flush in `memory-jobs.ts` (one chain per thread, never delays a reply or the next run; shutdown: `abortAll` stops queued jobs, `drain` waits). The flush skips a cycle already flushed (`needsFlush`), makes one Haiku call (`MEMORY_MODEL`, no tools, JSON `{"items":[{kind,text}]}`, `FLUSH_SYSTEM`), and appends the notes as one `## HH:MM Flush - thread <id6>` block to the channel journal (writer redaction, one line, 2000 chars, 300-line guard), re-indexes the file and marks the cycle flushed. A bad reply, a model error or a timeout falls back to the keyword extract over the summary and tail. Log `memory.flush {workspace, channel, mode llm|fallback|none, items, saved, ms}`. Limits: [limits](limits-and-stop-conditions.md#memory).
 - PreCompact also returns `COMPACT_INSTRUCTIONS` (`memory-prompts.ts`: what the summary keeps: owner decisions, preferences, open tasks, ids, paths, unresolved questions; no secrets) as `systemMessage`: the SDK appends a callback hook's `systemMessage` to the compaction prompt after any `custom_instructions` of a manual /compact (source: reference `executePreCompactHooks` / `mergeHookInstructions`). Lead runs only. Effect not verified live.
 - A missing `compact_summary` keeps the old summary and the flush runs on the tail only.
 
@@ -523,7 +524,7 @@ An owner-made thread under a mapped channel is adopted on the owner's first real
 - One Haiku call (`MEMORY_MODEL`, `DREAM_SYSTEM`, `DREAM_BUDGET_USD`, `DREAM_DEADLINE_MS`) outside any lock: the current dated bullets per kind (numbered) plus the oldest `DREAM_MAX_ITEMS` items (each clipped to `DREAM_ITEM_MAX_CHARS`). Reply JSON `{decisions, facts, preferences, lessons}` of `{text, date}` = the complete new set; zod-checked.
 - Apply (`dream-apply.ts`, under `withMemoryLock`, file re-read): every text through `sanitizeBullet` (secrets masked, one line, `SAVE_MAX_CHARS`), a bad date becomes the newest source day, dedupe by `normalizeBullet`, dated bullets saved since the model input are kept. `replaceDatedBullets` (pure) rewrites ONLY dated bullet lines inside the four kind sections; owner prose, undated bullets, headings, other sections and CRLF stay byte-identical; new bullets take the old slots in order. The shrink guard (`DREAM_MAX_DROP_SHARE`) refuses a result that loses more than half of the existing dated bullets AND more than the near-duplicates among them (token Jaccard >= 0.6, same as `DUPLICATE_SUSPECT`). No size check or trim: memory has no size cap.
 - Write: backup of the old bytes (`backups/memory/<ws>/channels/<ch>/MEMORY.md-<stamp>`, newest `DREAM_BACKUP_KEEP`, shared `stamped-backup.ts` with persona backups), `writeAtomic` (0600), then in one db transaction `thread_summaries.promoted_at` = the `updated_at` that was read (an episode rewritten meanwhile stays unpromoted) and ledger rows for the shown journal bullets, then reindex. A model error, bad reply, busy lock or `shrink_guard` leaves the file and the marks unchanged; the next debounce retries (cost accepted, no back-off). A result equal to the file marks the items without a write or backup.
-- Logs `memory.dream {workspace, channel, episodes, journalItems, before, after, added, merged, dropped, lost, dupes, chars, ms}` and `memory.dream_skipped {reason}`; counts only, never content. Owner view: the backups dir; undo = `WriteSpaceFile` restore or copy a backup back.
+- Logs `memory.dream {workspace, channel, episodes, journalItems, before, after, added, merged, dropped, lost, dupes, chars, ms}` `memory.dream_skipped {workspace, channel, reason}` and `memory.dream_failed {reason}`; counts only, never content. Owner view: the backups dir; undo = copy a backup over the channel `MEMORY.md` (or restore through `WriteSpaceFile`); checklist: [discord-setup](discord-setup.md#memory-v2-owner-live-checklist).
 
 ## Control Channel
 Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/roles/builtin/discord-manager-role.ts`).
@@ -590,6 +591,11 @@ Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/r
 ### Fixed constants (not env)
 Every limit, cap, timeout and retention value lives in [limits](limits-and-stop-conditions.md) (checked against the code by `test/limits-doc-drift.test.ts`).
 
+### Memory metrics (`scripts/metrics-memory.ts`, `src/observability/memory-metrics.ts`, `src/storage/memory-metrics-store.ts`)
+- `bun run metrics:memory [--days N]` (default 7) opens the database read-only and reads the app log read-only; prints one line per channel and local day: saves, edits (delete, replace), flushes by mode, episodes written, dreams (skipped or failed by reason), promoted episodes, promoted journal bullets; plus one global prune line. Counts only, never note or summary text. Exit codes 0 ok, 1 read error (also when `memory_audit`, `thread_summaries` or `memory_promotions` is missing: "db has no <table>: start the bot once to apply migrations"), 2 bad arguments.
+- Window: rolling (the last N x 24 h from now) while rows are bucketed by local day, so `--days 1` can print two day lines. `memory.flush` log lines written before the channel field was added have no channel and show as `(unknown channel)`.
+- Sources: `memory_audit` (saves, edits), `thread_summaries` (`updated_at`, `promoted_at`), `memory_promotions`; the log only where no table records it: `memory.flush`, `memory.dream`, `memory.dream_skipped`, `memory.dream_failed`, `memory.prune`. The channel is the yaml name (the audit table has no workspace column).
+
 ### Lead metrics
 - `bun run metrics:lead [--days N]` (default 7) opens the database read-only and prints decisions (successful lead tool calls by action, `Orchestrate.<action>`), refusals (by code), envelope blocks (by code) and cost per day.
 - Sources: `effect_log` (lead calls have `scope = 'lead tool call'` and `tool = Orchestrate.<action>`), `thread_events` (refusals), `runs` joined to `turns` (cost).
@@ -608,6 +614,9 @@ Source of truth: [lead orchestration plan](../plans/261015-1538-lead-supervisor-
 | L5 | done in code, not verified live | DAG scheduler (`worker/scheduler.ts`); roster as data. Spec acceptance tests: not re-checked in phase 7 |
 | Lead team hardening phase 6 E2E | open | 10 use cases on the sudoku fixture; lead golden and scout evals done (see the changelog) |
 | L6 | deferred | standing approvals learned from owner decisions; learned skills |
+| Memory v2 | done in code, not verified live | root + channel `MEMORY.md`, flush after compaction, episodes, dreaming, related episodes, `MemoryEdit`, audit, `metrics:memory`; owner checklist in [discord-setup](discord-setup.md#memory-v2-owner-live-checklist) |
+| Vectors / embeddings | not built | dropped by the owner 2026-10-21; revisit only on request |
+| Knowledge graph, passive extraction | not built | owner decision: memory is written by the lead (`MemorySave`, `MemoryEdit`) and dreaming only |
 
 - Done but not verified live: lead queue and announce, planner and plan approval, approval envelope and effect tools, OS sandbox, restart with undelivered events, `Report result` without a call, the action tools (phase 4: `Orchestrate`, `Plan`, `Report`), item priority and the duplicate check, `register_location create`, plan view (phase 5), role skills (phase 6a).
 - Known gaps: two developer tasks in one location share one working tree; the thread does not pin the last task's location.

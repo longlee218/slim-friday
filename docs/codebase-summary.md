@@ -78,7 +78,7 @@ src/
 | `lifecycle/` | startup, drain, shutdown, trash sweep, home and registry checks | `boot-checks.ts` (fail-fast boot checks, `loadBootState`), `startup.ts`, `drain.ts` (`FRIDAY_DRAIN=1` or `DRAIN` file), `shutdown.ts`, `trash-sweeper.ts`, `home-placement-check.ts`, `registry-check.ts` |
 | `tasks/` | item state machine and task contracts | `task-state-machine.ts`, `task-contracts.ts`, `task-resolver.ts` |
 | `tools/` | SDK tool names and the tool catalog | `sdk-tool-names.ts`, `tool-catalog.ts` |
-| `observability/` | logger, hooks, redaction, run records, log files, lead metrics | `logger.ts`, `tool-hooks.ts`, `subagent-hooks.ts`, `redact.ts`, `record-run.ts` (`RunRecorder`), `run-usage.ts` (`RunOutcome`, `RunUsage`, `usageFromResult`), `log-files.ts`, `lead-metrics.ts`, `lead-metrics-cli.ts` |
+| `observability/` | logger, hooks, redaction, run records, log files, lead and memory metrics | `logger.ts`, `tool-hooks.ts`, `subagent-hooks.ts`, `redact.ts`, `record-run.ts` (`RunRecorder`), `run-usage.ts` (`RunOutcome`, `RunUsage`, `usageFromResult`), `log-files.ts`, `lead-metrics.ts`, `lead-metrics-cli.ts`, `skills-metrics.ts`, `memory-metrics.ts` (pure counts for `metrics:memory`; CLI `scripts/metrics-memory.ts`; SQL in `storage/memory-metrics-store.ts`) |
 
 ## Request Flow (short)
 
@@ -146,9 +146,9 @@ Layers that decide whether a tool call runs (details: [system-architecture.md](s
 
 ## Storage
 - `storage/db.ts`: opens `<AGENT_HOME>/data/agent.db` in WAL mode, owner-only, runs the Drizzle migrations. A db that has tables but no `__drizzle_migrations` is refused. No upgrade path.
-- Schema (`storage/schema/*.ts`, baseline `0000_baseline.sql`): `threads`, `sessions`, `turns`, `runs`, `run_messages`, `tool_calls`, `approvals`, `owned_tasks`, `work_plans`, `thread_events`, `effect_log`, `thread_summaries`, `memory_files`. Plus the FTS5 virtual table `memory_fts` (`0001_memory_fts.sql`, hand-written; the memory indexer writes its rows).
+- Schema (`storage/schema/*.ts`, baseline `0000_baseline.sql`): `threads`, `sessions`, `turns`, `runs`, `run_messages`, `tool_calls`, `approvals`, `owned_tasks`, `work_plans`, `thread_events`, `effect_log`, `thread_summaries`, `memory_files`, `memory_promotions`, `memory_audit`. Plus the FTS5 virtual table `memory_fts` (`0001_memory_fts.sql`, hand-written; the memory indexer writes its rows).
 - `work_plans` keeps the plan's `effects` list (comma-joined effect tool names) in place of the old delivery mode.
-- Migrations after the baseline: `0001`-`0005` (memory and artifact FTS, artifacts, artifact `source_mtime` and `summary`), `0006_item_questions`, `0007_structure_owner` (goal rows), `0008_item_priority_subject` (`owned_tasks.priority`: 0 / 10 / 100; `subject`, at most 80 chars), `0009_episodic_summaries` (`thread_summaries`: `channel`, `key_topics`, `abstract`, `promoted_at`; rollover column dropped, rows kept).
+- Migrations after the baseline: `0001`-`0005` (memory and artifact FTS, artifacts, artifact `source_mtime` and `summary`), `0006_item_questions`, `0007_structure_owner` (goal rows), `0008_item_priority_subject` (`owned_tasks.priority`: 0 / 10 / 100; `subject`, at most 80 chars), `0009_episodic_summaries` (`thread_summaries`: `channel`, `key_topics`, `abstract`, `promoted_at`; rollover column dropped, rows kept), `0010_memory_promotions` (dream ledger), `0011_memory_audit` (audit of `MemorySave` / `MemoryEdit`, hash only), `0012_memory_audit_old_hash` (`old_hash` for `edit_replace`).
 - Stores (`storage/*-store.ts`): `owned-task-store`, `running-owned-task-store`, `owned-item-store`, `work-plan-store` (`planGoalOfThread`: the goal whose plan `/plan` shows), `effect-log-store`, `session-store`, `run-store`, `run-metrics-store`, `run-message-store`, `approval-store`, `thread-store`, `thread-summary-store`, `thread-event-store`.
 - SQL lives only in `storage/` (scan test: no `db.query(` or `db.run(` under `src/orchestrator/`).
 - Details: [system-architecture.md, Storage](system-architecture.md#storage).
@@ -161,6 +161,7 @@ Layers that decide whether a tool call runs (details: [system-architecture.md](s
 - `memory/memory-dream.ts` + `dream-*.ts` + `storage/memory-promotion-store.ts` (table `memory_promotions`, migration 0010): auto-applied dreaming per channel on the memory tick; only dated bullets of the four kind sections change; backup before each write.
 - `memory/idle-episode.ts` + `memory/memory-prune.ts` + `memory/episode-abstract.ts` + `storage/episode-store.ts`: idle-thread episodes (`thread_summaries`, one row per thread, 90 d), the memory tick in `memory-jobs.ts` (every 10 min) and the one prune job (episodes 90 d, journals 30 d; at start and every 6 h); limits in `config/memory-caps.ts`.
 - `memory/related-episodes.ts` + `storage/episode-store.ts` (`episodesOfChannel`): the lead's "Related earlier threads" block (<= 3 abstracts of its own channel, FTS only, owner messages only); limits `INJECT_*` in `config/memory-caps.ts`.
+- `scripts/metrics-memory.ts` + `observability/memory-metrics.ts` + `storage/memory-metrics-store.ts`: `bun run metrics:memory [--days N]` (read-only; per channel and day: saves, edits, flushes, episodes, dreams, promotions, prune; counts only).
 - `memory/channel-digest.ts` and `/find`: thread titles and digests of a space, searched in the FTS index.
 
 ## Discord Setup and Control Channel
