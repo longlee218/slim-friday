@@ -33,7 +33,13 @@ function seeded() {
 
 test("a fresh session gets the channel digest, nothing else (no thread seed even for a thread with a summary)", () => {
   const db = seeded();
-  saveSummary(db, "th", "main", "SUM");
+  saveSummary(db, {
+    threadId: "th",
+    workspace: "main",
+    channel: "",
+    summary: "SUM",
+    source: "compaction",
+  });
   const p = firstPromptPrefix(db, input());
   expect(p.startsWith(DIGEST_HEADING)).toBe(true);
   expect(p).toContain("Earlier topic");

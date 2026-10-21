@@ -125,10 +125,12 @@ export const ledger = (db: Database, path: string) =>
     )
     .get(path);
 
-/** Index the summary of one thread (redacted, clipped to the stored summary size). `summary` is the full text. */
+/** Index the episode of one thread: its summary plus key topics (redacted, clipped to the stored summary size). */
 export function indexSummary(db: Database, r: SummaryRow): void {
   const row: Row = {
-    text: redactText(r.summary).normalize("NFC").slice(0, THREAD_SUMMARY_MAX_CHARS),
+    text: redactText(r.key_topics ? `${r.summary}\n${r.key_topics}` : r.summary)
+      .normalize("NFC")
+      .slice(0, THREAD_SUMMARY_MAX_CHARS),
     id: summaryHitId(r.thread_id, r.cycle),
     source: "summary",
     section: "",
@@ -143,6 +145,7 @@ export interface SummaryRow {
   thread_id: string;
   workspace: string;
   summary: string;
+  key_topics: string;
   updated_at: number;
   cycle: number;
 }

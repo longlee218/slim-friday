@@ -14,8 +14,9 @@ const NO_CONTROL: ControlHandle = { abortAll: () => undefined, drain: async (ms)
 export function createHandlerServices(deps: TurnHandlerDeps, log: Logger) {
   const { db, config } = deps;
   const tracker = createRunTracker(db, log);
-  /** Background memory work (the flush after a compaction): never holds a thread; see memory-jobs.ts. */
+  /** Background memory work (the flush after a compaction, the memory tick): never holds a thread; see memory-jobs.ts. */
   const memoryJobs = createMemoryJobs({ db, config, queryFn: deps.queryFn, log });
+  memoryJobs.startTick(); // idle-thread episodes and the periodic prune
   /** What a role run needs; nothing in it changes per message. */
   const dispatchDeps: DispatchDeps = {
     db,

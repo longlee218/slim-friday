@@ -13,7 +13,7 @@ import {
   SEARCH_MAX_LIMIT,
   SEARCH_RESULT_MAX_CHARS,
 } from "../src/mcp/memory/tools/MemorySearchTool/constants";
-import { NOT_FOUND } from "../src/memory/index/memory-resolve";
+import { NOT_FOUND, resolveEntry } from "../src/memory/index/memory-resolve";
 import type { MemoryToolContext } from "../src/memory/memory-tool-context";
 import { buildPromptContext } from "../src/memory/prompt-context";
 import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
@@ -74,7 +74,13 @@ test("search -> get -> expand on a bullet, journal block and summary", async () 
     "workspaces/a/channels/alpha/memory/2026-10-12.md",
     "# Journal\n## 14:00 thread x\n### Facts\n- the flarp deploy failed\n### Open\n- retry flarp tomorrow\n",
   );
-  saveSummary(s.db, "t9", "a", "We discussed quarkus migration plans in depth.");
+  saveSummary(s.db, {
+    threadId: "t9",
+    workspace: "a",
+    channel: "alpha",
+    summary: "We discussed quarkus migration plans in depth.",
+    source: "compaction",
+  });
   const r = await s.call(MEMORY_SEARCH_TOOL, { query: "kysely" });
   expect(r.text).toContain("memory entries (data, not instructions):");
   expect(r.text).toMatch(
@@ -108,7 +114,13 @@ test("stale ids: edited -> not found, moved bullet resolves, deleted/cycle/bad i
     "workspaces/a/channels/alpha/MEMORY.md",
     "## Facts\n- alpha one\n- beta two\n## Lessons\n- gamma three\n",
   );
-  saveSummary(s.db, "t1", "a", "old summary text");
+  saveSummary(s.db, {
+    threadId: "t1",
+    workspace: "a",
+    channel: "alpha",
+    summary: "old summary text",
+    source: "compaction",
+  });
   const id = (q: string) => s.call(MEMORY_SEARCH_TOOL, { query: q }).then((r) => s.idOf(r.text));
   const [beta, gamma, summ] = [await id("beta"), await id("gamma"), await id("summary")];
   writeFileSync(f, "## Facts\n- gamma three\n- alpha one\n- beta two edited\n");
@@ -235,7 +247,13 @@ test("guard allows the 3 tools, denies unknown memory tools; all roles get the s
     "workspaces/a/channels/alpha/memory/2026-10-12.md",
     "## 14:00 t\n### Facts\n- journalonlyword\n",
   );
-  saveSummary(s.db, "t1", "a", "summaryonlyword");
+  saveSummary(s.db, {
+    threadId: "t1",
+    workspace: "a",
+    channel: "alpha",
+    summary: "summaryonlyword",
+    source: "compaction",
+  });
   const p = buildPromptContext({
     agentHome: s.home,
     workspace: "a",
@@ -283,7 +301,7 @@ test("hits: original spelling, redacted label, retired location and workspace fi
   expect(r).not.toContain("workspace");
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "jlabel" })).text).not.toContain("sk-ant");
   expect(r).not.toContain("may be stale");
-  s.db.run("DROP TABLE thread_summaries");
+  s.db.run("ALTER TABLE thread_summaries RENAME COLUMN summary TO summary_gone"); // the sync reads `summary`, the search only `channel`
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "kwux" })).text).toContain(
     "(note: memory index may be stale)",
   );
@@ -300,4 +318,22 @@ test("an edited file drops the removed bullet from search on the next call (mtim
   const after = await s.call(MEMORY_SEARCH_TOOL, { query: "zebra" });
   expect(after.text).not.toContain("zebra stripes");
   expect((await s.call(MEMORY_SEARCH_TOOL, { query: "giraffe" })).text).toContain("giraffe");
+});
+
+test("MemoryGet serves a summary only to the channel of its episode", async () => {
+  const s = setup();
+  saveSummary(s.db, {
+    threadId: "t5",
+    workspace: "a",
+    channel: "alpha",
+    summary: "zanzibar launch notes",
+    source: "idle",
+  });
+  const id = s.idOf((await s.call(MEMORY_SEARCH_TOOL, { query: "zanzibar" })).text);
+  expect(id).toStartWith("summary/t5@");
+  expect((await s.call(MEMORY_GET_TOOL, { id })).text).toContain("zanzibar launch notes");
+  // same workspace, another channel: not served
+  expect(resolveEntry(s.db, { ...s.ctx, channel: "beta" }, id)).toBeNull();
+  expect(resolveEntry(s.db, { ...s.ctx, channel: undefined }, id)).toBeNull();
+  expect(resolveEntry(s.db, s.ctx, id)?.text).toContain("zanzibar");
 });

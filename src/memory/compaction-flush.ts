@@ -152,7 +152,7 @@ export async function flushAfterCompaction(d: FlushDeps, req: FlushRequest): Pro
       if (saved) safely("reindex", () => reindexFile(d.db, d.home, res.file));
     }
     if (busy) logEvent(log, "memory.flush_busy", { items: items.length, saved }, "warn");
-    else markFlushed(d.db, req.threadId, req.workspace, req.cycle);
+    else markFlushed(d.db, req.threadId, req.workspace, req.cycle, req.channel ?? "");
     logEvent(log, "memory.flush", { mode, items: items.length, saved, ms: Date.now() - t0 });
     return { mode, items: items.length, saved };
   } catch (err) {

@@ -15,8 +15,22 @@ import {
 test("save is an upsert per thread; get returns workspace and text", () => {
   const db = openDb(":memory:");
   expect(getThreadSummary(db, "t1")).toBeNull();
-  saveSummary(db, "t1", "main", "first", 10);
-  saveSummary(db, "t1", "main", "second", 20);
+  saveSummary(db, {
+    threadId: "t1",
+    workspace: "main",
+    channel: "",
+    summary: "first",
+    source: "compaction",
+    now: 10,
+  });
+  saveSummary(db, {
+    threadId: "t1",
+    workspace: "main",
+    channel: "",
+    summary: "second",
+    source: "compaction",
+    now: 20,
+  });
   const row = getThreadSummary(db, "t1");
   expect(row).toMatchObject({ workspace: "main", summary: "second", updated_at: 20, cycle: 0 });
   expect(row?.flushed_cycle).toBe(-1);
@@ -24,12 +38,13 @@ test("save is an upsert per thread; get returns workspace and text", () => {
 
 test("summary is redacted and clipped", () => {
   const db = openDb(":memory:");
-  saveSummary(
-    db,
-    "t1",
-    "main",
-    `key sk-ant-api03-${"a".repeat(40)} ${"x".repeat(THREAD_SUMMARY_MAX_CHARS * 2)}`,
-  );
+  saveSummary(db, {
+    threadId: "t1",
+    workspace: "main",
+    channel: "",
+    summary: `key sk-ant-api03-${"a".repeat(40)} ${"x".repeat(THREAD_SUMMARY_MAX_CHARS * 2)}`,
+    source: "compaction",
+  });
   const s = getThreadSummary(db, "t1")?.summary ?? "";
   expect(s).not.toContain("sk-ant-api03");
   expect(s.length).toBeLessThanOrEqual(THREAD_SUMMARY_MAX_CHARS);
@@ -46,7 +61,13 @@ test("no row -> needsFlush true; markFlushed clears it; bumpCycle makes it true 
     cycle: 0,
     flushed_cycle: 0,
   });
-  saveSummary(db, "t1", "main", "s");
+  saveSummary(db, {
+    threadId: "t1",
+    workspace: "main",
+    channel: "",
+    summary: "s",
+    source: "compaction",
+  });
   bumpCycle(db, "t1", "main");
   expect(getThreadSummary(db, "t1")).toMatchObject({ cycle: 1, flushed_cycle: 0 });
   expect(needsFlush(db, "t1", 1)).toBe(true);
@@ -83,17 +104,41 @@ test("summary keys are shared helpers", () => {
 
 test("saveSummary keeps cycle and flushed_cycle", () => {
   const db = openDb(":memory:");
-  saveSummary(db, "t1", "main", "a");
+  saveSummary(db, {
+    threadId: "t1",
+    workspace: "main",
+    channel: "",
+    summary: "a",
+    source: "compaction",
+  });
   bumpCycle(db, "t1", "main");
   markFlushed(db, "t1", "main", 1);
-  saveSummary(db, "t1", "main", "b");
+  saveSummary(db, {
+    threadId: "t1",
+    workspace: "main",
+    channel: "",
+    summary: "b",
+    source: "compaction",
+  });
   expect(getThreadSummary(db, "t1")).toMatchObject({ cycle: 1, flushed_cycle: 1 });
 });
 
 test("threads and workspaces are isolated; rows only for the touched thread; delete removes the row", () => {
   const db = openDb(":memory:");
-  saveSummary(db, "t1", "ws-a", "a");
-  saveSummary(db, "t2", "ws-b", "b");
+  saveSummary(db, {
+    threadId: "t1",
+    workspace: "ws-a",
+    channel: "",
+    summary: "a",
+    source: "compaction",
+  });
+  saveSummary(db, {
+    threadId: "t2",
+    workspace: "ws-b",
+    channel: "",
+    summary: "b",
+    source: "compaction",
+  });
   bumpCycle(db, "t1", "ws-a");
   expect(needsFlush(db, "t2", 0)).toBe(true); // t2 never flushed
   markFlushed(db, "t2", "ws-b", 0);
@@ -109,4 +154,15 @@ test("threads and workspaces are isolated; rows only for the touched thread; del
   deleteThreadSummary(db, "t1");
   expect(getThreadSummary(db, "t1")).toBeNull();
   expect(getThreadSummary(db, "t2")).not.toBeNull();
+});
+
+test("unlessNewerThan refuses a stale write and updated_at never moves back", () => {
+  const db = openDb(":memory:");
+  const base = { threadId: "t", workspace: "w", channel: "c", source: "idle" as const };
+  expect(saveSummary(db, { ...base, summary: "a", now: 10 })).toBe(true);
+  saveSummary(db, { ...base, summary: "newer", source: "compaction", now: 30 });
+  expect(saveSummary(db, { ...base, summary: "stale", now: 40, unlessNewerThan: 10 })).toBe(false);
+  expect(getThreadSummary(db, "t")).toMatchObject({ summary: "newer", updated_at: 30 });
+  expect(saveSummary(db, { ...base, summary: "ok", now: 20, unlessNewerThan: 30 })).toBe(true);
+  expect(getThreadSummary(db, "t")).toMatchObject({ summary: "ok", updated_at: 30 });
 });

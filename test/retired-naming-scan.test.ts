@@ -111,6 +111,8 @@ const SQL: Record<string, RegExp> = {
   "old parent column": j("parent_", "task", "_id"),
   "old proposal column": j("from_", "task", "_id"),
   "old kind literal": j("kind: ", '"task', '"'),
+  // memory v2 phase 4: the rollover column of `thread_summaries` (dropped by migration 0009)
+  "old summary rollover column": j("rolled", "_at", "\\b"),
 };
 
 /**

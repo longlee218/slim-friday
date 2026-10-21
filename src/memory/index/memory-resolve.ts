@@ -57,12 +57,13 @@ export function resolveEntry(db: Database, ctx: MemoryToolContext, rawId: string
   const id = parseId(rawId);
   if (!id) return null;
   if (id.type === "summary") {
-    if (ctx.workspace === "") return null; // a summary without a workspace cannot be isolated
+    // A summary is served only for the run's own workspace AND channel (the episode's channel column).
+    if (ctx.workspace === "" || !ctx.channel) return null;
     const row = db
-      .query<{ summary: string; cycle: number }, [string, string]>(
-        "SELECT summary, cycle FROM thread_summaries WHERE thread_id = ? AND workspace = ?",
+      .query<{ summary: string; cycle: number }, [string, string, string]>(
+        "SELECT summary, cycle FROM thread_summaries WHERE thread_id = ? AND workspace = ? AND channel = ?",
       )
-      .get(id.threadId, ctx.workspace);
+      .get(id.threadId, ctx.workspace, ctx.channel);
     if (!row || row.cycle !== id.cycle || row.summary === "") return null;
     const text = row.summary.slice(0, THREAD_SUMMARY_MAX_CHARS);
     return { text, context: text, date: "" };

@@ -3,9 +3,9 @@ import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
 import { cleanupAttachments } from "../ingress/attachment-summary";
-import { pruneJournals } from "../memory/daily-journal";
 import { syncAll } from "../memory/index/memory-sync";
 import { safely } from "../memory/index/safely";
+import { pruneMemory } from "../memory/memory-prune";
 import { logEvent, logger } from "../observability/logger";
 import { writeTeamFile } from "../roles/prompts/team-md-file";
 import { sweepStalePlugins } from "../runtime/skills-plugin/plugin-sweep";
@@ -51,8 +51,8 @@ export async function runStartupHygiene(db: Database, agentHome: string): Promis
   } catch (err) {
     log.warn({ err: String(err) }, "startup hygiene failed");
   }
-  // Old journal day files go first, so the sync below drops their index rows.
-  safely("journal prune", () => pruneJournals(agentHome));
+  // Expired episodes and old journal day files go first, so the sync below drops their index rows.
+  safely("memory prune", () => pruneMemory(db, agentHome));
   // Memory search index in line with the files (a failure is logged; search then reports "index unavailable").
   const synced = safely("startup sync", () => syncAll(db, agentHome));
   if (synced) logEvent(log, "memory.index.synced", { ...synced });

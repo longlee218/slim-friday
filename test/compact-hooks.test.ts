@@ -188,12 +188,13 @@ test("PostCompact: first summary is stored as is, cycle +1, indexed once, no jou
 
 test("PostCompact is incremental: a new summary that does not cover the old one is merged, one that does is kept as is", async () => {
   const s = setup();
-  saveSummary(
-    s.db,
-    "th1",
-    "a",
-    "Earlier work covered the kubernetes ingress rollout and certificate rotation.",
-  );
+  saveSummary(s.db, {
+    threadId: "th1",
+    workspace: "a",
+    channel: "ops",
+    summary: "Earlier work covered the kubernetes ingress rollout and certificate rotation.",
+    source: "compaction",
+  });
   await s.post({
     compact_summary: "Then the team debugged flaky integration tests in the billing pipeline.",
   });
@@ -224,7 +225,13 @@ test("mergeSummary: labels never nest, the old part is clipped first and the res
 
 test("PostCompact: a subagent compaction never touches the thread summary; an empty summary keeps the old one but still counts the cycle", async () => {
   const s = setup();
-  saveSummary(s.db, "th1", "a", "kept summary text");
+  saveSummary(s.db, {
+    threadId: "th1",
+    workspace: "a",
+    channel: "ops",
+    summary: "kept summary text",
+    source: "compaction",
+  });
   await s.post({ compact_summary: "subagent notes", agent_id: "sub1", agent_type: "explorer" });
   await s.post({ compact_summary: "   " });
   await s.post({});

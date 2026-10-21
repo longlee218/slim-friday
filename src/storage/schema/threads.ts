@@ -26,7 +26,7 @@ export const threads = sqliteTable(
   (t) => [index("threads_channel_updated").on(t.channel_id, t.updated_at)],
 );
 
-/** Rolling summary of a thread (SDK compaction summary and memory flush state). */
+/** One episode per thread: the SDK compaction summary or an idle-thread summary, plus the flush state and dreaming mark. */
 export const thread_summaries = sqliteTable("thread_summaries", {
   /** Thread id. */
   thread_id: text().primaryKey(),
@@ -34,8 +34,14 @@ export const thread_summaries = sqliteTable("thread_summaries", {
   workspace: text().notNull().default(""),
   /** Summary text. */
   summary: text().notNull(),
-  /** Retired (always 0): the rollover is gone, the column is dropped in memory v2 phase 4. */
-  rolled_at: integer().notNull().default(0),
+  /** Channel (yaml name) of the thread; '' = unknown (rows from before migration 0009: never dreamed, pruned by TTL). */
+  channel: text().notNull().default(""),
+  /** Top terms of the summary, space separated (extractive, no model). */
+  key_topics: text().notNull().default(""),
+  /** First sentences of the summary (extractive, at most EPISODE_ABSTRACT_CHARS). */
+  abstract: text().notNull().default(""),
+  /** Epoch ms dreaming consumed this episode (0 = not yet); re-eligible when `updated_at` is newer. */
+  promoted_at: integer().notNull().default(0),
   /** Epoch ms last updated. */
   updated_at: integer().notNull(),
   /** Compaction cycle counter. */

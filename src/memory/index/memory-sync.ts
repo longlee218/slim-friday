@@ -69,7 +69,7 @@ export function syncIndex(db: Database, home: string, workspace: string): SyncRe
       if (known && known.mtime_ms === s.updated_at && known.size === s.cycle) continue;
       const row = db
         .query<SummaryRow, [string]>(
-          "SELECT thread_id, workspace, summary, updated_at, cycle FROM thread_summaries WHERE thread_id = ?",
+          "SELECT thread_id, workspace, summary, key_topics, updated_at, cycle FROM thread_summaries WHERE thread_id = ?",
         )
         .get(s.thread_id);
       if (!row) continue;

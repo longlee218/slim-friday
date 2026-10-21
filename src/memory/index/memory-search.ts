@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { redactText } from "../../observability/redact";
+import { summaryPath } from "../../storage/thread-summary-store";
 import { buildMatch, queryTerms } from "./fold-text";
 import type { Source } from "./memory-ids";
 
@@ -9,6 +10,8 @@ export const SEARCH_MAX_TERMS = 12;
 /** Length of a snippet, in characters (the FTS5 token window is wider; the text is clipped after). */
 const SNIPPET_CHARS = 200;
 export const SNIPPET_TOKENS = 32;
+/** 1-based SQL position of the thread id inside a summary hit id (`summary/<threadId>@<cycle>`). */
+const SUMMARY_ID_START = summaryPath("").length + 1;
 /** Longest shown section / block label. */
 const LABEL_CHARS = 80;
 
@@ -60,13 +63,15 @@ export function searchIndex(
   if (terms.length === 0) return { hits: [], terms: 0 };
   const where = ["memory_fts MATCH ?", "workspace IN (?, '')"];
   const params: (string | number)[] = [buildMatch(terms), workspace];
-  // Channel and journal entries only for the run's own channel (id prefix `channel/<name>`, `journal/<name>/<date>`).
-  if (a.channel)
+  // Channel and journal entries only for the run's own channel (id prefix `channel/<name>`, `journal/<name>/<date>`);
+  // summary entries (`summary/<threadId>@<cycle>`) only when the thread's episode belongs to that channel.
+  if (a.channel) {
     where.push(
       "(source NOT IN ('channel', 'journal') OR substr(id, 1, instr(id, '#') - 1) = ? OR substr(id, 1, instr(id, '#') - 1) LIKE ?)",
-    ),
-      params.push(`channel/${a.channel}`, `journal/${a.channel}/%`);
-  else where.push("source NOT IN ('channel', 'journal')");
+      `(source <> 'summary' OR substr(id, ${SUMMARY_ID_START}, instr(id, '@') - ${SUMMARY_ID_START}) IN (SELECT thread_id FROM thread_summaries WHERE channel = ?))`,
+    );
+    params.push(`channel/${a.channel}`, `journal/${a.channel}/%`, a.channel);
+  } else where.push("source NOT IN ('channel', 'journal', 'summary')");
   if (a.scope) where.push("source = ?"), params.push(a.scope);
   if (a.kind) where.push("kind = ?"), params.push(a.kind);
   if (a.since) where.push("date >= ?"), params.push(a.since);

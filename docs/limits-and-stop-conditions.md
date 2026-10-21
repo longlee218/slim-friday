@@ -192,9 +192,20 @@ Files: `config/memory-caps.ts`. Time, cost and retention bounds of memory jobs; 
 | `FLUSH_BUDGET_USD` | one-shot | $0.05 <!-- limit:FLUSH_BUDGET_USD=0.05 --> | the flush call stops; the keyword extract writes instead |
 | `FLUSH_MAX_ITEMS` | one-shot | 12 notes <!-- limit:FLUSH_MAX_ITEMS=12 --> | the model's list is cut |
 | `FLUSH_INPUT_MAX_CHARS` | one-shot | 24000 chars <!-- limit:FLUSH_INPUT_MAX_CHARS=24000 --> | summary + chat tail is cut to its newest end |
-| `JOURNAL_RETENTION_DAYS` | channel | 30 days <!-- limit:JOURNAL_RETENTION_DAYS=30 --> | the day file is deleted at start |
+| `JOURNAL_RETENTION_DAYS` | channel | 30 days <!-- limit:JOURNAL_RETENTION_DAYS=30 --> | the day file is deleted by the prune (start, then every `PRUNE_INTERVAL_MS`) |
+| `EPISODE_TTL_DAYS` | thread | 90 days <!-- limit:EPISODE_TTL_DAYS=90 --> | the episode (`thread_summaries` row) and its index rows are deleted by the prune |
+| `EPISODE_IDLE_MS` | thread | 2 h <!-- limit:EPISODE_IDLE_MS=7200000 --> | a thread whose newest lead turn ended this long ago, with nothing running, gets an episode |
+| `EPISODE_MAX_PER_TICK` | tick | 5 episodes <!-- limit:EPISODE_MAX_PER_TICK=5 --> | the rest wait for the next tick |
+| `EPISODE_ABSTRACT_CHARS` | episode | 500 chars <!-- limit:EPISODE_ABSTRACT_CHARS=500 --> | the abstract keeps whole sentences up to this length (a longer first sentence is cut) |
+| `EPISODE_TOPICS_MAX` | episode | 8 terms <!-- limit:EPISODE_TOPICS_MAX=8 --> | the list of key topics is cut |
+| `EPISODE_INPUT_MAX_CHARS` | one-shot | 12000 chars <!-- limit:EPISODE_INPUT_MAX_CHARS=12000 --> | the thread facts sent to the model are cut to their newest end |
+| `EPISODE_BUDGET_USD` | one-shot | $0.03 <!-- limit:EPISODE_BUDGET_USD=0.03 --> | the call stops; the facts text is stored as the episode |
+| `EPISODE_DEADLINE_MS` | one-shot | 30 s <!-- limit:EPISODE_DEADLINE_MS=30000 --> | the call times out (one attempt); the facts text is stored as the episode |
+| `MEMORY_TICK_MS` | app | 10 min <!-- limit:MEMORY_TICK_MS=600000 --> | period of the memory tick (idle episodes, then the prune when due); a tick never overlaps the next |
+| `PRUNE_INTERVAL_MS` | app | 6 h <!-- limit:PRUNE_INTERVAL_MS=21600000 --> | least time between two prunes (episodes and journals); one more prune runs at start |
 
 - The flush runs once per compaction cycle, async, after the SDK compaction (lead runs only); it never delays a reply or the next run.
+- An episode is written on a compaction (the merged SDK summary) or when a thread goes idle (reuses a compaction summary written during its last lead turn, else one Haiku call over the db facts; at most `EPISODE_MAX_PER_TICK` per tick). The abstract and key topics are extractive (no model call).
 
 ## Tool Input Limits
 
@@ -281,12 +292,13 @@ Informational.
 | App log files | 14 days | `observability/log-files.ts` |
 | Task logs | 30 days | `lifecycle/startup.ts` |
 | Run messages | 14 days | `storage/run-message-store.ts` |
-| Daily journals (per channel: `channels/<ch>/memory/`; also the old per-space dir) | `JOURNAL_RETENTION_DAYS` = 30 days (see [Memory](#memory)) | `config/memory-caps.ts` |
+| Daily journals (per channel: `channels/<ch>/memory/`; also the old per-space dir) | `JOURNAL_RETENTION_DAYS` = 30 days; same prune job as the episodes (see [Memory](#memory)) | `config/memory-caps.ts`, `memory/memory-prune.ts` |
 | Attachment copies | 7 days | `ingress/attachment-summary.ts` |
 | Trash (deleted paths) | 7 days; sweep every 6 h | `policy/risk-types.ts`, `lifecycle/trash-sweeper.ts` |
 | Persona backups | newest 10 per file | `WriteSpaceFileTool/constants.ts` |
 | Control session | fresh after 24 h idle | `discord-setup/control-role-run.ts` |
-| Database rows | forever (no pruning) | see Not now |
+| Episodes (`thread_summaries`) | `EPISODE_TTL_DAYS` = 90 days since the last update; pruned at start and every `PRUNE_INTERVAL_MS` | `memory/memory-prune.ts` |
+| Other database rows | forever (no pruning; `thread_summaries` excepted) | see Not now |
 
 ## Not Now
 

@@ -47,10 +47,16 @@ function makeHandlers(ctx: CompactHookCtx) {
   function onPostCompact(i: PostCompactHookInput): void {
     const latest = typeof i.compact_summary === "string" ? i.compact_summary.trim() : "";
     ctx.db.transaction(() => {
-      bumpCycle(ctx.db, ctx.threadId, ctx.workspace);
+      bumpCycle(ctx.db, ctx.threadId, ctx.workspace, ctx.channel ?? "");
       if (!latest) return;
       const previous = getThreadSummary(ctx.db, ctx.threadId)?.summary ?? "";
-      saveSummary(ctx.db, ctx.threadId, ctx.workspace, mergeSummary(previous, latest));
+      saveSummary(ctx.db, {
+        threadId: ctx.threadId,
+        workspace: ctx.workspace,
+        channel: ctx.channel ?? "",
+        summary: mergeSummary(previous, latest),
+        source: "compaction",
+      });
     })();
     const row = getThreadSummary(ctx.db, ctx.threadId);
     if (!latest) logEvent(log, "compact.summary_missing", { trigger: i.trigger }, "warn");

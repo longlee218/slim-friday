@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { EPISODE_IDLE_MS, EPISODE_TTL_DAYS, PRUNE_INTERVAL_MS } from "../src/config/memory-caps";
 import type { CompactLlm } from "../src/memory/memory-compaction-llm";
 import { createMemoryJobs } from "../src/memory/memory-jobs";
 import { logger } from "../src/observability/logger";
@@ -91,4 +92,48 @@ test("abortAll: a queued flush does not start; a throwing model never rejects", 
   bumpCycle(db, "t9", "location");
   bad.flushAfterCompaction(flushReq("t9", "first"));
   expect(await bad.drain(2000)).toBeGreaterThan(0);
+});
+
+/* The memory tick: idle episodes first, then the prune once PRUNE_INTERVAL_MS has passed since the last one. */
+test("tick writes idle episodes and prunes expired ones only when the prune interval passed", async () => {
+  const env = makeEnv();
+  let clock = new Date(2026, 9, 21, 12, 0).getTime();
+  const llm: CompactLlm = async () => ({ text: "episode text", usage: emptyUsage() });
+  const jobs = createMemoryJobs({
+    db: env.db,
+    config: env.config,
+    log: logger,
+    llm,
+    resolveChannel: () => ({ workspace: "ws", channel: "ops" }),
+    now: () => new Date(clock),
+  });
+  env.db
+    .query(
+      "INSERT INTO turns (id, thread_id, source, location, status, started_at, ended_at, brief, role, kind) VALUES ('u1', 'th1', 'discord', '*', 'done', ?, ?, 'work', 'lead', 'single')",
+    )
+    .run(clock - EPISODE_IDLE_MS - 2000, clock - EPISODE_IDLE_MS - 1000);
+  await jobs.tick();
+  expect(getThreadSummary(env.db, "th1")?.summary).toBe("episode text");
+  // an expired episode: not pruned before the interval, pruned after it
+  env.db
+    .query(
+      "INSERT INTO thread_summaries (thread_id, workspace, channel, summary, updated_at) VALUES ('old', 'ws', 'ops', 'x', ?)",
+    )
+    .run(clock - (EPISODE_TTL_DAYS + 1) * 86_400_000);
+  clock += PRUNE_INTERVAL_MS - 1;
+  await jobs.tick();
+  expect(getThreadSummary(env.db, "old")).not.toBeNull();
+  clock += 1;
+  await jobs.tick();
+  expect(getThreadSummary(env.db, "old")).toBeNull();
+  jobs.abortAll(); // stops the tick
+  await jobs.tick();
+});
+
+test("startTick keeps one unref'd timer and abortAll clears it", () => {
+  const env = makeEnv();
+  const jobs = createMemoryJobs({ db: env.db, config: env.config, log: logger });
+  jobs.startTick();
+  jobs.startTick();
+  jobs.abortAll();
 });

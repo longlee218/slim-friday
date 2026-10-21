@@ -197,15 +197,19 @@ test("workspace isolation (memory, journal, summary); root visible to both; pend
       `workspaces/${ws}/channels/c1/memory/2026-10-13.md`,
       `## 09:00 t\n### Facts\n- zebra journal ${ws}\n`,
     );
-    saveSummary(s.db, `th${ws}`, ws, `zebra summary ${ws}`);
+    saveSummary(s.db, {
+      threadId: `th${ws}`,
+      workspace: ws,
+      channel: "c1",
+      summary: `zebra summary ${ws}`,
+      source: "compaction",
+    });
   }
   syncAll(s.db, s.home);
-  expect(
-    s
-      .find("a", "zebra")
-      .map((h) => h.snippet)
-      .sort(),
-  ).toEqual(["zebra a", "zebra summary a", expect.stringContaining("zebra journal a")].sort());
+  const snippets = s.find("a", "zebra").map((h) => h.snippet);
+  expect(snippets).toHaveLength(3);
+  for (const want of ["zebra a", "zebra summary a", "zebra journal a"])
+    expect(snippets.some((x) => x.includes(want))).toBe(true);
   expect(s.find("b", "zebra").every((h) => !h.snippet.includes(" a"))).toBe(true);
   expect(s.find("a", "rootword")).toHaveLength(1);
   expect(s.find("b", "rootword")).toHaveLength(1);
@@ -213,7 +217,13 @@ test("workspace isolation (memory, journal, summary); root visible to both; pend
   expect(reindexFile(s.db, s.home, join(s.home, STRAY_QUEUE_FILE))).toBe("skipped");
   expect(s.find("a", "pendingword")).toEqual([]);
   // same-workspace summaries from several threads
-  saveSummary(s.db, "th2", "a", "zebra second thread");
+  saveSummary(s.db, {
+    threadId: "th2",
+    workspace: "a",
+    channel: "c1",
+    summary: "zebra second thread",
+    source: "compaction",
+  });
   syncIndex(s.db, s.home, "a");
   expect(s.find("a", "zebra", { scope: "summary" })).toHaveLength(2);
   expect(s.find("b", "zebra", { scope: "summary" })).toHaveLength(1);
@@ -284,7 +294,13 @@ test("caps: big file skipped, chunks per file, chunk text clipped, summaries of 
   expect(s.find("a", "tailword", { channel: "c3" })).toEqual([]); // clipped at CHUNK_MAX_CHARS
   expect(s.find("a", "clipword", { channel: "c3" })[0]?.snippet.length).toBeLessThanOrEqual(200);
   expect(CHUNK_MAX_CHARS).toBe(1200);
-  saveSummary(s.db, "gone", "a", "summaryword");
+  saveSummary(s.db, {
+    threadId: "gone",
+    workspace: "a",
+    channel: "c1",
+    summary: "summaryword",
+    source: "compaction",
+  });
   syncIndex(s.db, s.home, "a");
   expect(s.find("a", "summaryword")).toHaveLength(1);
   s.db.query("DELETE FROM thread_summaries").run();
@@ -333,4 +349,31 @@ test("journal isolation: two channels of one space write journals; a search in c
   expect(
     searchIndex(s.db, "a", { query: "okapi", limit: 20, channel: "c", scope: "journal" }).hits,
   ).toEqual([]);
+});
+
+test("summary hits only for the run's own channel (episode channel column); no channel sees none; key topics are searchable", () => {
+  const s = setup();
+  saveSummary(s.db, {
+    threadId: "tha",
+    workspace: "a",
+    channel: "c1",
+    summary: "Rollout of the ingress controller finished. Ingress certificates rotated.",
+    source: "idle",
+  });
+  saveSummary(s.db, {
+    threadId: "thb",
+    workspace: "a",
+    channel: "c2",
+    summary: "Ingress billing review for the other channel.",
+    source: "idle",
+  });
+  syncIndex(s.db, s.home, "a");
+  const own = s.find("a", "ingress", { scope: "summary" });
+  expect(own).toHaveLength(1);
+  expect(own[0]?.id).toStartWith("summary/tha@");
+  const other = searchIndex(s.db, "a", { query: "ingress", limit: 20, channel: "c2" }).hits;
+  expect(other.map((h) => h.id.split("@")[0])).toEqual(["summary/thb"]);
+  expect(searchIndex(s.db, "a", { query: "ingress", limit: 20 }).hits).toEqual([]);
+  // key topics are part of the indexed text: "certificates" is a topic of the first episode
+  expect(s.find("a", "certificates", { scope: "summary" })).toHaveLength(1);
 });
