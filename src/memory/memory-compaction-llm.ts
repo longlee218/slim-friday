@@ -5,10 +5,11 @@ import { type ResultShape, type RunUsage, usageFromResult } from "../observabili
 import type { QueryFn } from "../runtime/run-agent";
 import { sdkEnv } from "../runtime/sdk-env";
 
-/** One model call: system + user text in, text + token usage out. Injected so tests never call a model. */
+/** One model call: system + user text in, text + token usage out. Injected so tests never call a model. `signal` aborts the call (shutdown). */
 export type CompactLlm = (
   system: string,
   prompt: string,
+  signal?: AbortSignal,
 ) => Promise<{ text: string; usage: RunUsage }>;
 
 /** Deadline of ONE model call attempt (thinking off: a ~300-token answer takes seconds). */
@@ -36,8 +37,11 @@ export function sdkCompactLlm(
   const deadlineMs = Math.min(config.limits.timeoutMs, limits.deadlineMs ?? CALL_DEADLINE_MS);
   const maxAttempts = limits.attempts ?? MAX_ATTEMPTS;
   /** One attempt with its own deadline. */
-  const attempt: CompactLlm = async (system, prompt) => {
+  const attempt: CompactLlm = async (system, prompt, signal) => {
     const ac = new AbortController();
+    const onAbort = () => ac.abort();
+    if (signal?.aborted) ac.abort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
@@ -78,12 +82,13 @@ export function sdkCompactLlm(
       throw err;
     } finally {
       clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
     }
   };
-  return async (system, prompt) => {
+  return async (system, prompt, signal) => {
     for (let n = 1; ; n++) {
       try {
-        return await attempt(system, prompt);
+        return await attempt(system, prompt, signal);
       } catch (err) {
         if (!(err instanceof CallTimeoutError) || n >= maxAttempts) throw err;
       }

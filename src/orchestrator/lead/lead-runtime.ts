@@ -29,10 +29,6 @@ export interface LeadRuntime {
   /** Wake the lead for new news of the thread (batched by the announcer; `delayMs` 0 = now, for urgent news such as a blocker). */
   announce(threadId: string, delayMs?: number): void;
   relay: QuestionRelay;
-  /** Resolves when the thread's rollover work (flush, summary) is done: a lead run never resumes a session being rolled. */
-  hold?(threadId: string): Promise<void>;
-  /** The run's reply is posted: the thread's rollover work (flush, summary) may start. */
-  afterRun?(message: InboundMessage, turnId: string, workspace: string): void;
 }
 
 /** Post text into the thread; a failure is returned to the caller as a rejected promise. */

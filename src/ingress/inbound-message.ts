@@ -21,10 +21,6 @@ export interface InboundMessage {
   replyToMessageId?: string;
   /** The last messages of the thread before this one (owner and bot, redacted, clipped), oldest first; for the lead. Absent = none. */
   recent?: RecentMessage[];
-  /** Resolves once the ingress posted this turn's reply (or gave up): the rollover work waits for it. Absent = no wait. */
-  replied?: Promise<void>;
-  /** The thread's last `limit` messages (owner and bot, oldest first), for the rollover's summary / extract. Absent = none. */
-  history?: (limit: number) => Promise<RecentMessage[]>;
   /** Marks the first visible response as posted (settles the 👀 receipt, stops typing): called after a successful question post. */
   visible?: () => Promise<void>;
   /**

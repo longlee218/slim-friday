@@ -93,7 +93,6 @@ function leadOnce(
           locations: [], // neutral cwd: the lead routes, it reads no location
           ac,
           language,
-          recent: ctx.message.recent, // seeds a fresh session after a rollover
           existing: stored?.kind === "lead" ? stored : null,
           team: buildTeamMd({ locations: ctx.locations }),
           appCtx: () => ({
@@ -111,8 +110,8 @@ function leadOnce(
 }
 
 /**
- * One lead input end to end: wait for the thread's rollover, run the lead, post the reply, close the consumed events,
- * start the queued workers, then let the rollover start (after the reply). A failed run posts a fixed notice and
+ * One lead input end to end: run the lead, post the reply, close the consumed events and start the queued
+ * workers. A failed run posts a fixed notice and
  * starts nothing; a failed announce is retried once, then dropped with one notice. Never throws.
  */
 export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> {
@@ -126,7 +125,6 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
     return;
   }
   const { db } = rt.deps;
-  await rt.hold?.(threadId); // a rollover of the previous run may delete the session: never resume it meanwhile
   let posted = false; // the owner saw something from this run
   const post = (text: string) => {
     posted = true;
@@ -134,7 +132,6 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
       logEvent(log, "lead.post_failed", { threadId, err: errText(err) }, "warn"),
     );
   };
-  const turns: string[] = []; // turn rows of this input: their rollover starts after the reply
   const ac = new AbortController();
   const settleActive = registerRun({ kind: "lead", threadId, role: "lead", ac });
   let announced: string[] = [];
@@ -160,7 +157,6 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
       trigger: input.kind,
       ...(input.kind === "owner" && input.text && { ownerText: input.text }),
     });
-    turns.push(out.turnId);
     if (out.outcome === "aborted") {
       stopped = true;
       return; // `/stop`: the owner knows
@@ -182,7 +178,6 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
       await dispatchReady(rt, threadId).catch((err: unknown) =>
         logEvent(log, "lead.dispatch_failed", { threadId, err: errText(err) }, "error"),
       );
-    for (const turnId of turns) rt.afterRun?.(ctx.message, turnId, ctx.workspace); // only now: the reply is out
     if (input.kind === "owner" && !posted) await ctx.message.visible?.().catch(() => {}); // no silent message
     // Re-announce: a failed batch, capped overflow, or news a limit stop left unread (bounded by `rearm`).
     if (

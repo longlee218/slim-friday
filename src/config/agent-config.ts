@@ -73,7 +73,7 @@ export interface AgentConfig {
   logLevel: string;
   /** Default model slot of the SDK env and the log value. Roles name their own model. */
   model: string;
-  /** Model of the one-shot cheap calls (attachment summary, rollover fallback summary). */
+  /** Model of the one-shot cheap calls (attachment summary, memory flush). */
   memoryModel: string;
   /** Run limits of every agent run; maxBudgetUsd = optional global cap MAX_BUDGET_USD (min with the role budget). */
   limits: { maxBudgetUsd: number | undefined; timeoutMs: number };

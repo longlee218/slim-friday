@@ -60,12 +60,12 @@ Folders under `src/orchestrator/`:
 | `thread/` | 1 | thread state (derived) |
 | `turns/` | 16 | turn rows, completion (`Report result` + `effect_log`), run limiter, steer, status snapshot, progress notes |
 
-- Rollover (flush, summary, seed) is in `src/session/`, not in the orchestrator.
+- The memory flush after a compaction (`compaction-flush.ts`, `memory-jobs.ts`) is in `src/memory/`, not in the orchestrator.
 - Owned-task state machine and contracts are in `src/tasks/`.
 - Effect tool names are constants in `src/orchestrator/effects/effect-tool-names.ts` (`EFFECT_TOOL_NAMES`). A new effect tool needs: a risk class in `src/policy/classify-tool-call.ts`, a grant rule in `src/policy/check-envelope.ts`, a test in `test/effect-tools-scope.test.ts`, and a line in the developer shell rules (`DEVELOPER_SHELL_RULES`) if a shell command is the same act.
 
 ## Roles
-- One `RoleDefinition` object per file: `src/roles/builtin/<name>-role.ts`. Prompt text sits in the role file or in `src/roles/prompts/` (`team-md.ts`, `rollover-prompts.ts`).
+- One `RoleDefinition` object per file: `src/roles/builtin/<name>-role.ts`. Prompt text sits in the role file or in `src/roles/prompts/` (`team-md.ts`, `memory-prompts.ts`).
 - Role fields are described in [system-architecture.md, Role Model](system-architecture.md#role-model).
 - `model` is one fixed full id per role (`src/config/model-ids.ts`). No tiers, no escalation, no per-role env pins. Two Haiku ids: `HAIKU_MODEL` (`claude-haiku-5-5`) for the Haiku roles and every Haiku task run; `HAIKU_SUMMARY_MODEL` (`claude-haiku-4-5-20251001`) for the one-shot summary and compaction calls (`config.memoryModel`).
 - Prompts: role contracts state runtime facts and scope only (no tone, no method). Method lives in the role's skills (`skills` list) and persona files. Preview a role's exact prompt with `bun run prompt:show <role>`.
@@ -143,7 +143,7 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 1. **Comment every function, class and complex field.** Say what it does and why, in one or two lines.
 2. **No invented API surfaces.** Document and call only what exists in code. Check names and signatures in the source.
 3. **Error handling:** try/catch around I/O and SDK calls. Log the redacted error. Reply with a safe message ("Something went wrong. Check logs.").
-4. **No run timeout.** `/stop` is the only way to end a hung run (owner decision). Rollover calls have their own constants (flush 60 s, summary 120 s, fallback 60 s). Do not add a run timer without an owner decision.
+4. **No run timeout.** `/stop` is the only way to end a hung run (owner decision). The memory flush call has its own deadline (`FLUSH_DEADLINE_MS`, 60 s). Do not add a run timer without an owner decision.
 5. **Tools come from the catalog.** Build SDK tool lists through `src/tools/tool-catalog.ts` (`toolsFor`, `autoAllowedTools`, `toolOptions`). Never list tools inline.
 6. **Owner questions:** developer workers use `AskUserQuestion`; the lead uses `Orchestrate ask_owner`; a plan is approved once through `Orchestrate approve_plan`. Discord buttons are reused. Do not add a new Discord approval type for a plan, a finish step or a merge.
 7. **Owner-confirm buttons** (`src/owner-approval/owner-confirm.ts`) gate the costly or final acts in code: worker effects (`effect`), `/purge` (`purge_trash`), persona writes (`write_space_file`), space creation (`create_space_or_channel`). No answer or a timeout means "do not run".

@@ -5,7 +5,6 @@ import {
   deleteThreadSummary,
   getThreadSummary,
   markFlushed,
-  markRolled,
   needsFlush,
   saveSummary,
   summaryHitId,
@@ -36,33 +35,45 @@ test("summary is redacted and clipped", () => {
   expect(s.length).toBeLessThanOrEqual(THREAD_SUMMARY_MAX_CHARS);
 });
 
-test("no row -> needsFlush true; markFlushed clears it; markRolled makes it true again; idempotent", () => {
+test("no row -> needsFlush true; markFlushed clears it; bumpCycle makes it true again; idempotent", () => {
   const db = openDb(":memory:");
-  expect(needsFlush(db, "t1")).toBe(true); // first rollover must not skip its flush
-  markFlushed(db, "t1", "main");
-  markFlushed(db, "t1", "main");
-  expect(needsFlush(db, "t1")).toBe(false);
+  expect(needsFlush(db, "t1", 0)).toBe(true); // the first compaction must not skip its flush
+  markFlushed(db, "t1", "main", 0);
+  markFlushed(db, "t1", "main", 0);
+  expect(needsFlush(db, "t1", 0)).toBe(false);
   expect(getThreadSummary(db, "t1")).toMatchObject({
     workspace: "main",
     cycle: 0,
     flushed_cycle: 0,
   });
   saveSummary(db, "t1", "main", "s");
-  markRolled(db, "t1", 99);
-  expect(getThreadSummary(db, "t1")).toMatchObject({ rolled_at: 99, cycle: 1, flushed_cycle: 0 });
-  expect(needsFlush(db, "t1")).toBe(true);
-  markFlushed(db, "t1", "main");
-  expect(needsFlush(db, "t1")).toBe(false);
+  bumpCycle(db, "t1", "main");
+  expect(getThreadSummary(db, "t1")).toMatchObject({ cycle: 1, flushed_cycle: 0 });
+  expect(needsFlush(db, "t1", 1)).toBe(true);
+  markFlushed(db, "t1", "main", 1);
+  expect(needsFlush(db, "t1", 1)).toBe(false);
 });
 
 test("bumpCycle creates the row when missing and makes needsFlush true after a flush", () => {
   const db = openDb(":memory:");
   bumpCycle(db, "t1", "main");
   expect(getThreadSummary(db, "t1")).toMatchObject({ summary: "", cycle: 1, flushed_cycle: -1 });
-  markFlushed(db, "t1", "main");
-  expect(needsFlush(db, "t1")).toBe(false);
+  markFlushed(db, "t1", "main", 1);
+  expect(needsFlush(db, "t1", 1)).toBe(false);
   bumpCycle(db, "t1", "main");
-  expect(needsFlush(db, "t1")).toBe(true);
+  expect(needsFlush(db, "t1", 2)).toBe(true);
+});
+
+test("markFlushed marks only the given cycle and never moves flushed_cycle back", () => {
+  const db = openDb(":memory:");
+  bumpCycle(db, "t1", "main");
+  bumpCycle(db, "t1", "main"); // cycle 2 queued while flush 1 runs
+  markFlushed(db, "t1", "main", 1);
+  expect(getThreadSummary(db, "t1")).toMatchObject({ cycle: 2, flushed_cycle: 1 });
+  expect(needsFlush(db, "t1", 2)).toBe(true); // flush 2 is not skipped
+  markFlushed(db, "t1", "main", 2);
+  markFlushed(db, "t1", "main", 1); // a late older flush cannot lower it
+  expect(getThreadSummary(db, "t1")).toMatchObject({ flushed_cycle: 2 });
 });
 
 test("summary keys are shared helpers", () => {
@@ -70,13 +81,13 @@ test("summary keys are shared helpers", () => {
   expect(summaryHitId("th1", 3)).toBe("summary/th1@3");
 });
 
-test("saveSummary keeps rolled_at, cycle and flushed_cycle", () => {
+test("saveSummary keeps cycle and flushed_cycle", () => {
   const db = openDb(":memory:");
   saveSummary(db, "t1", "main", "a");
-  markRolled(db, "t1", 5);
-  markFlushed(db, "t1", "main");
+  bumpCycle(db, "t1", "main");
+  markFlushed(db, "t1", "main", 1);
   saveSummary(db, "t1", "main", "b");
-  expect(getThreadSummary(db, "t1")).toMatchObject({ rolled_at: 5, cycle: 1, flushed_cycle: 1 });
+  expect(getThreadSummary(db, "t1")).toMatchObject({ cycle: 1, flushed_cycle: 1 });
 });
 
 test("threads and workspaces are isolated; rows only for the touched thread; delete removes the row", () => {
@@ -84,11 +95,11 @@ test("threads and workspaces are isolated; rows only for the touched thread; del
   saveSummary(db, "t1", "ws-a", "a");
   saveSummary(db, "t2", "ws-b", "b");
   bumpCycle(db, "t1", "ws-a");
-  expect(needsFlush(db, "t2")).toBe(true); // t2 never flushed
-  markFlushed(db, "t2", "ws-b");
-  expect(needsFlush(db, "t2")).toBe(false);
+  expect(needsFlush(db, "t2", 0)).toBe(true); // t2 never flushed
+  markFlushed(db, "t2", "ws-b", 0);
+  expect(needsFlush(db, "t2", 0)).toBe(false);
   expect(getThreadSummary(db, "t2")).toMatchObject({ workspace: "ws-b", cycle: 0 });
-  expect(needsFlush(db, "nope")).toBe(true);
+  expect(needsFlush(db, "nope", 0)).toBe(true);
   const ws = db
     .query<{ thread_id: string }, [string]>(
       "SELECT thread_id FROM thread_summaries WHERE workspace = ?",

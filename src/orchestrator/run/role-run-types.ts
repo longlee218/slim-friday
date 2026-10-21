@@ -6,6 +6,7 @@ import type { ThreadTitlePort } from "../../ingress/thread-rename";
 import type { OwnerLanguage } from "../../ingress/user-copy";
 import type { Location } from "../../locations/location-registry";
 import type { AppCtxFactory } from "../../mcp/manifest-types";
+import type { MemoryJobs } from "../../memory/memory-jobs";
 import type { ApprovalGateway } from "../../owner-approval/approval-types";
 import type { DispatchEnvelope } from "../../policy/envelope";
 import type { QueryFn } from "../../runtime/run-agent";
@@ -26,8 +27,10 @@ export interface RoleRunnerDeps {
   stopping?: () => boolean;
   /** Where streaming runs register their input so the owner can steer them. Omitted = string prompts, no steer. */
   steer?: SteerRegistry;
-  /** Renames the thread for `Orchestrate set_title` (lead only: only the lead lists the tool in its `mcpTools`; rollover/lean runs never get it). Omitted = the tool is not offered. */
+  /** Renames the thread for `Orchestrate set_title` (lead only: only the lead lists the tool in its `mcpTools`). Omitted = the tool is not offered. */
   threadTitle?: ThreadTitlePort;
+  /** Background memory jobs: a foreground run's compaction schedules its flush here. Omitted = no flush (tests, headless). */
+  memoryJobs?: MemoryJobs;
 }
 
 /** Dependencies of a task run: the role runner's, plus whether shutdown is aborting runs and the run pools. */
@@ -75,8 +78,6 @@ export interface RoleRunInput {
   pinned?: Location;
   /** Foreground roles: stored session of the thread, resumed when its cwd still matches. */
   existing?: SessionRow | null;
-  /** The thread's last messages before this one (Discord history): seed of a fresh session after a rollover. */
-  recent?: RecentMessage[];
   /** Task ledger of the thread (idle thread only); empty = none. */
   ledger?: string;
   /** The lead's TEAM.md (roster, locations, how to delegate): placed after AGENTS.md in its persona block. */

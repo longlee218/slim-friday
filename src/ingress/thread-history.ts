@@ -6,8 +6,6 @@ import { cleanRecent, RECENT_COUNT } from "./recent-messages";
 export const FETCH_RECENT_TIMEOUT_MS = 1500;
 /** Messages fetched: a little more than shown, because the current message and foreign authors are skipped. */
 const FETCH_EXTRA = 2;
-/** Longest text of one message of the rollover history (summary / extract input). */
-const HISTORY_CHARS = 1000;
 
 /** The part of a Discord message the history needs (a real `Message` fits; tests pass plain objects). */
 export interface HistoryMessage {
@@ -34,8 +32,6 @@ const FILE_MARKER = "[file]";
 export function toRecent(
   messages: Iterable<HistoryMessage>,
   p: { currentId: string; ownerId: string; botId: string },
-  count = RECENT_COUNT,
-  chars?: number,
 ): RecentMessage[] {
   const rows: RecentMessage[] = [];
   const sorted = [...messages]
@@ -47,19 +43,17 @@ export function toRecent(
     const file = (m.attachments?.size ?? 0) > 0 ? FILE_MARKER : "";
     rows.push({ from, text: `${m.content} ${file}`.trim() });
   }
-  return cleanRecent(rows, count, chars);
+  return cleanRecent(rows);
 }
 
 /** Read the thread history from Discord. Never throws: a failed fetch is no history (the run still works). */
 export async function fetchRecent(
   channel: HistoryChannel,
   p: { currentId: string; ownerId: string; botId: string },
-  count = RECENT_COUNT,
-  chars?: number,
 ): Promise<RecentMessage[]> {
   try {
-    const got = await channel.messages.fetch({ limit: count + FETCH_EXTRA });
-    return toRecent(got.values(), p, count, chars);
+    const got = await channel.messages.fetch({ limit: RECENT_COUNT + FETCH_EXTRA });
+    return toRecent(got.values(), p);
   } catch {
     return [];
   }
@@ -81,14 +75,3 @@ export const recentFor = (
         fetchRecent(ch, { currentId: id, ...ids }),
         new Promise<never[]>((r) => setTimeout(() => r([]), FETCH_RECENT_TIMEOUT_MS).unref()),
       ]);
-
-/** The thread's last `limit` messages, whoever is current (nothing excluded); the bot's own reply included. */
-export const historyOf = (
-  ch: HistoryChannel,
-  ownerId: string,
-  botId: string | undefined,
-  limit: number,
-) =>
-  botId
-    ? fetchRecent(ch, { currentId: "", ownerId, botId }, limit, HISTORY_CHARS)
-    : Promise.resolve([]);

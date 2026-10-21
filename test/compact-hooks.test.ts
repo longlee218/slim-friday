@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { HAIKU_MODEL } from "../src/config/model-ids";
+import type { FlushRequest } from "../src/memory/compaction-flush";
 import { appendJournalBlock, journalFile, pruneJournals } from "../src/memory/daily-journal";
 import {
   EXTRACT_ITEM_CHARS,
@@ -33,6 +34,8 @@ function setup(trackSummary = true) {
   const home = mkdtempSync(join(tmpdir(), "compact-hooks-"));
   dirs.push(home);
   const db = openDb(":memory:");
+  /** What PostCompact handed to the flush (`onCompacted`). */
+  const compacted: FlushRequest[] = [];
   const hooks = buildCompactHooks({
     db,
     home,
@@ -42,6 +45,7 @@ function setup(trackSummary = true) {
     trackSummary,
     threadLabel: "thread t1",
     now: () => NOW,
+    onCompacted: (e) => compacted.push(e),
   });
   const sig = { signal: new AbortController().signal };
   const pre = (i: Record<string, unknown>) =>
@@ -64,7 +68,7 @@ function setup(trackSummary = true) {
   };
   const journal = () => journalFile(home, "a", "ops", "2026-10-13");
   const search = (q: string) => searchIndex(db, "a", { query: q, limit: 5, channel: "ops" }).hits;
-  return { home, db, pre, post, transcript, journal, search };
+  return { home, db, hooks, compacted, pre, post, transcript, journal, search };
 }
 
 const user = (text: string) => ({ type: "user", message: { role: "user", content: text } });
@@ -116,7 +120,7 @@ test("extractContext: preferences only from the owner, secrets masked, caps appl
   expect(secret.decisions[0]).not.toContain("abcdefghijkl");
 });
 
-test("PreCompact: journal gets the Extracted Context block under the local date, tool results excluded, searchable", async () => {
+test("PreCompact captures the chat tail without writing; PostCompact hands it to the flush (tool results and sidechains excluded)", async () => {
   const s = setup();
   const path = s.transcript([
     user("We decided to use Postgres for the store. Luôn viết test trước."),
@@ -130,36 +134,39 @@ test("PreCompact: journal gets the Extracted Context block under the local date,
     asst("The worker requires a restart after deploy."),
     { ...asst("We decided sidechain noise quokka."), isSidechain: true },
   ]);
-  const out = await s.pre({ transcript_path: path });
-  expect(out).toEqual({ continue: true });
-  const text = readFileSync(s.journal(), "utf8");
-  expect(text).toContain("# Journal 2026-10-13");
-  expect(text).toContain(
-    "## 14:32 Extracted Context - thread t1\n### Decisions\n- We decided to use Postgres for the store. (2026-10-13)",
-  );
-  expect(text).toContain("### Facts\n- The worker requires a restart after deploy. (2026-10-13)");
-  expect(text).toContain("### Preferences\n- Luôn viết test trước. (2026-10-13)");
+  expect(await s.pre({ transcript_path: path })).toEqual({ continue: true });
+  // No write at PreCompact: no journal, no cycle.
+  expect(existsSync(s.journal())).toBe(false);
+  expect(getThreadSummary(s.db, "th1")).toBeNull();
+  expect(s.compacted).toHaveLength(0);
+  await s.post({ compact_summary: "Billing moved." });
+  expect(s.compacted).toHaveLength(1);
+  const e = s.compacted[0] as FlushRequest;
+  expect(e).toMatchObject({
+    threadId: "th1",
+    workspace: "a",
+    channel: "ops",
+    summary: "Billing moved.",
+  });
+  const text = e.tail.map((m) => m.text).join("\n");
+  expect(text).toContain("We decided to use Postgres for the store.");
+  expect(text).toContain("The worker requires a restart after deploy.");
   expect(text).not.toContain("zebra");
   expect(text).not.toContain("quokka");
-  // The hook re-indexed the file: MemorySearch finds the block without a sync.
-  expect(s.search("postgres")[0]?.source).toBe("journal");
-  // The keyword extract is not the flush: no cycle counter is touched.
-  expect(getThreadSummary(s.db, "th1")).toBeNull();
-  // A second compaction over the same tail adds nothing (same notes already in the day file).
-  await s.pre({ transcript_path: path });
-  expect(readFileSync(s.journal(), "utf8")).toBe(text);
+  // The tail is handed over once: a compaction without a PreCompact carries none.
+  await s.post({ compact_summary: "Again." });
+  expect(s.compacted[1]?.tail).toEqual([]);
 });
 
-test("PreCompact: no match writes nothing; unreadable transcript and subagent calls are harmless", async () => {
+test("PreCompact: an unreadable transcript is harmless (empty tail, the flush still runs); subagent calls are ignored", async () => {
   const s = setup();
-  const quiet = s.transcript([user("hello there"), asst("hi, how can I help")]);
-  expect(await s.pre({ transcript_path: quiet })).toEqual({ continue: true });
-  expect(existsSync(s.journal())).toBe(false);
   expect(await s.pre({ transcript_path: join(s.home, "missing.jsonl") })).toEqual({
     continue: true,
   });
   const loud = s.transcript([user("We decided to use Bun.")]);
   expect(await s.pre({ transcript_path: loud, agent_id: "sub1" })).toEqual({ continue: true });
+  await s.post({ compact_summary: "S" });
+  expect(s.compacted[0]?.tail).toEqual([]);
   expect(existsSync(s.journal())).toBe(false);
 });
 
@@ -173,6 +180,9 @@ test("PostCompact: first summary is stored as is, cycle +1, indexed once, no jou
   expect(row?.workspace).toBe("a");
   expect(row?.cycle).toBe(1);
   expect(s.search("quarkus").map((h) => h.source)).toEqual(["summary"]);
+  expect(s.compacted.map((e) => e.summary)).toEqual([
+    "We migrated billing to the quarkus service.",
+  ]);
   expect(existsSync(s.journal())).toBe(false);
 });
 
@@ -221,15 +231,17 @@ test("PostCompact: a subagent compaction never touches the thread summary; an em
   const row = getThreadSummary(s.db, "th1");
   expect(row?.summary).toBe("kept summary text");
   expect(row?.cycle).toBe(2); // only the two main-agent compactions counted
+  // The flush is scheduled for each of them (no summary = the tail only), never for the subagent's.
+  expect(s.compacted.map((e) => e.summary)).toEqual(["", ""]);
   expect(existsSync(s.journal())).toBe(false);
 });
 
-test("a background (dev) run journals the extract but never touches the thread summary", async () => {
+test("a background (worker) run registers no compaction hook: no summary, no journal, no flush", async () => {
   const s = setup(false);
-  expect(s.post({ compact_summary: "dev summary" })).toBeUndefined(); // PostCompact not registered
-  await s.pre({ transcript_path: s.transcript([user("We decided to use Bun.")]) });
+  expect(s.hooks).toEqual({});
   expect(getThreadSummary(s.db, "th1")).toBeNull();
-  expect(readFileSync(s.journal(), "utf8")).toContain("We decided to use Bun.");
+  expect(s.compacted).toHaveLength(0);
+  expect(existsSync(s.journal())).toBe(false);
 });
 
 test("a pruned journal day is gone from MemorySearch after the startup prune and sync", () => {
@@ -258,7 +270,14 @@ test("hook errors never reach the run", async () => {
 
 test("journal: hook text is never injected into a prompt; the line limit stops appends; prune keeps recent day files", async () => {
   const s = setup();
-  await s.pre({ transcript_path: s.transcript([user("We decided to use quarkus.")]) });
+  appendJournalBlock({
+    home: s.home,
+    workspace: "a",
+    channel: "ops",
+    label: "Flush - thread t1",
+    items: [{ kind: "decision", text: "We decided to use quarkus." }],
+    now: NOW,
+  });
   const prompt = buildPromptContext({
     agentHome: s.home,
     workspace: "a",
@@ -342,46 +361,6 @@ test("every role run registers the PreCompact and PostCompact hooks", async () =
   }
   expect(seen[0].hooks.PreCompact).toHaveLength(1);
   expect(seen[0].hooks.PostCompact).toHaveLength(1);
-});
-
-test("rollover context: PostCompact stores the SDK summary as is (no merge, no bump), PreCompact skips", async () => {
-  const s = setup();
-  saveSummary(s.db, "th1", "a", "old summary about parsers and caches");
-  const got: string[] = [];
-  const hooks = buildCompactHooks({
-    db: s.db,
-    home: s.home,
-    workspace: "a",
-    threadId: "th1",
-    trackSummary: true,
-    threadLabel: "thread t1",
-    now: () => NOW,
-    rollover: { onSummary: (x) => got.push(x) },
-  });
-  const sig = { signal: new AbortController().signal };
-  const file = s.transcript([user("We decided to use Postgres for the store.")]);
-  await hooks.PreCompact?.[0]?.hooks[0]?.(
-    {
-      hook_event_name: "PreCompact",
-      trigger: "manual",
-      custom_instructions: null,
-      transcript_path: file,
-    } as never,
-    undefined,
-    sig,
-  );
-  expect(existsSync(s.journal())).toBe(false);
-  await hooks.PostCompact?.[0]?.hooks[0]?.(
-    {
-      hook_event_name: "PostCompact",
-      trigger: "manual",
-      compact_summary: "fresh summary",
-    } as never,
-    undefined,
-    sig,
-  );
-  expect(got).toEqual(["fresh summary"]);
-  expect(getThreadSummary(s.db, "th1")).toMatchObject({ summary: "fresh summary", cycle: 0 });
 });
 
 test("pruneJournals clears old day files of every channel and of the retired per-space dir; recent files stay", () => {

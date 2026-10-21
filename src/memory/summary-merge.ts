@@ -31,7 +31,7 @@ const unlabel = (s: string): string =>
  * - No previous summary: the new one as is.
  * - The new one already covers the previous (a RESUMED session carries the earlier compaction summary inside
  *   its own transcript, so its new summary restates it): the new one as is, no duplicated text.
- * - Otherwise (a fresh session after a rollover: the old summary was only prompt context, so the SDK never saw
+ * - Otherwise (a fresh session after a lost one: the old summary was only stored, so the SDK never saw
  *   it): `Earlier: <previous, newest SUMMARY_PREV_KEEP_CHARS>` + `Latest: <new>`, fitted to THREAD_SUMMARY_MAX_CHARS
  *   with the OLD part giving way first.
  */

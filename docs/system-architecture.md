@@ -60,11 +60,10 @@ Worker run (detached; survives the owner message; `Report` action tool)
 |---|---|---|
 | Ingress | `src/ingress/` | Discord client, owner gate and routing rules, thread placement and adoption, attachments, thread history, rename port, user copy |
 | Orchestrator | `src/orchestrator/` | message handling, `lead/`, `worker/`, `run/`, `goal/` (effect port), `plan/`, `strategy/`, `budget/`, `effects/`, `events/`, `thread/`, `turns/` |
-| Session | `src/session/` | thread rollover: flush, summary, seed, scheduler |
 | Policy | `src/policy/` | guard entry point, deny list, envelope, risk classes, ask policy, subagent limit |
 | Owner approval | `src/owner-approval/` | Discord buttons, owner questions, owner-confirm |
 | Runtime | `src/runtime/` | SDK run (`run-agent.ts`, `sdk-options.ts`, `sdk-env.ts`, `run-stream.ts`), guard hook, tool permissions, permission mode, worker sandbox, skill plugins |
-| Roles | `src/roles/` | `RoleDefinition` type, registry, `builtin/` role files, `prompts/` (TEAM.md, rollover prompts, first-prompt prefix) |
+| Roles | `src/roles/` | `RoleDefinition` type, registry, `builtin/` role files, `prompts/` (TEAM.md, memory prompts, first-prompt prefix) |
 | MCP | `src/mcp/` | six in-process servers, tool adapters, per-run server build, guard allow list |
 | Tools | `src/tools/` | SDK built-in tool names (`sdk-tool-names.ts`) and the capability catalog (`tool-catalog.ts`) |
 | Storage | `src/storage/` | Drizzle schema (`schema/`), migrations, stores (`*-store.ts`) |
@@ -120,7 +119,7 @@ One MCP action tool, called as `{ action, params }`. Each action is a row of `sr
 | `ask_owner` | one typed question (`question`, `kind`: `yesno`, `select`, `text`; `options?`, `taskId?`, `workerAskId?`) | options that do not fit the kind: `BAD_OPTIONS`; several questions = several calls |
 | `request_plan` | open or reuse a goal and start the planner on it | one live planner per goal (`PLANNER_RUNNING`); sets the goal's `structureOwner` to `planner` |
 | `approve_plan` | owner approves a valid plan (`planId`, `version`) | plan `valid`, goal open (`GOAL_NOT_OPEN` / `GOAL_CLOSED`); one yes for the whole plan; a version whose ask ended `TIMEOUT`, `UNCLEAR` or `BUDGET` is `ALREADY_ASKED` until an owner message or a revision |
-| `set_title` | name the thread and store its digest (`title`, `digest`) | in the action table only when the run has a rename port (not chat or lean runs); at most `SET_TITLE_MAX_CALLS_PER_RUN` (2) per run |
+| `set_title` | name the thread and store its digest (`title`, `digest`) | in the action table only when the run has a rename port (not chat channels); at most `SET_TITLE_MAX_CALLS_PER_RUN` (2) per run |
 | `register_location` | register the directory the owner named (`path`, `create?`) | owner turn, path written in the owner's message; `create: true` makes a new project (see [Guards](#guards)) |
 
 - Memory is a separate server: `MemorySave` is lead only (see [Memory and Persona](#memory-and-persona)).
@@ -312,7 +311,7 @@ Six in-process servers, listed in `src/mcp/manifests.ts`. Each has `src/mcp/<ser
 | ask | AskUserQuestion |
 
 - Auto-allowed (no prompt): web, skills, subagents, tasks except `TaskStop`, MCP resource reads.
-- `allowedTools` is not used on normal runs (it would bypass `canUseTool`). A lean run (rollover flush and summary) sets it to its MCP tool names.
+- `allowedTools` is not used on normal runs (it would bypass `canUseTool`). No run sets it (the memory flush is a plain one-shot with no tools).
 - Secret-file rules (`Read(**/.env*)`, `*.pem`, `*.key`, ...) are passed as `disallowedTools` (`SECRET_FILE_RULES`).
 - Tool names are constants (`sdk-tool-names.ts`, `mcp-tool-names.ts`, each `constants.ts`). A tool-name literal elsewhere in `src/` fails a test.
 
@@ -413,7 +412,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 | `effect_log` | `effects.ts` | one row per effect tool call and per state-changing lead call; the `tool` column is `Orchestrate.<action>` for a lead call (e.g. `Orchestrate.retry`), the effect tool name for a worker effect |
 | `item_questions` | `0006_item_questions.sql` | owner message id → the waiting item it answers (a reply resumes that item) |
 | `threads` | `threads.ts` | Discord threads the agent knows: `origin` (bot or adopted), placeholder, title, digest |
-| `thread_summaries` | `threads.ts` | rollover summary and cycle counters per thread |
+| `thread_summaries` | `threads.ts` | SDK compaction summary and cycle counters per thread (`rolled_at` retired, dropped in phase 4) |
 | `memory_files` | `memory.ts` | index of memory files (path, space, mtime, size) |
 | `memory_fts` | `0001_memory_fts.sql` | FTS5 full-text index of memory |
 | `artifacts` | `artifacts.ts` | one row per artifact: workspace, channel, title, `name`, `kind`, `origin` (`store` file or `repo` reference), path, `version`; goal, task and thread ids are lookup columns only |
@@ -436,7 +435,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 - Memory layers (memory v2, phase 1): root `MEMORY.md` and the channel `MEMORY.md` (`channels/<name>/MEMORY.md`) only. Both are injected whole into the lead and into every worker of the channel (read-only for workers); there is no memory size cap (no prompt cut, no refusal on a large file). Retired: the space `MEMORY.md`, the per-location `MEMORY.md` and the pending queue (old files stay on disk, unread; a one-time merge at start, marker step `layers-v2` in `data/memory-migrations.json`, copies their notes into the channel files).
 - Writers: `MemorySave` (lead only; 2000 chars per note, 20 calls per run). Scopes: `channel` (the run's channel `MEMORY.md`), `journal` (→ `channels/<name>/memory/<date>.md`, the channel journal: 300-line guard per day file, 30 days, never injected into a prompt; both scopes need a channel). Writes re-index the file at once. The old per-space `memory/<date>.md` files are unread (pruned at 30 days); a one-time step `journal-per-channel` (`journal-migration.ts`) copies them into the channel journal of a space with exactly one channel (spaces with 0 or 2+ channels keep them in place; sources untouched).
 - System prompt base (`RoleDefinition.basePrompt`): `custom` (our text alone; the SDK adds only its billing header and one identity line) for the roles that write no code (lead, planner, scout, solution-architect, designer, humanizer-writer, hacker); the SDK `claude_code` preset plus our text for developer, tester, devops, discord-manager. Every run sets `settings` `autoMemoryEnabled: false`, `includeGitInstructions: false`, `attribution` empty (no SDK file memory, no Co-Authored-By reminder). Platform, shell and OS come from the SDK's own environment block.
-- Order (`buildSystemPrompt` + `runExtraContext`): role contract, COMMON safety, the role's `preloadSkills` text (the lead: `lead-orchestration`), one generated line naming the role's `requiredSkills` (qualified names), then per kind. Lead: `## TEAM.md` (built per run: members, the channel's locations, the DELEGATE cap, limits), `## AGENTS.md`, `## IDENTITY.md`, `## SOUL.md`, `## USER.md`, memory (root, channel), thread-title note. Worker: locations registry, memory (root, channel; read-only), task ledger (no persona). Headings `### root` and `### channel <name>`. Control (`discord-manager`, no space): root persona files. The user prompt carries the rollover seed and channel digest (fresh session), the lead's data block and the owner message; a supervisor re-run gets its internal note at the head of its prompt (a resumed session keeps its first system prompt).
+- Order (`buildSystemPrompt` + `runExtraContext`): role contract, COMMON safety, the role's `preloadSkills` text (the lead: `lead-orchestration`), one generated line naming the role's `requiredSkills` (qualified names), then per kind. Lead: `## TEAM.md` (built per run: members, the channel's locations, the DELEGATE cap, limits), `## AGENTS.md`, `## IDENTITY.md`, `## SOUL.md`, `## USER.md`, memory (root, channel), thread-title note. Worker: locations registry, memory (root, channel; read-only), task ledger (no persona). Headings `### root` and `### channel <name>`. Control (`discord-manager`, no space): root persona files. The user prompt carries the channel digest (fresh session), the lead's data block and the owner message; a supervisor re-run gets its internal note at the head of its prompt (a resumed session keeps its first system prompt).
 - Channel memory (`channels/<name>/MEMORY.md`) is read only by runs in that channel (lead and workers); `MemorySearch` returns channel and journal rows of the run's own channel only (sources `root`, `channel`, `journal`, `summary`; journal ids `journal/<channel>/<date>#HH:MM:n~h`, the old `journal/<date>#...` form answers not found).
 - The app never reads or creates `CLAUDE.md` or `CLAUDE.local.md`.
 
@@ -494,7 +493,7 @@ $AGENT_HOME/                       real directory outside every location and git
 
 ### Opening and naming
 - A new bot thread is named with a placeholder `⏳ MM-DD HH:MM` (local time). The row has `origin = 'bot'`.
-- `Orchestrate set_title` (lead only; a rename port is required; not in chat channels or lean runs): `title` ≤ 60 chars, `digest` ≤ 200 chars, both redacted. Max 2 calls per run. The rename happens only while the thread name still equals the placeholder: `MM-DD <title>` (≤ 100 chars). The rename waits at most 5 s; a failure is non-fatal and the title stays stored.
+- `Orchestrate set_title` (lead only; a rename port is required; not in chat channels): `title` ≤ 60 chars, `digest` ≤ 200 chars, both redacted. Max 2 calls per run. The rename happens only while the thread name still equals the placeholder: `MM-DD <title>` (≤ 100 chars). The rename waits at most 5 s; a failure is non-fatal and the title stays stored.
 - Adopted threads and threads the owner renamed are never renamed by the bot.
 - Live check pending: that the bot may rename its own thread without Manage Threads.
 
@@ -502,10 +501,11 @@ $AGENT_HOME/                       real directory outside every location and git
 An owner-made thread under a mapped channel is adopted on the owner's first real `@mention` there (a literal `<@bot>`; slash commands never adopt). Adopted rows have `origin = 'adopted'` and no placeholder. Routing rules: `threadFacts()` and `adoptRoute()` in `src/ingress/thread-placement.ts`, `routeMessage()` in `discord-message-rules.ts`.
 - Known gap: if the adoption insert fails, a later `Orchestrate set_title` creates an `origin = 'bot'` row and the thread is never adopted. Not fixed.
 
-### Rollover (`src/session/`)
-- After a successful run whose context is at least 75% of the model window (`ROLLOVER_CONTEXT_SHARE`), the thread's session is flushed (memory flush, thread summary) and dropped. The next input starts a fresh session seeded by the summary and recent messages.
-- Lead runs follow the same rule after the reply. Rollover runs time out at 60 s (flush), 120 s (summary) and 60 s (Haiku fallback).
-- The SDK auto-compacts every run at 75% of `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (1,000,000 tokens, capped at the model window). Effect not verified live.
+### Compaction and memory flush (`src/runtime/compact-hooks.ts`, `src/memory/compaction-flush.ts`, `memory-jobs.ts`)
+- Context is managed by SDK compaction only: every run auto-compacts at 75% of `CLAUDE_CODE_AUTO_COMPACT_WINDOW` (1,000,000 tokens, capped at the model window). There is no rollover: a thread keeps its session until the owner starts a new thread (no `/reset`). Effect not verified live.
+- Hooks are registered for foreground (lead) runs only; a worker's compaction writes nothing. PreCompact (no model call, no write) keeps the newest chat tail of the transcript in memory. PostCompact counts the cycle, stores the SDK summary merged with the previous one (`thread_summaries`) and calls `onCompacted` with the summary and the tail.
+- `onCompacted` queues the flush in `memory-jobs.ts` (one chain per thread, never delays a reply or the next run; shutdown: `abortAll` stops queued jobs, `drain` waits). The flush skips a cycle already flushed (`needsFlush`), makes one Haiku call (`MEMORY_MODEL`, no tools, JSON `{"items":[{kind,text}]}`, `FLUSH_SYSTEM`), and appends the notes as one `## HH:MM Flush - thread <id6>` block to the channel journal (writer redaction, one line, 2000 chars, 300-line guard), re-indexes the file and marks the cycle flushed. A bad reply, a model error or a timeout falls back to the keyword extract over the summary and tail. Log `memory.flush {mode llm|fallback|none, items, saved, ms}`. Limits: [limits](limits-and-stop-conditions.md#memory).
+- A missing `compact_summary` keeps the old summary and the flush runs on the tail only. A process exit between PreCompact and the end of the flush loses the tail; the next compaction flushes again.
 
 ## Control Channel
 Non-command owner text in `#ops-control` runs the `discord-manager` role (`src/roles/builtin/discord-manager-role.ts`).
@@ -591,5 +591,5 @@ Source of truth: [lead orchestration plan](../plans/261015-1538-lead-supervisor-
 | Lead team hardening phase 6 E2E | open | 10 use cases on the sudoku fixture; lead golden and scout evals done (see the changelog) |
 | L6 | deferred | standing approvals learned from owner decisions; learned skills |
 
-- Done but not verified live: lead queue and announce, planner and plan approval, approval envelope and effect tools, OS sandbox, restart with undelivered events, `Report result` without a call, rollover effect, the action tools (phase 4: `Orchestrate`, `Plan`, `Report`), item priority and the duplicate check, `register_location create`, plan view (phase 5), role skills (phase 6a).
+- Done but not verified live: lead queue and announce, planner and plan approval, approval envelope and effect tools, OS sandbox, restart with undelivered events, `Report result` without a call, the action tools (phase 4: `Orchestrate`, `Plan`, `Report`), item priority and the duplicate check, `register_location create`, plan view (phase 5), role skills (phase 6a).
 - Known gaps: two developer tasks in one location share one working tree; the thread does not pin the last task's location.

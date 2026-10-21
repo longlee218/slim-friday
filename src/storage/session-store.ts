@@ -10,7 +10,7 @@ export interface SessionRow {
   updated_at: number;
   /** Model that owns the session (null = not recorded). Optional on the type: code-built rows omit the v8 fields. */
   model?: string | null;
-  /** Rollover generation of the thread when the session started (see `setSession`). */
+  /** Compaction cycle of the thread when the session started (see `setSession`). */
   generation?: number;
   /** `role` = a role's thread session; `lead` = a lead session (a lead never resumes a `role` one). */
   kind?: string;
@@ -22,9 +22,8 @@ export function getSession(db: Database, threadId: string): SessionRow | null {
 }
 
 /**
- * Insert or update the session for a thread. A rollover deletes the row, so a new row takes its `generation` from
- * the thread's summary cycle: it counts rollovers AND mid-run compactions, so it is not strictly +1 per rollover;
- * an update keeps the stored one. `model` / `kind` left out on an update keep the stored value.
+ * Insert or update the session for a thread. A new row takes its `generation` from the thread's summary cycle
+ * (the number of SDK compactions so far); an update keeps the stored one. `model` / `kind` left out on an update keep the stored value.
  */
 export function setSession(
   db: Database,

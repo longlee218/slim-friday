@@ -27,7 +27,7 @@ export interface RunUsage {
   compactions: number;
   /** Largest main-agent context (input + cache read + cache create of one call) in the run; log only. */
   peakContextTokens: number;
-  /** Context of the LAST main-agent model call (rollover compares it to the model window). */
+  /** Context of the LAST main-agent model call (the gauges and metrics read it). */
   lastContextTokens: number;
   /** Tool results flagged `is_error` in the run (main + subagents). */
   toolErrors: number;

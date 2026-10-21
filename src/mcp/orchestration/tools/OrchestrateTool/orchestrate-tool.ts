@@ -7,7 +7,7 @@ import { ORCHESTRATE_INTRO } from "./prompt";
 
 /**
  * The lead's `Orchestrate` tool: a thin dispatcher from `{ action, params }` to the lead handlers. A run without a
- * thread rename port (lean / rollover / chat) does not get `set_title` in the table, so the model never sees it.
+ * thread rename port (chat) does not get `set_title` in the table, so the model never sees it.
  */
 export const createOrchestrateTool = (ctx: OrchestrateCtx) =>
   createActionTool({

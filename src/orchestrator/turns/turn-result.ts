@@ -4,7 +4,6 @@ import { excerpt, logEvent, logger } from "../../observability/logger";
 import { redactText } from "../../observability/redact";
 import type { RunOutcome, RunUsage } from "../../observability/run-usage";
 import type { RunAgentResult } from "../../runtime/run-agent";
-import { requestRollover } from "../../session/thread-rollover";
 import type { ResultKind } from "../../storage/owned-item-store";
 import { finishTurn, setTurnStatus, type TurnStatus, turnStatusOf } from "../../storage/run-store";
 import { setSession } from "../../storage/session-store";
@@ -92,8 +91,6 @@ export function finishRun(
       ...(res.sessionKind && { kind: res.sessionKind, model: res.model }),
     });
     logEvent(log, "session.saved", { location: res.location ?? "*", sessionId: res.sessionId });
-    // Context over the window share: the thread rolls over after the reply is posted.
-    if (res.outcome === "success") requestRollover(db, ids, res.usage);
   }
   finishTurn(db, ids.turnId, TURN_STATUS[res.outcome] ?? "failed");
   if (res.outcome === "max_budget") return budgetHitReply(res, language);

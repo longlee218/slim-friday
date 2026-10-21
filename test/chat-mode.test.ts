@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { CHAT_TOPIC, syncChannelTopics, TASK_TOPIC } from "../src/discord-setup/channel-topic";
 import { createMessageHandler, type InboundMessage } from "../src/ingress/discord-message-handler";
 import { type MessageFacts, routeMessage } from "../src/ingress/discord-message-rules";
@@ -7,7 +8,10 @@ import type { ThreadsPort } from "../src/ingress/thread-placement";
 import { threadFacts } from "../src/ingress/thread-placement";
 import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { DIGEST_HEADING } from "../src/memory/channel-digest";
+import { journalFile } from "../src/memory/daily-journal";
+import { localDay } from "../src/memory/memory-clock";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
+import { FLUSH_SYSTEM } from "../src/roles/prompts/memory-prompts";
 import { titlePortFor } from "../src/roles/prompts/thread-title-note";
 import { getSession } from "../src/storage/session-store";
 import { getThreadSummary } from "../src/storage/thread-summary-store";
@@ -176,9 +180,10 @@ test("titlePortFor: no rename port when threadId === channelId", () => {
 
 /**
  * Real turn handler over a fake `query`; the test channel is a chat channel of `main` and the lead (the foreground role)
- * answers inline through `notify`. `big` makes the first run report a full context window (a rollover is due).
+ * answers inline through `notify`.
  */
-function turnHarness(big = false, threadId = TEST_CHANNEL) {
+/** `script` runs inside each fake model call (the lead run and the flush one-shot alike) and may return the reply text. */
+function turnHarness(script?: (options: any) => Promise<string | undefined>) {
   const env = makeEnv();
   const ws = env.paths.workspace("main");
   const doc = Bun.YAML.parse(readFileSync(ws.config, "utf8")) as object;
@@ -191,15 +196,10 @@ function turnHarness(big = false, threadId = TEST_CHANNEL) {
   const queryFn = ((a: any) => {
     calls.push({ prompt: String(a.prompt), resume: a.options.resume, options: a.options });
     return (async function* () {
-      if (big && calls.length === 1)
-        yield {
-          type: "assistant",
-          session_id: "sess-chat",
-          message: { id: "m1", model: "claude-sonnet-x", usage: { input_tokens: 200_000 } },
-        } as never;
+      const text = await script?.(a.options);
       yield resultMsg({
         session_id: "sess-chat",
-        result: "answer",
+        result: text ?? "answer",
         modelUsage: { "claude-sonnet-x": { contextWindow: 200_000 } },
       });
     })();
@@ -217,7 +217,7 @@ function turnHarness(big = false, threadId = TEST_CHANNEL) {
     await handle({
       source: "t",
       userId: "u",
-      threadId,
+      threadId: TEST_CHANNEL,
       channelId: TEST_CHANNEL,
       text,
       notify: async (m: string) => void posts.push(m),
@@ -245,12 +245,31 @@ test("turns: the second chat message resumes the first session (sessions.thread_
   expect(tools).not.toContain("Orchestrate");
 });
 
-test("rollover is keyed by the channel id", async () => {
-  const { env, calls, send, handle } = turnHarness(true);
+test("a compaction in a chat channel flushes into the channel journal, keyed by the channel id", async () => {
+  const flushJson = '{"items":[{"kind":"decision","text":"Chat decisions go to the journal."}]}';
+  const { env, calls, send, handle } = turnHarness(async (options) => {
+    if (options.systemPrompt === FLUSH_SYSTEM) return flushJson; // the flush one-shot
+    // The lead run compacts: fire the SDK hooks the run registered, like the real SDK does.
+    const sig = { signal: new AbortController().signal };
+    const transcript = join(env.home, "t.jsonl");
+    writeFileSync(
+      transcript,
+      `${JSON.stringify({ type: "user", message: { role: "user", content: "We decided to keep chat notes." } })}\n`,
+    );
+    const pre = { hook_event_name: "PreCompact", trigger: "auto", transcript_path: transcript };
+    await options.hooks.PreCompact[0].hooks[0](pre, undefined, sig);
+    const post = { hook_event_name: "PostCompact", trigger: "auto", compact_summary: "A summary." };
+    await options.hooks.PostCompact[0].hooks[0](post, undefined, sig);
+    return undefined;
+  });
   await send("hello");
-  await handle.rollover(TEST_CHANNEL);
-  expect(calls.length).toBeGreaterThan(1); // flush / compact / summary ran after the reply
-  expect(getThreadSummary(env.db, TEST_CHANNEL)).not.toBeNull();
+  await handle.memoryJobs.drain(5000);
+  expect(calls.some((c) => c.options.systemPrompt === FLUSH_SYSTEM)).toBe(true);
+  expect(getThreadSummary(env.db, TEST_CHANNEL)?.summary).toBe("A summary.");
+  const row = getThreadSummary(env.db, TEST_CHANNEL);
+  expect(row?.flushed_cycle).toBe(row?.cycle ?? -1);
+  const journal = journalFile(env.home, "main", "chat", localDay());
+  expect(readFileSync(journal, "utf8")).toContain("- Chat decisions go to the journal.");
 });
 
 test("syncChannelTopics: sets only a differing topic, a failure is a warning that never throws", async () => {

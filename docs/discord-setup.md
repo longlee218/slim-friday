@@ -38,7 +38,7 @@ AGENT_HOME=/absolute/path/to/agent-home   # real dir outside every location, e.g
 LOG_LEVEL=info
 # Optional:
 # MAX_BUDGET_USD=<usd>                # global cap on every run (min with the role budget); unset = role budgets only
-# MEMORY_MODEL=<model id>             # model of the cheap one-shot calls (attachment and rollover summaries)
+# MEMORY_MODEL=<model id>             # model of the cheap one-shot calls (attachment summaries and the memory flush)
 ```
 - Full variable list: [system-architecture.md, Environment Variables and Limits](system-architecture.md#environment-and-limits).
 - Budgets and models per role are constants in `src/roles/builtin/*-role.ts`; no env var sets them.
@@ -603,11 +603,12 @@ locations:
 - No memory size cap: neither file is cut in the prompt and a large channel file still accepts notes. Watch growth in the `prompt.context` log (`memoryRootChars`, `memoryChannelChars`). Prune by hand.
 - Order in the prompt: root (`### root`), channel (`### channel <name>`).
 - An entry needs a `## <topic>` heading to count. A template-only file injects nothing.
-- **Agent writes** (`MemorySave` tool, lead only): scope `channel` (this channel's `MEMORY.md`) or `journal` (`channels/<name>/memory/<date>.md`, this channel's daily notes, 300 lines per day file, 30 days, never injected). One note is at most 2000 chars. Both scopes need a channel: a run without one (e.g. a rollover) writes no memory note and no journal extract. The old per-space `workspaces/<ws>/memory/<date>.md` files are copied once (marker step `journal-per-channel`) into the channel journal of a space with exactly one channel; in a space with 0 or 2+ channels they stay unread and are deleted at 30 days.
+- **Agent writes** (`MemorySave` tool, lead only): scope `channel` (this channel's `MEMORY.md`) or `journal` (`channels/<name>/memory/<date>.md`, this channel's daily notes, 300 lines per day file, 30 days, never injected). One note is at most 2000 chars. Both scopes need a channel: a run without one writes no memory note and no flush. The old per-space `workspaces/<ws>/memory/<date>.md` files are copied once (marker step `journal-per-channel`) into the channel journal of a space with exactly one channel; in a space with 0 or 2+ channels they stay unread and are deleted at 30 days.
 - A worker's report may carry a `Memory:` block; it is plain text. The lead decides what to save with `MemorySave`; workers cannot write memory.
 - The agent never writes the root `MEMORY.md`.
 - **One-time merge at the first start of this version** (marker step `layers-v2` in `$AGENT_HOME/data/memory-migrations.json`, log `memory.migrate`): the old space and location `MEMORY.md` files are copied into the channel files. The space file goes to every channel of the space; a location file goes to every channel that includes that location. Kind bullets (`## Decisions|Facts|Preferences|Lessons`) keep their line and date and skip duplicates; other sections are appended unchanged under `## From workspace memory` or `## From location <name> memory`. A space with no channel is not merged (counted as an orphan in the log). Nothing is deleted: every old file, and the old pending-queue file (never merged; promote notes from it by hand), stays on disk and is never read. Delete `data/memory-migrations.json` to run the merge again (it dedupes).
 - Old threads keep their first system prompt: migrated notes reach them through `MemorySearch`; start a new thread to see them in the prompt.
+- **Flush after compaction (memory v2 phase 3, not verified live):** when the SDK compacts a lead thread, one async Haiku call (`MEMORY_MODEL`) writes the durable notes of that thread into the channel journal as a `## HH:MM Flush - thread <id6>` block (a keyword extract is the fallback), without delaying any reply. There is no rollover and no `/reset`: a thread keeps its session; start a new thread to pick up changed persona, TEAM.md or skills. Live check: run a long thread past a compaction, then read `channels/<name>/memory/<today>.md` and look for the `memory.flush` log line (`mode`, `items`, `saved`).
 - There is no owner command or script to compact memory: edit the file by hand.
 
 **Files the bot never creates:** `CLAUDE.md` and `CLAUDE.local.md`. The SDK loads no CLAUDE.md. Put the facts an agent needs in the location's `description` and the channel `MEMORY.md`.

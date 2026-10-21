@@ -14,7 +14,7 @@ export const summaryPath = (threadId: string): string => `${SUMMARY_PATH_PREFIX}
 export const summaryHitId = (threadId: string, cycle: number): string =>
   `${summaryPath(threadId)}@${cycle}`;
 
-/** Row of `thread_summaries`. `cycle` counts compactions/rollovers; `flushed_cycle` = `cycle` at the last memory flush. */
+/** Row of `thread_summaries`. `cycle` counts SDK compactions; `rolled_at` is retired (always 0, the column goes in phase 4); `flushed_cycle` = `cycle` at the last memory flush. */
 export interface ThreadSummaryRow {
   thread_id: string;
   workspace: string;
@@ -32,7 +32,7 @@ export function getThreadSummary(db: Database, threadId: string): ThreadSummaryR
     .get(threadId);
 }
 
-/** Upsert the summary (redacted, clipped). Keeps `rolled_at`, `cycle` and `flushed_cycle` of an existing row. */
+/** Upsert the summary (redacted, clipped). Keeps `cycle` and `flushed_cycle` of an existing row. */
 export function saveSummary(
   db: Database,
   threadId: string,
@@ -49,19 +49,11 @@ export function saveSummary(
 }
 
 /*
- * Cycle contract: `cycle` = number of summarize/rollover points the thread went through so far.
- * Phase 9 flow: `needsFlush` -> flush to memory -> `markFlushed` (flushed_cycle = cycle) -> save summary ->
- * `markRolled` (bumps the cycle, so the next point needs a new flush). A brand-new thread has no row, so
- * `needsFlush` is true: whether there is any transcript worth flushing is the caller's concern.
+ * Cycle contract: `cycle` = number of SDK compactions the thread went through so far.
+ * Flow: PostCompact `bumpCycle` + save summary -> async `needsFlush` -> flush to the channel journal -> `markFlushed`
+ * (flushed_cycle = the request's cycle, monotonic), so one flush per compaction. A brand-new thread has no row, so `needsFlush` is true:
+ * whether there is any transcript worth flushing is the caller's concern.
  */
-
-/** Thread rolled over (session replaced): stamp `rolled_at` and count one more cycle. No-op without a row. */
-export function markRolled(db: Database, threadId: string, now = Date.now()): void {
-  db.query("UPDATE thread_summaries SET rolled_at = ?, cycle = cycle + 1 WHERE thread_id = ?").run(
-    now,
-    threadId,
-  );
-}
 
 /** Create the row if missing (empty summary); existing rows are left as they are. */
 const ENSURE_ROW = `INSERT INTO thread_summaries (thread_id, workspace, summary, updated_at) VALUES (?, ?, '', ?)
@@ -75,18 +67,28 @@ export function bumpCycle(db: Database, threadId: string, workspace: string): vo
   })();
 }
 
-/** Memory flush done for the current cycle (idempotent; creates the row when missing). */
-export function markFlushed(db: Database, threadId: string, workspace: string): void {
+/**
+ * Memory flush of `cycle` done (idempotent; creates the row when missing). `flushed_cycle` only moves forward, and
+ * never past `cycle`: a late flush N cannot mark a compaction N+1 that was queued meanwhile.
+ */
+export function markFlushed(
+  db: Database,
+  threadId: string,
+  workspace: string,
+  cycle: number,
+): void {
   db.transaction(() => {
     db.query(ENSURE_ROW).run(threadId, workspace, Date.now());
-    db.query("UPDATE thread_summaries SET flushed_cycle = cycle WHERE thread_id = ?").run(threadId);
+    db.query(
+      "UPDATE thread_summaries SET flushed_cycle = MAX(flushed_cycle, ?) WHERE thread_id = ?",
+    ).run(cycle, threadId);
   })();
 }
 
-/** True when no row exists or the current cycle was not flushed yet (`flushed_cycle < cycle`; -1 = never). */
-export function needsFlush(db: Database, threadId: string): boolean {
+/** True when no row exists or `cycle` was not flushed yet (`flushed_cycle < cycle`; -1 = never). */
+export function needsFlush(db: Database, threadId: string, cycle: number): boolean {
   const row = getThreadSummary(db, threadId);
-  return !row || row.flushed_cycle < row.cycle;
+  return !row || row.flushed_cycle < cycle;
 }
 
 /** Drop a thread's summary. */

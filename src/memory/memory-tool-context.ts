@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { ThreadTitlePort } from "../ingress/thread-rename";
 import type { TrustedToolIssueCode } from "../runtime/trusted-tool-issue";
+import type { FlushRequest } from "./compaction-flush";
 /**
  * What the tools of the in-process `memory` server need to know about the run they belong to. Built per run by
  * the role runner; the read tools (search/get/expand) read the same object.
@@ -20,12 +21,9 @@ export interface MemoryToolContext {
   threadId?: string;
   /** Foreground run: the PostCompact hook may store the thread summary and count cycles. Background runs (developer) leave the thread summary alone. */
   trackSummary?: boolean;
-  /**
-   * The app's own rollover `/compact` (phase 9): PostCompact saves the SDK summary AS IS (no merge, no cycle bump:
-   * `markRolled` counts it), hands it to `onSummary`, and PreCompact skips its extract (the LLM flush already ran).
-   */
-  rollover?: { onSummary: (summary: string) => void };
-  /** Rename port of the run's thread: its presence registers `Orchestrate set_title` (every role; not rollover/lean runs). Absent = no such tool. */
+  /** A foreground compaction ended (PostCompact): the app schedules the async memory flush with the new summary and the chat tail. */
+  onCompacted?: (event: FlushRequest) => void;
+  /** Rename port of the run's thread: its presence registers `Orchestrate set_title` (every role). Absent = no such tool. */
   threadTitle?: ThreadTitlePort;
   /** Short label of the thread: the journal block title (`## HH:MM <label>`). */
   threadLabel: string;

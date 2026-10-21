@@ -5,7 +5,7 @@ Single source of every limit and stop condition of the app. Other docs link here
 - Value cells hold a raw `<!-- limit:NAME=VALUE -->` marker (ms, USD, bytes, counts) and a human form. `test/limits-doc-drift.test.ts` compares each marker with the code: every exported number of the limit files and every role field must have a marker, and a marker must match the code value.
 - Rows without a marker are informational and NOT drift-checked: the Model column of the roles table, retention, approval click, Discord output, the memory note and journal guards, other tools' limits and one-shot budgets. Every marked value is checked, and the test also fails when the doc has fewer markers than the code has limits.
 - `/limits [role]` (owner only, private reply, `limits.md` file when long) shows these values read from code at runtime (`collectLimits` in `src/config/limits-report.ts`, the same scan as the drift test) plus the live pool state. Owner live checklist: [discord-setup.md](discord-setup.md#limits-pools-and-subagents-owner-live-checklist).
-- Limit files: `src/config/lead-caps.ts`, `src/config/run-caps.ts`, `src/config/resilience-caps.ts`, `src/config/model-routing.ts`, `src/orchestrator/lead/lead-limits.ts`, and the role files in `src/roles/builtin/`. Pools are code constants, no env.
+- Limit files: `src/config/lead-caps.ts`, `src/config/run-caps.ts`, `src/config/resilience-caps.ts`, `src/config/memory-caps.ts`, `src/config/model-routing.ts`, `src/orchestrator/lead/lead-limits.ts`, and the role files in `src/roles/builtin/`. Pools are code constants, no env.
 
 ## Definitions
 
@@ -159,7 +159,7 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 | `TASK_BUDGET_USD` | goal / task | $15 <!-- limit:TASK_BUDGET_USD=15 --> | `config/model-routing.ts` | task ceiling summed over all runs of one task; a run gets at most what is left; a spent ceiling refuses the start | code |
 | Goal-left cap | item run | what the goal has left of the ceiling (`route.capUsd`) | `orchestrator/budget/task-budget.ts` | an item run never exceeds the goal's rest; never raised by an extra budget | code |
 | `MAX_BUDGET_USD` | run | optional global cap | env, `config/agent-config.ts` | applied as a minimum on every run | env |
-| One-shot budgets | one-shot | rollover flush $0.2, compact $0.5, Haiku summary $0.05, lean step cap $3 | `session/rollover-*.ts` | informational | code |
+| One-shot budgets | one-shot | memory flush `FLUSH_BUDGET_USD`, see [Memory](#memory) | `config/memory-caps.ts` | see Memory | code |
 | `GOAL_BUDGET_USD` | goal | $15 <!-- limit:GOAL_BUDGET_USD=15 --> (alias of `TASK_BUDGET_USD`) | `orchestrator/budget/task-budget.ts` | budget of a goal with no approved plan (DELEGATE): the dispatch of a ready item is refused when it is used | code |
 | `PLAN_GOAL_BUDGET_MAX_USD` | goal | $35 <!-- limit:PLAN_GOAL_BUDGET_MAX_USD=35 --> | `config/model-routing.ts` | ceiling of a PLAN goal's budget: the approved plan's code-computed `budgetUsd` is the goal budget, never above this; a computed sum above it is capped, not refused (owner 2026-10-17). `goalBudgetOf(db, goalId)` is the one figure behind the dispatch refusal, the goal-left run cap, the verify loop and the digest | code |
 | `PLAN_BUDGET_RESERVE_FACTOR` | goal | 1.25 <!-- limit:PLAN_BUDGET_RESERVE_FACTOR=1.25 --> | `config/model-routing.ts` | the plan budget is computed by code, never by the planner (`orchestrator/budget/plan-budget.ts`): the role `budgetUsd` of every item in the version (deferred ones included) plus one `tester` verify run per location with a writer item (when the plan has criteria), times this factor, rounded up to a whole dollar, capped at `PLAN_GOAL_BUDGET_MAX_USD`. Not above the goal's spend: the spend is added on top. Recomputed on every revision; an approved budget is never lowered, and a raise waits for the owner (owner 2026-10-20) | code |
@@ -181,6 +181,20 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 | Pending plan | goal | 24 h, see [Plans](#plans) | `config/lead-caps.ts` | plan stops holding the goal | code |
 | Run timeout | run | none | - | `/stop` only | - |
 | `TIMEOUT_MS` | one-shot | env, default 300000 ms | `config/agent-config.ts` | only the deadline of the memory compaction one-shot (`memory-compaction-llm.ts`, min with its own 60 s) | env |
+
+## Memory
+
+Files: `config/memory-caps.ts`. Time, cost and retention bounds of memory jobs; memory files themselves have no size cap.
+
+| Name | Scope | Value | At the limit |
+|---|---|---|---|
+| `FLUSH_DEADLINE_MS` | one-shot | 60 s <!-- limit:FLUSH_DEADLINE_MS=60000 --> | the post-compaction flush call times out (one attempt) and the keyword extract writes instead |
+| `FLUSH_BUDGET_USD` | one-shot | $0.05 <!-- limit:FLUSH_BUDGET_USD=0.05 --> | the flush call stops; the keyword extract writes instead |
+| `FLUSH_MAX_ITEMS` | one-shot | 12 notes <!-- limit:FLUSH_MAX_ITEMS=12 --> | the model's list is cut |
+| `FLUSH_INPUT_MAX_CHARS` | one-shot | 24000 chars <!-- limit:FLUSH_INPUT_MAX_CHARS=24000 --> | summary + chat tail is cut to its newest end |
+| `JOURNAL_RETENTION_DAYS` | channel | 30 days <!-- limit:JOURNAL_RETENTION_DAYS=30 --> | the day file is deleted at start |
+
+- The flush runs once per compaction cycle, async, after the SDK compaction (lead runs only); it never delays a reply or the next run.
 
 ## Tool Input Limits
 
@@ -267,7 +281,7 @@ Informational.
 | App log files | 14 days | `observability/log-files.ts` |
 | Task logs | 30 days | `lifecycle/startup.ts` |
 | Run messages | 14 days | `storage/run-message-store.ts` |
-| Daily journals (per channel: `channels/<ch>/memory/`; also the old per-space dir) | 30 days | `memory/daily-journal.ts` |
+| Daily journals (per channel: `channels/<ch>/memory/`; also the old per-space dir) | `JOURNAL_RETENTION_DAYS` = 30 days (see [Memory](#memory)) | `config/memory-caps.ts` |
 | Attachment copies | 7 days | `ingress/attachment-summary.ts` |
 | Trash (deleted paths) | 7 days; sweep every 6 h | `policy/risk-types.ts`, `lifecycle/trash-sweeper.ts` |
 | Persona backups | newest 10 per file | `WriteSpaceFileTool/constants.ts` |

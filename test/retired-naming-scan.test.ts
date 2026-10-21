@@ -79,6 +79,21 @@ const SYMBOLS: Record<string, RegExp> = {
   "workspace memory template": new RegExp(`\\b${["workspace", "MemoryTemplate"].join("")}\\b`),
   "pending header": new RegExp(`\\b${["PENDING", "_HEADER"].join("")}\\b`),
   "location memory file path": j("location", "-memory", "\\b"),
+  // memory v2 phase 3: rollover, rollover seed and lean runs (flush after compaction replaced them)
+  "rollover seed fn": new RegExp(`\\b${["rollover", "Seed"].join("")}\\b`),
+  "rollover request fn": new RegExp(`\\b${["request", "Rollover"].join("")}\\b`),
+  "rollover run fn": new RegExp(`\\b${["run", "Rollover"].join("")}\\b`),
+  "rollover take fn": new RegExp(`\\b${["take", "Rollover"].join("")}\\b`),
+  "rollover scheduler fn": j("create", "Rollover", "Scheduler"),
+  "rollover share constant": new RegExp(`\\b${["ROLLOVER", "_CONTEXT_SHARE"].join("")}\\b`),
+  "mark rolled fn": new RegExp(`\\b${["mark", "Rolled"].join("")}\\b`),
+  "lean run type": new RegExp(`\\b${["Lean", "Run"].join("")}\\b`),
+  "old flush prompt": new RegExp(`\\b${["FLUSH", "_PROMPT"].join("")}\\b`),
+  "rollover module paths": j(
+    "(?:thread|rollover)",
+    "-rollover|rollover",
+    "-(?:flush|run|scheduler|seed|summary|prompts)",
+  ),
 };
 
 /**

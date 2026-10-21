@@ -13,46 +13,38 @@ import type { RoleDefinition } from "../src/roles/role-types";
 import { openDb } from "../src/storage/db";
 import { insertTurn } from "../src/storage/run-store";
 import { saveTitle } from "../src/storage/thread-store";
-import { markRolled, saveSummary } from "../src/storage/thread-summary-store";
+import { saveSummary } from "../src/storage/thread-summary-store";
 import { fakeQuery, makeEnv, resultMsg, stubGateway } from "./helpers";
 
 /** A run input with only what the prefix reads. */
 const input = (over: Partial<RoleRunInput> = {}): RoleRunInput =>
   ({
-    turnId: "cur",
     threadId: "th",
     channelId: "c1",
-    recent: [{ from: "owner", text: "q" }],
     ...over,
   }) as RoleRunInput;
 
-/** A db with a rolled thread `th` (summary) and one titled thread in channel c1. */
+/** A db with one titled thread in channel c1. */
 function seeded() {
   const db = openDb(":memory:");
   saveTitle(db, "other", "Earlier topic", "", 1, "c1", "main");
-  saveSummary(db, "th", "main", "SUM");
-  markRolled(db, "th");
   return db;
 }
 
-test("seed then digest, in that order, in one prefix", () => {
-  const p = firstPromptPrefix(seeded(), input(), true);
-  expect(p.startsWith("Thread summary so far")).toBe(true);
-  expect(p.indexOf("SUM")).toBeLessThan(p.indexOf(DIGEST_HEADING));
-  expect(p).toContain("Earlier topic");
-});
-
-test("background role (no seed allowed): digest only, no seed", () => {
-  const p = firstPromptPrefix(seeded(), input(), false);
+test("a fresh session gets the channel digest, nothing else (no thread seed even for a thread with a summary)", () => {
+  const db = seeded();
+  saveSummary(db, "th", "main", "SUM");
+  const p = firstPromptPrefix(db, input());
   expect(p.startsWith(DIGEST_HEADING)).toBe(true);
+  expect(p).toContain("Earlier topic");
   expect(p).not.toContain("SUM");
 });
 
 test("channel mode: absent = task (digest), task = digest, chat = none", () => {
   const db = seeded();
-  expect(firstPromptPrefix(db, input(), false)).toContain("Earlier topic");
-  expect(firstPromptPrefix(db, input({ channelMode: "task" }), false)).toContain("Earlier topic");
-  expect(firstPromptPrefix(db, input({ channelMode: "chat" }), false)).toBe("");
+  expect(firstPromptPrefix(db, input())).toContain("Earlier topic");
+  expect(firstPromptPrefix(db, input({ channelMode: "task" }))).toContain("Earlier topic");
+  expect(firstPromptPrefix(db, input({ channelMode: "chat" }))).toBe("");
 });
 
 test("withPrefix labels the owner text after the DATA blocks; no prefix = the text alone", () => {

@@ -1,6 +1,6 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-/** One saved Claude session per thread (resume target), with its cwd and rollover generation. */
+/** One saved Claude session per thread (resume target), with its cwd and compaction generation. */
 export const sessions = sqliteTable("sessions", {
   /** Discord thread (or chat channel) id: one row per thread. */
   thread_id: text().primaryKey(),
@@ -16,7 +16,7 @@ export const sessions = sqliteTable("sessions", {
   updated_at: integer().notNull(),
   /** Model the session started with. */
   model: text(),
-  /** Rollover counter: bumped each time the session is replaced by a fresh one. */
+  /** Compaction cycle of the thread when the session row was created. */
   generation: integer().notNull().default(0),
   /** Session owner kind: `role` (a role run) or `lead`. */
   kind: text().notNull().default("role"),

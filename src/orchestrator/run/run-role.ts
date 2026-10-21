@@ -60,8 +60,8 @@ export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<
   let awaiting: string | undefined;
   const ctl = askTimeoutControl(i.ac.signal, (t) => (awaiting = t));
   const watch = watchRun(deps, i, role, () => awaiting);
-  // A fresh session (never while one lives) opens with the rollover seed + the channel digest, in its first user prompt.
-  const prefix = s.sessionId ? "" : firstPromptPrefix(db, i, role.kind !== "worker");
+  // A fresh session (never while one lives) opens with the channel digest, in its first user prompt.
+  const prefix = s.sessionId ? "" : firstPromptPrefix(db, i);
   const titlePort = titlePortFor(i, deps.threadTitle); // none in a chat channel; gates the tool and its note
   const runOnce = agentRunOnce({
     deps,

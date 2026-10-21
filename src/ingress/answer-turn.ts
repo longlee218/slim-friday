@@ -3,7 +3,6 @@ import type { HandleMessage } from "./discord-message-handler";
 import { sendReply, sendResultFile, startTyping } from "./discord-send";
 import type { RecentMessage } from "./intent-types";
 import type { createMessageReceipt } from "./message-receipt";
-import { type HistoryChannel, historyOf } from "./thread-history";
 import { detectLanguage, languageOf, pinnedThreadLanguage, pinThreadLanguage } from "./user-copy";
 
 /** What one answered turn needs from the handler. */
@@ -43,11 +42,6 @@ export async function answerTurn(
     stopTyping();
     await receipt.visible();
   };
-  // Resolved once the reply is out: the thread's rollover work (flush, summary) starts only then.
-  let posted!: () => void;
-  const replied = new Promise<void>((r) => {
-    posted = r;
-  });
   try {
     const call = deps.handleMessage({
       source: "discord",
@@ -57,9 +51,6 @@ export async function answerTurn(
       ...(recent?.length && { recent }),
       language,
       visible,
-      replied,
-      history: (limit) =>
-        historyOf(channel as unknown as HistoryChannel, deps.ownerId, deps.botId(), limit),
       notify: (m, opts) => {
         retype();
         // A caught send failure ends this composing phase too; background work must not refresh typing.
@@ -76,7 +67,6 @@ export async function answerTurn(
     retype();
     await sendReply(channel, reply, language, visible);
   } finally {
-    posted();
     stopTyping();
   }
 }

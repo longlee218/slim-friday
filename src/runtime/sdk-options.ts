@@ -10,7 +10,7 @@ import type { RoleDefinition } from "../roles/role-types";
 import { SECRET_FILE_RULES, toolOptions } from "../tools/tool-catalog";
 import { buildCompactHooks } from "./compact-hooks";
 import { type ModeActive, resolvePermissionMode } from "./permission-mode";
-import type { LeanRun, RunAgentInput } from "./run-agent";
+import type { RunAgentInput } from "./run-agent";
 import { sdkEnv } from "./sdk-env";
 import type { RunSkills } from "./skills-plugin/plugin-builder";
 import { buildSystemPrompt } from "./system-prompt";
@@ -55,21 +55,6 @@ function mergeHooks(
       ...(rec.PermissionDenied ?? []),
       ...(perms.postHooks.PermissionDenied ?? []),
     ],
-  };
-}
-
-/**
- * Option overrides of a lean run: no built-in tool, thinking off, the lean role's MCP tools auto-approved (the other
- * tools are not even built: see `buildServers`), own turn cap. (The role's `disallowedTools` stay: they are only
- * secrets and git rules.)
- */
-function leanOptions(role: RoleDefinition, lean: LeanRun): Partial<Options> {
-  return {
-    tools: [],
-    thinking: { type: "disabled" },
-    maxTurns: lean.maxTurns,
-    allowedTools: mcpToolNamesFor(role),
-    disallowedTools: [...SECRET_FILE_RULES],
   };
 }
 
@@ -195,6 +180,5 @@ export function buildSdkOptions(
       }),
       ...bins.env,
     },
-    ...(input.lean && leanOptions(role, input.lean)),
   };
 }

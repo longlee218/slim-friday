@@ -159,20 +159,6 @@ export function liveTurnOfThread(
   );
 }
 
-/** Turns of the thread that ended `done`, other than `exceptTurnId`, started at or after `since`. */
-export function countDoneTurnsSince(
-  db: Database,
-  threadId: string,
-  exceptTurnId: string,
-  since: number,
-): number | undefined {
-  return db
-    .query<{ n: number }, [string, string, number]>(
-      "SELECT COUNT(*) AS n FROM turns WHERE thread_id = ? AND id != ? AND status = 'done' AND started_at >= ?",
-    )
-    .get(threadId, exceptTurnId, since)?.n;
-}
-
 /** Brief of the newest turn of a thread; undefined when the thread has no turn or the turn has no brief. */
 export function latestBriefOfThread(db: Database, threadId: string): string | undefined {
   const row = db

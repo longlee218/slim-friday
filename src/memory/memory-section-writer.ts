@@ -16,6 +16,7 @@ import {
   insertJournalEntry,
   journalHeader,
   type MemoryKind,
+  normalizeBullet,
 } from "./memory-sections";
 import { sanitizeBullet } from "./sanitize-bullet";
 
@@ -35,6 +36,16 @@ export type SaveResult = "saved" | "duplicate" | "full" | "empty" | "busy" | "sy
 export interface JournalSlot {
   hhmm: string;
   label: string;
+  /** True = a note already anywhere in the day file is a duplicate (checked inside the file lock). */
+  dedupeDay?: boolean;
+}
+
+/** True when any bullet of the file has the same normalized key as `bullet` (an empty key never matches). */
+function dayHasBullet(old: string, bullet: string): boolean {
+  const key = normalizeBullet(bullet);
+  return (
+    key !== "" && old.split("\n").some((l) => l.startsWith("- ") && normalizeBullet(l) === key)
+  );
 }
 
 /**
@@ -113,6 +124,7 @@ export function saveJournalBullet(
     journalHeader(date),
     (old) => {
       if (hasJournalBullet(old, slot.hhmm, label, kind, bullet)) return "duplicate";
+      if (slot.dedupeDay && dayHasBullet(old, bullet)) return "duplicate";
       const next = insertJournalEntry(old, slot.hhmm, label, kind, bullet);
       return next.trimEnd().split("\n").length > OWNER_MAX_LINES ? "full" : next;
     },

@@ -7,9 +7,9 @@ import { appendEvent, listUndelivered } from "../src/storage/thread-event-store"
 import { makeEnv, stubGateway, TEST_CHANNEL } from "./helpers";
 import { type Call, leadHarness, noticeSink, scriptedQuery, sleep, until } from "./lead-harness";
 
-/* Review fixes of the lead runtime: rollover order, /stop reach, failed-announce cap, direct dispatch queueing, empty reply. */
+/* Review fixes of the lead runtime: /stop reach, failed-announce cap, direct dispatch queueing, empty reply. */
 
-/** A bare lead system over a fake query (no handler): lets a test see the rollover hooks and the stop reach. */
+/** A bare lead system over a fake query (no handler): lets a test see the stop reach. */
 function system(
   script: Parameters<typeof scriptedQuery>[0],
   o: Partial<Parameters<typeof createLeadSystem>[0]> = {},
@@ -42,24 +42,6 @@ function system(
   });
   return { env, calls, log, sys, message };
 }
-
-test("H1: a lead run waits for the thread's rollover; the rollover starts only after the reply is posted", async () => {
-  let release!: () => void;
-  const gate = new Promise<void>((r) => (release = r));
-  const t = system(async () => "the reply", {
-    hold: () => gate,
-    afterRun: () => void t.log.push("afterRun"),
-  });
-  const msg = t.message();
-  t.sys.remember(msg);
-  t.sys.submit(msg);
-  await sleep(150); // past the debounce: the input is queued but the run waits for the rollover
-  expect(t.calls).toHaveLength(0);
-  release();
-  await until(() => t.log.includes("afterRun"));
-  expect(t.calls).toHaveLength(1);
-  expect(t.log).toEqual(["post:the reply", "afterRun"]); // never afterRun before the post
-});
 
 test("M1: /stop cancels the announce timer and ends the thread's worker question waits", async () => {
   const t = system(async () => "must not run");

@@ -47,9 +47,6 @@ export function createLeadSystem(o: {
   post?: (threadId: string, text: string) => Promise<void>;
   /** Keep a lead run in the shutdown drain. */
   track?: (run: Promise<void>) => void;
-  /** The thread's rollover work after a lead run, and the wait for it. */
-  afterRun?: LeadRuntime["afterRun"];
-  hold?: LeadRuntime["hold"];
   announceWindowMs?: number;
   debounceMs?: number;
 }): LeadSystem {
@@ -93,8 +90,6 @@ export function createLeadSystem(o: {
     },
     announce: (threadId, delayMs) => announcer?.notify(threadId, delayMs),
     relay,
-    afterRun: o.afterRun,
-    hold: o.hold,
   };
   /** Per thread: announces the full lead pool dropped in a row (the re-arm delay grows with it; a lead run of the thread resets it). */
   const dropStreak = new Map<string, number>();

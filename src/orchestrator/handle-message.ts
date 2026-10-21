@@ -21,7 +21,7 @@ import type { RecoveryReport } from "./worker/recover-in-flight";
 export function createTurnHandler(deps: TurnHandlerDeps) {
   const { config } = deps;
   const log = logger.child({ module: "handle-message" });
-  const { tracker, rollovers, dispatchDeps, lead, inline, shutdown } = createHandlerServices(
+  const { tracker, memoryJobs, dispatchDeps, lead, inline, shutdown } = createHandlerServices(
     deps,
     log,
   );
@@ -35,7 +35,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         db: deps.db,
         message,
         leadQueue: { stop: lead.stopThread, busy: lead.queue.busy },
-        rollovers,
         steer: dispatchDeps.steer,
       });
     }
@@ -56,8 +55,6 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         }),
       );
     }
-    // A rollover of the previous turn holds the thread until it is done.
-    await rollovers.holdFor(message);
     if (isDraining(config.agentHome)) {
       logEvent(log, "task.refused", { reason: "drain", reply: DRAIN_REPLY });
       return renderUserNotice({ kind: "failure", cause: "drain" }, messageLanguage(message));
@@ -93,7 +90,7 @@ export function createTurnHandler(deps: TurnHandlerDeps) {
         text === undefined ? undefined : localizeUserCopy(text, messageLanguage(message)),
       );
   handleMessage.inline = inline; // same runner for ingress (inline channel replies, #ops-control)
-  handleMessage.rollover = (threadId: string) => rollovers.wait(threadId) ?? Promise.resolve(); // tests
+  handleMessage.memoryJobs = memoryJobs; // tests await its drain
   handleMessage.abortAll = shutdown.abortAll;
   handleMessage.drain = shutdown.drain;
   /** Boot: wake the lead of the threads the recovery found work for. */

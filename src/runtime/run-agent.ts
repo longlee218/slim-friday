@@ -31,12 +31,6 @@ import type { ToolPermissionInput } from "./tool-permissions";
 
 export type { QueryFn };
 
-/** A lean run (rollover flush, `/compact`): no built-in tool, thinking off, only the role's MCP tools; its caps replace the role's. */
-export interface LeanRun {
-  maxTurns: number;
-  budgetUsd: number;
-}
-
 /** Inputs for one agent run. */
 export interface RunAgentInput {
   /** User question sent to the agent. */
@@ -67,14 +61,10 @@ export interface RunAgentInput {
   route?: Route;
   /** Existing Claude session id to resume. */
   resume?: string;
-  /** Lean run (see `LeanRun`). */
-  lean?: LeanRun;
   /** Run supervisor events (`model_turn`, `guard_denied`); observation only. */
   onControlEvent?: (event: RunControlEvent) => void;
   /** A tool call is about to start: a sign of life for the watchdog. */
   onToolStart?: () => void;
-  /** Sees every stream message of a plain (non-steered) run (the rollover flush counts `MemorySave`). */
-  onMessage?: (msg: SDKMessage) => void;
   /** Called with each assistant text of the run (the status progress note). */
   onProgress?: (text: string) => void;
   /** Streaming-input mode (background roles): the owner's later messages reach the model (channel, registration and the step-7 wait live in steered-stream.ts). Omitted = plain string prompt. */
@@ -118,10 +108,7 @@ const log = logger.child({ module: "run-agent" });
 /** Run the agent once (an answer, or a code task: the role says), recording messages, tool calls and the run row. */
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const { abortController: ac, role } = input;
-  const base = roleConfig(role, input.config, input.route);
-  const config = input.lean
-    ? { ...base, limits: { ...base.limits, maxBudgetUsd: input.lean.budgetUsd } }
-    : base;
+  const config = roleConfig(role, input.config, input.route);
   const startedAt = Date.now();
   const runId = crypto.randomUUID();
   const recorder = new RunRecorder(
@@ -184,7 +171,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     };
     res = input.steer
       ? await consumeSteered({ ...common, first: input.prompt, hook: input.steer, runId })
-      : await consumeStream({ ...common, prompt: input.prompt, onMessage: input.onMessage });
+      : await consumeStream({ ...common, prompt: input.prompt });
     // A run that REQUIRED the OS sandbox and could not get it fails, never hangs or retries unsandboxed.
     if (options.sandbox && res.sandboxFailure)
       throw new SandboxUnavailableError(res.sandboxFailure);

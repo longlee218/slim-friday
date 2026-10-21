@@ -22,7 +22,7 @@ interface OnceParts {
   i: RoleRunInput;
   s: RoleScope;
   role: RoleDefinition;
-  /** Fresh-session prefix (rollover seed + channel digest); empty when a session lives. */
+  /** Fresh-session prefix (channel digest); empty when a session lives. */
   prefix: string;
   titlePort: ThreadTitlePort | undefined;
   supervisor: ReturnType<typeof watchRun>["supervisor"];
@@ -68,6 +68,8 @@ export function agentRunOnce(p: OnceParts) {
               trackSummary: role.kind !== "worker",
               threadTitle: titlePort,
               onIssue: (e) => supervisor.observe({ kind: "trusted_tool_issue", ...e }),
+              // Lead runs only: a worker's compaction writes no memory (the hooks are not even registered).
+              onCompacted: deps.memoryJobs && ((req) => deps.memoryJobs?.flushAfterCompaction(req)),
             }),
       onControlEvent: (e) => supervisor.observe(e),
       onProgress: (text) => setProgressNote(i.turnId, text),

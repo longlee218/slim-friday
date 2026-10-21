@@ -26,7 +26,7 @@ export const threads = sqliteTable(
   (t) => [index("threads_channel_updated").on(t.channel_id, t.updated_at)],
 );
 
-/** Rolling summary of a thread (rollover seed and memory flush state). */
+/** Rolling summary of a thread (SDK compaction summary and memory flush state). */
 export const thread_summaries = sqliteTable("thread_summaries", {
   /** Thread id. */
   thread_id: text().primaryKey(),
@@ -34,7 +34,7 @@ export const thread_summaries = sqliteTable("thread_summaries", {
   workspace: text().notNull().default(""),
   /** Summary text. */
   summary: text().notNull(),
-  /** Epoch ms of the last rollover. */
+  /** Retired (always 0): the rollover is gone, the column is dropped in memory v2 phase 4. */
   rolled_at: integer().notNull().default(0),
   /** Epoch ms last updated. */
   updated_at: integer().notNull(),
