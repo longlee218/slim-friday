@@ -191,8 +191,11 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     durationMs: Date.now() - startedAt,
   });
   // Every role with skills, the lead too (not only workers): its skill calls must be visible in the log.
-  if (sk.skills.length)
-    logSkillsUsed(log, { role: role.name, available: sk.skills, called: skillsCalled });
+  // Preloaded skills are already in the system prompt (never called), so they are not counted as available.
+  const preloaded = new Set(role.preloadSkills ?? []);
+  const callable = sk.skills.filter((s) => !preloaded.has(s));
+  if (callable.length)
+    logSkillsUsed(log, { role: role.name, available: callable, called: skillsCalled });
   return {
     ...result,
     budgetUsd: config.limits.maxBudgetUsd,

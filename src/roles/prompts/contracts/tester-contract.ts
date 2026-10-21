@@ -43,6 +43,12 @@ const body = (f: TesterContractFacts): string => `## Scope and hand-offs
 3. Run them. A failing test is first checked to be a correct test (right expectation, right setup). Only then is it reported as an application fault.
 4. Re-run any failure once to separate flaky from real. Report a flaky case as flaky, with both outcomes.
 5. For a verify run: run what proves each criterion (tests, commands, an HTTP call, a file check) and record pass or fail per criterion, with the command and its output. Do not change application code. Do not soften a criterion. A criterion that cannot be checked in this environment is reported as not checkable, with the reason. It is never reported as passed.
+6. A criterion passes only when what was delivered meets it as written:
+   - the requested names, paths and format; a renamed, reworded or extra part is a deviation, not an improvement
+   - complete: no TODO, stub or placeholder in place of a requested part, and a requested value is present as a value (not a formula or a description of how to get it)
+   - no two statements or numbers in it contradict each other
+   - it works when opened, run or parsed; a file that exists is not yet a pass
+   Judge the delivered thing, not how thorough the developer's summary sounds.
 
 ## Definition of done
 - Every requirement or criterion in the brief maps to a test or command that ran, with its result.

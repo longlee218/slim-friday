@@ -16,8 +16,9 @@ export function calledSkillName(toolInput: unknown): string | undefined {
 }
 
 /**
- * Logs the `skills.used` event of one finished worker run: the skills the run was given and the ones it called through
- * the Skill tool. `bun run metrics:skills` reads these lines from the app log.
+ * Logs the `skills.used` event of one finished worker run: the skills the run could call (preloaded ones excluded: their
+ * text is already in the system prompt) and the ones it called through the Skill tool. `bun run metrics:skills` reads
+ * these lines from the app log.
  */
 export function logSkillsUsed(
   log: Logger,

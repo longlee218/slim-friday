@@ -34,7 +34,7 @@ const CEILING: Record<string, number> = {
   "humanizer-writer": 10700,
   hacker: 11000,
   scout: 10600,
-  researcher: 10400,
+  researcher: 11500, // 10470 on 2026-10-21 (tool-error kinds in the worker block)
   planner: 8500,
   "discord-manager": 4300,
   lead: 4000,
