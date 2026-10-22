@@ -120,6 +120,7 @@ export const getAgentCapabilities = (c: PlannerCtx): Reply => ({
   roles: c.workers.map((w) => ({
     name: w.name,
     whenToUse: w.whenToUse,
+    notFor: w.notFor,
     capabilities: w.capabilities,
     sideEffects: w.sideEffects,
     concurrency: countsTowardCap(w) ? "limited" : "free",

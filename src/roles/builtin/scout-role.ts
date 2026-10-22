@@ -24,7 +24,8 @@ export const SCOUT_ROLE: RoleDefinition = {
   name: "scout",
   basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
-    "Code and file lookups in a location: where or how something is done, which files touch X, structure, list or summarize files, a library's API docs; answers with path:line.",
+    "Facts inside a location: where something is, how it works, which files touch X; list or summarize files; a library's API as that code uses it. Answers with path:line.",
+  notFor: "Changing anything; outside facts not tied to this code.",
   kind: "worker",
   dispatchable: true,
   skills: ["worker-reporting", "scout", "docs-seeker"],

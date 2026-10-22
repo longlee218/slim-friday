@@ -75,6 +75,10 @@ test("whenToUse: every dispatchable role has one, all different", () => {
   expect(new Set(roles.map((r) => r.whenToUse)).size).toBe(roles.length);
 });
 
+test("notFor: every dispatchable role has one (the Not for column of the lead's TEAM table)", () => {
+  for (const r of dispatchableWorkers()) expect(r.notFor?.length ?? 0).toBeGreaterThan(3);
+});
+
 test("whenToUse stays within the 220-char budget of prompt-standard.md", () => {
   for (const r of dispatchableWorkers()) expect(r.whenToUse.length).toBeLessThanOrEqual(220);
 });

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { PLACEHOLDER } from "../src/config/agent-config";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { initMsg, makeEnv, resultMsg, TEST_CHANNEL } from "./helpers";
-import { decisionOf, loadGolden } from "./lead-golden-support";
+import { decisionOf, loadGolden, matches } from "./lead-golden-support";
 import { sleep, until } from "./lead-harness";
 import { isLeadRun } from "./mcp-run-probe";
 
@@ -64,7 +64,7 @@ describe.skipIf(!live)("lead golden set (real lead, fake workers)", () => {
       );
       await sleep(500); // writes of the last tool call settle
       const got = decisionOf(env.db);
-      if (got.strategy !== c.strategy || got.roles.join() !== c.roles.join())
+      if (!matches(c, got))
         misses.push(
           `${c.id}#${i}: expected ${c.strategy}[${c.roles}] got ${got.strategy}[${got.roles}]`,
         );

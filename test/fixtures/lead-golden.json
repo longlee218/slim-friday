@@ -1,5 +1,5 @@
 {
-  "_doc": "Lead golden set (opt-in LEAD_EVAL=1). strategy: ANSWER = no dispatch (text answer or ask; also a first brainstorming reply: one question or 2-3 approaches, no request_plan yet), DIRECT = one worker, DELEGATE = 2-3 chained workers, PLAN = Orchestrate request_plan. roles = expected worker roles of the dispatched items in order (empty for ANSWER and PLAN).",
+  "_doc": "Lead golden set (opt-in LEAD_EVAL=1). strategy: ANSWER = no dispatch (text answer or ask; also a first brainstorming reply: one question or 2-3 approaches, no request_plan yet), DIRECT = one worker, DELEGATE = 2-3 chained workers, PLAN = Orchestrate request_plan. roles = expected worker roles of the dispatched items in order (empty for ANSWER and PLAN). alt = other decisions that are also right under the lead prompt v2.2 rules (2026-10-22): one member who can do it all is DIRECT (a developer can find, investigate or study code itself); a request that mixes kinds of work, or several members, goes to a plan; a question is answered or researched by its complexity.",
   "cases": [
     {
       "id": "greeting",
@@ -17,7 +17,13 @@
       "id": "general-question",
       "text": "what is the difference between a mutex and a semaphore?",
       "strategy": "ANSWER",
-      "roles": []
+      "roles": [],
+      "alt": [
+        {
+          "strategy": "DIRECT",
+          "roles": ["researcher"]
+        }
+      ]
     },
     {
       "id": "poem",
@@ -89,19 +95,37 @@
       "id": "find-then-change",
       "text": "first find where the retry count is configured, then change the default from 3 to 5",
       "strategy": "DELEGATE",
-      "roles": ["scout", "developer"]
+      "roles": ["scout", "developer"],
+      "alt": [
+        {
+          "strategy": "DIRECT",
+          "roles": ["developer"]
+        }
+      ]
     },
     {
       "id": "study-then-build",
       "text": "look at how pagination works in the api, then add cursor pagination to the orders endpoint",
       "strategy": "DELEGATE",
-      "roles": ["scout", "developer"]
+      "roles": ["scout", "developer"],
+      "alt": [
+        {
+          "strategy": "DIRECT",
+          "roles": ["developer"]
+        }
+      ]
     },
     {
       "id": "investigate-then-fix",
       "text": "investigate why the build is slow, then fix the slowest step",
       "strategy": "DELEGATE",
-      "roles": ["scout", "developer"]
+      "roles": ["scout", "developer"],
+      "alt": [
+        {
+          "strategy": "DIRECT",
+          "roles": ["developer"]
+        }
+      ]
     },
     {
       "id": "big-billing-module",
@@ -143,7 +167,13 @@
       "id": "research-compare-en",
       "text": "compare Drizzle and Prisma for SQLite: migrations, performance and maintenance",
       "strategy": "DIRECT",
-      "roles": ["researcher"]
+      "roles": ["researcher"],
+      "alt": [
+        {
+          "strategy": "DIRECT",
+          "roles": ["solution-architect"]
+        }
+      ]
     },
     {
       "id": "greeting-vi",
@@ -173,13 +203,29 @@
       "id": "new-feature-game-vi",
       "text": "thêm vào app một game caro online: React, hai người vào phòng bằng mã 4 ký tự, người tạo phòng đi trước, ai được 5 quân liền trước thì thắng, kèm test",
       "strategy": "PLAN",
-      "roles": []
+      "roles": [],
+      "alt": [
+        {
+          "strategy": "DIRECT",
+          "roles": ["developer"]
+        },
+        {
+          "strategy": "ANSWER",
+          "roles": []
+        }
+      ]
     },
     {
       "id": "new-feature-chat-en",
       "text": "add a realtime chat feature to the app: a websocket server, a React UI, message history in the database, and tests",
       "strategy": "PLAN",
-      "roles": []
+      "roles": [],
+      "alt": [
+        {
+          "strategy": "ANSWER",
+          "roles": []
+        }
+      ]
     },
     {
       "id": "new-app-todo-vi",

@@ -53,7 +53,8 @@ const CODE_CAPABILITIES: Capability[] = [
 export const DEVELOPER_ROLE: RoleDefinition = {
   name: "developer",
   whenToUse:
-    "Implement, fix, refactor, add unit tests of its own change in a location; delivers (merge, PR or keep) after the owner chose. Design or a plan goes to the solution-architect, designer or planner.",
+    "Implement, fix or refactor code in a location, with unit tests of its own change; installs, commits and delivers (merge, PR or keep) after the owner chose.",
+  notFor: "Choosing a design or writing a plan; integration or end-to-end tests.",
   kind: "worker",
   dispatchable: true, // the lead may start it as a worker
   // Memory read tools (the lead alone saves), the Report tool and the effect tools (a run without the effects ctx just lacks them).

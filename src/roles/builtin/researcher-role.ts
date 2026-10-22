@@ -32,7 +32,8 @@ export const RESEARCHER_ROLE: RoleDefinition = {
   name: "researcher",
   basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
-    "Web research with cited sources: current facts, versions, limits, prices, product or library comparisons, standards, market data, papers. Report saved as an artifact; changes nothing.",
+    "Facts from outside a location: versions, limits, prices, news, product or library comparisons, standards, papers, anything to verify or cite; opens public web pages. Cited report saved as an artifact.",
+  notFor: "A location's code or files; testing an app.",
   sideEffects: "none",
   capabilities: ["read", "web", "shell", "skills"],
   skills: [

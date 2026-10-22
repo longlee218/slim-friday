@@ -18,7 +18,7 @@ test("golden set: about 20 cases, unique ids and texts, every strategy covered",
 });
 
 test("golden set: strategy and roles agree and every role is a dispatchable registry worker", () => {
-  for (const c of cases) {
+  for (const c of cases.flatMap((c) => [c, ...(c.alt ?? [])])) {
     expect(STRATEGIES).toContain(c.strategy);
     for (const r of c.roles) expect(workers).toContain(r);
     if (c.strategy === "DIRECT") expect(c.roles).toHaveLength(1);

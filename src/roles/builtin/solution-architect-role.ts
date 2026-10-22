@@ -9,7 +9,8 @@ export const SOLUTION_ARCHITECT_ROLE: RoleDefinition = {
   name: "solution-architect",
   basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
-    "Design before building: compare approaches, choose one, define components, interfaces, data and risks for a feature or system; reads code and docs, writes no files.",
+    "Design before building: compare approaches and choose one; define components, interfaces, data and risks of a feature or system. Reads code and docs, writes no files.",
+  notFor: "Fact lookups; screen and UI design.",
   sideEffects: "none",
   capabilities: ["read", "web", "skills"],
   skills: [METHOD_SKILL, "worker-reporting", "architecture-designer", "docs-seeker"],

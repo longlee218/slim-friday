@@ -9,7 +9,8 @@ export const HACKER_ROLE: RoleDefinition = {
   name: "hacker",
   basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
-    "Defensive security review of code in a location: vulnerabilities, unsafe patterns, secrets in code, risky dependencies; no write tools, reports findings with severity.",
+    "Defensive security review of code in a location: vulnerabilities, unsafe patterns, secrets in code, risky dependencies; reports findings with severity.",
+  notFor: "Fixing the findings.",
   sideEffects: "none",
   capabilities: ["read", "shell", "skills"],
   skills: [

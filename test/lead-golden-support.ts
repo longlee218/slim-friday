@@ -19,7 +19,15 @@ export interface GoldenCase {
   strategy: GoldenStrategy;
   /** Worker roles of the dispatched items, in order; empty for ANSWER and PLAN. */
   roles: string[];
+  /** Other decisions that are also right (lead prompt v2.2 rules); omitted = only `strategy` and `roles`. */
+  alt?: Pick<GoldenCase, "strategy" | "roles">[];
 }
+
+/** The recorded decision is the expected one or one of its `alt`s. */
+export const matches = (c: GoldenCase, got: Pick<GoldenCase, "strategy" | "roles">): boolean =>
+  [c, ...(c.alt ?? [])].some(
+    (e) => e.strategy === got.strategy && e.roles.join() === got.roles.join(),
+  );
 
 /** The fixture file (test/fixtures/lead-golden.json). */
 export const loadGolden = (): GoldenCase[] =>

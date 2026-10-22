@@ -14,7 +14,8 @@ export const TESTER_ROLE: RoleDefinition = {
   noSubagents: false, // owner D7: the tester may spawn (tools limited by `subagentToolsFor`)
   subagents: SUBAGENTS,
   whenToUse:
-    "Higher-level tests: integration, end-to-end, regression, edge and property cases; runs them, reports what breaks. A unit test of a change belongs to the developer.",
+    "Higher-level tests: integration, end-to-end, regression, edge and property cases; checks a running app in a browser; runs them and reports what breaks.",
+  notFor: "Unit tests of a change; fixing the code.",
   sideEffects: "location",
   capabilities: ["read", "write", "shell", "skills"],
   skills: [

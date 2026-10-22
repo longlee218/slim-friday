@@ -10,6 +10,7 @@ export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
   basePrompt: "custom", // writes no code: no SDK coding preset
   whenToUse:
     "Prose for people: docs, README, release notes, posts, emails; writes or edits documents in a natural voice from the facts in the brief and earlier results.",
+  notFor: "Code.",
   sideEffects: "location",
   capabilities: ["read", "write", "skills"],
   skills: [

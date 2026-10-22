@@ -11,6 +11,7 @@ export const DESIGNER_ROLE: RoleDefinition = {
   name: "designer",
   whenToUse:
     "Design of a user interface or experience: screens, layout, components, copy, states and accessibility; writes design notes or static mockups in the location and runs design tools (sandboxed shell).",
+  notFor: "Production code.",
   sideEffects: "location",
   capabilities: ["read", "write", "shell", "web", "skills"],
   skills: [

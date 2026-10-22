@@ -38,6 +38,12 @@ export interface RoleDefinition {
   /** Mutually exclusive wording; the lead's TEAM.md, the lead and the planner read it from the registry. */
   whenToUse: string;
   /**
+   * Work that looks like this role's but is not (and where it goes instead): the "Not for" column of the lead's TEAM
+   * table and the planner's capabilities read it, so routing between roles is role data, not prompt text. Every
+   * dispatchable role has one (test).
+   */
+  notFor?: string;
+  /**
    * What the role is. `worker` = a detached task: its run counts toward the concurrent task cap, takes a start notice,
    * is queued behind a busy thread, works in a location, and the owner steers it. `lead` = the thread's router (a short
    * foreground answer, reached only through the lead runner). `control` = the #ops-control role (no workspace).

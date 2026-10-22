@@ -21,9 +21,9 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   const md = buildTeamMd({ locations: [api] });
   expect(md).toContain("Built by code for this run");
   expect(md).not.toContain("You lead the team"); // persona is IDENTITY.md's
-  expect(md).toMatch(/^- developer: .*changes: location/m);
-  expect(md).toMatch(/^- scout: .*changes: none/m);
-  expect(md).not.toMatch(/^- (lead|discord-manager):/m);
+  expect(md).toMatch(/^\| developer \| .* \| location \|/m);
+  expect(md).toMatch(/^\| scout \| .* \| none \|/m);
+  expect(md).not.toMatch(/^\| (lead|discord-manager) \|/m);
   expect(md).toContain("- api [git]: backend");
   expect(md).not.toContain("/r/api"); // no path in the reply source
   expect(md).toContain("- DELEGATE: up to"); // the only strategy fact code owns (a cap)
@@ -33,7 +33,7 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   ); // a runtime fact
   expect(md).not.toContain("ANSWER"); // not a code strategy; choosing is the skill's job
   expect(md).toContain("NEEDS_PLAN");
-  expect(md).not.toMatch(/tools:.*\b(tasks|mcp|feedback|ask)\b/); // internal capability names are left out
+  expect(md).not.toMatch(/^\|.*\| [^|]*\b(tasks|mcp|feedback|ask|skills)\b[^|]* \|$/m); // internal capability names are left out of Tools
   expect(md).toContain(`Up to ${MAX_RUNNING_PER_THREAD} items run at once`);
   expect(md).toContain("one writer per location");
   expect(md).toContain(`at most ${CHAIN_CAP} chained starts`);
@@ -52,40 +52,51 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
 });
 
 test("TEAM.md follows the roles and locations it is given and stays small", () => {
-  expect(buildTeamMd({ workers: [ROLES.scout!] })).not.toContain("- developer:");
+  expect(buildTeamMd({ workers: [ROLES.scout!] })).not.toContain("| developer |");
   expect(buildTeamMd({ workers: [] })).toContain("none available");
   expect(buildTeamMd()).toContain("none in this channel");
   expect(buildTeamMd({ locations: [api] }).length).toBeLessThan(6000);
-  expect(buildTeamMd({ locations: [api] }).length).toBeLessThan(5200); // phase 2b: routing, shell and test-split lines
+  expect(buildTeamMd({ locations: [api] }).length).toBeLessThan(4000); // lead prompt v2.2: one table, routing as role data
 });
 
-test("TEAM.md phase 2b lines: routing split, shell members from capabilities, test split, PLAN staffing, no budget numbers", () => {
+test("TEAM.md members table: routing is role data (Use when, Not for), tools and facts come from capabilities", () => {
   const md = buildTeamMd({ locations: [api] });
-  expect(md).toContain("goes to the scout");
-  expect(md).toContain("goes to the researcher");
-  expect(md).toMatch(/^- researcher: .*changes: none/m);
-  expect(md).toContain(
-    "higher-level tests (integration, end-to-end, regression, property) are the tester's",
-  );
+  expect(md).toContain("| Role | Use when | Not for | Changes | Tools |");
+  expect(md).toMatch(/^\| researcher \| .* \| none \| .*browser \|$/m);
+  expect(md).toMatch(/^\| developer \| .*integration or end-to-end tests\. \| location \|/m); // the test split is role data
+  expect(md).not.toContain("goes to the scout"); // no routing prose: the table and the lead's skill decide
   expect(md).not.toContain("the planner is the project manager"); // the strategies live in the lead skill
   expect(md).not.toContain("Goal budget"); // owner: code enforces the budget, no numbers for the lead
-  // Shell members come from the capabilities of the roles given, never a hard-coded list.
-  const fake = (name: string, caps: RoleDefinition["capabilities"]): RoleDefinition => ({
+  expect(md).toContain("- Only developer can ask the owner"); // from the `ask` capability, not a name in code
+  // Rows come from the roles given: a new role is data only.
+  const fake = (
+    name: string,
+    caps: RoleDefinition["capabilities"],
+    notFor?: string,
+  ): RoleDefinition => ({
     ...ROLES.scout!,
     name,
+    whenToUse: `${name} work | with a pipe`,
+    notFor,
     capabilities: caps,
+    mcpTools: [],
   });
   const only = buildTeamMd({
     workers: [
-      fake("alpha", ["read", "shell"]),
+      fake("alpha", ["read", "shell"], "beta work"),
       fake("beta", ["read", "write", "shell"]),
-      fake("gamma", ["read"]),
     ],
   });
-  expect(only).toContain(
-    "Members with a shell can run commands and tests: alpha, beta; of these, only beta can also change files",
+  expect(only).toContain("| alpha | alpha work / with a pipe | beta work | none | read, shell |");
+  expect(only).toContain("| beta | beta work / with a pipe | - | none | read, edit, shell |");
+  expect(only).toContain("- No member can ask the owner");
+  expect(only).not.toContain("screenshot"); // no browser member, no screenshot line
+  expect(buildTeamMd({ workers: [fake("gamma", ["read"], "")] })).toContain(
+    "No member has a shell",
   );
-  expect(buildTeamMd({ workers: [fake("gamma", ["read"])] })).toContain("No member has a shell");
+  expect(buildTeamMd({ workers: [fake("gamma", ["read"], "")] })).toContain(
+    "| gamma | gamma work / with a pipe | - |",
+  );
 });
 
 test("data block: heading says data, one row per item, results are redacted and clipped", () => {

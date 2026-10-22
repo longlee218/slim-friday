@@ -9,6 +9,7 @@ export const DEVOPS_ROLE: RoleDefinition = {
   name: "devops",
   whenToUse:
     "Build and infrastructure files: Dockerfile, CI workflows, scripts, config; checks them locally (build, lint, dry run). Has no credentials or deploy tool.",
+  notFor: "Deploys; anything that needs credentials.",
   sideEffects: "location",
   capabilities: ["read", "write", "shell", "skills"],
   skills: [
