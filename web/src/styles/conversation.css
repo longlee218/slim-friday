@@ -1,0 +1,334 @@
+/* Conversation column: toolbar, decision bar, feed, composer. */
+.conversation {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--window);
+}
+.conversation__none {
+  margin: auto;
+  color: var(--fg-2);
+}
+.toolbar {
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 14px;
+  border-bottom: 0.5px solid var(--line);
+  background: var(--bar);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+.toolbar__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.toolbar__title h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar__sub {
+  font-size: 11.5px;
+  color: var(--fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+.status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-3);
+}
+.status[data-tone="good"]::before {
+  background: var(--green);
+}
+.status[data-tone="bad"] {
+  color: var(--red);
+}
+.status[data-tone="bad"]::before {
+  background: var(--red);
+}
+
+/* Pinned decision bar; the wrapper clips while motion animates its height. */
+.decision-bar__wrap {
+  flex: none;
+  overflow: hidden;
+}
+.decision-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 14px;
+  text-align: left;
+  background: var(--accent-soft);
+  border-bottom: 0.5px solid var(--line);
+}
+.decision-bar:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.decision-bar__count {
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.decision-bar__num {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+}
+.decision-bar__item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.decision-bar__text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.decision-bar__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-weight: 500;
+}
+/* Feed; the slot is the cross-fading wrapper on desktop. */
+.feed-slot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.feed {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.feed__column {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px 20px 12px;
+  display: flex;
+  flex-direction: column;
+}
+.feed__empty {
+  margin: 80px auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--fg-2);
+}
+.feed__empty b {
+  color: var(--fg);
+  font-size: 15px;
+}
+.stamp {
+  align-self: center;
+  font-size: 11px;
+  color: var(--fg-3);
+  margin: 12px 0 8px;
+}
+.note {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--fg-2);
+  margin: 10px 0 6px;
+  text-align: center;
+}
+.msg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 78%;
+  margin-top: 2px;
+  scroll-margin: 80px;
+}
+.msg[data-first] {
+  margin-top: 10px;
+}
+.msg--mine {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.msg__by {
+  font-size: 11px;
+  color: var(--fg-2);
+  margin: 0 0 3px 44px;
+}
+.msg__lane {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 100%;
+}
+.msg__gap {
+  width: 24px;
+  flex: none;
+}
+.msg {
+  position: relative;
+}
+.msg__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.msg--mine .msg__body {
+  align-items: flex-end;
+}
+.bubble {
+  background: var(--bubble);
+  padding: 8px 13px;
+  border-radius: 20px;
+  font-size: 14px;
+  line-height: 1.38;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+.msg--mine .bubble {
+  background: var(--mine);
+  color: var(--mine-ink);
+}
+.bubble[data-failed] {
+  opacity: 0.6;
+}
+.bubble code {
+  font: 12.5px var(--mono);
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--fill);
+}
+.retry,
+.handoff {
+  font-size: 11px;
+  margin: 3px 12px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg-3);
+}
+.retry {
+  color: var(--red);
+}
+.typing {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.typing__dots {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--bubble);
+  padding: 11px 13px;
+  border-radius: 17px;
+}
+.typing__dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-3);
+  animation: wave 1.3s var(--ease) infinite;
+}
+.typing__dots i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.typing__dots i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+/* Typing dots: a small wave, each dot lifts and brightens in turn. */
+@keyframes wave {
+  0%,
+  55%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+/* Composer. */
+.composer {
+  flex: none;
+  padding: 8px 20px max(14px, env(safe-area-inset-bottom, 0px));
+}
+.composer__field {
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  border: 0.5px solid var(--line-2);
+  border-radius: 22px;
+  background: var(--card);
+  position: relative;
+  transition:
+    border-color 0.2s var(--ease),
+    box-shadow 0.25s var(--ease);
+}
+.composer__field:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2));
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.composer__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 4px;
+}
+.composer__field textarea {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  resize: none;
+  padding: 5px 4px;
+  max-height: 140px;
+  font-size: 14px;
+  line-height: 1.38;
+}
+.composer__field textarea::placeholder {
+  color: var(--fg-3);
+}
+.composer__mentions {
+  left: 36px;
+  bottom: calc(100% + 6px);
+}

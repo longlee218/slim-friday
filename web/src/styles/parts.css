@@ -1,0 +1,344 @@
+/* Shared parts: avatars, rows, buttons, cards, meters, popovers, toast, responsive rules. */
+.avatar {
+  flex: none;
+  display: inline-block;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--fill);
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.avatar-duo {
+  position: relative;
+  flex: none;
+  display: inline-block;
+}
+.avatar-duo .avatar {
+  position: absolute;
+  box-shadow: 0 0 0 1.5px var(--sidebar-solid);
+}
+.avatar-duo .avatar:first-child {
+  left: 0;
+  top: 0;
+}
+.avatar-duo .avatar:last-child {
+  right: 0;
+  bottom: 0;
+}
+
+/* Chat row. */
+.chat-row {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-align: left;
+}
+.chat-row > :not(.chat-row__pill) {
+  position: relative;
+  z-index: 1;
+}
+.chat-row:hover:not([data-selected]) {
+  background: var(--fill);
+}
+/* Selection surface shared across rows (motion layoutId): a raised card, not a color fill. */
+.chat-row__pill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-group);
+  background: var(--row-selected);
+  box-shadow: var(--shadow-row);
+}
+.chat-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.chat-row__line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.chat-row__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-row__time {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.chat-row__preview {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.badge {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+.unread-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Controls. */
+.tool {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--fg-2);
+}
+.tool:hover {
+  background: var(--fill);
+}
+.tool:active {
+  background: var(--fill-2);
+}
+.tool[aria-pressed="true"] {
+  color: var(--accent);
+}
+.round {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--fg-2);
+}
+.round:hover {
+  background: var(--fill);
+}
+.round--send {
+  background: var(--accent);
+  color: #fff;
+}
+.round--send:hover {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+.round--send:disabled {
+  background: var(--fill);
+  color: var(--fg-3);
+  filter: none;
+}
+.round--stop {
+  background: var(--red);
+  color: #fff;
+}
+.btn {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--fill);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--fill-2);
+}
+.btn--primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.btn--primary:hover {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+.btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 0.5px solid var(--line);
+  background: var(--window);
+  outline: none;
+}
+.input:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2));
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+/* Card: one style for every inline component; a soft lift, no outline. */
+.card {
+  width: 340px;
+  max-width: calc(100vw - 96px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-soft);
+}
+.card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.card__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.card__text b {
+  font-weight: 600;
+}
+.card__text span {
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.card__glyph {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--fill);
+  color: var(--fg-2);
+}
+.card__glyph[data-tone="warn"] {
+  background: color-mix(in srgb, var(--orange) 16%, transparent);
+  color: var(--orange);
+}
+.card__glyph[data-tone="accent"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.card__pct {
+  font-size: 12px;
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+}
+/* Footer swapped by motion (actions ⇄ outcome); clips while its height animates. */
+.card__foot {
+  overflow: hidden;
+  margin: -2px;
+  padding: 2px;
+}
+.card__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.card__answer {
+  display: flex;
+  gap: 8px;
+}
+.outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.outcome[data-tone="good"] {
+  color: var(--green);
+}
+.outcome[data-tone="bad"] {
+  color: var(--red);
+}
+.meter {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fill);
+  overflow: hidden;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.6s var(--ease);
+}
+
+/* Popover and toast. */
+.popover {
+  position: absolute;
+  z-index: 40;
+  min-width: 220px;
+  padding: 5px;
+  border-radius: var(--r-group);
+  background: var(--sidebar-solid);
+  box-shadow: var(--shadow-pop);
+}
+.popover button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  text-align: left;
+}
+.popover button[aria-selected="true"],
+.popover button:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.popover small {
+  margin-left: auto;
+  color: inherit;
+  opacity: 0.7;
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--sidebar-solid);
+  box-shadow: var(--shadow-pop);
+  font-weight: 500;
+}
+.show-phone {
+  display: none;
+}

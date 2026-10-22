@@ -1,0 +1,434 @@
+/* Photos, files, reply quotes, the composer tray, and the photo viewer. */
+
+/* Photo grid in a message. */
+.images {
+  display: grid;
+  gap: 3px;
+  width: min(300px, 66vw);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.images:not([data-count="1"]) {
+  grid-template-columns: 1fr 1fr;
+}
+.images[data-count="1"] {
+  width: auto;
+  max-width: min(300px, 66vw);
+}
+.images__cell {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--fill);
+}
+.images__cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.images__cell img {
+  display: block;
+  transition:
+    transform 0.5s var(--ease),
+    filter 0.4s var(--ease);
+}
+.images__cell:hover img {
+  transform: scale(1.03);
+}
+.images[data-count="1"] img {
+  max-width: 100%;
+  max-height: 340px;
+}
+.images:not([data-count="1"]) .images__cell {
+  aspect-ratio: 1;
+}
+.images:not([data-count="1"]) img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.images[data-count="3"] .images__cell:first-child {
+  grid-row: span 2;
+  aspect-ratio: auto;
+}
+.images__cell img[data-uploading] {
+  filter: brightness(0.8) saturate(0.85);
+}
+.images__more {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.45);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+/* Upload progress: fills quickly, then waits near the end until the upload is done. */
+.upload-bar {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.35);
+  overflow: hidden;
+}
+.upload-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: #fff;
+  animation: upload 1.2s var(--ease) forwards;
+}
+@keyframes upload {
+  from {
+    width: 0;
+  }
+  to {
+    width: 92%;
+  }
+}
+
+/* File tile. */
+.file {
+  position: relative;
+  width: 280px;
+  max-width: calc(100vw - 96px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px 10px 10px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--shadow-soft);
+}
+.file .upload-bar {
+  left: 56px;
+  right: 14px;
+  bottom: 7px;
+  background: var(--fill-2);
+}
+.file .upload-bar i {
+  background: var(--accent);
+}
+.file__ext {
+  width: 36px;
+  height: 40px;
+  flex: none;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.file__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.file__text b {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file__text span {
+  font-size: 12px;
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reply quote above a message: a faded, smaller bubble that links to the original. */
+.quote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 12px 6px 8px;
+  border-radius: 14px;
+  background: var(--fill);
+  color: var(--fg-2);
+  font-size: 12.5px;
+  text-align: left;
+  transition: background-color 0.2s var(--ease);
+}
+.quote:hover {
+  background: var(--fill-2);
+}
+.quote--gone {
+  padding-left: 12px;
+}
+.quote__thumb {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 7px;
+  object-fit: cover;
+}
+.quote__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.quote__text b {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.quote__text span {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hover reply action (pointer devices) and swipe hint (touch). */
+.msg__reply {
+  flex: none;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--fg-3);
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 0.18s var(--ease),
+    transform 0.18s var(--ease),
+    background-color 0.2s var(--ease);
+}
+.msg:hover .msg__reply,
+.msg__reply:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+.msg__reply:hover {
+  background: var(--fill);
+  color: var(--fg);
+}
+.msg__swipe {
+  position: absolute;
+  right: -36px;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin-top: -14px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--fill);
+  color: var(--fg-2);
+}
+@media (pointer: coarse) {
+  .msg__reply {
+    display: none;
+  }
+}
+
+/* Composer tray: reply bar and pending files, inside the composer box. */
+.tray-reply,
+.tray-files {
+  overflow: hidden;
+}
+.tray-reply__inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px 4px 12px;
+  color: var(--accent);
+}
+.tray-reply__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.tray-reply__text b {
+  font-size: 12px;
+  font-weight: 600;
+}
+.tray-reply__text span {
+  font-size: 12.5px;
+  color: var(--fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tray-files__row {
+  display: flex;
+  gap: 10px;
+  padding: 12px 12px 4px;
+  overflow-x: auto;
+}
+.tray-item {
+  position: relative;
+  flex: none;
+  height: 64px;
+  border-radius: 12px;
+  background: var(--fill);
+}
+.tray-item[data-type="image"] {
+  width: 64px;
+}
+.tray-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+  display: block;
+}
+.tray-item__file {
+  height: 100%;
+  max-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 10px;
+}
+.tray-item__file .file__ext {
+  width: 30px;
+  height: 34px;
+  font-size: 8.5px;
+}
+.tray-item__name {
+  min-width: 0;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tray-item__x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--fg);
+  color: var(--window);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+
+/* Photo viewer: deliberately dark in both themes so the photo reads true. */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top, 0px)) 24px calc(96px + env(safe-area-inset-bottom, 0px));
+  background: rgb(8 9 13 / 0.86);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.lightbox__img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 12px;
+  object-fit: contain;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.45);
+}
+.lightbox__bar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgb(30 32 40 / 0.92);
+  color: #fff;
+}
+.lightbox__bar .tool {
+  color: rgb(255 255 255 / 0.8);
+}
+.lightbox__bar .tool:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+.lightbox__bar .tool:disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+.lightbox__name {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px;
+  line-height: 1.3;
+}
+.lightbox__name b {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lightbox__name span {
+  font-size: 11.5px;
+  color: rgb(255 255 255 / 0.6);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Limit notice in the composer tray. */
+.tray-notice {
+  margin: 0;
+  overflow: hidden;
+  padding: 8px 12px 0;
+  font-size: 12.5px;
+  color: var(--red);
+}
+
+/* Drop overlay over the conversation column. */
+.conversation {
+  position: relative;
+}
+.drop {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--window) 78%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+.drop__target {
+  width: min(360px, 100%);
+  padding: 36px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  border-radius: 16px;
+  border: 1.5px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.drop__target b {
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.drop__target span {
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
