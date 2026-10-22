@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/lead-caps";
 import { listUndelivered } from "../src/storage/thread-event-store";
-import { type Call, leadHarness, until, workersDone } from "./lead-harness";
+import { type Call, leadHarness, until } from "./lead-harness";
 
 /* End to end with a fake query: owner -> lead -> Orchestrate dispatch -> worker -> Report result -> announce -> Orchestrate forward. */
 

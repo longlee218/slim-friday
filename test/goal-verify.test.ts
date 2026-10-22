@@ -6,7 +6,6 @@ import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
 import { MAX_FIX_LOOPS } from "../src/config/resilience-caps";
 import { renderDigest } from "../src/ingress/digest-copy";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { handleRetry } from "../src/orchestrator/lead/lead-retry-handler";
 import { afterVerify } from "../src/orchestrator/plan/goal-verify";
 import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";

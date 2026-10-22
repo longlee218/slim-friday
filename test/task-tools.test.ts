@@ -19,7 +19,6 @@ import { insertOwnedTask } from "../src/storage/owned-task-store";
 import { appendEvent } from "../src/storage/thread-event-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { item, spend, TH } from "./plan-fixture";
-import { createPlanFor, plannerCtxOf } from "./plan-visibility-helpers";
 
 /* Phase 4 step 2A: the lead's add / update / get / search, the duplicate check (rule 3) on dispatch, add and Plan create. */
 

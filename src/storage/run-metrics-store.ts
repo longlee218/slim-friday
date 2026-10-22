@@ -121,16 +121,6 @@ export function spentByTask(db: Database, turnId: string): number {
   return row?.usd ?? 0;
 }
 
-/** Raw `input_json` of every call of tool `tool` in a turn (main agent and subagents), oldest first. */
-export function toolInputsOfTurn(db: Database, turnId: string, tool: string): string[] {
-  return db
-    .query<{ input: string }, [string, string]>(
-      "SELECT input_json AS input FROM tool_calls WHERE turn_id = ? AND tool = ? ORDER BY rowid",
-    )
-    .all(turnId, tool)
-    .map((r) => r.input);
-}
-
 /** Cost (USD) of every run of the turns linked to these owned tasks. */
 export function costOfTasks(db: Database, taskIds: readonly string[]): number {
   if (!taskIds.length) return 0;

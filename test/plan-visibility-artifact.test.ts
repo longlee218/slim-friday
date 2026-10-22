@@ -3,7 +3,6 @@ import { afterEach, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
 import type { ViewerConfig } from "../src/config/viewer-config";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import {
   currentVersion,
   planUrlOfGoal,

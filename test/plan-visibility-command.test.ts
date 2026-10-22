@@ -1,7 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { renderPlanFacts } from "../src/ingress/plan-copy";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { createPlanLookup } from "../src/orchestrator/turns/plan-live";
 import { recordBotThread } from "../src/storage/thread-store";

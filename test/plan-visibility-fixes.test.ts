@@ -4,7 +4,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { writeArtifact } from "../src/artifacts/artifact-writer";
 import { renderPlanFacts } from "../src/ingress/plan-copy";
 import { pinThreadLanguage } from "../src/ingress/user-copy";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { syncPlanArtifacts } from "../src/orchestrator/plan/plan-artifact";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { diffVersions, isNoop, type RevisionDiff } from "../src/orchestrator/plan/plan-revised";

@@ -84,7 +84,7 @@ export type UserNotice =
     };
 
 /** Digits, yes/no and slash commands say nothing about the language: they inherit the conversation's. */
-const NEUTRAL = /^(?:\d+|yes|no|ok|okay|go|stop|\/go(?: \+\d+(?:\.\d+)?)?|\/stop)[.!?]*$/i;
+const NEUTRAL = /^(?:\d+|yes|no|ok|okay|go|stop|\/stop)[.!?]*$/i;
 /** The detector must beat the other language by this much, else the text is treated as undecided. */
 const DETECT_MARGIN = 0.3;
 

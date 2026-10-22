@@ -9,13 +9,6 @@ export type RiskClass = Risk | "R4";
 /** The four effect tools, the only way to do R2/R3 work. */
 export type EffectTool = (typeof EFFECT_TOOL_NAMES)[number];
 
-/** Order of the classes, low to high (`maxRisk`, envelope checks). */
-const ORDER: readonly RiskClass[] = ["R0", "R1", "R2", "R3", "R4"];
-
-/** The higher of two classes. */
-export const maxRisk = (a: RiskClass, b: RiskClass): RiskClass =>
-  ORDER.indexOf(a) >= ORDER.indexOf(b) ? a : b;
-
 /** Default bound of one goal's deferred scope (brainstorm 5.14): items and bytes moved to the trash. */
 export const DEFAULT_BOUNDS = { maxItems: 200, maxBytes: 50 * 1024 ** 3 } as const;
 

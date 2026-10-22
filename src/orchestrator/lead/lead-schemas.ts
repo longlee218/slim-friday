@@ -6,7 +6,6 @@ import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 import { RESULT_KINDS } from "../../roles/typed-result";
 import {
-  BLOCKER_REASON_MAX_CHARS,
   BRIEF_MAX_CHARS,
   MAX_ASSIGNMENTS,
   MAX_REQUESTS,
@@ -19,7 +18,6 @@ import {
   REASON_MAX_CHARS,
   REPORT_SUMMARY_MAX_CHARS,
   REQUEST_MAX_CHARS,
-  SEARCH_QUERY_MAX_CHARS,
   STEER_TEXT_MAX_CHARS,
 } from "./lead-limits";
 

@@ -3,7 +3,6 @@ import { afterEach, expect, test } from "bun:test";
 import { renderUserNotice } from "../src/ingress/user-copy";
 import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
 import { logger } from "../src/observability/logger";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import type { DeliveryEffect } from "../src/orchestrator/plan/plan-types";
 import { expectedDelivery } from "../src/orchestrator/turns/completion";

@@ -9,14 +9,12 @@ import { type Edit, revisePlan } from "../src/orchestrator/plan/plan-revision";
 import { validatePlan } from "../src/orchestrator/plan/validate-plan";
 import { checkDispatch } from "../src/orchestrator/strategy/dispatch-policy";
 import { cancelDependents, settleGoal } from "../src/orchestrator/worker/goal-settle";
-import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
-import { dispatchableWorkers, ROLES } from "../src/roles/role-registry";
+import { dispatchableWorkers } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { childrenOf } from "../src/storage/owned-item-store";
 import { getOwnedTask } from "../src/storage/owned-task-store";
 import { getPlan, planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
-import { toolOptions, toolsFor } from "../src/tools/tool-catalog";
 import { FakePort } from "./lead-fake-port";
 import { openPlanGoal } from "./plan-fixture";
 

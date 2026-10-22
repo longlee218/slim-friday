@@ -3,7 +3,6 @@ import { afterEach, expect, test } from "bun:test";
 import { z } from "zod";
 import { CREATE_PULL_REQUEST_TOOL } from "../src/mcp/effects/tools/CreatePullRequestTool/constants";
 import { GIT_PUSH_TOOL } from "../src/mcp/effects/tools/GitPushTool/constants";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import { CREATE_PLAN_SHAPE } from "../src/orchestrator/plan/plan-schemas";
 import { loadEnvelope } from "../src/policy/load-envelope";

@@ -1,14 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  realpathSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { deletePaths } from "../src/orchestrator/effects/delete-paths";
 import { moveToTrash } from "../src/orchestrator/effects/trash-store";

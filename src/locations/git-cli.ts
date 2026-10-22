@@ -37,8 +37,8 @@ interface GitResult {
   stderr: string;
 }
 
-/** Run `git <args>` in `cwd` (a directory that exists). Never throws on a non-zero exit; see `gitOut`. */
-async function runGit(args: string[], cwd: string): Promise<GitResult> {
+/** Run `git <args>` in `cwd` (a directory that exists). Never throws on a non-zero exit. */
+async function _runGit(args: string[], cwd: string): Promise<GitResult> {
   const proc = Bun.spawn(["git", ...GIT_HARDEN, ...gitIsolationArgs(), ...args], {
     cwd,
     stdout: "pipe",
@@ -53,14 +53,4 @@ async function runGit(args: string[], cwd: string): Promise<GitResult> {
     new Response(proc.stderr).text(),
   ]);
   return { code: await proc.exited, stdout, stderr };
-}
-
-/** `runGit` that returns trimmed stdout and throws (message = first stderr line) on a non-zero exit. */
-async function gitOut(args: string[], cwd: string): Promise<string> {
-  const r = await runGit(args, cwd);
-  if (r.code !== 0) {
-    const line = r.stderr.trim().split("\n")[0] || `exit ${r.code}`;
-    throw new Error(`git ${args[0]} failed: ${line}`);
-  }
-  return r.stdout.trim();
 }

@@ -7,7 +7,7 @@ import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { goalCaps, openGoalIdOf } from "../src/orchestrator/goal/effect-port-queries";
 import { handleApprovePlan } from "../src/orchestrator/lead/lead-plan-handlers";
 import { toPlanItem } from "../src/orchestrator/plan/plan-doc";
-import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
+import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import { renderPlan } from "../src/orchestrator/plan/plan-render";
 import { type Edit, revisePlan } from "../src/orchestrator/plan/plan-revision";
 import { stopThreadTree } from "../src/orchestrator/run/stop-thread-tree";

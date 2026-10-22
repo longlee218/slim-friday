@@ -1,7 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { createAnnouncer, pendingNews } from "../src/orchestrator/lead/lead-events";
 import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
 import {

@@ -1,15 +1,4 @@
 import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants";
-import {
-  EDIT_TOOL_NAME,
-  GLOB_TOOL_NAME,
-  GREP_TOOL_NAME,
-  MULTI_EDIT_TOOL_NAME,
-  NOTEBOOK_EDIT_TOOL_NAME,
-  READ_TOOL_NAME,
-  WEB_FETCH_TOOL_NAME,
-  WEB_SEARCH_TOOL_NAME,
-  WRITE_TOOL_NAME,
-} from "../../tools/sdk-tool-names";
 
 /*
  * Shared text of the task-worker contracts (scout, researcher, developer and the six roster specialists), phase 2b of the
@@ -36,8 +25,3 @@ export const NO_SHELL_WRITER_FACT =
 /** Roster roles with a shell and write (tester, devops, designer): a local commit only when the brief asks; delivery stays the developer's. */
 export const shellCommitFact = (prefixes: string): string =>
   `- Commit: only when the brief asks, a local commit of only the files of this item, one short conventional line (${prefixes}), never any AI or model attribution, never a secret or key file. Push, merge, PR and deleting existing files are the developer's (checked tools, owner approval). The shell does not block them, so do not run them.`;
-
-/** Tool groups named in the Environment sections (names from the constants, never literals). */
-export const READ_TOOLS = `${READ_TOOL_NAME}, ${GLOB_TOOL_NAME}, ${GREP_TOOL_NAME}`;
-export const WRITE_TOOLS = `${WRITE_TOOL_NAME}, ${EDIT_TOOL_NAME}, ${MULTI_EDIT_TOOL_NAME}, ${NOTEBOOK_EDIT_TOOL_NAME}`;
-export const WEB_TOOLS = `${WEB_SEARCH_TOOL_NAME}, ${WEB_FETCH_TOOL_NAME}`;

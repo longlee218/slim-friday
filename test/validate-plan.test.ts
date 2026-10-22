@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../src/config/lead-caps";
-import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
 import { buildEnvelope, toPlanItem } from "../src/orchestrator/plan/plan-doc";
 import { normalizeRisk, type PlanCtx, type PlanDoc } from "../src/orchestrator/plan/plan-types";
 import { validatePlan } from "../src/orchestrator/plan/validate-plan";

@@ -61,10 +61,6 @@ export function buildEnvelope(
   };
 }
 
-/** Roles of a revised envelope: the approved version's roles plus the new items' (only a really new role then counts as growth). */
-export const carryRoles = (approved: readonly string[], derived: readonly string[]): string[] =>
-  [...new Set([...approved, ...derived])].sort();
-
 /** The stored columns of a plan version (JSON text). */
 export function rowFieldsOf(doc: PlanDoc) {
   return {

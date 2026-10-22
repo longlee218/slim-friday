@@ -1,6 +1,4 @@
 import { expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { writeArtifact } from "../src/artifacts/artifact-writer";
 import { logger } from "../src/observability/logger";
 import { closeTurn } from "../src/orchestrator/turns/turn-result";

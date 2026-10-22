@@ -93,8 +93,8 @@ function pruneDir(dir: string, oldest: string): number {
 }
 
 /**
- * Delete the `YYYY-MM-DD.md` journal files older than `JOURNAL_RETENTION_DAYS`: every channel's journal dir and the
- * old per-workspace `memory/` dir (files of the retired layout that the migration did not move stay unread, 30 d promise).
+ * Delete the `YYYY-MM-DD.md` journal files older than `JOURNAL_RETENTION_DAYS` in every channel's journal dir, and
+ * those of the retired per-workspace `memory/` dir (unread files of the old layout, same 30 d promise).
  */
 export function pruneJournals(home: string, now: Date = new Date()): number {
   const oldest = localDay(new Date(now.getTime() - JOURNAL_RETENTION_DAYS * 86_400_000));

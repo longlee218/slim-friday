@@ -74,8 +74,3 @@ export function setMemoryMark(
     sessionId,
   );
 }
-
-/** Forget a thread's session so the next message starts a fresh one. */
-export function deleteSession(db: Database, threadId: string): void {
-  db.query("DELETE FROM sessions WHERE thread_id = ?").run(threadId);
-}

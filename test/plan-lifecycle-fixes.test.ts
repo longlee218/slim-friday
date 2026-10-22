@@ -17,18 +17,8 @@ import { getOwnedTask, insertOwnedTask } from "../src/storage/owned-task-store";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { getPlan, planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
-import { FakePort, itemRow, leadCtx } from "./lead-fake-port";
-import {
-  approvedPlan,
-  byKey,
-  complete,
-  ENV,
-  item,
-  keysOf,
-  openPlanGoal,
-  spend,
-  TH,
-} from "./plan-fixture";
+import { FakePort, leadCtx } from "./lead-fake-port";
+import { approvedPlan, byKey, complete, ENV, item, openPlanGoal, spend, TH } from "./plan-fixture";
 
 /* Plan lifecycle fixes (phase 2 of the orchestration hardening; B<n> = finding n of the boundary audit). */
 

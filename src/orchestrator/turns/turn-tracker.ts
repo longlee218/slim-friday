@@ -99,12 +99,6 @@ export function beginTurn(
   logEvent(log, "task.started", { location: logLocation, type: t.role });
 }
 
-/** Log a refused task (`task.refused`) and return the reply text for the owner. */
-function refused(log: Logger, r: { reason: string; reply: string }): string {
-  logEvent(log, "task.refused", { reason: r.reason, reply: r.reply });
-  return r.reply;
-}
-
 /** Mark a turn row `failed` on a crash path. Never throws (the db may be closed during shutdown). */
 export function failTurn(db: Database, log: Logger, turnId: string): void {
   tryLog(log, "finishTurn failed", () => {

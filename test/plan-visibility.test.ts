@@ -9,7 +9,6 @@ import type { ViewerConfig } from "../src/config/viewer-config";
 import { renderDigest } from "../src/ingress/digest-copy";
 import { type PlanFacts, renderPlanFacts } from "../src/ingress/plan-copy";
 import { renderUserNotice } from "../src/ingress/user-copy";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/lead/lead-runtime";
 import { planUrlOfGoal, syncPlanArtifacts } from "../src/orchestrator/plan/plan-artifact";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";

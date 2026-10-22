@@ -1,22 +1,12 @@
-import { type OwnerLanguage, renderUserNotice } from "../../ingress/user-copy";
+import { type OwnerLanguage } from "../../ingress/user-copy";
 import { spawnRunner } from "../../locations/git-run";
-import { channelDigestBlock } from "../../memory/channel-digest";
-import { logEvent, logger } from "../../observability/logger";
-import { errText } from "../../observability/redact";
 import { ownerConfirm } from "../../owner-approval/owner-confirm";
 import type { DispatchEnvelope } from "../../policy/envelope";
-import { dispatchableWorkers } from "../../roles/role-registry";
-import { channelDigest } from "../../storage/thread-store";
-import { type LeadRuntime, type LeadThreadCtx, postTo } from "../lead/lead-runtime";
+import { type LeadRuntime, type LeadThreadCtx } from "../lead/lead-runtime";
 import { artifactCtx, locationRefs } from "../lead/thread-tool-ctx";
-import { planLinks, planUrlOfGoal, syncPlanArtifacts } from "../plan/plan-artifact";
-import { revisionNotice } from "../plan/plan-revised";
 import type { RoleRunInput } from "../run/role-run-types";
 import type { ReportSink } from "./report-sink";
 import { setProgress, withWaiting } from "./run-activity";
-
-/** Logger of this module. */
-const log = logger.child({ module: "worker-app-ctx" });
 
 /** What a worker run binds its tools to. */
 interface WorkerToolScope {
@@ -43,7 +33,6 @@ export function workerAppCtx(
 ): NonNullable<RoleRunInput["appCtx"]> {
   const { db } = rt.deps;
   const { threadId, goalId, itemId } = s;
-  const view = { db, home: rt.deps.config.agentHome, viewer: rt.deps.config.viewer };
   return () => ({
     reportSink: s.sink,
     scratchDir: s.envelope.goalDir,

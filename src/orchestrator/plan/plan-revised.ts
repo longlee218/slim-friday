@@ -19,10 +19,6 @@ export interface RevisionDiff {
   reason: string;
 }
 
-/** True when the owner and the lead must hear of the revision (it cancelled work or changed the criteria). */
-export const isNoteworthy = (d: RevisionDiff): boolean =>
-  d.cancelled.length > 0 || d.criteriaChanged;
-
 /** True when nothing the owner sees changed (no item added, cancelled or modified, same criteria): no line is posted. */
 export const isNoop = (d: RevisionDiff): boolean =>
   !d.added.length && !d.cancelled.length && !d.modified.length && !d.criteriaChanged;

@@ -17,7 +17,6 @@ import { appendEffect, PLAN_ASK_TOOL } from "../src/storage/effect-log-store";
 import { childrenOf } from "../src/storage/owned-item-store";
 import { getOwnedTask } from "../src/storage/owned-task-store";
 import { planVersions } from "../src/storage/work-plan-store";
-import { moveTaskTo } from "../src/tasks/task-resolver";
 import { ENV, item, openPlanGoal, TH } from "./plan-fixture";
 
 /* Phase 3 boundary, second half: contract text, tool rows of the table, the guard that needs a real plan, effect-log

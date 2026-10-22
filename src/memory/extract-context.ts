@@ -77,7 +77,3 @@ export function extractContext(messages: readonly ChatText[]): ExtractedContext 
     preferences: out.preferences.slice(-EXTRACT_MAX_ITEMS),
   };
 }
-
-/** Total items of an extract. */
-export const extractSize = (e: ExtractedContext): number =>
-  e.decisions.length + e.facts.length + e.preferences.length;

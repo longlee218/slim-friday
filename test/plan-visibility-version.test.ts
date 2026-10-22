@@ -2,7 +2,6 @@ import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { DIGEST_FLOOR_MS } from "../src/config/resilience-caps";
 import type { ViewerConfig } from "../src/config/viewer-config";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
 import { planUrlOfGoal, syncPlanArtifacts } from "../src/orchestrator/plan/plan-artifact";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";

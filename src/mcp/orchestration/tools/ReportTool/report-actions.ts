@@ -17,7 +17,6 @@ import {
   REPORT_ACTION_PROGRESS,
   REPORT_ACTION_RESULT,
 } from "./action-names";
-import { REPORT_TOOL } from "./constants";
 
 const log = logger.child({ module: "report-tool" });
 
