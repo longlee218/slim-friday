@@ -107,8 +107,8 @@ export function setTaskResult(
   ).run(r.path, r.excerpt, r.text ?? null, r.kind ?? null, id);
 }
 
-/** Item statuses that still count as work in progress. */
-const OPEN_ITEM = "('pending', 'ready', 'running', 'waiting_user', 'blocked')";
+/** Item statuses that still count as work in progress (SQL list). */
+export const OPEN_ITEM = "('pending', 'ready', 'running', 'waiting_user', 'blocked')";
 
 /**
  * Id of the thread's newest goal of `ownerRole` (a goal = a row without a parent) with status `open` and at least

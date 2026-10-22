@@ -1,4 +1,4 @@
-import { integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /** A versioned work plan (strategy, body, acceptance, envelope) with its approval state. */
 export const work_plans = sqliteTable(
@@ -33,5 +33,8 @@ export const work_plans = sqliteTable(
     /** Epoch ms approved. */
     approved_at: integer(),
   },
-  (t) => [primaryKey({ columns: [t.id, t.version] })],
+  (t) => [
+    primaryKey({ columns: [t.id, t.version] }),
+    index("work_plans_goal").on(t.goal_id, t.status),
+  ],
 );

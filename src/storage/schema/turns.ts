@@ -35,7 +35,13 @@ export const turns = sqliteTable(
     /** Owned task row this turn works on. */
     owned_task_id: text(),
   },
-  (t) => [index("idx_turns_thread").on(t.thread_id)],
+  (t) => [
+    index("idx_turns_thread").on(t.thread_id),
+    index("idx_turns_task").on(t.owned_task_id),
+    index("idx_turns_session").on(t.session_id),
+    index("idx_turns_role_status").on(t.role, t.status),
+    index("idx_turns_ended").on(t.ended_at),
+  ],
 );
 
 /** Pending/decided tool approval of a turn (Discord buttons). */

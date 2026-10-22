@@ -31,7 +31,10 @@ export const thread_events = sqliteTable(
     /** Times the event was delivered again after a crash. */
     redelivered: integer().notNull().default(0),
   },
-  (t) => [index("thread_events_pending").on(t.thread_id, t.delivered_at, t.seq)],
+  (t) => [
+    index("thread_events_pending").on(t.thread_id, t.delivered_at, t.seq),
+    index("thread_events_item").on(t.item_id, t.kind),
+  ],
 );
 
 /** Messages the thread shows (placeholders, progress, answers), ordered per thread. */

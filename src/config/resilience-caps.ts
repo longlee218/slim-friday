@@ -42,3 +42,6 @@ export const ABORT_GRACE_MS = 5 * 60_000;
 
 /** A force-closed writer run still has not returned this long (ms) after the reaper gave up on it: its location is still claimed and the lead is told once (no process is reachable to kill; the claim stays until the run returns). */
 export const ZOMBIE_CLAIM_NOTICE_MS = 30 * 60_000;
+
+/** Finished history older than this (days) is deleted from the db: ended runs, delivered events, effect log, closed goals. */
+export const DB_RETENTION_DAYS = 10;

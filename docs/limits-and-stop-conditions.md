@@ -326,7 +326,8 @@ Informational.
 | Promotion ledger (`memory_promotions`) | `JOURNAL_RETENTION_DAYS` + 1 = 31 days since the bullet was consumed; pruned with the episodes | `memory/memory-prune.ts` |
 | Episodes (`thread_summaries`) | `EPISODE_TTL_DAYS` = 90 days since the last update; pruned at start and every `PRUNE_INTERVAL_MS` | `memory/memory-prune.ts` |
 | Memory audit (`memory_audit`: one row per `MemorySave` / `MemoryEdit`, hash only) | forever (owner: no limit, no prune) | `storage/memory-audit-store.ts` |
-| Other database rows | forever (no pruning; `thread_summaries` excepted) | see Not now |
+| Finished db history: ended turns with their runs, tool calls and approvals (a turn of a still-open item is kept); delivered `thread_events`; `effect_log`; closed goals with no open item, with their items, plans and item questions | `DB_RETENTION_DAYS` = 10 days <!-- limit:DB_RETENTION_DAYS=10 -->; swept at start and every 6 h | `config/resilience-caps.ts`, `storage/db-retention-store.ts`, `lifecycle/db-retention-sweeper.ts` |
+| Other database rows (threads, sessions, artifacts) | forever | see Not now |
 
 ## Not Now
 

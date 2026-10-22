@@ -55,5 +55,5 @@ export const tool_calls = sqliteTable(
     /** Turn of the call. */
     turn_id: text(),
   },
-  (t) => [index("idx_tool_calls_run").on(t.run_id)],
+  (t) => [index("idx_tool_calls_run").on(t.run_id), index("idx_tool_calls_turn").on(t.turn_id)],
 );

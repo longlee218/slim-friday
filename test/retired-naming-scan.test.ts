@@ -188,6 +188,8 @@ const TASK_ID_OK = [
   "worktree-store.ts",
   "item-age-store.ts", // reads turns.owned_task_id
   "item-age.test.ts",
+  "db-retention-store.ts", // deletes by turns.owned_task_id
+  "db-retention.test.ts",
   "files-changed.ts",
   "run-message-store.ts",
   "clone-retention.ts",
