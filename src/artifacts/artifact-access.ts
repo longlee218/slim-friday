@@ -16,6 +16,7 @@ import {
 import { readRepoText } from "./artifact-repo-sync";
 import { type ArtifactHit, searchArtifacts } from "./artifact-search";
 import { writeArtifact } from "./artifact-writer";
+import { repoDocsTarget, storeRootOf } from "./repo-docs";
 
 /**
  * What the artifact tools know about the run they belong to. The scope (workspace + channel) comes from the run, never
@@ -109,9 +110,15 @@ export function searchChannel(
 function artifactText(c: ArtifactToolCtx, a: ArtifactRow): string | null {
   if ((a.kind as ArtifactKind) === "html") return null;
   if (a.origin === "store") {
-    // A store path is app-written; it is re-checked anyway (a row must never lead outside AGENT_HOME).
+    // A store path is app-written; it is re-checked anyway (a row must never lead outside AGENT_HOME, or outside the
+    // `docs/friday` folder of the location it names).
     const real = resolveReal(a.path);
-    if (!isInside(resolveReal(c.home), real)) return null;
+    const root = storeRootOf(
+      c.home,
+      a.location,
+      (n) => c.locations.find((l) => l.name === n)?.path,
+    );
+    if (!root || !isInside(root, real)) return null;
     return redactText(readFileSync(real, "utf8"));
   }
   const loc = c.locations.find((l) => l.name === a.location);
@@ -163,7 +170,16 @@ export function readArtifact(c: ArtifactToolCtx, id: string, offset = 0, limit?:
   };
 }
 
-/** Save a document artifact in the run's channel (through the phase-3 writer; no size cap). */
+/** The run's project for a saved file (see `repoDocsTarget`), as the writer's `repoDocs` input; empty = AGENT_HOME. */
+const withRepoDocs = (c: ArtifactToolCtx) => {
+  const repoDocs = repoDocsTarget(c.granted, c.locations);
+  return repoDocs ? { repoDocs } : {};
+};
+
+/**
+ * Save a document artifact in the run's channel (through the phase-3 writer; no size cap). The file goes into the run's
+ * project (`<location>/docs/friday/`) when it has one, else into AGENT_HOME.
+ */
 export function saveArtifact(
   c: ArtifactToolCtx,
   a: { title: string; kind: ArtifactKind; body: string },
@@ -179,6 +195,7 @@ export function saveArtifact(
     fallbackName: "artifact",
     kind: a.kind,
     body: a.body,
+    ...withRepoDocs(c),
   });
   return { ok: true as const, id: w.id, version: w.version };
 }

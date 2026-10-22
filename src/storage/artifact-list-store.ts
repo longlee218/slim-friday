@@ -43,11 +43,15 @@ export function listChannelArtifacts(
 /**
  * Files a task saved itself (store origin, `task_id` = the task, not a code-written result summary: after a resume the old summary must not win), the task's PRIMARY first: the largest (a research
  * report beats its short summary), a tie goes to the newest. Used for the result path, the end event and verbatim forward.
+ * A name the task saved more than once counts once: only its newest version (an older draft is never posted again).
  */
 export function taskStoreArtifacts(db: Database, taskId: string): ArtifactRow[] {
   return db
     .query<ArtifactRow, [string]>(
-      `SELECT ${COLUMNS} FROM artifacts WHERE task_id = ? AND origin = 'store' AND summary = 0 ORDER BY size DESC, rowid DESC`,
+      `SELECT ${COLUMNS} FROM artifacts a WHERE task_id = ? AND origin = 'store' AND summary = 0
+        AND NOT EXISTS (SELECT 1 FROM artifacts b WHERE b.task_id = a.task_id AND b.origin = 'store'
+          AND b.summary = 0 AND b.name = a.name AND b.version > a.version)
+        ORDER BY size DESC, rowid DESC`,
     )
     .all(taskId);
 }
