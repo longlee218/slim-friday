@@ -7,7 +7,7 @@ import { REPORT_ACTIONS } from "../src/mcp/orchestration/tools/ReportTool/report
 
 const names = (table: { name: string }[]) => table.map((a) => a.name).sort();
 
-test("Orchestrate (lead) holds the 17 spec actions, set_title included", () => {
+test("Orchestrate (lead) holds the 16 spec actions, set_title included", () => {
   expect(names(ORCHESTRATE_ACTIONS)).toEqual(
     [
       "dispatch",

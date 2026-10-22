@@ -40,7 +40,7 @@ bun run bootstrap:discord   # create the ops channels
    - `src/orchestrator` has no runtime import cycle and never imports `providers/discord/setup/` (`test/no-import-cycles-orchestrator.test.ts`).
 9. **Lead policy is code constants and typed actions.** Caps live in `src/config/lead-caps.ts`; dispatch shape rules in `src/orchestrator/strategy/dispatch-policy.ts`. Lead tools are typed actions; their handlers check state, caps and compare-and-set. The lead starts only roles with `dispatchable: true`. Only a `kind: "worker"` role owns tasks.
 10. **Effects go through the effect port.** Each state change of a lead or effect tool is one atomic write (`src/orchestrator/goal/effect-port*.ts`, `effect_log` row). Handlers never write the database directly; tests use the fake port.
-11. **The planner never dispatches.** The `planner` writes a plan, code validates it (`src/orchestrator/plan/validate-plan.ts`), and the owner approves it once through `Orchestrate approve_plan`. The planner is not `dispatchable`.
+11. **The lead plans; developers execute.** The lead writes a plan with `Orchestrate create_plan` / `revise_plan`, code validates it (`src/orchestrator/plan/validate-plan.ts`), and the owner approves each version through `Orchestrate approve_plan`. There is no planner role (removed 2026-10-22).
 
 ## Orchestrator Layout
 Folders under `src/orchestrator/`:
@@ -48,17 +48,17 @@ Folders under `src/orchestrator/`:
 | Folder | Files | Holds |
 |---|---|---|
 | top level | 5 | `handle-message.ts` (entry), `handler-services.ts`, `handler-types.ts`, `message-commands.ts`, `reply.ts` |
-| `lead/` | 23 | lead queue and run, lead tool handlers and schemas, lead events and announce |
-| `worker/` | 25 | worker run, dispatch-ready, question relay, result file, run report, goal settle, recovery |
+| `lead/` | 25 | lead queue and run, lead tool handlers and schemas, lead events and announce |
+| `worker/` | 27 | worker run, dispatch-ready, question relay, result file, run report, goal settle, recovery |
 | `run/` | 19 | `runTurn` (`run-turn.ts`), role run, role scope, `answer-output.ts`, live-run registry, stop tree, control scope |
 | `goal/` | 10 | effect port (db, plan and query adapters); task reads and the duplicate match (`task-reads.ts`, `task-match.ts`) |
 | `strategy/` | 5 | `dispatch-policy.ts`, `plan-policy.ts`, `lead-context-block.ts`, `caps` helpers |
-| `plan/` | 22 | plan types and schemas, validator, lifecycle and revision, materialize into items, planner handlers |
+| `plan/` | 18 | plan types and schemas, validator, lifecycle and revision, materialize into items, verify and fix items, plan artifacts and side effects |
 | `effects/` | 10 | effect tool logic (`delete-paths*`, `git-push`, `merge-branch`, `pull-request`), trash store and purge, effect tool names |
-| `budget/` | 3 | lead budget, task budget, budget-stop reply |
+| `budget/` | 4 | lead budget, task budget, budget-stop reply |
 | `events/` | 1 | thread outbox types |
 | `thread/` | 1 | thread state (derived) |
-| `turns/` | 16 | turn rows, completion (`Report result` + `effect_log`), run limiter, steer, status snapshot, progress notes |
+| `turns/` | 17 | turn rows, completion (`Report result` + `effect_log`), run limiter, steer, status snapshot, progress notes |
 
 - The memory flush after a compaction (`compaction-flush.ts`, `memory-jobs.ts`) is in `src/memory/`, not in the orchestrator.
 - Owned-task state machine and contracts are in `src/tasks/`.
@@ -72,7 +72,7 @@ Folders under `src/orchestrator/`:
 - Config as data: roles stay TypeScript objects. Roles as files plus a resolver is closed (owner decision, 2026-10-12). Keep role data flat so the move stays possible.
 
 ## MCP Tools
-- Six in-process servers, listed in `src/mcp/manifests.ts`: `memory`, `artifacts`, `orchestration`, `plan`, `effects`, `discord-admin`. Each server has `src/mcp/<server>/server.ts` (manifest) and tools in `src/mcp/<server>/tools/`.
+- Five in-process servers, listed in `src/mcp/manifests.ts`: `memory`, `artifacts`, `orchestration`, `effects`, `discord-admin` (the `plan` server was removed 2026-10-22; plan actions are `Orchestrate` rows). Each server has `src/mcp/<server>/server.ts` (manifest) and tools in `src/mcp/<server>/tools/`.
 - Tool folder: `src/mcp/<server>/tools/<Name>Tool/` (PascalCase folder). Files are kebab-case:
   - `constants.ts`: leaf data with the `<NAME>_TOOL` name constant. It imports only leaf files (two memory tools import `src/memory/memory-limits.ts`).
   - `prompt.ts`: the tool description.
@@ -83,7 +83,7 @@ Folders under `src/orchestrator/`:
 - Tests: `test/mcp-isolation.test.ts`, `test/mcp-layering.test.ts`, `test/tool-names.test.ts`, `test/tool-catalog.test.ts`.
 
 ### Action tools
-- An action tool is one MCP tool per caller with the input `{ action, params }` (`Plan` for the planner, `Report` for workers, `Orchestrate` for the lead). New capabilities are born as actions, not as tools.
+- An action tool is one MCP tool per caller with the input `{ action, params }` (`Report` for workers, `Orchestrate` for the lead). New capabilities are born as actions, not as tools.
 - The shared helper is `src/mcp/action-tool/`: `defineAction` (name, zod schema, example, handler) and `createActionTool` (the tool from a table). `action` is a `z.enum` of the table's names; `params` is a loose record, so no action schema sits in the tool definition. The handler checks `params` against the action's own schema.
 - Refusals: `BAD_PARAMS` (the action's param names and types plus one example), `BAD_ACTION` (the action list), `ACTION_UNAVAILABLE` (the run lacks what the action needs). The tool description is built from the table: one line per action, `name: param:type, optional?:type`, no prose. Meaning lives in the role skill.
 - Folder `src/mcp/<server>/tools/<Name>Tool/`: `constants.ts` (tool name only), `action-names.ts` (action name constants; kept apart because the tool-name scan reads every string in `constants.ts` as a tool name), `prompt.ts` (one-line intro), `<name>-actions.ts` (the table: each row binds an existing handler), `<name>-tool.ts` (about 10 lines). `action-names.ts` may be imported from outside `src/mcp` like `constants.ts` (`test/mcp-layering.test.ts`).
@@ -145,7 +145,7 @@ Scan tests read `src/` (and `docs/` where noted) on every `bun test` run. A viol
 3. **Error handling:** try/catch around I/O and SDK calls. Log the redacted error. Reply with a safe message ("Something went wrong. Check logs.").
 4. **No run timeout.** `/stop` is the only way to end a hung run (owner decision). The memory flush call has its own deadline (`FLUSH_DEADLINE_MS`, 60 s). Do not add a run timer without an owner decision.
 5. **Tools come from the catalog.** Build SDK tool lists through `src/tools/tool-catalog.ts` (`toolsFor`, `autoAllowedTools`, `toolOptions`). Never list tools inline.
-6. **Owner questions:** developer workers use `AskUserQuestion`; the lead uses `Orchestrate ask_owner`; a plan is approved once through `Orchestrate approve_plan`. Discord buttons are reused. Do not add a new Discord approval type for a plan, a finish step or a merge.
+6. **Owner questions:** developer workers use `AskUserQuestion`; the lead uses `Orchestrate ask_owner`; each plan version is approved through `Orchestrate approve_plan` (the owner is asked once per version). Discord buttons are reused. Do not add a new Discord approval type for a plan, a finish step or a merge.
 7. **Owner-confirm buttons** (`src/owner-approval/owner-confirm.ts`) gate the costly or final acts in code: worker effects (`effect`), `/purge` (`purge_trash`), persona writes (`write_space_file`), space creation (`create_space_or_channel`). No answer or a timeout means "do not run".
 8. **Credentials:** read config only through the zod schema in `src/config/agent-config.ts`. No secret in code.
 9. **Git for the app:** `src/locations/git-cli.ts` runs git with argv, never a shell. The app never clones, fetches or pulls a location; the agent runs git in the owner's checkout.

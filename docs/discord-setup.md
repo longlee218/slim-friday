@@ -217,7 +217,7 @@ Phase 5 (not verified live). Needs a thread with a PLAN goal; link steps need th
 Phases 1-6a of [plans/261018-1145-lead-team-orchestration-hardening](../plans/261018-1145-lead-team-orchestration-hardening/plan.md) (committed, not verified live). Diagrams: [lead-team-flow.md](lead-team-flow.md). Run in a test guild on a test space. Limits named here: [limits](limits-and-stop-conditions.md). Only use local branches to lower a limit, never commit it. Record pass or fail in the changelog entry.
 
 - [ ] **Plan feedback text.** At the plan approval ask, type a change instead of Yes or No (e.g. "drop the timer").
-  Pass: the lead gets your words as data (no approval), the plan stays `valid`, the lead calls `Orchestrate request_plan` with the goal id and your words as findings, the planner revises the plan (`Plan revise`; `Plan create` is refused while a version is valid), and nothing starts before the next approval.
+  Pass: the lead gets your words as data (no approval), the plan stays `valid`, the lead calls `Orchestrate revise_plan` (or `create_plan` with the goal id) with your words, a new `valid` version is stored and you are asked again (`approve_plan`), and nothing starts before your Yes.
 - [ ] **Blocker resumes.** Ask a developer task that needs one fact only you know (e.g. which env var name to use).
   Pass: the worker's `Report blocker` reaches the lead as `blocked` news; the lead asks you with `ask_owner`; your Discord reply to that question resumes the same item (`answer` event, item back to running, same session); no new dispatch.
 - [ ] **Restart with a pending owner message.** Send a message, stop the bot before the lead answers, restart.
@@ -225,12 +225,9 @@ Phases 1-6a of [plans/261018-1145-lead-team-orchestration-hardening](../plans/26
 - [ ] **Restart with a running worker.** Stop the bot during a developer item, restart.
   Pass: the item resumes its session (`recovered_after_restart` event with `autoResumed`), the lead hears once, the goal settles.
 - [ ] **Re-plan after reject.** On a PLAN goal, answer No with a reason.
-  Pass: the lead calls `Orchestrate request_plan` with the same goal id; the planner stores v2 in that goal; `/plan history` shows v1 rejected and v2. This also holds for a PLAN goal whose only item was its planner (fixed 2026-10-20; unit-tested only, confirm live).
+  Pass: the lead calls `Orchestrate create_plan` with the same goal id; v2 is stored in that goal; `/plan history` shows v1 rejected and v2. Unit-tested only, confirm live.
 - [ ] **Re-plan after expiry.** Leave a plan unanswered past `PENDING_PLAN_MAX_AGE_MS` (24 h; locally 10 min).
   Pass: one `PLAN_EXPIRED` timeout event, the lead tells you, `/plan history` shows v1 rejected; the re-plan is as above.
-- [ ] **Re-plan past MAX_WAVES.** Locally set `MAX_WAVES` to 1, plan with deferred scope, let the first wave finish, then re-plan.
-  Pass: the re-plan asks you Yes or No (`approve_plan`) and no item starts before your Yes; with scope still deferred and the cap reached, the goal is held (`WAVE_CAP` failure event) for the lead.
-- [ ] **Owner supersede, No (`OWNER_DENIED`).** While a PLAN goal is open, ask for new work that supersedes it.
   Pass: a Yes/No question first; on No the lead does not retry the supersede and the PLAN goal keeps running.
 - [ ] **Owner supersede, no answer (`OWNER_TIMEOUT`).** Same, but do not answer for 10 min (`ASK_OWNER_TIMEOUT_MS`).
   Pass: `OWNER_TIMEOUT`; nothing is cancelled.
@@ -376,7 +373,6 @@ The store is one SQLite file, `<AGENT_HOME>/data/agent.db`, built from the Drizz
 - [ ] Lead golden set, paid, report not a gate: `LEAD_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/lead-golden.eval.test.ts` (`LEAD_EVAL_MIN`, default 0.8).
 - [ ] Researcher research set, paid, report not a gate: `RESEARCHER_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/researcher-research.eval.test.ts` (`RESEARCHER_EVAL_MIN` default 0.7, `RESEARCHER_EVAL_ONLY` id prefix; the `SCOUT_EVAL*` names still work); run with and without `FIRECRAWL_API_KEY` to compare.
 - [ ] Scout codebase set, paid, report not a gate: `SCOUT_CODE_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/scout-codebase.eval.test.ts` (`SCOUT_CODE_EVAL_MIN` default 0.7).
-- [ ] Planner team staffing set, paid, report not a gate: `PLANNER_EVAL=1 CLAUDE_CODE_OAUTH_TOKEN=<token> bun test test/planner-team.eval.test.ts` (`PLANNER_EVAL_MIN` default 0.75, `PLANNER_EVAL_ONLY` id prefix, `PLANNER_EVAL_REPEAT`); then the caro request in Discord: PLAN, approve, items run across roles, record the cost.
 - [ ] `bun run metrics:lead [--days N]` against the real db (read-only; the bot may run).
 
 ### Low-config channel and location: owner live checklist
@@ -437,10 +433,10 @@ Run once after the limits work is merged (plan `plans/261017-1805-limits-and-sto
 6. **Goal cap.** A plan with 2 developer items.
    Pass: the second item's run budget is at most what the goal has left (log field `budget`).
 7. **Big plan.** Ask for a plan of 15-20 items.
-   Pass: the planner writes it, the approval message renders (message or file) and you can approve it.
+   Pass: the lead writes the spec and plan artifacts, `create_plan` stores it, the approval message renders (message or file) and you can approve it.
 8. **Question relay.** Leave a worker question unanswered for more than 30 min.
    Pass: it still waits (up to the relay wait); answering through the lead resumes the worker.
-9. **Subagents.** A developer run spawns up to 3 in parallel (the 4th is denied, log). `discord-manager`, lead, planner, scout and the specialists have no `Agent` tool. Allowlist check: ask the developer to have a subagent read a file (allowed), run a Bash command (allowed, sandboxed: a write outside the grant fails), call `Report result`, `GitPush` and a memory tool (each denied: `tool.denied` log with `agentId`); the parent's own `Report result` still works.
+9. **Subagents.** A developer run spawns up to 3 in parallel (the 4th is denied, log). `discord-manager`, lead, scout and the specialists have no `Agent` tool. Allowlist check: ask the developer to have a subagent read a file (allowed), run a Bash command (allowed, sandboxed: a write outside the grant fails), call `Report result`, `GitPush` and a memory tool (each denied: `tool.denied` log with `agentId`); the parent's own `Report result` still works.
    Pass: all as listed. Also note: one extra claude process per subagent or not (`ps`), the run cost stops at the run budget, any subagent failure caused by the missing `TodoWrite` / `ToolSearch`. Repeat after every SDK bump.
 10. **RSS under load.** With the pools busy (5 leads + 10 workers, at least 2 developers with subagents), sample every 30 s for 10 min: `ps -axo pid,rss,command | rg -i claude`, summed over the children of the bot pid (`pgrep -P <bot pid>`); also `vm_stat` free + inactive.
    Pass: record peak and average MB per process. Raise `WORKER_POOL_MAX` (`src/config/run-caps.ts`, then the limits doc row; the drift test enforces both) only when peak bot RSS is at most about 5 GB AND free + inactive stays at least about 1.5 GB at peak; new pool = floor(5 GB / peak MB per worker) - 5 (leads) - 1 (control). Lower it when swap grows or free + inactive drops under 1 GB.
@@ -486,7 +482,7 @@ While a long answer runs: `/stop`. Expected: the run stops and the reply confirm
 ```
 add a greeting function to src/hello.ts (in the app location)
 ```
-Expected (not verified live): the lead starts a `developer` run in the location and reports the result. Big or branching requests go to the planner, and the lead asks you once to approve the whole plan.
+Expected (not verified live): the lead starts a `developer` run in the location and reports the result. Big or branching requests go to a lead plan (`create_plan`), and the lead asks you to approve each version (`approve_plan`).
 
 **While a task runs** (lead behaviour, not verified live)
 - Messages in a thread go to the lead, which answers, asks, or dispatches work. `/stop` stops the whole task tree; `/status` shows what is running.
@@ -562,7 +558,7 @@ locations:
 
 ### Publisher skills
 - The publisher's skills (Superpowers, pinned by `skills-lock.json`) live in the app's `.agents/skills/`.
-- Each role lists the publisher skills it uses by name in its role data (`skills`): developer, scout, planner and discord-manager list theirs; the lead has none. There is no per-workspace or per-location switch.
+- Each role lists the publisher skills it uses by name in its role data (`skills`): developer, scout and discord-manager list theirs; the lead has none. There is no per-workspace or per-location switch.
 - Skills run whole and unmodified. Their ask steps go through AskUserQuestion (limit 6 per run).
 
 ### What a developer run does
