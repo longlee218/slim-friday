@@ -1,5 +1,4 @@
 import { homedir } from "node:os";
-import type { Logger } from "pino";
 import { type AgentConfig, loadConfig } from "../config/agent-config";
 import { readProcessEnv } from "../config/process-env";
 import { real } from "../locations/location-registry";
@@ -7,8 +6,6 @@ import { safely } from "../memory/index/safely";
 import { migrateJournals } from "../memory/journal-migration";
 import { migrateMemoryLayers } from "../memory/memory-layer-migration";
 import { ensureHome } from "../memory/persona";
-import { opsIds, readDiscordSetup } from "../providers/discord/setup/discord-setup-config";
-import { warnOpsChannelsInWorkspaces } from "../providers/discord/setup/warn-ops-channels";
 import { loadWorkspaces, warnOverlap } from "../workspaces/workspace-registry";
 import { homePlacementError } from "./home-placement-check";
 import { registryError } from "./registry-check";
@@ -17,14 +14,12 @@ import { registryError } from "./registry-check";
 export interface BootState {
   config: AgentConfig;
   workspaces: ReturnType<typeof loadWorkspaces>["workspaces"];
-  setup: ReturnType<typeof readDiscordSetup>;
 }
 
 /**
- * Fail-fast startup checks before any connection: config, credential, role registry, home placement, guild pin,
- * discord.yaml. Throws with a message of names only (never values); creates the missing persona/memory files.
+ * Fail-fast startup checks before any connection: config, credential, role registry, home placement, guild pin. Throws with a message of names only (never values); creates the missing persona/memory files.
  */
-export function loadBootState(log: Logger): BootState {
+export function loadBootState(): BootState {
   const config = loadConfig(readProcessEnv(), { requireDiscord: true });
   if (!config.hasRealAuth) throw new Error("CLAUDE_CODE_OAUTH_TOKEN missing or placeholder");
   const badRole = registryError();
@@ -55,8 +50,5 @@ export function loadBootState(log: Logger): BootState {
   if (!config.discordGuildId && workspaces.some((w) => w.channels.length))
     throw new Error("DISCORD_GUILD_ID required: a workspace lists channels");
 
-  // An unparsable discord.yaml could hide the ops/control channels, so refuse to start.
-  const setup = readDiscordSetup(config.agentHome);
-  warnOpsChannelsInWorkspaces(workspaces, opsIds(setup), log);
-  return { config, workspaces, setup };
+  return { config, workspaces };
 }

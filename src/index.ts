@@ -22,9 +22,10 @@ import { sendReply } from "./providers/discord/ingress/discord-message-handler";
 import { createThreadTitlePort } from "./providers/discord/ingress/thread-rename";
 import { syncChannelTopics } from "./providers/discord/setup/channel-topic";
 import { createControlRoleRun } from "./providers/discord/setup/control-role-run";
-import { opsIds } from "./providers/discord/setup/discord-setup-config";
+import { opsIds, readDiscordSetup } from "./providers/discord/setup/discord-setup-config";
 import { createOpsLog } from "./providers/discord/setup/ops-log";
 import { warnIfBotAdministrator } from "./providers/discord/setup/ready-checks";
+import { warnOpsChannelsInWorkspaces } from "./providers/discord/setup/warn-ops-channels";
 import { openDb } from "./storage/db";
 import { appRoots } from "./viewer/viewer-roots";
 import { startViewer } from "./viewer/viewer-server";
@@ -41,11 +42,19 @@ function fail(message: string): never {
 async function main(): Promise<void> {
   let boot: BootState;
   try {
-    boot = loadBootState(log);
+    boot = loadBootState();
   } catch (err) {
     return fail(String(err instanceof Error ? err.message : err));
   }
-  const { config, setup } = boot;
+  const { config } = boot;
+  // An unparsable discord.yaml could hide the ops/control channels, so refuse to start.
+  let setup: ReturnType<typeof readDiscordSetup>;
+  try {
+    setup = readDiscordSetup(config.agentHome);
+    warnOpsChannelsInWorkspaces(boot.workspaces, opsIds(setup), log);
+  } catch (err) {
+    return fail(String(err instanceof Error ? err.message : err));
+  }
 
   // Opening applies the Drizzle migrations; an old-format db is refused, untouched.
   let db: ReturnType<typeof openDb>;

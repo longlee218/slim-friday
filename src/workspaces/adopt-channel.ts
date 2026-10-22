@@ -3,15 +3,8 @@ import { CHANNEL_NAME, workspacePaths } from "../config/workspace-paths";
 import { ensureChannelDir } from "../memory/persona";
 import { logEvent, logger } from "../observability/logger";
 import { errText } from "../observability/redact";
-import {
-  OPS_CATEGORY_NAME,
-  OPS_CHANNEL_NAMES,
-} from "../providers/discord/setup/discord-setup-config";
 import { loadWorkspaces } from "./workspace-registry";
 import { channelEntries, updateWorkspaceYaml } from "./workspace-yaml-write";
-
-/** Names an adopted channel may never take: the ops category and the ops channels. */
-const RESERVED = new Set<string>([OPS_CATEGORY_NAME, ...Object.values(OPS_CHANNEL_NAMES)]);
 
 /** Highest numeric suffix tried on a name collision (`shop`, `shop-2` ... `shop-9`). */
 const MAX_SUFFIX = 9;
@@ -33,8 +26,12 @@ export function slugChannelName(discordName: string): string {
 }
 
 /** `base`, else `base-2` .. `base-9` (base is cut so the suffix keeps the name <= 64); undefined when all are taken or reserved. */
-export function uniqueChannelName(taken: ReadonlySet<string>, base: string): string | undefined {
-  const free = (n: string) => !taken.has(n) && !RESERVED.has(n);
+export function uniqueChannelName(
+  taken: ReadonlySet<string>,
+  base: string,
+  reserved: ReadonlySet<string> = new Set(),
+): string | undefined {
+  const free = (n: string) => !taken.has(n) && !reserved.has(n);
   if (free(base)) return base;
   for (let i = 2; i <= MAX_SUFFIX; i += 1) {
     const name = `${base.slice(0, 62)}-${i}`;
@@ -55,6 +52,8 @@ export function adoptChannel(
   space: string,
   id: string,
   discordName: string,
+  /** Names the chat provider keeps for itself (its ops channels): an adopted channel never takes one. */
+  reserved: ReadonlySet<string> = new Set(),
 ): AdoptResult {
   const log = logger.child({ module: "adopt-channel" });
   // A name with no ASCII letter or digit (CJK, emoji) falls back to `channel-<last 4 id digits>`.
@@ -71,7 +70,7 @@ export function adoptChannel(
           reason = "already_mapped";
           return reason;
         }
-        chosen = uniqueChannelName(new Set(channels.map((c) => String(c.name))), base);
+        chosen = uniqueChannelName(new Set(channels.map((c) => String(c.name))), base, reserved);
         if (!chosen) {
           reason = "no_free_name";
           return "no free channel name";

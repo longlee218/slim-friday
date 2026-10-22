@@ -216,7 +216,7 @@ test("start-up (loadBootState) runs the migration after ensureHome and writes th
     DISCORD_GUILD_ID: "111111111111111111",
   });
   try {
-    loadBootState(logger);
+    loadBootState();
   } finally {
     for (const k of keys) {
       if (saved[k] === undefined) delete process.env[k];

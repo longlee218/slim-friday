@@ -6,9 +6,12 @@ import { adoptChannel } from "../../../workspaces/adopt-channel";
 import { loadWorkspaces } from "../../../workspaces/workspace-registry";
 import { liveIsPrivate } from "../setup/admin-handler";
 import { setChannelTopic } from "../setup/channel-topic";
-import { OPS_CATEGORY_NAME } from "../setup/discord-setup-config";
+import { OPS_CATEGORY_NAME, OPS_CHANNEL_NAMES } from "../setup/discord-setup-config";
 import { replyText } from "../ui/send/reply-port";
 import { mayAdopt } from "./thread-placement";
+
+/** Names an adopted channel may never take: the ops category and the ops channels. */
+const RESERVED_NAMES = new Set<string>([OPS_CATEGORY_NAME, ...Object.values(OPS_CHANNEL_NAMES)]);
 
 const log = logger.child({ module: "channel-adoption" });
 
@@ -137,7 +140,7 @@ export function createChannelAdopter(deps: ChannelAdopterDeps): ChannelAdopter {
         return "refused";
       }
       const name = "name" in ch ? String(ch.name) : "";
-      const done = adoptChannel(deps.home, decision.space, ch.id, name);
+      const done = adoptChannel(deps.home, decision.space, ch.id, name, RESERVED_NAMES);
       if (!done.ok && done.reason === "already_mapped") return "none"; // lost a race to the same channel: it is mapped now
       if (!done.ok) {
         logEvent(

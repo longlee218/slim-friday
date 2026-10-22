@@ -21,7 +21,10 @@ function specifiers(file: string): string[] {
 
 const SDKS = ["discord.js"];
 const files = [...tsFiles("src"), ...tsFiles("scripts")];
-const inProvider = (f: string) => f.startsWith(join("src", "providers") + "/");
+/** Provider code: src/providers/<name>/ and the provider-named admin MCP server (src/mcp/discord-admin/). */
+const inProvider = (f: string) =>
+  f.startsWith(join("src", "providers") + "/") ||
+  f.startsWith(join("src", "mcp", "discord-admin") + "/");
 
 test("a chat SDK is imported only inside src/providers (and src/index.ts, the composition root)", () => {
   const bad = files
@@ -30,25 +33,10 @@ test("a chat SDK is imported only inside src/providers (and src/index.ts, the co
   expect(bad).toEqual([]);
 });
 
-/** Known debt: the Discord admin MCP server, the boot checks of the Discord setup and channel adoption still import
-   provider modules. The list can only shrink (a stale entry fails the second test), never grow. */
-const DEBT = [
-  "src/lifecycle/boot-checks.ts",
-  "src/mcp/manifest-types.ts",
-  "src/mcp/discord-admin/tools/CreateSpaceOrChannelTool/create-space-or-channel-tool.ts",
-  "src/mcp/discord-admin/tools/WriteSpaceFileTool/write-space-file-tool.ts",
-  "src/mcp/discord-admin/tools/ListSpacesTool/list-spaces-tool.ts",
-  "src/workspaces/adopt-channel.ts",
-];
-
 const importsProvider = files
   .filter((f) => !inProvider(f) && f !== join("src", "index.ts"))
   .filter((f) => specifiers(f).some((s) => /(^|\/)providers\//.test(s)));
 
-test("the core never imports a provider (src/index.ts wires it in), except the listed debt", () => {
-  expect(importsProvider.filter((f) => !DEBT.includes(f))).toEqual([]);
-});
-
-test("the debt list has no stale entry: a file that no longer imports a provider is removed from it", () => {
-  expect(DEBT.filter((f) => !importsProvider.includes(f))).toEqual([]);
+test("the core never imports a provider (src/index.ts wires it in)", () => {
+  expect(importsProvider).toEqual([]);
 });

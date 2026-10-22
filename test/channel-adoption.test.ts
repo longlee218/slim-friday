@@ -53,7 +53,9 @@ test("slug and unique names", () => {
   expect(slugChannelName("!!!")).toBe("");
   expect(slugChannelName("a".repeat(70))).toHaveLength(64);
   expect(uniqueChannelName(new Set(["shop-front"]), "shop-front")).toBe("shop-front-2");
-  expect(uniqueChannelName(new Set(), "ops-control")).toBe("ops-control-2"); // reserved
+  expect(uniqueChannelName(new Set(), "ops-control", new Set(["ops-control"]))).toBe(
+    "ops-control-2",
+  ); // reserved
   const all = new Set(["x", ...[2, 3, 4, 5, 6, 7, 8, 9].map((i) => `x-${i}`)]);
   expect(uniqueChannelName(all, "x")).toBeUndefined();
 });
