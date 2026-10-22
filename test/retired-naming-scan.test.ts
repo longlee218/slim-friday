@@ -154,7 +154,27 @@ const TOOLS: Record<string, RegExp> = Object.fromEntries(
   ].map((p) => [`retired tool ${p.join("")}`, new RegExp(`\\b${p.join("")}\\b`)]),
 );
 
-const RETIRED: Record<string, RegExp> = { ...SYMBOLS, ...SQL, ...REPO_CONCEPT, ...TOOLS };
+/** Planner removal (2026-10-22): the lead writes plans; no planner role, rolling waves or auto-applied revisions. */
+const PLANNER: Record<string, RegExp> = Object.fromEntries(
+  [
+    ["MAX", "_WAVES"],
+    ["request", "_plan"],
+    ["deferred", "Scope"],
+    ["PLANNER", "_KEY"],
+    ["PLANNER", "_RUNNING"],
+    ["WAVE", "_CAP"],
+    ["WAVE", "_STALLED"],
+    ["envelope", "Grew"],
+  ].map((p) => [`retired planner name ${p.join("")}`, new RegExp(`\\b${p.join("")}\\b`)]),
+);
+
+const RETIRED: Record<string, RegExp> = {
+  ...SYMBOLS,
+  ...SQL,
+  ...REPO_CONCEPT,
+  ...TOOLS,
+  ...PLANNER,
+};
 
 /**
  * `task_id` is a column only of worktrees and run_messages (staged tasks) and an SDK tool input: allowed in

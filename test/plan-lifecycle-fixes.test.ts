@@ -355,3 +355,17 @@ test("B14: a plan whose budget is spent is refused before the question; a refusa
     renderUserNotice({ kind: "plan-not-started", cause: "budget" }, "en"),
   );
 });
+
+test("an empty PLAN goal (never re-planned) is cancelled after twice the pending age; a younger one stays open", () => {
+  db = openDb(":memory:");
+  const w = openPlanGoal(db, TH, "never planned");
+  const announced: string[] = [];
+  const start = Date.now();
+  expect(sweepPendingPlans(rtOf(announced), start + PENDING_PLAN_MAX_AGE_MS)).toBe(0);
+  expect(getOwnedTask(db, w.goalId)?.status).toBe("open");
+  expect(sweepPendingPlans(rtOf(announced), start + 2 * PENDING_PLAN_MAX_AGE_MS + 1000)).toBe(1);
+  expect(getOwnedTask(db, w.goalId)?.status).toBe("cancelled");
+  const ev = listUndelivered(db, TH).filter((e) => e.kind === "timeout");
+  expect(ev[0]?.payload).toMatchObject({ code: "PLAN_GOAL_CLOSED", goalId: w.goalId });
+  expect(announced).toEqual([TH]);
+});

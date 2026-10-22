@@ -9,11 +9,8 @@ import { ROLES } from "../src/roles/role-registry";
 const dev = ROLES.developer!.budgetUsd as number;
 const scout = ROLES.scout!.budgetUsd as number;
 const tester = ROLES.tester!.budgetUsd as number;
-const budget = (
-  items: { role: string; location?: string; deferredScope?: boolean }[],
-  verifies = true,
-  spentUsd = 0,
-) => planBudgetUsd({ items, verifies, spentUsd });
+const budget = (items: { role: string; location?: string }[], verifies = true, spentUsd = 0) =>
+  planBudgetUsd({ items, verifies, spentUsd });
 
 test("the role figures the expectations below rely on", () => {
   expect([dev, scout, tester, PLAN_BUDGET_RESERVE_FACTOR, PLAN_GOAL_BUDGET_MAX_USD]).toEqual([
@@ -44,11 +41,8 @@ test("one tester verify run per location with a writer item, only when the plan 
   ).toBe(32); // (8 + 8 + 1.5 + 4 + 4) * 1.25 = 31.875 -> 32
 });
 
-test("deferred-scope items count (a wave that activates them keeps the budget); cancelled items have left the version", () => {
+test("a cancelled item has left the version: the budget of what is left", () => {
   const active = { role: "developer", location: "repo" };
-  const deferred = { role: "developer", location: "repo", deferredScope: true };
-  expect(budget([active, deferred])).toBe(budget([active, { ...deferred, deferredScope: false }]));
-  // A cancel removes the item from the version: the budget of what is left.
   expect(budget([active])).toBe(15); // (8 + 4) * 1.25
 });
 
