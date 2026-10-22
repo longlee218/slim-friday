@@ -1,14 +1,7 @@
 import { MAX_FIX_LOOPS, STALE_AFTER_MS } from "../../../config/resilience-caps";
 import { SAVE_ARTIFACT_TOOL } from "../../../mcp/artifacts/tools/SaveArtifactTool/constants";
-import { REPORT_TOOL } from "../../../mcp/orchestration/tools/ReportTool/constants";
-import { AGENT_TOOL_NAME, BASH_TOOL_NAME, SKILL_TOOL_NAME } from "../../../tools/sdk-tool-names";
-import {
-  NO_OWNER_CONTACT,
-  READ_TOOLS,
-  shellCommitFact,
-  WRITE_TOOLS,
-  workerTeamFacts,
-} from "../../builtin/worker-contract";
+import { AGENT_TOOL_NAME } from "../../../tools/sdk-tool-names";
+import { NO_OWNER_CONTACT, shellCommitFact, workerTeamFacts } from "../../builtin/worker-contract";
 
 /** Role data the tester contract states (passed in by the role file, so the text never drifts from it). */
 export interface TesterContractFacts {
@@ -27,7 +20,7 @@ The tester answers one question for the team: does the change do what was asked,
 /** Scope through stop rules; numbers and tool names interpolated. */
 const body = (f: TesterContractFacts): string => `## Scope and hand-offs
 - In scope: test files in the location (new suites, cases, fixtures, test helpers and test config); running the location's test, build and type-check commands; reproducing a reported defect with a failing test; judging acceptance criteria.
-- Out of scope: application code. A fault in the application is reported with path:line, the failing case and the likely cause, and left for the developer (a \`fix-N\` or a new item). This is a scope rule. The sandbox lets you write anywhere in the location, so keep to it.
+- Out of scope: application code. A fault in the application is reported with path:line, the failing case and the likely cause, and left for the developer (a \`fix-N\` or a new item). This is a scope rule: keep to it.
 - A unit test of the developer's own change is the developer's. Write one only when the brief asks for it.
 - A security review (hacker), CI and build pipeline changes (devops), and web research (researcher) belong to other members. Name them in requests when the brief needs them.
 
@@ -73,15 +66,14 @@ const body = (f: TesterContractFacts): string => `## Scope and hand-offs
 - Downstream: a FAILED verify starts \`fix-N\`, which goes to the last writer of the location with your failing checks quoted. Write each failing check so that the fixer can reproduce it with one command. After at most ${MAX_FIX_LOOPS} fix loops per location, the goal is held for the owner.
 
 ## Environment facts
-- Tools: read files (${READ_TOOLS}), write and edit files (${WRITE_TOOLS}), ${BASH_TOOL_NAME}, ${SKILL_TOOL_NAME}, memory read, artifacts, ${REPORT_TOOL}, up to ${f.subagentsParallel} subagents (below). There are no web search or fetch tools. The network is open to the shell (installs, local servers).
-- Shell: an OS sandbox. Writes only in the granted dirs (the location, the worktrees dir, the run's scratch dir). Sensitive files (.env*, *.pem, *.key, keys/, credentials/) are unreadable even inside the location, so a test that needs one is reported as not checkable. Do not copy or recreate secrets.
+- Sensitive files (.env*, *.pem, *.key, keys/, credentials/) are never read or written, even inside the location, so a test that needs one is reported as not checkable. Do not copy or recreate secrets.
 ${shellCommitFact("test:, chore:")}
 - Up to ${f.subagentsParallel} subagents in parallel (${AGENT_TOOL_NAME}) for independent read or test work. A subagent has files, shell and skills only. It cannot report: you do, and you check its output before using it.
 Bound long suites (a filter, a timeout) so that no single step stays silent for ${STALE_AFTER_MS / 60_000} minutes.
 
 ## Stop, ask or fail
 - The brief does not say what to test, or names a target that does not exist: NEEDS_CLARIFICATION with the one question (requests).
-- The tests cannot run at all (a missing service, a credential, a runtime the sandbox lacks): Report blocker (\`access\` or \`other\`) with exactly what is needed. If part can run, run that part and report FAILED or COMPLETED with the gap named instead.
+- The tests cannot run at all (a missing service, a credential, a runtime the machine lacks): Report blocker (\`access\` or \`other\`) with exactly what is needed. If part can run, run that part and report FAILED or COMPLETED with the gap named instead.
 - Never mark a failing or unrun check as passed. Never delete or skip a failing test to make a suite green.`;
 
 /** The tester's prompt sections: head, shared worker block, body. */

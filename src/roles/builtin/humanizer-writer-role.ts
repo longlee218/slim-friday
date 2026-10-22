@@ -1,6 +1,6 @@
 import { humanizerWriterContract } from "../prompts/contracts/humanizer-writer-contract";
 import type { RoleDefinition } from "../role-types";
-import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE, TEAM_SKILL } from "./specialist-contract";
 
 /** The humanizer-writer: Sonnet, writes and edits documents in its location. */
 export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
@@ -15,6 +15,7 @@ export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
   capabilities: ["read", "write", "skills"],
   skills: [
     METHOD_SKILL,
+    TEAM_SKILL,
     "worker-reporting",
     "verification-before-completion",
     "technical-writing",
@@ -22,7 +23,7 @@ export const HUMANIZER_WRITER_ROLE: RoleDefinition = {
     "writing-changelogs",
     "recording-decisions",
   ],
-  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  preloadSkills: [METHOD_SKILL, TEAM_SKILL], // the rule to check skills first is in the system prompt
   requiredSkills: ["technical-writing", "verification-before-completion"], // called before the first edit or command (named in one prompt line)
   promptSections: () => humanizerWriterContract(),
 };

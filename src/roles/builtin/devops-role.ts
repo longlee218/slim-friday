@@ -1,6 +1,6 @@
 import { devopsContract } from "../prompts/contracts/devops-contract";
 import type { RoleDefinition } from "../role-types";
-import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE, TEAM_SKILL } from "./specialist-contract";
 
 /** The devops engineer: Sonnet, writes infra files and checks them locally. */
 export const DEVOPS_ROLE: RoleDefinition = {
@@ -14,13 +14,14 @@ export const DEVOPS_ROLE: RoleDefinition = {
   capabilities: ["read", "write", "shell", "skills"],
   skills: [
     METHOD_SKILL,
+    TEAM_SKILL,
     "worker-reporting",
     "verification-before-completion",
     "systematic-debugging",
     "devops-engineer",
     "kubernetes-specialist",
   ],
-  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  preloadSkills: [METHOD_SKILL, TEAM_SKILL], // the rule to check skills first is in the system prompt
   requiredSkills: ["verification-before-completion", "devops-engineer"], // called before the first edit or command (named in one prompt line)
   promptSections: () => devopsContract(),
 };

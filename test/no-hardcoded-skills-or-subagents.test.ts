@@ -35,9 +35,15 @@ const MATCHERS = [...BANNED].map((n) => [n, re(n)] as const);
 const stripSkillsList = (text: string): string =>
   text.replace(/\b(?:skills|requiredSkills):\s*\[[^\]]*\]/g, (m) => m.replace(/[^\n]/g, " "));
 
+/**
+ * The repo path where plan and spec files live (`docs/superpowers/plans/...`) is a location convention the
+ * developer writes to, not a plugin name: blanked before the scan. The bare word stays banned.
+ */
+const stripDocsPath = (text: string): string => text.replace(/docs\/superpowers\//g, "docs/");
+
 /** Banned-name hits of one file's text (line numbers kept); a role data file loses only its `skills` list. */
 function scan(rel: string, text: string): string[] {
-  const body = ROLE_DATA.test(rel) ? stripSkillsList(text) : text;
+  const body = stripDocsPath(ROLE_DATA.test(rel) ? stripSkillsList(text) : text);
   const hits: string[] = [];
   body.split("\n").forEach((line, i) => {
     for (const [name, m] of MATCHERS)
@@ -49,6 +55,11 @@ function scan(rel: string, text: string): string[] {
 test("the lock yields a non-empty banned set (the scan cannot pass vacuously)", () => {
   expect(BANNED.size).toBeGreaterThan(10);
   expect(BANNED.has("superpowers")).toBe(true);
+});
+
+test("the docs/superpowers/ path is exempt, the bare plugin name is not", () => {
+  expect(scan("x.ts", "write `docs/superpowers/plans/a.md`")).toEqual([]);
+  expect(scan("x.ts", "load the superpowers plugin")).toHaveLength(1);
 });
 
 test("no skill, plugin or subagent name in src/", async () => {

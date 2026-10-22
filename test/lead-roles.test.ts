@@ -46,7 +46,7 @@ test("scout role is data: Haiku, read + search, no side effects, dispatchable, o
     model: HAIKU_MODEL,
     sideEffects: "none",
     dispatchable: true,
-    skills: ["worker-reporting", "scout", "docs-seeker"],
+    skills: ["team-protocol", "worker-reporting", "scout", "docs-seeker"],
   });
   expect(scout.capabilities).toEqual(expect.arrayContaining(["read", "web"]));
   expect(scout.capabilities).not.toContain("write");

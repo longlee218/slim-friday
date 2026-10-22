@@ -389,7 +389,7 @@ Five layers. Each is a separate check; a call must pass every layer that applies
 
 ## Owner Approvals
 - **Plan:** `Orchestrate approve_plan` asks once for the whole plan (Discord buttons). No plan mode and no plan file.
-- **Worker questions:** `AskUserQuestion` (developer only, cap 6 per run) → `canUseTool` → buttons (`src/providers/discord/approval/discord-approval.ts`). A long question goes out as `<tool>-detail.txt`. No answer in 10 minutes: the run stops and the owner is told.
+- **Worker questions:** `AskUserQuestion` (developer only, cap 6 per run) → `canUseTool` → the question relay (`worker/question-relay.ts`): a `question` event wakes the lead, which answers with `steer` or, when it cannot, relays it with `ask_owner` (`workerAskId`). A worker never reaches the owner. Only `discord-manager` (the `#ops-control` run, no lead) asks through the approval buttons (`src/providers/discord/approval/discord-approval.ts`).
 - **Lead questions:** `Orchestrate ask_owner` (typed: yes/no, select, text; the control comes from `choiceLayout`). A worker question goes in `Report result` `requests`, never in the summary; the lead asks it as its own question. A worker waits a bounded time (see [limits](limits-and-stop-conditions.md)) for its answer to come back through the lead (`question-relay.ts`).
 - **Owner-confirm buttons** (`src/owner-approval/owner-confirm.ts`): `effect` (a worker's R4 or over-bound act), `purge_trash` (`/purge`), `write_space_file`, `create_space_or_channel` (control). No answer or a timeout means "do not run".
 - Text the owner types while a question is open is a note only after the owner chooses an option.

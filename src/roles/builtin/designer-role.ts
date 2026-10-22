@@ -2,7 +2,7 @@ import { OPUS_MODEL } from "../../config/model-ids";
 import { PLAYWRIGHT_TOOLS } from "../../mcp/playwright/playwright-tool-names";
 import { designerContract } from "../prompts/contracts/designer-contract";
 import type { RoleDefinition } from "../role-types";
-import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE, TEAM_SKILL } from "./specialist-contract";
 
 /** The designer: Opus, coding preset (writes prototypes, design components and tokens as files); a sandboxed shell runs its design tools (owner 2026-10-20). */
 export const DESIGNER_ROLE: RoleDefinition = {
@@ -16,6 +16,7 @@ export const DESIGNER_ROLE: RoleDefinition = {
   capabilities: ["read", "write", "shell", "web", "skills"],
   skills: [
     METHOD_SKILL,
+    TEAM_SKILL,
     "worker-reporting",
     "verification-before-completion",
     "docs-seeker",
@@ -24,7 +25,7 @@ export const DESIGNER_ROLE: RoleDefinition = {
     "impeccable",
   ],
   model: OPUS_MODEL,
-  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  preloadSkills: [METHOD_SKILL, TEAM_SKILL], // the rule to check skills first is in the system prompt
   requiredSkills: ["ui-ux-pro-max", "impeccable"], // called before the first edit or command (named in one prompt line)
   binaries: ["impeccable-engine"], // a design skill's engine, pinned by sha256 (config/data/pinned-binaries.yaml)
   promptSections: () => designerContract(),

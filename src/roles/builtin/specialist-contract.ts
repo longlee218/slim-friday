@@ -13,6 +13,9 @@ import type { RoleDefinition } from "../role-types";
 /** The process skill every working role loads (data): its folder in `.agents/skills`; preloaded into the system prompt and listed in `skills`. */
 export const METHOD_SKILL = "using-skills";
 
+/** The team skill every task worker loads (data): how a run fits the team (inputs, hand-offs, failures, limits); preloaded like the method skill. */
+export const TEAM_SKILL = "team-protocol";
+
 /** Owner questions per run: a specialist never asks; it reports NEEDS_CLARIFICATION and the lead asks. */
 export const SPECIALIST_MAX_ASK = 0;
 /** Budget (USD) of one roster specialist run (one figure for all six; the task ceiling still caps the task). */

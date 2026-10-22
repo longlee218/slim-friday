@@ -1,6 +1,6 @@
 import { solutionArchitectContract } from "../prompts/contracts/solution-architect-contract";
 import type { RoleDefinition } from "../role-types";
-import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE, TEAM_SKILL } from "./specialist-contract";
 
 /** The solution architect: Sonnet, read and web tools, no side effects. */
 export const SOLUTION_ARCHITECT_ROLE: RoleDefinition = {
@@ -13,8 +13,8 @@ export const SOLUTION_ARCHITECT_ROLE: RoleDefinition = {
   notFor: "Fact lookups; screen and UI design.",
   sideEffects: "none",
   capabilities: ["read", "web", "skills"],
-  skills: [METHOD_SKILL, "worker-reporting", "architecture-designer", "docs-seeker"],
-  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  skills: [METHOD_SKILL, TEAM_SKILL, "worker-reporting", "architecture-designer", "docs-seeker"],
+  preloadSkills: [METHOD_SKILL, TEAM_SKILL], // the rule to check skills first is in the system prompt
   requiredSkills: ["architecture-designer"], // called before the first edit or command (named in one prompt line)
   promptSections: () => solutionArchitectContract(),
 };

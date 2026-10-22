@@ -20,6 +20,8 @@ test("required sets per role", () => {
     "executing-plans",
     "test-driven-development",
     "verification-before-completion",
+    "requesting-code-review",
+    "finishing-a-development-branch",
   ]);
   expect(set("tester")).toEqual(["verification-before-completion", "test-master"]);
   expect(set("devops")).toEqual(["verification-before-completion", "devops-engineer"]);

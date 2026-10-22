@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { METHOD_SKILL } from "../src/roles/builtin/specialist-contract";
 import { ROLES } from "../src/roles/role-registry";
 
 /** The sections of a role's contract as a run sends them. */
@@ -8,8 +9,8 @@ const contract = (name: string) => ROLES[name]?.promptSections({} as never).join
 const METHOD = "- Method: the skills listed for this run are how you work. Before you ";
 const CALL = "call the Skill tool for every listed skill whose description matches the request";
 
-/** Roles whose Method rule is in a preloaded skill: the contract no longer inlines the line. */
-const preloads = (name: string) => !!ROLES[name]?.preloadSkills?.length;
+/** Roles whose Method rule is in the preloaded method skill: the contract no longer inlines the line. */
+const preloads = (name: string) => !!ROLES[name]?.preloadSkills?.includes(METHOD_SKILL);
 
 test("a role without a preloaded skill (not the lead) has the Method line, once, naming no skill; a preloading role has none", () => {
   for (const name of Object.keys(ROLES).filter((n) => n !== "lead")) {

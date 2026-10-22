@@ -35,11 +35,10 @@ test("no identity or tone words in any mode", () => {
 
 test("dev: one run contract: approval before changes by ask, no plan mode", () => {
   const text = rules(dev);
-  expect(text).toContain("change no file before the owner approved your plan");
+  expect(text).toContain("Change no code before the approval");
   expect(text).toContain(`Ask with ${ASK_USER_QUESTION_TOOL_NAME}`);
   expect(text).not.toContain('"location: <name>"'); // no location marker line any more
   expect(text).not.toMatch(/plan mode|ExitPlanMode|execute stage|plan stage|Need:/);
-  expect(text).toContain("do not repeat it unchanged");
 });
 
 test("injection rule says so in one line without repeating the payload", () => {
@@ -53,11 +52,11 @@ test("dev: follow-up, memory contract, shell git and delivery by the agent", () 
   expect(text).not.toContain("MemorySave (scope location;"); // location memory rule lives in AGENTS.md
   expect(text).toContain("NEVER add Co-Authored-By");
   expect(text).not.toContain("git_commit"); // no git MCP for the dev agent
-  expect(text).toContain("git works in the shell");
+  expect(text).toContain("The app does not filter them in the shell");
   expect(text).toContain(
     `Do not end your turn on a question: ask with ${ASK_USER_QUESTION_TOOL_NAME}, also where a skill says to wait for the human.`,
   );
-  expect(text).toContain("Merge, push or PR only after the owner chose it.");
+  expect(text).toContain("merge, push or PR only after the owner chose it");
   // The shell is not filtered: no prompt claims it is (tool descriptions and the shell rules say so).
   expect(text).not.toMatch(/denied in the shell|blocked in the shell/);
   expect(text).not.toContain("git worktree add"); // the worktree line appears only when the run names a dir

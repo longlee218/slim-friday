@@ -39,10 +39,10 @@ test("dev: one contract, approval before changes by ask, a design request may en
   expect(text).not.toContain("invoke the listed skill"); // the SDK matches skills by description: no routing line
   expect(text).toContain("the deliverable may be a design or plan with no code change");
   expect(text).toContain("the location's own checkout");
-  expect(text).toContain("change no file before the owner approved your plan");
+  expect(text).toContain("Change no code before the approval");
   expect(text).not.toContain('"location: <name>"'); // no location marker line any more
-  expect(text).toContain("git works in the shell");
-  expect(text).toContain("Merge, push or PR only after the owner chose it.");
+  expect(text).not.toContain("OS sandbox"); // the sandbox is off by config: no prompt line states it
+  expect(text).toContain("merge, push or PR only after the owner chose it");
   expect(text).toContain("by absolute path from the skill's base directory");
   expect(text).not.toContain("Memory:");
   expect(text).not.toContain("MemorySave (scope location;"); // location memory rule lives in AGENTS.md
@@ -59,16 +59,16 @@ test("dev: one contract, approval before changes by ask, a design request may en
     "## Mission",
     "## Method",
     "## How the team works",
-    "## Scope and hand-offs",
+    "## Scope",
     "## How the work goes",
-    "## Asking the owner",
+    "## Asking the lead",
     "## Commits",
     "## Environment facts",
     "## Stop, ask or fail",
   ].map(at);
   expect(order.every((i) => i >= 0)).toBe(true);
   expect(order).toEqual([...order].sort((a, b) => a - b));
-  expect(at("## Mission")).toBeLessThan(at("git works in the shell"));
+  expect(at("## Mission")).toBeLessThan(at("## Environment facts"));
 });
 
 test("no tool-name literal in the dev role source", async () => {

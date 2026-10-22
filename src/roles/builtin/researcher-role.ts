@@ -8,7 +8,7 @@ import { FIRECRAWL_SEARCH_TOOL } from "../../mcp/firecrawl/tools/FirecrawlSearch
 import { PLAYWRIGHT_TOOLS } from "../../mcp/playwright/playwright-tool-names";
 import { researcherContract } from "../prompts/contracts/researcher-contract";
 import type { RoleDefinition } from "../role-types";
-import { SPECIALIST_BASE } from "./specialist-contract";
+import { SPECIALIST_BASE, TEAM_SKILL } from "./specialist-contract";
 
 /**
  * The researcher: Sonnet, read-only web and deep research with cited reports (current facts, comparisons, markets,
@@ -37,6 +37,7 @@ export const RESEARCHER_ROLE: RoleDefinition = {
   sideEffects: "none",
   capabilities: ["read", "web", "shell", "skills"],
   skills: [
+    TEAM_SKILL,
     "worker-reporting",
     "deep-research",
     "research-online",
@@ -45,6 +46,7 @@ export const RESEARCHER_ROLE: RoleDefinition = {
     "firecrawl-market-research",
     "docs-seeker",
   ],
+  preloadSkills: [TEAM_SKILL], // how a run fits the team is in the system prompt
   requiredSkills: ["deep-research"], // called before the first edit or command (named in one prompt line)
   promptSections: () => researcherContract(),
 };

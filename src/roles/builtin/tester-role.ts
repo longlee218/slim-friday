@@ -1,7 +1,7 @@
 import { PLAYWRIGHT_TOOLS } from "../../mcp/playwright/playwright-tool-names";
 import { testerContract } from "../prompts/contracts/tester-contract";
 import type { RoleDefinition } from "../role-types";
-import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE, TEAM_SKILL } from "./specialist-contract";
 
 /** Subagents of one tester run (parallel cap; depth 1 = a subagent starts none): small, for independent reviews or test runs. */
 const SUBAGENTS = { parallel: 2, depth: 1 };
@@ -20,6 +20,7 @@ export const TESTER_ROLE: RoleDefinition = {
   capabilities: ["read", "write", "shell", "skills"],
   skills: [
     METHOD_SKILL,
+    TEAM_SKILL,
     "worker-reporting",
     "test-driven-development",
     "verification-before-completion",
@@ -28,7 +29,7 @@ export const TESTER_ROLE: RoleDefinition = {
     "property-based-testing",
     "test-master",
   ],
-  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  preloadSkills: [METHOD_SKILL, TEAM_SKILL], // the rule to check skills first is in the system prompt
   requiredSkills: ["verification-before-completion", "test-master"], // called before the first edit or command (named in one prompt line)
   promptSections: () =>
     testerContract({

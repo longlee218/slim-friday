@@ -6,6 +6,7 @@ import { MEMORY_SEARCH_TOOL } from "../../mcp/memory/tools/MemorySearchTool/cons
 import { REPORT_TOOL } from "../../mcp/orchestration/tools/ReportTool/constants";
 import { scoutContract } from "../prompts/contracts/scout-contract";
 import type { RoleDefinition } from "../role-types";
+import { TEAM_SKILL } from "./specialist-contract";
 
 /** Owner questions per run: a scout answers from what it finds and never asks. */
 const MAX_ASK = 0;
@@ -28,7 +29,8 @@ export const SCOUT_ROLE: RoleDefinition = {
   notFor: "Changing anything; outside facts not tied to this code.",
   kind: "worker",
   dispatchable: true,
-  skills: ["worker-reporting", "scout", "docs-seeker"],
+  skills: [TEAM_SKILL, "worker-reporting", "scout", "docs-seeker"],
+  preloadSkills: [TEAM_SKILL], // how a run fits the team is in the system prompt
   limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
   subagents: { parallel: 3, depth: 1 },
   sideEffects: "none",

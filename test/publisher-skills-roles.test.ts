@@ -36,7 +36,7 @@ test("dev lists every skill of each publisher pack it uses (so worktree and fini
     .map(([n]) => n);
   // plus the app-owned skills every worker lists (process rule and reporting)
   expect([...(ROLES.developer?.skills ?? [])].sort()).toEqual(
-    [...publisher, "worker-reporting", "using-skills"].sort(),
+    [...publisher, "worker-reporting", "using-skills", "team-protocol"].sort(),
   );
   expect(ROLES.lead?.skills).toEqual(["lead-orchestration", "brainstorming"]);
 });

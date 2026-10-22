@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { STALE_AFTER_MS } from "../src/config/resilience-caps";
 import { NO_SHELL_WRITER_FACT } from "../src/roles/builtin/worker-contract";
 import { ROLES } from "../src/roles/role-registry";
@@ -6,6 +8,12 @@ import { ROLES } from "../src/roles/role-registry";
 /* Phase 2b: every worker contract is a full working guide (template sections, facts from role data), the shared worker
    block is in every task worker and nowhere else, and each contract stays under a per-role ceiling (measured size + ~10%,
    rounded up to 100; replaces the old 1200-char per-section budget). */
+
+/** The preloaded team skill: the run facts every task worker gets. */
+const TEAM_SKILL_TEXT = readFileSync(
+  join(import.meta.dir, "..", ".agents", "skills", "team-protocol", "SKILL.md"),
+  "utf8",
+);
 
 /** The joined contract of a role as a run sends it (with a worktrees dir, so the developer's longest form is measured). */
 const contract = (name: string): string =>
@@ -24,20 +32,20 @@ const TASK_WORKERS = [
   "researcher",
 ];
 
-/** Contract ceilings in chars (measured 2026-10-20 + ~10%). Raise one with its measured size when a contract grows. */
+/** Contract ceilings in chars (measured 2026-10-22 after the team facts moved to the team skill, + ~10%). Raise one with its measured size when a contract grows. */
 const CEILING: Record<string, number> = {
-  developer: 17300,
-  tester: 12300,
-  "solution-architect": 11000,
-  designer: 10900,
-  devops: 11200,
-  "humanizer-writer": 10700,
-  hacker: 11000,
-  scout: 10600,
-  researcher: 11500, // 10470 on 2026-10-21 (tool-error kinds in the worker block)
+  developer: 10500,
+  tester: 8500,
+  "solution-architect": 6800,
+  designer: 6800,
+  devops: 6700,
+  "humanizer-writer": 6400,
+  hacker: 6700,
+  scout: 6600,
+  researcher: 6900,
   planner: 8500,
   "discord-manager": 4300,
-  lead: 3700,
+  lead: 3600,
 };
 
 test("every role has a ceiling and stays under it", () => {
@@ -78,7 +86,8 @@ test("the shared worker block is in every task worker once, never in the lead, p
     expect(contract(name).split("## How the team works")).toHaveLength(2);
   for (const name of ["lead", "planner", "discord-manager"])
     expect(contract(name)).not.toContain("## How the team works");
-  expect(contract("tester")).toContain(`${STALE_AFTER_MS / 60_000} minutes is aborted as stale`);
+  // The run facts (watchdog, limits, failures) live in the preloaded team skill, not in the contracts.
+  expect(TEAM_SKILL_TEXT).toContain(`${STALE_AFTER_MS / 60_000} minutes is aborted as stale`);
 });
 
 test("numbers in the contracts match the role data", () => {
@@ -108,7 +117,7 @@ test("owner decisions: no-shell writers complete without committing; shell roste
   // Per-item plan approval stays, inside an approved plan and for fix-N.
   expect(contract("developer")).toContain("for a fix-N item too");
   // Method-skill documents: writing roles file them in docs/, others return them.
-  expect(contract("scout")).toContain("the next writing role files it in docs/");
+  expect(TEAM_SKILL_TEXT).toContain("a role that cannot write returns it as an artifact");
 });
 
 test("scout and researcher split: lookups vs web research", () => {

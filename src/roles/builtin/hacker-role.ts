@@ -1,6 +1,6 @@
 import { hackerContract } from "../prompts/contracts/hacker-contract";
 import type { RoleDefinition } from "../role-types";
-import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
+import { METHOD_SKILL, SPECIALIST_BASE, TEAM_SKILL } from "./specialist-contract";
 
 /** The hacker: Sonnet, read-only defensive review. */
 export const HACKER_ROLE: RoleDefinition = {
@@ -15,12 +15,13 @@ export const HACKER_ROLE: RoleDefinition = {
   capabilities: ["read", "shell", "skills"],
   skills: [
     METHOD_SKILL,
+    TEAM_SKILL,
     "worker-reporting",
     "systematic-debugging",
     "verification-before-completion",
     "security-and-hardening",
   ],
-  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  preloadSkills: [METHOD_SKILL, TEAM_SKILL], // the rule to check skills first is in the system prompt
   requiredSkills: ["security-and-hardening", "verification-before-completion"], // called before the first edit or command (named in one prompt line)
   promptSections: () => hackerContract(),
 };

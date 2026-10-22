@@ -213,6 +213,7 @@ test("dev loads its publisher pack skills but the two dropped by D8, the lead on
       ...DEV_INSTALLED.filter((n) => n !== "superpowers:using-superpowers"),
       "friday:worker-reporting",
       "friday:using-skills",
+      "friday:team-protocol",
     ].sort(),
   );
   expect(names(ROLES.lead as RoleDefinition)).toEqual([

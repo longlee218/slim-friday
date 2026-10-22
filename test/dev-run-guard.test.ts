@@ -113,7 +113,7 @@ test("dev prompt: the one worktree line names <workspace worktrees dir>/<locatio
   const ws = workspacePaths(env.home).workspace("main");
   const line = `If you use a git worktree, put it under ${join(realpathSync(ws.worktrees), "real")}/:`;
   expect(exec.systemPrompt.append).toContain(line);
-  expect(exec.systemPrompt.append).toContain("Merge, push or PR only after the owner chose it.");
+  expect(exec.systemPrompt.append).toContain("merge, push or PR only after the owner chose it");
 });
 
 test("wiring: the developer run's real memory server is read-only (owner rule: only the lead saves)", async () => {

@@ -19,7 +19,7 @@ import {
   developerOwnerContact,
 } from "../prompts/contracts/developer-contract";
 import type { Capability, RoleDefinition } from "../role-types";
-import { METHOD_SKILL } from "./specialist-contract";
+import { METHOD_SKILL, TEAM_SKILL } from "./specialist-contract";
 import { workerTeamFacts } from "./worker-contract";
 
 /** Owner questions (the ask tool) one run may make. Wired: ask guard + prompt text. */
@@ -71,6 +71,7 @@ export const DEVELOPER_ROLE: RoleDefinition = {
   ],
   skills: [
     METHOD_SKILL,
+    TEAM_SKILL,
     "worker-reporting",
     "dispatching-parallel-agents",
     "executing-plans",
@@ -90,26 +91,15 @@ export const DEVELOPER_ROLE: RoleDefinition = {
     "api-and-interface-design",
     "performance-optimization",
     "nodejs-backend-patterns",
-    "threejs-animation",
-    "threejs-asset-pipeline",
-    "threejs-fundamentals",
-    "threejs-geometry",
-    "threejs-interaction",
-    "threejs-lighting",
-    "threejs-loaders",
-    "threejs-materials",
-    "threejs-performance",
-    "threejs-postprocessing",
-    "threejs-react-three-fiber",
-    "threejs-shaders",
-    "threejs-textures",
   ], // explicit list: a new skill is added here (data)
-  preloadSkills: [METHOD_SKILL], // the rule to check skills first is in the system prompt
+  preloadSkills: [METHOD_SKILL, TEAM_SKILL], // the rule to check skills first is in the system prompt
   requiredSkills: [
     "writing-plans",
     "executing-plans",
     "test-driven-development",
     "verification-before-completion",
+    "requesting-code-review",
+    "finishing-a-development-branch",
   ], // called before the first edit or command (named in one prompt line)
   limits: { maxAsk: MAX_ASK, maxTurns: MAX_TURNS },
   subagents: SUBAGENTS,
