@@ -270,12 +270,12 @@ test("F4: a force-closed read-only run frees at once (no claim)", async () => {
   expect(zombieClaims(r.location)).toBe(false);
 });
 
-test("F6: a thrown run that stored COMPLETED keeps its result file", async () => {
+test("F6: a thrown run that stored COMPLETED keeps its status; an empty reply leaves no result text", async () => {
   const r = startItem({ throwOnCwd: "boom", report: "COMPLETED", scope: true });
   await until(() => r.limiter.active() === 0);
   const it = getItem(r.db, r.id)!;
   expect(it.status).toBe("completed");
-  expect(it.resultPath).toBeTruthy();
+  expect(it.resultText).toBeNull();
 });
 
 test("E-M6: a stale waiter of an aborted run cannot clear the next run's wait or lower its count", async () => {

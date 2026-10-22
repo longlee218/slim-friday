@@ -145,19 +145,7 @@ export function closeTurn(
   const status = turnStatusOf(db, ids.turnId);
   const settled = settleTurn(db, ids.turnId, res, status, o);
   reply += settled.note;
-  if (o.agentHome)
-    saveResultFile(
-      db,
-      o.agentHome,
-      o.artifactScope,
-      ids.turnId,
-      ids.threadId,
-      status,
-      res.outcome,
-      reply,
-      o.resultKind,
-      o.resultTitle,
-    );
+  saveResultFile(db, ids.turnId, status, res.outcome, reply, o.resultKind, o.resultTitle);
   logEvent(log, "task.finished", {
     location: res.location && res.location !== "*" ? res.location : o.location,
     outcome: res.outcome,

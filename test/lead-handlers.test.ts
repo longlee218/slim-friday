@@ -191,6 +191,21 @@ test("forward: verbatim posts the file, summary the excerpt, no result is refuse
   });
 });
 
+test("forward verbatim: a run that saved no file posts its report text; no file and no text is refused", async () => {
+  const port = new FakePort();
+  port.rows.set(
+    "t1",
+    itemRow({ resultPath: null, resultExcerpt: "short", resultText: "# T\n\nfull report" }),
+  );
+  port.rows.set("t2", itemRow({ id: "t2" }));
+  const r = await handleForward(leadCtx(port), { taskId: "t1", mode: "verbatim" });
+  expect(port.posts).toEqual([{ text: "# T\n\nfull report" }]);
+  expect(r).toMatchObject({ ok: true, files: 0 });
+  expect(await handleForward(leadCtx(port), { taskId: "t2", mode: "verbatim" })).toMatchObject({
+    code: "NO_RESULT",
+  });
+});
+
 test("forward verbatim: one message per saved file, primary (result path) first, no duplicate", async () => {
   const port = new FakePort();
   port.rows.set("t1", itemRow({ resultPath: "/full.md", resultExcerpt: "short" }));

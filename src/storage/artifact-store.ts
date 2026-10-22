@@ -22,7 +22,7 @@ export interface ArtifactRow {
   size: number;
   /** For a repo artifact: mtime (epoch ms) of the file snapshot the index was built from; null for a store file. */
   sourceMtime: number | null;
-  /** 1 = the code-written result summary of a task (not a file the run saved); 0 otherwise. */
+  /** 1 = a file the code wrote itself, not a deliverable (an old result summary, a plan version): hidden from list and search, still readable by id; 0 otherwise. */
   summary: number;
   createdAt: number;
 }
@@ -154,7 +154,12 @@ export function ftsSearch(
     snippetTokens: number;
   },
 ): FtsHit[] {
-  const where = ["artifacts_fts MATCH ?", "artifacts_fts.workspace = ?", IS_LATEST_VERSION];
+  const where = [
+    "artifacts_fts MATCH ?",
+    "artifacts_fts.workspace = ?",
+    "a.summary = 0",
+    IS_LATEST_VERSION,
+  ];
   const params: (string | number)[] = [q.match, q.workspace];
   if (q.channel !== undefined) {
     where.push("artifacts_fts.channel = ?");

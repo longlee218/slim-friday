@@ -42,7 +42,7 @@ export const handleRetry = (ctx: LeadToolContext, input: RetryInput): Promise<Re
     // items in the verify's location (the cap is per location).
     if (
       isVerifyKey(item.itemKey) &&
-      item.resultPath &&
+      (item.resultPath || item.resultText) &&
       fixesAt(ctx.port.snapshot(item.id)?.items ?? [], item.location) >= MAX_FIX_LOOPS
     )
       return {

@@ -96,12 +96,13 @@ export function searchTasks(db: Database, threadId: string, query: string): Repl
   return { ok: true, matches: hits.map((h) => matchOf(h.c, h.score)) };
 }
 
-/** The primary result file of an item as redacted text (cut at `GET_RESULT_MAX_CHARS`); the excerpt when the file is gone. */
+/** The primary result file of an item as redacted text (cut at `GET_RESULT_MAX_CHARS`); the stored text when it saved no file, the excerpt when the file is gone. */
 function resultText(
   path: string | null,
   excerpt: string | null,
+  stored: string | null,
 ): { text: string; clipped: boolean } {
-  let raw = excerpt ?? "";
+  let raw = stored ?? excerpt ?? "";
   if (path)
     try {
       raw = readFileSync(path, "utf8");
@@ -140,8 +141,8 @@ export function taskDetail(db: Database, threadId: string, taskId: string): Repl
     };
   }
   const result =
-    item.resultPath || item.resultExcerpt
-      ? resultText(item.resultPath, item.resultExcerpt)
+    item.resultPath || item.resultExcerpt || item.resultText
+      ? resultText(item.resultPath, item.resultExcerpt, item.resultText)
       : undefined;
   return {
     ok: true,

@@ -29,6 +29,26 @@ const ctxOf = (env: ReturnType<typeof makeEnv>): ArtifactToolCtx => ({
   locations: [],
 });
 
+test("list and search leave out code-written rows (summary = 1: plan versions, old result summaries); ReadArtifact still opens them", () => {
+  const env = makeEnv();
+  const c = ctxOf(env);
+  const real = writeArtifact(env.db, env.home, {
+    ...base,
+    title: "Report",
+    body: "quokka deliverable",
+  });
+  const plan = writeArtifact(env.db, env.home, {
+    ...base,
+    title: "Plan abcd1234 v1",
+    body: "quokka plan",
+    summary: true,
+  });
+  expect(listArtifacts(c).artifacts.map((a) => a.id)).toEqual([real.id]);
+  const found = searchChannel(c, { query: "quokka" });
+  expect(("hits" in found ? found.hits : []).map((h) => h.id)).toEqual([real.id]);
+  expect((readArtifact(c, plan.id) as { text: string }).text).toContain("quokka plan");
+});
+
 test("list and search show only the latest version of a name; ReadArtifact still reads an old one", () => {
   const env = makeEnv();
   const v1 = writeArtifact(env.db, env.home, { ...base, title: "Plan", body: "zebra old text" });
@@ -54,7 +74,7 @@ test("list and search show only the latest version of a name; ReadArtifact still
   expect(old.text).toContain("old text");
 });
 
-test("a task's old result summary is never the primary file (resume): only saved files count", () => {
+test("a run that saved no file writes no artifact: its report is text on the task row; a later saved file is the primary", () => {
   const env = makeEnv();
   const { db, home } = env;
   const role = Object.values(ROLES).find((r) => r.kind === "worker")!.name;
@@ -67,10 +87,13 @@ test("a task's old result summary is never the primary file (resume): only saved
   const taskId = ownedTaskOfTurn(db, "t1")!;
   const scope = { workspace: "main", channel: "general" };
   const long = "long summary ".repeat(300);
-  // First run: no saved file, so the code writes the (large) summary artifact.
-  saveResultFile(db, home, scope, "t1", "th", "done", "success", long);
+  // First run: no saved file, so no artifact at all; the report is kept as text on the row.
+  saveResultFile(db, "t1", "done", "success", long);
   expect(taskStoreArtifacts(db, taskId)).toEqual([]);
-  // After a resume the run saves a small file itself: it is the primary, the old summary is ignored.
+  expect(db.query("SELECT COUNT(*) AS n FROM artifacts").get()).toEqual({ n: 0 });
+  expect(getItem(db, taskId)).toMatchObject({ resultPath: null });
+  expect(getItem(db, taskId)?.resultText).toContain("long summary");
+  // After a resume the run saves a small file itself: it is the primary and the row keeps no text.
   const saved = writeArtifact(db, home, {
     ...scope,
     kind: "md",
@@ -79,9 +102,10 @@ test("a task's old result summary is never the primary file (resume): only saved
     body: "tiny",
   });
   expect(taskStoreArtifacts(db, taskId).map((a) => a.path)).toEqual([saved.path]);
-  saveResultFile(db, home, scope, "t1", "th", "done", "success", "short");
+  saveResultFile(db, "t1", "done", "success", "short");
   expect(getItem(db, taskId)?.resultPath).toBe(saved.path);
-  expect(db.query("SELECT COUNT(*) AS n FROM artifacts WHERE summary = 1").get()).toEqual({ n: 1 });
+  expect(getItem(db, taskId)?.resultText).toBeNull();
+  expect(db.query("SELECT COUNT(*) AS n FROM artifacts").get()).toEqual({ n: 1 });
 });
 
 test("a symlinked parent dir (channels, the workspace dir) that leads outside AGENT_HOME is refused", () => {

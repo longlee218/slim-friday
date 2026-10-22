@@ -42,6 +42,8 @@ export interface ItemRow {
   resultPath: string | null;
   /** Redacted excerpt (<= 600 chars) of that result; null until one ended. */
   resultExcerpt: string | null;
+  /** Redacted report of the last run when it saved no file (the result is not an artifact); null until one ended. */
+  resultText: string | null;
 }
 
 /** Raw row: `depends_on` is still JSON text. */
@@ -49,7 +51,7 @@ type Raw = Omit<ItemRow, "dependsOn"> & { dependsOn: string };
 
 const COLUMNS = `id, parent_id AS parentId, item_key AS itemKey, status, depends_on AS dependsOn, attempt,
   dispatch_count AS dispatchCount, owner_role AS ownerRole, location, brief, subject, priority, last_progress_at AS lastProgressAt, result_kind AS resultKind, result_path AS resultPath,
-  result_excerpt AS resultExcerpt`;
+  result_excerpt AS resultExcerpt, result_text AS resultText`;
 
 /** Raw row to item (JSON `depends_on` parsed; a corrupt value reads as no dependency). */
 const toItem = (r: Raw): ItemRow => {
@@ -91,15 +93,18 @@ export function bumpDispatch(db: Database, id: string): number {
   return getItem(db, id)?.dispatchCount ?? 0;
 }
 
-/** Record where the result of a finished run lives: artifact file path (null = none was stored) + redacted excerpt (+ kind when typed). */
+/**
+ * Record the result of a finished run: the file it saved itself (path, null = none), the redacted excerpt and, when it saved no
+ * file, its redacted report as `text` (no artifact is written for a summary); plus the kind when typed.
+ */
 export function setTaskResult(
   db: Database,
   id: string,
-  r: { path: string | null; excerpt: string; kind?: ResultKind },
+  r: { path: string | null; excerpt: string; text?: string | null; kind?: ResultKind },
 ): void {
   db.query(
-    "UPDATE owned_tasks SET result_path = ?, result_excerpt = ?, result_kind = COALESCE(?, result_kind) WHERE id = ?",
-  ).run(r.path, r.excerpt, r.kind ?? null, id);
+    "UPDATE owned_tasks SET result_path = ?, result_excerpt = ?, result_text = ?, result_kind = COALESCE(?, result_kind) WHERE id = ?",
+  ).run(r.path, r.excerpt, r.text ?? null, r.kind ?? null, id);
 }
 
 /** Item statuses that still count as work in progress. */

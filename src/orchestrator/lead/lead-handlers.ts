@@ -202,7 +202,7 @@ export const handleForward = (ctx: LeadToolContext, input: ForwardInput): Promis
     const item = ctx.port.item(input.taskId);
     if (!item) return { reply: badTask(input.taskId) };
     const verbatim = input.mode === "verbatim";
-    if (verbatim ? !item.resultPath : !item.resultExcerpt)
+    if (verbatim ? !item.resultPath && !item.resultText : !item.resultExcerpt)
       return {
         reply: refuse("NO_RESULT", "The task has no result yet: wait for its result event."),
       };
@@ -210,7 +210,14 @@ export const handleForward = (ctx: LeadToolContext, input: ForwardInput): Promis
       await ctx.port.post({ text: item.resultExcerpt as string });
       return { reply: { ok: true, posted: input.mode }, itemId: item.id };
     }
-    const files = [...new Set([item.resultPath as string, ...ctx.port.resultFiles(input.taskId)])];
+    const files = [
+      ...new Set([
+        ...(item.resultPath ? [item.resultPath] : []),
+        ...ctx.port.resultFiles(input.taskId),
+      ]),
+    ];
+    // The run saved no file: its report (kept as text on the task row) goes out as a chat message, not as an artifact.
+    if (!files.length) await ctx.port.post({ text: item.resultText as string });
     for (const filePath of files) await ctx.port.post({ filePath });
     return { reply: { ok: true, posted: input.mode, files: files.length }, itemId: item.id };
   });

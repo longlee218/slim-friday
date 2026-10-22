@@ -48,20 +48,8 @@ export function recoverCrashedRun(db: Database, run: CrashRun, err: unknown): bo
     const kind = run.resultKind();
     if (item?.parentId && kind && kind !== "FAILED") {
       moveTaskTo(db, item.id, STATUS_OF_RESULT[kind]); // the report was stored: the crash must not erase it
-      if (run.agentHome)
-        // ... nor its result file (`Orchestrate forward` reads the path)
-        saveResultFile(
-          db,
-          run.agentHome,
-          run.artifactScope,
-          run.turnId,
-          run.threadId,
-          "failed",
-          "error",
-          "",
-          kind,
-          run.resultTitle?.(),
-        );
+      // ... nor its result text (`Orchestrate forward` reads it)
+      saveResultFile(db, run.turnId, "failed", "error", "", kind, run.resultTitle?.());
       return;
     }
     // Always `error`, even after a watchdog abort: a crash that reached here is a real failure (a force-closed run may

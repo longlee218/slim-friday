@@ -8,14 +8,17 @@ export interface ArtifactFilter {
   since?: number;
 }
 
-/** Latest version of each artifact of ONE workspace channel (`channel` '' = the workspace level), newest first, at most `limit`. */
+/**
+ * Latest version of each artifact of ONE workspace channel (`channel` '' = the workspace level), newest first, at most `limit`.
+ * Rows the code wrote itself (`summary` = 1: old result summaries, plan versions) are not deliverables and are left out.
+ */
 export function listChannelArtifacts(
   db: Database,
   workspace: string,
   channel: string,
   f: ArtifactFilter & { limit: number },
 ): ArtifactRow[] {
-  const where = ["workspace = ?", "channel = ?", IS_LATEST_VERSION];
+  const where = ["workspace = ?", "channel = ?", "summary = 0", IS_LATEST_VERSION];
   const params: (string | number)[] = [workspace, channel];
   if (f.goalId !== undefined) {
     where.push("goal_id = ?");

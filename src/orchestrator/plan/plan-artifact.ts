@@ -123,6 +123,7 @@ export function syncPlanArtifacts(
           threadId,
           title,
           kind: "md",
+          summary: true, // a plan version is code-written, not a deliverable: out of list and search, opened by link or /plan
           body,
         }).id;
       }

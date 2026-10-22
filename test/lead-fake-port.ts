@@ -142,6 +142,7 @@ export const itemRow = (over: Partial<ItemRow> = {}): ItemRow => ({
   resultKind: null,
   resultPath: null,
   resultExcerpt: null,
+  resultText: null,
   ...over,
 });
 

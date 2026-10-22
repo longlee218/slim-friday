@@ -270,6 +270,7 @@ Files: `artifacts/artifact-limits.ts`. An artifact body has no size cap (the own
 
 | Name | Value | At the limit |
 |---|---|---|
+| `RESULT_TEXT_CHARS` | 20000 chars (`orchestrator/worker/result-file.ts`, informational) | the report a run kept as text on its task row (it saved no file) is cut; `Orchestrate forward verbatim` posts it |
 | `ARTIFACT_CHUNK_CHARS` | <!-- limit:ARTIFACT_CHUNK_CHARS=2000 -->2000 chars per FTS row | the body is split at paragraph borders, a longer paragraph in fixed windows; one hit per artifact |
 | `ARTIFACT_READ_PAGE_CHARS` | <!-- limit:ARTIFACT_READ_PAGE_CHARS=8000 -->8000 chars per `ReadArtifact` page | bounds one tool result, not the artifact: the result names the next `offset` until the end |
 | `ARTIFACT_SEARCH_DEFAULT_LIMIT` | <!-- limit:ARTIFACT_SEARCH_DEFAULT_LIMIT=8 -->8 hits | `SearchArtifacts` without a `limit` |

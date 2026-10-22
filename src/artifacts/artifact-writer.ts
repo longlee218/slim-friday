@@ -30,7 +30,7 @@ export interface ArtifactInput {
   producerRole?: string;
   /** Location name of a repo artifact. */
   location?: string;
-  /** True for the code-written result summary of a task: it is never counted as a file the run saved itself. */
+  /** True for a file the code writes itself (a plan version): never counted as a file the run saved, hidden from list and search. */
   summary?: boolean;
 }
 

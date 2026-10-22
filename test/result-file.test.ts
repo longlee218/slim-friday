@@ -54,7 +54,7 @@ const closeOpts = (home: string) => ({
   agentHome: home,
 });
 
-test("closeTurn stores the result as an artifact of the channel and keeps its path on the task row", () => {
+test("closeTurn with no saved file keeps the report as text on the task row and writes no artifact", () => {
   const { db, home } = makeEnv();
   beginWorkerTurn(db);
   closeTurn(
@@ -67,24 +67,15 @@ test("closeTurn stores the result as an artifact of the channel and keeps its pa
       resultTitle: "Giáo án 8 tuần",
     },
   );
-  const taskId = ownedTaskOfTurn(db, "t1")!;
-  const item = getItem(db, taskId)!;
-  expect(item.resultPath).toBe(
-    join(home, "workspaces", "main", "channels", "general", "artifacts", "giao-an-8-tuan.md"),
-  );
+  const item = getItem(db, ownedTaskOfTurn(db, "t1")!)!;
+  expect(item.resultPath).toBeNull();
   expect(item.resultExcerpt).toContain("all good");
-  expect(readFileSync(item.resultPath!, "utf8")).toContain("all good");
-  const row = db
-    .query<{ goal_id: string; thread_id: string; kind: string }, []>(
-      "SELECT goal_id, thread_id, kind FROM artifacts",
-    )
-    .get()!;
-  expect(row).toEqual({ goal_id: taskId, thread_id: "th", kind: "md" });
-  const fts = db.query("SELECT 1 FROM artifacts_fts WHERE artifacts_fts MATCH 'good'").get();
-  expect(fts).not.toBeNull();
+  expect(item.resultText).toStartWith("# Giáo án 8 tuần\n\n");
+  expect(item.resultText).toContain("all good");
+  expect(db.query("SELECT COUNT(*) AS n FROM artifacts").get()).toEqual({ n: 0 });
 });
 
-test("no title: the file is named result-<item>; no scope: nothing is written, the excerpt stays", () => {
+test("no title: the text starts with `# Result <item>`; with or without a scope nothing is written as a file", () => {
   const { db, home } = makeEnv();
   beginWorkerTurn(db);
   closeTurn(
@@ -94,7 +85,8 @@ test("no title: the file is named result-<item>; no scope: nothing is written, t
     { ...closeOpts(home), artifactScope: { workspace: "main" } },
   );
   const item = getItem(db, ownedTaskOfTurn(db, "t1")!)!;
-  expect(item.resultPath).toBe(join(home, "workspaces", "main", "artifacts", "result-main.md"));
+  expect(item.resultPath).toBeNull();
+  expect(item.resultText).toStartWith("# Result main");
 
   const other = makeEnv();
   beginWorkerTurn(other.db);
