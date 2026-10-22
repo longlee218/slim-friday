@@ -303,6 +303,7 @@ Informational (files `providers/discord/ingress/discord-message-rules.ts`, `prov
 | `MAX_BUBBLES` | 4 messages | extra paragraphs are joined into the last bubble |
 | `ATTACH_MIN` | 800 chars | reply (or a reply with a table) becomes one inline report message, no file |
 | `INLINE_MAX` | 3900 chars | longer reply, code over 10 lines, or text after `---` becomes a file named from its `# <title>` |
+| Result file with a viewer link | link only | a result file whose artifact has a signed link (viewer on) is one green Container: title, 600-char italic excerpt, Open button, no file; viewer off or no artifact: the `.md` file |
 | `TABLE_WRAP_WIDTH` | 80 chars | a table up to this wide is wrapped in a code block; a wider one is left as is |
 | File name | 255 bytes (OS) | title slug refused, name falls back to `reply.<ext>` (never cut) |
 | `REPLY_CAP` | 6000 chars | reply cut with `[output truncated]` (`providers/discord/ingress/discord-message-rules.ts`) |

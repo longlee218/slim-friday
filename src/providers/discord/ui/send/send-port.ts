@@ -1,5 +1,5 @@
 import { AttachmentBuilder, MessageFlags, type SendableChannels } from "discord.js";
-import { attachmentName } from "../../../../ingress/attachment-name";
+import { attachmentName, headingTitle } from "../../../../ingress/attachment-name";
 import { type OwnerLanguage, renderUserNotice } from "../../../../ingress/user-copy";
 import { clip, redactText } from "../../../../observability/redact";
 import {
@@ -11,7 +11,7 @@ import {
   safeLinks,
 } from "../../ingress/discord-message-rules";
 import { PACE_TOTAL_MAX_MS, pauseMs } from "../../ingress/reply-bubbles";
-import { buildReportComponents } from "../messages/report-message";
+import { buildLinkReport, buildReportComponents } from "../messages/report-message";
 
 /** Temporary receipt on an accepted message whose first visible reply is delayed. */
 export const BUSY_ACK_EMOJI = "👀";
@@ -79,6 +79,18 @@ export async function sendResultFile(
   links?: ReportLink[],
 ): Promise<void> {
   const summary = renderUserNotice({ kind: "label", state: "full-result" }, language);
+  // Viewer on (a signed link exists): link only, no file. Viewer off: the `.md` file is the only way to read it.
+  const safe = safeLinks(links ?? []);
+  if (safe.length) {
+    const body = redactText(text);
+    await channel.send({
+      components: [buildLinkReport(headingTitle(body), body, safe, summary)],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: SAFE_MENTIONS,
+    });
+    await visible?.();
+    return;
+  }
   await sendReport(channel, { summary, markdown: text, fileName, links });
   await visible?.();
 }

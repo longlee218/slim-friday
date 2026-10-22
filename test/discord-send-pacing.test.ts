@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import type { SendableChannels } from "discord.js";
+import { TONE_COLOR } from "../src/providers/discord/ui/components/tone";
 import { sendReply, sendResultFile } from "../src/providers/discord/ui/send/send-port";
 
 /** Fake channel: records every send and typing call in order. */
@@ -68,4 +69,27 @@ test("sendResultFile: one report message with the localized label, visible once"
   expect((sent[0] as { files: { name: string }[] }).files[0]!.name).toBe("reply.md");
   await sendResultFile(channel, "x", "vi", undefined, "giao-an.md");
   expect((sent[1] as { files: { name: string }[] }).files[0]!.name).toBe("giao-an.md");
+});
+
+test("sendResultFile with a viewer link: one green Container (title, italic excerpt, Open link), no file", async () => {
+  const sent: any[] = [];
+  const channel = {
+    send: async (o: unknown) => void sent.push(o),
+    sendTyping: async () => {},
+  } as unknown as SendableChannels;
+  const body = `# Báo cáo\n\n${"nội dung dài ".repeat(200)}`;
+  await sendResultFile(channel, body, "vi", undefined, "bao-cao.md", [
+    { label: "Open", url: "https://v.example/a/1?e=1&s=2" },
+  ]);
+  expect(sent[0].files).toBeUndefined();
+  const box = sent[0].components[0].toJSON();
+  expect(box.accent_color).toBe(TONE_COLOR.ok);
+  const text = box.components.find((c: any) => c.type === 10).content as string;
+  expect(text).toContain("**Báo cáo**");
+  expect(text).toContain("*nội dung");
+  expect(text).toContain("-# Kết quả đầy đủ");
+  expect(text.length).toBeLessThan(900); // excerpt only, the rest is behind the link
+  expect(JSON.stringify(box.components.find((c: any) => c.type === 1))).toContain(
+    "https://v.example",
+  );
 });

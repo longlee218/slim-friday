@@ -455,6 +455,13 @@ bun run start
 ```
 - Logs go to stdout (pretty) and `$AGENT_HOME/logs/app.<date>.<n>.jsonl` (daily, 14 days; lines carry `workspace`).
 
+### Report link and Discord limits: owner live checklist
+
+- [ ] Viewer on: a long `Orchestrate forward verbatim` result arrives as one green Container with an Open button and no file.
+- [ ] Viewer off: the same result arrives as a `.md` file.
+- [ ] Probe the real TextDisplay cap (try 3900, then 6000): set `INLINE_MAX` from the result.
+- [ ] Does a `.md` attachment preview inline on desktop and on mobile?
+
 ## First-message checklist
 
 ### Test 1: Question in a channel
