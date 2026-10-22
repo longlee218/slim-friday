@@ -5,10 +5,11 @@
  * Run: `bun scripts/measure-tool-schema-size.ts [--tools]`. External (http) servers expose no definition here.
  */
 import { toolDefinitions } from "../src/runtime/prompt-preview/tool-definitions";
-import { getRole } from "../src/roles/role-registry";
+import { getRole, ROLES as ROLE_REGISTRY } from "../src/roles/role-registry";
 import { FULL_CTX } from "../test/mcp-ctx-fixture";
 
-const ROLES = ["lead", "planner", "scout", "developer", "tester", "discord-manager"];
+/** Every registered role (a removed role can never linger here). */
+const ROLES = Object.keys(ROLE_REGISTRY);
 
 interface Sized {
   name: string;

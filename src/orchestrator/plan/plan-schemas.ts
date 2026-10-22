@@ -19,7 +19,7 @@ const PLAN_ITEM = z.object({
   key: KEY.describe("Unique within the goal; never looks like verify-N / fix-N (reserved)"),
   subject: SUBJECT,
   priority: PRIORITY_FIELD,
-  role: z.string().min(1).max(40).describe("Worker role name (see the capabilities action)"),
+  role: z.string().min(1).max(40).describe("Worker role name (see <team>)"),
   brief: z
     .string()
     .min(1)
@@ -57,7 +57,6 @@ const EFFECTS = z
 const VERSION = z.number().int().min(1);
 const PLAN_ID = z.string().min(1).max(80);
 
-export const GOAL_SHAPE = { goalId: TASK_ID };
 export const CREATE_PLAN_SHAPE = {
   goalId: TASK_ID,
   items: z.array(PLAN_ITEM).min(1).max(PLAN_MAX_ITEMS),
@@ -78,7 +77,6 @@ export const CREATE_LEAD_PLAN_SHAPE = {
   effects: CREATE_PLAN_SHAPE.effects,
   confirmNew: CREATE_PLAN_SHAPE.confirmNew,
 };
-export const VALIDATE_PLAN_SHAPE = { planId: PLAN_ID, version: VERSION };
 export const PROPOSE_REVISION_SHAPE = {
   planId: PLAN_ID,
   baseVersion: VERSION,
@@ -114,9 +112,6 @@ export const APPROVE_PLAN_SHAPE = { planId: PLAN_ID, version: VERSION };
 
 /** Parsed inputs, one per tool. */
 type Input<S extends z.ZodRawShape> = z.infer<z.ZodObject<S>>;
-export type GoalInput = Input<typeof GOAL_SHAPE>;
-export type CreatePlanInput = Input<typeof CREATE_PLAN_SHAPE>;
 export type CreateLeadPlanInput = Input<typeof CREATE_LEAD_PLAN_SHAPE>;
-export type ValidatePlanInput = Input<typeof VALIDATE_PLAN_SHAPE>;
 export type ProposeRevisionInput = Input<typeof PROPOSE_REVISION_SHAPE>;
 export type ApprovePlanInput = Input<typeof APPROVE_PLAN_SHAPE>;

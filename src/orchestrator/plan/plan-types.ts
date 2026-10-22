@@ -29,7 +29,7 @@ export const VERIFY_ROLE = "tester";
 export const budgetSpentMessage = (
   budgetUsd: number,
   spentUsd: number,
-  next = "Report it to the lead.",
+  next = "Tell the owner.",
 ): string =>
   `Plan budget $${budgetUsd} (computed by code, capped at the goal ceiling) must be above what the goal already spent ($${spentUsd.toFixed(2)}: earlier items count): no item could start. ${next}`;
 

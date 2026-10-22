@@ -8,8 +8,8 @@ import type { StatusFacts } from "../orchestrator/turns/status-snapshot";
 /** "45s" / "3m" / "2h" for a count of seconds. */
 function ago(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-  return `${Math.round(seconds / 3600)}h`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  return `${Math.floor(seconds / 3600)}h`;
 }
 
 /** Last tools as bullet lines (the Bash description follows the name). */

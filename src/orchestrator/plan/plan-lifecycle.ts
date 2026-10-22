@@ -5,7 +5,6 @@ import {
   ORCHESTRATE_ACTION_REVISE_PLAN,
   orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
-import { childrenOf } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import {
   casPlanStatus,
@@ -15,7 +14,6 @@ import {
   planVersions,
   type WorkPlanRow,
 } from "../../storage/work-plan-store";
-import { moveTaskTo } from "../../tasks/task-resolver";
 import { planBudgetUsd } from "../budget/plan-budget";
 import { spentOf } from "../budget/task-budget";
 import { type Applied, abortRuns, materialize } from "./materialize-items";
@@ -28,12 +26,7 @@ import {
   toPlanItem,
 } from "./plan-doc";
 import { type Fail, fail, invalid, type PlanEnv, validatorCtx } from "./plan-refusal";
-import {
-  budgetSpentMessage,
-  type DeliveryEffect,
-  type PlanDoc,
-  type PlanError,
-} from "./plan-types";
+import { budgetSpentMessage, type DeliveryEffect, type PlanDoc } from "./plan-types";
 import { validatePlan } from "./validate-plan";
 
 /* Plan lifecycle over the db: create, revise (compare-and-set on the base version), approve, reject. Every version is
@@ -89,13 +82,6 @@ export function createPlan(
     ...rowFieldsOf(doc),
   });
   return { ok: true, plan };
-}
-
-/** Re-run the validator on a stored version (read-only). */
-export function validateStored(db: Database, row: WorkPlanRow, env: PlanEnv): PlanError[] {
-  const doc = docOfRow(row);
-  const keys = doc.items.map((i) => i.key);
-  return validatePlan(doc, validatorCtx(db, row.goalId, env, keys, row.version - 1));
 }
 
 /** Why approving `row` would be refused now (goal closed, budget spent), or undefined. Read-only: nothing is written. */
@@ -174,7 +160,7 @@ export function approveVersion(
   return { ok: true, created: out.created, modified: out.modified, cancelled: out.cancelled };
 }
 
-/** Reject a `valid` version. A plan that never had an approved version closes its goal (nothing was agreed) unless the goal held other work first. */
+/** Reject a `valid` version. The owner turned down the plan, not the goal: it stays open so the lead can re-plan in it (until it is old, see plan-expiry). */
 export function rejectVersion(
   db: Database,
   planId: string,
@@ -187,19 +173,10 @@ export function rejectVersion(
       "NO_PLAN",
       `Plan ${planId} v${version} not found: get the goal and use the current valid version.`,
     );
-  // One transaction: the CAS and the goal's cancels land together or not at all.
-  const out = db.transaction((): { ok: true; abort: string[] } | Fail => {
-    if (!casPlanStatus(db, planId, version, "valid", "rejected", reason))
-      return fail(
-        "PLAN_NOT_VALID",
-        `Plan v${version} is ${row.status}, not valid: get the goal and use the current valid version.`,
-      );
-    if (planVersions(db, planId).some((v) => v.status === "approved"))
-      return { ok: true, abort: [] };
-    // The owner turned down the plan, not the goal: it stays open so the lead can re-plan in it (until it is old, see plan-expiry).
-    return { ok: true, abort: [] };
-  })();
-  if (!out.ok) return out;
-  abortRuns(out.abort);
+  if (!casPlanStatus(db, planId, version, "valid", "rejected", reason))
+    return fail(
+      "PLAN_NOT_VALID",
+      `Plan v${version} is ${row.status}, not valid: get the goal and use the current valid version.`,
+    );
   return { ok: true };
 }

@@ -41,7 +41,7 @@ export function validatePlan(doc: PlanDoc, ctx: PlanCtx): PlanError[] {
   if (ctx.revisions > PLAN_MAX_REVISIONS)
     add(
       "TOO_MANY_REVISIONS",
-      `At most ${PLAN_MAX_REVISIONS} revisions: ask the lead to start a new plan.`,
+      `At most ${PLAN_MAX_REVISIONS} revisions: call Orchestrate create_plan with the goal id and new item keys.`,
     );
   // The budget is computed by code and capped at the goal ceiling; it is only refused when the goal already spent it all
   // (an empty plan has no budget to compare: NO_ITEMS says it).

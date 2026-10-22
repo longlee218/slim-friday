@@ -20,7 +20,7 @@ const log = logger.child({ module: "plan-expiry" });
 
 /* A plan nobody answered for `PENDING_PLAN_MAX_AGE_MS` (plus one owner-question timeout, so a question asked just before
    the limit can still be answered) stops holding its goal: the version is rejected (as the owner's
-   "no": a goal that never had an approved plan or other work closes, any other goal goes on), the goal settles when all
+   "no": the goal stays open for a re-plan), the goal settles when all
    its items ended, and one `timeout` event wakes the lead so it can tell the owner. A PLAN goal with no item and no plan
    waiting (rejected, expired) that is older than twice the same limit (the lead had a day to re-plan after the expiry) is cancelled: nobody asked for a re-plan. */
 

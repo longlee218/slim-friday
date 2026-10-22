@@ -63,10 +63,10 @@ test("a worker's progress: percent, its note and the activity age, in both langu
   const en = renderStatus(facts, "en");
   expect(en).toContain("Progress: 60%");
   expect(en).toContain("Reported: tests green");
-  expect(en).toContain("Last activity 2m ago.");
+  expect(en).toContain("Last activity 1m ago."); // 90 s: whole minutes, rounded down
   const vi = renderStatus(facts, "vi");
   expect(vi).toContain("Tiến độ: 60%");
-  expect(vi).toContain("Hoạt động gần nhất 2m trước.");
+  expect(vi).toContain("Hoạt động gần nhất 1m trước.");
   expect(renderStatus(running, "en")).not.toContain("Last activity");
   // No report yet: only the activity age.
   expect(renderStatus({ ...running, progress: { idleSeconds: 5 } }, "en")).not.toContain(
