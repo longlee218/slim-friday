@@ -27,7 +27,7 @@ test("two independent items run at the same time, a dependent one starts only af
       await c.report("result", { title: "T", status: "COMPLETED", summary: `${key} ok` });
       return "done";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       const r = await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
         small: true,

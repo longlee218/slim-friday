@@ -238,7 +238,7 @@ test("turns: the second chat message resumes the first session (sessions.thread_
   expect(calls[0]?.resume).toBeUndefined();
   expect(calls[1]?.resume).toBe("sess-chat");
   expect(getSession(env.db, TEST_CHANNEL)?.session_id).toBe("sess-chat");
-  expect(calls[0]?.prompt).toEndWith("Owner message:\nhello");
+  expect(calls[0]?.prompt).toEndWith("<owner_message>\nhello\n</owner_message>");
   expect(calls[0]?.prompt).not.toContain(DIGEST_HEADING); // no channel digest in a chat channel
   const tools = memoryTools(calls[0]?.options);
   expect(tools).toContain("MemorySave"); // the probe sees the memory server's tools

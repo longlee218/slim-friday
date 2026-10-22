@@ -13,7 +13,7 @@ export interface PromptContextInput {
   /** Channel (yaml `name`) the run started in: its persona files and its MEMORY.md. */
   channel?: string;
   /**
-   * `lead`: persona (TEAM, AGENTS, IDENTITY, SOUL, USER) and the memory (root, channel).
+   * `lead`: persona only (owner files, TEAM); its memory goes in the user turn, sent on change (orchestrator/lead/lead-memory.ts).
    * `worker`: no persona; the registry, the same memory (read-only: workers have no `MemorySave`) and the ledger.
    */
   kind: "lead" | "worker";
@@ -29,7 +29,8 @@ export interface PromptContextInput {
 
 /**
  * The one place that orders the prompt context of a run:
- * lead: TEAM, AGENTS, IDENTITY, SOUL, USER -> memory (root, channel);
+ * lead: `<owner_files>` (AGENTS, IDENTITY, SOUL, USER) -> `<team>`; nothing that changes per turn, so the system prompt
+ *   stays byte-identical across the turns of a session (prompt cache);
  * worker: registry -> location rules (its locations' CLAUDE.md and .claude/rules) -> memory (root, channel) -> earlier-steps block.
  * The SDK still loads no settings (settingSources []): a location's rules reach a worker only through this block,
  * never its hooks, settings or skills; the lead gets none.
@@ -43,7 +44,9 @@ export function buildPromptContext(i: PromptContextInput): string[] {
     : { text: "", truncated: false };
   const registry = lead ? "" : (i.registry ?? "");
   const locationRules = lead ? "" : (i.locationRules ?? "");
-  const layers = readMemoryLayers(i.agentHome, i.workspace, i.channel);
+  const layers = lead
+    ? { root: "", channel: "" }
+    : readMemoryLayers(i.agentHome, i.workspace, i.channel);
   const memory = formatMemoryContext(layers, i.channel);
   const ledger = lead ? "" : (i.ledger ?? "");
   const blocks = [persona.text, registry, locationRules, memory, ledger];

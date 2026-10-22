@@ -109,7 +109,7 @@ test("M3: a failed announce run is retried once, then dropped with ONE notice (n
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         small: true,

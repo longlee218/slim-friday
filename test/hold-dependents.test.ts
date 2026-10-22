@@ -49,7 +49,7 @@ test("worker FAILED: dependents stay pending, goal stays open; Orchestrate retry
         await c.report("result", { title: "T", status: "COMPLETED", summary: `${key} ok` });
         return "ok";
       }
-      if (c.prompt.includes("Owner message:")) {
+      if (c.prompt.includes("<owner_message>")) {
         await dispatch(c, [step("a"), step("b", ["a"])]);
         return "started";
       }
@@ -88,7 +88,7 @@ test("held item: dependents are not started and the goal is not settled while th
       await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await dispatch(c, [step("a"), step("b", ["a"])]);
       return "started";
     }
@@ -112,7 +112,7 @@ test("overload: the same session is resumed after the backoff, no failure event 
         await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
         return "ok";
       }
-      if (c.prompt.includes("Owner message:")) {
+      if (c.prompt.includes("<owner_message>")) {
         await dispatch(c, [step("a")]);
         return "started";
       }
@@ -138,7 +138,7 @@ test("overload: the same session is resumed after the backoff, no failure event 
 test("overload on every run: 2 automatic resumes (+2 s, +4 s), then the item is held with a failure event", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") throw new Error("API Error: 529 overloaded_error");
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await dispatch(c, [step("a")]);
       return "started";
     }
@@ -171,7 +171,7 @@ test("start + 2 Orchestrate retry, then a transient failure: the breaker does no
       }
       throw new Error("API Error: 529 overloaded_error");
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await dispatch(c, [step("a"), step("b", ["a"])]);
       return "started";
     }

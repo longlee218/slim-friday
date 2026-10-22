@@ -46,7 +46,7 @@ test("SIGTERM: the abort leaves the item ready (nothing restarts while stopping)
   const h1 = leadHarness(
     async (c) => {
       if (c.kind === "worker") return untilAborted(c);
-      if (c.prompt.includes("Owner message:")) {
+      if (c.prompt.includes("<owner_message>")) {
         await dispatchDev(c);
         return "On it.";
       }
@@ -98,7 +98,7 @@ test("resume uses the cwd of the turn that owns the session, even when the item'
         await new Promise<void>((r) => release.push(r)); // the process dies here
         return "late";
       }
-      if (c.prompt.includes("Owner message:")) {
+      if (c.prompt.includes("<owner_message>")) {
         await dispatchDev(c, "location");
         return "On it.";
       }
@@ -143,7 +143,7 @@ test("/stop with a held item: it and its dependents are cancelled and the goal s
       await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
         small: true,

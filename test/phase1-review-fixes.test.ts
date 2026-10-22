@@ -161,7 +161,7 @@ const dispatchOne = (c: Call) =>
 test("F3: after /stop a COMPLETED-before-stop result is recorded but does not wake the lead", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") return reportThenWait(c);
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await dispatchOne(c);
       return "started";
     }
@@ -174,13 +174,13 @@ test("F3: after /stop a COMPLETED-before-stop result is recorded but does not wa
   await workersDone(h.env.db);
   await sleep(300); // announce window is 20 ms
   expect(listUndelivered(h.env.db, "t1").map((e) => e.kind)).toContain("result");
-  expect(h.ofKind("lead").some((c) => c.prompt.includes("Task events"))).toBe(false);
+  expect(h.ofKind("lead").some((c) => c.prompt.includes("<events>"))).toBe(false);
 }, 15_000);
 
 test("E-L12 race: a lead cancel (no /stop) of a run that reported COMPLETED still wakes the lead", async () => {
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") return reportThenWait(c);
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await dispatchOne(c);
       return "started";
     }
@@ -192,7 +192,7 @@ test("E-L12 race: a lead cancel (no /stop) of a run that reported COMPLETED stil
   const run = liveRunsOf("t1").find((r) => r.kind === "worker")!;
   moveTaskTo(h.env.db, run.taskId!, "cancelled"); // what the lead's Orchestrate cancel does
   run.ac.abort();
-  await until(() => h.ofKind("lead").some((c) => c.prompt.includes("Task events")), 8000);
+  await until(() => h.ofKind("lead").some((c) => c.prompt.includes("<events>")), 8000);
 }, 15_000);
 
 test("F4: a ready writer item waits while its location is claimed by a force-closed run", async () => {

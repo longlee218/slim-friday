@@ -1,6 +1,5 @@
 import type { Route } from "../../config/model-routing";
 import type { ThreadTitlePort } from "../../ingress/thread-rename";
-import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
 import { buildMemoryToolContext } from "../../memory/memory-context";
 import { guardFor } from "../../policy/check-tool-call";
 import { withPrefix } from "../../roles/prompts/first-prompt-prefix";
@@ -87,14 +86,7 @@ export function agentRunOnce(p: OnceParts) {
           ],
         }),
       }),
-      extraContext: runExtraContext({
-        db,
-        config,
-        i,
-        s,
-        role,
-        hasTitlePort: !!titlePort && !!role.mcpTools?.includes(ORCHESTRATE_TOOL),
-      }),
+      extraContext: runExtraContext({ config, i, s, role }),
       appCtx: i.appCtx,
       resume: resumeId,
       route,

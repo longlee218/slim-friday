@@ -40,7 +40,7 @@ function createFlow(_path: string, out: { ask?: any; reg?: any; dispatch?: any }
       await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
       return "ok";
     }
-    if (c.prompt.includes("Owner message:") && !out.reg) {
+    if (c.prompt.includes("<owner_message>") && !out.reg) {
       out.ask = await c.orchestrate("ask_owner", {
         kind: "select",
         question: "Where?",

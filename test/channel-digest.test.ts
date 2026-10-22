@@ -113,7 +113,7 @@ test("fresh session: first prompt starts with the digest; the resumed turn adds 
   expect(first.prompt.startsWith(DIGEST_HEADING)).toBe(true);
   expect(first.prompt).toContain("Fix invoice export - csv columns");
   expect(first.prompt).not.toContain("Foreign channel");
-  expect(first.prompt.endsWith("hello there")).toBe(true);
+  expect(first.prompt.endsWith("hello there\n</owner_message>")).toBe(true);
   const second = await send("thB", "and again");
   expect(second.options.resume).toBeDefined();
   expect(second.prompt).not.toContain(DIGEST_HEADING); // resumed: no new digest block

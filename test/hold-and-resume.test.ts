@@ -23,7 +23,7 @@ function waitingScript(onLead: (c: Call, item: () => string) => Promise<void> | 
           .then(() => "done");
       return Promise.resolve("which theme?"); // done, no Report result: the item waits for the owner
     }
-    if (c.prompt.includes("Owner message: ") || c.prompt.includes("Owner message:\n")) {
+    if (c.prompt.includes("<owner_message>\n")) {
       if (itemId) return Promise.resolve("noted");
       return c
         .orchestrate("dispatch", {

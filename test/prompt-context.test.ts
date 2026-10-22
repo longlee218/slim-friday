@@ -25,7 +25,7 @@ function setup() {
   return { env, p };
 }
 
-test("lead order: TEAM, AGENTS, persona, memory (root, channel); no registry, no ledger; BOOTSTRAP never", () => {
+test("lead order: owner files, then TEAM; no memory (user turn), no registry, no ledger; BOOTSTRAP never", () => {
   const { env } = setup();
   const logs = captureLogs();
   const out = buildPromptContext({
@@ -40,11 +40,9 @@ test("lead order: TEAM, AGENTS, persona, memory (root, channel); no registry, no
   logs.stop();
   const all = out.join("\n\n");
   const at = (m: string) => all.indexOf(m);
-  expect(at("TEAM_MARK")).toBeLessThan(at("AGENTS_MARK"));
-  expect(at("AGENTS_MARK")).toBeLessThan(at("ROOT_MARK"));
-  expect(at("ROOT_MARK")).toBeLessThan(at("CHANNEL_MARK"));
-  expect(all).toContain(`### root`);
-  expect(all).toContain(`### channel ${CH}`);
+  expect(at("AGENTS_MARK")).toBeLessThan(at("TEAM_MARK"));
+  expect(all).not.toContain("ROOT_MARK"); // the lead's memory rides in its user turn (lead-memory.ts)
+  expect(all).not.toContain("CHANNEL_MARK");
   expect(all).not.toContain("REGISTRY_MARK");
   expect(all).not.toContain("LEDGER_MARK");
   expect(all).not.toContain("Bootstrap");
@@ -53,8 +51,8 @@ test("lead order: TEAM, AGENTS, persona, memory (root, channel); no registry, no
   const ev = logs.lines.filter((l) => l.event === "prompt.context");
   expect(ev).toHaveLength(1);
   expect(ev[0]).toMatchObject({ personaTruncated: false });
-  expect(ev[0]!.memoryRootChars as number).toBeGreaterThan(0);
-  expect(ev[0]!.memoryChannelChars as number).toBeGreaterThan(0);
+  expect(ev[0]!.memoryRootChars).toBe(0);
+  expect(ev[0]!.memoryChannelChars).toBe(0);
   expect(ev[0]).not.toHaveProperty("memoryWorkspaceChars");
   expect(ev[0]).not.toHaveProperty("memoryLocationChars");
   expect(ev[0]!.totalChars).toBe(out.join("").length);
@@ -100,7 +98,7 @@ test("empty blocks dropped; no CLAUDE.md fields in the size event", () => {
   expect(Object.keys(ev).filter((k) => /claudemd/i.test(k))).toEqual([]);
 });
 
-test("whole role prompts: every worker kind and the lead carry root + channel blocks, never a location block; control has no memory", () => {
+test("whole role prompts: every worker kind carries root + channel blocks, never a location block; the lead and control have none in the system prompt", () => {
   const { env, p } = setup();
   // Retired layers still on disk (workspace and location MEMORY.md) are never read.
   const legacyLocation = join(p.workspace("main").locations, "api");
@@ -109,8 +107,8 @@ test("whole role prompts: every worker kind and the lead carry root + channel bl
   writeFileSync(join(p.workspace("main").root, "MEMORY.md"), "# ws\n\n## d t\n- WSLAYER_MARK\n");
   const prompt = (role: string) =>
     buildPromptPreview(getRole(role), { agentHome: env.home, workspace: "main", channel: CH }).text;
-  // developer, scout, planner, one roster specialist (designer) and the lead.
-  for (const role of ["developer", "scout", "planner", "designer", "tester", "lead"]) {
+  // developer, scout, planner, one roster specialist (designer).
+  for (const role of ["developer", "scout", "planner", "designer", "tester"]) {
     const text = prompt(role);
     expect(text).toContain("### root");
     expect(text).toContain(`### channel ${CH}`);
@@ -120,6 +118,8 @@ test("whole role prompts: every worker kind and the lead carry root + channel bl
     expect(text).not.toContain("LOCATION_MARK");
     expect(text).not.toContain("WSLAYER_MARK");
   }
+  // The lead: memory is sent in its user turn on change (lead-memory.ts), never in the system prompt.
+  expect(prompt("lead")).not.toContain("ROOT_MARK");
   // Control channel (no workspace): no memory block at all.
   const control = buildPromptPreview(getRole("discord-manager"), { agentHome: env.home }).text;
   expect(control).not.toContain("### root");

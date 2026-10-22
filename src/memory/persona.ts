@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { workspacePaths } from "../config/workspace-paths";
-import { demoteHeadings } from "../text/demote-headings";
 import type { Workspace } from "../workspaces/workspace-registry";
 import {
   BOOTSTRAP,
@@ -105,11 +104,12 @@ const PERSONA_FILES = [
 ] as const;
 
 /**
- * The lead's persona block: `## TEAM.md` (`team`, built by code: roster and locations) when given, then `## AGENTS.md`,
- * `## IDENTITY.md`, `## SOUL.md`, `## USER.md`, one section per non-empty file. The work block (TEAM) comes first, then the
- * owner's files. Each file's own headings are pushed two levels down, so they nest under its `## <FILE>.md` heading.
- * Per file the first non-empty of channel, workspace, root wins; `workspace` undefined = root files only (the control
- * channel). `truncated` is true when any file was cut. Text is "" when no section has content.
+ * The persona block of a lead or control run, as XML data boundaries: `<owner_files>` with one `<file name="…">` per
+ * non-empty AGENTS.md, IDENTITY.md, SOUL.md, USER.md (the owner's own text, headings kept as written), then `<team>`
+ * (`team`, built by code: roster and locations) when given. The owner files come first: they change less often than
+ * the team (a new location), so the cached prefix lasts longer. Per file the first non-empty of channel, workspace,
+ * root wins; `workspace` undefined = root files only (the control channel). `truncated` is true when any file was cut.
+ * Text is "" when no section has content.
  */
 export function buildPersonaContext(
   agentHome: string,
@@ -126,11 +126,12 @@ export function buildPersonaContext(
       .map((file) => (file ? readPersona(file, f.name) : NONE))
       .find((r) => r.body) ?? NONE;
   const files = PERSONA_FILES.map((f) => ({ name: f.name, ...read(f) }));
-  const loaded = [...(team ? [{ name: "TEAM.md", body: team }] : []), ...files].filter(
-    (f): f is { name: string; body: string } => Boolean(f?.body),
-  );
+  const loaded = files.filter((f) => f.body);
+  const owner = loaded.length
+    ? `<owner_files>\n${loaded.map((f) => `<file name="${f.name}">\n${f.body}\n</file>`).join("\n")}\n</owner_files>`
+    : "";
   return {
-    text: loaded.map((f) => `## ${f.name}\n\n${demoteHeadings(f.body, 2)}`).join("\n\n"),
+    text: [owner, team ? `<team>\n${team}\n</team>` : ""].filter(Boolean).join("\n\n"),
     truncated: files.some((f) => f.cut),
   };
 }

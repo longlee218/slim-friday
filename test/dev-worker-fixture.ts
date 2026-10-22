@@ -72,7 +72,7 @@ export async function runWorkerViaLead(
       if (opts.fail) throw new Error("boom");
       return "done";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         small: true,

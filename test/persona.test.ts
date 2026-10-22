@@ -100,9 +100,12 @@ test("persona: order is AGENTS, IDENTITY, SOUL, USER; a file over 8000 chars is 
   expect(at("AGENTS_MARK")).toBeLessThan(at("Name: Friday"));
   expect(at("Name: Friday")).toBeLessThan(at("# Soul"));
   expect(at("# Soul")).toBeLessThan(at("USER_MARK"));
-  // No legend: one `## <FILE>.md` heading per file in the order.
-  expect(r.text.startsWith("## AGENTS.md")).toBe(true);
-  const heads = ["## AGENTS.md", "## IDENTITY.md", "## SOUL.md", "## USER.md"].map(at);
+  // One `<file name="…">` per file in the order, inside `<owner_files>`; the file's own headings are kept as written.
+  expect(r.text.startsWith('<owner_files>\n<file name="AGENTS.md">\n# Agents')).toBe(true);
+  expect(r.text.endsWith("</file>\n</owner_files>")).toBe(true);
+  const heads = ["AGENTS.md", "IDENTITY.md", "SOUL.md", "USER.md"].map((f) =>
+    at(`<file name="${f}">`),
+  );
   expect(heads.every((h) => h >= 0)).toBe(true);
   expect(heads).toEqual([...heads].sort((a, b) => a - b));
   expect(r.truncated).toBe(true);
@@ -112,7 +115,7 @@ test("persona: order is AGENTS, IDENTITY, SOUL, USER; a file over 8000 chars is 
   expect(buildPersonaContext(env.home).text).not.toContain("BOOTSTRAP");
 });
 
-test("persona: headings list only the files that have content", () => {
+test("persona: <file> tags list only the files that have content; <team> comes after the owner files", () => {
   const env = makeEnv();
   ensureHome(env.home, []);
   const p = workspacePaths(env.home);
@@ -121,8 +124,10 @@ test("persona: headings list only the files that have content", () => {
   writeFileSync(p.user, "<!-- nothing -->");
   writeFileSync(p.agents, "# Agents\n"); // an emptied AGENTS.md (the default one carries the commit rule)
   const { text } = buildPersonaContext(env.home);
-  expect(text).toContain("## SOUL.md");
+  expect(text).toContain('<file name="SOUL.md">');
   for (const f of ["AGENTS.md", "IDENTITY.md", "USER.md"]) expect(text).not.toContain(f);
+  const withTeam = buildPersonaContext(env.home, undefined, undefined, "## Members").text;
+  expect(withTeam.endsWith("</owner_files>\n\n<team>\n## Members\n</team>")).toBe(true);
   writeFileSync(p.soul, "<!-- nothing -->");
   expect(buildPersonaContext(env.home).text).toBe("");
 });

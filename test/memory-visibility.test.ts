@@ -17,7 +17,7 @@ test("no cap: a huge root and channel memory log no truncation event and show th
   writeFileSync(`${env.home}/MEMORY.md`, `# r\n\n## s\n- ${"x".repeat(9000)}\n`);
   writeFileSync(channelMemoryFile(env.home, WS, CH), `# c\n\n## s\n- ${"y".repeat(9000)}\n`);
   const logs = captureLogs();
-  buildPromptContext({ agentHome: env.home, workspace: WS, channel: CH, kind: "lead" });
+  buildPromptContext({ agentHome: env.home, workspace: WS, channel: CH, kind: "worker" });
   logs.stop();
   expect(logs.lines.some((l) => String(l.event).startsWith("memory.trunc"))).toBe(false);
   const ev = logs.lines.find((l) => l.event === "prompt.context")!;

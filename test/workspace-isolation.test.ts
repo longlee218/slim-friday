@@ -11,13 +11,13 @@ import { CHANNEL_2, resultMsg, TEST_CHANNEL, twoWorkspaces } from "./helpers";
 import { devLeadQuery, workersDone } from "./lead-harness";
 import { STRAY_QUEUE_FILE, writeChannelNotes } from "./memory-fixture";
 
-/** Full prompt context text of a lead run in channel `<ws>-agent` of `ws`. */
+/** Full prompt context text of a worker run in channel `<ws>-agent` of `ws` (the lead's memory is in its user turn). */
 const promptOf = (home: string, ws: string) =>
   buildPromptContext({
     agentHome: home,
     workspace: ws,
     channel: `${ws}-agent`,
-    kind: "lead",
+    kind: "worker",
   }).join("\n\n");
 
 test("same location name in two workspaces: lookups stay inside the workspace", () => {

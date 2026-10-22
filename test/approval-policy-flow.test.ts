@@ -102,7 +102,7 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
         await c.report("result", { title: "T", status: "COMPLETED", summary: "removed" });
         return "worker done";
       }
-      if (c.prompt.includes("Owner message:\ncleanup")) {
+      if (c.prompt.includes("<owner_message>\ncleanup")) {
         await c.orchestrate("request_plan", { objective: "clean up" });
         return "Planning it.";
       }
@@ -173,7 +173,7 @@ test("the dispatch lists effect grants: one owner question, No = nothing starts,
   const h = leadHarness(
     async (c) => {
       if (c.kind === "worker") return "worker done";
-      if (c.prompt.includes("Owner message:\nship it")) {
+      if (c.prompt.includes("<owner_message>\nship it")) {
         const call = {
           strategy: "DIRECT",
           small: true,

@@ -64,7 +64,7 @@ function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, fina
         await c.report("result", { title: "T", status, summary: `${key} ${status}` });
         return "worker done";
       }
-      if (c.prompt.includes("Owner message:\nbuild a todo app")) {
+      if (c.prompt.includes("<owner_message>\nbuild a todo app")) {
         await c.orchestrate("request_plan", {
           objective: "build a todo app",
           findings: "empty repo",

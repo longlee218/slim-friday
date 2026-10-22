@@ -1,14 +1,11 @@
-import type { Database } from "bun:sqlite";
 import type { AgentConfig } from "../../config/agent-config";
 import { buildLocationsContext, type Location } from "../../locations/location-registry";
-import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
 import { buildMemoryContext } from "../../memory/channel-memory";
 import { buildPersonaContext } from "../../memory/persona";
 import type { RoleRunInput } from "../../orchestrator/run/role-run-types";
 import type { RoleScope } from "../../orchestrator/run/role-scope-types";
 import { runExtraContext } from "../../orchestrator/run/run-extra-context";
 import { buildTeamMd } from "../../roles/prompts/team-md";
-import { threadTitleNote } from "../../roles/prompts/thread-title-note";
 import type { RoleDefinition } from "../../roles/role-types";
 import { preloadedSkillsText } from "../skills-plugin/preload-skills";
 import { requiredSkillsText } from "../skills-plugin/required-skills";
@@ -42,20 +39,19 @@ export interface PromptPreview {
 /** Workspace name used when none is given (not a real folder: reads fall back to the root files). */
 const PLACEHOLDER_WORKSPACE = "preview";
 
-/** `threadTitleNote` reads one thread row; this answers "a fresh thread with a placeholder name and no title". */
-const FRESH_THREAD_DB = {
-  query: () => ({ get: () => ({ placeholder: "preview", title: null }) }),
-} as unknown as Database;
-
-/** The persona block split at its `## <FILE>.md` headings into one layer per file. */
+/** The persona block split into one layer per owner file (`<file name="…">`) and one for `<team>`. */
 function personaLayers(persona: string): PromptLayer[] {
-  const parts = persona.split(/^(?=## (?:AGENTS|TEAM|IDENTITY|SOUL|USER)\.md$)/m).filter(Boolean);
-  return parts.map((p) => ({ name: /^## (\S+)/.exec(p)?.[1] ?? "persona", text: p.trimEnd() }));
+  const files = [...persona.matchAll(/<file name="([^"]+)">\n[\s\S]*?\n<\/file>/g)];
+  const team = /<team>\n[\s\S]*<\/team>/.exec(persona);
+  return [
+    ...files.map((m) => ({ name: m[1] ?? "persona", text: m[0] })),
+    ...(team ? [{ name: "TEAM.md", text: team[0] }] : []),
+  ];
 }
 
 /**
  * The system prompt of a role exactly as a run assembles it: the extra context comes from the real `runExtraContext`
- * (persona, TEAM.md, memory, registry, title note), the final text from the real `buildSystemPrompt`. The layers are
+ * (persona, TEAM.md, worker memory, registry; the lead's memory and title note are in its user turn, not here), the final text from the real `buildSystemPrompt`. The layers are
  * labeled by matching each context block with the piece that produced it; an unmatched block is kept as "context".
  */
 export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): PromptPreview {
@@ -63,14 +59,11 @@ export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): Promp
   const workspace = control ? undefined : (i.workspace ?? PLACEHOLDER_WORKSPACE);
   const locations = i.locations ?? [];
   const team = role.kind === "lead" ? buildTeamMd({ locations }) : undefined;
-  const hasTitlePort = role.kind === "lead" && !!role.mcpTools?.includes(ORCHESTRATE_TOOL);
   const blocks = runExtraContext({
-    db: FRESH_THREAD_DB,
     config: { agentHome: i.agentHome } as AgentConfig,
     i: { workspace, channel: i.channel, team, threadId: "preview" } as RoleRunInput,
     s: { scope: locations } as RoleScope,
     role,
-    hasTitlePort,
   });
   const opts = { worktreesDir: i.worktreesDir };
   const systemPrompt = buildSystemPrompt(blocks.filter(Boolean).join("\n\n"), role, opts);
@@ -85,7 +78,6 @@ export function buildPromptPreview(role: RoleDefinition, i: PreviewInput): Promp
       workspace && buildLocationsContext(workspace, locations, true),
     ],
     ["memory", workspace && buildMemoryContext(i.agentHome, workspace, i.channel)],
-    ["thread-title note (fresh thread only)", threadTitleNote(FRESH_THREAD_DB, "preview", true)[0]],
   ];
   const contract = role.promptSections(opts).join("\n");
   const rules = systemPromptText(buildSystemPrompt("", role, opts));

@@ -13,7 +13,7 @@ test("DIRECT -> worker -> Report result -> announce -> Orchestrate forward, then
       await c.report("result", { title: "T", status: "COMPLETED", summary: "deleted 2 dirs" });
       return "Deleted node_modules and dist in location.";
     }
-    if (c.prompt.includes("Owner message:\nclean node_modules")) {
+    if (c.prompt.includes("<owner_message>\nclean node_modules")) {
       const r = await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         small: true,
@@ -33,7 +33,7 @@ test("DIRECT -> worker -> Report result -> announce -> Orchestrate forward, then
       expect(r.ok).toBe(true);
       return "On it.";
     }
-    if (c.prompt.includes("Task events")) {
+    if (c.prompt.includes("<events>")) {
       const id = ITEM.exec(c.prompt)?.[1] as string;
       const f = await c.orchestrate("forward", { taskId: id, mode: "verbatim" });
       expect(f.ok).toBe(true);
@@ -143,8 +143,8 @@ test("an announce run that hits the per-run budget tells the owner and keeps the
       await c.report("result", { title: "T", status: "COMPLETED", summary: "found it" });
       return "done";
     }
-    if (c.prompt.includes("Task events")) return { text: "half way", cost: 1, maxBudget: true };
-    if (c.prompt.includes("Owner message:\ngo")) {
+    if (c.prompt.includes("<events>")) return { text: "half way", cost: 1, maxBudget: true };
+    if (c.prompt.includes("<owner_message>\ngo")) {
       await dispatch(c, [a("w")]);
       return "on it";
     }
@@ -181,7 +181,7 @@ test("a worker question becomes an event; Orchestrate steer answers it and the w
       await c.report("result", { title: "T", status: "COMPLETED", summary: "used b" });
       return "done with b";
     }
-    if (c.prompt.includes("Owner message:\nstart")) {
+    if (c.prompt.includes("<owner_message>\nstart")) {
       await dispatch(c, [
         { key: "main", subject: "task", role: "developer", brief: "do it", dependsOn: [] },
       ]);

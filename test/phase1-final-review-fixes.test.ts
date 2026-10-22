@@ -63,7 +63,7 @@ function waitingScript(finishOn: string, onLead: (c: Call, item: string) => Prom
           .then(() => "done");
       return Promise.resolve("which theme?");
     }
-    if (c.prompt.includes("Owner message:") && !itemId)
+    if (c.prompt.includes("<owner_message>") && !itemId)
       return c
         .orchestrate("dispatch", {
           strategy: "DIRECT",
@@ -147,7 +147,7 @@ test("#3 + onMessage link: a reply while Orchestrate ask_owner waits answers the
   let askResult: any;
   const h = leadHarness(
     waitingScript("blue", async (c, id) => {
-      if (c.prompt.includes("Task events") && id && !asked) {
+      if (c.prompt.includes("<events>") && id && !asked) {
         asked = true;
         askResult = await c.orchestrate("ask_owner", {
           kind: "text",
@@ -310,7 +310,7 @@ test("#5: a budget_hit on a DELEGATE goal says the budget cannot grow; the lead 
       await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
       return { text: "ok", cost: 20 }; // over the $15 DELEGATE budget
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
         small: true,
@@ -368,7 +368,7 @@ test("#7: Orchestrate steer on a held item says so (use Orchestrate retry), it n
   let r: any;
   const h = leadHarness(
     waitingScript("never", async (c, id) => {
-      if (c.prompt.includes("Task events") && id && !r) {
+      if (c.prompt.includes("<events>") && id && !r) {
         // The age limit held the waiting item: blocked + FAILED.
         moveTaskTo(h.env.db, id, "blocked");
         h.env.db.query("UPDATE owned_tasks SET result_kind = 'FAILED' WHERE id = ?").run(id);

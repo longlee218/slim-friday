@@ -62,7 +62,7 @@ async function crashScenario(iter: number, crashes: number) {
           await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
           return "worker done";
         }
-        if (c.prompt.includes("Owner message:")) {
+        if (c.prompt.includes("<owner_message>")) {
           await c.orchestrate("dispatch", {
             strategy: "DIRECT",
             small: true,

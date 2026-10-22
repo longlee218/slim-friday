@@ -111,7 +111,10 @@ test("only the lead path builds the block (workers never import it)", () => {
   const found: string[] = [];
   for (const f of importers.scanSync("src"))
     if (readFileSync(`src/${f}`, "utf8").includes("related-episodes")) found.push(f);
-  expect(found.sort()).toEqual(["memory/related-episodes.ts", "orchestrator/lead/lead-run.ts"]);
+  expect(found.sort()).toEqual([
+    "memory/related-episodes.ts",
+    "orchestrator/lead/lead-user-turn.ts",
+  ]);
 });
 
 test("lead run: an owner message carries the block, a worker prompt and the next unrelated message do not", async () => {
@@ -122,7 +125,7 @@ test("lead run: an owner message carries the block, a worker prompt and the next
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
-    if (c.prompt.includes("Owner message:\nrun the grafana dashboards")) {
+    if (c.prompt.includes("<owner_message>\nrun the grafana dashboards")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         small: true,
@@ -147,7 +150,7 @@ test("lead run: an owner message carries the block, a worker prompt and the next
   await until(() => prompts.some((p) => p.kind === "worker"));
   const lead = prompts.find((p) => p.kind === "lead")!;
   expect(lead.prompt).toContain(RELATED_HEADING);
-  expect(lead.prompt.indexOf(RELATED_HEADING)).toBeLessThan(lead.prompt.indexOf("Owner message:"));
+  expect(lead.prompt.indexOf(RELATED_HEADING)).toBeLessThan(lead.prompt.indexOf("<owner_message>"));
   expect(prompts.find((p) => p.kind === "worker")!.prompt).not.toContain(RELATED_HEADING);
   // The announce wake-up of the same thread is not an owner message: no block.
   await until(() => prompts.filter((p) => p.kind === "lead").length >= 2);

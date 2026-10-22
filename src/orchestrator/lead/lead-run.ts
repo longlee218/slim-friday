@@ -1,28 +1,32 @@
 import { messageLanguage } from "../../ingress/user-copy";
-import { relatedEpisodesBlock } from "../../memory/related-episodes";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
-import { OWNER_MESSAGE_LABEL } from "../../roles/prompts/first-prompt-prefix";
 import { buildTeamMd } from "../../roles/prompts/team-md";
+import { titlePortFor } from "../../roles/prompts/thread-title-note";
 import { dispatchableWorkers, getRole } from "../../roles/role-registry";
 import { getSession } from "../../storage/session-store";
 import { createDbEffectPort } from "../goal/effect-port-db";
 import { registerRun } from "../run/live-runs";
 import { type LeadTurnResult, runTurn } from "../run/run-turn";
-import { buildLeadContextBlock } from "../strategy/lead-context-block";
 import { dispatchReady } from "../worker/dispatch-ready";
 import { announceBlock, capNews, pendingNews, settleLeadEvents } from "./lead-events";
 import { failed, forgetBatch, rearm } from "./lead-failure";
 import { createLeadIo } from "./lead-io";
+import { type LeadMemoryTurn, markLeadMemorySent } from "./lead-memory";
 import { ownerEventIds } from "./lead-owner-events";
 import type { LeadInput } from "./lead-queue";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "./lead-runtime";
+import { buildLeadUserTurn, ownerMessageBlock } from "./lead-user-turn";
 import { artifactCtx } from "./thread-tool-ctx";
 
 /** Logger of this module. */
 const log = logger.child({ module: "lead-run" });
 
-/** Run the lead model once on `text`: one turn row, the lead's tools over a fresh port, the session stored as the lead's. */
+/**
+ * Run the lead model once on `text` (the `<events>` or `<owner_message>` block): one turn row, the lead's tools over a
+ * fresh port, the session stored as the lead's. The user turn carries the per-turn data (memory when changed, goal
+ * state, title note); a memory block counts as seen by the session only when the run saved it.
+ */
 function leadOnce(
   rt: LeadRuntime,
   ctx: LeadThreadCtx,
@@ -40,6 +44,7 @@ function leadOnce(
   const { db } = deps;
   const { threadId, ac } = o;
   const turnId = crypto.randomUUID();
+  let memory: LeadMemoryTurn | undefined; // set by `build`, read after the run
   return runTurn("lead", deps, {
     begin: {
       log,
@@ -81,23 +86,24 @@ function leadOnce(
       };
       const model = getRole("lead").model;
       const stored = getSession(db, threadId);
-      // Owner messages only (not wake-ups): earlier episodes of this channel that match the text, as data. Lead only.
-      const related =
-        o.trigger === "owner" && o.ownerText
-          ? relatedEpisodesBlock(db, {
-              workspace: ctx.workspace,
-              channel: ctx.channel,
-              threadId,
-              text: o.ownerText,
-            })
-          : "";
+      const existing = stored?.kind === "lead" ? stored : null;
+      const turn = buildLeadUserTurn(db, {
+        agentHome: deps.config.agentHome,
+        ctx,
+        threadId,
+        existing,
+        trigger: o.trigger,
+        ownerText: o.ownerText,
+        body: o.text,
+        snapshot: port.snapshot() ?? { items: [] },
+        hasTitlePort: !!titlePortFor({ threadId, channelId: ctx.channelId }, deps.threadTitle),
+      });
+      memory = turn.memory;
       return {
         input: {
           turnId,
           threadId,
-          text: [related, buildLeadContextBlock(port.snapshot() ?? { items: [] }), o.text]
-            .filter(Boolean)
-            .join("\n\n"),
+          text: turn.text,
           role: "lead",
           workspace: ctx.workspace,
           channel: ctx.channel,
@@ -106,7 +112,7 @@ function leadOnce(
           locations: [], // neutral cwd: the lead routes, it reads no location
           ac,
           language,
-          existing: stored?.kind === "lead" ? stored : null,
+          existing,
           team: buildTeamMd({ locations: ctx.locations }),
           appCtx: () => ({
             lead: toolCtx,
@@ -119,6 +125,9 @@ function leadOnce(
         }),
       };
     },
+  }).then((out) => {
+    markLeadMemorySent(db, threadId, memory, out);
+    return out;
   });
 }
 
@@ -165,7 +174,7 @@ export async function runLead(rt: LeadRuntime, input: LeadInput): Promise<void> 
       text:
         input.kind === "announce"
           ? announceBlock(batch.shown, batch.more)
-          : `${OWNER_MESSAGE_LABEL}\n${input.text ?? ""}`,
+          : ownerMessageBlock(input.text ?? ""),
       ac,
       trigger: input.kind,
       ...(input.kind === "owner" && input.text && { ownerText: input.text }),

@@ -62,7 +62,7 @@ test("worker run ends ok: worker turn done + task completed + end event", async 
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await dispatchOne(c);
       return "started";
     }

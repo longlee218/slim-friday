@@ -169,7 +169,7 @@ test("the lead hears a `failure` event naming SANDBOX_UNAVAILABLE; the worker is
   let announced = "";
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") throw new Error("sandbox-exec: sandbox could not be started");
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         small: true,

@@ -40,7 +40,7 @@ test("worker text reaches the owner only through the lead; the worker's own repl
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "WORKER-ONLY-TEXT";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         small: true,

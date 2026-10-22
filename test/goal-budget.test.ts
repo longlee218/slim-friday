@@ -147,7 +147,7 @@ test("budget_hit: a plan goal stops starting items at its computed plan budget (
         await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
         return { text: "ok", cost: 25 }; // over the whole $20 plan budget (2 developer runs * $8 * 1.25)
       }
-      if (c.prompt.includes("Owner message:")) {
+      if (c.prompt.includes("<owner_message>")) {
         await c.orchestrate("request_plan", { objective: "two steps" });
         return "Planning.";
       }

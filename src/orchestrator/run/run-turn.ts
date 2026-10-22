@@ -36,6 +36,8 @@ export interface LeadTurnResult {
   turnId: string;
   reply: string;
   outcome: string;
+  /** Session the run ended in (saved as the thread's when the outcome is resumable). */
+  sessionId?: string;
 }
 
 /**
@@ -96,6 +98,11 @@ export function runTurn(
           c.opts,
         );
       },
-    ).then(({ res, closed }) => ({ turnId: input.turnId, reply: closed, outcome: res.outcome }));
+    ).then(({ res, closed }) => ({
+      turnId: input.turnId,
+      reply: closed,
+      outcome: res.outcome,
+      sessionId: res.sessionId,
+    }));
   });
 }

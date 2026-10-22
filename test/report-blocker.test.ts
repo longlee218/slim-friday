@@ -64,7 +64,7 @@ test("end to end: the worker's blocker holds the item, the lead is told reason +
       expect(r).toMatchObject({ ok: true });
       return "stopping";
     }
-    if (c.prompt.includes("Task events")) {
+    if (c.prompt.includes("<events>")) {
       leadSawBlocker = c.prompt;
       return "will ask the owner";
     }

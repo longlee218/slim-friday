@@ -56,7 +56,7 @@ test("owner big ask -> Orchestrate request_plan -> planner plan -> one approval 
         await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
         return "worker done";
       }
-      if (c.prompt.includes("Owner message:\nbuild a todo app")) {
+      if (c.prompt.includes("<owner_message>\nbuild a todo app")) {
         // The lead's only move is Orchestrate request_plan: it has no plan tool and a direct dispatch would be NEEDS_PLAN.
         leadTools.push("Orchestrate request_plan");
         expect(
@@ -142,7 +142,7 @@ test("owner rejects the plan -> no item runs, the goal stays open for a re-plan,
         return "planned";
       }
       if (c.kind === "worker") throw new Error("no item may run");
-      if (c.prompt.includes("Owner message:\nbuild")) {
+      if (c.prompt.includes("<owner_message>\nbuild")) {
         await c.orchestrate("request_plan", { objective: "build it" });
         return "Planning.";
       }

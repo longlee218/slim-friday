@@ -313,7 +313,7 @@ test("a lead run woken by a worker's question does not relabel the still-running
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
-    if (c.prompt.includes("Owner message:\nstart")) {
+    if (c.prompt.includes("<owner_message>\nstart")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         small: true,

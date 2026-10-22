@@ -1,4 +1,3 @@
-import type { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import type { AgentConfig } from "../src/config/agent-config";
 import type { RoleRunInput } from "../src/orchestrator/run/role-run-types";
@@ -45,9 +44,6 @@ test("the lead's system prompt length equals what a run assembles", () => {
   const role = getRole("lead");
   // The run path: runExtraContext blocks joined into buildSystemPrompt (sdk-options.ts), same inputs as the preview.
   const blocks = runExtraContext({
-    db: {
-      query: () => ({ get: () => ({ placeholder: "preview", title: null }) }),
-    } as unknown as Database,
     config: { agentHome: home } as AgentConfig,
     i: {
       workspace: "preview",
@@ -56,7 +52,6 @@ test("the lead's system prompt length equals what a run assembles", () => {
     } as RoleRunInput,
     s: { scope: [] } as unknown as RoleScope,
     role,
-    hasTitlePort: true,
   });
   const runtime = systemPromptText(
     buildSystemPrompt(blocks.filter(Boolean).join("\n\n"), role, { worktreesDir: undefined }),

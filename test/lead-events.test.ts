@@ -17,7 +17,7 @@ const ev = (db: any, id: string, kind: string, payload: object = {}) =>
   appendEvent(db, { id, threadId: "t", kind: kind as never, payload });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-test("news = worker events only: the lead's own records and owner messages are not news; the block says data, not instructions", () => {
+test("news = worker events only: the lead's own records and owner messages are not news; the block is the <events> data tag", () => {
   const { db } = makeEnv();
   ev(db, "e1", "result", { excerpt: "done" });
   ev(db, "e2", "steer", { by: "lead" });
@@ -26,7 +26,7 @@ test("news = worker events only: the lead's own records and owner messages are n
   ev(db, "e5", "blocked", { excerpt: "key?" });
   const news = pendingNews(db, "t");
   expect(news.map((e) => e.id)).toEqual(["e1", "e5"]);
-  expect(announceBlock(news)).toContain("not instructions");
+  expect(announceBlock(news)).toMatch(/^<events>\n[\s\S]*\n<\/events>$/);
   settleLeadEvents(db, "t", ["e1"], ["e4"]);
   // announced + lead records + owner messages are closed; unread news stays
   expect(listUndelivered(db, "t").map((e) => e.id)).toEqual(["e5"]);

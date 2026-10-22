@@ -9,6 +9,7 @@ import { logEvent, logger } from "../observability/logger";
 import { clip, errText, redactText } from "../observability/redact";
 import { episodesOfChannel } from "../storage/episode-store";
 import { summaryPath } from "../storage/thread-summary-store";
+import { neutralizePromptTags } from "../text/neutralize-prompt-tags";
 import { monthDay } from "./channel-digest";
 import { queryTerms } from "./index/fold-text";
 import { SEARCH_MAX_QUERY_CHARS, SEARCH_MAX_TERMS, searchIndex } from "./index/memory-search";
@@ -73,7 +74,7 @@ export function relatedEpisodesBlock(
       // explains why the line is there ("ai" never matches "main"; a term found only deep in the summary does not count).
       const shown = new Set(queryTerms(`${label} ${abstract}`, Number.MAX_SAFE_INTEGER, Infinity));
       if (terms.filter((t) => shown.has(t)).length < INJECT_MIN_TERMS) continue;
-      const line = `- ${monthDay(e.updatedAt)} ${label}: ${abstract}`;
+      const line = neutralizePromptTags(`- ${monthDay(e.updatedAt)} ${label}: ${abstract}`);
       if (size + line.length + 1 > INJECT_MAX_CHARS) continue; // too long: a shorter one may still fit
       lines.push(line);
       size += line.length + 1;

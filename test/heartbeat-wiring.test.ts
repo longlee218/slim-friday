@@ -57,7 +57,7 @@ test("a worker run: a tool start stamps the live run, Report progress records pe
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
         small: true,

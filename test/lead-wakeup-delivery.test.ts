@@ -42,7 +42,7 @@ test("E-H2: a lead run that dispatched and then hit the budget still starts the 
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return "done";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         small: true,
@@ -64,7 +64,7 @@ test("E-H2: a lead run that dispatched and then hit the budget still starts the 
 test("E-H2: news left unread by a limit-stopped announce run is announced again", async () => {
   let announces = 0;
   const h = leadHarness(async (c) => {
-    if (c.prompt.includes("Task events")) {
+    if (c.prompt.includes("<events>")) {
       announces++;
       return announces === 1 ? { text: "half way", cost: 1, maxBudget: true } : "caught up";
     }
@@ -94,7 +94,7 @@ test("E-M9: the batch is capped, the overflow is counted, one budget_hit per goa
 });
 
 test("E-M9: overflow news is announced in a follow-up run until all is delivered", async () => {
-  const h = leadHarness(async (c) => (c.prompt.includes("Task events") ? "ok" : ""));
+  const h = leadHarness(async (c) => (c.prompt.includes("<events>") ? "ok" : ""));
   recordBotThread(h.env.db, "t1", TEST_CHANNEL, "main", "⏳ 10-15 10:00");
   for (let i = 0; i < ANNOUNCE_MAX_EVENTS + 3; i++)
     appendEvent(h.env.db, { id: `r${i}`, threadId: "t1", kind: "result", payload: {} });

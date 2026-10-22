@@ -37,7 +37,7 @@ test("a worker that reports NEEDS_PLANNING wakes the lead, which asks for a plan
       });
       return "needs a plan";
     }
-    if (c.prompt.includes("Owner message:\nrewrite everything")) {
+    if (c.prompt.includes("<owner_message>\nrewrite everything")) {
       const made = await c.orchestrate("dispatch", {
         strategy: "DIRECT",
         small: true,
@@ -89,7 +89,7 @@ test("Orchestrate cancel of a goal with two running items cancels both, aborts t
       aborted.push(key);
       return "stopped";
     }
-    if (c.prompt.includes("Owner message:\ntwo things")) {
+    if (c.prompt.includes("<owner_message>\ntwo things")) {
       const r = await c.orchestrate("dispatch", {
         strategy: "DELEGATE",
         small: true,
@@ -103,7 +103,7 @@ test("Orchestrate cancel of a goal with two running items cancels both, aborts t
       goalId = r.goalId;
       return "On it.";
     }
-    if (c.prompt.includes("Owner message:\ncancel it")) {
+    if (c.prompt.includes("<owner_message>\ncancel it")) {
       await c.orchestrate("cancel", { taskId: goalId, reason: "owner asked" });
       return "Cancelled.";
     }

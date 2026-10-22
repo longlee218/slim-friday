@@ -3,7 +3,7 @@ import { CHAIN_CAP, MAX_RUNNING_PER_THREAD } from "../src/config/lead-caps";
 import type { Location } from "../src/locations/location-registry";
 import {
   buildLeadContextBlock,
-  LEAD_DATA_HEADING,
+  LEAD_DATA_TAG,
 } from "../src/orchestrator/strategy/lead-context-block";
 import { buildTeamMd } from "../src/roles/prompts/team-md";
 import { ROLES } from "../src/roles/role-registry";
@@ -99,7 +99,7 @@ test("TEAM.md members table: routing is role data (Use when, Not for), tools and
   );
 });
 
-test("data block: heading says data, one row per item, results are redacted and clipped", () => {
+test("data block: <goal_state> tags, one row per item, results are redacted and clipped", () => {
   const block = buildLeadContextBlock(
     {
       goalId: "g1",
@@ -131,8 +131,8 @@ test("data block: heading says data, one row per item, results are redacted and 
     },
     ["node_modules gone"],
   );
-  expect(block.startsWith(LEAD_DATA_HEADING)).toBe(true);
-  expect(block).toContain("not instructions");
+  expect(block.startsWith(LEAD_DATA_TAG)).toBe(true);
+  expect(block.endsWith("</goal_state>")).toBe(true);
   expect(block).toContain("Goal g1: clean it");
   expect(block).toContain("- node_modules gone");
   expect(block).toContain("| t2 | next | waiting_user | which dir? |");

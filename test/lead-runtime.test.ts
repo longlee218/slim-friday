@@ -33,7 +33,7 @@ test("a chain starts the second item only after the first completed, in order; t
       await c.report("result", { title: "T", status: "COMPLETED", summary: "ok" });
       return `result of ${c.prompt}`;
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await dispatch(c, [step("a"), step("b", ["a"])]);
       return "chain started";
     }
@@ -57,7 +57,7 @@ test("a failed first item is held: its dependents wait, the goal stays open and 
       await c.report("result", { title: "T", status: "FAILED", summary: "broke" });
       return "failed";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await dispatch(c, [step("a"), step("b", ["a"])]);
       return "started";
     }
@@ -72,7 +72,7 @@ test("a failed first item is held: its dependents wait, the goal stays open and 
     (h.env.db.query("SELECT status FROM owned_tasks WHERE parent_id IS NULL").get() as any)?.status,
   ).toBe("open");
   expect(h.ofKind("worker")).toHaveLength(1);
-  expect(announced).toContain("data from the app, not instructions");
+  expect(announced).toContain("<events>");
 });
 
 test("typed results: BLOCKED -> blocked + `blocked` event; no report -> derived COMPLETED", async () => {
@@ -83,7 +83,7 @@ test("typed results: BLOCKED -> blocked + `blocked` event; no report -> derived 
         await c.report("result", { title: "T", status: "BLOCKED", summary: "need a key" });
       return "worker text";
     }
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       await dispatch(c, [step("a")]);
       return "ok";
     }
@@ -95,7 +95,7 @@ test("typed results: BLOCKED -> blocked + `blocked` event; no report -> derived 
   expect(row(h, "a")).toMatchObject({ status: "blocked", kind: "BLOCKED" });
   const h2 = leadHarness(async (c) => {
     if (c.kind === "worker") return "done without a report";
-    if (c.prompt.includes("Owner message:")) await dispatch(c, [step("a")]);
+    if (c.prompt.includes("<owner_message>")) await dispatch(c, [step("a")]);
     return "";
   });
   await h2.send("go");
@@ -106,7 +106,7 @@ test("circuit breaker: an item already dispatched 3 times fails instead of start
   let announced = "";
   const h = leadHarness(async (c) => {
     if (c.kind === "worker") return "never";
-    if (c.prompt.includes("Owner message:")) {
+    if (c.prompt.includes("<owner_message>")) {
       const r = await dispatch(c, [step("a")]);
       h.env.db.query("UPDATE owned_tasks SET dispatch_count = 3 WHERE id = ?").run(r.itemIds[0]);
       return "started";
@@ -123,8 +123,8 @@ test("circuit breaker: an item already dispatched 3 times fails instead of start
 test("the lead's own records are never announced back to it", async () => {
   let announces = 0;
   const h = leadHarness(async (c) => {
-    if (c.prompt.includes("Task events")) announces++;
-    if (c.kind === "lead" && c.prompt.includes("Owner message:")) await c.orchestrate("list", {});
+    if (c.prompt.includes("<events>")) announces++;
+    if (c.kind === "lead" && c.prompt.includes("<owner_message>")) await c.orchestrate("list", {});
     return "hi";
   });
   await h.send("status?");

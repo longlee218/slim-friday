@@ -5,7 +5,6 @@ import { PLAN_TOOL } from "../src/mcp/plan/tools/PlanTool/constants";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import type { ApprovalGateway } from "../src/owner-approval/approval-types";
-import { OWNER_MESSAGE_LABEL } from "../src/roles/prompts/first-prompt-prefix";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
 import { isLeadRun, isPlannerRun, isWorkerRun, toolOf } from "./mcp-run-probe";
 
@@ -110,9 +109,9 @@ export function devLeadQuery(inner: unknown) {
     if (!dispatchTool) return (inner as (a: unknown) => AsyncIterable<SDKMessage>)(a);
     return (async function* (): AsyncGenerator<SDKMessage> {
       const prompt = await promptOf(a.prompt);
-      const at = prompt.lastIndexOf(`${OWNER_MESSAGE_LABEL}\n`);
-      if (at >= 0) {
-        let brief = prompt.slice(at + OWNER_MESSAGE_LABEL.length + 1).trim();
+      const owner = [...prompt.matchAll(/<owner_message>\n([\s\S]*?)\n<\/owner_message>/g)].at(-1);
+      if (owner) {
+        let brief = (owner[1] ?? "").trim();
         const pin = /^location:(\S+)\s*/.exec(brief);
         if (pin) brief = brief.slice(pin[0].length);
         const dispatch = async (supersedes?: string) =>

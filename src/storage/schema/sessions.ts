@@ -20,4 +20,6 @@ export const sessions = sqliteTable("sessions", {
   generation: integer().notNull().default(0),
   /** Session owner kind: `role` (a role run) or `lead`. */
   kind: text().notNull().default("role"),
+  /** Lead sessions: `<compaction cycle>:<memory hash>` of the last memory block sent in this session (null = none sent). */
+  memory_mark: text(),
 });

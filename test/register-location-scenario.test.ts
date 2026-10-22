@@ -35,7 +35,7 @@ function registerThenDispatch(proj: string, out: { reg?: any; dispatch?: any; te
       await c.report("result", { title: "T", status: "COMPLETED", summary: "done in shop" });
       return "ok";
     }
-    if (c.prompt.includes("Owner message:") && c.prompt.includes(proj) && !out.reg) {
+    if (c.prompt.includes("<owner_message>") && c.prompt.includes(proj) && !out.reg) {
       out.reg = await c.orchestrate("register_location", { path: proj });
       if (out.reg.ok)
         out.dispatch = await c.orchestrate("dispatch", {
@@ -56,7 +56,7 @@ function registerThenDispatch(proj: string, out: { reg?: any; dispatch?: any; te
         });
       return "On it.";
     }
-    if (c.prompt.includes("Owner message:"))
+    if (c.prompt.includes("<owner_message>"))
       out.teams.push(systemPromptText(c.options.systemPrompt));
     return "noted";
   };
@@ -173,7 +173,7 @@ test("a run started by a worker event cannot register, even with the path in the
         });
         return "ok";
       }
-      if (c.prompt.includes("Task events")) {
+      if (c.prompt.includes("<events>")) {
         reg = await c.orchestrate("register_location", { path: proj });
         return "";
       }
