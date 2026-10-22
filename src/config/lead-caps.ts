@@ -6,6 +6,11 @@ export const CHAIN_CAP = 6;
 /** Most workers one DELEGATE may start; a bigger request needs a plan. */
 export const DELEGATE_MAX = 5;
 
+/** Lead run started by an owner message: it may brainstorm, save the spec and the plan, and call create_plan + approve_plan, so it gets more turns and budget than an announce run (the role's own 30 turns / $1.5). */
+export const LEAD_OWNER_RUN_MAX_TURNS = 60;
+/** Budget (USD) of a lead run started by an owner message. */
+export const LEAD_OWNER_RUN_BUDGET_USD = 5;
+
 /** Most dispatches in ONE lead run. */
 export const DISPATCHES_PER_RUN = 1;
 

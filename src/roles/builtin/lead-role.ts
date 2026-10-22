@@ -15,9 +15,9 @@ const LEAD_SKILL_REF = `friday:${LEAD_SKILL}`;
 
 /** The lead asks the owner through its own `Orchestrate ask_owner` action, never AskUserQuestion. */
 const MAX_ASK = 0;
-/** Budget (USD) of one lead run (a short routing turn). There is no daily lead budget. */
+/** Budget (USD) of an announce lead run (a short routing turn); an owner-message run gets more (`LEAD_OWNER_RUN_BUDGET_USD`). There is no daily lead budget. */
 const BUDGET_USD = 1.5;
-/** Agent loops (SDK turns) one lead run may take. */
+/** Agent loops (SDK turns) an announce lead run may take (`LEAD_OWNER_RUN_MAX_TURNS` for an owner message). */
 const MAX_TURNS = 30;
 
 /**

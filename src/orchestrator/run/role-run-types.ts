@@ -68,6 +68,8 @@ export interface RoleRunInput {
   channelMode?: "task" | "chat";
   /** Discord channel id the run started in (the thread's parent): stamped on thread rows `Orchestrate set_title` creates. */
   channelId?: string;
+  /** Turn and budget limits that replace the role's own for this run (the lead's owner-message run). */
+  limitsOverride?: { maxTurns: number; budgetUsd: number };
   /** Locations the run may use. */
   locations: Location[];
   /** The task's abort controller (`/stop`, shutdown). */

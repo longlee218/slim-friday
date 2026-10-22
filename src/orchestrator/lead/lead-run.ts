@@ -1,3 +1,4 @@
+import { LEAD_OWNER_RUN_BUDGET_USD, LEAD_OWNER_RUN_MAX_TURNS } from "../../config/lead-caps";
 import { messageLanguage } from "../../ingress/user-copy";
 import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
@@ -112,6 +113,13 @@ function leadOnce(
           channelMode: ctx.channelMode,
           channelId: ctx.channelId,
           locations: [], // neutral cwd: the lead routes, it reads no location
+          // An owner message may start a plan (spec, plan, create_plan, approve_plan): more room than an announce run.
+          ...(o.trigger === "owner" && {
+            limitsOverride: {
+              maxTurns: LEAD_OWNER_RUN_MAX_TURNS,
+              budgetUsd: LEAD_OWNER_RUN_BUDGET_USD,
+            },
+          }),
           ac,
           language,
           existing,

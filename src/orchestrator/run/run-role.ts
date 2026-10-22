@@ -27,7 +27,14 @@ export type { RoleRunInput, RoleRunnerDeps };
  */
 export async function runRole(deps: RoleRunnerDeps, run: RoleRunInput): Promise<FlowResult> {
   const { db, config, approvals } = deps;
-  const role = getRole(run.role);
+  const registered = getRole(run.role);
+  const role = run.limitsOverride
+    ? {
+        ...registered,
+        budgetUsd: run.limitsOverride.budgetUsd,
+        limits: { ...registered.limits, maxTurns: run.limitsOverride.maxTurns },
+      }
+    : registered;
   // `stop` / shutdown while the owner is being asked: drop the open buttons (no gateway = nothing to cancel).
   run.ac.signal.addEventListener("abort", () => approvals?.cancelTurn(run.turnId), { once: true });
   const refusal = validateRole(role);
