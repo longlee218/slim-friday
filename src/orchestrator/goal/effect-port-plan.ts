@@ -1,8 +1,10 @@
 import type { Database } from "bun:sqlite";
 import { MAX_WAVES } from "../../config/lead-caps";
 import {
+  ORCHESTRATE_ACTION_LIST,
   ORCHESTRATE_ACTION_REQUEST_PLAN,
   orchestrateAudit,
+  orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { ORCHESTRATE_TOOL } from "../../mcp/orchestration/tools/OrchestrateTool/constants";
 import { excerpt } from "../../observability/logger";
@@ -51,7 +53,7 @@ export function createPlanPort(
         return {
           ok: false,
           code: "BAD_TASK",
-          message: `Goal ${w.goalId} is not this thread's open goal.`,
+          message: `Goal ${w.goalId} is not this thread's open goal: list and use the open goal's id.`,
         };
       return db.transaction(() => {
         const goalId = w.goalId ?? crypto.randomUUID();
@@ -111,7 +113,7 @@ export function createPlanPort(
         openGoalIdOf(db, threadId) !== row.goalId
           ? {
               code: "GOAL_NOT_OPEN",
-              message: `Goal ${row.goalId} is not this thread's open goal: the plan cannot start.`,
+              message: `Goal ${row.goalId} is not this thread's open goal: the plan cannot start. ${orchestrateRef(ORCHESTRATE_ACTION_LIST)}; then ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)} with the open goal's id, or without goalId for a fresh plan.`,
             }
           : approvalBlocker(db, row);
       // An ask that ended without a decision is not repeated until the planner revises the version or the owner writes.
@@ -130,7 +132,11 @@ export function createPlanPort(
     decidePlan: (planId, version, approve, reason) => {
       const row = getPlan(db, planId, version);
       if (!row || !mine(row.goalId))
-        return { ok: false, code: "NO_PLAN", message: `Plan ${planId} v${version} not found.` };
+        return {
+          ok: false,
+          code: "NO_PLAN",
+          message: `Plan ${planId} v${version} not found: get the goal and use the current valid version.`,
+        };
       if (!approve) return rejectVersion(db, planId, version, reason ?? "owner rejected");
       const r = approveVersion(db, planId, version);
       return r.ok ? { ok: true, created: r.created } : r;

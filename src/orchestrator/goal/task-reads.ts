@@ -115,9 +115,10 @@ function resultText(
 /** Facts of one task of this thread: an item in full, or a goal with its item table. */
 export function taskDetail(db: Database, threadId: string, taskId: string): Reply {
   if (threadOfTask(db, taskId) !== threadId)
-    return refuse("BAD_TASK", `Task ${taskId} is not in this thread.`);
+    return refuse("BAD_TASK", `Task ${taskId} is not in this thread: list and use a current id.`);
   const item = getItem(db, taskId);
-  if (!item) return refuse("BAD_TASK", `Task ${taskId} is not in this thread.`);
+  if (!item)
+    return refuse("BAD_TASK", `Task ${taskId} is not in this thread: list and use a current id.`);
   if (!item.parentId) {
     const goal = getOwnedTask(db, taskId);
     return {

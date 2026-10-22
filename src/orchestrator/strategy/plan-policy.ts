@@ -1,4 +1,8 @@
 import { CHAIN_CAP, DISPATCHES_PER_RUN } from "../../config/lead-caps";
+import {
+  ORCHESTRATE_ACTION_STEER,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { PLANNER_KEY } from "../plan/plan-types";
 import type { Caps, GoalState } from "./caps";
 
@@ -39,7 +43,10 @@ export function checkPlanRequest(
   if (caps.dispatchedThisRun >= DISPATCHES_PER_RUN)
     return refuse("ONE_PER_RUN", "One dispatch or plan request per lead run: wait for the result.");
   if (req.goalId && req.goalId !== state.openGoalId && req.goalId !== state.waveHeldGoalId)
-    return refuse("BAD_TASK", `Goal ${req.goalId} is not this thread's open goal.`);
+    return refuse(
+      "BAD_TASK",
+      `Goal ${req.goalId} is not this thread's open goal: list and use the open goal's id.`,
+    );
   // A second planner would revise the plan under the one the owner may be reading, and burn the wave count.
   if (
     req.goalId &&
@@ -47,7 +54,7 @@ export function checkPlanRequest(
   )
     return refuse(
       "PLANNER_RUNNING",
-      "A planner of this goal is still running: wait for its plan before asking again.",
+      `A planner of this goal is still running: wait for its plan, or ${orchestrateRef(ORCHESTRATE_ACTION_STEER)} the planner with the new words.`,
     );
   if (!req.goalId && state.openGoalId)
     return refuse(

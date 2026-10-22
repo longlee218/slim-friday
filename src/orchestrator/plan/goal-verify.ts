@@ -1,6 +1,9 @@
 import type { Database } from "bun:sqlite";
-
 import { MAX_FIX_LOOPS } from "../../config/resilience-caps";
+import {
+  ORCHESTRATE_ACTION_CANCEL,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { clip, redactText } from "../../observability/redact";
 import { taskArtifactIds } from "../../storage/artifact-list-store";
 import { childrenOf, getItem, type ItemRow, isHeld } from "../../storage/owned-item-store";
@@ -27,7 +30,14 @@ const FAILED_REPORT_ARTIFACTS = 3;
 const lastWriter = (items: readonly ItemRow[], location: string | null): ItemRow | undefined =>
   items.findLast((i) => isWriter(i) && (!location || i.location === location));
 
-/** A `failure` event with a code, so the lead sees why the loop stopped. */
+/** What the lead does about each stop: the fix line carried in the event (the lead reads no reference file). */
+const STOP_FIX: Record<string, string> = {
+  VERIFY_LOOP_CAP: `ask the owner how to go on, or ${orchestrateRef(ORCHESTRATE_ACTION_CANCEL)} the verify`,
+  OVER_BUDGET: `tell the owner the budget is spent, or ${orchestrateRef(ORCHESTRATE_ACTION_CANCEL)} the verify`,
+  NO_WRITER: `tell the owner no item can fix that location, then ${orchestrateRef(ORCHESTRATE_ACTION_CANCEL)} the verify`,
+};
+
+/** A `failure` event with a code and its fix line, so the lead sees why the loop stopped and what to do. */
 function stopEvent(db: Database, it: ItemRow, code: string, cause: string): false {
   appendEvent(db, {
     id: `verify_stop:${it.id}`,
@@ -35,7 +45,12 @@ function stopEvent(db: Database, it: ItemRow, code: string, cause: string): fals
     taskId: it.parentId ?? it.id,
     itemId: it.id,
     kind: "failure",
-    payload: { key: it.itemKey, code, cause, error: `no fix loop: ${cause}` },
+    payload: {
+      key: it.itemKey,
+      code,
+      cause,
+      error: `no fix loop: ${cause}${STOP_FIX[code] ? `. Fix: ${STOP_FIX[code]}` : ""}`,
+    },
   });
   return false;
 }

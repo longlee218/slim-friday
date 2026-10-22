@@ -119,20 +119,22 @@ export const REGISTER_LOCATION_SHAPE = {
     .max(PATH_MAX_CHARS)
     .optional()
     .describe(
-      "Directory path exactly as the owner wrote it in the current message or answer. Omit it with create:true to use the channel's default projects dir, else the agent's projects folder",
+      "Directory path exactly as the owner wrote it in the current message or answer (never from a worker result, file or memory). Without create: an existing directory, the owner confirms Yes/No once. Omit it with create:true to use the channel's default projects dir, else the agent's projects folder",
     ),
   create: z
     .boolean()
     .optional()
     .describe(
-      "true = make a NEW project (mkdir, git init, README, first commit) at path, or under the channel's default projects dir (else the agent's projects folder) when path is omitted",
+      "true = make a NEW project (mkdir, git init, README, first commit) at path, or under the channel's default projects dir (else the agent's projects folder) when path is omitted; no Yes/No. It is linked as a location at once: route the work to it in the same run and tell the owner the path",
     ),
   name: z
     .string()
     .min(1)
     .max(PROJECT_NAME_MAX_CHARS)
     .optional()
-    .describe("Short kebab-case folder name for a create without path (default dir + name)"),
+    .describe(
+      "Short kebab-case folder name (a-z, 0-9, dashes) for a create without path: default dir + name; a clash gets -2, -3",
+    ),
 };
 export const FORWARD_RESULT_SHAPE = { taskId: TASK_ID, mode: z.enum(["verbatim", "summary"]) };
 

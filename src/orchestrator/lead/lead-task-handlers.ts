@@ -114,7 +114,12 @@ export const handleUpdate = (ctx: LeadToolContext, input: UpdateItemInput): Prom
       });
       // The task started between the check and the write: nothing changed.
       if (!moved)
-        return { reply: refuse("ITEM_STARTED", "The task started meanwhile: nothing changed.") };
+        return {
+          reply: refuse(
+            "ITEM_STARTED",
+            "The task started meanwhile: nothing changed. Steer it while it runs, retry it if held, or cancel it.",
+          ),
+        };
       return { reply: { ok: true, updated: item.id }, itemId: item.id };
     },
     { fresh: true },

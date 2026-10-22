@@ -107,7 +107,7 @@ export function createDbEffectPort(d: PortDeps): EffectPort {
         return {
           ok: false,
           code: "BAD_TASK",
-          message: `Goal ${x.supersedes} is not this thread's open goal.`,
+          message: `Goal ${x.supersedes} is not this thread's open goal: list and use the open goal's id.`,
         };
       const w = writeDispatch(x);
       abortRuns(w.abort); // after the commit: a rolled-back dispatch aborts nothing

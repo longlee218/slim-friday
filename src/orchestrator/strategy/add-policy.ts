@@ -1,4 +1,8 @@
 import { CHAIN_CAP, DELEGATE_MAX } from "../../config/lead-caps";
+import {
+  ORCHESTRATE_ACTION_ADD,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import type { ItemRow } from "../../storage/owned-item-store";
 import type { StructureOwner } from "../../storage/owned-task-store";
 import { isReservedKey } from "../plan/plan-types";
@@ -49,11 +53,14 @@ function checkDeps(f: GoalView, key: string, deps: readonly string[]): Refusal |
   for (const k of deps) {
     const dep = f.items.find((i) => i.itemKey === k);
     if (!dep || k === key)
-      return no("UNKNOWN_DEP", `dependsOn names ${k}, which is not another task of this goal.`);
+      return no(
+        "UNKNOWN_DEP",
+        `dependsOn names ${k}, which is not another task of this goal: list and use existing keys.`,
+      );
     if (DEAD.has(dep.status))
       return no(
         "DEAD_DEPENDENCY",
-        `Task ${k} is ${dep.status}: it never runs, nothing can wait for it.`,
+        `Task ${k} is ${dep.status}: it never runs, nothing can wait for it. Fix: ${orchestrateRef(ORCHESTRATE_ACTION_ADD)} a replacement task and depend on its key.`,
       );
   }
   if (closesLoop(f.items, key, deps))
@@ -64,9 +71,12 @@ function checkDeps(f: GoalView, key: string, deps: readonly string[]): Refusal |
 /** The role / location checks shared by add and update. */
 function checkWho(env: PolicyEnv, role?: string, location?: string): Refusal | undefined {
   if (role && !env.workerRoles.includes(role))
-    return no("NOT_WORKER", `Role ${role} is not a dispatchable worker.`);
+    return no("NOT_WORKER", `Role ${role} is not a dispatchable worker: use a role from <team>.`);
   if (location && !env.locations.includes(location))
-    return no("BAD_LOCATION", `Location ${location} is not in this workspace.`);
+    return no(
+      "BAD_LOCATION",
+      `Location ${location} is not in this workspace: use a location from <team>, or register one first.`,
+    );
   return undefined;
 }
 
@@ -81,9 +91,13 @@ export function checkAdd(
   const who = checkWho(f.env, a.role, a.location);
   if (who) return fail(who);
   if (f.items.some((i) => i.itemKey === a.key))
-    return fail(no("DUPLICATE_KEY", `Key ${a.key} is already used in this goal.`));
+    return fail(
+      no("DUPLICATE_KEY", `Key ${a.key} is already used in this goal: pick another key.`),
+    );
   if (isReservedKey(a.key))
-    return fail(no("RESERVED_KEY", "Keys planner*, verify-N and fix-N belong to the app."));
+    return fail(
+      no("RESERVED_KEY", "Keys planner*, verify-N and fix-N belong to the app: pick another key."),
+    );
   const deps = checkDeps(f, a.key, a.dependsOn);
   if (deps) return fail(deps);
   if (f.items.length + 1 > DELEGATE_MAX)
@@ -132,7 +146,7 @@ export function checkUpdate(
     return fail(
       no(
         "ITEM_STARTED",
-        `Task is ${item.status}: only a task that has not started can change (use steer for a running one).`,
+        `Task is ${item.status}: only a task that has not started can change. Steer it while it runs, retry it if held, or cancel it.`,
       ),
     );
   const who = checkWho(f.env, e.role);

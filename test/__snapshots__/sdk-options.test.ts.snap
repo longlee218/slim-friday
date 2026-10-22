@@ -176,7 +176,6 @@ Params: \`subject\` <= 80 chars, an outcome ("Fix login redirect"); \`priority\`
 | budget_hit \`canGrow:false\` | \`ask_owner\` or \`cancel\` the task (\`retry\` is refused) |
 | timeout \`item_age\` or \`hold_undecided\` | Decide now: retry or cancel |
 
-Rare codes: \`DEAD_DEPENDENCY\`: \`add\` a replacement and point the waiter at its key. \`VERIFY_LOOP_CAP\`: ask the owner. \`PLAN_EXPIRED\`: tell the owner, ask, re-plan. \`approve_plan\` TIMEOUT / ALREADY_ASKED: do not ask again until the owner writes; UNCLEAR: a change request is \`request_plan\` with the \`goalId\` and their words in \`findings\`, a question is answered; rejected: ask what to change, then re-plan with the \`goalId\`. \`PLANNER_RUNNING\`: wait, or \`steer\` the planner.
 A \`requests\` entry on a completed result is not a block: no call, no question for it.
 
 #### ask_owner

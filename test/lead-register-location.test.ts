@@ -94,7 +94,11 @@ test("BAD_PATH passes the reason (credential dir) and asks nothing", async () =>
   mkdirSync(ssh, { recursive: true });
   const port = new FakePort();
   const r = await call(s, ctxFor(s, port, { ownerText: `use ${ssh}` }), ssh);
-  expect(r).toEqual({ ok: false, code: "BAD_PATH", message: "credential directory" });
+  expect(r).toEqual({
+    ok: false,
+    code: "BAD_PATH",
+    message: "credential directory. Fix: tell the owner in plain words and ask for another path.",
+  });
   expect(port.asked).toEqual([]);
 });
 

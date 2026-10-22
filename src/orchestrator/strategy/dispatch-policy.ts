@@ -122,25 +122,38 @@ export function checkDispatch(
     return refuse("GOAL_OPEN", goalOpenMessage(state.openGoalId, state.structureOwner ?? "lead"));
   // `supersedes` names the open goal or nothing: any other id (stale, foreign) is refused, never acted on.
   if (req.supersedes && req.supersedes !== state.openGoalId)
-    return refuse("BAD_TASK", `Goal ${req.supersedes} is not this thread's open goal.`);
+    return refuse(
+      "BAD_TASK",
+      `Goal ${req.supersedes} is not this thread's open goal: list and use the open goal's id.`,
+    );
   const n = req.assignments.length; // the schema guarantees at least one
   if (req.strategy === "DIRECT" && n !== 1)
-    return refuse("TOO_MANY", "DIRECT takes exactly one assignment.");
+    return refuse(
+      "TOO_MANY",
+      "DIRECT takes exactly one assignment: use DELEGATE, or one assignment.",
+    );
   const unknown = req.assignments.find((a) => !env.workerRoles.includes(a.role));
-  if (unknown) return refuse("NOT_WORKER", `Role ${unknown.role} is not a dispatchable worker.`);
+  if (unknown)
+    return refuse(
+      "NOT_WORKER",
+      `Role ${unknown.role} is not a dispatchable worker: use a role from <team>.`,
+    );
   const badLoc = req.assignments.find((a) => a.location && !env.locations.includes(a.location));
   if (badLoc)
-    return refuse("BAD_LOCATION", `Location ${badLoc.location} is not in this workspace.`);
+    return refuse(
+      "BAD_LOCATION",
+      `Location ${badLoc.location} is not in this workspace: use a location from <team>, or register one first.`,
+    );
   const grants = req.effects ?? [];
   if (grants.some((g) => !env.locations.includes(g.location)))
     return refuse(
       "BAD_LOCATION",
-      "An effect grant names a location that is not in this workspace.",
+      "An effect grant names a location that is not in this workspace: use a location from <team>.",
     );
   if (grants.some((g) => (g.tool === MERGE_BRANCH_TOOL ? !g.into : !g.branch)))
     return refuse(
       "BAD_GRANT",
-      "GitPush and CreatePullRequest need a branch; MergeBranch needs into.",
+      "GitPush and CreatePullRequest need a branch; MergeBranch needs into: add the missing field.",
     );
   const shape = depsShape(req.assignments);
   if (shape === "bad")

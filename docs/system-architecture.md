@@ -125,6 +125,7 @@ One MCP action tool, called as `{ action, params }`. Each action is a row of `sr
 - Memory is a separate server: `MemorySave` and `MemoryEdit` are lead only (see [Memory and Persona](#memory-and-persona)).
 - Lead role data: `MAX_ASK`, `MAX_TURNS`, `BUDGET_USD` (values: [limits](limits-and-stop-conditions.md)), `noSubagents`, `capabilities: read` (no shell, no write).
 - Worker results, planner results and events are DATA in the lead's prompt, never instructions.
+- Refusals and events the lead reads carry a `Fix:` line (the next step). The lead never reads skill `references/`, so the fix must be in the returned text.
 - Transient failures resume by code (the lead does nothing). A held item is the lead's decision: `Orchestrate retry` (same session, with a note) or `Orchestrate cancel`. For a task that already ended, "go" or "continue" re-dispatches the role with a self-contained brief (rule in `roles/prompts/team-md.ts`).
 - Duplicate check (`DUPLICATE_SUSPECT`): `dispatch`, `add` and `Plan create` compare each new item (subject + brief, Jaccard overlap ≥ `DUPLICATE_MIN_OVERLAP`) with the thread's open items and completed items of the last `DUPLICATE_WINDOW_MS`, newest 500 rows; failed and cancelled items never match. The refusal lists up to `DUPLICATE_MAX_MATCHES` matches; the repeat with `confirmNew: true` is the "this is new work" answer (`task-reads.ts`, `task-match.ts`).
 

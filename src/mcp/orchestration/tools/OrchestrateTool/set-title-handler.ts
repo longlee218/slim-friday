@@ -12,9 +12,10 @@ export async function handleSetTitle(
   args: { title: string; digest: string },
 ): Promise<Reply> {
   const ctx = c.memory;
-  if (!ctx?.threadId || !ctx.threadTitle) return refuse("NO_THREAD", "This run has no thread.");
+  if (!ctx?.threadId || !ctx.threadTitle)
+    return refuse("NO_THREAD", "This run has no thread: skip it.");
   if (++c.titleCalls.n > SET_TITLE_MAX_CALLS_PER_RUN)
-    return refuse("LIMIT", `At most ${SET_TITLE_MAX_CALLS_PER_RUN} calls per run.`);
+    return refuse("LIMIT", `At most ${SET_TITLE_MAX_CALLS_PER_RUN} calls per run: skip it.`);
   const result = await applyThreadTitle(
     {
       db: ctx.db,
@@ -27,7 +28,7 @@ export async function handleSetTitle(
     args.title,
     args.digest,
   );
-  if (result === "empty") return refuse("EMPTY", "Title and digest must not be empty.");
+  if (result === "empty") return refuse("EMPTY", "Title and digest must not be empty: skip it.");
   return {
     ok: true,
     note:

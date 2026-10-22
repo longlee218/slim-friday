@@ -136,7 +136,7 @@ test("B1: the owner's typed text comes back on UNCLEAR; a reject says no reason 
   expect(rej).toMatchObject({ ok: true, status: "rejected" });
   expect(rej).toMatchObject({
     ok: true,
-    note: "The owner gave no reason: ask what to change before you plan again.",
+    note: "The owner gave no reason: ask what to change, then Orchestrate request_plan with goalId g1 and their words as findings.",
   });
 });
 
@@ -264,11 +264,10 @@ test("B6: a pending item whose dependency ended cancelled is cancelled by the pa
   moveTaskTo(db, byKey(db, goalId, "a").id, "cancelled"); // no cascade: a plain status move
   expect(cancelDeadWaiters(db, goalId)).toEqual(expect.arrayContaining(["b"]));
   expect(byKey(db, goalId, "b").status).toBe("cancelled");
-  expect(
-    listUndelivered(db, TH).some(
-      (e) => e.kind === "failure" && e.itemId === byKey(db, goalId, "b").id,
-    ),
-  ).toBe(true);
+  const ev = listUndelivered(db, TH).find(
+    (e) => e.kind === "failure" && e.itemId === byKey(db, goalId, "b").id,
+  );
+  expect((ev?.payload as any)?.error).toContain("else Orchestrate add a replacement for a"); // the fix rides in the event
 });
 
 test("B5: rejecting a plan inside a DELEGATE goal cancels the planner only; the running sibling keeps going", () => {
@@ -368,6 +367,7 @@ test("B9: Orchestrate request_plan is refused while a planner item of the goal i
   });
   expect(checkPlanRequest(state("ready"), { goalId: "g1" }, caps)).toMatchObject({
     code: "PLANNER_RUNNING",
+    message: expect.stringContaining("Orchestrate steer the planner"),
   });
   expect(checkPlanRequest(state("completed"), { goalId: "g1" }, caps)).toEqual({ ok: true });
 });
@@ -387,6 +387,7 @@ test("B10: an expired pending plan is rejected, its goal stays open for a re-pla
   const ev = listUndelivered(db, TH).filter((e) => e.kind === "timeout");
   expect(ev).toHaveLength(1);
   expect(ev[0]?.payload).toMatchObject({ code: "PLAN_EXPIRED", version: 1 });
+  expect((ev[0]?.payload as any)?.error).toContain("Orchestrate request_plan with this goalId");
   expect(announced).toEqual([TH]);
   expect(sweepPendingPlans(rtOf(announced), later())).toBe(0); // nothing left to expire
 });

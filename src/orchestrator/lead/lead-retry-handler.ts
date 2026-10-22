@@ -16,7 +16,13 @@ export const handleRetry = (ctx: LeadToolContext, input: RetryInput): Promise<Re
   leadCall(ctx, ORCHESTRATE_ACTION_RETRY, input, () => {
     const item = ctx.port.item(input.taskId);
     if (!item) return { reply: badTask(input.taskId) };
-    if (ENDED.has(item.status)) return { reply: refuse("ENDED", `Task already ${item.status}.`) };
+    if (ENDED.has(item.status))
+      return {
+        reply: refuse(
+          "ENDED",
+          `Task already ${item.status}: nothing to do; dispatch new work if the owner wants a rerun.`,
+        ),
+      };
     if (!isHeld(item))
       return {
         reply: refuse(
@@ -28,7 +34,7 @@ export const handleRetry = (ctx: LeadToolContext, input: RetryInput): Promise<Re
       return {
         reply: refuse(
           "BREAKER",
-          `Task was dispatched ${item.dispatchCount} times: no more retries.`,
+          `Task was dispatched ${item.dispatchCount} times: no more retries. Cancel it, or tell the owner and re-plan.`,
         ),
       };
     // A verify that RAN and reported FAILED after the last fix loop (it wrote a result file) is the owner's call, not another

@@ -2,7 +2,11 @@ import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { readProcessEnv } from "../../config/process-env";
 import { workspacePaths } from "../../config/workspace-paths";
-import { ORCHESTRATE_ACTION_REGISTER_LOCATION } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
+import {
+  ORCHESTRATE_ACTION_ASK_OWNER,
+  ORCHESTRATE_ACTION_REGISTER_LOCATION,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { createProject, undoCreateProject } from "../../workspaces/create-project";
 import { defaultProjectPath, defaultProjectsDir } from "../../workspaces/default-project-path";
 import { inspectLocation, type LocationCandidate } from "../../workspaces/location-candidate";
@@ -12,6 +16,18 @@ import { type Reply, refuse } from "../reply";
 import { type LeadPlace, type LeadToolContext, leadCall } from "./lead-call";
 import type { RegisterLocationInput } from "./lead-schemas";
 import { pathInText } from "./owner-path-match";
+
+/** Fix line of a path refusal by code (the lead reads no reference file); a code not listed asks for another path. */
+const PATH_FIX: Record<string, string> = {
+  BAD_DEFAULT_PROJECTS_DIR: `tell the owner to fix the channel's projectsDir, or ask for a path with ${orchestrateRef(ORCHESTRATE_ACTION_ASK_OWNER)} select`,
+  NAME_TAKEN: "", // its reason already says: pick another name
+};
+
+/** A refusal about the path or the project folder, with its fix line. */
+const pathRefusal = (code: string, reason: string): Reply => {
+  const fix = PATH_FIX[code] ?? "tell the owner in plain words and ask for another path";
+  return refuse(code, fix ? `${reason.replace(/\.?$/, ".")} Fix: ${fix}.` : reason);
+};
 
 /* Orchestrate register_location handler: owner-only, an owner-given path must be in the owner's message or an ask_owner answer (a create without path uses the channel's default projects dir, else <AGENT_HOME>/projects), an owner click before
    anything is written. It is config, not work: outside the per-goal envelope, asked every time, never a stored grant. */
@@ -90,13 +106,18 @@ export const handleRegisterLocation = (
   leadCall(ctx, ORCHESTRATE_ACTION_REGISTER_LOCATION, input, async () => {
     const { place } = ctx;
     if (input.path === undefined && !input.create)
-      return { reply: refuse("PATH_REQUIRED", "register_location needs a path (or create:true).") };
+      return {
+        reply: refuse(
+          "PATH_REQUIRED",
+          "register_location needs a path (or create:true): pass the path the owner wrote, or create:true with a name.",
+        ),
+      };
     let path = input.path?.trim() ?? "";
     if (place?.trigger !== "owner" || !place.ownerText)
       return {
         reply: refuse(
           "NOT_OWNER_TURN",
-          "A location is registered only on the owner's own message.",
+          "A location is registered only on the owner's own message. Fix: ask the owner to write the path.",
         ),
       };
     if (input.path !== undefined) {
@@ -117,21 +138,21 @@ export const handleRegisterLocation = (
       const dir = configured ?? workspacePaths(place.home).projects;
       if (!configured) mkdirSync(dir, { recursive: true });
       const made = defaultProjectPath(dir, userHome, input.name, place.ownerText);
-      if (!made.ok) return { reply: refuse(made.code, made.reason) };
+      if (!made.ok) return { reply: pathRefusal(made.code, made.reason) };
       path = made.path;
     }
     let created: Awaited<ReturnType<typeof createProject>> | undefined;
     if (input.create) {
       // New project: the owner's words or the configured default dir chose the path, so there is no second Yes/No.
       created = await createProject(place.home, userHome, path, place.ownerText);
-      if (!created.ok) return { reply: refuse(created.code, created.reason) };
+      if (!created.ok) return { reply: pathRefusal(created.code, created.reason) };
     }
     // A failure after a create removes what this call made (the project is not registered, so nothing would own it).
     const undo = () => created?.ok && undoCreateProject(created.path, created.made);
     const c = inspectLocation(place.home, place.workspace, path, userHome);
     if (!c.ok) {
       undo();
-      return { reply: refuse("BAD_PATH", c.reason) };
+      return { reply: pathRefusal("BAD_PATH", c.reason) };
     }
     if (!input.create) {
       const a = await ctx.port.askOwner({
@@ -141,13 +162,16 @@ export const handleRegisterLocation = (
       });
       if (a.answer !== "Yes")
         return {
-          reply: refuse("OWNER_DENIED", "The owner did not confirm: nothing was registered."),
+          reply: refuse(
+            "OWNER_DENIED",
+            "The owner did not confirm: nothing was registered. Do not ask again.",
+          ),
         };
     }
     const w = registerLocation(place.home, place.workspace, place.channelId, c, userHome);
     if (!w.ok) {
       undo();
-      return { reply: refuse("WRITE_FAILED", w.reason) };
+      return { reply: pathRefusal("WRITE_FAILED", w.reason) };
     }
     place.refresh(); // the same run may now dispatch to it
     return {

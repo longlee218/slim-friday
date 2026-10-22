@@ -80,10 +80,9 @@ test("rule 5: a dependency on a FAILED task is refused DEAD_DEPENDENCY, as on a 
   await openGoal(ctx);
   expect(await handleAdd(ctx(), addArgs("keeper"))).toMatchObject({ ok: true });
   db.query("UPDATE owned_tasks SET status = 'failed' WHERE item_key = 'main'").run();
-  expect(await handleAdd(ctx(), addArgs("after", { dependsOn: ["main"] }))).toMatchObject({
-    ok: false,
-    code: "DEAD_DEPENDENCY",
-  });
+  const dead = await handleAdd(ctx(), addArgs("after", { dependsOn: ["main"] }));
+  expect(dead).toMatchObject({ ok: false, code: "DEAD_DEPENDENCY" });
+  expect((dead as any).message).toContain("Fix: Orchestrate add a replacement");
 });
 
 test("rule 3: a similar task that FAILED never blocks a new one; an OPEN one blocks at any age", async () => {

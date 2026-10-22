@@ -1,4 +1,9 @@
 import type { Database } from "bun:sqlite";
+import {
+  ORCHESTRATE_ACTION_LIST,
+  ORCHESTRATE_ACTION_REQUEST_PLAN,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { PLAN_ACTION_REVISE } from "../../mcp/plan/tools/PlanTool/action-names";
 import { PLAN_TOOL } from "../../mcp/plan/tools/PlanTool/constants";
 import { childrenOf } from "../../storage/owned-item-store";
@@ -95,10 +100,20 @@ export function validateStored(db: Database, row: WorkPlanRow, env: PlanEnv): Pl
 /** Why approving `row` would be refused now (goal closed, budget spent), or undefined. Read-only: nothing is written. */
 export function approvalBlocker(db: Database, row: WorkPlanRow): Fail | undefined {
   if (getOwnedTask(db, row.goalId)?.status !== "open")
-    return fail("GOAL_CLOSED", `Goal ${row.goalId} is no longer open: the plan cannot start.`);
+    return fail(
+      "GOAL_CLOSED",
+      `Goal ${row.goalId} is no longer open: the plan cannot start. ${orchestrateRef(ORCHESTRATE_ACTION_LIST)}; then ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)} with the open goal's id, or without goalId for a fresh plan.`,
+    );
   // The goal may have spent on since the plan was stored: a budget at or below the spend could never start an item.
   if (row.budgetUsd !== null && row.budgetUsd <= spentOf(db, row.goalId))
-    return fail("BUDGET", budgetSpentMessage(row.budgetUsd, spentOf(db, row.goalId)));
+    return fail(
+      "BUDGET",
+      budgetSpentMessage(
+        row.budgetUsd,
+        spentOf(db, row.goalId),
+        `Fix: ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)} with goalId ${row.goalId} so the plan fits, or tell the owner.`,
+      ),
+    );
   return undefined;
 }
 
@@ -113,11 +128,18 @@ export function applyApproval(
   version: number,
 ): (Applied & { abort: string[]; ok: true }) | Fail {
   const row = getPlan(db, planId, version);
-  if (!row) return fail("NO_PLAN", `Plan ${planId} v${version} not found.`);
+  if (!row)
+    return fail(
+      "NO_PLAN",
+      `Plan ${planId} v${version} not found: get the goal and use the current valid version.`,
+    );
   const blocked = approvalBlocker(db, row);
   if (blocked) return blocked;
   if (!casPlanStatus(db, planId, version, "valid", "approved"))
-    return fail("PLAN_NOT_VALID", `Plan v${version} is ${row.status}, not valid.`);
+    return fail(
+      "PLAN_NOT_VALID",
+      `Plan v${version} is ${row.status}, not valid: get the goal and use the current valid version.`,
+    );
   const prev = planVersions(db, planId).filter(
     (v) => v.version < version && v.status === "approved",
   );
@@ -159,11 +181,18 @@ export function rejectVersion(
   reason: string,
 ): { ok: true } | Fail {
   const row = getPlan(db, planId, version);
-  if (!row) return fail("NO_PLAN", `Plan ${planId} v${version} not found.`);
+  if (!row)
+    return fail(
+      "NO_PLAN",
+      `Plan ${planId} v${version} not found: get the goal and use the current valid version.`,
+    );
   // One transaction: the CAS and the goal's cancels land together or not at all.
   const out = db.transaction((): { ok: true; abort: string[] } | Fail => {
     if (!casPlanStatus(db, planId, version, "valid", "rejected", reason))
-      return fail("PLAN_NOT_VALID", `Plan v${version} is ${row.status}, not valid.`);
+      return fail(
+        "PLAN_NOT_VALID",
+        `Plan v${version} is ${row.status}, not valid: get the goal and use the current valid version.`,
+      );
     if (planVersions(db, planId).some((v) => v.status === "approved"))
       return { ok: true, abort: [] };
     // The owner turned down the plan, not the goal or its other work (a DELEGATE item that reported NEEDS_PLANNING, or

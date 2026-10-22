@@ -29,8 +29,12 @@ export const VERIFY_ROLE = "tester";
 
 /** Error text of a plan budget that is not above what the goal already spent (validator and approval). The budget is computed by
     code and capped at the goal ceiling, so this means the goal spent its ceiling: no item could start. */
-export const budgetSpentMessage = (budgetUsd: number, spentUsd: number): string =>
-  `Plan budget $${budgetUsd} (computed by code, capped at the goal ceiling) must be above what the goal already spent ($${spentUsd.toFixed(2)}: the planner and earlier items count): no item could start. Report it to the lead.`;
+export const budgetSpentMessage = (
+  budgetUsd: number,
+  spentUsd: number,
+  next = "Report it to the lead.",
+): string =>
+  `Plan budget $${budgetUsd} (computed by code, capped at the goal ceiling) must be above what the goal already spent ($${spentUsd.toFixed(2)}: the planner and earlier items count): no item could start. ${next}`;
 
 /** What a plan item key may not look like (named in the validator error): planner items and the code-made `verify-N` / `fix-N`. */
 export const RESERVED_KEY_PATTERN = "planner*, verify-N, fix-N";

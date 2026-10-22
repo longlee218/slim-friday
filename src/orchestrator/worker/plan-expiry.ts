@@ -1,4 +1,8 @@
 import { PENDING_PLAN_MAX_AGE_MS } from "../../config/lead-caps";
+import {
+  ORCHESTRATE_ACTION_REQUEST_PLAN,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { logEvent, logger } from "../../observability/logger";
 import { taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
@@ -30,10 +34,10 @@ export function sweepPendingPlans(rt: LeadRuntime, now = Date.now()): number {
       kind: "timeout",
       payload: {
         code: "PLAN_EXPIRED",
+        goalId: row.goalId,
         planId: row.id,
         version: row.version,
-        error:
-          "The owner did not answer the plan in time: it was rejected. Ask the owner whether to plan again.",
+        error: `The owner did not answer the plan in time: it was rejected. Tell the owner it lapsed and ask whether to plan again; if yes, ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)} with this goalId.`,
       },
     });
     settleGoal(db, row.goalId);

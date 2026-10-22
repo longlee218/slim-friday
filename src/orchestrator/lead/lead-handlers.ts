@@ -33,7 +33,8 @@ import { supersedeGate } from "./lead-supersede-gate";
 /** Statuses of a task that ended: nothing can steer or cancel it any more. */
 export const ENDED = new Set(["completed", "failed", "cancelled"]);
 const BAD_TASK = "BAD_TASK";
-export const badTask = (id: string): Reply => refuse(BAD_TASK, `Task ${id} is not in this thread.`);
+export const badTask = (id: string): Reply =>
+  refuse(BAD_TASK, `Task ${id} is not in this thread: list and use a current id.`);
 
 /** Orchestrate dispatch: check the policy, then one port transaction writes goal, items, `start` events and the audit row. */
 export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Promise<Reply> =>
@@ -127,7 +128,13 @@ export const handleCancel = (ctx: LeadToolContext, input: CancelInput): Promise<
   leadCall(ctx, ORCHESTRATE_ACTION_CANCEL, input, () => {
     const item = ctx.port.item(input.taskId);
     if (!item) return { reply: badTask(input.taskId) };
-    if (ENDED.has(item.status)) return { reply: refuse("ENDED", `Task already ${item.status}.`) };
+    if (ENDED.has(item.status))
+      return {
+        reply: refuse(
+          "ENDED",
+          `Task already ${item.status}: nothing to do; dispatch new work if the owner wants a rerun.`,
+        ),
+      };
     const cancelled = ctx.port.cancel(input.taskId, input.reason);
     return {
       reply: { ok: true, cancelled },
@@ -175,7 +182,13 @@ export const handleAskOwner = (ctx: LeadToolContext, input: AskOwnerInput): Prom
     const payload = { question: input.question, answered: !a.timedOut };
     const events = [{ kind: "question" as const, payload }];
     if (a.timedOut || a.answer === undefined)
-      return { reply: refuse("TIMEOUT", "The owner did not answer in time."), events };
+      return {
+        reply: refuse(
+          "TIMEOUT",
+          "The owner did not answer in time: tell the owner it waits; ask again only after they write.",
+        ),
+        events,
+      };
     ctx.run.ownerAnswers = [...(ctx.run.ownerAnswers ?? []), a.answer]; // the owner's own words: a path in them may be registered
     return { reply: { ok: true, answer: a.answer }, events };
   });
@@ -190,7 +203,9 @@ export const handleForward = (ctx: LeadToolContext, input: ForwardInput): Promis
     if (!item) return { reply: badTask(input.taskId) };
     const verbatim = input.mode === "verbatim";
     if (verbatim ? !item.resultPath : !item.resultExcerpt)
-      return { reply: refuse("NO_RESULT", "The task has no result yet.") };
+      return {
+        reply: refuse("NO_RESULT", "The task has no result yet: wait for its result event."),
+      };
     if (!verbatim) {
       await ctx.port.post({ text: item.resultExcerpt as string });
       return { reply: { ok: true, posted: input.mode }, itemId: item.id };

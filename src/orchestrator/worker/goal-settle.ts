@@ -1,4 +1,9 @@
 import type { Database } from "bun:sqlite";
+import {
+  ORCHESTRATE_ACTION_ADD,
+  ORCHESTRATE_ACTION_REQUEST_PLAN,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { clearSettledQuestionLinks } from "../../storage/item-question-store";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { getOwnedTask, taskOrigin } from "../../storage/owned-task-store";
@@ -57,7 +62,7 @@ export function cancelDeadWaiters(db: Database, goalId: string): string[] {
             key: it.itemKey,
             status: "cancelled",
             code: "DEAD_DEPENDENCY",
-            error: `It waited for ${dead}, which ended without a result: cancelled, it could never start.`,
+            error: `It waited for ${dead}, which ended without a result: cancelled, it could never start. Fix: in a PLAN goal, ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)} with this goalId; else ${orchestrateRef(ORCHESTRATE_ACTION_ADD)} a replacement for ${dead} and add this task again depending on it. Do not cancel the goal for this alone.`,
           },
         });
     }

@@ -201,6 +201,7 @@ test("max 2 fix loops: the third failed verify is held with VERIFY_LOOP_CAP, no 
   expect(getItem(db, id)).toMatchObject({ status: "blocked", resultKind: "FAILED" });
   const ev = listUndelivered(db, TH).find((e) => e.kind === "failure" && (e.payload as any).code);
   expect(ev?.payload).toMatchObject({ code: "VERIFY_LOOP_CAP", key: "verify-3" });
+  expect((ev?.payload as any)?.error).toContain("Fix: ask the owner"); // the fix rides in the event
   expect(getOwnedTask(db, goalId)?.status).toBe("open"); // held for the lead, goal not settled
   // The lead may not retry it: the owner decides.
   const port = createDbEffectPort({
