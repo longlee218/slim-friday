@@ -37,7 +37,7 @@ const CEILING: Record<string, number> = {
   researcher: 11500, // 10470 on 2026-10-21 (tool-error kinds in the worker block)
   planner: 8500,
   "discord-manager": 4300,
-  lead: 4000,
+  lead: 3700,
 };
 
 test("every role has a ceiling and stays under it", () => {

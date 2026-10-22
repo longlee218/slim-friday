@@ -100,8 +100,10 @@ test("contract text: planner is structure only (revisions are its only way to ru
   expect(planner).toContain("Running items change only through a plan revision.");
   expect(planner).not.toContain("no control of running items");
   const lead = (await LEAD_ROLE.promptSections?.({} as never))?.join("\n") ?? "";
-  expect(lead).toContain("A PLAN goal's items belong to the planner");
-  expect(lead).toContain("Code adds verify, fix and wave items");
+  expect(lead).toContain(
+    "PLAN goals: the planner owns the items (add or update on them is refused)",
+  );
+  expect(lead).toContain("code adds verify, fix and wave items");
 });
 
 test("ALREADY_ASKED tells the lead one next step per outcome", async () => {
