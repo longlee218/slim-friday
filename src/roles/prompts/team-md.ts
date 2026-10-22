@@ -1,3 +1,4 @@
+import { REPORT_IMAGES_MAX } from "../../artifacts/artifact-limits";
 import {
   CHAIN_CAP,
   DELEGATE_MAX,
@@ -6,6 +7,7 @@ import {
 } from "../../config/lead-caps";
 import { ITEM_MAX_AGE_MS } from "../../config/resilience-caps";
 import type { Location } from "../../locations/location-registry";
+import { PLAYWRIGHT_TOOLS } from "../../mcp/playwright/playwright-tool-names";
 import { dispatchableWorkers } from "../role-registry";
 import type { Capability, RoleDefinition } from "../role-types";
 
@@ -31,10 +33,16 @@ const ROUTING_LINE =
 const memberFacts = (workers: readonly RoleDefinition[]): string[] => {
   const shell = workers.filter((r) => r.capabilities.includes("shell"));
   const commit = shell.filter((r) => r.capabilities.includes("write")).map((r) => r.name);
+  const browser = workers.filter((r) => PLAYWRIGHT_TOOLS.every((t) => r.mcpTools?.includes(t)));
   return [
     shell.length
       ? `- Members with a shell can run commands and tests: ${shell.map((r) => r.name).join(", ")}; of these, only ${commit.join(", ") || "none"} can also change files, install and commit. A step that needs a command goes to a member with a shell; an install, a build that writes files or a commit goes to one that can also change files.`
       : "- No member has a shell: no item can run commands, tests or commits.",
+    ...(browser.length
+      ? [
+          `- Members with browser tools can open a page and take a screenshot: ${browser.map((r) => r.name).join(", ")}. A screenshot reaches the owner only when the member attaches it to its result (up to ${REPORT_IMAGES_MAX} png, jpeg or webp files saved by the browser tool in its scratch dir): ask for "a screenshot attached to the result", not for a file path or a saved folder.`,
+        ]
+      : []),
     "- A unit test of a change belongs to the developer item that makes the change; higher-level tests (integration, end-to-end, regression, property) are the tester's.",
     "- Members have no owner contact except the developer's own questions; the others report questions in their result.",
   ];

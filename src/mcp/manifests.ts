@@ -6,6 +6,7 @@ import type { ExternalMcpServer, McpServerManifest } from "./manifest-types";
 import { MEMORY_SERVER } from "./memory/server";
 import { ORCHESTRATION_SERVER } from "./orchestration/server";
 import { PLAN_SERVER } from "./plan/server";
+import { PLAYWRIGHT_SERVER } from "./playwright/server";
 
 /**
  * Every in-process MCP server of the app. A new tool = one folder + one line in its server manifest + a role
@@ -21,4 +22,4 @@ export const ALL_SERVERS: readonly McpServerManifest[] = [
 ];
 
 /** Every external (hosted or local stdio) MCP server the app may connect a run to. Same rule: a role gets one only through `mcpTools`. */
-export const EXTERNAL_SERVERS: readonly ExternalMcpServer[] = [FIRECRAWL_SERVER];
+export const EXTERNAL_SERVERS: readonly ExternalMcpServer[] = [FIRECRAWL_SERVER, PLAYWRIGHT_SERVER];

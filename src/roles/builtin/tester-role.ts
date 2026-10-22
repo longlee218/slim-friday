@@ -1,3 +1,4 @@
+import { PLAYWRIGHT_TOOLS } from "../../mcp/playwright/playwright-tool-names";
 import { testerContract } from "../prompts/contracts/tester-contract";
 import type { RoleDefinition } from "../role-types";
 import { METHOD_SKILL, SPECIALIST_BASE } from "./specialist-contract";
@@ -8,6 +9,7 @@ const SUBAGENTS = { parallel: 2, depth: 1 };
 /** The tester: Sonnet, writes and runs tests in its location (sandboxed shell). */
 export const TESTER_ROLE: RoleDefinition = {
   ...SPECIALIST_BASE,
+  mcpTools: [...SPECIALIST_BASE.mcpTools, ...PLAYWRIGHT_TOOLS],
   name: "tester",
   noSubagents: false, // owner D7: the tester may spawn (tools limited by `subagentToolsFor`)
   subagents: SUBAGENTS,

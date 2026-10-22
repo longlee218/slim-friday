@@ -167,7 +167,7 @@ export const REPORT_RESULT_SHAPE = {
     .max(REPORT_IMAGES_MAX)
     .optional()
     .describe(
-      "Screenshots to send to the owner once: absolute paths of png/jpeg/webp files you saved in your scratch dir",
+      "Images to send to the owner once: an https URL of the image (sent as a link), or the path of a png/jpeg/webp file in your scratch dir (absolute, or as the browser tool prints it, e.g. ./page-<time>.png). A file saved elsewhere (a Desktop folder) cannot be sent",
     ),
 };
 

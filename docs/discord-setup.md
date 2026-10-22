@@ -276,6 +276,21 @@ Checks (one designer, one developer, one devops and one tester item):
 - Developer: a React or API brief loads the matching new skill (frontend-ui-engineering, frontend-design, vercel-react-best-practices, supabase-postgres-best-practices, api-and-interface-design, performance-optimization, nodejs-backend-patterns). Listing: 21 skills, about 1400 tokens.
 - DevOps: a Kubernetes manifest brief loads devops-engineer and kubernetes-specialist; no cluster access (credential dirs are unreadable).
 
+## Playwright browser tools (owner live checklist)
+
+2026-10-21, not verified live end to end. Tester, designer and researcher get the pinned Playwright MCP server (`src/config/data/playwright-mcp.yaml`).
+
+Install the browser once (the server needs the chromium build of its Playwright version; about 100 MB in `~/Library/Caches/ms-playwright`):
+```
+npx playwright install chromium
+```
+
+Checks:
+- Tester or researcher: "open https://example.com and send me a screenshot". Expect: `npx` starts the pinned server (first start downloads the package), the run navigates, takes a screenshot (no `filename`) and calls `Report result` with `images`; the PNG arrives once in the thread.
+- A relative path in `images` (`./page-<ts>.png`) is accepted; a path outside the scratch dir is refused (`INVALID_IMAGES`).
+- No login or stored profile: a second run starts with no cookies.
+- Unverified: RAM with several browser runs in the worker pool (`/limits`), the server start time under load, and Firecrawl screenshot or image output (optional probe, skipped when Firecrawl returns none).
+
 ## Add a workspace: `/init-workspace <name>`
 Type in `#ops-control` (no mention needed).
 - Name: lowercase letters, digits, hyphens; 1-32 chars; not `ops` or a publisher skill name (reserved).

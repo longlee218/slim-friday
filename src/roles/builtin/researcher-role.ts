@@ -5,6 +5,7 @@ import { FIRECRAWL_RELATED_PAPERS_TOOL } from "../../mcp/firecrawl/tools/Firecra
 import { FIRECRAWL_SCRAPE_TOOL } from "../../mcp/firecrawl/tools/FirecrawlScrapeTool/constants";
 import { FIRECRAWL_SEARCH_PAPERS_TOOL } from "../../mcp/firecrawl/tools/FirecrawlSearchPapersTool/constants";
 import { FIRECRAWL_SEARCH_TOOL } from "../../mcp/firecrawl/tools/FirecrawlSearchTool/constants";
+import { PLAYWRIGHT_TOOLS } from "../../mcp/playwright/playwright-tool-names";
 import { researcherContract } from "../prompts/contracts/researcher-contract";
 import type { RoleDefinition } from "../role-types";
 import { SPECIALIST_BASE } from "./specialist-contract";
@@ -26,6 +27,7 @@ export const RESEARCHER_ROLE: RoleDefinition = {
     FIRECRAWL_RELATED_PAPERS_TOOL,
     FIRECRAWL_INSPECT_PAPER_TOOL,
     FIRECRAWL_READ_PAPER_TOOL,
+    ...PLAYWRIGHT_TOOLS,
   ],
   name: "researcher",
   basePrompt: "custom", // writes no code: no SDK coding preset

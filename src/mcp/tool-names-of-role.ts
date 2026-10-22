@@ -26,6 +26,7 @@ import {
   mcpToolName,
   ORCHESTRATION_MCP_SERVER,
   PLAN_MCP_SERVER,
+  PLAYWRIGHT_MCP_SERVER,
 } from "./mcp-tool-names";
 import { MEMORY_EDIT_TOOL } from "./memory/tools/MemoryEditTool/constants";
 import { MEMORY_EXPAND_TOOL } from "./memory/tools/MemoryExpandTool/constants";
@@ -35,6 +36,7 @@ import { MEMORY_SEARCH_TOOL } from "./memory/tools/MemorySearchTool/constants";
 import { ORCHESTRATE_TOOL } from "./orchestration/tools/OrchestrateTool/constants";
 import { REPORT_TOOL } from "./orchestration/tools/ReportTool/constants";
 import { PLAN_TOOL } from "./plan/tools/PlanTool/constants";
+import { PLAYWRIGHT_TOOLS } from "./playwright/playwright-tool-names";
 
 /**
  * Server of every MCP tool, by bare tool name. Leaf data (imports only `constants.ts` files and server names, never
@@ -68,6 +70,7 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
   [FIRECRAWL_RELATED_PAPERS_TOOL]: FIRECRAWL_MCP_SERVER,
   [FIRECRAWL_INSPECT_PAPER_TOOL]: FIRECRAWL_MCP_SERVER,
   [FIRECRAWL_READ_PAPER_TOOL]: FIRECRAWL_MCP_SERVER,
+  ...Object.fromEntries(PLAYWRIGHT_TOOLS.map((t) => [t, PLAYWRIGHT_MCP_SERVER])),
 };
 
 /** Full names (`mcp__<server>__<tool>`) of the MCP tools of a role (the guard allows exactly these). */

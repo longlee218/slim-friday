@@ -29,6 +29,52 @@ test("a png inside the scratch dir is accepted with its name and real path", () 
   expect("images" in r && r.images.map((i) => i.name)).toEqual(["home.png"]);
 });
 
+test("a relative path (the Playwright server's ./page-<ts>.png) is read from the scratch dir", () => {
+  const { scratchDir } = scratch();
+  writeFileSync(join(scratchDir, "page-1.png"), PNG);
+  const r = checkReportImages(["./page-1.png"], scratchDir);
+  expect("images" in r && r.images.map((i) => i.name)).toEqual(["page-1.png"]);
+  expect("errors" in checkReportImages(["../escape.png"], scratchDir)).toBe(true);
+});
+
+test("an https URL is accepted as a link (no scratch dir needed); http, other schemes and a huge URL are refused", () => {
+  const r = checkReportImages(["https://cdn.example.com/shots/home.png?sig=1"], undefined);
+  expect("images" in r && r.images).toEqual([
+    { name: "home.png", url: "https://cdn.example.com/shots/home.png?sig=1" },
+  ]);
+  for (const bad of [
+    "http://example.com/a.png",
+    "https://example.com/" + "a".repeat(2000),
+    "file:///etc/hosts",
+  ])
+    expect({ bad, refused: "errors" in checkReportImages([bad], undefined) }).toEqual({
+      bad,
+      refused: true,
+    });
+});
+
+test("postReportImages sends a URL as a link and a file as an attachment", async () => {
+  const { scratchDir } = scratch();
+  const a = join(scratchDir, "a.png");
+  writeFileSync(a, PNG);
+  const sent: { text: string; image?: string }[] = [];
+  const ctx = {
+    message: {
+      notify: async (text: string, opts?: { image?: { name: string } }) => {
+        sent.push({ text, image: opts?.image?.name });
+      },
+    },
+  } as unknown as LeadThreadCtx;
+  await postReportImages(ctx, [
+    { name: "x.png", url: "https://cdn.example.com/x.png" },
+    { name: "a.png", path: a },
+  ]);
+  expect(sent).toEqual([
+    { text: "https://cdn.example.com/x.png", image: undefined },
+    { text: "", image: "a.png" },
+  ]);
+});
+
 test("refused: outside scratch, a symlink out of it, wrong extension, fake bytes, oversize, no scratch dir", () => {
   const { dir, scratchDir } = scratch();
   const outside = join(dir, "outside.png");
