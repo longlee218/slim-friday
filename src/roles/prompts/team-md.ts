@@ -23,7 +23,7 @@ const DELEGATE_LINE = `- DELEGATE: up to ${DELEGATE_MAX} workers as a chain: a t
 
 /** The PLAN strategy fact: who staffs a plan (the skill owns when to pick it). */
 const PLAN_LINE =
-  "- PLAN: the planner writes the items and staffs them from the members above; the owner approves the plan once.";
+  "- PLAN: the lead writes the plan (spec, items staffed from the members above) and the owner approves it once.";
 
 /** Member facts after the table: who can install or commit, how a screenshot reaches the owner, who may ask the owner (all from role data). */
 const memberFacts = (workers: readonly RoleDefinition[]): string[] => {
@@ -110,7 +110,7 @@ export function buildTeamMd(i: TeamMdInput = {}): string {
     PLAN_LINE,
     "",
     "## Limits (code enforces them; a refusal carries a code)",
-    `- ${DISPATCHES_PER_RUN} dispatch or plan request per run; members start after your run ends. One open goal per thread.`,
+    `- ${DISPATCHES_PER_RUN} dispatch or plan (create_plan, revise_plan) per run; members start after your run ends. One open goal per thread.`,
     `- Up to ${MAX_RUNNING_PER_THREAD} items run at once (one writer per location); at most ${CHAIN_CAP} chained starts without a new owner message; an item older than ${ITEM_MAX_AGE_HOURS} h is held.`,
   ].join("\n");
 }

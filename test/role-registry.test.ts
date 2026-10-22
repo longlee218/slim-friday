@@ -28,7 +28,7 @@ const BARE: RoleDefinition = {
   promptSections: () => [],
 };
 
-test("registry: developer, the roster specialists, the control role, the lead, the planner, the scout and the researcher; unknown role fails", () => {
+test("registry: developer, the roster specialists, the control role, the lead, the scout and the researcher; unknown role fails", () => {
   expect(Object.keys(ROLES).sort()).toEqual([
     "designer",
     "developer",
@@ -37,7 +37,6 @@ test("registry: developer, the roster specialists, the control role, the lead, t
     "hacker",
     "humanizer-writer",
     "lead",
-    "planner",
     "researcher",
     "scout",
     "solution-architect",

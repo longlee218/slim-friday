@@ -1,24 +1,17 @@
 import type { Database } from "bun:sqlite";
 import {
   ORCHESTRATE_ACTION_ADD,
-  ORCHESTRATE_ACTION_REQUEST_PLAN,
+  ORCHESTRATE_ACTION_REVISE_PLAN,
   orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { clearSettledQuestionLinks } from "../../storage/item-question-store";
 import { childrenOf, type ItemRow } from "../../storage/owned-item-store";
 import { getOwnedTask, taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
-import {
-  hasPendingPlan,
-  latestPlan,
-  newestApprovedVersion,
-  planIdOfGoal,
-} from "../../storage/work-plan-store";
+import { hasPendingPlan } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { cancelSet } from "../goal/effect-port-queries";
 import { planDroppedIds } from "../plan/plan-dropped";
-import { PLANNER_KEY } from "../plan/plan-types";
-import { noteWaveHold, waveOutlook } from "../plan/plan-waves";
 import { supersededVerifyIds } from "../plan/verify-items";
 
 /* Goal bookkeeping: items that can never run are cancelled, a goal whose items all ended gets its final status. */
@@ -62,7 +55,7 @@ export function cancelDeadWaiters(db: Database, goalId: string): string[] {
             key: it.itemKey,
             status: "cancelled",
             code: "DEAD_DEPENDENCY",
-            error: `It waited for ${dead}, which ended without a result: cancelled, it could never start. Fix: in a PLAN goal, ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)} with this goalId; else ${orchestrateRef(ORCHESTRATE_ACTION_ADD)} a replacement for ${dead} and add this task again depending on it. Do not cancel the goal for this alone.`,
+            error: `It waited for ${dead}, which ended without a result: cancelled, it could never start. Fix: in a PLAN goal, ${orchestrateRef(ORCHESTRATE_ACTION_REVISE_PLAN)} the plan; else ${orchestrateRef(ORCHESTRATE_ACTION_ADD)} a replacement for ${dead} and add this task again depending on it. Do not cancel the goal for this alone.`,
           },
         });
     }
@@ -71,33 +64,17 @@ export function cancelDeadWaiters(db: Database, goalId: string): string[] {
 }
 
 /**
- * True when the goal's only items are planner items and its plan was rejected or expired with no version ever approved:
- * the goal stays open so the lead can re-plan in the same goal (`Orchestrate request_plan` with the goal id).
- */
-function awaitsReplan(db: Database, goalId: string, items: readonly ItemRow[]): boolean {
-  if (!items.every((i) => i.itemKey?.startsWith(PLANNER_KEY))) return false;
-  const planId = planIdOfGoal(db, goalId);
-  if (!planId || newestApprovedVersion(db, goalId)) return false;
-  return latestPlan(db, planId)?.status === "rejected";
-}
-
-/**
  * When every item of the goal ended, settle the goal row: all completed = `completed`, any failed = `failed`, else
  * `cancelled`; a verify that a newer verify of the same location replaced is left out (the newest verify of each location
- * decides), and so is an item the plan cancelled by itself (dropped by a revision, replaced after NEEDS_PLANNING). While the approved plan still defers scope the goal does not settle: the next wave is due (`ready`), or the
- * wave cap was hit (`capped`) or the wave planner left no approved revision (`stalled`): one `failure` event tells the lead, the goal is held. (A goal row starts `open`; the state machine has no `open -> completed`, so it passes through `running`.)
+ * decides), and so is an item the plan cancelled by itself (dropped by a revision, replaced after NEEDS_PLANNING). (A goal row starts `open`; the state machine has no `open -> completed`, so it passes through `running`.)
  * Returns the items read.
  */
 export function settleGoal(db: Database, goalId: string): ItemRow[] {
   clearSettledQuestionLinks(db, goalId); // an ended item is never answered again: its question links go
   const items = childrenOf(db, goalId);
   if (!items.length || !items.every((i) => TERMINAL.has(i.status))) return items;
-  if (hasPendingPlan(db, goalId)) return items; // the planner ended, the plan waits for the owner: the goal goes on
+  if (hasPendingPlan(db, goalId)) return items; // the last item ended, a revised plan waits for the owner: the goal goes on
   if (getOwnedTask(db, goalId)?.status !== "open") return items; // closed already (stopped, cancelled)
-  if (awaitsReplan(db, goalId, items)) return items;
-  const wave = waveOutlook(db, goalId);
-  if (wave === "capped" || wave === "stalled") noteWaveHold(db, goalId, wave);
-  if (wave === "ready" || wave === "capped" || wave === "stalled") return items;
   // Left out of the outcome: verifies a newer verify replaced, and items plan mechanics cancelled (a revision dropped them).
   const old = supersededVerifyIds(items);
   const dropped = planDroppedIds(db, goalId, items);

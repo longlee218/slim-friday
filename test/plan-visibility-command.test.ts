@@ -6,7 +6,7 @@ import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/p
 import { createPlanLookup } from "../src/orchestrator/turns/plan-live";
 import { recordBotThread } from "../src/storage/thread-store";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
-import { ENV, item, TH } from "./waves-fixture";
+import { ENV, item, openPlanGoal, TH } from "./plan-fixture";
 
 /* Phase 5 gap tests for `/plan`: thread scope, no viewer, rejected and re-planned versions, a long plan, language. */
 
@@ -32,7 +32,7 @@ function goalWithPlan(
   o: { objective?: string; items?: ReturnType<typeof item>[]; approve?: boolean } = {},
 ) {
   recordBotThread(db, threadId, TEST_CHANNEL, "main", threadId);
-  const w = createPlanPort(db, threadId).requestPlan({ key: `k-${threadId}`, objective: "goal" });
+  const w = openPlanGoal(db, threadId, "goal");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -78,7 +78,7 @@ test("/plan of a goal with no plan: none; a goal with a plan is found through it
   const env = makeEnv();
   db = env.db;
   recordBotThread(db, TH, TEST_CHANNEL, "main", "x");
-  createPlanPort(db, TH).requestPlan({ key: "k0", objective: "no plan yet" });
+  openPlanGoal(db, TH, "no plan yet");
   const lookup = createPlanLookup({ db, home: env.home, viewer: VIEWER });
   expect(lookup(TH, false)).toEqual({ kind: "none" });
   expect(lookup(TH, true)).toEqual({ kind: "none" });

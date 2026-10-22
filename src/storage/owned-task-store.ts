@@ -79,18 +79,18 @@ export function insertOwnedTask(
   );
 }
 
-/** Who may change a goal's items: the lead (DIRECT / DELEGATE) or the planner (PLAN). */
-export type StructureOwner = "lead" | "planner";
+/** How a goal's items change: `lead` (DIRECT / DELEGATE: add / update) or `plan` (PLAN: create_plan / revise_plan). */
+export type StructureOwner = "lead" | "plan";
 
 /** Structure owner of a goal; a goal row without the value (or a missing row) counts as `lead`. */
 export function structureOwnerOf(db: Database, goalId: string): StructureOwner {
   return cell<string>(db, "SELECT structure_owner AS v FROM owned_tasks WHERE id = ?", goalId) ===
-    "planner"
-    ? "planner"
+    "plan"
+    ? "plan"
     : "lead";
 }
 
-/** Hand a goal's structure to `owner` (Orchestrate request_plan: lead -> planner). */
+/** Hand a goal's structure to `owner` (Orchestrate create_plan on an open goal: lead -> plan). */
 export function setStructureOwner(db: Database, goalId: string, owner: StructureOwner): void {
   db.query("UPDATE owned_tasks SET structure_owner = ? WHERE id = ?").run(owner, goalId);
 }

@@ -9,7 +9,7 @@ const INTENT_CHARS = 120;
 
 /**
  * Replacing a PLAN goal cancels the owner-approved plan: the owner decides, not a tool argument (B2). That is the open
- * PLAN goal named by `supersedes` and a wave-held one (capped / stalled), which a new goal closes as well. Returns a
+ * PLAN goal named by `supersedes`. Returns a
  * refusal (No, or no answer in time: a distinct code) or undefined when the dispatch may go on.
  */
 export async function supersedeGate(
@@ -18,8 +18,7 @@ export async function supersedeGate(
 ): Promise<Reply | undefined> {
   const { port } = ctx;
   const state = port.state();
-  const planGoalId =
-    supersedes && state.structureOwner === "planner" ? supersedes : state.waveHeldGoalId;
+  const planGoalId = supersedes && state.structureOwner === "plan" ? supersedes : undefined;
   if (!planGoalId) return undefined;
   const intent = port.snapshot(planGoalId)?.intent;
   const a = await port.askOwner({

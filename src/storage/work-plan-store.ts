@@ -14,11 +14,11 @@ export interface WorkPlanRow {
   goalId: string;
   /** Lifecycle state of this version. */
   status: PlanStatus;
-  /** How the work is split (strategy name chosen by the planner). */
+  /** How the work is split (strategy name chosen by the lead). */
   strategy: string;
   /** What the goal must achieve, one paragraph. */
   objective: string;
-  /** Plan text / items as written by the planner. */
+  /** Plan text / items as written by the lead. */
   body: string;
   /** JSON array of acceptance criteria. */
   acceptance: string;

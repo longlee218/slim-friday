@@ -23,8 +23,6 @@ afterAll(cleanupTmp);
    (trash + effect_log, no question) -> outside the envelope the owner is asked once per act (R4: another location) ->
    git push in the shell and GitPush are denied -> /purge empties the thread's trash. */
 
-const GOAL = /Goal id: ([0-9a-f-]{36})/;
-const PLAN_ID = /"planId":"([0-9a-f-]{36})"/;
 const tool = (name: string) => mcpToolName(EFFECTS_MCP_SERVER, name);
 
 test("plan approved -> DeletePaths in the envelope (trash, no question); outside it one owner question per act; push denied; /purge", async () => {
@@ -41,40 +39,8 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
   const confirms: string[] = [];
   let ownerAnswer = true;
   const seen: Record<string, unknown> = {};
-  let leadApproved = false;
   const h = leadHarness(
     async (c) => {
-      if (c.kind === "planner") {
-        const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        const made = await c.plan("create", {
-          goalId,
-          items: [
-            {
-              key: "cleanup",
-              subject: "task",
-              role: "developer",
-              brief: "remove old.txt",
-              location: "location",
-              dependsOn: [],
-              risk: "R2",
-            },
-          ],
-          acceptanceCriteria: ["old.txt is gone"],
-          envelope: {
-            locations: ["location"],
-            riskClasses: ["R0", "R1", "R2"],
-            bounds: { maxItems: 4, maxGb: 1 },
-          },
-          budgetUsd: 2,
-          effects: [],
-        });
-        await c.report("result", {
-          title: "T",
-          status: "COMPLETED",
-          summary: `plan ${made.planId} v1`,
-        });
-        return "planned";
-      }
       if (c.kind === "worker") {
         if (c.prompt.includes("Acceptance criteria:")) {
           // The code-appended verify run: it only reports (the checks below belong to the cleanup item).
@@ -103,13 +69,28 @@ test("plan approved -> DeletePaths in the envelope (trash, no question); outside
         return "worker done";
       }
       if (c.prompt.includes("<owner_message>\ncleanup")) {
-        await c.orchestrate("request_plan", { objective: "clean up" });
-        return "Planning it.";
-      }
-      const plan = PLAN_ID.exec(c.prompt)?.[1];
-      if (plan && !leadApproved) {
-        leadApproved = true;
-        await c.orchestrate("approve_plan", { planId: plan, version: 1 });
+        const made = await c.orchestrate("create_plan", {
+          objective: "clean up",
+          items: [
+            {
+              key: "cleanup",
+              subject: "task",
+              role: "developer",
+              brief: "remove old.txt",
+              location: "location",
+              dependsOn: [],
+              risk: "R2",
+            },
+          ],
+          acceptanceCriteria: ["old.txt is gone"],
+          envelope: {
+            locations: ["location"],
+            riskClasses: ["R0", "R1", "R2"],
+            bounds: { maxItems: 4, maxGb: 1 },
+          },
+          effects: [],
+        });
+        await c.orchestrate("approve_plan", { planId: made.planId, version: 1 });
         return "Plan approved.";
       }
       return c.prompt.includes('"key":"cleanup"') ? "Cleanup done." : "";

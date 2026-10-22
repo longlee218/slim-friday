@@ -13,7 +13,7 @@ export type EventKind =
   | "blocked"
   | "slot_wait" // a ready item waits for a worker slot past the notice delay (news only)
   | "plan_revised" // an applied plan revision that cancelled work or changed the criteria (news; payload = the diff)
-  | "items_added" // code added verify-N / fix-N / planner-N to a PLAN goal (passive news, read with the next announce, never a wake-up; payload.added = the keys)
+  | "items_added" // code added verify-N / fix-N to a PLAN goal (passive news, read with the next announce, never a wake-up; payload.added = the keys)
   | "retry" // the lead re-queued a held item (the retry tool); payload.note, payload.by = "lead"
   | "recovered_after_restart"
   | "lead_decision"; // a lead tool call with no natural kind (reads, forward); payload.by = "lead"

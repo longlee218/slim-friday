@@ -4,7 +4,7 @@ import { ORCHESTRATE_TOOL } from "./constants";
 
 /** Start a goal with one worker (DIRECT) or a few chained workers (DELEGATE). */
 export const ORCHESTRATE_ACTION_DISPATCH = "dispatch";
-/** Add one task to the open goal (DIRECT / DELEGATE goals only: a PLAN goal belongs to the planner). */
+/** Add one task to the open goal (DIRECT / DELEGATE goals only: a PLAN goal changes through revise_plan). */
 export const ORCHESTRATE_ACTION_ADD = "add";
 /** Change a task that has not started (subject, brief, priority, dependsOn, role). */
 export const ORCHESTRATE_ACTION_UPDATE = "update";
@@ -24,8 +24,6 @@ export const ORCHESTRATE_ACTION_CANCEL = "cancel";
 export const ORCHESTRATE_ACTION_FORWARD = "forward";
 /** Ask the owner a question (yes/no, select or text); the answer comes back as the result. */
 export const ORCHESTRATE_ACTION_ASK_OWNER = "ask_owner";
-/** Open (or reuse) a goal and start the planner on it; the lead never plans itself. */
-export const ORCHESTRATE_ACTION_REQUEST_PLAN = "request_plan";
 /** Store a plan the lead wrote (a new goal, or a re-plan inside the open one); the owner approves it with approve_plan. */
 export const ORCHESTRATE_ACTION_CREATE_PLAN = "create_plan";
 /** A new version of a plan from add / cancel / modify edits. */

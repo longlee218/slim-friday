@@ -12,7 +12,6 @@ import { handleRegisterLocation } from "../../../../orchestrator/lead/lead-locat
 import {
   handleApprovePlan,
   handleCreatePlan,
-  handleRequestPlan,
   handleRevisePlan,
 } from "../../../../orchestrator/lead/lead-plan-handlers";
 import { handleRetry } from "../../../../orchestrator/lead/lead-retry-handler";
@@ -42,7 +41,6 @@ import {
   APPROVE_PLAN_SHAPE,
   CREATE_LEAD_PLAN_SHAPE,
   PROPOSE_REVISION_SHAPE,
-  REQUEST_PLAN_SHAPE,
 } from "../../../../orchestrator/plan/plan-schemas";
 import { defineAction } from "../../../action-tool/action-types";
 import {
@@ -56,7 +54,6 @@ import {
   ORCHESTRATE_ACTION_GET,
   ORCHESTRATE_ACTION_LIST,
   ORCHESTRATE_ACTION_REGISTER_LOCATION,
-  ORCHESTRATE_ACTION_REQUEST_PLAN,
   ORCHESTRATE_ACTION_RETRY,
   ORCHESTRATE_ACTION_REVISE_PLAN,
   ORCHESTRATE_ACTION_SEARCH,
@@ -166,12 +163,6 @@ export const ORCHESTRATE_ACTIONS = [
     schema: z.object(ASK_OWNER_SHAPE),
     example: { question: "Which branch?", kind: "select", options: ["main", "release"] },
     run: onLead(handleAskOwner),
-  }),
-  defineAction<OrchestrateCtx, typeof REQUEST_PLAN_SHAPE>({
-    name: ORCHESTRATE_ACTION_REQUEST_PLAN,
-    schema: z.object(REQUEST_PLAN_SHAPE),
-    example: { objective: "Add OAuth login to the app" },
-    run: onLead(handleRequestPlan),
   }),
   defineAction<OrchestrateCtx, typeof CREATE_LEAD_PLAN_SHAPE>({
     name: ORCHESTRATE_ACTION_CREATE_PLAN,

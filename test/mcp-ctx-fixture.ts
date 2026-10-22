@@ -4,7 +4,6 @@ import { ALL_SERVERS } from "../src/mcp/manifests";
 import { buildServers } from "../src/mcp/mcp-servers";
 import { MEMORY_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
-import { PLAN_TOOL } from "../src/mcp/plan/tools/PlanTool/constants";
 import { getRole } from "../src/roles/role-registry";
 
 /** The lead's action tool: no worker run may ever hold or call one of these. */
@@ -27,7 +26,6 @@ export const FULL_CTX: RunCtx = {
   lead: {} as never,
   reportSink: {},
   progress: () => {},
-  plan: {} as never,
   effects: {} as never,
   admin: {} as never,
 };
@@ -53,9 +51,6 @@ export function toolsByServer(servers: Record<string, unknown>): Record<string, 
 /** The `memory` server of a lead run (the only role that holds MemorySave) with this memory ctx. */
 export const memoryServer = (memory: NonNullable<RunCtx["memory"]>) =>
   buildServers(getRole("lead"), { memory })[MEMORY_MCP_SERVER] as never;
-
-/** The tools of the `plan` server (only the planner may hold them). */
-export const PLAN_TOOLS = [PLAN_TOOL];
 
 /** Every bare tool name of every manifest (a role listing all of them builds every server). */
 export const ALL_TOOL_NAMES = ALL_SERVERS.flatMap((s) => s.tools.map((t) => t.name));

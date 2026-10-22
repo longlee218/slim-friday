@@ -43,7 +43,6 @@ export const LIMIT_GROUPS = {
     "PLAN_MAX_ITEMS",
     "PLAN_MAX_CRITERIA",
     "PLAN_MAX_REVISIONS",
-    "MAX_WAVES",
     "CHAIN_CAP",
     "DELEGATE_MAX",
     "DISPATCHES_PER_RUN",

@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { PLAN_MAX_ITEMS, PLAN_MAX_REVISIONS } from "../src/config/lead-caps";
 import { MERGE_BRANCH_TOOL } from "../src/mcp/effects/tools/MergeBranchTool/constants";
-import { envelopeGrew } from "../src/orchestrator/plan/envelope-diff";
 import { buildEnvelope, toPlanItem } from "../src/orchestrator/plan/plan-doc";
 import { normalizeRisk, type PlanCtx, type PlanDoc } from "../src/orchestrator/plan/plan-types";
 import { validatePlan } from "../src/orchestrator/plan/validate-plan";
@@ -48,7 +47,7 @@ test("each rule answers its code", () => {
       doc(tooMany, { bounds: { maxItems: tooMany.length, maxGb: 1 } }),
     ],
     ["DUP_KEY", ["DUP_KEY"], doc([item("a"), item("a")])],
-    ["DUP_KEY reserved", ["DUP_KEY"], doc([item("planner-x")])],
+    ["DUP_KEY reserved", ["DUP_KEY"], doc([item("verify-3")])],
     ["DUP_KEY reserved verify", ["DUP_KEY"], doc([item("verify-1")])],
     ["DUP_KEY reserved fix", ["DUP_KEY"], doc([item("fix-2")])],
     ["DUP_KEY existing", ["DUP_KEY"], doc([item("old")]), { existingKeys: ["old"] }],
@@ -82,16 +81,4 @@ test("an unknown risk word counts as R2, never R0", () => {
   expect(normalizeRisk("R9")).toBe("R2");
   expect(normalizeRisk("low")).toBe("R2");
   expect(normalizeRisk("R0")).toBe("R0");
-});
-
-test("envelopeGrew: only a wider ask is growth", () => {
-  const base = doc([item("a")]).envelope;
-  expect(envelopeGrew(base, { ...base })).toBe(false);
-  expect(envelopeGrew(base, { ...base, locations: ["repo"], budgetUsd: 2 })).toBe(false); // narrower
-  expect(envelopeGrew(base, { ...base, locations: ["repo", "docs"] })).toBe(true);
-  expect(envelopeGrew(base, { ...base, riskClasses: ["R0", "R1", "R2", "R3"] })).toBe(true);
-  expect(envelopeGrew(base, { ...base, roles: ["developer", "scout"] })).toBe(true);
-  expect(envelopeGrew(base, { ...base, bounds: { maxItems: 9, maxGb: 1 } })).toBe(true);
-  expect(envelopeGrew(base, { ...base, budgetUsd: 4 })).toBe(true);
-  expect(envelopeGrew(base, { ...base, effects: [MERGE_BRANCH_TOOL] })).toBe(true);
 });

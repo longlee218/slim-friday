@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  ORCHESTRATE_ACTION_REQUEST_PLAN,
+  ORCHESTRATE_ACTION_CREATE_PLAN,
   orchestrateAudit,
 } from "../src/mcp/orchestration/tools/OrchestrateTool/action-names";
 
@@ -38,13 +38,13 @@ export const loadGolden = (): GoldenCase[] =>
   ).cases;
 
 /**
- * The lead's recorded decision in a fresh db (one case per db): PLAN when it called `Orchestrate request_plan`, else the strategy
+ * The lead's recorded decision in a fresh db (one case per db): PLAN when it called `Orchestrate create_plan`, else the strategy
  * its dispatched items imply (1 = DIRECT, 2+ = DELEGATE) with their roles, else ANSWER (it only wrote text or asked).
  */
 export function decisionOf(db: Database): Pick<GoldenCase, "strategy" | "roles"> {
   const planned = db
     .query("SELECT 1 FROM effect_log WHERE scope = 'lead tool call' AND tool = ?")
-    .get(orchestrateAudit(ORCHESTRATE_ACTION_REQUEST_PLAN));
+    .get(orchestrateAudit(ORCHESTRATE_ACTION_CREATE_PLAN));
   if (planned) return { strategy: "PLAN", roles: [] };
   const roles = db
     .query<{ owner_role: string }, []>(

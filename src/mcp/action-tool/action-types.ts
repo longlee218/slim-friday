@@ -3,7 +3,7 @@ import type { Reply } from "../../orchestrator/reply";
 
 /**
  * One action of an action tool: its name (a constant), its own params schema, one example call and the handler.
- * `C` is what the tool's handlers need (a ctx part such as the planner ctx); `P` is the parsed params type.
+ * `C` is what the tool's handlers need (a ctx part such as the lead ctx); `P` is the parsed params type.
  */
 export interface ActionDef<C = unknown, P = never> {
   /** Action name (from the tool's `action-names.ts`). */

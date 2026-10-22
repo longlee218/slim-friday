@@ -47,11 +47,7 @@ test("0007 backfill: goal with plan = planner, goal with a planner item and no p
           "SELECT structure_owner AS o FROM owned_tasks WHERE id = ?",
         )
         .get(id)?.o;
-    expect([owner("gPlan"), owner("gPlanner"), owner("gPlain")]).toEqual([
-      "planner",
-      "planner",
-      "lead",
-    ]);
+    expect([owner("gPlan"), owner("gPlanner"), owner("gPlain")]).toEqual(["plan", "plan", "lead"]);
     expect(owner("i1")).toBeNull(); // item rows stay null
     db.close();
   } finally {

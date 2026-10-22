@@ -31,10 +31,10 @@ The method (decide, brief, events) is the skill ${skillRef}, whose text is at th
 
 ## Runtime (code enforces it)
 - One open goal per thread. A new dispatch while one is open needs \`supersedes\`.
-- One dispatch or request_plan per run. Items start after your run ends, when their dependencies are done and a slot is free (one writer per location).
+- One dispatch or plan (create_plan, revise_plan) per run. Items start after your run ends, when their dependencies are done and a slot is free (one writer per location).
 - A member sees only its brief, the results of the items it depends on, and its location. It reports one result, or a blocker that holds its item until you decide.
 - Events arrive as data in a later run. A held item waits for your decision; its dependents wait too, and the goal stays open.
-- PLAN goals: the planner owns the items (add or update on them is refused); the owner approves the plan once (approve_plan); code adds verify, fix and wave items.
+- PLAN goals: you write the plan (create_plan, revise_plan); add or update on its items is refused; the owner approves the plan once (approve_plan); code adds verify and fix items.
 - Code sets and enforces each goal's budget; when it is spent, ready items do not start and a \`budget_hit\` event (or an \`OVER_BUDGET\` refusal) arrives. A refusal carries a code and a message: apply the fix it states once, or tell the owner.
 
 ## Output (code)

@@ -23,7 +23,7 @@ import { type Reply, refuse } from "../reply";
 import { queryScore, similarity, type TaskText } from "./task-match";
 
 /* Read side of the task tools, over a db and one thread: `get`, `search` and the duplicate check. The lead (through its
-   port) and the planner (through its ctx) use the same functions, so both see the same facts. */
+   port) . */
 
 /** Chars of one event payload shown by `get`. */
 const EVENT_CHARS = 300;
@@ -53,7 +53,7 @@ const matchOf = (c: TaskCandidate, score: number): TaskMatch => ({
 /**
  * Items of this thread a new item may repeat: open ones at any age, finished (completed) ones that completed within
  * `DUPLICATE_WINDOW_MS`. Failed and cancelled items are dead work and never block a new one. Goals of `exclude` are
- * left out (the goal being replaced; the goal a plan belongs to, whose earlier versions and waves are not duplicates).
+ * left out (the goal being replaced; the goal a plan belongs to, whose earlier versions are not duplicates).
  */
 export function similarOpenWork(
   db: Database,

@@ -45,7 +45,7 @@ export const owned_tasks = sqliteTable(
     result_excerpt: text(),
     /** The redacted report of the last run when it saved no file (the result is not an artifact); `Orchestrate forward` posts it. */
     result_text: text(),
-    /** Who may change the goal's items: `lead` (DIRECT / DELEGATE) or `planner` (PLAN). Goal rows only; null on items. */
+    /** Who may change the goal's items: `lead` (DIRECT / DELEGATE) or `plan` (PLAN). Goal rows only; null on items. */
     structure_owner: text(),
     /** Item urgency: 0 normal, 10 high, 100 urgent. The scheduler starts ready items by priority, then age; nothing is preempted. */
     priority: integer().notNull().default(0),

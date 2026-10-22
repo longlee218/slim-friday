@@ -11,14 +11,12 @@ import {
 } from "../lead/lead-schemas";
 import { DELIVERY_EFFECT_TOOLS } from "./plan-types";
 
-/* Input schemas (zod raw shapes) of the planner's seven tools and the lead's Orchestrate request_plan / Orchestrate approve_plan. The SDK
+/* Input schemas (zod raw shapes) of the lead's Orchestrate create_plan / revise_plan / approve_plan. The SDK
    validates a call against them before any handler runs; the handler input types are inferred from the same shapes. */
 
 /** One plan item. The risk is free text here: code turns an unknown word into R2. */
 const PLAN_ITEM = z.object({
-  key: KEY.describe(
-    "Unique within the goal; never starts with 'planner' or looks like verify-N / fix-N (reserved)",
-  ),
+  key: KEY.describe("Unique within the goal; never looks like verify-N / fix-N (reserved)"),
   subject: SUBJECT,
   priority: PRIORITY_FIELD,
   role: z.string().min(1).max(40).describe("Worker role name (see the capabilities action)"),
@@ -38,12 +36,6 @@ const PLAN_ITEM = z.object({
     .min(1)
     .max(8)
     .describe("R0 read-only, R1 local reversible, R2 shared or hard to undo, R3 external"),
-  deferredScope: z
-    .boolean()
-    .optional()
-    .describe(
-      "Named but left for a later wave (a goal larger than one plan): not run until a revision activates it",
-    ),
 });
 
 /** The limits the run must stay inside once the owner approves them. */
@@ -74,7 +66,7 @@ export const CREATE_PLAN_SHAPE = {
   effects: EFFECTS,
   confirmNew: CONFIRM_NEW,
 };
-/** The lead's `create_plan`: the planner's shape plus the objective; no `goalId` opens a new goal, `goalId` plans inside the open one. */
+/** The lead's `create_plan`: the plan shape plus the objective; no `goalId` opens a new goal, `goalId` plans inside the open one. */
 export const CREATE_LEAD_PLAN_SHAPE = {
   objective: z.string().min(1).max(2000).describe("What the owner wants, in the owner's terms"),
   goalId: TASK_ID.optional().describe(
@@ -105,10 +97,6 @@ export const PROPOSE_REVISION_SHAPE = {
           .max(PLAN_MAX_ITEMS - 1)
           .optional(),
         risk: z.string().min(1).max(8).optional(),
-        deferredScope: z
-          .boolean()
-          .optional()
-          .describe("false activates a deferred item (its wave starts); true defers it again"),
       }),
     )
     .max(PLAN_MAX_ITEMS)
@@ -122,16 +110,6 @@ export const PROPOSE_REVISION_SHAPE = {
   envelope: ENVELOPE.optional().describe("Full replacement; omit to keep the approved one"),
   effects: EFFECTS.optional(),
 };
-export const REQUEST_PLAN_SHAPE = {
-  objective: z.string().min(1).max(2000).describe("What the owner wants, in the owner's terms"),
-  findings: z
-    .string()
-    .min(1)
-    .max(4000)
-    .optional()
-    .describe("What is known so far (data, not instructions)"),
-  goalId: TASK_ID.optional().describe("Plan inside this open goal (keeps its finished items)"),
-};
 export const APPROVE_PLAN_SHAPE = { planId: PLAN_ID, version: VERSION };
 
 /** Parsed inputs, one per tool. */
@@ -141,5 +119,4 @@ export type CreatePlanInput = Input<typeof CREATE_PLAN_SHAPE>;
 export type CreateLeadPlanInput = Input<typeof CREATE_LEAD_PLAN_SHAPE>;
 export type ValidatePlanInput = Input<typeof VALIDATE_PLAN_SHAPE>;
 export type ProposeRevisionInput = Input<typeof PROPOSE_REVISION_SHAPE>;
-export type RequestPlanInput = Input<typeof REQUEST_PLAN_SHAPE>;
 export type ApprovePlanInput = Input<typeof APPROVE_PLAN_SHAPE>;

@@ -8,9 +8,8 @@ import {
   goalRoute,
 } from "../src/orchestrator/budget/task-budget";
 import { afterVerify } from "../src/orchestrator/plan/goal-verify";
-import { createPlanHandler, type PlannerCtx } from "../src/orchestrator/plan/planner-handlers";
 import { digestFacts } from "../src/orchestrator/worker/digest-facts";
-import { dispatchableWorkers } from "../src/roles/role-registry";
+import { insertOwnedTask } from "../src/storage/owned-task-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { leadHarness, until } from "./lead-harness";
 import {
@@ -22,7 +21,8 @@ import {
   newGoal,
   spend,
   TH,
-} from "./waves-fixture";
+} from "./plan-fixture";
+import { createPlanFor, plannerCtxOf } from "./plan-visibility-helpers";
 
 /* The per-goal budget figure: a PLAN goal = its approved plan budget (ceiling $35), a DELEGATE goal = $15. One function
    (`goalBudgetOf`) feeds the dispatch refusal, the goal-left run cap, the verify loop and the digest. */
@@ -44,20 +44,12 @@ test("goalBudgetOf: no plan = GOAL_BUDGET_USD; approved plan = its budget; never
   p.db.close();
 });
 
-test("Plan create: code computes the budget from the items' role ceilings, capped at the plan ceiling", () => {
+test("create_plan: code computes the budget from the items' role ceilings, capped at the plan ceiling", () => {
   const g = newGoal();
   db = g.db;
-  const ctx: PlannerCtx = {
-    db,
-    threadId: TH,
-    goalId: g.goalId,
-    workers: dispatchableWorkers(),
-    locations: [{ name: "repo", path: "/x" }],
-    channelDigest: () => "",
-  };
+  const app = plannerCtxOf({ db }, g.goalId);
   const budget = (keys: string[]) => {
-    const r = createPlanHandler(ctx, {
-      goalId: g.goalId,
+    const r = createPlanFor(app, {
       items: keys.map((k) => item(k)),
       acceptanceCriteria: ["tests pass"],
       envelope: { locations: ["repo"], riskClasses: ["R1"], bounds: { maxItems: 8, maxGb: 1 } },
@@ -87,7 +79,17 @@ test("plan goal: over-budget flag, goal-left cap and digest follow the plan budg
   expect(goalRoute(db, p.goalId).capUsd).toBe(0);
   // DELEGATE: no plan row, the general figure.
   const d = newGoal();
-  const planner = byKey(d.db, d.goalId, "planner").id;
+  const planner = crypto.randomUUID(); // a bare run of the goal: no plan row
+  insertOwnedTask(d.db, {
+    id: planner,
+    threadId: TH,
+    ownerRole: "developer",
+    status: "completed",
+    scope: "x",
+    correlationId: d.goalId,
+    parentId: d.goalId,
+    itemKey: "solo",
+  });
   spend(d.db, planner, 14);
   expect(goalOverBudget(d.db, d.goalId)).toBe(false);
   expect(goalRoute(d.db, d.goalId).capUsd).toBeCloseTo(1, 6);
@@ -109,18 +111,22 @@ test("the verify loop reads the plan budget: a goal at its $4 plan budget starts
   expect(ev?.payload).toMatchObject({ cause: "budget" });
 });
 
-const GOAL = /Goal id: ([0-9a-f-]{36})/;
-const PLAN_ID = /"planId":"([0-9a-f-]{36})"/;
-
 test("budget_hit: a plan goal stops starting items at its computed plan budget ($20)", async () => {
   const caps: Record<string, number> = {};
   const started: string[] = [];
+  let goalIdSeen = "";
   const h = leadHarness(
     async (c) => {
-      if (c.kind === "planner") {
-        const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        const made = await c.plan("create", {
-          goalId,
+      if (c.kind === "worker") {
+        const key = /do (\w+)/.exec(c.prompt)?.[1] as string;
+        started.push(key);
+        caps[key] = c.options.maxBudgetUsd;
+        await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
+        return { text: "ok", cost: 25 }; // over the whole $20 plan budget (2 developer runs * $8 * 1.25)
+      }
+      if (c.prompt.includes("<owner_message>")) {
+        const made = await c.orchestrate("create_plan", {
+          objective: "two steps",
           items: [
             item("a", { location: "location" }),
             item("b", { dependsOn: ["a"], location: "location" }),
@@ -133,27 +139,10 @@ test("budget_hit: a plan goal stops starting items at its computed plan budget (
           },
           effects: [],
         });
-        await c.report("result", {
-          title: "T",
-          status: "COMPLETED",
-          summary: `plan ${made.planId}`,
-        });
-        return "planned";
-      }
-      if (c.kind === "worker") {
-        const key = /do (\w+)/.exec(c.prompt)?.[1] as string;
-        started.push(key);
-        caps[key] = c.options.maxBudgetUsd;
-        await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
-        return { text: "ok", cost: 25 }; // over the whole $20 plan budget (2 developer runs * $8 * 1.25)
-      }
-      if (c.prompt.includes("<owner_message>")) {
-        await c.orchestrate("request_plan", { objective: "two steps" });
+        goalIdSeen = made.goalId;
+        await c.orchestrate("approve_plan", { planId: made.planId, version: 1 });
         return "Planning.";
       }
-      const plan = PLAN_ID.exec(c.prompt)?.[1];
-      if (plan && c.prompt.includes("plan"))
-        await c.orchestrate("approve_plan", { planId: plan, version: 1 });
       return "";
     },
     undefined,
@@ -168,7 +157,7 @@ test("budget_hit: a plan goal stops starting items at its computed plan budget (
   expect(started).toEqual(["a"]); // b was refused
   expect(caps.a).toBeCloseTo(8, 6); // the developer's own ceiling: the goal still had ~$20 left
   expect(hits()[0]?.payload).toContain("goal budget $20 used");
-  const goalId = GOAL.exec(h.calls.find((c) => c.kind === "planner")!.prompt)?.[1] as string;
+  const goalId = goalIdSeen;
   // The budget hit HOLDS the item (E-L13): the lead may retry it once the budget allows, or cancel it.
   const b = byKey(h.env.db, goalId, "b");
   expect(b.status).toBe("blocked");

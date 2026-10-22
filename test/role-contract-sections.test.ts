@@ -43,7 +43,6 @@ const CEILING: Record<string, number> = {
   hacker: 6700,
   scout: 6600,
   researcher: 6900,
-  planner: 8500,
   "discord-manager": 4300,
   lead: 3600,
 };

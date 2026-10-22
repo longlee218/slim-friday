@@ -6,18 +6,14 @@ import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
 import { planUrlOfGoal, syncPlanArtifacts } from "../src/orchestrator/plan/plan-artifact";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
-import {
-  createPlanHandler,
-  proposeRevisionHandler,
-} from "../src/orchestrator/plan/planner-handlers";
 import { createCheckIn } from "../src/orchestrator/worker/check-in";
 import { digestFacts, factsKey } from "../src/orchestrator/worker/digest-facts";
 import { listByGoal } from "../src/storage/artifact-store";
 import { recordBotThread } from "../src/storage/thread-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
-import { plannerCtxOf } from "./plan-visibility-helpers";
-import { byKey, ENV, item, TH } from "./waves-fixture";
+import { byKey, ENV, item, openPlanGoal, TH } from "./plan-fixture";
+import { createPlanFor, plannerCtxOf, revisePlanFor } from "./plan-visibility-helpers";
 
 /* Phase 5 gap tests: the plan artifact's text and reuse, edge goals (no plan, 0 items, long brief), the version in force,
    the thread scope of the plan port, and the digest key that ignores the signed link. */
@@ -44,7 +40,7 @@ function world(
   const env = makeEnv();
   db = env.db;
   recordBotThread(db, TH, TEST_CHANNEL, "main", "x");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -65,7 +61,7 @@ test("a goal without a plan: no artifact, no link, no digest plan line", () => {
   const env = makeEnv();
   db = env.db;
   recordBotThread(db, TH, TEST_CHANNEL, "main", "x");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   const deps = { db, home: env.home, viewer: VIEWER };
   expect(syncPlanArtifacts(deps, TH, w.goalId)).toEqual([]);
@@ -105,15 +101,13 @@ test("a re-plan after a reject gets its own artifact per version (the rejected o
   const { goalId, planId, deps } = world();
   rejectVersion(db, planId, 1, "no");
   const ctx = plannerCtxOf({ db }, goalId);
-  const r = createPlanHandler(ctx, {
-    goalId,
+  const r = createPlanFor(ctx, {
     items: [item("n")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
     confirmNew: true,
-  } as never);
+  });
   expect(r).toMatchObject({ ok: true, version: 2 });
   const infos = syncPlanArtifacts(deps, TH, goalId);
   expect(infos.map((i) => i.status)).toEqual(["rejected", "valid"]);
@@ -136,7 +130,7 @@ test("a revision that changes only a brief is a digest change: the plan version 
   await tick(rt, 10_000_000);
   expect(posts).toHaveLength(1);
   // Same items, same statuses, same counts: only the brief of b (not started) changes.
-  proposeRevisionHandler(plannerCtxOf(deps, goalId), {
+  revisePlanFor(plannerCtxOf(deps, goalId), {
     planId,
     baseVersion: 1,
     add: [],
@@ -144,6 +138,7 @@ test("a revision that changes only a brief is a digest change: the plan version 
     modify: [{ key: "b", brief: "do b another way" }],
     reason: "brief only",
   } as never);
+  approveVersion(db, planId, 2); // the owner approves the revision: v2 is the plan in force
   await tick(rt, 10_000_000 + 7_200_000);
   expect(posts).toHaveLength(2);
   expect(posts[1]).toContain("Plan: v2");

@@ -25,7 +25,6 @@ import {
   MEMORY_MCP_SERVER,
   mcpToolName,
   ORCHESTRATION_MCP_SERVER,
-  PLAN_MCP_SERVER,
   PLAYWRIGHT_MCP_SERVER,
 } from "./mcp-tool-names";
 import { MEMORY_EDIT_TOOL } from "./memory/tools/MemoryEditTool/constants";
@@ -35,7 +34,6 @@ import { MEMORY_SAVE_TOOL } from "./memory/tools/MemorySaveTool/constants";
 import { MEMORY_SEARCH_TOOL } from "./memory/tools/MemorySearchTool/constants";
 import { ORCHESTRATE_TOOL } from "./orchestration/tools/OrchestrateTool/constants";
 import { REPORT_TOOL } from "./orchestration/tools/ReportTool/constants";
-import { PLAN_TOOL } from "./plan/tools/PlanTool/constants";
 import { PLAYWRIGHT_TOOLS } from "./playwright/playwright-tool-names";
 
 /**
@@ -62,7 +60,6 @@ export const MCP_TOOL_SERVER: Readonly<Record<string, string>> = {
   [MEMORY_SEARCH_TOOL]: MEMORY_MCP_SERVER,
   [ORCHESTRATE_TOOL]: ORCHESTRATION_MCP_SERVER,
   [REPORT_TOOL]: ORCHESTRATION_MCP_SERVER,
-  [PLAN_TOOL]: PLAN_MCP_SERVER,
   [FIRECRAWL_SEARCH_TOOL]: FIRECRAWL_MCP_SERVER,
   [FIRECRAWL_SCRAPE_TOOL]: FIRECRAWL_MCP_SERVER,
   [FIRECRAWL_MAP_TOOL]: FIRECRAWL_MCP_SERVER,

@@ -1,19 +1,18 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
 import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
-import { PLAN_TOOL } from "../src/mcp/plan/tools/PlanTool/constants";
 import { createTurnHandler } from "../src/orchestrator/handle-message";
 import { createRunLimiter } from "../src/orchestrator/turns/run-limiter";
 import type { ApprovalGateway } from "../src/owner-approval/approval-types";
 import { initMsg, makeEnv, resultMsg, stubGateway, TEST_CHANNEL } from "./helpers";
-import { isLeadRun, isPlannerRun, isWorkerRun, toolOf } from "./mcp-run-probe";
+import { isLeadRun, isWorkerRun, toolOf } from "./mcp-run-probe";
 
 /* Harness of the lead tests: the real handler, queue, lead runner and dispatch-ready over a fake `query` that plays the
    lead model and the workers. The fake calls the real MCP tool handlers of the run (the same code the SDK would call). */
 
 /** One model call as the fake sees it. */
 export interface Call {
-  kind: "lead" | "worker" | "planner" | "other";
+  kind: "lead" | "worker" | "other";
   prompt: string;
   options: any;
   /** Call a tool of the run's lead / worker server; returns the parsed JSON reply. */
@@ -22,8 +21,6 @@ export interface Call {
   orchestrate: (action: string, params: object) => Promise<any>;
   /** Call an action of the worker's `Report` tool (`result`, `progress`); returns the parsed JSON reply. */
   report: (action: string, params: object) => Promise<any>;
-  /** Call an action of the planner's `Plan` tool (`context`, `create`, ...); returns the parsed JSON reply. */
-  plan: (action: string, params: object) => Promise<any>;
 }
 
 /** What the script returns: the final text of the run, an optional cost, and `maxBudget` to end the run as a budget stop. */
@@ -61,24 +58,21 @@ export function scriptedQuery(script: Script, calls: Call[], sessionOf?: Session
     (async function* (): AsyncGenerator<SDKMessage> {
       const kind: Call["kind"] = isLeadRun(a.options)
         ? "lead"
-        : isPlannerRun(a.options)
-          ? "planner"
-          : isWorkerRun(a.options)
-            ? "worker"
-            : "other";
+        : isWorkerRun(a.options)
+          ? "worker"
+          : "other";
       const call = {
         kind,
         prompt: await promptOf(a.prompt),
         options: a.options,
         tool: async (name, args) => {
-          // The tool lives on whichever server of the run holds it (orchestration, plan, effects).
+          // The tool lives on whichever server of the run holds it (orchestration, effects).
           const r = await toolOf(a.options, name)!.handler(args, {});
           return JSON.parse(r.content[0].text);
         },
       } as Call;
       call.orchestrate = (action, params) => call.tool(ORCHESTRATE_TOOL, { action, params });
       call.report = (action, params) => call.tool(REPORT_TOOL, { action, params });
-      call.plan = (action, params) => call.tool(PLAN_TOOL, { action, params });
       calls.push(call);
       // A test that tracks sessions (resume) names the run's session; the default is the fixed one of `initMsg`.
       const sid = sessionOf?.(a.options, calls.length);

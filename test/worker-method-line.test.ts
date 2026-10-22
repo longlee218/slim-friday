@@ -25,11 +25,7 @@ test("a role without a preloaded skill (not the lead) has the Method line, once,
   }
 });
 
-test("the roles that keep the line are exactly researcher, scout, planner and discord-manager", () => {
+test("the roles that keep the line are exactly researcher, scout and discord-manager", () => {
   const keep = Object.keys(ROLES).filter((n) => n !== "lead" && !preloads(n));
-  expect(keep.sort()).toEqual(["discord-manager", "planner", "researcher", "scout"]);
-});
-
-test("the planner's Method line precedes 'plan' only", () => {
-  expect(contract("planner")).toContain(`${METHOD}plan, ${CALL}`);
+  expect(keep.sort()).toEqual(["discord-manager", "researcher", "scout"]);
 });

@@ -1,29 +1,63 @@
-import {
-  createPlanHandler,
-  type PlannerCtx,
-  proposeRevisionHandler,
-} from "../src/orchestrator/plan/planner-handlers";
-import { dispatchableWorkers } from "../src/roles/role-registry";
-import { ENV, type item, TH } from "./waves-fixture";
+import type { Database } from "bun:sqlite";
+import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
+import type { RevisionDiff } from "../src/orchestrator/plan/plan-revised";
+import type {
+  CreateLeadPlanInput,
+  ProposeRevisionInput,
+} from "../src/orchestrator/plan/plan-schemas";
+import { ENV, type item, TH } from "./plan-fixture";
 
-/** A planner ctx over the db of a world (no notify: the test reads the db). */
+/** The world of a lead plan call: the db, the goal and the side effects the lead handler runs after a stored version. */
+export interface PlanApp {
+  db: Database;
+  goalId: string;
+  /** A version was stored (the handler saves the plan artifact). */
+  onVersion?: () => void;
+  /** A re-plan changed the plan (the handler posts the owner line). */
+  notify?: (diff: RevisionDiff) => void;
+}
+
+/** A plan app over the db of a world (no hooks: the test reads the db). */
 export const plannerCtxOf = (
-  deps: { db: PlannerCtx["db"] },
+  deps: { db: Database },
   goalId: string,
-  extra: Partial<PlannerCtx> = {},
-): PlannerCtx => ({
-  db: deps.db,
-  threadId: TH,
-  goalId,
-  workers: dispatchableWorkers(),
-  locations: ENV.locations.map((name) => ({ name, path: `/x/${name}` })),
-  channelDigest: () => "",
-  ...extra,
-});
+  extra: Pick<PlanApp, "onVersion" | "notify"> = {},
+): PlanApp => ({ db: deps.db, goalId, ...extra });
 
-/** Run one planner tool call on `app` (a plan ctx): a revision of v1 (`add`, `cancel`) or, with `replan`, a new plan. */
+const portOf = (app: PlanApp) =>
+  createPlanPort(app.db, TH, undefined, () => ({
+    workerRoles: ENV.workerRoles,
+    locations: ENV.locations,
+  }));
+
+/** `Orchestrate create_plan` as the lead handler runs it: the port write, then the artifact sync and the owner line. */
+export function createPlanFor(
+  app: PlanApp,
+  input: Omit<CreateLeadPlanInput, "objective" | "goalId"> & { objective?: string },
+) {
+  const w = portOf(app).createPlan({
+    objective: "build it",
+    goalId: app.goalId,
+    ...input,
+  } as CreateLeadPlanInput);
+  if (w.ok) {
+    app.onVersion?.();
+    if (w.diff) app.notify?.(w.diff);
+  }
+  return w;
+}
+
+/** `Orchestrate revise_plan` as the lead handler runs it: the port write, then the artifact sync. */
+export function revisePlanFor(app: PlanApp, input: ProposeRevisionInput) {
+  const { planId, baseVersion, reason, ...edit } = input;
+  const w = portOf(app).revisePlan({ planId, baseVersion, reason, edit });
+  if (w.ok) app.onVersion?.();
+  return w;
+}
+
+/** One lead plan call on `app`: a revision of v1 (`add`, `cancel`) or, with `replan`, a new plan. */
 export function createPlanHandlerFor(
-  app: PlannerCtx,
+  app: PlanApp,
   planId: string,
   o: {
     add?: ReturnType<typeof item>[];
@@ -33,8 +67,7 @@ export function createPlanHandlerFor(
   },
 ) {
   if (o.replan)
-    return createPlanHandler(app, {
-      goalId: app.goalId,
+    return createPlanFor(app, {
       items: o.replan,
       acceptanceCriteria: ["works"],
       envelope: {
@@ -44,8 +77,8 @@ export function createPlanHandlerFor(
       },
       effects: [],
       confirmNew: true,
-    } as never);
-  return proposeRevisionHandler(app, {
+    });
+  return revisePlanFor(app, {
     planId,
     baseVersion: 1,
     add: o.add ?? [],

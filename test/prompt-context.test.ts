@@ -107,8 +107,8 @@ test("whole role prompts: every worker kind carries root + channel blocks, never
   writeFileSync(join(p.workspace("main").root, "MEMORY.md"), "# ws\n\n## d t\n- WSLAYER_MARK\n");
   const prompt = (role: string) =>
     buildPromptPreview(getRole(role), { agentHome: env.home, workspace: "main", channel: CH }).text;
-  // developer, scout, planner, one roster specialist (designer).
-  for (const role of ["developer", "scout", "planner", "designer", "tester"]) {
+  // developer, scout, one roster specialist (designer).
+  for (const role of ["developer", "scout", "designer", "tester"]) {
     const text = prompt(role);
     expect(text).toContain("### root");
     expect(text).toContain(`### channel ${CH}`);

@@ -3,7 +3,7 @@ import { BLOCKER_REASON_MAX_CHARS, BRIEF_MAX_CHARS, SEARCH_QUERY_MAX_CHARS } fro
 import { CONFIRM_NEW, KEY, PRIORITY_FIELD, PRIORITY_VALUE, SUBJECT, TASK_ID } from "./lead-schemas";
 
 /* Input schemas (zod raw shapes) of the task tools: the lead's add / update / get / search and the worker's blocker.
-   get and search are shared by the lead's Orchestrate tool and the planner's Plan tool. */
+   get and search are used by the lead's Orchestrate tool. */
 
 /** Orchestrate add: one item in the lead's open goal (DIRECT / DELEGATE). */
 export const ADD_ITEM_SHAPE = {
@@ -26,9 +26,9 @@ export const UPDATE_ITEM_SHAPE = {
   dependsOn: z.array(KEY).max(3).optional().describe("Full replacement of the keys it waits for"),
   role: z.string().min(1).max(40).optional(),
 };
-/** `get` of the lead (`Orchestrate`) and of the planner (`Plan`): one task or goal. */
+/** `get` of the lead (`Orchestrate`): one task or goal. */
 export const GET_TASK_SHAPE = { taskId: TASK_ID };
-/** `search` of the lead and of the planner: the thread's goals and tasks by subject and brief. */
+/** `search` of the lead: the thread's goals and tasks by subject and brief. */
 export const SEARCH_TASKS_SHAPE = {
   query: z.string().min(1).max(SEARCH_QUERY_MAX_CHARS).describe("Words of the task you look for"),
 };

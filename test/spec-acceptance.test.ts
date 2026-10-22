@@ -3,32 +3,21 @@ import { leadHarness, until } from "./lead-harness";
 
 /* Acceptance index (brainstorm 5.13 / 10). Most checks live in a focused test file; this file holds the two that needed an
    end-to-end run of their own.
-   1 DIRECT without planner ............ lead-flow.test.ts
+   1 DIRECT without a plan ............ lead-flow.test.ts
    2 DELEGATE items in parallel ........ dispatch-parallel.test.ts
    3 PLAN, one approval ................ plan-strategy-flow.test.ts, todo-app-scenario.test.ts
-   4 worker NEEDS_PLANNING -> Orchestrate request_plan  (below)
-   5 dispatch to planner / lead refused  plan-audit-gaps.test.ts, dispatch-policy.test.ts
+   4 worker NEEDS_PLANNING -> Orchestrate create_plan  (below)
+   5 dispatch to the lead refused  plan-audit-gaps.test.ts, dispatch-policy.test.ts
    6 cycle refused ..................... lead-flow.test.ts, dispatch-policy.test.ts
    7 role / location outside the envelope  validate-plan.test.ts, dispatch-policy.test.ts
    8 restart resume mid-plan ........... recover-in-flight.test.ts, lead-boot-wake.test.ts
    9 plan revision while running ....... plan-lifecycle.test.ts
    10 cancel propagation (running items)  (below) */
 
-const GOAL = /Goal id: ([0-9a-f-]{36})/;
-
-test("a worker that reports NEEDS_PLANNING wakes the lead, which asks for a plan: the planner starts", async () => {
+test("a worker that reports NEEDS_PLANNING wakes the lead, which writes a plan (create_plan) in the open goal", async () => {
   const asked: unknown[] = [];
   let goalId = "";
   const h = leadHarness(async (c) => {
-    if (c.kind === "planner") {
-      expect(GOAL.test(c.prompt)).toBe(true);
-      await c.report("result", {
-        status: "NEEDS_CLARIFICATION",
-        summary: "stop here",
-        question: "unused",
-      });
-      return "planner stopped";
-    }
     if (c.kind === "worker") {
       await c.report("result", {
         title: "T",
@@ -59,19 +48,36 @@ test("a worker that reports NEEDS_PLANNING wakes the lead, which asks for a plan
     }
     if (/blocked/i.test(c.prompt) && asked.length === 0) {
       asked.push(
-        await c.orchestrate("request_plan", {
+        await c.orchestrate("create_plan", {
           goalId,
           objective: "rewrite everything",
-          findings: "worker said too big",
+          items: [
+            {
+              key: "part1",
+              subject: "first part",
+              role: "developer",
+              brief: "rewrite the first part",
+              location: "location",
+              dependsOn: [],
+              risk: "R1",
+            },
+          ],
+          acceptanceCriteria: [],
+          envelope: {
+            locations: ["location"],
+            riskClasses: ["R0", "R1"],
+            bounds: { maxItems: 4, maxGb: 1 },
+          },
+          effects: [],
         }),
       );
-      return "Planning.";
+      return "Planned.";
     }
     return "";
   });
   await h.send("rewrite everything");
-  await until(() => h.ofKind("planner").length === 1, 10000);
-  expect(asked[0]).toMatchObject({ ok: true });
+  await until(() => asked.length === 1, 10000);
+  expect(asked[0]).toMatchObject({ ok: true, status: "valid" });
 });
 
 test("Orchestrate cancel of a goal with two running items cancels both, aborts their runs and closes the goal", async () => {

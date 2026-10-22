@@ -2,7 +2,7 @@ import { CREATE_PULL_REQUEST_TOOL } from "../../mcp/effects/tools/CreatePullRequ
 import { GIT_PUSH_TOOL } from "../../mcp/effects/tools/GitPushTool/constants";
 import { MERGE_BRANCH_TOOL } from "../../mcp/effects/tools/MergeBranchTool/constants";
 
-/* Types and limits of a work plan. A plan is DATA: the planner writes it through its tools, code validates it, the owner
+/* Types and limits of a work plan. A plan is DATA: the lead writes it through its tools, code validates it, the owner
    approves it once, and the approved plan IS the envelope the run stays inside. */
 
 /** Risk classes of an item (R4 is never planned: it needs the owner at the moment of the act). */
@@ -16,9 +16,6 @@ export const DELIVERY_EFFECT_TOOLS = [
   MERGE_BRANCH_TOOL,
 ] as const;
 export type DeliveryEffect = (typeof DELIVERY_EFFECT_TOOLS)[number];
-
-/** Item key prefix of the planner's own items (reserved: a plan item never uses it). */
-export const PLANNER_KEY = "planner";
 
 /** Key prefixes of the items code appends (verify and fix, see goal-verify.ts): reserved, a plan item never uses them. */
 export const VERIFY_KEY = "verify";
@@ -34,15 +31,14 @@ export const budgetSpentMessage = (
   spentUsd: number,
   next = "Report it to the lead.",
 ): string =>
-  `Plan budget $${budgetUsd} (computed by code, capped at the goal ceiling) must be above what the goal already spent ($${spentUsd.toFixed(2)}: the planner and earlier items count): no item could start. ${next}`;
+  `Plan budget $${budgetUsd} (computed by code, capped at the goal ceiling) must be above what the goal already spent ($${spentUsd.toFixed(2)}: earlier items count): no item could start. ${next}`;
 
-/** What a plan item key may not look like (named in the validator error): planner items and the code-made `verify-N` / `fix-N`. */
-export const RESERVED_KEY_PATTERN = "planner*, verify-N, fix-N";
+/** What a plan item key may not look like (named in the validator error): the code-made `verify-N` / `fix-N`. */
+export const RESERVED_KEY_PATTERN = "verify-N, fix-N";
 const CODE_KEY = new RegExp(`^(${VERIFY_KEY}|${FIX_KEY})-\\d+$`);
 
 /** True for a key a plan item may not use (`fixtures`, `verify-tests`, `fix-login` are legal). */
-export const isReservedKey = (key: string): boolean =>
-  key.startsWith(PLANNER_KEY) || CODE_KEY.test(key);
+export const isReservedKey = (key: string): boolean => CODE_KEY.test(key);
 
 /** An unknown risk word counts as R2 (the cautious middle), never as R0. */
 export const normalizeRisk = (r: string): Risk =>
@@ -65,8 +61,6 @@ export interface PlanItem {
   /** Keys this item waits for (plan keys or earlier finished items of the goal). */
   dependsOn: string[];
   risk: Risk;
-  /** True when this item is named but left for a later plan (not run by this one). */
-  deferredScope?: boolean;
 }
 
 /** What the owner approves and the run must stay inside. `roles` is derived by code from the items. */
@@ -115,7 +109,7 @@ export interface PlanCtx {
   workerRoles: readonly string[];
   /** Location names of the workspace. */
   locations: readonly string[];
-  /** Keys of items of the goal that are not part of this plan (planner runs, finished earlier work): usable as dependencies, never as new keys. */
+  /** Keys of items of the goal that are not part of this plan (finished earlier work): usable as dependencies, never as new keys. */
   existingKeys: readonly string[];
   /** Keys of the goal's items that ended `failed` / `cancelled`: they never run, so nothing may wait for them (default none). */
   deadKeys?: readonly string[];
@@ -123,7 +117,7 @@ export interface PlanCtx {
   releasedKeys?: readonly string[];
   /** Revisions already made (0 for a new plan). */
   revisions: number;
-  /** USD the goal already spent (the planner and earlier items): the plan budget must exceed it (default 0). */
+  /** USD the goal already spent (earlier items): the plan budget must exceed it (default 0). */
   spentUsd?: number;
 }
 

@@ -11,6 +11,7 @@ import { childrenOf } from "../src/storage/owned-item-store";
 import { getOwnedTask } from "../src/storage/owned-task-store";
 import { getPlan, planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
+import { openPlanGoal } from "./plan-fixture";
 
 /* Plan lifecycle over a real in-memory db: create, approve (items), revise (CAS, envelope), reject, history. */
 
@@ -35,7 +36,7 @@ const ENVELOPE = {
 /** A goal with its planner item, and a plan of the given items (valid). */
 function setup(items = [item("a"), item("b", { dependsOn: ["a"] })]) {
   db = openDb(":memory:");
-  const w = createPlanPort(db, "th1").requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, "th1", "build it");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -69,7 +70,7 @@ test("create stores version 1 valid; a second plan for the goal is refused", () 
 
 test("a plan that fails validation is not stored", () => {
   db = openDb(":memory:");
-  const w = createPlanPort(db, "th1").requestPlan({ key: "k1", objective: "o" });
+  const w = openPlanGoal(db, "th1", "o");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -84,28 +85,25 @@ test("a plan that fails validation is not stored", () => {
   expect(db.query("SELECT COUNT(*) AS n FROM work_plans").get()).toEqual({ n: 0 });
 });
 
-test("a valid plan keeps the goal open after the planner ended; approve creates items in dependency order, once", () => {
+test("a valid plan keeps the goal open; approve creates items in dependency order, once", () => {
   const { goalId, plan } = setup();
-  const planner = childrenOf(db, goalId)[0]!;
-  moveTaskTo(db, planner.id, "running");
-  moveTaskTo(db, planner.id, "completed");
   settleGoal(db, goalId);
   expect(getOwnedTask(db, goalId)?.status).toBe("open"); // the plan waits for the owner
   expect(openGoalIdOf(db, "th1")).toBe(goalId);
   const done = approveVersion(db, plan.id, 1);
   expect(done).toMatchObject({ ok: true, created: ["a", "b"] });
-  expect(keys(goalId)).toEqual(["planner:completed", "a:ready", "b:pending", "verify-1:pending"]);
+  expect(keys(goalId)).toEqual(["a:ready", "b:pending", "verify-1:pending"]);
   expect(getPlan(db, plan.id, 1)?.status).toBe("approved");
   expect(getPlan(db, plan.id, 1)?.approvedAt).not.toBeNull();
   // The same version cannot be approved twice: nothing is created again.
   expect(approveVersion(db, plan.id, 1)).toMatchObject({ ok: false, code: "PLAN_NOT_VALID" });
-  expect(childrenOf(db, goalId)).toHaveLength(4);
+  expect(childrenOf(db, goalId)).toHaveLength(3);
   expect(db.query("SELECT COUNT(*) AS n FROM thread_events WHERE kind = 'start'").get()).toEqual({
-    n: 4,
-  }); // planner + 2
+    n: 3,
+  }); // a, b, verify-1
 });
 
-test("reject: no approved version -> the planner is cancelled, the goal stays open for a re-plan; history is kept", () => {
+test("reject: no approved version -> the goal stays open for a re-plan; history is kept", () => {
   const { goalId, plan } = setup();
   expect(rejectVersion(db, plan.id, 1, "owner rejected")).toEqual({ ok: true });
   expect(getPlan(db, plan.id, 1)).toMatchObject({ status: "rejected", reason: "owner rejected" });
@@ -134,7 +132,7 @@ test("revision of a valid version: new version valid, old superseded, stale base
   expect(stale).toMatchObject({ ok: false, code: "STALE_VERSION" });
 });
 
-test("revision of an approved plan within the envelope applies at once: add, cancel, modify; no new question", () => {
+test("revision of an approved plan waits for the owner: add, cancel, modify apply on approval", () => {
   const { goalId, plan } = setup([item("a"), item("b", { dependsOn: ["a"] }), item("c")]);
   approveVersion(db, plan.id, 1);
   const r = revisePlan(db, {
@@ -148,15 +146,21 @@ test("revision of an approved plan within the envelope applies at once: add, can
     reason: "scope",
     env: ENV,
   });
-  expect(r).toMatchObject({ ok: true, version: 2, status: "approved" });
-  expect(r.ok && r.affected).toEqual({ created: ["d"], modified: ["b"], cancelled: ["c"] });
-  expect(keys(goalId)).toEqual([
-    "planner:ready",
+  expect(r).toMatchObject({ ok: true, version: 2, status: "valid" });
+  expect(planVersions(db, plan.id).map((v) => v.status)).toEqual(["approved", "valid"]);
+  expect(keys(goalId).sort()).toEqual(["a:ready", "b:pending", "c:ready", "verify-1:pending"]); // nothing applied yet
+  expect(approveVersion(db, plan.id, 2)).toMatchObject({
+    ok: true,
+    created: ["d"],
+    modified: ["b"],
+    cancelled: ["c"],
+  });
+  expect(keys(goalId).sort()).toEqual([
     "a:ready",
-    "c:cancelled",
     "b:pending",
-    "verify-1:pending",
+    "c:cancelled",
     "d:pending",
+    "verify-1:pending",
   ]);
   expect(childrenOf(db, goalId).find((i) => i.itemKey === "b")?.brief).toBe("do b better");
   expect(planVersions(db, plan.id).map((v) => v.status)).toEqual(["superseded", "approved"]);
@@ -221,7 +225,7 @@ test("envelope grows -> new version waits as valid, the approved one stays in fo
   });
   expect(r).toMatchObject({ ok: true, version: 2, status: "valid" });
   expect(planVersions(db, plan.id).map((v) => v.status)).toEqual(["approved", "valid"]);
-  expect(keys(goalId)).toEqual(["planner:ready", "a:ready", "b:pending", "verify-1:pending"]); // nothing applied yet
+  expect(keys(goalId)).toEqual(["a:ready", "b:pending", "verify-1:pending"]); // nothing applied yet
   expect(approveVersion(db, plan.id, 2)).toMatchObject({ ok: true, created: ["d"] });
   expect(planVersions(db, plan.id).map((v) => v.status)).toEqual(["superseded", "approved"]);
   expect(childrenOf(db, goalId).find((i) => i.itemKey === "d")?.location).toBe("docs");
@@ -229,9 +233,7 @@ test("envelope grows -> new version waits as valid, the approved one stays in fo
 
 test("NEEDS_PLANNING items are released (cancelled) by the first approval; finished items stay and can be depended on", () => {
   db = openDb(":memory:");
-  const port = createPlanPort(db, "th1");
-  const w = port.requestPlan({ key: "k1", objective: "big" });
-  if (!w.ok) throw new Error("no goal");
+  const w = openPlanGoal(db, "th1", "big");
   // An earlier worker item of the goal: one completed, one blocked asking for a plan.
   const { insertOwnedTask } = require("../src/storage/owned-task-store");
   for (const [key, st] of [
@@ -264,24 +266,31 @@ test("NEEDS_PLANNING items are released (cancelled) by the first approval; finis
   });
   if (!r.ok) throw new Error(r.message);
   approveVersion(db, r.plan.id, 1);
-  expect(keys(w.goalId)).toEqual([
-    "planner:ready",
-    "done1:completed",
-    "stuck:cancelled",
-    "next:pending",
-  ]);
+  expect(keys(w.goalId)).toEqual(["done1:completed", "stuck:cancelled", "next:pending"]);
 });
 
-test("Orchestrate request_plan inside the open goal adds a second planner item (planner-2) and keeps the finished items", () => {
-  const { goalId } = setup();
-  const port = createPlanPort(db, "th1");
-  const w = port.requestPlan({ key: "k2", objective: "re-plan", goalId });
-  expect(w).toMatchObject({ ok: true, goalId });
-  expect(keys(goalId)).toEqual(["planner:ready", "planner-2:ready"]);
-  expect(port.requestPlan({ key: "k3", objective: "x", goalId: "foreign" })).toMatchObject({
-    ok: false,
-    code: "BAD_TASK",
+test("Orchestrate create_plan inside the open goal after a reject stores the next version and keeps the finished items", () => {
+  const { goalId, plan } = setup();
+  rejectVersion(db, plan.id, 1, "no");
+  const port = createPlanPort(db, "th1", undefined, () => ENV);
+  const w = port.createPlan({
+    objective: "re-plan",
+    goalId,
+    items: [item("n")],
+    acceptanceCriteria: [],
+    envelope: ENVELOPE,
+    effects: [],
+    confirmNew: true,
   });
-  // One audit row per request (k1, k2).
-  expect(db.query("SELECT COUNT(*) AS n FROM effect_log").get()).toEqual({ n: 2 });
+  expect(w).toMatchObject({ ok: true, goalId, version: 2, status: "valid" });
+  expect(
+    port.createPlan({
+      objective: "x",
+      goalId: "foreign",
+      items: [item("m")],
+      acceptanceCriteria: [],
+      envelope: ENVELOPE,
+      effects: [],
+    }),
+  ).toMatchObject({ ok: false, code: "BAD_TASK" });
 });

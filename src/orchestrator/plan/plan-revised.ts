@@ -73,7 +73,7 @@ export function recordRevision(
 }
 
 /**
- * Tell the lead (`items_added` news, one line) that CODE added items to a PLAN goal's structure: verify-N, fix-N or a wave's planner-N.
+ * Tell the lead (`items_added` news, one line) that CODE added items to a PLAN goal's structure: verify-N or fix-N.
  * One event per insertion batch; the id is stable per key set, so a repeated pass writes it once.
  */
 export function recordCodeItems(db: Database, goalId: string, keys: string[], why: string): void {

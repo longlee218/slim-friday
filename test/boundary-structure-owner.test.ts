@@ -4,21 +4,18 @@ import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { createAnnouncer, pendingNews } from "../src/orchestrator/lead/lead-events";
 import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
-import { handleApprovePlan, handleRequestPlan } from "../src/orchestrator/lead/lead-plan-handlers";
+import {
+  handleApprovePlan,
+  handleCreatePlan,
+  handleRevisePlan,
+} from "../src/orchestrator/lead/lead-plan-handlers";
 import { afterVerify } from "../src/orchestrator/plan/goal-verify";
-import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
+import { createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import { recordCodeItems } from "../src/orchestrator/plan/plan-revised";
 import { revisePlan } from "../src/orchestrator/plan/plan-revision";
-import { startNextWave } from "../src/orchestrator/plan/plan-waves";
-import {
-  createPlanHandler,
-  type PlannerCtx,
-  proposeRevisionHandler,
-} from "../src/orchestrator/plan/planner-handlers";
 import { assertStructureOwner } from "../src/orchestrator/plan/structure-owner";
-import { dispatchableWorkers } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
-import { getOwnedTask, structureOwnerOf } from "../src/storage/owned-task-store";
+import { getOwnedTask, insertOwnedTask, structureOwnerOf } from "../src/storage/owned-task-store";
 import { appendEvent, listUndelivered } from "../src/storage/thread-event-store";
 import { planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
@@ -30,11 +27,12 @@ import {
   failVerify,
   item,
   newGoal,
+  openPlanGoal,
   spend,
   TH,
-} from "./waves-fixture";
+} from "./plan-fixture";
 
-/* Phase 3 boundary: who owns a goal's structure (lead for DIRECT / DELEGATE, planner for PLAN), the owner gate on
+/* Phase 3 boundary: who owns a goal's structure (lead path add / update for DIRECT / DELEGATE, create_plan / revise_plan for PLAN), the owner gate on
    superseding a PLAN goal (B2), one Orchestrate approve_plan ask per plan version (B11) and the news for code-made items. */
 
 let db: Database;
@@ -55,13 +53,14 @@ const planArgs = (goalId: string) => ({
   effects: [],
   env: ENV,
 });
-const plannerCtx = (goalId: string): PlannerCtx => ({
-  db,
-  threadId: TH,
-  goalId,
-  workers: dispatchableWorkers(),
-  locations: [{ name: "repo", path: "/x" }],
-  channelDigest: () => "",
+/** The lead's `create_plan` input (a new goal, or a plan inside the open goal `goalId`). */
+const leadPlan = (goalId?: string) => ({
+  objective: "plan it",
+  ...(goalId && { goalId }),
+  items: [item("p1")],
+  acceptanceCriteria: ["works"],
+  envelope: ENVELOPE,
+  effects: [],
 });
 
 /** Real db port with a scriptable owner answer; `asked` collects the owner questions. */
@@ -99,42 +98,32 @@ const DIRECT = {
   assignments: [{ key: "m", subject: "task", role: "developer", brief: "b", dependsOn: [] }],
 };
 
-test("structureOwner: Orchestrate dispatch goal = lead; Orchestrate request_plan new goal = planner; Orchestrate request_plan(goalId) switches lead -> planner", async () => {
+test("structureOwner: Orchestrate dispatch goal = lead; Orchestrate create_plan new goal = plan; create_plan(goalId) switches lead -> plan", async () => {
   const { port, ctx } = setup();
   const d = (await handleDispatch(ctx(), DIRECT)) as unknown as { goalId: string };
   expect(structureOwnerOf(db, d.goalId)).toBe("lead");
   expect(port.state().structureOwner).toBe("lead");
-  const w = await handleRequestPlan(ctx(), { objective: "plan it", goalId: d.goalId });
-  expect(w.ok).toBe(true);
-  expect(structureOwnerOf(db, d.goalId)).toBe("planner");
+  const w = await handleCreatePlan(ctx(), leadPlan(d.goalId));
+  expect(w).toMatchObject({ ok: true, version: 1, status: "valid" });
+  expect(structureOwnerOf(db, d.goalId)).toBe("plan");
   moveTaskTo(db, d.goalId, "cancelled");
-  const fresh = (await handleRequestPlan(ctx(), { objective: "big" })) as unknown as {
-    goalId: string;
-  };
-  expect(structureOwnerOf(db, fresh.goalId)).toBe("planner");
+  const fresh = (await handleCreatePlan(ctx(), leadPlan())) as unknown as { goalId: string };
+  expect(structureOwnerOf(db, fresh.goalId)).toBe("plan");
 });
 
-test("assertStructureOwner: the wrong actor is refused and told the right tool; the owner passes", () => {
-  expect(assertStructureOwner("planner", "planner")).toBeUndefined();
-  expect(assertStructureOwner("lead", "lead")).toBeUndefined();
-  expect(assertStructureOwner("planner", "lead")).toMatchObject({
+test("assertStructureOwner: add / update on a PLAN goal is refused and told the right tool; a lead goal passes", () => {
+  expect(assertStructureOwner("lead")).toBeUndefined();
+  expect(assertStructureOwner("plan")).toMatchObject({
     code: "NOT_STRUCTURE_OWNER",
-    message: expect.stringContaining("Orchestrate request_plan"),
-  });
-  expect(assertStructureOwner("lead", "planner")).toMatchObject({
-    code: "NOT_STRUCTURE_OWNER",
-    message: expect.stringContaining("Orchestrate request_plan"),
+    message: expect.stringContaining("Orchestrate revise_plan"),
   });
 });
 
-test("planner Plan create / Plan revise: refused on a lead-owned goal, accepted on a planner-owned one", async () => {
-  const { port, ctx } = setup();
+test("create_plan / revise_plan: revise_plan of an unknown plan is NO_PLAN; a stored plan can be revised (valid, owner approves)", async () => {
+  const { ctx } = setup();
   const d = (await handleDispatch(ctx(), DIRECT)) as unknown as { goalId: string };
-  expect(createPlanHandler(plannerCtx(d.goalId), planArgs(d.goalId))).toMatchObject({
-    code: "NOT_STRUCTURE_OWNER",
-  });
   expect(
-    proposeRevisionHandler(plannerCtx(d.goalId), {
+    await handleRevisePlan(ctx(), {
       planId: "p",
       baseVersion: 1,
       reason: "x",
@@ -142,29 +131,28 @@ test("planner Plan create / Plan revise: refused on a lead-owned goal, accepted 
       cancel: [],
       modify: [],
     }),
-  ).toMatchObject({ code: expect.stringMatching(/NO_PLAN|NOT_STRUCTURE_OWNER/) });
-  // The lead hands the goal over (Orchestrate request_plan): now the planner may write.
-  port.requestPlan({ key: "k", objective: "plan", goalId: d.goalId });
-  const made = createPlanHandler(plannerCtx(d.goalId), planArgs(d.goalId));
-  expect(made).toMatchObject({ ok: true, version: 1 });
-  const rev = proposeRevisionHandler(plannerCtx(d.goalId), {
-    planId: (made as unknown as { planId: string }).planId,
+  ).toMatchObject({ code: "NO_PLAN" });
+  const made = (await handleCreatePlan(ctx(), leadPlan(d.goalId))) as unknown as {
+    planId: string;
+  };
+  const rev = await handleRevisePlan(ctx(), {
+    planId: made.planId,
     baseVersion: 1,
     reason: "more",
     add: [],
     cancel: [],
     modify: [],
   });
-  expect(rev).toMatchObject({ ok: true });
+  expect(rev).toMatchObject({ ok: true, version: 2, status: "valid" });
 });
 
 test("B2: GOAL_OPEN on a PLAN goal does not suggest supersedes; on a lead goal it does", async () => {
   const { ctx } = setup();
-  await handleRequestPlan(ctx(), { objective: "big" });
+  await handleCreatePlan(ctx(), leadPlan());
   const r = (await handleDispatch(ctx(), DIRECT)) as { code: string; message: string };
   expect(r.code).toBe("GOAL_OPEN");
   expect(r.message).not.toContain("supersedes");
-  expect(r.message).toContain("Orchestrate request_plan");
+  expect(r.message).toContain("Orchestrate revise_plan");
   db.close();
   const b = setup();
   await handleDispatch(b.ctx(), DIRECT);
@@ -174,7 +162,7 @@ test("B2: GOAL_OPEN on a PLAN goal does not suggest supersedes; on a lead goal i
 
 test("B2: superseding a PLAN goal asks the owner; No keeps it, Yes cancels it; a lead goal asks nothing", async () => {
   const no = setup("No");
-  const p = (await handleRequestPlan(no.ctx(), { objective: "big" })) as unknown as {
+  const p = (await handleCreatePlan(no.ctx(), leadPlan())) as unknown as {
     goalId: string;
   };
   const denied = await handleDispatch(no.ctx(), { ...DIRECT, supersedes: p.goalId });
@@ -184,7 +172,7 @@ test("B2: superseding a PLAN goal asks the owner; No keeps it, Yes cancels it; a
   db.close();
 
   const yes = setup("Yes");
-  const p2 = (await handleRequestPlan(yes.ctx(), { objective: "big" })) as unknown as {
+  const p2 = (await handleCreatePlan(yes.ctx(), leadPlan())) as unknown as {
     goalId: string;
   };
   const ok = await handleDispatch(yes.ctx(), { ...DIRECT, supersedes: p2.goalId });
@@ -202,7 +190,7 @@ test("B2: superseding a PLAN goal asks the owner; No keeps it, Yes cancels it; a
 /** A goal with a valid plan v1 on a real port, ready to ask. */
 function validPlan() {
   const s = setup();
-  const w = createPlanPort(db, TH).requestPlan({ key: "k0", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, planArgs(w.goalId));
   if (!r.ok) throw new Error(r.message);
@@ -259,8 +247,18 @@ test("B11: a revised version (v2) is asked fresh; a rejected version stays PLAN_
 test("B11: a spent budget is recorded once; the second ask answers ALREADY_ASKED", async () => {
   const v = validPlan();
   db.query("UPDATE work_plans SET budget_usd = 0.0001 WHERE id = ?").run(v.planId);
-  const spendRow = byKey(db, v.goalId, "planner").id;
-  spend(db, spendRow, 1);
+  insertOwnedTask(db, {
+    id: "old-item",
+    threadId: TH,
+    ownerRole: "developer",
+    status: "completed",
+    scope: "earlier work",
+    correlationId: v.goalId,
+    parentId: v.goalId,
+    itemKey: "old",
+    brief: "earlier work",
+  });
+  spend(db, "old-item", 1);
   expect(await handleApprovePlan(v.ctx(), { planId: v.planId, version: 1 })).toMatchObject({
     code: "BUDGET",
   });
@@ -272,7 +270,7 @@ test("B11: a spent budget is recorded once; the second ask answers ALREADY_ASKED
 
 const codeNews = (d: Database) => listUndelivered(d, TH).filter((e) => e.kind === "items_added");
 
-test("code-made items emit one items_added per batch: verify-1, fix-N + verify-N, planner-N", () => {
+test("code-made items emit one items_added per batch: verify-1, fix-N + verify-N", () => {
   const a = approvedPlan([item("a")]);
   db = a.db;
   expect(codeNews(db).map((e) => (e.payload as { added: string[] }).added)).toEqual([["verify-1"]]);
@@ -284,25 +282,6 @@ test("code-made items emit one items_added per batch: verify-1, fix-N + verify-N
     ["verify-1"],
     ["fix-1", "verify-2"],
   ]);
-});
-
-test("a wave planner start emits the news once, even when the pass repeats", () => {
-  const g = newGoal();
-  db = g.db;
-  const r = createPlan(db, {
-    ...planArgs(g.goalId),
-    items: [item("a"), item("b", { deferredScope: true })],
-  });
-  if (!r.ok) throw new Error(r.message);
-  // Reuse the wave fixture path: approve, finish the item, start the wave.
-  approveVersion(db, r.plan.id, 1);
-  complete(db, g.goalId, "a");
-  expect(startNextWave(db, g.goalId)).toBe(true);
-  expect(startNextWave(db, g.goalId)).toBe(false);
-  const news = codeNews(db).filter((e) =>
-    (e.payload as { added: string[] }).added[0]?.startsWith("planner"),
-  );
-  expect(news).toHaveLength(1);
 });
 
 test("B11: an owner message that arrived DURING the ask lifts the block (stamp = ask start)", async () => {
@@ -319,22 +298,9 @@ test("B11: an owner message that arrived DURING the ask lifts the block (stamp =
   expect(await ask()).toMatchObject({ code: "TIMEOUT" });
 });
 
-test("B2: a wave-held PLAN goal is not cancelled by a plain dispatch without the owner (No keeps it)", async () => {
-  const no = setup("No");
-  const p = (await handleRequestPlan(no.ctx(), { objective: "big" })) as unknown as {
-    goalId: string;
-  };
-  // Held wave goal: the planner item ended, no item is live and no open goal is reported.
-  (no.port as { state: unknown }).state = () => ({ waveHeldGoalId: p.goalId, items: [] });
-  const r = await handleDispatch(no.ctx(), DIRECT);
-  expect(r).toMatchObject({ code: "OWNER_DENIED" });
-  expect(no.asked).toHaveLength(1);
-  expect(getOwnedTask(db, p.goalId)?.status).toBe("open");
-});
-
 test("B2: the supersede question is user-copy (vi default, en on request) and a timeout is OWNER_TIMEOUT", async () => {
   const s = setup();
-  const p = (await handleRequestPlan(s.ctx(), { objective: "big" })) as unknown as {
+  const p = (await handleCreatePlan(s.ctx(), leadPlan())) as unknown as {
     goalId: string;
   };
   (s.port as { askOwner: unknown }).askOwner = async (q: { question: string }) => {

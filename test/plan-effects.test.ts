@@ -8,6 +8,7 @@ import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecy
 import { CREATE_PLAN_SHAPE } from "../src/orchestrator/plan/plan-schemas";
 import { loadEnvelope } from "../src/policy/load-envelope";
 import { openDb } from "../src/storage/db";
+import { openPlanGoal } from "./plan-fixture";
 
 /* A plan's `effects` list is the envelope's delivery grants: stored, approved, loaded back at a worker start. */
 
@@ -16,7 +17,7 @@ afterEach(() => db?.close());
 const ENV = { workerRoles: ["developer"], locations: ["repo"] };
 const plan = (effects: ("GitPush" | "CreatePullRequest" | "MergeBranch")[]) => {
   db = openDb(":memory:");
-  const w = createPlanPort(db, "th1").requestPlan({ key: "k1", objective: "o" });
+  const w = openPlanGoal(db, "th1", "o");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,

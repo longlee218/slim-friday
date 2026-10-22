@@ -7,7 +7,6 @@ import { closePendingPlans } from "../../storage/work-plan-store";
 import { moveTaskTo } from "../../tasks/task-resolver";
 import { openGoalIdOf } from "../goal/effect-port-queries";
 import type { LeadQueue } from "../lead/lead-queue";
-import { closeIdleGoals } from "../plan/plan-waves";
 import { settleGoal } from "../worker/goal-settle";
 import { abortThreadRuns } from "./live-runs";
 
@@ -43,12 +42,9 @@ export function stopThreadTree(
           moveTaskTo(db, it.id, "cancelled"); // a held item is given up too: its dependents are cancelled above, the goal settles
       closePendingPlans(db, goalId, "stopped"); // a later "approve" of the open plan question must create nothing
     }
-    // A rolling-wave goal with every item ended (or one that just ended here) is not "open" but would start its next wave
-    // at the next pass or boot: close it now. Before the settle, so a cancelled wave planner raises no "stalled" event.
-    closeIdleGoals(db, threadId);
     if (goalId) {
       settleGoal(db, goalId);
-      // A stop ends the goal for good: settle keeps a goal open that only awaits a re-plan after a rejected plan.
+      // A stop ends the goal for good: settle keeps a PLAN goal open that has no item yet.
       if (getOwnedTask(db, goalId)?.status === "open") moveTaskTo(db, goalId, "cancelled");
     }
     cancelStartEvents(db, threadId);

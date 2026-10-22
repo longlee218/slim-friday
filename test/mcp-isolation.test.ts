@@ -15,8 +15,8 @@ import { checkToolCall, guardFor } from "../src/policy/check-tool-call";
 import { getRole, ROLES } from "../src/roles/role-registry";
 import { ALL_TOOL_NAMES, FULL_CTX, LEAD_ONLY_TOOLS, toolsByServer } from "./mcp-ctx-fixture";
 
-/** Roles that run as workers (dispatched or planner): never hold a lead tool. */
-const WORKERS = ["developer", "scout", "planner"].map((n) => getRole(n));
+/** Roles that run as workers (dispatched): never hold a lead tool. */
+const WORKERS = ["developer", "scout"].map((n) => getRole(n));
 
 /** Tools of the external servers: listed in `mcpTools`, served out of process (not held by an in-process instance). */
 const EXTERNAL_TOOLS = EXTERNAL_SERVERS.flatMap((s) => s.tools);
@@ -124,7 +124,7 @@ test("each query() call builds fresh instances", () => {
   expect(a[ORCHESTRATION_MCP_SERVER]).not.toBe(b[ORCHESTRATION_MCP_SERVER]);
 });
 
-test("guard (second lock): denies mcp__orchestration__DispatchAgent for developer, scout and planner; allows the role's own tools", () => {
+test("guard (second lock): denies mcp__orchestration__DispatchAgent for developer and scout; allows the role's own tools", () => {
   const dispatch = mcpToolName(ORCHESTRATION_MCP_SERVER, ORCHESTRATE_TOOL);
   const report = mcpToolName(ORCHESTRATION_MCP_SERVER, REPORT_TOOL);
   for (const role of WORKERS) {

@@ -20,7 +20,7 @@ import { appendEvent } from "../src/storage/thread-event-store";
 import { getPlan, hasPendingPlan, planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { FakePort } from "./lead-fake-port";
-import { setStoredBudget } from "./waves-fixture";
+import { openPlanGoal, setStoredBudget } from "./plan-fixture";
 
 /* Review fixes of phase L2b over a real in-memory db: chain cap, rendering, pending plans, atomic approve / revise /
    reject, dead dependencies, revision of the acceptance criteria. */
@@ -42,10 +42,10 @@ const edit = (over: Partial<Edit> = {}): Edit => ({ add: [], cancel: [], modify:
 const byKey = (goalId: string, k: string) => childrenOf(db, goalId).find((i) => i.itemKey === k)!;
 const keys = (goalId: string) => childrenOf(db, goalId).map((i) => `${i.itemKey}:${i.status}`);
 
-/** A goal with its planner item and a `valid` plan of the given items. */
+/** A goal with a `valid` plan of the given items. */
 function setup(raw: string[] = ["a", "b", "c"]) {
   db = openDb(":memory:");
-  const w = createPlanPort(db, "t").requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, "t", "build it");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -60,17 +60,11 @@ function setup(raw: string[] = ["a", "b", "c"]) {
   setStoredBudget(db, r.plan.id, 1, PLAN_GOAL_BUDGET_MAX_USD); // at the ceiling: an added item applies at once
   return { goalId: w.goalId, plan: r.plan };
 }
-const finishPlanner = (goalId: string) => {
-  const p = byKey(goalId, "planner");
-  moveTaskTo(db, p.id, "running");
-  moveTaskTo(db, p.id, "completed");
-};
-
-test("H1: starts of an approved plan are not chained; the planner start and a plain start are", () => {
+test("H1: starts of an approved plan are not chained; a plain start is", () => {
   const { goalId, plan } = setup();
   expect(approveVersion(db, plan.id, 1)).toMatchObject({ ok: true, created: ["a", "b", "c"] });
   const caps = goalCaps(db, "t");
-  expect(caps.chainCount).toBe(1); // the planner's start only
+  expect(caps.chainCount).toBe(0); // the plan's starts are not chained
   expect(
     checkPlanRequest(
       { openGoalId: goalId, items: [] },
@@ -78,7 +72,7 @@ test("H1: starts of an approved plan are not chained; the planner start and a pl
       { ...caps, dispatchedThisRun: 0 },
     ),
   ).toEqual({ ok: true });
-  for (let n = 0; n < CHAIN_CAP - 1; n++)
+  for (let n = 0; n < CHAIN_CAP; n++)
     appendEvent(db, { id: `d${n}`, threadId: "t", kind: "start", payload: { key: `x${n}` } });
   expect(goalCaps(db, "t").chainCount).toBe(CHAIN_CAP); // plain starts still count
 });
@@ -124,7 +118,7 @@ test("M1/D2: /stop closes the pending plan; an approve answered after it creates
     ok: false,
   });
   expect(getPlan(db, plan.id, 1)?.status).toBe("rejected");
-  expect(keys(goalId)).toEqual(["planner:cancelled"]);
+  expect(keys(goalId)).toEqual([]);
   expect(getOwnedTask(db, goalId)?.status).toBe("cancelled");
 });
 
@@ -143,12 +137,11 @@ test("M1: Orchestrate cancel of the goal closes its pending plan", () => {
   port.cancel(goalId, "test");
   expect(getPlan(db, plan.id, 1)?.status).toBe("rejected");
   expect(approveVersion(db, plan.id, 1)).toMatchObject({ ok: false }); // goal closed too
-  expect(keys(goalId)).toEqual(["planner:cancelled"]);
+  expect(keys(goalId)).toEqual([]);
 });
 
 test("M1: an approved plan whose revision is pending ends `superseded`, not `rejected`, on /stop", () => {
   const { goalId, plan } = setup();
-  finishPlanner(goalId);
   approveVersion(db, plan.id, 1);
   const grown = { ...ENVELOPE, bounds: { maxItems: 8, maxGb: 5 } };
   revisePlan(db, {
@@ -165,7 +158,6 @@ test("M1: an approved plan whose revision is pending ends `superseded`, not `rej
 
 test("M1: a valid plan older than the limit no longer holds the goal open", () => {
   const { goalId } = setup();
-  finishPlanner(goalId);
   const now = Date.now();
   expect(hasPendingPlan(db, goalId, now)).toBe(true);
   expect(openGoalIdOf(db, "t", now)).toBe(goalId);
@@ -178,18 +170,14 @@ test("M2: approving a plan of a goal that is no longer open is refused and creat
   const { goalId, plan } = setup();
   moveTaskTo(db, goalId, "cancelled");
   expect(approveVersion(db, plan.id, 1)).toMatchObject({ ok: false, code: "GOAL_CLOSED" });
-  expect(keys(goalId)).toEqual(["planner:ready"]);
+  expect(keys(goalId)).toEqual([]);
   expect(getPlan(db, plan.id, 1)?.status).toBe("valid");
 });
 
-test("M3: an approved revision is one transaction: a failing item insert leaves no new version", () => {
+test("M3: approving a revision is one transaction: a failing item insert leaves the old version in force", () => {
   const { goalId, plan } = setup(["a", "b"]);
-  finishPlanner(goalId);
   approveVersion(db, plan.id, 1);
-  db.run(
-    "CREATE TRIGGER boom BEFORE INSERT ON owned_tasks WHEN NEW.item_key = 'z' BEGIN SELECT RAISE(ABORT, 'boom'); END;",
-  );
-  expect(() =>
+  expect(
     revisePlan(db, {
       planId: plan.id,
       baseVersion: 1,
@@ -197,14 +185,20 @@ test("M3: an approved revision is one transaction: a failing item insert leaves 
       reason: "more",
       env: ENV,
     }),
-  ).toThrow(/boom/);
-  expect(planVersions(db, plan.id).map((v) => `${v.version}:${v.status}`)).toEqual(["1:approved"]);
-  expect(keys(goalId)).toEqual(["planner:completed", "a:ready", "b:ready", "verify-1:pending"]);
+  ).toMatchObject({ ok: true, version: 2, status: "valid" });
+  db.run(
+    "CREATE TRIGGER boom BEFORE INSERT ON owned_tasks WHEN NEW.item_key = 'z' BEGIN SELECT RAISE(ABORT, 'boom'); END;",
+  );
+  expect(() => approveVersion(db, plan.id, 2)).toThrow(/boom/);
+  expect(planVersions(db, plan.id).map((v) => `${v.version}:${v.status}`)).toEqual([
+    "1:approved",
+    "2:valid",
+  ]);
+  expect(keys(goalId)).toEqual(["a:ready", "b:ready", "verify-1:pending"]);
 });
 
-test("M3: a revision of a plan whose goal closed is refused and stores no version", () => {
+test("M3: a revision of a plan whose goal closed cannot be approved and creates nothing", () => {
   const { goalId, plan } = setup(["a", "b"]);
-  finishPlanner(goalId);
   approveVersion(db, plan.id, 1);
   moveTaskTo(db, goalId, "cancelled");
   const r = revisePlan(db, {
@@ -214,23 +208,13 @@ test("M3: a revision of a plan whose goal closed is refused and stores no versio
     reason: "more",
     env: ENV,
   });
-  expect(r).toMatchObject({ ok: false, code: "GOAL_CLOSED" });
-  expect(planVersions(db, plan.id).map((v) => v.version)).toEqual([1]);
-});
-
-test("M5: reject is one transaction: a failing cancel leaves the plan valid", () => {
-  const { goalId, plan } = setup();
-  db.run(
-    "CREATE TRIGGER boom BEFORE UPDATE ON owned_tasks WHEN NEW.status = 'cancelled' BEGIN SELECT RAISE(ABORT, 'boom'); END;",
-  );
-  expect(() => rejectVersion(db, plan.id, 1, "no")).toThrow(/boom/);
-  expect(getPlan(db, plan.id, 1)?.status).toBe("valid");
-  expect(keys(goalId)).toEqual(["planner:ready"]);
+  expect(r).toMatchObject({ ok: true, version: 2 });
+  expect(approveVersion(db, plan.id, 2)).toMatchObject({ ok: false, code: "GOAL_CLOSED" });
+  expect(keys(goalId).some((k) => k.startsWith("z:"))).toBe(false);
 });
 
 test("D1: a new item may not wait on a cancelled item either", () => {
   const { goalId, plan } = setup(["a", "b"]);
-  finishPlanner(goalId);
   approveVersion(db, plan.id, 1);
   moveTaskTo(db, byKey(goalId, "a").id, "cancelled");
   const r = revisePlan(db, {
@@ -253,7 +237,7 @@ test("D1: a new item may not wait on a cancelled item either", () => {
       reason: "x",
       env: ENV,
     }),
-  ).toMatchObject({ ok: true, status: "approved" });
+  ).toMatchObject({ ok: true, status: "valid" });
 });
 
 test("Low: a revision may replace the acceptance criteria", () => {

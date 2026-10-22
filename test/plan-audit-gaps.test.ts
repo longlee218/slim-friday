@@ -18,6 +18,7 @@ import { getPlan, planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { toolOptions, toolsFor } from "../src/tools/tool-catalog";
 import { FakePort } from "./lead-fake-port";
+import { openPlanGoal } from "./plan-fixture";
 
 /* Gap audit of phase L2b over a real in-memory db: superseded and stale approvals, a materialize that fails midway
    (rolls back all), a planner that crashes after or before storing a plan, a revision that drops a depended-on item,
@@ -37,18 +38,12 @@ const ENVELOPE = {
   bounds: { maxItems: 8, maxGb: 1 },
 };
 const edit = (over: Partial<Edit> = {}): Edit => ({ add: [], cancel: [], modify: [], ...over });
-/** The planner run ended (completed): only the plan items decide whether the goal settles. */
-const finishPlanner = (goalId: string) => {
-  const p = childrenOf(db, goalId)[0]!;
-  moveTaskTo(db, p.id, "running");
-  moveTaskTo(db, p.id, "completed");
-};
 const keys = (goalId: string) => childrenOf(db, goalId).map((i) => `${i.itemKey}:${i.status}`);
 
-/** A goal with its planner item (the planner run is started), and a plan of the given raw items (valid). */
+/** A goal and a plan of the given raw items (valid). */
 function setup(raw: Record<string, unknown>[] = [{ key: "a" }, { key: "b", dependsOn: ["a"] }]) {
   db = openDb(":memory:");
-  const w = createPlanPort(db, "t").requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, "t", "build it");
   if (!w.ok) throw new Error("no goal");
   const items = raw.map((r) => item(r.key as string, r));
   const r = createPlan(db, {
@@ -75,16 +70,10 @@ test("a superseded version is never approved; the newest version is approved onc
   });
   expect(r).toMatchObject({ ok: true, version: 2, status: "valid" });
   expect(approveVersion(db, plan.id, 1)).toMatchObject({ ok: false, code: "PLAN_NOT_VALID" });
-  expect(keys(goalId)).toEqual(["planner:ready"]); // nothing created by the refused v1
+  expect(keys(goalId)).toEqual([]); // nothing created by the refused v1
   expect(approveVersion(db, plan.id, 2)).toMatchObject({ ok: true, created: ["a", "c", "b"] });
   expect(approveVersion(db, plan.id, 2)).toMatchObject({ ok: false, code: "PLAN_NOT_VALID" });
-  expect(keys(goalId)).toEqual([
-    "planner:ready",
-    "a:ready",
-    "c:ready",
-    "b:pending",
-    "verify-1:pending",
-  ]);
+  expect(keys(goalId)).toEqual(["a:ready", "c:ready", "b:pending", "verify-1:pending"]);
   expect(planVersions(db, plan.id).map((v) => v.status)).toEqual(["superseded", "approved"]);
 });
 
@@ -119,11 +108,11 @@ test("materialize is one transaction: a failing item insert rolls back every ite
     "CREATE TRIGGER boom BEFORE INSERT ON owned_tasks WHEN NEW.item_key = 'api' BEGIN SELECT RAISE(ABORT, 'boom'); END;",
   );
   expect(() => approveVersion(db, plan.id, 1)).toThrow(/boom/);
-  expect(keys(goalId)).toEqual(["planner:ready"]); // `model` was inserted first and rolled back with the rest
+  expect(keys(goalId)).toEqual([]); // `model` was inserted first and rolled back with the rest
   expect(getPlan(db, plan.id, 1)).toMatchObject({ status: "valid", approvedAt: null });
-  // Only the planner's start event exists: the plan's start events were rolled back with the items.
+  // No start event exists: the plan's start events were rolled back with the items.
   expect(db.query("SELECT COUNT(*) AS n FROM thread_events WHERE kind = 'start'").get()).toEqual({
-    n: 1,
+    n: 0,
   });
   // The fault gone, the same approval applies cleanly once (retry is safe).
   db.run("DROP TRIGGER boom");
@@ -131,20 +120,11 @@ test("materialize is one transaction: a failing item insert rolls back every ite
     ok: true,
     created: ["model", "api", "ui"],
   });
-  expect(keys(goalId)).toEqual([
-    "planner:ready",
-    "model:ready",
-    "api:pending",
-    "ui:pending",
-    "verify-1:pending",
-  ]);
+  expect(keys(goalId)).toEqual(["model:ready", "api:pending", "ui:pending", "verify-1:pending"]);
 });
 
-test("a planner that crashes after storing a valid plan: the goal waits for the owner, then rejection ends the planner only", () => {
+test("a valid plan keeps the goal open for the owner; a rejection leaves it open for a re-plan", () => {
   const { goalId, plan } = setup();
-  const planner = childrenOf(db, goalId)[0]!;
-  moveTaskTo(db, planner.id, "running");
-  moveTaskTo(db, planner.id, "failed");
   settleGoal(db, goalId);
   // Not settled: the plan is `valid` and waits. Nothing sweeps it; only the lead (approve / reject) or /stop ends it.
   expect(getOwnedTask(db, goalId)?.status).toBe("open");
@@ -154,18 +134,6 @@ test("a planner that crashes after storing a valid plan: the goal waits for the 
   settleGoal(db, goalId);
   expect(getOwnedTask(db, goalId)?.status).toBe("open"); // the lead may re-plan in this goal
   expect(openGoalIdOf(db, "t")).toBe(goalId);
-});
-
-test("a planner that crashes before storing any plan: the goal settles as failed, not open", () => {
-  db = openDb(":memory:");
-  const w = createPlanPort(db, "t").requestPlan({ key: "k1", objective: "build it" });
-  if (!w.ok) throw new Error("no goal");
-  const planner = childrenOf(db, w.goalId)[0]!;
-  moveTaskTo(db, planner.id, "running");
-  moveTaskTo(db, planner.id, "failed");
-  settleGoal(db, w.goalId);
-  expect(getOwnedTask(db, w.goalId)?.status).toBe("failed");
-  expect(openGoalIdOf(db, "t")).toBeUndefined();
 });
 
 test("a revision that cancels an item another item still needs is refused (UNKNOWN_DEP), nothing is stored", () => {
@@ -219,20 +187,8 @@ test("the planner cannot be a plan role: the registry and the validator refuse i
   expect(dispatch).toMatchObject({ ok: false, code: "NOT_WORKER" });
 });
 
-test("the planner has no write, shell or subagent tool: the SDK tool set and the guard both say so", () => {
-  const p = ROLES.planner!;
-  expect(toolsFor(p).sort()).toEqual(["Glob", "Grep", "LSP", "Read", "Skill"]);
-  expect(toolOptions(p).tools).not.toContain("Bash");
-  const g = guardFor(p, { readPaths: ["/r"] });
-  for (const t of ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit", "Agent"])
-    expect([t, checkToolCall(t, { command: "ls" }, g).decision]).toEqual([t, "deny"]);
-  expect(p.sideEffects).toBe("none");
-  expect(p.noSubagents).toBe(true);
-});
-
 test("a revision that makes a new item wait on a FAILED item is refused (DEAD_DEP): the goal is not held open forever", () => {
   const { goalId, plan } = setup([{ key: "a" }, { key: "b" }]);
-  finishPlanner(goalId);
   approveVersion(db, plan.id, 1);
   const byKey = (k: string) => childrenOf(db, goalId).find((i) => i.itemKey === k)!;
   moveTaskTo(db, byKey("a").id, "running");

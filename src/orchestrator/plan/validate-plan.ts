@@ -8,7 +8,7 @@ import {
   RESERVED_KEY_PATTERN,
 } from "./plan-types";
 
-/* Pure plan validator: no db, no clock. The planner retries on the coded errors. */
+/* Pure plan validator: no db, no clock. The lead retries on the coded errors. */
 
 /** Keys that form a cycle (or wait for each other forever) among the plan's own items; Kahn's algorithm. */
 function cyclicKeys(items: PlanDoc["items"]): string[] {

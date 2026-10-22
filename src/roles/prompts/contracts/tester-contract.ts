@@ -62,7 +62,7 @@ const body = (f: TesterContractFacts): string => `## Scope and hand-offs
 - Requests: a fix for the developer (one per fault: path:line, the failing case, the observed versus expected behavior), or a capability the run lacked (a service, a credential).
 
 ## Collaboration
-- Upstream: the developer's change and its commands; the planner's acceptance criteria (verify); the designer's states or the architect's interfaces when tests must follow them.
+- Upstream: the developer's change and its commands; the plan's acceptance criteria (verify); the designer's states or the architect's interfaces when tests must follow them.
 - Downstream: a FAILED verify starts \`fix-N\`, which goes to the last writer of the location with your failing checks quoted. Write each failing check so that the fixer can reproduce it with one command. After at most ${MAX_FIX_LOOPS} fix loops per location, the goal is held for the owner.
 
 ## Environment facts

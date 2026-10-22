@@ -8,7 +8,6 @@ import { moveTaskTo } from "../../tasks/task-resolver";
 import { budgetReason, goalBudgetCanGrow, goalOverBudget } from "../budget/task-budget";
 import { openGoalIdOf } from "../goal/effect-port-queries";
 import type { LeadRuntime } from "../lead/lead-runtime";
-import { startNextWave, waveGoalOf } from "../plan/plan-waves";
 import { zombieClaims } from "../run/zombie-claims";
 import { cancelDeadWaiters, cancelDependents, settleGoal } from "./goal-settle";
 import { clearHold, waitMs } from "./resume-backoff";
@@ -95,8 +94,7 @@ const roleCaps = (name: string | null): RoleCaps => {
 async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
   const { db } = rt.deps;
   const ctx = rt.ctxOf(threadId);
-  // A goal whose last wave ended with deferred scope has no live item (so it is not "open"): the next wave starts it again.
-  const goalId = openGoalIdOf(db, threadId) ?? waveGoalOf(db, threadId);
+  const goalId = openGoalIdOf(db, threadId);
   if (!ctx || !goalId) return;
   if (rt.deps.stopping()) return; // shutdown: an item resumed by the abort starts at the next boot, not now
   for (;;) {
@@ -133,8 +131,6 @@ async function pass(rt: LeadRuntime, threadId: string): Promise<void> {
       continue;
     }
     if (!ready.length) {
-      // Rolling waves: the wave is done and scope is deferred: code inserts the next planner, which is then ready.
-      if (startNextWave(db, goalId)) continue;
       settleGoal(db, goalId);
       return;
     }

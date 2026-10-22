@@ -1,8 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
 import { renderUserNotice } from "../src/ingress/user-copy";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
-import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
+import { createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { renderPlan } from "../src/orchestrator/plan/plan-render";
 import {
   diffVersions,
@@ -10,17 +9,12 @@ import {
   revisionNotice,
 } from "../src/orchestrator/plan/plan-revised";
 import type { PlanDoc } from "../src/orchestrator/plan/plan-types";
-import {
-  createPlanHandler,
-  proposeRevisionHandler,
-} from "../src/orchestrator/plan/planner-handlers";
 import { recordBotThread } from "../src/storage/thread-store";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
-import { plannerCtxOf } from "./plan-visibility-helpers";
-import { ENV, item, TH } from "./waves-fixture";
+import { ENV, item, openPlanGoal, TH } from "./plan-fixture";
+import { createPlanFor, plannerCtxOf, revisePlanFor } from "./plan-visibility-helpers";
 
-/* Phase 5 gap tests: the revision diff counts (+ added, − cancelled, ~ modified, criteria), the one line per applied
-   revision, the owner approval text kept apart from the stored version text. */
+/* Phase 5 gap tests: the revision diff counts (+ added, − cancelled, ~ modified, criteria), the one line per re-plan, the owner approval text kept apart from the stored version text. */
 
 let db: Database;
 afterEach(() => db?.close());
@@ -91,11 +85,11 @@ test("the line counts a modified item as ~1 and nothing as +0 −0", () => {
   expect(renderUserNotice(n, "vi")).toBe("Kế hoạch v1 → v2: +0, −0, ~1");
 });
 
-test("an applied brief edit posts one line with ~1 and the planner ctx receives the diff", () => {
+test("a re-plan after a reject posts one line with ~1 and the plan app receives the diff", () => {
   const env = makeEnv();
   db = env.db;
   recordBotThread(db, TH, TEST_CHANNEL, "main", "x");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -107,28 +101,26 @@ test("an applied brief edit posts one line with ~1 and the planner ctx receives 
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
-  approveVersion(db, r.plan.id, 1);
+  rejectVersion(db, r.plan.id, 1, "no");
   const diffs: RevisionDiff[] = [];
-  const ctx = plannerCtxOf({ db }, w.goalId, { notify: (d) => diffs.push(d) });
-  const out = proposeRevisionHandler(ctx, {
-    planId: r.plan.id,
-    baseVersion: 1,
-    add: [],
-    cancel: [],
-    modify: [{ key: "b", brief: "do b differently" }],
-    reason: "scope note",
-  } as never);
-  expect(out).toMatchObject({ ok: true, status: "approved", version: 2 });
+  const out = createPlanFor(plannerCtxOf({ db }, w.goalId, { notify: (d) => diffs.push(d) }), {
+    items: [item("a"), item("b", { brief: "do b differently" })],
+    acceptanceCriteria: ["works"],
+    envelope: ENVELOPE,
+    effects: [],
+    confirmNew: true,
+  });
+  expect(out).toMatchObject({ ok: true, status: "valid", version: 2 });
   expect(diffs).toHaveLength(1);
   expect(diffs[0]).toMatchObject({ version: 2, modified: ["b"], added: [], cancelled: [] });
   expect(renderUserNotice(revisionNotice(diffs[0]!), "en")).toBe("Plan v1 → v2: +0, −0, ~1");
 });
 
-test("a no-op revision (nothing added, cancelled or modified) posts nothing", () => {
+test("a revision never posts a line: it waits for the owner, who sees the whole plan at approval", () => {
   const env = makeEnv();
   db = env.db;
   recordBotThread(db, TH, TEST_CHANNEL, "main", "x");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -140,20 +132,16 @@ test("a no-op revision (nothing added, cancelled or modified) posts nothing", ()
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
-  approveVersion(db, r.plan.id, 1);
   const diffs: RevisionDiff[] = [];
-  const out = proposeRevisionHandler(
-    plannerCtxOf({ db }, w.goalId, { notify: (d) => diffs.push(d) }),
-    {
-      planId: r.plan.id,
-      baseVersion: 1,
-      add: [],
-      cancel: [],
-      modify: [],
-      reason: "same",
-    } as never,
-  );
-  expect(out).toMatchObject({ ok: true, version: 2 });
+  const out = revisePlanFor(plannerCtxOf({ db }, w.goalId, { notify: (d) => diffs.push(d) }), {
+    planId: r.plan.id,
+    baseVersion: 1,
+    add: [],
+    cancel: [],
+    modify: [],
+    reason: "same",
+  } as never);
+  expect(out).toMatchObject({ ok: true, status: "valid", version: 2 });
   expect(diffs).toHaveLength(0);
 });
 
@@ -173,17 +161,15 @@ test("the first version of a plan posts no revision line (the approval question 
   const env = makeEnv();
   db = env.db;
   recordBotThread(db, TH, TEST_CHANNEL, "main", "x");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   const diffs: RevisionDiff[] = [];
-  const out = createPlanHandler(plannerCtxOf({ db }, w.goalId, { notify: (d) => diffs.push(d) }), {
-    goalId: w.goalId,
+  const out = createPlanFor(plannerCtxOf({ db }, w.goalId, { notify: (d) => diffs.push(d) }), {
     items: [item("a")],
     acceptanceCriteria: ["works"],
     envelope: ENVELOPE,
-    budgetUsd: 3,
     effects: [],
-  } as never);
+  });
   expect(out).toMatchObject({ ok: true, version: 1 });
   expect(diffs).toHaveLength(0);
 });

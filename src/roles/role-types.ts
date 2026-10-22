@@ -35,11 +35,11 @@ export type RoleSkills = string[];
 export interface RoleDefinition {
   /** Role name: the registry key and the log `mode` value. */
   name: string;
-  /** Mutually exclusive wording; the lead's TEAM.md, the lead and the planner read it from the registry. */
+  /** Mutually exclusive wording; the lead's TEAM.md, the lead reads it from the registry. */
   whenToUse: string;
   /**
    * Work that looks like this role's but is not (and where it goes instead): the "Not for" column of the lead's TEAM
-   * table and the planner's capabilities read it, so routing between roles is role data, not prompt text. Every
+   * table reads it, so routing between roles is role data, not prompt text. Every
    * dispatchable role has one (test).
    */
   notFor?: string;
@@ -92,7 +92,7 @@ export interface RoleDefinition {
   permissionMode?: "auto" | "bypassPermissions";
   /**
    * What the role may change: `none` (answers only), `location` (files / git of a checkout), `external` (outside systems).
-   * Data for the lead, the planner and the outcome check. Authorization stays in the guards.
+   * Data for the lead and the outcome check. Authorization stays in the guards.
    */
   sideEffects: "none" | "location" | "external";
   /**

@@ -21,9 +21,6 @@ import { REPORT_TOOL } from "./constants";
 
 const log = logger.child({ module: "report-tool" });
 
-/** Refusal code: the run's role has no blocker action. */
-const NO_BLOCKER = "NO_BLOCKER";
-
 /** What a worker's report actions need; a part the run lacks makes its action refuse with `ACTION_UNAVAILABLE`. */
 export interface ReportCtx {
   /** The run's progress port (bound to its task). */
@@ -85,11 +82,6 @@ export const REPORT_ACTIONS = [
     run: (c, p) => {
       const sink = c.sink;
       if (!sink) return refuse(ACTION_UNAVAILABLE, "This run has no report sink.");
-      if (sink.noBlocker)
-        return refuse(
-          NO_BLOCKER,
-          `A planner has no blocker: end with ${REPORT_TOOL} ${REPORT_ACTION_RESULT} (status BLOCKED or NEEDS_CLARIFICATION).`,
-        );
       if (sink.report) return refuse("ALREADY_REPORTED", "You already reported.");
       // A blocker IS a BLOCKED report: the task is held for the lead, the session is kept for the resume. The sink also
       // carries what it needs, so the end event tells the lead and the lead is woken at once.

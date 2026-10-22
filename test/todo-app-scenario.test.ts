@@ -1,11 +1,9 @@
 import { expect, test } from "bun:test";
 import { leadHarness, until } from "./lead-harness";
 
-/* TODO-app scenario with a fake query: owner -> Orchestrate request_plan -> planner builds a DAG over the ROSTER roles -> one approval ->
+/* TODO-app scenario with a fake query: owner -> Orchestrate create_plan -> the lead writes a DAG over the ROSTER roles -> one approval ->
    architect -> (designer, scaffold) -> build -> (tester || hacker, parallel) -> writer. A second run: the tester fails. */
 
-const GOAL = /Goal id: ([0-9a-f-]{36})/;
-const PLAN_ID = /"planId":"([0-9a-f-]{36})"/;
 const step = (key: string, role: string, dependsOn: string[] = [], risk = "R1") => ({
   key,
   subject: `Do ${key}`,
@@ -25,36 +23,10 @@ const ITEMS = [
   step("docs", "humanizer-writer", ["test", "audit"]),
 ];
 
-/** Harness whose planner stores ITEMS, and whose workers run `worker(key)`; the lead approves the plan and ends with `final`. */
+/** Harness whose lead stores ITEMS, and whose workers run `worker(key)`; the lead approves the plan and ends with `final`. */
 function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, final: RegExp) {
-  const done = { approved: false };
   return leadHarness(
     async (c) => {
-      if (c.kind === "planner") {
-        const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        const roles = (await c.plan("capabilities", {})).roles.map((r: any) => r.name);
-        for (const r of ["solution-architect", "designer", "tester", "hacker", "humanizer-writer"])
-          expect(roles).toContain(r);
-        const made = await c.plan("create", {
-          goalId,
-          items: ITEMS,
-          acceptanceCriteria: ["the app runs"],
-          envelope: {
-            locations: ["location"],
-            riskClasses: ["R0", "R1"],
-            bounds: { maxItems: 8, maxGb: 1 },
-          },
-          budgetUsd: 4,
-          effects: [],
-        });
-        expect(made).toMatchObject({ ok: true, status: "valid" });
-        await c.report("result", {
-          title: "T",
-          status: "COMPLETED",
-          summary: `plan ${made.planId} v1`,
-        });
-        return "planned";
-      }
       if (c.kind === "worker") {
         // The code-appended items have no `do <key>` brief: "Verify the goal: ..." and "Fix the goal: ...".
         const key =
@@ -65,16 +37,19 @@ function scenario(worker: (key: string) => Promise<"COMPLETED" | "FAILED">, fina
         return "worker done";
       }
       if (c.prompt.includes("<owner_message>\nbuild a todo app")) {
-        await c.orchestrate("request_plan", {
+        const made = await c.orchestrate("create_plan", {
           objective: "build a todo app",
-          findings: "empty repo",
+          items: ITEMS,
+          acceptanceCriteria: ["the app runs"],
+          envelope: {
+            locations: ["location"],
+            riskClasses: ["R0", "R1"],
+            bounds: { maxItems: 8, maxGb: 1 },
+          },
+          effects: [],
         });
-        return "Planning it.";
-      }
-      const plan = PLAN_ID.exec(c.prompt)?.[1];
-      if (plan && !done.approved) {
-        done.approved = true;
-        await c.orchestrate("approve_plan", { planId: plan, version: 1 });
+        expect(made).toMatchObject({ ok: true, status: "valid" });
+        await c.orchestrate("approve_plan", { planId: made.planId, version: 1 });
         return "Plan approved, running.";
       }
       return final.test(c.prompt) ? "Final report." : "";

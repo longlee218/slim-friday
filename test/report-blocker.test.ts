@@ -46,16 +46,6 @@ test("blocker: bad needs is BAD_PARAMS with the params; a run with no report sin
   });
 });
 
-test("blocker: a planner run has no blocker action (it ends with result BLOCKED / NEEDS_CLARIFICATION)", async () => {
-  const sink: ReportSink = { noBlocker: true };
-  expect(await callReport(sink, "blocker", { reason: "x", needs: "answer" })).toMatchObject({
-    ok: false,
-    code: "NO_BLOCKER",
-    message: expect.stringContaining("NEEDS_CLARIFICATION"),
-  });
-  expect(sink.report).toBeUndefined();
-});
-
 test("end to end: the worker's blocker holds the item, the lead is told reason + needs at once", async () => {
   let leadSawBlocker = "";
   const h = leadHarness(async (c) => {

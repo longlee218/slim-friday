@@ -1,6 +1,8 @@
 import type { Database } from "bun:sqlite";
-import { PLAN_ACTION_CREATE } from "../../mcp/plan/tools/PlanTool/action-names";
-import { PLAN_TOOL } from "../../mcp/plan/tools/PlanTool/constants";
+import {
+  ORCHESTRATE_ACTION_CREATE_PLAN,
+  orchestrateRef,
+} from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { childrenOf } from "../../storage/owned-item-store";
 import {
   latestPlan,
@@ -11,7 +13,7 @@ import {
 import { spentOf } from "../budget/task-budget";
 import type { PlanCtx, PlanError } from "./plan-types";
 
-/* Refusals and goal-key facts shared by the plan lifecycle, revision and the planner tools. */
+/* Refusals and goal-key facts shared by the plan lifecycle, revision and the lead tools. */
 
 /** Registry and goal facts the validator reads; `existingKeys` and `revisions` are computed here. */
 export type PlanEnv = Pick<PlanCtx, "workerRoles" | "locations">;
@@ -33,7 +35,7 @@ export const invalid = (errors: PlanError[]): Fail => ({
   errors,
 });
 
-/** Keys of the goal's items that a plan with `planKeys` does not own (planner runs, earlier finished work). */
+/** Keys of the goal's items that a plan with `planKeys` does not own (earlier finished work). */
 export const otherKeys = (db: Database, goalId: string, planKeys: readonly string[]): string[] =>
   childrenOf(db, goalId).flatMap((i) =>
     i.itemKey && !planKeys.includes(i.itemKey) ? [i.itemKey] : [],
@@ -58,7 +60,7 @@ export const releasedKeys = (db: Database, goalId: string): string[] =>
 
 /**
  * The version a revision builds on: the newest one still alive (valid or approved), so after the owner rejected or let a
- * version expire it is the older approved one. The planner reads the newest version, so its number is accepted too.
+ * version expire it is the older approved one. The newest version's number is accepted too.
  */
 export function reviseBase(
   db: Database,
@@ -73,7 +75,7 @@ export function reviseBase(
   if (!base)
     return fail(
       "BAD_STATE",
-      `Plan v${latest.version} is ${latest.status} and no version is approved: use ${PLAN_TOOL} ${PLAN_ACTION_CREATE} to plan again.`,
+      `Plan v${latest.version} is ${latest.status} and no version is approved: call ${orchestrateRef(ORCHESTRATE_ACTION_CREATE_PLAN)} with the goalId to plan again.`,
     );
   if (baseVersion !== base.version && baseVersion !== latest.version)
     return fail(

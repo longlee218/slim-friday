@@ -23,6 +23,7 @@ import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
+import { openPlanGoal } from "./plan-fixture";
 
 /* Goal verify and the capped fix loop over a real db: append on approval, loop on a reported FAILED, cap, budget,
    restart idempotency, newest-verify-decides, held vs failed, dependents, and the 20-item plan. */
@@ -51,10 +52,10 @@ const REPORTED: FailureVerdict = {
 const keys = (g: string) => childrenOf(db, g).map((i) => `${i.itemKey}:${i.status}`);
 const byKey = (g: string, k: string) => childrenOf(db, g).find((i) => i.itemKey === k)!;
 
-/** An approved plan (items + criteria) on a fresh goal; the planner item is done. */
+/** An approved plan (items + criteria) on a fresh goal; . */
 function approved(items = [item("a"), item("b", { dependsOn: ["a"] })], criteria = ["tests pass"]) {
   db = openDb(":memory:");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -70,9 +71,6 @@ function approved(items = [item("a"), item("b", { dependsOn: ["a"] })], criteria
     env: ENV,
   });
   if (!r.ok) throw new Error(r.message);
-  const planner = childrenOf(db, w.goalId)[0]!;
-  moveTaskTo(db, planner.id, "running");
-  moveTaskTo(db, planner.id, "completed");
   expect(approveVersion(db, r.plan.id, 1).ok).toBe(true);
   return { goalId: w.goalId, planId: r.plan.id };
 }
@@ -100,21 +98,19 @@ const loopOnce = (g: string, i: number) => {
   complete(g, `fix-${i}`);
 };
 
-test("approval appends verify-1 (tester, waits for every plan item, same location); none without criteria or with deferred scope", () => {
+test("approval appends verify-1 (tester, waits for every plan item, same location); none without criteria", () => {
   const { goalId } = approved();
   const v = byKey(goalId, "verify-1");
   expect(v).toMatchObject({ ownerRole: "tester", status: "pending", location: "repo" });
-  expect(v.dependsOn).toEqual(["a", "b"]); // not the planner item
+  expect(v.dependsOn).toEqual(["a", "b"]);
   expect(v.brief).toContain("- tests pass");
   const none = approved([item("a")], []);
-  expect(keys(none.goalId)).toEqual(["planner:completed", "a:ready"]);
-  const deferred = approved([item("a"), item("later", { deferredScope: true })]);
-  expect(keys(deferred.goalId)).toEqual(["planner:completed", "a:ready"]);
+  expect(keys(none.goalId)).toEqual(["a:ready"]);
 });
 
 test("reserved keys verify* / fix* are refused in plan items; criteria are capped at PLAN_MAX_CRITERIA", () => {
   db = openDb(":memory:");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "o" });
+  const w = openPlanGoal(db, TH, "o");
   if (!w.ok) throw new Error("no goal");
   for (const key of ["verify-1", "fix-2", "verify-12"]) {
     const r = createPlan(db, {
@@ -128,7 +124,7 @@ test("reserved keys verify* / fix* are refused in plan items; criteria are cappe
     });
     expect(r).toMatchObject({ ok: false, code: "INVALID" });
     expect(r.ok === false && r.message).toContain("DUP_KEY");
-    expect(r.ok === false && r.message).toContain("planner*, verify-N, fix-N");
+    expect(r.ok === false && r.message).toContain("verify-N, fix-N");
   }
   // Only the code's own pattern is reserved: these are ordinary keys.
   const legal = createPlan(db, {
@@ -316,7 +312,7 @@ test("a full 20-item plan plus verify: no cap refuses the code-added items, a fi
     item(`s${i}`, { dependsOn: i ? [`s${i - 1}`] : [] }),
   );
   const { goalId } = approved(items);
-  expect(childrenOf(db, goalId)).toHaveLength(PLAN_MAX_ITEMS + 2); // planner + 20 + verify-1
+  expect(childrenOf(db, goalId)).toHaveLength(PLAN_MAX_ITEMS + 1); // 20 + verify-1
   expect(byKey(goalId, "verify-1").dependsOn).toHaveLength(PLAN_MAX_ITEMS);
   for (const it of items) complete(goalId, it.key);
   expect(afterVerify(db, failVerify(goalId, "verify-1"), REPORTED)).toBe(true);

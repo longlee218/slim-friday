@@ -14,18 +14,18 @@ import type { LeadRuntime, LeadThreadCtx } from "../src/orchestrator/lead/lead-r
 import { planUrlOfGoal, syncPlanArtifacts } from "../src/orchestrator/plan/plan-artifact";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { revisionNotice } from "../src/orchestrator/plan/plan-revised";
+import { planSideEffects } from "../src/orchestrator/plan/plan-side-effects";
 import { createPlanLookup } from "../src/orchestrator/turns/plan-live";
 import { createCheckIn } from "../src/orchestrator/worker/check-in";
 import { digestFacts, factsKey } from "../src/orchestrator/worker/digest-facts";
-import { workerAppCtx } from "../src/orchestrator/worker/worker-app-ctx";
 import { createSlashHandler } from "../src/providers/discord/ingress/slash-interaction";
 import { listByGoal } from "../src/storage/artifact-store";
 import { recordBotThread } from "../src/storage/thread-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { verifyLink } from "../src/viewer/signed-link";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
+import { byKey, ENV, item, openPlanGoal, setStoredBudget, TH } from "./plan-fixture";
 import { createPlanHandlerFor, plannerCtxOf } from "./plan-visibility-helpers";
-import { byKey, ENV, item, setStoredBudget, TH } from "./waves-fixture";
 
 /* Phase 5: plan versions as artifacts, the one-line revision notice with the viewer link, /plan, planUrl, digest. */
 
@@ -49,7 +49,7 @@ function world(o: { approve?: boolean; viewer?: boolean } = {}) {
   const env = makeEnv();
   db = env.db;
   recordBotThread(db, TH, TEST_CHANNEL, "main", "x");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -114,7 +114,7 @@ test("an unmapped thread saves no artifact and gives no link, nothing throws", (
   expect(planUrlOfGoal(deps, TH, goalId)).toBeUndefined();
 });
 
-/** Worker tool ctx over a real runtime stub; returns the planner's plan ctx and what the thread received. */
+/** Plan side effects over a real runtime stub; returns the lead's plan app and what the thread received. */
 function plannerCtx(viewer: boolean) {
   const { env, goalId, planId, deps } = world({ approve: true, viewer });
   const posts: { text: string; links?: { label: string; url: string }[] }[] = [];
@@ -132,54 +132,44 @@ function plannerCtx(viewer: boolean) {
   const rt = {
     deps: { db, config: { ...env.config, ...(viewer && { viewer: VIEWER }) } },
   } as unknown as LeadRuntime;
-  const app = workerAppCtx(rt, ctx, {
-    threadId: TH,
-    goalId,
-    itemId: "i",
-    turnId: "t",
-    role: "planner",
-    language: "en",
-    envelope: {} as never,
-    sink: {} as never,
-  })();
-  return { app: app.plan!, posts, goalId, planId, deps };
+  const fx = planSideEffects(rt, ctx, TH);
+  const app = plannerCtxOf({ db }, goalId, {
+    onVersion: () => fx.onVersion(goalId),
+    notify: (d) => fx.notify(goalId, d, "en"),
+  });
+  return { app, posts, goalId, planId, deps };
 }
 
-test("a revision posts ONE line 'Plan v1 → v2: +a, −b, ~c' with the viewer link, and no old-style text", async () => {
-  const { app, posts, planId } = plannerCtx(true);
-  const r = createPlanHandlerFor(app, planId, { add: [item("z")], cancel: ["b"] });
-  expect(r).toMatchObject({ ok: true, status: "approved" });
+test("a re-plan after a reject posts ONE line 'Plan v1 → v2: +a, −b, ~c' with the viewer link, and no old-style text", async () => {
+  const { app, posts, goalId, planId } = plannerCtx(true);
+  db.query("UPDATE work_plans SET status = 'rejected' WHERE id = ?").run(planId);
+  const r = createPlanHandlerFor(app, planId, { replan: [item("n"), item("z")] });
+  expect(r).toMatchObject({ ok: true, version: 2, status: "valid" });
   await new Promise((res) => setTimeout(res, 10));
   expect(posts).toHaveLength(1);
-  expect(posts[0]?.text).toBe("Plan v1 → v2: +1, −1, ~0 (cancelled: b)");
+  expect(posts[0]?.text).toBe("Plan v1 → v2: +2, −2, ~0 (cancelled: a, b)");
   expect(posts[0]?.text).not.toContain("The plan changed");
   expect(posts[0]?.links?.[0]?.url).toStartWith("https://v.example/a/");
+  expect(listByGoal(db, goalId)).toHaveLength(2);
 });
 
-test("a routine revision (only an addition) is announced too; without the viewer there is no link", async () => {
+test("without the viewer there is no link on the re-plan line", async () => {
   const { app, posts, planId } = plannerCtx(false);
-  createPlanHandlerFor(app, planId, { add: [item("z")] });
+  db.query("UPDATE work_plans SET status = 'rejected' WHERE id = ?").run(planId);
+  createPlanHandlerFor(app, planId, { replan: [item("z")] });
   await new Promise((res) => setTimeout(res, 10));
   expect(posts).toHaveLength(1);
-  expect(posts[0]?.text).toBe("Plan v1 → v2: +1, −0, ~0");
+  expect(posts[0]?.text).toBe("Plan v1 → v2: +1, −2, ~0 (cancelled: a, b)");
   expect(posts[0]?.links ?? []).toEqual([]);
 });
 
-test("a version waiting for the owner is saved as an artifact but not announced", async () => {
+test("a revision waits for the owner: it is saved as an artifact but not announced", async () => {
   const { app, posts, planId, goalId } = plannerCtx(true);
-  // A new location grows the envelope: the owner must approve (valid).
-  const r = createPlanHandlerFor(app, planId, {
-    add: [item("z", { location: "docs" })],
-    grow: true,
-  });
+  const r = createPlanHandlerFor(app, planId, { add: [item("z")] });
   expect(r).toMatchObject({ ok: true, status: "valid" });
   await new Promise((res) => setTimeout(res, 10));
   expect(posts).toHaveLength(0);
-  expect(
-    listByGoal(db, goalId)
-      .map((a) => a.title)
-      .sort(),
-  ).toHaveLength(2);
+  expect(listByGoal(db, goalId)).toHaveLength(2);
 });
 
 test("a re-plan after a reject uses the same line (the code verify/fix items post nothing)", async () => {
@@ -261,6 +251,7 @@ test("/plan: owner only, private reply with version, item status and link; histo
   expect(text).toContain("https://v.example/a/");
   // A second version, then the history.
   createPlanHandlerFor(plannerCtxOf(deps, goalId), planId, { add: [item("z")] });
+  approveVersion(db, planId, 2); // the owner approves the revision
   const hist = fakePlan("111", "history");
   await handle(hist.i);
   const lines = (hist.replies[0].content as string).split("\n");
@@ -308,6 +299,7 @@ test("the digest shows the plan version, a revision counts as a change, and the 
   await tick(rt, 10_000_000 + 3_600_000);
   expect(posts).toHaveLength(1);
   createPlanHandlerFor(plannerCtxOf(deps, goalId), planId, { add: [item("z")] });
+  approveVersion(db, planId, 2); // the owner approves the revision: v2 is in force
   expect(factsKey(digestFacts(db, goalId, "build it", 1))).not.toBe(key1);
   await tick(rt, 10_000_000 + 7_200_000);
   expect(posts).toHaveLength(2);

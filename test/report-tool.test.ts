@@ -63,7 +63,7 @@ test("result stores the first report; a second is ALREADY_REPORTED; artifacts ne
 
 test("worker roles hold Report when the run has a progress port or a sink; the lead never does", () => {
   for (const supply of [{ progress: () => {} }, { reportSink: {} }])
-    for (const n of ["developer", "scout", "planner", "tester"])
+    for (const n of ["developer", "scout", "tester"])
       expect(toolsByServer(buildServers(ROLES[n]!, supply))[ORCHESTRATION_MCP_SERVER]).toContain(
         REPORT_TOOL,
       );

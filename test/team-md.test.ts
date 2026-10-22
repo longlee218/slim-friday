@@ -28,16 +28,14 @@ test("TEAM.md: authoritative members from the registry, the channel's locations,
   expect(md).not.toContain("/r/api"); // no path in the reply source
   expect(md).toContain("- DELEGATE: up to"); // the only strategy fact code owns (a cap)
   expect(md).not.toContain("- DIRECT:"); // the skill owns the strategies
-  expect(md).toContain(
-    "- PLAN: the planner writes the items and staffs them from the members above",
-  ); // a runtime fact
+  expect(md).toContain("- PLAN: the lead writes the plan"); // a runtime fact
   expect(md).not.toContain("ANSWER"); // not a code strategy; choosing is the skill's job
   expect(md).toContain("NEEDS_PLAN");
   expect(md).not.toMatch(/^\|.*\| [^|]*\b(tasks|mcp|feedback|ask|skills)\b[^|]* \|$/m); // internal capability names are left out of Tools
   expect(md).toContain(`Up to ${MAX_RUNNING_PER_THREAD} items run at once`);
   expect(md).toContain("one writer per location");
   expect(md).toContain(`at most ${CHAIN_CAP} chained starts`);
-  expect(md).toContain("1 dispatch or plan request per run");
+  expect(md).toContain("1 dispatch or plan (create_plan, revise_plan) per run");
   expect(md).not.toContain("/day"); // no daily budget is told to the lead
   expect(md).toContain("older than 8 h is held");
   expect(md).not.toContain("## Events"); // the lead contract and skill own events

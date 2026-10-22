@@ -23,10 +23,9 @@ export interface ItemInput {
   location?: string | undefined;
   dependsOn: string[];
   risk: string;
-  deferredScope?: boolean | undefined;
 }
 
-/** The planner's envelope input (roles are derived, never asked). */
+/** The lead's envelope input (roles are derived, never asked). */
 export interface EnvelopeInput {
   locations: string[];
   riskClasses: string[];
@@ -43,10 +42,9 @@ export const toPlanItem = (i: ItemInput): PlanItem => ({
   ...(i.location && { location: i.location }),
   dependsOn: [...new Set(i.dependsOn)],
   risk: normalizeRisk(i.risk),
-  ...(i.deferredScope && { deferredScope: true }),
 });
 
-/** Build the envelope: the planner's limits + the roles the items use (derived) + the code-computed budget (`planBudgetUsd`) and delivery effects (deduped, sorted). */
+/** Build the envelope: the plan's limits + the roles the items use (derived) + the code-computed budget (`planBudgetUsd`) and delivery effects (deduped, sorted). */
 export function buildEnvelope(
   e: EnvelopeInput,
   items: readonly PlanItem[],

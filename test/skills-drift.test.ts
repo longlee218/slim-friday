@@ -3,7 +3,6 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as orchestrateNames from "../src/mcp/orchestration/tools/OrchestrateTool/action-names";
 import * as reportNames from "../src/mcp/orchestration/tools/ReportTool/action-names";
-import * as planNames from "../src/mcp/plan/tools/PlanTool/action-names";
 import { PUBLISHER_SKILLS_DIR } from "../src/runtime/skills-plugin/publisher-skills";
 
 /* Drift guards for the app-owned skills (`.agents/skills/<name>/references/*.md`): the refusal codes and the action
@@ -30,7 +29,6 @@ const actionsOf = (mod: Record<string, unknown>): string[] =>
 /** Skill folder -> the tool whose actions its `references/actions.md` documents. */
 const ACTION_TOOLS: Record<string, string[]> = {
   "lead-orchestration": actionsOf(orchestrateNames),
-  "plan-work": actionsOf(planNames),
   "worker-reporting": actionsOf(reportNames),
 };
 
@@ -75,5 +73,5 @@ test("every action heading in a skill's references/actions.md is a real action, 
     expect(headings).toEqual(known as string[]);
     seen.push(d);
   }
-  expect(seen).toEqual(expect.arrayContaining(["lead-orchestration", "plan-work"]));
+  expect(seen).toEqual(expect.arrayContaining(["lead-orchestration"]));
 });

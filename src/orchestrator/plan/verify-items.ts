@@ -7,7 +7,7 @@ import type { ItemRow } from "../../storage/owned-item-store";
 import { insertOwnedTask, taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { SCOPE_CHARS } from "../../tasks/task-resolver";
-import { FIX_KEY, isReservedKey, PLANNER_KEY, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
+import { FIX_KEY, isReservedKey, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
 
 /* Keys and item builders of the verify / fix items (the loop itself is in goal-verify.ts). */
 
@@ -43,12 +43,13 @@ export const isWriterRole = (role: RoleDefinition | undefined): boolean =>
   role.capabilities.includes("shell");
 
 /** True for an item that changes code in a location (a fix goes back to the same role and place): a writer role with a
-    location, never a reserved (planner / verify / fix) key. */
+    location, never a reserved (verify / fix) key. */
 export function isWriter(i: ItemRow): boolean {
   return (
     !!i.location &&
     isWriterRole(i.ownerRole ? findRole(i.ownerRole) : undefined) &&
-    !isReservedKey(i.itemKey ?? PLANNER_KEY)
+    !!i.itemKey &&
+    !isReservedKey(i.itemKey)
   );
 }
 

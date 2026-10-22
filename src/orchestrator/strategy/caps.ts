@@ -9,8 +9,6 @@ export interface GoalState {
   openGoalId?: string;
   /** Who owns the open goal's structure; absent = `lead`. */
   structureOwner?: StructureOwner;
-  /** Id of a wave goal the thread holds (cap hit or stalled, every item ended): a plan may start inside it again. */
-  waveHeldGoalId?: string;
   /** Items of that goal, creation order. */
   items: ItemRow[];
 }

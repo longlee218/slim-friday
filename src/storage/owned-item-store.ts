@@ -112,8 +112,8 @@ const OPEN_ITEM = "('pending', 'ready', 'running', 'waiting_user', 'blocked')";
 
 /**
  * Id of the thread's newest goal of `ownerRole` (a goal = a row without a parent) with status `open` and at least
- * one unfinished item (or no item yet), or a plan waiting for the owner created after `pendingPlansSince`, or a goal whose only items are planners and whose plan
- * was rejected or expired with no approved version (the lead re-plans in it).
+ * one unfinished item, or no item yet but created after `pendingPlansSince` (a PLAN goal whose plan waits for the owner or was rejected: the lead
+ * re-plans in it; older than the limit it is closed by the expiry sweep), or a plan waiting for the owner created after `pendingPlansSince`.
  */
 export function openGoalId(
   db: Database,
@@ -122,18 +122,32 @@ export function openGoalId(
   pendingPlansSince: number,
 ): string | undefined {
   return db
-    .query<{ id: string }, [string, string, number]>(
+    .query<{ id: string }, [string, string, number, number]>(
       `SELECT g.id FROM owned_tasks g
        WHERE g.thread_id = ? AND g.parent_id IS NULL AND g.owner_role = ? AND g.status = 'open'
-         AND (NOT EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id)
+         AND ((NOT EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id) AND g.created_at > ?)
               OR EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id AND i.status IN ${OPEN_ITEM})
               OR EXISTS (SELECT 1 FROM work_plans p WHERE p.goal_id = g.id AND p.status IN ('draft', 'valid') AND p.created_at > ?)
-              OR (NOT EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id AND i.item_key NOT LIKE 'planner%')
-                  AND EXISTS (SELECT 1 FROM work_plans r WHERE r.goal_id = g.id AND r.status = 'rejected')
-                  AND NOT EXISTS (SELECT 1 FROM work_plans a WHERE a.goal_id = g.id AND a.status = 'approved')))
+              )
        ORDER BY g.rowid DESC LIMIT 1`,
     )
-    .get(threadId, ownerRole, pendingPlansSince)?.id;
+    .get(threadId, ownerRole, pendingPlansSince, pendingPlansSince)?.id;
+}
+
+/** Open goals of `ownerRole` with no item that were created before `before`: a PLAN goal whose plan nobody approved or re-planned. */
+export function staleEmptyGoals(
+  db: Database,
+  ownerRole: string,
+  before: number,
+): { id: string; threadId: string }[] {
+  return db
+    .query<{ id: string; threadId: string }, [string, number]>(
+      `SELECT g.id, g.thread_id AS threadId FROM owned_tasks g
+       WHERE g.parent_id IS NULL AND g.owner_role = ? AND g.status = 'open' AND g.created_at <= ?
+         AND NOT EXISTS (SELECT 1 FROM owned_tasks i WHERE i.parent_id = g.id)
+         AND NOT EXISTS (SELECT 1 FROM work_plans p WHERE p.goal_id = g.id AND p.status IN ('draft', 'valid'))`,
+    )
+    .all(ownerRole, before);
 }
 
 /** Newest goal of the thread (any status) owned by `ownerRole`, or undefined. */

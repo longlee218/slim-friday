@@ -98,15 +98,6 @@ export type DispatchResult =
   | { ok: true; goalId: string; itemIds: string[] }
   | { ok: false; code: string; message: string };
 
-/** What `Orchestrate request_plan` writes: a planner item (in a new goal, or in the open goal `goalId`). */
-export interface PlanRequestWrite {
-  /** Idempotency key of the call (audit row id and event id prefix). */
-  key: string;
-  objective: string;
-  findings?: string | undefined;
-  goalId?: string | undefined;
-}
-
 /** What `Orchestrate revise_plan` writes: a new version of a plan of this thread. */
 export interface PlanReviseWrite {
   planId: string;
@@ -180,11 +171,6 @@ export interface EffectPort extends TaskPort {
    * thread's own open goal, else a coded BAD_TASK refusal (nothing written).
    */
   dispatch(d: DispatchWrite): DispatchResult;
-  /**
-   * Start a planner on a new goal (or in the thread's open goal): ONE transaction with the planner item, its `start`
-   * event and the audit row. A `goalId` that is not the thread's open goal is a coded BAD_TASK refusal.
-   */
-  requestPlan(w: PlanRequestWrite): DispatchResult;
   /**
    * Store a plan the lead wrote, in ONE transaction: the goal (new, or the thread's open goal) and the validated version;
    * a refusal (validator, duplicate, wrong goal) leaves nothing behind. The lead call records the audit row and event.

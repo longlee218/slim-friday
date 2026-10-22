@@ -12,7 +12,6 @@ import { toolDefinitions } from "./tool-definitions";
 /** Roles `prompt:show --all` covers, lead first. */
 export const PREVIEW_ROLES = [
   "lead",
-  "planner",
   "scout",
   "researcher",
   "developer",

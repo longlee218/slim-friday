@@ -1,4 +1,4 @@
-/* Caps of the orchestration resilience layer (watchdog today; auto-resume, check-in and waves add theirs here).
+/* Caps of the orchestration resilience layer (watchdog today; auto-resume and check-in add theirs here).
    Plain constants: no env, no behaviour. */
 
 /** A worker run with no sign of life for this long (ms) is aborted by the watchdog. Above the SDK's 10 min Bash cap. */

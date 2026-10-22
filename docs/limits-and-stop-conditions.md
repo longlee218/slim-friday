@@ -86,7 +86,6 @@ One row per role. All five fields are role data (constants at the top of each ro
 | Role | Model | maxTurns | budgetUsd | maxAsk | Subagents | parallel | depth |
 |---|---|---|---|---|---|---|---|
 | `lead` | Sonnet | 30 <!-- limit:role.lead.maxTurns=30 --> | $1.5 <!-- limit:role.lead.budgetUsd=1.5 --> | 0 <!-- limit:role.lead.maxAsk=0 --> | off | 3 <!-- limit:role.lead.subagents.parallel=3 --> | 1 <!-- limit:role.lead.subagents.depth=1 --> |
-| `planner` | Sonnet | 40 <!-- limit:role.planner.maxTurns=40 --> | $2 <!-- limit:role.planner.budgetUsd=2 --> | 0 <!-- limit:role.planner.maxAsk=0 --> | off | 3 <!-- limit:role.planner.subagents.parallel=3 --> | 1 <!-- limit:role.planner.subagents.depth=1 --> |
 | `scout` | Haiku | 40 <!-- limit:role.scout.maxTurns=40 --> | $1.5 <!-- limit:role.scout.budgetUsd=1.5 --> | 0 <!-- limit:role.scout.maxAsk=0 --> | off | 3 <!-- limit:role.scout.subagents.parallel=3 --> | 1 <!-- limit:role.scout.subagents.depth=1 --> |
 | `researcher` | Sonnet | 60 <!-- limit:role.researcher.maxTurns=60 --> | $4 <!-- limit:role.researcher.budgetUsd=4 --> | 0 <!-- limit:role.researcher.maxAsk=0 --> | off | 3 <!-- limit:role.researcher.subagents.parallel=3 --> | 1 <!-- limit:role.researcher.subagents.depth=1 --> |
 | `developer` | Sonnet | 150 <!-- limit:role.developer.maxTurns=150 --> | $8 <!-- limit:role.developer.budgetUsd=8 --> | 6 <!-- limit:role.developer.maxAsk=6 --> | on | 3 <!-- limit:role.developer.subagents.parallel=3 --> | 1 <!-- limit:role.developer.subagents.depth=1 --> |
@@ -103,7 +102,6 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 | Role | enabled |
 |---|---|
 | `lead` | 0 <!-- limit:role.lead.subagents.enabled=0 --> |
-| `planner` | 0 <!-- limit:role.planner.subagents.enabled=0 --> |
 | `scout` | 0 <!-- limit:role.scout.subagents.enabled=0 --> |
 | `researcher` | 0 <!-- limit:role.researcher.subagents.enabled=0 --> |
 | `developer` | 1 <!-- limit:role.developer.subagents.enabled=1 --> |
@@ -141,15 +139,12 @@ Subagents enabled per role (1 = on, 0 = off; drift-checked, guards "developer an
 | `PLAN_MAX_ITEMS` | goal | 20 <!-- limit:PLAN_MAX_ITEMS=20 --> | `config/lead-caps.ts` | validator refuses the plan | code |
 | `PLAN_MAX_CRITERIA` | goal | 5 <!-- limit:PLAN_MAX_CRITERIA=5 --> | `config/lead-caps.ts` | schema refuses a plan or revision with more acceptance criteria (they feed the verify run) | code |
 | `PLAN_MAX_REVISIONS` | goal | 5 <!-- limit:PLAN_MAX_REVISIONS=5 --> | `config/lead-caps.ts` | no further revision after version 1 | code |
-| `MAX_WAVES` | goal | 4 <!-- limit:MAX_WAVES=4 --> | `config/lead-caps.ts` | planner runs (`planner-N` keys) of one goal: EVERY planner counts (`Orchestrate request_plan`, a re-plan and a wave alike), but the cap stops AUTOMATIC waves only. A wave is due while the approved plan defers scope. At the cap with scope still deferred the goal is held (`failure` event, code `WAVE_CAP`), not settled. The lead may then call `Orchestrate request_plan(goalId)`: that planner is re-plan 5, 6, ... (its brief says so) and every re-plan needs the owner's `Orchestrate approve_plan`, so the owner is the limit there | code |
 | `PENDING_PLAN_MAX_AGE_MS` | goal | 24 h <!-- limit:PENDING_PLAN_MAX_AGE_MS=86400000 --> | `config/lead-caps.ts` | a `valid` plan no longer holds its goal open; the sweeper then rejects it (`timeout` event, code `PLAN_EXPIRED`) once `ASK_OWNER_TIMEOUT_MS` more passed (an owner question asked just before the limit can still be answered), and the goal settles (or closes when it never had a plan). Drafts are never kept, so only `valid` versions expire | code |
 | `BRIEF_MAX_CHARS` | item | 4000 chars <!-- limit:BRIEF_MAX_CHARS=4000 --> | `orchestrator/lead/lead-limits.ts` | schema rejects | code |
 | `SUBJECT_MAX_CHARS` | item | 80 chars <!-- limit:SUBJECT_MAX_CHARS=80 --> | `config/lead-caps.ts` | schema rejects (`subject` is required on every new item: dispatch assignment, `add`, plan item; `brief` stays the description) | code |
 
 - No plan body byte cap: the body is bounded by items x brief. Long approval text goes to the owner as an attachment.
-- The planner role limits are in [Roles](#roles). Code validates the plan; the owner approves it once as a whole.
-- Plan revision caps: a revision counts after version 1 only; the planner cannot go past `PLAN_MAX_REVISIONS`.
-- Rolling waves (R5): a goal larger than one plan marks its rest `deferredScope`; a plan version holds at most `PLAN_MAX_ITEMS` items counting the deferred ones, so a revision drops completed items from the version when it would be over the cap. When no item is live, every non-deferred plan item completed, no item failed, no plan version waits for the owner and fewer than `MAX_WAVES` planners ran, code inserts `planner-N` (key based: never twice). Its revision applies at once when the envelope did not grow and the code-computed budget did not rise (activating counted deferred items keeps it; an added item raises it below the ceiling); otherwise the owner approves it once as any plan. Waves share `PLAN_MAX_REVISIONS` with the owner's revisions: 4 waves use at most 3, leaving 2. Upper bound 4 x 20 = 80 items. The next planner starts only when the newest planner completed AND a plan version was approved after it started; otherwise the goal is `stalled` (planner cancelled or no revision, owner-rejected wave plan, wave plan unanswered past `PENDING_PLAN_MAX_AGE_MS`): no new planner, one `failure` event (code `WAVE_STALLED`), the lead decides (`Orchestrate request_plan(goalId)` re-plans the rest inside the goal, or `Orchestrate cancel` the goal). `/stop`, `Orchestrate cancel <goalId>` and a NEW goal in the thread close an idle wave goal (row `cancelled`), so its waves never restart. A revision keeps the approved version's roles in the envelope (a role only pruned items used is not a new role). A plan budget at or below what the goal already spent (planner included) is refused at validation and at approval (computed budgets add the spend on top, so this happens only at the ceiling or when the spend grew before approval). The verify item is added only by the approval that leaves nothing deferred.
+- Plan revision caps: a revision counts after version 1 only; the lead cannot go past `PLAN_MAX_REVISIONS`.
 
 ## Budgets
 

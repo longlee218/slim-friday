@@ -45,13 +45,13 @@ export const handleDispatch = (ctx: LeadToolContext, input: DispatchInput): Prom
     const check = checkDispatch(port.state(), input, caps, port.env());
     if (!check.ok) return { reply: refuse(check.code, check.message) };
     // A role that writes starts without a plan only for a change the lead declares small: the model's habit is to dispatch,
-    // so the default for a feature is the planner (`request_plan`).
+    // so the default for a feature is a plan (`create_plan`).
     const writer = input.assignments.find((a) => ROLES[a.role] && mayHaveWritten(ROLES[a.role]));
     if (writer && !input.small)
       return {
         reply: refuse(
           "PLAN_REQUIRED",
-          `Role ${writer.role} writes. A feature, redesign or any change with more than one part needs a plan: call Orchestrate request_plan (brainstorm first when the design is open). Repeat with small: true only for one fix or one edit in one file.`,
+          `Role ${writer.role} writes. A feature, redesign or any change with more than one part needs a plan: call Orchestrate create_plan (brainstorm first when the design is open). Repeat with small: true only for one fix or one edit in one file.`,
         ),
       };
     // Search before create: a similar open or recent task of the thread (the goal being replaced is not one) is a suspect.

@@ -4,7 +4,7 @@ import { SAVE_ARTIFACT_TOOL } from "./tools/SaveArtifactTool/constants";
 import { SEARCH_ARTIFACTS_TOOL } from "./tools/SearchArtifactsTool/constants";
 
 /**
- * The `artifacts` server tools every role with a channel scope lists (lead, scout, researcher, planner, developer, roster
+ * The `artifacts` server tools every role with a channel scope lists (lead, scout, researcher, developer, roster
  * specialists): list, read and search the channel's artifacts, and save one. Saving writes through code under AGENT_HOME,
  * so a read-only worker stays read-only on disk.
  */

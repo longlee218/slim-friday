@@ -14,8 +14,8 @@ import { createSlashHandler } from "../src/providers/discord/ingress/slash-inter
 import { listByGoal } from "../src/storage/artifact-store";
 import { recordBotThread } from "../src/storage/thread-store";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
+import { ENV, item, openPlanGoal, TH } from "./plan-fixture";
 import { createPlanHandlerFor, plannerCtxOf } from "./plan-visibility-helpers";
-import { ENV, item, TH } from "./waves-fixture";
 
 /* Phase 5 fix round: own-artifact rule, lost file, /plan goal choice, failure and language, in-force digest version, real `from`. */
 
@@ -44,7 +44,7 @@ function world(o: { key?: string; objective?: string; approve?: boolean } = {}) 
 }
 
 function goal(key: string, objective: string, approve = false) {
-  const w = createPlanPort(db, TH).requestPlan({ key, objective });
+  const w = openPlanGoal(db, TH, objective);
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -99,6 +99,9 @@ test("M3: /plan shows the open goal's plan over a newer plan of a closed goal, a
   expect(text.split("\n")[1]).toBe("Goal: open goal work");
   expect(goalId).not.toBe(closed.goalId);
   // No open goal: the newest plan of the thread.
+  db.query("UPDATE work_plans SET created_at = created_at + 1000 WHERE goal_id = ?").run(
+    closed.goalId,
+  );
   db.query("UPDATE owned_tasks SET status = 'completed' WHERE id = ?").run(goalId);
   const after = renderPlanFacts(createPlanLookup(deps)(TH, true), "en");
   expect(after).toContain("Goal: closed goal work");

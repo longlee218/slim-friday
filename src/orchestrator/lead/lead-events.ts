@@ -22,8 +22,8 @@ const NEWS: ReadonlySet<EventKind> = new Set([
   "timeout",
   "budget_hit",
   "slot_wait",
-  "plan_revised", // the planner changed the running plan (cancels, criteria): the lead hears of it
-  "items_added", // the app added verify / fix / wave-planner items to a PLAN goal (passive: see PASSIVE)
+  "plan_revised", // the plan changed while running (cancels, criteria): the lead hears of it
+  "items_added", // the app added verify / fix items to a PLAN goal (passive: see PASSIVE)
   "recovered_after_restart",
 ]);
 

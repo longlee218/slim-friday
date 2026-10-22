@@ -3,7 +3,6 @@ import { z } from "zod";
 import { defineAction } from "../src/mcp/action-tool/action-types";
 import { createActionTool } from "../src/mcp/action-tool/create-action-tool";
 import { REPORT_ACTIONS } from "../src/mcp/orchestration/tools/ReportTool/report-actions";
-import { PLAN_ACTIONS } from "../src/mcp/plan/tools/PlanTool/plan-actions";
 
 /* The shared action-tool helper: one table in, one `{ action, params }` MCP tool out. */
 
@@ -76,7 +75,7 @@ test("the description is the intro and one line per action with compact param ty
 });
 
 test("every action of the Plan and Report tables has a valid example for its own schema", () => {
-  for (const a of [...PLAN_ACTIONS, ...REPORT_ACTIONS])
+  for (const a of [...REPORT_ACTIONS])
     expect([a.name, a.schema.safeParse(a.example).success]).toEqual([a.name, true]);
 });
 

@@ -229,7 +229,7 @@ test("the guard allows exactly the artifact tools of the role's mcpTools", () =>
       ]);
     }
   }
-  for (const n of ["lead", "scout", "planner", "developer", "tester"])
+  for (const n of ["lead", "scout", "developer", "tester"])
     expect(ROLES[n]?.mcpTools).toEqual(expect.arrayContaining([...ARTIFACT_TOOLS]));
 });
 

@@ -1,10 +1,9 @@
-import { PLAN_MCP_SERVER } from "../src/mcp/mcp-tool-names";
 import { ORCHESTRATE_TOOL } from "../src/mcp/orchestration/tools/OrchestrateTool/constants";
 import { REPORT_TOOL } from "../src/mcp/orchestration/tools/ReportTool/constants";
 
 /*
  * Test probes over the `options` a fake `query` receives: which kind of run it is, told by the MCP tools its servers
- * hold (a lead holds Orchestrate, a worker Report result, a planner the `plan` server).
+ * hold (a lead holds Orchestrate, a worker Report result).
  */
 
 type Registered = Record<string, { handler: (a: unknown, e: unknown) => Promise<any> }>;
@@ -26,8 +25,5 @@ export const hasTool = (options: any, name: string): boolean => !!toolOf(options
 /** A lead run (holds the lead's Orchestrate). */
 export const isLeadRun = (options: any): boolean => hasTool(options, ORCHESTRATE_TOOL);
 
-/** A planner run (holds the `plan` server). */
-export const isPlannerRun = (options: any): boolean => !!options?.mcpServers?.[PLAN_MCP_SERVER];
-
-/** A dispatched worker run (holds Report result), planner included. */
+/** A dispatched worker run (holds Report result). */
 export const isWorkerRun = (options: any): boolean => hasTool(options, REPORT_TOOL);

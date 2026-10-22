@@ -4,15 +4,14 @@ import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
 import { handleAdd } from "../src/orchestrator/lead/lead-task-handlers";
-import { createPlanHandler, type PlannerCtx } from "../src/orchestrator/plan/planner-handlers";
-import { dispatchableWorkers } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { getItem } from "../src/storage/owned-item-store";
 import { insertOwnedTask } from "../src/storage/owned-task-store";
-import { item } from "./waves-fixture";
+import { item, openPlanGoal } from "./plan-fixture";
+import { createPlanFor, plannerCtxOf } from "./plan-visibility-helpers";
 
 /* Phase 4 rule 3 scope and the priority default, not covered by task-tools.test.ts: the duplicate check only looks at
-   the caller's own thread and, for Plan create, skips the planner's own goal; `add` without a priority stores 0. */
+   the caller's own thread and, for create_plan, skips the plan's own goal; `add` without a priority stores 0. */
 
 let db: Database;
 afterEach(() => {
@@ -60,11 +59,11 @@ test("rule 3 scope: similar open work of ANOTHER thread is not a duplicate", asy
   expect(await dispatchSame(b)).toMatchObject({ ok: true });
 });
 
-test("rule 3 scope: Plan create does not flag the planner's own goal's earlier items (a finished wave or version)", async () => {
+test("rule 3 scope: create_plan does not flag the plan goal's own earlier items", async () => {
   db = openDb(":memory:");
-  const w = createPlanPort(db, "th-p").requestPlan({ key: "k1", objective: "migrate" });
+  const w = openPlanGoal(db, "th-p", "migrate");
   if (!w.ok) throw new Error("no goal");
-  // An earlier wave of this very goal: an open item with the same words.
+  // An earlier item of this very goal: an open item with the same words.
   insertOwnedTask(db, {
     id: "wave-1",
     threadId: "th-p",
@@ -78,20 +77,10 @@ test("rule 3 scope: Plan create does not flag the planner's own goal's earlier i
     brief: SAME.brief,
     subject: SAME.subject,
   });
-  const ctx: PlannerCtx = {
-    db,
-    threadId: "th-p",
-    goalId: w.goalId,
-    workers: dispatchableWorkers(),
-    locations: [{ name: "repo", path: "/x" }],
-    channelDigest: () => "",
-  };
-  const r = createPlanHandler(ctx, {
-    goalId: w.goalId,
+  const r = createPlanFor(plannerCtxOf({ db }, w.goalId), {
     items: [item("p1", SAME)],
     acceptanceCriteria: ["works"],
     envelope: { locations: ["repo"], riskClasses: ["R0", "R1"], bounds: { maxItems: 8, maxGb: 1 } },
-    budgetUsd: 3,
     effects: [],
   } as never);
   expect(r).not.toMatchObject({ code: "DUPLICATE_SUSPECT" });

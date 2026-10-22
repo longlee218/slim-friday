@@ -14,7 +14,7 @@ import {
 /*
  * Shared text of the task-worker contracts (scout, researcher, developer and the six roster specialists), phase 2b of the
  * role upgrade. Two lines: the rest of how a run fits the team (inputs, hand-offs, failures, limits) is the preloaded
- * team skill. The planner, the lead and the discord-manager do not get this block (the planner has its own subset).
+ * team skill. The lead and the discord-manager do not get this block.
  */
 
 /** `{OWNER_CONTACT}` of roles with no owner contact (roster, scout, researcher). */

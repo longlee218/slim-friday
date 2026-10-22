@@ -1,11 +1,10 @@
 import type { Database } from "bun:sqlite";
 import {
+  ORCHESTRATE_ACTION_CREATE_PLAN,
   ORCHESTRATE_ACTION_LIST,
-  ORCHESTRATE_ACTION_REQUEST_PLAN,
+  ORCHESTRATE_ACTION_REVISE_PLAN,
   orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
-import { PLAN_ACTION_REVISE } from "../../mcp/plan/tools/PlanTool/action-names";
-import { PLAN_TOOL } from "../../mcp/plan/tools/PlanTool/constants";
 import { childrenOf } from "../../storage/owned-item-store";
 import { getOwnedTask } from "../../storage/owned-task-store";
 import {
@@ -32,7 +31,6 @@ import { type Fail, fail, invalid, type PlanEnv, validatorCtx } from "./plan-ref
 import {
   budgetSpentMessage,
   type DeliveryEffect,
-  PLANNER_KEY,
   type PlanDoc,
   type PlanError,
 } from "./plan-types";
@@ -63,9 +61,12 @@ export function createPlan(
     prior &&
     planVersions(db, prior).some((v) => v.status !== "rejected" && v.status !== "superseded")
   )
-    return fail("PLAN_EXISTS", `This goal has a plan: use ${PLAN_TOOL} ${PLAN_ACTION_REVISE}.`);
+    return fail(
+      "PLAN_EXISTS",
+      `This goal has a plan: call ${orchestrateRef(ORCHESTRATE_ACTION_REVISE_PLAN)}.`,
+    );
   const items = a.items.map(toPlanItem);
-  // The budget is computed by code from the items' role ceilings (the planner never sets it).
+  // The budget is computed by code from the items' role ceilings (the lead never sets it).
   const budgetUsd = planBudgetUsd({
     items,
     verifies: a.acceptanceCriteria.length > 0,
@@ -102,7 +103,7 @@ export function approvalBlocker(db: Database, row: WorkPlanRow): Fail | undefine
   if (getOwnedTask(db, row.goalId)?.status !== "open")
     return fail(
       "GOAL_CLOSED",
-      `Goal ${row.goalId} is no longer open: the plan cannot start. ${orchestrateRef(ORCHESTRATE_ACTION_LIST)}; then ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)} with the open goal's id, or without goalId for a fresh plan.`,
+      `Goal ${row.goalId} is no longer open: the plan cannot start. ${orchestrateRef(ORCHESTRATE_ACTION_LIST)}; then ${orchestrateRef(ORCHESTRATE_ACTION_CREATE_PLAN)} with the open goal's id, or without goalId for a fresh plan.`,
     );
   // The goal may have spent on since the plan was stored: a budget at or below the spend could never start an item.
   if (row.budgetUsd !== null && row.budgetUsd <= spentOf(db, row.goalId))
@@ -111,7 +112,7 @@ export function approvalBlocker(db: Database, row: WorkPlanRow): Fail | undefine
       budgetSpentMessage(
         row.budgetUsd,
         spentOf(db, row.goalId),
-        `Fix: ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)} with goalId ${row.goalId} so the plan fits, or tell the owner.`,
+        `Fix: ${orchestrateRef(ORCHESTRATE_ACTION_CREATE_PLAN)} with goalId ${row.goalId} so the plan fits, or tell the owner.`,
       ),
     );
   return undefined;
@@ -195,13 +196,8 @@ export function rejectVersion(
       );
     if (planVersions(db, planId).some((v) => v.status === "approved"))
       return { ok: true, abort: [] };
-    // The owner turned down the plan, not the goal or its other work (a DELEGATE item that reported NEEDS_PLANNING, or
-    // nothing at all): only the planner items end. The goal stays open so the lead can re-plan in it (decision 15).
-    const ids = childrenOf(db, row.goalId)
-      .filter((i) => i.itemKey?.startsWith(PLANNER_KEY))
-      .map((i) => i.id);
-    for (const id of ids) moveTaskTo(db, id, "cancelled");
-    return { ok: true, abort: ids };
+    // The owner turned down the plan, not the goal: it stays open so the lead can re-plan in it (until it is old, see plan-expiry).
+    return { ok: true, abort: [] };
   })();
   if (!out.ok) return out;
   abortRuns(out.abort);

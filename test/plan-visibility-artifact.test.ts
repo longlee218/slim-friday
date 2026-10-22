@@ -15,8 +15,8 @@ import { listByGoal } from "../src/storage/artifact-store";
 import { recordBotThread } from "../src/storage/thread-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { makeEnv, TEST_CHANNEL } from "./helpers";
+import { byKey, ENV, item, openPlanGoal, setStoredBudget, TH } from "./plan-fixture";
 import { createPlanHandlerFor, plannerCtxOf } from "./plan-visibility-helpers";
-import { byKey, ENV, item, setStoredBudget, TH } from "./waves-fixture";
 
 /* Phase 5 gap tests: the plan artifact's text and reuse, edge goals (no plan, 0 items, long brief), the version in force,
    the thread scope of the plan port, and the digest key that ignores the signed link. */
@@ -43,7 +43,7 @@ function world(
   const env = makeEnv();
   db = env.db;
   recordBotThread(db, TH, TEST_CHANNEL, "main", "x");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   const r = createPlan(db, {
     goalId: w.goalId,
@@ -85,10 +85,11 @@ test("a rejected version reads as rejected with its reason and no live item stat
   expect(text).not.toContain("not started");
 });
 
-test("a revision gives v2 its own artifact, v1 is rewritten as superseded, and a re-sync adds nothing", () => {
+test("a revision gives v2 its own artifact, v1 is rewritten as superseded once v2 is approved, and a re-sync adds nothing", () => {
   const { goalId, planId, deps } = world({ approve: true });
   syncPlanArtifacts(deps, TH, goalId);
   createPlanHandlerFor(plannerCtxOf({ db }, goalId), planId, { add: [item("z")] });
+  approveVersion(db, planId, 2); // the owner approves the revision
   const infos = syncPlanArtifacts(deps, TH, goalId);
   expect(infos.map((i) => i.version)).toEqual([1, 2]);
   expect(new Set(infos.map((i) => i.artifactId)).size).toBe(2);
@@ -147,7 +148,7 @@ test("a 0-item plan is refused at storage; the renderer still writes a head and 
   const env = makeEnv();
   db = env.db;
   recordBotThread(db, TH, TEST_CHANNEL, "main", "x");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   const goalId = w.goalId;
   const r = createPlan(db, {

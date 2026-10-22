@@ -6,7 +6,6 @@ import type {
   OwnerAnswer,
   OwnerQuestion,
   PlanDecision,
-  PlanRequestWrite,
   PlanReviseWrite,
   PlanView,
   PlanWriteResult,
@@ -83,15 +82,8 @@ export class FakePort implements EffectPort {
     this.memo.set(x.key, JSON.stringify({ ok: true, goalId, itemIds }));
     return { ok: true, goalId, itemIds };
   };
-  planRequests: PlanRequestWrite[] = [];
   plans = new Map<string, PlanView>();
   decisions: { planId: string; version: number; approve: boolean }[] = [];
-  requestPlan = (w: PlanRequestWrite): DispatchResult => {
-    if (w.goalId && w.goalId !== this.goalState.openGoalId)
-      return { ok: false, code: "BAD_TASK", message: "not this thread's goal" };
-    this.planRequests.push(w);
-    return { ok: true, goalId: w.goalId ?? "goal-p", itemIds: ["planner-item"] };
-  };
   planCreates: CreateLeadPlanInput[] = [];
   planRevisions: PlanReviseWrite[] = [];
   /** Test-set reply of the next `createPlan` / `revisePlan` (default: stored as version 1 of a goal). */

@@ -5,7 +5,6 @@ import { logEvent, logger } from "../../observability/logger";
 import { errText } from "../../observability/redact";
 import { ownerConfirm } from "../../owner-approval/owner-confirm";
 import type { DispatchEnvelope } from "../../policy/envelope";
-import { PLANNER_ROLE } from "../../roles/builtin/planner-role";
 import { dispatchableWorkers } from "../../roles/role-registry";
 import { channelDigest } from "../../storage/thread-store";
 import { type LeadRuntime, type LeadThreadCtx, postTo } from "../lead/lead-runtime";
@@ -45,8 +44,6 @@ export function workerAppCtx(
   const { db } = rt.deps;
   const { threadId, goalId, itemId } = s;
   const view = { db, home: rt.deps.config.agentHome, viewer: rt.deps.config.viewer };
-  // A planner reports through its result (its item is the plan request): no blocker action for it.
-  if (s.role === PLANNER_ROLE.name) s.sink.noBlocker = true;
   return () => ({
     reportSink: s.sink,
     scratchDir: s.envelope.goalDir,
@@ -57,29 +54,6 @@ export function workerAppCtx(
     }),
     // Report progress: recorded on this task's live run (percent, note, heartbeat).
     progress: (p) => setProgress(db, itemId, p),
-    // Plan tools: bound to the goal the planner plans for.
-    plan: {
-      db,
-      threadId,
-      goalId,
-      workers: dispatchableWorkers(),
-      locations: locationRefs(ctx),
-      // Every stored version becomes an artifact of the channel.
-      onVersion: () => void syncPlanArtifacts(view, threadId, goalId),
-      // An applied revision or a re-plan: one line "Plan vN → vM" + the viewer link (a failed post is only logged).
-      notify: (diff) => {
-        const url = planUrlOfGoal(view, threadId, goalId);
-        void postTo(ctx, renderUserNotice(revisionNotice(diff), s.language), {
-          links: planLinks(url),
-        }).catch((err: unknown) =>
-          logEvent(log, "plan.notice_failed", { threadId, err: errText(err) }, "warn"),
-        );
-      },
-      channelDigest: () =>
-        ctx.channelId && (ctx.channelMode ?? "task") === "task"
-          ? channelDigestBlock(channelDigest(db, ctx.channelId, threadId)).text
-          : "",
-    },
     // Effect tools: bound to the run's envelope.
     effects: {
       db,

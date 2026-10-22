@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 
-/* Reads and edits of goal items for the lead's `add` / `update` / `get` / `search` and the planner's `get` / `search`:
+/* Reads and edits of goal items for the lead's `add` / `update` / `get` / `search`:
    the not-started edit, the thread's items as search candidates, an item's newest events. SQL lives here only. */
 
 /** Rewrite an item the owner's plan edit changed, only while it has not started (`pending` / `ready`). */

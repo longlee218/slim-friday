@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, expect, test } from "bun:test";
-import { MAX_WAVES, PENDING_PLAN_MAX_AGE_MS } from "../src/config/lead-caps";
+import { PENDING_PLAN_MAX_AGE_MS } from "../src/config/lead-caps";
 import { renderUserNotice, type UserNotice } from "../src/ingress/user-copy";
 import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { ASK_OWNER_TIMEOUT_MS } from "../src/orchestrator/lead/lead-limits";
@@ -8,11 +8,8 @@ import { handleApprovePlan } from "../src/orchestrator/lead/lead-plan-handlers";
 import type { LeadRuntime } from "../src/orchestrator/lead/lead-runtime";
 import { approveVersion, createPlan, rejectVersion } from "../src/orchestrator/plan/plan-lifecycle";
 import { revisePlan } from "../src/orchestrator/plan/plan-revision";
-import { createPlanHandler, type PlannerCtx } from "../src/orchestrator/plan/planner-handlers";
-import { insertPlannerItem } from "../src/orchestrator/plan/planner-item";
 import { dispatchReady } from "../src/orchestrator/worker/dispatch-ready";
 import { sweepPendingPlans } from "../src/orchestrator/worker/plan-expiry";
-import { dispatchableWorkers } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { appendEffect } from "../src/storage/effect-log-store";
 import { setResultKind } from "../src/storage/owned-item-store";
@@ -21,7 +18,7 @@ import { listUndelivered } from "../src/storage/thread-event-store";
 import { planVersions } from "../src/storage/work-plan-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { FakePort, leadCtx } from "./lead-fake-port";
-import { approvedPlan, byKey, ENV, item, keysOf, TH } from "./waves-fixture";
+import { approvedPlan, byKey, ENV, item, keysOf, openPlanGoal, TH } from "./plan-fixture";
 
 /* Re-plan after a rejected or expired plan, owner-gated re-plans, released dependencies, owner copy (review of phase 2). */
 
@@ -43,18 +40,10 @@ const planArgs = (goalId: string, items: ReturnType<typeof item>[]) => ({
   effects: [],
   env: ENV,
 });
-const plannerCtx = (goalId: string): PlannerCtx => ({
-  db,
-  threadId: TH,
-  goalId,
-  workers: dispatchableWorkers(),
-  locations: [{ name: "repo", path: "/x" }],
-  channelDigest: () => "",
-});
-/** A fresh db with one open goal (planner item ready). */
+/** A fresh db with one open PLAN goal (no item yet). */
 function openGoal(): string {
   db = openDb(":memory:");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
+  const w = openPlanGoal(db, TH, "build it");
   if (!w.ok) throw new Error("no goal");
   return w.goalId;
 }
@@ -65,11 +54,6 @@ function validPlan(items = [item("p1")]) {
   if (!r.ok) throw new Error(r.message);
   return { goalId, plan: r.plan };
 }
-const finishPlanner = (goalId: string, key = "planner") => {
-  const p = byKey(db, goalId, key);
-  moveTaskTo(db, p.id, "running");
-  moveTaskTo(db, p.id, "completed");
-};
 function needsPlanning(goalId: string, key: string, hold = true) {
   const id = crypto.randomUUID();
   insertOwnedTask(db, {
@@ -92,11 +76,10 @@ function needsPlanning(goalId: string, key: string, hold = true) {
   return id;
 }
 
-test("H1: reject -> Orchestrate request_plan(goalId) -> Plan create -> valid -> Orchestrate approve_plan inside the same goal", async () => {
+test("H1: reject -> Orchestrate create_plan(goalId) -> valid -> Orchestrate approve_plan inside the same goal", async () => {
   const { goalId, plan } = validPlan();
   needsPlanning(goalId, "x"); // a DELEGATE goal: the goal stays open after the reject
-  finishPlanner(goalId);
-  const real = createPlanPort(db, TH);
+  const real = createPlanPort(db, TH, undefined, () => ENV);
   const port = new FakePort();
   port.plan = real.plan;
   port.decidePlan = real.decidePlan;
@@ -104,10 +87,14 @@ test("H1: reject -> Orchestrate request_plan(goalId) -> Plan create -> valid -> 
   const rej = await handleApprovePlan(leadCtx(port), { planId: plan.id, version: 1 });
   expect(rej).toMatchObject({ ok: true, status: "rejected" });
   expect(getOwnedTask(db, goalId)?.status).toBe("open");
-  const w = real.requestPlan({ key: "k2", objective: "again", goalId });
-  expect(w).toMatchObject({ ok: true, goalId });
-  const made = createPlanHandler(plannerCtx(goalId), {
-    ...planArgs(goalId, [item("q1")]),
+  const made = real.createPlan({
+    objective: "again",
+    goalId,
+    items: [item("q1")],
+    acceptanceCriteria: ["works"],
+    envelope: ENVELOPE,
+    effects: [],
+    confirmNew: true,
   });
   expect(made).toMatchObject({ ok: true, planId: plan.id, version: 2, status: "valid" });
   port.answer = { answer: "Approve plan", timedOut: false };
@@ -116,7 +103,7 @@ test("H1: reject -> Orchestrate request_plan(goalId) -> Plan create -> valid -> 
   expect(keysOf(db, goalId)).toContain("q1:ready");
 });
 
-test("H1: Plan create is still refused while a version is valid or approved", () => {
+test("H1: a plan is still refused while a version is valid or approved", () => {
   const { goalId } = validPlan();
   expect(createPlan(db, planArgs(goalId, [item("z")]))).toMatchObject({
     ok: false,
@@ -151,7 +138,7 @@ test("H1: a revision whose newest version was rejected bases on the newest appro
     env: ENV,
   });
   expect(stale).toMatchObject({ ok: false, code: "STALE_VERSION" });
-  // The planner read the newest version (2, rejected): it is accepted, the approved v1 is the base.
+  // The lead read the newest version (2, rejected): it is accepted, the approved v1 is the base.
   const v3 = revisePlan(db, {
     planId: a.planId,
     baseVersion: 2,
@@ -159,33 +146,13 @@ test("H1: a revision whose newest version was rejected bases on the newest appro
     reason: "again",
     env: ENV,
   });
-  expect(v3).toMatchObject({ ok: true, version: 3, status: "approved" });
+  expect(v3).toMatchObject({ ok: true, version: 3, status: "valid" });
   expect(planVersions(db, a.planId).map((v) => v.status)).toEqual([
-    "superseded",
-    "rejected",
     "approved",
+    "rejected",
+    "valid",
   ]);
-  expect(keysOf(db, a.goalId)).toContain("z:ready");
-});
-
-test("M1: a re-plan past MAX_WAVES says it is a re-plan approved by the owner", () => {
-  const { goalId } = validPlan();
-  for (let n = 1; n < MAX_WAVES; n++)
-    insertPlannerItem(db, {
-      goalId,
-      threadId: TH,
-      correlationId: goalId,
-      objective: "o",
-      brief: "b",
-      eventId: (k) => `extra:${k}`,
-      payload: {},
-    });
-  const w = createPlanPort(db, TH).requestPlan({ key: "k9", objective: "o", goalId });
-  expect(w.ok).toBe(true);
-  const brief = byKey(db, goalId, `planner-${MAX_WAVES + 1}`).brief ?? "";
-  expect(brief).toContain(`re-plan ${MAX_WAVES + 1}`);
-  expect(brief).toContain("owner");
-  expect(brief).not.toContain("of at most");
+  expect(keysOf(db, a.goalId)).not.toContain("z:ready"); // nothing starts before the owner approves v3
 });
 
 test("M2: a plan item that waits for a NEEDS_PLANNING item the approval will release is refused", () => {
@@ -204,7 +171,6 @@ test("M2 backstop: a dependency that became NEEDS_PLANNING after validation is r
   if (!r.ok) throw new Error(r.message);
   moveTaskTo(db, x, "blocked");
   setResultKind(db, x, "NEEDS_PLANNING");
-  finishPlanner(goalId);
   expect(approveVersion(db, r.plan.id, 1)).toMatchObject({ ok: true });
   expect(byKey(db, goalId, "p2").dependsOn).toEqual([]);
   const ev = listUndelivered(db, TH).find((e) => e.kind === "plan_revised");
@@ -214,7 +180,6 @@ test("M2 backstop: a dependency that became NEEDS_PLANNING after validation is r
 test("L3: releasing a NEEDS_PLANNING item with nothing waiting writes no plan_revised event", () => {
   const { goalId, plan } = validPlan();
   needsPlanning(goalId, "x");
-  finishPlanner(goalId);
   expect(approveVersion(db, plan.id, 1)).toMatchObject({ ok: true, cancelled: ["x"] });
   expect(listUndelivered(db, TH).some((e) => e.kind === "plan_revised")).toBe(false);
 });
@@ -300,7 +265,6 @@ test("B6 wiring: the dispatch pass cancels a pending item whose dependency ended
 
 test("pendingPlan: the open goal's valid plan until it is asked; approve_plan sends a short stem and a plan file name", async () => {
   const { goalId, plan } = validPlan();
-  finishPlanner(goalId);
   const real = createPlanPort(db, TH);
   expect(real.pendingPlan()).toEqual({ planId: plan.id, version: 1 });
   const port = new FakePort();
@@ -316,7 +280,6 @@ test("pendingPlan: the open goal's valid plan until it is asked; approve_plan se
 
 test("pendingPlan: none after the ask timed out (the lead may talk to the owner again)", async () => {
   const { goalId, plan } = validPlan();
-  finishPlanner(goalId);
   const real = createPlanPort(db, TH);
   const port = new FakePort();
   Object.assign(port, { plan: real.plan, decidePlan: real.decidePlan });

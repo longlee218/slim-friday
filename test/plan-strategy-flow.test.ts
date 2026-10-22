@@ -2,12 +2,9 @@ import { expect, test } from "bun:test";
 import { listUndelivered } from "../src/storage/thread-event-store";
 import { leadHarness, until } from "./lead-harness";
 
-/* End to end with a fake query: owner asks something big -> lead Orchestrate request_plan -> planner (Plan context, Plan create,
-   Plan validate, Report result) -> announce of plan-ready -> lead Orchestrate approve_plan -> ONE owner question -> the 3 items run one
-   after another -> announce of the result. The lead never plans: the plan comes only from the planner's tools. */
+/* End to end with a fake query: owner asks something big -> lead Orchestrate create_plan (it writes the plan itself) -> lead
+   Orchestrate approve_plan -> ONE owner question -> the 3 items run one after another -> announce of the result. */
 
-const GOAL = /Goal id: ([0-9a-f-]{36})/;
-const PLAN_ID = /"planId":"([0-9a-f-]{36})"/;
 const item = (key: string, dependsOn: string[] = []) => ({
   key,
   subject: `Do ${key}`,
@@ -18,20 +15,19 @@ const item = (key: string, dependsOn: string[] = []) => ({
   risk: "R1",
 });
 
-test("owner big ask -> Orchestrate request_plan -> planner plan -> one approval -> items run in order -> announce", async () => {
+test("owner big ask -> Orchestrate create_plan -> one approval -> items run in order -> announce", async () => {
   const questions: { question: string; options: string[] }[] = [];
   const order: string[] = [];
-  const leadTools: string[] = [];
   const h = leadHarness(
     async (c) => {
-      if (c.kind === "planner") {
-        const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        expect((await c.plan("context", { goalId })).request).toContain("todo app");
-        expect((await c.plan("capabilities", {})).roles.map((r: any) => r.name)).toContain(
-          "developer",
-        );
-        const made = await c.plan("create", {
-          goalId,
+      if (c.kind === "worker") {
+        order.push(/^do (\w+)/m.exec(c.prompt)?.[1] ?? "verify"); // the code-appended verify has no `do <key>` brief
+        await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
+        return "worker done";
+      }
+      if (c.prompt.includes("<owner_message>\nbuild a todo app")) {
+        const made = await c.orchestrate("create_plan", {
+          objective: "build a todo app",
           items: [item("model"), item("api", ["model"]), item("ui", ["api"])],
           acceptanceCriteria: ["the app runs"],
           envelope: {
@@ -39,38 +35,10 @@ test("owner big ask -> Orchestrate request_plan -> planner plan -> one approval 
             riskClasses: ["R0", "R1"],
             bounds: { maxItems: 8, maxGb: 1 },
           },
-          budgetUsd: 4,
           effects: [],
         });
         expect(made).toMatchObject({ ok: true, version: 1, status: "valid" });
-        expect((await c.plan("validate", { planId: made.planId, version: 1 })).valid).toBe(true);
-        await c.report("result", {
-          title: "T",
-          status: "COMPLETED",
-          summary: `plan ${made.planId} v1`,
-        });
-        return "planned";
-      }
-      if (c.kind === "worker") {
-        order.push(/^do (\w+)/m.exec(c.prompt)?.[1] ?? "verify"); // the code-appended verify has no `do <key>` brief
-        await c.report("result", { title: "T", status: "COMPLETED", summary: "done" });
-        return "worker done";
-      }
-      if (c.prompt.includes("<owner_message>\nbuild a todo app")) {
-        // The lead's only move is Orchestrate request_plan: it has no plan tool and a direct dispatch would be NEEDS_PLAN.
-        leadTools.push("Orchestrate request_plan");
-        expect(
-          await c.orchestrate("request_plan", {
-            objective: "build a todo app",
-            findings: "empty repo",
-          }),
-        ).toMatchObject({ ok: true });
-        return "Planning it.";
-      }
-      const plan = PLAN_ID.exec(c.prompt)?.[1];
-      if (plan && !leadTools.includes("Orchestrate approve_plan")) {
-        leadTools.push("Orchestrate approve_plan");
-        const r = await c.orchestrate("approve_plan", { planId: plan, version: 1 });
+        const r = await c.orchestrate("approve_plan", { planId: made.planId, version: 1 });
         expect(r).toMatchObject({ ok: true, status: "approved", items: ["model", "api", "ui"] });
         return "Plan approved, running.";
       }
@@ -86,23 +54,20 @@ test("owner big ask -> Orchestrate request_plan -> planner plan -> one approval 
   );
   await h.send("build a todo app");
   await until(() => h.posts.includes("All three steps are done."), 15000);
-  expect(h.posts[0]).toBe("Planning it.");
-  expect(h.posts).toContain("Plan approved, running.");
+  expect(h.posts[0]).toBe("Plan approved, running.");
   // One owner question for the whole plan, listing the steps and the limits.
   expect(questions).toHaveLength(1);
   expect(questions[0]!.question).toContain("1. model");
   expect(questions[0]!.question).toContain("3. ui");
   expect(questions[0]!.question).toContain("delivery: keep");
-  // Sequential, in dependency order; the planner ran once and never did the work.
+  // Sequential, in dependency order; no planner run exists.
   expect(order).toEqual(["model", "api", "ui", "verify"]); // verify last, after every item
-  expect(h.ofKind("planner")).toHaveLength(1);
   const rows = h.env.db
     .query(
       "SELECT item_key AS k, status FROM owned_tasks WHERE parent_id IS NOT NULL ORDER BY rowid",
     )
     .all();
   expect(rows).toEqual([
-    { k: "planner", status: "completed" },
     { k: "model", status: "completed" },
     { k: "api", status: "completed" },
     { k: "ui", status: "completed" },
@@ -120,10 +85,10 @@ test("owner big ask -> Orchestrate request_plan -> planner plan -> one approval 
 test("owner rejects the plan -> no item runs, the goal stays open for a re-plan, the lead says so", async () => {
   const h = leadHarness(
     async (c) => {
-      if (c.kind === "planner") {
-        const goalId = GOAL.exec(c.prompt)?.[1] as string;
-        const made = await c.plan("create", {
-          goalId,
+      if (c.kind === "worker") throw new Error("no item may run");
+      if (c.prompt.includes("<owner_message>\nbuild")) {
+        const made = await c.orchestrate("create_plan", {
+          objective: "build it",
           items: [item("only")],
           acceptanceCriteria: [],
           envelope: {
@@ -131,27 +96,11 @@ test("owner rejects the plan -> no item runs, the goal stays open for a re-plan,
             riskClasses: ["R1"],
             bounds: { maxItems: 2, maxGb: 1 },
           },
-          budgetUsd: 1,
           effects: [],
         });
-        await c.report("result", {
-          title: "T",
-          status: "COMPLETED",
-          summary: `plan ${made.planId}`,
-        });
-        return "planned";
-      }
-      if (c.kind === "worker") throw new Error("no item may run");
-      if (c.prompt.includes("<owner_message>\nbuild")) {
-        await c.orchestrate("request_plan", { objective: "build it" });
-        return "Planning.";
-      }
-      const plan = PLAN_ID.exec(c.prompt)?.[1];
-      if (plan) {
-        expect(await c.orchestrate("approve_plan", { planId: plan, version: 1 })).toMatchObject({
-          ok: true,
-          status: "rejected",
-        });
+        expect(
+          await c.orchestrate("approve_plan", { planId: made.planId, version: 1 }),
+        ).toMatchObject({ ok: true, status: "rejected" });
         return "Understood, plan dropped.";
       }
       return "";

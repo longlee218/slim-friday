@@ -6,20 +6,20 @@ import { join } from "node:path";
 import { CHAIN_CAP, DELEGATE_MAX } from "../src/config/lead-caps";
 import { createDbEffectPort } from "../src/orchestrator/goal/effect-port-db";
 import { handleDispatch } from "../src/orchestrator/lead/lead-handlers";
-import { handleRequestPlan } from "../src/orchestrator/lead/lead-plan-handlers";
+import { handleCreatePlan } from "../src/orchestrator/lead/lead-plan-handlers";
 import {
   handleAdd,
   handleGet,
   handleSearch,
   handleUpdate,
 } from "../src/orchestrator/lead/lead-task-handlers";
-import { createPlanHandler, type PlannerCtx } from "../src/orchestrator/plan/planner-handlers";
-import { dispatchableWorkers } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
 import { getItem, setTaskResult } from "../src/storage/owned-item-store";
+import { insertOwnedTask } from "../src/storage/owned-task-store";
 import { appendEvent } from "../src/storage/thread-event-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
-import { item, spend, TH } from "./waves-fixture";
+import { item, spend, TH } from "./plan-fixture";
+import { createPlanFor, plannerCtxOf } from "./plan-visibility-helpers";
 
 /* Phase 4 step 2A: the lead's add / update / get / search, the duplicate check (rule 3) on dispatch, add and Plan create. */
 
@@ -125,15 +125,20 @@ test("add: a task joins the open lead goal and starts ready; with a pending depe
   expect(audit).toContain("Orchestrate.add");
 });
 
-test("add: refused on a planner-owned goal (NOT_STRUCTURE_OWNER); a closed goal is GOAL_NOT_OPEN", async () => {
+test("add: refused on a plan-owned goal (NOT_STRUCTURE_OWNER); a closed goal is GOAL_NOT_OPEN", async () => {
   const { ctx, goalId } = await leadGoal();
-  expect(await handleRequestPlan(ctx(), { objective: "plan it", goalId })).toMatchObject({
-    ok: true,
-  });
+  // The lead goal is cancelled by a plan goal replacing it? No: a plan goal is opened apart, the lead goal closes first.
+  moveTaskTo(db, goalId, "cancelled");
+  expect(
+    await handleCreatePlan(
+      ctx(),
+      planArgs(undefined, [item("p1", { subject: "Plan one", brief: "plan one thing" })]),
+    ),
+  ).toMatchObject({ ok: true });
   expect(await handleAdd(ctx(), addArgs("docs"))).toMatchObject({
     ok: false,
     code: "NOT_STRUCTURE_OWNER",
-    message: expect.stringContaining("Orchestrate request_plan"),
+    message: expect.stringContaining("Orchestrate revise_plan"),
   });
   for (const r of db
     .query<{ id: string }, [string]>("SELECT id FROM owned_tasks WHERE thread_id = ?")
@@ -261,11 +266,27 @@ test("update: running and ended tasks are refused (ITEM_STARTED); a goal id and 
   });
 });
 
-test("update: refused on a planner-owned goal (NOT_STRUCTURE_OWNER)", async () => {
+test("update: refused on a plan-owned goal (NOT_STRUCTURE_OWNER)", async () => {
   const { ctx, goalId } = await leadGoal();
-  const docs = (await handleAdd(ctx(), addArgs("docs"))) as unknown as { itemId: string };
-  await handleRequestPlan(ctx(), { objective: "plan it", goalId });
-  expect(await handleUpdate(ctx(), { taskId: docs.itemId, subject: "new" })).toMatchObject({
+  moveTaskTo(db, goalId, "cancelled");
+  const made = (await handleCreatePlan(
+    ctx(),
+    planArgs(undefined, [item("p1", { subject: "Plan one", brief: "plan one thing" })]),
+  )) as unknown as { goalId: string };
+  insertOwnedTask(db, {
+    id: "plan-item",
+    threadId: TH,
+    ownerRole: "developer",
+    status: "pending",
+    scope: "plan one thing",
+    correlationId: made.goalId,
+    parentId: made.goalId,
+    itemKey: "p1",
+    dependsOn: [],
+    brief: "plan one thing",
+    subject: "Plan one",
+  });
+  expect(await handleUpdate(ctx(), { taskId: "plan-item", subject: "new" })).toMatchObject({
     code: "NOT_STRUCTURE_OWNER",
   });
 });
@@ -409,31 +430,23 @@ test("duplicate check: a dispatch beside a different open goal's similar task is
   );
 });
 
-const plannerCtx = (goalId: string): PlannerCtx => ({
-  db,
-  threadId: TH,
-  goalId,
-  workers: dispatchableWorkers(),
-  locations: [{ name: "repo", path: "/x" }],
-  channelDigest: () => "",
-});
 const planArgs = (
-  goalId: string,
+  goalId: string | undefined,
   items: ReturnType<typeof item>[],
   over: Record<string, unknown> = {},
 ) => ({
-  goalId,
+  objective: "plan it",
+  ...(goalId ? { goalId } : {}),
   items,
   acceptanceCriteria: ["works"],
   envelope: { locations: ["repo"], riskClasses: ["R0", "R1"], bounds: { maxItems: 8, maxGb: 1 } },
-  budgetUsd: 3,
   effects: [],
   ...over,
 });
 
-test("duplicate check: Plan create compares against OTHER goals only, never its own goal's earlier work", async () => {
+test("duplicate check: create_plan compares against OTHER goals only, never its own goal's earlier work", async () => {
   const s = setup();
-  // Goal A (lead): similar open work. Goal B (planner): a plan that repeats it.
+  // Goal A (lead): similar open work. Goal B (plan): a plan that repeats it.
   await handleDispatch(
     s.ctx(),
     dispatch({
@@ -450,17 +463,15 @@ test("duplicate check: Plan create compares against OTHER goals only, never its 
     .get()!.id;
   moveTaskTo(db, a, "cancelled"); // the first goal is replaced by the plan's goal in the thread
   db.query("UPDATE owned_tasks SET status = 'ready' WHERE item_key = 'm1'").run(); // but its task is still open work
-  const w = s.port.requestPlan({ key: "k-plan", objective: "migrate" });
-  if (!w.ok) throw new Error("no goal");
   const dupItem = item("p1", {
     subject: "Migrate the database",
     brief: "Migrate the users database to postgres",
   });
-  expect(createPlanHandler(plannerCtx(w.goalId), planArgs(w.goalId, [dupItem]))).toMatchObject({
+  expect(await handleCreatePlan(s.ctx(), planArgs(undefined, [dupItem]))).toMatchObject({
     ok: false,
     code: "DUPLICATE_SUSPECT",
   });
   expect(
-    createPlanHandler(plannerCtx(w.goalId), planArgs(w.goalId, [dupItem], { confirmNew: true })),
+    await handleCreatePlan(s.ctx(), planArgs(undefined, [dupItem], { confirmNew: true })),
   ).toMatchObject({ ok: true });
 });

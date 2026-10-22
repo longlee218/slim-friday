@@ -5,7 +5,6 @@ import { FIRECRAWL_SERVER } from "./firecrawl/server";
 import type { ExternalMcpServer, McpServerManifest } from "./manifest-types";
 import { MEMORY_SERVER } from "./memory/server";
 import { ORCHESTRATION_SERVER } from "./orchestration/server";
-import { PLAN_SERVER } from "./plan/server";
 import { PLAYWRIGHT_SERVER } from "./playwright/server";
 
 /**
@@ -16,7 +15,6 @@ export const ALL_SERVERS: readonly McpServerManifest[] = [
   MEMORY_SERVER,
   ARTIFACTS_SERVER,
   ORCHESTRATION_SERVER,
-  PLAN_SERVER,
   EFFECTS_SERVER,
   DISCORD_ADMIN_SERVER,
 ];

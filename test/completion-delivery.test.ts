@@ -14,6 +14,7 @@ import { openDb } from "../src/storage/db";
 import { appendEffect } from "../src/storage/effect-log-store";
 import { childrenOf } from "../src/storage/owned-item-store";
 import { getOwnedTask } from "../src/storage/owned-task-store";
+import { openPlanGoal } from "./plan-fixture";
 
 /* Delivery note: expected effects = the approved plan's `effects` list only, judged on the goal's LAST item only. */
 
@@ -26,7 +27,7 @@ const ENV = { workerRoles: ["developer"], locations: ["repo"] };
 /** A goal with a completed planner item and two plan items `a` -> `b` (pending); the plan is approved with `effects`. */
 function goalWithPlan(effects: DeliveryEffect[]) {
   db = openDb(":memory:");
-  const w = createPlanPort(db, "th").requestPlan({ key: "k1", objective: "o" });
+  const w = openPlanGoal(db, "th", "o");
   if (!w.ok) throw new Error("no goal");
   db.query("UPDATE owned_tasks SET status = 'completed' WHERE parent_id = ?").run(w.goalId);
   const mk = (key: string, dependsOn: string[]) =>

@@ -49,7 +49,6 @@ test("the app skills are locked under the friday source, so their qualified name
       "discord-server-manager",
       "docs-seeker",
       "lead-orchestration",
-      "plan-work",
       "scout",
     ]),
   );

@@ -9,7 +9,7 @@ import { handleAdd, handleUpdate } from "../src/orchestrator/lead/lead-task-hand
 import { ADD_ITEM_SHAPE } from "../src/orchestrator/lead/task-schemas";
 import { openDb } from "../src/storage/db";
 import { getItem } from "../src/storage/owned-item-store";
-import { TH } from "./waves-fixture";
+import { TH } from "./plan-fixture";
 
 /* Task rules 2, 4, 5, 6 of phase 4 (refusals and edges not covered by task-tools.test.ts): dead dependencies,
    the subject / priority / role params as BAD_PARAMS, and the idempotency key of a lead call. */

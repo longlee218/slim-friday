@@ -81,7 +81,7 @@ export function materialize(
   // Plan items that stopped waiting for a released item. Validation refuses such a dependency, so this is a safety net
   // (the item was running when the plan was stored, then reported NEEDS_PLANNING): it is told to the lead.
   const repointed: string[] = [];
-  for (const planned of topoOrder(o.doc.items.filter((i) => !i.deferredScope))) {
+  for (const planned of topoOrder(o.doc.items)) {
     const it = { ...planned, dependsOn: planned.dependsOn.filter((k) => !gone.has(k)) };
     if (it.dependsOn.length !== planned.dependsOn.length) repointed.push(it.key);
     const cur = have.get(it.key);
@@ -176,7 +176,6 @@ export function materialize(
   ensureVerify(db, {
     goalId: o.goalId,
     criteria: o.doc.acceptanceCriteria,
-    hasDeferred: o.doc.items.some((i) => i.deferredScope),
     created: out.created,
   });
   return out;

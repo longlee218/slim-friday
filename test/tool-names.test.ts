@@ -10,7 +10,6 @@ import {
   mcpServerPrefix,
   mcpToolName,
   ORCHESTRATION_MCP_SERVER,
-  PLAN_MCP_SERVER,
 } from "../src/mcp/mcp-tool-names";
 import * as sdk from "../src/tools/sdk-tool-names";
 import { ALL_TOOL_NAMES, FULL_CTX, toolsByServer } from "./mcp-ctx-fixture";
@@ -63,17 +62,15 @@ test("MCP server and tool names are the real wire names", () => {
   expect([
     MEMORY_MCP_SERVER,
     ORCHESTRATION_MCP_SERVER,
-    PLAN_MCP_SERVER,
     EFFECTS_MCP_SERVER,
     DISCORD_ADMIN_MCP_SERVER,
     ARTIFACTS_MCP_SERVER,
-  ]).toEqual(["memory", "orchestration", "plan", "effects", "discord-admin", "artifacts"]);
+  ]).toEqual(["memory", "orchestration", "effects", "discord-admin", "artifacts"]);
   // Every tool the app can build, by server, with all ctx parts present and a role that lists every tool.
   expect(toolsByServer(buildServers(ALL_ROLE, FULL_CTX))).toEqual({
     artifacts: ["ListArtifacts", "ReadArtifact", "SaveArtifact", "SearchArtifacts"],
     memory: ["MemoryEdit", "MemoryExpand", "MemoryGet", "MemorySave", "MemorySearch"],
     orchestration: ["Orchestrate", "Report"],
-    plan: ["Plan"],
     effects: ["CreatePullRequest", "DeletePaths", "GitPush", "MergeBranch"],
     "discord-admin": ["CreateSpaceOrChannel", "ListSpaces", "WriteSpaceFile"],
   });

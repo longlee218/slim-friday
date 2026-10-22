@@ -2,16 +2,15 @@ import type { Database } from "bun:sqlite";
 import { expect } from "bun:test";
 import { PLAN_MAX_ITEMS } from "../src/config/lead-caps";
 import { PLAN_GOAL_BUDGET_MAX_USD } from "../src/config/model-routing";
-import { createPlanPort } from "../src/orchestrator/goal/effect-port-plan";
 import { approveVersion, createPlan } from "../src/orchestrator/plan/plan-lifecycle";
 import { openDb } from "../src/storage/db";
 import { childrenOf, setResultKind, setTaskResult } from "../src/storage/owned-item-store";
-import { linkTurn } from "../src/storage/owned-task-store";
+import { insertOwnedTask, linkTurn } from "../src/storage/owned-task-store";
 import { insertRun } from "../src/storage/run-metrics-store";
 import { insertTurn } from "../src/storage/run-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 
-/* Shared setup of the rolling-wave, verify and goal-budget tests: a real db, an approved plan, item helpers. */
+/* Shared setup of the plan, verify and goal-budget tests: a real db, an approved plan, item helpers. */
 
 export const TH = "t";
 /** Validator facts: the roles and locations the plans use. */
@@ -30,15 +29,29 @@ export const item = (key: string, over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-/** A fresh db with one open PLAN goal whose planner item is done; returns the goal id. */
+/** An open PLAN goal (no item yet) in `db`: what `create_plan` makes before the plan is approved. */
+export function openPlanGoal(
+  db: Database,
+  threadId: string,
+  objective = "build it",
+): { ok: true; goalId: string } {
+  const goalId = crypto.randomUUID();
+  insertOwnedTask(db, {
+    id: goalId,
+    threadId,
+    ownerRole: "lead",
+    status: "open",
+    scope: objective,
+    correlationId: goalId,
+    structureOwner: "plan",
+  });
+  return { ok: true, goalId };
+}
+
+/** A fresh db with one open PLAN goal (no item yet); returns the goal id. */
 export function newGoal(): { db: Database; goalId: string } {
   const db = openDb(":memory:");
-  const w = createPlanPort(db, TH).requestPlan({ key: "k1", objective: "build it" });
-  if (!w.ok) throw new Error("no goal");
-  const planner = childrenOf(db, w.goalId)[0]!;
-  moveTaskTo(db, planner.id, "running");
-  moveTaskTo(db, planner.id, "completed");
-  return { db, goalId: w.goalId };
+  return { db, goalId: openPlanGoal(db, TH).goalId };
 }
 
 /**
@@ -58,8 +71,7 @@ export function setStoredBudget(
 
 /**
  * An approved plan v1 (items, criteria, budget, locations) on a fresh goal. `budget` pins the stored budget; the default is
- * the goal ceiling, so a revision that adds scope cannot raise it and applies at once (the wave and verify mechanics under
- * test); `null` keeps the budget code computed.
+ * the goal ceiling, so a revision that adds scope cannot raise it (the verify mechanics under test); `null` keeps the budget code computed.
  */
 export function approvedPlan(
   items: ReturnType<typeof item>[],

@@ -25,7 +25,7 @@ import { insertTurn } from "../src/storage/run-store";
 import { moveTaskTo } from "../src/tasks/task-resolver";
 import { TEST_CHANNEL } from "./helpers";
 import { type Call, leadHarness, until, workersDone } from "./lead-harness";
-import { approvedPlan, item as planItem } from "./waves-fixture";
+import { approvedPlan, item as planItem } from "./plan-fixture";
 
 /* Fixes of the Phase 1 final review (findings 1-8, F4 / F5 leftovers). */
 

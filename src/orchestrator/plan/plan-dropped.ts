@@ -7,7 +7,7 @@ import { isReservedKey } from "./plan-types";
 
 /**
  * Ids of the goal's cancelled items that plan mechanics cancelled: a key the newest approved plan does not hold (a
- * revision dropped it, or the plan replaced an item that reported NEEDS_PLANNING). Planner, verify and fix items are
+ * revision dropped it, or the plan replaced an item that reported NEEDS_PLANNING). Verify and fix items are
  * never counted, nor is an item a `cancel` event names (the lead or owner stopped that work: it counts). Such a cancel
  * is no failure of the plan: `settleGoal` leaves them out of the goal's outcome.
  */

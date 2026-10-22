@@ -4,8 +4,6 @@ import { taskStoreArtifacts } from "../../storage/artifact-list-store";
 import { getArtifact } from "../../storage/artifact-store";
 import { childrenOf, getItem, type ItemRow } from "../../storage/owned-item-store";
 import { appendEvent } from "../../storage/thread-event-store";
-import { planReadyOf } from "../plan/plan-ready";
-import { PLANNER_KEY } from "../plan/plan-types";
 import type { FailureVerdict } from "./failure-policy";
 import type { ReportSink } from "./report-sink";
 
@@ -108,8 +106,6 @@ export function emitEndEvent(
       ...(imageCount > 0 && { screenshotsPosted: imageCount }),
       ...(crashError && { error: clip(redactText(crashError), STEP_CHARS) }),
       ...(report && { summary: report.summary, requests: report.requests }),
-      // The planner ended with a plan waiting for the owner: the lead is told which one (plan-ready).
-      ...(it.itemKey?.startsWith(PLANNER_KEY) && { plan: planReadyOf(db, it.parentId ?? it.id) }),
     },
   });
 }

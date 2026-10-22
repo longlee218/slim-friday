@@ -11,7 +11,6 @@ import { appendEffect } from "../../storage/effect-log-store";
 import { insertOwnedTask } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
 import { SCOPE_CHARS } from "../../tasks/task-resolver";
-import { closeIdleGoals } from "../plan/plan-waves";
 import type { DispatchWrite } from "./effect-port";
 
 /**
@@ -27,7 +26,6 @@ export function createDispatchWriter(
   return (x) =>
     db.transaction(() => {
       const old = x.supersedes ? markCancelled(x.supersedes) : { all: [], moved: [] };
-      closeIdleGoals(db, threadId); // a new goal supersedes an old idle wave goal of the thread
       const goalId = crypto.randomUUID();
       const correlationId = correlationIdIn ?? goalId;
       insertOwnedTask(db, {

@@ -86,7 +86,7 @@ export function checkAdd(
   a: Omit<ItemDraft, "status">,
 ): { ok: true; item: ItemDraft } | ({ ok: false } & Refusal) {
   const fail = (r: Refusal) => ({ ok: false as const, ...r });
-  const notOwner = assertStructureOwner(f.owner, "lead");
+  const notOwner = assertStructureOwner(f.owner);
   if (notOwner) return fail(no(notOwner.code, notOwner.message));
   const who = checkWho(f.env, a.role, a.location);
   if (who) return fail(who);
@@ -95,16 +95,14 @@ export function checkAdd(
       no("DUPLICATE_KEY", `Key ${a.key} is already used in this goal: pick another key.`),
     );
   if (isReservedKey(a.key))
-    return fail(
-      no("RESERVED_KEY", "Keys planner*, verify-N and fix-N belong to the app: pick another key."),
-    );
+    return fail(no("RESERVED_KEY", "Keys verify-N and fix-N belong to the app: pick another key."));
   const deps = checkDeps(f, a.key, a.dependsOn);
   if (deps) return fail(deps);
   if (f.items.length + 1 > DELEGATE_MAX)
     return fail(
       no(
         "NEEDS_PLAN",
-        `A goal the lead builds holds up to ${DELEGATE_MAX} tasks: a bigger one needs a plan (call Orchestrate request_plan).`,
+        `A goal the lead builds holds up to ${DELEGATE_MAX} tasks: a bigger one needs a plan (call Orchestrate create_plan).`,
       ),
     );
   if (f.chainCount + 1 > CHAIN_CAP)
@@ -140,7 +138,7 @@ export function checkUpdate(
   e: UpdateEdit,
 ): { ok: true; status?: "pending" | "ready" } | ({ ok: false } & Refusal) {
   const fail = (r: Refusal) => ({ ok: false as const, ...r });
-  const notOwner = assertStructureOwner(f.owner, "lead");
+  const notOwner = assertStructureOwner(f.owner);
   if (notOwner) return fail(no(notOwner.code, notOwner.message));
   if (!NOT_STARTED.has(item.status))
     return fail(

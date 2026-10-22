@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import { ORCHESTRATE_ACTIONS } from "../src/mcp/orchestration/tools/OrchestrateTool/orchestrate-actions";
 import { createOrchestrateTool } from "../src/mcp/orchestration/tools/OrchestrateTool/orchestrate-tool";
 import { REPORT_ACTIONS } from "../src/mcp/orchestration/tools/ReportTool/report-actions";
-import { PLAN_ACTIONS } from "../src/mcp/plan/tools/PlanTool/plan-actions";
 
 /* Phase 4 spec, "Tools" table: each action tool holds exactly the actions the spec names, one table row each. */
 
@@ -22,19 +21,12 @@ test("Orchestrate (lead) holds the 17 spec actions, set_title included", () => {
       "cancel",
       "forward",
       "ask_owner",
-      "request_plan",
       "create_plan",
       "revise_plan",
       "approve_plan",
       "set_title",
       "register_location",
     ].sort(),
-  );
-});
-
-test("Plan (planner) holds the 8 spec actions", () => {
-  expect(names(PLAN_ACTIONS)).toEqual(
-    ["context", "capabilities", "create", "validate", "revise", "list", "get", "search"].sort(),
   );
 });
 

@@ -1,12 +1,15 @@
 import { PENDING_PLAN_MAX_AGE_MS } from "../../config/lead-caps";
 import {
-  ORCHESTRATE_ACTION_REQUEST_PLAN,
+  ORCHESTRATE_ACTION_CREATE_PLAN,
   orchestrateRef,
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { logEvent, logger } from "../../observability/logger";
+import { LEAD_ROLE } from "../../roles/builtin/lead-role";
+import { staleEmptyGoals } from "../../storage/owned-item-store";
 import { taskOrigin } from "../../storage/owned-task-store";
 import { appendEvent } from "../../storage/thread-event-store";
-import { expiredValidPlans } from "../../storage/work-plan-store";
+import { closePendingPlans, expiredValidPlans } from "../../storage/work-plan-store";
+import { moveTaskTo } from "../../tasks/task-resolver";
 import { ASK_OWNER_TIMEOUT_MS } from "../lead/lead-limits";
 import type { LeadRuntime } from "../lead/lead-runtime";
 import { rejectVersion } from "../plan/plan-lifecycle";
@@ -18,7 +21,8 @@ const log = logger.child({ module: "plan-expiry" });
 /* A plan nobody answered for `PENDING_PLAN_MAX_AGE_MS` (plus one owner-question timeout, so a question asked just before
    the limit can still be answered) stops holding its goal: the version is rejected (as the owner's
    "no": a goal that never had an approved plan or other work closes, any other goal goes on), the goal settles when all
-   its items ended, and one `timeout` event wakes the lead so it can tell the owner. */
+   its items ended, and one `timeout` event wakes the lead so it can tell the owner. A PLAN goal with no item and no plan
+   waiting (rejected, expired) that is older than twice the same limit (the lead had a day to re-plan after the expiry) is cancelled: nobody asked for a re-plan. */
 
 /** One sweep at `now`: expire every pending plan over the limit. Returns how many versions it expired. */
 export function sweepPendingPlans(rt: LeadRuntime, now = Date.now()): number {
@@ -37,12 +41,30 @@ export function sweepPendingPlans(rt: LeadRuntime, now = Date.now()): number {
         goalId: row.goalId,
         planId: row.id,
         version: row.version,
-        error: `The owner did not answer the plan in time: it was rejected. Tell the owner it lapsed and ask whether to plan again; if yes, ${orchestrateRef(ORCHESTRATE_ACTION_REQUEST_PLAN)} with this goalId.`,
+        error: `The owner did not answer the plan in time: it was rejected. Tell the owner it lapsed and ask whether to plan again; if yes, ${orchestrateRef(ORCHESTRATE_ACTION_CREATE_PLAN)} with this goalId.`,
       },
     });
     settleGoal(db, row.goalId);
     logEvent(log, "plan.expired", { planId: row.id, version: row.version }, "warn");
     rt.announce(goal.threadId);
+    expired++;
+  }
+  for (const g of staleEmptyGoals(db, LEAD_ROLE.name, now - 2 * PENDING_PLAN_MAX_AGE_MS)) {
+    closePendingPlans(db, g.id, "expired");
+    if (!moveTaskTo(db, g.id, "cancelled")) continue;
+    appendEvent(db, {
+      id: `plan_goal_closed:${g.id}`,
+      threadId: g.threadId,
+      taskId: g.id,
+      kind: "timeout",
+      payload: {
+        code: "PLAN_GOAL_CLOSED",
+        goalId: g.id,
+        error:
+          "A PLAN goal had no approved plan and no re-plan for a day: it was cancelled. Tell the owner if it matters.",
+      },
+    });
+    rt.announce(g.threadId);
     expired++;
   }
   return expired;

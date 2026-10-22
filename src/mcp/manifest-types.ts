@@ -7,7 +7,6 @@ import type {
 import type { ArtifactToolCtx } from "../artifacts/artifact-access";
 import type { MemoryToolContext } from "../memory/memory-tool-context";
 import type { LeadToolContext } from "../orchestrator/lead/lead-call";
-import type { PlannerCtx } from "../orchestrator/plan/planner-handlers";
 import type { ReportSink } from "../orchestrator/worker/report-sink";
 import type { EffectsCtx } from "../policy/effect-context";
 import type { ReadBudget } from "./memory/memory-read-shared";
@@ -27,8 +26,6 @@ export interface RunCtx {
   reportSink?: ReportSink;
   /** A worker's `Report` progress port, bound to its task (percent + note in, redacted and recorded by the callee). */
   progress?: (p: { percent: number; note: string }) => void;
-  /** Planner tools: the planner run bound to its goal. */
-  plan?: PlannerCtx;
   /** Effect tools: the worker run's envelope, locations and owner gate. */
   effects?: EffectsCtx;
   /** Discord admin tools: the control-channel run. */

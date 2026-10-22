@@ -69,7 +69,7 @@ export const goalSpent = (db: Database, items: ItemRow[]): number =>
     items.map((i) => i.id),
   );
 
-/** USD the goal's items (planner runs included) already cost. */
+/** USD the goal's items already cost. */
 export const spentOf = (db: Database, goalId: string): number =>
   goalSpent(db, childrenOf(db, goalId));
 

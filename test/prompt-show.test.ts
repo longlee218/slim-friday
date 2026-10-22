@@ -14,8 +14,8 @@ const home = makeDefaultHome();
 const show = (roles: string[], tools = false) =>
   renderPromptShow({ roles, agentHome: home, tools, skills: true, ctx: FULL_CTX });
 
-test("lead, planner and scout show every layer header and a totals table", () => {
-  const md = show(["lead", "planner", "scout"], true);
+test("lead and scout show every layer header and a totals table", () => {
+  const md = show(["lead", "scout"], true);
   for (const h of [
     "### role contract (promptSections)",
     "### COMMON safety",

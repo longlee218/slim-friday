@@ -6,7 +6,7 @@ import { childrenOf, type ItemRow, isHeld } from "../../storage/owned-item-store
 import { taskScope } from "../../storage/owned-task-store";
 import { moveTaskTo, SCOPE_CHARS } from "../../tasks/task-resolver";
 import { recordCodeItems } from "./plan-revised";
-import { FIX_KEY, PLANNER_KEY, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
+import { FIX_KEY, VERIFY_KEY, VERIFY_ROLE } from "./plan-types";
 import {
   insertItem,
   isVerifyKey,
@@ -22,8 +22,7 @@ import {
 const NOT_STARTED = new Set(["pending", "ready"]);
 
 /**
- * Append or refresh the goal's verify items. Only the LAST wave verifies: while the plan defers scope a not-started verify is
- * cancelled and none is added. Without criteria none at all. One verify item per location that has a writer item (no
+ * Append or refresh the goal's verify items. Without criteria none at all. One verify item per location that has a writer item (no
  * writer: one, in the last item's location), numbered in one sequence (`verify-1`, `verify-2`...), each waiting for every
  * live item of the goal. For the newest verify of a location:
  * - not started: rewritten in place (new dependencies, brief);
@@ -36,30 +35,18 @@ export function ensureVerify(
   a: {
     goalId: string;
     criteria: readonly string[];
-    hasDeferred: boolean;
     created: readonly string[];
   },
 ): void {
   const items = childrenOf(db, a.goalId);
-  if (a.hasDeferred) {
-    for (const v of items)
-      if (isVerifyKey(v.itemKey) && NOT_STARTED.has(v.status)) moveTaskTo(db, v.id, "cancelled");
-    return;
-  }
   if (!a.criteria.length) return;
-  // Everything a verify waits for: plan items and fix items that still count (never planner or verify items).
+  // Everything a verify waits for: plan items and fix items that still count (never verify items).
   const deps = items
-    .filter(
-      (i) =>
-        i.itemKey &&
-        !i.itemKey.startsWith(PLANNER_KEY) &&
-        !isVerifyKey(i.itemKey) &&
-        i.status !== "cancelled",
-    )
+    .filter((i) => i.itemKey && !isVerifyKey(i.itemKey) && i.status !== "cancelled")
     .map((i) => i.itemKey as string);
   if (!deps.some((k) => numberOf(k, FIX_KEY) === undefined)) return; // only fix items or none: nothing planned to verify
   const writerAt = [...new Set(items.filter(isWriter).map((i) => i.location as string))];
-  const lastAt = items.findLast((i) => i.location && !i.itemKey?.startsWith(PLANNER_KEY))?.location;
+  const lastAt = items.findLast((i) => i.location)?.location;
   const places: (string | null)[] = writerAt.length ? writerAt : [lastAt ?? null];
   const objective = taskScope(db, a.goalId) ?? "the goal";
   let next = nextNumber(items, VERIFY_KEY);
