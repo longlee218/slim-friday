@@ -54,12 +54,21 @@ function escalateHolds(rt: LeadRuntime, now: number): void {
   }
 }
 
+/** Discord API error code of a deleted (or never visible) channel or thread. */
+const UNKNOWN_CHANNEL = 10003;
+
+/** True when a post failed because Discord no longer knows the thread (`DiscordAPIError[10003]`). */
+const isUnknownChannel = (err: unknown): boolean =>
+  (err as { code?: unknown } | null)?.code === UNKNOWN_CHANNEL;
+
 /** Build the check-in: the returned function is called once per tick (`now` is injectable for tests). */
 export function createCheckIn(): (rt: LeadRuntime, now?: number) => Promise<void> {
   /** Per thread: when the last digest was tried and the hash of the facts it showed. */
   const state = new Map<string, { at: number; hash: string }>();
   /** Threads with a post in flight (a slow post must not start a second one). */
   const inflight = new Set<string>();
+  /** Threads Discord reports as deleted: never posted to again (until restart). */
+  const gone = new Set<string>();
 
   /** Post one thread's digest (state is updated here; never throws). */
   async function digestOne(rt: LeadRuntime, g: DigestGoal, now: number): Promise<void> {
@@ -70,7 +79,7 @@ export function createCheckIn(): (rt: LeadRuntime, now?: number) => Promise<void
       state.set(threadId, { at: now, hash: "" });
       return;
     }
-    if (inflight.has(threadId) || now - prev.at < DIGEST_FLOOR_MS) return;
+    if (gone.has(threadId) || inflight.has(threadId) || now - prev.at < DIGEST_FLOOR_MS) return;
     const facts = digestFacts(rt.deps.db, g.goalId, g.objective, now);
     const hash = factsKey(facts);
     if (prev?.hash === hash) return;
@@ -93,6 +102,12 @@ export function createCheckIn(): (rt: LeadRuntime, now?: number) => Promise<void
       await postTo(ctx, text, url ? { links: planLinks(url) } : undefined);
       state.set(threadId, { at: now, hash });
     } catch (err) {
+      // A deleted thread or channel: stop trying (its open goal stays for the owner to cancel).
+      if (isUnknownChannel(err)) {
+        gone.add(threadId);
+        logEvent(log, "digest.thread_gone", { threadId, goalId: g.goalId }, "warn");
+        return;
+      }
       // Keep the old hash: the digest is tried again after the floor (the thread may be archived).
       state.set(threadId, { at: now, hash: prev.hash });
       logEvent(log, "digest.post_failed", { threadId, err: errText(err) }, "warn");

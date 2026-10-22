@@ -67,12 +67,15 @@ const workspaceSchema = z.object({
 /**
  * Warn (not skip) when location paths of different workspaces are equal or nested. Called once at startup (index.ts),
  * not by `loadWorkspaces`: the registry is re-scanned on every message and the warning would repeat each time.
+ * A `$HOME` location contains every other one by design (the owner accepted it): its pairs are not warned.
  */
-export function warnOverlap(workspaces: Workspace[]): void {
+export function warnOverlap(workspaces: Workspace[], userHome = homedir()): void {
+  const home = real(userHome);
   const all = workspaces.flatMap((w) => w.locations.map((r) => ({ r, p: real(r.path) })));
   for (const [i, a] of all.entries()) {
     for (const b of all.slice(i + 1)) {
-      if (a.r.workspace === b.r.workspace || !(isInside(a.p, b.p) || isInside(b.p, a.p))) continue;
+      if (a.r.workspace === b.r.workspace || a.p === home || b.p === home) continue;
+      if (!(isInside(a.p, b.p) || isInside(b.p, a.p))) continue;
       const fields = { a: `${a.r.workspace}/${a.r.name}`, b: `${b.r.workspace}/${b.r.name}` };
       logEvent(logger.child({ module: "workspace-registry" }), "location.overlap", fields, "warn");
     }

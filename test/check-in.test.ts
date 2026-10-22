@@ -30,7 +30,7 @@ afterEach(() => {
 function rtOf(language: "vi" | "en" = "en") {
   const posts: string[] = [];
   const woken: string[] = [];
-  const calls = { query: 0, failPost: false };
+  const calls = { query: 0, failPost: false, gone: false };
   const rt = {
     deps: {
       db,
@@ -47,6 +47,7 @@ function rtOf(language: "vi" | "en" = "en") {
               language,
               notify: async (text: string) => {
                 if (calls.failPost) throw new Error("archived");
+                if (calls.gone) throw Object.assign(new Error("Unknown Channel"), { code: 10003 });
                 posts.push(text);
               },
             },
@@ -152,6 +153,18 @@ test("digest: held item is flagged; a failed post keeps state and retries after 
   await tick(rt, T0 + DIGEST_FLOOR_MS + 1);
   expect(posts).toHaveLength(1);
   expect(posts[0]).toContain("waiting for your call");
+});
+
+test("digest: a thread Discord reports deleted (10003) is never posted to again", async () => {
+  setup("blocked");
+  const { rt, posts, calls } = rtOf();
+  const tick = await primed(rt);
+  calls.gone = true;
+  await tick(rt, T0); // must not throw
+  calls.gone = false;
+  await tick(rt, T0 + DIGEST_FLOOR_MS + 1);
+  await tick(rt, T0 + 3 * DIGEST_FLOOR_MS);
+  expect(posts).toHaveLength(0);
 });
 
 test("digest: no live work (all items ended) posts nothing", async () => {

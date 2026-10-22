@@ -76,6 +76,24 @@ test("duplicate channel is logged by the scan; overlapping locations only by war
   });
 });
 
+test("warnOverlap: a $HOME location nesting other locations is not warned; two equal repos still are", () => {
+  const env = makeEnv();
+  rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
+  const fakeHome = fakeGit(join(outsideDir(), "home"));
+  const repo = fakeGit(join(fakeHome, "repo"));
+  addLocation(env.home, "h", {}, { workspace: "one", channels: [CH1], path: fakeHome });
+  addLocation(env.home, "r", {}, { workspace: "two", channels: [CH1], path: repo });
+  addLocation(env.home, "r2", {}, { workspace: "three", channels: [CH1], path: repo });
+  const { workspaces } = loadWorkspaces(env.home, join(outsideDir(), "other-home"));
+  const cap = captureLogs();
+  warnOverlap(workspaces, fakeHome);
+  cap.stop();
+  const pairs = cap.lines
+    .filter((l) => l.event === "location.overlap")
+    .map((l) => [l.a, l.b].sort());
+  expect(pairs).toEqual([["three/r2", "two/r"]]);
+});
+
 test("location path equal to $HOME env is skipped even when userHome differs", () => {
   const env = makeEnv();
   rmSync(workspacePaths(env.home).workspaces, { recursive: true, force: true });
