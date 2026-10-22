@@ -90,6 +90,9 @@ export class FakePort implements EffectPort {
     return { ok: true, goalId: w.goalId ?? "goal-p", itemIds: ["planner-item"] };
   };
   plan = (planId: string, version: number) => this.plans.get(`${planId}:${version}`);
+  /** Test-set plan version waiting for `approve_plan`. */
+  pending: { planId: string; version: number } | undefined;
+  pendingPlan = () => this.pending;
   decidePlan = (planId: string, version: number, approve: boolean): PlanDecision => {
     this.decisions.push({ planId, version, approve });
     return { ok: true, created: approve ? ["a", "b"] : [] };

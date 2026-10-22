@@ -214,7 +214,7 @@ describe("discord approval gateway", () => {
     expect(textOf(msg)).toContain("Plan: step.");
     expect(textOf(msg)).toContain("full text in the attached file");
     expect(msg.files).toHaveLength(1);
-    expect(msg.files[0].name).toBe("AskUserQuestion-detail.txt");
+    expect(msg.files[0].name).toBe("question.txt");
     const text = msg.files[0].attachment.toString();
     expect(text.length).toBeGreaterThan(3000); // the whole plan
     expect(text).not.toContain(FAKE_TOKEN); // redacted like every attachment

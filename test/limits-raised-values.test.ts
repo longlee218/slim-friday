@@ -6,7 +6,7 @@ import { TASK_BUDGET_USD } from "../src/config/model-routing";
 import { goalRoute } from "../src/orchestrator/budget/task-budget";
 import { BRIEF_MAX_CHARS, MAX_ASSIGNMENTS } from "../src/orchestrator/lead/lead-limits";
 import { buildEnvelope, toPlanItem } from "../src/orchestrator/plan/plan-doc";
-import { renderPlan } from "../src/orchestrator/plan/plan-render";
+import { renderPlan, renderPlanStem } from "../src/orchestrator/plan/plan-render";
 import { CREATE_PLAN_SHAPE, PROPOSE_REVISION_SHAPE } from "../src/orchestrator/plan/plan-schemas";
 import type { PlanDoc } from "../src/orchestrator/plan/plan-types";
 import { validatePlan } from "../src/orchestrator/plan/validate-plan";
@@ -125,6 +125,16 @@ test(`a ${PLAN_MAX_ITEMS}-item plan with ${BRIEF_MAX_CHARS}-char briefs validate
   const q = buildChoicePrompt(text, ["Approve plan", "Reject plan"], "en");
   expect(q.detail).toBe(text); // the full text goes as the attachment
   expect(q.text.length).toBeLessThan(SUMMARY_MAX); // the stem stays one short message above the buttons
+  // A caller's stem (the plan summary) replaces the clipped first lines; the attachment is still the full text.
+  const s = buildChoicePrompt(
+    text,
+    ["Approve plan", "Reject plan"],
+    "en",
+    renderPlanStem({ version: 1, objective: "big", doc }),
+  );
+  expect(s.text).toContain("Steps:");
+  expect(s.detail).toBe(text);
+  expect(s.text.length).toBeLessThan(SUMMARY_MAX);
 });
 
 test("revision cancel and modify take as many keys as a plan holds", () => {

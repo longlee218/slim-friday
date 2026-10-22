@@ -33,17 +33,16 @@ export function renderPlan(
     return `${n + 1}. ${it.key} "${it.subject}" [${it.role}${it.location ? ` @ ${it.location}` : ""}, risk ${it.risk}${it.deferredScope ? ", later" : ""}${live}]${it.dependsOn.length ? ` after ${it.dependsOn.join(", ")}` : ""}: ${it.brief}`;
   });
   const head = clip(p.objective.replace(/\s+/g, " "), HEAD_OBJECTIVE_CHARS);
+  // A long objective is shown once in full (the stored view keeps its clipped title line as well).
+  const long = p.objective.length > HEAD_OBJECTIVE_CHARS;
   return [
     ...(view
       ? [
           `# Plan v${p.version}: ${head}`,
           `Status: ${view.status}${view.reason ? `. Reason: ${view.reason}` : ""}`,
         ]
-      : [
-          `Plan v${p.version}: ${head}`,
-          "Full briefs are in the attachment when this text is long.",
-        ]),
-    ...(p.objective.length > HEAD_OBJECTIVE_CHARS ? [`Objective: ${p.objective}`] : []),
+      : [long ? `Plan v${p.version}` : `Plan v${p.version}: ${head}`]),
+    ...(long ? [`Objective: ${p.objective}`] : []),
     "Steps (run one after another):",
     ...rows,
     ...(doc.acceptanceCriteria.length
@@ -51,5 +50,21 @@ export function renderPlan(
       : []),
     `Limits: roles ${e.roles.join(", ") || "-"}; locations ${e.locations.join(", ") || "-"}; risk ${e.riskClasses.join(", ")}; at most ${e.bounds.maxItems} steps and ${e.bounds.maxGb} GB; budget $${e.budgetUsd}; delivery: ${e.effects.join(", ") || "keep"}.`,
     ...(view ? [] : ["Approving runs the whole plan inside these limits without asking again."]),
+  ].join("\n");
+}
+
+/**
+ * Short owner view of a plan for the approval card (the full `renderPlan` text goes in the attachment): the objective
+ * head, one line per step (subject and role) and the limits that matter for the decision.
+ */
+export function renderPlanStem(p: { version: number; objective: string; doc: PlanDoc }): string {
+  const e = p.doc.envelope;
+  return [
+    `Plan v${p.version}: ${clip(p.objective.replace(/\s+/g, " "), HEAD_OBJECTIVE_CHARS)}`,
+    "Steps:",
+    ...p.doc.items.map(
+      (it, n) => `${n + 1}. ${it.subject} [${it.role}${it.location ? ` @ ${it.location}` : ""}]`,
+    ),
+    `Budget $${e.budgetUsd}; risk ${e.riskClasses.join(", ")}; delivery: ${e.effects.join(", ") || "keep"}.`,
   ].join("\n");
 }

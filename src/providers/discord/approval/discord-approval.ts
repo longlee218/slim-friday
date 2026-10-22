@@ -22,7 +22,7 @@ import { askPayload, settledPayload } from "../ui/messages/ask-message";
 import { editMessage, sendMessage } from "../ui/send/reply-port";
 import { cancelPending, type Pending, toResult } from "./approval-buttons";
 import { handleApprovalInteraction } from "./approval-interaction";
-import { buildChoicePrompt, SUMMARY_MAX } from "./approval-text";
+import { buildChoicePrompt, CHOICE_FILE_NAME, SUMMARY_MAX } from "./approval-text";
 import type { AskOptions } from "./ask-options";
 
 /** Dependencies of the gateway. */
@@ -75,7 +75,7 @@ export function createDiscordApprovalGateway(
       const rows = o.rows(id);
       const content = clip(summary, SUMMARY_MAX);
       const file = o.detail
-        ? { name: `${o.tool}-detail.txt`, content: redactText(o.detail) }
+        ? { name: o.fileName ?? `${o.tool}-detail.txt`, content: redactText(o.detail) }
         : undefined;
       const msg = await sendMessage(channel, askPayload(content, rows, file));
       tryLog(log, "approval onMessage failed", () => o.onMessage?.(msg.id));
@@ -157,7 +157,7 @@ export function createDiscordApprovalGateway(
           )
         : a.options;
       const yesnoIntents: Intent[] = a.yesno ? ["approve", "reject"] : [];
-      const { layout, text, detail } = buildChoicePrompt(a.question, shown, language);
+      const { layout, text, detail } = buildChoicePrompt(a.question, shown, language, a.stem);
       const value = await ask({
         turnId: a.turnId,
         threadId: a.threadId,
@@ -165,6 +165,8 @@ export function createDiscordApprovalGateway(
         prefix: "choice",
         text,
         detail,
+        // The owner never sees an internal tool name: a question file is named by its content.
+        fileName: a.fileName ?? CHOICE_FILE_NAME,
         labels: shown,
         intents: yesnoIntents,
         rows: (id) => buildChoiceRows(id, shown, layout, language, yesnoIntents),

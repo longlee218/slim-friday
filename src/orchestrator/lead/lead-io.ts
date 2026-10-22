@@ -59,6 +59,8 @@ export function createLeadIo(
           question: q.question,
           options: q.options,
           yesno: q.yesno,
+          stem: q.stem,
+          fileName: q.fileName,
           // A question about a task: a Discord reply to this message answers that task (even after the buttons timed out).
           onMessage: (messageId) => {
             if (!q.taskId) return;

@@ -14,6 +14,7 @@ import { dispatchReady } from "../src/orchestrator/worker/dispatch-ready";
 import { sweepPendingPlans } from "../src/orchestrator/worker/plan-expiry";
 import { dispatchableWorkers } from "../src/roles/role-registry";
 import { openDb } from "../src/storage/db";
+import { appendEffect } from "../src/storage/effect-log-store";
 import { setResultKind } from "../src/storage/owned-item-store";
 import { getOwnedTask, insertOwnedTask } from "../src/storage/owned-task-store";
 import { listUndelivered } from "../src/storage/thread-event-store";
@@ -295,4 +296,42 @@ test("B6 wiring: the dispatch pass cancels a pending item whose dependency ended
   await dispatchReady(rt, TH);
   expect(byKey(db, a.goalId, "b").status).toBe("cancelled");
   expect(announced).toContain(TH);
+});
+
+test("pendingPlan: the open goal's valid plan until it is asked; approve_plan sends a short stem and a plan file name", async () => {
+  const { goalId, plan } = validPlan();
+  finishPlanner(goalId);
+  const real = createPlanPort(db, TH);
+  expect(real.pendingPlan()).toEqual({ planId: plan.id, version: 1 });
+  const port = new FakePort();
+  port.plan = real.plan;
+  port.decidePlan = real.decidePlan;
+  port.remember = () => {};
+  port.answer = { timedOut: true };
+  await handleApprovePlan(leadCtx(port), { planId: plan.id, version: 1 });
+  expect(port.asked[0]).toMatchObject({ fileName: "plan-v1.txt" });
+  expect(port.asked[0]?.stem).toContain("Steps:");
+  expect(port.asked[0]?.stem).not.toContain("do p1"); // briefs stay in the attachment
+});
+
+test("pendingPlan: none after the ask timed out (the lead may talk to the owner again)", async () => {
+  const { goalId, plan } = validPlan();
+  finishPlanner(goalId);
+  const real = createPlanPort(db, TH);
+  const port = new FakePort();
+  Object.assign(port, { plan: real.plan, decidePlan: real.decidePlan });
+  // The ask outcome row as the db port writes it (planAskSince reads it).
+  port.remember = (key, e) =>
+    appendEffect(db, {
+      id: key,
+      threadId: TH,
+      goalId,
+      tool: e.tool ?? "",
+      scope: e.scope ?? "",
+      grantedBy: "role",
+      result: e.reply,
+    });
+  port.answer = { timedOut: true };
+  await handleApprovePlan(leadCtx(port), { planId: plan.id, version: 1 });
+  expect(real.pendingPlan()).toBeUndefined();
 });

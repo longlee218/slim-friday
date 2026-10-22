@@ -46,6 +46,10 @@ export interface OwnerQuestion {
   options: string[];
   /** `yesno`: `options` are the canonical ["Yes", "No"]; the buttons are shown in the owner's language. */
   yesno?: boolean;
+  /** Short text shown on the card when `question` is too long for it (the full question is the attachment). */
+  stem?: string;
+  /** Name of that attachment; absent = a generic name. */
+  fileName?: string;
   taskId?: string;
   workerAskId?: string;
 }
@@ -160,6 +164,8 @@ export interface EffectPort extends TaskPort {
   requestPlan(w: PlanRequestWrite): DispatchResult;
   /** One plan version of this thread's goals, or undefined. */
   plan(planId: string, version: number): PlanView | undefined;
+  /** The open goal's newest plan version when it is `valid` and not asked yet (it waits for `approve_plan`), or undefined. */
+  pendingPlan(): { planId: string; version: number } | undefined;
   /** Record the owner's decision on a `valid` plan version: approve (items are created) or reject. */
   decidePlan(planId: string, version: number, approve: boolean, reason?: string): PlanDecision;
   /** Append an event to the thread outbox. Returns false when the id already existed. */

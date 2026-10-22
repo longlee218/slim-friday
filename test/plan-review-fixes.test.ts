@@ -105,8 +105,8 @@ test("H2: the rendered plan carries each brief, the objective and the criteria i
   expect(text).toContain(brief);
   expect(text).toContain(objective);
   expect(text).toContain("c".repeat(290));
-  expect(text.split("\n")[0]!.length).toBeLessThan(160); // the inline stem stays short
-  expect(text).toContain("Full briefs are in the attachment");
+  expect(text.split("\n")[0]).toBe("Plan v1"); // a long objective is not repeated in the head
+  expect(text.split(objective)).toHaveLength(2); // shown once, in full
 });
 
 test("M1/D2: /stop closes the pending plan; an approve answered after it creates nothing", async () => {

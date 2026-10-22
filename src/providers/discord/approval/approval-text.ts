@@ -8,9 +8,15 @@ export const SUMMARY_MAX = 1500;
 /** Chars of a long question kept inline as the stem above the buttons (the full text is the attachment). */
 const STEM_MAX = 300;
 
-/** Short stem of a long question: its first lines, cut, and a pointer to the attachment. */
-const questionStem = (q: string, language: OwnerLanguage): string =>
-  `${clip(q.trim(), STEM_MAX)}\n\n${renderUserNotice({ kind: "approval", state: "full-text" }, language)}`;
+/** Chars of a stem the caller wrote (a plan summary): room left for the attachment notice under SUMMARY_MAX. */
+const GIVEN_STEM_MAX = SUMMARY_MAX - 200;
+
+/** Attachment name of a long owner question. */
+export const CHOICE_FILE_NAME = "question.txt";
+
+/** Short stem of a long question: its first lines (or the caller's own stem), cut, and a pointer to the attachment. */
+const questionStem = (q: string, language: OwnerLanguage, max = STEM_MAX): string =>
+  `${clip(q.trim(), max)}\n\n${renderUserNotice({ kind: "approval", state: "full-text" }, language)}`;
 
 /**
  * Text, attachment and layout of an owner question.
@@ -21,6 +27,7 @@ export function buildChoicePrompt(
   question: string,
   options: string[],
   language: OwnerLanguage,
+  stem?: string,
 ): { layout: ReturnType<typeof choiceLayout>; text: string; detail?: string } {
   const layout = choiceLayout(options);
   const long = question.length > SUMMARY_MAX;
@@ -28,7 +35,11 @@ export function buildChoicePrompt(
   const detail = [long ? question : "", listed ? options.map((o) => `- ${o}`).join("\n") : ""]
     .filter(Boolean)
     .join("\n\n");
-  const base = long ? questionStem(question, language) : question;
+  const base = !long
+    ? question
+    : stem
+      ? questionStem(stem, language, GIVEN_STEM_MAX)
+      : questionStem(question, language);
   const text = listed
     ? `${base}\n\n${renderUserNotice({ kind: "approval", state: "options-in-file" }, language)}`
     : base;

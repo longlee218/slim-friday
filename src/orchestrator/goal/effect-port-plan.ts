@@ -12,7 +12,7 @@ import { LEAD_ROLE } from "../../roles/builtin/lead-role";
 import { appendEffect, planAskSince } from "../../storage/effect-log-store";
 import { insertOwnedTask, setStructureOwner, threadOfTask } from "../../storage/owned-task-store";
 import { lastOwnerMessageAt } from "../../storage/thread-event-store";
-import { getPlan } from "../../storage/work-plan-store";
+import { getPlan, latestPlan, planIdOfGoal } from "../../storage/work-plan-store";
 import { SCOPE_CHARS } from "../../tasks/task-resolver";
 import { docOfRow } from "../plan/plan-doc";
 import { approvalBlocker, approveVersion, rejectVersion } from "../plan/plan-lifecycle";
@@ -23,7 +23,7 @@ import { openGoalIdOf } from "./effect-port-queries";
 
 /* The plan methods of the db-backed EffectPort: start a planner, read a plan for the owner, record the owner's decision. */
 
-type PlanMethods = Pick<EffectPort, "requestPlan" | "plan" | "decidePlan">;
+type PlanMethods = Pick<EffectPort, "requestPlan" | "plan" | "pendingPlan" | "decidePlan">;
 
 /** What the planner is told about its place in the goal: the last automatic wave, or an owner-approved re-plan past the cap. */
 const capLines = (n: number): string[] =>
@@ -128,6 +128,15 @@ export function createPlanPort(
         doc: docOfRow(row),
         ...(blocker && { blocker: { code: blocker.code, message: blocker.message } }),
       };
+    },
+    pendingPlan: () => {
+      const goalId = openGoalIdOf(db, threadId);
+      const planId = goalId && planIdOfGoal(db, goalId);
+      const row = planId ? latestPlan(db, planId) : undefined;
+      if (!row || row.status !== "valid") return undefined;
+      // Asked already without a decision (timeout, typed answer, budget): the lead may talk to the owner freely again.
+      if (planAskSince(db, row.id, row.version, lastOwnerMessageAt(db, threadId))) return undefined;
+      return { planId: row.id, version: row.version };
     },
     decidePlan: (planId, version, approve, reason) => {
       const row = getPlan(db, planId, version);

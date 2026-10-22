@@ -1,4 +1,5 @@
 import {
+  ORCHESTRATE_ACTION_APPROVE_PLAN,
   ORCHESTRATE_ACTION_ASK_OWNER,
   ORCHESTRATE_ACTION_CANCEL,
   ORCHESTRATE_ACTION_DISPATCH,
@@ -176,6 +177,16 @@ export function askQuestion(input: AskOwnerInput): OwnerQuestion | string {
 export const handleAskOwner = (ctx: LeadToolContext, input: AskOwnerInput): Promise<Reply> =>
   leadCall(ctx, ORCHESTRATE_ACTION_ASK_OWNER, input, async () => {
     if (input.taskId && !ctx.port.item(input.taskId)) return { reply: badTask(input.taskId) };
+    // A plan waiting for the owner is asked once, by approve_plan: an ask_owner would make the owner approve it twice.
+    // A relayed worker question is still allowed.
+    const pending = input.workerAskId ? undefined : ctx.port.pendingPlan();
+    if (pending)
+      return {
+        reply: refuse(
+          "PLAN_PENDING",
+          `Plan v${pending.version} waits for the owner: call ${orchestrateRef(ORCHESTRATE_ACTION_APPROVE_PLAN)} with planId ${pending.planId} and version ${pending.version}. The owner sees the whole plan there; do not retell or ask about it.`,
+        ),
+      };
     const q = askQuestion(input);
     if (typeof q === "string") return { reply: refuse("BAD_OPTIONS", q) };
     const a = await ctx.port.askOwner(q);

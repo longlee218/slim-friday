@@ -7,7 +7,7 @@ import {
 } from "../../mcp/orchestration/tools/OrchestrateTool/action-names";
 import { clip, redactText } from "../../observability/redact";
 import { PLAN_ASK_TOOL } from "../../storage/effect-log-store";
-import { APPROVE_LABEL, REJECT_LABEL, renderPlan } from "../plan/plan-render";
+import { APPROVE_LABEL, REJECT_LABEL, renderPlan, renderPlanStem } from "../plan/plan-render";
 import type { ApprovePlanInput, RequestPlanInput } from "../plan/plan-schemas";
 import { type Reply, refuse } from "../reply";
 import { checkPlanRequest } from "../strategy/plan-policy";
@@ -96,8 +96,11 @@ export const handleApprovePlan = (ctx: LeadToolContext, input: ApprovePlanInput)
       if (plan.blocker.code === "BUDGET") remember("BUDGET");
       return { reply: refuse(plan.blocker.code, plan.blocker.message) };
     }
+    const shown = { version: plan.version, objective: plan.objective, doc: plan.doc };
     const a = await port.askOwner({
-      question: renderPlan({ version: plan.version, objective: plan.objective, doc: plan.doc }),
+      question: renderPlan(shown),
+      stem: renderPlanStem(shown),
+      fileName: `plan-v${plan.version}.txt`,
       options: [APPROVE_LABEL, REJECT_LABEL],
     });
     const event = (decision: string) => [

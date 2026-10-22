@@ -10,6 +10,8 @@ export interface AskOptions {
   prefix: "appr" | "choice";
   text: string;
   detail?: string;
+  /** Attachment name of `detail`; absent = `<tool>-detail.txt`. */
+  fileName?: string;
   /** Option labels in the order of their values (shown back to the owner once answered). */
   labels: string[];
   /** Intent of each option button in the same order (empty = all plain choices). */

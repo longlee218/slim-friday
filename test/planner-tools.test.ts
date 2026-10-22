@@ -302,9 +302,9 @@ test("renderPlan lists steps with dependencies, criteria and the limits", () => 
   expect(text).toContain('2. b "task" [developer, risk R1] after a:');
   expect(text).toContain("Done when:");
   expect(text).toContain("budget $3");
-  // The brief is carried in full (the worker receives it whole); the head says where the full text lives.
+  // The brief is carried in full (the worker receives it whole); the card stem is renderPlanStem.
   expect(text.split("\n").find((l) => l.startsWith("2. b"))).toContain("x".repeat(500));
-  expect(text).toContain("Full briefs are in the attachment");
+  expect(text).not.toContain("Full briefs are in the attachment");
 });
 
 test("the planner role loads only the app's plan-work skill (no publisher skill)", () => {

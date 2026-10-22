@@ -214,3 +214,19 @@ test("forward verbatim: one message per saved file, primary (result path) first,
   expect(port.posts).toEqual([{ filePath: "/full.md" }, { filePath: "/second.md" }]);
   expect(r).toMatchObject({ ok: true, files: 2 });
 });
+
+test("ask owner: a plan waiting for approve_plan refuses PLAN_PENDING; a relayed worker question still goes", async () => {
+  const port = new FakePort();
+  port.pending = { planId: "p1", version: 2 };
+  const q = { question: "Duyệt plan này chứ?", kind: "yesno" as const };
+  const r = await handleAskOwner(leadCtx(port), q);
+  expect(r).toMatchObject({ ok: false, code: "PLAN_PENDING" });
+  expect(JSON.stringify(r)).toContain("approve_plan");
+  expect(port.asked).toHaveLength(0);
+  expect(await handleAskOwner(leadCtx(port, "lt-w"), { ...q, workerAskId: "w1" })).toMatchObject({
+    ok: true,
+  });
+  port.pending = undefined;
+  expect(await handleAskOwner(leadCtx(port, "lt-n"), q)).toMatchObject({ ok: true });
+  expect(port.asked).toHaveLength(2);
+});

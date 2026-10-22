@@ -34,6 +34,10 @@ export interface ApprovalGateway {
     options: string[];
     /** Show the two options as the localized approve/deny labels; the result is still the option text. */
     yesno?: boolean;
+    /** Short card text when `question` is too long (the full question is attached). */
+    stem?: string;
+    /** Attachment name of a long question; absent = a generic name. */
+    fileName?: string;
     /** Called with the Discord id of the posted question (a reply to that message can then be routed to its task). */
     onMessage?: (messageId: string) => void;
   }): Promise<string | undefined>;
